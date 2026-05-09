@@ -2,9 +2,22 @@
 __pycache__/
 *.pyc
 .ruff_cache/
-logs/current_session.md
-logs/sessions/
+
+# runtime
+logs/
 backups/
 *.bak
-.streamlit/
+*.tmp
+chat/
+memory/pending_updates/
+
+# packaging
 /release/
+.streamlit/
+article_text_replacement_files*/
+visual_assets_pack*/
+
+# misc
+agent_core_roles_*.docx
+图片资料/
+visual_assets_preview*.jpg

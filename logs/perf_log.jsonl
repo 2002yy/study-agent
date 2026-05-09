@@ -1,1 +1,0 @@
-{"route_time": 0.0281282999785617, "memory_read_time": 4.469999112188816e-05, "context_build_time": 6.170000415295362e-05, "llm_first_token_time": 7.123825999908149, "llm_total_time": 8.427556799957529, "ui_render_time": 0.1183467999799177, "total_time": 8.4700152000878, "llm_calls": 1, "context_mode": "light", "performance_mode": "fast"}
