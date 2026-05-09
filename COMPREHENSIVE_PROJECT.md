@@ -1,7 +1,7 @@
 # Study Agent 项目全貌
 
 > 面向新协作者和无上下文接手者的当前阶段总览。  
-> 当前开发阶段：`v0.7.0`
+> 当前开发阶段：`v0.7.1`
 
 ## 1. 项目定义
 
@@ -45,7 +45,7 @@
 
 ### 文档
 
-1. `README_v0_7_0.md`: 当前版本说明
+1. `changelog/README_v0_7_1.md`: 当前版本说明
 2. `USER_GUIDE.md`: 当前使用指南
 3. `PROJECT_PLAN.md`: 当前阶段规划
 4. `FUTURE.md`: 下一阶段方向
@@ -76,7 +76,7 @@
 
 如果你要快速接手，推荐顺序：
 
-1. `README_v0_7_0.md`
+1. `changelog/README_v0_7_1.md`
 2. `USER_GUIDE.md`
 3. `PROJECT_PLAN.md`
 4. `src/wechat.py`

@@ -120,19 +120,26 @@ def _format_wechat_bubbles_cached(content: str) -> str:
 
 
 def _render_wechat_stream(target, content: str):
-    if content and any(name in content for name in ["【三月七】", "【刻晴】", "【纳西妲】", "【流萤】", "【用户】"]):
+    if content and any(
+        name in content
+        for name in ["【三月七】", "【刻晴】", "【纳西妲】", "【流萤】", "【用户】"]
+    ):
         target.markdown(_format_wechat_bubbles_cached(content), unsafe_allow_html=True)
         return
     if content:
         target.markdown(content)
         return
-    target.info("当前还没有新的群聊内容。只有当你点击按钮或发送消息时，才会触发群聊互动。")
+    target.info(
+        "当前还没有新的群聊内容。只有当你点击按钮或发送消息时，才会触发群聊互动。"
+    )
 
 
 def _render_wechat_tools(content: str):
     with st.expander("群聊工具", expanded=False):
         st.caption(f"当前可见消息数：{count_wechat_messages(content)}")
-        keyword = st.text_input("搜索群聊", key="wc_search", placeholder="输入关键词...")
+        keyword = st.text_input(
+            "搜索群聊", key="wc_search", placeholder="输入关键词..."
+        )
         if keyword:
             results = search_wechat(keyword)
             for item in results[:5]:
@@ -172,6 +179,7 @@ def _run_news_round(
             news_items,
             max_articles=5,
             max_chars_per_article=5000,
+            query_text=query_text,
         )
 
     if progress:
@@ -221,6 +229,7 @@ def _run_news_round_with_lock(
         )
     finally:
         st.session_state.wechat_search_running = False
+
 
 def _render_news_digest():
     digest = st.session_state.get("wechat_news_digest", "").strip()
@@ -298,7 +307,9 @@ def _render_citation_tools(content: str):
             st.caption("当前没有可引用的角色消息。")
             return
         cited_map = st.session_state.setdefault("wechat_cited_items", {})
-        st.caption("把你觉得有长期价值的群聊片段一键加入候选。已加入的条目会在这里直接标记出来。")
+        st.caption(
+            "把你觉得有长期价值的群聊片段一键加入候选。已加入的条目会在这里直接标记出来。"
+        )
         display_cols = st.columns(2)
         for idx, (speaker, msg) in enumerate(blocks):
             text = msg.strip()[:120]
@@ -314,7 +325,7 @@ def _render_citation_tools(content: str):
                 )
                 st.markdown(
                     f"""
-                    <div class="wechat-cite-card{' added' if already_cited else ''}">
+                    <div class="wechat-cite-card{" added" if already_cited else ""}">
                         <div class="wechat-cite-head">
                             <div class="wechat-cite-meta">[{safe_speaker}]</div>
                             <div class="wechat-cite-status">{status_badge}</div>
@@ -325,7 +336,12 @@ def _render_citation_tools(content: str):
                     unsafe_allow_html=True,
                 )
                 if already_cited:
-                    st.button("已加入", key=f"cite_done_{idx}", disabled=True, use_container_width=True)
+                    st.button(
+                        "已加入",
+                        key=f"cite_done_{idx}",
+                        disabled=True,
+                        use_container_width=True,
+                    )
                 elif st.button("加入候选", key=f"cite_{idx}", use_container_width=True):
                     candidates = append_manual_memory_candidate(speaker, text)
                     cited_map[cite_key] = {
@@ -393,7 +409,9 @@ def _render_opening_setup():
     choice = st.radio(
         "开场氛围",
         options=opening_options,
-        index=opening_options.index(st.session_state.get("wechat_opening_choice", "standard")),
+        index=opening_options.index(
+            st.session_state.get("wechat_opening_choice", "standard")
+        ),
         horizontal=True,
         format_func=lambda x: ATMOSPHERE_LABELS.get(x, x),
         key="wechat_opening_atmosphere_radio",
@@ -409,7 +427,9 @@ def _render_opening_setup():
 
     cols = st.columns(2)
     with cols[0]:
-        if st.button("生成群聊开场", key="generate_wechat_opening", use_container_width=True):
+        if st.button(
+            "生成群聊开场", key="generate_wechat_opening", use_container_width=True
+        ):
             _commit_interaction_mode(choice)
             with st.spinner("正在生成开场..."):
                 opening = generate_wechat_opening(
@@ -423,7 +443,9 @@ def _render_opening_setup():
             _queue_wechat_notice("群聊开场已生成。")
             _rerun_app()
     with cols[1]:
-        if st.button("聊最近新闻", key="news_round_from_opening", use_container_width=True):
+        if st.button(
+            "聊最近新闻", key="news_round_from_opening", use_container_width=True
+        ):
             status = st.empty()
             try:
                 _commit_interaction_mode(choice)
@@ -513,7 +535,9 @@ def render_wechat_panel():
             value=True,
             help="会更准，但可能变慢；部分网站可能无法读取正文。",
         )
-        submitted = st.form_submit_button("联网查并拉群聊讨论", use_container_width=True)
+        submitted = st.form_submit_button(
+            "联网查并拉群聊讨论", use_container_width=True
+        )
 
     if submitted:
         query = search_query.strip()

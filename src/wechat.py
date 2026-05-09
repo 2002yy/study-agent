@@ -774,18 +774,32 @@ def fetch_article_text(
     return text
 
 
-def _article_fetch_priority(item: dict) -> int:
+def _article_fetch_priority(item: dict, query_text: str = "") -> int:
     source = (item.get("source") or "").lower()
     title = (item.get("title") or "").lower()
     link = (item.get("resolved_link") or item.get("link") or "").lower()
+    published_at = (item.get("published_at") or "").lower()
 
     score = 100
 
-    if "news.google.com" in link:
+    transit_domains = ["news.google.com", "bing.com/news"]
+    if any(d in link for d in transit_domains):
         score += 60
 
-    if "openai" in source or "openai.com" in link:
-        score -= 70
+    official_domains = [
+        "openai.com",
+        "github.com",
+        "python.org",
+        "rust-lang.org",
+        "apple.com",
+        "microsoft.com",
+        "go.dev",
+        "react.dev",
+        "nextjs.org",
+        "arxiv.org",
+    ]
+    if any(d in link for d in official_domains):
+        score -= 15
 
     trusted_sources = [
         "infoq",
@@ -795,27 +809,24 @@ def _article_fetch_priority(item: dict) -> int:
         "sina",
         "新浪",
         "中国科技网",
+        "huggingface",
+        "medium.com",
+        "dev.to",
     ]
     if any(src.lower() in source or src.lower() in link for src in trusted_sources):
-        score -= 15
-
-    keywords = [
-        "语音",
-        "音频",
-        "实时",
-        "realtime",
-        "real-time",
-        "gpt-realtime",
-        "api",
-        "transcription",
-        "transcribe",
-        "translation",
-        "translate",
-        "voice",
-        "audio",
-    ]
-    if any(keyword in title for keyword in keywords):
         score -= 10
+
+    if query_text:
+        query_lower = query_text.lower()
+        query_words = [w for w in query_lower.split() if len(w) >= 2]
+        match_count = sum(1 for w in query_words if w in title)
+        score -= min(match_count * 8, 24)
+
+    if published_at:
+        import re
+
+        if re.search(r"202[4-6]", published_at):
+            score -= 5
 
     return score
 
@@ -824,12 +835,13 @@ def enrich_news_items_with_article_text(
     news_items: list[dict],
     max_articles: int = 5,
     max_chars_per_article: int = 5000,
+    query_text: str = "",
 ) -> list[dict]:
     enriched = [dict(item) for item in news_items]
 
     ranked_indices = sorted(
         range(len(enriched)),
-        key=lambda idx: (_article_fetch_priority(enriched[idx]), idx),
+        key=lambda idx: (_article_fetch_priority(enriched[idx], query_text), idx),
     )
     selected_indices = set(ranked_indices[:max_articles])
 

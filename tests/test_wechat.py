@@ -185,17 +185,39 @@ def test_article_fetch_priority_prefers_openai_official_voice_news():
             "title": "OpenAI 最新实时语音 API 更新",
             "source": "OpenAI",
             "resolved_link": "https://openai.com/index/realtime-audio",
-        }
+        },
+        query_text="OpenAI 语音 API",
     )
     high_score = _article_fetch_priority(
         {
             "title": "普通行业新闻",
             "source": "Some Blog",
             "resolved_link": "https://news.google.com/rss/articles/example",
-        }
+        },
     )
 
     assert low_score < high_score
+
+
+def test_article_fetch_priority_uses_generic_query_matching_for_non_openai_queries():
+    godot_match = _article_fetch_priority(
+        {
+            "title": "Godot 4.6 新功能介绍：渲染和脚本大更新",
+            "source": "Godot Blog",
+            "resolved_link": "https://godotengine.org/article/godot-4-6",
+        },
+        query_text="Godot 4.6 新功能",
+    )
+    godot_no_match = _article_fetch_priority(
+        {
+            "title": "Unity 6 发布路线图与定价说明",
+            "source": "Unity Blog",
+            "resolved_link": "https://unity.com/blog/unity6",
+        },
+        query_text="Godot 4.6 新功能",
+    )
+
+    assert godot_match < godot_no_match
 
 
 def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(

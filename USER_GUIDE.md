@@ -2,7 +2,7 @@
 
 ## 1. 当前阶段
 
-当前项目处于 `v0.7.0` 自用检查阶段，核心能力包括：
+当前项目处于 `v0.7.1` 自用检查阶段，核心能力包括：
 
 1. 单人学习对话
 2. 课后更新预览与确认写入
@@ -10,7 +10,7 @@
 4. 联网搜索与页面文本增强摘要
 5. 多源新闻聚合与来源追溯
 
-历史版本 `README_v0_x.md` 主要用于留档；日常使用请优先参考本文件和 [README_v0_7_0.md](C:/Users/96967/Desktop/study%20agent/README_v0_7_0.md)。
+历史版本 `README_v0_x.md` 主要用于留档；日常使用请优先参考本文件和 [changelog/README_v0_7_1.md](C:/Users/96967/Desktop/study%20agent/changelog/README_v0_7_1.md)。
 
 ## 2. 启动
 
@@ -26,14 +26,16 @@ streamlit run app.py
 
 ## 3. 基本配置
 
-`.env` 至少应包含：
+复制 `.env.example` 为 `.env`，按文件内注释填写。`.env.example` 是唯一准配置，本指南不重复列另一套。
+
+当前 `.env.example` 默认项示意：
 
 ```text
 OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.deepseek.com
-MODEL_FLASH_NAME=deepseek-chat
-MODEL_PRO_NAME=deepseek-chat
-DEFAULT_MODEL_PROFILE=flash
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+MODEL_FLASH_NAME=deepseek-v4-flash
+MODEL_PRO_NAME=deepseek-v4-pro
+DEFAULT_MODEL_PROFILE=pro
 ```
 
 常用建议：
@@ -175,7 +177,7 @@ python -m pytest -q
 
 当前仓库文档建议这样看：
 
-1. `README_v0_7_0.md`: 当前版本检查包说明
+1. `changelog/README_v0_7_1.md`: 当前版本检查包说明
 2. `USER_GUIDE.md`: 当前使用指南
 3. `PROJECT_PLAN.md`: 当前阶段规划与里程碑
 4. `FUTURE.md`: 下一阶段方向

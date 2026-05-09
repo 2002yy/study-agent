@@ -17,9 +17,9 @@ class RuntimeModes:
     route_mode: str = "auto_rule"
     debug_mode: bool = False
     safe_mode: bool = False
-    current_version: str = "v0.6.9"
-    active_task: str = ""
-    next_version: str = "v0.7.0"
+    current_version: str = "v0.7.1"
+    active_task: str = "微信群联网搜索质量收口、正文提取增强与来源展示压缩"
+    next_version: str = "v0.7.2"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False
@@ -173,7 +173,9 @@ def update_interaction_mode(mode: str) -> None:
     _write_keyvalue(INTERACTION_SETTINGS, "relationship_mode", mode)
 
 
-def update_wechat_join_state(user_has_joined: bool, first_reaction_done: bool, mode: str) -> None:
+def update_wechat_join_state(
+    user_has_joined: bool, first_reaction_done: bool, mode: str
+) -> None:
     if mode not in ("unread_feedback", "first_user_join", "interactive_group"):
         raise ValueError(f"Invalid wechat_mode: {mode}")
 

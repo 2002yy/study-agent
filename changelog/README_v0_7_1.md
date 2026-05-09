@@ -48,15 +48,19 @@
 - 缓存 TTL：`30` 分钟
 - 缓存上限：`32` 条
 
-### 2.3 正文读取候选不再只是前几条
+### 2.3 正文读取候选优先级泛化
 
-页面文本读取现在先按候选优先级排序，再挑前 `5` 条尝试：
+页面文本读取候选用 `_article_fetch_priority()` 排序，**不再写死 OpenAI / 语音 / audio 等专题关键词**，改为通用优先规则：
 
-- `OpenAI` 官方来源优先
-- 部分可信站点适度加权
-- 与“语音 / audio / realtime / API / transcription”相关标题加权
+| 规则 | 权重（越低越优先） |
+|---|---|
+| 中转链接（Google News / Bing News） | +60（大幅降权） |
+| 官方/一级域名（openai.com、github.com、python.org 等） | −15 |
+| 可信技术媒体（infoq、36kr、dev.to 等） | −10 |
+| 标题匹配 query 关键词 | −8/词（上限 −24） |
+| 近期文章（2024-2026） | −5 |
 
-这样就算官方条目排在后面，也更容易进入正文读取候选。
+同时 `enrich_news_items_with_article_text()` 和调用方加入了 `query_text` 透传，确保搜 `Godot 4.6` 时按“Godot/4.6”匹配，不会偏到音频关键词上。
 
 ### 2.4 来源块继续压缩
 
@@ -87,25 +91,61 @@
 - 多少条读到了页面文本
 - 多少条只能依赖标题、来源和时间
 
-当所有条目都没有页面文本时，摘要必须先说明“本轮主要基于标题和来源，只能做保守判断”，避免把标题推断写成确定事实。
+---
+
+### 2.6 版本身份统一
+
+`v0.7.1` 之前仓库存在三套版本号：包名 `v0.6.9`、计划文档 `v0.7.0`、memory 文档 `v0.7.1`，导致左侧栏“版本”与“当前阶段”不同步。
+
+本轮已将以下文件全部统一为 `v0.7.1`，并在 `memory/current_focus.md` 中登记了**版本同步文件清单**（13 个文件），后续改版本号时逐项对照即可：
+
+- `src/mode_manager.py`（current_version / next_version 默认值）
+- `memory/internal_state.md`
+- `memory/summary.md`
+- `memory/current_focus.md`
+- `memory/progress.md`
+- `memory/agent.md`
+- `PROJECT_PLAN.md`
+- `USER_GUIDE.md`
+- `COMPREHENSIVE_PROJECT.md`
+- `FUTURE.md`
+- `README_internal_modes.md`
+- `README.md`
+
+### 2.7 `.env.example` 与 `USER_GUIDE.md` 配置对齐
+
+此前 `.env.example` 和 `USER_GUIDE.md` 里的模型配置不一致：
+
+| 字段 | `.env.example`（旧） | `USER_GUIDE.md`（旧） |
+|---|---|---|
+| `OPENAI_BASE_URL` | `/v1` | *无 `/v1`* |
+| `MODEL_FLASH_NAME` | `deepseek-v4-flash` | `deepseek-chat` |
+| `MODEL_PRO_NAME` | `deepseek-v4-pro` | `deepseek-chat` |
+| `DEFAULT_MODEL_PROFILE` | `pro` | `flash` |
+
+现已统一为：
+
+```text
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+MODEL_FLASH_NAME=deepseek-v4-flash
+MODEL_PRO_NAME=deepseek-v4-pro
+DEFAULT_MODEL_PROFILE=pro
+```
+
+并明确 **`.env.example` 是唯一准配置**，`USER_GUIDE.md` 仅做镜像引用。
 
 ---
 
-## 3. 侧栏状态同步
+## 3. 侧栏与文档状态同步（已收口）
 
-左侧栏中的：
+左侧栏“版本 / 当前阶段”现在从 `mode_manager.py` 统一读取 `v0.7.1`，与以下文档一致：
 
-- `当前阶段`
-- `当前任务`
+- `memory/summary.md`
+- `memory/current_focus.md`（内含版本同步文件清单）
+- `memory/progress.md`
+- `memory/agent.md`
 
-现在应与以下文档保持一致：
-
-- [memory/summary.md](C:/Users/96967/Desktop/study%20agent/memory/summary.md)
-- [memory/current_focus.md](C:/Users/96967/Desktop/study%20agent/memory/current_focus.md)
-- [memory/progress.md](C:/Users/96967/Desktop/study%20agent/memory/progress.md)
-- [memory/agent.md](C:/Users/96967/Desktop/study%20agent/memory/agent.md)
-
-本次检查包已经把这些状态文本同步到 `v0.7.1` 语义。
+本次检查包已消除 `v0.6.9` / `v0.7.0` / `v0.7.1` 三套身份并存的问题。
 
 ---
 
