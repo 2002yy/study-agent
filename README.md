@@ -12,11 +12,11 @@ AI 学习搭子系统 —— 联网搜索 + 角色群聊 + 课后总结。
 
 ## 快速开始
 
-```powershell
-cd "C:\Users\96967\Desktop\study agent"
+```bash
+cd study-agent     # 进入项目目录
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+cp .env.example .env
 streamlit run app.py
 ```
 
