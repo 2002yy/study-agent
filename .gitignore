@@ -7,3 +7,4 @@ logs/sessions/
 backups/
 *.bak
 .streamlit/
+/release/
