@@ -9,9 +9,9 @@
 - entry_mode: wechat
 
 ## 当前阶段
-- current_version: v0.6.9
-- active_task: 微信群联网搜索质量收口、正文三层提取、来源块压缩与时间可信度补强
-- next_version: v0.7.0
+- current_version: v0.7.1
+- active_task: GitHub Release 整理、README 完善、prompt 乱码修复
+- next_version: v0.7.2
 
 ## 规则边界
 - 不自动污染长期记忆。
