@@ -1,0 +1,127 @@
+rules:
+  - name: mechanism
+    priority: 100
+    keywords:
+      - 为什么
+      - 本质
+      - 底层
+      - 机制
+      - 原理
+      - 从根上讲
+      - 概括
+      - 一句话总结
+    role: nahida
+    mode: 苏格拉底
+    model: pro
+    reason: 追问本质/底层机制 → 纳西妲用苏格拉底深度引导
+
+  - name: task
+    priority: 90
+    keywords:
+      - 怎么办
+      - 下一步
+      - 实现
+      - 修改
+      - 代码
+      - bug
+      - 报错
+      - 测试
+      - 方案
+      - 部署
+      - 配置
+    role: keqing
+    mode: 项目
+    model: pro
+    reason: 任务/实现/排错 → 刻晴用项目模式收束
+
+  - name: feynman
+    priority: 70
+    keywords:
+      - 我来讲
+      - 你听我解释
+      - 检查我理解
+      - 我复述
+      - 我的理解是
+      - 你听听看
+      - 我来解释
+      - 帮你检查
+      - 讲给你听
+      - 说给你听
+      - 我理解的是
+    role: nahida
+    mode: 费曼
+    model: pro
+    reason: 用户尝试复述 → 纳西妲用费曼模式找漏洞
+
+  - name: paper
+    priority: 80
+    keywords:
+      - 论文
+      - 摘要
+      - 降AI
+      - 章节
+      - 参考文献
+      - 表述
+      - 替换
+      - 论据
+      - 论点
+    role: keqing
+    mode: 论文
+    model: pro
+    reason: 论文/审读 → 刻晴用论文模式审视结构
+
+  - name: winddown
+    priority: 40
+    keywords:
+      - 累
+      - 复盘
+      - 收尾
+      - 今天到这
+      - 简单总结
+      - 陪我理一下
+      - 不想学了
+      - 休息
+    role: firefly
+    mode: 普通
+    model: flash
+    reason: 疲惫/收尾 → 流萤轻陪伴
+
+  - name: beginner
+    priority: 50
+    keywords:
+      - 入门
+      - 开始学
+      - 先问我
+      - 有趣点
+      - 别直接讲
+      - 新手
+      - 零基础
+    role: march7
+    mode: 苏格拉底
+    model: flash
+    reason: 入门/启动 → 三月七苏格拉底引导
+
+  - name: concept_map
+    priority: 60
+    keywords:
+      - 概念地图
+      - 关系图
+      - 知识结构
+      - 梳理概念
+      - 概念关系
+      - 区别是什么
+      - 对比一下
+      - 概念梳理
+      - 理清关系
+      - 概念的区别
+      - 这几个概念
+    role: nahida
+    mode: 概念地图
+    model: pro
+    reason: 概念梳理/结构整理 → 纳西妲用概念地图模式
+
+default:
+  role: nahida
+  mode: 普通
+  model: flash
+  reason: 无匹配规则，使用默认

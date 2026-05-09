@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.ruff_cache/
+logs/current_session.md
+logs/sessions/
+backups/
+*.bak
+.streamlit/

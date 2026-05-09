@@ -1,0 +1,150 @@
+import json
+from src.llm_client import chat
+
+SECTION_KEYS = [
+    "progress_update",
+    "learner_profile_update",
+    "current_focus_update",
+    "revision_notes_update",
+    "session_archive_update",
+    "role_updates",
+]
+
+SYSTEM_PROMPT = """你是一个学习系统的课后更新生成器。根据本轮对话，生成以下六部分更新建议。
+
+请严格输出一个 JSON 对象，格式如下：
+
+{
+  "progress_update": "本轮完成了什么；当前进度推进到哪里；下次从哪里继续",
+  "learner_profile_update": "本轮暴露的薄弱点；新发现的学习偏好；常见误区",
+  "current_focus_update": "当前最优先任务；暂缓任务；明确禁止乱动的边界",
+  "revision_notes_update": "哪些讲义/文档/代码需要补充；哪些地方以后要重讲",
+  "session_archive_update": "本轮关键结论；重要决策；可归档的旧信息",
+  "role_updates": {
+    "march7": "三月七对本轮用户表现的观察：是否有启动困难、哪个瞬间想通了、下次可以从什么有趣角度切入",
+    "keqing": "刻晴对本轮的观察：用户是否在次要问题上花太多时间、哪个目标需要压紧、下一步最优先",
+    "nahida": "纳西妲对本轮的观察：用户是否混淆了概念层级、可以用什么类比帮用户理清结构",
+    "firefly": "流萤对本轮的观察：用户是否有疲惫感、哪个卡住点其实已接近突破、下次收尾时可以说哪句话"
+  }
+
+规则：
+1. 必须是合法 JSON，不要输出 markdown 代码块标记
+2. 每个字段值是一个字符串，用分号分隔多个要点
+3. 如果某部分无更新内容，写"本轮无需更新"
+4. 不要重复对话原文，要提炼总结
+5. 不要记录敏感信息，不要过度推断用户状态"""
+
+
+def _parse_json(text: str) -> dict[str, str]:
+    # Strip markdown code fences if present
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines)
+
+    try:
+        data = json.loads(cleaned)
+        if not isinstance(data, dict):
+            raise ValueError("not a dict")
+    except Exception:
+        return {}
+
+    result = {}
+    for key in SECTION_KEYS:
+        result[key] = str(data.get(key, "（本轮无需更新）"))
+    return result
+
+
+def generate_after_session_updates(
+    session_messages: list[dict],
+    memory_bundle: dict[str, str],
+    role: str,
+    mode: str,
+    model_profile: str = "pro",
+) -> dict[str, str]:
+    empty_result = {k: "（无对话记录）" for k in SECTION_KEYS}
+
+    if not session_messages:
+        return empty_result
+
+    context_lines = [SYSTEM_PROMPT]
+
+    if memory_bundle:
+        for filename, label in [
+            ("progress.md", "当前进度"),
+            ("learner_profile.md", "学习者档案"),
+            ("current_focus.md", "当前焦点"),
+        ]:
+            content = memory_bundle.get(filename, "")
+            if content and not content.startswith("[文件不存在"):
+                context_lines.append(f"\n【参考：{label}】\n{content}")
+
+    context_lines.append("\n【本轮对话】")
+    for m in session_messages:
+        role_name = "用户" if m["role"] == "user" else "Agent"
+        context_lines.append(f"{role_name}: {m['content']}")
+
+    full_prompt = "\n".join(context_lines)
+
+    messages = [
+        {"role": "system", "content": full_prompt},
+        {
+            "role": "user",
+            "content": f"请为以上对话生成课后更新，输出 JSON。角色: {role}，模式: {mode}。",
+        },
+    ]
+
+    raw = chat(messages, temperature=0.3, model_profile=model_profile)
+    parsed = _parse_json(raw)
+
+    if not parsed:
+        return {
+            "progress_update": "（JSON 解析失败，需要人工检查）",
+            "learner_profile_update": "（JSON 解析失败，需要人工检查）",
+            "current_focus_update": "（JSON 解析失败，需要人工检查）",
+            "revision_notes_update": "（JSON 解析失败，需要人工检查）",
+            "session_archive_update": raw.strip()
+            if raw
+            else "（JSON 解析失败，需要人工检查）",
+        }
+
+    # Fill any missing keys
+    for key in SECTION_KEYS:
+        if key not in parsed:
+            parsed[key] = "（本轮无需更新）"
+
+    return parsed
+
+
+def apply_role_updates(role_updates: dict) -> list[str]:
+    """将角色观察写入 roles/*.md 的「对用户当前印象」区"""
+    from pathlib import Path
+    from src.safe_writer import safe_write_text
+
+    ROOT = Path(__file__).resolve().parent.parent
+    updated = []
+    for role_id, observation in role_updates.items():
+        if not observation or observation == "本轮无需更新":
+            continue
+        target = ROOT / "roles" / f"{role_id}.md"
+        if not target.is_file():
+            continue
+        content = target.read_text(encoding="utf-8")
+        marker = "### 对用户当前印象"
+        new_content = f"{marker}\n\n{observation}"
+        if marker in content:
+            # Replace existing impression
+            idx = content.index(marker)
+            end = content.find("\n### ", idx + len(marker))
+            if end == -1:
+                end = len(content)
+            content = content[:idx] + new_content + content[end:]
+        else:
+            content += "\n\n" + new_content
+        safe_write_text(target, content.strip() + "\n")
+        updated.append(role_id)
+    return updated
