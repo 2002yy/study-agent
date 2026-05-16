@@ -129,9 +129,11 @@ def test_parse_news_pub_date_includes_year_and_timestamp():
 
 
 def test_enrich_news_items_falls_back_when_article_unavailable(monkeypatch):
-    from src import wechat
+    from src.news import article_fetcher
 
-    monkeypatch.setattr(wechat, "fetch_article_text", lambda *args, **kwargs: "")
+    monkeypatch.setattr(
+        article_fetcher, "fetch_article_text_with_method", lambda *args, **kwargs: ("", "")
+    )
 
     items = [{"title": "测试新闻", "link": "https://example.com/a"}]
     enriched = enrich_news_items_with_article_text(items)
@@ -146,7 +148,7 @@ def test_resolve_news_link_returns_original_for_non_google_url():
 
 
 def test_resolve_news_link_uses_final_redirect_url(monkeypatch):
-    from src import wechat
+    from src.news import link_resolver
 
     class _FakeResponse:
         def __enter__(self):
@@ -158,7 +160,7 @@ def test_resolve_news_link_uses_final_redirect_url(monkeypatch):
         def geturl(self):
             return "https://publisher.example.com/article"
 
-    monkeypatch.setattr(wechat, "urlopen", lambda *args, **kwargs: _FakeResponse())
+    monkeypatch.setattr(link_resolver, "urlopen", lambda *args, **kwargs: _FakeResponse())
 
     resolved = resolve_news_link("https://news.google.com/rss/articles/abc")
     assert resolved == "https://publisher.example.com/article"
@@ -222,7 +224,7 @@ def test_article_fetch_priority_uses_generic_query_matching_for_non_openai_queri
 def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
     monkeypatch,
 ):
-    from src import wechat
+    from src.news import article_fetcher
 
     calls = []
 
@@ -230,7 +232,7 @@ def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
         calls.append(url)
         return f"text-for:{url}", "trafilatura"
 
-    monkeypatch.setattr(wechat, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
 
     items = [
         {
@@ -258,7 +260,7 @@ def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
 
 
 def test_enrich_news_items_prefers_resolved_link(monkeypatch):
-    from src import wechat
+    from src.news import article_fetcher
 
     calls = []
 
@@ -266,7 +268,7 @@ def test_enrich_news_items_prefers_resolved_link(monkeypatch):
         calls.append(url)
         return "resolved text", "readability"
 
-    monkeypatch.setattr(wechat, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
 
     items = [
         {
@@ -283,7 +285,7 @@ def test_enrich_news_items_prefers_resolved_link(monkeypatch):
 
 
 def test_enrich_news_items_marks_unresolved_google_link_without_fetch(monkeypatch):
-    from src import wechat
+    from src.news import article_fetcher
 
     calls = []
 
@@ -291,7 +293,7 @@ def test_enrich_news_items_marks_unresolved_google_link_without_fetch(monkeypatc
         calls.append(args[0] if args else "")
         return ""
 
-    monkeypatch.setattr(wechat, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
 
     items = [
         {
@@ -385,10 +387,10 @@ def test_dedupe_and_trim_news_items_prefers_newer_items():
 
 
 def test_dedupe_and_trim_news_items_prefers_recent_results(monkeypatch):
-    from src import wechat
+    from src.news import rss_fetcher
 
     now_ts = 200 * 86400
-    monkeypatch.setattr(wechat.time, "time", lambda: now_ts)
+    monkeypatch.setattr(rss_fetcher.time, "time", lambda: now_ts)
 
     items = [
         {
@@ -403,7 +405,7 @@ def test_dedupe_and_trim_news_items_prefers_recent_results(monkeypatch):
         },
     ]
 
-    deduped = wechat._dedupe_and_trim_news_items(
+    deduped = rss_fetcher._dedupe_and_trim_news_items(
         items,
         max_items=2,
         query_text="openai最新语音模型",
@@ -414,10 +416,10 @@ def test_dedupe_and_trim_news_items_prefers_recent_results(monkeypatch):
 
 
 def test_dedupe_and_trim_news_items_prefers_recent_window_before_backfill(monkeypatch):
-    from src import wechat
+    from src.news import rss_fetcher
 
     now_ts = 200 * 86400
-    monkeypatch.setattr(wechat.time, "time", lambda: now_ts)
+    monkeypatch.setattr(rss_fetcher.time, "time", lambda: now_ts)
 
     items = [
         {
@@ -442,7 +444,7 @@ def test_dedupe_and_trim_news_items_prefers_recent_window_before_backfill(monkey
         },
     ]
 
-    deduped = wechat._dedupe_and_trim_news_items(
+    deduped = rss_fetcher._dedupe_and_trim_news_items(
         items, max_items=3, query_text="测试最新新闻"
     )
 
@@ -456,10 +458,10 @@ def test_dedupe_and_trim_news_items_prefers_recent_window_before_backfill(monkey
 def test_dedupe_and_trim_news_items_excludes_old_backfill_when_recent_pool_is_enough(
     monkeypatch,
 ):
-    from src import wechat
+    from src.news import rss_fetcher
 
     now_ts = 200 * 86400
-    monkeypatch.setattr(wechat.time, "time", lambda: now_ts)
+    monkeypatch.setattr(rss_fetcher.time, "time", lambda: now_ts)
 
     items = [
         {
@@ -484,7 +486,7 @@ def test_dedupe_and_trim_news_items_excludes_old_backfill_when_recent_pool_is_en
         },
     ]
 
-    deduped = wechat._dedupe_and_trim_news_items(
+    deduped = rss_fetcher._dedupe_and_trim_news_items(
         items, max_items=2, query_text="测试最新新闻"
     )
 
@@ -495,10 +497,10 @@ def test_dedupe_and_trim_news_items_excludes_old_backfill_when_recent_pool_is_en
 
 
 def test_dedupe_and_trim_news_items_prefers_openai_official_source(monkeypatch):
-    from src import wechat
+    from src.news import rss_fetcher
 
     now_ts = 200 * 86400
-    monkeypatch.setattr(wechat.time, "time", lambda: now_ts)
+    monkeypatch.setattr(rss_fetcher.time, "time", lambda: now_ts)
 
     items = [
         {
@@ -515,7 +517,7 @@ def test_dedupe_and_trim_news_items_prefers_openai_official_source(monkeypatch):
         },
     ]
 
-    deduped = wechat._dedupe_and_trim_news_items(
+    deduped = rss_fetcher._dedupe_and_trim_news_items(
         items,
         max_items=2,
         query_text="openai最新语音模型",
@@ -527,10 +529,10 @@ def test_dedupe_and_trim_news_items_prefers_openai_official_source(monkeypatch):
 def test_dedupe_and_trim_news_items_prefers_direct_links_over_unresolved_google(
     monkeypatch,
 ):
-    from src import wechat
+    from src.news import rss_fetcher
 
     now_ts = 200 * 86400
-    monkeypatch.setattr(wechat.time, "time", lambda: now_ts)
+    monkeypatch.setattr(rss_fetcher.time, "time", lambda: now_ts)
 
     items = [
         {
@@ -547,7 +549,7 @@ def test_dedupe_and_trim_news_items_prefers_direct_links_over_unresolved_google(
         },
     ]
 
-    deduped = wechat._dedupe_and_trim_news_items(
+    deduped = rss_fetcher._dedupe_and_trim_news_items(
         items,
         max_items=2,
         query_text="openai最新语音模型",
@@ -557,7 +559,7 @@ def test_dedupe_and_trim_news_items_prefers_direct_links_over_unresolved_google(
 
 
 def test_fetch_query_news_items_merges_sources_and_dedupes(monkeypatch):
-    from src import wechat
+    from src.news import rss_fetcher
 
     feed_map = {
         "Google News": [
@@ -605,7 +607,7 @@ def test_fetch_query_news_items_merges_sources_and_dedupes(monkeypatch):
     ):
         return list(feed_map[source_fallback])
 
-    monkeypatch.setattr(wechat, "_fetch_rss_items_from_url", fake_fetch)
+    monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
 
     items = _fetch_query_news_items("OpenAI 最近进展", max_items=10)
 
@@ -616,22 +618,16 @@ def test_fetch_query_news_items_merges_sources_and_dedupes(monkeypatch):
 
 
 def test_news_digest_prompt_is_not_corrupted():
-    text = Path("src/wechat.py").read_text(encoding="utf-8")
+    text = Path("src/news/digest.py").read_text(encoding="utf-8")
     assert "????????" not in text
-    assert (
-        "\\u4f60\\u8981\\u57fa\\u4e8e\\u8054\\u7f51\\u641c\\u7d22\\u7ed3\\u679c\\u6574\\u7406"
-        in text
-    )
-    assert (
-        "\\u4e0d\\u8981\\u5047\\u88c5\\u8bfb\\u53d6\\u4e86\\u6ca1\\u6709\\u63d0\\u4f9b\\u7684\\u6b63\\u6587"
-        in text
-    )
+    assert "你要基于联网搜索结果整理一份" in text or "你要基于联网搜索结果整理一份" in text
+    assert "不要假装读取了没有提供的正文" in text or "不要假装读取了没有提供的正文" in text
 
 
 def test_resolve_news_link_called_only_after_dedup(monkeypatch):
     """Verify that resolve_news_link is called only for items that survive dedupe/trim,
     not during RSS parsing phase."""
-    from src import wechat
+    from src.news import rss_fetcher
 
     call_count = 0
 
@@ -640,7 +636,7 @@ def test_resolve_news_link_called_only_after_dedup(monkeypatch):
         call_count += 1
         return url if isinstance(url, str) and url.startswith("http") else url
 
-    monkeypatch.setattr(wechat, "resolve_news_link", counting_resolve)
+    monkeypatch.setattr(rss_fetcher, "resolve_news_link", counting_resolve)
 
     feed_map = {
         "Google News": [{"title": "News A", "link": "https://a.example.com", "_sort_ts": 10.0, "source": "Google News"}],
@@ -651,9 +647,9 @@ def test_resolve_news_link_called_only_after_dedup(monkeypatch):
     def fake_fetch(feed_url, max_items=10, source_fallback="News Source", query_text=""):
         return list(feed_map[source_fallback])
 
-    monkeypatch.setattr(wechat, "_fetch_rss_items_from_url", fake_fetch)
+    monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
 
-    items = wechat.fetch_news_items("latest news", max_items=3)
+    items = rss_fetcher.fetch_news_items("latest news", max_items=3)
 
     assert call_count <= 3, f"Expected at most 3 resolve calls, got {call_count}"
     assert len(items) == 3
