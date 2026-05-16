@@ -131,7 +131,6 @@ streamlit run app.py
 ├── tests/
 │   ├── test_wechat.py              # 微信/新闻搜索测试
 │   ├── test_wechat_article_extract.py # 文章提取测试
-│   ├── test_streaming.py           # 流式测试
 │   ├── test_after_session.py       # 课后总结测试
 │   ├── test_v03_accept.py          # 验收测试
 │   └── test_packaging_guards.py    # 打包校验测试
@@ -196,7 +195,13 @@ streamlit run app.py
 - **v0.7.3** — 服务层拆分与工程化收口：Wechat news round 下沉到 `src/wechat_service.py`、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 参数扩展、YAML runtime state 真源化。详见 `changelog/README_v0_7_3.md`。
 - **v0.7.4** — 工程体验收口：自动化版本 bump 工具、LLM 配置文档化（`.env.example` 5 个 provider）、NewsRoundResult 结果对象化（覆盖率/警告/耗时）、UI 来源可信度展示。详见 `changelog/README_v0_7_4.md`。
 - **v0.7.5** — 文档同步收口 + 代码清理：版本信息同步 10 个文件、死代码清理（chat_stream / 重复函数）、YAML 同步 mtime canary 优化、重复逻辑合并。详见 `changelog/README_v0_7_5.md`。
-- **v0.7.6** — 规划中。
+- **v0.7.6** — 工程安全与新闻链路收口：
+  - 加固 `.gitignore` 与打包密钥排除规则
+  - 修复侧栏 HTML 动态内容转义问题
+  - 重构新闻抓取链路，避免 RSS 阶段过早解析跳转链接
+  - 补强新闻正文抓取的 URL 安全边界（DNS/IP 校验）
+  - 修正无效 monkeypatch 测试，增强 CI 验收覆盖
+- **v0.7.7** — 规划中。
 
 完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
 

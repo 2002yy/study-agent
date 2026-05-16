@@ -26,9 +26,9 @@ class RuntimeModes:
     route_mode: str = "auto_rule"
     debug_mode: bool = False
     safe_mode: bool = False
-    current_version: str = "v0.7.5"
-    active_task: str = "post-v0.7.5 stabilization and wechat module split"
-    next_version: str = "v0.7.6"
+    current_version: str = "v0.7.6"
+    active_task: str = "post-v0.7.6 stabilization"
+    next_version: str = "v0.7.7"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False

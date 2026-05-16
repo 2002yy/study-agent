@@ -5,18 +5,17 @@
 
 ## Current focus
 
-- v0.7.5 has been released: doc sync cleanup, dead code removal, I/O optimization, deduplication
-- Current change group: post-v0.7.5 stabilization, wechat module split
-- Next functional focus: search quality, source UI, search interaction polish
+- v0.7.6 has been released: engineering security & news pipeline hardening
+- Current change group: post-v0.7.6 stabilization
 
 ## Recent milestones
 
-1. v0.7.5 release: doc sync cleanup, dead code removal, I/O optimization, deduplication
+1. v0.7.6 release: engineering security & news pipeline hardening
 2. v0.7.2 quality pass: bug fixes, caching, cleanup, and stability
 3. Current validation baseline: full `pytest` and `ruff check .` passing locally
 
 ## Version status
 
-- current_version: v0.7.5
-- next_version: v0.7.6
+- current_version: v0.7.6
+- next_version: v0.7.7
 - release_note: `changelog/README_v0_7_5.md`
