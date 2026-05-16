@@ -1,7 +1,7 @@
 version:
-  current: v0.7.6
-  next: v0.7.7
-  active_task: post-v0.7.6 stabilization
+  current: v0.7.7
+  next: v0.7.8
+  active_task: post-v0.7.7 stabilization and UI polish
 runtime:
   entry_mode: wechat
   performance_mode: standard
