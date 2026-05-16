@@ -27,6 +27,24 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
-      - name: Run targeted mypy
+      - name: Run package helper (validate packaging logic)
+        run: python tools/package_project_helper.py . /dev/null 0
+
+      - name: Run detect-secrets
         continue-on-error: true
-        run: timeout 120s mypy --explicit-package-bases src/llm_client.py src/memory.py src/context_builder.py
+        run: |
+          pip install detect-secrets 2>/dev/null
+          if command -v detect-secrets &> /dev/null; then
+            detect-secrets scan --disable-plugin KeywordDetector \
+              --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \
+              > .secrets.out 2>&1 || true
+            if [ -s .secrets.out ] && grep -q '"is_secret": true' .secrets.out 2>/dev/null; then
+              echo "WARNING: potential secrets found (see .secrets.out)"
+            fi
+          else
+            echo "detect-secrets not installed; skipping scan"
+          fi
+
+      - name: Run expanded mypy
+        continue-on-error: true
+        run: timeout 120s mypy --explicit-package-bases src/

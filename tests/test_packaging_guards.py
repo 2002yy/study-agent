@@ -171,4 +171,7 @@ def test_ci_workflow_exists_and_runs_core_checks():
     assert "pip install -r requirements.txt -r requirements-dev.txt" in text
     assert "pytest" in text
     assert "ruff check ." in text
-    assert "src/llm_client.py src/memory.py src/context_builder.py" in text
+    assert "Run expanded mypy" in text
+    assert "mypy --explicit-package-bases src/" in text
+    assert "Run package helper" in text
+    assert "detect-secrets" in text

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+
 import streamlit as st
 
 from src.after_session import generate_after_session_updates
@@ -46,7 +48,7 @@ def _switch_to_wechat_entry(unread_content: str, runtime_modes, session_state) -
 
 
 def _section(title: str):
-    st.markdown(f'<div class="sidebar-section-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sidebar-section-title">{html.escape(title)}</div>', unsafe_allow_html=True)
 
 
 def _summary_preview() -> str:
@@ -93,8 +95,8 @@ def _mini_state(label: str, value: str):
     st.markdown(
         f"""
         <div class="sidebar-mini-card">
-            <div class="sidebar-mini-label">{label}</div>
-            <div class="sidebar-mini-value">{value}</div>
+            <div class="sidebar-mini-label">{html.escape(label)}</div>
+            <div class="sidebar-mini-value">{html.escape(value)}</div>
         </div>
         """,
         unsafe_allow_html=True,

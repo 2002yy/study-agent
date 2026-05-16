@@ -7,6 +7,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from email.utils import parsedate_to_datetime
+from socket import getaddrinfo
 from urllib.parse import quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -387,7 +388,6 @@ def _fetch_rss_items_from_url(
     for node in root.findall("./channel/item"):
         title = (node.findtext("title") or "").strip()
         link = (node.findtext("link") or "").strip()
-        resolved_link = resolve_news_link(link)
         pub_date = (node.findtext("pubDate") or "").strip()
         source = ""
         source_node = node.find("source")
@@ -408,7 +408,6 @@ def _fetch_rss_items_from_url(
                 "published_at": published_local or "Today",
                 "published_timestamp": published_ts,
                 "link": link,
-                "resolved_link": resolved_link,
                 "_sort_ts": published_ts,
             }
         )
@@ -448,8 +447,34 @@ def _is_fetchable_article_url(url: str) -> bool:
         ):
             return False
     except ValueError:
-        pass
+        # Hostname is not an IP literal — resolve via DNS
+        if not _check_dns_target_safe(host):
+            return False
 
+    return True
+
+
+def _check_dns_target_safe(hostname: str) -> bool:
+    """Resolve hostname and reject if it points to a private/internal address."""
+    try:
+        addrs = getaddrinfo(hostname, None)
+    except Exception:
+        return False
+    for family, _type, _proto, _canon, sockaddr in addrs:
+        raw_ip = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(raw_ip)
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
+                return False
+        except ValueError:
+            continue
     return True
 
 
@@ -793,6 +818,12 @@ def fetch_news_items(
         return cached[1][:max_items]
 
     items = _fetch_query_news_items(query_text, max_items=max_items)
+
+    # Resolve links only for items that survive dedupe/trim
+    resolve_count = min(5, len(items))
+    for item in items[:resolve_count]:
+        link = item.get("link", "")
+        item["resolved_link"] = resolve_news_link(link)
 
     _NEWS_CACHE[cache_key] = (now, items)
     return items

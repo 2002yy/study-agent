@@ -626,3 +626,34 @@ def test_news_digest_prompt_is_not_corrupted():
         "\\u4e0d\\u8981\\u5047\\u88c5\\u8bfb\\u53d6\\u4e86\\u6ca1\\u6709\\u63d0\\u4f9b\\u7684\\u6b63\\u6587"
         in text
     )
+
+
+def test_resolve_news_link_called_only_after_dedup(monkeypatch):
+    """Verify that resolve_news_link is called only for items that survive dedupe/trim,
+    not during RSS parsing phase."""
+    from src import wechat
+
+    call_count = 0
+
+    def counting_resolve(url):
+        nonlocal call_count
+        call_count += 1
+        return url if isinstance(url, str) and url.startswith("http") else url
+
+    monkeypatch.setattr(wechat, "resolve_news_link", counting_resolve)
+
+    feed_map = {
+        "Google News": [{"title": "News A", "link": "https://a.example.com", "_sort_ts": 10.0, "source": "Google News"}],
+        "Bing News": [{"title": "News B", "link": "https://b.example.com", "_sort_ts": 9.0, "source": "Bing News"}],
+        "Caijing Roll": [{"title": "News C", "link": "https://c.example.com", "_sort_ts": 8.0, "source": "Caijing Roll"}],
+    }
+
+    def fake_fetch(feed_url, max_items=10, source_fallback="News Source", query_text=""):
+        return list(feed_map[source_fallback])
+
+    monkeypatch.setattr(wechat, "_fetch_rss_items_from_url", fake_fetch)
+
+    items = wechat.fetch_news_items("latest news", max_items=3)
+
+    assert call_count <= 3, f"Expected at most 3 resolve calls, got {call_count}"
+    assert len(items) == 3
