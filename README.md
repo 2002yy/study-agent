@@ -98,8 +98,12 @@ streamlit run app.py
 │   ├── session_store.py    # 会话持久化
 │   ├── safe_writer.py      # 安全文件写入
 │   ├── backup_manager.py   # 备份管理
-│   ├── wechat.py           # 微信群聊 + 联网搜索 + 新闻摘要
-│   ├── wechat_memory.py    # 微信群记忆提取
+│   ├── wechat.py               # 兼容门面（legacy re-exports）
+│   ├── wechat_format.py        # 群聊文本格式化工具
+│   ├── wechat_state.py         # 群聊 I/O、状态管理、生命周期
+│   ├── wechat_generator.py     # LLM 生成逻辑
+│   ├── wechat_prompt.py        # 系统/互动 prompt 加载
+│   ├── wechat_memory.py        # 微信群记忆提取
 │   ├── memory.py           # 记忆系统
 │   ├── memory_tools.py     # 记忆工具
 │   ├── memory_writer.py    # 记忆写入
@@ -115,7 +119,11 @@ streamlit run app.py
 │   ├── update_validator.py # 更新校验
 │   ├── after_session.py    # 课后总结
 │   ├── news/
-│   │   └── article_extractor.py  # 文章正文提取（三层回退）
+│   │   ├── article_extractor.py  # 文章正文提取（三层回退）
+│   │   ├── article_fetcher.py    # 文章抓取（DNS/IP 安全校验 + SSRF 防御）
+│   │   ├── link_resolver.py      # Google News 跳转链接解析
+│   │   ├── rss_fetcher.py        # 多源 RSS 聚合与去重
+│   │   └── digest.py             # 新闻摘要生成与来源块
 │   └── ui/
 │       ├── main_panel.py        # 主页
 │       ├── chat_panel.py        # 对话面板
@@ -129,11 +137,14 @@ streamlit run app.py
 │       └── avatar.py            # 头像
 │
 ├── tests/
-│   ├── test_wechat.py              # 微信/新闻搜索测试
-│   ├── test_wechat_article_extract.py # 文章提取测试
-│   ├── test_after_session.py       # 课后总结测试
-│   ├── test_v03_accept.py          # 验收测试
-│   └── test_packaging_guards.py    # 打包校验测试
+│   ├── test_wechat.py                    # 微信/新闻搜索测试
+│   ├── test_wechat_article_extract.py    # 文章提取测试
+│   ├── test_wechat_service.py            # 服务层测试
+│   ├── test_architecture_flows.py        # 架构流测试
+│   ├── test_wechat_decoupling.py         # 模块解耦 guard
+│   ├── test_after_session.py             # 课后总结测试
+│   ├── test_v03_accept.py                # 验收测试
+│   └── test_packaging_guards.py          # 打包校验测试
 │
 ├── chat/                  # 群聊记录
 │   ├── wechat_group.md    # 当前群聊
@@ -195,13 +206,24 @@ streamlit run app.py
 - **v0.7.3** — 服务层拆分与工程化收口：Wechat news round 下沉到 `src/wechat_service.py`、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 参数扩展、YAML runtime state 真源化。详见 `changelog/README_v0_7_3.md`。
 - **v0.7.4** — 工程体验收口：自动化版本 bump 工具、LLM 配置文档化（`.env.example` 5 个 provider）、NewsRoundResult 结果对象化（覆盖率/警告/耗时）、UI 来源可信度展示。详见 `changelog/README_v0_7_4.md`。
 - **v0.7.5** — 文档同步收口 + 代码清理：版本信息同步 10 个文件、死代码清理（chat_stream / 重复函数）、YAML 同步 mtime canary 优化、重复逻辑合并。详见 `changelog/README_v0_7_5.md`。
-- **v0.7.6** — 工程安全与新闻链路收口：
-  - 加固 `.gitignore` 与打包密钥排除规则
-  - 修复侧栏 HTML 动态内容转义问题
-  - 重构新闻抓取链路，避免 RSS 阶段过早解析跳转链接
-  - 补强新闻正文抓取的 URL 安全边界（DNS/IP 校验）
-  - 修正无效 monkeypatch 测试，增强 CI 验收覆盖
-- **v0.7.7** — 规划中。
+- **v0.7.6** — 工程安全与新闻链路收口。详见 `changelog/README_v0_7_6.md`。
+- **v0.7.7** — 模块拆分与服务层解耦：
+  - **新闻链路拆分**：`wechat.py`（~550 行）拆分为 4 个专注模块 + 1 个兼容门面
+    - `wechat_format.py` — 纯文本 / 格式化工具
+    - `wechat_state.py` — 文件 I/O、群聊状态、生命周期管理
+    - `wechat_generator.py` — LLM 生成逻辑（群聊讨论、开场、互动回复）
+    - `wechat_prompt.py` — 系统 / 互动 prompt 加载（自包含，无外部依赖）
+    - `wechat.py` — 纯兼容门面，仅 re-export，零运行时逻辑
+  - **服务层拆分**：`wechat_service.py` 改为直连子模块，绕开门面
+  - **UI 逐阶段新闻流**：搜索 → 正文读取 → 生成摘要 → 群聊讨论，四步按钮推进
+  - **自适应 max_articles**：fast→2、standard→4、deep→6
+  - **安全加固**：
+    - 自定义 `_SafeHTTPRedirectHandler` 逐跳 SSRF 校验 + 最多 3 次重定向
+    - 包扫描增加 GitHub PAT、OpenRouter、通用 key/token 模式
+    - detect-secrets 加入 CI 流程
+  - **内存保护**：Session logger 50 条自动 flush、2 小时老化警告
+  - **防回归 guard**：`test_wechat_decoupling.py` 4 个测试确保模块边界不退化
+  - **112 tests，Ruff clean**
 
 完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
 
