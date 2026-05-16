@@ -63,18 +63,15 @@ def _apply_new_wechat_group(session_state) -> None:
     session_state.wechat_news_digest = ""
 
 
-def _rerun_wechat_fragment():
-    try:
-        st.rerun(scope="fragment")
-    except Exception:
-        st.rerun()
-
-
 def _rerun_app():
     try:
         st.rerun(scope="fragment")
     except Exception:
         st.rerun()
+
+
+def _rerun_wechat_fragment():
+    _rerun_app()
 
 
 def _queue_wechat_notice(message: str, level: str = "success"):
@@ -234,7 +231,11 @@ def _render_news_digest():
         if items:
             for idx, item in enumerate(items[:10], start=1):
                 article_status = str(item.get("article_status", ""))
-                icon = " :page_facing_up:" if "正文已读" in article_status else " :newspaper:"
+                icon = (
+                    " :page_facing_up:"
+                    if "正文已读" in article_status
+                    else " :newspaper:"
+                )
                 st.caption(
                     f"{idx}.{icon} {item.get('title', '')} | {item.get('source', '')} | {item.get('published_at', '')}"
                 )

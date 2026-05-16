@@ -103,7 +103,11 @@ def reset_client() -> None:
 
 
 def _normalize_provider_profile(provider_profile: str | None = None) -> str:
-    profile = (provider_profile or os.getenv("LLM_PROVIDER_PROFILE", "openai")).strip().lower()
+    profile = (
+        (provider_profile or os.getenv("LLM_PROVIDER_PROFILE", "openai"))
+        .strip()
+        .lower()
+    )
     if profile not in _SUPPORTED_PROVIDER_PROFILES:
         raise RuntimeError(f"Unsupported provider profile: {profile}")
     return profile
@@ -182,11 +186,17 @@ def get_provider_settings(provider_profile: str | None = None) -> ProviderSettin
     if not api_key:
         raise RuntimeError(f"{_provider_env_name(profile_name, 'API_KEY')} is missing.")
     if not base_url:
-        raise RuntimeError(f"{_provider_env_name(profile_name, 'BASE_URL')} is missing.")
+        raise RuntimeError(
+            f"{_provider_env_name(profile_name, 'BASE_URL')} is missing."
+        )
     if not flash_model:
-        raise RuntimeError(f"{_provider_env_name(profile_name, 'MODEL_FLASH_NAME')} is missing.")
+        raise RuntimeError(
+            f"{_provider_env_name(profile_name, 'MODEL_FLASH_NAME')} is missing."
+        )
     if not pro_model:
-        raise RuntimeError(f"{_provider_env_name(profile_name, 'MODEL_PRO_NAME')} is missing.")
+        raise RuntimeError(
+            f"{_provider_env_name(profile_name, 'MODEL_PRO_NAME')} is missing."
+        )
 
     return ProviderSettings(
         profile_name=profile_name,
@@ -419,28 +429,6 @@ def stream_chat(
                 yield delta.content
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
-
-
-def chat_stream(
-    messages: list[dict],
-    temperature: float | None = 0.7,
-    model_profile: ModelProfile | None = None,
-    max_tokens: int | None = None,
-    timeout: float | None = None,
-    response_format: ResponseFormat | None = None,
-    provider_profile: str | None = None,
-    task_name: str | None = None,
-) -> Iterator[str]:
-    yield from stream_chat(
-        messages,
-        temperature=temperature,
-        model_profile=model_profile,
-        max_tokens=max_tokens,
-        timeout=timeout,
-        response_format=response_format,
-        provider_profile=provider_profile,
-        task_name=task_name,
-    )
 
 
 def chat(

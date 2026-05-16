@@ -1,30 +1,22 @@
 # 未来方向
 
 > 本文件记录当前版本之后的优先增强方向。  
-> 当前开发阶段：`v0.7.3` 已落地，下一阶段主目标定位为 `v0.7.4`。
+> 当前开发阶段：`v0.7.4` 已落地，下一阶段主目标定位为 `v0.7.5`。
 
-## v0.7.3 完成情况（服务层拆分与工程化收口）
+## v0.7.4 完成情况（工程体验收口）
 
-v0.7.3 是一次服务层拆分与工程化收口：
+v0.7.4 已发布，重点包括：
 
-### 服务层拆分
-1. wechat news round 下沉到 `src/wechat_service.py`
-2. `wechat_panel.py` 专注 UI 渲染与按钮流
-
-### 工程化
-3. session flush 批量提交策略（fast: 4轮, standard: 2轮, debug: 每轮）
-4. GitHub Actions CI（pytest + ruff + mypy）
-5. 架构级回归测试覆盖
-6. LLM client 参数/配置扩展（provider_profile, task_name, JSON mode 等）
-7. YAML runtime state 迁移为机器真源，markdown 视图自动同步
-
-### 测试
-8. 新增 5 个测试文件（wechat_service, session_logger_flush, architecture_flows, llm_client_options, mode_manager_yaml）
-9. 全量 108 测试通过
+1. 自动化版本管理工具 `tools/bump_version.py`，自动同步 7 个文件
+2. LLM 配置文档化：`.env.example` 扩展至 50 行，README 配置节分 4 小节
+3. NewsRoundResult 结果对象化：source_block / article_coverage / elapsed_ms / warnings
+4. UI 来源可信度展示：覆盖率条、逐条警告、条目图标区分
 
 ---
 
-## v0.7.4 重点
+## v0.7.5 重点
+
+### 1. 联网搜索质量提升
 
 ### 1. 联网搜索质量提升
 

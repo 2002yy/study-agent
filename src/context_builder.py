@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.memory import extract_core_section
+from src.memory import CONTEXT_FILE_GROUPS, extract_core_section
 from src.mode_manager import RuntimeModes, load_runtime_modes
 
 MODE_RULES = {
@@ -11,32 +11,6 @@ MODE_RULES = {
     "项目": "聚焦目标、边界、最小修改点、验收方式和风险。",
     "论文": "关注论点、证据、结构和表达，不直接代写。",
     "概念地图": "输出概念定义、层级关系、常见混淆和学习顺序。",
-}
-
-MEMORY_SELECTION = {
-    "fast": ["index.md", "current_focus.md"],
-    "light": ["index.md", "current_focus.md", "summary.md", "learner_profile.md"],
-    "deep": [
-        "index.md",
-        "current_focus.md",
-        "summary.md",
-        "learner_profile.md",
-        "progress.md",
-        "project_context.md",
-        "task_board.md",
-    ],
-    "archive": [
-        "index.md",
-        "current_focus.md",
-        "summary.md",
-        "learner_profile.md",
-        "progress.md",
-        "project_context.md",
-        "task_board.md",
-        "archive_summary.md",
-        "agent.md",
-        "system_detail.md",
-    ],
 }
 
 
@@ -51,9 +25,11 @@ def build_internal_mode_prompt(modes: RuntimeModes) -> str:
     return "\n".join(parts)
 
 
-def _select_memory(memory_bundle: dict[str, str], context_mode: str) -> list[tuple[str, str]]:
+def _select_memory(
+    memory_bundle: dict[str, str], context_mode: str
+) -> list[tuple[str, str]]:
     selected = []
-    for name in MEMORY_SELECTION.get(context_mode, MEMORY_SELECTION["light"]):
+    for name in CONTEXT_FILE_GROUPS.get(context_mode, CONTEXT_FILE_GROUPS["light"]):
         content = memory_bundle.get(name, "")
         if not content or content.startswith("[missing:"):
             continue
@@ -120,7 +96,10 @@ def build_messages(
 
     if chat_history:
         messages.extend(
-            [{"role": msg["role"], "content": msg["content"]} for msg in chat_history[-8:]]
+            [
+                {"role": msg["role"], "content": msg["content"]}
+                for msg in chat_history[-8:]
+            ]
         )
 
     messages.append({"role": "user", "content": user_input})

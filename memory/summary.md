@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-v0.7.3 - 服务层拆分与工程化收口：wechat_service 拆分、session flush 批量、CI、架构测试、LLM client 扩展、YAML runtime state 真源化
+v0.7.5 - 文档同步收口：版本信息同步、死代码清理、I/O 优化、重复逻辑消除
 
 ## 当前任务
 
@@ -35,6 +35,8 @@ v0.7.3 - 服务层拆分与工程化收口：wechat_service 拆分、session flu
 - v0.7.0: 多源新闻搜索、解析降级、来源压缩和状态同步补强
 - v0.7.2: 4 Bug 修复、@st.cache_data 缓存、YAML 去重解析、常量抽取、模块拆分、fragment rerun 修复
 - v0.7.3: wechat_service 拆分、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 扩展、YAML state 真源化
+- v0.7.4: 自动化版本管理工具、LLM 配置文档化、NewsRoundResult 结果对象化、UI 来源可信度展示
+- v0.7.5: 文档同步收口、死代码清理、YAML 同步 I/O 优化、重复逻辑消除
 
 ## 最近关键决策
 

@@ -1,7 +1,7 @@
 # Study Agent 项目规划
 
-> 当前活跃阶段：`v0.7.3`  
-> 当前状态：服务层拆分与工程化收口已完成，下一阶段回归功能增量（联网搜索质量、来源 UI、测试覆盖）。
+> 当前活跃阶段：`v0.7.5`  
+> 当前状态：v0.7.5 文档同步收口已完成，下一阶段 v0.7.6 回归功能增量（联网搜索质量、来源 UI、测试覆盖）。
 
 ## 当前定位
 
@@ -44,7 +44,16 @@ v0.7.3 是一次服务层拆分与工程化收口：
 6. YAML runtime state 迁移为真源（config/runtime_state.yaml）
 7. 全量 108 测试通过，changelog 写入 `changelog/README_v0_7_3.md`
 
-## v0.7.4 目标
+## v0.7.4 已完成的重点
+
+v0.7.4 是一次工程体验收口：
+
+1. 自动化版本管理工具 `tools/bump_version.py`
+2. LLM 配置文档化（.env.example 扩展至 50 行，README 配置节重写）
+3. NewsRoundResult 结果对象化（source_block / article_coverage / elapsed_ms / warnings）
+4. UI 来源可信度展示（覆盖率条、警告逐条展示、条目图标区分）
+
+## v0.7.5 目标
 
 下一阶段回归功能增量：
 
@@ -56,7 +65,7 @@ v0.7.3 是一次服务层拆分与工程化收口：
 
 ## 文档分工
 
-1. `changelog/README_v0_7_2.md`: 当前版本说明
+1. `changelog/README_v0_7_4.md`: 当前版本说明
 2. `USER_GUIDE.md`: 当前使用方法
 3. `FUTURE.md`: 下一阶段方向
 4. 历史 `README_v0_x.md`: 版本留档，不再作为当前状态依据
