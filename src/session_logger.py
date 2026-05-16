@@ -34,6 +34,7 @@ def init_session() -> str:
         "entries": [],
         "meta": SessionMeta(),
         "flushed_count": 0,
+        "created_at": datetime.now(),
     }
     return sid
 
@@ -44,6 +45,7 @@ def get_or_create_session(session_id: str) -> dict:
             "entries": [],
             "meta": SessionMeta(),
             "flushed_count": 0,
+            "created_at": datetime.now(),
         }
     return _state[session_id]
 
@@ -86,7 +88,8 @@ def log(
     memory_enabled: bool = False,
     route_info: dict | None = None,
 ) -> None:
-    get_or_create_session(session_id)["entries"].append(
+    sess = get_or_create_session(session_id)
+    sess["entries"].append(
         {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "role": role,
@@ -98,6 +101,17 @@ def log(
             "agent": agent_reply,
         }
     )
+
+    # Stale session guard: warn once if session exceeds 2 hours
+    if not sess.get("_stale_warned"):
+        elapsed = (datetime.now() - sess["created_at"]).total_seconds()
+        if elapsed > 7200:
+            sess["_stale_warned"] = True
+            logger.warning(
+                "Session %s is %.1f hours old — consider calling save() to persist and release memory",
+                session_id,
+                elapsed / 3600,
+            )
 
 
 def _pending_entry_count(sess: dict) -> int:
@@ -124,6 +138,9 @@ def should_flush_current_session(
     if pending <= 0:
         return False
     if force:
+        return True
+    # Safety guard: force flush if total entries exceed 50 to limit memory growth
+    if len(sess["entries"]) >= 50:
         return True
     return pending >= _flush_interval_for_mode(
         performance_mode,
