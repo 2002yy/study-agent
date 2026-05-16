@@ -27,8 +27,15 @@ EXCLUDE_DIRS = {
 EXCLUDE_KEYWORDS = ["visual_assets_pack"]
 SKIP_SECRET_SCAN_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 SECRET_PATTERNS = [
+    # OpenAI / generic sk-* patterns
     re.compile(r"sk-proj-[A-Za-z0-9_\-]{20,}"),
     re.compile(r"sk-[A-Za-z0-9_\-]{30,}"),
+    # GitHub personal access token
+    re.compile(r"ghp_[A-Za-z0-9_]{30,}"),
+    # OpenRouter API key
+    re.compile(r"sk-or-v1-[A-Za-z0-9_\-]{20,}"),
+    # Generic key / token / secret assignment
+    re.compile(r"(?i)(api[_-]?key|token|secret)\s*[:=]\s*['\"][^'\"]{16,}"),
 ]
 
 
