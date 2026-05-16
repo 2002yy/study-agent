@@ -62,10 +62,15 @@ DEFAULT_MODEL_PROFILE=pro
 │   ├── perf.py             # 性能日志
 │   ├── router.py           # 路由配置
 │   ├── config.py           # 全局配置
+│   ├── constants.py        # 公共常量
+│   ├── text_utils.py       # 文本工具
+│   ├── log_utils.py        # 日志工具
 │   ├── health_check.py     # 健康检查
 │   ├── export_tools.py     # 导出工具
 │   ├── update_validator.py # 更新校验
 │   ├── after_session.py    # 课后总结
+│   ├── news/
+│   │   └── article_extractor.py  # 文章正文提取（三层回退）
 │   └── ui/
 │       ├── main_panel.py        # 主页
 │       ├── chat_panel.py        # 对话面板
@@ -142,6 +147,7 @@ DEFAULT_MODEL_PROFILE=pro
 - **v0.6.9** — 自由文本联网搜索、进度指示、新闻缓存按 query 隔离、记忆写入加固。
 - **v0.7.0** — 多源 RSS 聚合、正文三层提取、来源块写入群聊、摘要边界约束、URL 安全检查。
 - **v0.7.1** — 90 天搜索窗口、来源块压缩、摘要覆盖率提示、prompt 乱码修复、覆盖率统计对齐。
+- **v0.7.2** — 代码质量全面收口：修复 4 个 Bug、性能优化（缓存/YAML/diff）、架构改善（常量去重/模块拆分）、Streamlit fragment 反模式修复、关键路径错误处理增强。
 
 完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
 
