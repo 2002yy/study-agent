@@ -157,6 +157,7 @@ def test_runtime_version_is_synced():
     yaml_text = Path("config/runtime_state.yaml").read_text(encoding="utf-8")
 
     assert 'current_version: str = "v0.7.7"' in mode_text
+    assert 'next_version: str = "v0.7.8"' in mode_text
     assert '- current_version: v0.7.7' in state_text
     assert '- next_version: v0.7.8' in state_text
     assert "current: v0.7.7" in yaml_text

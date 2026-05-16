@@ -28,7 +28,7 @@ class RuntimeModes:
     safe_mode: bool = False
     current_version: str = "v0.7.7"
     active_task: str = "post-v0.7.7 stabilization and UI polish"
-    next_version: str = "v0.7.7"
+    next_version: str = "v0.7.8"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False
