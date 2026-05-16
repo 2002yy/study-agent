@@ -36,24 +36,16 @@ def _render_history_message(msg: dict):
         st.markdown(msg["content"])
 
 
-def _display_mode(mode_id: str) -> str:
-    return {"auto": "自动"}.get(mode_id, mode_id)
+_DISPLAY_LABELS = {
+    "mode": {"auto": "自动"},
+    "model": {"auto": "Auto", "flash": "Flash", "pro": "Pro"},
+    "perf": {"fast": "Fast", "standard": "Standard", "deep": "Deep"},
+    "atmos": {"standard": "Standard", "warm": "Warm", "close": "Close"},
+}
 
 
-def _display_model(model_id: str) -> str:
-    return {"auto": "Auto", "flash": "Flash", "pro": "Pro"}.get(model_id, model_id)
-
-
-def _display_perf(perf_id: str) -> str:
-    return {"fast": "Fast", "standard": "Standard", "deep": "Deep"}.get(
-        perf_id, perf_id
-    )
-
-
-def _display_atmosphere(atmosphere_id: str) -> str:
-    return {"standard": "Standard", "warm": "Warm", "close": "Close"}.get(
-        atmosphere_id, atmosphere_id
-    )
+def _display(key: str, value: str) -> str:
+    return _DISPLAY_LABELS.get(key, {}).get(value, value)
 
 
 def _current_focus_preview() -> str:
@@ -77,8 +69,8 @@ def _summary_preview() -> str:
 def _last_milestone() -> str:
     route = st.session_state.get("current_route", {})
     role = ROLE_LABELS.get(route.get("role", ""), "自动")
-    perf = _display_perf(st.session_state.runtime_modes.performance_mode)
-    mode = _display_mode(route.get("mode", st.session_state.current_mode))
+    perf = _display("perf", st.session_state.runtime_modes.performance_mode)
+    mode = _display("mode", route.get("mode", st.session_state.current_mode))
     return f"最近建议：{role} · {mode} · {perf}"
 
 
@@ -100,7 +92,9 @@ def _render_welcome_area():
     focus_preview = _current_focus_preview()
     summary_preview = _summary_preview()
     role_for_visual = st.session_state.get("current_route", {}).get("role", "march7")
-    role_avatar = get_html_avatar_uri(role_for_visual if role_for_visual != "auto" else "march7")
+    role_avatar = get_html_avatar_uri(
+        role_for_visual if role_for_visual != "auto" else "march7"
+    )
     version = load_runtime_modes().current_version
 
     st.markdown(
@@ -168,12 +162,12 @@ def _render_welcome_area():
 def _render_input_dock():
     route = st.session_state.get("current_route", {})
     runtime_modes = st.session_state.runtime_modes
-    current_mode = _display_mode(route.get("mode", st.session_state.current_mode))
-    current_model = _display_model(
-        route.get("model_profile", st.session_state.model_profile)
+    current_mode = _display("mode", route.get("mode", st.session_state.current_mode))
+    current_model = _display(
+        "model", route.get("model_profile", st.session_state.model_profile)
     )
-    current_perf = _display_perf(runtime_modes.performance_mode)
-    current_atmos = _display_atmosphere(st.session_state.interaction_mode)
+    current_perf = _display("perf", runtime_modes.performance_mode)
+    current_atmos = _display("atmos", st.session_state.interaction_mode)
 
     st.markdown(
         f"""
@@ -360,7 +354,9 @@ def render_chat_panel():
     for msg in st.session_state.messages:
         _render_history_message(msg)
 
-    st.session_state.perf_metrics["ui_render_time"] = time.perf_counter() - render_started
+    st.session_state.perf_metrics["ui_render_time"] = (
+        time.perf_counter() - render_started
+    )
 
     _render_input_dock()
 

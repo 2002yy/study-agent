@@ -23,9 +23,9 @@ class RuntimeModes:
     route_mode: str = "auto_rule"
     debug_mode: bool = False
     safe_mode: bool = False
-    current_version: str = "v0.7.4"
-    active_task: str = "post-v0.7.4 stabilization and wechat module split"
-    next_version: str = "v0.7.5"
+    current_version: str = "v0.7.5"
+    active_task: str = "post-v0.7.5 stabilization and wechat module split"
+    next_version: str = "v0.7.6"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False
@@ -137,7 +137,9 @@ def _read_md_state_migration() -> dict[str, Any]:
         wechat_mode = _parse_keyvalue(raw, "mode")
         if wechat_mode in ("unread_feedback", "first_user_join", "interactive_group"):
             data["wechat"]["mode"] = wechat_mode
-        data["wechat"]["user_has_joined_group"] = _parse_bool(raw, "user_has_joined_group")
+        data["wechat"]["user_has_joined_group"] = _parse_bool(
+            raw, "user_has_joined_group"
+        )
         data["wechat"]["first_join_reaction_done"] = _parse_bool(
             raw, "first_join_reaction_done"
         )
@@ -201,16 +203,24 @@ def _render_runtime_state_markdown_views(data: dict[str, Any]) -> tuple[str, str
     return internal_md, interaction_md, wechat_md
 
 
+_yaml_mtime_cached: float = 0.0
+
+
 def _runtime_state_from_yaml() -> dict[str, Any]:
+    global _yaml_mtime_cached
+
     if not RUNTIME_STATE.is_file():
         state = _read_md_state_migration()
         _write_runtime_state(state)
         return state
 
+    current_mtime = RUNTIME_STATE.stat().st_mtime
     raw = yaml.safe_load(RUNTIME_STATE.read_text(encoding="utf-8"))
     normalized = _normalize_runtime_state(raw)
-    if _should_sync_markdown_views(normalized):
-        _sync_runtime_state_markdown_views(normalized)
+    if current_mtime != _yaml_mtime_cached:
+        if _should_sync_markdown_views(normalized):
+            _sync_runtime_state_markdown_views(normalized)
+        _yaml_mtime_cached = current_mtime
     return normalized
 
 
@@ -233,6 +243,8 @@ def _should_sync_markdown_views(data: dict[str, Any]) -> bool:
 
 
 def _write_runtime_state(data: dict[str, Any]) -> None:
+    global _yaml_mtime_cached
+
     normalized = _normalize_runtime_state(data)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     safe_write_text(
@@ -243,6 +255,7 @@ def _write_runtime_state(data: dict[str, Any]) -> None:
             sort_keys=False,
         ),
     )
+    _yaml_mtime_cached = 0.0  # force re-sync on next read
     _sync_runtime_state_markdown_views(normalized)
     try:
         load_runtime_modes.clear()

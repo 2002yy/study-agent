@@ -1,7 +1,7 @@
 # Runtime mode reference
 
 > This file describes the runtime mode fields that are currently used by the codebase.
-> After the v0.7.3 integration changes, `config/runtime_state.yaml` is the machine source of truth.
+> Since the v0.7.4 release, `config/runtime_state.yaml` is the machine source of truth.
 
 ## 1. Runtime fields
 

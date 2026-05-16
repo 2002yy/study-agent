@@ -1,7 +1,7 @@
 version:
-  current: v0.7.4
-  next: v0.7.5
-  active_task: post-v0.7.4 stabilization and wechat module split
+  current: v0.7.5
+  next: v0.7.6
+  active_task: post-v0.7.5 stabilization and wechat module split
 runtime:
   entry_mode: wechat
   performance_mode: standard

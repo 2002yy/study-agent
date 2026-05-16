@@ -25,6 +25,7 @@ from src.news.article_extractor import (
 )
 from src.role_manager import load_role
 from src.safe_writer import append_text_safely, safe_write_text
+from src.text_utils import file_signature
 
 ROOT = Path(__file__).resolve().parent.parent
 GROUP_FILE = ROOT / "chat" / "wechat_group.md"
@@ -87,13 +88,6 @@ LEGACY_OPENING_MARKERS = (
 )
 
 
-def _file_signature(path: Path) -> str:
-    if not path.is_file():
-        return "missing"
-    stat = path.stat()
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
-
-
 @lru_cache(maxsize=32)
 def _load_wechat_text_cached(path_str: str, signature: str) -> str:
     path = Path(path_str)
@@ -105,7 +99,7 @@ def _load_wechat_text_cached(path_str: str, signature: str) -> str:
 def _load_text(path: Path, default: str = "") -> str:
     if not path.is_file():
         return default
-    return _load_wechat_text_cached(str(path), _file_signature(path))
+    return _load_wechat_text_cached(str(path), file_signature(path))
 
 
 def _message_blocks(content: str) -> list[tuple[str, str]]:
@@ -181,32 +175,29 @@ def normalize_news_query(query_text: str, max_chars: int = 120) -> str:
     return query_text[:max_chars]
 
 
-def _prune_news_cache(now: float) -> None:
+def _prune_cache(
+    cache: dict[str, tuple[float, ...]],
+    ttl: float,
+    max_size: int,
+    now: float,
+) -> None:
     expired = [
-        key
-        for key, (created_at, _) in _NEWS_CACHE.items()
-        if now - created_at >= _NEWS_CACHE_TTL
+        key for key, (created_at, *_) in cache.items() if now - created_at >= ttl
     ]
     for key in expired:
-        _NEWS_CACHE.pop(key, None)
+        cache.pop(key, None)
 
-    while len(_NEWS_CACHE) >= _NEWS_CACHE_MAX_SIZE:
-        oldest_key = min(_NEWS_CACHE, key=lambda key: _NEWS_CACHE[key][0])
-        _NEWS_CACHE.pop(oldest_key, None)
+    while len(cache) >= max_size:
+        oldest_key = min(cache, key=lambda key: cache[key][0])
+        cache.pop(oldest_key, None)
+
+
+def _prune_news_cache(now: float) -> None:
+    _prune_cache(_NEWS_CACHE, _NEWS_CACHE_TTL, _NEWS_CACHE_MAX_SIZE, now)
 
 
 def _prune_article_cache(now: float) -> None:
-    expired = [
-        key
-        for key, (created_at, _, _) in _ARTICLE_CACHE.items()
-        if now - created_at >= _ARTICLE_CACHE_TTL
-    ]
-    for key in expired:
-        _ARTICLE_CACHE.pop(key, None)
-
-    while len(_ARTICLE_CACHE) >= _ARTICLE_CACHE_MAX_SIZE:
-        oldest_key = min(_ARTICLE_CACHE, key=lambda key: _ARTICLE_CACHE[key][0])
-        _ARTICLE_CACHE.pop(oldest_key, None)
+    _prune_cache(_ARTICLE_CACHE, _ARTICLE_CACHE_TTL, _ARTICLE_CACHE_MAX_SIZE, now)
 
 
 def _is_default_news_query(query_text: str) -> bool:
@@ -426,6 +417,7 @@ def _fetch_rss_items_from_url(
             break
 
     return items
+
 
 def _is_fetchable_article_url(url: str) -> bool:
     try:

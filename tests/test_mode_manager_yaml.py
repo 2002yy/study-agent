@@ -184,8 +184,8 @@ def test_yaml_remains_source_of_truth_when_markdown_drifts(monkeypatch, tmp_path
         yaml.safe_dump(
             {
                 "version": {
-                    "current": "v0.7.4",
-                    "next": "v0.7.5",
+                    "current": "v0.7.5",
+                    "next": "v0.7.6",
                     "active_task": "yaml source",
                 },
                 "runtime": {

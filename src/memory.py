@@ -3,6 +3,8 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from src.text_utils import file_signature
+
 MEMORY_DIR = Path(__file__).resolve().parent.parent / "memory"
 
 MEMORY_FILES = [
@@ -43,13 +45,6 @@ CONTEXT_FILE_GROUPS = {
 }
 
 
-def _file_signature(path: Path) -> str:
-    if not path.is_file():
-        return "missing"
-    stat = path.stat()
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
-
-
 @lru_cache(maxsize=64)
 def _read_text_file_cached(path_str: str, signature: str) -> str:
     path = Path(path_str)
@@ -59,7 +54,7 @@ def _read_text_file_cached(path_str: str, signature: str) -> str:
 
 
 def read_text_file(path: Path) -> str:
-    return _read_text_file_cached(str(path), _file_signature(path))
+    return _read_text_file_cached(str(path), file_signature(path))
 
 
 def read_memory_file(name: str) -> str:
