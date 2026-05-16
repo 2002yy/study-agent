@@ -28,16 +28,18 @@ from src.wechat_service import (
     run_enrich_stage,
     run_search_stage,
 )
-from src.wechat import (
+from src.wechat_generator import (
+    generate_interactive_wechat_reply_stream,
+    generate_wechat_opening,
+    normalize_interactive_wechat_reply,
+)
+from src.wechat_state import (
     append_interactive_group_reply,
     append_user_group_message,
     count_wechat_messages,
-    generate_wechat_opening,
-    generate_interactive_wechat_reply_stream,
     has_wechat_group_started,
     has_wechat_unread,
     mark_wechat_read,
-    normalize_interactive_wechat_reply,
     read_wechat_group,
     read_wechat_state,
     read_wechat_unread,
