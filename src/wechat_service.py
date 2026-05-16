@@ -20,6 +20,11 @@ from src.wechat import (
 ProgressCallback = Callable[[str], None]
 
 
+def max_articles_for_performance(performance_mode: str) -> int:
+    """Map performance_mode to article count for body text enrichment."""
+    return {"fast": 2, "standard": 4, "deep": 6}.get(performance_mode, 4)
+
+
 @dataclass(frozen=True)
 class RuntimeContext:
     performance_mode: str
@@ -89,6 +94,103 @@ def _collect_warnings(news_items: list[dict], coverage: dict) -> list[str]:
     return warnings
 
 
+# ── Stage functions for phased news round ──────────────────────────────
+
+
+def run_search_stage(
+    query_text: str,
+    max_items: int = 10,
+    progress: ProgressCallback | None = None,
+) -> list[dict]:
+    """Stage 1: fetch & dedupe news items (no article text)."""
+    query_text = (query_text or "最新新闻 when:1d").strip()
+    if progress:
+        progress(f"正在搜索：{query_text}")
+    news_items = fetch_news_items(query_text=query_text, max_items=max_items)
+    if len(news_items) < 3:
+        raise RuntimeError("搜索结果数量不足，暂时没法组织一轮像样的群聊讨论。")
+    return news_items
+
+
+def run_enrich_stage(
+    news_items: list[dict],
+    max_articles: int,
+    query_text: str = "",
+    max_chars_per_article: int = 5000,
+    progress: ProgressCallback | None = None,
+) -> list[dict]:
+    """Stage 2: fetch article body text for top-ranked items."""
+    if progress:
+        progress("正在尝试读取新闻正文...")
+    return enrich_news_items_with_article_text(
+        news_items,
+        max_articles=max_articles,
+        max_chars_per_article=max_chars_per_article,
+        query_text=query_text,
+    )
+
+
+def run_digest_stage(
+    news_items: list[dict],
+    query_text: str,
+    performance_mode: str,
+    selected_model: str,
+    progress: ProgressCallback | None = None,
+) -> tuple[str, str, dict, list[str]]:
+    """Stage 3: generate digest and source block from (enriched) items."""
+    if progress:
+        progress("正在整理搜索摘要...")
+
+    article_coverage = _compute_article_coverage(news_items)
+    warnings = _collect_warnings(news_items, article_coverage)
+
+    digest = generate_news_digest(
+        news_items,
+        performance_mode=performance_mode,
+        selected_model=selected_model,
+    )
+    source_block = format_news_source_block(query_text, news_items)
+
+    return digest, source_block, article_coverage, warnings
+
+
+def run_discussion_stage(
+    digest: str,
+    interaction_mode: str,
+    performance_mode: str,
+    selected_model: str,
+    source_block: str = "",
+    session_id: str = "",
+    progress: ProgressCallback | None = None,
+) -> tuple[str, str]:
+    """Stage 4: generate group discussion, write to group file, return (discussion, group_content)."""
+    if progress:
+        progress("正在生成群聊讨论...")
+
+    discussion = generate_wechat_news_discussion(
+        digest,
+        relationship_mode=interaction_mode,
+        performance_mode=performance_mode,
+        selected_model=selected_model,
+    )
+
+    if progress:
+        progress("正在写入群聊...")
+
+    if source_block:
+        append_system_group_note(source_block)
+    append_interactive_group_reply(discussion)
+    group_content = read_wechat_group()
+
+    if session_id:
+        set_wechat_interactive(session_id, "news_round")
+
+    return discussion, group_content
+
+
+# ── Legacy monolithic runner (delegates to stage functions) ────────────
+
+
 @dataclass(frozen=True)
 class NewsRoundResult:
     query_text: str
@@ -108,60 +210,36 @@ def run_news_round(
     runtime_context: RuntimeContext,
 ) -> NewsRoundResult:
     t0 = time.perf_counter()
-    query_text = (query_text or "最新新闻 when:1d").strip()
     progress = runtime_context.progress
 
-    warnings: list[str] = []
-
-    if progress:
-        progress(f"正在搜索：{query_text}")
-
-    news_items = fetch_news_items(query_text=query_text, max_items=10)
-    if len(news_items) < 3:
-        raise RuntimeError("搜索结果数量不足，暂时没法组织一轮像样的群聊讨论。")
+    news_items = run_search_stage(query_text, progress=progress)
 
     if read_articles:
-        if progress:
-            progress("正在尝试读取新闻正文...")
-        news_items = enrich_news_items_with_article_text(
+        max_articles = max_articles_for_performance(runtime_context.performance_mode)
+        news_items = run_enrich_stage(
             news_items,
-            max_articles=5,
-            max_chars_per_article=5000,
+            max_articles=max_articles,
             query_text=query_text,
+            progress=progress,
         )
 
-    article_coverage = _compute_article_coverage(news_items)
-    warnings.extend(_collect_warnings(news_items, article_coverage))
-
-    if progress:
-        progress("正在整理搜索摘要...")
-
-    digest = generate_news_digest(
+    digest, source_block, article_coverage, warnings = run_digest_stage(
         news_items,
+        query_text=query_text,
         performance_mode=runtime_context.performance_mode,
         selected_model=runtime_context.selected_model,
+        progress=progress,
     )
 
-    if progress:
-        progress("正在生成群聊讨论...")
-
-    discussion = generate_wechat_news_discussion(
+    discussion, group_content = run_discussion_stage(
         digest,
-        relationship_mode=runtime_context.interaction_mode,
+        interaction_mode=runtime_context.interaction_mode,
         performance_mode=runtime_context.performance_mode,
         selected_model=runtime_context.selected_model,
+        source_block=source_block,
+        session_id=runtime_context.session_id,
+        progress=progress,
     )
-
-    if progress:
-        progress("正在写入群聊...")
-
-    source_block = format_news_source_block(query_text, news_items)
-    append_system_group_note(source_block)
-    append_interactive_group_reply(discussion)
-    group_content = read_wechat_group()
-
-    if runtime_context.session_id:
-        set_wechat_interactive(runtime_context.session_id, "news_round")
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
