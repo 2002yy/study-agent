@@ -626,8 +626,6 @@ def _article_fetch_priority(item: dict, query_text: str = "") -> int:
         score -= min(match_count * 8, 24)
 
     if published_at:
-        import re
-
         if re.search(r"202[4-6]", published_at):
             score -= 5
 

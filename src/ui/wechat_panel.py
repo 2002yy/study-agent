@@ -286,8 +286,8 @@ def _render_wechat_memory_actions(content: str):
                             st.warning("长期记忆已锁定，禁止写入。")
                         else:
                             result = run_with_confirm_write(
-                                lambda: apply_candidate_to_memory(
-                                    key, idx, st.session_state.interaction_mode
+                                lambda k=key, i=idx: apply_candidate_to_memory(
+                                    k, i, st.session_state.interaction_mode
                                 )
                             )
                             if result:

@@ -8,6 +8,9 @@ import streamlit as st
 import yaml
 
 from src.safe_writer import safe_write_text
+from src.log_utils import get_logger
+
+logger = get_logger()
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
@@ -260,7 +263,7 @@ def _write_runtime_state(data: dict[str, Any]) -> None:
     try:
         load_runtime_modes.clear()
     except Exception:
-        pass
+        logger.warning("Failed to clear load_runtime_modes cache", exc_info=True)
 
 
 def _sync_runtime_state_markdown_views(data: dict[str, Any]) -> None:

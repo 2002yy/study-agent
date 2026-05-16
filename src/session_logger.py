@@ -7,6 +7,9 @@ from pathlib import Path
 
 from src.safe_writer import safe_write_text
 from src.session_store import SessionMeta
+from src.log_utils import get_logger
+
+logger = get_logger()
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "logs" / "sessions"
@@ -219,7 +222,7 @@ def save(session_id: str) -> str:
         lines.append(f"- safe_mode: {'true' if runtime.safe_mode else 'false'}")
         lines.append("")
     except Exception:
-        pass
+        logger.warning("Failed to load runtime modes for session log", exc_info=True)
 
     for entry in entries:
         lines.append(f"## {entry['time']}")
@@ -247,6 +250,6 @@ def save(session_id: str) -> str:
         if current.exists():
             os.remove(current)
     except Exception:
-        pass
+        logger.warning("Failed to clean up session file", exc_info=True)
 
     return str(filepath)
