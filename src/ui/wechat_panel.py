@@ -51,16 +51,7 @@ from src.wechat_memory import (
     extract_memory_candidates,
     save_candidates,
 )
-
-ROLE_LABELS = {
-    "auto": "自动",
-    "march7": "三月七",
-    "keqing": "刻晴",
-    "nahida": "纳西妲",
-    "firefly": "流萤",
-}
-ATMOSPHERE_LABELS = {"standard": "自然", "warm": "温和", "close": "贴近"}
-PERFORMANCE_LABELS = {"fast": "Fast", "standard": "Standard", "deep": "Deep"}
+from src.constants import ATMOS_LABELS, PERF_LABELS, ROLE_LABELS
 
 
 def _rerun_wechat_fragment():
@@ -71,7 +62,10 @@ def _rerun_wechat_fragment():
 
 
 def _rerun_app():
-    st.rerun()
+    try:
+        st.rerun(scope="fragment")
+    except Exception:
+        st.rerun()
 
 
 def _queue_wechat_notice(message: str, level: str = "success"):
@@ -413,7 +407,7 @@ def _render_opening_setup():
             st.session_state.get("wechat_opening_choice", "standard")
         ),
         horizontal=True,
-        format_func=lambda x: ATMOSPHERE_LABELS.get(x, x),
+        format_func=lambda x: ATMOS_LABELS.get(x, x),
         key="wechat_opening_atmosphere_radio",
     )
     st.session_state.wechat_opening_choice = choice
@@ -421,8 +415,8 @@ def _render_opening_setup():
     runtime_modes = st.session_state.runtime_modes
     st.caption(
         f"当前角色：{ROLE_LABELS.get(st.session_state.current_role, st.session_state.current_role)} · "
-        f"当前性能：{PERFORMANCE_LABELS.get(runtime_modes.performance_mode, runtime_modes.performance_mode)} · "
-        f"当前氛围：{ATMOSPHERE_LABELS.get(choice, choice)}"
+        f"当前性能：{PERF_LABELS.get(runtime_modes.performance_mode, runtime_modes.performance_mode)} · "
+        f"当前氛围：{ATMOS_LABELS.get(choice, choice)}"
     )
 
     cols = st.columns(2)

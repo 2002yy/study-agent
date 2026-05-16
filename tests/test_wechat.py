@@ -97,19 +97,19 @@ def test_extract_resolved_url_from_google_news_html_prefers_external_url():
 
 
 def test_extract_article_text_falls_back_across_layers(monkeypatch):
-    from src import wechat
+    from src.news import article_extractor
 
     monkeypatch.setattr(
-        wechat, "_extract_article_text_with_trafilatura", lambda *args, **kwargs: ""
+        article_extractor, "extract_article_text_with_trafilatura", lambda *args, **kwargs: ""
     )
     monkeypatch.setattr(
-        wechat,
-        "_extract_article_text_with_readability",
+        article_extractor,
+        "extract_article_text_with_readability",
         lambda *args, **kwargs: "readability text",
     )
     monkeypatch.setattr(
-        wechat,
-        "_extract_article_text_with_fallback_parser",
+        article_extractor,
+        "extract_article_text_with_fallback_parser",
         lambda *args, **kwargs: "fallback text",
     )
 

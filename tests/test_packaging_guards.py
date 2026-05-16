@@ -151,10 +151,10 @@ def test_sidebar_force_refresh_clears_memory_cache():
     assert 'st.session_state.memory_context_mode = ""' in text
 
 
-def test_runtime_version_is_synced_to_v069():
+def test_runtime_version_is_synced():
     mode_text = Path("src/mode_manager.py").read_text(encoding="utf-8")
     state_text = Path("memory/internal_state.md").read_text(encoding="utf-8")
 
-    assert 'current_version: str = "v0.6.9"' in mode_text
-    assert '- current_version: v0.6.9' in state_text
-    assert '- next_version: v0.7.0' in state_text
+    assert 'current_version: str = "v0.7.1"' in mode_text
+    assert '- current_version: v0.7.1' in state_text
+    assert '- next_version: v0.7.2' in state_text

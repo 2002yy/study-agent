@@ -7,6 +7,8 @@ import time
 
 from src.llm_client import ModelProfile, chat
 from src.model_stats import estimate_tokens, record_llm_router_call
+from src.text_utils import strip_code_fences
+from src.log_utils import get_logger
 
 VALID_ROLES = {"march7", "keqing", "nahida", "firefly"}
 VALID_MODES = {"普通", "苏格拉底", "费曼", "项目", "论文", "概念地图"}
@@ -53,18 +55,17 @@ def route_by_llm(user_input: str, model_profile: ModelProfile = "flash") -> dict
         t0 = time.time()
         raw = chat(messages, temperature=0.0, model_profile=model_profile)
         elapsed = time.time() - t0
-        record_llm_router_call(elapsed, estimate_tokens(user_input) + 100)
-    except Exception:
+        record_llm_router_call(elapsed, estimate_tokens(user_input) + 100, model_profile)
+    except Exception as e:
+        get_logger().warning("llm_router chat failed: %s", e)
         return None
 
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = [line for line in cleaned.splitlines() if not line.startswith("```")]
-        cleaned = "\n".join(lines)
+    cleaned = strip_code_fences(raw)
 
     try:
         data = json.loads(cleaned)
-    except Exception:
+    except Exception as e:
+        get_logger().warning("llm_router JSON parse failed: %s", e)
         return None
 
     if (

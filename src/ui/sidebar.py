@@ -22,31 +22,19 @@ from src.session_logger import (
 )
 from src.wechat import clear_wechat_unread, count_wechat_messages, read_wechat_state, read_wechat_unread
 
-ROLE_NAMES = {
-    "auto": "自动",
-    "march7": "三月七",
-    "keqing": "刻晴",
-    "nahida": "纳西妲",
-    "firefly": "流萤",
-}
-MODE_LABELS = {
-    "auto": "自动",
-    "普通": "普通",
-    "苏格拉底": "苏格拉底",
-    "费曼": "费曼",
-    "项目": "项目",
-    "论文": "论文",
-    "概念地图": "概念地图",
-}
-MODEL_LABELS = {"auto": "Auto", "flash": "Flash", "pro": "Pro"}
-PERF_LABELS = {"fast": "Fast", "standard": "Standard", "deep": "Deep"}
-ATMOS_LABELS = {"standard": "自然", "warm": "温和", "close": "贴近"}
-ENTRY_LABELS = {"wechat": "微信群", "single": "单人主讲"}
-ROLE_OPTIONS = ["auto", "march7", "keqing", "nahida", "firefly"]
-MODE_OPTIONS = ["auto", "普通", "苏格拉底", "费曼", "项目", "论文", "概念地图"]
-MODEL_OPTIONS = ["auto", "flash", "pro"]
-PERFORMANCE_OPTIONS = ["fast", "standard", "deep"]
-ENTRY_OPTIONS = ["wechat", "single"]
+from src.constants import (
+    ATMOS_LABELS,
+    ENTRY_LABELS,
+    ENTRY_OPTIONS,
+    MODE_LABELS,
+    MODE_OPTIONS,
+    MODEL_LABELS,
+    MODEL_OPTIONS,
+    PERF_LABELS,
+    PERFORMANCE_OPTIONS,
+    ROLE_LABELS,
+    ROLE_OPTIONS,
+)
 
 
 def _section(title: str):
@@ -121,7 +109,7 @@ def render_sidebar():
         current_role_new = st.selectbox(
             "角色",
             options=ROLE_OPTIONS,
-            format_func=lambda x: ROLE_NAMES.get(x, x),
+            format_func=lambda x: ROLE_LABELS.get(x, x),
             index=ROLE_OPTIONS.index(st.session_state.current_role)
             if st.session_state.current_role in ROLE_OPTIONS
             else 0,
@@ -177,7 +165,7 @@ def render_sidebar():
             set_interaction_mode(st.session_state.session_id, atmosphere_new)
 
         st.session_state.sidebar_notice = "设置已应用"
-        st.rerun()
+        st.rerun(scope="fragment")
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -209,7 +197,7 @@ def render_sidebar():
                 update_safe_mode(safe_new)
                 runtime_modes.safe_mode = safe_new
             st.session_state.sidebar_notice = "状态开关已应用"
-            st.rerun()
+            st.rerun(scope="fragment")
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -243,7 +231,7 @@ def render_sidebar():
                 "enabled" if capture_enabled_new else "disabled",
             )
         st.session_state.sidebar_notice = "记忆设置已应用"
-        st.rerun()
+        st.rerun(scope="fragment")
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -282,14 +270,14 @@ def render_sidebar():
             update_entry_mode("wechat")
             runtime_modes.entry_mode = "wechat"
         st.session_state.sidebar_notice = "已切换到微信群未读视图"
-        st.rerun()
+        st.rerun(scope="fragment")
 
     if st.button("清空未读消息", use_container_width=True):
         clear_wechat_unread()
         set_wechat_unread_cleared(st.session_state.session_id)
         st.session_state.wechat_messages = None
         st.session_state.sidebar_notice = "未读消息已清空"
-        st.rerun()
+        st.rerun(scope="fragment")
 
     cols = st.columns(2)
     with cols[0]:
@@ -303,7 +291,7 @@ def render_sidebar():
             st.session_state.wechat_messages = None
             st.session_state.health_report = health_report(force_refresh=True)
             st.session_state.sidebar_notice = "配置、记忆与健康状态已刷新"
-            st.rerun()
+            st.rerun(scope="fragment")
 
     if st.session_state.get("health_report"):
         with st.expander("健康报告", expanded=False):

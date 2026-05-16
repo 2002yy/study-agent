@@ -104,9 +104,9 @@ def estimated_cost() -> float:
     return flash_cost + pro_cost
 
 
-def record_llm_router_call(latency: float, tokens: int = 50) -> None:
+def record_llm_router_call(latency: float, tokens: int = 50, model_profile: str = "flash") -> None:
     _stats.llm_router_calls += 1
-    record_call("flash", tokens, latency)
+    record_call(model_profile, tokens, latency)
 
 
 def record_perf(metrics: dict) -> None:

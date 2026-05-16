@@ -46,7 +46,8 @@ def reload_config() -> dict:
         from src.llm_client import reset_client
 
         reset_client()
-    except Exception:
-        pass
+    except Exception as e:
+        from src.log_utils import get_logger
+        get_logger().warning("config reload: reset_client failed: %s", e)
 
     return _config_cache

@@ -61,8 +61,10 @@ def diff_with_backup(file_name: str) -> str:
     from src.backup_manager import BACKUP_DIR
 
     old = (BACKUP_DIR / match["name"]).read_text(encoding="utf-8")
-    added = sum(1 for l in current.split("\n") if l not in old.split("\n"))
-    removed = sum(1 for l in old.split("\n") if l not in current.split("\n"))
+    old_set = set(old.splitlines())
+    current_set = set(current.splitlines())
+    added = len(current_set - old_set)
+    removed = len(old_set - current_set)
     return f"+{added}/-{removed} 行 | 备份时间: {match['time']}"
 
 

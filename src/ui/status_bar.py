@@ -7,47 +7,21 @@ import streamlit as st
 from src.ui.avatar import get_banner_uri, get_html_avatar_uri
 from src.wechat import count_wechat_messages, read_wechat_state, read_wechat_unread
 
-ROLE_LABELS = {
-    "auto": "自动",
-    "march7": "三月七",
-    "keqing": "刻晴",
-    "nahida": "纳西妲",
-    "firefly": "流萤",
-}
-ROLE_ICONS = {
-    "auto": "🎭",
-    "march7": "🌸",
-    "keqing": "⚡",
-    "nahida": "🍃",
-    "firefly": "🦋",
-}
-MODE_ICONS = {
-    "auto": "🧭",
-    "普通": "💬",
-    "苏格拉底": "❓",
-    "费曼": "🧠",
-    "项目": "🛠",
-    "论文": "📚",
-    "概念地图": "🗺",
-}
-MODEL_LABELS = {"auto": "Auto", "flash": "Flash", "pro": "Pro"}
-MODEL_ICONS = {"auto": "🧩", "flash": "⚡", "pro": "💎"}
-PERF_LABELS = {"fast": "Fast", "standard": "Standard", "deep": "Deep"}
-PERF_ICONS = {"fast": "🚀", "standard": "🎯", "deep": "🔍"}
-ATMOS_LABELS = {"standard": "Standard", "warm": "Warm", "close": "Close"}
-ATMOS_ICONS = {"standard": "🌿", "warm": "☀️", "close": "💞"}
-ENTRY_LABELS = {"wechat": "微信群", "single": "单人主讲"}
-ENTRY_ICONS = {"wechat": "👥", "single": "🧑‍🏫"}
-WECHAT_MODE_LABELS = {
-    "unread_feedback": "未读反馈",
-    "first_user_join": "首次进群",
-    "interactive_group": "互动群聊",
-}
-WECHAT_MODE_ICONS = {
-    "unread_feedback": "📨",
-    "first_user_join": "✨",
-    "interactive_group": "🗨️",
-}
+from src.constants import (
+    ATMOS_ICONS,
+    ATMOS_LABELS,
+    ENTRY_ICONS,
+    ENTRY_LABELS,
+    MODE_ICONS,
+    MODEL_ICONS,
+    MODEL_LABELS,
+    PERF_ICONS,
+    PERF_LABELS,
+    ROLE_ICONS,
+    ROLE_LABELS,
+    WECHAT_MODE_ICONS,
+    WECHAT_MODE_LABELS,
+)
 
 
 def _focus_preview() -> str:

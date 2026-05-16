@@ -1,5 +1,7 @@
 import json
 from src.llm_client import chat
+from src.text_utils import strip_code_fences
+from src.log_utils import get_logger
 
 SECTION_KEYS = [
     "progress_update",
@@ -36,15 +38,7 @@ SYSTEM_PROMPT = """你是一个学习系统的课后更新生成器。根据本�
 
 
 def _parse_json(text: str) -> dict[str, str]:
-    # Strip markdown code fences if present
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines)
+    cleaned = strip_code_fences(text)
 
     try:
         data = json.loads(cleaned)
@@ -98,7 +92,11 @@ def generate_after_session_updates(
         },
     ]
 
-    raw = chat(messages, temperature=0.3, model_profile=model_profile)
+    try:
+        raw = chat(messages, temperature=0.3, model_profile=model_profile)
+    except Exception as e:
+        get_logger().warning("after_session chat failed: %s", e)
+        return {key: "（LLM 调用失败，请稍后重试）" for key in SECTION_KEYS}
     parsed = _parse_json(raw)
 
     if not parsed:

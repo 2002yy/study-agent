@@ -3,6 +3,7 @@ from pathlib import Path
 from src.llm_client import chat, ModelProfile
 from src.safe_writer import safe_write_text, append_text_safely
 from src.mode_manager import load_runtime_modes, is_memory_write_allowed
+from src.text_utils import strip_code_fences
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_FILE = ROOT / "templates" / "wechat_memory_extract.md"
@@ -63,11 +64,7 @@ def extract_memory_candidates(
     ]
 
     raw = chat(messages, temperature=0.3, model_profile=model_profile)
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        lines = [l for l in lines if not l.startswith("```")]
-        cleaned = "\n".join(lines)
+    cleaned = strip_code_fences(raw)
 
     try:
         data = json.loads(cleaned)

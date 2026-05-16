@@ -7,6 +7,7 @@ from typing import Literal
 
 from src.mode_manager import RuntimeModes
 from src.model_stats import suggest_model_by_rules
+from src.log_utils import get_logger
 
 Role = Literal["march7", "keqing", "nahida", "firefly"]
 Mode = Literal["普通", "苏格拉底", "费曼", "项目", "论文", "概念地图"]
@@ -63,7 +64,8 @@ def _load_rules_from_yaml() -> RoutingConfig | None:
             default_model=default_cfg.get("model", "flash"),
             default_reason=default_cfg.get("reason", "无匹配规则，使用默认"),
         )
-    except Exception:
+    except Exception as e:
+        get_logger().warning("YAML routing rules load failed: %s", e)
         return None
 
 
@@ -116,8 +118,9 @@ def load_routing_config() -> RoutingConfig:
     )
 
 
-def _match(input_text: str) -> tuple[Role, Mode, Model, str, list[str], int] | None:
-    rules = _load_rules()
+def _match(input_text: str, rules: list | None = None) -> tuple[Role, Mode, Model, str, list[str], int] | None:
+    if rules is None:
+        rules = _load_rules()
     text = input_text.lower()
     best = None
     best_priority = -1
@@ -144,7 +147,7 @@ def route_request(
 ) -> dict:
     routing_config = load_routing_config()
     mode_is_auto = selected_mode in ("auto", "自动")
-    matched = _match(user_input)
+    matched = _match(user_input, routing_config.rules)
     default_role: Role = routing_config.default_role  # type: ignore[assignment]
     default_mode: Mode = routing_config.default_mode  # type: ignore[assignment]
     default_model: Model = routing_config.default_model  # type: ignore[assignment]
@@ -185,7 +188,8 @@ def route_request(
                     auto_reason = llm_result.get("reason", auto_reason)
                     confidence = "medium"
                     hit_kw = ["[LLM]"]
-            except Exception:
+            except Exception as e:
+                get_logger().warning("LLM router fallback failed: %s", e)
                 pass
 
     # Model selection with performance_mode awareness

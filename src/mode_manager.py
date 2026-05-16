@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import streamlit as st
+
 from src.safe_writer import safe_write_text
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +64,7 @@ def _parse_bool(text: str, key: str) -> bool:
     return _parse_keyvalue(text, key).lower() == "true"
 
 
+@st.cache_data(ttl=30)
 def load_runtime_modes() -> RuntimeModes:
     modes = RuntimeModes()
 

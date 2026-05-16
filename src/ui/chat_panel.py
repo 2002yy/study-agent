@@ -8,19 +8,14 @@ import streamlit as st
 from src.context_builder import build_messages
 from src.llm_client import stream_chat
 from src.memory import read_memory_bundle
+from src.mode_manager import load_runtime_modes
 from src.model_stats import estimate_tokens, record_call, record_perf
 from src.perf import PerfTracker, write_perf_log
 from src.role_manager import load_role
 from src.router import route_request
 from src.session_logger import flush_current_session, log
 from src.ui.avatar import get_chat_avatar, get_html_avatar_uri, get_user_avatar
-
-ROLE_DISPLAY = {
-    "march7": "三月七",
-    "keqing": "刻晴",
-    "nahida": "纳西妲",
-    "firefly": "流萤",
-}
+from src.constants import ROLE_LABELS
 
 
 def _assistant_role_for_message(msg: dict) -> str:
@@ -81,7 +76,7 @@ def _summary_preview() -> str:
 
 def _last_milestone() -> str:
     route = st.session_state.get("current_route", {})
-    role = ROLE_DISPLAY.get(route.get("role", ""), "自动")
+    role = ROLE_LABELS.get(route.get("role", ""), "自动")
     perf = _display_perf(st.session_state.runtime_modes.performance_mode)
     mode = _display_mode(route.get("mode", st.session_state.current_mode))
     return f"最近建议：{role} · {mode} · {perf}"
@@ -106,6 +101,7 @@ def _render_welcome_area():
     summary_preview = _summary_preview()
     role_for_visual = st.session_state.get("current_route", {}).get("role", "march7")
     role_avatar = get_html_avatar_uri(role_for_visual if role_for_visual != "auto" else "march7")
+    version = load_runtime_modes().current_version
 
     st.markdown(
         f"""
@@ -128,7 +124,7 @@ def _render_welcome_area():
                     <div class="resume-portrait" style="background-image:url('{role_avatar}');"></div>
                 </div>
                 <div class="resume-copy">
-                    • 版本：v0.6.2 响应速度优化<br/>
+                    • 版本：{html.escape(version)}<br/>
                     • 最近推进：性能模式、轻量上下文、缓存、写盘降频<br/>
                     • 下次建议：测试 fast / standard / deep 三种模式表现
                 </div>
@@ -308,7 +304,7 @@ def _process_user_input(user_input: str, role_prompt: str):
         with st.expander("本轮路由结果", expanded=False):
             current_route = st.session_state.current_route
             st.caption(
-                f"角色: {ROLE_DISPLAY.get(current_route['role'], current_route['role'])}"
+                f"角色: {ROLE_LABELS.get(current_route['role'], current_route['role'])}"
             )
             st.caption(f"模式: {current_route['mode']}")
             st.caption(f"模型: {current_route['model_profile']}")
