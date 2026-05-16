@@ -1,7 +1,7 @@
-# Study Agent v0.7.3 integration notes
+# Study Agent v0.7.3 release notes
 
-> This document is the `readme703` handoff for the current change set.
-> It summarizes the code that is ready to commit and push after the v0.7.2 quality pass.
+> This document summarizes the v0.7.3 integration release.
+> Released after the v0.7.2 quality pass.
 
 ---
 

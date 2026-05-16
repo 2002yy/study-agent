@@ -1,40 +1,30 @@
 # 未来方向
 
 > 本文件记录当前版本之后的优先增强方向。  
-> 当前开发阶段：`v0.7.2` 已落地，下一阶段主目标定位为 `v0.7.3`。
+> 当前开发阶段：`v0.7.3` 已落地，下一阶段主目标定位为 `v0.7.4`。
 
-## v0.7.2 完成情况（代码质量收口）
+## v0.7.3 完成情况（服务层拆分与工程化收口）
 
-v0.7.2 未按原计划走功能增量，而是做了一次全面的代码质量扫描与优化收口：
+v0.7.3 是一次服务层拆分与工程化收口：
 
-### Bug 修复
-1. 测试版本断言 stale → 更新为 v0.7.1 并改名
-2. 欢迎页硬编码版本 v0.6.2 → 改为动态读取 `load_runtime_modes().current_version`
-3. LLM Router 用量统计 fix → 支持 `model_profile` 参数
-4. 死代码 `main_panel.py` → 已删除
+### 服务层拆分
+1. wechat news round 下沉到 `src/wechat_service.py`
+2. `wechat_panel.py` 专注 UI 渲染与按钮流
 
-### 性能优化
-5. `load_runtime_modes()` 加 `@st.cache_data(ttl=30)`，避免同次渲染重复读文件
-6. YAML 路由配置修复重复解析（同次请求原为读两次）
-7. diff 算法从 O(n×m) 改为 set 集合运算
+### 工程化
+3. session flush 批量提交策略（fast: 4轮, standard: 2轮, debug: 每轮）
+4. GitHub Actions CI（pytest + ruff + mypy）
+5. 架构级回归测试覆盖
+6. LLM client 参数/配置扩展（provider_profile, task_name, JSON mode 等）
+7. YAML runtime state 迁移为机器真源，markdown 视图自动同步
 
-### 架构改善
-8. 公共常量抽取到 `src/constants.py`（消除 4 文件重复定义）
-9. 代码栅栏清理抽取到 `src/text_utils.py`（消除 3 文件重复实现）
-10. 文章提取模块独立到 `src/news/article_extractor.py`
-
-### Streamlit 优化
-11. wechat_panel fragment 内 `st.rerun()` 改为 `st.rerun(scope="fragment")`
-12. sidebar fragment 内同上
-
-### 健壮性
-13. 关键路径裸 except 加日志（`router.py`/`llm_router.py`/`config.py`）
-14. `after_session.py` LLM 调用加 try/except 崩溃保护
-15. `requirements.txt` 移除误放的 pytest
+### 测试
+8. 新增 5 个测试文件（wechat_service, session_logger_flush, architecture_flows, llm_client_options, mode_manager_yaml）
+9. 全量 108 测试通过
 
 ---
 
-## v0.7.3 重点
+## v0.7.4 重点
 
 ### 1. 联网搜索质量提升
 

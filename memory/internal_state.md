@@ -9,6 +9,6 @@
 - entry_mode: wechat
 
 ## Version
-- current_version: v0.7.2
-- active_task: wechat refactor recovery and version sync
-- next_version: v0.7.3
+- current_version: v0.7.4
+- active_task: post-v0.7.4 stabilization and wechat module split
+- next_version: v0.7.5

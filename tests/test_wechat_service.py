@@ -66,6 +66,18 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
     assert result.digest == "digest"
     assert result.discussion == "discussion"
     assert result.group_content == "group content"
+    assert result.source_block == "source:OpenAI latest:3"
+    assert result.article_coverage == {
+        "total": 3,
+        "with_text": 3,
+        "without_text": 0,
+        "title_only": 0,
+        "unresolved_transit": 0,
+        "not_selected": 0,
+        "failed_fetch": 0,
+    }
+    assert result.warnings == []
+    assert result.elapsed_ms >= 0
     assert writes == [
         ("note", "source:OpenAI latest:3"),
         ("reply", "discussion"),
@@ -123,3 +135,8 @@ def test_run_news_round_skips_article_read_when_disabled(monkeypatch):
         {"title": "B"},
         {"title": "C"},
     ]
+    assert result.source_block == "note"
+    assert result.article_coverage["total"] == 3
+    assert result.article_coverage["with_text"] == 0
+    assert result.elapsed_ms >= 0
+    assert any("0/3" in w for w in result.warnings)

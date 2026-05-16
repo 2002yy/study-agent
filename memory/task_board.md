@@ -1,6 +1,6 @@
 # 任务看板
 
-## 当前 Sprint (v0.7.3)
+## 当前 Sprint (v0.7.4)
 
 ### 进行中
 
@@ -15,6 +15,15 @@
 - UI 模块基础测试覆盖（sidebar/chat_panel/status_bar）
 - LLM 调用集成测试（含 mock）
 - 会话状态无界增长上限
+
+### 已完成 (v0.7.3)
+
+- wechat_service 拆分
+- session flush 批量提交
+- GitHub Actions CI 落地
+- 架构级测试覆盖
+- LLM client 参数/配置扩展
+- YAML runtime state 真源化
 
 ### 已完成 (v0.7.2)
 

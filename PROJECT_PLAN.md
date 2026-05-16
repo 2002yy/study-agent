@@ -1,7 +1,7 @@
 # Study Agent 项目规划
 
-> 当前活跃阶段：`v0.7.2`  
-> 当前状态：代码质量全面收口已完成，下一阶段回归功能增量（联网搜索质量、来源 UI、测试覆盖）。
+> 当前活跃阶段：`v0.7.3`  
+> 当前状态：服务层拆分与工程化收口已完成，下一阶段回归功能增量（联网搜索质量、来源 UI、测试覆盖）。
 
 ## 当前定位
 
@@ -32,7 +32,19 @@ v0.7.2 是一次代码质量收口，不是功能增量：
 10. `requirements.txt` 清理误放的 pytest
 11. 全量 72 测试通过，changelog 写入 `changelog/README_v0_7_2.md`
 
-## v0.7.3 目标
+## v0.7.3 已完成的重点
+
+v0.7.3 是一次服务层拆分与工程化收口：
+
+1. wechat news round 服务下沉到 `src/wechat_service.py`
+2. session flush 批量提交（按性能模式分频次）
+3. GitHub Actions CI 落地（pytest + ruff + mypy）
+4. 架构级回归测试（`tests/test_architecture_flows.py`）
+5. LLM client 参数/配置扩展（provider_profile、task_name、JSON mode 等）
+6. YAML runtime state 迁移为真源（config/runtime_state.yaml）
+7. 全量 108 测试通过，changelog 写入 `changelog/README_v0_7_3.md`
+
+## v0.7.4 目标
 
 下一阶段回归功能增量：
 

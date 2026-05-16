@@ -179,6 +179,10 @@ def _run_news_round(
     st.session_state.wechat_news_items = result.news_items
     st.session_state.wechat_news_digest = result.digest
     st.session_state.wechat_messages = result.group_content
+    st.session_state.wechat_news_coverage = result.article_coverage
+    st.session_state.wechat_news_warnings = result.warnings
+    st.session_state.wechat_news_elapsed_ms = result.elapsed_ms
+    st.session_state.wechat_news_source_block = result.source_block
     return result
 
 
@@ -207,11 +211,32 @@ def _render_news_digest():
     if not digest:
         return
 
+    coverage = st.session_state.get("wechat_news_coverage", {})
+    warnings_data = st.session_state.get("wechat_news_warnings", [])
+    elapsed_ms = st.session_state.get("wechat_news_elapsed_ms", 0)
+
     with st.expander("今日新闻摘要", expanded=False):
+        if coverage:
+            total = coverage.get("total", 0)
+            with_text = coverage.get("with_text", 0)
+            if total > 0:
+                pct = int(with_text / total * 100)
+                color = "green" if pct >= 50 else "red"
+                st.markdown(
+                    f":{color}[正文覆盖率 {with_text}/{total} ({pct}%)] "
+                    f"| 耗时 {elapsed_ms}ms"
+                )
+
+        if warnings_data:
+            for w in warnings_data:
+                st.warning(w)
+
         if items:
             for idx, item in enumerate(items[:10], start=1):
+                article_status = str(item.get("article_status", ""))
+                icon = " :page_facing_up:" if "正文已读" in article_status else " :newspaper:"
                 st.caption(
-                    f"{idx}. {item['title']} | {item['source']} | {item['published_at']}"
+                    f"{idx}.{icon} {item.get('title', '')} | {item.get('source', '')} | {item.get('published_at', '')}"
                 )
         st.markdown(digest)
 

@@ -24,15 +24,55 @@ streamlit run app.py
 
 ## 环境配置
 
-编辑 `.env`：
+编辑 `.env`（完整模板见 `.env.example`）：
 
-```
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.deepseek.com/v1
-MODEL_FLASH_NAME=deepseek-v4-flash
-MODEL_PRO_NAME=deepseek-v4-pro
-DEFAULT_MODEL_PROFILE=pro
-```
+### Provider 选择
+
+通过 `LLM_PROVIDER_PROFILE` 切换 LLM 提供商，支持 `openai` / `deepseek` / `openrouter` / `siliconflow` / `local`。每个 provider 读写自己的环境变量：
+
+| Provider | API Key | Base URL | 默认 Base URL |
+|---|---|---|---|
+| `deepseek` | `DEEPSEEK_API_KEY` | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` |
+| `openrouter` | `OPENROUTER_API_KEY` | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` |
+| `siliconflow` | `SILICONFLOW_API_KEY` | `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` |
+| `local` | `LOCAL_API_KEY` | `LOCAL_BASE_URL` | `http://127.0.0.1:8000/v1` |
+| `openai` | `OPENAI_API_KEY` | `OPENAI_BASE_URL` | — |
+
+每个 provider 的模型和连接参数：
+- `{PROVIDER}_MODEL_FLASH_NAME` — flash 模型名
+- `{PROVIDER}_MODEL_PRO_NAME` — pro 模型名
+- `{PROVIDER}_DEFAULT_MODEL_PROFILE` — 默认模型档位（`flash`/`pro`）
+- `{PROVIDER}_TIMEOUT_SECONDS` — 请求超时秒数
+- `{PROVIDER}_MAX_RETRIES` — 最大重试次数
+
+### 全局默认值
+
+未设置 provider 级参数时回退到以下变量：
+- `MODEL_FLASH_NAME` / `MODEL_PRO_NAME` — 模型名
+- `DEFAULT_MODEL_PROFILE` — 默认档位（默认 `flash`）
+- `LLM_TIMEOUT_SECONDS` — 全局超时（默认 `30`）
+- `LLM_MAX_RETRIES` — 全局最大重试（默认 `2`）
+- `LLM_MAX_TOKENS` — 全局最大 token 数
+
+### 任务级覆盖
+
+内置任务（`llm_router` `after_session`）有硬编码默认值，可通过环境变量覆盖：
+
+| 任务 | 默认 max_tokens | 默认 timeout | 默认 temperature |
+|---|---|---|---|
+| `llm_router` | 240 | 20s | 0.0 |
+| `after_session` | 1200 | 45s | 0.3 |
+
+覆盖方式：`{TASK_KEY}_MAX_TOKENS` / `{TASK_KEY}_TIMEOUT_SECONDS` / `{TASK_KEY}_TEMPERATURE`（如 `AFTER_SESSION_MAX_TOKENS=1200`）。
+
+### 解析链
+
+每个参数按以下优先级解析：
+1. 代码调用传入的显式参数
+2. 任务级环境变量（如 `AFTER_SESSION_MAX_TOKENS`）
+3. 任务硬编码默认值（`_TASK_DEFAULTS`）
+4. 全局环境变量（如 `LLM_MAX_TOKENS`）
+5. provider 级环境变量（如 `DEEPSEEK_TIMEOUT_SECONDS`）
 
 ## 项目结构
 
@@ -149,6 +189,8 @@ DEFAULT_MODEL_PROFILE=pro
 - **v0.7.1** — 90 天搜索窗口、来源块压缩、摘要覆盖率提示、prompt 乱码修复、覆盖率统计对齐。
 - **v0.7.2** — 代码质量全面收口：修复 4 个 Bug、性能优化（缓存/YAML/diff）、架构改善（常量去重/模块拆分）、Streamlit fragment 反模式修复、关键路径错误处理增强。
 - **v0.7.3** — 服务层拆分与工程化收口：Wechat news round 下沉到 `src/wechat_service.py`、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 参数扩展、YAML runtime state 真源化。详见 `changelog/README_v0_7_3.md`。
+- **v0.7.4** — 工程体验收口：自动化版本 bump 工具、LLM 配置文档化（`.env.example` 5 个 provider）、NewsRoundResult 结果对象化（覆盖率/警告/耗时）、UI 来源可信度展示。详见 `changelog/README_v0_7_4.md`。
+- **v0.7.5** — 规划中。
 
 完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
 
