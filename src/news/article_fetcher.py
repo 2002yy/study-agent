@@ -7,7 +7,12 @@ import re
 import time
 from socket import getaddrinfo
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import (
+    HTTPRedirectHandler,
+    Request,
+    build_opener,
+    urlopen,
+)
 
 from src.news.article_extractor import (
     decode_html_payload as _decode_html_payload,
@@ -49,7 +54,13 @@ def _prune_article_cache(now: float) -> None:
 
 
 def _check_dns_target_safe(hostname: str) -> bool:
-    """Resolve hostname and reject if it points to a private/internal address."""
+    """Resolve hostname and reject if it points to a private/internal address.
+
+    Note: there is a TOCTOU window between this DNS check and the real
+    urlopen() connection.  For a personal tool the risk is acceptable;
+    a production-grade fix would pin resolved IPs or use a single
+    connection path that integrates resolution with fetch.
+    """
     try:
         addrs = getaddrinfo(hostname, None)
     except Exception:
@@ -108,6 +119,40 @@ def _is_fetchable_article_url(url: str) -> bool:
     return True
 
 
+# ── Safe HTTP redirect handler (SSRF defense in depth) ─────────────────
+
+_MAX_REDIRECT_DEPTH = 3
+
+
+class _SafeHTTPRedirectHandler(HTTPRedirectHandler):
+    """Custom redirect handler that validates each hop for SSRF safety.
+
+    - Checks _is_fetchable_article_url() before following each redirect
+    - Limits redirect chain depth to _MAX_REDIRECT_DEPTH
+    - Works alongside the response.geturl() final-URL check below
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_fetchable_article_url(newurl):
+            return None  # refuse unsafe redirect target
+        newreq = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if newreq is None:
+            return None
+        depth = getattr(req, "_redirect_depth", 0) + 1
+        if depth > _MAX_REDIRECT_DEPTH:
+            return None
+        newreq._redirect_depth = depth
+        return newreq
+
+
+# Shared opener with safe redirect handler (replaces default HTTPRedirectHandler)
+_SAFE_OPENER = build_opener()
+for i, h in enumerate(_SAFE_OPENER.handlers):
+    if isinstance(h, HTTPRedirectHandler):
+        _SAFE_OPENER.handlers[i] = _SafeHTTPRedirectHandler()
+        break
+
+
 # ── Article fetching ──────────────────────────────────────────────────
 
 
@@ -137,7 +182,7 @@ def fetch_article_text_with_method(
     )
 
     try:
-        with urlopen(req, timeout=timeout) as response:
+        with _SAFE_OPENER.open(req, timeout=timeout) as response:
             final_url = response.geturl()
             if final_url and not _is_fetchable_article_url(final_url):
                 _ARTICLE_CACHE[url] = (now, "", "")

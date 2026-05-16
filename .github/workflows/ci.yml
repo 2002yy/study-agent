@@ -33,7 +33,6 @@ jobs:
       - name: Run detect-secrets
         continue-on-error: true
         run: |
-          pip install detect-secrets 2>/dev/null
           if command -v detect-secrets &> /dev/null; then
             detect-secrets scan --disable-plugin KeywordDetector \
               --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \

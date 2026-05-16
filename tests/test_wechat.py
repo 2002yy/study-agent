@@ -197,7 +197,9 @@ def test_fetch_article_text_with_method_returns_empty_when_redirect_to_localhost
         def geturl(self):
             return "http://127.0.0.1/a"
 
-    monkeypatch.setattr(article_fetcher, "urlopen", lambda *args, **kwargs: _FakeResponse())
+    monkeypatch.setattr(
+        article_fetcher._SAFE_OPENER, "open", lambda *args, **kwargs: _FakeResponse()
+    )
 
     text, method = fetch_article_text_with_method("https://example.com/a")
     assert text == ""
