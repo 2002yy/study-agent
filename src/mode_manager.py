@@ -19,9 +19,9 @@ class RuntimeModes:
     route_mode: str = "auto_rule"
     debug_mode: bool = False
     safe_mode: bool = False
-    current_version: str = "v0.7.1"
+    current_version: str = "v0.7.2"
     active_task: str = "微信群联网搜索质量收口、正文提取增强与来源展示压缩"
-    next_version: str = "v0.7.2"
+    next_version: str = "v0.7.3"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False

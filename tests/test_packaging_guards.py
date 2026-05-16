@@ -155,6 +155,6 @@ def test_runtime_version_is_synced():
     mode_text = Path("src/mode_manager.py").read_text(encoding="utf-8")
     state_text = Path("memory/internal_state.md").read_text(encoding="utf-8")
 
-    assert 'current_version: str = "v0.7.1"' in mode_text
-    assert '- current_version: v0.7.1' in state_text
-    assert '- next_version: v0.7.2' in state_text
+    assert 'current_version: str = "v0.7.2"' in mode_text
+    assert '- current_version: v0.7.2' in state_text
+    assert '- next_version: v0.7.3' in state_text
