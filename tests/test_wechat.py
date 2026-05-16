@@ -180,6 +180,30 @@ def test_fetch_article_text_with_method_uses_cached_method():
     assert method == "readability"
 
 
+def test_fetch_article_text_with_method_returns_empty_when_redirect_to_localhost(
+    monkeypatch,
+):
+    from src.news import article_fetcher
+
+    _ARTICLE_CACHE.clear()
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def geturl(self):
+            return "http://127.0.0.1/a"
+
+    monkeypatch.setattr(article_fetcher, "urlopen", lambda *args, **kwargs: _FakeResponse())
+
+    text, method = fetch_article_text_with_method("https://example.com/a")
+    assert text == ""
+    assert method == ""
+
+
 def test_article_fetch_priority_prefers_openai_official_voice_news():
     low_score = _article_fetch_priority(
         {

@@ -138,6 +138,11 @@ def fetch_article_text_with_method(
 
     try:
         with urlopen(req, timeout=timeout) as response:
+            final_url = response.geturl()
+            if final_url and not _is_fetchable_article_url(final_url):
+                _ARTICLE_CACHE[url] = (now, "", "")
+                return "", ""
+
             content_type = response.headers.get("Content-Type", "")
             if (
                 "html" not in content_type.lower()

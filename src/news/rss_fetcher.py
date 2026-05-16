@@ -311,7 +311,7 @@ def fetch_news_items(
     resolve_top_n: int = 5,
 ) -> list[dict]:
     query_text = normalize_news_query(query_text)
-    cache_key = f"{query_text}|{max_items}"
+    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}"
 
     now = time.time()
     _prune_news_cache(now)
