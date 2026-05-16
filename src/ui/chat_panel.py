@@ -331,7 +331,11 @@ def _process_user_input(user_input: str, role_prompt: str):
             memory_enabled=bool(memory_bundle),
             route_info=st.session_state.current_route,
         )
-        flush_current_session(st.session_state.session_id)
+        flush_current_session(
+            st.session_state.session_id,
+            performance_mode=runtime_modes.performance_mode,
+            debug_mode=runtime_modes.debug_mode,
+        )
 
     perf.set("ui_render_time", st.session_state.perf_metrics.get("ui_render_time", 0.0))
     metrics = perf.finish().to_dict()

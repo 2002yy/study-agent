@@ -14,7 +14,9 @@ from src.mode_manager import load_runtime_modes, is_memory_write_allowed
 ROOT = Path(__file__).resolve().parent.parent
 
 MEMORY_TARGETS = {
+    "index": ROOT / "memory" / "index.md",
     "summary": ROOT / "memory" / "summary.md",
+    "archive_summary": ROOT / "memory" / "archive_summary.md",
     "progress": ROOT / "memory" / "progress.md",
     "current_focus": ROOT / "memory" / "current_focus.md",
     "learner_profile": ROOT / "memory" / "learner_profile.md",

@@ -53,7 +53,12 @@ def route_by_llm(user_input: str, model_profile: ModelProfile = "flash") -> dict
 
     try:
         t0 = time.time()
-        raw = chat(messages, temperature=0.0, model_profile=model_profile)
+        raw = chat(
+            messages,
+            temperature=None,
+            model_profile=model_profile,
+            task_name="llm_router",
+        )
         elapsed = time.time() - t0
         record_llm_router_call(elapsed, estimate_tokens(user_input) + 100, model_profile)
     except Exception as e:

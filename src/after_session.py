@@ -37,6 +37,43 @@ SYSTEM_PROMPT = """你是一个学习系统的课后更新生成器。根据本�
 5. 不要记录敏感信息，不要过度推断用户状态"""
 
 
+def _build_markdown_preview(raw: str) -> str:
+    if not raw or not raw.strip():
+        return "（JSON 解析失败，且无有效输出）"
+
+    lines = raw.strip().splitlines()
+    preview_lines = [
+        "### 课后更新（自动解析失败，以下为原始输出预览）",
+        "",
+        "> 模型未输出合法 JSON，已将原始文本转为可读预览。请人工确认并整理。",
+        "",
+    ]
+    max_lines = 40
+    shown = lines[:max_lines]
+    for line in shown:
+        preview_lines.append(line.strip() if line.strip() else "")
+    if len(lines) > max_lines:
+        preview_lines.append("")
+        preview_lines.append(f"*(...共 {len(lines)} 行，已截断)*")
+
+    return "\n".join(preview_lines)
+
+
+def _extract_json_braces(text: str) -> dict | None:
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or start >= end:
+        return None
+    candidate = text[start:end + 1]
+    try:
+        data = json.loads(candidate)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return None
+
+
 def _parse_json(text: str) -> dict[str, str]:
     cleaned = strip_code_fences(text)
 
@@ -45,7 +82,9 @@ def _parse_json(text: str) -> dict[str, str]:
         if not isinstance(data, dict):
             raise ValueError("not a dict")
     except Exception:
-        return {}
+        data = _extract_json_braces(text)
+        if data is None:
+            return {}
 
     result = {}
     for key in SECTION_KEYS:
@@ -93,21 +132,25 @@ def generate_after_session_updates(
     ]
 
     try:
-        raw = chat(messages, temperature=0.3, model_profile=model_profile)
+        raw = chat(
+            messages,
+            temperature=None,
+            model_profile=model_profile,
+            task_name="after_session",
+        )
     except Exception as e:
         get_logger().warning("after_session chat failed: %s", e)
         return {key: "（LLM 调用失败，请稍后重试）" for key in SECTION_KEYS}
     parsed = _parse_json(raw)
 
     if not parsed:
+        preview = _build_markdown_preview(raw)
         return {
             "progress_update": "（JSON 解析失败，需要人工检查）",
             "learner_profile_update": "（JSON 解析失败，需要人工检查）",
             "current_focus_update": "（JSON 解析失败，需要人工检查）",
             "revision_notes_update": "（JSON 解析失败，需要人工检查）",
-            "session_archive_update": raw.strip()
-            if raw
-            else "（JSON 解析失败，需要人工检查）",
+            "session_archive_update": preview,
         }
 
     # Fill any missing keys

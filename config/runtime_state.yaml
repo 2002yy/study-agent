@@ -1,0 +1,19 @@
+version:
+  current: v0.7.2
+  next: v0.7.3
+  active_task: wechat refactor recovery and version sync
+runtime:
+  entry_mode: wechat
+  performance_mode: standard
+  route_mode: auto_rule
+  memory_mode: preview
+  debug_mode: false
+  safe_mode: false
+interaction:
+  relationship_mode: close
+wechat:
+  mode: unread_feedback
+  user_has_joined_group: false
+  first_join_reaction_done: false
+  memory_capture_enabled: true
+  memory_capture_mode: manual

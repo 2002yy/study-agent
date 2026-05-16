@@ -5,7 +5,6 @@ from src.update_validator import validate_updates
 from src.memory import read_memory_bundle
 from src.mode_manager import (
     load_runtime_modes,
-    is_memory_write_allowed,
     run_with_confirm_write,
 )
 from src.session_logger import set_after_session_status

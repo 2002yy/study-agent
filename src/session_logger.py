@@ -13,6 +13,11 @@ LOG_DIR = ROOT / "logs" / "sessions"
 CURRENT_DIR = ROOT / "logs" / "current"
 
 _state: dict[str, dict] = {}
+_FLUSH_INTERVALS = {
+    "fast": 4,
+    "standard": 2,
+    "deep": 2,
+}
 
 
 def _ensure_dir() -> None:
@@ -92,19 +97,62 @@ def log(
     )
 
 
+def _pending_entry_count(sess: dict) -> int:
+    return len(sess["entries"]) - sess["flushed_count"]
+
+
+def _flush_interval_for_mode(
+    performance_mode: str,
+    debug_mode: bool = False,
+) -> int:
+    if debug_mode:
+        return 1
+    return _FLUSH_INTERVALS.get(performance_mode, _FLUSH_INTERVALS["standard"])
+
+
+def should_flush_current_session(
+    session_id: str,
+    performance_mode: str = "standard",
+    debug_mode: bool = False,
+    force: bool = False,
+) -> bool:
+    sess = get_or_create_session(session_id)
+    pending = _pending_entry_count(sess)
+    if pending <= 0:
+        return False
+    if force:
+        return True
+    return pending >= _flush_interval_for_mode(
+        performance_mode,
+        debug_mode=debug_mode,
+    )
+
+
 def _current_file(session_id: str) -> Path:
     return CURRENT_DIR / f"{session_id}.md"
 
 
-def flush_current_session(session_id: str) -> None:
+def flush_current_session(
+    session_id: str,
+    performance_mode: str = "standard",
+    debug_mode: bool = False,
+    force: bool = False,
+) -> bool:
     sess = get_or_create_session(session_id)
     entries = sess["entries"]
     if not entries:
-        return
+        return False
 
     flushed = sess["flushed_count"]
     if flushed >= len(entries):
-        return
+        return False
+    if not should_flush_current_session(
+        session_id,
+        performance_mode=performance_mode,
+        debug_mode=debug_mode,
+        force=force,
+    ):
+        return False
 
     _ensure_dir()
     current_file = _current_file(session_id)
@@ -124,6 +172,7 @@ def flush_current_session(session_id: str) -> None:
 
     safe_write_text(current_file, existing + chunk)
     sess["flushed_count"] = len(entries)
+    return True
 
 
 def save(session_id: str) -> str:
@@ -135,7 +184,7 @@ def save(session_id: str) -> str:
     if not entries:
         return ""
 
-    flush_current_session(session_id)
+    flush_current_session(session_id, force=True)
     _ensure_dir()
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     first = entries[0]

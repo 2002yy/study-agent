@@ -17,16 +17,29 @@ MEMORY_FILES = [
 ]
 
 CONTEXT_FILE_GROUPS = {
-    "light": ["summary.md", "current_focus.md", "learner_profile.md"],
+    "fast": ["index.md", "current_focus.md"],
+    "light": ["index.md", "current_focus.md", "summary.md", "learner_profile.md"],
     "deep": [
-        "summary.md",
+        "index.md",
         "current_focus.md",
+        "summary.md",
         "learner_profile.md",
         "progress.md",
         "project_context.md",
         "task_board.md",
     ],
-    "archive": MEMORY_FILES,
+    "archive": [
+        "index.md",
+        "current_focus.md",
+        "summary.md",
+        "learner_profile.md",
+        "progress.md",
+        "project_context.md",
+        "task_board.md",
+        "archive_summary.md",
+        "agent.md",
+        "system_detail.md",
+    ],
 }
 
 

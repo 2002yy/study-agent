@@ -1,6 +1,6 @@
 """Session 状态管理 — 替代模块级全局变量"""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

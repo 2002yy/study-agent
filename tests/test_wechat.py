@@ -66,7 +66,6 @@ def test_unread_not_empty():
 
 
 def test_group_preserved_after_clear():
-    gb = GROUP.read_text(encoding="utf-8")
     append_wechat_messages("【流萤】\nunique_test_marker")
     clear_wechat_unread()
     after = GROUP.read_text(encoding="utf-8")

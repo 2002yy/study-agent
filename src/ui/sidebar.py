@@ -37,6 +37,14 @@ from src.constants import (
 )
 
 
+def _switch_to_wechat_entry(unread_content: str, runtime_modes, session_state) -> None:
+    session_state.wechat_messages = unread_content
+    if runtime_modes.entry_mode != "wechat":
+        update_entry_mode("wechat")
+        runtime_modes.entry_mode = "wechat"
+    session_state.sidebar_notice = "已切换到微信群未读视图"
+
+
 def _section(title: str):
     st.markdown(f'<div class="sidebar-section-title">{title}</div>', unsafe_allow_html=True)
 
@@ -265,11 +273,7 @@ def render_sidebar():
     unread_content = read_wechat_unread()
     has_unread = unread_content and "暂无未读" not in unread_content
     if has_unread and st.button("查看未读消息", use_container_width=True):
-        st.session_state.wechat_messages = unread_content
-        if runtime_modes.entry_mode != "wechat":
-            update_entry_mode("wechat")
-            runtime_modes.entry_mode = "wechat"
-        st.session_state.sidebar_notice = "已切换到微信群未读视图"
+        _switch_to_wechat_entry(unread_content, runtime_modes, st.session_state)
         st.rerun(scope="fragment")
 
     if st.button("清空未读消息", use_container_width=True):

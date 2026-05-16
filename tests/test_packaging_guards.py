@@ -154,7 +154,21 @@ def test_sidebar_force_refresh_clears_memory_cache():
 def test_runtime_version_is_synced():
     mode_text = Path("src/mode_manager.py").read_text(encoding="utf-8")
     state_text = Path("memory/internal_state.md").read_text(encoding="utf-8")
+    yaml_text = Path("config/runtime_state.yaml").read_text(encoding="utf-8")
 
     assert 'current_version: str = "v0.7.2"' in mode_text
     assert '- current_version: v0.7.2' in state_text
     assert '- next_version: v0.7.3' in state_text
+    assert "current: v0.7.2" in yaml_text
+    assert "next: v0.7.3" in yaml_text
+
+
+def test_ci_workflow_exists_and_runs_core_checks():
+    text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "name: CI" in text
+    assert "pull_request:" in text
+    assert "push:" in text
+    assert "pip install -r requirements.txt -r requirements-dev.txt" in text
+    assert "pytest" in text
+    assert "ruff check ." in text
+    assert "src/llm_client.py src/memory.py src/context_builder.py" in text

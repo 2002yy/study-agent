@@ -14,6 +14,15 @@ import xml.etree.ElementTree as ET
 
 from src.llm_client import ModelProfile, chat, stream_chat
 from src.mode_manager import load_runtime_modes, update_wechat_join_state
+from src.news.article_extractor import (
+    article_method_label as _article_method_label,
+    clean_article_text as _clean_article_text,  # noqa: F401
+    decode_html_payload as _decode_html_payload,
+    extract_article_text as _extract_article_text,
+    extract_article_text_with_fallback_parser as _extract_article_text_with_fallback_parser,  # noqa: F401
+    extract_article_text_with_readability as _extract_article_text_with_readability,  # noqa: F401
+    extract_article_text_with_trafilatura as _extract_article_text_with_trafilatura,  # noqa: F401
+)
 from src.role_manager import load_role
 from src.safe_writer import append_text_safely, safe_write_text
 
@@ -417,18 +426,6 @@ def _fetch_rss_items_from_url(
             break
 
     return items
-
-from src.news.article_extractor import (
-    ArticleTextExtractor,
-    article_method_label as _article_method_label,
-    clean_article_text as _clean_article_text,
-    decode_html_payload as _decode_html_payload,
-    extract_article_text as _extract_article_text,
-    extract_article_text_with_fallback_parser as _extract_article_text_with_fallback_parser,
-    extract_article_text_with_readability as _extract_article_text_with_readability,
-    extract_article_text_with_trafilatura as _extract_article_text_with_trafilatura,
-)
-
 
 def _is_fetchable_article_url(url: str) -> bool:
     try:
@@ -1177,44 +1174,16 @@ def mark_wechat_read() -> None:
 
 
 def read_wechat_state() -> dict:
-    raw = _load_text(STATE_FILE)
-    if not raw:
-        return {
-            "user_has_joined": False,
-            "first_join_done": False,
-            "mode": "unread_feedback",
-        }
-    joined = "user_has_joined_group: true" in raw
-    first_done = "first_join_reaction_done: true" in raw
-    mode = "interactive_group"
-    if "mode: unread_feedback" in raw:
-        mode = "unread_feedback"
-    elif "mode: first_user_join" in raw:
-        mode = "first_user_join"
+    modes = load_runtime_modes()
     return {
-        "user_has_joined": joined,
-        "first_join_done": first_done,
-        "mode": mode,
+        "user_has_joined": modes.user_has_joined,
+        "first_join_done": modes.first_reaction_done,
+        "mode": modes.wechat_mode,
     }
 
 
 def write_wechat_state(user_has_joined: bool, first_join_done: bool, mode: str):
-    content = f"""# 微信群状态
-## 可见性状态
-- user_has_joined_group: {"true" if user_has_joined else "false"}
-- first_join_reaction_done: {"true" if first_join_done else "false"}
-
-## 当前群聊模式
-- mode: {mode}
-
-## 群聊边界
-- 群聊用于课后反馈、复盘、轻互动和学习动力。
-- 不替代正式教学。
-- 不进行无关剧情闲聊。
-- 不编造用户没有表达过的感受。
-- close 模式可以提供更贴近的陪伴氛围，但不生成成人内容，不模拟现实恋人身份。
-"""
-    safe_write_text(STATE_FILE, content)
+    update_wechat_join_state(user_has_joined, first_join_done, mode)
 
 
 def append_user_group_message(user_text: str):

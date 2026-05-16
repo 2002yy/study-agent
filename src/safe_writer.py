@@ -87,7 +87,8 @@ def append_text_safely(path: Path, content: str) -> Path:
 
 
 if __name__ == "__main__":
-    import tempfile, shutil
+    import shutil
+    import tempfile
 
     tmp = Path(tempfile.mkdtemp())
     test_file = tmp / "test.md"

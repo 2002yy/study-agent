@@ -148,6 +148,7 @@ DEFAULT_MODEL_PROFILE=pro
 - **v0.7.0** — 多源 RSS 聚合、正文三层提取、来源块写入群聊、摘要边界约束、URL 安全检查。
 - **v0.7.1** — 90 天搜索窗口、来源块压缩、摘要覆盖率提示、prompt 乱码修复、覆盖率统计对齐。
 - **v0.7.2** — 代码质量全面收口：修复 4 个 Bug、性能优化（缓存/YAML/diff）、架构改善（常量去重/模块拆分）、Streamlit fragment 反模式修复、关键路径错误处理增强。
+- **v0.7.3** — 服务层拆分与工程化收口：Wechat news round 下沉到 `src/wechat_service.py`、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 参数扩展、YAML runtime state 真源化。详见 `changelog/README_v0_7_3.md`。
 
 完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
 

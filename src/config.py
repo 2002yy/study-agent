@@ -8,6 +8,7 @@ _config_cache: dict | None = None
 
 def _load() -> dict:
     return {
+        "provider_profile": os.getenv("LLM_PROVIDER_PROFILE", "openai").strip().lower(),
         "api_key": os.getenv("OPENAI_API_KEY", "").strip(),
         "base_url": os.getenv("OPENAI_BASE_URL", "").strip(),
         "flash_model": os.getenv("MODEL_FLASH_NAME", "").strip(),
@@ -24,17 +25,13 @@ def get_config() -> dict:
 
 
 def validate() -> list[str]:
-    cfg = get_config()
-    errors = []
-    if not cfg["api_key"]:
-        errors.append("OPENAI_API_KEY 未设置")
-    if not cfg["base_url"]:
-        errors.append("OPENAI_BASE_URL 未设置")
-    if not cfg["flash_model"]:
-        errors.append("MODEL_FLASH_NAME 未设置")
-    if not cfg["pro_model"]:
-        errors.append("MODEL_PRO_NAME 未设置")
-    return errors
+    try:
+        from src.llm_client import get_provider_settings
+
+        get_provider_settings(get_config().get("provider_profile"))
+        return []
+    except Exception as e:
+        return [str(e)]
 
 
 def reload_config() -> dict:

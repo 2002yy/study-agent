@@ -21,18 +21,13 @@ from src.session_logger import (
     set_wechat_unread_cleared,
 )
 from src.ui.wechat_bubble import format_wechat_bubbles
+from src.wechat_service import RuntimeContext, run_news_round
 from src.wechat import (
     append_interactive_group_reply,
-    append_system_group_note,
     append_user_group_message,
     count_wechat_messages,
-    enrich_news_items_with_article_text,
-    fetch_news_items,
-    format_news_source_block,
-    generate_news_digest,
     generate_wechat_opening,
     generate_interactive_wechat_reply_stream,
-    generate_wechat_news_discussion,
     has_wechat_group_started,
     has_wechat_unread,
     mark_wechat_read,
@@ -52,6 +47,20 @@ from src.wechat_memory import (
     save_candidates,
 )
 from src.constants import ATMOS_LABELS, PERF_LABELS, ROLE_LABELS
+
+
+def _apply_mark_wechat_read(session_id: str, session_state) -> None:
+    mark_wechat_read()
+    set_wechat_unread_cleared(session_id)
+    session_state.wechat_messages = read_wechat_group()
+
+
+def _apply_new_wechat_group(session_state) -> None:
+    reset_wechat_group()
+    session_state.wechat_messages = None
+    session_state.wechat_pending_input = None
+    session_state.wechat_news_items = []
+    session_state.wechat_news_digest = ""
 
 
 def _rerun_wechat_fragment():
@@ -156,54 +165,21 @@ def _run_news_round(
     query_text: str = "最新新闻 when:1d",
     read_articles: bool = True,
 ):
-    runtime_modes = st.session_state.runtime_modes
-    query_text = (query_text or "最新新闻 when:1d").strip()
-
-    if progress:
-        progress(f"正在搜索：{query_text}")
-
-    news_items = fetch_news_items(query_text=query_text, max_items=10)
-    if len(news_items) < 3:
-        raise RuntimeError("搜索结果数量不足，暂时没法组织一轮像样的群聊讨论。")
-
-    if read_articles:
-        if progress:
-            progress("正在尝试读取新闻正文...")
-        news_items = enrich_news_items_with_article_text(
-            news_items,
-            max_articles=5,
-            max_chars_per_article=5000,
-            query_text=query_text,
-        )
-
-    if progress:
-        progress("正在整理搜索摘要...")
-
-    digest = generate_news_digest(
-        news_items,
-        performance_mode=runtime_modes.performance_mode,
-        selected_model=st.session_state.model_profile,
+    result = run_news_round(
+        query_text=query_text,
+        read_articles=read_articles,
+        runtime_context=RuntimeContext(
+            performance_mode=st.session_state.runtime_modes.performance_mode,
+            selected_model=st.session_state.model_profile,
+            interaction_mode=st.session_state.interaction_mode,
+            session_id=st.session_state.session_id,
+            progress=progress,
+        ),
     )
-
-    if progress:
-        progress("正在生成群聊讨论...")
-
-    discussion = generate_wechat_news_discussion(
-        digest,
-        relationship_mode=st.session_state.interaction_mode,
-        performance_mode=runtime_modes.performance_mode,
-        selected_model=st.session_state.model_profile,
-    )
-
-    if progress:
-        progress("正在写入群聊...")
-
-    append_system_group_note(format_news_source_block(query_text, news_items))
-    append_interactive_group_reply(discussion)
-    st.session_state.wechat_news_items = news_items
-    st.session_state.wechat_news_digest = digest
-    st.session_state.wechat_messages = read_wechat_group()
-    set_wechat_interactive(st.session_state.session_id, "news_round")
+    st.session_state.wechat_news_items = result.news_items
+    st.session_state.wechat_news_digest = result.digest
+    st.session_state.wechat_messages = result.group_content
+    return result
 
 
 def _run_news_round_with_lock(
@@ -485,19 +461,13 @@ def render_wechat_panel():
 
     with action_cols[1]:
         if st.button("标记已读", key="mark_wechat_read", use_container_width=True):
-            mark_wechat_read()
-            set_wechat_unread_cleared(st.session_state.session_id)
-            st.session_state.wechat_messages = read_wechat_group()
+            _apply_mark_wechat_read(st.session_state.session_id, st.session_state)
             _queue_wechat_notice("当前未读已标记为已读。")
             _rerun_app()
 
     with action_cols[2]:
         if st.button("新群聊", key="new_wechat_group", use_container_width=True):
-            reset_wechat_group()
-            st.session_state.wechat_messages = None
-            st.session_state.wechat_pending_input = None
-            st.session_state.wechat_news_items = []
-            st.session_state.wechat_news_digest = ""
+            _apply_new_wechat_group(st.session_state)
             _queue_wechat_notice("已开启新群聊。")
             _rerun_app()
 

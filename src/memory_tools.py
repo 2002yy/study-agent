@@ -1,6 +1,5 @@
 """记忆管理工具 — 搜索、回滚、编辑、diff、清理、归档"""
 
-import shutil
 from datetime import datetime
 from pathlib import Path
 from src.memory import read_memory_bundle, read_memory_file
@@ -51,7 +50,6 @@ def diff_with_backup(file_name: str) -> str:
     current = read_memory_file(file_name)
     backups = list_backups()
     match = None
-    orig = file_name.rsplit(".", 1)[0]
     for b in backups:
         if b["original"] == file_name:
             match = b
