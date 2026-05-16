@@ -11,7 +11,6 @@ from urllib.request import (
     HTTPRedirectHandler,
     Request,
     build_opener,
-    urlopen,
 )
 
 from src.news.article_extractor import (
@@ -19,7 +18,6 @@ from src.news.article_extractor import (
     extract_article_text as _extract_article_text,
     article_method_label as _article_method_label,
 )
-from src.news.link_resolver import _is_google_news_url
 
 
 # ── Cache ─────────────────────────────────────────────────────────────

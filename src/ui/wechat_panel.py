@@ -22,7 +22,6 @@ from src.session_logger import (
 )
 from src.ui.wechat_bubble import format_wechat_bubbles
 from src.wechat_service import (
-    RuntimeContext,
     max_articles_for_performance,
     run_digest_stage,
     run_discussion_stage,

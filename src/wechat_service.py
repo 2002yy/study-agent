@@ -5,14 +5,13 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from src.session_logger import set_wechat_interactive
-from src.wechat import (
+from src.news.article_fetcher import enrich_news_items_with_article_text
+from src.news.digest import format_news_source_block, generate_news_digest
+from src.news.rss_fetcher import fetch_news_items
+from src.wechat_generator import generate_wechat_news_discussion
+from src.wechat_state import (
     append_interactive_group_reply,
     append_system_group_note,
-    enrich_news_items_with_article_text,
-    fetch_news_items,
-    format_news_source_block,
-    generate_news_digest,
-    generate_wechat_news_discussion,
     read_wechat_group,
 )
 
