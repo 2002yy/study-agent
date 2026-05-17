@@ -1,4 +1,4 @@
-# Study Agent v0.7.7 release notes
+# Study Agent v0.7.7 发布说明 / release notes
 
 > 模块拆分收口版。wechat.py 从 ~1243 行拆为 6 个独立模块，保留兼容层，无功能变更。
 
@@ -10,7 +10,7 @@
 
 | 模块 | 职责 | 行数 |
 |---|---|---|
-| `src/wechat.py` | 兼容层 + 群聊生命周期、互动回复、开场生成、搜索摘要 | ~540 |
+| `src/wechat.py` | 纯兼容门面，零运行时逻辑，所有接口 re-export | ~100 |
 | `src/wechat_format.py` | 纯文本/格式化工具（角色块解析、兜底文案） | ~95 |
 | `src/news/link_resolver.py` | Google News 跳转链接解析 | ~90 |
 | `src/news/article_fetcher.py` | 正文抓取 + DNS/IP 安全校验 | ~180 |

@@ -36,11 +36,11 @@ MODE_ICONS = {
     "概念地图": "🗺",
 }
 
-MODEL_LABELS = {"auto": "Auto", "flash": "Flash", "pro": "Pro"}
+MODEL_LABELS = {"auto": "自动", "flash": "Flash（快速）", "pro": "Pro（高质量）"}
 
 MODEL_ICONS = {"auto": "🧩", "flash": "⚡", "pro": "💎"}
 
-PERF_LABELS = {"fast": "Fast", "standard": "Standard", "deep": "Deep"}
+PERF_LABELS = {"fast": "快速", "standard": "标准", "deep": "深度"}
 
 PERF_ICONS = {"fast": "🚀", "standard": "🎯", "deep": "🔍"}
 

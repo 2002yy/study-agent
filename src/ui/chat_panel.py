@@ -39,9 +39,9 @@ def _render_history_message(msg: dict):
 
 _DISPLAY_LABELS = {
     "mode": {"auto": "自动"},
-    "model": {"auto": "Auto", "flash": "Flash", "pro": "Pro"},
-    "perf": {"fast": "Fast", "standard": "Standard", "deep": "Deep"},
-    "atmos": {"standard": "Standard", "warm": "Warm", "close": "Close"},
+    "model": {"auto": "自动", "flash": "Flash（快速）", "pro": "Pro（高质量）"},
+    "perf": {"fast": "快速", "standard": "标准", "deep": "深度"},
+    "atmos": {"standard": "标准", "warm": "温和", "close": "贴近"},
 }
 
 
