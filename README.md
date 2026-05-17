@@ -1,7 +1,7 @@
 # Study Agent
 
 <p>
-  <a href="https://github.com/2002yy/-study-agent/actions/workflows/ci.yml"><img src="https://github.com/2002yy/-study-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/2002yy/study-agent/actions/workflows/ci.yml"><img src="https://github.com/2002yy/study-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
   <img src="https://img.shields.io/badge/tests-140-passing-green" alt="140 tests">
 </p>
