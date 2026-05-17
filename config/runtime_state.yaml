@@ -1,7 +1,7 @@
 version:
-  current: v0.7.7
-  next: v0.7.8
-  active_task: post-v0.7.7 stabilization and UI polish
+  current: v0.8.0
+  next: v0.8.1
+  active_task: 文档同步 + UI 中文标签 + 性能预算 + 状态模型 + 工程收口
 runtime:
   entry_mode: wechat
   performance_mode: standard
@@ -12,7 +12,7 @@ runtime:
 interaction:
   relationship_mode: close
 wechat:
-  mode: unread_feedback
+  mode: interactive_group
   user_has_joined_group: false
   first_join_reaction_done: false
   memory_capture_enabled: true

@@ -156,12 +156,12 @@ def test_runtime_version_is_synced():
     state_text = Path("memory/internal_state.md").read_text(encoding="utf-8")
     yaml_text = Path("config/runtime_state.yaml").read_text(encoding="utf-8")
 
-    assert 'current_version: str = "v0.7.7"' in mode_text
-    assert 'next_version: str = "v0.7.8"' in mode_text
-    assert '- current_version: v0.7.7' in state_text
-    assert '- next_version: v0.7.8' in state_text
-    assert "current: v0.7.7" in yaml_text
-    assert "next: v0.7.8" in yaml_text
+    assert 'current_version: str = "v0.8.0"' in mode_text
+    assert 'next_version: str = "v0.8.1"' in mode_text
+    assert '- current_version: v0.8.0' in state_text
+    assert '- next_version: v0.8.1' in state_text
+    assert "current: v0.8.0" in yaml_text
+    assert "next: v0.8.1" in yaml_text
 
 
 def test_ci_workflow_exists_and_runs_core_checks():

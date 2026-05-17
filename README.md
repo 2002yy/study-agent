@@ -3,229 +3,243 @@
 <p>
   <a href="https://github.com/2002yy/-study-agent/actions/workflows/ci.yml"><img src="https://github.com/2002yy/-study-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/tests-140-passing-green" alt="140 tests">
 </p>
 
-AI 学习搭子系统 —— 联网搜索 + 角色群聊 + 课后总结。
+**一个面向个人学习复盘的本地 AI 学习搭子系统** — 支持角色群聊、联网搜索、长期记忆和课后总结。
 
-## 功能
+> 不是又一个 AI 问答工具，而是一个会记住你学什么的 AI 学习伙伴。
 
-- **单人学习对话** — 与 AI 一对一讨论学习内容
-- **课后更新预览** — 总结学习进度，确认后写入记忆
-- **微信群互动** — 四位角色（三月七、刻晴、纳西妲、流萤）群聊讨论
-- **联网搜索** — 多源新闻聚合（Google News + Bing News + RSSHub），支持页面正文读取
-- **来源追溯** — 搜索结果写入群聊记录，可回溯依据
+---
+
+## 为什么做这个
+
+通用 AI 对话工具擅长回答问题，但不擅长「陪伴学习」：
+
+- 它们不记得你**昨天**学了什么、**上周**卡在了哪里
+- 它们不会主动帮你**总结**学习进展
+- 它们没有「角色感」—— 严肃还是轻松？鼓励还是挑战？全看随机
+
+Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆的、有角色区分的 AI 学习搭子**。它会记住你的学习轨迹，在群聊中用不同角色和你讨论，课后自动总结进展，并把新的知识写进长期记忆。
+
+---
+
+## Demo
+
+> 截图待补充。运行 `streamlit run app.py` 后即可看到实际界面。
+
+| 界面 | 说明 |
+|------|------|
+| 主聊天 | 单人 AI 对话，支持 flash/pro 模型切换 |
+| 微信群聊 | 四位角色群聊，自动生成开场/互动回复 |
+| 联网搜索 | 多源新闻聚合（Google News + Bing + RSSHub）+ 正文提取 |
+| 课后总结 | 学习完成后自动总结，确认后写入长期记忆 |
+
+---
+
+## 使用流程
+
+```
+启动 App  →  选择学习模式 (氛围/专注度)
+    │
+    ├── 单人对话 ──→ 提问/讨论 ──→ 课后总结 ──→ 记忆更新
+    │
+    └── 微信群聊 ──→ 生成开场 / 聊新闻 / 查资料
+                        │
+                    ┌────┴────┐
+                    │         │
+                联网搜索    角色互动讨论
+                    │         │
+               来源追溯写入  观点碰撞
+                    │         │
+                    └────┬────┘
+                        │
+                   课后总结 → 确认 → 写入长期记忆
+```
+
+---
+
+## 核心功能
+
+| 功能 | 说明 |
+|------|------|
+| **单人对话** | 与 AI 一对一讨论学习内容，支持 flash/pro 模型切换 |
+| **角色群聊** | 四位角色（三月七、刻晴、纳西妲、流萤）群聊讨论，各有独立人设 |
+| **联网搜索** | Google News + Bing News + RSSHub 多源聚合，页面正文三层提取 |
+| **来源追溯** | 搜索结果写入群聊记录，可回溯依据 |
+| **课后总结** | 学习完成后自动总结进展，用户确认后写入记忆 |
+| **长期记忆** | 学习者画像、进度追踪、项目上下文、当前焦点，多级记忆档案 |
+| **多 Provider** | 支持 OpenAI / DeepSeek / OpenRouter / SiliconFlow / 本地模型 |
+| **氛围选择** | warm / close / standard 多种互动氛围切换 |
+
+---
+
+## 架构
+
+```
+streamlit run app.py
+       │
+┌──────┴──────┐
+│   app.py    │  Streamlit 入口，路由到各 UI 面板
+└──────┬──────┘
+       │
+┌──────┴──────────────────────────────────────────┐
+│  src/ui/                                        │
+│  ├── main_panel.py     主页                     │
+│  ├── chat_panel.py     对话面板                 │
+│  ├── wechat_panel.py   微信群面板               │
+│  ├── after_session_panel.py  课后总结面板       │
+│  └── sidebar.py        侧边栏                   │
+└──────┬──────────────────────────────────────────┘
+       │
+┌──────┴──────┬──────────────┬──────────────┬──────────────┐
+│  LLM Layer  │  News Layer  │  Memory     │  WeChat     │
+│             │              │  Layer      │  Layer      │
+│ llm_client  │ news/        │ memory.py   │ wechat_*.py │
+│ llm_router  │ ├─rss_fetc  │ memory_tools │ (format,    │
+│ context_bui │ ├─article_e │ memory_writer│ state,      │
+│ -ilder      │ ├─link_reso │              │ generator,  │
+│             │ ├─digest    │ session_log  │ prompt)     │
+│ config.py   │ └─article_f │ -ger         │             │
+│ router.py   │   etcher    │              │ wechat_serv│
+│             │             │              │ -ice.py     │
+└──────┬──────┴──────┬──────┴──────┬───────┴──────┬───────┘
+       │             │             │              │
+  .env.example   chat/        memory/         roles/
+  (5 providers)  (群聊记录)   (记忆文件)      (角色人设)
+```
+
+---
 
 ## 快速开始
 
 ```bash
-cd study-agent     # 进入项目目录
+git clone <repo-url> study-agent
+cd study-agent
+cp .env.example .env
+# 编辑 .env，填入 API Key
+
+# 稳定安装（推荐，锁定版本）
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-cp .env.example .env
+
 streamlit run app.py
 ```
 
 浏览器打开 `http://localhost:8501`
 
+### 依赖管理
+
+本项目使用 [pip-tools](https://github.com/jazzband/pip-tools) 管理依赖：
+
+- [`requirements.in`](requirements.in) / [`requirements-dev.in`](requirements-dev.in) — **人类维护**，写范围版本
+- [`requirements.txt`](requirements.txt) / [`requirements-dev.txt`](requirements-dev.txt) — **自动生成**，写精确版本（lock 文件）
+
+修改依赖后重新生成 lock 文件：
+
+```bash
+pip install pip-tools
+pip-compile requirements.in        # 重新锁定主依赖
+pip-compile requirements-dev.in    # 重新锁定开发依赖
+```
+
+---
+
 ## 环境配置
 
-编辑 `.env`（完整模板见 `.env.example`）：
+通过 `LLM_PROVIDER_PROFILE` 切换 LLM 提供商（`openai` / `deepseek` / `openrouter` / `siliconflow` / `local`），每个 provider 读写独立的环境变量：
 
-### Provider 选择
+| Provider | 环境变量前缀 | 默认 Base URL |
+|----------|-------------|---------------|
+| `deepseek` | `DEEPSEEK_*` | `https://api.deepseek.com/v1` |
+| `openrouter` | `OPENROUTER_*` | `https://openrouter.ai/api/v1` |
+| `siliconflow` | `SILICONFLOW_*` | `https://api.siliconflow.cn/v1` |
+| `local` | `LOCAL_*` | `http://127.0.0.1:8000/v1` |
+| `openai` | `OPENAI_*` | — |
 
-通过 `LLM_PROVIDER_PROFILE` 切换 LLM 提供商，支持 `openai` / `deepseek` / `openrouter` / `siliconflow` / `local`。每个 provider 读写自己的环境变量：
+参数优先级：代码显式参数 → 任务级环境变量 → 任务默认值 → 全局环境变量 → provider 级环境变量。完整配置见 [`.env.example`](.env.example) 和 [用户指南](USER_GUIDE.md)。
 
-| Provider | API Key | Base URL | 默认 Base URL |
-|---|---|---|---|
-| `deepseek` | `DEEPSEEK_API_KEY` | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` |
-| `openrouter` | `OPENROUTER_API_KEY` | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` |
-| `siliconflow` | `SILICONFLOW_API_KEY` | `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` |
-| `local` | `LOCAL_API_KEY` | `LOCAL_BASE_URL` | `http://127.0.0.1:8000/v1` |
-| `openai` | `OPENAI_API_KEY` | `OPENAI_BASE_URL` | — |
-
-每个 provider 的模型和连接参数：
-- `{PROVIDER}_MODEL_FLASH_NAME` — flash 模型名
-- `{PROVIDER}_MODEL_PRO_NAME` — pro 模型名
-- `{PROVIDER}_DEFAULT_MODEL_PROFILE` — 默认模型档位（`flash`/`pro`）
-- `{PROVIDER}_TIMEOUT_SECONDS` — 请求超时秒数
-- `{PROVIDER}_MAX_RETRIES` — 最大重试次数
-
-### 全局默认值
-
-未设置 provider 级参数时回退到以下变量：
-- `MODEL_FLASH_NAME` / `MODEL_PRO_NAME` — 模型名
-- `DEFAULT_MODEL_PROFILE` — 默认档位（默认 `flash`）
-- `LLM_TIMEOUT_SECONDS` — 全局超时（默认 `30`）
-- `LLM_MAX_RETRIES` — 全局最大重试（默认 `2`）
-- `LLM_MAX_TOKENS` — 全局最大 token 数
-
-### 任务级覆盖
-
-内置任务（`llm_router` `after_session`）有硬编码默认值，可通过环境变量覆盖：
-
-| 任务 | 默认 max_tokens | 默认 timeout | 默认 temperature |
-|---|---|---|---|
-| `llm_router` | 240 | 20s | 0.0 |
-| `after_session` | 1200 | 45s | 0.3 |
-
-覆盖方式：`{TASK_KEY}_MAX_TOKENS` / `{TASK_KEY}_TIMEOUT_SECONDS` / `{TASK_KEY}_TEMPERATURE`（如 `AFTER_SESSION_MAX_TOKENS=1200`）。
-
-### 解析链
-
-每个参数按以下优先级解析：
-1. 代码调用传入的显式参数
-2. 任务级环境变量（如 `AFTER_SESSION_MAX_TOKENS`）
-3. 任务硬编码默认值（`_TASK_DEFAULTS`）
-4. 全局环境变量（如 `LLM_MAX_TOKENS`）
-5. provider 级环境变量（如 `DEEPSEEK_TIMEOUT_SECONDS`）
+---
 
 ## 项目结构
 
 ```
 ├── app.py                  # Streamlit 入口
-├── requirements.txt        # 运行依赖
-├── requirements-dev.txt    # 开发/测试依赖
-├── .env.example            # 环境变量模板
-├── USER_GUIDE.md           # 用户指南
-│
 ├── src/
 │   ├── llm_client.py       # LLM 调用（chat / stream）
 │   ├── llm_router.py       # 模型路由分发
 │   ├── context_builder.py  # 上下文构建
-│   ├── mode_manager.py     # 模式管理（性能/互动氛围）
+│   ├── mode_manager.py     # 模式管理（版本/性能/氛围）
 │   ├── role_manager.py     # 角色加载与管理
-│   ├── session_logger.py   # 会话日志
-│   ├── session_store.py    # 会话持久化
-│   ├── safe_writer.py      # 安全文件写入
-│   ├── backup_manager.py   # 备份管理
-│   ├── wechat.py               # 兼容门面（legacy re-exports）
-│   ├── wechat_format.py        # 群聊文本格式化工具
-│   ├── wechat_state.py         # 群聊 I/O、状态管理、生命周期
-│   ├── wechat_generator.py     # LLM 生成逻辑
-│   ├── wechat_prompt.py        # 系统/互动 prompt 加载
-│   ├── wechat_memory.py        # 微信群记忆提取
+│   ├── performance_budget.py # 性能预算（max_tokens 分级）
 │   ├── memory.py           # 记忆系统
 │   ├── memory_tools.py     # 记忆工具
 │   ├── memory_writer.py    # 记忆写入
-│   ├── model_stats.py      # 模型用量统计
-│   ├── perf.py             # 性能日志
-│   ├── router.py           # 路由配置
-│   ├── config.py           # 全局配置
-│   ├── constants.py        # 公共常量
-│   ├── text_utils.py       # 文本工具
-│   ├── log_utils.py        # 日志工具
-│   ├── health_check.py     # 健康检查
-│   ├── export_tools.py     # 导出工具
-│   ├── update_validator.py # 更新校验
+│   ├── wechat_format.py    # 群聊文本格式化
+│   ├── wechat_state.py     # 群聊 I/O、状态管理
+│   ├── wechat_generator.py # LLM 生成逻辑
+│   ├── wechat_prompt.py    # Prompt 模板加载
+│   ├── wechat_memory.py    # 群聊记忆提取
 │   ├── after_session.py    # 课后总结
-│   ├── news/
-│   │   ├── article_extractor.py  # 文章正文提取（三层回退）
-│   │   ├── article_fetcher.py    # 文章抓取（DNS/IP 安全校验 + SSRF 防御）
-│   │   ├── link_resolver.py      # Google News 跳转链接解析
-│   │   ├── rss_fetcher.py        # 多源 RSS 聚合与去重
-│   │   └── digest.py             # 新闻摘要生成与来源块
-│   └── ui/
-│       ├── main_panel.py        # 主页
-│       ├── chat_panel.py        # 对话面板
-│       ├── sidebar.py           # 侧边栏
-│       ├── wechat_panel.py      # 微信群面板
-│       ├── wechat_bubble.py     # 微信气泡渲染
-│       ├── after_session_panel.py # 课后总结面板
-│       ├── status_bar.py        # 状态栏
-│       ├── session_state.py     # 会话状态
-│       ├── theme.py             # 主题
-│       └── avatar.py            # 头像
-│
-├── tests/
-│   ├── test_wechat.py                    # 微信/新闻搜索测试
-│   ├── test_wechat_article_extract.py    # 文章提取测试
-│   ├── test_wechat_service.py            # 服务层测试
-│   ├── test_architecture_flows.py        # 架构流测试
-│   ├── test_wechat_decoupling.py         # 模块解耦 guard
-│   ├── test_after_session.py             # 课后总结测试
-│   ├── test_v03_accept.py                # 验收测试
-│   └── test_packaging_guards.py          # 打包校验测试
-│
-├── chat/                  # 群聊记录
-│   ├── wechat_group.md    # 当前群聊
-│   ├── wechat_state.md    # 群聊状态
-│   ├── wechat_unread.md   # 未读消息
-│   └── archive/           # 历史群聊归档
-│
-├── memory/                # AI 记忆系统
-│   ├── learner_profile.md # 学习者画像
-│   ├── project_context.md # 项目上下文
-│   ├── progress.md        # 学习进度
-│   ├── summary.md         # 学习摘要
-│   ├── current_focus.md   # 当前焦点
-│   ├── task_board.md      # 任务看板
-│   ├── internal_state.md  # 内部状态（版本号等）
-│   ├── system_detail.md   # 系统详情
-│   ├── agent.md           # Agent 配置
-│   └── pending_updates/   # 待确认更新
-│
-├── roles/                 # 角色人设
-│   ├── march7.md          # 三月七
-│   ├── keqing.md          # 刻晴
-│   ├── nahida.md          # 纳西妲
-│   ├── firefly.md         # 流萤
-│   └── references/        # 角色背景资料
-│
-├── templates/             # Prompt 模板
-│   ├── wechat_update.md             # 群聊生成
-│   ├── wechat_interactive_reply.md  # 互动回复
-│   ├── wechat_memory_extract.md     # 记忆提取
-│   └── routing_rules.md             # 路由规则
-│
-├── config/
-│   └── routing_rules.yaml # 路由规则配置
-│
-├── tools/
-│   ├── package_project.ps1      # 打包脚本
-│   └── package_project_helper.py
-│
-├── assets/                # 静态资源（头像/背景/图标）
-│
-├── logs/                  # 运行日志
-│
-└── backups/               # 备份文件
+│   ├── session_logger.py   # 会话日志
+│   ├── config.py           # 全局配置
+│   ├── router.py           # 路由配置
+│   ├── news/               # 新闻聚合链路
+│   └── ui/                 # Streamlit UI 组件
+├── tests/                  # 140 个测试
+├── docs/                   # 设计文档
+│   └── STATE_MODEL.md      # 状态模型
+├── chat/                   # 群聊记录
+├── memory/                 # AI 长期记忆
+├── roles/                  # 角色人设
+├── templates/              # Prompt 模板
+├── config/                 # YAML 配置
+├── requirements.in         # 依赖声明（范围版本）
+└── assets/                 # 视觉资源
 ```
+
+---
+
+## 测试
+
+```bash
+pytest tests/ -v            # 140 tests
+pytest tests/ --cov=src     # 覆盖率
+ruff check src/ tests/      # linting
+```
+
+CI 通过 GitHub Actions 运行（每次 push 触发），集成 `detect-secrets` 扫描。
+
+---
 
 ## 版本历史
 
-- **v0.1 ~ v0.6.3** — 早期探索阶段。界面仅纯文本、按钮触发全页刷新、侧边栏与主区域不同步、无视觉资源、自动路由缺失、群聊格式简陋。问题过多，未发布 Release。
-- **v0.6.4** — 首次可用的正式包：Catppuccin 暗色主题、紫蓝渐变、微信气泡 UI、路由系统、会话隔离、safe_writer。
-- **v0.6.5** — 开场氛围选择、角色归一化兜底、侧栏与 memory 对齐、打包脚本拆分。
-- **v0.6.6** — 未知发言人渲染修复、并发写入安全、打包测试对齐。
-- **v0.6.7** — 刷新逻辑拆分、notice queue、健康检查只读化、打包排除增强、lru_cache 缓存。
-- **v0.6.8** — .tmp 排除、文件锁重试 finally 清理、LLM client 自动重建、wechat_state 批量写入、新闻 10 分钟缓存。
-- **v0.6.9** — 自由文本联网搜索、进度指示、新闻缓存按 query 隔离、记忆写入加固。
-- **v0.7.0** — 多源 RSS 聚合、正文三层提取、来源块写入群聊、摘要边界约束、URL 安全检查。
-- **v0.7.1** — 90 天搜索窗口、来源块压缩、摘要覆盖率提示、prompt 乱码修复、覆盖率统计对齐。
-- **v0.7.2** — 代码质量全面收口：修复 4 个 Bug、性能优化（缓存/YAML/diff）、架构改善（常量去重/模块拆分）、Streamlit fragment 反模式修复、关键路径错误处理增强。
-- **v0.7.3** — 服务层拆分与工程化收口：Wechat news round 下沉到 `src/wechat_service.py`、session flush 批量提交、GitHub Actions CI、架构级测试、LLM client 参数扩展、YAML runtime state 真源化。详见 `changelog/README_v0_7_3.md`。
-- **v0.7.4** — 工程体验收口：自动化版本 bump 工具、LLM 配置文档化（`.env.example` 5 个 provider）、NewsRoundResult 结果对象化（覆盖率/警告/耗时）、UI 来源可信度展示。详见 `changelog/README_v0_7_4.md`。
-- **v0.7.5** — 文档同步收口 + 代码清理：版本信息同步 10 个文件、死代码清理（chat_stream / 重复函数）、YAML 同步 mtime canary 优化、重复逻辑合并。详见 `changelog/README_v0_7_5.md`。
-- **v0.7.6** — 工程安全与新闻链路收口。详见 `changelog/README_v0_7_6.md`。
-- **v0.7.7** — 模块拆分与服务层解耦：
-  - **新闻链路拆分**：`wechat.py`（~550 行）拆分为 4 个专注模块 + 1 个兼容门面
-    - `wechat_format.py` — 纯文本 / 格式化工具
-    - `wechat_state.py` — 文件 I/O、群聊状态、生命周期管理
-    - `wechat_generator.py` — LLM 生成逻辑（群聊讨论、开场、互动回复）
-    - `wechat_prompt.py` — 系统 / 互动 prompt 加载（自包含，无外部依赖）
-    - `wechat.py` — 纯兼容门面，仅 re-export，零运行时逻辑
-  - **服务层拆分**：`wechat_service.py` 改为直连子模块，绕开门面
-  - **UI 逐阶段新闻流**：搜索 → 正文读取 → 生成摘要 → 群聊讨论，四步按钮推进
-  - **自适应 max_articles**：fast→2、standard→4、deep→6
-  - **安全加固**：
-    - 自定义 `_SafeHTTPRedirectHandler` 逐跳 SSRF 校验 + 最多 3 次重定向
-    - 包扫描增加 GitHub PAT、OpenRouter、通用 key/token 模式
-    - detect-secrets 加入 CI 流程
-  - **内存保护**：Session logger 50 条自动 flush、2 小时老化警告
-  - **防回归 guard**：`test_wechat_decoupling.py` 4 个测试确保模块边界不退化
-  - **112 tests，Ruff clean**
+### v0.8.0 — 文档同步 + UI 中文标签 + 工程收口
 
-完整 Release 及下载见 [Releases](https://github.com/2002yy/-study-agent/releases)。
+文档版本同步（5 份文档统一升级）；UI 中文标签（模型/性能/状态栏全中文）；合并性能预算系统、依赖锁定、状态模型文档化、CI 门禁升级、入口页新闻流程修复。**140 tests，Ruff clean**。
+
+### v0.7.8 — 性能预算 + 状态模型 + 工程收口
+
+### v0.7.7 — 模块拆分与服务层解耦
+
+新闻链路拆分为 4 个专注模块 + 兼容门面；服务层直连子模块；UI 逐阶段新闻流；SSRF 安全加固；Session logger 自动 flush 保护。**112 tests，Ruff clean**。
+
+### v0.7.6 — 工程安全与新闻链路收口
+
+完整历史见 [CHANGELOG.md](CHANGELOG.md)。
+
+---
+
+## Roadmap
+
+| 版本 | 方向 |
+|------|------|
+| v0.8.1 | 稳定性和 UI 打磨 |
+| v0.9 | 知识库 / RAG 能力 |
+| v0.10 | 多语言支持、导出增强 |
+| v1.0 | 插件化架构 + 自定义角色 |
+
+---
 
 ## 许可
 

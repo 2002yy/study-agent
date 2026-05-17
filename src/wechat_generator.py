@@ -7,6 +7,12 @@ from __future__ import annotations
 
 from src.llm_client import ModelProfile, chat, stream_chat
 from src.mode_manager import load_runtime_modes
+from src.performance_budget import (
+    news_discussion_max_tokens,
+    wechat_history_lines,
+    wechat_opening_max_tokens,
+    wechat_reply_max_tokens,
+)
 from src.role_manager import load_role
 from src.wechat_format import (
     PERFORMANCE_STYLE_HINTS,
@@ -68,7 +74,13 @@ def generate_wechat_news_discussion(
             ),
         },
     ]
-    raw = chat(messages, temperature=0.7, model_profile=model_profile).strip()
+    raw = chat(
+        messages,
+        temperature=0.7,
+        model_profile=model_profile,
+        max_tokens=news_discussion_max_tokens(performance_mode),
+        task_name="wechat_news_discussion",
+    ).strip()
     return _ensure_all_roles_reply(raw)
 
 
@@ -86,7 +98,8 @@ def _build_interactive_messages(
     is_first = not modes.first_reaction_done
     prompt = load_interactive_prompt()
     history = read_wechat_group()
-    history_lines = history.splitlines()[-40:] if history else []
+    history_limit = wechat_history_lines(modes.performance_mode)
+    history_lines = history.splitlines()[-history_limit:] if history else []
 
     if is_first:
         prompt += (
@@ -230,6 +243,8 @@ def generate_wechat_opening(
         ],
         temperature=0.8,
         model_profile=model_profile,
+        max_tokens=wechat_opening_max_tokens(performance_mode),
+        task_name="wechat_opening",
     ).strip()
     return _ensure_all_roles_reply(opening)
 
@@ -243,7 +258,13 @@ def generate_interactive_wechat_reply(
     relationship_mode: str | None = None,
 ) -> str:
     messages, _is_first = _build_interactive_messages(user_text, relationship_mode)
-    raw = chat(messages, temperature=0.7, model_profile=model_profile)
+    raw = chat(
+        messages,
+        temperature=0.7,
+        model_profile=model_profile,
+        max_tokens=wechat_reply_max_tokens(load_runtime_modes().performance_mode),
+        task_name="wechat_interactive",
+    )
     return _ensure_all_roles_reply(raw.strip())
 
 
@@ -253,7 +274,16 @@ def generate_interactive_wechat_reply_stream(
     relationship_mode: str | None = None,
 ):
     messages, is_first = _build_interactive_messages(user_text, relationship_mode)
-    return stream_chat(messages, temperature=0.7, model_profile=model_profile), is_first
+    return (
+        stream_chat(
+            messages,
+            temperature=0.7,
+            model_profile=model_profile,
+            max_tokens=wechat_reply_max_tokens(load_runtime_modes().performance_mode),
+            task_name="wechat_interactive",
+        ),
+        is_first,
+    )
 
 
 def normalize_interactive_wechat_reply(content: str) -> str:

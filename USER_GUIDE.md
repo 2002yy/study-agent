@@ -2,15 +2,16 @@
 
 ## 1. 当前阶段
 
-当前项目处于 `v0.7.5` 阶段，核心能力包括：
+当前项目处于 `v0.8.0` 阶段，核心能力包括：
 
 1. 单人学习对话
 2. 课后更新预览与确认写入
-3. 微信群互动
+3. 微信群互动（四位角色群聊）
 4. 联网搜索与页面文本增强摘要
 5. 多源新闻聚合与来源追溯
+6. 性能预算系统（fast/standard/deep 三级 max_tokens）
 
-历史版本 `README_v0_x.md` 主要用于留档；日常使用请优先参考本文件和 [changelog/README_v0_7_1.md](C:/Users/96967/Desktop/study%20agent/changelog/README_v0_7_1.md)。
+日常使用请优先参考本文件和 [v0.8.0 发布说明](changelog/README_v0_8_0.md)。
 
 ## 2. 启动
 
@@ -28,14 +29,14 @@ streamlit run app.py
 
 复制 `.env.example` 为 `.env`，按文件内注释填写。`.env.example` 是唯一准配置，本指南不重复列另一套。
 
-当前 `.env.example` 默认项示意：
+配置以 `.env.example` 为准。当前推荐使用 Provider Profile 方式：
 
 ```text
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.deepseek.com/v1
-MODEL_FLASH_NAME=deepseek-v4-flash
-MODEL_PRO_NAME=deepseek-v4-pro
-DEFAULT_MODEL_PROFILE=pro
+LLM_PROVIDER_PROFILE=deepseek
+DEEPSEEK_API_KEY=your_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL_FLASH_NAME=deepseek-chat
+DEEPSEEK_MODEL_PRO_NAME=deepseek-reasoner
 ```
 
 常用建议：

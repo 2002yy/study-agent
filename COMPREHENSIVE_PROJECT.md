@@ -1,7 +1,7 @@
 # Study Agent 项目全貌
 
 > 面向新协作者和无上下文接手者的当前阶段总览。  
-> 当前开发阶段：`v0.7.5`
+> 当前开发阶段：`v0.8.0`
 
 ## 1. 项目定义
 
@@ -31,11 +31,16 @@
 
 ### 核心逻辑
 
-1. `src/wechat.py`: 微信群、搜索、页面读取、来源块、摘要
-2. `src/mode_manager.py`: 运行态模式和版本状态
-3. `src/session_logger.py`: 会话日志与安全写入
-4. `src/safe_writer.py`: 原子写入、备份、tmp 清理
-5. `src/llm_client.py`: LLM 调用与 client 重置
+1. `src/wechat_format.py`: 群聊文本格式化
+2. `src/wechat_state.py`: 群聊文件 I/O、状态管理
+3. `src/wechat_generator.py`: LLM 群聊生成（开场、互动回复、讨论）
+4. `src/wechat_prompt.py`: Prompt 模板加载
+5. `src/wechat_memory.py`: 群聊记忆提取
+6. `src/mode_manager.py`: 运行态模式和版本状态
+7. `src/session_logger.py`: 会话日志与安全写入
+8. `src/safe_writer.py`: 原子写入、备份、tmp 清理
+9. `src/llm_client.py`: LLM 调用与 client 重置
+10. `src/performance_budget.py`: 性能预算（max_tokens 分级）
 
 ### UI
 
@@ -45,7 +50,7 @@
 
 ### 文档
 
-1. `changelog/README_v0_7_1.md`: 当前版本说明
+1. `CHANGELOG.md`: 当前版本说明
 2. `USER_GUIDE.md`: 当前使用指南
 3. `PROJECT_PLAN.md`: 当前阶段规划
 4. `FUTURE.md`: 下一阶段方向
@@ -76,8 +81,8 @@
 
 如果你要快速接手，推荐顺序：
 
-1. `changelog/README_v0_7_1.md`
+1. `CHANGELOG.md`
 2. `USER_GUIDE.md`
 3. `PROJECT_PLAN.md`
-4. `src/wechat.py`
+4. `src/wechat_format.py`
 5. `src/ui/wechat_panel.py`

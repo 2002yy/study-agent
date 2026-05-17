@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from src.session_logger import set_wechat_interactive
+from src.mode_manager import update_wechat_join_state
 from src.news.article_fetcher import enrich_news_items_with_article_text
 from src.news.digest import format_news_source_block, generate_news_digest
 from src.news.rss_fetcher import fetch_news_items
@@ -178,7 +179,15 @@ def run_discussion_stage(
 
     if source_block:
         append_system_group_note(source_block)
+
     append_interactive_group_reply(discussion)
+
+    update_wechat_join_state(
+        user_has_joined=False,
+        first_reaction_done=False,
+        mode="interactive_group",
+    )
+
     group_content = read_wechat_group()
 
     if session_id:

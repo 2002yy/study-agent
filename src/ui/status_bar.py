@@ -211,22 +211,22 @@ def render_model_stats_line():
         return
 
     st.caption(
-        f"Flash: {stats.flash_calls} | Pro: {stats.pro_calls} | "
-        f"Router: {stats.llm_router_calls} | "
-        f"Last latency: {stats.last_latency:.2f}s | Cost: ￥{estimated_cost():.4f}"
+        f"Flash 调用: {stats.flash_calls} | Pro 调用: {stats.pro_calls} | "
+        f"路由调用: {stats.llm_router_calls} | "
+        f"上次延迟: {stats.last_latency:.2f}s | 估算成本: ￥{estimated_cost():.4f}"
     )
 
     perf = stats.last_perf or st.session_state.get("perf_metrics", {})
     if st.session_state.runtime_modes.debug_mode and perf:
         st.caption(
-            "Perf: "
-            f"route {perf.get('route_time', 0):.3f}s | "
-            f"memory {perf.get('memory_read_time', 0):.3f}s | "
-            f"context {perf.get('context_build_time', 0):.3f}s | "
-            f"first token {perf.get('llm_first_token_time', 0):.3f}s | "
-            f"llm {perf.get('llm_total_time', 0):.3f}s | "
-            f"ui {perf.get('ui_render_time', 0):.3f}s | "
-            f"total {perf.get('total_time', 0):.3f}s"
+            "性能: "
+            f"路由 {perf.get('route_time', 0):.3f}s | "
+            f"记忆 {perf.get('memory_read_time', 0):.3f}s | "
+            f"上下文 {perf.get('context_build_time', 0):.3f}s | "
+            f"首 token {perf.get('llm_first_token_time', 0):.3f}s | "
+            f"模型 {perf.get('llm_total_time', 0):.3f}s | "
+            f"UI {perf.get('ui_render_time', 0):.3f}s | "
+            f"总计 {perf.get('total_time', 0):.3f}s"
         )
 
     if st.button("重置统计"):
