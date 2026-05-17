@@ -9,6 +9,6 @@
 - entry_mode: wechat
 
 ## Version
-- current_version: v0.7.7
-- active_task: post-v0.7.7 stabilization and UI polish
-- next_version: v0.7.8
+- current_version: v0.7.8
+- active_task: performance budget + state model + CI hardening + entry flow fix
+- next_version: v0.7.9

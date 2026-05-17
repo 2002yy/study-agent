@@ -31,7 +31,6 @@ jobs:
         run: python tools/package_project_helper.py . /dev/null 0
 
       - name: Run detect-secrets
-        continue-on-error: true
         run: |
           if command -v detect-secrets &> /dev/null; then
             detect-secrets scan --disable-plugin KeywordDetector \

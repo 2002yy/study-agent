@@ -63,12 +63,27 @@ def _apply_mark_wechat_read(session_id: str, session_state) -> None:
     session_state.wechat_messages = read_wechat_group()
 
 
+def _clear_wechat_news_state(session_state) -> None:
+    session_state.wechat_news_items = []
+    session_state.wechat_news_digest = ""
+    session_state.wechat_news_phase = ""
+    session_state.wechat_news_query_text = ""
+    session_state.wechat_news_read_articles = True
+    session_state.wechat_news_source_block = ""
+    session_state.wechat_news_coverage = {}
+    session_state.wechat_news_warnings = []
+    session_state.wechat_news_elapsed_ms = 0
+
+
+def _should_render_news_phase_before_group(session_state) -> bool:
+    return bool(session_state.get("wechat_news_phase"))
+
+
 def _apply_new_wechat_group(session_state) -> None:
     reset_wechat_group()
     session_state.wechat_messages = None
     session_state.wechat_pending_input = None
-    session_state.wechat_news_items = []
-    session_state.wechat_news_digest = ""
+    _clear_wechat_news_state(session_state)
 
 
 def _rerun_wechat_fragment():
@@ -433,6 +448,11 @@ def render_wechat_panel():
 
     content_placeholder = st.empty()
     if not group_started:
+        if _should_render_news_phase_before_group(st.session_state):
+            st.caption("已获取新闻搜索结果，请按阶段继续生成摘要和群聊讨论。")
+            render_news_round_phases()
+            return
+
         st.caption("也可以直接联网查一个话题，系统会自动拉起一轮群聊讨论。")
         _render_opening_setup()
         return

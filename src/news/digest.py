@@ -6,6 +6,7 @@ import re
 
 from src.llm_client import ModelProfile, chat
 from src.news.link_resolver import _display_link_host
+from src.performance_budget import news_digest_max_tokens
 from src.news.rss_fetcher import normalize_news_query
 
 
@@ -173,4 +174,10 @@ def generate_news_digest(
             ),
         },
     ]
-    return chat(messages, temperature=0.3, model_profile=model_profile).strip()
+    return chat(
+        messages,
+        temperature=0.3,
+        model_profile=model_profile,
+        max_tokens=news_digest_max_tokens(performance_mode),
+        task_name="news_digest",
+    ).strip()

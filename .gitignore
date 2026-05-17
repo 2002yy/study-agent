@@ -8,12 +8,14 @@ __pycache__/
 .ruff_cache/
 
 # runtime
+config/runtime_state.yaml
 logs/
 backups/
 *.bak
 *.tmp
 chat/
-memory/pending_updates/
+memory/
+!memory/.gitkeep
 
 # packaging
 /release/

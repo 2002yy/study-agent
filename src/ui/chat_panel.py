@@ -8,6 +8,7 @@ import streamlit as st
 from src.context_builder import build_messages
 from src.llm_client import stream_chat
 from src.memory import read_memory_bundle
+from src.performance_budget import chat_max_tokens
 from src.mode_manager import load_runtime_modes
 from src.model_stats import estimate_tokens, record_call, record_perf
 from src.perf import PerfTracker, write_perf_log
@@ -280,6 +281,8 @@ def _process_user_input(user_input: str, role_prompt: str):
                 api_messages,
                 model_profile=resolved_model,
                 on_first_token=_mark_first_token,
+                max_tokens=chat_max_tokens(runtime_modes.performance_mode),
+                task_name="single_chat",
             )
             reply = st.write_stream(stream)
             perf.set("llm_total_time", time.perf_counter() - llm_started)
