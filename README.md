@@ -26,14 +26,12 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 
 ## Demo
 
-> 截图待补充。运行 `streamlit run app.py` 后即可看到实际界面。
-
-| 界面 | 说明 |
+| 界面 | 截图 |
 |------|------|
-| 主聊天 | 单人 AI 对话，支持 flash/pro 模型切换 |
-| 微信群聊 | 四位角色群聊，自动生成开场/互动回复 |
-| 联网搜索 | 多源新闻聚合（Google News + Bing + RSSHub）+ 正文提取 |
-| 课后总结 | 学习完成后自动总结，确认后写入长期记忆 |
+| 首页 — 状态看板、当前重点、版本信息 | ![home](assets/screenshots/home.png) |
+| 微信群聊 — 三位角色群内讨论 | ![group-chat](assets/screenshots/group-chat.png) |
+| 联网搜索 — 多源新闻聚合与来源追溯 | ![news-search](assets/screenshots/news-search.png) |
+| 记忆候选 — 课后更新预览与确认写入 | ![memory-capture](assets/screenshots/memory-capture.png) |
 
 ---
 
@@ -75,6 +73,8 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 ---
 
 ## 架构
+
+![architecture](assets/screenshots/arch.png)
 
 ```
 streamlit run app.py
