@@ -190,7 +190,13 @@ def generate_wechat_messages(
             "content": f"请生成一版 {style} 风格的微信群消息，每位角色用【角色名】开头。",
         },
     ]
-    raw = chat(messages, temperature=0.6, model_profile=model_profile).strip()
+    raw = chat(
+        messages,
+        temperature=0.6,
+        model_profile=model_profile,
+        max_tokens=wechat_reply_max_tokens(load_runtime_modes().performance_mode),
+        task_name="wechat_after_session",
+    ).strip()
     return _ensure_all_roles_reply(raw)
 
 

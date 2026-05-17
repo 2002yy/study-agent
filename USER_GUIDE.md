@@ -16,7 +16,8 @@
 ## 2. 启动
 
 ```powershell
-cd "C:\Users\96967\Desktop\study agent"
+git clone https://github.com/2002yy/-study-agent.git study-agent
+cd study-agent
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 Copy-Item .env.example .env
@@ -178,7 +179,7 @@ python -m pytest -q
 
 当前仓库文档建议这样看：
 
-1. `changelog/README_v0_7_1.md`: 当前版本检查包说明
+1. `changelog/README_v0_8_0.md`: 当前版本发布说明
 2. `USER_GUIDE.md`: 当前使用指南
 3. `PROJECT_PLAN.md`: 当前阶段规划与里程碑
 4. `FUTURE.md`: 下一阶段方向
