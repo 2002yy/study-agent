@@ -6,6 +6,22 @@
   <img src="https://img.shields.io/badge/tests-140-passing-green" alt="140 tests">
 </p>
 
+A local AI learning assistant with long-term memory, role-based group chat,
+web search, model routing and context-tier management.
+
+## Highlights
+
+- **Multi-provider LLM client**: OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models
+- **Model routing** with fast / light / deep / archive context tiers
+- **Long-term memory** based on Markdown files and safe-writer persistence
+- **Web search pipeline**: RSS fetch → article extraction → LLM digest → source-traced discussion
+- **SSRF protection** for article fetching, **detect-secrets** in CI
+- **Batched session logging** and multi-layer caching for performance
+- **Performance budget**: max_tokens bounds on every LLM call by mode
+- **140 tests**, Ruff clean, GitHub Actions CI
+
+---
+
 **一个面向个人学习复盘的本地 AI 学习搭子系统** — 支持角色群聊、联网搜索、长期记忆和课后总结。
 
 > 不是又一个 AI 问答工具，而是一个会记住你学什么的 AI 学习伙伴。
