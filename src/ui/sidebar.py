@@ -39,6 +39,34 @@ from src.constants import (
 )
 
 
+def _rerun_app():
+    st.rerun()
+
+
+def _settings_changed(
+    entry_mode_new: str,
+    current_role_new: str,
+    current_mode_new: str,
+    model_profile_new: str,
+    performance_mode_new: str,
+    atmosphere_new: str,
+    entry_mode_old: str,
+    current_role_old: str,
+    current_mode_old: str,
+    model_profile_old: str,
+    performance_mode_old: str,
+    atmosphere_old: str,
+) -> bool:
+    return (
+        entry_mode_new != entry_mode_old
+        or current_role_new != current_role_old
+        or current_mode_new != current_mode_old
+        or model_profile_new != model_profile_old
+        or performance_mode_new != performance_mode_old
+        or atmosphere_new != atmosphere_old
+    )
+
+
 def _switch_to_wechat_entry(unread_content: str, runtime_modes, session_state) -> None:
     session_state.wechat_messages = unread_content
     if runtime_modes.entry_mode != "wechat":
@@ -155,6 +183,14 @@ def render_sidebar():
         apply_settings = st.form_submit_button("应用设置", use_container_width=True)
 
     if apply_settings:
+        anything_changed = _settings_changed(
+            entry_mode_new, current_role_new, current_mode_new, model_profile_new,
+            performance_mode_new, atmosphere_new,
+            runtime_modes.entry_mode, st.session_state.current_role,
+            st.session_state.current_mode, st.session_state.model_profile,
+            runtime_modes.performance_mode, st.session_state.interaction_mode,
+        )
+
         if entry_mode_new != runtime_modes.entry_mode:
             update_entry_mode(entry_mode_new)
             runtime_modes.entry_mode = entry_mode_new
@@ -174,8 +210,11 @@ def render_sidebar():
             update_interaction_mode(atmosphere_new)
             set_interaction_mode(st.session_state.session_id, atmosphere_new)
 
+        if anything_changed:
+            st.session_state.current_route = {}
+
         st.session_state.sidebar_notice = "设置已应用"
-        st.rerun(scope="fragment")
+        _rerun_app()
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -207,7 +246,7 @@ def render_sidebar():
                 update_safe_mode(safe_new)
                 runtime_modes.safe_mode = safe_new
             st.session_state.sidebar_notice = "状态开关已应用"
-            st.rerun(scope="fragment")
+            _rerun_app()
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -241,7 +280,7 @@ def render_sidebar():
                 "enabled" if capture_enabled_new else "disabled",
             )
         st.session_state.sidebar_notice = "记忆设置已应用"
-        st.rerun(scope="fragment")
+        _rerun_app()
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
@@ -276,14 +315,14 @@ def render_sidebar():
     has_unread = unread_content and "暂无未读" not in unread_content
     if has_unread and st.button("查看未读消息", use_container_width=True):
         _switch_to_wechat_entry(unread_content, runtime_modes, st.session_state)
-        st.rerun(scope="fragment")
+        _rerun_app()
 
     if st.button("清空未读消息", use_container_width=True):
         clear_wechat_unread()
         set_wechat_unread_cleared(st.session_state.session_id)
         st.session_state.wechat_messages = None
         st.session_state.sidebar_notice = "未读消息已清空"
-        st.rerun(scope="fragment")
+        _rerun_app()
 
     cols = st.columns(2)
     with cols[0]:
@@ -297,7 +336,7 @@ def render_sidebar():
             st.session_state.wechat_messages = None
             st.session_state.health_report = health_report(force_refresh=True)
             st.session_state.sidebar_notice = "配置、记忆与健康状态已刷新"
-            st.rerun(scope="fragment")
+            _rerun_app()
 
     if st.session_state.get("health_report"):
         with st.expander("健康报告", expanded=False):
