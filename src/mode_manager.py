@@ -26,9 +26,9 @@ class RuntimeModes:
     route_mode: str = "auto_rule"
     debug_mode: bool = False
     safe_mode: bool = False
-    current_version: str = "v0.7.8"
-    active_task: str = "performance budget + state model + CI hardening + entry flow fix"
-    next_version: str = "v0.7.9"
+    current_version: str = "v0.8.0"
+    active_task: str = "文档同步 + UI 中文标签 + 性能预算 + 状态模型 + 工程收口"
+    next_version: str = "v0.8.1"
     relationship_mode: str = "standard"
     wechat_mode: str = "unread_feedback"
     user_has_joined: bool = False

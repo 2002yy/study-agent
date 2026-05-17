@@ -9,6 +9,6 @@
 - entry_mode: wechat
 
 ## Version
-- current_version: v0.7.8
-- active_task: performance budget + state model + CI hardening + entry flow fix
-- next_version: v0.7.9
+- current_version: v0.8.0
+- active_task: 文档同步 + UI 中文标签 + 性能预算 + 状态模型 + 工程收口
+- next_version: v0.8.1

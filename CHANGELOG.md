@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0 — 文档同步 + UI 中文标签 + 工程收口 / Docs sync & Chinese UI labels
+
+- **文档版本同步**：5 份文档（USER_GUIDE / PROJECT_PLAN / FUTURE / COMPREHENSIVE_PROJECT / changelog）版本升至 v0.8.0，模块描述与实际代码对齐
+- **UI 中文标签**：`constants.py` 模型/性能标签改为中文主导，`status_bar.py` 统计/性能行全中文显示，`chat_panel.py` 显示标签同步
+- 合并 v0.7.8 全部变更（性能预算系统、依赖锁定、状态模型文档化、CI 门禁升级、入口页新闻流程修复、README 重构、140 tests）
+
 ## v0.7.8 — 性能预算 + 状态模型 + 工程收口
 
 - **性能预算系统**（新模块 `src/performance_budget.py`）：所有 LLM 调用按 fast/standard/deep 三档分配 max_tokens 上限

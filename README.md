@@ -203,7 +203,7 @@ pip-compile requirements-dev.in    # 重新锁定开发依赖
 ## 测试
 
 ```bash
-pytest tests/ -v            # 112 tests
+pytest tests/ -v            # 140 tests
 pytest tests/ --cov=src     # 覆盖率
 ruff check src/ tests/      # linting
 ```
@@ -214,9 +214,11 @@ CI 通过 GitHub Actions 运行（每次 push 触发），集成 `detect-secrets
 
 ## 版本历史
 
-### v0.7.8 — 性能预算 + 状态模型 + 工程收口
+### v0.8.0 — 文档同步 + UI 中文标签 + 工程收口
 
-性能预算系统（所有 LLM 调用按性能模式分配输出上限）；依赖锁定（pip-tools）；状态模型文档化；CI 门禁升级；入口页新闻流程修复；README 重构。**140 tests，Ruff clean**。
+文档版本同步（5 份文档统一升级）；UI 中文标签（模型/性能/状态栏全中文）；合并性能预算系统、依赖锁定、状态模型文档化、CI 门禁升级、入口页新闻流程修复。**140 tests，Ruff clean**。
+
+### v0.7.8 — 性能预算 + 状态模型 + 工程收口
 
 ### v0.7.7 — 模块拆分与服务层解耦
 
@@ -232,9 +234,9 @@ CI 通过 GitHub Actions 运行（每次 push 触发），集成 `detect-secrets
 
 | 版本 | 方向 |
 |------|------|
-| v0.7.9 | 稳定性和 UI 打磨 |
-| v0.8 | 知识库 / RAG 能力 |
-| v0.9 | 多语言支持、导出增强 |
+| v0.8.1 | 稳定性和 UI 打磨 |
+| v0.9 | 知识库 / RAG 能力 |
+| v0.10 | 多语言支持、导出增强 |
 | v1.0 | 插件化架构 + 自定义角色 |
 
 ---
