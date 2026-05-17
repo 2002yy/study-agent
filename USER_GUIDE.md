@@ -16,7 +16,7 @@
 ## 2. 启动
 
 ```powershell
-git clone https://github.com/2002yy/-study-agent.git study-agent
+git clone https://github.com/2002yy/study-agent.git study-agent
 cd study-agent
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
