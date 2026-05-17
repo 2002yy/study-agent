@@ -5,7 +5,7 @@
 - route_mode: auto_rule
 - debug_mode: false
 - safe_mode: false
-- performance_mode: standard
+- performance_mode: deep
 - entry_mode: wechat
 
 ## Version
