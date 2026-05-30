@@ -9,6 +9,7 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
+from src.news.domain_policy import annotate_domain_policy, news_sort_score
 from src.news.link_resolver import (
     _has_direct_article_link,
     _news_item_url,
@@ -161,18 +162,20 @@ def _news_item_sort_key(
     item: dict,
     query_text: str,
     now_ts: float,
-) -> tuple[int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, float]:
     preferred_domains = _preferred_source_domains(query_text)
     item_url = _news_item_url(item)
     source_priority = int(any(domain in item_url for domain in preferred_domains))
     direct_link_priority = int(_has_direct_article_link(item))
     recent_priority = int(_is_recent_news_item(item, now_ts))
     query_match_count = _count_query_term_matches(item.get("title", ""), query_text)
+    domain_policy_score = news_sort_score(item, query_text)
     return (
         source_priority,
         direct_link_priority,
         recent_priority,
         query_match_count,
+        domain_policy_score,
         item.get("_sort_ts", 0.0),
     )
 
@@ -214,7 +217,7 @@ def _dedupe_and_trim_news_items(
     return (recent_items + older_items)[:max_items]
 
 
-def _attach_url_metadata(item: dict, resolve: bool) -> dict:
+def _attach_url_metadata(item: dict, resolve: bool, query_text: str) -> dict:
     cleaned = dict(item)
     link = cleaned.get("link", "")
     metadata = resolve_news_link_metadata(link) if resolve else build_url_metadata(link)
@@ -224,7 +227,7 @@ def _attach_url_metadata(item: dict, resolve: bool) -> dict:
     cleaned["resolution_status"] = metadata.resolution_status
     if metadata.error:
         cleaned["resolution_error"] = metadata.error
-    return cleaned
+    return annotate_domain_policy(cleaned, query_text)
 
 
 def _dedupe_by_canonical_url(news_items: list[dict], max_items: int) -> list[dict]:
@@ -233,6 +236,10 @@ def _dedupe_by_canonical_url(news_items: list[dict], max_items: int) -> list[dic
     deduped: list[dict] = []
 
     for item in news_items:
+        policy = item.get("domain_policy") or {}
+        if policy.get("blocked"):
+            continue
+
         canonical_url = (item.get("canonical_url") or "").strip().lower()
         title = item.get("title", "").strip().lower()
 
@@ -266,7 +273,9 @@ def _resolve_and_dedupe_news_items(
     resolved_items: list[dict] = []
 
     for idx, item in enumerate(news_items):
-        resolved_items.append(_attach_url_metadata(item, resolve=idx < resolve_count))
+        resolved_items.append(
+            _attach_url_metadata(item, resolve=idx < resolve_count, query_text=query_text)
+        )
 
     now_ts = time.time()
     sorted_items = sorted(
@@ -379,7 +388,7 @@ def fetch_news_items(
     resolve_top_n: int = 5,
 ) -> list[dict]:
     query_text = normalize_news_query(query_text)
-    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}|canonical:v1"
+    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}|canonical:v2"
 
     now = time.time()
     _prune_news_cache(now)
