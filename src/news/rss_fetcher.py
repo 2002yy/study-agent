@@ -12,8 +12,9 @@ import xml.etree.ElementTree as ET
 from src.news.link_resolver import (
     _has_direct_article_link,
     _news_item_url,
-    resolve_news_link,
+    resolve_news_link_metadata,
 )
+from src.news.url_normalizer import build_url_metadata
 
 
 # ── Constants ──────────────────────────────────────────────────────────
@@ -214,6 +215,67 @@ def _dedupe_and_trim_news_items(
     return (recent_items + older_items)[:max_items]
 
 
+def _attach_url_metadata(item: dict, resolve: bool) -> dict:
+    cleaned = dict(item)
+    link = cleaned.get("link", "")
+    metadata = resolve_news_link_metadata(link) if resolve else build_url_metadata(link)
+    cleaned["resolved_link"] = metadata.resolved_url
+    cleaned["canonical_url"] = metadata.canonical_url
+    cleaned["domain"] = metadata.domain
+    cleaned["resolution_status"] = metadata.resolution_status
+    if metadata.error:
+        cleaned["resolution_error"] = metadata.error
+    return cleaned
+
+
+def _dedupe_by_canonical_url(news_items: list[dict], max_items: int) -> list[dict]:
+    seen_canonical: set[str] = set()
+    seen_titles: set[str] = set()
+    deduped: list[dict] = []
+
+    for item in news_items:
+        canonical_url = (item.get("canonical_url") or "").strip().lower()
+        title = item.get("title", "").strip().lower()
+
+        if canonical_url:
+            if canonical_url in seen_canonical:
+                continue
+            seen_canonical.add(canonical_url)
+        elif title:
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+
+        deduped.append(item)
+        if len(deduped) >= max_items:
+            break
+
+    return deduped
+
+
+def _resolve_and_dedupe_news_items(
+    news_items: list[dict],
+    max_items: int,
+    resolve_top_n: int,
+    query_text: str,
+) -> list[dict]:
+    # Resolve a small over-fetch window so canonical dedup can remove duplicate
+    # redirect URLs without leaving too few usable items.
+    resolve_count = min(max(resolve_top_n, max_items), len(news_items))
+    resolved_items: list[dict] = []
+
+    for idx, item in enumerate(news_items):
+        resolved_items.append(_attach_url_metadata(item, resolve=idx < resolve_count))
+
+    now_ts = time.time()
+    sorted_items = sorted(
+        resolved_items,
+        key=lambda item: _news_item_sort_key(item, query_text, now_ts),
+        reverse=True,
+    )
+    return _dedupe_by_canonical_url(sorted_items, max_items)
+
+
 # ── RSS fetching (no link resolution) ─────────────────────────────────
 
 
@@ -261,6 +323,9 @@ def _fetch_rss_items_from_url(
                 "published_timestamp": published_ts,
                 "link": link,
                 "resolved_link": "",  # No resolution during RSS phase
+                "canonical_url": "",
+                "domain": "",
+                "resolution_status": "pending",
                 "_sort_ts": published_ts,
             }
         )
@@ -284,7 +349,7 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     items: list[dict] = []
     errors: list[Exception] = []
-    per_feed_limit = max(max_items, 8)
+    per_feed_limit = max(max_items * 2, 8)
 
     for source_name, feed_url, filter_by_query in feed_urls:
         try:
@@ -302,7 +367,9 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
     if not items and errors:
         raise errors[0]
 
-    return _dedupe_and_trim_news_items(items, max_items, query_text=query_text)
+    # Keep a modest candidate pool before redirect resolution; final trimming
+    # happens after canonical URL deduplication.
+    return _dedupe_and_trim_news_items(items, max_items * 2, query_text=query_text)
 
 
 def fetch_news_items(
@@ -311,7 +378,7 @@ def fetch_news_items(
     resolve_top_n: int = 5,
 ) -> list[dict]:
     query_text = normalize_news_query(query_text)
-    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}"
+    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}|canonical:v1"
 
     now = time.time()
     _prune_news_cache(now)
@@ -321,12 +388,12 @@ def fetch_news_items(
         return cached[1][:max_items]
 
     items = _fetch_query_news_items(query_text, max_items=max_items)
-
-    # Resolve links only for items that survive dedupe/trim
-    resolve_count = min(resolve_top_n, len(items))
-    for item in items[:resolve_count]:
-        link = item.get("link", "")
-        item["resolved_link"] = resolve_news_link(link)
+    items = _resolve_and_dedupe_news_items(
+        items,
+        max_items=max_items,
+        resolve_top_n=resolve_top_n,
+        query_text=query_text,
+    )
 
     _NEWS_CACHE[cache_key] = (now, items)
     return items
