@@ -66,13 +66,26 @@ def format_news_source_block(query_text: str, news_items: list[dict]) -> str:
         title = _display_news_title(item.get("title", ""))
         source = item.get("source", "新闻源")
         published_at = item.get("published_at", "今天")
-        link = item.get("resolved_link") or item.get("link", "")
+        original_link = item.get("link", "")
+        resolved_link = item.get("resolved_link") or original_link
+        canonical_url = item.get("canonical_url", "")
+        domain = item.get("domain", "") or _display_link_host(resolved_link)
+        resolution_status = item.get("resolution_status", "") or "unknown"
         article_status = item.get("article_status", "仅标题")
+
         lines.append(f"{idx}. {title}")
         lines.append(f"   来源：{source}｜{published_at}｜{article_status}")
-        if link:
-            host = _display_link_host(link) or "打开来源"
-            lines.append(f"   链接：{host}")
+        if domain:
+            lines.append(f"   域名：{domain}｜解析：{resolution_status}")
+        if original_link:
+            original_host = _display_link_host(original_link) or "原始来源"
+            lines.append(f"   原始链接：{original_host}")
+        if resolved_link and resolved_link != original_link:
+            resolved_host = _display_link_host(resolved_link) or "真实来源"
+            lines.append(f"   真实链接：{resolved_host}")
+        if canonical_url and canonical_url != resolved_link:
+            canonical_host = _display_link_host(canonical_url) or "canonical"
+            lines.append(f"   去重键：{canonical_host}")
 
     return "\n".join(lines).strip()
 
@@ -85,14 +98,16 @@ def _format_news_items_for_digest(news_items: list[dict]) -> str:
         source = item.get("source", "新闻源")
         published_at = item.get("published_at", "今天")
         link = item.get("resolved_link") or item.get("link", "")
-        link_host = _display_link_host(link) or "未知来源"
+        link_host = item.get("domain") or _display_link_host(link) or "未知来源"
         article_status = item.get("article_status", "仅标题")
         article_excerpt = item.get("article_excerpt", "")
+        resolution_status = item.get("resolution_status", "unknown")
 
         lines.append(f"{idx}. {title}")
         lines.append(f"来源：{source}")
         lines.append(f"时间：{published_at}")
         lines.append(f"链接域名：{link_host}")
+        lines.append(f"链接解析：{resolution_status}")
         lines.append(f"正文状态：{article_status}")
 
         if article_excerpt:
