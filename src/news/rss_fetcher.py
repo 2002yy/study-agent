@@ -201,7 +201,6 @@ def _dedupe_and_trim_news_items(
 
         seen.add(dedupe_key)
         cleaned = dict(item)
-        cleaned.pop("_sort_ts", None)
         if _is_recent_news_item(item, now_ts):
             recent_items.append(cleaned)
             if len(recent_items) >= max_items:
@@ -246,7 +245,9 @@ def _dedupe_by_canonical_url(news_items: list[dict], max_items: int) -> list[dic
                 continue
             seen_titles.add(title)
 
-        deduped.append(item)
+        cleaned = dict(item)
+        cleaned.pop("_sort_ts", None)
+        deduped.append(cleaned)
         if len(deduped) >= max_items:
             break
 
