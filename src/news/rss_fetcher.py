@@ -15,6 +15,7 @@ from src.news.link_resolver import (
     _news_item_url,
     resolve_news_link_metadata,
 )
+from src.news.search_sources.searxng_source import search_searxng
 from src.news.url_normalizer import build_url_metadata
 
 
@@ -361,6 +362,11 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
     errors: list[Exception] = []
     per_feed_limit = max(max_items * 2, 8)
 
+    try:
+        items.extend(search_searxng(query_text, max_results=per_feed_limit))
+    except Exception as exc:
+        errors.append(exc)
+
     for source_name, feed_url, filter_by_query in feed_urls:
         try:
             items.extend(
@@ -388,7 +394,7 @@ def fetch_news_items(
     resolve_top_n: int = 5,
 ) -> list[dict]:
     query_text = normalize_news_query(query_text)
-    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}|canonical:v2"
+    cache_key = f"{query_text}|{max_items}|resolve:{resolve_top_n}|canonical:v3"
 
     now = time.time()
     _prune_news_cache(now)
