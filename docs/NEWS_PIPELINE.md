@@ -1,6 +1,6 @@
 # News Pipeline
 
-Multi-source news aggregation pipeline: search → resolve → canonicalize → domain policy → dedup → extract → digest → discuss → trace.
+Multi-source news aggregation pipeline: search → resolve → canonicalize → domain policy → dedup → reader backends → digest → discuss → trace.
 
 ## Pipeline Stages
 
@@ -34,10 +34,11 @@ User query
    └── Dedup by canonical_url first, then title fallback
     │
     ▼
-6. Article text extraction (top 5 pages, max 5000 chars each)
-   ├── trafilatura (primary)
-   ├── readability-lxml (fallback)
-   └── raw <p> text (last resort)
+6. Article reader backends (top 5 pages, max 5000 chars each)
+   ├── Local reader: trafilatura
+   ├── Local reader: readability-lxml
+   ├── Local reader: raw <p>/HTMLParser
+   └── Optional Jina Reader fallback (disabled by default)
     │
     ▼
 7. Digest generation (LLM-summarized)
@@ -116,16 +117,34 @@ After link resolution and domain policy annotation, items are deduplicated by `c
 
 Canonicalization removes common tracking parameters such as `utm_*`, `fbclid`, `gclid`, `spm`, `ref`, and `ref_src`, then sorts the remaining query parameters. Meaningful query parameters are preserved.
 
-### 6. Article Extraction
+### 6. Article Reader Backends
 
-`src/news/article_fetcher.py` — layered extraction with SSRF protection and domain-policy filtering:
+`src/news/article_fetcher.py` handles safe network fetching and reader backend orchestration. Reader implementations live under `src/news/readers/`:
 
-- **Trafilatura**: Fast, accurate extraction for well-formed pages
-- **Readability**: Better for complex layouts
-- **Raw text**: `<p>` tag concatenation as last resort
-- **Domain policy gate**: hard-blocked pages get `域名策略过滤，未读取正文`
+- `base.py`: shared `ReaderResult`
+- `local_reader.py`: local `trafilatura → readability-lxml → HTMLParser` extraction
+- `jina_reader.py`: optional hosted Jina Reader fallback
 
-Method label tracked per article for quality monitoring.
+Default behavior remains local-first and local-only. Jina Reader is disabled unless explicitly enabled:
+
+```bash
+NEWS_ENABLE_JINA_READER=true
+```
+
+Important boundaries:
+
+- Jina fallback is only attempted after local extraction fails.
+- Jina fallback is never called by default.
+- Unsafe or non-public HTTP(S) URLs are rejected before building the Jina Reader URL.
+- Reader output still obeys max character budgets.
+- Domain policy gate still applies before article reading; hard-blocked pages get `域名策略过滤，未读取正文`.
+
+Method label tracked per article for quality monitoring:
+
+- `本地 trafilatura`
+- `本地 readability-lxml`
+- `本地 HTMLParser`
+- `Jina Reader`
 
 ### 7. Digest
 
