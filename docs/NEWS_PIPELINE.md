@@ -1,6 +1,6 @@
 # News Pipeline
 
-Multi-source news aggregation pipeline: search → resolve → canonicalize → domain policy → dedup → reader backends → digest → discuss → trace.
+Multi-source news aggregation pipeline: search providers → resolve → canonicalize → domain policy → dedup → reader backends → digest → discuss → trace.
 
 ## Pipeline Stages
 
@@ -8,7 +8,8 @@ Multi-source news aggregation pipeline: search → resolve → canonicalize → 
 User query
     │
     ▼
-1. Multi-source RSS fetch
+1. Multi-source search/fetch
+   ├── Optional SearXNG JSON provider (disabled by default)
    ├── Google News RSS
    ├── Bing News RSS
    └── RSSHub (domestic Chinese sources)
@@ -52,14 +53,29 @@ User query
 
 ## Stage Detail
 
-### 1. RSS Fetch
+### 1. Multi-source Search/Fetch
 
-`src/news/rss_fetcher.py` — parallel multi-source fetch:
+`src/news/rss_fetcher.py` builds a candidate pool from multiple sources:
 
+- Optional SearXNG JSON provider
 - Google News: `https://news.google.com/rss/search?q={query}&hl=zh-CN`
 - Bing News: `https://www.bing.com/news/search?q={query}&format=rss`
 - RSSHub: Configurable domestic sources
 - 600-second article cache per query
+
+SearXNG is opt-in and fail-soft:
+
+```bash
+NEWS_ENABLE_SEARXNG=true
+SEARXNG_BASE_URL=http://127.0.0.1:8080
+```
+
+Behavior:
+
+- If SearXNG is disabled, no SearXNG request is sent.
+- If `SEARXNG_BASE_URL` is missing or unsafe, SearXNG returns no items.
+- If the instance disables JSON output, returns non-JSON, 403, or times out, the pipeline silently falls back to RSS.
+- SearXNG results are normalized into the same news item schema and then enter the same redirect/canonical/domain-policy/dedup flow.
 
 ### 2. Pre-dedup
 
