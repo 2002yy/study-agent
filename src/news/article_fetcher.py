@@ -19,6 +19,7 @@ from src.news.article_extractor import (
     decode_html_payload as _decode_html_payload,
 )
 from src.news.domain_policy import article_priority_adjustment, should_fetch_article
+from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firecrawl
 from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
 
@@ -201,6 +202,24 @@ def _fetch_html_payload(
     return _decode_html_payload(payload, content_type), final_url or url
 
 
+def _try_firecrawl(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
+    if not firecrawl_enabled():
+        return "", ""
+    result = read_with_firecrawl(url, timeout=timeout, max_chars=max_chars)
+    if result.ok:
+        return result.text, result.method
+    return "", ""
+
+
+def _try_jina(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
+    if not jina_fallback_enabled():
+        return "", ""
+    result = read_with_jina_reader(url, timeout=timeout, max_chars=max_chars)
+    if result.ok:
+        return result.text, result.method
+    return "", ""
+
+
 def fetch_article_text_with_method(
     url: str,
     timeout: int = 8,
@@ -219,6 +238,7 @@ def fetch_article_text_with_method(
         return cached[1], cached[2]
 
     try:
+        final_url = url
         html, final_url = _fetch_html_payload(url, timeout=timeout, max_bytes=max_bytes)
         if html:
             local_result = read_html_locally(
@@ -230,24 +250,25 @@ def fetch_article_text_with_method(
                 _ARTICLE_CACHE[url] = (now, local_result.text, local_result.method)
                 return local_result.text, local_result.method
 
-        if jina_fallback_enabled():
-            jina_result = read_with_jina_reader(
-                final_url or url,
-                timeout=timeout,
-                max_chars=max_chars,
-            )
-            if jina_result.ok:
-                _ARTICLE_CACHE[url] = (now, jina_result.text, jina_result.method)
-                return jina_result.text, jina_result.method
+        fallback_url = final_url or url
+        for text, method in (
+            _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars),
+            _try_jina(fallback_url, timeout=timeout, max_chars=max_chars),
+        ):
+            if text:
+                _ARTICLE_CACHE[url] = (now, text, method)
+                return text, method
 
         _ARTICLE_CACHE[url] = (now, "", "")
         return "", ""
     except Exception:
-        if jina_fallback_enabled():
-            jina_result = read_with_jina_reader(url, timeout=timeout, max_chars=max_chars)
-            if jina_result.ok:
-                _ARTICLE_CACHE[url] = (now, jina_result.text, jina_result.method)
-                return jina_result.text, jina_result.method
+        for text, method in (
+            _try_firecrawl(url, timeout=timeout, max_chars=max_chars),
+            _try_jina(url, timeout=timeout, max_chars=max_chars),
+        ):
+            if text:
+                _ARTICLE_CACHE[url] = (now, text, method)
+                return text, method
         return "", ""
 
 
