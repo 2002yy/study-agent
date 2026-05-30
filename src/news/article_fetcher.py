@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import re
 import time
 from socket import getaddrinfo
@@ -14,11 +15,12 @@ from urllib.request import (
 )
 
 from src.news.article_extractor import (
-    decode_html_payload as _decode_html_payload,
-    extract_article_text as _extract_article_text,
     article_method_label as _article_method_label,
+    decode_html_payload as _decode_html_payload,
 )
 from src.news.domain_policy import article_priority_adjustment, should_fetch_article
+from src.news.readers.jina_reader import read_with_jina_reader
+from src.news.readers.local_reader import read_html_locally
 
 
 # ── Cache ─────────────────────────────────────────────────────────────
@@ -47,6 +49,21 @@ def _prune_cache(
 
 def _prune_article_cache(now: float) -> None:
     _prune_cache(_ARTICLE_CACHE, _ARTICLE_CACHE_TTL, _ARTICLE_CACHE_MAX_SIZE, now)
+
+
+# ── Reader backend settings ────────────────────────────────────────────
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def jina_fallback_enabled() -> bool:
+    """Return whether hosted Jina Reader fallback is explicitly enabled."""
+    return _env_flag("NEWS_ENABLE_JINA_READER", default=False)
 
 
 # ── DNS / IP security helpers ─────────────────────────────────────────
@@ -155,6 +172,35 @@ for i, h in enumerate(_SAFE_OPENER.handlers):
 # ── Article fetching ──────────────────────────────────────────────────
 
 
+def _fetch_html_payload(
+    url: str,
+    timeout: int,
+    max_bytes: int,
+) -> tuple[str, str]:
+    req = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    )
+
+    with _SAFE_OPENER.open(req, timeout=timeout) as response:
+        final_url = response.geturl()
+        if final_url and not _is_fetchable_article_url(final_url):
+            return "", ""
+
+        content_type = response.headers.get("Content-Type", "")
+        if "html" not in content_type.lower() and "text" not in content_type.lower():
+            return "", ""
+
+        payload = response.read(max_bytes + 1)
+        if len(payload) > max_bytes:
+            payload = payload[:max_bytes]
+
+    return _decode_html_payload(payload, content_type), final_url or url
+
+
 def fetch_article_text_with_method(
     url: str,
     timeout: int = 8,
@@ -172,42 +218,36 @@ def fetch_article_text_with_method(
     if cached and now - cached[0] < _ARTICLE_CACHE_TTL:
         return cached[1], cached[2]
 
-    req = Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-    )
-
     try:
-        with _SAFE_OPENER.open(req, timeout=timeout) as response:
-            final_url = response.geturl()
-            if final_url and not _is_fetchable_article_url(final_url):
-                _ARTICLE_CACHE[url] = (now, "", "")
-                return "", ""
+        html, final_url = _fetch_html_payload(url, timeout=timeout, max_bytes=max_bytes)
+        if html:
+            local_result = read_html_locally(
+                html,
+                url=final_url or url,
+                max_chars=max_chars,
+            )
+            if local_result.ok:
+                _ARTICLE_CACHE[url] = (now, local_result.text, local_result.method)
+                return local_result.text, local_result.method
 
-            content_type = response.headers.get("Content-Type", "")
-            if (
-                "html" not in content_type.lower()
-                and "text" not in content_type.lower()
-            ):
-                _ARTICLE_CACHE[url] = (now, "", "")
-                return "", ""
+        if jina_fallback_enabled():
+            jina_result = read_with_jina_reader(
+                final_url or url,
+                timeout=timeout,
+                max_chars=max_chars,
+            )
+            if jina_result.ok:
+                _ARTICLE_CACHE[url] = (now, jina_result.text, jina_result.method)
+                return jina_result.text, jina_result.method
 
-            payload = response.read(max_bytes + 1)
-            if len(payload) > max_bytes:
-                payload = payload[:max_bytes]
-
-        html = _decode_html_payload(payload, content_type)
-        text, method = _extract_article_text(
-            html,
-            url=url,
-            max_chars=max_chars,
-        )
-        _ARTICLE_CACHE[url] = (now, text, method)
-        return text, method
+        _ARTICLE_CACHE[url] = (now, "", "")
+        return "", ""
     except Exception:
+        if jina_fallback_enabled():
+            jina_result = read_with_jina_reader(url, timeout=timeout, max_chars=max_chars)
+            if jina_result.ok:
+                _ARTICLE_CACHE[url] = (now, jina_result.text, jina_result.method)
+                return jina_result.text, jina_result.method
         return "", ""
 
 
