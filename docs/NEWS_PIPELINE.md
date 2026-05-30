@@ -4,7 +4,7 @@ Multi-source news aggregation pipeline: search providers → resolve → canonic
 
 ## Pipeline Stages
 
-```
+```text
 User query
     │
     ▼
@@ -39,6 +39,7 @@ User query
    ├── Local reader: trafilatura
    ├── Local reader: readability-lxml
    ├── Local reader: raw <p>/HTMLParser
+   ├── Optional Firecrawl-compatible fallback (disabled by default)
    └── Optional Jina Reader fallback (disabled by default)
     │
     ▼
@@ -139,19 +140,38 @@ Canonicalization removes common tracking parameters such as `utm_*`, `fbclid`, `
 
 - `base.py`: shared `ReaderResult`
 - `local_reader.py`: local `trafilatura → readability-lxml → HTMLParser` extraction
+- `firecrawl_reader.py`: optional self-hosted Firecrawl-compatible fallback
 - `jina_reader.py`: optional hosted Jina Reader fallback
 
-Default behavior remains local-first and local-only. Jina Reader is disabled unless explicitly enabled:
+Default behavior remains local-first and local-only.
+
+Firecrawl-compatible fallback is disabled unless explicitly enabled:
+
+```bash
+NEWS_ENABLE_FIRECRAWL_READER=true
+FIRECRAWL_BASE_URL=http://127.0.0.1:3002
+# FIRECRAWL_API_KEY=optional
+```
+
+Jina Reader is disabled unless explicitly enabled:
 
 ```bash
 NEWS_ENABLE_JINA_READER=true
 ```
 
+Fallback order:
+
+```text
+local reader
+→ Firecrawl-compatible reader, if enabled
+→ Jina Reader, if enabled
+```
+
 Important boundaries:
 
-- Jina fallback is only attempted after local extraction fails.
-- Jina fallback is never called by default.
-- Unsafe or non-public HTTP(S) URLs are rejected before building the Jina Reader URL.
+- Firecrawl/Jina fallback is only attempted after local extraction fails.
+- Firecrawl/Jina fallback is never called by default.
+- Unsafe or non-public HTTP(S) URLs are rejected before hosted reader calls.
 - Reader output still obeys max character budgets.
 - Domain policy gate still applies before article reading; hard-blocked pages get `域名策略过滤，未读取正文`.
 
@@ -160,6 +180,7 @@ Method label tracked per article for quality monitoring:
 - `本地 trafilatura`
 - `本地 readability-lxml`
 - `本地 HTMLParser`
+- `Firecrawl`
 - `Jina Reader`
 
 ### 7. Digest
@@ -183,7 +204,7 @@ Method label tracked per article for quality monitoring:
 
 After each news round, a source block is appended to the group chat transcript:
 
-```
+```text
 【联网检索】
 查询：xxx
 1. Title
@@ -194,6 +215,14 @@ After each news round, a source block is appended to the group chat transcript:
 ```
 
 This ensures all discussion claims are traceable to their sources and makes redirect/canonical dedup behavior visible during debugging.
+
+## Setup Guide
+
+Detailed setup instructions are in:
+
+```text
+docs/WEB_SEARCH_SETUP.md
+```
 
 ## UI Flow
 
