@@ -18,6 +18,7 @@ from src.news.article_extractor import (
     extract_article_text as _extract_article_text,
     article_method_label as _article_method_label,
 )
+from src.news.domain_policy import article_priority_adjustment, should_fetch_article
 
 
 # ── Cache ─────────────────────────────────────────────────────────────
@@ -234,26 +235,11 @@ def _article_fetch_priority(item: dict, query_text: str = "") -> int:
     link = (item.get("resolved_link") or item.get("link") or "").lower()
     published_at = (item.get("published_at") or "").lower()
 
-    score = 100
+    score = 100 + article_priority_adjustment(item, query_text)
 
     transit_domains = ["news.google.com", "bing.com/news"]
     if any(d in link for d in transit_domains):
         score += 60
-
-    official_domains = [
-        "openai.com",
-        "github.com",
-        "python.org",
-        "rust-lang.org",
-        "apple.com",
-        "microsoft.com",
-        "go.dev",
-        "react.dev",
-        "nextjs.org",
-        "arxiv.org",
-    ]
-    if any(d in link for d in official_domains):
-        score -= 15
 
     trusted_sources = [
         "infoq",
@@ -301,6 +287,11 @@ def enrich_news_items_with_article_text(
         if idx not in selected_indices:
             item["article_excerpt"] = ""
             item["article_status"] = "未进入正文读取候选，仅使用标题与来源"
+            continue
+
+        if not should_fetch_article(item, query_text):
+            item["article_excerpt"] = ""
+            item["article_status"] = "域名策略过滤，未读取正文"
             continue
 
         article_url = item.get("resolved_link") or item.get("link", "")
