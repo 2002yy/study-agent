@@ -62,6 +62,55 @@ def test_fetch_news_items_dedupes_by_canonical_url_after_resolution(monkeypatch)
     assert "https://docs.python.org/3/library/urllib.parse.html" in canonical_urls
     assert all("domain" in item for item in items)
     assert all("resolution_status" in item for item in items)
+    assert all("domain_policy" in item for item in items)
+
+
+def test_fetch_news_items_filters_hard_blocked_login_pages(monkeypatch):
+    from src.news import rss_fetcher
+
+    now_ts = 1_800_000_000.0
+    raw_items = [
+        {
+            "title": "Login page",
+            "source": "Bad Source",
+            "published_at": "2026-05-30 10:00",
+            "published_timestamp": now_ts,
+            "link": "https://accounts.example.com/login?next=/story",
+            "resolved_link": "",
+            "canonical_url": "",
+            "domain": "",
+            "resolution_status": "pending",
+            "_sort_ts": now_ts,
+        },
+        {
+            "title": "Python docs",
+            "source": "Docs",
+            "published_at": "2026-05-30 10:02",
+            "published_timestamp": now_ts + 2,
+            "link": "https://docs.python.org/3/library/urllib.parse.html",
+            "resolved_link": "",
+            "canonical_url": "",
+            "domain": "",
+            "resolution_status": "pending",
+            "_sort_ts": now_ts + 2,
+        },
+    ]
+
+    monkeypatch.setattr(rss_fetcher, "_NEWS_CACHE", {})
+    monkeypatch.setattr(
+        rss_fetcher,
+        "_fetch_query_news_items",
+        lambda query_text, max_items=10: [dict(item) for item in raw_items],
+    )
+
+    items = rss_fetcher.fetch_news_items(
+        query_text="python url parsing",
+        max_items=5,
+        resolve_top_n=5,
+    )
+
+    assert len(items) == 1
+    assert items[0]["domain"] == "docs.python.org"
 
 
 def test_source_block_includes_url_metadata():
