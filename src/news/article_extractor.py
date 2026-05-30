@@ -196,4 +196,8 @@ def article_method_label(method: str) -> str:
         "trafilatura": "trafilatura",
         "readability": "readability-lxml",
         "fallback_parser": "HTMLParser",
+        "local_trafilatura": "本地 trafilatura",
+        "local_readability": "本地 readability-lxml",
+        "local_fallback_parser": "本地 HTMLParser",
+        "jina_reader": "Jina Reader",
     }.get(method, method or "未知方法")
