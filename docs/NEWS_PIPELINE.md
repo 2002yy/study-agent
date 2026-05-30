@@ -1,6 +1,6 @@
 # News Pipeline
 
-Multi-source news aggregation pipeline: search → resolve → canonicalize → dedup → extract → digest → discuss → trace.
+Multi-source news aggregation pipeline: search → resolve → canonicalize → domain policy → dedup → extract → digest → discuss → trace.
 
 ## Pipeline Stages
 
@@ -24,23 +24,29 @@ User query
    └── URL metadata: resolved_link/canonical_url/domain/resolution_status
     │
     ▼
-4. Canonical URL dedup + truncate
+4. Domain policy scoring/filtering
+   ├── Tech intent prefers docs/GitHub/StackOverflow/official sources
+   ├── Unknown domains are kept in soft mode
+   └── Login/account/auth pages are hard-blocked before article fetching
+    │
+    ▼
+5. Canonical URL dedup + truncate
    └── Dedup by canonical_url first, then title fallback
     │
     ▼
-5. Article text extraction (top 5 pages, max 5000 chars each)
+6. Article text extraction (top 5 pages, max 5000 chars each)
    ├── trafilatura (primary)
    ├── readability-lxml (fallback)
    └── raw <p> text (last resort)
     │
     ▼
-6. Digest generation (LLM-summarized)
+7. Digest generation (LLM-summarized)
     │
     ▼
-7. Group discussion (4 roles discuss the news)
+8. Group discussion (4 roles discuss the news)
     │
     ▼
-8. Source block written to chat transcript
+9. Source block written to chat transcript
 ```
 
 ## Stage Detail
@@ -80,23 +86,48 @@ Resolution supports:
 - Existing Google News redirect extraction
 - Fail-soft fallback to original URL metadata
 
-### 4. Canonical URL Dedup
+### 4. Domain Policy
 
-After link resolution, items are deduplicated by `canonical_url`. If no canonical URL is available, normalized title is used as a fallback.
+`src/news/domain_policy.py` provides query-aware soft scoring and hard blocking.
+
+Policy behavior:
+
+- Technical queries prefer official/project sources such as GitHub, Stack Overflow, Python docs, Godot docs, Microsoft docs, arXiv, and Hugging Face.
+- General/news queries may prefer direct publisher domains when available.
+- Unknown domains are not removed in soft mode.
+- Login/account/auth/OAuth pages are hard-blocked and do not enter article fetching.
+
+Each item can carry:
+
+```python
+{
+    "domain_policy": {
+        "intent": "tech|general",
+        "score": 35,
+        "blocked": False,
+        "reasons": ["prefer-tech-domain"],
+    }
+}
+```
+
+### 5. Canonical URL Dedup
+
+After link resolution and domain policy annotation, items are deduplicated by `canonical_url`. If no canonical URL is available, normalized title is used as a fallback.
 
 Canonicalization removes common tracking parameters such as `utm_*`, `fbclid`, `gclid`, `spm`, `ref`, and `ref_src`, then sorts the remaining query parameters. Meaningful query parameters are preserved.
 
-### 5. Article Extraction
+### 6. Article Extraction
 
-`src/news/article_fetcher.py` — layered extraction with SSRF protection:
+`src/news/article_fetcher.py` — layered extraction with SSRF protection and domain-policy filtering:
 
 - **Trafilatura**: Fast, accurate extraction for well-formed pages
 - **Readability**: Better for complex layouts
 - **Raw text**: `<p>` tag concatenation as last resort
+- **Domain policy gate**: hard-blocked pages get `域名策略过滤，未读取正文`
 
 Method label tracked per article for quality monitoring.
 
-### 6. Digest
+### 7. Digest
 
 `src/news/digest.py` — LLM generates a structured digest with:
 
@@ -105,7 +136,7 @@ Method label tracked per article for quality monitoring.
 - URL resolution status and real-domain metadata where available
 - Token-bounded by `news_digest_max_tokens(performance_mode)`
 
-### 7. Discussion
+### 8. Discussion
 
 `wechat_generator.py:generate_wechat_news_discussion()` — 4 characters discuss the digest:
 
@@ -113,7 +144,7 @@ Method label tracked per article for quality monitoring.
 - Each character references specific news points
 - Group state synced after discussion
 
-### 8. Source Tracing
+### 9. Source Tracing
 
 After each news round, a source block is appended to the group chat transcript:
 
