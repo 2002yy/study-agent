@@ -32,16 +32,17 @@ jobs:
 
       - name: Run detect-secrets
         run: |
-          if command -v detect-secrets &> /dev/null; then
-            detect-secrets scan --disable-plugin KeywordDetector \
-              --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \
-              > .secrets.out 2>&1 || true
-            if [ -s .secrets.out ] && grep -q '"is_secret": true' .secrets.out 2>/dev/null; then
-              echo "WARNING: potential secrets found (see .secrets.out)"
-            fi
-          else
-            echo "detect-secrets not installed; skipping scan"
+          pip install detect-secrets 2>/dev/null
+          detect-secrets scan --disable-plugin KeywordDetector \
+            --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \
+            > .secrets.out 2>&1
+          if [ -s .secrets.out ] && grep -q '"is_secret": true' .secrets.out 2>/dev/null; then
+            echo "ERROR: potential secrets detected — this is a public repository"
+            echo "If these are false positives, add an inline comment or update .secrets.baseline"
+            cat .secrets.out
+            exit 1
           fi
+          echo "detect-secrets: no secrets found"
 
       - name: Run expanded mypy
         continue-on-error: true
