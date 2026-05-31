@@ -3,7 +3,7 @@
 <p>
   <a href="https://github.com/2002yy/study-agent/actions/workflows/ci.yml"><img src="https://github.com/2002yy/study-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
-  <img src="https://img.shields.io/badge/tests-140-passing-green" alt="140 tests">
+  <img src="https://img.shields.io/badge_tests-140-passing-green" alt="140 tests">
 </p>
 
 A local AI learning assistant with long-term memory, role-based group chat,
@@ -210,7 +210,6 @@ pip-compile requirements-dev.in    # 重新锁定开发依赖
 ├── tests/                  # 140 个测试
 ├── docs/                   # 设计文档与工程说明
 │   ├── TECH_STACK.md       # 技术栈与项目亮点
-│   ├── CAREER_TECH_AND_GAME_TRENDS.md # 就业技术栈与游戏开发风向
 │   └── STATE_MODEL.md      # 状态模型
 ├── chat/                   # 群聊记录
 ├── memory/                 # AI 长期记忆
