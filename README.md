@@ -135,6 +135,9 @@ cd study-agent
 cp .env.example .env
 # 编辑 .env，填入 API Key
 
+# 初始化记忆文件（新用户首次运行，应用会自动创建；也可手动复制模板）
+cp -r memory.example/* memory/ 2>/dev/null || :
+
 # 稳定安装（推荐，锁定版本）
 pip install -r requirements.txt
 pip install -r requirements-dev.txt

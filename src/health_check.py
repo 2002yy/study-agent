@@ -20,6 +20,33 @@ def _check_writable(path: Path) -> bool:
     return os.access(probe, os.W_OK)
 
 
+def _ensure_memory_files() -> list[str]:
+    """Create minimal template memory files if they don't exist yet.
+
+    Returns a list of newly-created file names.
+    """
+    memory_dir = PROJECT_ROOT / "memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+
+    templates = {
+        "summary.md": "# 项目摘要\n\n（等待首次使用后自动更新）\n",
+        "current_focus.md": "# 当前焦点\n\n> 首次启动 — 尚无记录。\n",
+        "learner_profile.md": "# 学习者档案\n\n> 首次启动 — 尚无记录。\n",
+        "progress.md": "# 学习进度\n\n## 当前项目\n\n（新项目 — 等待首次使用）\n\n## 当前阶段\n\nv0.8.0\n",
+        "project_context.md": "# 项目上下文\n\n## 项目\n\nStudy Agent\n",
+        "task_board.md": "# 任务看板\n\n| 状态 | 任务 | 优先级 |\n|------|------|--------|\n| 待办 | — | — |\n",
+        "index.md": "# 记忆索引\n\n- [summary](summary.md)\n",
+    }
+
+    created: list[str] = []
+    for name, content in templates.items():
+        path = memory_dir / name
+        if not path.is_file():
+            path.write_text(content, encoding="utf-8")
+            created.append(name)
+    return created
+
+
 def light_health_report() -> list[str]:
     issues = []
     if not (PROJECT_ROOT / "app.py").is_file():

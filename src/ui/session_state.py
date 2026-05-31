@@ -5,9 +5,11 @@ import streamlit as st
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.session_logger import init_session
+from src.health_check import _ensure_memory_files
 
 
 def init_session_state():
+    _ensure_memory_files()
     defaults = {
         "messages": [],
         "current_role": "auto",
@@ -23,7 +25,7 @@ def init_session_state():
         "current_route": {},
         "route_lock": None,
         "interaction_mode": "standard",
-        "wechat_memory_enabled": False,
+        "wechat_memory_enabled": False,  # will sync from runtime_modes below
         "runtime_modes": load_runtime_modes(),
         "health_report": "",
         "perf_metrics": {},
@@ -40,6 +42,12 @@ def init_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    # Sync wechat_memory_enabled from persisted runtime state
+    if st.session_state.get("runtime_modes"):
+        st.session_state.wechat_memory_enabled = (
+            st.session_state.runtime_modes.memory_capture_enabled
+        )
 
     if "session_id" not in st.session_state:
         st.session_state.session_id = init_session()

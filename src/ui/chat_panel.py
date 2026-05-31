@@ -39,7 +39,11 @@ def _render_history_message(msg: dict):
 
 _DISPLAY_LABELS = {
     "mode": {"auto": "自动"},
-    "model": {"auto": "自动", "flash": "Flash（快速）", "pro": "Pro（高质量）"},
+    "model": {
+        "auto": "自动",
+        "flash": "Flash（快速）",
+        "pro": "Pro（高质量）",
+    },
     "perf": {"fast": "快速", "standard": "标准", "deep": "深度"},
     "atmos": {"standard": "标准", "warm": "温和", "close": "贴近"},
 }
@@ -75,6 +79,34 @@ def _last_milestone() -> str:
     return f"最近建议：{role} · {mode} · {perf}"
 
 
+def _progress_snippet() -> tuple[str, str]:
+    """Return (recent_progress, next_step) from memory files."""
+    summary = st.session_state.memory_bundle.get("summary.md", "")
+    progress = st.session_state.memory_bundle.get("progress.md", "")
+
+    recent = ""
+    for line in summary.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- ") or stripped.startswith("• "):
+            recent = stripped[2:].strip()
+            break
+
+    next_step = ""
+    in_next = False
+    for line in progress.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## 下一步"):
+            in_next = True
+            continue
+        if in_next and stripped.startswith("- "):
+            next_step = stripped[2:].strip()
+            break
+        if in_next and stripped.startswith("## "):
+            break
+
+    return recent or "等待首次记录", next_step or "等待首次记录"
+
+
 def _queue_input(prompt: str):
     st.session_state.pending_user_input = prompt
     st.rerun()
@@ -98,6 +130,8 @@ def _render_welcome_area():
     )
     version = load_runtime_modes().current_version
 
+    recent_progress, next_step = _progress_snippet()
+
     st.markdown(
         f"""
         <div class="welcome-grid">
@@ -120,8 +154,8 @@ def _render_welcome_area():
                 </div>
                 <div class="resume-copy">
                     • 版本：{html.escape(version)}<br/>
-                    • 最近推进：性能模式、轻量上下文、缓存、写盘降频<br/>
-                    • 下次建议：测试 fast / standard / deep 三种模式表现
+                    • 最近推进：{html.escape(recent_progress)}<br/>
+                    • 下次建议：{html.escape(next_step)}
                 </div>
             </div>
         </div>

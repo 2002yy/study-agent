@@ -167,6 +167,7 @@ def render_sidebar():
             index=MODEL_OPTIONS.index(st.session_state.model_profile)
             if st.session_state.model_profile in MODEL_OPTIONS
             else 0,
+            help="选择 Flash（快速）可节省 token。注意：即便选了 Flash，遇到代码/论文/报错/架构等高风险任务时会自动升档到 Pro。",
         )
         performance_mode_new = st.selectbox(
             "性能模式",
