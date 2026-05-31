@@ -20,6 +20,8 @@ web search, model routing and context-tier management.
 - **Performance budget**: max_tokens bounds on every LLM call by mode
 - **140 tests**, Ruff clean, GitHub Actions CI
 
+For a detailed breakdown of the stack and engineering highlights, see [Technical Stack & Engineering Highlights](docs/TECH_STACK.md).
+
 ---
 
 **一个面向个人学习复盘的本地 AI 学习搭子系统** — 支持角色群聊、联网搜索、长期记忆和课后总结。
@@ -206,7 +208,8 @@ pip-compile requirements-dev.in    # 重新锁定开发依赖
 │   ├── news/               # 新闻聚合链路
 │   └── ui/                 # Streamlit UI 组件
 ├── tests/                  # 140 个测试
-├── docs/                   # 设计文档
+├── docs/                   # 设计文档与工程说明
+│   ├── TECH_STACK.md       # 技术栈与项目亮点
 │   └── STATE_MODEL.md      # 状态模型
 ├── chat/                   # 群聊记录
 ├── memory/                 # AI 长期记忆
