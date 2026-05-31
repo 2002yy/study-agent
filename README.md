@@ -210,6 +210,7 @@ pip-compile requirements-dev.in    # 重新锁定开发依赖
 ├── tests/                  # 140 个测试
 ├── docs/                   # 设计文档与工程说明
 │   ├── TECH_STACK.md       # 技术栈与项目亮点
+│   ├── CAREER_TECH_AND_GAME_TRENDS.md # 就业技术栈与游戏开发风向
 │   └── STATE_MODEL.md      # 状态模型
 ├── chat/                   # 群聊记录
 ├── memory/                 # AI 长期记忆
