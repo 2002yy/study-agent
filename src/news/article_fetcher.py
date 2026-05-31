@@ -251,24 +251,28 @@ def fetch_article_text_with_method(
                 return local_result.text, local_result.method
 
         fallback_url = final_url or url
-        for text, method in (
-            _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars),
-            _try_jina(fallback_url, timeout=timeout, max_chars=max_chars),
-        ):
-            if text:
-                _ARTICLE_CACHE[url] = (now, text, method)
-                return text, method
+        text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return text, method
+
+        text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return text, method
 
         _ARTICLE_CACHE[url] = (now, "", "")
         return "", ""
     except Exception:
-        for text, method in (
-            _try_firecrawl(url, timeout=timeout, max_chars=max_chars),
-            _try_jina(url, timeout=timeout, max_chars=max_chars),
-        ):
-            if text:
-                _ARTICLE_CACHE[url] = (now, text, method)
-                return text, method
+        text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return text, method
+
+        text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return text, method
         return "", ""
 
 

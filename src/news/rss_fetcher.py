@@ -205,6 +205,7 @@ def _dedupe_and_trim_news_items(
 
         seen.add(dedupe_key)
         cleaned = dict(item)
+        cleaned.pop("_sort_ts", None)
         if _is_recent_news_item(item, now_ts):
             recent_items.append(cleaned)
             if len(recent_items) >= max_items:

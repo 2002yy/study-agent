@@ -274,7 +274,9 @@ def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
         "resolved_link": "https://openai.com/index/realtime-audio",
         "source": "OpenAI",
     }
-    enriched = enrich_news_items_with_article_text(items)
+    enriched = enrich_news_items_with_article_text(
+        items, query_text="OpenAI 最新实时语音 API"
+    )
 
     assert len(calls) == 5
     assert "https://openai.com/index/realtime-audio" in calls
@@ -651,18 +653,25 @@ def test_news_digest_prompt_is_not_corrupted():
 
 
 def test_resolve_news_link_called_only_after_dedup(monkeypatch):
-    """Verify that resolve_news_link is called only for items that survive dedupe/trim,
+    """Verify that resolve_news_link_metadata is called only for items that survive dedupe/trim,
     not during RSS parsing phase."""
     from src.news import rss_fetcher
 
     call_count = 0
 
-    def counting_resolve(url):
+    def counting_resolve(url, timeout=6):
         nonlocal call_count
         call_count += 1
-        return url if isinstance(url, str) and url.startswith("http") else url
+        from src.news.url_normalizer import UrlMetadata
+        return UrlMetadata(
+            original_url=url,
+            resolved_url=url if isinstance(url, str) and url.startswith("http") else url,
+            canonical_url="",
+            domain="example.com",
+            resolution_status="original",
+        )
 
-    monkeypatch.setattr(rss_fetcher, "resolve_news_link", counting_resolve)
+    monkeypatch.setattr(rss_fetcher, "resolve_news_link_metadata", counting_resolve)
 
     feed_map = {
         "Google News": [{"title": "News A", "link": "https://a.example.com", "_sort_ts": 10.0, "source": "Google News"}],
