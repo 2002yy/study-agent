@@ -9,6 +9,17 @@
 A local AI learning assistant with long-term memory, role-based group chat,
 web search, model routing and context-tier management.
 
+## One-minute Overview
+
+Study Agent 是一个本地优先的 AI 学习助手，重点不是简单调用大模型，而是把 LLM 接入完整应用流程：
+
+- **多 Provider LLM 接入**：OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models
+- **长期记忆**：Markdown memory + safe writer
+- **上下文分层**：fast / light / deep / archive
+- **联网搜索**：RSS / News fetch → article extraction → LLM digest → source tracing
+- **工程安全**：SSRF protection、detect-secrets、配置模板
+- **工程质量**：140 tests、Ruff clean、GitHub Actions CI
+
 ## Highlights
 
 - **Multi-provider LLM client**: OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models
@@ -42,6 +53,21 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 
 ---
 
+## Why It Is Not Just a Prompt Demo
+
+普通 AI demo 通常只是把用户输入转发给模型。Study Agent 重点解决的是：
+
+| 问题 | 工程方案 |
+|---|---|
+| 模型供应商更换困难 | Provider profile + OpenAI-compatible client |
+| 上下文越来越长 | context-tier routing |
+| 学习记录无法沉淀 | Markdown long-term memory |
+| 写入记忆不安全 | safe writer + preview/confirm |
+| 联网内容不可追溯 | source-traced news pipeline |
+| 运行不稳定 | caching, batched logging, tests, CI |
+
+---
+
 ## Demo
 
 | 界面 | 截图 |
@@ -52,8 +78,6 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 | 记忆候选 — 课后更新预览与确认写入 | ![memory-capture](assets/screenshots/memory-capture.png) |
 
 ---
-
-## 使用流程
 
 ```
 启动 App  →  选择学习模式 (氛围/专注度)
@@ -262,6 +286,16 @@ CI 通过 GitHub Actions 运行（每次 push 触发），集成 `detect-secrets
 | v1.0 | 插件化架构 + 自定义角色 |
 
 ---
+## Engineering Roadmap
+
+求职导向的技术演进路线：
+
+- [ ] FastAPI service layer: `/chat`, `/memory`, `/rag`, `/health`
+- [ ] RAG document QA: PDF / DOCX / Markdown upload, chunking, embedding, retrieval
+- [ ] Vector store: FAISS local prototype, pgvector engineering version
+- [ ] Web UI: TypeScript + Vue3 / React, streaming chat, source panel
+- [ ] Observability: trace_id, token usage, latency, provider fallback logs
+
 
 ## 许可
 
