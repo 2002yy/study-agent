@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 from src.news.search_sources.searxng_source import build_searxng_search_url
 

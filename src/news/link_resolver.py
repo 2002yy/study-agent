@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from html import unescape as html_unescape
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
@@ -11,6 +12,7 @@ from src.news.url_normalizer import (
     UrlMetadata,
     build_url_metadata,
     extract_redirect_target,
+    is_public_http_url,
 )
 
 
@@ -19,7 +21,7 @@ def _is_google_news_url(url: str) -> bool:
         host = (urlparse((url or "").strip()).netloc or "").lower()
     except Exception:
         return False
-    return "news.google.com" in host
+    return host == "news.google.com" or host.endswith(".news.google.com")
 
 
 def _news_item_url(item: dict) -> str:
@@ -36,10 +38,31 @@ def _has_direct_article_link(item: dict) -> bool:
     return bool(item_url) and not _is_google_news_url(item_url)
 
 
+def _normalize_extracted_url(candidate: str) -> str:
+    candidate = html_unescape((candidate or "").strip())
+    candidate = (
+        candidate.replace("\\u0026", "&")
+        .replace("\\u003d", "=")
+        .replace("\\u003D", "=")
+        .replace("\\u003f", "?")
+        .replace("\\u003F", "?")
+        .replace("\\/", "/")
+    )
+    for _ in range(3):
+        decoded = unquote(candidate)
+        if decoded == candidate:
+            break
+        candidate = decoded
+    return candidate.strip()
+
+
 def _extract_resolved_url_from_google_news_html(html: str) -> str:
     patterns = [
         r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url=(https?://[^"\'>\s]+)',
+        r'<meta[^>]+content=["\'][^"\']*url=(https?://[^"\']+)["\']',
         r'"(?:url|targetUrl|articleUrl|canonicalUrl)"\s*:\s*"(https?:[^"\\]+)"',
+        r'data-n-au=["\'](https?://[^"\']+)["\']',
+        r'(?:data-[\w-]*(?:url|href|target|article)[\w-]*|href)=["\'](https?://[^"\']+)["\']',
         r'href=["\'](https?://[^"\']+)["\']',
         r"(https?%3A%2F%2F[^\"'>\s]+)",
     ]
@@ -47,9 +70,12 @@ def _extract_resolved_url_from_google_news_html(html: str) -> str:
     for pattern in patterns:
         matches = re.findall(pattern, html, flags=re.I)
         for match in matches:
-            candidate = unquote(match) if "%2F" in match or "%3A" in match else match
-            candidate = candidate.replace("\\u0026", "&").replace("\\/", "/")
-            if candidate and not _is_google_news_url(candidate):
+            candidate = _normalize_extracted_url(match)
+            if (
+                candidate
+                and is_public_http_url(candidate)
+                and not _is_google_news_url(candidate)
+            ):
                 return candidate
     return ""
 
@@ -109,7 +135,11 @@ def resolve_news_link(url: str, timeout: int = 6) -> str:
     If resolution fails, return the original URL.
     """
     metadata = resolve_news_link_metadata(url, timeout=timeout)
-    return metadata.resolved_url or url
+    if metadata.resolution_status in {"resolved", "original"} and is_public_http_url(
+        metadata.resolved_url
+    ):
+        return metadata.resolved_url
+    return url
 
 
 def _display_link_host(url: str) -> str:
