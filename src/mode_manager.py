@@ -59,6 +59,52 @@ class RuntimeModes:
         return None
 
 
+@dataclass(frozen=True)
+class RuntimeConfigLoadResult:
+    """Validated runtime config plus non-fatal schema warnings."""
+
+    state: dict[str, Any]
+    source: str
+    warnings: tuple[str, ...] = ()
+
+
+_RUNTIME_STATE_SCHEMA: dict[str, dict[str, dict[str, Any]]] = {
+    "version": {
+        "current": {"type": str},
+        "next": {"type": str},
+        "active_task": {"type": str},
+    },
+    "runtime": {
+        "entry_mode": {"type": str, "choices": {"wechat", "single"}},
+        "performance_mode": {"type": str, "choices": {"fast", "standard", "deep"}},
+        "route_mode": {"type": str, "choices": {"auto_rule", "hybrid"}},
+        "memory_mode": {
+            "type": str,
+            "choices": {"readonly", "preview", "confirm_write", "locked"},
+        },
+        "debug_mode": {"type": bool},
+        "safe_mode": {"type": bool},
+    },
+    "interaction": {
+        "relationship_mode": {"type": str, "choices": {"standard", "warm", "close"}},
+    },
+    "wechat": {
+        "mode": {
+            "type": str,
+            "choices": {
+                "unread_feedback",
+                "first_user_join",
+                "interactive_group",
+            },
+        },
+        "user_has_joined_group": {"type": bool},
+        "first_join_reaction_done": {"type": bool},
+        "memory_capture_enabled": {"type": bool},
+        "memory_capture_mode": {"type": str, "choices": {"manual", "auto"}},
+    },
+}
+
+
 def _parse_keyvalue(text: str, key: str) -> str:
     for line in text.splitlines():
         stripped = line.strip()
@@ -156,16 +202,83 @@ def _read_md_state_migration() -> dict[str, Any]:
     return data
 
 
-def _normalize_runtime_state(data: dict[str, Any] | None) -> dict[str, Any]:
-    normalized = _default_runtime_state_dict()
-    if not isinstance(data, dict):
-        return normalized
+def _coerce_runtime_value(
+    path: str,
+    value: Any,
+    default: Any,
+    rule: dict[str, Any],
+    warnings: list[str],
+) -> Any:
+    expected_type = rule["type"]
+    choices = rule.get("choices")
 
-    for section in ("version", "runtime", "interaction", "wechat"):
+    if expected_type is bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.strip().lower() in {"true", "false"}:
+            warnings.append(f"{path}: coerced string boolean to bool")
+            return value.strip().lower() == "true"
+        warnings.append(f"{path}: expected bool; using default {default!r}")
+        return default
+
+    if expected_type is str:
+        if not isinstance(value, str):
+            warnings.append(f"{path}: expected string; using default {default!r}")
+            return default
+        value = value.strip()
+        if choices and value not in choices:
+            allowed = ", ".join(sorted(choices))
+            warnings.append(
+                f"{path}: invalid value {value!r}; expected one of {allowed}; "
+                f"using default {default!r}"
+            )
+            return default
+        return value
+
+    return value
+
+
+def validate_runtime_state(
+    data: dict[str, Any] | None,
+    *,
+    source: str = "runtime_state.yaml",
+) -> RuntimeConfigLoadResult:
+    """Validate and normalize runtime state without failing the UI rerun."""
+    normalized = _default_runtime_state_dict()
+    warnings: list[str] = []
+    if not isinstance(data, dict):
+        warnings.append(f"{source}: expected mapping at root; using defaults")
+        return RuntimeConfigLoadResult(normalized, source, tuple(warnings))
+
+    for section in sorted(set(data) - set(_RUNTIME_STATE_SCHEMA)):
+        warnings.append(f"{section}: unknown section ignored")
+
+    for section, section_schema in _RUNTIME_STATE_SCHEMA.items():
         incoming = data.get(section, {})
-        if isinstance(incoming, dict):
-            normalized[section].update(incoming)
-    return normalized
+        if not isinstance(incoming, dict):
+            warnings.append(f"{section}: expected mapping; using defaults")
+            continue
+
+        for key in sorted(set(incoming) - set(section_schema)):
+            warnings.append(f"{section}.{key}: unknown key ignored")
+
+        for key, rule in section_schema.items():
+            if key not in incoming:
+                warnings.append(f"{section}.{key}: missing; using default")
+                continue
+            normalized[section][key] = _coerce_runtime_value(
+                f"{section}.{key}",
+                incoming[key],
+                normalized[section][key],
+                rule,
+                warnings,
+            )
+
+    return RuntimeConfigLoadResult(normalized, source, tuple(warnings))
+
+
+def _normalize_runtime_state(data: dict[str, Any] | None) -> dict[str, Any]:
+    return validate_runtime_state(data).state
 
 
 def _render_runtime_state_markdown_views(data: dict[str, Any]) -> tuple[str, str, str]:
@@ -209,22 +322,36 @@ def _render_runtime_state_markdown_views(data: dict[str, Any]) -> tuple[str, str
 _yaml_mtime_cached: float = 0.0
 
 
-def _runtime_state_from_yaml() -> dict[str, Any]:
+def _runtime_config_from_yaml() -> RuntimeConfigLoadResult:
     global _yaml_mtime_cached
 
     if not RUNTIME_STATE.is_file():
         state = _read_md_state_migration()
         _write_runtime_state(state)
-        return state
+        return validate_runtime_state(state, source="markdown_migration")
 
     current_mtime = RUNTIME_STATE.stat().st_mtime
-    raw = yaml.safe_load(RUNTIME_STATE.read_text(encoding="utf-8"))
-    normalized = _normalize_runtime_state(raw)
+    try:
+        raw = yaml.safe_load(RUNTIME_STATE.read_text(encoding="utf-8"))
+        result = validate_runtime_state(raw, source=str(RUNTIME_STATE))
+    except Exception as exc:
+        result = RuntimeConfigLoadResult(
+            _default_runtime_state_dict(),
+            str(RUNTIME_STATE),
+            (f"{RUNTIME_STATE}: failed to parse YAML; using defaults: {exc}",),
+        )
+    normalized = result.state
     if current_mtime != _yaml_mtime_cached:
+        for warning in result.warnings:
+            logger.warning("Runtime config warning: %s", warning)
         if _should_sync_markdown_views(normalized):
             _sync_runtime_state_markdown_views(normalized)
         _yaml_mtime_cached = current_mtime
-    return normalized
+    return result
+
+
+def _runtime_state_from_yaml() -> dict[str, Any]:
+    return _runtime_config_from_yaml().state
 
 
 def _should_sync_markdown_views(data: dict[str, Any]) -> bool:
@@ -261,9 +388,10 @@ def _write_runtime_state(data: dict[str, Any]) -> None:
     _yaml_mtime_cached = 0.0  # force re-sync on next read
     _sync_runtime_state_markdown_views(normalized)
     try:
+        load_runtime_config.clear()
         load_runtime_modes.clear()
     except Exception:
-        logger.warning("Failed to clear load_runtime_modes cache", exc_info=True)
+        logger.warning("Failed to clear runtime mode caches", exc_info=True)
 
 
 def _sync_runtime_state_markdown_views(data: dict[str, Any]) -> None:
@@ -360,8 +488,17 @@ def _apply_state_updates(path: Path, updates: dict[str, str]) -> None:
 
 
 @st.cache_data(ttl=30)
+def load_runtime_config() -> RuntimeConfigLoadResult:
+    return _runtime_config_from_yaml()
+
+
+@st.cache_data(ttl=30)
 def load_runtime_modes() -> RuntimeModes:
-    return _modes_from_runtime_state(_runtime_state_from_yaml())
+    return _modes_from_runtime_state(load_runtime_config().state)
+
+
+def get_runtime_config_warnings() -> tuple[str, ...]:
+    return load_runtime_config().warnings
 
 
 def _write_keyvalue(path: Path, key: str, value: str) -> None:

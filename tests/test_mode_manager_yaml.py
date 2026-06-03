@@ -5,6 +5,7 @@ from src import mode_manager
 
 def _clear_mode_cache():
     try:
+        mode_manager.load_runtime_config.clear()
         mode_manager.load_runtime_modes.clear()
     except Exception:
         pass
@@ -237,3 +238,59 @@ def test_yaml_remains_source_of_truth_when_markdown_drifts(monkeypatch, tmp_path
     wechat_text = wechat_state.read_text(encoding="utf-8")
     assert "- mode: unread_feedback" in wechat_text
     assert "- first_join_reaction_done: false" in wechat_text
+
+
+def test_runtime_config_schema_warns_and_uses_safe_defaults(monkeypatch, tmp_path):
+    runtime_state = tmp_path / "config" / "runtime_state.yaml"
+    internal_state = tmp_path / "memory" / "internal_state.md"
+    interaction_settings = tmp_path / "memory" / "interaction_settings.md"
+    wechat_state = tmp_path / "chat" / "wechat_state.md"
+    runtime_state.parent.mkdir(parents=True, exist_ok=True)
+
+    raw_state = mode_manager._default_runtime_state_dict()
+    raw_state["runtime"]["entry_mode"] = "desktop"
+    raw_state["runtime"]["debug_mode"] = "true"
+    raw_state["runtime"]["typo_mode"] = "oops"
+    raw_state["wechat"]["memory_capture_enabled"] = "not-bool"
+    raw_state["unknown"] = {"x": 1}
+    runtime_state.write_text(
+        yaml.safe_dump(raw_state, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mode_manager, "RUNTIME_STATE", runtime_state)
+    monkeypatch.setattr(mode_manager, "INTERNAL_STATE", internal_state)
+    monkeypatch.setattr(mode_manager, "INTERACTION_SETTINGS", interaction_settings)
+    monkeypatch.setattr(mode_manager, "WECHAT_STATE", wechat_state)
+    _clear_mode_cache()
+
+    result = mode_manager.load_runtime_config()
+    modes = mode_manager.load_runtime_modes()
+
+    assert modes.entry_mode == "wechat"
+    assert modes.debug_mode is True
+    assert modes.memory_capture_enabled is False
+    assert any("runtime.entry_mode: invalid value" in item for item in result.warnings)
+    assert any("runtime.debug_mode: coerced string boolean" in item for item in result.warnings)
+    assert any("runtime.typo_mode: unknown key ignored" in item for item in result.warnings)
+    assert any("unknown: unknown section ignored" in item for item in result.warnings)
+
+
+def test_runtime_config_invalid_yaml_returns_defaults_with_warning(monkeypatch, tmp_path):
+    runtime_state = tmp_path / "config" / "runtime_state.yaml"
+    internal_state = tmp_path / "memory" / "internal_state.md"
+    interaction_settings = tmp_path / "memory" / "interaction_settings.md"
+    wechat_state = tmp_path / "chat" / "wechat_state.md"
+    runtime_state.parent.mkdir(parents=True, exist_ok=True)
+    runtime_state.write_text("runtime: [broken", encoding="utf-8")
+
+    monkeypatch.setattr(mode_manager, "RUNTIME_STATE", runtime_state)
+    monkeypatch.setattr(mode_manager, "INTERNAL_STATE", internal_state)
+    monkeypatch.setattr(mode_manager, "INTERACTION_SETTINGS", interaction_settings)
+    monkeypatch.setattr(mode_manager, "WECHAT_STATE", wechat_state)
+    _clear_mode_cache()
+
+    result = mode_manager.load_runtime_config()
+
+    assert result.state["runtime"]["entry_mode"] == "wechat"
+    assert any("failed to parse YAML" in item for item in result.warnings)

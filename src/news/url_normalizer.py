@@ -46,6 +46,18 @@ _LOCAL_HOSTNAMES = {"localhost", "localhost.localdomain"}
 
 
 @dataclass(frozen=True)
+class RedirectHop:
+    """One observed step while unwrapping or following a news URL."""
+
+    url: str
+    source: str
+    status: str
+    is_safe: bool
+    status_code: int | None = None
+    error: str = ""
+
+
+@dataclass(frozen=True)
 class UrlMetadata:
     """Resolved and canonicalized URL metadata attached to a news item."""
 
@@ -55,6 +67,31 @@ class UrlMetadata:
     domain: str
     resolution_status: str
     error: str = ""
+    redirect_hops: tuple[RedirectHop, ...] = ()
+
+
+@dataclass(frozen=True)
+class RedirectResolutionResult:
+    """Rich URL resolution result with both metadata and hop history."""
+
+    metadata: UrlMetadata
+    hops: tuple[RedirectHop, ...] = ()
+
+    @property
+    def original_url(self) -> str:
+        return self.metadata.original_url
+
+    @property
+    def resolved_url(self) -> str:
+        return self.metadata.resolved_url
+
+    @property
+    def canonical_url(self) -> str:
+        return self.metadata.canonical_url
+
+    @property
+    def resolution_status(self) -> str:
+        return self.metadata.resolution_status
 
 
 def _decode_repeated(value: str, rounds: int = 3) -> str:
@@ -148,6 +185,23 @@ def extract_redirect_target(url: str) -> str:
     return ""
 
 
+def extract_redirect_target_candidate(url: str) -> str:
+    """Return the first decoded redirect target, even when it is unsafe.
+
+    This is intended for diagnostics and hop history only.  Callers must still
+    validate the returned URL before using it as a navigation target.
+    """
+    try:
+        pairs = _iter_query_pairs(url)
+    except Exception:
+        return ""
+
+    for key, value in pairs:
+        if key.strip().lower() in REDIRECT_PARAM_NAMES:
+            return _decode_repeated(value)
+    return ""
+
+
 def _is_tracking_param(name: str) -> bool:
     lowered = (name or "").strip().lower()
     if lowered in _TRACKING_PARAM_NAMES:
@@ -191,6 +245,7 @@ def build_url_metadata(
     resolved_url: str = "",
     resolution_status: str = "",
     error: str = "",
+    redirect_hops: tuple[RedirectHop, ...] = (),
 ) -> UrlMetadata:
     """Build URL metadata while preserving safe fallback behavior."""
     original_url = (original_url or "").strip()
@@ -198,10 +253,18 @@ def build_url_metadata(
 
     candidate = resolved_url or extract_redirect_target(original_url) or original_url
     if not candidate:
-        return UrlMetadata(original_url, "", "", "", "empty", error)
+        return UrlMetadata(original_url, "", "", "", "empty", error, redirect_hops)
 
     if not is_public_http_url(candidate):
-        return UrlMetadata(original_url, candidate, "", extract_domain(candidate), "unsafe", error)
+        return UrlMetadata(
+            original_url,
+            candidate,
+            "",
+            extract_domain(candidate),
+            "unsafe",
+            error,
+            redirect_hops,
+        )
 
     canonical = canonicalize_url(candidate)
     status = resolution_status.strip() if resolution_status else ""
@@ -215,4 +278,5 @@ def build_url_metadata(
         domain=extract_domain(candidate),
         resolution_status=status,
         error=error,
+        redirect_hops=redirect_hops,
     )

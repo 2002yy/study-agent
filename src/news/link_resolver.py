@@ -5,15 +5,25 @@ from __future__ import annotations
 import re
 from html import unescape as html_unescape
 from urllib.parse import unquote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import (
+    HTTPRedirectHandler,
+    Request,
+    build_opener,
+    urlopen as _stdlib_urlopen,
+)
 
 from src.news.article_extractor import decode_html_payload as _decode_html_payload
 from src.news.url_normalizer import (
+    RedirectHop,
+    RedirectResolutionResult,
     UrlMetadata,
     build_url_metadata,
     extract_redirect_target,
+    extract_redirect_target_candidate,
     is_public_http_url,
 )
+
+urlopen = _stdlib_urlopen
 
 
 def _is_google_news_url(url: str) -> bool:
@@ -80,24 +90,91 @@ def _extract_resolved_url_from_google_news_html(html: str) -> str:
     return ""
 
 
-def resolve_news_link_metadata(url: str, timeout: int = 6) -> UrlMetadata:
-    """Resolve a news/search redirect link and return normalized metadata.
+def _make_hop(
+    url: str,
+    source: str,
+    status: str,
+    *,
+    status_code: int | None = None,
+    error: str = "",
+) -> RedirectHop:
+    return RedirectHop(
+        url=(url or "").strip(),
+        source=source,
+        status=status,
+        is_safe=is_public_http_url(url),
+        status_code=status_code,
+        error=error,
+    )
 
-    The function is fail-soft: errors return metadata for the original URL
-    rather than breaking the whole news pipeline.
-    """
+
+def _metadata_result(
+    original_url: str,
+    resolved_url: str,
+    status: str,
+    hops: list[RedirectHop],
+    error: str = "",
+) -> RedirectResolutionResult:
+    hop_tuple = tuple(hops)
+    metadata = build_url_metadata(
+        original_url,
+        resolved_url,
+        resolution_status=status,
+        error=error,
+        redirect_hops=hop_tuple,
+    )
+    return RedirectResolutionResult(metadata=metadata, hops=hop_tuple)
+
+
+class _RecordingRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, hops: list[RedirectHop]) -> None:
+        self._hops = hops
+        super().__init__()
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        hop = _make_hop(
+            newurl,
+            "http_redirect",
+            "followed" if is_public_http_url(newurl) else "blocked",
+            status_code=code,
+        )
+        self._hops.append(hop)
+        if not hop.is_safe:
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open_news_url(req: Request, timeout: int, hops: list[RedirectHop]):
+    """Open URL with hop recording, preserving the old urlopen monkeypatch seam."""
+    if urlopen is not _stdlib_urlopen:
+        return urlopen(req, timeout=timeout)
+    opener = build_opener(_RecordingRedirectHandler(hops))
+    return opener.open(req, timeout=timeout)
+
+
+def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionResult:
+    """Resolve a news/search redirect link with debug-friendly hop history."""
     url = (url or "").strip()
+    hops: list[RedirectHop] = []
     if not url:
-        return build_url_metadata("", "", resolution_status="empty")
+        return _metadata_result("", "", "empty", hops)
+
+    hops.append(_make_hop(url, "input", "received"))
+    if not hops[-1].is_safe:
+        return _metadata_result(url, url, "unsafe", hops)
 
     generic_target = extract_redirect_target(url)
     if generic_target:
-        return build_url_metadata(url, generic_target, resolution_status="resolved")
+        hops.append(_make_hop(generic_target, "query_parameter", "extracted"))
+        return _metadata_result(url, generic_target, "resolved", hops)
+    generic_candidate = extract_redirect_target_candidate(url)
+    if generic_candidate:
+        hops.append(_make_hop(generic_candidate, "query_parameter", "blocked"))
+        return _metadata_result(url, generic_candidate, "unsafe", hops)
 
     try:
-        parsed = urlparse(url)
-        if "news.google.com" not in (parsed.netloc or ""):
-            return build_url_metadata(url, url, resolution_status="original")
+        if not _is_google_news_url(url):
+            return _metadata_result(url, url, "original", hops)
 
         req = Request(
             url,
@@ -107,10 +184,14 @@ def resolve_news_link_metadata(url: str, timeout: int = 6) -> UrlMetadata:
             },
         )
 
-        with urlopen(req, timeout=timeout) as response:
+        with _open_news_url(req, timeout, hops) as response:
             final_url = response.geturl()
             if final_url and not _is_google_news_url(final_url):
-                return build_url_metadata(url, final_url, resolution_status="resolved")
+                if not hops or hops[-1].url != final_url:
+                    hops.append(_make_hop(final_url, "http_final", "resolved"))
+                if is_public_http_url(final_url):
+                    return _metadata_result(url, final_url, "resolved", hops)
+                return _metadata_result(url, final_url, "unsafe", hops)
 
             content_type = response.headers.get("Content-Type", "")
             if "html" in content_type.lower():
@@ -118,15 +199,22 @@ def resolve_news_link_metadata(url: str, timeout: int = 6) -> UrlMetadata:
                 html = _decode_html_payload(payload, content_type)
                 extracted_url = _extract_resolved_url_from_google_news_html(html)
                 if extracted_url:
-                    return build_url_metadata(
-                        url,
-                        extracted_url,
-                        resolution_status="resolved",
-                    )
+                    hops.append(_make_hop(extracted_url, "html_extract", "extracted"))
+                    return _metadata_result(url, extracted_url, "resolved", hops)
 
-        return build_url_metadata(url, final_url or url, resolution_status="original")
+        return _metadata_result(url, final_url or url, "original", hops)
     except Exception as exc:
-        return build_url_metadata(url, url, resolution_status="error", error=str(exc))
+        hops.append(_make_hop(url, "resolver", "error", error=str(exc)))
+        return _metadata_result(url, url, "error", hops, error=str(exc))
+
+
+def resolve_news_link_metadata(url: str, timeout: int = 6) -> UrlMetadata:
+    """Resolve a news/search redirect link and return normalized metadata.
+
+    The function is fail-soft: errors return metadata for the original URL
+    rather than breaking the whole news pipeline.
+    """
+    return resolve_news_link_result(url, timeout=timeout).metadata
 
 
 def resolve_news_link(url: str, timeout: int = 6) -> str:

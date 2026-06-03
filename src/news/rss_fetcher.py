@@ -227,6 +227,17 @@ def _attach_url_metadata(item: dict, resolve: bool, query_text: str) -> dict:
     cleaned["canonical_url"] = metadata.canonical_url
     cleaned["domain"] = metadata.domain
     cleaned["resolution_status"] = metadata.resolution_status
+    cleaned["redirect_hops"] = [
+        {
+            "url": hop.url,
+            "source": hop.source,
+            "status": hop.status,
+            "is_safe": hop.is_safe,
+            "status_code": hop.status_code,
+            "error": hop.error,
+        }
+        for hop in metadata.redirect_hops
+    ]
     if metadata.error:
         cleaned["resolution_error"] = metadata.error
     return annotate_domain_policy(cleaned, query_text)
