@@ -7,9 +7,11 @@
 所有 memory/ 和 logs/ 下的正式写入都通过本模块，附带权限检查。
 """
 
+import time
 from pathlib import Path
 from src.safe_writer import safe_write_text, append_text_safely
 from src.mode_manager import load_runtime_modes, is_memory_write_allowed
+from src.task_events import TaskEventCallback, emit_task_event
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -35,24 +37,87 @@ def _check_write_permission() -> str | None:
     return None
 
 
-def write_current_focus(content: str) -> str:
+def write_current_focus(
+    content: str,
+    event_callback: TaskEventCallback | None = None,
+) -> str:
+    started_at = time.perf_counter()
+    emit_task_event(
+        event_callback,
+        "memory_write",
+        "started",
+        data={"target": "current_focus"},
+        started_at=started_at,
+    )
     err = _check_write_permission()
     if err:
+        emit_task_event(
+            event_callback,
+            "memory_write",
+            "failed",
+            message=err,
+            data={"target": "current_focus"},
+            started_at=started_at,
+        )
         return f"[{err}]"
     safe_write_text(MEMORY_TARGETS["current_focus"], content + "\n")
+    emit_task_event(
+        event_callback,
+        "memory_write",
+        "completed",
+        data={"target": "current_focus", "path": str(MEMORY_TARGETS["current_focus"])},
+        started_at=started_at,
+    )
     return str(MEMORY_TARGETS["current_focus"])
 
 
-def append_memory(target: str, content: str, *, learner_pending: bool = False) -> str:
+def append_memory(
+    target: str,
+    content: str,
+    *,
+    learner_pending: bool = False,
+    event_callback: TaskEventCallback | None = None,
+) -> str:
+    started_at = time.perf_counter()
+    emit_task_event(
+        event_callback,
+        "memory_write",
+        "started",
+        data={"target": target, "learner_pending": learner_pending},
+        started_at=started_at,
+    )
     err = _check_write_permission()
     if err:
+        emit_task_event(
+            event_callback,
+            "memory_write",
+            "failed",
+            message=err,
+            data={"target": target},
+            started_at=started_at,
+        )
         return f"[{err}]"
     file = MEMORY_TARGETS.get(target)
     if not file:
+        emit_task_event(
+            event_callback,
+            "memory_write",
+            "failed",
+            message="unknown_target",
+            data={"target": target},
+            started_at=started_at,
+        )
         return f"[未知目标: {target}]"
     if learner_pending:
         content = f"### 待确认观察\n\n{content}"
     else:
         content = f"## 课后更新\n\n{content}"
     append_text_safely(file, content)
+    emit_task_event(
+        event_callback,
+        "memory_write",
+        "completed",
+        data={"target": target, "path": str(file)},
+        started_at=started_at,
+    )
     return str(file)

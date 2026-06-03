@@ -1,6 +1,11 @@
 from types import SimpleNamespace
 
-from src.mode_manager import RuntimeModes, is_memory_write_allowed, run_with_confirm_write
+from src.mode_manager import (
+    RuntimeModes,
+    build_runtime_profile,
+    is_memory_write_allowed,
+    run_with_confirm_write,
+)
 from src.router import RoutingConfig, route_request
 from src.ui.sidebar import _switch_to_wechat_entry
 from src.ui.wechat_panel import _apply_mark_wechat_read, _apply_new_wechat_group
@@ -116,6 +121,26 @@ def test_memory_write_permissions_respect_safe_and_locked():
     assert is_memory_write_allowed(
         RuntimeModes(memory_mode="locked", safe_mode=False)
     ) is False
+
+
+def test_runtime_profile_centralizes_effective_permissions():
+    profile = build_runtime_profile(
+        RuntimeModes(
+            performance_mode="fast",
+            route_mode="hybrid",
+            memory_mode="confirm_write",
+            safe_mode=True,
+        )
+    )
+
+    assert profile.memory_write_allowed is False
+    assert profile.memory_write_reason == "safe_mode"
+    assert profile.allow_llm_router is False
+    assert profile.llm_router_reason == "fast_mode"
+    assert profile.allow_article_network_read is False
+    assert profile.article_network_read_reason == "safe_mode"
+    assert profile.preferred_model == "flash"
+    assert profile.context_mode == "fast"
 
 
 def test_run_with_confirm_write_restores_original_mode(monkeypatch):

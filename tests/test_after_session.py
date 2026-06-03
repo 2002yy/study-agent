@@ -28,6 +28,30 @@ def test_generate_after_session_updates_uses_json_mode(monkeypatch):
     assert captured["kwargs"]["temperature"] is None
 
 
+def test_generate_after_session_updates_emits_events(monkeypatch):
+    from src import after_session
+
+    events = []
+
+    monkeypatch.setattr(after_session, "chat", lambda *args, **kwargs: VALID_JSON)
+
+    after_session.generate_after_session_updates(
+        session_messages=[{"role": "user", "content": "hello"}],
+        memory_bundle={},
+        role="nahida",
+        mode="normal",
+        model_profile="pro",
+        event_callback=events.append,
+    )
+
+    assert [event.event_type for event in events] == [
+        "started",
+        "progress",
+        "completed",
+    ]
+    assert events[-1].data["parsed"] is True
+
+
 def test_validator_rejects_emotion():
     bad = {"learner_profile_update": "用户学习时很焦虑，缺乏耐心"}
     warnings = validate_updates(bad)

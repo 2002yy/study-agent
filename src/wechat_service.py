@@ -5,10 +5,11 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from src.session_logger import set_wechat_interactive
-from src.mode_manager import update_wechat_join_state
+from src.mode_manager import RuntimeModes, build_runtime_profile, update_wechat_join_state
 from src.news.article_fetcher import enrich_news_items_with_article_text
 from src.news.digest import format_news_source_block, generate_news_digest
 from src.news.rss_fetcher import fetch_news_items
+from src.task_events import TaskEventCallback, emit_task_event
 from src.wechat_generator import generate_wechat_news_discussion
 from src.wechat_state import (
     append_interactive_group_reply,
@@ -31,7 +32,22 @@ class RuntimeContext:
     selected_model: str
     interaction_mode: str
     session_id: str = ""
+    safe_mode: bool = False
+    memory_mode: str = "preview"
+    route_mode: str = "auto_rule"
     progress: ProgressCallback | None = None
+    event_callback: TaskEventCallback | None = None
+
+    @property
+    def profile(self):
+        return build_runtime_profile(
+            RuntimeModes(
+                performance_mode=self.performance_mode,
+                safe_mode=self.safe_mode,
+                memory_mode=self.memory_mode,
+                route_mode=self.route_mode,
+            )
+        )
 
 
 def _compute_article_coverage(news_items: list[dict]) -> dict:
@@ -218,47 +234,135 @@ def run_news_round(
     runtime_context: RuntimeContext,
 ) -> NewsRoundResult:
     t0 = time.perf_counter()
-    progress = runtime_context.progress
+    task_name = "run_news_round"
+    pre_warnings: list[str] = []
 
-    news_items = run_search_stage(query_text, progress=progress)
-
-    if read_articles:
-        max_articles = max_articles_for_performance(runtime_context.performance_mode)
-        news_items = run_enrich_stage(
-            news_items,
-            max_articles=max_articles,
-            query_text=query_text,
-            progress=progress,
+    def progress(message: str) -> None:
+        if runtime_context.progress:
+            runtime_context.progress(message)
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "progress",
+            message=message,
+            started_at=t0,
         )
 
-    digest, source_block, article_coverage, warnings = run_digest_stage(
-        news_items,
-        query_text=query_text,
-        performance_mode=runtime_context.performance_mode,
-        selected_model=runtime_context.selected_model,
-        progress=progress,
+    emit_task_event(
+        runtime_context.event_callback,
+        task_name,
+        "started",
+        data={
+            "query_text": query_text,
+            "read_articles": read_articles,
+            "performance_mode": runtime_context.performance_mode,
+        },
+        started_at=t0,
     )
 
-    discussion, group_content = run_discussion_stage(
-        digest,
-        interaction_mode=runtime_context.interaction_mode,
-        performance_mode=runtime_context.performance_mode,
-        selected_model=runtime_context.selected_model,
-        source_block=source_block,
-        session_id=runtime_context.session_id,
-        progress=progress,
-    )
+    try:
+        news_items = run_search_stage(query_text, progress=progress)
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "item_completed",
+            message="search",
+            data={"item_count": len(news_items)},
+            started_at=t0,
+        )
 
-    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        profile = runtime_context.profile
+        if read_articles and profile.allow_article_network_read:
+            max_articles = max_articles_for_performance(runtime_context.performance_mode)
+            news_items = run_enrich_stage(
+                news_items,
+                max_articles=max_articles,
+                query_text=query_text,
+                progress=progress,
+            )
+            emit_task_event(
+                runtime_context.event_callback,
+                task_name,
+                "item_completed",
+                message="enrich",
+                data={"max_articles": max_articles, "item_count": len(news_items)},
+                started_at=t0,
+            )
+        elif read_articles:
+            pre_warnings.append(
+                f"正文读取已跳过：{profile.article_network_read_reason}"
+            )
+            emit_task_event(
+                runtime_context.event_callback,
+                task_name,
+                "item_completed",
+                message="enrich_skipped",
+                data={"reason": profile.article_network_read_reason},
+                started_at=t0,
+            )
 
-    return NewsRoundResult(
-        query_text=query_text,
-        news_items=news_items,
-        digest=digest,
-        discussion=discussion,
-        group_content=group_content,
-        source_block=source_block,
-        article_coverage=article_coverage,
-        elapsed_ms=elapsed_ms,
-        warnings=warnings,
-    )
+        digest, source_block, article_coverage, warnings = run_digest_stage(
+            news_items,
+            query_text=query_text,
+            performance_mode=runtime_context.performance_mode,
+            selected_model=runtime_context.selected_model,
+            progress=progress,
+        )
+        warnings = pre_warnings + warnings
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "item_completed",
+            message="digest",
+            data={"coverage": article_coverage, "warning_count": len(warnings)},
+            started_at=t0,
+        )
+
+        discussion, group_content = run_discussion_stage(
+            digest,
+            interaction_mode=runtime_context.interaction_mode,
+            performance_mode=runtime_context.performance_mode,
+            selected_model=runtime_context.selected_model,
+            source_block=source_block,
+            session_id=runtime_context.session_id,
+            progress=progress,
+        )
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "item_completed",
+            message="discussion",
+            data={"session_id": runtime_context.session_id},
+            started_at=t0,
+        )
+
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        result = NewsRoundResult(
+            query_text=query_text,
+            news_items=news_items,
+            digest=digest,
+            discussion=discussion,
+            group_content=group_content,
+            source_block=source_block,
+            article_coverage=article_coverage,
+            elapsed_ms=elapsed_ms,
+            warnings=warnings,
+        )
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "completed",
+            data={"elapsed_ms": elapsed_ms, "warning_count": len(warnings)},
+            started_at=t0,
+        )
+        return result
+    except Exception as exc:
+        emit_task_event(
+            runtime_context.event_callback,
+            task_name,
+            "failed",
+            message=str(exc),
+            data={"error_type": type(exc).__name__},
+            started_at=t0,
+        )
+        raise

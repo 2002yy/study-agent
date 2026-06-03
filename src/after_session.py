@@ -1,7 +1,9 @@
 import json
+import time
 from src.llm_client import chat
 from src.text_utils import strip_code_fences
 from src.log_utils import get_logger
+from src.task_events import TaskEventCallback, emit_task_event
 
 SECTION_KEYS = [
     "progress_update",
@@ -98,10 +100,31 @@ def generate_after_session_updates(
     role: str,
     mode: str,
     model_profile: str = "pro",
+    event_callback: TaskEventCallback | None = None,
 ) -> dict[str, str]:
+    started_at = time.perf_counter()
+    emit_task_event(
+        event_callback,
+        "after_session",
+        "started",
+        data={
+            "message_count": len(session_messages),
+            "role": role,
+            "mode": mode,
+            "model_profile": model_profile,
+        },
+        started_at=started_at,
+    )
     empty_result = {k: "（无对话记录）" for k in SECTION_KEYS}
 
     if not session_messages:
+        emit_task_event(
+            event_callback,
+            "after_session",
+            "completed",
+            message="empty_session",
+            started_at=started_at,
+        )
         return empty_result
 
     context_lines = [SYSTEM_PROMPT]
@@ -132,6 +155,13 @@ def generate_after_session_updates(
     ]
 
     try:
+        emit_task_event(
+            event_callback,
+            "after_session",
+            "progress",
+            message="calling_llm",
+            started_at=started_at,
+        )
         raw = chat(
             messages,
             temperature=None,
@@ -140,11 +170,27 @@ def generate_after_session_updates(
         )
     except Exception as e:
         get_logger().warning("after_session chat failed: %s", e)
+        emit_task_event(
+            event_callback,
+            "after_session",
+            "failed",
+            message=str(e),
+            data={"error_type": type(e).__name__},
+            started_at=started_at,
+        )
         return {key: "（LLM 调用失败，请稍后重试）" for key in SECTION_KEYS}
     parsed = _parse_json(raw)
 
     if not parsed:
         preview = _build_markdown_preview(raw)
+        emit_task_event(
+            event_callback,
+            "after_session",
+            "completed",
+            message="json_parse_failed",
+            data={"parsed": False},
+            started_at=started_at,
+        )
         return {
             "progress_update": "（JSON 解析失败，需要人工检查）",
             "learner_profile_update": "（JSON 解析失败，需要人工检查）",
@@ -158,6 +204,13 @@ def generate_after_session_updates(
         if key not in parsed:
             parsed[key] = "（本轮无需更新）"
 
+    emit_task_event(
+        event_callback,
+        "after_session",
+        "completed",
+        data={"parsed": True, "section_count": len(parsed)},
+        started_at=started_at,
+    )
     return parsed
 
 

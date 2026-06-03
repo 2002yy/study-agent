@@ -40,23 +40,87 @@ class RuntimeModes:
 
     @property
     def context_mode(self) -> str:
-        if self.performance_mode == "fast":
-            return "fast"
-        if self.performance_mode == "deep":
-            return "deep"
-        return "light"
+        return build_runtime_profile(self).context_mode
 
     @property
     def allow_llm_router(self) -> bool:
-        return self.performance_mode != "fast" and self.route_mode == "hybrid"
+        return build_runtime_profile(self).allow_llm_router
 
     @property
     def preferred_model(self) -> str | None:
-        if self.performance_mode == "fast":
-            return "flash"
-        if self.performance_mode == "deep":
-            return "pro"
-        return None
+        return build_runtime_profile(self).preferred_model
+
+    @property
+    def profile(self) -> "RuntimeProfile":
+        return build_runtime_profile(self)
+
+
+@dataclass(frozen=True)
+class RuntimeProfile:
+    """Effective runtime permissions derived from user-facing modes."""
+
+    memory_write_allowed: bool
+    memory_write_reason: str
+    allow_llm_router: bool
+    llm_router_reason: str
+    allow_article_network_read: bool
+    article_network_read_reason: str
+    preferred_model: str | None
+    context_mode: str
+    performance_mode: str
+    route_mode: str
+    memory_mode: str
+    safe_mode: bool
+
+
+def build_runtime_profile(modes: RuntimeModes) -> RuntimeProfile:
+    if modes.safe_mode:
+        memory_write_allowed = False
+        memory_write_reason = "safe_mode"
+    elif modes.memory_mode == "confirm_write":
+        memory_write_allowed = True
+        memory_write_reason = "confirm_write"
+    else:
+        memory_write_allowed = False
+        memory_write_reason = modes.memory_mode
+
+    if modes.performance_mode == "fast":
+        allow_llm_router = False
+        llm_router_reason = "fast_mode"
+        preferred_model = "flash"
+        context_mode = "fast"
+    elif modes.route_mode == "hybrid":
+        allow_llm_router = True
+        llm_router_reason = "hybrid"
+        preferred_model = "pro" if modes.performance_mode == "deep" else None
+        context_mode = "deep" if modes.performance_mode == "deep" else "light"
+    else:
+        allow_llm_router = False
+        llm_router_reason = modes.route_mode
+        preferred_model = "pro" if modes.performance_mode == "deep" else None
+        context_mode = "deep" if modes.performance_mode == "deep" else "light"
+
+    if modes.safe_mode:
+        allow_article_network_read = False
+        article_network_read_reason = "safe_mode"
+    else:
+        allow_article_network_read = True
+        article_network_read_reason = "allowed"
+
+    return RuntimeProfile(
+        memory_write_allowed=memory_write_allowed,
+        memory_write_reason=memory_write_reason,
+        allow_llm_router=allow_llm_router,
+        llm_router_reason=llm_router_reason,
+        allow_article_network_read=allow_article_network_read,
+        article_network_read_reason=article_network_read_reason,
+        preferred_model=preferred_model,
+        context_mode=context_mode,
+        performance_mode=modes.performance_mode,
+        route_mode=modes.route_mode,
+        memory_mode=modes.memory_mode,
+        safe_mode=modes.safe_mode,
+    )
 
 
 @dataclass(frozen=True)
@@ -546,9 +610,7 @@ def update_memory_capture(enabled: bool, capture_mode: str = "manual") -> None:
 
 
 def is_memory_write_allowed(modes: RuntimeModes) -> bool:
-    if modes.safe_mode:
-        return False
-    return modes.memory_mode == "confirm_write"
+    return build_runtime_profile(modes).memory_write_allowed
 
 
 def set_memory_mode(mode: str) -> None:

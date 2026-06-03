@@ -140,3 +140,96 @@ def test_run_news_round_skips_article_read_when_disabled(monkeypatch):
     assert result.article_coverage["with_text"] == 0
     assert result.elapsed_ms >= 0
     assert any("0/3" in w for w in result.warnings)
+
+
+def test_run_news_round_emits_task_events(monkeypatch):
+    from src import wechat_service
+
+    events = []
+
+    monkeypatch.setattr(
+        wechat_service,
+        "fetch_news_items",
+        lambda **kwargs: [
+            {"title": "A"},
+            {"title": "B"},
+            {"title": "C"},
+        ],
+    )
+    monkeypatch.setattr(wechat_service, "generate_news_digest", lambda *args, **kwargs: "digest")
+    monkeypatch.setattr(
+        wechat_service,
+        "generate_wechat_news_discussion",
+        lambda *args, **kwargs: "discussion",
+    )
+    monkeypatch.setattr(wechat_service, "format_news_source_block", lambda *args, **kwargs: "")
+    monkeypatch.setattr(wechat_service, "append_interactive_group_reply", lambda content: None)
+    monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group")
+    monkeypatch.setattr(wechat_service, "update_wechat_join_state", lambda **kwargs: None)
+
+    run_news_round(
+        query_text="events",
+        read_articles=False,
+        runtime_context=RuntimeContext(
+            performance_mode="standard",
+            selected_model="flash",
+            interaction_mode="standard",
+            event_callback=events.append,
+        ),
+    )
+
+    event_types = [event.event_type for event in events]
+    assert event_types[0] == "started"
+    assert "progress" in event_types
+    assert ("item_completed", "search") in [
+        (event.event_type, event.message) for event in events
+    ]
+    assert event_types[-1] == "completed"
+
+
+def test_run_news_round_safe_mode_skips_article_network_read(monkeypatch):
+    from src import wechat_service
+
+    events = []
+
+    monkeypatch.setattr(
+        wechat_service,
+        "fetch_news_items",
+        lambda **kwargs: [
+            {"title": "A"},
+            {"title": "B"},
+            {"title": "C"},
+        ],
+    )
+    monkeypatch.setattr(wechat_service, "generate_news_digest", lambda *args, **kwargs: "digest")
+    monkeypatch.setattr(
+        wechat_service,
+        "generate_wechat_news_discussion",
+        lambda *args, **kwargs: "discussion",
+    )
+    monkeypatch.setattr(wechat_service, "format_news_source_block", lambda *args, **kwargs: "")
+    monkeypatch.setattr(wechat_service, "append_interactive_group_reply", lambda content: None)
+    monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group")
+    monkeypatch.setattr(wechat_service, "update_wechat_join_state", lambda **kwargs: None)
+
+    def _should_not_run(*args, **kwargs):
+        raise AssertionError("safe_mode should skip article network reads")
+
+    monkeypatch.setattr(wechat_service, "enrich_news_items_with_article_text", _should_not_run)
+
+    result = run_news_round(
+        query_text="safe",
+        read_articles=True,
+        runtime_context=RuntimeContext(
+            performance_mode="standard",
+            selected_model="flash",
+            interaction_mode="standard",
+            safe_mode=True,
+            event_callback=events.append,
+        ),
+    )
+
+    assert any("safe_mode" in warning for warning in result.warnings)
+    assert ("item_completed", "enrich_skipped") in [
+        (event.event_type, event.message) for event in events
+    ]

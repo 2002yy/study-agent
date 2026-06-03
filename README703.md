@@ -39,3 +39,35 @@ requests, feed readers, and URL normalizers.
 - `python -m pytest tests/test_mode_manager_yaml.py tests/test_link_resolver.py tests/test_url_normalizer.py tests/test_news_redirect_dedup.py -q`
 - `ruff check src tests`
 - `python -m pytest -q`
+
+## 2026-06-03 Runtime Profile And Task Events
+
+### Migrated
+
+- Added `RuntimeProfile` as the effective permission projection from
+  `safe_mode`, `memory_mode`, `performance_mode`, and `route_mode`.
+- Existing compatibility APIs now delegate to the profile:
+  `RuntimeModes.context_mode`, `RuntimeModes.allow_llm_router`,
+  `RuntimeModes.preferred_model`, and `is_memory_write_allowed()`.
+- Added `TaskEvent` and `emit_task_event()` as a lightweight service-layer event
+  model with `started`, `progress`, `item_completed`, `failed`, and `completed`
+  events.
+- `run_news_round()` now emits task events while preserving the old Streamlit
+  `progress(str)` callback.
+- `after_session` and the unified memory writer can optionally emit task events
+  without changing their default return-value behavior.
+- Safe mode now blocks article body network reads in `run_news_round()` through
+  the centralized runtime profile and records a warning/event instead of
+  silently reading.
+
+### Still Deferred
+
+- No app-server event loop or Codex-style thread protocol.
+- No feedparser migration until the project adds more heterogeneous RSS/feed
+  sources.
+
+### Verification
+
+- `ruff check src tests`
+- `python -m pytest tests/test_architecture_flows.py tests/test_wechat_service.py tests/test_after_session.py tests/test_task_events.py -q`
+- `python -m pytest -q`
