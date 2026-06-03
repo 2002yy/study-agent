@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.news.url_normalizer import (
     build_url_metadata,
     canonicalize_url,
+    display_domain,
     extract_domain,
     extract_redirect_target,
     is_public_http_url,
@@ -39,6 +40,20 @@ class TestUrlNormalizer:
         url = "https://Example.com:443/story?b=2&a=1&a=1&utm_source=x"
 
         assert canonicalize_url(url) == "https://example.com/story?a=1&b=2"
+
+    def test_canonicalize_applies_domain_specific_query_allowlist(self):
+        url = "https://openai.com/news/product?utm_source=x&ref=feed&id=keep"
+
+        assert canonicalize_url(url) == "https://openai.com/news/product"
+
+    def test_canonicalize_keeps_unknown_domain_query_params(self):
+        url = "https://publisher.example/story?article=42&utm_campaign=x"
+
+        assert canonicalize_url(url) == "https://publisher.example/story?article=42"
+
+    def test_display_domain_decodes_punycode_for_ui(self):
+        assert display_domain("https://xn--fsqu00a.xn--0zwm56d/story") == "例子.测试"
+        assert display_domain("www.xn--fsqu00a.xn--0zwm56d") == "例子.测试"
 
     def test_rejects_unsafe_urls(self):
         assert not is_public_http_url("file:///etc/passwd")

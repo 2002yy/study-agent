@@ -116,10 +116,11 @@ References reviewed:
 - Consider optional `feedparser` integration once sources grow beyond current
   Google/Bing/domestic RSS feeds. Use it for `entries[i].link`,
   `entries[i].links`, `published_parsed`, source metadata, and bozo diagnostics.
-- Add domain-specific query allowlists for canonicalization if dedupe starts
-  collapsing legitimate article URLs.
-- Add IDN/punycode display normalization only when we start showing more
-  international publisher domains in the UI.
+- Migrated: add domain-specific query allowlists for canonicalization. Known
+  domains can drop noisy query strings more aggressively while unknown publisher
+  domains still keep non-tracking query params.
+- Migrated: add IDN/punycode display normalization for reader-facing domains.
+  This affects display only; safety checks still use the parsed host.
 - Add path dot-segment normalization only after tests confirm it does not break
   publisher-specific article URLs.
 

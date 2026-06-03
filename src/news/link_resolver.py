@@ -20,6 +20,7 @@ from src.news.url_normalizer import (
     build_url_metadata,
     extract_redirect_target,
     extract_redirect_target_candidate,
+    display_domain,
     is_public_http_url,
 )
 
@@ -281,7 +282,7 @@ def _display_link_host(url: str) -> str:
         parsed = urlparse((url or "").strip())
     except Exception:
         return ""
-    host = (parsed.netloc or "").strip().lower()
+    host = display_domain(parsed.hostname or parsed.netloc or "")
     if not host:
         return ""
     return host

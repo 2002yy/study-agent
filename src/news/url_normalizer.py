@@ -43,6 +43,15 @@ _TRACKING_PARAM_NAMES = {
 _TRACKING_PARAM_PREFIXES = ("utm_",)
 _SAFE_SCHEMES = {"http", "https"}
 _LOCAL_HOSTNAMES = {"localhost", "localhost.localdomain"}
+_DOMAIN_QUERY_ALLOWLISTS: dict[str, set[str]] = {
+    "arxiv.org": {"id"},
+    "biorxiv.org": {"doi"},
+    "doi.org": set(),
+    "docs.python.org": set(),
+    "medium.com": set(),
+    "openai.com": set(),
+    "www.nature.com": {"doi"},
+}
 
 
 @dataclass(frozen=True)
@@ -176,6 +185,24 @@ def extract_domain(url: str) -> str:
     return (parsed.hostname or "").strip().lower()
 
 
+def display_domain(url_or_domain: str) -> str:
+    """Return a reader-facing domain, decoding punycode when possible."""
+    value = (url_or_domain or "").strip()
+    if not value:
+        return ""
+
+    parsed = _safe_urlparse(value)
+    host = ((parsed.hostname if parsed is not None else "") or value).strip().lower()
+    host = host.removeprefix("www.")
+    if not host:
+        return ""
+
+    try:
+        return host.encode("ascii").decode("idna")
+    except Exception:
+        return host
+
+
 def _iter_query_pairs(url: str) -> list[tuple[str, str]]:
     parsed = _safe_urlparse(url)
     if parsed is None:
@@ -231,6 +258,20 @@ def _is_tracking_param(name: str) -> bool:
     return any(lowered.startswith(prefix) for prefix in _TRACKING_PARAM_PREFIXES)
 
 
+def _query_param_is_allowed_for_domain(domain: str, name: str) -> bool:
+    lowered = (name or "").strip().lower()
+    if _is_tracking_param(lowered):
+        return False
+
+    normalized_domain = domain.removeprefix("www.")
+    for configured_domain, allowed_names in _DOMAIN_QUERY_ALLOWLISTS.items():
+        if normalized_domain == configured_domain or normalized_domain.endswith(
+            f".{configured_domain}"
+        ):
+            return lowered in allowed_names
+    return True
+
+
 def _normalized_netloc(parsed) -> str:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
@@ -255,12 +296,13 @@ def canonicalize_url(url: str) -> str:
         return ""
     scheme = parsed.scheme.lower()
     netloc = _normalized_netloc(parsed)
+    domain = (parsed.hostname or "").lower().removeprefix("www.")
     path = parsed.path or "/"
 
     query_pairs = []
     seen_pairs: set[tuple[str, str]] = set()
     for key, value in parse_qsl(parsed.query, keep_blank_values=True):
-        if _is_tracking_param(key):
+        if not _query_param_is_allowed_for_domain(domain, key):
             continue
         pair = (key, value)
         if pair in seen_pairs:
