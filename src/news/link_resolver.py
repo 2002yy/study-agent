@@ -96,6 +96,8 @@ def _make_hop(
     status: str,
     *,
     status_code: int | None = None,
+    location: str = "",
+    reason: str = "",
     error: str = "",
 ) -> RedirectHop:
     return RedirectHop(
@@ -104,6 +106,8 @@ def _make_hop(
         status=status,
         is_safe=is_public_http_url(url),
         status_code=status_code,
+        location=location,
+        reason=reason,
         error=error,
     )
 
@@ -132,11 +136,19 @@ class _RecordingRedirectHandler(HTTPRedirectHandler):
         super().__init__()
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        location = ""
+        try:
+            location = headers.get("Location", "") if headers else ""
+        except Exception:
+            location = ""
+        is_safe = is_public_http_url(newurl)
         hop = _make_hop(
             newurl,
             "http_redirect",
-            "followed" if is_public_http_url(newurl) else "blocked",
+            "followed" if is_safe else "blocked",
             status_code=code,
+            location=location,
+            reason="http_redirect" if is_safe else "unsafe_redirect_target",
         )
         self._hops.append(hop)
         if not hop.is_safe:
@@ -159,17 +171,33 @@ def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionRe
     if not url:
         return _metadata_result("", "", "empty", hops)
 
-    hops.append(_make_hop(url, "input", "received"))
+    hops.append(_make_hop(url, "input", "received", reason="input_url"))
     if not hops[-1].is_safe:
         return _metadata_result(url, url, "unsafe", hops)
 
     generic_target = extract_redirect_target(url)
     if generic_target:
-        hops.append(_make_hop(generic_target, "query_parameter", "extracted"))
+        hops.append(
+            _make_hop(
+                generic_target,
+                "query_parameter",
+                "extracted",
+                location=generic_target,
+                reason="redirect_query_parameter",
+            )
+        )
         return _metadata_result(url, generic_target, "resolved", hops)
     generic_candidate = extract_redirect_target_candidate(url)
     if generic_candidate:
-        hops.append(_make_hop(generic_candidate, "query_parameter", "blocked"))
+        hops.append(
+            _make_hop(
+                generic_candidate,
+                "query_parameter",
+                "blocked",
+                location=generic_candidate,
+                reason="unsafe_redirect_target",
+            )
+        )
         return _metadata_result(url, generic_candidate, "unsafe", hops)
 
     try:
@@ -188,7 +216,15 @@ def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionRe
             final_url = response.geturl()
             if final_url and not _is_google_news_url(final_url):
                 if not hops or hops[-1].url != final_url:
-                    hops.append(_make_hop(final_url, "http_final", "resolved"))
+                    hops.append(
+                        _make_hop(
+                            final_url,
+                            "http_final",
+                            "resolved",
+                            location=final_url,
+                            reason="response_final_url",
+                        )
+                    )
                 if is_public_http_url(final_url):
                     return _metadata_result(url, final_url, "resolved", hops)
                 return _metadata_result(url, final_url, "unsafe", hops)
@@ -199,12 +235,22 @@ def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionRe
                 html = _decode_html_payload(payload, content_type)
                 extracted_url = _extract_resolved_url_from_google_news_html(html)
                 if extracted_url:
-                    hops.append(_make_hop(extracted_url, "html_extract", "extracted"))
+                    hops.append(
+                        _make_hop(
+                            extracted_url,
+                            "html_extract",
+                            "extracted",
+                            location=extracted_url,
+                            reason="google_news_html_extract",
+                        )
+                    )
                     return _metadata_result(url, extracted_url, "resolved", hops)
 
         return _metadata_result(url, final_url or url, "original", hops)
     except Exception as exc:
-        hops.append(_make_hop(url, "resolver", "error", error=str(exc)))
+        hops.append(
+            _make_hop(url, "resolver", "error", reason="resolver_exception", error=str(exc))
+        )
         return _metadata_result(url, url, "error", hops, error=str(exc))
 
 

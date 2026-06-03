@@ -65,6 +65,8 @@ def test_resolve_news_link_result_records_query_parameter_hops():
     assert result.resolution_status == "resolved"
     assert result.resolved_url == "https://example.com/story"
     assert [hop.source for hop in result.hops] == ["input", "query_parameter"]
+    assert result.hops[-1].location == "https://example.com/story"
+    assert result.hops[-1].reason == "redirect_query_parameter"
     assert result.metadata.redirect_hops == result.hops
 
 
@@ -78,3 +80,4 @@ def test_resolve_news_link_result_records_blocked_unsafe_hop():
     assert result.hops[-1].source == "query_parameter"
     assert result.hops[-1].status == "blocked"
     assert result.hops[-1].is_safe is False
+    assert result.hops[-1].reason == "unsafe_redirect_target"

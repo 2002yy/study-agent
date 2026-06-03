@@ -35,6 +35,11 @@ class TestUrlNormalizer:
 
         assert canonicalize_url(url) == "https://example.com/article?id=42"
 
+    def test_canonicalize_drops_default_ports_and_duplicate_pairs(self):
+        url = "https://Example.com:443/story?b=2&a=1&a=1&utm_source=x"
+
+        assert canonicalize_url(url) == "https://example.com/story?a=1&b=2"
+
     def test_rejects_unsafe_urls(self):
         assert not is_public_http_url("file:///etc/passwd")
         assert not is_public_http_url("ftp://example.com/a")
@@ -42,6 +47,9 @@ class TestUrlNormalizer:
         assert not is_public_http_url("http://127.0.0.1:8000")
         assert not is_public_http_url("http://192.168.1.2/a")
         assert not is_public_http_url("https://user:pass@example.com/a")
+        assert not is_public_http_url("https://example.com\\@evil.test/a")
+        assert not is_public_http_url("https://example.com/a b")
+        assert not is_public_http_url("https://example.com:99999/a")
 
     def test_build_url_metadata_marks_resolved_and_domain(self):
         metadata = build_url_metadata(

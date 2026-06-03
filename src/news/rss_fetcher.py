@@ -51,6 +51,17 @@ _NEWS_CACHE: dict[str, tuple[float, list[dict]]] = {}
 _NEWS_CACHE_TTL = 600
 _NEWS_CACHE_MAX_SIZE = 32
 _RECENT_NEWS_WINDOW_DAYS = 90
+_LAST_FEED_WARNINGS: list[dict] = []
+
+
+def get_last_feed_warnings() -> list[dict]:
+    """Return diagnostics for feeds that failed during the latest fetch."""
+    return [dict(item) for item in _LAST_FEED_WARNINGS]
+
+
+def _set_last_feed_warnings(warnings: list[dict]) -> None:
+    global _LAST_FEED_WARNINGS
+    _LAST_FEED_WARNINGS = [dict(item) for item in warnings]
 
 
 def _prune_cache(
@@ -234,6 +245,8 @@ def _attach_url_metadata(item: dict, resolve: bool, query_text: str) -> dict:
             "status": hop.status,
             "is_safe": hop.is_safe,
             "status_code": hop.status_code,
+            "location": hop.location,
+            "reason": hop.reason,
             "error": hop.error,
         }
         for hop in metadata.redirect_hops
@@ -319,10 +332,18 @@ def _fetch_rss_items_from_url(
     with urlopen(req, timeout=15) as response:
         payload = response.read()
 
-    root = ET.fromstring(payload)
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError as exc:
+        raise ValueError(f"Malformed RSS feed: {source_fallback}: {exc}") from exc
+
+    channel = root.find("./channel")
+    if channel is None:
+        raise ValueError(f"Malformed RSS feed: {source_fallback}: missing channel")
+
     items: list[dict] = []
 
-    for node in root.findall("./channel/item"):
+    for node in channel.findall("./item"):
         title = (node.findtext("title") or "").strip()
         link = (node.findtext("link") or "").strip()
         pub_date = (node.findtext("pubDate") or "").strip()
@@ -372,12 +393,21 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     items: list[dict] = []
     errors: list[Exception] = []
+    feed_warnings: list[dict] = []
     per_feed_limit = max(max_items * 2, 8)
 
     try:
         items.extend(search_searxng(query_text, max_results=per_feed_limit))
     except Exception as exc:
         errors.append(exc)
+        feed_warnings.append(
+            {
+                "source": "SearXNG",
+                "url": "",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            }
+        )
 
     for source_name, feed_url, filter_by_query in feed_urls:
         try:
@@ -391,9 +421,20 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
             )
         except Exception as exc:
             errors.append(exc)
+            feed_warnings.append(
+                {
+                    "source": source_name,
+                    "url": feed_url,
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                }
+            )
 
     if not items and errors:
+        _set_last_feed_warnings(feed_warnings)
         raise errors[0]
+
+    _set_last_feed_warnings(feed_warnings)
 
     # Keep a modest candidate pool before redirect resolution; final trimming
     # happens after canonical URL deduplication.

@@ -54,6 +54,8 @@ class RedirectHop:
     status: str
     is_safe: bool
     status_code: int | None = None
+    location: str = ""
+    reason: str = ""
     error: str = ""
 
 
@@ -104,6 +106,26 @@ def _decode_repeated(value: str, rounds: int = 3) -> str:
     return value.replace("\\/", "/").strip()
 
 
+def _has_parser_confusing_characters(url: str) -> bool:
+    if not url:
+        return True
+    if "\\" in url:
+        return True
+    return any(ord(char) <= 32 or ord(char) == 127 for char in url)
+
+
+def _safe_urlparse(url: str):
+    url = (url or "").strip()
+    if _has_parser_confusing_characters(url):
+        return None
+    try:
+        parsed = urlparse(url)
+        _ = parsed.port  # Force validation for invalid ports like :99999.
+    except Exception:
+        return None
+    return parsed
+
+
 def _hostname_is_private_literal(hostname: str) -> bool:
     host = (hostname or "").strip().strip("[]").lower()
     if not host:
@@ -132,9 +154,8 @@ def is_public_http_url(url: str) -> bool:
     This is a lightweight preflight check.  The real fetch path must still run
     DNS/IP validation because a hostname can resolve to a private address.
     """
-    try:
-        parsed = urlparse((url or "").strip())
-    except Exception:
+    parsed = _safe_urlparse(url)
+    if parsed is None:
         return False
 
     if parsed.scheme.lower() not in _SAFE_SCHEMES:
@@ -149,15 +170,16 @@ def is_public_http_url(url: str) -> bool:
 
 
 def extract_domain(url: str) -> str:
-    try:
-        parsed = urlparse((url or "").strip())
-    except Exception:
+    parsed = _safe_urlparse(url)
+    if parsed is None:
         return ""
     return (parsed.hostname or "").strip().lower()
 
 
 def _iter_query_pairs(url: str) -> list[tuple[str, str]]:
-    parsed = urlparse((url or "").strip())
+    parsed = _safe_urlparse(url)
+    if parsed is None:
+        return []
     pairs = parse_qsl(parsed.query, keep_blank_values=False)
     if parsed.fragment and "=" in parsed.fragment:
         pairs.extend(parse_qsl(parsed.fragment, keep_blank_values=False))
@@ -213,8 +235,12 @@ def _normalized_netloc(parsed) -> str:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
         return ""
-    if parsed.port:
-        return f"{hostname}:{parsed.port}"
+    port = parsed.port
+    if port and not (
+        (parsed.scheme.lower() == "http" and port == 80)
+        or (parsed.scheme.lower() == "https" and port == 443)
+    ):
+        return f"{hostname}:{port}"
     return hostname
 
 
@@ -224,16 +250,23 @@ def canonicalize_url(url: str) -> str:
     if not is_public_http_url(url):
         return ""
 
-    parsed = urlparse(url)
+    parsed = _safe_urlparse(url)
+    if parsed is None:
+        return ""
     scheme = parsed.scheme.lower()
     netloc = _normalized_netloc(parsed)
     path = parsed.path or "/"
 
-    query_pairs = [
-        (key, value)
-        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-        if not _is_tracking_param(key)
-    ]
+    query_pairs = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+        if _is_tracking_param(key):
+            continue
+        pair = (key, value)
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        query_pairs.append(pair)
     query_pairs.sort(key=lambda pair: (pair[0].lower(), pair[1]))
     query = urlencode(query_pairs, doseq=True)
 

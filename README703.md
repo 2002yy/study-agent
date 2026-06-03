@@ -71,3 +71,64 @@ requests, feed readers, and URL normalizers.
 - `ruff check src tests`
 - `python -m pytest tests/test_architecture_flows.py tests/test_wechat_service.py tests/test_after_session.py tests/test_task_events.py -q`
 - `python -m pytest -q`
+
+## Open-Source URL And Feed Migration Backlog
+
+References reviewed:
+
+- Python `urllib.parse` docs: URL parsing is practical but not validating; code
+  with security implications should verify scheme, host, path, and other parsed
+  components before trusting them.
+- Requests docs: `Response.history` keeps redirect responses from oldest to
+  newest, which is a useful mental model for explainable redirect debugging.
+- feedparser docs: malformed feeds are surfaced through `bozo` and
+  `bozo_exception` instead of being silently treated as normal input.
+- `url-normalize`: mature URL normalization covers IDN handling, lowercasing,
+  path dot-segment cleanup, default-port handling, percent-encoding rules, and
+  configurable query parameter filtering.
+
+### Worth Migrating Soon
+
+- Migrated: add defensive URL character checks before trusting urllib parse results:
+  reject control characters, embedded whitespace, backslashes, invalid ports,
+  malformed IPv6 brackets, and parser-confusing hosts.
+- Migrated: extend `RedirectHop` with `location` and `reason`, not just
+  `url/status/source`. This makes UI/debug output explain whether a hop came
+  from `Location`, query unwrapping, Google News HTML extraction, unsafe target
+  blocking, or resolver exceptions.
+- Migrated: record HTTP redirect response details closer to Requests history:
+  status code, original request URL, `Location` target, final URL, and blocked
+  reason.
+- Migrated: normalize canonical URLs more aggressively but safely:
+  remove default ports, deduplicate identical query key/value pairs, normalize
+  empty paths to `/`, keep fragments stripped, and keep only meaningful query
+  params after tracking-param removal.
+- Migrated: add URL-normalizer tests for ambiguous inputs:
+  whitespace/control chars, backslash hosts, invalid ports, credentials,
+  localhost/private IP literals, duplicate query params, default ports, and
+  tracking params.
+- Migrated: add feed parse diagnostics inspired by feedparser `bozo`:
+  keep per-feed warning/error metadata so the UI can say which feed failed and
+  why, even when other feeds still returned results.
+
+### Worth Migrating Later
+
+- Consider optional `feedparser` integration once sources grow beyond current
+  Google/Bing/domestic RSS feeds. Use it for `entries[i].link`,
+  `entries[i].links`, `published_parsed`, source metadata, and bozo diagnostics.
+- Add domain-specific query allowlists for canonicalization if dedupe starts
+  collapsing legitimate article URLs.
+- Add IDN/punycode display normalization only when we start showing more
+  international publisher domains in the UI.
+- Add path dot-segment normalization only after tests confirm it does not break
+  publisher-specific article URLs.
+
+### Not Worth Migrating Yet
+
+- Do not replace the whole resolver with Requests. Keep urllib plus our SSRF
+  checks; borrow the history/debug model rather than the dependency and redirect
+  behavior wholesale.
+- Do not introduce a full URL normalization dependency unless our in-project
+  canonicalizer becomes hard to reason about or source diversity grows.
+- Do not make malformed feed parsing fatal if at least one source succeeds.
+  Prefer warnings plus partial results.
