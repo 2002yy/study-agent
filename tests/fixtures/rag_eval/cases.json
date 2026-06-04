@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "query": "requests sessions reuse connections",
+      "expected_sources": ["python_requests.md"],
+      "expected_terms": ["requests", "sessions", "connections"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
+    },
+    {
+      "query": "context tiers memory model routing token budget",
+      "expected_sources": ["memory_routing.md"],
+      "expected_terms": ["context", "routing", "token"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
+    },
+    {
+      "query": "unsafe redirects article fetching source trace",
+      "expected_sources": ["news_pipeline.md"],
+      "expected_terms": ["redirects", "article", "source"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
+    }
+  ]
+}

@@ -6,6 +6,14 @@ from src.rag.index import (
     save_rag_index,
     search_rag_index,
 )
+from src.rag.eval import (
+    RagEvalCase,
+    RagEvalResult,
+    RagEvalSummary,
+    evaluate_case,
+    evaluate_rag_index,
+    load_eval_cases,
+)
 from src.rag.service import (
     build_rag_context,
     format_rag_sources,
@@ -24,10 +32,16 @@ __all__ = [
     "build_rag_index",
     "cosine_similarity",
     "embed_text",
+    "evaluate_case",
+    "evaluate_rag_index",
     "format_rag_sources",
     "index_documents",
+    "load_eval_cases",
     "load_rag_index",
     "query_documents",
+    "RagEvalCase",
+    "RagEvalResult",
+    "RagEvalSummary",
     "save_rag_index",
     "search_rag_index_hybrid",
     "search_rag_index",

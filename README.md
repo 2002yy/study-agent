@@ -3,7 +3,7 @@
 <p>
   <a href="https://github.com/2002yy/study-agent/actions/workflows/ci.yml"><img src="https://github.com/2002yy/study-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
-  <img src="https://img.shields.io/badge/tests-257%20passed-green" alt="257 tests passed">
+  <img src="https://img.shields.io/badge/tests-262%20passed-green" alt="262 tests passed">
 </p>
 
 A local AI learning assistant with long-term memory, role-based group chat,
@@ -31,7 +31,7 @@ Study Agent 是一个本地优先的 AI 学习助手，重点不是简单调用�
 - **SSRF protection** for article fetching, **detect-secrets** in CI
 - **Batched session logging** and multi-layer caching for performance
 - **Performance budget**: mode-based `max_tokens` bounds on the main chat, WeChat, and news LLM paths
-- **257 pytest tests**, Ruff clean, GitHub Actions CI workflow
+- **262 pytest tests**, Ruff clean, GitHub Actions CI workflow
 
 For a detailed breakdown of the stack and engineering highlights, see [Technical Stack & Engineering Highlights](docs/TECH_STACK.md).
 
@@ -255,7 +255,7 @@ pip-compile requirements-dev.in    # 重新锁定开发依赖
 ## 测试
 
 ```bash
-pytest tests/ -v            # current local baseline: 257 passed
+pytest tests/ -v            # current local baseline: 262 passed
 pytest tests/ --cov=src     # 覆盖率
 ruff check src/ tests/      # linting
 mypy --explicit-package-bases src/  # CI soft check; may report type debt

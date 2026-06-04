@@ -35,6 +35,7 @@ Not implemented yet:
 | `src/rag/chunker.py` | Split documents into line-traceable `RagChunk` objects |
 | `src/rag/index.py` | Build, save, load and search a local JSON RAG index |
 | `src/rag/vector.py` | Deterministic local vector prototype and hybrid retrieval |
+| `src/rag/eval.py` | LLM-free retrieval quality evaluation over gold query fixtures |
 | `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
 | `src/rag/schema.py` | Dataclasses for documents, chunks, indexes and search results |
 | `src/api.py` | FastAPI health and RAG endpoints |
@@ -106,10 +107,49 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - FastAPI `/health`, `/rag`, `/rag/index` and `/rag/query`
 - Prompt injection behavior for cited RAG context
 
+`tests/test_rag_eval.py` adds a small gold fixture suite under `tests/fixtures/rag_eval/` and verifies:
+
+- Eval case loading from JSON
+- Source hit rate
+- `recall@k`
+- Mean reciprocal rank
+- Empty-result and miss accounting
+- Unknown retrieval mode rejection
+
 ## Next Steps
 
-1. Add embedding retrieval and compare it against the lexical / local-vector prototype.
-2. Add FAISS local prototype or pgvector engineering version behind the same service contract.
-3. Add a richer source panel with filters and per-source preview.
-4. Extend FastAPI beyond RAG to `/chat` and `/memory` when the service layer hardens.
-5. Decide whether news discussion and after-session feedback should opt into RAG injection.
+### P4: Retrieval Quality Loop
+
+Goal: prove retrieval quality before expanding the stack.
+
+- Add a small gold fixture set with queries, expected sources and expected terms.
+- Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
+- Surface retrieval debug data in tests and API responses before adding more UI polish.
+- Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
+
+### P5: Real Embedding Backend
+
+Goal: replace the local hash-vector prototype with optional real embeddings without breaking local-first defaults.
+
+- Extract a retriever / vector-backend contract.
+- Keep JSON + lexical / hybrid retrieval as the zero-infrastructure fallback.
+- Add one optional backend first, likely Qdrant or Chroma; defer FAISS if Windows install friction is high.
+- Make embedding provider selection explicit through config.
+
+### P6: Knowledge UI
+
+Goal: turn the Streamlit expander into a usable knowledge panel.
+
+- List indexed documents with chunk count, mtime, hash and status.
+- Add query debugging controls for mode, `top_k`, threshold and score preview.
+- Add source preview with title, path, page or line range and matched terms.
+- Add per-chat RAG scope selection instead of one global toggle only.
+
+### P7: Agentic RAG
+
+Goal: let the model retrieve when it needs evidence instead of always pre-retrieving.
+
+- Add a `retrieve_local_knowledge(query)` tool boundary.
+- Route retrieval only for knowledge-grounded questions.
+- Allow query rewrite and second-pass retrieval when first-pass evidence is weak.
+- Require explicit "not found in local knowledge" behavior when no source is retrieved.
