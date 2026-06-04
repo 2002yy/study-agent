@@ -259,4 +259,5 @@ def test_rag_upload_name_is_sanitized():
 def test_parse_path_lines_ignores_blank_lines():
     paths = parse_path_lines(' "notes.md" \n\n C:/tmp/lesson.txt ')
 
-    assert [str(path) for path in paths] == ["notes.md", "C:\\tmp\\lesson.txt"]
+    normalized = [str(path).replace("\\", "/") for path in paths]
+    assert normalized == ["notes.md", "C:/tmp/lesson.txt"]
