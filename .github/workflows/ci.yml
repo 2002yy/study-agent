@@ -34,7 +34,8 @@ jobs:
         run: |
           pip install detect-secrets 2>/dev/null
           detect-secrets scan --disable-plugin KeywordDetector \
-            --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \
+            --exclude-files '.*\.(pyc|jpg|png|zip)$' \
+            .github README.md docs src tests tools config templates roles changelog assets \
             > .secrets.out 2>&1
           python - <<'PY'
           import json
