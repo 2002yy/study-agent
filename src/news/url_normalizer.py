@@ -9,6 +9,7 @@ and private IP literals before metadata is attached to news items.
 from __future__ import annotations
 
 import ipaddress
+import re
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 
@@ -43,6 +44,7 @@ _TRACKING_PARAM_NAMES = {
 _TRACKING_PARAM_PREFIXES = ("utm_",)
 _SAFE_SCHEMES = {"http", "https"}
 _LOCAL_HOSTNAMES = {"localhost", "localhost.localdomain"}
+_AMBIGUOUS_IPV4_PART_RE = re.compile(r"^(?:0x[0-9a-f]+|0[0-7]*|[0-9]+)$", re.I)
 _DOMAIN_QUERY_ALLOWLISTS: dict[str, set[str]] = {
     "arxiv.org": {"id"},
     "biorxiv.org": {"doi"},
@@ -139,7 +141,11 @@ def _hostname_is_private_literal(hostname: str) -> bool:
     host = (hostname or "").strip().strip("[]").lower()
     if not host:
         return True
+    if "%" in host:
+        return True
     if host in _LOCAL_HOSTNAMES or host.endswith(".localhost"):
+        return True
+    if _looks_like_ambiguous_ipv4_literal(host):
         return True
 
     try:
@@ -154,6 +160,31 @@ def _hostname_is_private_literal(hostname: str) -> bool:
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
+    )
+
+
+def _looks_like_ambiguous_ipv4_literal(host: str) -> bool:
+    """Reject IPv4 forms that URL parsers or resolvers may interpret loosely.
+
+    Examples include integer IPv4 (2130706433), short dotted forms (127.1),
+    octal-looking forms (0177.0.0.1), and hex-looking forms (0x7f.0.0.1).
+    They are not accepted by ``ipaddress.ip_address`` but may be accepted by
+    some network stacks, so the safest preflight behavior is to block them.
+    """
+    if not host:
+        return False
+    if ":" in host:
+        return False
+    if not re.fullmatch(r"[0-9a-fx.]+", host, flags=re.I):
+        return False
+
+    parts = host.split(".")
+    if len(parts) == 1:
+        return bool(re.fullmatch(r"\d+", host))
+    if len(parts) != 4:
+        return all(_AMBIGUOUS_IPV4_PART_RE.fullmatch(part or "") for part in parts)
+    return any(part.lower().startswith("0x") for part in parts) or any(
+        len(part) > 1 and part.startswith("0") for part in parts
     )
 
 
@@ -326,7 +357,9 @@ def build_url_metadata(
     original_url = (original_url or "").strip()
     resolved_url = (resolved_url or "").strip()
 
-    candidate = resolved_url or extract_redirect_target(original_url) or original_url
+    redirect_target = extract_redirect_target(original_url)
+    unsafe_redirect_target = "" if redirect_target else extract_redirect_target_candidate(original_url)
+    candidate = resolved_url or redirect_target or unsafe_redirect_target or original_url
     if not candidate:
         return UrlMetadata(original_url, "", "", "", "empty", error, redirect_hops)
 

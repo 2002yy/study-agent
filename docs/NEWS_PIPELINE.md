@@ -8,11 +8,11 @@ Multi-source news aggregation pipeline: search providers → resolve → canonic
 User query
     │
     ▼
-1. Multi-source search/fetch
+1. Feed registry + multi-source search/fetch
    ├── Optional SearXNG JSON provider (disabled by default)
    ├── Google News RSS
    ├── Bing News RSS
-   └── RSSHub (domestic Chinese sources)
+   └── RSSHub / configured feeds
     │
     ▼
 2. Pre-dedup + sort candidate pool
@@ -49,20 +49,37 @@ User query
 8. Group discussion (4 roles discuss the news)
     │
     ▼
-9. Source block written to chat transcript
+9. Source block + audit trace written to chat transcript/logs
 ```
 
 ## Stage Detail
 
 ### 1. Multi-source Search/Fetch
 
-`src/news/rss_fetcher.py` builds a candidate pool from multiple sources:
+`src/news/rss_fetcher.py` builds a candidate pool from multiple sources. Feed definitions come from `src/news/feed_registry.py`:
 
 - Optional SearXNG JSON provider
 - Google News: `https://news.google.com/rss/search?q={query}&hl=zh-CN`
 - Bing News: `https://www.bing.com/news/search?q={query}&format=rss`
 - RSSHub: Configurable domestic sources
 - 600-second article cache per query
+- Feed health state: `logs/news_feed_state.json` (runtime, ignored by git), including success/error status, item count, ETag, Last-Modified, and seen entry keys
+
+If `config/news_feeds.json` exists, it can override the built-in feed list:
+
+```json
+{
+  "feeds": [
+    {
+      "name": "Example Feed",
+      "url": "https://example.com/rss?q={query}",
+      "requires_query": true,
+      "filter_by_query": false,
+      "enabled": true
+    }
+  ]
+}
+```
 
 SearXNG is opt-in and fail-soft:
 
@@ -103,6 +120,8 @@ Resolution supports:
 - Generic redirect parameters such as `url`, `u`, `q`, `target`, `target_url`, `redirect_url`, `articleUrl`, `canonicalUrl`
 - Existing Google News redirect extraction
 - Fail-soft fallback to original URL metadata
+- Unsafe redirect candidates are preserved as `resolution_status="unsafe"` instead of being hidden behind the wrapper URL
+- Parser-ambiguous hosts such as integer IPv4, short IPv4, octal/hex-looking IPv4, percent-encoded hosts, localhost names, private IP literals, and IPv6 loopback/mapped-local addresses are rejected by the pure URL preflight
 
 ### 4. Domain Policy
 
@@ -209,12 +228,29 @@ After each news round, a source block is appended to the group chat transcript:
 查询：xxx
 1. Title
    来源：Source｜Date｜Body status
+   证据：article_text / title_only / domain_blocked
    域名：example.com｜解析：resolved
+   跳转链：2 hops
+   域名策略：prefer-tech-domain
    原始链接：news.google.com
    真实链接：example.com
 ```
 
 This ensures all discussion claims are traceable to their sources and makes redirect/canonical dedup behavior visible during debugging.
+
+For programmatic audit, `src/news/pipeline.py` exposes:
+
+- `build_item_trace(item)` — one item with evidence level, domain policy, redirect hop count, and unsafe redirect flag
+- `build_pipeline_trace(query, news_items, feed_warnings)` — round-level counts for article-text coverage, title-only items, blocked items, unsafe redirects, source counts, and resolution counts
+- `format_pipeline_trace_markdown(trace)` — compact markdown report for debugging/logging
+- `format_feed_health_markdown(rows)` — compact source-health report from `feed_registry.feed_health_rows()`
+
+`src/news/audit.py` persists Codex-style run artifacts under `logs/news_audit/`:
+
+- `{run_id}.json` — machine-readable query, coverage, warnings, source block, digest, pipeline trace, and feed health
+- `{run_id}.md` — human-readable audit report with source block, trace summary, feed warnings, and feed health
+
+`run_news_round()` returns the audit paths as `audit_markdown_path` and `audit_json_path`.
 
 ## Setup Guide
 

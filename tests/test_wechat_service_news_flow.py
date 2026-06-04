@@ -168,6 +168,44 @@ class TestWechatGeneratorBudget:
         assert call_kwargs.get("max_tokens") is not None
         assert call_kwargs.get("task_name") == "wechat_interactive"
 
+    def test_generate_interactive_wechat_reply_stream_includes_rag_context(
+        self, monkeypatch
+    ):
+        from src import wechat_generator
+
+        captured: dict = {}
+        stream_result = iter(["hello"])
+
+        def _mock_stream_chat(messages, **kwargs):
+            captured["messages"] = messages
+            captured["kwargs"] = kwargs
+            return stream_result
+
+        monkeypatch.setattr(wechat_generator, "stream_chat", _mock_stream_chat)
+        monkeypatch.setattr(wechat_generator, "read_wechat_group", lambda: "【三月七】\nhi")
+        monkeypatch.setattr(
+            wechat_generator, "load_runtime_modes", lambda: type("Modes", (), {
+                "performance_mode": "standard",
+                "relationship_mode": "standard",
+                "first_reaction_done": True,
+            })()
+        )
+
+        stream, _is_first = wechat_generator.generate_interactive_wechat_reply_stream(
+            user_text="解释本地索引",
+            model_profile="flash",
+            relationship_mode="standard",
+            rag_context="[1] notes (notes.md:L1-L2, score=3.000)\n本地索引说明。",
+        )
+        list(stream)
+
+        system_prompt = captured["messages"][0]["content"]
+
+        assert "[Retrieved local documents]" in system_prompt
+        assert "notes.md:L1-L2" in system_prompt
+        assert "保留引用编号" in system_prompt
+        assert captured["kwargs"]["task_name"] == "wechat_interactive"
+
     def test_generate_news_digest_passes_max_tokens_and_task_name(self, monkeypatch):
         from src.news import digest as news_digest_module
 

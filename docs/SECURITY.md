@@ -2,7 +2,7 @@
 
 ## SSRF Protection
 
-`src/news/article_fetcher.py` implements defense-in-depth against Server-Side Request Forgery:
+`src/news/article_fetcher.py` implements defense-in-depth against Server-Side Request Forgery on the article-fetching network path:
 
 1. **DNS resolution check**: Resolves hostname at fetch time, rejects private/reserved IPs
 2. **Redirect validation**: Custom `_SafeHTTPRedirectHandler` validates every redirect hop (max 3 hops)
@@ -12,14 +12,29 @@
    - Internal hostnames (localhost, localhost.localdomain)
 4. **Protocol restriction**: HTTP(S) only
 
+`src/news/link_resolver.py` performs lightweight public-URL preflight checks and records blocked redirect targets, but it intentionally does not do DNS resolution because URL normalization is kept network-free. DNS/IP validation happens before real article fetches.
+
+`src/news/url_normalizer.py` rejects parser-ambiguous or unsafe URL forms before metadata is attached:
+
+- non-HTTP(S) schemes
+- credentialed URLs
+- localhost names and `.localhost`
+- private, loopback, link-local, multicast, reserved, and unspecified IP literals
+- short / integer / octal-looking / hex-looking IPv4 forms
+- percent-encoded hostnames
+- backslashes, control characters, spaces, and invalid ports
+- repeated-encoded redirect targets that decode to unsafe URLs
+
 ## Secret Scanning
 
-CI pipeline runs `detect-secrets` as a hard gate (fails on detection). Scans for:
+CI pipeline runs `detect-secrets` and fails if the scan JSON contains any unallowlisted finding under `results`. The workflow disables `KeywordDetector` to reduce noisy generic key-name matches, while retaining detector plugins such as:
 
-- OpenAI / DeepSeek / OpenRouter / SiliconFlow API keys
 - GitHub personal access tokens (classic and fine-grained)
-- Generic `sk-`, `pk-` token patterns
-- Private key markers (`.pem`, `-----BEGIN`)
+- OpenAI-style API keys
+- Cloud, package-registry, chat-service, and payment-provider tokens
+- Private key markers
+
+The intentional Basic Auth-shaped URL fixture in `tests/test_url_normalizer.py` is marked with an inline allowlist comment. Local tracked-file verification on 2026-06-03 produced empty scan `results`.
 
 ## Configuration Safety
 

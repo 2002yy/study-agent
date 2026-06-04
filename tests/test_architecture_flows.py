@@ -6,6 +6,7 @@ from src.mode_manager import (
     is_memory_write_allowed,
     run_with_confirm_write,
 )
+from src.context_builder import build_messages
 from src.router import RoutingConfig, route_request
 from src.ui.sidebar import _switch_to_wechat_entry
 from src.ui.wechat_panel import _apply_mark_wechat_read, _apply_new_wechat_group
@@ -218,3 +219,31 @@ def test_apply_new_wechat_group_clears_pending_input(monkeypatch):
     assert session_state.wechat_pending_input is None
     assert session_state.wechat_news_items == []
     assert session_state.wechat_news_digest == ""
+
+
+def test_build_messages_includes_rag_context_with_citations():
+    messages = build_messages(
+        user_input="Explain routing",
+        role_prompt="You are a tutor.",
+        mode="普通",
+        memory_bundle={},
+        rag_context="[1] notes (notes.md:L1-L2, score=3.000)\nRouting uses rules.",
+    )
+
+    system_prompt = messages[0]["content"]
+
+    assert "[Retrieved local documents]" in system_prompt
+    assert "Preserve citation numbers" in system_prompt
+    assert "notes.md:L1-L2" in system_prompt
+
+
+def test_build_messages_omits_empty_rag_context():
+    messages = build_messages(
+        user_input="Explain routing",
+        role_prompt="You are a tutor.",
+        mode="普通",
+        memory_bundle={},
+        rag_context="No relevant local documents retrieved.",
+    )
+
+    assert "[Retrieved local documents]" not in messages[0]["content"]

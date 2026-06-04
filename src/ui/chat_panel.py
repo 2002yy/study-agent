@@ -12,6 +12,7 @@ from src.performance_budget import chat_max_tokens
 from src.mode_manager import load_runtime_modes
 from src.model_stats import estimate_tokens, record_call, record_perf
 from src.perf import PerfTracker, write_perf_log
+from src.rag import build_rag_context, format_rag_sources, query_documents
 from src.role_manager import load_role
 from src.router import route_request
 from src.session_logger import flush_current_session, log
@@ -105,6 +106,31 @@ def _progress_snippet() -> tuple[str, str]:
             break
 
     return recent or "等待首次记录", next_step or "等待首次记录"
+
+
+def _build_chat_rag_context(user_input: str) -> tuple[str, int, str]:
+    if not st.session_state.get("rag_chat_enabled"):
+        return "", 0, ""
+
+    try:
+        top_k = int(st.session_state.get("rag_chat_top_k", 3))
+        results = query_documents(
+            user_input,
+            top_k=top_k,
+            retrieval_mode=st.session_state.get("rag_retrieval_mode", "hybrid"),
+        )
+    except FileNotFoundError:
+        return "", 0, "RAG index missing"
+    except Exception as exc:
+        return "", 0, f"RAG retrieval failed: {exc}"
+
+    context = build_rag_context(results)
+    if not results:
+        return "", 0, "No relevant local documents"
+    st.session_state.rag_results = results
+    st.session_state.rag_context = context
+    st.session_state.rag_source_block = format_rag_sources(results)
+    return context, len(results), ""
 
 
 def _queue_input(prompt: str):
@@ -289,6 +315,12 @@ def _process_user_input(user_input: str, role_prompt: str):
     )
 
     perf.start("context")
+    rag_context, rag_result_count, rag_warning = _build_chat_rag_context(user_input)
+    route["rag_enabled"] = bool(st.session_state.get("rag_chat_enabled"))
+    route["rag_result_count"] = rag_result_count
+    if rag_warning:
+        route["rag_warning"] = rag_warning
+
     api_messages = build_messages(
         user_input=user_input,
         role_prompt=active_prompt,
@@ -298,6 +330,7 @@ def _process_user_input(user_input: str, role_prompt: str):
         relationship_mode=st.session_state.interaction_mode,
         runtime_modes=runtime_modes,
         context_mode=context_mode,
+        rag_context=rag_context,
     )
     perf.stop("context", "context_build_time")
 
@@ -343,6 +376,13 @@ def _process_user_input(user_input: str, role_prompt: str):
                 f"覆盖: {'是' if current_route['manual_override'] else '否（自动）'}"
             )
             st.caption(f"原因: {current_route['reason']}")
+            if current_route.get("rag_enabled"):
+                st.caption(f"RAG 引用: {current_route.get('rag_result_count', 0)}")
+                if current_route.get("rag_warning"):
+                    st.caption(f"RAG 状态: {current_route['rag_warning']}")
+                elif st.session_state.get("rag_source_block"):
+                    with st.expander("RAG 引用来源", expanded=False):
+                        st.code(st.session_state.rag_source_block, language="text")
 
         st.session_state.messages.append(
             {

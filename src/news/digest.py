@@ -6,6 +6,7 @@ import re
 
 from src.llm_client import ModelProfile, chat
 from src.news.link_resolver import _display_link_host
+from src.news.pipeline import build_item_trace
 from src.performance_budget import news_digest_max_tokens
 from src.news.rss_fetcher import normalize_news_query
 
@@ -72,11 +73,19 @@ def format_news_source_block(query_text: str, news_items: list[dict]) -> str:
         domain = item.get("domain", "") or _display_link_host(resolved_link)
         resolution_status = item.get("resolution_status", "") or "unknown"
         article_status = item.get("article_status", "仅标题")
+        trace = build_item_trace(item)
 
         lines.append(f"{idx}. {title}")
         lines.append(f"   来源：{source}｜{published_at}｜{article_status}")
+        lines.append(f"   证据：{trace.evidence_level}")
         if domain:
             lines.append(f"   域名：{domain}｜解析：{resolution_status}")
+        if trace.redirect_hop_count:
+            lines.append(f"   跳转链：{trace.redirect_hop_count} hops")
+        if trace.unsafe_redirect_blocked:
+            lines.append("   安全：已阻断不安全跳转")
+        if trace.domain_policy_reasons:
+            lines.append(f"   域名策略：{', '.join(trace.domain_policy_reasons)}")
         if original_link:
             original_host = _display_link_host(original_link) or "原始来源"
             lines.append(f"   原始链接：{original_host}")

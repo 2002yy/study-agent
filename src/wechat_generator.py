@@ -90,6 +90,7 @@ def generate_wechat_news_discussion(
 def _build_interactive_messages(
     user_text: str,
     relationship_mode: str | None = None,
+    rag_context: str = "",
 ) -> tuple[list[dict], bool]:
     modes = load_runtime_modes()
     if relationship_mode is None:
@@ -115,6 +116,14 @@ def _build_interactive_messages(
         prompt += (
             "\n[互动氛围: close] 可以更贴近更柔和，但不能生成成人内容，"
             "不能模拟现实恋人，不能削弱学习目标。"
+        )
+
+    if rag_context.strip() and "No relevant local documents retrieved" not in rag_context:
+        prompt += (
+            "\n\n[Retrieved local documents]\n"
+            "下面是用户本地资料库检索到的引用片段。只有相关时才使用；"
+            "如果使用，请保留引用编号，例如 [1]。\n"
+            f"{rag_context.strip()}"
         )
 
     messages = [
@@ -262,8 +271,13 @@ def generate_interactive_wechat_reply(
     user_text: str,
     model_profile: ModelProfile = "flash",
     relationship_mode: str | None = None,
+    rag_context: str = "",
 ) -> str:
-    messages, _is_first = _build_interactive_messages(user_text, relationship_mode)
+    messages, _is_first = _build_interactive_messages(
+        user_text,
+        relationship_mode,
+        rag_context,
+    )
     raw = chat(
         messages,
         temperature=0.7,
@@ -278,8 +292,13 @@ def generate_interactive_wechat_reply_stream(
     user_text: str,
     model_profile: ModelProfile = "flash",
     relationship_mode: str | None = None,
+    rag_context: str = "",
 ):
-    messages, is_first = _build_interactive_messages(user_text, relationship_mode)
+    messages, is_first = _build_interactive_messages(
+        user_text,
+        relationship_mode,
+        rag_context,
+    )
     return (
         stream_chat(
             messages,

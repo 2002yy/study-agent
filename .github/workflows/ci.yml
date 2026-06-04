@@ -36,12 +36,25 @@ jobs:
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$' --all-files \
             > .secrets.out 2>&1
-          if [ -s .secrets.out ] && grep -q '"is_secret": true' .secrets.out 2>/dev/null; then
-            echo "ERROR: potential secrets detected — this is a public repository"
-            echo "If these are false positives, add an inline comment or update .secrets.baseline"
-            cat .secrets.out
-            exit 1
-          fi
+          python - <<'PY'
+          import json
+          import sys
+
+          with open(".secrets.out", encoding="utf-8") as f:
+              report = json.load(f)
+
+          findings = {
+              filename: secrets
+              for filename, secrets in report.get("results", {}).items()
+              if secrets
+          }
+          if findings:
+              print("ERROR: potential secrets detected — this is a public repository")
+              print("If these are false positives, add an inline allowlist comment or update the scan exclusions.")
+              json.dump(findings, sys.stdout, indent=2, sort_keys=True)
+              print()
+              sys.exit(1)
+          PY
           echo "detect-secrets: no secrets found"
 
       - name: Run expanded mypy

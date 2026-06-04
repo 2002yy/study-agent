@@ -46,6 +46,7 @@ def build_system_prompt(
     relationship_mode: str = "standard",
     runtime_modes: RuntimeModes | None = None,
     context_mode: str = "light",
+    rag_context: str = "",
 ) -> str:
     if runtime_modes is None:
         runtime_modes = load_runtime_modes()
@@ -64,6 +65,13 @@ def build_system_prompt(
     for filename, content in _select_memory(memory_bundle, context_mode):
         parts.append(f"[Memory: {filename}]\n{content}")
 
+    if rag_context.strip() and "No relevant local documents retrieved" not in rag_context:
+        parts.append(
+            "[Retrieved local documents]\n"
+            "Use these snippets only when they are relevant. Preserve citation numbers when answering.\n"
+            f"{rag_context.strip()}"
+        )
+
     return "\n\n".join(parts)
 
 
@@ -76,6 +84,7 @@ def build_messages(
     relationship_mode: str = "standard",
     runtime_modes: RuntimeModes | None = None,
     context_mode: str = "light",
+    rag_context: str = "",
 ) -> list[dict]:
     if runtime_modes is None:
         runtime_modes = load_runtime_modes()
@@ -90,6 +99,7 @@ def build_messages(
                 relationship_mode=relationship_mode,
                 runtime_modes=runtime_modes,
                 context_mode=context_mode,
+                rag_context=rag_context,
             ),
         }
     ]

@@ -2,17 +2,31 @@
 
 ## Test Suite
 
-**140 tests**, Ruff clean, running on GitHub Actions CI.
+Current verified baseline:
+
+| Check | Status | Evidence |
+|---|---|---|
+| pytest | Passed | `257 passed` locally on 2026-06-04 |
+| Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-04 |
+| Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-04 |
+| mypy | Soft check, not clean | `python -m mypy --explicit-package-bases src/` reported 18 errors locally on 2026-06-04 |
+| detect-secrets | CI hard gate configured | Workflow parses scan JSON and fails when `results` contains any unallowlisted finding; local tracked-file scan was empty on 2026-06-04 |
+| GitHub Actions | Recent main runs passing | Latest 6 CI runs on `main` were `success` when checked on 2026-06-03 |
 
 ### Categories
 
 | Area | File | Tests |
 |---|---|---|
-| **Packaging guards** | `test_packaging_guards.py` | 18 |
-| **Performance budget** | `test_performance_budget.py` | 14 |
-| **News entry flow** | `test_wechat_news_entry_flow.py` | 8 |
-| **News service** | `test_wechat_service_news_flow.py` | 6 |
-| **Architecture flows** | `test_architecture_flows.py` | — |
+| **Packaging guards** | `test_packaging_guards.py` | 26 |
+| **Performance budget** | `test_performance_budget.py` | 15 |
+| **News entry flow** | `test_wechat_news_entry_flow.py` | 7 |
+| **News service** | `test_wechat_service_news_flow.py` | 7 |
+| **News URL safety** | `test_url_normalizer.py`, `test_link_resolver.py` | 28 |
+| **News pipeline trace / audit** | `test_news_pipeline_trace.py`, `test_news_audit.py` | 5 |
+| **Feed registry / health** | `test_feed_registry.py`, `test_feed_diagnostics.py` | 9 |
+| **RAG MVP** | `test_rag.py` | 20 |
+| **FastAPI RAG endpoints** | `test_api.py` | 5 |
+| **Architecture flows** | `test_architecture_flows.py` | 12 |
 | **WeChat decoupling** | `test_wechat_decoupling.py` | 4 |
 | **Sidebar rerun** | `test_sidebar_global_rerun.py` | 12 |
 | Various unit tests | (spread across test directory) | — |
@@ -53,16 +67,25 @@ def test_flush_uses_safe_writer():
 |---|---|---|
 | Install deps | `pip install -r requirements.txt -r requirements-dev.txt` | — |
 | Lint | `ruff check .` | Hard |
-| Type check | `mypy --explicit-package-bases src/` | Soft (continue-on-error) |
 | Test | `pytest` | Hard |
 | Package check | `python tools/package_project_helper.py` | Hard |
-| Secret scan | `detect-secrets` | Hard |
+| Secret scan | `detect-secrets` | Hard gate for any unallowlisted finding |
+| Type check | `mypy --explicit-package-bases src/` | Soft (continue-on-error) |
 
 ## Running Tests
 
 ```bash
-pytest tests/                # 140 tests
+python -m pytest             # current baseline: 257 passed
 pytest tests/ -v             # Verbose
 pytest tests/ --cov=src      # Coverage
-ruff check src/ tests/       # Linting
+python -m ruff check .       # Linting
+python -m mypy --explicit-package-bases src/  # Soft check; currently has type debt
 ```
+
+Tracked-file secret scan used for local verification:
+
+```bash
+detect-secrets scan --disable-plugin KeywordDetector --exclude-files '.*\.(pyc|jpg|png|zip)$' .github README.md docs src tests tools config templates roles changelog assets
+```
+
+The intentional Basic Auth-shaped URL fixture in `tests/test_url_normalizer.py` is marked with an inline allowlist comment. The CI workflow parses the scan JSON and fails if any file has non-empty `results`, so the gate no longer depends on a version-specific field such as `is_secret` or `is_verified`.

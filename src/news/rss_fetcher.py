@@ -5,11 +5,15 @@ from __future__ import annotations
 import re
 import time
 from email.utils import parsedate_to_datetime
-from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 from src.news.domain_policy import annotate_domain_policy, news_sort_score
+from src.news.feed_registry import (
+    mark_seen_entries,
+    record_feed_result,
+    registered_feed_urls,
+)
 from src.news.link_resolver import (
     _has_direct_article_link,
     _news_item_url,
@@ -52,6 +56,7 @@ _NEWS_CACHE_TTL = 600
 _NEWS_CACHE_MAX_SIZE = 32
 _RECENT_NEWS_WINDOW_DAYS = 90
 _LAST_FEED_WARNINGS: list[dict] = []
+_LAST_FEED_METADATA: dict[str, dict[str, str]] = {}
 
 
 def get_last_feed_warnings() -> list[dict]:
@@ -62,6 +67,30 @@ def get_last_feed_warnings() -> list[dict]:
 def _set_last_feed_warnings(warnings: list[dict]) -> None:
     global _LAST_FEED_WARNINGS
     _LAST_FEED_WARNINGS = [dict(item) for item in warnings]
+
+
+def _record_feed_result_safely(
+    source: str,
+    url: str,
+    *,
+    ok: bool,
+    item_count: int = 0,
+    error: Exception | None = None,
+    etag: str = "",
+    modified: str = "",
+) -> None:
+    try:
+        record_feed_result(
+            source,
+            url,
+            ok=ok,
+            item_count=item_count,
+            error=error,
+            etag=etag,
+            modified=modified,
+        )
+    except Exception:
+        pass
 
 
 def _prune_cache(
@@ -321,6 +350,22 @@ def _fetch_rss_items_from_url(
     source_fallback: str = "News Source",
     query_text: str = "",
 ) -> list[dict]:
+    items, _metadata = _fetch_rss_items_with_metadata(
+        feed_url,
+        max_items=max_items,
+        source_fallback=source_fallback,
+        query_text=query_text,
+    )
+    return items
+
+
+def _fetch_rss_items_with_metadata(
+    feed_url: str,
+    max_items: int = 10,
+    source_fallback: str = "News Source",
+    query_text: str = "",
+) -> tuple[list[dict], dict]:
+    global _LAST_FEED_METADATA
     req = Request(
         feed_url,
         headers={
@@ -330,7 +375,12 @@ def _fetch_rss_items_from_url(
     )
 
     with urlopen(req, timeout=15) as response:
+        metadata = {
+            "etag": response.headers.get("ETag", ""),
+            "modified": response.headers.get("Last-Modified", ""),
+        }
         payload = response.read()
+    _LAST_FEED_METADATA[feed_url] = metadata
 
     try:
         root = ET.fromstring(payload)
@@ -377,19 +427,14 @@ def _fetch_rss_items_from_url(
         if len(items) >= max_items:
             break
 
-    return items
+    return items, metadata
 
 
 # ── News item fetching pipeline ───────────────────────────────────────
 
 
 def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
-    query = quote_plus(query_text)
-    feed_urls = [
-        ("Google News", NEWS_FEED_URL.format(query=query), False),
-        ("Bing News", BING_NEWS_FEED_URL.format(query=query), False),
-    ]
-    feed_urls.extend((feed["name"], feed["url"], True) for feed in DOMESTIC_NEWS_FEEDS)
+    feed_urls = registered_feed_urls(query_text)
 
     items: list[dict] = []
     errors: list[Exception] = []
@@ -411,16 +456,30 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     for source_name, feed_url, filter_by_query in feed_urls:
         try:
-            items.extend(
-                _fetch_rss_items_from_url(
-                    feed_url,
-                    max_items=per_feed_limit,
-                    source_fallback=source_name,
-                    query_text=query_text if filter_by_query else "",
-                )
+            feed_items = _fetch_rss_items_from_url(
+                feed_url,
+                max_items=per_feed_limit,
+                source_fallback=source_name,
+                query_text=query_text if filter_by_query else "",
+            )
+            feed_metadata = _LAST_FEED_METADATA.get(feed_url, {})
+            items.extend(feed_items)
+            _record_feed_result_safely(
+                source_name,
+                feed_url,
+                ok=True,
+                item_count=len(feed_items),
+                etag=feed_metadata.get("etag", ""),
+                modified=feed_metadata.get("modified", ""),
             )
         except Exception as exc:
             errors.append(exc)
+            _record_feed_result_safely(
+                source_name,
+                feed_url,
+                ok=False,
+                error=exc,
+            )
             feed_warnings.append(
                 {
                     "source": source_name,
@@ -465,6 +524,10 @@ def fetch_news_items(
     )
 
     _NEWS_CACHE[cache_key] = (now, items)
+    try:
+        mark_seen_entries(items, now=now)
+    except Exception:
+        pass
     return items
 
 

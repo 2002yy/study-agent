@@ -46,7 +46,7 @@ memory/
 
 - LRU-cached (64 entries), invalidated on file signature change
 - Context-mode selection via `CONTEXT_FILE_GROUPS` (see CONTEXT_TIERS.md)
-- `extract_core_section()` strips frontmatter for lightweight reads
+- `extract_core_section()` keeps the first core lines for lightweight reads
 
 ### Writing
 
