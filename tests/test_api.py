@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from src.mode_manager import RuntimeModes
 from src.api import app
 
 
@@ -118,3 +119,159 @@ def test_rag_index_endpoint_reports_missing_files(tmp_path):
     response = client.post("/rag/index", json={"paths": [str(tmp_path / "missing.md")]})
 
     assert response.status_code == 404
+
+
+def test_local_knowledge_endpoint_applies_agentic_retrieval(tmp_path):
+    client = TestClient(app)
+    document = tmp_path / "agentic.md"
+    index_path = tmp_path / "rag_index.json"
+    document.write_text("Agentic RAG retrieves local evidence only when useful.", encoding="utf-8")
+    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+
+    skipped = client.post(
+        "/rag/local-knowledge",
+        json={"query": "你好", "index_path": str(index_path)},
+    )
+    found = client.post(
+        "/rag/local-knowledge",
+        json={
+            "query": "请根据本地资料解释 Agentic RAG evidence",
+            "index_path": str(index_path),
+            "top_k": 1,
+        },
+    )
+
+    assert skipped.status_code == 200
+    assert skipped.json()["status"] == "skipped"
+    assert found.status_code == 200
+    data = found.json()
+    assert data["status"] == "found"
+    assert data["result_count"] == 1
+    assert "agentic.md" in data["sources"]
+
+
+def test_rag_status_and_upload_endpoints(tmp_path):
+    client = TestClient(app)
+    index_path = tmp_path / "uploaded_index.json"
+
+    upload_response = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
+        files={"files": ("upload.md", b"Uploaded RAG files become indexed chunks.", "text/markdown")},
+    )
+    status_response = client.get("/rag/status", params={"index_path": str(index_path)})
+
+    assert upload_response.status_code == 200
+    assert upload_response.json()["documents"] == 1
+    assert status_response.status_code == 200
+    data = status_response.json()
+    assert data["index_exists"] is True
+    assert data["documents"] == 1
+    assert data["chunks"] == 1
+    assert data["vector_backend"]["name"] == "local"
+
+
+def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
+    from src import api
+
+    captured = {}
+
+    def fake_chat(messages, **kwargs):
+        captured["messages"] = messages
+        captured["kwargs"] = kwargs
+        return "API reply"
+
+    monkeypatch.setattr(api, "chat", fake_chat)
+    monkeypatch.setattr(api, "load_role", lambda role: f"role prompt for {role}")
+    monkeypatch.setattr(api, "read_memory_bundle", lambda context_mode: {})
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="preview", performance_mode="fast"),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={
+            "user_input": "hello api",
+            "selected_role": "march7",
+            "selected_mode": "普通",
+            "selected_model": "flash",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["reply"] == "API reply"
+    assert data["route"]["role"] == "march7"
+    assert data["rag"]["status"] == "skipped"
+    assert captured["kwargs"]["task_name"] == "single_chat"
+    assert captured["messages"][-1]["content"] == "hello api"
+
+
+def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):
+    from src import api, memory_writer
+
+    target = tmp_path / "progress.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "progress", target)
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
+    )
+    monkeypatch.setattr(memory_writer, "load_runtime_modes", api.load_runtime_modes)
+    client = TestClient(app)
+    payload = {"updates": [{"target": "progress", "content": "API memory update"}]}
+
+    preview = client.post("/memory/preview", json=payload)
+    commit = client.post("/memory/commit", json=payload)
+
+    assert preview.status_code == 200
+    assert preview.json()["writable"] is True
+    assert preview.json()["updates"][0]["path"] == str(target)
+    assert commit.status_code == 200
+    assert commit.json()["results"][0]["target"] == "progress"
+    assert "API memory update" in target.read_text(encoding="utf-8")
+
+
+def test_memory_commit_rejects_when_runtime_is_not_writable(monkeypatch, tmp_path):
+    from src import api, memory_writer
+
+    target = tmp_path / "progress.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "progress", target)
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="preview", safe_mode=False),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/memory/commit",
+        json={"updates": [{"target": "progress", "content": "should not write"}]},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "preview"
+    assert not target.exists()
+
+
+def test_sessions_endpoint_lists_current_and_archived_files(monkeypatch, tmp_path):
+    from src import api
+
+    current_dir = tmp_path / "current"
+    archived_dir = tmp_path / "sessions"
+    current_dir.mkdir()
+    archived_dir.mkdir()
+    (current_dir / "active.md").write_text("active session", encoding="utf-8")
+    (archived_dir / "old.md").write_text("old session", encoding="utf-8")
+    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
+    monkeypatch.setattr(api, "SESSION_DIR", archived_dir)
+    client = TestClient(app)
+
+    response = client.get("/sessions")
+
+    assert response.status_code == 200
+    names = {item["name"] for item in response.json()["sessions"]}
+    assert names == {"active.md", "old.md"}

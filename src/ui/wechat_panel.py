@@ -13,7 +13,7 @@ from src.mode_manager import (
     update_interaction_mode,
     update_wechat_join_state,
 )
-from src.rag import build_rag_context, format_rag_sources, query_documents
+from src.tools.local_knowledge import retrieve_local_knowledge
 from src.session_logger import (
     set_wechat_interactive,
     set_wechat_memory_candidates,
@@ -113,26 +113,26 @@ def _build_wechat_rag_context(user_text: str) -> tuple[str, int, str]:
     if not st.session_state.get("rag_chat_enabled"):
         return "", 0, ""
 
-    try:
-        top_k = int(st.session_state.get("rag_chat_top_k", 3))
-        results = query_documents(
-            user_text,
-            top_k=top_k,
-            retrieval_mode=st.session_state.get("rag_retrieval_mode", "hybrid"),
-        )
-    except FileNotFoundError:
-        return "", 0, "RAG index missing"
-    except Exception as exc:
-        return "", 0, f"RAG retrieval failed: {exc}"
-
-    context = build_rag_context(results)
-    if not results:
-        return "", 0, "No relevant local documents"
-
-    st.session_state.rag_results = results
-    st.session_state.rag_context = context
-    st.session_state.rag_source_block = format_rag_sources(results)
-    return context, len(results), ""
+    top_k = int(st.session_state.get("rag_chat_top_k", 3))
+    result = retrieve_local_knowledge(
+        user_text,
+        top_k=top_k,
+        retrieval_mode=st.session_state.get("rag_retrieval_mode", "hybrid"),
+    )
+    st.session_state.rag_debug = result.debug
+    if result.status == "skipped":
+        return "", 0, ""
+    if result.status == "found":
+        st.session_state.rag_results = result.results
+        st.session_state.rag_context = result.context
+        st.session_state.rag_source_block = result.sources
+        return result.context, len(result.results), ""
+    if result.status == "not_found":
+        st.session_state.rag_results = []
+        st.session_state.rag_context = result.context
+        st.session_state.rag_source_block = ""
+        return result.context, 0, "No relevant local documents"
+    return "", 0, result.reason
 
 
 def _active_wechat_content() -> tuple[str, str]:

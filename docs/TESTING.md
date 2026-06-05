@@ -6,7 +6,7 @@ Current verified baseline:
 
 | Check | Status | Evidence |
 |---|---|---|
-| pytest | Passed | `277 passed` locally on 2026-06-05 |
+| pytest | Passed | `290 passed` locally on 2026-06-05 |
 | Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-05 |
 | Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-05 |
 | mypy | Passed locally; CI soft check | `python -m mypy --explicit-package-bases src` clean locally on 2026-06-05 |
@@ -27,7 +27,8 @@ Current verified baseline:
 | **RAG MVP** | `test_rag.py` | 24 |
 | **RAG evaluation** | `test_rag_eval.py` | 5 |
 | **RAG vector backends** | `test_rag_backends.py` | 10 |
-| **FastAPI RAG endpoints** | `test_api.py` | 6 |
+| **Controlled local knowledge tool** | `test_local_knowledge_tool.py` | 7 |
+| **FastAPI service endpoints** | `test_api.py` | 12 |
 | **Architecture flows** | `test_architecture_flows.py` | 12 |
 | **WeChat decoupling** | `test_wechat_decoupling.py` | 4 |
 | **Sidebar rerun** | `test_sidebar_global_rerun.py` | 12 |
@@ -77,7 +78,7 @@ def test_flush_uses_safe_writer():
 ## Running Tests
 
 ```bash
-python -m pytest             # current baseline: 277 passed
+python -m pytest             # current baseline: 290 passed
 pytest tests/ -v             # Verbose
 pytest tests/ --cov=src      # Coverage
 python -m ruff check .       # Linting

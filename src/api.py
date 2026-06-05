@@ -3,13 +3,29 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from src import memory_writer
+from src.context_builder import build_messages
+from src.llm_client import chat
+from src.memory import read_memory_bundle
+from src.mode_manager import is_memory_write_allowed, load_runtime_modes
+from src.performance_budget import chat_max_tokens
 from src.rag import build_rag_context, format_rag_sources, index_documents
+from src.rag.backends import get_vector_backend_from_env
 from src.rag.eval import RagEvalCase, evaluate_case
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.service import build_rag_debug, search_documents
+from src.role_manager import load_role
+from src.router import route_request
+from src.session_logger import flush_current_session, get_or_create_session, init_session, log
+from src.tools.local_knowledge import retrieve_local_knowledge
+
+ROOT = Path(__file__).resolve().parent.parent
+RAG_UPLOAD_DIR = ROOT / "logs" / "rag_uploads"
+SESSION_DIR = ROOT / "logs" / "sessions"
+CURRENT_SESSION_DIR = ROOT / "logs" / "current"
 
 
 class HealthResponse(BaseModel):
@@ -29,6 +45,14 @@ class RagIndexResponse(BaseModel):
     documents: int
     chunks: int
     index_path: str
+
+
+class RagStatusResponse(BaseModel):
+    index_path: str
+    index_exists: bool
+    documents: int = 0
+    chunks: int = 0
+    vector_backend: dict[str, Any]
 
 
 class RagQueryRequest(BaseModel):
@@ -53,11 +77,125 @@ class RagQueryResponse(BaseModel):
     evaluation: dict[str, Any] | None = None
 
 
+class LocalKnowledgeRequest(BaseModel):
+    query: str = Field(min_length=1)
+    enabled: bool = True
+    force: bool = False
+    index_path: str | None = None
+    top_k: int = Field(default=3, gt=0, le=20)
+    min_score: float = Field(default=0.01, ge=0)
+    retrieval_mode: str = Field(default="hybrid")
+    context_max_chars: int = Field(default=3000, gt=0, le=20_000)
+    allow_rewrite: bool = True
+    weak_score_threshold: float = Field(default=0.05, ge=0)
+
+
+class LocalKnowledgeResponse(BaseModel):
+    status: str
+    query: str
+    retrieval_mode: str
+    reason: str
+    context: str
+    sources: str
+    result_count: int
+    results: list[dict[str, Any]]
+    debug: dict[str, Any]
+    attempts: list[dict[str, Any]]
+    rewritten_query: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    user_input: str = Field(min_length=1)
+    selected_role: str = "auto"
+    selected_mode: str = "auto"
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    context_mode: str | None = None
+    chat_history: list[ChatMessage] = Field(default_factory=list)
+    session_id: str | None = None
+    rag_enabled: bool = False
+    rag_top_k: int = Field(default=3, gt=0, le=20)
+    rag_retrieval_mode: str = "hybrid"
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    session_id: str
+    route: dict[str, Any]
+    rag: dict[str, Any]
+
+
+class MemoryUpdate(BaseModel):
+    target: str
+    content: str = Field(min_length=1)
+    append: bool = True
+    learner_pending: bool = False
+
+
+class MemoryPreviewRequest(BaseModel):
+    updates: list[MemoryUpdate] = Field(min_length=1)
+
+
+class MemoryPreviewItem(BaseModel):
+    target: str
+    path: str
+    action: str
+    allowed: bool
+    preview: str
+
+
+class MemoryPreviewResponse(BaseModel):
+    writable: bool
+    memory_mode: str
+    safe_mode: bool
+    updates: list[MemoryPreviewItem]
+
+
+class MemoryCommitResponse(BaseModel):
+    writable: bool
+    results: list[dict[str, str]]
+
+
+class SessionListResponse(BaseModel):
+    sessions: list[dict[str, Any]]
+
+
 app = FastAPI(title="Study Agent API", version="0.1.0")
 
 
 def _index_path(value: str | None) -> Path:
     return Path(value) if value else DEFAULT_RAG_INDEX_PATH
+
+
+def _memory_target_path(target: str) -> Path:
+    path = memory_writer.MEMORY_TARGETS.get(target)
+    if path is None:
+        raise HTTPException(status_code=400, detail=f"Unknown memory target: {target}")
+    return path
+
+
+def _session_file_rows(directory: Path, kind: str, limit: int) -> list[dict[str, Any]]:
+    if not directory.is_dir():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in directory.glob("*.md"):
+        stat = path.stat()
+        rows.append(
+            {
+                "kind": kind,
+                "name": path.name,
+                "path": str(path),
+                "size_bytes": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    rows.sort(key=lambda row: int(row["mtime_ns"]), reverse=True)
+    return rows[:limit]
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -66,6 +204,32 @@ def health() -> HealthResponse:
         status="ok",
         service="study-agent",
         rag_index_exists=DEFAULT_RAG_INDEX_PATH.exists(),
+    )
+
+
+@app.get("/rag/status", response_model=RagStatusResponse)
+def rag_status(index_path: str | None = None) -> RagStatusResponse:
+    target = _index_path(index_path)
+    documents = 0
+    chunks = 0
+    if target.exists():
+        index = load_rag_index(target)
+        documents = len(index.documents)
+        chunks = len(index.chunks)
+    try:
+        backend_status = get_vector_backend_from_env().status().to_dict()
+    except Exception as exc:
+        backend_status = {
+            "name": "unknown",
+            "available": False,
+            "detail": str(exc),
+        }
+    return RagStatusResponse(
+        index_path=str(target),
+        index_exists=target.exists(),
+        documents=documents,
+        chunks=chunks,
+        vector_backend=backend_status,
     )
 
 
@@ -88,6 +252,46 @@ def build_rag_index_endpoint(request: RagIndexRequest) -> RagIndexResponse:
         documents=len(index.documents),
         chunks=len(index.chunks),
         index_path=str(target),
+    )
+
+
+@app.post("/rag/upload", response_model=RagIndexResponse)
+async def upload_rag_documents(
+    files: list[UploadFile] = File(...),
+    index_path: str | None = None,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagIndexResponse:
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+    if max_chars <= 0 or max_chars > 10_000:
+        raise HTTPException(status_code=400, detail="max_chars out of range")
+    if overlap_chars < 0 or overlap_chars > 5_000:
+        raise HTTPException(status_code=400, detail="overlap_chars out of range")
+
+    RAG_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    saved_paths = []
+    for uploaded in files:
+        filename = Path(uploaded.filename or "document").name
+        target = RAG_UPLOAD_DIR / filename
+        target.write_bytes(await uploaded.read())
+        saved_paths.append(target)
+
+    target_index = _index_path(index_path)
+    try:
+        index = index_documents(
+            saved_paths,
+            index_path=target_index,
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return RagIndexResponse(
+        documents=len(index.documents),
+        chunks=len(index.chunks),
+        index_path=str(target_index),
     )
 
 
@@ -143,3 +347,154 @@ def query_rag_endpoint(request: RagQueryRequest) -> RagQueryResponse:
 @app.post("/rag", response_model=RagQueryResponse)
 def query_rag_alias(request: RagQueryRequest) -> RagQueryResponse:
     return query_rag_endpoint(request)
+
+
+@app.post("/rag/local-knowledge", response_model=LocalKnowledgeResponse)
+def local_knowledge_endpoint(request: LocalKnowledgeRequest) -> LocalKnowledgeResponse:
+    result = retrieve_local_knowledge(
+        request.query,
+        enabled=request.enabled,
+        force=request.force,
+        index_path=_index_path(request.index_path),
+        top_k=request.top_k,
+        min_score=request.min_score,
+        retrieval_mode=request.retrieval_mode,
+        context_max_chars=request.context_max_chars,
+        allow_rewrite=request.allow_rewrite,
+        weak_score_threshold=request.weak_score_threshold,
+    )
+    return LocalKnowledgeResponse(**result.to_dict())
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat_endpoint(request: ChatRequest) -> ChatResponse:
+    runtime_modes = load_runtime_modes()
+    context_mode = request.context_mode or runtime_modes.context_mode
+    route = route_request(
+        user_input=request.user_input,
+        selected_role=request.selected_role,
+        selected_mode=request.selected_mode,
+        selected_model=request.selected_model,
+        runtime_modes=runtime_modes,
+    )
+    role_prompt = load_role(route["role"])
+    memory_bundle = read_memory_bundle(context_mode)
+    rag_result = retrieve_local_knowledge(
+        request.user_input,
+        enabled=request.rag_enabled,
+        top_k=request.rag_top_k,
+        retrieval_mode=request.rag_retrieval_mode,
+    )
+    messages = build_messages(
+        user_input=request.user_input,
+        role_prompt=role_prompt,
+        mode=route["mode"],
+        memory_bundle=memory_bundle,
+        chat_history=[message.model_dump() for message in request.chat_history],
+        relationship_mode=request.relationship_mode,
+        runtime_modes=runtime_modes,
+        context_mode=context_mode,
+        rag_context=rag_result.context,
+    )
+    reply = chat(
+        messages,
+        model_profile=route["model_profile"],
+        max_tokens=chat_max_tokens(runtime_modes.performance_mode),
+        task_name="single_chat",
+    )
+    session_id = request.session_id or init_session()
+    log(
+        session_id=session_id,
+        role=route["role"],
+        mode=route["mode"],
+        model=route["model_profile"],
+        user_input=request.user_input,
+        agent_reply=reply,
+        memory_enabled=bool(memory_bundle),
+        route_info={**route, "rag_status": rag_result.status},
+    )
+    flush_current_session(
+        session_id,
+        performance_mode=runtime_modes.performance_mode,
+        debug_mode=runtime_modes.debug_mode,
+    )
+    return ChatResponse(
+        reply=reply,
+        session_id=session_id,
+        route=route,
+        rag=rag_result.to_dict(),
+    )
+
+
+@app.post("/memory/preview", response_model=MemoryPreviewResponse)
+def preview_memory_updates(request: MemoryPreviewRequest) -> MemoryPreviewResponse:
+    runtime_modes = load_runtime_modes()
+    writable = is_memory_write_allowed(runtime_modes)
+    items = []
+    for update in request.updates:
+        target = _memory_target_path(update.target)
+        action = "append" if update.append else "replace"
+        prefix = "### 待确认观察\n\n" if update.learner_pending else ""
+        preview = f"{prefix}{update.content.strip()}\n"
+        items.append(
+            MemoryPreviewItem(
+                target=update.target,
+                path=str(target),
+                action=action,
+                allowed=writable,
+                preview=preview,
+            )
+        )
+    return MemoryPreviewResponse(
+        writable=writable,
+        memory_mode=runtime_modes.memory_mode,
+        safe_mode=runtime_modes.safe_mode,
+        updates=items,
+    )
+
+
+@app.post("/memory/commit", response_model=MemoryCommitResponse)
+def commit_memory_updates(request: MemoryPreviewRequest) -> MemoryCommitResponse:
+    runtime_modes = load_runtime_modes()
+    writable = is_memory_write_allowed(runtime_modes)
+    if not writable:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "memory_mode": runtime_modes.memory_mode,
+                "safe_mode": runtime_modes.safe_mode,
+                "reason": runtime_modes.profile.memory_write_reason,
+            },
+        )
+    results = []
+    for update in request.updates:
+        _memory_target_path(update.target)
+        if update.target == "current_focus" and not update.append:
+            path = memory_writer.write_current_focus(update.content.strip())
+            action = "replace"
+        else:
+            path = memory_writer.append_memory(
+                update.target,
+                update.content.strip(),
+                learner_pending=update.learner_pending,
+            )
+            action = "append"
+        results.append({"target": update.target, "action": action, "path": path})
+    return MemoryCommitResponse(writable=writable, results=results)
+
+
+@app.get("/sessions", response_model=SessionListResponse)
+def list_sessions(limit: int = 20) -> SessionListResponse:
+    safe_limit = max(1, min(limit, 100))
+    current = _session_file_rows(CURRENT_SESSION_DIR, "current", safe_limit)
+    archived = _session_file_rows(SESSION_DIR, "archived", safe_limit)
+    sessions = [*current, *archived]
+    sessions.sort(key=lambda row: int(row["mtime_ns"]), reverse=True)
+    return SessionListResponse(sessions=sessions[:safe_limit])
+
+
+@app.post("/sessions/{session_id}/flush")
+def flush_session(session_id: str) -> dict[str, Any]:
+    get_or_create_session(session_id)
+    flushed = flush_current_session(session_id, force=True)
+    return {"session_id": session_id, "flushed": flushed}
