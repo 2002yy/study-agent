@@ -6,7 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.rag import build_rag_context, format_rag_sources, index_documents, query_documents
+from src.rag import (
+    build_rag_context,
+    build_rag_debug,
+    format_rag_sources,
+    index_documents,
+    query_documents,
+)
 from src.rag.chunker import chunk_document
 from src.rag.index import build_rag_index, load_rag_index, search_rag_index
 from src.rag.loader import load_document
@@ -205,6 +211,52 @@ def test_query_documents_rejects_unknown_retrieval_mode(tmp_path):
 
     with pytest.raises(ValueError, match="Unsupported RAG retrieval mode"):
         query_documents("retrieval", index_path=index_path, retrieval_mode="semantic")
+
+
+def test_build_rag_debug_explains_hybrid_scores(tmp_path):
+    python_doc = tmp_path / "python.md"
+    cooking_doc = tmp_path / "cooking.md"
+    python_doc.write_text("HTTP requests sessions reuse connections.", encoding="utf-8")
+    cooking_doc.write_text("Tomato pasta sauce needs basil.", encoding="utf-8")
+    index = build_rag_index([python_doc, cooking_doc], max_chars=200, overlap_chars=0)
+    results = search_rag_index_hybrid(index, "requests connections", top_k=1)
+
+    debug = build_rag_debug(
+        index,
+        "requests connections",
+        results,
+        retrieval_mode="hybrid",
+        top_k=1,
+        min_score=0.01,
+    )
+
+    assert debug["candidate_count"] == 2
+    assert debug["returned_count"] == 1
+    assert debug["query_terms"] == ["connections", "requests"]
+    breakdown = debug["results"][0]["score_breakdown"]
+    assert breakdown["lexical_weight"] == 0.7
+    assert breakdown["combined_score"] == results[0].score
+    assert breakdown["lexical_score"] > 0
+    assert breakdown["vector_score"] > 0
+
+
+def test_build_rag_debug_marks_empty_queries(tmp_path):
+    path = tmp_path / "notes.md"
+    path.write_text("Local retrieval.", encoding="utf-8")
+    index = build_rag_index([path], max_chars=200, overlap_chars=0)
+
+    debug = build_rag_debug(
+        index,
+        "",
+        [],
+        retrieval_mode="lexical",
+        top_k=3,
+        min_score=0.01,
+    )
+
+    assert debug["empty_query"] is True
+    assert debug["candidate_count"] == 1
+    assert debug["returned_count"] == 0
 
 
 def test_local_hash_embeddings_are_deterministic():

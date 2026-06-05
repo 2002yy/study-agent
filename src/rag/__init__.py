@@ -15,10 +15,12 @@ from src.rag.eval import (
     load_eval_cases,
 )
 from src.rag.service import (
+    build_rag_debug,
     build_rag_context,
     format_rag_sources,
     index_documents,
     query_documents,
+    search_documents,
 )
 from src.rag.vector import (
     cosine_similarity,
@@ -28,6 +30,7 @@ from src.rag.vector import (
 )
 
 __all__ = [
+    "build_rag_debug",
     "build_rag_context",
     "build_rag_index",
     "cosine_similarity",
@@ -46,4 +49,5 @@ __all__ = [
     "search_rag_index_hybrid",
     "search_rag_index",
     "search_rag_index_vector",
+    "search_documents",
 ]

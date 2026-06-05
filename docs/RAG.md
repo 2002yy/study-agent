@@ -116,15 +116,23 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - Empty-result and miss accounting
 - Unknown retrieval mode rejection
 
+P4-B adds API/query diagnostics:
+
+- Retrieval mode, `top_k`, `min_score` and tokenized query terms
+- Candidate count and returned result count
+- Per-result rank, chunk id, source path, matched terms and score breakdown
+- Optional one-query evaluation when `/rag/query` receives `expected_sources`
+
 ## Next Steps
 
 ### P4: Retrieval Quality Loop
 
 Goal: prove retrieval quality before expanding the stack.
 
-- Add a small gold fixture set with queries, expected sources and expected terms.
-- Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
-- Surface retrieval debug data in tests and API responses before adding more UI polish.
+- [x] Add a small gold fixture set with queries, expected sources and expected terms.
+- [x] Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
+- [x] Surface retrieval debug data in tests and API responses before adding more UI polish.
+- [ ] Add a Streamlit source/debug panel for inspecting score breakdowns.
 - Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
 
 ### P5: Real Embedding Backend
