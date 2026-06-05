@@ -398,7 +398,7 @@ def _process_user_input(user_input: str, role_prompt: str):
             mode=resolved_mode,
             model=resolved_model,
             user_input=user_input,
-            agent_reply=reply,
+            agent_reply=str(reply),
             memory_enabled=bool(memory_bundle),
             route_info=st.session_state.current_route,
         )

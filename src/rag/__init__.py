@@ -13,7 +13,13 @@ from src.rag.backends import (
     get_vector_backend_from_env,
     vector_backend_config_from_env,
 )
-from src.rag.embeddings import LocalHashEmbeddingProvider
+from src.rag.embeddings import (
+    LocalHashEmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    embedding_provider_config_from_env,
+    get_embedding_provider,
+    get_embedding_provider_from_env,
+)
 from src.rag.eval import (
     RagEvalCase,
     RagEvalResult,
@@ -50,6 +56,10 @@ __all__ = [
     "get_vector_backend",
     "get_vector_backend_from_env",
     "LocalHashEmbeddingProvider",
+    "OpenAIEmbeddingProvider",
+    "embedding_provider_config_from_env",
+    "get_embedding_provider",
+    "get_embedding_provider_from_env",
     "LocalVectorBackend",
     "load_eval_cases",
     "load_rag_index",

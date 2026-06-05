@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import MutableMapping
 from email.utils import parsedate_to_datetime
+from typing import Any
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -94,7 +96,7 @@ def _record_feed_result_safely(
 
 
 def _prune_cache(
-    cache: dict[str, tuple[float, ...]],
+    cache: MutableMapping[str, Any],
     ttl: float,
     max_size: int,
     now: float,

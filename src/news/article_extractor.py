@@ -135,7 +135,7 @@ def extract_article_text_with_readability(
     max_chars: int = 5000,
 ) -> str:
     try:
-        from readability import Document
+        from readability import Document  # type: ignore[import-untyped]
 
         doc = Document(html)
         summary_html = doc.summary(html_partial=True)

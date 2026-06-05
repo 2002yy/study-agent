@@ -103,11 +103,8 @@ def reset_client() -> None:
 
 
 def _normalize_provider_profile(provider_profile: str | None = None) -> str:
-    profile = (
-        (provider_profile or os.getenv("LLM_PROVIDER_PROFILE", "openai"))
-        .strip()
-        .lower()
-    )
+    raw_profile = provider_profile or os.getenv("LLM_PROVIDER_PROFILE") or "openai"
+    profile = raw_profile.strip().lower()
     if profile not in _SUPPORTED_PROVIDER_PROFILES:
         raise RuntimeError(f"Unsupported provider profile: {profile}")
     return profile

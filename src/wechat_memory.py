@@ -32,7 +32,7 @@ def extract_memory_candidates(
     memory_bundle: dict[str, str] | None = None,
     model_profile: ModelProfile = "pro",
 ) -> dict:
-    empty = {k: [] for k in CANDIDATE_KEYS}
+    empty: dict[str, list] = {k: [] for k in CANDIDATE_KEYS}
 
     modes = load_runtime_modes()
     if not modes.memory_capture_enabled:

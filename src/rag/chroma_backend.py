@@ -64,10 +64,11 @@ class ChromaVectorBackend:
         if not ids:
             return
 
+        texts = [chunk.text for chunk in index.chunks]
         collection.upsert(
             ids=ids,
-            embeddings=[list(self.embedding_provider.embed(chunk.text)) for chunk in index.chunks],
-            documents=[chunk.text for chunk in index.chunks],
+            embeddings=[list(vector) for vector in self.embedding_provider.embed_many(texts)],
+            documents=texts,
             metadatas=[_chunk_metadata(chunk) for chunk in index.chunks],
         )
 

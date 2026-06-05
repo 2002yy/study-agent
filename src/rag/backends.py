@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from src.rag.embeddings import EmbeddingProvider, LocalHashEmbeddingProvider
+from src.rag.embeddings import (
+    EmbeddingProvider,
+    LocalHashEmbeddingProvider,
+    get_embedding_provider_from_env,
+)
 from src.rag.schema import RagIndex, RagSearchResult
 from src.rag.vector import search_rag_index_vector
 
@@ -112,9 +116,10 @@ def get_vector_backend_from_env(
     embedding_provider: EmbeddingProvider | None = None,
 ) -> VectorBackend:
     config = vector_backend_config_from_env()
+    resolved_embedding_provider = embedding_provider or get_embedding_provider_from_env()
     return get_vector_backend(
         config["name"],
         path=config["path"],
         collection=config["collection"],
-        embedding_provider=embedding_provider,
+        embedding_provider=resolved_embedding_provider,
     )

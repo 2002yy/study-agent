@@ -235,6 +235,8 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
+types-pyyaml==6.0.12.20260518
+    # via -r requirements-dev.in
 tzdata==2026.2
     # via
     #   pandas

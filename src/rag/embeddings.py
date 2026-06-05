@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol
+import os
+from typing import Any, Protocol
 
 from src.rag.vector import VECTOR_DIMENSIONS, embed_text
 
@@ -12,6 +13,9 @@ class EmbeddingProvider(Protocol):
     def embed(self, text: str) -> tuple[float, ...]:
         """Embed one text string for vector retrieval."""
 
+    def embed_many(self, texts: list[str]) -> list[tuple[float, ...]]:
+        """Embed a batch of text strings in input order."""
+
 
 class LocalHashEmbeddingProvider:
     name = "local_hash"
@@ -19,3 +23,142 @@ class LocalHashEmbeddingProvider:
 
     def embed(self, text: str) -> tuple[float, ...]:
         return embed_text(text, dimensions=self.dimensions)
+
+    def embed_many(self, texts: list[str]) -> list[tuple[float, ...]]:
+        return [self.embed(text) for text in texts]
+
+
+class OpenAIEmbeddingProvider:
+    name = "openai"
+
+    def __init__(
+        self,
+        *,
+        model: str = "text-embedding-3-small",
+        dimensions: int | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
+        client: Any | None = None,
+    ) -> None:
+        self.model = model
+        self.name = f"openai:{model}"
+        self.dimensions = dimensions or 1536
+        self._dimensions_override = dimensions
+        self._api_key = api_key
+        self._base_url = base_url
+        self._timeout = timeout
+        self._client = client
+
+    def _get_client(self) -> Any:
+        if self._client is not None:
+            return self._client
+
+        api_key = self._api_key or os.getenv("RAG_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("RAG_EMBEDDING_API_KEY or OPENAI_API_KEY is required for OpenAI embeddings")
+
+        try:
+            from openai import OpenAI
+        except Exception as exc:
+            raise RuntimeError("openai is required for OpenAI embeddings") from exc
+
+        kwargs: dict[str, Any] = {"api_key": api_key}
+        base_url = self._base_url or os.getenv("RAG_EMBEDDING_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        if base_url:
+            kwargs["base_url"] = base_url
+        if self._timeout is not None:
+            kwargs["timeout"] = self._timeout
+        self._client = OpenAI(**kwargs)
+        return self._client
+
+    def embed(self, text: str) -> tuple[float, ...]:
+        return self.embed_many([text])[0]
+
+    def embed_many(self, texts: list[str]) -> list[tuple[float, ...]]:
+        if not texts:
+            return []
+
+        request: dict[str, Any] = {"model": self.model, "input": texts}
+        if self._dimensions_override is not None:
+            request["dimensions"] = self._dimensions_override
+
+        response = self._get_client().embeddings.create(**request)
+        return [tuple(float(value) for value in item.embedding) for item in response.data]
+
+
+def _env_int(name: str) -> int | None:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be positive")
+    return parsed
+
+
+def _env_float(name: str) -> float | None:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return None
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be positive")
+    return parsed
+
+
+def embedding_provider_config_from_env() -> dict[str, str]:
+    return {
+        "provider": os.getenv("RAG_EMBEDDING_PROVIDER", "local_hash").strip() or "local_hash",
+        "model": os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small").strip()
+        or "text-embedding-3-small",
+        "dimensions": os.getenv("RAG_EMBEDDING_DIMENSIONS", "").strip(),
+        "base_url_configured": "true"
+        if (os.getenv("RAG_EMBEDDING_BASE_URL") or os.getenv("OPENAI_BASE_URL"))
+        else "false",
+        "api_key_configured": "true"
+        if (os.getenv("RAG_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY"))
+        else "false",
+    }
+
+
+def get_embedding_provider(
+    name: str = "local_hash",
+    *,
+    model: str = "text-embedding-3-small",
+    dimensions: int | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    timeout: float | None = None,
+    client: Any | None = None,
+) -> EmbeddingProvider:
+    normalized = (name or "local_hash").strip().lower()
+    if normalized in {"local", "local_hash", "hash"}:
+        return LocalHashEmbeddingProvider()
+    if normalized in {"openai", "openai_compatible"}:
+        return OpenAIEmbeddingProvider(
+            model=model,
+            dimensions=dimensions,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            client=client,
+        )
+    raise ValueError(f"Unsupported embedding provider: {name}")
+
+
+def get_embedding_provider_from_env() -> EmbeddingProvider:
+    config = embedding_provider_config_from_env()
+    return get_embedding_provider(
+        config["provider"],
+        model=config["model"],
+        dimensions=_env_int("RAG_EMBEDDING_DIMENSIONS"),
+        base_url=os.getenv("RAG_EMBEDDING_BASE_URL") or os.getenv("OPENAI_BASE_URL"),
+        timeout=_env_float("RAG_EMBEDDING_TIMEOUT_SECONDS"),
+    )
