@@ -2,7 +2,7 @@
 
 ## Status
 
-Current status: **MVP implemented with a local vector prototype, not a production vector-store RAG system yet**.
+Current status: **MVP implemented with a local-first retrieval path, configurable embeddings and an optional Chroma adapter**.
 
 Implemented:
 
@@ -21,12 +21,13 @@ Implemented:
 - UI source blocks for retrieved file paths, line ranges, scores and matched terms
 - FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`
 - Streamlit knowledge/debug panel with index summary, document rows, chunk preview and score breakdowns
-- Optional vector backend interface with local fallback and Chroma adapter scaffold
+- Optional vector backend interface with local fallback and Chroma adapter
+- Configurable embedding providers: deterministic `local_hash` by default, OpenAI-compatible embeddings when explicitly configured
 
 Not implemented yet:
 
-- Production embedding model integration
 - FAISS, pgvector or managed vector stores
+- Production-grade embedding evaluation, relevance tuning and re-index migration tooling
 - Automatic injection into every generation path; current injection covers single chat and WeChat interactive replies, but not news discussion or after-session feedback
 
 ## Module Map
@@ -36,9 +37,9 @@ Not implemented yet:
 | `src/rag/loader.py` | Load supported local files into normalized `RagDocument` objects |
 | `src/rag/chunker.py` | Split documents into line-traceable `RagChunk` objects |
 | `src/rag/index.py` | Build, save, load and search a local JSON RAG index |
-| `src/rag/embeddings.py` | Embedding provider contract and local hash embedding provider |
+| `src/rag/embeddings.py` | Embedding provider contract, local hash provider and OpenAI-compatible provider |
 | `src/rag/backends.py` | Vector backend contract, local backend and environment-driven backend selection |
-| `src/rag/chroma_backend.py` | Optional Chroma persistent backend adapter scaffold |
+| `src/rag/chroma_backend.py` | Optional Chroma persistent backend adapter |
 | `src/rag/vector.py` | Deterministic local vector prototype and hybrid retrieval |
 | `src/rag/eval.py` | LLM-free retrieval quality evaluation over gold query fixtures |
 | `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
@@ -67,7 +68,7 @@ Supported retrieval modes:
 - `lexical`: TF-IDF-style term scoring
 - `vector`: deterministic local hash-vector cosine similarity
 - `hybrid`: normalized lexical score plus vector similarity
-- `backend_vector`: configured vector backend; defaults to local and can use the optional Chroma adapter
+- `backend_vector`: configured vector backend; defaults to local and can use the optional Chroma adapter with configured embeddings
 
 Each result keeps:
 
@@ -139,11 +140,12 @@ P4-C / P6 adds Streamlit inspection controls:
 
 P5 adds the first vector-backend abstraction:
 
-- `EmbeddingProvider` protocol plus `LocalHashEmbeddingProvider`
+- `EmbeddingProvider` protocol plus `LocalHashEmbeddingProvider` and `OpenAIEmbeddingProvider`
 - `VectorBackend` protocol plus `LocalVectorBackend`
 - `RAG_VECTOR_BACKEND=local|chroma`
+- `RAG_EMBEDDING_PROVIDER=local_hash|openai`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_DIMENSIONS`, `RAG_EMBEDDING_API_KEY`, `RAG_EMBEDDING_BASE_URL`
 - Optional `ChromaVectorBackend` using lazy `chromadb` import, `PersistentClient`, collection `upsert` and vector query
-- `tests/test_rag_backends.py` verifies local backend behavior, environment config and Chroma fake-client upsert/query behavior
+- `tests/test_rag_backends.py` verifies local backend behavior, embedding environment config, OpenAI-compatible embedding batching and Chroma fake-client upsert/query behavior
 
 ## Next Steps
 
@@ -163,9 +165,9 @@ Goal: replace the local hash-vector prototype with optional real embeddings with
 
 - [x] Extract an embedding-provider and vector-backend contract.
 - [x] Keep JSON + lexical / hybrid retrieval as the zero-infrastructure fallback.
-- [x] Add an optional Chroma adapter scaffold with lazy import and fake-client tests.
+- [x] Add an optional Chroma adapter with lazy import and fake-client tests.
 - [x] Make vector backend selection explicit through config.
-- [ ] Add a production embedding provider; current Chroma adapter uses the local hash embedding provider by default.
+- [x] Add a production embedding provider path; current default remains `local_hash`, while OpenAI-compatible embeddings require explicit env/API configuration.
 
 ### P6: Knowledge UI
 

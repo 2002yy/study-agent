@@ -6,7 +6,9 @@ import ipaddress
 import os
 import re
 import time
+from collections.abc import MutableMapping
 from socket import getaddrinfo
+from typing import Any
 from urllib.parse import urlparse
 from urllib.request import (
     HTTPRedirectHandler,
@@ -32,7 +34,7 @@ _ARTICLE_CACHE_MAX_SIZE = 32
 
 
 def _prune_cache(
-    cache: dict[str, tuple[float, ...]],
+    cache: MutableMapping[str, Any],
     ttl: float,
     max_size: int,
     now: float,
@@ -163,11 +165,7 @@ class _SafeHTTPRedirectHandler(HTTPRedirectHandler):
 
 
 # Shared opener with safe redirect handler (replaces default HTTPRedirectHandler)
-_SAFE_OPENER = build_opener()
-for i, h in enumerate(_SAFE_OPENER.handlers):
-    if isinstance(h, HTTPRedirectHandler):
-        _SAFE_OPENER.handlers[i] = _SafeHTTPRedirectHandler()
-        break
+_SAFE_OPENER = build_opener(_SafeHTTPRedirectHandler())
 
 
 # ── Article fetching ──────────────────────────────────────────────────

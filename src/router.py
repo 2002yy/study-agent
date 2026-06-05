@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from src.mode_manager import RuntimeModes
 from src.model_stats import suggest_model_by_rules
@@ -79,7 +79,13 @@ def _load_rules_from_markdown(text: str) -> list:
         model_match = re.search(r"model:\s*(\S+)", block)
         reason_match = re.search(r"reason:\s*(.+)", block)
         pri_match = re.search(r"priority:\s*(\d+)", block)
-        if all([kw_match, role_match, mode_match, model_match, reason_match]):
+        if (
+            kw_match is not None
+            and role_match is not None
+            and mode_match is not None
+            and model_match is not None
+            and reason_match is not None
+        ):
             priority = int(pri_match.group(1)) if pri_match else 50
             rules.append(
                 (
@@ -194,7 +200,7 @@ def route_request(
 
     # Model selection with performance_mode awareness
     if selected_model != "auto":
-        model_profile = selected_model
+        model_profile = cast(Model, selected_model)
     elif runtime_modes.performance_mode == "deep":
         model_profile = "pro"
     elif runtime_modes.performance_mode == "fast":

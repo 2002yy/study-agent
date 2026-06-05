@@ -10,7 +10,7 @@ Study Agent 是一个本地优先的 AI 学习助手，重点在多 Provider 模
 2. **长期记忆写入安全** — safe writer + preview/confirm 机制，防止不可逆的记忆污染
 3. **联网搜索来源追溯** — Feed registry / RSS 多源聚合 → URL safety matrix → 文章正文三层提取 → LLM digest → pipeline trace 全过程来源可回溯
 4. **Streamlit 重渲染性能优化** — 多层缓存策略、按模式批量落盘、主链路 token 预算控制
-5. **CI / Ruff / detect-secrets 工程检查** — 273 pytest tests、Ruff clean、GitHub Actions workflow、detect-secrets 对未豁免发现硬阻断
+5. **CI / Ruff / detect-secrets 工程检查** — 277 pytest tests、Ruff clean、mypy local clean、GitHub Actions workflow、detect-secrets 对未豁免发现硬阻断
 
 ## 可讲亮点
 
@@ -23,7 +23,7 @@ Study Agent 是一个本地优先的 AI 学习助手，重点在多 Provider 模
 
 ## 展示边界
 
-- `mypy` 已接入 CI soft check，但当前本地仍有类型错误，不能说类型检查 clean。
+- `mypy` 已接入 CI soft check，当前本地 `python -m mypy --explicit-package-bases src` clean；但 CI 配置仍是非阻断检查。
 - `performance_budget.py` 覆盖主要 chat / WeChat / news LLM 路径，辅助 LLM 调用仍需继续收口。
 - `article_fetcher.py` 负责真实网络读取前的 DNS/IP SSRF 校验；`link_resolver.py` 是网络无关的 URL 预检和跳转记录。
 - `detect-secrets` 已接入 CI，并通过解析扫描 JSON 的 `results` 对未豁免发现硬阻断；测试里的 Basic Auth 形态 URL 样例已显式 allowlist。

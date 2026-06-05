@@ -84,6 +84,8 @@ def build_runtime_profile(modes: RuntimeModes) -> RuntimeProfile:
         memory_write_allowed = False
         memory_write_reason = modes.memory_mode
 
+    preferred_model: str | None
+
     if modes.performance_mode == "fast":
         allow_llm_router = False
         llm_router_reason = "fast_mode"

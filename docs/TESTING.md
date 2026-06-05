@@ -6,10 +6,10 @@ Current verified baseline:
 
 | Check | Status | Evidence |
 |---|---|---|
-| pytest | Passed | `273 passed` locally on 2026-06-05 |
-| Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-04 |
-| Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-04 |
-| mypy | Soft check, not clean | `python -m mypy --explicit-package-bases src/` reported 18 errors locally on 2026-06-04 |
+| pytest | Passed | `277 passed` locally on 2026-06-05 |
+| Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-05 |
+| Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-05 |
+| mypy | Passed locally; CI soft check | `python -m mypy --explicit-package-bases src` clean locally on 2026-06-05 |
 | detect-secrets | CI hard gate configured | Workflow parses scan JSON and fails when `results` contains any unallowlisted finding; local tracked-file scan was empty on 2026-06-04 |
 | GitHub Actions | Recent main runs passing | Latest 6 CI runs on `main` were `success` when checked on 2026-06-03 |
 
@@ -26,7 +26,7 @@ Current verified baseline:
 | **Feed registry / health** | `test_feed_registry.py`, `test_feed_diagnostics.py` | 9 |
 | **RAG MVP** | `test_rag.py` | 24 |
 | **RAG evaluation** | `test_rag_eval.py` | 5 |
-| **RAG vector backends** | `test_rag_backends.py` | 6 |
+| **RAG vector backends** | `test_rag_backends.py` | 10 |
 | **FastAPI RAG endpoints** | `test_api.py` | 6 |
 | **Architecture flows** | `test_architecture_flows.py` | 12 |
 | **WeChat decoupling** | `test_wechat_decoupling.py` | 4 |
@@ -77,11 +77,11 @@ def test_flush_uses_safe_writer():
 ## Running Tests
 
 ```bash
-python -m pytest             # current baseline: 273 passed
+python -m pytest             # current baseline: 277 passed
 pytest tests/ -v             # Verbose
 pytest tests/ --cov=src      # Coverage
 python -m ruff check .       # Linting
-python -m mypy --explicit-package-bases src/  # Soft check; currently has type debt
+python -m mypy --explicit-package-bases src   # Type check; CI currently runs it as a soft check
 ```
 
 Tracked-file secret scan used for local verification:

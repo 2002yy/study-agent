@@ -1,6 +1,6 @@
 import json
 import time
-from src.llm_client import chat
+from src.llm_client import ModelProfile, chat
 from src.text_utils import strip_code_fences
 from src.log_utils import get_logger
 from src.task_events import TaskEventCallback, emit_task_event
@@ -99,7 +99,7 @@ def generate_after_session_updates(
     memory_bundle: dict[str, str],
     role: str,
     mode: str,
-    model_profile: str = "pro",
+    model_profile: ModelProfile = "pro",
     event_callback: TaskEventCallback | None = None,
 ) -> dict[str, str]:
     started_at = time.perf_counter()
