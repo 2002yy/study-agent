@@ -6,11 +6,11 @@ Current verified baseline:
 
 | Check | Status | Evidence |
 |---|---|---|
-| pytest | Passed | `290 passed` locally on 2026-06-05 |
-| Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-05 |
-| Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-05 |
-| mypy | Passed locally; CI soft check | `python -m mypy --explicit-package-bases src` clean locally on 2026-06-05 |
-| detect-secrets | CI hard gate configured | Workflow parses scan JSON and fails when `results` contains any unallowlisted finding; local tracked-file scan was empty on 2026-06-04 |
+| pytest | Passed | `312 passed` locally on 2026-06-06 |
+| Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-06 |
+| Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-06 |
+| mypy | Passed locally; CI soft check | `python -m mypy --explicit-package-bases src` clean locally on 2026-06-06 |
+| detect-secrets | CI hard gate configured | Workflow parses scan JSON and fails when `results` contains any unallowlisted finding; local tracked-file scan was empty on 2026-06-06 |
 | GitHub Actions | Recent main runs passing | Latest 6 CI runs on `main` were `success` when checked on 2026-06-03 |
 
 ### Categories
@@ -28,7 +28,9 @@ Current verified baseline:
 | **RAG evaluation** | `test_rag_eval.py` | 5 |
 | **RAG vector backends** | `test_rag_backends.py` | 10 |
 | **Controlled local knowledge tool** | `test_local_knowledge_tool.py` | 7 |
-| **FastAPI service endpoints** | `test_api.py` | 12 |
+| **Evaluation quality gates** | `test_eval_quality_gates.py` | 17 |
+| **FastAPI service endpoints** | `test_api.py` | 13 |
+| **Workflow / tool registry** | `test_workflow_tool_registry.py` | 4 |
 | **Architecture flows** | `test_architecture_flows.py` | 12 |
 | **WeChat decoupling** | `test_wechat_decoupling.py` | 4 |
 | **Sidebar rerun** | `test_sidebar_global_rerun.py` | 12 |
@@ -78,7 +80,7 @@ def test_flush_uses_safe_writer():
 ## Running Tests
 
 ```bash
-python -m pytest             # current baseline: 290 passed
+python -m pytest             # current baseline: 312 passed
 pytest tests/ -v             # Verbose
 pytest tests/ --cov=src      # Coverage
 python -m ruff check .       # Linting
@@ -88,7 +90,7 @@ python -m mypy --explicit-package-bases src   # Type check; CI currently runs it
 Tracked-file secret scan used for local verification:
 
 ```bash
-detect-secrets scan --disable-plugin KeywordDetector --exclude-files '.*\.(pyc|jpg|png|zip)$' .github README.md docs src tests tools config templates roles changelog assets
+detect-secrets scan --disable-plugin KeywordDetector --exclude-files '.*\.(pyc|jpg|png|zip)$' .github README.md docs src tests tools config templates roles changelog assets .env.example
 ```
 
 The intentional Basic Auth-shaped URL fixture in `tests/test_url_normalizer.py` is marked with an inline allowlist comment. The CI workflow parses the scan JSON and fails if any file has non-empty `results`, so the gate no longer depends on a version-specific field such as `is_secret` or `is_verified`.

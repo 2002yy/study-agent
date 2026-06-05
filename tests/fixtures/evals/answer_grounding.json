@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "cited_rag_answer",
+      "question": "requests session reuse 是什么？",
+      "answer": "requests Session can reuse TCP connections for repeated requests. [1]",
+      "required_citations": ["[1]"],
+      "forbidden_claims": ["local knowledge definitely proves OAuth behavior"]
+    },
+    {
+      "id": "local_knowledge_not_found_contract",
+      "question": "本地知识库里有没有量子香蕉术语？",
+      "answer": "I did not find supporting evidence in the local knowledge base, so I cannot cite a local document for that claim.",
+      "required_phrases": ["did not find supporting evidence"],
+      "forbidden_claims": ["the local knowledge base confirms"]
+    }
+  ]
+}

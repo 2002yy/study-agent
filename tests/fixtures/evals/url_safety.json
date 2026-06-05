@@ -1,0 +1,36 @@
+{
+  "cases": [
+    {
+      "id": "public_docs_url",
+      "url": "https://docs.python.org/3/library/urllib.parse.html",
+      "query": "python urllib docs",
+      "expected_public": true,
+      "expected_resolution_status": "original",
+      "expected_domain_blocked": false
+    },
+    {
+      "id": "localhost_blocked",
+      "url": "http://localhost:8501/admin",
+      "query": "local admin",
+      "expected_public": false,
+      "expected_resolution_status": "unsafe",
+      "expected_domain_blocked": false
+    },
+    {
+      "id": "wrapped_private_redirect_blocked",
+      "url": "https://news.example/redirect?url=http%253A%252F%252F127.0.0.1%252Fadmin",
+      "query": "unsafe redirect",
+      "expected_public": true,
+      "expected_resolution_status": "unsafe",
+      "expected_domain_blocked": false
+    },
+    {
+      "id": "login_path_domain_policy_blocked",
+      "url": "https://example.com/login",
+      "query": "general topic",
+      "expected_public": true,
+      "expected_resolution_status": "original",
+      "expected_domain_blocked": true
+    }
+  ]
+}

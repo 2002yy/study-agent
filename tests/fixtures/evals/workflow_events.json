@@ -1,0 +1,41 @@
+{
+  "cases": [
+    {
+      "id": "chat_flow_success",
+      "expected_terminal_status": "succeeded",
+      "events": [
+        {
+          "step_id": "route",
+          "event_type": "started",
+          "status": "running",
+          "elapsed_ms": 0
+        },
+        {
+          "step_id": "route",
+          "event_type": "completed",
+          "status": "succeeded",
+          "elapsed_ms": 8
+        }
+      ]
+    },
+    {
+      "id": "rag_parse_failure_has_error",
+      "expected_terminal_status": "failed",
+      "events": [
+        {
+          "step_id": "parse_document",
+          "event_type": "started",
+          "status": "running",
+          "elapsed_ms": 0
+        },
+        {
+          "step_id": "parse_document",
+          "event_type": "failed",
+          "status": "failed",
+          "elapsed_ms": 12,
+          "error": "empty_document"
+        }
+      ]
+    }
+  ]
+}

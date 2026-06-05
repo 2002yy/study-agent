@@ -275,3 +275,49 @@ def test_sessions_endpoint_lists_current_and_archived_files(monkeypatch, tmp_pat
     assert response.status_code == 200
     names = {item["name"] for item in response.json()["sessions"]}
     assert names == {"active.md", "old.md"}
+
+
+def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, tmp_path):
+    from src import api
+
+    workflow_dir = tmp_path / "workflows"
+    monkeypatch.setattr(api, "WORKFLOW_DIR", workflow_dir)
+    document = tmp_path / "tool_notes.md"
+    index_path = tmp_path / "rag_index.json"
+    document.write_text("Tool registry calls can retrieve cited workflow evidence.", encoding="utf-8")
+    client = TestClient(app)
+    client.post("/rag/index", json={"paths": [str(document)], "index_path": str(index_path)})
+
+    tools_response = client.get("/tools")
+    preview_response = client.post(
+        "/tools/retrieve_local_knowledge/preview",
+        json={"args": {"query": "local knowledge workflow evidence", "index_path": str(index_path)}},
+    )
+    call_response = client.post(
+        "/tools/retrieve_local_knowledge/call",
+        json={
+            "run_id": "api-tool-run",
+            "args": {
+                "query": "local knowledge workflow evidence",
+                "index_path": str(index_path),
+                "top_k": 1,
+            },
+        },
+    )
+    runs_response = client.get("/workflows/runs")
+    run_response = client.get("/workflows/runs/api-tool-run")
+
+    assert tools_response.status_code == 200
+    assert tools_response.json()["tools"][0]["name"] == "retrieve_local_knowledge"
+    assert preview_response.status_code == 200
+    assert preview_response.json()["status"] == "preview"
+    assert call_response.status_code == 200
+    assert call_response.json()["status"] == "succeeded"
+    assert call_response.json()["output"]["status"] == "found"
+    assert runs_response.status_code == 200
+    assert runs_response.json()["runs"][0]["run_id"] == "api-tool-run"
+    assert run_response.status_code == 200
+    assert [event["event_type"] for event in run_response.json()["run"]["events"]] == [
+        "started",
+        "succeeded",
+    ]

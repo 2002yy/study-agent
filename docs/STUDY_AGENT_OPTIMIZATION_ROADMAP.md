@@ -286,19 +286,32 @@ Study Agent 后续的核心竞争力应该来自 RAG，而不是普通聊天。
 
 不要让模型无限制自由调用工具，而是先用可控路由实现稳定 Agent 工作流。
 
-## 9. P8：FastAPI 服务化
+## 9. 统一路线：Service → Workflow / Tools → Frontend → Optional RPA
 
-不建议立刻推翻 Streamlit。推荐三步走：
-
-### 阶段 1：保留 Streamlit，抽 core
+当前路线不再把 FastAPI、workflow、tool use、前端和 RPA 分成几条平行线，而是按依赖关系推进：
 
 ```text
-Streamlit UI → core/chat_engine.py
+已完成基线
+  → P8.4 Evaluation Sets
+      → retrieval / grounding / tool routing / safety cases
+  → P8.5 Execution Foundation
+      → workflow run / step / event
+      → controlled tool registry
+  → P9 Web UI
+      → React + Vite + TypeScript
+      → streaming chat + source panel + workflow timeline
+  → P10 Hardening & Deployment
+      → auth / CORS / Docker / OpenAPI / optional MCP / observability
+  → P11 Optional RPA
+      → browser automation for no-API external learning systems
 ```
 
-### 阶段 2：增加 FastAPI
+### 已完成基线
 
-当前基础接口已经落地：
+当前已经具备继续产品化的基础：
+
+- Streamlit 单聊 / 群聊 / RAG / 课后总结界面仍可作为本地产品入口。
+- FastAPI 基础接口已经落地：
 
 ```text
 GET  /health
@@ -311,17 +324,176 @@ GET  /rag/status
 POST /rag/local-knowledge
 GET  /sessions
 POST /sessions/{session_id}/flush
+GET  /tools
+POST /tools/{tool_name}/preview
+POST /tools/{tool_name}/call
+GET  /workflows/runs
+GET  /workflows/runs/{run_id}
 ```
 
-仍需补齐：streaming chat、auth、CORS、统一错误响应、OpenAPI 示例和 Docker 部署配置。
+- RAG MVP 已支持本地 Markdown / TXT / DOCX / PDF、hybrid / backend-vector 检索、OpenAI-compatible embedding provider 和可选 Chroma adapter。
+- `retrieve_local_knowledge(query)` 已作为第一个受控工具边界接入单聊、微信群互动和 FastAPI。
+- `task_events.py`、session logger、news pipeline audit 和 RAG debug 已经提供 workflow event model 的雏形。
+- `tests/fixtures/rag_eval/` 和 `tests/test_rag_eval.py` 已经提供一个很小的 LLM-free retrieval eval 起点。
+- `tests/fixtures/evals/` 和 `tests/test_eval_quality_gates.py` 已经提供 P8.4 第一版 LLM-free 质量门禁，覆盖 answer grounding、tool routing、workflow event、memory safety 和 URL safety。
+- `src/workflows/`、`src/tools/registry.py`、`GET /tools`、`POST /tools/{tool_name}/preview`、`POST /tools/{tool_name}/call`、`GET /workflows/runs` 和 `GET /workflows/runs/{run_id}` 已经提供 P8.5 第一版执行审计和受控工具注册表；完整 retry engine、chat/rag/news flow 编排仍是后续任务。
 
-### 阶段 3：补前端
+### P8.4: Evaluation Sets & Quality Gates
+
+目标：在继续扩大 tool use、workflow 和前端展示前，先建立能防回归的评估集。评估集不是另一个“展示文档”，而是项目质量闸门：每次改检索、工具路由、prompt、memory 写入或 workflow 状态，都能知道有没有退步。
+
+当前状态：已实现第一版本地 pytest quality gates；LLM-as-judge、Promptfoo/DeepEval 等外部 runner 仍作为后续候选，不进入当前 CI 硬依赖。
+
+建议目录：
+
+```text
+tests/fixtures/evals/
+├── rag_retrieval.json       # query -> expected source / term / mode
+├── answer_grounding.json    # question + context -> required citation / forbidden claim
+├── tool_routing.json        # user_input -> expected tool / skip / confirm
+├── workflow_events.json     # action -> expected run/step/event sequence
+├── memory_safety.json       # candidate update -> preview / reject / confirm behavior
+└── url_safety.json          # URL / redirect / source policy regression cases
+```
+
+第一版指标：
+
+| Eval | 指标 | CI 策略 |
+|---|---|---|
+| RAG retrieval | recall@k、MRR、source hit rate、empty-result rate | hard gate，LLM-free |
+| Answer grounding | answer cites provided source、no unsupported local-knowledge claim | 先做规则断言；LLM-as-judge 可本地/nightly |
+| Tool routing | expected tool、skip reason、confirmation requirement | hard gate，LLM-free |
+| Workflow events | step order、status transition、retry boundary、artifact path | hard gate，LLM-free |
+| Memory safety | preview-first、confirm-write only、safe mode reject | hard gate，LLM-free |
+| URL / RPA safety | SSRF block、redirect block、domain allowlist、write-action confirmation | hard gate，LLM-free |
+
+开源项目参考：
+
+| 项目 | 可借鉴点 | 对 Study Agent 的取舍 |
+|---|---|---|
+| [Promptfoo](https://www.promptfoo.dev/docs/intro/) | 本地优先、CLI/CI eval、red-team 配置 | 可作为后续 prompt / safety eval runner；当前先保留 pytest fixture |
+| [DeepEval](https://deepeval.com/docs/introduction) | Pytest-style LLM eval、RAG / agent / tool-use / safety metrics | 可作为 LLM-as-judge 和 end-to-end eval 候选；不要让 CI 依赖外部模型 |
+| [RAGAS](https://arxiv.org/abs/2309.15217) | RAG faithfulness / answer relevancy / context precision 思路 | 可借鉴指标；当前已有自研 retrieval eval，应先扩数据集 |
+| [Inspect AI](https://inspect.aisi.org.uk/) | 标准化 eval task、solver、scorer 结构 | 适合后续更严肃安全/agent eval；当前不需要引入完整框架 |
+| [OpenAI Evals](https://github.com/openai/evals) | 自定义 eval 和 benchmark registry 思路 | 借鉴数据/runner 分离；私有学习数据不上传外部 registry |
+
+### P8.5: Execution Foundation
+
+目标：把现有多步骤 AI 学习流程变成可观察、可重试、可展示的执行链路，同时把 tool use 控制在 typed schema、权限和 audit 之内。
+
+当前状态：P8.5 第一版已实现。本次落地的是轻量本地执行基础，不是完整 agent workflow 引擎：
+
+- `src/workflows/schema.py` 定义 `WorkflowRun` / `WorkflowEvent` 和 `pending` / `running` / `succeeded` / `failed` / `skipped` 状态集合。
+- `src/workflows/store.py` 将每个 run 记录到 `logs/workflows/{run_id}.jsonl`，支持追加事件、读取单个 run、列出最近 runs。
+- `src/tools/registry.py` 提供 allowlisted `ToolSpec` / registry / preview / call / audit 边界，第一版只注册只读 `retrieve_local_knowledge`。
+- FastAPI 已暴露 `GET /tools`、`POST /tools/{tool_name}/preview`、`POST /tools/{tool_name}/call`、`GET /workflows/runs`、`GET /workflows/runs/{run_id}`。
+- `tests/test_workflow_tool_registry.py` 和 `tests/test_api.py` 覆盖工具注册、未知参数拦截、工具调用审计和 workflow API 读回。
+
+仍未实现：通用 retry engine、chat/rag/news flow 编排、前端 timeline 展示、跨请求 trace_id，以及写入类工具的人类确认闭环。
+
+#### 1. Workflow Run / Step / Event
+
+建议新增：
+
+```text
+src/workflows/
+├── schema.py          # implemented: WorkflowRun / WorkflowEvent
+├── store.py           # implemented: logs/workflows/*.jsonl
+├── engine.py          # planned: run_step, retry, status transition
+├── chat_flow.py       # planned: route -> memory -> local knowledge -> LLM -> session log
+├── rag_flow.py        # planned: upload -> parse -> chunk -> embed -> index
+└── news_flow.py       # planned: feed -> resolve -> fetch -> digest -> discuss -> audit
+```
+
+第一版能力：
+
+| 能力 | 说明 |
+|---|---|
+| run_id / step_id | 每次 `/chat`、`/rag/upload`、news round 都有可追踪运行 ID |
+| step status | `pending` / `running` / `succeeded` / `failed` / `skipped` |
+| event timeline | 复用并扩展 `src/task_events.py`，记录开始、结束、耗时、错误和关键 artifact path |
+| retry boundary | 只重试安全的读取/检索/解析步骤；LLM 写入、memory commit 等状态变更步骤需要人工确认 |
+| FastAPI 查询 | `GET /workflows/runs`、`GET /workflows/runs/{run_id}` |
+| Frontend handoff | P9 直接展示“正在检索 / 找到引用 / 正在调用模型 / 已写入 session / 等待记忆确认”等时间线 |
+
+不建议现在直接上 Temporal / Airflow / Prefect：这些更适合跨服务、长周期、批处理或生产调度。Study Agent 当前更需要本地优先、可测试、低依赖的 workflow event model。
+
+#### 2. Controlled Tool Use
+
+Tool use 有必要，但不应先做“自由 agent 到处调用工具”。Study Agent 的合适路线是：先把已有能力包装成少量 typed tools，再让 workflow 记录每次工具调用。
+
+设计原则：
+
+| 原则 | 说明 |
+|---|---|
+| 少工具 | 初期保持 5-8 个高价值工具，避免模型在 10+ 工具间误选 |
+| typed schema | 每个工具有明确参数、返回结构、错误码和权限等级 |
+| read-first | 默认只读；写 memory、发请求、操作浏览器等动作必须有人类确认 |
+| workflow audit | 每次 tool call 写入 run_id、tool_name、args 摘要、status、elapsed_ms、artifact path |
+| deterministic fallback | 关键路径仍有规则路由兜底，不能完全依赖模型自由选择 |
+
+优先工具清单：
+
+| 优先级 | Tool | 状态 | 价值 |
+|---|---|---|---|
+| P0 | `retrieve_local_knowledge(query)` | 已实现基础版 | 本地资料证据检索，回答可引用 |
+| P0 | `search_news(query, source_policy)` | 可封装现有 news pipeline | 联网资料入口，保留 URL safety 和 audit trace |
+| P0 | `lookup_session(query/date)` | 待实现 | 从历史学习记录中找上下文 |
+| P0 | `inspect_rag_index()` | 可封装 `/rag/status` | 前端和 agent 判断知识库是否可用 |
+| P1 | `preview_memory_update(target, content)` | 可封装 `/memory/preview` | 生成待确认记忆变更 |
+| P1 | `commit_memory_update(preview_id)` | 待加强 | 只允许确认后的写入，不让模型直接写文件 |
+| P1 | `index_documents(paths/files)` | 可封装 `/rag/upload` | 用户确认后导入资料 |
+| P2 | `summarize_document(path)` | 待实现 | 上传资料后的摘要、标签、学习建议 |
+| P2 | `export_session(format)` | 待实现 | 学习记录导出为 Markdown / PDF / JSON |
+| P3 | `browser_read(url)` | 未来可选 | RPA/browser automation 的只读起点 |
+
+暂不建议加入：
+
+- shell / Python execution tool：风险太高，容易越过本地安全边界。
+- unrestricted HTTP request tool：会绕过现有 SSRF / URL safety。
+- generic file write tool：应通过 memory preview / commit 和 safe writer 间接完成。
+- email / calendar / payment / social posting tool：不属于当前学习助手主场景，且需要更强权限隔离。
+
+开源项目参考：
+
+| 项目 | 可借鉴点 | 不直接照搬的原因 |
+|---|---|---|
+| [LangGraph](https://langchain-ai.github.io/langgraph/tutorials/workflows/) | `ToolNode`、graph node/edge、human-in-the-loop、tool execution events | 当前项目先用轻量本地 workflow，不引入整套 LangChain 依赖 |
+| [Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/agents/plugins/) | plugin/function 描述、OpenAPI/native code/MCP server 三类工具来源 | 项目主栈是 Python 本地应用，不需要 .NET 风格 plugin 体系 |
+| [LlamaIndex](https://github.com/run-llama/llama_index) | 把 retriever/query engine 包成 agent tools | Study Agent 已有本地 RAG，先保留自有实现 |
+| [Dify](https://docs.dify.ai/en/use-dify/nodes/agent) | Agent 节点、工具授权、参数校验、workflow 节点变量传递 | Dify 更像完整平台；这里只参考交互模型 |
+| [Flowise](https://github.com/FlowiseAI/Flowise) | 可视化 tool/workflow 组合和 API 化输出 | 低代码执行平台安全面更大，不适合默认内嵌 |
+| [CrewAI](https://github.com/crewAIInc/crewAI) | agents/tasks/tools 的角色分工表达 | 当前不需要多 agent 团队协作优先级 |
+
+最小实现建议：
+
+```text
+src/tools/
+├── registry.py        # implemented: ToolSpec / ToolResult / ToolPermission / allowlisted registry
+├── local_knowledge.py # implemented: first controlled read-only tool
+├── news_search.py     # planned: wraps news pipeline
+├── session_lookup.py  # planned: searches local session logs
+├── memory_update.py   # planned: preview-first memory updates
+└── rag_admin.py       # planned: inspect/index documents
+```
+
+FastAPI 可先补：
+
+```text
+GET  /tools
+POST /tools/{tool_name}/preview
+POST /tools/{tool_name}/call
+```
+
+其中 `/preview` 返回权限、参数摘要、预期副作用和是否需要确认；`/call` 只执行 allowlisted、已确认或只读工具。
+
+### P9: Web UI
 
 前端建议进入 P9 后使用 React + Vite + TypeScript。理由是：
 
 - React 生态更适合后续做聊天流、引用面板、调试抽屉和状态组件拆分。
 - Vite 开发服务器启动快，生产构建输出静态 `dist`，可以独立部署，也可以由 FastAPI 挂载静态目录。
-- TypeScript 能把 API response、RAG source、memory preview、session row 等数据结构固定下来，减少前后端联调时的隐性字段漂移。
+- TypeScript 能把 API response、RAG source、memory preview、session row、workflow event 等数据结构固定下来，减少前后端联调时的隐性字段漂移。
 
 最低页面：
 
@@ -331,11 +503,67 @@ POST /sessions/{session_id}/flush
 | 文件上传页 | RAG 入库 |
 | 知识库列表 | 查看已导入资料 |
 | 来源引用面板 | 展示 RAG 证据 |
+| Workflow 时间线 | 展示检索、模型调用、写日志、等待确认等步骤状态 |
 | 会话历史 | 查看过往学习记录 |
 | 设置页 | Provider、模型、API Key、本地路径 |
 | 调试面板 | 查看上下文、token、耗时、检索结果 |
 
-## 10. P2：UI 与产品体验
+前端交互重点：
+
+- 聊天主窗口支持 streaming response。
+- 右侧面板同时显示 RAG sources、workflow timeline、tool call preview 和 memory candidate。
+- Tool use 必须可见：模型为什么调用工具、传了什么参数摘要、是否需要用户确认。
+- Memory 写入、RAG 导入、未来 browser automation 等有副作用动作必须走 confirm UI。
+
+### P10: Hardening, Deployment & MCP
+
+目标：让项目从本地 demo 进入可演示、可部署、可维护的工程状态。
+
+| 能力 | 说明 |
+|---|---|
+| streaming | `/chat` 支持 SSE 或 WebSocket streaming |
+| auth | 本地 token / password gate，避免 LAN 暴露后被误用 |
+| CORS | 明确允许的前端 origin，默认不开放公网 |
+| Docker | FastAPI + frontend dist + optional Chroma 的本地部署组合 |
+| OpenAPI examples | 为 `/chat`、`/tools`、`/workflows`、`/memory` 补请求示例 |
+| MCP server | 可选只读 MCP server，把本地知识库、session lookup、RAG status 暴露给外部 AI 客户端 |
+| observability | trace_id、latency、token usage、provider fallback、tool call status |
+| CI coverage | API / workflow / tool registry / frontend smoke tests |
+
+MCP 判断：
+
+- **需要 MCP server 的场景**：希望 Claude Desktop、Codex、Cursor 或其他 MCP client 直接查询 Study Agent 的本地知识、历史 session、RAG index 状态，或触发只读检索工具。
+- **暂不需要 MCP client 的场景**：当前内部前端和 FastAPI 不依赖外部工具生态，直接调用 `/chat`、`/tools`、`/workflows` 更简单。
+- **建议顺序**：先做内部 `ToolSpec` / registry / audit，再从同一份 registry 生成 OpenAPI 和 MCP server。不要让 MCP 成为第二套工具定义。
+
+MCP 暴露范围：
+
+| MCP primitive | 建议内容 | 边界 |
+|---|---|---|
+| Resources | RAG index status、session summary、memory read-only views | 不暴露原始敏感文件全文，必要时截断 |
+| Tools | `retrieve_local_knowledge`、`inspect_rag_index`、`lookup_session`、只读 `search_news` | 默认只读；写 memory / index / browser action 不进入第一版 |
+| Prompts | 学习复盘、资料问答、带引用回答模板 | 只做模板，不包含密钥或本地私密路径 |
+
+开源参考：
+
+- [Model Context Protocol Python SDK](https://github.com/modelcontextprotocol/python-sdk)：官方 Python SDK，支持 server/client、tools、resources、prompts。
+- [MCP SDK docs](https://modelcontextprotocol.io/docs/sdk)：官方 SDK 入口。
+- [MCP reference servers](https://github.com/modelcontextprotocol/servers)：参考实现和社区 server 列表。
+- [OpenAI Agents SDK MCP guide](https://openai.github.io/openai-agents-python/mcp/)：说明接 MCP 前要判断工具在哪里执行、使用什么 transport。
+
+### P11: Optional RPA / Browser Automation
+
+RPA 适合后续自动操作无 API 的外部系统，例如登录教务系统、下载课件、填网页表单、批量整理浏览器资料。但它不进入当前主线，应等 chat / RAG / memory / news workflow 可观察之后，再作为可选 adapter 接入。
+
+原则：
+
+- 只读优先：先实现 `browser_read(url)`，不急着提交表单或点击危险按钮。
+- 白名单域名：只允许用户配置过的学习网站或公开资料站。
+- 人工确认：登录、表单提交、删除、付款、发信等状态变更动作必须确认。
+- 全量 audit：记录 URL、动作类型、输入摘要、结果、失败原因和截图/HTML artifact 路径。
+- 可参考 Playwright、browser-use、Robot Framework、Robocorp RPA Framework；不把 n8n / Flowise 这类可执行低代码平台直接暴露到公网或默认启用。
+
+## 10. UI 与产品体验
 
 推荐布局：
 
@@ -365,8 +593,9 @@ POST /sessions/{session_id}/flush
 | empty | 没有知识库、没有会话 |
 | success | 上传成功、写入成功 |
 | warning | 检索结果不足、上下文过长 |
+| step timeline | workflow 当前步骤、耗时、失败原因、可重试动作 |
 
-## 11. P2：测试体系
+## 11. 测试体系
 
 必备测试：
 
@@ -378,6 +607,7 @@ POST /sessions/{session_id}/flush
 | Tool 测试 | 新闻检索、文件读取、摘要 |
 | ContextBuilder 测试 | 不同模式下上下文是否正确 |
 | API 测试 | /chat、/health、/rag/query、/rag/upload、/rag/status、/memory/preview、/memory/commit、/sessions |
+| Workflow 测试 | run/step 状态转换、事件持久化、失败重试边界 |
 | UI smoke 测试 | 页面能打开、基本交互不崩 |
 
 最关键的是 Mock Provider。真实模型用于演示和实际使用，Mock Provider 用于自动测试和 CI，避免测试依赖外部 API。
@@ -455,7 +685,9 @@ docs/
 6. [x] 实现 /memory/preview
 7. [x] 实现 /memory/commit
 8. [x] 补 API 测试
-9. [ ] 补 streaming chat / auth / CORS / Docker Compose
+9. [x] 扩展 evaluation sets foundation：retrieval / grounding / tool routing / workflow / safety
+10. [x] 补 execution foundation 第一版：workflow JSONL timeline + controlled local-knowledge tool registry
+11. [ ] 补 streaming chat / auth / CORS / Docker Compose
 
 ### v1.0：前端产品化版本
 
@@ -467,11 +699,38 @@ docs/
 2. 聊天页
 3. 文件上传页
 4. 知识库列表页
-5. 来源引用面板
-6. 会话历史
-7. 设置页
-8. Docker 一键启动
-9. 完整 Release Notes
+5. Workflow 时间线
+6. 来源引用面板
+7. 会话历史
+8. 设置页
+9. Docker 一键启动
+10. 完整 Release Notes
+
+### v1.1：工程硬化版本
+
+目标：把服务层、前端和本地运行环境收口成可维护版本。
+
+任务：
+
+1. streaming chat
+2. auth / CORS / local deployment guard
+3. Docker Compose
+4. OpenAPI examples
+5. 可选 read-only MCP server
+6. trace_id / token usage / latency / provider fallback logs
+7. eval / workflow / tool / frontend smoke tests
+
+### v1.2+：可选 RPA / Browser Automation
+
+目标：在不削弱本地安全边界的前提下，把 Study Agent 扩展到少量“无 API 的外部学习系统”。
+
+任务：
+
+1. 明确 RPA 只作为可选 adapter，不作为核心聊天 / RAG / memory 主路径。
+2. 先实现只读浏览器自动化：打开白名单网站、读取公开页面、下载用户确认的资料。
+3. 对登录、表单提交、删除、付款、发信等状态变更动作强制人工确认。
+4. 所有浏览器动作写入 workflow audit，包括 URL、动作类型、输入摘要、结果和失败原因。
+5. 优先评估 Playwright / browser-use；传统桌面 RPA 可参考 Robot Framework / Robocorp RPA Framework。
 
 ## 14. 简历包装方向
 
@@ -484,7 +743,8 @@ docs/
 1. 多模型 Provider 抽象
 2. 长期记忆写回与人工确认机制
 3. RAG 知识库检索与来源引用
-4. FastAPI + 前端 + Docker + 测试的工程化交付
+4. Workflow event timeline 与可观察执行链路
+5. FastAPI + 前端 + Docker + 测试的工程化交付
 
 ## 15. 当前最建议执行的下一步
 
@@ -501,6 +761,7 @@ docs/
 → response 输出
 → session 记录
 → memory 写回确认
+→ workflow timeline 展示步骤与证据
 ```
 
 推荐推进顺序：
@@ -510,5 +771,8 @@ docs/
 3. [x] SessionLogger 批量写入
 4. [x] RAG MVP 与 local knowledge tool
 5. [x] FastAPI 基础服务层
-6. [ ] streaming chat / auth / CORS / Docker
-7. [ ] React + Vite + TypeScript 前端
+6. [x] Evaluation sets and quality gates foundation
+7. [x] Workflow run / step / event timeline + controlled tool registry first slice
+8. [ ] streaming chat / auth / CORS / Docker / optional MCP server
+9. [ ] React + Vite + TypeScript 前端
+10. [ ] 可选 RPA / browser automation adapter

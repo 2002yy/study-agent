@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "preview_mode_blocks_write",
+      "memory_mode": "preview",
+      "safe_mode": false,
+      "expected_allowed": false
+    },
+    {
+      "id": "confirm_write_allows_write",
+      "memory_mode": "confirm_write",
+      "safe_mode": false,
+      "expected_allowed": true
+    },
+    {
+      "id": "safe_mode_blocks_even_confirm_write",
+      "memory_mode": "confirm_write",
+      "safe_mode": true,
+      "expected_allowed": false
+    }
+  ]
+}

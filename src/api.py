@@ -21,11 +21,14 @@ from src.role_manager import load_role
 from src.router import route_request
 from src.session_logger import flush_current_session, get_or_create_session, init_session, log
 from src.tools.local_knowledge import retrieve_local_knowledge
+from src.tools.registry import create_default_tool_registry
+from src.workflows.store import DEFAULT_WORKFLOW_DIR, WorkflowStore
 
 ROOT = Path(__file__).resolve().parent.parent
 RAG_UPLOAD_DIR = ROOT / "logs" / "rag_uploads"
 SESSION_DIR = ROOT / "logs" / "sessions"
 CURRENT_SESSION_DIR = ROOT / "logs" / "current"
+WORKFLOW_DIR = DEFAULT_WORKFLOW_DIR
 
 
 class HealthResponse(BaseModel):
@@ -165,7 +168,34 @@ class SessionListResponse(BaseModel):
     sessions: list[dict[str, Any]]
 
 
+class ToolInvocationRequest(BaseModel):
+    args: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = None
+
+
+class ToolInvocationResponse(BaseModel):
+    tool_name: str
+    status: str
+    output: dict[str, Any]
+    reason: str
+    elapsed_ms: int
+    run_id: str
+
+
+class ToolListResponse(BaseModel):
+    tools: list[dict[str, Any]]
+
+
+class WorkflowListResponse(BaseModel):
+    runs: list[dict[str, Any]]
+
+
+class WorkflowRunResponse(BaseModel):
+    run: dict[str, Any]
+
+
 app = FastAPI(title="Study Agent API", version="0.1.0")
+TOOL_REGISTRY = create_default_tool_registry()
 
 
 def _index_path(value: str | None) -> Path:
@@ -196,6 +226,22 @@ def _session_file_rows(directory: Path, kind: str, limit: int) -> list[dict[str,
         )
     rows.sort(key=lambda row: int(row["mtime_ns"]), reverse=True)
     return rows[:limit]
+
+
+def _workflow_store() -> WorkflowStore:
+    return WorkflowStore(WORKFLOW_DIR)
+
+
+def _workflow_summary(run: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": run["run_id"],
+        "workflow_name": run["workflow_name"],
+        "status": run["status"],
+        "started_at": run["started_at"],
+        "completed_at": run["completed_at"],
+        "elapsed_ms": run["elapsed_ms"],
+        "event_count": len(run["events"]),
+    }
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -498,3 +544,44 @@ def flush_session(session_id: str) -> dict[str, Any]:
     get_or_create_session(session_id)
     flushed = flush_current_session(session_id, force=True)
     return {"session_id": session_id, "flushed": flushed}
+
+
+@app.get("/tools", response_model=ToolListResponse)
+def list_tools() -> ToolListResponse:
+    return ToolListResponse(tools=[spec.to_dict() for spec in TOOL_REGISTRY.list_specs()])
+
+
+@app.post("/tools/{tool_name}/preview", response_model=ToolInvocationResponse)
+def preview_tool(tool_name: str, request: ToolInvocationRequest) -> ToolInvocationResponse:
+    if TOOL_REGISTRY.get_spec(tool_name) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown tool: {tool_name}")
+    result = TOOL_REGISTRY.preview(tool_name, request.args)
+    return ToolInvocationResponse(**result.to_dict())
+
+
+@app.post("/tools/{tool_name}/call", response_model=ToolInvocationResponse)
+def call_tool(tool_name: str, request: ToolInvocationRequest) -> ToolInvocationResponse:
+    if TOOL_REGISTRY.get_spec(tool_name) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown tool: {tool_name}")
+    result = TOOL_REGISTRY.call_with_audit(
+        tool_name,
+        request.args,
+        store=_workflow_store(),
+        run_id=request.run_id,
+    )
+    return ToolInvocationResponse(**result.to_dict())
+
+
+@app.get("/workflows/runs", response_model=WorkflowListResponse)
+def list_workflow_runs(limit: int = 20) -> WorkflowListResponse:
+    safe_limit = max(1, min(limit, 100))
+    runs = [run.to_dict() for run in _workflow_store().list_runs(safe_limit)]
+    return WorkflowListResponse(runs=[_workflow_summary(run) for run in runs])
+
+
+@app.get("/workflows/runs/{run_id}", response_model=WorkflowRunResponse)
+def get_workflow_run(run_id: str) -> WorkflowRunResponse:
+    run = _workflow_store().load_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {run_id}")
+    return WorkflowRunResponse(run=run.to_dict())

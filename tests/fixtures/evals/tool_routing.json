@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "id": "skip_greeting",
+      "input": "你好",
+      "expected_retrieve": false,
+      "expected_reason": "conversational_query"
+    },
+    {
+      "id": "retrieve_explicit_local_docs",
+      "input": "请根据本地资料解释 RAG 架构",
+      "expected_retrieve": true,
+      "expected_reason": "explicit_local_knowledge_hint"
+    },
+    {
+      "id": "retrieve_study_question",
+      "input": "为什么 FastAPI 服务层需要工作流事件？",
+      "expected_retrieve": true,
+      "expected_reason": "study_question_hint"
+    },
+    {
+      "id": "skip_low_signal",
+      "input": "随便聊聊",
+      "expected_retrieve": false,
+      "expected_reason": "conversational_query"
+    }
+  ]
+}

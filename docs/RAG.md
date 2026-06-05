@@ -19,7 +19,7 @@ Implemented:
 - Streamlit retrieval panel for uploads, local paths, indexing, querying and citation preview
 - Optional single-chat and WeChat interactive reply injection through the `用于聊天回答` toggle
 - UI source blocks for retrieved file paths, line ranges, scores and matched terms
-- FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`, `GET /rag/status`, `POST /rag/upload`, `POST /rag/local-knowledge`
+- FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`, `GET /rag/status`, `POST /rag/upload`, `POST /rag/local-knowledge`, `GET /tools`, `POST /tools/{tool_name}/preview`, `POST /tools/{tool_name}/call`, `GET /workflows/runs`, `GET /workflows/runs/{run_id}`
 - Streamlit knowledge/debug panel with index summary, document rows, chunk preview and score breakdowns
 - Optional vector backend interface with local fallback and Chroma adapter
 - Configurable embedding providers: deterministic `local_hash` by default, OpenAI-compatible embeddings when explicitly configured
@@ -46,7 +46,9 @@ Not implemented yet:
 | `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
 | `src/rag/schema.py` | Dataclasses for documents, chunks, indexes and search results |
 | `src/tools/local_knowledge.py` | Controlled retrieval boundary for agentic local knowledge use |
-| `src/api.py` | FastAPI health, chat, memory, session, RAG and local-knowledge endpoints |
+| `src/tools/registry.py` | Allowlisted typed tool registry with preview, call and workflow audit support |
+| `src/workflows/store.py` | Local JSONL workflow run/event persistence for tool and future frontend timelines |
+| `src/api.py` | FastAPI health, chat, memory, session, RAG, tool and workflow endpoints |
 
 ## Data Flow
 
@@ -117,6 +119,7 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - Streamlit RAG panel helpers for uploaded filenames and local path parsing
 - FastAPI `/health`, `/rag`, `/rag/index`, `/rag/query`, `/rag/status`, `/rag/upload` and `/rag/local-knowledge`
 - FastAPI `/chat`, `/memory/preview`, `/memory/commit`, `/sessions` and `/sessions/{session_id}/flush`
+- FastAPI `/tools`, `/tools/{tool_name}/preview`, `/tools/{tool_name}/call`, `/workflows/runs` and `/workflows/runs/{run_id}`
 - Prompt injection behavior for cited RAG context
 - Controlled local-knowledge tool behavior for skip / found / not-found / rewrite
 
@@ -128,6 +131,21 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - Mean reciprocal rank
 - Empty-result and miss accounting
 - Unknown retrieval mode rejection
+
+`tests/test_eval_quality_gates.py` adds the first broader P8.4 quality-gate fixtures under `tests/fixtures/evals/` and verifies:
+
+- Answer grounding citation and unsupported-claim rules
+- Controlled local-knowledge tool routing decisions
+- Workflow event status transitions and failure metadata
+- Memory write permission safety across runtime modes
+- URL safety and domain-policy regression cases
+
+`tests/test_workflow_tool_registry.py` adds the first P8.5 execution-foundation checks and verifies:
+
+- Workflow JSONL run/event persistence and listing
+- Default allowlisted tool registry metadata
+- Unknown tool arguments are blocked before execution
+- `retrieve_local_knowledge` tool calls write workflow audit events
 
 P4-B adds API/query diagnostics:
 
@@ -203,4 +221,5 @@ Goal: expose the current local-first capabilities through stable API boundaries 
 - [x] Add a non-streaming `/chat` endpoint that reuses model routing, role prompts, memory bundles, local-knowledge retrieval and session logging.
 - [x] Add memory preview / commit endpoints with the same runtime write-mode guard as the Streamlit UI.
 - [x] Add session listing and force-flush endpoints for local session inspection.
+- [x] Add controlled tool preview / call endpoints and workflow run read endpoints.
 - [ ] Add streaming chat, auth, CORS policy and frontend-oriented error envelopes before public or LAN deployment.

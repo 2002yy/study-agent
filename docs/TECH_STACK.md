@@ -281,12 +281,12 @@ User query
 - Streamlit 面板显示当前索引、文档列表、chunk preview、检索参数和 score breakdown
 - 单人聊天和微信群互动回复可通过 `用于聊天回答` 开关把检索结果注入 system prompt，并显示 RAG 引用来源块
 - `retrieve_local_knowledge()` 作为受控工具边界，支持 skip / found / not-found / rewrite 状态
-- FastAPI `GET /health`、`POST /chat`、`POST /memory/preview`、`POST /memory/commit`、`GET /sessions`、`POST /sessions/{session_id}/flush`、`POST /rag`、`POST /rag/index`、`POST /rag/query`、`GET /rag/status`、`POST /rag/upload`、`POST /rag/local-knowledge`
+- FastAPI `GET /health`、`POST /chat`、`POST /memory/preview`、`POST /memory/commit`、`GET /sessions`、`POST /sessions/{session_id}/flush`、`POST /rag`、`POST /rag/index`、`POST /rag/query`、`GET /rag/status`、`POST /rag/upload`、`POST /rag/local-knowledge`、`GET /tools`、`POST /tools/{tool_name}/preview`、`POST /tools/{tool_name}/call`、`GET /workflows/runs`、`GET /workflows/runs/{run_id}`
 
 未实现边界：
 
 - 默认仍是 local-first；生产 embedding 需要显式 API/env 配置，Chroma 需要额外安装 `chromadb`；FAISS、pgvector 或其他生产向量库仍未接入
-- FastAPI 当前覆盖 health、非流式 chat、memory preview/commit、session list/flush 和 RAG 基础接口；streaming、auth、CORS 策略和更稳定的前端错误协议仍是后续服务化任务
+- FastAPI 当前覆盖 health、非流式 chat、memory preview/commit、session list/flush、RAG 基础接口、受控工具 preview/call 和 workflow run 读取；streaming、auth、CORS 策略、通用 retry engine 和更稳定的前端错误协议仍是后续服务化任务
 - 尚未自动注入所有生成路径；当前覆盖单人聊天和微信群互动回复，不覆盖新闻讨论或课后反馈
 
 价值：
