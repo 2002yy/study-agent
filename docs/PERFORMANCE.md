@@ -23,11 +23,13 @@ This prevents unnecessary re-renders of the entire page on every interaction.
 
 ## Performance Budget
 
-All LLM calls have `max_tokens` bounds via `src/performance_budget.py`. Three tiers:
+The main user-facing LLM paths have `max_tokens` bounds via `src/performance_budget.py`. Three tiers:
 
 - **fast**: Low token consumption, shorter conversations (700 chat, 16 history lines)
 - **standard**: Balanced (1100 chat, 28 history lines)  
 - **deep**: Full context (1600 chat, 40 history lines)
+
+Covered paths include single chat, WeChat opening/reply/news discussion, and news digest generation. Some auxiliary calls still rely on `llm_client.py` task defaults or environment/global defaults rather than `performance_budget.py` directly, so this is not yet a strict "every LLM call" guarantee.
 
 ## Batch Flush
 

@@ -8,6 +8,7 @@ from src.config import validate
 from src.health_check import light_health_report
 from src.ui.after_session_panel import render_after_session_panel
 from src.ui.chat_panel import render_chat_panel
+from src.ui.rag_panel import render_rag_panel
 from src.ui.session_state import init_session_state, refresh_memory_bundle, refresh_runtime_state
 from src.ui.sidebar import render_sidebar
 from src.ui.status_bar import render_model_stats_line, render_status_bar
@@ -67,6 +68,7 @@ if st.session_state.runtime_modes.entry_mode == "wechat":
 else:
     render_single_main_fragment()
 
+render_rag_panel()
 render_after_session_fragment()
 
 if st.session_state.runtime_modes.debug_mode:

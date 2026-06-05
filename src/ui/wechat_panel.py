@@ -13,6 +13,7 @@ from src.mode_manager import (
     update_interaction_mode,
     update_wechat_join_state,
 )
+from src.rag import build_rag_context, format_rag_sources, query_documents
 from src.session_logger import (
     set_wechat_interactive,
     set_wechat_memory_candidates,
@@ -106,6 +107,32 @@ def _render_wechat_notice():
         st.info(message)
     else:
         st.success(message)
+
+
+def _build_wechat_rag_context(user_text: str) -> tuple[str, int, str]:
+    if not st.session_state.get("rag_chat_enabled"):
+        return "", 0, ""
+
+    try:
+        top_k = int(st.session_state.get("rag_chat_top_k", 3))
+        results = query_documents(
+            user_text,
+            top_k=top_k,
+            retrieval_mode=st.session_state.get("rag_retrieval_mode", "hybrid"),
+        )
+    except FileNotFoundError:
+        return "", 0, "RAG index missing"
+    except Exception as exc:
+        return "", 0, f"RAG retrieval failed: {exc}"
+
+    context = build_rag_context(results)
+    if not results:
+        return "", 0, "No relevant local documents"
+
+    st.session_state.rag_results = results
+    st.session_state.rag_context = context
+    st.session_state.rag_source_block = format_rag_sources(results)
+    return context, len(results), ""
 
 
 def _active_wechat_content() -> tuple[str, str]:
@@ -281,11 +308,19 @@ def _stream_pending_reply(content_placeholder):
     live_note = st.empty()
     live_note.caption("她们正在输入...")
     reply = ""
+    rag_context, rag_count, rag_warning = _build_wechat_rag_context(pending_input)
+    if rag_count:
+        st.session_state.wechat_rag_last_status = f"RAG 引用 {rag_count} 条"
+    elif rag_warning:
+        st.session_state.wechat_rag_last_status = f"RAG 状态：{rag_warning}"
+    else:
+        st.session_state.wechat_rag_last_status = ""
 
     try:
         stream_result = generate_interactive_wechat_reply_stream(
             pending_input,
             relationship_mode=st.session_state.interaction_mode,
+            rag_context=rag_context,
         )
         for chunk in stream_result[0]:
             reply += chunk
@@ -460,6 +495,11 @@ def render_wechat_panel():
     _render_wechat_stream(content_placeholder, content)
 
     if content:
+        if st.session_state.get("wechat_rag_last_status"):
+            st.caption(st.session_state.wechat_rag_last_status)
+            if st.session_state.get("rag_source_block"):
+                with st.expander("RAG 引用来源", expanded=False):
+                    st.code(st.session_state.rag_source_block, language="text")
         if st.session_state.get("wechat_news_phase"):
             render_news_round_phases()
         else:

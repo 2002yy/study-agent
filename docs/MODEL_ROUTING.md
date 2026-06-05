@@ -45,7 +45,7 @@ Route caching via `st.session_state.current_route` — cleared when settings cha
 
 ## Performance Budget
 
-All LLM calls are bounded by `src/performance_budget.py`:
+Main chat, WeChat, and news LLM paths are bounded by `src/performance_budget.py`:
 
 | Call Point | Fast | Standard | Deep |
 |---|---|---|---|
@@ -55,3 +55,5 @@ All LLM calls are bounded by `src/performance_budget.py`:
 | News digest | 650 | 950 | 1300 |
 | News discussion | 520 | 760 | 1000 |
 | History lines | 16 | 28 | 40 |
+
+Auxiliary calls such as memory-candidate extraction may still rely on `llm_client.py` task defaults or environment/global defaults. Treat full coverage of every LLM call as a remaining hardening item, not a completed invariant.

@@ -1,4 +1,5 @@
 from src.wechat_service import RuntimeContext, run_news_round
+from src.news.audit import NewsAuditArtifact
 
 
 def test_run_news_round_returns_result_and_updates_session(monkeypatch):
@@ -7,6 +8,7 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
     progress_calls = []
     writes = []
     session_marks = []
+    audit_calls = []
 
     monkeypatch.setattr(
         wechat_service,
@@ -49,6 +51,13 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
         "set_wechat_interactive",
         lambda session_id, status: session_marks.append((session_id, status)),
     )
+    monkeypatch.setattr(
+        wechat_service,
+        "save_news_audit",
+        lambda **kwargs: audit_calls.append(kwargs)
+        or NewsAuditArtifact("run1", "logs/news_audit/run1.md", "logs/news_audit/run1.json"),
+    )
+    monkeypatch.setattr(wechat_service, "get_last_feed_warnings", lambda: [])
 
     result = run_news_round(
         query_text="OpenAI latest",
@@ -77,6 +86,10 @@ def test_run_news_round_returns_result_and_updates_session(monkeypatch):
         "failed_fetch": 0,
     }
     assert result.warnings == []
+    assert result.audit_markdown_path == "logs/news_audit/run1.md"
+    assert result.audit_json_path == "logs/news_audit/run1.json"
+    assert audit_calls[0]["query_text"] == "OpenAI latest"
+    assert audit_calls[0]["article_coverage"]["with_text"] == 3
     assert result.elapsed_ms >= 0
     assert writes == [
         ("note", "source:OpenAI latest:3"),
@@ -114,6 +127,12 @@ def test_run_news_round_skips_article_read_when_disabled(monkeypatch):
     monkeypatch.setattr(wechat_service, "append_system_group_note", lambda content: None)
     monkeypatch.setattr(wechat_service, "append_interactive_group_reply", lambda content: None)
     monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group")
+    monkeypatch.setattr(
+        wechat_service,
+        "save_news_audit",
+        lambda **kwargs: NewsAuditArtifact("run2", "audit.md", "audit.json"),
+    )
+    monkeypatch.setattr(wechat_service, "get_last_feed_warnings", lambda: [])
 
     def _should_not_run(*args, **kwargs):
         raise AssertionError("article enrichment should be skipped")
@@ -166,6 +185,12 @@ def test_run_news_round_emits_task_events(monkeypatch):
     monkeypatch.setattr(wechat_service, "append_interactive_group_reply", lambda content: None)
     monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group")
     monkeypatch.setattr(wechat_service, "update_wechat_join_state", lambda **kwargs: None)
+    monkeypatch.setattr(
+        wechat_service,
+        "save_news_audit",
+        lambda **kwargs: NewsAuditArtifact("run3", "audit.md", "audit.json"),
+    )
+    monkeypatch.setattr(wechat_service, "get_last_feed_warnings", lambda: [])
 
     run_news_round(
         query_text="events",
@@ -182,6 +207,9 @@ def test_run_news_round_emits_task_events(monkeypatch):
     assert event_types[0] == "started"
     assert "progress" in event_types
     assert ("item_completed", "search") in [
+        (event.event_type, event.message) for event in events
+    ]
+    assert ("item_completed", "audit") in [
         (event.event_type, event.message) for event in events
     ]
     assert event_types[-1] == "completed"
@@ -211,6 +239,12 @@ def test_run_news_round_safe_mode_skips_article_network_read(monkeypatch):
     monkeypatch.setattr(wechat_service, "append_interactive_group_reply", lambda content: None)
     monkeypatch.setattr(wechat_service, "read_wechat_group", lambda: "group")
     monkeypatch.setattr(wechat_service, "update_wechat_join_state", lambda **kwargs: None)
+    monkeypatch.setattr(
+        wechat_service,
+        "save_news_audit",
+        lambda **kwargs: NewsAuditArtifact("run4", "audit.md", "audit.json"),
+    )
+    monkeypatch.setattr(wechat_service, "get_last_feed_warnings", lambda: [])
 
     def _should_not_run(*args, **kwargs):
         raise AssertionError("safe_mode should skip article network reads")

@@ -176,3 +176,11 @@ def test_ci_workflow_exists_and_runs_core_checks():
     assert "mypy --explicit-package-bases src/" in text
     assert "Run package helper" in text
     assert "detect-secrets" in text
+
+
+def test_ci_secret_scan_fails_on_any_detect_secrets_finding():
+    text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "json.load(f)" in text
+    assert 'report.get("results", {})' in text
+    assert "if findings:" in text
+    assert '"is_secret": true' not in text

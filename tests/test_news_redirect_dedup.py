@@ -129,10 +129,21 @@ def test_source_block_includes_url_metadata():
                 "canonical_url": "https://docs.python.org/3/library/urllib.parse.html",
                 "domain": "docs.python.org",
                 "resolution_status": "resolved",
+                "redirect_hops": [
+                    {"source": "input", "status": "received", "is_safe": True},
+                    {"source": "query_parameter", "status": "extracted", "is_safe": True},
+                ],
+                "domain_policy": {
+                    "blocked": False,
+                    "reasons": ["prefer-tech-domain"],
+                },
             }
         ],
     )
 
     assert "域名：docs.python.org｜解析：resolved" in source_block
+    assert "证据：article_text" in source_block
+    assert "跳转链：2 hops" in source_block
+    assert "域名策略：prefer-tech-domain" in source_block
     assert "原始链接：news.example" in source_block
     assert "真实链接：docs.python.org" in source_block

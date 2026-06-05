@@ -7,8 +7,9 @@ from typing import Callable
 from src.session_logger import set_wechat_interactive
 from src.mode_manager import RuntimeModes, build_runtime_profile, update_wechat_join_state
 from src.news.article_fetcher import enrich_news_items_with_article_text
+from src.news.audit import NewsAuditArtifact, save_news_audit
 from src.news.digest import format_news_source_block, generate_news_digest
-from src.news.rss_fetcher import fetch_news_items
+from src.news.rss_fetcher import fetch_news_items, get_last_feed_warnings
 from src.task_events import TaskEventCallback, emit_task_event
 from src.wechat_generator import generate_wechat_news_discussion
 from src.wechat_state import (
@@ -226,6 +227,8 @@ class NewsRoundResult:
     article_coverage: dict = field(default_factory=dict)
     elapsed_ms: int = 0
     warnings: list[str] = field(default_factory=list)
+    audit_markdown_path: str = ""
+    audit_json_path: str = ""
 
 
 def run_news_round(
@@ -337,6 +340,39 @@ def run_news_round(
         )
 
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        audit_artifact = NewsAuditArtifact("", "", "")
+        try:
+            audit_artifact = save_news_audit(
+                query_text=query_text,
+                news_items=news_items,
+                source_block=source_block,
+                digest=digest,
+                article_coverage=article_coverage,
+                warnings=warnings,
+                feed_warnings=get_last_feed_warnings(),
+                elapsed_ms=elapsed_ms,
+            )
+            emit_task_event(
+                runtime_context.event_callback,
+                task_name,
+                "item_completed",
+                message="audit",
+                data={
+                    "markdown_path": audit_artifact.markdown_path,
+                    "json_path": audit_artifact.json_path,
+                },
+                started_at=t0,
+            )
+        except Exception as exc:
+            warnings = warnings + [f"audit 保存失败：{exc}"]
+            emit_task_event(
+                runtime_context.event_callback,
+                task_name,
+                "item_completed",
+                message="audit_skipped",
+                data={"error_type": type(exc).__name__},
+                started_at=t0,
+            )
         result = NewsRoundResult(
             query_text=query_text,
             news_items=news_items,
@@ -347,6 +383,8 @@ def run_news_round(
             article_coverage=article_coverage,
             elapsed_ms=elapsed_ms,
             warnings=warnings,
+            audit_markdown_path=audit_artifact.markdown_path,
+            audit_json_path=audit_artifact.json_path,
         )
         emit_task_event(
             runtime_context.event_callback,

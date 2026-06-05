@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.news.url_normalizer import (
     build_url_metadata,
     canonicalize_url,
@@ -61,10 +63,41 @@ class TestUrlNormalizer:
         assert not is_public_http_url("http://localhost:8000")
         assert not is_public_http_url("http://127.0.0.1:8000")
         assert not is_public_http_url("http://192.168.1.2/a")
-        assert not is_public_http_url("https://user:pass@example.com/a")
+        assert not is_public_http_url("https://user:pass@example.com/a")  # pragma: allowlist secret
         assert not is_public_http_url("https://example.com\\@evil.test/a")
         assert not is_public_http_url("https://example.com/a b")
         assert not is_public_http_url("https://example.com:99999/a")
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://2130706433/admin",
+            "http://0177.0.0.1/admin",
+            "http://0x7f.0.0.1/admin",
+            "http://127.1/admin",
+            "http://[::1]/admin",
+            "http://[::ffff:127.0.0.1]/admin",
+            "http://%31%32%37.0.0.1/admin",
+            "http://example.com%2f.evil.test/admin",
+        ],
+    )
+    def test_rejects_parser_ambiguous_or_encoded_hosts(self, url):
+        assert not is_public_http_url(url)
+
+    def test_repeated_encoded_redirect_to_private_host_is_blocked(self):
+        wrapped = (
+            "https://news.example/redirect?"
+            "url=http%253A%252F%252F127.0.0.1%252Fadmin"
+        )
+
+        assert extract_redirect_target(wrapped) == ""
+        metadata = build_url_metadata(wrapped)
+        assert metadata.resolution_status == "unsafe"
+        assert metadata.resolved_url == "http://127.0.0.1/admin"
+
+    def test_normal_public_urls_still_pass_safety_matrix(self):
+        assert is_public_http_url("https://docs.python.org/3/library/urllib.parse.html")
+        assert is_public_http_url("https://xn--fsqu00a.xn--0zwm56d/story")
 
     def test_build_url_metadata_marks_resolved_and_domain(self):
         metadata = build_url_metadata(
