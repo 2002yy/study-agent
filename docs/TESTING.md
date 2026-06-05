@@ -6,7 +6,7 @@ Current verified baseline:
 
 | Check | Status | Evidence |
 |---|---|---|
-| pytest | Passed | `262 passed` locally on 2026-06-05 |
+| pytest | Passed | `265 passed` locally on 2026-06-05 |
 | Ruff | Passed | `python -m ruff check .` clean locally on 2026-06-04 |
 | Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-04 |
 | mypy | Soft check, not clean | `python -m mypy --explicit-package-bases src/` reported 18 errors locally on 2026-06-04 |
@@ -24,9 +24,9 @@ Current verified baseline:
 | **News URL safety** | `test_url_normalizer.py`, `test_link_resolver.py` | 28 |
 | **News pipeline trace / audit** | `test_news_pipeline_trace.py`, `test_news_audit.py` | 5 |
 | **Feed registry / health** | `test_feed_registry.py`, `test_feed_diagnostics.py` | 9 |
-| **RAG MVP** | `test_rag.py` | 20 |
+| **RAG MVP** | `test_rag.py` | 22 |
 | **RAG evaluation** | `test_rag_eval.py` | 5 |
-| **FastAPI RAG endpoints** | `test_api.py` | 5 |
+| **FastAPI RAG endpoints** | `test_api.py` | 6 |
 | **Architecture flows** | `test_architecture_flows.py` | 12 |
 | **WeChat decoupling** | `test_wechat_decoupling.py` | 4 |
 | **Sidebar rerun** | `test_sidebar_global_rerun.py` | 12 |
@@ -76,7 +76,7 @@ def test_flush_uses_safe_writer():
 ## Running Tests
 
 ```bash
-python -m pytest             # current baseline: 262 passed
+python -m pytest             # current baseline: 265 passed
 pytest tests/ -v             # Verbose
 pytest tests/ --cov=src      # Coverage
 python -m ruff check .       # Linting

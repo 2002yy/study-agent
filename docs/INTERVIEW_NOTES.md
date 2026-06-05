@@ -10,7 +10,7 @@ Study Agent 是一个本地优先的 AI 学习助手，重点在多 Provider 模
 2. **长期记忆写入安全** — safe writer + preview/confirm 机制，防止不可逆的记忆污染
 3. **联网搜索来源追溯** — Feed registry / RSS 多源聚合 → URL safety matrix → 文章正文三层提取 → LLM digest → pipeline trace 全过程来源可回溯
 4. **Streamlit 重渲染性能优化** — 多层缓存策略、按模式批量落盘、主链路 token 预算控制
-5. **CI / Ruff / detect-secrets 工程检查** — 262 pytest tests、Ruff clean、GitHub Actions workflow、detect-secrets 对未豁免发现硬阻断
+5. **CI / Ruff / detect-secrets 工程检查** — 265 pytest tests、Ruff clean、GitHub Actions workflow、detect-secrets 对未豁免发现硬阻断
 
 ## 可讲亮点
 
