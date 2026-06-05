@@ -286,7 +286,7 @@ Study Agent 后续的核心竞争力应该来自 RAG，而不是普通聊天。
 
 不要让模型无限制自由调用工具，而是先用可控路由实现稳定 Agent 工作流。
 
-## 9. P1：FastAPI 服务化
+## 9. P8：FastAPI 服务化
 
 不建议立刻推翻 Streamlit。推荐三步走：
 
@@ -298,7 +298,7 @@ Streamlit UI → core/chat_engine.py
 
 ### 阶段 2：增加 FastAPI
 
-最小接口：
+当前基础接口已经落地：
 
 ```text
 GET  /health
@@ -307,12 +307,21 @@ POST /memory/preview
 POST /memory/commit
 POST /rag/upload
 POST /rag/query
+GET  /rag/status
+POST /rag/local-knowledge
 GET  /sessions
+POST /sessions/{session_id}/flush
 ```
+
+仍需补齐：streaming chat、auth、CORS、统一错误响应、OpenAPI 示例和 Docker 部署配置。
 
 ### 阶段 3：补前端
 
-前端可用 Vue3 或 React。推荐先 Vue3，开发成本较低。
+前端建议进入 P9 后使用 React + Vite + TypeScript。理由是：
+
+- React 生态更适合后续做聊天流、引用面板、调试抽屉和状态组件拆分。
+- Vite 开发服务器启动快，生产构建输出静态 `dist`，可以独立部署，也可以由 FastAPI 挂载静态目录。
+- TypeScript 能把 API response、RAG source、memory preview、session row 等数据结构固定下来，减少前后端联调时的隐性字段漂移。
 
 最低页面：
 
@@ -368,7 +377,7 @@ GET  /sessions
 | RAG 测试 | chunk、入库、检索、引用来源 |
 | Tool 测试 | 新闻检索、文件读取、摘要 |
 | ContextBuilder 测试 | 不同模式下上下文是否正确 |
-| API 测试 | /chat、/health、/rag/query |
+| API 测试 | /chat、/health、/rag/query、/rag/upload、/rag/status、/memory/preview、/memory/commit、/sessions |
 | UI smoke 测试 | 页面能打开、基本交互不崩 |
 
 最关键的是 Mock Provider。真实模型用于演示和实际使用，Mock Provider 用于自动测试和 CI，避免测试依赖外部 API。
@@ -438,15 +447,15 @@ docs/
 
 任务：
 
-1. 增加 FastAPI
-2. 实现 /health
-3. 实现 /chat
-4. 实现 /rag/upload
-5. 实现 /rag/query
-6. 实现 /memory/preview
-7. 实现 /memory/commit
-8. 补 API 测试
-9. 补 Docker Compose
+1. [x] 增加 FastAPI
+2. [x] 实现 /health
+3. [x] 实现 /chat（当前为非流式）
+4. [x] 实现 /rag/upload
+5. [x] 实现 /rag/query
+6. [x] 实现 /memory/preview
+7. [x] 实现 /memory/commit
+8. [x] 补 API 测试
+9. [ ] 补 streaming chat / auth / CORS / Docker Compose
 
 ### v1.0：前端产品化版本
 
@@ -454,7 +463,7 @@ docs/
 
 任务：
 
-1. Vue3 / React 前端
+1. React + Vite + TypeScript 前端
 2. 聊天页
 3. 文件上传页
 4. 知识库列表页
@@ -479,28 +488,27 @@ docs/
 
 ## 15. 当前最建议执行的下一步
 
-第一步先画清主流程并拆模块：
+当前主流程已经可以按 FastAPI 边界继续收口：
 
 ```text
 用户输入
-→ UI 接收
+→ Streamlit 或 Web UI 接收
+→ FastAPI /chat
 → memory 读取
 → context 构建
-→ tool 判断
+→ local knowledge tool 判断
 → provider 调用
-→ stream 输出
+→ response 输出
 → session 记录
 → memory 写回确认
 ```
 
-推荐重构顺序：
+推荐推进顺序：
 
-1. Provider 抽象稳定
-2. MemoryManager 稳定
-3. ContextBuilder 稳定
-4. SessionLogger 批量写入
-5. ToolRouter 初步成型
-6. Streamlit 只保留 UI
-7. 再加 FastAPI
-8. 再加 RAG
-9. 最后做前端
+1. [x] Provider 抽象稳定
+2. [x] Memory / ContextBuilder 基础稳定
+3. [x] SessionLogger 批量写入
+4. [x] RAG MVP 与 local knowledge tool
+5. [x] FastAPI 基础服务层
+6. [ ] streaming chat / auth / CORS / Docker
+7. [ ] React + Vite + TypeScript 前端

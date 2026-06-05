@@ -19,10 +19,11 @@ Implemented:
 - Streamlit retrieval panel for uploads, local paths, indexing, querying and citation preview
 - Optional single-chat and WeChat interactive reply injection through the `用于聊天回答` toggle
 - UI source blocks for retrieved file paths, line ranges, scores and matched terms
-- FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`
+- FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`, `GET /rag/status`, `POST /rag/upload`, `POST /rag/local-knowledge`
 - Streamlit knowledge/debug panel with index summary, document rows, chunk preview and score breakdowns
 - Optional vector backend interface with local fallback and Chroma adapter
 - Configurable embedding providers: deterministic `local_hash` by default, OpenAI-compatible embeddings when explicitly configured
+- Controlled local-knowledge retrieval tool with intent gating, deterministic query rewrite and explicit not-found behavior
 
 Not implemented yet:
 
@@ -44,7 +45,8 @@ Not implemented yet:
 | `src/rag/eval.py` | LLM-free retrieval quality evaluation over gold query fixtures |
 | `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
 | `src/rag/schema.py` | Dataclasses for documents, chunks, indexes and search results |
-| `src/api.py` | FastAPI health and RAG endpoints |
+| `src/tools/local_knowledge.py` | Controlled retrieval boundary for agentic local knowledge use |
+| `src/api.py` | FastAPI health, chat, memory, session, RAG and local-knowledge endpoints |
 
 ## Data Flow
 
@@ -56,7 +58,9 @@ local files
   -> save_rag_index
   -> query_documents
   -> build_rag_context
+  -> optional controlled local-knowledge tool
   -> optional single-chat / WeChat interactive prompt injection or FastAPI response
+  -> optional frontend-facing chat / memory / session API flow
 ```
 
 ## Retrieval Behavior
@@ -111,8 +115,10 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - Local hash-vector and hybrid retrieval behavior
 - Citation formatting and context budget behavior
 - Streamlit RAG panel helpers for uploaded filenames and local path parsing
-- FastAPI `/health`, `/rag`, `/rag/index` and `/rag/query`
+- FastAPI `/health`, `/rag`, `/rag/index`, `/rag/query`, `/rag/status`, `/rag/upload` and `/rag/local-knowledge`
+- FastAPI `/chat`, `/memory/preview`, `/memory/commit`, `/sessions` and `/sessions/{session_id}/flush`
 - Prompt injection behavior for cited RAG context
+- Controlled local-knowledge tool behavior for skip / found / not-found / rewrite
 
 `tests/test_rag_eval.py` adds a small gold fixture suite under `tests/fixtures/rag_eval/` and verifies:
 
@@ -182,7 +188,19 @@ Goal: turn the Streamlit expander into a usable knowledge panel.
 
 Goal: let the model retrieve when it needs evidence instead of always pre-retrieving.
 
-- Add a `retrieve_local_knowledge(query)` tool boundary.
-- Route retrieval only for knowledge-grounded questions.
-- Allow query rewrite and second-pass retrieval when first-pass evidence is weak.
-- Require explicit "not found in local knowledge" behavior when no source is retrieved.
+- [x] Add a `retrieve_local_knowledge(query)` tool boundary.
+- [x] Route retrieval only for knowledge-grounded questions through deterministic intent gating.
+- [x] Allow deterministic query rewrite and second-pass retrieval when first-pass evidence is weak.
+- [x] Require explicit "not found in local knowledge" behavior when no source is retrieved.
+- [x] Expose the same boundary through `POST /rag/local-knowledge` for future frontends.
+- [ ] Add LLM tool-calling / function-calling integration; current implementation is controlled pre-generation retrieval, not free-form tool use.
+
+### P8: Service API Foundation
+
+Goal: expose the current local-first capabilities through stable API boundaries before building a separate web frontend.
+
+- [x] Add RAG status and upload endpoints for index inspection and rebuilds.
+- [x] Add a non-streaming `/chat` endpoint that reuses model routing, role prompts, memory bundles, local-knowledge retrieval and session logging.
+- [x] Add memory preview / commit endpoints with the same runtime write-mode guard as the Streamlit UI.
+- [x] Add session listing and force-flush endpoints for local session inspection.
+- [ ] Add streaming chat, auth, CORS policy and frontend-oriented error envelopes before public or LAN deployment.
