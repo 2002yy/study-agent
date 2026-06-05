@@ -20,11 +20,13 @@ Implemented:
 - Optional single-chat and WeChat interactive reply injection through the `用于聊天回答` toggle
 - UI source blocks for retrieved file paths, line ranges, scores and matched terms
 - FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`
+- Streamlit knowledge/debug panel with index summary, document rows, chunk preview and score breakdowns
+- Optional vector backend interface with local fallback and Chroma adapter scaffold
 
 Not implemented yet:
 
-- Embedding model integration
-- FAISS, pgvector or other vector stores
+- Production embedding model integration
+- FAISS, pgvector or managed vector stores
 - Automatic injection into every generation path; current injection covers single chat and WeChat interactive replies, but not news discussion or after-session feedback
 
 ## Module Map
@@ -34,6 +36,9 @@ Not implemented yet:
 | `src/rag/loader.py` | Load supported local files into normalized `RagDocument` objects |
 | `src/rag/chunker.py` | Split documents into line-traceable `RagChunk` objects |
 | `src/rag/index.py` | Build, save, load and search a local JSON RAG index |
+| `src/rag/embeddings.py` | Embedding provider contract and local hash embedding provider |
+| `src/rag/backends.py` | Vector backend contract, local backend and environment-driven backend selection |
+| `src/rag/chroma_backend.py` | Optional Chroma persistent backend adapter scaffold |
 | `src/rag/vector.py` | Deterministic local vector prototype and hybrid retrieval |
 | `src/rag/eval.py` | LLM-free retrieval quality evaluation over gold query fixtures |
 | `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
@@ -62,6 +67,7 @@ Supported retrieval modes:
 - `lexical`: TF-IDF-style term scoring
 - `vector`: deterministic local hash-vector cosine similarity
 - `hybrid`: normalized lexical score plus vector similarity
+- `backend_vector`: configured vector backend; defaults to local and can use the optional Chroma adapter
 
 Each result keeps:
 
@@ -123,6 +129,22 @@ P4-B adds API/query diagnostics:
 - Per-result rank, chunk id, source path, matched terms and score breakdown
 - Optional one-query evaluation when `/rag/query` receives `expected_sources`
 
+P4-C / P6 adds Streamlit inspection controls:
+
+- Current index path, document count and chunk count
+- Indexed document table with file type, size, mtime, hash prefix and chunk count
+- Chunk preview table with line range, character count and source path
+- Retrieval controls for mode, `top_k`, `min_score` and debug visibility
+- Score-breakdown table for retrieved chunks
+
+P5 adds the first vector-backend abstraction:
+
+- `EmbeddingProvider` protocol plus `LocalHashEmbeddingProvider`
+- `VectorBackend` protocol plus `LocalVectorBackend`
+- `RAG_VECTOR_BACKEND=local|chroma`
+- Optional `ChromaVectorBackend` using lazy `chromadb` import, `PersistentClient`, collection `upsert` and vector query
+- `tests/test_rag_backends.py` verifies local backend behavior, environment config and Chroma fake-client upsert/query behavior
+
 ## Next Steps
 
 ### P4: Retrieval Quality Loop
@@ -132,26 +154,27 @@ Goal: prove retrieval quality before expanding the stack.
 - [x] Add a small gold fixture set with queries, expected sources and expected terms.
 - [x] Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
 - [x] Surface retrieval debug data in tests and API responses before adding more UI polish.
-- [ ] Add a Streamlit source/debug panel for inspecting score breakdowns.
+- [x] Add a Streamlit source/debug panel for inspecting score breakdowns.
 - Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
 
 ### P5: Real Embedding Backend
 
 Goal: replace the local hash-vector prototype with optional real embeddings without breaking local-first defaults.
 
-- Extract a retriever / vector-backend contract.
-- Keep JSON + lexical / hybrid retrieval as the zero-infrastructure fallback.
-- Add one optional backend first, likely Qdrant or Chroma; defer FAISS if Windows install friction is high.
-- Make embedding provider selection explicit through config.
+- [x] Extract an embedding-provider and vector-backend contract.
+- [x] Keep JSON + lexical / hybrid retrieval as the zero-infrastructure fallback.
+- [x] Add an optional Chroma adapter scaffold with lazy import and fake-client tests.
+- [x] Make vector backend selection explicit through config.
+- [ ] Add a production embedding provider; current Chroma adapter uses the local hash embedding provider by default.
 
 ### P6: Knowledge UI
 
 Goal: turn the Streamlit expander into a usable knowledge panel.
 
-- List indexed documents with chunk count, mtime, hash and status.
-- Add query debugging controls for mode, `top_k`, threshold and score preview.
-- Add source preview with title, path, page or line range and matched terms.
-- Add per-chat RAG scope selection instead of one global toggle only.
+- [x] List indexed documents with chunk count, mtime, hash and status.
+- [x] Add query debugging controls for mode, `top_k`, threshold and score preview.
+- [x] Add source preview with title, path, page or line range and matched terms.
+- [ ] Add per-chat RAG scope selection instead of one global toggle only.
 
 ### P7: Agentic RAG
 
