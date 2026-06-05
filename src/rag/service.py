@@ -14,6 +14,7 @@ from src.rag.index import (
     save_rag_index,
     search_rag_index,
 )
+from src.rag.backends import get_vector_backend_from_env
 from src.rag.schema import RagIndex, RagSearchResult
 from src.rag.vector import (
     cosine_similarity,
@@ -22,7 +23,7 @@ from src.rag.vector import (
     search_rag_index_vector,
 )
 
-RETRIEVAL_MODES = {"lexical", "vector", "hybrid"}
+RETRIEVAL_MODES = {"lexical", "vector", "hybrid", "backend_vector"}
 HYBRID_LEXICAL_WEIGHT = 0.7
 
 
@@ -40,6 +41,7 @@ def index_documents(
         overlap_chars=overlap_chars,
     )
     save_rag_index(index, index_path)
+    get_vector_backend_from_env().upsert_index(index)
     return index
 
 
@@ -83,6 +85,13 @@ def search_documents(
             min_score=min_score,
             lexical_weight=HYBRID_LEXICAL_WEIGHT,
         )
+    if retrieval_mode == "backend_vector":
+        return get_vector_backend_from_env().query(
+            index,
+            query,
+            top_k=top_k,
+            min_score=min_score,
+        )
     raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
 
 
@@ -123,6 +132,8 @@ def _score_breakdown(
         return {"lexical_score": round(lexical_score, 6)}
     if retrieval_mode == "vector":
         return {"vector_score": round(vector_score, 6)}
+    if retrieval_mode == "backend_vector":
+        return {"backend_score": round(result.score, 6)}
     if retrieval_mode == "hybrid":
         return {
             "lexical_weight": HYBRID_LEXICAL_WEIGHT,

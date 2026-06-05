@@ -17,7 +17,14 @@ from src.rag.chunker import chunk_document
 from src.rag.index import build_rag_index, load_rag_index, search_rag_index
 from src.rag.loader import load_document
 from src.rag.vector import cosine_similarity, embed_text, search_rag_index_hybrid, search_rag_index_vector
-from src.ui.rag_panel import parse_path_lines, sanitize_upload_name
+from src.ui.rag_panel import (
+    chunk_preview_rows,
+    format_rag_debug_summary,
+    format_score_breakdown,
+    parse_path_lines,
+    sanitize_upload_name,
+    summarize_rag_index,
+)
 
 
 def _install_fake_pypdf(
@@ -197,10 +204,16 @@ def test_query_documents_supports_retrieval_modes(tmp_path):
     lexical_results = query_documents("cited chunks", index_path=index_path, retrieval_mode="lexical")
     hybrid_results = query_documents("cited chunks", index_path=index_path, retrieval_mode="hybrid")
     vector_results = query_documents("cited chunks", index_path=index_path, retrieval_mode="vector")
+    backend_results = query_documents(
+        "cited chunks",
+        index_path=index_path,
+        retrieval_mode="backend_vector",
+    )
 
     assert lexical_results
     assert hybrid_results
     assert vector_results
+    assert backend_results
 
 
 def test_query_documents_rejects_unknown_retrieval_mode(tmp_path):
@@ -238,6 +251,48 @@ def test_build_rag_debug_explains_hybrid_scores(tmp_path):
     assert breakdown["combined_score"] == results[0].score
     assert breakdown["lexical_score"] > 0
     assert breakdown["vector_score"] > 0
+
+
+def test_rag_panel_index_summary_and_chunk_preview(tmp_path):
+    path = tmp_path / "notes.md"
+    path.write_text("First retrieval paragraph.\n\nSecond retrieval paragraph.", encoding="utf-8")
+    index = build_rag_index([path], max_chars=200, overlap_chars=0)
+
+    summary = summarize_rag_index(index)
+    preview_rows = chunk_preview_rows(index)
+
+    assert summary["documents"] == 1
+    assert summary["chunks"] == 1
+    assert summary["document_rows"][0]["title"] == "notes"
+    assert summary["document_rows"][0]["chunk_count"] == 1
+    assert len(summary["document_rows"][0]["content_hash"]) == 8
+    assert preview_rows[0]["lines"] == "L1-L3"
+    assert "retrieval paragraph" in preview_rows[0]["preview"]
+
+
+def test_rag_panel_formats_debug_summary_and_breakdown():
+    debug = {
+        "retrieval_mode": "hybrid",
+        "top_k": 3,
+        "min_score": 0.01,
+        "candidate_count": 8,
+        "returned_count": 2,
+        "query_terms": ["rag", "debug"],
+    }
+    result_debug = {
+        "score_breakdown": {
+            "lexical_weight": 0.7,
+            "lexical_score": 3.5,
+            "lexical_normalized": 1.0,
+            "vector_score": 0.25,
+            "combined_score": 0.775,
+        }
+    }
+
+    assert format_rag_debug_summary(debug) == (
+        "mode=hybrid; top_k=3; min_score=0.01; candidates=8; returned=2; terms=debug, rag"
+    )
+    assert "combined_score=0.775" in format_score_breakdown(result_debug)
 
 
 def test_build_rag_debug_marks_empty_queries(tmp_path):

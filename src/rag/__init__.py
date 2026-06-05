@@ -6,6 +6,14 @@ from src.rag.index import (
     save_rag_index,
     search_rag_index,
 )
+from src.rag.backends import (
+    LocalVectorBackend,
+    VectorBackendStatus,
+    get_vector_backend,
+    get_vector_backend_from_env,
+    vector_backend_config_from_env,
+)
+from src.rag.embeddings import LocalHashEmbeddingProvider
 from src.rag.eval import (
     RagEvalCase,
     RagEvalResult,
@@ -39,6 +47,10 @@ __all__ = [
     "evaluate_rag_index",
     "format_rag_sources",
     "index_documents",
+    "get_vector_backend",
+    "get_vector_backend_from_env",
+    "LocalHashEmbeddingProvider",
+    "LocalVectorBackend",
     "load_eval_cases",
     "load_rag_index",
     "query_documents",
@@ -50,4 +62,6 @@ __all__ = [
     "search_rag_index",
     "search_rag_index_vector",
     "search_documents",
+    "VectorBackendStatus",
+    "vector_backend_config_from_env",
 ]

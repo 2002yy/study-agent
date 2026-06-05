@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.rag.index import search_rag_index
+from src.rag.backends import get_vector_backend_from_env
 from src.rag.schema import RagIndex, RagSearchResult
 from src.rag.vector import search_rag_index_hybrid, search_rag_index_vector
 
@@ -81,6 +82,13 @@ def _search(
         return search_rag_index_vector(index, case.query, top_k=case.top_k, min_score=min_score)
     if case.retrieval_mode == "hybrid":
         return search_rag_index_hybrid(index, case.query, top_k=case.top_k, min_score=min_score)
+    if case.retrieval_mode == "backend_vector":
+        return get_vector_backend_from_env().query(
+            index,
+            case.query,
+            top_k=case.top_k,
+            min_score=min_score,
+        )
     raise ValueError(f"Unsupported RAG retrieval mode: {case.retrieval_mode}")
 
 
