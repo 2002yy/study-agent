@@ -11,6 +11,7 @@ Current verified baseline:
 | Package helper | Passed | `python tools/package_project_helper.py . NUL 0` locally on 2026-06-07 |
 | mypy | Passed locally; CI soft check | `python -m mypy --explicit-package-bases src` clean locally on 2026-06-07 |
 | detect-secrets | CI hard gate configured | Workflow parses scan JSON and fails when `results` contains any unallowlisted finding; local tracked-file scan was empty on 2026-06-07 |
+| Frontend build | Passed | `npm ci && npm run build` under `frontend/` locally on 2026-06-07 |
 | GitHub Actions | Recent main runs passing | Latest 6 CI runs on `main` were `success` when checked on 2026-06-03 |
 
 ### Categories
@@ -76,6 +77,7 @@ def test_flush_uses_safe_writer():
 | Package check | `python tools/package_project_helper.py` | Hard |
 | Secret scan | `detect-secrets` | Hard gate for any unallowlisted finding |
 | Type check | `mypy --explicit-package-bases src/` | Soft (continue-on-error) |
+| Frontend build | `npm ci && npm run build` in `frontend/` | Hard |
 
 ## Running Tests
 
@@ -90,7 +92,9 @@ python -m mypy --explicit-package-bases src   # Type check; CI currently runs it
 Tracked-file secret scan used for local verification:
 
 ```bash
-detect-secrets scan --disable-plugin KeywordDetector --exclude-files '.*\.(pyc|jpg|png|zip)$' .github README.md docs src tests tools config templates roles changelog assets .env.example
+detect-secrets scan --disable-plugin KeywordDetector --exclude-files '.*\.(pyc|jpg|png|zip)$' .github README.md docs src tests tools config templates roles changelog assets frontend .env.example
+npm --prefix frontend ci
+npm --prefix frontend run build
 ```
 
 The intentional Basic Auth-shaped URL fixture in `tests/test_url_normalizer.py` is marked with an inline allowlist comment. The CI workflow parses the scan JSON and fails if any file has non-empty `results`, so the gate no longer depends on a version-specific field such as `is_secret` or `is_verified`.

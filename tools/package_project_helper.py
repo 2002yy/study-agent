@@ -18,6 +18,7 @@ EXCLUDE_DIRS = {
     "node_modules",
     "logs",
     "backups",
+    "output",
     "exports",
     "release",
     "dist",
@@ -62,7 +63,7 @@ def should_exclude(rel: pathlib.Path, include_tests: bool = True) -> bool:
         if kw.lower() in posix_lower:
             return True
 
-    if suffix_lower in (".pyc", ".pyo", ".bak", ".tmp"):
+    if suffix_lower in (".pyc", ".pyo", ".bak", ".tmp", ".tsbuildinfo"):
         return True
 
     if suffix_lower in (".docx",):

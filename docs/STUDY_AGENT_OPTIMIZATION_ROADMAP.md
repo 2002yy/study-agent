@@ -489,6 +489,8 @@ POST /tools/{tool_name}/call
 
 ### P9: Web UI
 
+Current status: the first P9 console shell is implemented under `frontend/` with React + Vite + TypeScript. It provides the three-column workspace, chat input, source panel, workflow timeline panel, tool preview panel, memory status panel and Vite dev proxy. This is still a non-streaming first slice; document upload UI, full source table, memory/tool confirmation UI, auth/CORS and production static hosting remain planned.
+
 前端建议进入 P9 后使用 React + Vite + TypeScript。理由是：
 
 - React 生态更适合后续做聊天流、引用面板、调试抽屉和状态组件拆分。

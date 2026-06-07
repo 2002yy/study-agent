@@ -16,6 +16,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -35,7 +41,7 @@ jobs:
           pip install detect-secrets 2>/dev/null
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$' \
-            .github README.md docs src tests tools config templates roles changelog assets \
+            .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
             > .secrets.out 2>&1
           python - <<'PY'
           import json
@@ -61,3 +67,9 @@ jobs:
       - name: Run expanded mypy
         continue-on-error: true
         run: timeout 120s mypy --explicit-package-bases src/
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build

@@ -5,13 +5,18 @@
 *.env.*
 __pycache__/
 *.pyc
+*.tsbuildinfo
 .venv/
 .ruff_cache/
+node_modules/
+frontend/node_modules/
+frontend/dist/
 
 # runtime
 config/runtime_state.yaml
 logs/
 backups/
+output/
 *.bak
 *.tmp
 chat/
