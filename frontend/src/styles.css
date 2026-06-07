@@ -132,6 +132,18 @@ button {
   color: #ffffff;
 }
 
+.upload-state {
+  margin-top: 8px;
+  border: 1px solid #dce9e8;
+  border-radius: 8px;
+  background: #f2faf9;
+  color: var(--accent-strong);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .ghost-action {
   width: 100%;
   margin-top: 16px;
@@ -269,6 +281,16 @@ button {
 .icon-button {
   width: 38px;
   padding: 0;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .conversation {
@@ -411,6 +433,68 @@ button {
   line-height: 1.45;
 }
 
+.source-table {
+  display: grid;
+  gap: 8px;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 54px;
+  gap: 9px;
+  align-items: start;
+  border: 1px solid #edf1f2;
+  border-radius: 8px;
+  background: #fbfcfc;
+  padding: 10px;
+  color: #314047;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.source-row.header {
+  min-height: 28px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.source-row b,
+.source-row small,
+.source-row em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-row b {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.source-row small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.source-row em {
+  margin-top: 4px;
+  color: #7b8b92;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.source-row > span:last-child {
+  justify-self: end;
+  color: var(--text);
+  font-weight: 750;
+}
+
 .timeline {
   display: grid;
   gap: 8px;
@@ -421,6 +505,9 @@ button {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 9px;
   align-items: center;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
 }
 
 .timeline-row strong,
@@ -441,18 +528,99 @@ button {
   font-style: normal;
 }
 
+.run-detail {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid #edf1f2;
+  padding-top: 12px;
+}
+
+.run-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.run-detail-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  border: 1px solid #edf1f2;
+  border-radius: 8px;
+  background: #fbfcfc;
+  padding: 9px;
+}
+
+.event-row strong,
+.event-row span,
+.event-row em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-row strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.event-row span,
+.event-row small,
+.event-row em {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.event-row em {
+  color: var(--danger);
+  font-style: normal;
+}
+
+.tool-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .tool-button {
   width: 100%;
-  margin-bottom: 10px;
   background: #eef7f6;
   border-color: #cfe5e2;
   color: var(--accent-strong);
+}
+
+.tool-button.secondary {
+  background: #f8f9fa;
+  border-color: var(--border);
+  color: var(--text);
 }
 
 .memory-note {
   display: flex;
   gap: 9px;
   align-items: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .api-warning {

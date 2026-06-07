@@ -47,7 +47,7 @@ Not implemented yet:
 | `src/rag/schema.py` | Dataclasses for documents, chunks, indexes and search results |
 | `src/tools/local_knowledge.py` | Controlled retrieval boundary for agentic local knowledge use |
 | `src/tools/registry.py` | Allowlisted typed tool registry with preview, call and workflow audit support |
-| `src/workflows/store.py` | Local JSONL workflow run/event persistence for tool and future frontend timelines |
+| `src/workflows/store.py` | Local JSONL workflow run/event persistence for tool and frontend timelines |
 | `src/api.py` | FastAPI health, chat, memory, session, RAG, tool and workflow endpoints |
 
 ## Data Flow
@@ -62,7 +62,7 @@ local files
   -> build_rag_context
   -> optional controlled local-knowledge tool
   -> optional single-chat / WeChat interactive prompt injection or FastAPI response
-  -> optional frontend-facing chat / memory / session API flow
+  -> frontend-facing chat / memory / session API flow
 ```
 
 ## Retrieval Behavior
@@ -210,12 +210,12 @@ Goal: let the model retrieve when it needs evidence instead of always pre-retrie
 - [x] Route retrieval only for knowledge-grounded questions through deterministic intent gating.
 - [x] Allow deterministic query rewrite and second-pass retrieval when first-pass evidence is weak.
 - [x] Require explicit "not found in local knowledge" behavior when no source is retrieved.
-- [x] Expose the same boundary through `POST /rag/local-knowledge` for future frontends.
+- [x] Expose the same boundary through `POST /rag/local-knowledge` for the React frontend.
 - [ ] Add LLM tool-calling / function-calling integration; current implementation is controlled pre-generation retrieval, not free-form tool use.
 
 ### P8: Service API Foundation
 
-Goal: expose the current local-first capabilities through stable API boundaries before building a separate web frontend.
+Goal: expose the current local-first capabilities through stable API boundaries and keep the React frontend aligned with those contracts.
 
 - [x] Add RAG status and upload endpoints for index inspection and rebuilds.
 - [x] Add a non-streaming `/chat` endpoint that reuses model routing, role prompts, memory bundles, local-knowledge retrieval and session logging.

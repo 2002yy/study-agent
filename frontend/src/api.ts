@@ -3,9 +3,12 @@ import type {
   ChatMessage,
   ChatResponse,
   HealthResponse,
+  RagIndexResponse,
+  RagQueryResponse,
   RagStatusResponse,
   ToolInvocationResponse,
   ToolSpec,
+  WorkflowRunDetail,
   WorkflowRunSummary
 } from "./types";
 
@@ -18,6 +21,18 @@ async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
       ...(options?.headers ?? {})
     },
     ...options
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${response.status} ${response.statusText}${body ? `: ${body}` : ""}`);
+  }
+  return (await response.json()) as T;
+}
+
+async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    body: formData
   });
   if (!response.ok) {
     const body = await response.text();
@@ -50,6 +65,27 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
       error: error instanceof Error ? error.message : "API unavailable"
     };
   }
+}
+
+export async function loadRagStatus(): Promise<RagStatusResponse> {
+  return requestJson<RagStatusResponse>("/rag/status");
+}
+
+export async function uploadDocuments(files: File[]): Promise<RagIndexResponse> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+  return uploadForm<RagIndexResponse>("/rag/upload", formData);
+}
+
+export async function queryRag(query: string): Promise<RagQueryResponse> {
+  return requestJson<RagQueryResponse>("/rag/query", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      top_k: 5,
+      retrieval_mode: "hybrid"
+    })
+  });
 }
 
 export async function sendChat(
@@ -88,4 +124,23 @@ export async function previewLocalKnowledge(query: string): Promise<ToolInvocati
       }
     })
   });
+}
+
+export async function callLocalKnowledge(query: string, runId?: string): Promise<ToolInvocationResponse> {
+  return requestJson<ToolInvocationResponse>("/tools/retrieve_local_knowledge/call", {
+    method: "POST",
+    body: JSON.stringify({
+      run_id: runId,
+      args: {
+        query,
+        retrieval_mode: "hybrid",
+        top_k: 3
+      }
+    })
+  });
+}
+
+export async function loadWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
+  const response = await requestJson<{ run: WorkflowRunDetail }>(`/workflows/runs/${encodeURIComponent(runId)}`);
+  return response.run;
 }

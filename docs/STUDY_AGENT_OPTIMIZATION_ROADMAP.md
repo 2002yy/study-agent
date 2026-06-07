@@ -489,7 +489,7 @@ POST /tools/{tool_name}/call
 
 ### P9: Web UI
 
-Current status: the first P9 console shell is implemented under `frontend/` with React + Vite + TypeScript. It provides the three-column workspace, chat input, source panel, workflow timeline panel, tool preview panel, memory status panel and Vite dev proxy. This is still a non-streaming first slice; document upload UI, full source table, memory/tool confirmation UI, auth/CORS and production static hosting remain planned.
+Current status: P9 is implemented under `frontend/` with React + Vite + TypeScript. It provides the three-column workspace, non-streaming chat input, document upload/indexing flow, source result table, workflow timeline detail panel, controlled local-knowledge tool preview/call controls, memory status panel and Vite dev proxy. Streaming chat, auth/CORS, production static hosting and richer memory write confirmation remain P10 hardening work.
 
 前端建议进入 P9 后使用 React + Vite + TypeScript。理由是：
 
@@ -497,25 +497,25 @@ Current status: the first P9 console shell is implemented under `frontend/` with
 - Vite 开发服务器启动快，生产构建输出静态 `dist`，可以独立部署，也可以由 FastAPI 挂载静态目录。
 - TypeScript 能把 API response、RAG source、memory preview、session row、workflow event 等数据结构固定下来，减少前后端联调时的隐性字段漂移。
 
-最低页面：
+当前页面覆盖：
 
 | 页面 | 作用 |
 |---|---|
-| 聊天页 | 主交互 |
-| 文件上传页 | RAG 入库 |
-| 知识库列表 | 查看已导入资料 |
-| 来源引用面板 | 展示 RAG 证据 |
-| Workflow 时间线 | 展示检索、模型调用、写日志、等待确认等步骤状态 |
-| 会话历史 | 查看过往学习记录 |
-| 设置页 | Provider、模型、API Key、本地路径 |
-| 调试面板 | 查看上下文、token、耗时、检索结果 |
+| 聊天页 | 已实现：主交互，非 streaming |
+| 文件上传 | 已实现：multipart 上传并重建本地 RAG index |
+| 知识库状态 | 已实现：documents / chunks / vector backend 状态 |
+| 来源引用面板 | 已实现：RAG source table、score、matched terms 和 source path |
+| Workflow 时间线 | 已实现：recent runs、run detail 和 event rows |
+| Tool control | 已实现：`retrieve_local_knowledge` preview / call，call 写 workflow audit |
+| Memory 状态 | 已实现：preview-first 状态展示；写入确认 UI 仍待 P10 扩展 |
+| 设置页 | 未实现：Provider、模型、API Key、本地路径仍在后续规划 |
 
 前端交互重点：
 
-- 聊天主窗口支持 streaming response。
-- 右侧面板同时显示 RAG sources、workflow timeline、tool call preview 和 memory candidate。
-- Tool use 必须可见：模型为什么调用工具、传了什么参数摘要、是否需要用户确认。
-- Memory 写入、RAG 导入、未来 browser automation 等有副作用动作必须走 confirm UI。
+- 聊天主窗口目前是 non-streaming；streaming response 放入 P10。
+- 右侧面板已经同时显示 RAG sources、workflow timeline、tool preview/call 和 memory candidate。
+- Tool use 已经通过 preview-first UI 和 workflow audit 可见；未来写工具仍必须显式确认。
+- Memory 写入、未来 browser automation 等有副作用动作必须走 confirm UI；RAG 导入当前由用户手动选择文件触发。
 
 ### P10: Hardening, Deployment & MCP
 
@@ -775,6 +775,6 @@ docs/
 5. [x] FastAPI 基础服务层
 6. [x] Evaluation sets and quality gates foundation
 7. [x] Workflow run / step / event timeline + controlled tool registry first slice
-8. [ ] streaming chat / auth / CORS / Docker / optional MCP server
-9. [ ] React + Vite + TypeScript 前端
+8. [x] React + Vite + TypeScript 前端
+9. [ ] streaming chat / auth / CORS / Docker / optional MCP server
 10. [ ] 可选 RPA / browser automation adapter
