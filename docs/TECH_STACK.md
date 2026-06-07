@@ -286,7 +286,7 @@ User query
 未实现边界：
 
 - 默认仍是 local-first；生产 embedding 需要显式 API/env 配置，Chroma 需要额外安装 `chromadb`；FAISS、pgvector 或其他生产向量库仍未接入
-- FastAPI 当前覆盖 health、非流式 chat、memory preview/commit、session list/flush、RAG 基础接口、受控工具 preview/call 和 workflow run 读取；streaming、auth、CORS 策略、通用 retry engine 和更稳定的前端错误协议仍是后续服务化任务
+- FastAPI 当前覆盖 health、非流式 chat、memory preview/commit、session list/flush、RAG 基础接口、受控工具 preview/call、workflow run 读取、可选本地 API token gate 和显式 CORS allowlist；streaming、通用 retry engine 和更稳定的前端错误协议仍是后续服务化任务
 - 尚未自动注入所有生成路径；当前覆盖单人聊天和微信群互动回复，不覆盖新闻讨论或课后反馈
 
 价值：

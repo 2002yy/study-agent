@@ -314,14 +314,14 @@ CI 通过 GitHub Actions 在 push / pull request 上运行，集成 `pytest`、`
 
 求职导向的技术演进路线：
 
-- [x] FastAPI service layer foundation: `/health`, `/chat`, `/memory/preview`, `/memory/commit`, `/sessions`, `/rag`, `/rag/index`, `/rag/query`, `/rag/status`, `/rag/upload`, `/rag/local-knowledge`, `/tools` and `/workflows/runs` implemented; streaming, auth and public-deployment hardening remain planned
+- [x] FastAPI service layer foundation: `/health`, `/chat`, `/memory/preview`, `/memory/commit`, `/sessions`, `/rag`, `/rag/index`, `/rag/query`, `/rag/status`, `/rag/upload`, `/rag/local-knowledge`, `/tools` and `/workflows/runs` implemented; optional local API token and CORS allowlist implemented; streaming and broader deployment hardening remain planned
 - [x] RAG MVP: Markdown / TXT / DOCX / PDF loading, chunking, local keyword retrieval, local vector prototype, hybrid retrieval, backend-vector retrieval, configurable embedding provider, optional Chroma adapter, controlled local-knowledge retrieval, citation context, source blocks, Streamlit retrieval panel, optional single-chat and WeChat interactive injection
 - [ ] RAG document QA (partial): PDF parsing has file-size, page-count, extracted-text and encrypted-file guards; production embedding requires explicit API/env configuration and Chroma remains optional
 - [ ] Vector store: Chroma optional adapter implemented; FAISS local prototype and pgvector engineering version remain planned
 - [x] P8.4 evaluation sets foundation: retrieval, answer grounding, tool routing, workflow events and safety regression cases before expanding agentic behavior
 - [x] P8.5 execution foundation: workflow run / step / event JSONL timeline plus controlled local-knowledge tool use behind typed schemas, permissions and audit logs
 - [x] P9 web UI: React + Vite + TypeScript console implemented with non-streaming chat, document upload/indexing, source table, workflow timeline detail, controlled tool preview/call and memory status panels; streaming chat, auth, CORS and production static hosting remain planned
-- [ ] P10 hardening and integration: auth, CORS, Docker, OpenAPI examples, optional read-only MCP server, trace_id, token usage, latency and provider fallback logs
+- [ ] P10 hardening and integration: optional local auth/CORS implemented; Docker, OpenAPI examples, optional read-only MCP server, trace_id, token usage, latency, provider fallback logs and streaming remain planned
 - [ ] P11 optional RPA: browser automation as a future read-first adapter for no-API learning systems, gated by domain allowlists and human confirmation
 
 

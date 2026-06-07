@@ -1,5 +1,15 @@
 # Security
 
+## FastAPI Local Access Guard
+
+`src/api.py` provides a local-first API guard for the FastAPI service:
+
+- `STUDY_AGENT_API_TOKEN` is optional. When unset, local development behavior is unchanged.
+- When `STUDY_AGENT_API_TOKEN` is set, every route except `GET /health` and CORS preflight requires either `Authorization: Bearer <token>` or `X-Study-Agent-Token: <token>`.
+- `STUDY_AGENT_CORS_ORIGINS` is an explicit comma-separated allowlist for browser origins such as `http://localhost:5173`.
+- CORS is not opened by default. Disallowed preflight requests return `403`.
+- `VITE_STUDY_AGENT_API_TOKEN` lets the React console call a protected API, but because `VITE_*` values are visible in the browser bundle, this is only a local/LAN gate, not a public internet security boundary.
+
 ## SSRF Protection
 
 `src/news/article_fetcher.py` implements defense-in-depth against Server-Side Request Forgery on the article-fetching network path:

@@ -222,4 +222,5 @@ Goal: expose the current local-first capabilities through stable API boundaries 
 - [x] Add memory preview / commit endpoints with the same runtime write-mode guard as the Streamlit UI.
 - [x] Add session listing and force-flush endpoints for local session inspection.
 - [x] Add controlled tool preview / call endpoints and workflow run read endpoints.
-- [ ] Add streaming chat, auth, CORS policy and frontend-oriented error envelopes before public or LAN deployment.
+- [x] Add optional local API token gate and explicit CORS origin allowlist for local/LAN deployments.
+- [ ] Add streaming chat and frontend-oriented error envelopes before public or broader LAN deployment.

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
+import secrets
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from src import memory_writer
@@ -196,6 +199,66 @@ class WorkflowRunResponse(BaseModel):
 
 app = FastAPI(title="Study Agent API", version="0.1.0")
 TOOL_REGISTRY = create_default_tool_registry()
+
+
+def _api_token() -> str:
+    return os.getenv("STUDY_AGENT_API_TOKEN", "").strip()
+
+
+def _allowed_cors_origins() -> set[str]:
+    raw = os.getenv("STUDY_AGENT_CORS_ORIGINS", "")
+    return {origin.strip() for origin in raw.split(",") if origin.strip()}
+
+
+def _is_cors_origin_allowed(origin: str, allowed_origins: set[str]) -> bool:
+    return "*" in allowed_origins or origin in allowed_origins
+
+
+def _add_cors_headers(response: Response, origin: str, allowed_origins: set[str]) -> None:
+    if not origin or not _is_cors_origin_allowed(origin, allowed_origins):
+        return
+    response.headers["Access-Control-Allow-Origin"] = "*" if "*" in allowed_origins else origin
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,X-Study-Agent-Token"
+    if "*" not in allowed_origins:
+        response.headers["Vary"] = "Origin"
+
+
+def _request_token(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return request.headers.get("x-study-agent-token", "").strip()
+
+
+def _is_authorized(request: Request) -> bool:
+    required_token = _api_token()
+    if not required_token:
+        return True
+    supplied_token = _request_token(request)
+    return bool(supplied_token) and secrets.compare_digest(supplied_token, required_token)
+
+
+@app.middleware("http")
+async def api_security_middleware(request: Request, call_next):
+    allowed_origins = _allowed_cors_origins()
+    origin = request.headers.get("origin", "")
+
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-method"):
+        if origin and _is_cors_origin_allowed(origin, allowed_origins):
+            response = Response(status_code=204)
+            _add_cors_headers(response, origin, allowed_origins)
+            return response
+        return JSONResponse({"detail": "CORS origin not allowed"}, status_code=403)
+
+    if request.url.path != "/health" and not _is_authorized(request):
+        response = JSONResponse({"detail": "Missing or invalid API token"}, status_code=401)
+        _add_cors_headers(response, origin, allowed_origins)
+        return response
+
+    response = await call_next(request)
+    _add_cors_headers(response, origin, allowed_origins)
+    return response
 
 
 def _index_path(value: str | None) -> Path:

@@ -18,6 +18,53 @@ def test_health_endpoint_reports_ok():
     assert isinstance(data["rag_index_exists"], bool)
 
 
+def test_api_token_gate_allows_health_and_blocks_other_routes(monkeypatch):
+    monkeypatch.setenv("STUDY_AGENT_API_TOKEN", "local-secret")
+    client = TestClient(app)
+
+    health = client.get("/health")
+    blocked = client.get("/tools")
+    wrong = client.get("/tools", headers={"Authorization": "Bearer wrong"})
+    bearer = client.get("/tools", headers={"Authorization": "Bearer local-secret"})
+    header = client.get("/tools", headers={"X-Study-Agent-Token": "local-secret"})
+
+    assert health.status_code == 200
+    assert blocked.status_code == 401
+    assert blocked.json()["detail"] == "Missing or invalid API token"
+    assert wrong.status_code == 401
+    assert bearer.status_code == 200
+    assert header.status_code == 200
+
+
+def test_cors_allowlist_handles_preflight_and_response_headers(monkeypatch):
+    monkeypatch.setenv("STUDY_AGENT_CORS_ORIGINS", "http://localhost:5173,https://study.example")
+    client = TestClient(app)
+
+    preflight = client.options(
+        "/tools",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    rejected = client.options(
+        "/tools",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    response = client.get("/health", headers={"Origin": "https://study.example"})
+
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "Authorization" in preflight.headers["access-control-allow-headers"]
+    assert rejected.status_code == 403
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://study.example"
+    assert response.headers["vary"] == "Origin"
+
+
 def test_rag_index_and_query_endpoints(tmp_path):
     client = TestClient(app)
     document = tmp_path / "notes.md"

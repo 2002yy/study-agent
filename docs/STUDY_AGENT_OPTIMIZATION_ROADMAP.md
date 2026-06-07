@@ -489,7 +489,7 @@ POST /tools/{tool_name}/call
 
 ### P9: Web UI
 
-Current status: P9 is implemented under `frontend/` with React + Vite + TypeScript. It provides the three-column workspace, non-streaming chat input, document upload/indexing flow, source result table, workflow timeline detail panel, controlled local-knowledge tool preview/call controls, memory status panel and Vite dev proxy. Streaming chat, auth/CORS, production static hosting and richer memory write confirmation remain P10 hardening work.
+Current status: P9 is implemented under `frontend/` with React + Vite + TypeScript. It provides the three-column workspace, non-streaming chat input, document upload/indexing flow, source result table, workflow timeline detail panel, controlled local-knowledge tool preview/call controls, memory status panel and Vite dev proxy. P10 has started with optional local auth/CORS; streaming chat, production static hosting and richer memory write confirmation remain hardening work.
 
 前端建议进入 P9 后使用 React + Vite + TypeScript。理由是：
 
@@ -524,8 +524,8 @@ Current status: P9 is implemented under `frontend/` with React + Vite + TypeScri
 | 能力 | 说明 |
 |---|---|
 | streaming | `/chat` 支持 SSE 或 WebSocket streaming |
-| auth | 本地 token / password gate，避免 LAN 暴露后被误用 |
-| CORS | 明确允许的前端 origin，默认不开放公网 |
+| auth | 已实现第一版：`STUDY_AGENT_API_TOKEN` 本地 token gate，避免 LAN 暴露后被误用 |
+| CORS | 已实现第一版：`STUDY_AGENT_CORS_ORIGINS` 明确允许的前端 origin，默认不开放公网 |
 | Docker | FastAPI + frontend dist + optional Chroma 的本地部署组合 |
 | OpenAPI examples | 为 `/chat`、`/tools`、`/workflows`、`/memory` 补请求示例 |
 | MCP server | 可选只读 MCP server，把本地知识库、session lookup、RAG status 暴露给外部 AI 客户端 |
@@ -776,5 +776,5 @@ docs/
 6. [x] Evaluation sets and quality gates foundation
 7. [x] Workflow run / step / event timeline + controlled tool registry first slice
 8. [x] React + Vite + TypeScript 前端
-9. [ ] streaming chat / auth / CORS / Docker / optional MCP server
+9. [ ] streaming chat / Docker / optional MCP server；auth / CORS 第一版已实现
 10. [ ] 可选 RPA / browser automation adapter

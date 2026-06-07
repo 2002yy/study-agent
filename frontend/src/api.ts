@@ -13,11 +13,17 @@ import type {
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
+
+function authHeaders(): HeadersInit {
+  return API_TOKEN ? { "X-Study-Agent-Token": API_TOKEN } : {};
+}
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...(options?.headers ?? {})
     },
     ...options
@@ -32,6 +38,7 @@ async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
 async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData
   });
   if (!response.ok) {
