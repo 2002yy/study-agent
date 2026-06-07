@@ -209,6 +209,31 @@ def _memory_target_path(target: str) -> Path:
     return path
 
 
+def _memory_update_action(update: MemoryUpdate) -> str:
+    if update.append:
+        return "append"
+    if update.target == "current_focus":
+        return "replace"
+    raise HTTPException(
+        status_code=400,
+        detail="append=false is only supported for target current_focus",
+    )
+
+
+def _unique_upload_path(upload_dir: Path, filename: str | None, used_names: set[str]) -> Path:
+    raw_name = Path(filename or "document").name or "document"
+    raw_path = Path(raw_name)
+    stem = raw_path.stem or "document"
+    suffix = raw_path.suffix
+    candidate = raw_name
+    counter = 2
+    while candidate in used_names or (upload_dir / candidate).exists():
+        candidate = f"{stem}-{counter}{suffix}"
+        counter += 1
+    used_names.add(candidate)
+    return upload_dir / candidate
+
+
 def _session_file_rows(directory: Path, kind: str, limit: int) -> list[dict[str, Any]]:
     if not directory.is_dir():
         return []
@@ -317,9 +342,9 @@ async def upload_rag_documents(
 
     RAG_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     saved_paths = []
+    used_names: set[str] = set()
     for uploaded in files:
-        filename = Path(uploaded.filename or "document").name
-        target = RAG_UPLOAD_DIR / filename
+        target = _unique_upload_path(RAG_UPLOAD_DIR, uploaded.filename, used_names)
         target.write_bytes(await uploaded.read())
         saved_paths.append(target)
 
@@ -479,7 +504,7 @@ def preview_memory_updates(request: MemoryPreviewRequest) -> MemoryPreviewRespon
     items = []
     for update in request.updates:
         target = _memory_target_path(update.target)
-        action = "append" if update.append else "replace"
+        action = _memory_update_action(update)
         prefix = "### 待确认观察\n\n" if update.learner_pending else ""
         preview = f"{prefix}{update.content.strip()}\n"
         items.append(
@@ -515,16 +540,15 @@ def commit_memory_updates(request: MemoryPreviewRequest) -> MemoryCommitResponse
     results = []
     for update in request.updates:
         _memory_target_path(update.target)
-        if update.target == "current_focus" and not update.append:
+        action = _memory_update_action(update)
+        if action == "replace":
             path = memory_writer.write_current_focus(update.content.strip())
-            action = "replace"
         else:
             path = memory_writer.append_memory(
                 update.target,
                 update.content.strip(),
                 learner_pending=update.learner_pending,
             )
-            action = "append"
         results.append({"target": update.target, "action": action, "path": path})
     return MemoryCommitResponse(writable=writable, results=results)
 

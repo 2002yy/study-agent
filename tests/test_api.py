@@ -171,6 +171,30 @@ def test_rag_status_and_upload_endpoints(tmp_path):
     assert data["vector_backend"]["name"] == "local"
 
 
+def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
+    from src import api
+
+    upload_dir = tmp_path / "uploads"
+    index_path = tmp_path / "duplicate_index.json"
+    monkeypatch.setattr(api, "RAG_UPLOAD_DIR", upload_dir)
+    client = TestClient(app)
+
+    response = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
+        files=[
+            ("files", ("same.md", b"First uploaded duplicate basename.", "text/markdown")),
+            ("files", ("same.md", b"Second uploaded duplicate basename.", "text/markdown")),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()["documents"] == 2
+    assert response.json()["chunks"] == 2
+    assert (upload_dir / "same.md").read_text(encoding="utf-8") == "First uploaded duplicate basename."
+    assert (upload_dir / "same-2.md").read_text(encoding="utf-8") == "Second uploaded duplicate basename."
+
+
 def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     from src import api
 
@@ -233,6 +257,29 @@ def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):
     assert commit.status_code == 200
     assert commit.json()["results"][0]["target"] == "progress"
     assert "API memory update" in target.read_text(encoding="utf-8")
+
+
+def test_memory_append_false_rejected_for_non_replaceable_target(monkeypatch, tmp_path):
+    from src import api, memory_writer
+
+    target = tmp_path / "progress.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "progress", target)
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
+    )
+    client = TestClient(app)
+    payload = {"updates": [{"target": "progress", "content": "replace me", "append": False}]}
+
+    preview = client.post("/memory/preview", json=payload)
+    commit = client.post("/memory/commit", json=payload)
+
+    assert preview.status_code == 400
+    assert commit.status_code == 400
+    assert preview.json()["detail"] == "append=false is only supported for target current_focus"
+    assert commit.json()["detail"] == "append=false is only supported for target current_focus"
+    assert not target.exists()
 
 
 def test_memory_commit_rejects_when_runtime_is_not_writable(monkeypatch, tmp_path):
