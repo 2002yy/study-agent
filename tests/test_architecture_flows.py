@@ -7,6 +7,7 @@ from src.mode_manager import (
     run_with_confirm_write,
 )
 from src.context_builder import build_messages, build_system_prompt
+from src.role_manager import build_role_prompt
 from src.router import RoutingConfig, route_request
 from src.ui.sidebar import _switch_to_wechat_entry
 from src.ui.wechat_panel import _apply_mark_wechat_read, _apply_new_wechat_group
@@ -332,3 +333,15 @@ def test_group_chat_policy_keeps_group_scene_separate():
     assert "当前场景是群聊" in prompt
     assert "开场、提炼、收束、收尾" in prompt
     assert "当前场景是单人对话" not in prompt
+
+
+def test_role_prompt_builder_keeps_only_current_scene_and_atmosphere():
+    single_prompt = build_role_prompt("march7", scene="single", relationship_mode="warm")
+    group_prompt = build_role_prompt("march7", scene="group", relationship_mode="standard")
+
+    assert "## 6. 微信群风格" not in single_prompt
+    assert "## 7. 与其他角色的互动方式" not in single_prompt
+    assert "### warm" in single_prompt
+    assert "### standard" not in single_prompt
+    assert "### close" not in single_prompt
+    assert "## 6. 微信群风格" in group_prompt

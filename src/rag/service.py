@@ -45,6 +45,39 @@ def index_documents(
     return index
 
 
+def append_documents_to_index(
+    paths: Sequence[str | Path],
+    *,
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagIndex:
+    """Append documents to an existing index, de-duplicating by content hash."""
+    new_index = build_rag_index(
+        paths,
+        max_chars=max_chars,
+        overlap_chars=overlap_chars,
+    )
+    target = Path(index_path)
+    if target.is_file():
+        existing = load_rag_index(target)
+    else:
+        existing = RagIndex(version=new_index.version, documents=(), chunks=())
+
+    existing_hashes = {doc.content_hash for doc in existing.documents}
+    added_docs = tuple(doc for doc in new_index.documents if doc.content_hash not in existing_hashes)
+    added_hashes = {doc.content_hash for doc in added_docs}
+    added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
+    merged = RagIndex(
+        version=new_index.version,
+        documents=existing.documents + added_docs,
+        chunks=existing.chunks + added_chunks,
+    )
+    save_rag_index(merged, target)
+    get_vector_backend_from_env().upsert_index(merged)
+    return merged
+
+
 def query_documents(
     query: str,
     *,

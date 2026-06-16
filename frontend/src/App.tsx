@@ -20,6 +20,7 @@ import {
   createWechatOpening,
   loadApiSnapshot,
   loadRole,
+  loadSessionDetail,
   loadWorkflowRun,
   lookupNews,
   markWechatRead,
@@ -182,6 +183,8 @@ const retrievalDescriptions: Record<string, string> = {
 function Sidebar({
   snapshot,
   ragEnabled,
+  ragUploadMode,
+  setRagUploadMode,
   setRagEnabled,
   chatSettings,
   setChatSettings,
@@ -198,6 +201,8 @@ function Sidebar({
 }: {
   snapshot: ApiSnapshot;
   ragEnabled: boolean;
+  ragUploadMode: "append" | "rebuild";
+  setRagUploadMode: (mode: "append" | "rebuild") => void;
   setRagEnabled: (value: boolean) => void;
   chatSettings: ChatSettings;
   setChatSettings: (value: ChatSettings) => void;
@@ -233,8 +238,29 @@ function Sidebar({
 
       <button className="primary-action" onClick={onUploadClick} type="button">
         <Upload size={17} />
-        上传并建立索引
+        上传资料
       </button>
+      <div className="upload-mode">
+        <label>
+          <input
+            checked={ragUploadMode === "append"}
+            name="rag-upload-mode"
+            onChange={() => setRagUploadMode("append")}
+            type="radio"
+          />
+          添加到现有知识库
+        </label>
+        <label>
+          <input
+            checked={ragUploadMode === "rebuild"}
+            name="rag-upload-mode"
+            onChange={() => setRagUploadMode("rebuild")}
+            type="radio"
+          />
+          重建整个知识库
+        </label>
+      </div>
+      <small className="field-hint">默认追加并按内容去重；重建会用本次文件替换当前索引。</small>
       {uploadState ? <div className="upload-state">{uploadState}</div> : null}
 
       <nav className="nav-list" aria-label="Workspace navigation">
@@ -421,8 +447,9 @@ function Sidebar({
         </div>
         <button className="primary-action secondary" disabled={isSavingSettings} onClick={onSaveSettings} type="button">
           {isSavingSettings ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
-          保存设置到后端
+          设为全局默认
         </button>
+        <small className="field-hint">上方设置会立即影响当前会话；这里仅保存为新会话的默认值。</small>
       </section>
 
       <section className="side-section">
@@ -470,6 +497,7 @@ function Inspector({
   callTool,
   isPreviewing,
   isCalling,
+  onRestoreSession,
   newsResult,
   webLookup,
   useWebLookup,
@@ -503,6 +531,7 @@ function Inspector({
   callTool: () => void;
   isPreviewing: boolean;
   isCalling: boolean;
+  onRestoreSession: (sessionId: string) => void;
   newsResult: NewsSearchResponse | null;
   webLookup: NewsLookupResponse | null;
   useWebLookup: boolean;
@@ -563,7 +592,7 @@ function Inspector({
         isPreviewing={isPreviewing}
         isCalling={isCalling}
       />
-      <SessionsPanel sessions={snapshot.sessions} />
+      <SessionsPanel sessions={snapshot.sessions} onRestore={onRestoreSession} />
       <RoadmapPanel />
       <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
     </aside>
@@ -594,6 +623,7 @@ export default function App() {
   const [useWebLookup, setUseWebLookup] = useState(true);
   const [loadingRunId, setLoadingRunId] = useState("");
   const [uploadState, setUploadState] = useState("");
+  const [ragUploadMode, setRagUploadMode] = useState<"append" | "rebuild">("append");
   const [wechatInput, setWechatInput] = useState("");
   const [newsQuery, setNewsQuery] = useState("最新新闻 when:1d");
   const [readArticles, setReadArticles] = useState(true);
@@ -601,6 +631,7 @@ export default function App() {
   const [isNewsBusy, setIsNewsBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const runtimeHydratedRef = useRef(false);
+  const sessionSettingsRestoredRef = useRef(false);
 
   const activeQuery = input.trim() || lastChat?.rag?.query || "本地资料 工作流 引用来源";
 
@@ -625,12 +656,15 @@ export default function App() {
           setSessionId(parsed.sessionId);
         }
         if (parsed.chatSettings) {
+          sessionSettingsRestoredRef.current = true;
           setChatSettings({ ...CHAT_SETTINGS_DEFAULTS, ...parsed.chatSettings });
         }
         if (parsed.ragSettings) {
+          sessionSettingsRestoredRef.current = true;
           setRagSettings({ ...RAG_SETTINGS_DEFAULTS, ...parsed.ragSettings });
         }
         if (typeof parsed.ragEnabled === "boolean") {
+          sessionSettingsRestoredRef.current = true;
           setRagEnabled(parsed.ragEnabled);
         }
       } catch {
@@ -646,6 +680,9 @@ export default function App() {
       return;
     }
     runtimeHydratedRef.current = true;
+    if (sessionSettingsRestoredRef.current) {
+      return;
+    }
     const visibleMode = modeOptions.some(([value]) => value === settings.selected_mode)
       ? settings.selected_mode
       : "auto";
@@ -1007,14 +1044,36 @@ export default function App() {
     }
   };
 
+  const restoreSession = async (restoredSessionId: string) => {
+    try {
+      const detail = await loadSessionDetail(restoredSessionId);
+      const restoredMessages = detail.messages.filter((message) => message.role === "user" || message.role === "assistant");
+      setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
+      setSessionId(detail.session_id);
+      setSnapshot((current) => ({ ...current, error: "" }));
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "会话恢复失败"
+      }));
+    }
+  };
+
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) {
       return;
     }
-    setUploadState(`正在索引 ${files.length} 个文件...`);
+    if (
+      ragUploadMode === "rebuild" &&
+      !window.confirm(`将用本次 ${files.length} 个文件重建整个知识库索引，旧索引会被替换。继续吗？`)
+    ) {
+      event.target.value = "";
+      return;
+    }
+    setUploadState(`${ragUploadMode === "append" ? "正在追加索引" : "正在重建索引"} ${files.length} 个文件...`);
     try {
-      const result = await uploadDocuments(files);
+      const result = await uploadDocuments(files, ragUploadMode);
       setUploadState(`已索引 ${result.documents} 个文档、${result.chunks} 个片段`);
       await refresh();
     } catch (error) {
@@ -1037,6 +1096,8 @@ export default function App() {
       <Sidebar
         snapshot={snapshot}
         ragEnabled={ragEnabled}
+        ragUploadMode={ragUploadMode}
+        setRagUploadMode={setRagUploadMode}
         setRagEnabled={setRagEnabled}
         chatSettings={chatSettings}
         setChatSettings={setChatSettings}
@@ -1078,6 +1139,7 @@ export default function App() {
         callTool={callTool}
         isPreviewing={isPreviewing}
         isCalling={isCalling}
+        onRestoreSession={restoreSession}
         newsResult={newsResult}
         webLookup={webLookup}
         useWebLookup={useWebLookup}

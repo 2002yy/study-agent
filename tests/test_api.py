@@ -441,6 +441,34 @@ def test_rag_status_and_upload_endpoints(tmp_path):
     assert data["vector_backend"]["name"] == "local"
 
 
+def test_rag_upload_appends_by_default_and_can_rebuild(tmp_path):
+    client = TestClient(app)
+    index_path = tmp_path / "append_index.json"
+
+    first = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
+        files={"files": ("a.md", b"Alpha document stays in the knowledge base.", "text/markdown")},
+    )
+    second = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
+        files={"files": ("b.md", b"Beta document is appended later.", "text/markdown")},
+    )
+    rebuilt = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0, "mode": "rebuild"},
+        files={"files": ("c.md", b"Gamma document replaces the previous index.", "text/markdown")},
+    )
+
+    assert first.status_code == 200
+    assert first.json()["documents"] == 1
+    assert second.status_code == 200
+    assert second.json()["documents"] == 2
+    assert rebuilt.status_code == 200
+    assert rebuilt.json()["documents"] == 1
+
+
 def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
     from src import api
 
@@ -688,6 +716,38 @@ def test_sessions_endpoint_lists_current_and_archived_files(monkeypatch, tmp_pat
     assert response.status_code == 200
     names = {item["name"] for item in response.json()["sessions"]}
     assert names == {"active.md", "old.md"}
+
+
+def test_session_detail_restores_archived_messages(monkeypatch, tmp_path):
+    from src import api
+
+    current_dir = tmp_path / "current"
+    archived_dir = tmp_path / "sessions"
+    current_dir.mkdir()
+    archived_dir.mkdir()
+    session_file = archived_dir / "2026-06-16_10-00-00_session_restoreme_keqing_pro.md"
+    session_file.write_text(
+        "# Session\n\n"
+        "## 2026-06-16 10:00:00\n"
+        "**User**\n旧问题完整内容\n\n"
+        "**Agent**\n旧回答完整内容\n\n"
+        "---\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
+    monkeypatch.setattr(api, "SESSION_DIR", archived_dir)
+    client = TestClient(app)
+
+    response = client.get("/sessions/restoreme")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == "restoreme"
+    assert data["kind"] == "archived"
+    assert data["messages"] == [
+        {"role": "user", "content": "旧问题完整内容"},
+        {"role": "assistant", "content": "旧回答完整内容"},
+    ]
 
 
 def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, tmp_path):

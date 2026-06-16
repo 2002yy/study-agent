@@ -15,6 +15,7 @@ import type {
   RagQueryResponse,
   RagStatusResponse,
   RoleResponse,
+  SessionDetailResponse,
   SessionRow,
   ToolInvocationResponse,
   ToolSpec,
@@ -292,14 +293,18 @@ export async function loadSessions(): Promise<SessionRow[]> {
   return response.sessions;
 }
 
+export async function loadSessionDetail(sessionId: string): Promise<SessionDetailResponse> {
+  return requestJson<SessionDetailResponse>(`/sessions/${encodeURIComponent(sessionId)}`);
+}
+
 export async function loadRagStatus(): Promise<RagStatusResponse> {
   return requestJson<RagStatusResponse>("/rag/status");
 }
 
-export async function uploadDocuments(files: File[]): Promise<RagIndexResponse> {
+export async function uploadDocuments(files: File[], mode: "append" | "rebuild" = "append"): Promise<RagIndexResponse> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
-  return uploadForm<RagIndexResponse>("/rag/upload", formData);
+  return uploadForm<RagIndexResponse>(`/rag/upload?mode=${encodeURIComponent(mode)}`, formData);
 }
 
 export async function queryRag(query: string, settings: RagSettings): Promise<RagQueryResponse> {

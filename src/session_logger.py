@@ -50,6 +50,13 @@ def get_or_create_session(session_id: str) -> dict:
     return _state[session_id]
 
 
+def get_session_entries(session_id: str) -> list[dict]:
+    session = _state.get(session_id)
+    if not session:
+        return []
+    return list(session.get("entries", []))
+
+
 def set_after_session_status(session_id: str, status: str) -> None:
     get_or_create_session(session_id)["meta"].after_session_status = status
 

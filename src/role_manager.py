@@ -1,4 +1,5 @@
 import os
+import re
 
 ROLES_DIR = os.path.join(os.path.dirname(__file__), "..", "roles")
 
@@ -43,3 +44,74 @@ def load_role(role_id: str) -> str:
             return f.read().strip()
 
     return FALLBACKS[role_id]
+
+
+def _split_markdown_sections(markdown: str) -> dict[str, str]:
+    matches = list(re.finditer(r"^##\s+(.+)$", markdown, flags=re.MULTILINE))
+    if not matches:
+        return {"title": markdown.strip()}
+    sections = {"title": markdown[: matches[0].start()].strip()}
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(markdown)
+        sections[match.group(1).strip()] = markdown[start:end].strip()
+    return sections
+
+
+def _select_atmosphere_section(section: str, relationship_mode: str) -> str:
+    if not section:
+        return ""
+    labels = {
+        "standard": "standard",
+        "warm": "warm",
+        "close": "close",
+    }
+    selected = labels.get(relationship_mode, "standard")
+    pattern = re.compile(r"^###\s+(.+)$", flags=re.MULTILINE)
+    matches = list(pattern.finditer(section))
+    if not matches:
+        return section
+    for index, match in enumerate(matches):
+        title = match.group(1)
+        if selected not in title:
+            continue
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(section)
+        return "## 当前氛围\n\n" + section[start:end].strip()
+    return ""
+
+
+def build_role_prompt(
+    role_id: str,
+    *,
+    scene: str = "single",
+    relationship_mode: str = "standard",
+) -> str:
+    """Build the role prompt for generation without injecting unrelated scenes."""
+    raw = load_role(role_id)
+    sections = _split_markdown_sections(raw)
+    selected_keys = [
+        "1. 核心定位",
+        "2. 性格层次",
+        "8. 禁止跑偏",
+        "9. 动态记录区",
+    ]
+    if scene == "group":
+        selected_keys.extend(["6. 微信群风格", "7. 与其他角色的互动方式"])
+    else:
+        selected_keys.extend(["3. 教学风格", "4. 项目推进风格", "5. 论文修改风格"])
+
+    parts = [sections.get("title", "")]
+    for key in selected_keys:
+        content = sections.get(key, "")
+        if content:
+            parts.append(content)
+
+    atmosphere = _select_atmosphere_section(
+        sections.get("10. 氛围差异化", ""),
+        relationship_mode,
+    )
+    if atmosphere:
+        parts.append(atmosphere)
+
+    return "\n\n".join(part for part in parts if part).strip() or raw

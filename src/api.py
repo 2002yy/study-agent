@@ -49,15 +49,16 @@ from src.rag import build_rag_context, format_rag_sources, index_documents
 from src.rag.backends import get_vector_backend_from_env
 from src.rag.eval import RagEvalCase, evaluate_case
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
-from src.rag.service import build_rag_debug, search_documents
+from src.rag.service import append_documents_to_index, build_rag_debug, search_documents
 from src.news.digest import format_news_source_block
 from src.news.rss_fetcher import fetch_news_items, get_last_feed_warnings
-from src.role_manager import list_roles, load_role
+from src.role_manager import build_role_prompt, list_roles, load_role
 from src.router import route_request
 from src.safe_writer import safe_write_text
 from src.session_logger import (
     flush_current_session,
     get_or_create_session,
+    get_session_entries,
     init_session,
     log,
     set_wechat_interactive,
@@ -377,6 +378,14 @@ class SessionListResponse(BaseModel):
     sessions: list[dict[str, Any]]
 
 
+class SessionDetailResponse(BaseModel):
+    session_id: str
+    kind: str
+    path: str
+    messages: list[ChatMessage]
+    raw: str = ""
+
+
 class ToolInvocationRequest(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
     run_id: str | None = None
@@ -531,6 +540,57 @@ def _session_file_rows(directory: Path, kind: str, limit: int) -> list[dict[str,
         )
     rows.sort(key=lambda row: int(row["mtime_ns"]), reverse=True)
     return rows[:limit]
+
+
+def _messages_from_session_entries(entries: list[dict[str, Any]]) -> list[ChatMessage]:
+    messages: list[ChatMessage] = []
+    for entry in entries:
+        user = str(entry.get("user", "")).strip()
+        agent = str(entry.get("agent", "")).strip()
+        if user:
+            messages.append(ChatMessage(role="user", content=user))
+        if agent:
+            messages.append(ChatMessage(role="assistant", content=agent))
+    return messages
+
+
+def _parse_archived_session_messages(raw: str) -> list[ChatMessage]:
+    messages: list[ChatMessage] = []
+    for block in raw.split("---"):
+        if "**User**" not in block or "**Agent**" not in block:
+            continue
+        user_part = block.split("**User**", 1)[1].split("**Agent**", 1)[0].strip()
+        agent_part = block.split("**Agent**", 1)[1].strip()
+        if user_part:
+            messages.append(ChatMessage(role="user", content=user_part))
+        if agent_part:
+            messages.append(ChatMessage(role="assistant", content=agent_part))
+    return messages
+
+
+def _parse_current_session_messages(raw: str) -> list[ChatMessage]:
+    messages: list[ChatMessage] = []
+    for line in raw.splitlines():
+        if line.startswith("User: "):
+            messages.append(ChatMessage(role="user", content=line.removeprefix("User: ").strip()))
+        elif line.startswith("Agent: "):
+            messages.append(ChatMessage(role="assistant", content=line.removeprefix("Agent: ").strip()))
+    return messages
+
+
+def _find_session_file(session_id: str) -> tuple[str, Path | None]:
+    current = CURRENT_SESSION_DIR / f"{session_id}.md"
+    if current.is_file():
+        return "current", current
+    if SESSION_DIR.is_dir():
+        matches = sorted(
+            SESSION_DIR.glob(f"*_session_{session_id}_*.md"),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )
+        if matches:
+            return "archived", matches[0]
+    return "active", None
 
 
 def _workflow_store() -> WorkflowStore:
@@ -764,7 +824,11 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         selected_model=request.selected_model,
         runtime_modes=runtime_modes,
     )
-    role_prompt = load_role(route["role"])
+    role_prompt = build_role_prompt(
+        route["role"],
+        scene=request.scene,
+        relationship_mode=request.relationship_mode,
+    )
     memory_bundle = read_memory_bundle(context_mode)
     rag_result = retrieve_local_knowledge(
         request.user_input,
@@ -1096,6 +1160,7 @@ async def upload_rag_documents(
     index_path: str | None = None,
     max_chars: int = 900,
     overlap_chars: int = 120,
+    mode: str = "append",
 ) -> RagIndexResponse:
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
@@ -1103,6 +1168,8 @@ async def upload_rag_documents(
         raise HTTPException(status_code=400, detail="max_chars out of range")
     if overlap_chars < 0 or overlap_chars > 5_000:
         raise HTTPException(status_code=400, detail="overlap_chars out of range")
+    if mode not in {"append", "rebuild"}:
+        raise HTTPException(status_code=400, detail="mode must be append or rebuild")
 
     RAG_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     saved_paths = []
@@ -1114,12 +1181,20 @@ async def upload_rag_documents(
 
     target_index = _index_path(index_path)
     try:
-        index = index_documents(
-            saved_paths,
-            index_path=target_index,
-            max_chars=max_chars,
-            overlap_chars=overlap_chars,
-        )
+        if mode == "rebuild":
+            index = index_documents(
+                saved_paths,
+                index_path=target_index,
+                max_chars=max_chars,
+                overlap_chars=overlap_chars,
+            )
+        else:
+            index = append_documents_to_index(
+                saved_paths,
+                index_path=target_index,
+                max_chars=max_chars,
+                overlap_chars=overlap_chars,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1356,6 +1431,36 @@ def list_sessions(limit: int = 20) -> SessionListResponse:
     sessions = [*current, *archived]
     sessions.sort(key=lambda row: int(row["mtime_ns"]), reverse=True)
     return SessionListResponse(sessions=sessions[:safe_limit])
+
+
+@app.get("/sessions/{session_id}", response_model=SessionDetailResponse)
+def get_session_detail(session_id: str) -> SessionDetailResponse:
+    entries = get_session_entries(session_id)
+    if entries:
+        return SessionDetailResponse(
+            session_id=session_id,
+            kind="active",
+            path="",
+            messages=_messages_from_session_entries(entries),
+        )
+
+    kind, path = _find_session_file(session_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    raw = path.read_text(encoding="utf-8")
+    messages = (
+        _parse_archived_session_messages(raw)
+        if kind == "archived"
+        else _parse_current_session_messages(raw)
+    )
+    return SessionDetailResponse(
+        session_id=session_id,
+        kind=kind,
+        path=str(path),
+        messages=messages,
+        raw=raw[:4000],
+    )
 
 
 @app.post("/sessions/{session_id}/flush")

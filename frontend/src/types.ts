@@ -300,6 +300,14 @@ export type SessionRow = {
   mtime_ns: number;
 };
 
+export type SessionDetailResponse = {
+  session_id: string;
+  kind: string;
+  path: string;
+  messages: ChatMessage[];
+  raw: string;
+};
+
 export type ApiSnapshot = {
   health: HealthResponse | null;
   ragStatus: RagStatusResponse | null;

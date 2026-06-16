@@ -255,6 +255,20 @@ button {
   overflow-wrap: anywhere;
 }
 
+.upload-mode {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.upload-mode label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .ghost-action {
   width: 100%;
   margin-top: 16px;
