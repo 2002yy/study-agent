@@ -94,6 +94,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     relationship_mode: options.chatSettings.relationshipMode,
     scene: options.scene ?? "single",
     conversation_instruction: options.conversationInstruction ?? "",
+    performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
     context_mode: options.chatSettings.contextMode || null,
     chat_history: history.map((message) => ({
       role: message.role,
@@ -105,6 +106,19 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     web_context: options.webContext ?? ""
   };
+}
+
+function performanceModeFromContext(contextMode: string): "fast" | "standard" | "deep" | null {
+  if (contextMode === "fast") {
+    return "fast";
+  }
+  if (contextMode === "deep") {
+    return "deep";
+  }
+  if (contextMode === "light") {
+    return "standard";
+  }
+  return null;
 }
 
 function parseSseMessages(raw: string): SseMessage[] {
@@ -213,14 +227,7 @@ export async function createWechatOpening(chatSettings: ChatSettings): Promise<W
       selected_role: chatSettings.selectedRole,
       selected_model: chatSettings.selectedModel,
       relationship_mode: chatSettings.relationshipMode,
-      performance_mode:
-        chatSettings.contextMode === "fast"
-          ? "fast"
-          : chatSettings.contextMode === "deep"
-            ? "deep"
-            : chatSettings.contextMode === "light"
-              ? "standard"
-              : null
+      performance_mode: performanceModeFromContext(chatSettings.contextMode)
     })
   });
 }
@@ -241,6 +248,7 @@ export async function sendWechatMessage(
       session_id: options.sessionId,
       selected_model: options.chatSettings.selectedModel,
       relationship_mode: options.chatSettings.relationshipMode,
+      performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
       rag_enabled: options.ragEnabled,
       rag_top_k: options.ragSettings.chatTopK,
       rag_retrieval_mode: options.ragSettings.retrievalMode
@@ -264,14 +272,7 @@ export async function runNewsSearch(
       read_articles: options.readArticles,
       selected_model: options.chatSettings.selectedModel,
       relationship_mode: options.chatSettings.relationshipMode,
-      performance_mode:
-        options.chatSettings.contextMode === "fast"
-          ? "fast"
-          : options.chatSettings.contextMode === "deep"
-            ? "deep"
-            : options.chatSettings.contextMode === "light"
-              ? "standard"
-              : null
+      performance_mode: performanceModeFromContext(options.chatSettings.contextMode)
     })
   });
 }

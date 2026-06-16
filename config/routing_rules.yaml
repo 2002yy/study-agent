@@ -66,9 +66,9 @@ rules:
       - 论据
       - 论点
     role: keqing
-    mode: 论文
+    mode: 项目
     model: pro
-    reason: 论文/审读 → 刻晴用论文模式审视结构
+    reason: 论文/审读 → 刻晴按任务意图审视结构和修改步骤
 
   - name: winddown
     priority: 40
@@ -116,9 +116,9 @@ rules:
       - 概念的区别
       - 这几个概念
     role: nahida
-    mode: 概念地图
+    mode: 普通
     model: pro
-    reason: 概念梳理/结构整理 → 纳西妲用概念地图模式
+    reason: 概念梳理/结构整理 → 纳西妲用普通讲解梳理关系
 
 default:
   role: nahida

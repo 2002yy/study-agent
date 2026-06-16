@@ -22,8 +22,6 @@ MODE_LABELS = {
     "苏格拉底": "苏格拉底",
     "费曼": "费曼",
     "项目": "项目",
-    "论文": "论文",
-    "概念地图": "概念地图",
 }
 
 MODE_ICONS = {
@@ -32,8 +30,6 @@ MODE_ICONS = {
     "苏格拉底": "❓",
     "费曼": "🧠",
     "项目": "🛠",
-    "论文": "📚",
-    "概念地图": "🗺",
 }
 
 MODEL_LABELS = {"auto": "自动", "flash": "Flash（快速）", "pro": "Pro（高质量）"}
@@ -65,7 +61,7 @@ WECHAT_MODE_ICONS = {
 }
 
 ROLE_OPTIONS = ["auto", "march7", "keqing", "nahida", "firefly"]
-MODE_OPTIONS = ["auto", "普通", "苏格拉底", "费曼", "项目", "论文", "概念地图"]
+MODE_OPTIONS = ["auto", "普通", "苏格拉底", "费曼", "项目"]
 MODEL_OPTIONS = ["auto", "flash", "pro"]
 PERFORMANCE_OPTIONS = ["fast", "standard", "deep"]
 ENTRY_OPTIONS = ["wechat", "single"]

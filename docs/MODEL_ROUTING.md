@@ -24,9 +24,10 @@ Two model tiers:
 Resolution logic (`src/wechat_generator.py:_resolve_model_profile`):
 
 ```
+selected_model = pro     →  pro
+selected_model = flash   →  flash
 performance_mode = deep  →  pro
 performance_mode = fast  →  flash
-selected_model = pro     →  pro
 default                  →  flash
 ```
 
@@ -37,9 +38,11 @@ default                  →  flash
 Valid outputs:
 
 - **role**: march7 (casual), keqing (project), nahida (concept), firefly (wrap-up)
-- **mode**: 普通, 苏格拉底, 费曼, 项目, 论文, 概念地图
+- **mode**: 普通, 苏格拉底, 费曼, 项目
 - **model**: flash, pro
 - **confidence**: high, medium, low
+
+`论文` and `概念地图` are task intents now, not learning modes. Paper-like requests route to `项目` with Keqing; concept-structure requests route to Nahida with an active learning mode chosen from the list above.
 
 Route caching via `st.session_state.current_route` — cleared when settings change.
 

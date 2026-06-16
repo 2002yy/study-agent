@@ -50,7 +50,7 @@ def test_route_request_maps_mechanism_question_to_nahida(monkeypatch):
         "load_routing_config",
         lambda: RoutingConfig(
             rules=[
-                (["底层", "机制"], "nahida", "概念地图", "pro", "mechanism", 100),
+                (["底层", "机制"], "nahida", "普通", "pro", "mechanism", 100),
             ],
             default_role="march7",
             default_mode="普通",
@@ -68,7 +68,7 @@ def test_route_request_maps_mechanism_question_to_nahida(monkeypatch):
     )
 
     assert result["role"] == "nahida"
-    assert result["mode"] == "概念地图"
+    assert result["mode"] == "普通"
     assert result["model_profile"] == "pro"
 
 
@@ -247,6 +247,62 @@ def test_build_messages_omits_empty_rag_context():
     )
 
     assert "[Retrieved local documents]" not in messages[0]["content"]
+
+
+def test_build_messages_deduplicates_current_user_input_from_history():
+    messages = build_messages(
+        user_input="这个问题怎么修？",
+        role_prompt="You are a tutor.",
+        mode="普通",
+        memory_bundle={},
+        chat_history=[
+            {"role": "user", "content": "前一个问题"},
+            {"role": "assistant", "content": "前一个回答"},
+            {"role": "user", "content": "这个问题怎么修？"},
+        ],
+    )
+
+    current_question_count = sum(
+        1 for message in messages if message["content"] == "这个问题怎么修？"
+    )
+    assert current_question_count == 1
+    assert messages[-1] == {"role": "user", "content": "这个问题怎么修？"}
+
+
+def test_build_messages_history_window_follows_performance_mode():
+    history = [
+        {"role": "user" if index % 2 == 0 else "assistant", "content": f"m{index}"}
+        for index in range(40)
+    ]
+
+    fast_messages = build_messages(
+        user_input="now",
+        role_prompt="role",
+        mode="普通",
+        memory_bundle={},
+        chat_history=history,
+        runtime_modes=RuntimeModes(performance_mode="fast"),
+    )
+    standard_messages = build_messages(
+        user_input="now",
+        role_prompt="role",
+        mode="普通",
+        memory_bundle={},
+        chat_history=history,
+        runtime_modes=RuntimeModes(performance_mode="standard"),
+    )
+    deep_messages = build_messages(
+        user_input="now",
+        role_prompt="role",
+        mode="普通",
+        memory_bundle={},
+        chat_history=history,
+        runtime_modes=RuntimeModes(performance_mode="deep"),
+    )
+
+    assert [message["content"] for message in fast_messages[1:-1]] == [f"m{index}" for index in range(32, 40)]
+    assert [message["content"] for message in standard_messages[1:-1]] == [f"m{index}" for index in range(22, 40)]
+    assert [message["content"] for message in deep_messages[1:-1]] == [f"m{index}" for index in range(10, 40)]
 
 
 def test_single_chat_policy_and_conversation_instruction_override_role_limits():

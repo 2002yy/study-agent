@@ -10,8 +10,12 @@ MODE_RULES = {
     "苏格拉底": "一次只追问一个关键问题，让用户自己推导结论。",
     "费曼": "先肯定，再指出漏洞，最后给出改进建议和评分。",
     "项目": "聚焦目标、边界、最小修改点、验收方式和风险。",
-    "论文": "关注论点、证据、结构和表达，不直接代写。",
-    "概念地图": "输出概念定义、层级关系、常见混淆和学习顺序。",
+}
+
+CHAT_HISTORY_LIMITS = {
+    "fast": 8,
+    "standard": 18,
+    "deep": 30,
 }
 
 
@@ -86,6 +90,26 @@ def build_system_prompt(
     return "\n\n".join(parts)
 
 
+def chat_history_limit(runtime_modes: RuntimeModes) -> int:
+    return CHAT_HISTORY_LIMITS.get(runtime_modes.performance_mode, CHAT_HISTORY_LIMITS["standard"])
+
+
+def trim_duplicate_current_user_input(
+    chat_history: list[dict] | None,
+    user_input: str,
+) -> list[dict]:
+    if not chat_history:
+        return []
+    normalized = list(chat_history)
+    last = normalized[-1]
+    if (
+        last.get("role") == "user"
+        and str(last.get("content", "")).strip() == user_input.strip()
+    ):
+        return normalized[:-1]
+    return normalized
+
+
 def build_messages(
     user_input: str,
     role_prompt: str,
@@ -119,11 +143,12 @@ def build_messages(
         }
     ]
 
-    if chat_history:
+    clean_history = trim_duplicate_current_user_input(chat_history, user_input)
+    if clean_history:
         messages.extend(
             [
                 {"role": msg["role"], "content": msg["content"]}
-                for msg in chat_history[-8:]
+                for msg in clean_history[-chat_history_limit(runtime_modes):]
             ]
         )
 

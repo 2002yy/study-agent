@@ -272,6 +272,7 @@ def generate_interactive_wechat_reply(
     model_profile: ModelProfile = "flash",
     relationship_mode: str | None = None,
     rag_context: str = "",
+    performance_mode: str | None = None,
 ) -> str:
     messages, _is_first = _build_interactive_messages(
         user_text,
@@ -282,7 +283,7 @@ def generate_interactive_wechat_reply(
         messages,
         temperature=0.7,
         model_profile=model_profile,
-        max_tokens=wechat_reply_max_tokens(load_runtime_modes().performance_mode),
+        max_tokens=wechat_reply_max_tokens(performance_mode or load_runtime_modes().performance_mode),
         task_name="wechat_interactive",
     )
     return _ensure_all_roles_reply(raw.strip())
@@ -293,6 +294,7 @@ def generate_interactive_wechat_reply_stream(
     model_profile: ModelProfile = "flash",
     relationship_mode: str | None = None,
     rag_context: str = "",
+    performance_mode: str | None = None,
 ):
     messages, is_first = _build_interactive_messages(
         user_text,
@@ -304,7 +306,7 @@ def generate_interactive_wechat_reply_stream(
             messages,
             temperature=0.7,
             model_profile=model_profile,
-            max_tokens=wechat_reply_max_tokens(load_runtime_modes().performance_mode),
+            max_tokens=wechat_reply_max_tokens(performance_mode or load_runtime_modes().performance_mode),
             task_name="wechat_interactive",
         ),
         is_first,

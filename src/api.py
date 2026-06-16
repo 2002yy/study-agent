@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import json
 import secrets
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -241,6 +242,7 @@ class ChatRequest(BaseModel):
     relationship_mode: str = "standard"
     scene: str = "single"
     conversation_instruction: str = ""
+    performance_mode: str | None = None
     context_mode: str | None = None
     chat_history: list[ChatMessage] = Field(default_factory=list)
     session_id: str | None = None
@@ -279,6 +281,7 @@ class WechatMessageRequest(BaseModel):
     message: str = Field(min_length=1)
     selected_model: str = "auto"
     relationship_mode: str = "standard"
+    performance_mode: str | None = None
     session_id: str | None = None
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
@@ -695,13 +698,27 @@ def _request_performance_mode(requested: str | None) -> str:
 
 
 def _request_model_profile(selected_model: str, performance_mode: str) -> str:
+    if selected_model == "pro":
+        return "pro"
+    if selected_model == "flash":
+        return "flash"
     if performance_mode == "deep":
         return "pro"
     if performance_mode == "fast":
         return "flash"
-    if selected_model == "pro":
-        return "pro"
     return "flash"
+
+
+def _runtime_modes_for_request(requested_performance_mode: str | None):
+    runtime_modes = load_runtime_modes()
+    if not requested_performance_mode:
+        return runtime_modes
+    performance_mode = _validate_choice(
+        requested_performance_mode,
+        PERFORMANCE_OPTIONS,
+        "performance_mode",
+    )
+    return replace(runtime_modes, performance_mode=performance_mode)
 
 
 def _wechat_state_payload() -> WechatStateResponse:
@@ -738,7 +755,7 @@ def _news_result_payload(result: Any, session_id: str) -> NewsSearchResponse:
 
 
 def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
-    runtime_modes = load_runtime_modes()
+    runtime_modes = _runtime_modes_for_request(request.performance_mode)
     context_mode = request.context_mode or runtime_modes.context_mode
     route = route_request(
         user_input=request.user_input,
@@ -939,7 +956,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
     _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
     _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
     append_user_group_message(request.message)
-    runtime_modes = load_runtime_modes()
+    runtime_modes = _runtime_modes_for_request(request.performance_mode)
     model_profile = _request_model_profile(request.selected_model, runtime_modes.performance_mode)
     rag_result = retrieve_local_knowledge(
         request.message,
@@ -952,6 +969,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         model_profile=model_profile,
         relationship_mode=request.relationship_mode,
         rag_context=rag_result.context,
+        performance_mode=runtime_modes.performance_mode,
     )
     append_interactive_group_reply(reply)
     update_wechat_join_state(

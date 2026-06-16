@@ -691,7 +691,7 @@ export default function App() {
     try {
       const response = await sendChatStream(
         question,
-        toChatHistoryPayload(nextMessages),
+        toChatHistoryPayload(singleChatMessages),
         {
           ragEnabled,
           sessionId,

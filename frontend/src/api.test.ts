@@ -83,7 +83,7 @@ describe("sendChatStream", () => {
       [{ role: "user", content: "上文", avatarRole: "user" }],
       {
         ragEnabled: false,
-        chatSettings,
+        chatSettings: { ...chatSettings, contextMode: "deep" },
         ragSettings,
         conversationInstruction: "不要转交给其他角色。",
         scene: "single"
@@ -94,5 +94,6 @@ describe("sendChatStream", () => {
     const body = JSON.parse(String(init.body));
     expect(body.scene).toBe("single");
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
+    expect(body.performance_mode).toBe("deep");
   });
 });

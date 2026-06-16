@@ -10,17 +10,17 @@ from src.model_stats import suggest_model_by_rules
 from src.log_utils import get_logger
 
 Role = Literal["march7", "keqing", "nahida", "firefly"]
-Mode = Literal["普通", "苏格拉底", "费曼", "项目", "论文", "概念地图"]
+Mode = Literal["普通", "苏格拉底", "费曼", "项目"]
 Model = Literal["flash", "pro"]
 
 _YAML_CONFIG = Path(__file__).resolve().parent.parent / "config" / "routing_rules.yaml"
 _MD_FALLBACK = Path(__file__).resolve().parent.parent / "templates" / "routing_rules.md"
 
 FALLBACK_RULES = [
-    (["概念图", "关系图", "知识结构", "概念关系", "对比"], "nahida", "概念地图", "pro", "概念梳理", 60),
+    (["概念图", "关系图", "知识结构", "概念关系", "对比"], "nahida", "普通", "pro", "概念梳理", 60),
     (["实现", "修改", "代码", "bug", "报错", "测试", "方案", "部署", "配置"], "keqing", "项目", "pro", "项目推进", 90),
     (["我来讲", "你听我解释", "检查我理解", "复述"], "nahida", "费曼", "pro", "费曼复述", 70),
-    (["论文", "摘要", "章节", "参考文献", "论点"], "keqing", "论文", "pro", "论文修改", 80),
+    (["论文", "摘要", "章节", "参考文献", "论点"], "keqing", "项目", "pro", "论文修改", 80),
     (["累", "复盘", "收尾", "简单总结", "休息"], "firefly", "普通", "flash", "复盘收尾", 40),
     (["入门", "开始学", "先问我", "新手", "零基础"], "march7", "苏格拉底", "flash", "入门引导", 50),
 ]

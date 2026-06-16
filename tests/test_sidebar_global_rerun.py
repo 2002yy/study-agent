@@ -82,7 +82,7 @@ def test_settings_changed_mode():
     from src.ui.sidebar import _settings_changed
 
     assert _settings_changed(
-        "wechat", "march7", "论文", "flash", "standard", "standard",
+        "wechat", "march7", "项目", "flash", "standard", "standard",
         "wechat", "march7", "auto", "flash", "standard", "standard",
     )
 

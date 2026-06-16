@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from src.mode_manager import RuntimeModes
+from src.performance_budget import chat_max_tokens
 from src.api import app
 
 
@@ -493,6 +494,12 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
             "selected_model": "flash",
             "web_context": "source: web result",
             "conversation_instruction": "本轮直接回答，不转交。",
+            "performance_mode": "deep",
+            "chat_history": [
+                {"role": "user", "content": "old"},
+                {"role": "assistant", "content": "old reply"},
+                {"role": "user", "content": "hello api"},
+            ],
         },
     )
 
@@ -502,7 +509,9 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert data["route"]["role"] == "march7"
     assert data["rag"]["status"] == "skipped"
     assert captured["kwargs"]["task_name"] == "single_chat"
+    assert captured["kwargs"]["max_tokens"] == chat_max_tokens("deep")
     assert captured["messages"][-1]["content"] == "hello api"
+    assert sum(1 for message in captured["messages"] if message["content"] == "hello api") == 1
     assert any("source: web result" in message["content"] for message in captured["messages"])
     assert "当前场景是单人对话" in captured["messages"][0]["content"]
     assert "[Conversation instruction]\n本轮直接回答，不转交。" in captured["messages"][0]["content"]

@@ -26,9 +26,9 @@
 ## rule
 - keywords: 论文, 摘要, 降AI, 章节, 参考文献, 表述, 替换, 论据, 论点
 - role: keqing
-- mode: 论文
+- mode: 项目
 - model: pro
-- reason: 论文/审读 → 刻晴用论文模式审视结构
+- reason: 论文/审读 → 刻晴按任务意图审视结构和修改步骤
 
 ## rule
 - keywords: 累, 复盘, 收尾, 今天到这, 简单总结, 陪我理一下, 不想学了, 休息
