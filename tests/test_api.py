@@ -193,14 +193,17 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
             return {"status": "found", "context": self.context}
 
     actions = []
-    monkeypatch.setattr(api, "append_user_group_message", lambda message: actions.append(("user", message)))
     monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
     monkeypatch.setattr(
         api,
         "generate_interactive_wechat_reply",
         lambda *args, **kwargs: "group reply",
     )
-    monkeypatch.setattr(api, "append_interactive_group_reply", lambda reply: actions.append(("reply", reply)))
+    monkeypatch.setattr(
+        api,
+        "append_user_and_interactive_group_reply",
+        lambda message, reply: actions.append(("combined", message, reply)),
+    )
     monkeypatch.setattr(api, "update_wechat_join_state", lambda **kwargs: actions.append(("state", kwargs)))
     monkeypatch.setattr(api, "set_wechat_interactive", lambda session_id, status: actions.append(("interactive", status)))
     monkeypatch.setattr(api, "set_wechat_status", lambda session_id, status: actions.append(("status", status)))
@@ -219,8 +222,39 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
     assert data["reply"] == "group reply"
     assert data["content"] == "updated group"
     assert data["session_id"] == "wechat-session"
-    assert ("user", "hello group") in actions
-    assert ("reply", "group reply") in actions
+    assert ("combined", "hello group", "group reply") in actions
+
+
+def test_wechat_message_generation_failure_does_not_write_group(monkeypatch):
+    from src import api
+
+    class FakeRagResult:
+        context = ""
+
+        def to_dict(self):
+            return {"status": "skipped", "context": self.context}
+
+    actions = []
+    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
+
+    def fail_generation(*args, **kwargs):
+        raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(api, "generate_interactive_wechat_reply", fail_generation)
+    monkeypatch.setattr(
+        api,
+        "append_user_and_interactive_group_reply",
+        lambda message, reply: actions.append(("combined", message, reply)),
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/wechat/message",
+        json={"message": "hello group", "selected_model": "flash"},
+    )
+
+    assert response.status_code == 500
+    assert actions == []
 
 
 def test_news_search_endpoint_runs_news_round(monkeypatch):

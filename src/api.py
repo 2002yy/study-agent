@@ -73,8 +73,7 @@ from src.wechat_generator import (
 )
 from src.wechat_service import RuntimeContext, run_news_round
 from src.wechat_state import (
-    append_interactive_group_reply,
-    append_user_group_message,
+    append_user_and_interactive_group_reply,
     count_wechat_messages,
     has_wechat_group_started,
     has_wechat_unread,
@@ -1033,7 +1032,6 @@ def create_wechat_opening(request: WechatOpeningRequest) -> WechatStateResponse:
 def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
     _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
     _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
-    append_user_group_message(request.message)
     runtime_modes = _runtime_modes_for_request(request.performance_mode)
     model_profile = _request_model_profile(request.selected_model, runtime_modes.performance_mode)
     rag_result = retrieve_local_knowledge(
@@ -1049,7 +1047,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         rag_context=rag_result.context,
         performance_mode=runtime_modes.performance_mode,
     )
-    append_interactive_group_reply(reply)
+    append_user_and_interactive_group_reply(request.message, reply)
     update_wechat_join_state(
         user_has_joined=True,
         first_reaction_done=True,

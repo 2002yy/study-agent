@@ -1030,6 +1030,15 @@ export default function App() {
     if (isWechatBusy) {
       return;
     }
+    const messageCount = snapshot.wechat?.message_count ?? 0;
+    const ok = window.confirm(
+      messageCount > 0
+        ? `当前群聊有 ${messageCount} 条消息，将先归档再创建新群聊。继续吗？`
+        : "创建一个新的空群聊？"
+    );
+    if (!ok) {
+      return;
+    }
     setIsWechatBusy(true);
     try {
       const wechat = await resetWechat();

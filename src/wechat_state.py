@@ -130,6 +130,30 @@ def append_interactive_group_reply(content: str) -> None:
         safe_write_text(UNREAD_FILE, normalized + "\n")
 
 
+def _format_user_group_message(user_text: str) -> str:
+    ts = datetime.now().strftime("%m-%d %H:%M")
+    return f"\n\n【用户】{ts}\n{user_text}"
+
+
+def append_user_and_interactive_group_reply(user_text: str, reply: str) -> None:
+    if not user_text.strip() or not reply.strip():
+        return
+    user_message = _format_user_group_message(user_text.strip())
+    normalized_reply = _ensure_all_roles_reply(reply)
+    current = read_wechat_group()
+    if current.strip():
+        next_group = current + user_message + "\n\n" + normalized_reply + "\n"
+    else:
+        next_group = f"# 学习伙伴群\n{user_message}\n\n{normalized_reply}\n"
+    safe_write_text(GROUP_FILE, next_group)
+
+    unread = read_wechat_unread()
+    if has_wechat_unread():
+        safe_write_text(UNREAD_FILE, unread + "\n\n" + normalized_reply + "\n")
+    else:
+        safe_write_text(UNREAD_FILE, normalized_reply + "\n")
+
+
 def append_wechat_messages(content: str) -> None:
     append_new_wechat_feedback(content)
 
