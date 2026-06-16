@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.memory import CONTEXT_FILE_GROUPS, extract_core_section
 from src.mode_manager import RuntimeModes, load_runtime_modes
+from src.prompt_policies import scene_policy
 
 MODE_RULES = {
     "自动": "",
@@ -47,20 +48,30 @@ def build_system_prompt(
     runtime_modes: RuntimeModes | None = None,
     context_mode: str = "light",
     rag_context: str = "",
+    scene: str = "single",
+    conversation_instruction: str = "",
 ) -> str:
     if runtime_modes is None:
         runtime_modes = load_runtime_modes()
 
-    parts = [role_prompt]
+    parts = []
+
+    internal = build_internal_mode_prompt(runtime_modes)
+    if internal:
+        parts.append(internal)
+
+    parts.append(scene_policy(scene))
+    parts.append(role_prompt)
+
     mode_rule = MODE_RULES.get(mode, "")
     if mode_rule:
         parts.append(mode_rule)
 
     parts.append(f"Interaction mode: {relationship_mode}")
 
-    internal = build_internal_mode_prompt(runtime_modes)
-    if internal:
-        parts.append(internal)
+    clean_instruction = conversation_instruction.strip()
+    if clean_instruction:
+        parts.append(f"[Conversation instruction]\n{clean_instruction}")
 
     for filename, content in _select_memory(memory_bundle, context_mode):
         parts.append(f"[Memory: {filename}]\n{content}")
@@ -85,6 +96,8 @@ def build_messages(
     runtime_modes: RuntimeModes | None = None,
     context_mode: str = "light",
     rag_context: str = "",
+    scene: str = "single",
+    conversation_instruction: str = "",
 ) -> list[dict]:
     if runtime_modes is None:
         runtime_modes = load_runtime_modes()
@@ -100,6 +113,8 @@ def build_messages(
                 runtime_modes=runtime_modes,
                 context_mode=context_mode,
                 rag_context=rag_context,
+                scene=scene,
+                conversation_instruction=conversation_instruction,
             ),
         }
     ]

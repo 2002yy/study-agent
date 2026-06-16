@@ -64,6 +64,8 @@ type ChatRequestOptions = {
   chatSettings: ChatSettings;
   ragSettings: RagSettings;
   webContext?: string;
+  conversationInstruction?: string;
+  scene?: "single" | "group";
 };
 
 type ChatStreamHandlers = {
@@ -87,6 +89,8 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     selected_mode: options.chatSettings.selectedMode,
     selected_model: options.chatSettings.selectedModel,
     relationship_mode: options.chatSettings.relationshipMode,
+    scene: options.scene ?? "single",
+    conversation_instruction: options.conversationInstruction ?? "",
     context_mode: options.chatSettings.contextMode || null,
     chat_history: history.map((message) => ({
       role: message.role,

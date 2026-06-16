@@ -492,6 +492,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
             "selected_mode": "普通",
             "selected_model": "flash",
             "web_context": "source: web result",
+            "conversation_instruction": "本轮直接回答，不转交。",
         },
     )
 
@@ -503,6 +504,8 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert captured["kwargs"]["task_name"] == "single_chat"
     assert captured["messages"][-1]["content"] == "hello api"
     assert any("source: web result" in message["content"] for message in captured["messages"])
+    assert "当前场景是单人对话" in captured["messages"][0]["content"]
+    assert "[Conversation instruction]\n本轮直接回答，不转交。" in captured["messages"][0]["content"]
 
 
 def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):

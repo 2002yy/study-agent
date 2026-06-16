@@ -6,7 +6,7 @@ from src.mode_manager import (
     is_memory_write_allowed,
     run_with_confirm_write,
 )
-from src.context_builder import build_messages
+from src.context_builder import build_messages, build_system_prompt
 from src.router import RoutingConfig, route_request
 from src.ui.sidebar import _switch_to_wechat_entry
 from src.ui.wechat_panel import _apply_mark_wechat_read, _apply_new_wechat_group
@@ -247,3 +247,31 @@ def test_build_messages_omits_empty_rag_context():
     )
 
     assert "[Retrieved local documents]" not in messages[0]["content"]
+
+
+def test_single_chat_policy_and_conversation_instruction_override_role_limits():
+    prompt = build_system_prompt(
+        role_prompt="角色偏好：遇到项目问题倾向让刻晴收束。",
+        mode="普通",
+        memory_bundle={},
+        scene="single",
+        conversation_instruction="不要转交给其他角色，直接回答我的问题。",
+    )
+
+    assert "当前场景是单人对话" in prompt
+    assert "角色分工只表示擅长领域和回答风格，不构成能力限制" in prompt
+    assert "不得以“这不是我的职责”“请切换到其他角色”“请去找某角色”等理由拒绝" in prompt
+    assert "[Conversation instruction]\n不要转交给其他角色，直接回答我的问题。" in prompt
+
+
+def test_group_chat_policy_keeps_group_scene_separate():
+    prompt = build_system_prompt(
+        role_prompt="群聊角色资料",
+        mode="普通",
+        memory_bundle={},
+        scene="group",
+    )
+
+    assert "当前场景是群聊" in prompt
+    assert "开场、提炼、收束、收尾" in prompt
+    assert "当前场景是单人对话" not in prompt

@@ -69,4 +69,30 @@ describe("sendChatStream", () => {
     expect(response.reply).toBe("RAG 是检索增强生成。");
     expect(tokens).toEqual(["RAG", " 是检索增强生成。"]);
   });
+
+  it("sends scene and conversation instruction in the chat payload", async () => {
+    const fetchMock = vi.fn(async () =>
+      sseResponse([
+        'event: done\ndata: {"session_id":"session-2","reply":"done"}\n\n'
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendChatStream(
+      "直接回答",
+      [{ role: "user", content: "上文", avatarRole: "user" }],
+      {
+        ragEnabled: false,
+        chatSettings,
+        ragSettings,
+        conversationInstruction: "不要转交给其他角色。",
+        scene: "single"
+      }
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.scene).toBe("single");
+    expect(body.conversation_instruction).toBe("不要转交给其他角色。");
+  });
 });

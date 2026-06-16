@@ -239,6 +239,8 @@ class ChatRequest(BaseModel):
     selected_mode: str = "auto"
     selected_model: str = "auto"
     relationship_mode: str = "standard"
+    scene: str = "single"
+    conversation_instruction: str = ""
     context_mode: str | None = None
     chat_history: list[ChatMessage] = Field(default_factory=list)
     session_id: str | None = None
@@ -759,6 +761,8 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         runtime_modes=runtime_modes,
         context_mode=context_mode,
         rag_context="\n\n".join(context_blocks),
+        scene=request.scene,
+        conversation_instruction=request.conversation_instruction,
     )
     return {
         "runtime_modes": runtime_modes,
