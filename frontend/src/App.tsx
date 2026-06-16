@@ -2,7 +2,6 @@ import {
   Activity,
   AlertTriangle,
   BookOpen,
-  Bot,
   BrainCircuit,
   CheckCircle2,
   Clock3,
@@ -19,7 +18,6 @@ import {
   ShieldCheck,
   Sparkles,
   Upload,
-  User,
   Wrench
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +38,10 @@ import {
   sendWechatMessage,
   uploadDocuments
 } from "./api";
+import { RoleAvatar } from "./components/RoleAvatar";
+import { ChatPanel } from "./features/single-chat/ChatPanel";
+import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages } from "./features/single-chat/chatHistory";
+import { roleLabel, roleOptions, speakerToRole } from "./features/roles/roleCatalog";
 import type {
   ApiSnapshot,
   ChatMessage,
@@ -72,15 +74,6 @@ const INITIAL_SNAPSHOT: ApiSnapshot = {
   error: ""
 };
 
-const seedMessages: ChatMessage[] = [
-  {
-    role: "assistant",
-    avatarRole: "nahida",
-    content:
-      "本地学习工作台已就绪。你可以提问、上传资料、查看引用来源，并在右侧检查工具调用与工作流状态。"
-  }
-];
-
 const CHAT_SETTINGS_DEFAULTS: ChatSettings = {
   selectedRole: "auto",
   selectedMode: "auto",
@@ -111,14 +104,6 @@ function createEmptyRag(): ChatResponse["rag"] {
     rewritten_query: ""
   };
 }
-
-const roleOptions = [
-  ["auto", "自动"],
-  ["march7", "三月七"],
-  ["keqing", "刻晴"],
-  ["nahida", "纳西妲"],
-  ["firefly", "流萤"]
-] as const;
 
 const roleDescriptions: Record<string, string> = {
   auto: "后端根据问题自动选择合适角色。",
@@ -195,27 +180,6 @@ const retrievalDescriptions: Record<string, string> = {
   vector: "使用本地向量语义检索。",
   backend_vector: "调用外部向量后端，取决于后端配置。"
 };
-
-const roleAvatarPaths: Record<string, string> = {
-  march7: "/assets/avatars/march7.png",
-  keqing: "/assets/avatars/keqing.png",
-  nahida: "/assets/avatars/nahida.png",
-  firefly: "/assets/avatars/firefly.png"
-};
-
-const speakerToRole: Record<string, string> = {
-  三月七: "march7",
-  刻晴: "keqing",
-  纳西妲: "nahida",
-  流萤: "firefly",
-  用户: "user"
-};
-
-const quickPrompts = [
-  "继续上次学习，先给我一个下一步建议",
-  "分析当前 Study Agent 架构，并列出最该推进的三件事",
-  "根据本地资料解释 RAG 工作流时间线的作用"
-];
 
 const roadmapItems = [
   "微信群、新闻讨论和课后总结仍需要 PRD 中的新增 API 才能完整迁移。",
@@ -299,32 +263,6 @@ function formatMtime(ns: number | undefined): string {
     return "-";
   }
   return new Date(Math.floor(ns / 1_000_000)).toLocaleString();
-}
-
-function roleAvatarUrl(roleId: string | undefined): string {
-  return roleId ? roleAvatarPaths[roleId] ?? "" : "";
-}
-
-function roleLabel(roleId: string | undefined): string {
-  if (!roleId || roleId === "auto") {
-    return "Study Agent";
-  }
-  return roleOptions.find(([value]) => value === roleId)?.[1] ?? roleId;
-}
-
-function RoleAvatar({ roleId, fallback }: { roleId?: string; fallback: "user" | "assistant" }) {
-  const avatarUrl = roleAvatarUrl(roleId);
-  return (
-    <div className={`avatar ${avatarUrl ? "avatar-image" : ""}`}>
-      {avatarUrl ? (
-        <img alt={roleLabel(roleId)} src={avatarUrl} />
-      ) : fallback === "user" ? (
-        <User size={16} />
-      ) : (
-        <Bot size={16} />
-      )}
-    </div>
-  );
 }
 
 function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
@@ -651,98 +589,6 @@ function Sidebar({
         刷新状态
       </button>
     </aside>
-  );
-}
-
-function ChatPanel({
-  messages,
-  input,
-  setInput,
-  isSending,
-  onSubmit,
-  onUploadClick,
-  onSearchSources,
-  isSearching,
-  onQuickPrompt,
-  lastChat,
-  ragEnabled
-}: {
-  messages: ChatMessage[];
-  input: string;
-  setInput: (value: string) => void;
-  isSending: boolean;
-  onSubmit: (event: FormEvent) => void;
-  onUploadClick: () => void;
-  onSearchSources: () => void;
-  isSearching: boolean;
-  onQuickPrompt: (value: string) => void;
-  lastChat: ChatResponse | null;
-  ragEnabled: boolean;
-}) {
-  return (
-    <main className="chat-panel" id="chat">
-      <header className="topbar">
-        <div>
-          <h1>学习工作台</h1>
-          <p>提问、检索本地资料、检查执行链路，再决定哪些内容写入记忆。</p>
-          <div className="topbar-meta">
-            <span>RAG {ragEnabled ? "已启用" : "未启用"}</span>
-            <span>路由 {lastChat ? "已生成" : "等待提问"}</span>
-            <span>Session {lastChat?.session_id ?? "未开始"}</span>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
-            <Upload size={17} />
-          </button>
-          <button className="icon-button" onClick={onSearchSources} type="button" title="检索来源">
-            {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
-          </button>
-        </div>
-      </header>
-
-      <section className="conversation" aria-label="Conversation">
-        <div className="home-brief">
-          <div>
-            <h2>继续学习</h2>
-            <p>PRD 的方向是把 Streamlit 的学习闭环迁回 React，同时保留工具、来源和工作流审计。</p>
-          </div>
-          <div className="quick-grid">
-            {quickPrompts.map((prompt) => (
-              <button key={prompt} onClick={() => onQuickPrompt(prompt)} type="button">
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </div>
-        {messages.map((message, index) => {
-          const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
-          const label = message.role === "user" ? "你" : roleLabel(avatarRole);
-          return (
-            <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-              <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
-              <div className="message-body">
-                <span>{label}</span>
-                <p>{message.content}</p>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-
-      <form className="composer" onSubmit={onSubmit}>
-        <textarea
-          aria-label="Message"
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
-          value={input}
-        />
-        <button className="send-button" disabled={isSending || !input.trim()} type="submit">
-          {isSending ? <Loader2 className="spin" size={17} /> : <Send size={17} />}
-          {isSending ? "发送中" : "发送"}
-        </button>
-      </form>
-    </main>
   );
 }
 
@@ -1368,7 +1214,7 @@ function Inspector({
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<ApiSnapshot>(INITIAL_SNAPSHOT);
-  const [messages, setMessages] = useState<ChatMessage[]>(seedMessages);
+  const [singleChatMessages, setSingleChatMessages] = useState<ChatMessage[]>(seedMessages);
   const [input, setInput] = useState("根据本地资料解释 RAG 工作流时间线的作用");
   const [ragEnabled, setRagEnabled] = useState(true);
   const [chatSettings, setChatSettings] = useState<ChatSettings>(CHAT_SETTINGS_DEFAULTS);
@@ -1405,19 +1251,18 @@ export default function App() {
   };
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("study-agent-react-session");
+    const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as {
           messages?: ChatMessage[];
+          singleChatMessages?: ChatMessage[];
           sessionId?: string;
           chatSettings?: ChatSettings;
           ragSettings?: RagSettings;
           ragEnabled?: boolean;
         };
-        if (parsed.messages?.length) {
-          setMessages(parsed.messages);
-        }
+        setSingleChatMessages(sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages));
         if (parsed.sessionId) {
           setSessionId(parsed.sessionId);
         }
@@ -1431,7 +1276,7 @@ export default function App() {
           setRagEnabled(parsed.ragEnabled);
         }
       } catch {
-        window.localStorage.removeItem("study-agent-react-session");
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
       }
     }
     void refresh();
@@ -1466,10 +1311,10 @@ export default function App() {
 
   useEffect(() => {
     window.localStorage.setItem(
-      "study-agent-react-session",
-      JSON.stringify({ messages, sessionId, chatSettings, ragSettings, ragEnabled })
+      SESSION_STORAGE_KEY,
+      JSON.stringify({ singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled })
     );
-  }, [messages, sessionId, chatSettings, ragSettings, ragEnabled]);
+  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -1477,9 +1322,9 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question, avatarRole: "user" }];
+    const nextMessages: ChatMessage[] = [...singleChatMessages, { role: "user", content: question, avatarRole: "user" }];
     const assistantIndex = nextMessages.length;
-    setMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
+    setSingleChatMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
     setInput("");
     setIsSending(true);
     setRagSearch(null);
@@ -1503,7 +1348,7 @@ export default function App() {
               route,
               rag: current?.rag ?? createEmptyRag()
             }));
-            setMessages((current) =>
+            setSingleChatMessages((current) =>
               current.map((message, index) =>
                 index === assistantIndex ? { ...message, avatarRole: String(route.role ?? "auto") } : message
               )
@@ -1519,7 +1364,7 @@ export default function App() {
           },
           onToken: (token) => {
             streamedReply += token;
-            setMessages((current) =>
+            setSingleChatMessages((current) =>
               current.map((message, index) =>
                 index === assistantIndex ? { ...message, content: `${message.content}${token}` } : message
               )
@@ -1535,7 +1380,7 @@ export default function App() {
       );
       setSessionId(response.session_id);
       setLastChat(response);
-      setMessages((current) =>
+      setSingleChatMessages((current) =>
         current.map((message, index) =>
           index === assistantIndex
             ? { ...message, content: response.reply, avatarRole: String(response.route.role ?? "auto") }
@@ -1545,7 +1390,7 @@ export default function App() {
       await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "聊天请求失败";
-      setMessages((current) =>
+      setSingleChatMessages((current) =>
         current.map((item, index) =>
           index === assistantIndex ? { ...item, avatarRole: "auto", content: `请求失败：${message}` } : item
         )
@@ -1564,14 +1409,10 @@ export default function App() {
       setRagSearch(await queryRag(activeQuery, ragSettings));
     } catch (error) {
       setRagSearch(null);
-      setMessages((current) => [
+      setSnapshot((current) => ({
         ...current,
-        {
-          role: "assistant",
-          avatarRole: "auto",
-          content: `来源检索失败：${error instanceof Error ? error.message : "未知错误"}`
-        }
-      ]);
+        error: error instanceof Error ? error.message : "来源检索失败"
+      }));
     } finally {
       setIsSearching(false);
     }
@@ -1737,11 +1578,6 @@ export default function App() {
       });
       setSessionId(response.session_id);
       setWechatInput("");
-      setMessages((current) => [
-        ...current,
-        { role: "user", content: `[群聊] ${message}`, avatarRole: "user" },
-        { role: "assistant", content: response.reply, avatarRole: "auto" }
-      ]);
       await refresh();
     } catch (error) {
       setSnapshot((current) => ({
@@ -1768,11 +1604,6 @@ export default function App() {
       });
       setNewsResult(result);
       setSessionId(result.session_id);
-      setMessages((current) => [
-        ...current,
-        { role: "user", content: `[联网检索] ${query}`, avatarRole: "user" },
-        { role: "assistant", content: result.digest || result.discussion, avatarRole: "nahida" }
-      ]);
       await refresh();
     } catch (error) {
       setSnapshot((current) => ({
@@ -1794,15 +1625,7 @@ export default function App() {
       const result = await lookupNews(query);
       setWebLookup(result);
       setUseWebLookup(true);
-      setMessages((current) => [
-        ...current,
-        { role: "user", content: `[联网搜索] ${query}`, avatarRole: "user" },
-        {
-          role: "assistant",
-          content: `已找到 ${result.news_items.length} 条联网来源。已设为下一次单人聊天的参考上下文。`,
-          avatarRole: "nahida"
-        }
-      ]);
+      setSnapshot((current) => ({ ...current, error: "" }));
     } catch (error) {
       setSnapshot((current) => ({
         ...current,
@@ -1867,7 +1690,7 @@ export default function App() {
         lastChat={lastChat}
       />
       <ChatPanel
-        messages={messages}
+        messages={singleChatMessages}
         input={input}
         setInput={setInput}
         isSending={isSending}
