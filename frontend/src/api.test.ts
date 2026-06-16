@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sendChatStream } from "./api";
+import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, sendChatStream } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
 const chatSettings: ChatSettings = {
@@ -84,7 +84,7 @@ describe("sendChatStream", () => {
       {
         ragEnabled: false,
         chatSettings: { ...chatSettings, contextMode: "deep" },
-        ragSettings,
+        ragSettings: { ...ragSettings, minScore: 0.42 },
         conversationInstruction: "不要转交给其他角色。",
         scene: "single"
       }
@@ -95,5 +95,86 @@ describe("sendChatStream", () => {
     expect(body.scene).toBe("single");
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
     expect(body.performance_mode).toBe("deep");
+    expect(body.rag_min_score).toBe(0.42);
+  });
+});
+
+describe("local knowledge tool calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the same invocation snapshot for preview and call", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          tool_name: "retrieve_local_knowledge",
+          status: "preview",
+          output: {},
+          reason: "ok",
+          elapsed_ms: 0,
+          run_id: "preview-1"
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const invocation = {
+      query: "RAG",
+      retrievalMode: "hybrid" as const,
+      topK: 7,
+      minScore: 0.33,
+      previewId: "preview-1"
+    };
+
+    await previewLocalKnowledge(invocation);
+    await callLocalKnowledge(invocation);
+
+    const [, previewInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [, callInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    const previewBody = JSON.parse(String(previewInit.body));
+    const callBody = JSON.parse(String(callInit.body));
+    expect(previewBody.args).toEqual({
+      query: "RAG",
+      retrieval_mode: "hybrid",
+      top_k: 7,
+      min_score: 0.33
+    });
+    expect(callBody.run_id).toBe("preview-1");
+    expect(callBody.args).toEqual(previewBody.args);
+  });
+});
+
+describe("loadApiSnapshot", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps healthy API data when one auxiliary endpoint fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/workflows/runs")) {
+          return new Response("workflow down", { status: 500, statusText: "Internal Server Error" });
+        }
+        const payloads: Record<string, unknown> = {
+          "/health": { status: "ok", service: "study-agent", rag_index_exists: true },
+          "/rag/status": { index_exists: true, documents: 0, chunks: 0, index_path: "", vector_backend: { name: "local" } },
+          "/tools": { tools: [] },
+          "/sessions": { sessions: [] },
+          "/runtime/settings": { settings: {}, options: {}, runtime_profile: {}, warnings: [] },
+          "/memory": { writable: false, memory_mode: "preview", safe_mode: false, reason: "preview", context_mode: "light", groups: {}, files: [] },
+          "/wechat": { state: {}, content: "", unread: "", has_unread: false, started: false, message_count: 0, unread_count: 0, summary: "" }
+        };
+        const path = new URL(url, "http://localhost").pathname;
+        return new Response(JSON.stringify(payloads[path]), { status: 200, headers: { "Content-Type": "application/json" } });
+      })
+    );
+
+    const snapshot = await loadApiSnapshot();
+
+    expect(snapshot.health?.status).toBe("ok");
+    expect(snapshot.error).toBe("");
+    expect(snapshot.errors.workflows).toContain("500");
   });
 });

@@ -503,9 +503,21 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
         captured["kwargs"] = kwargs
         return "API reply"
 
+    class FakeRagResult:
+        status = "skipped"
+        context = ""
+
+        def to_dict(self):
+            return {"status": self.status, "context": self.context, "result_count": 0}
+
+    def fake_retrieve(*args, **kwargs):
+        captured["rag_kwargs"] = kwargs
+        return FakeRagResult()
+
     monkeypatch.setattr(api, "chat", fake_chat)
     monkeypatch.setattr(api, "load_role", lambda role: f"role prompt for {role}")
     monkeypatch.setattr(api, "read_memory_bundle", lambda context_mode: {})
+    monkeypatch.setattr(api, "retrieve_local_knowledge", fake_retrieve)
     monkeypatch.setattr(
         api,
         "load_runtime_modes",
@@ -523,6 +535,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
             "web_context": "source: web result",
             "conversation_instruction": "本轮直接回答，不转交。",
             "performance_mode": "deep",
+            "rag_min_score": 0.42,
             "chat_history": [
                 {"role": "user", "content": "old"},
                 {"role": "assistant", "content": "old reply"},
@@ -538,6 +551,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert data["rag"]["status"] == "skipped"
     assert captured["kwargs"]["task_name"] == "single_chat"
     assert captured["kwargs"]["max_tokens"] == chat_max_tokens("deep")
+    assert captured["rag_kwargs"]["min_score"] == 0.42
     assert captured["messages"][-1]["content"] == "hello api"
     assert sum(1 for message in captured["messages"] if message["content"] == "hello api") == 1
     assert any("source: web result" in message["content"] for message in captured["messages"])

@@ -250,6 +250,7 @@ class ChatRequest(BaseModel):
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
+    rag_min_score: float = Field(default=0.01, ge=0)
     web_context: str = ""
 
 
@@ -835,6 +836,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         enabled=request.rag_enabled,
         top_k=request.rag_top_k,
         retrieval_mode=request.rag_retrieval_mode,
+        min_score=request.rag_min_score,
     )
     web_context = request.web_context.strip()
     context_blocks = [rag_result.context] if rag_result.context.strip() else []

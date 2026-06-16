@@ -9,7 +9,10 @@ export function ToolPanel({
   previewTool,
   callTool,
   isPreviewing,
-  isCalling
+  isCalling,
+  canCall = true,
+  callBlockedReason = "",
+  invocationLabel = ""
 }: {
   toolCount: number;
   toolPreview: ToolInvocationResponse | null;
@@ -18,6 +21,9 @@ export function ToolPanel({
   callTool: () => void;
   isPreviewing: boolean;
   isCalling: boolean;
+  canCall?: boolean;
+  callBlockedReason?: string;
+  invocationLabel?: string;
 }) {
   const latest = toolCall ?? toolPreview;
   const outputStatus = typeof latest?.output.status === "string" ? latest.output.status : "";
@@ -36,11 +42,13 @@ export function ToolPanel({
           {isPreviewing ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
           预览
         </button>
-        <button className="tool-button secondary" disabled={!toolPreview || isCalling} onClick={callTool} type="button">
+        <button className="tool-button secondary" disabled={!toolPreview || isCalling || !canCall} onClick={callTool} type="button">
           {isCalling ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
           调用
         </button>
       </div>
+      {invocationLabel ? <div className="tool-hint">已预览：{invocationLabel}</div> : null}
+      {callBlockedReason ? <div className="tool-hint warn">{callBlockedReason}</div> : null}
       {latest ? (
         <div className="tool-result">
           <div className="metric-row">

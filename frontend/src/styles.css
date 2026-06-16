@@ -1033,6 +1033,17 @@ button {
   color: var(--text);
 }
 
+.tool-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.tool-hint.warn {
+  color: #9a3412;
+}
+
 .memory-note {
   display: flex;
   gap: 9px;

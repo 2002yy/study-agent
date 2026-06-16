@@ -33,6 +33,7 @@ import {
   sendWechatMessage,
   uploadDocuments
 } from "./api";
+import type { LocalKnowledgeInvocation } from "./api";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
@@ -70,7 +71,8 @@ const INITIAL_SNAPSHOT: ApiSnapshot = {
   runtimeSettings: null,
   memoryStatus: null,
   wechat: null,
-  error: ""
+  error: "",
+  errors: {}
 };
 
 const CHAT_SETTINGS_DEFAULTS: ChatSettings = {
@@ -497,6 +499,9 @@ function Inspector({
   callTool,
   isPreviewing,
   isCalling,
+  toolCanCall,
+  toolCallBlockedReason,
+  toolInvocationLabel,
   onRestoreSession,
   newsResult,
   webLookup,
@@ -531,6 +536,9 @@ function Inspector({
   callTool: () => void;
   isPreviewing: boolean;
   isCalling: boolean;
+  toolCanCall: boolean;
+  toolCallBlockedReason: string;
+  toolInvocationLabel: string;
   onRestoreSession: (sessionId: string) => void;
   newsResult: NewsSearchResponse | null;
   webLookup: NewsLookupResponse | null;
@@ -591,6 +599,9 @@ function Inspector({
         callTool={callTool}
         isPreviewing={isPreviewing}
         isCalling={isCalling}
+        canCall={toolCanCall}
+        callBlockedReason={toolCallBlockedReason}
+        invocationLabel={toolInvocationLabel}
       />
       <SessionsPanel sessions={snapshot.sessions} onRestore={onRestoreSession} />
       <RoadmapPanel />
@@ -616,6 +627,7 @@ export default function App() {
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [toolPreview, setToolPreview] = useState<ToolInvocationResponse | null>(null);
   const [toolCall, setToolCall] = useState<ToolInvocationResponse | null>(null);
+  const [previewedInvocation, setPreviewedInvocation] = useState<LocalKnowledgeInvocation | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
   const [newsResult, setNewsResult] = useState<NewsSearchResponse | null>(null);
@@ -634,6 +646,29 @@ export default function App() {
   const sessionSettingsRestoredRef = useRef(false);
 
   const activeQuery = input.trim() || lastChat?.rag?.query || "本地资料 工作流 引用来源";
+  const partialErrors = Object.entries(snapshot.errors ?? {}).filter(([key]) => key !== "health");
+  const currentToolInvocation: LocalKnowledgeInvocation = {
+    query: activeQuery,
+    retrievalMode: ragSettings.retrievalMode,
+    topK: ragSettings.chatTopK,
+    minScore: ragSettings.minScore
+  };
+  const toolCanCall = Boolean(
+    toolPreview &&
+      previewedInvocation &&
+      previewedInvocation.query === currentToolInvocation.query &&
+      previewedInvocation.retrievalMode === currentToolInvocation.retrievalMode &&
+      previewedInvocation.topK === currentToolInvocation.topK &&
+      previewedInvocation.minScore === currentToolInvocation.minScore
+  );
+  const toolCallBlockedReason = !toolPreview
+    ? ""
+    : toolCanCall
+      ? ""
+      : "输入或 RAG 参数已变化，请重新预览后再调用。";
+  const toolInvocationLabel = previewedInvocation
+    ? `${previewedInvocation.query} · ${previewedInvocation.retrievalMode} · top_k=${previewedInvocation.topK} · min_score=${previewedInvocation.minScore}`
+    : "";
 
   const refresh = async () => {
     setSnapshot(await loadApiSnapshot());
@@ -820,9 +855,13 @@ export default function App() {
   const previewTool = async () => {
     setIsPreviewing(true);
     setToolCall(null);
+    const invocation = { ...currentToolInvocation };
     try {
-      setToolPreview(await previewLocalKnowledge(activeQuery));
+      const response = await previewLocalKnowledge(invocation);
+      setToolPreview(response);
+      setPreviewedInvocation({ ...invocation, previewId: response.run_id });
     } catch (error) {
+      setPreviewedInvocation(null);
       setToolPreview({
         tool_name: "retrieve_local_knowledge",
         status: "failed",
@@ -887,12 +926,12 @@ export default function App() {
   };
 
   const callTool = async () => {
-    if (!toolPreview || isCalling) {
+    if (!previewedInvocation || !toolCanCall || isCalling) {
       return;
     }
     setIsCalling(true);
     try {
-      const result = await callLocalKnowledge(activeQuery);
+      const result = await callLocalKnowledge(previewedInvocation);
       setToolCall(result);
       await refresh();
       if (result.run_id) {
@@ -1139,6 +1178,9 @@ export default function App() {
         callTool={callTool}
         isPreviewing={isPreviewing}
         isCalling={isCalling}
+        toolCanCall={toolCanCall}
+        toolCallBlockedReason={toolCallBlockedReason}
+        toolInvocationLabel={toolInvocationLabel}
         onRestoreSession={restoreSession}
         newsResult={newsResult}
         webLookup={webLookup}
@@ -1164,6 +1206,12 @@ export default function App() {
         <div className="api-warning">
           <AlertTriangle size={16} />
           API 未连接：{snapshot.error}
+        </div>
+      ) : null}
+      {!snapshot.error && partialErrors.length ? (
+        <div className="api-warning">
+          <AlertTriangle size={16} />
+          部分功能暂不可用：{partialErrors.map(([key]) => key).join(", ")}
         </div>
       ) : null}
     </div>

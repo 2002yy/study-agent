@@ -318,4 +318,5 @@ export type ApiSnapshot = {
   memoryStatus: MemoryStatusResponse | null;
   wechat: WechatStateResponse | null;
   error: string;
+  errors: Record<string, string>;
 };

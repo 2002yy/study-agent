@@ -105,6 +105,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_enabled: options.ragEnabled,
     rag_top_k: options.ragSettings.chatTopK,
     rag_retrieval_mode: options.ragSettings.retrievalMode,
+    rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? ""
   };
 }
@@ -146,41 +147,47 @@ function parseSseMessages(raw: string): SseMessage[] {
 }
 
 export async function loadApiSnapshot(): Promise<ApiSnapshot> {
-  try {
-    const [health, ragStatus, tools, workflows, sessions, runtimeSettings, memoryStatus, wechat] = await Promise.all([
-      requestJson<HealthResponse>("/health"),
-      requestJson<RagStatusResponse>("/rag/status"),
-      requestJson<{ tools: ToolSpec[] }>("/tools"),
-      requestJson<{ runs: WorkflowRunSummary[] }>("/workflows/runs"),
-      requestJson<{ sessions: SessionRow[] }>("/sessions"),
-      requestJson<RuntimeSettingsResponse>("/runtime/settings"),
-      requestJson<MemoryStatusResponse>("/memory"),
-      requestJson<WechatStateResponse>("/wechat")
-    ]);
-    return {
-      health,
-      ragStatus,
-      tools: tools.tools,
-      workflowRuns: workflows.runs,
-      sessions: sessions.sessions,
-      runtimeSettings,
-      memoryStatus,
-      wechat,
-      error: ""
-    };
-  } catch (error) {
-    return {
-      health: null,
-      ragStatus: null,
-      tools: [],
-      workflowRuns: [],
-      sessions: [],
-      runtimeSettings: null,
-      memoryStatus: null,
-      wechat: null,
-      error: error instanceof Error ? error.message : "API unavailable"
-    };
-  }
+  const results = await Promise.allSettled([
+    requestJson<HealthResponse>("/health"),
+    requestJson<RagStatusResponse>("/rag/status"),
+    requestJson<{ tools: ToolSpec[] }>("/tools"),
+    requestJson<{ runs: WorkflowRunSummary[] }>("/workflows/runs"),
+    requestJson<{ sessions: SessionRow[] }>("/sessions"),
+    requestJson<RuntimeSettingsResponse>("/runtime/settings"),
+    requestJson<MemoryStatusResponse>("/memory"),
+    requestJson<WechatStateResponse>("/wechat")
+  ]);
+  const errors: Record<string, string> = {};
+  const read = <T>(index: number, key: string): T | null => {
+    const result = results[index];
+    if (result.status === "fulfilled") {
+      return result.value as T;
+    }
+    errors[key] = result.reason instanceof Error ? result.reason.message : String(result.reason);
+    return null;
+  };
+
+  const health = read<HealthResponse>(0, "health");
+  const ragStatus = read<RagStatusResponse>(1, "rag");
+  const tools = read<{ tools: ToolSpec[] }>(2, "tools");
+  const workflows = read<{ runs: WorkflowRunSummary[] }>(3, "workflows");
+  const sessions = read<{ sessions: SessionRow[] }>(4, "sessions");
+  const runtimeSettings = read<RuntimeSettingsResponse>(5, "settings");
+  const memoryStatus = read<MemoryStatusResponse>(6, "memory");
+  const wechat = read<WechatStateResponse>(7, "wechat");
+
+  return {
+    health,
+    ragStatus,
+    tools: tools?.tools ?? [],
+    workflowRuns: workflows?.runs ?? [],
+    sessions: sessions?.sessions ?? [],
+    runtimeSettings,
+    memoryStatus,
+    wechat,
+    error: errors.health ?? "",
+    errors
+  };
 }
 
 export async function saveRuntimeSettings(payload: Partial<RuntimeSettingsResponse["settings"]>): Promise<RuntimeSettingsResponse> {
@@ -435,28 +442,38 @@ export async function sendChatStream(
   };
 }
 
-export async function previewLocalKnowledge(query: string): Promise<ToolInvocationResponse> {
+export type LocalKnowledgeInvocation = {
+  query: string;
+  retrievalMode: RagSettings["retrievalMode"];
+  topK: number;
+  minScore: number;
+  previewId?: string;
+};
+
+export async function previewLocalKnowledge(invocation: LocalKnowledgeInvocation): Promise<ToolInvocationResponse> {
   return requestJson<ToolInvocationResponse>("/tools/retrieve_local_knowledge/preview", {
     method: "POST",
     body: JSON.stringify({
       args: {
-        query,
-        retrieval_mode: "hybrid",
-        top_k: 3
+        query: invocation.query,
+        retrieval_mode: invocation.retrievalMode,
+        top_k: invocation.topK,
+        min_score: invocation.minScore
       }
     })
   });
 }
 
-export async function callLocalKnowledge(query: string, runId?: string): Promise<ToolInvocationResponse> {
+export async function callLocalKnowledge(invocation: LocalKnowledgeInvocation): Promise<ToolInvocationResponse> {
   return requestJson<ToolInvocationResponse>("/tools/retrieve_local_knowledge/call", {
     method: "POST",
     body: JSON.stringify({
-      run_id: runId,
+      run_id: invocation.previewId,
       args: {
-        query,
-        retrieval_mode: "hybrid",
-        top_k: 3
+        query: invocation.query,
+        retrieval_mode: invocation.retrievalMode,
+        top_k: invocation.topK,
+        min_score: invocation.minScore
       }
     })
   });
