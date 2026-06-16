@@ -32,6 +32,12 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--bg);
+  overflow: hidden;
+}
+
+html,
+#root {
+  height: 100%;
 }
 
 button,
@@ -47,7 +53,8 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: 268px minmax(420px, 1fr) 372px;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   gap: 0;
 }
 
@@ -56,6 +63,8 @@ button {
   background: #fbfcfc;
   border-right: 1px solid var(--border);
   padding: 20px 16px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .inspector {
@@ -84,6 +93,18 @@ button {
   border-radius: 8px;
   background: #e3f3f1;
   color: var(--accent-strong);
+}
+
+.avatar.avatar-image {
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 36, 0.08);
+  background: #ffffff;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .brand strong,
@@ -144,6 +165,11 @@ button {
   font-size: 12px;
 }
 
+.ghost-action.danger {
+  color: #b42318;
+  border-color: #f4c7c3;
+}
+
 .role-preview {
   border: 1px solid #dce9e8;
   border-radius: 8px;
@@ -183,6 +209,38 @@ button {
   padding: 8px;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.role-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  border: 1px solid #e5eeee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.role-current .avatar {
+  width: 42px;
+  height: 42px;
+}
+
+.role-current strong,
+.role-current span {
+  display: block;
+}
+
+.role-current strong {
+  font-size: 13px;
+}
+
+.role-current span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .upload-state {
@@ -300,6 +358,14 @@ button {
   font-size: 12px;
 }
 
+.field-hint {
+  display: block;
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .field-row input[type="number"] {
   padding-right: 4px;
 }
@@ -335,6 +401,9 @@ button {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -401,7 +470,9 @@ button {
 
 .conversation {
   padding: 22px 24px;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -454,12 +525,13 @@ button {
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-  max-width: 840px;
+  width: min(840px, 100%);
 }
 
 .message.user {
   align-self: flex-end;
   grid-template-columns: minmax(0, 1fr) 38px;
+  width: min(720px, 88%);
 }
 
 .message.user .avatar {
@@ -487,6 +559,21 @@ button {
   border-radius: 8px;
   padding: 12px 14px;
   box-shadow: var(--shadow);
+}
+
+.message.assistant .message-body {
+  border-top-left-radius: 4px;
+}
+
+.message.user .message-body {
+  border-top-right-radius: 4px;
+}
+
+.message-body span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 750;
 }
 
 .message-body p {
@@ -876,6 +963,146 @@ button {
   line-height: 1.5;
 }
 
+.wechat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.wechat-actions .ghost-action {
+  width: auto;
+  margin-top: 0;
+}
+
+.wechat-thread {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.wechat-thread pre,
+.news-result pre {
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.wechat-bubbles {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.wechat-bubble {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.wechat-bubble-body {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  border-top-left-radius: 4px;
+  background: #ffffff;
+  padding: 9px 10px;
+}
+
+.wechat-bubble-body strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.wechat-bubble-body p {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mini-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mini-form textarea,
+.mini-form input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text);
+  background: #fff;
+  resize: vertical;
+}
+
+.news-form {
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.lookup-action {
+  width: 100%;
+}
+
+.news-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.lookup-result {
+  border: 1px solid #e5eeee;
+  border-radius: 8px;
+  background: #fbfcff;
+  padding: 10px;
+}
+
+.news-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.news-item {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.news-item strong,
+.news-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.news-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-note.warn {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -918,13 +1145,26 @@ button {
 }
 
 @media (max-width: 760px) {
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     display: block;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .chat-panel {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .sidebar,
   .inspector {
     border-right: 0;
+    overflow: visible;
   }
 
   .nav-list {

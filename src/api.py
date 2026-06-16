@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src import memory_writer
@@ -39,6 +40,7 @@ from src.mode_manager import (
     update_memory_capture,
     update_performance_mode,
     update_safe_mode,
+    update_wechat_join_state,
 )
 from src.performance_budget import chat_max_tokens
 from src.rag import build_rag_context, format_rag_sources, index_documents
@@ -46,15 +48,46 @@ from src.rag.backends import get_vector_backend_from_env
 from src.rag.eval import RagEvalCase, evaluate_case
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.service import build_rag_debug, search_documents
+from src.news.digest import format_news_source_block
+from src.news.rss_fetcher import fetch_news_items, get_last_feed_warnings
 from src.role_manager import list_roles, load_role
 from src.router import route_request
 from src.safe_writer import safe_write_text
-from src.session_logger import flush_current_session, get_or_create_session, init_session, log
+from src.session_logger import (
+    flush_current_session,
+    get_or_create_session,
+    init_session,
+    log,
+    set_wechat_interactive,
+    set_wechat_status,
+    set_wechat_unread_cleared,
+)
 from src.tools.local_knowledge import retrieve_local_knowledge
 from src.tools.registry import create_default_tool_registry
+from src.wechat_generator import (
+    generate_interactive_wechat_reply,
+    generate_wechat_opening,
+)
+from src.wechat_service import RuntimeContext, run_news_round
+from src.wechat_state import (
+    append_interactive_group_reply,
+    append_user_group_message,
+    count_wechat_messages,
+    has_wechat_group_started,
+    has_wechat_unread,
+    mark_wechat_read,
+    read_wechat_group,
+    read_wechat_state,
+    read_wechat_unread,
+    reset_wechat_group,
+    search_wechat,
+    start_wechat_group_with_opening,
+    summarize_wechat,
+)
 from src.workflows.store import DEFAULT_WORKFLOW_DIR, WorkflowStore
 
 ROOT = Path(__file__).resolve().parent.parent
+ASSETS_DIR = ROOT / "assets"
 CONFIG_DIR = ROOT / "config"
 FRONTEND_SETTINGS_PATH = CONFIG_DIR / "frontend_settings.yaml"
 RAG_UPLOAD_DIR = ROOT / "logs" / "rag_uploads"
@@ -211,6 +244,7 @@ class ChatRequest(BaseModel):
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
+    web_context: str = ""
 
 
 class ChatResponse(BaseModel):
@@ -218,6 +252,88 @@ class ChatResponse(BaseModel):
     session_id: str
     route: dict[str, Any]
     rag: dict[str, Any]
+
+
+class WechatStateResponse(BaseModel):
+    state: dict[str, Any]
+    content: str
+    unread: str
+    has_unread: bool
+    started: bool
+    message_count: int
+    unread_count: int
+    summary: str
+
+
+class WechatOpeningRequest(BaseModel):
+    selected_role: str = "auto"
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    performance_mode: str | None = None
+
+
+class WechatMessageRequest(BaseModel):
+    message: str = Field(min_length=1)
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    session_id: str | None = None
+    rag_enabled: bool = False
+    rag_top_k: int = Field(default=3, gt=0, le=20)
+    rag_retrieval_mode: str = "hybrid"
+
+
+class WechatMessageResponse(BaseModel):
+    reply: str
+    content: str
+    state: dict[str, Any]
+    session_id: str
+    rag: dict[str, Any]
+
+
+class WechatSearchRequest(BaseModel):
+    keyword: str = Field(min_length=1)
+    max_results: int = Field(default=10, gt=0, le=50)
+
+
+class WechatSearchResponse(BaseModel):
+    keyword: str
+    results: list[dict[str, Any]]
+
+
+class NewsSearchRequest(BaseModel):
+    query: str = Field(default="最新新闻 when:1d", min_length=1)
+    read_articles: bool = True
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    performance_mode: str | None = None
+    session_id: str | None = None
+
+
+class NewsLookupRequest(BaseModel):
+    query: str = Field(default="最新新闻 when:1d", min_length=1)
+    max_items: int = Field(default=8, gt=0, le=20)
+
+
+class NewsLookupResponse(BaseModel):
+    query_text: str
+    news_items: list[dict[str, Any]]
+    source_block: str
+    warnings: list[str]
+
+
+class NewsSearchResponse(BaseModel):
+    query_text: str
+    news_items: list[dict[str, Any]]
+    digest: str
+    discussion: str
+    group_content: str
+    source_block: str
+    article_coverage: dict[str, Any]
+    elapsed_ms: int
+    warnings: list[str]
+    audit_markdown_path: str
+    audit_json_path: str
+    session_id: str
 
 
 class MemoryUpdate(BaseModel):
@@ -282,6 +398,8 @@ class WorkflowRunResponse(BaseModel):
 
 
 app = FastAPI(title="Study Agent API", version="0.1.0")
+if ASSETS_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 TOOL_REGISTRY = create_default_tool_registry()
 
 
@@ -335,7 +453,8 @@ async def api_security_middleware(request: Request, call_next):
             return response
         return JSONResponse({"detail": "CORS origin not allowed"}, status_code=403)
 
-    if request.url.path != "/health" and not _is_authorized(request):
+    public_path = request.url.path == "/health" or request.url.path.startswith("/assets/")
+    if not public_path and not _is_authorized(request):
         response = JSONResponse({"detail": "Missing or invalid API token"}, status_code=401)
         _add_cors_headers(response, origin, allowed_origins)
         return response
@@ -557,6 +676,56 @@ def _memory_file_row(name: str) -> dict[str, Any]:
     }
 
 
+def _request_performance_mode(requested: str | None) -> str:
+    modes = load_runtime_modes()
+    if requested:
+        return _validate_choice(requested, PERFORMANCE_OPTIONS, "performance_mode")
+    return modes.performance_mode
+
+
+def _request_model_profile(selected_model: str, performance_mode: str) -> str:
+    if performance_mode == "deep":
+        return "pro"
+    if performance_mode == "fast":
+        return "flash"
+    if selected_model == "pro":
+        return "pro"
+    return "flash"
+
+
+def _wechat_state_payload() -> WechatStateResponse:
+    state = read_wechat_state()
+    content = read_wechat_group()
+    unread = read_wechat_unread()
+    return WechatStateResponse(
+        state=state,
+        content=content,
+        unread=unread,
+        has_unread=has_wechat_unread(),
+        started=has_wechat_group_started(),
+        message_count=count_wechat_messages(content),
+        unread_count=count_wechat_messages(unread),
+        summary=summarize_wechat(),
+    )
+
+
+def _news_result_payload(result: Any, session_id: str) -> NewsSearchResponse:
+    return NewsSearchResponse(
+        query_text=result.query_text,
+        news_items=result.news_items,
+        digest=result.digest,
+        discussion=result.discussion,
+        group_content=result.group_content,
+        source_block=result.source_block,
+        article_coverage=result.article_coverage,
+        elapsed_ms=result.elapsed_ms,
+        warnings=result.warnings,
+        audit_markdown_path=result.audit_markdown_path,
+        audit_json_path=result.audit_json_path,
+        session_id=session_id,
+    )
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(
@@ -659,6 +828,131 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
         groups=CONTEXT_FILE_GROUPS,
         files=files,
     )
+
+
+@app.get("/wechat", response_model=WechatStateResponse)
+def get_wechat_state() -> WechatStateResponse:
+    return _wechat_state_payload()
+
+
+@app.post("/wechat/reset", response_model=WechatStateResponse)
+def reset_wechat_state_endpoint() -> WechatStateResponse:
+    reset_wechat_group()
+    return _wechat_state_payload()
+
+
+@app.post("/wechat/mark-read", response_model=WechatStateResponse)
+def mark_wechat_read_endpoint(session_id: str | None = None) -> WechatStateResponse:
+    mark_wechat_read()
+    if session_id:
+        set_wechat_unread_cleared(session_id)
+    return _wechat_state_payload()
+
+
+@app.post("/wechat/opening", response_model=WechatStateResponse)
+def create_wechat_opening(request: WechatOpeningRequest) -> WechatStateResponse:
+    _validate_choice(request.selected_role, ROLE_OPTIONS, "selected_role")
+    _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+    _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+    performance_mode = _request_performance_mode(request.performance_mode)
+    opening = generate_wechat_opening(
+        role_hint=request.selected_role,
+        relationship_mode=request.relationship_mode,
+        performance_mode=performance_mode,
+        selected_model=request.selected_model,
+    )
+    start_wechat_group_with_opening(opening)
+    return _wechat_state_payload()
+
+
+@app.post("/wechat/message", response_model=WechatMessageResponse)
+def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
+    _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+    _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+    append_user_group_message(request.message)
+    runtime_modes = load_runtime_modes()
+    model_profile = _request_model_profile(request.selected_model, runtime_modes.performance_mode)
+    rag_result = retrieve_local_knowledge(
+        request.message,
+        enabled=request.rag_enabled,
+        top_k=request.rag_top_k,
+        retrieval_mode=request.rag_retrieval_mode,
+    )
+    reply = generate_interactive_wechat_reply(
+        request.message,
+        model_profile=model_profile,
+        relationship_mode=request.relationship_mode,
+        rag_context=rag_result.context,
+    )
+    append_interactive_group_reply(reply)
+    update_wechat_join_state(
+        user_has_joined=True,
+        first_reaction_done=True,
+        mode="interactive_group",
+    )
+    session_id = request.session_id or init_session()
+    set_wechat_interactive(session_id, "generated")
+    set_wechat_status(session_id, "interactive_group")
+    return WechatMessageResponse(
+        reply=reply,
+        content=read_wechat_group(),
+        state=read_wechat_state(),
+        session_id=session_id,
+        rag=rag_result.to_dict(),
+    )
+
+
+@app.post("/wechat/search", response_model=WechatSearchResponse)
+def search_wechat_endpoint(request: WechatSearchRequest) -> WechatSearchResponse:
+    return WechatSearchResponse(
+        keyword=request.keyword,
+        results=search_wechat(request.keyword, max_results=request.max_results),
+    )
+
+
+@app.post("/news/search", response_model=NewsSearchResponse)
+def search_news_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
+    runtime_modes = load_runtime_modes()
+    performance_mode = _request_performance_mode(request.performance_mode)
+    _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+    _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+    session_id = request.session_id or init_session()
+    result = run_news_round(
+        query_text=request.query,
+        read_articles=request.read_articles,
+        runtime_context=RuntimeContext(
+            performance_mode=performance_mode,
+            selected_model=request.selected_model,
+            interaction_mode=request.relationship_mode,
+            session_id=session_id,
+            safe_mode=runtime_modes.safe_mode,
+            memory_mode=runtime_modes.memory_mode,
+            route_mode=runtime_modes.route_mode,
+        ),
+    )
+    return _news_result_payload(result, session_id)
+
+
+@app.post("/news/lookup", response_model=NewsLookupResponse)
+def lookup_news_endpoint(request: NewsLookupRequest) -> NewsLookupResponse:
+    try:
+        news_items = fetch_news_items(
+            query_text=request.query,
+            max_items=request.max_items,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News lookup failed: {exc}") from exc
+    return NewsLookupResponse(
+        query_text=request.query,
+        news_items=news_items,
+        source_block=format_news_source_block(request.query, news_items),
+        warnings=get_last_feed_warnings(),
+    )
+
+
+@app.post("/wechat/news-round", response_model=NewsSearchResponse)
+def wechat_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
+    return search_news_endpoint(request)
 
 
 @app.get("/rag/status", response_model=RagStatusResponse)
@@ -839,6 +1133,10 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         top_k=request.rag_top_k,
         retrieval_mode=request.rag_retrieval_mode,
     )
+    web_context = request.web_context.strip()
+    context_blocks = [rag_result.context] if rag_result.context.strip() else []
+    if web_context:
+        context_blocks.append(f"【联网检索结果】\n{web_context}")
     messages = build_messages(
         user_input=request.user_input,
         role_prompt=role_prompt,
@@ -848,7 +1146,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         relationship_mode=request.relationship_mode,
         runtime_modes=runtime_modes,
         context_mode=context_mode,
-        rag_context=rag_result.context,
+        rag_context="\n\n".join(context_blocks),
     )
     reply = chat(
         messages,
@@ -865,7 +1163,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         user_input=request.user_input,
         agent_reply=reply,
         memory_enabled=bool(memory_bundle),
-        route_info={**route, "rag_status": rag_result.status},
+        route_info={**route, "rag_status": rag_result.status, "web_context_used": bool(web_context)},
     )
     flush_current_session(
         session_id,

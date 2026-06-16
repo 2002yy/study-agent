@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
 from src.mode_manager import RuntimeModes
@@ -150,6 +152,139 @@ def test_memory_status_endpoint_reports_runtime_and_files():
     assert data["context_mode"] in {"fast", "light", "deep", "archive"}
     assert "deep" in data["groups"]
     assert any(item["name"] == "current_focus.md" for item in data["files"])
+
+
+def test_wechat_status_and_opening_endpoints(monkeypatch):
+    from src import api
+
+    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
+    monkeypatch.setattr(api, "read_wechat_group", lambda: "group content")
+    monkeypatch.setattr(api, "read_wechat_unread", lambda: "unread content")
+    monkeypatch.setattr(api, "has_wechat_unread", lambda: True)
+    monkeypatch.setattr(api, "has_wechat_group_started", lambda: True)
+    monkeypatch.setattr(api, "count_wechat_messages", lambda content: 2 if content else 0)
+    monkeypatch.setattr(api, "summarize_wechat", lambda: "summary")
+    monkeypatch.setattr(api, "generate_wechat_opening", lambda **kwargs: "opening")
+    started = []
+    monkeypatch.setattr(api, "start_wechat_group_with_opening", lambda content: started.append(content))
+    client = TestClient(app)
+
+    status = client.get("/wechat")
+    opening = client.post(
+        "/wechat/opening",
+        json={"selected_role": "auto", "selected_model": "flash", "relationship_mode": "standard"},
+    )
+
+    assert status.status_code == 200
+    assert status.json()["content"] == "group content"
+    assert status.json()["has_unread"] is True
+    assert opening.status_code == 200
+    assert started == ["opening"]
+
+
+def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
+    from src import api
+
+    class FakeRagResult:
+        context = "rag context"
+
+        def to_dict(self):
+            return {"status": "found", "context": self.context}
+
+    actions = []
+    monkeypatch.setattr(api, "append_user_group_message", lambda message: actions.append(("user", message)))
+    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
+    monkeypatch.setattr(
+        api,
+        "generate_interactive_wechat_reply",
+        lambda *args, **kwargs: "group reply",
+    )
+    monkeypatch.setattr(api, "append_interactive_group_reply", lambda reply: actions.append(("reply", reply)))
+    monkeypatch.setattr(api, "update_wechat_join_state", lambda **kwargs: actions.append(("state", kwargs)))
+    monkeypatch.setattr(api, "set_wechat_interactive", lambda session_id, status: actions.append(("interactive", status)))
+    monkeypatch.setattr(api, "set_wechat_status", lambda session_id, status: actions.append(("status", status)))
+    monkeypatch.setattr(api, "init_session", lambda: "wechat-session")
+    monkeypatch.setattr(api, "read_wechat_group", lambda: "updated group")
+    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
+    client = TestClient(app)
+
+    response = client.post(
+        "/wechat/message",
+        json={"message": "hello group", "selected_model": "flash", "rag_enabled": True},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["reply"] == "group reply"
+    assert data["content"] == "updated group"
+    assert data["session_id"] == "wechat-session"
+    assert ("user", "hello group") in actions
+    assert ("reply", "group reply") in actions
+
+
+def test_news_search_endpoint_runs_news_round(monkeypatch):
+    from src import api
+
+    captured = {}
+
+    def fake_run_news_round(query_text, read_articles, runtime_context):
+        captured["query_text"] = query_text
+        captured["read_articles"] = read_articles
+        captured["runtime_context"] = runtime_context
+        return SimpleNamespace(
+            query_text=query_text,
+            news_items=[{"title": "A"}],
+            digest="digest",
+            discussion="discussion",
+            group_content="group",
+            source_block="source",
+            article_coverage={"total": 1},
+            elapsed_ms=12,
+            warnings=[],
+            audit_markdown_path="audit.md",
+            audit_json_path="audit.json",
+        )
+
+    monkeypatch.setattr(api, "run_news_round", fake_run_news_round)
+    monkeypatch.setattr(api, "init_session", lambda: "news-session")
+    client = TestClient(app)
+
+    response = client.post(
+        "/news/search",
+        json={
+            "query": "OpenAI latest",
+            "read_articles": False,
+            "selected_model": "flash",
+            "relationship_mode": "warm",
+            "performance_mode": "fast",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["digest"] == "digest"
+    assert data["discussion"] == "discussion"
+    assert data["session_id"] == "news-session"
+    assert captured["query_text"] == "OpenAI latest"
+    assert captured["read_articles"] is False
+    assert captured["runtime_context"].interaction_mode == "warm"
+    assert captured["runtime_context"].performance_mode == "fast"
+
+
+def test_news_lookup_endpoint_returns_source_block(monkeypatch):
+    from src import api
+
+    monkeypatch.setattr(api, "fetch_news_items", lambda **kwargs: [{"title": "A", "source": "S"}])
+    monkeypatch.setattr(api, "format_news_source_block", lambda query, items: f"source:{query}:{len(items)}")
+    monkeypatch.setattr(api, "get_last_feed_warnings", lambda: ["warn"])
+    client = TestClient(app)
+
+    response = client.post("/news/lookup", json={"query": "OpenAI latest", "max_items": 3})
+
+    assert response.status_code == 200
+    assert response.json()["news_items"] == [{"title": "A", "source": "S"}]
+    assert response.json()["source_block"] == "source:OpenAI latest:1"
+    assert response.json()["warnings"] == ["warn"]
 
 
 def test_rag_index_and_query_endpoints(tmp_path):
@@ -356,6 +491,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
             "selected_role": "march7",
             "selected_mode": "普通",
             "selected_model": "flash",
+            "web_context": "source: web result",
         },
     )
 
@@ -366,6 +502,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert data["rag"]["status"] == "skipped"
     assert captured["kwargs"]["task_name"] == "single_chat"
     assert captured["messages"][-1]["content"] == "hello api"
+    assert any("source: web result" in message["content"] for message in captured["messages"])
 
 
 def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):

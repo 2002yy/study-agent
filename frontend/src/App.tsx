@@ -25,13 +25,19 @@ import {
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   callLocalKnowledge,
+  createWechatOpening,
   loadApiSnapshot,
   loadRole,
   loadWorkflowRun,
+  lookupNews,
+  markWechatRead,
   previewLocalKnowledge,
   queryRag,
+  resetWechat,
+  runNewsSearch,
   saveRuntimeSettings,
   sendChat,
+  sendWechatMessage,
   uploadDocuments
 } from "./api";
 import type {
@@ -40,6 +46,8 @@ import type {
   ChatResponse,
   ChatSettings,
   MemoryStatusResponse,
+  NewsLookupResponse,
+  NewsSearchResponse,
   RagDebugResult,
   RagQueryResponse,
   RagResult,
@@ -47,6 +55,7 @@ import type {
   RoleResponse,
   SessionRow,
   ToolInvocationResponse,
+  WechatStateResponse,
   WorkflowRunDetail,
   WorkflowRunSummary
 } from "./types";
@@ -59,12 +68,14 @@ const INITIAL_SNAPSHOT: ApiSnapshot = {
   sessions: [],
   runtimeSettings: null,
   memoryStatus: null,
+  wechat: null,
   error: ""
 };
 
 const seedMessages: ChatMessage[] = [
   {
     role: "assistant",
+    avatarRole: "nahida",
     content:
       "本地学习工作台已就绪。你可以提问、上传资料、查看引用来源，并在右侧检查工具调用与工作流状态。"
   }
@@ -93,21 +104,41 @@ const roleOptions = [
   ["firefly", "流萤"]
 ] as const;
 
+const roleDescriptions: Record<string, string> = {
+  auto: "后端根据问题自动选择合适角色。",
+  march7: "更轻快、鼓励式的学习伙伴。",
+  keqing: "偏执行、判断和推进项目。",
+  nahida: "偏概念解释、连接知识脉络。",
+  firefly: "偏陪伴、感受整理和收束。"
+};
+
 const modeOptions = [
   ["auto", "自动"],
-  ["普通", "普通"],
+  ["普通", "直接讲解"],
   ["苏格拉底", "苏格拉底"],
   ["费曼", "费曼"],
-  ["项目", "项目"],
-  ["论文", "论文"],
-  ["概念地图", "概念地图"]
+  ["项目", "项目推进"]
 ] as const;
+
+const modeDescriptions: Record<string, string> = {
+  auto: "后端根据问题自动判断学习方式。",
+  普通: "直接回答问题，适合快速确认事实或步骤。",
+  苏格拉底: "通过连续追问帮你自己推理出答案，适合概念卡住时使用。",
+  费曼: "要求你用简单语言复述，再帮你找漏洞，适合检查是否真正理解。",
+  项目: "围绕目标、任务、风险和下一步推进。"
+};
 
 const modelOptions = [
   ["auto", "自动"],
   ["flash", "Flash"],
   ["pro", "Pro"]
 ] as const;
+
+const modelDescriptions: Record<string, string> = {
+  auto: "按当前性能设置和任务自动选模型。",
+  flash: "响应更快，适合日常问答和轻量检索。",
+  pro: "质量更高，适合复杂分析、写作和长上下文。"
+};
 
 const contextModeOptions = [
   ["", "自动"],
@@ -116,11 +147,24 @@ const contextModeOptions = [
   ["deep", "深度"]
 ] as const;
 
+const contextModeDescriptions: Record<string, string> = {
+  "": "沿用后端当前运行档位。",
+  fast: "优先速度，减少上下文和输出预算。",
+  light: "平衡速度和质量，适合大多数学习对话。",
+  deep: "读取更多上下文，适合复杂问题和复盘。"
+};
+
 const relationshipOptions = [
   ["standard", "自然"],
   ["warm", "温和"],
   ["close", "贴近"]
 ] as const;
+
+const relationshipDescriptions: Record<string, string> = {
+  standard: "自然克制，保持学习导向。",
+  warm: "更鼓励、更柔和，但仍然聚焦任务。",
+  close: "更有陪伴感，适合复盘和情绪整理。"
+};
 
 const retrievalOptions = [
   ["lexical", "关键词"],
@@ -128,6 +172,28 @@ const retrievalOptions = [
   ["vector", "本地向量"],
   ["backend_vector", "向量后端"]
 ] as const;
+
+const retrievalDescriptions: Record<string, string> = {
+  lexical: "按关键词命中，稳定、可解释。",
+  hybrid: "关键词和向量结合，通常最稳妥。",
+  vector: "使用本地向量语义检索。",
+  backend_vector: "调用外部向量后端，取决于后端配置。"
+};
+
+const roleAvatarPaths: Record<string, string> = {
+  march7: "/assets/avatars/march7.png",
+  keqing: "/assets/avatars/keqing.png",
+  nahida: "/assets/avatars/nahida.png",
+  firefly: "/assets/avatars/firefly.png"
+};
+
+const speakerToRole: Record<string, string> = {
+  三月七: "march7",
+  刻晴: "keqing",
+  纳西妲: "nahida",
+  流萤: "firefly",
+  用户: "user"
+};
 
 const quickPrompts = [
   "继续上次学习，先给我一个下一步建议",
@@ -217,6 +283,51 @@ function formatMtime(ns: number | undefined): string {
     return "-";
   }
   return new Date(Math.floor(ns / 1_000_000)).toLocaleString();
+}
+
+function roleAvatarUrl(roleId: string | undefined): string {
+  return roleId ? roleAvatarPaths[roleId] ?? "" : "";
+}
+
+function roleLabel(roleId: string | undefined): string {
+  if (!roleId || roleId === "auto") {
+    return "Study Agent";
+  }
+  return roleOptions.find(([value]) => value === roleId)?.[1] ?? roleId;
+}
+
+function RoleAvatar({ roleId, fallback }: { roleId?: string; fallback: "user" | "assistant" }) {
+  const avatarUrl = roleAvatarUrl(roleId);
+  return (
+    <div className={`avatar ${avatarUrl ? "avatar-image" : ""}`}>
+      {avatarUrl ? (
+        <img alt={roleLabel(roleId)} src={avatarUrl} />
+      ) : fallback === "user" ? (
+        <User size={16} />
+      ) : (
+        <Bot size={16} />
+      )}
+    </div>
+  );
+}
+
+function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
+  const blocks: Array<{ speaker: string; roleId: string; text: string }> = [];
+  const pattern = /【([^】]+)】\s*\n?([\s\S]*?)(?=\n*【[^】]+】|\s*$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    const speaker = match[1].trim();
+    const text = match[2].trim();
+    if (!text) {
+      continue;
+    }
+    blocks.push({
+      speaker,
+      roleId: speakerToRole[speaker] ?? "",
+      text
+    });
+  }
+  return blocks;
 }
 
 function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbackResults: RagResult[]): SourceRow[] {
@@ -365,6 +476,14 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{roleDescriptions[chatSettings.selectedRole]}</small>
+        <div className="role-current">
+          <RoleAvatar fallback="assistant" roleId={chatSettings.selectedRole} />
+          <div>
+            <strong>{roleLabel(chatSettings.selectedRole)}</strong>
+            <span>{chatSettings.selectedRole === "auto" ? "自动路由时按回答结果显示头像" : "当前手动指定角色"}</span>
+          </div>
+        </div>
         {chatSettings.selectedRole !== "auto" ? (
           <button className="ghost-action compact" onClick={onLoadRole} type="button">
             <BookOpen size={15} />
@@ -391,6 +510,7 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{modeDescriptions[chatSettings.selectedMode]}</small>
         <label className="field-row">
           <span>模型档位</span>
           <select value={chatSettings.selectedModel} onChange={(event) => updateChatSetting("selectedModel", event.target.value)}>
@@ -401,6 +521,7 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{modelDescriptions[chatSettings.selectedModel]}</small>
         <label className="field-row">
           <span>性能/上下文</span>
           <select value={chatSettings.contextMode} onChange={(event) => updateChatSetting("contextMode", event.target.value)}>
@@ -411,6 +532,7 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{contextModeDescriptions[chatSettings.contextMode]}</small>
         <label className="field-row">
           <span>互动氛围</span>
           <select value={chatSettings.relationshipMode} onChange={(event) => updateChatSetting("relationshipMode", event.target.value)}>
@@ -421,6 +543,7 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{relationshipDescriptions[chatSettings.relationshipMode]}</small>
         <label className="toggle-row">
           <input checked={ragEnabled} onChange={(event) => setRagEnabled(event.target.checked)} type="checkbox" />
           <span>用于聊天回答</span>
@@ -438,6 +561,7 @@ function Sidebar({
             ))}
           </select>
         </label>
+        <small className="field-hint">{retrievalDescriptions[ragSettings.retrievalMode]}</small>
         <div className="number-grid">
           <label className="field-row compact">
             <span>检索 top_k</span>
@@ -572,15 +696,19 @@ function ChatPanel({
             ))}
           </div>
         </div>
-        {messages.map((message, index) => (
-          <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-            <div className="avatar">{message.role === "user" ? <User size={16} /> : <Bot size={16} />}</div>
-            <div className="message-body">
-              <span>{message.role === "user" ? "你" : "Study Agent"}</span>
-              <p>{message.content}</p>
-            </div>
-          </article>
-        ))}
+        {messages.map((message, index) => {
+          const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
+          const label = message.role === "user" ? "你" : roleLabel(avatarRole);
+          return (
+            <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
+              <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
+              <div className="message-body">
+                <span>{label}</span>
+                <p>{message.content}</p>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
       <form className="composer" onSubmit={onSubmit}>
@@ -926,6 +1054,183 @@ function MemoryPanel({ memoryStatus }: { memoryStatus: MemoryStatusResponse | nu
   );
 }
 
+function WechatPanel({
+  wechat,
+  newsResult,
+  webLookup,
+  useWebLookup,
+  setUseWebLookup,
+  wechatInput,
+  setWechatInput,
+  newsQuery,
+  setNewsQuery,
+  readArticles,
+  setReadArticles,
+  onOpening,
+  onReset,
+  onMarkRead,
+  onSendWechat,
+  onRunNews,
+  onLookupNews,
+  isWechatBusy,
+  isNewsBusy
+}: {
+  wechat: WechatStateResponse | null;
+  newsResult: NewsSearchResponse | null;
+  webLookup: NewsLookupResponse | null;
+  useWebLookup: boolean;
+  setUseWebLookup: (value: boolean) => void;
+  wechatInput: string;
+  setWechatInput: (value: string) => void;
+  newsQuery: string;
+  setNewsQuery: (value: string) => void;
+  readArticles: boolean;
+  setReadArticles: (value: boolean) => void;
+  onOpening: () => void;
+  onReset: () => void;
+  onMarkRead: () => void;
+  onSendWechat: (event: FormEvent) => void;
+  onRunNews: (event: FormEvent) => void;
+  onLookupNews: () => void;
+  isWechatBusy: boolean;
+  isNewsBusy: boolean;
+}) {
+  const latestNewsItems = newsResult?.news_items.slice(0, 4) ?? [];
+  const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
+  const wechatMessages = parseWechatMessages(wechat?.content ?? "");
+  return (
+    <section className="panel" id="wechat">
+      <div className="panel-header">
+        <div>
+          <h2>群聊与联网</h2>
+          <span>
+            {wechat ? `${wechat.message_count} 条消息 · 未读 ${wechat.unread_count}` : "等待 API"}
+          </span>
+        </div>
+        <MessageSquare size={18} />
+      </div>
+
+      <div className="wechat-actions">
+        <button className="ghost-action compact" disabled={isWechatBusy} onClick={onOpening} type="button">
+          {isWechatBusy ? <Loader2 className="spin" size={14} /> : <Sparkles size={14} />}
+          生成开场
+        </button>
+        <button className="ghost-action compact" disabled={isWechatBusy} onClick={onMarkRead} type="button">
+          标记已读
+        </button>
+        <button className="ghost-action compact danger" disabled={isWechatBusy} onClick={onReset} type="button">
+          新群聊
+        </button>
+      </div>
+
+      <div className="wechat-thread">
+        {wechatMessages.length ? (
+          <div className="wechat-bubbles">
+            {wechatMessages.map((message, index) => (
+              <div className={`wechat-bubble ${message.roleId}`} key={`${message.speaker}-${index}`}>
+                <RoleAvatar fallback={message.roleId === "user" ? "user" : "assistant"} roleId={message.roleId} />
+                <div className="wechat-bubble-body">
+                  <strong>{message.speaker}</strong>
+                  <p>{message.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : wechat?.content ? (
+          <pre>{wechat.content}</pre>
+        ) : (
+          <div className="empty-state">还没有群聊内容。先生成开场，或直接发送一句话。</div>
+        )}
+      </div>
+
+      <form className="mini-form" onSubmit={onSendWechat}>
+        <textarea
+          onChange={(event) => setWechatInput(event.target.value)}
+          placeholder="加入群聊说一句..."
+          rows={3}
+          value={wechatInput}
+        />
+        <button className="primary-action secondary" disabled={isWechatBusy || !wechatInput.trim()} type="submit">
+          {isWechatBusy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
+          发送群聊
+        </button>
+      </form>
+
+      <form className="mini-form news-form" onSubmit={onRunNews}>
+        <label className="field-row">
+          <span>联网检索</span>
+          <input
+            onChange={(event) => setNewsQuery(event.target.value)}
+            placeholder="最新新闻 when:1d"
+            value={newsQuery}
+          />
+        </label>
+        <label className="toggle-row">
+          <input checked={readArticles} onChange={(event) => setReadArticles(event.target.checked)} type="checkbox" />
+          <span>尝试读取正文</span>
+        </label>
+        <button className="primary-action secondary" disabled={isNewsBusy || !newsQuery.trim()} type="submit">
+          {isNewsBusy ? <Loader2 className="spin" size={15} /> : <Search size={15} />}
+          联网查并讨论
+        </button>
+        <button className="ghost-action compact lookup-action" disabled={isNewsBusy || !newsQuery.trim()} onClick={onLookupNews} type="button">
+          仅搜索，用于单人聊天
+        </button>
+      </form>
+
+      {webLookup ? (
+        <div className="news-result lookup-result">
+          <label className="toggle-row">
+            <input checked={useWebLookup} onChange={(event) => setUseWebLookup(event.target.checked)} type="checkbox" />
+            <span>用于下一次单人聊天</span>
+          </label>
+          <details open>
+            <summary>单独联网结果 {webLookup.news_items.length} 条</summary>
+            <div className="news-list">
+              {latestLookupItems.map((item, index) => (
+                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
+                  <strong>{displayValue(item.title)}</strong>
+                  <span>{displayValue(item.source)} · {displayValue(item.published_at)}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      ) : null}
+
+      {newsResult ? (
+        <div className="news-result">
+          <div className="metric-row">
+            <span>耗时</span>
+            <strong>{newsResult.elapsed_ms} ms</strong>
+          </div>
+          <details>
+            <summary>新闻摘要</summary>
+            <pre>{newsResult.digest}</pre>
+          </details>
+          <details>
+            <summary>来源 {newsResult.news_items.length} 条</summary>
+            <div className="news-list">
+              {latestNewsItems.map((item, index) => (
+                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
+                  <strong>{displayValue(item.title)}</strong>
+                  <span>{displayValue(item.source)} · {displayValue(item.published_at)}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+          {newsResult.warnings.length ? (
+            <div className="memory-note warn">
+              <AlertTriangle size={15} />
+              <span>{newsResult.warnings.join("；")}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function Inspector({
   snapshot,
   lastChat,
@@ -939,7 +1244,25 @@ function Inspector({
   previewTool,
   callTool,
   isPreviewing,
-  isCalling
+  isCalling,
+  newsResult,
+  webLookup,
+  useWebLookup,
+  setUseWebLookup,
+  wechatInput,
+  setWechatInput,
+  newsQuery,
+  setNewsQuery,
+  readArticles,
+  setReadArticles,
+  onWechatOpening,
+  onWechatReset,
+  onWechatMarkRead,
+  onSendWechat,
+  onRunNews,
+  onLookupNews,
+  isWechatBusy,
+  isNewsBusy
 }: {
   snapshot: ApiSnapshot;
   lastChat: ChatResponse | null;
@@ -954,10 +1277,49 @@ function Inspector({
   callTool: () => void;
   isPreviewing: boolean;
   isCalling: boolean;
+  newsResult: NewsSearchResponse | null;
+  webLookup: NewsLookupResponse | null;
+  useWebLookup: boolean;
+  setUseWebLookup: (value: boolean) => void;
+  wechatInput: string;
+  setWechatInput: (value: string) => void;
+  newsQuery: string;
+  setNewsQuery: (value: string) => void;
+  readArticles: boolean;
+  setReadArticles: (value: boolean) => void;
+  onWechatOpening: () => void;
+  onWechatReset: () => void;
+  onWechatMarkRead: () => void;
+  onSendWechat: (event: FormEvent) => void;
+  onRunNews: (event: FormEvent) => void;
+  onLookupNews: () => void;
+  isWechatBusy: boolean;
+  isNewsBusy: boolean;
 }) {
   return (
     <aside className="inspector">
       <RoutePanel lastChat={lastChat} />
+      <WechatPanel
+        wechat={snapshot.wechat}
+        newsResult={newsResult}
+        webLookup={webLookup}
+        useWebLookup={useWebLookup}
+        setUseWebLookup={setUseWebLookup}
+        wechatInput={wechatInput}
+        setWechatInput={setWechatInput}
+        newsQuery={newsQuery}
+        setNewsQuery={setNewsQuery}
+        readArticles={readArticles}
+        setReadArticles={setReadArticles}
+        onOpening={onWechatOpening}
+        onReset={onWechatReset}
+        onMarkRead={onWechatMarkRead}
+        onSendWechat={onSendWechat}
+        onRunNews={onRunNews}
+        onLookupNews={onLookupNews}
+        isWechatBusy={isWechatBusy}
+        isNewsBusy={isNewsBusy}
+      />
       <SourcesPanel lastChat={lastChat} ragSearch={ragSearch} isSearching={isSearching} />
       <TimelinePanel
         runs={snapshot.workflowRuns}
@@ -1000,8 +1362,16 @@ export default function App() {
   const [toolCall, setToolCall] = useState<ToolInvocationResponse | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
+  const [newsResult, setNewsResult] = useState<NewsSearchResponse | null>(null);
+  const [webLookup, setWebLookup] = useState<NewsLookupResponse | null>(null);
+  const [useWebLookup, setUseWebLookup] = useState(true);
   const [loadingRunId, setLoadingRunId] = useState("");
   const [uploadState, setUploadState] = useState("");
+  const [wechatInput, setWechatInput] = useState("");
+  const [newsQuery, setNewsQuery] = useState("最新新闻 when:1d");
+  const [readArticles, setReadArticles] = useState(true);
+  const [isWechatBusy, setIsWechatBusy] = useState(false);
+  const [isNewsBusy, setIsNewsBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const runtimeHydratedRef = useRef(false);
 
@@ -1050,9 +1420,12 @@ export default function App() {
       return;
     }
     runtimeHydratedRef.current = true;
+    const visibleMode = modeOptions.some(([value]) => value === settings.selected_mode)
+      ? settings.selected_mode
+      : "auto";
     setChatSettings({
       selectedRole: settings.selected_role,
-      selectedMode: settings.selected_mode,
+      selectedMode: visibleMode,
       selectedModel: settings.selected_model,
       relationshipMode: settings.relationship_mode,
       contextMode: settings.context_mode === "fast" || settings.context_mode === "light" || settings.context_mode === "deep"
@@ -1081,7 +1454,7 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question }];
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question, avatarRole: "user" }];
     setMessages(nextMessages);
     setInput("");
     setIsSending(true);
@@ -1090,11 +1463,20 @@ export default function App() {
       const response = await sendChat(
         question,
         nextMessages.filter((message) => message.role !== "system"),
-        { ragEnabled, sessionId, chatSettings, ragSettings }
+        {
+          ragEnabled,
+          sessionId,
+          chatSettings,
+          ragSettings,
+          webContext: useWebLookup ? webLookup?.source_block : ""
+        }
       );
       setSessionId(response.session_id);
       setLastChat(response);
-      setMessages([...nextMessages, { role: "assistant", content: response.reply }]);
+      setMessages([
+        ...nextMessages,
+        { role: "assistant", content: response.reply, avatarRole: String(response.route.role ?? "auto") }
+      ]);
       await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "聊天请求失败";
@@ -1102,6 +1484,7 @@ export default function App() {
         ...nextMessages,
         {
           role: "assistant",
+          avatarRole: "auto",
           content: `请求失败：${message}`
         }
       ]);
@@ -1123,6 +1506,7 @@ export default function App() {
         ...current,
         {
           role: "assistant",
+          avatarRole: "auto",
           content: `来源检索失败：${error instanceof Error ? error.message : "未知错误"}`
         }
       ]);
@@ -1226,6 +1610,147 @@ export default function App() {
     }
   };
 
+  const handleWechatOpening = async () => {
+    if (isWechatBusy) {
+      return;
+    }
+    setIsWechatBusy(true);
+    try {
+      const wechat = await createWechatOpening(chatSettings);
+      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "群聊开场生成失败"
+      }));
+    } finally {
+      setIsWechatBusy(false);
+    }
+  };
+
+  const handleWechatReset = async () => {
+    if (isWechatBusy) {
+      return;
+    }
+    setIsWechatBusy(true);
+    try {
+      const wechat = await resetWechat();
+      setNewsResult(null);
+      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "新群聊创建失败"
+      }));
+    } finally {
+      setIsWechatBusy(false);
+    }
+  };
+
+  const handleWechatMarkRead = async () => {
+    try {
+      const wechat = await markWechatRead(sessionId);
+      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "标记已读失败"
+      }));
+    }
+  };
+
+  const handleSendWechat = async (event: FormEvent) => {
+    event.preventDefault();
+    const message = wechatInput.trim();
+    if (!message || isWechatBusy) {
+      return;
+    }
+    setIsWechatBusy(true);
+    try {
+      const response = await sendWechatMessage(message, {
+        sessionId,
+        ragEnabled,
+        chatSettings,
+        ragSettings
+      });
+      setSessionId(response.session_id);
+      setWechatInput("");
+      setMessages((current) => [
+        ...current,
+        { role: "user", content: `[群聊] ${message}`, avatarRole: "user" },
+        { role: "assistant", content: response.reply, avatarRole: "auto" }
+      ]);
+      await refresh();
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "群聊发送失败"
+      }));
+    } finally {
+      setIsWechatBusy(false);
+    }
+  };
+
+  const handleRunNews = async (event: FormEvent) => {
+    event.preventDefault();
+    const query = newsQuery.trim();
+    if (!query || isNewsBusy) {
+      return;
+    }
+    setIsNewsBusy(true);
+    try {
+      const result = await runNewsSearch(query, {
+        sessionId,
+        readArticles,
+        chatSettings
+      });
+      setNewsResult(result);
+      setSessionId(result.session_id);
+      setMessages((current) => [
+        ...current,
+        { role: "user", content: `[联网检索] ${query}`, avatarRole: "user" },
+        { role: "assistant", content: result.digest || result.discussion, avatarRole: "nahida" }
+      ]);
+      await refresh();
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "联网检索失败"
+      }));
+    } finally {
+      setIsNewsBusy(false);
+    }
+  };
+
+  const handleLookupNews = async () => {
+    const query = newsQuery.trim();
+    if (!query || isNewsBusy) {
+      return;
+    }
+    setIsNewsBusy(true);
+    try {
+      const result = await lookupNews(query);
+      setWebLookup(result);
+      setUseWebLookup(true);
+      setMessages((current) => [
+        ...current,
+        { role: "user", content: `[联网搜索] ${query}`, avatarRole: "user" },
+        {
+          role: "assistant",
+          content: `已找到 ${result.news_items.length} 条联网来源。已设为下一次单人聊天的参考上下文。`,
+          avatarRole: "nahida"
+        }
+      ]);
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "联网搜索失败"
+      }));
+    } finally {
+      setIsNewsBusy(false);
+    }
+  };
+
   const selectRun = async (runId: string) => {
     setLoadingRunId(runId);
     try {
@@ -1306,6 +1831,24 @@ export default function App() {
         callTool={callTool}
         isPreviewing={isPreviewing}
         isCalling={isCalling}
+        newsResult={newsResult}
+        webLookup={webLookup}
+        useWebLookup={useWebLookup}
+        setUseWebLookup={setUseWebLookup}
+        wechatInput={wechatInput}
+        setWechatInput={setWechatInput}
+        newsQuery={newsQuery}
+        setNewsQuery={setNewsQuery}
+        readArticles={readArticles}
+        setReadArticles={setReadArticles}
+        onWechatOpening={handleWechatOpening}
+        onWechatReset={handleWechatReset}
+        onWechatMarkRead={handleWechatMarkRead}
+        onSendWechat={handleSendWechat}
+        onRunNews={handleRunNews}
+        onLookupNews={handleLookupNews}
+        isWechatBusy={isWechatBusy}
+        isNewsBusy={isNewsBusy}
       />
       {snapshot.error ? (
         <div className="api-warning">

@@ -5,6 +5,8 @@ import type {
   ChatSettings,
   HealthResponse,
   MemoryStatusResponse,
+  NewsLookupResponse,
+  NewsSearchResponse,
   RagSettings,
   RagIndexResponse,
   RagQueryResponse,
@@ -13,6 +15,8 @@ import type {
   SessionRow,
   ToolInvocationResponse,
   ToolSpec,
+  WechatMessageResponse,
+  WechatStateResponse,
   WorkflowRunDetail,
   WorkflowRunSummary,
   RuntimeSettingsResponse
@@ -56,14 +60,15 @@ async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
 
 export async function loadApiSnapshot(): Promise<ApiSnapshot> {
   try {
-    const [health, ragStatus, tools, workflows, sessions, runtimeSettings, memoryStatus] = await Promise.all([
+    const [health, ragStatus, tools, workflows, sessions, runtimeSettings, memoryStatus, wechat] = await Promise.all([
       requestJson<HealthResponse>("/health"),
       requestJson<RagStatusResponse>("/rag/status"),
       requestJson<{ tools: ToolSpec[] }>("/tools"),
       requestJson<{ runs: WorkflowRunSummary[] }>("/workflows/runs"),
       requestJson<{ sessions: SessionRow[] }>("/sessions"),
       requestJson<RuntimeSettingsResponse>("/runtime/settings"),
-      requestJson<MemoryStatusResponse>("/memory")
+      requestJson<MemoryStatusResponse>("/memory"),
+      requestJson<WechatStateResponse>("/wechat")
     ]);
     return {
       health,
@@ -73,6 +78,7 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
       sessions: sessions.sessions,
       runtimeSettings,
       memoryStatus,
+      wechat,
       error: ""
     };
   } catch (error) {
@@ -84,6 +90,7 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
       sessions: [],
       runtimeSettings: null,
       memoryStatus: null,
+      wechat: null,
       error: error instanceof Error ? error.message : "API unavailable"
     };
   }
@@ -98,6 +105,99 @@ export async function saveRuntimeSettings(payload: Partial<RuntimeSettingsRespon
 
 export async function loadRole(roleId: string): Promise<RoleResponse> {
   return requestJson<RoleResponse>(`/roles/${encodeURIComponent(roleId)}`);
+}
+
+export async function loadWechatState(): Promise<WechatStateResponse> {
+  return requestJson<WechatStateResponse>("/wechat");
+}
+
+export async function resetWechat(): Promise<WechatStateResponse> {
+  return requestJson<WechatStateResponse>("/wechat/reset", { method: "POST" });
+}
+
+export async function markWechatRead(sessionId?: string): Promise<WechatStateResponse> {
+  const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+  return requestJson<WechatStateResponse>(`/wechat/mark-read${suffix}`, { method: "POST" });
+}
+
+export async function createWechatOpening(chatSettings: ChatSettings): Promise<WechatStateResponse> {
+  return requestJson<WechatStateResponse>("/wechat/opening", {
+    method: "POST",
+    body: JSON.stringify({
+      selected_role: chatSettings.selectedRole,
+      selected_model: chatSettings.selectedModel,
+      relationship_mode: chatSettings.relationshipMode,
+      performance_mode:
+        chatSettings.contextMode === "fast"
+          ? "fast"
+          : chatSettings.contextMode === "deep"
+            ? "deep"
+            : chatSettings.contextMode === "light"
+              ? "standard"
+              : null
+    })
+  });
+}
+
+export async function sendWechatMessage(
+  message: string,
+  options: {
+    sessionId?: string;
+    ragEnabled: boolean;
+    chatSettings: ChatSettings;
+    ragSettings: RagSettings;
+  }
+): Promise<WechatMessageResponse> {
+  return requestJson<WechatMessageResponse>("/wechat/message", {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      session_id: options.sessionId,
+      selected_model: options.chatSettings.selectedModel,
+      relationship_mode: options.chatSettings.relationshipMode,
+      rag_enabled: options.ragEnabled,
+      rag_top_k: options.ragSettings.chatTopK,
+      rag_retrieval_mode: options.ragSettings.retrievalMode
+    })
+  });
+}
+
+export async function runNewsSearch(
+  query: string,
+  options: {
+    sessionId?: string;
+    readArticles: boolean;
+    chatSettings: ChatSettings;
+  }
+): Promise<NewsSearchResponse> {
+  return requestJson<NewsSearchResponse>("/news/search", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      session_id: options.sessionId,
+      read_articles: options.readArticles,
+      selected_model: options.chatSettings.selectedModel,
+      relationship_mode: options.chatSettings.relationshipMode,
+      performance_mode:
+        options.chatSettings.contextMode === "fast"
+          ? "fast"
+          : options.chatSettings.contextMode === "deep"
+            ? "deep"
+            : options.chatSettings.contextMode === "light"
+              ? "standard"
+              : null
+    })
+  });
+}
+
+export async function lookupNews(query: string, maxItems = 8): Promise<NewsLookupResponse> {
+  return requestJson<NewsLookupResponse>("/news/lookup", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      max_items: maxItems
+    })
+  });
 }
 
 export async function loadSessions(): Promise<SessionRow[]> {
@@ -135,6 +235,7 @@ export async function sendChat(
     sessionId?: string;
     chatSettings: ChatSettings;
     ragSettings: RagSettings;
+    webContext?: string;
   }
 ): Promise<ChatResponse> {
   return requestJson<ChatResponse>("/chat", {
@@ -153,7 +254,8 @@ export async function sendChat(
       session_id: options.sessionId,
       rag_enabled: options.ragEnabled,
       rag_top_k: options.ragSettings.chatTopK,
-      rag_retrieval_mode: options.ragSettings.retrievalMode
+      rag_retrieval_mode: options.ragSettings.retrievalMode,
+      web_context: options.webContext ?? ""
     })
   });
 }

@@ -51,6 +51,7 @@ export type RagDebugResult = {
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
+  avatarRole?: string;
 };
 
 export type ChatSettings = {
@@ -135,6 +136,47 @@ export type MemoryStatusResponse = {
   context_mode: string;
   groups: Record<string, string[]>;
   files: MemoryFileStatus[];
+};
+
+export type WechatStateResponse = {
+  state: Record<string, unknown>;
+  content: string;
+  unread: string;
+  has_unread: boolean;
+  started: boolean;
+  message_count: number;
+  unread_count: number;
+  summary: string;
+};
+
+export type WechatMessageResponse = {
+  reply: string;
+  content: string;
+  state: Record<string, unknown>;
+  session_id: string;
+  rag: Record<string, unknown>;
+};
+
+export type NewsSearchResponse = {
+  query_text: string;
+  news_items: Array<Record<string, unknown>>;
+  digest: string;
+  discussion: string;
+  group_content: string;
+  source_block: string;
+  article_coverage: Record<string, unknown>;
+  elapsed_ms: number;
+  warnings: string[];
+  audit_markdown_path: string;
+  audit_json_path: string;
+  session_id: string;
+};
+
+export type NewsLookupResponse = {
+  query_text: string;
+  news_items: Array<Record<string, unknown>>;
+  source_block: string;
+  warnings: string[];
 };
 
 export type ChatResponse = {
@@ -234,5 +276,6 @@ export type ApiSnapshot = {
   sessions: SessionRow[];
   runtimeSettings: RuntimeSettingsResponse | null;
   memoryStatus: MemoryStatusResponse | null;
+  wechat: WechatStateResponse | null;
   error: string;
 };

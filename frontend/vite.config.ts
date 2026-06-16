@@ -16,6 +16,9 @@ export default defineConfig({
       "/memory": API_TARGET,
       "/runtime": API_TARGET,
       "/roles": API_TARGET,
+      "/assets": API_TARGET,
+      "/wechat": API_TARGET,
+      "/news": API_TARGET,
       "/sessions": API_TARGET
     }
   }
