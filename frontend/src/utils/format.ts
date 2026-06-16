@@ -40,3 +40,23 @@ export function displayValue(value: unknown): string {
   }
   return String(value);
 }
+
+export function formatBytes(value: number | undefined): string {
+  if (!value) {
+    return "0 B";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export function formatMtime(ns: number | undefined): string {
+  if (!ns) {
+    return "-";
+  }
+  return new Date(Math.floor(ns / 1_000_000)).toLocaleString();
+}

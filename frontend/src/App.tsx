@@ -4,17 +4,13 @@ import {
   BookOpen,
   BrainCircuit,
   CheckCircle2,
-  Clock3,
   Database,
   FileText,
-  ListChecks,
   Loader2,
   MemoryStick,
   MessageSquare,
   RefreshCw,
   Settings,
-  ShieldCheck,
-  Sparkles,
   Upload,
   Wrench
 } from "lucide-react";
@@ -37,28 +33,31 @@ import {
   uploadDocuments
 } from "./api";
 import { RoleAvatar } from "./components/RoleAvatar";
+import { StatusDot } from "./components/StatusDot";
+import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
+import { RoadmapPanel } from "./features/migration/RoadmapPanel";
 import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
+import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
 import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages } from "./features/single-chat/chatHistory";
+import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
-import { displayValue, translateStatus } from "./utils/format";
+import { TimelinePanel } from "./features/workflows/TimelinePanel";
+import { displayValue } from "./utils/format";
 import type {
   ApiSnapshot,
   ChatMessage,
   ChatResponse,
   ChatSettings,
-  MemoryStatusResponse,
   NewsLookupResponse,
   NewsSearchResponse,
   RagQueryResponse,
   RagSettings,
   RoleResponse,
-  SessionRow,
   ToolInvocationResponse,
-  WorkflowRunDetail,
-  WorkflowRunSummary
+  WorkflowRunDetail
 } from "./types";
 
 const INITIAL_SNAPSHOT: ApiSnapshot = {
@@ -179,36 +178,6 @@ const retrievalDescriptions: Record<string, string> = {
   vector: "使用本地向量语义检索。",
   backend_vector: "调用外部向量后端，取决于后端配置。"
 };
-
-const roadmapItems = [
-  "微信群、新闻讨论和课后总结仍需要 PRD 中的新增 API 才能完整迁移。",
-  "React 当前先补齐单人学习设置、路由检查、RAG 参数和会话状态。",
-  "Streamlit 暂时保留为业务闭环回归参考。"
-];
-
-function StatusDot({ tone = "neutral" }: { tone?: "good" | "warn" | "neutral" | "bad" }) {
-  return <span className={`status-dot ${tone}`} />;
-}
-
-function formatBytes(value: number | undefined): string {
-  if (!value) {
-    return "0 B";
-  }
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KB`;
-  }
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatMtime(ns: number | undefined): string {
-  if (!ns) {
-    return "-";
-  }
-  return new Date(Math.floor(ns / 1_000_000)).toLocaleString();
-}
 
 function Sidebar({
   snapshot,
@@ -484,213 +453,6 @@ function Sidebar({
         刷新状态
       </button>
     </aside>
-  );
-}
-
-function TimelinePanel({
-  runs,
-  selectedRun,
-  loadingRunId,
-  onSelectRun
-}: {
-  runs: WorkflowRunSummary[];
-  selectedRun: WorkflowRunDetail | null;
-  loadingRunId: string;
-  onSelectRun: (runId: string) => void;
-}) {
-  return (
-    <section className="panel" id="timeline">
-      <div className="panel-header">
-        <div>
-          <h2>工作流时间线</h2>
-          <span>最近 {runs.length} 次运行</span>
-        </div>
-        <ListChecks size={18} />
-      </div>
-      <div className="timeline">
-        {runs.length ? (
-          runs.slice(0, 6).map((run) => (
-            <button className="timeline-row" key={run.run_id} onClick={() => onSelectRun(run.run_id)} type="button">
-              <StatusDot tone={run.status === "succeeded" ? "good" : run.status === "failed" ? "bad" : "warn"} />
-              <div>
-                <strong>{run.workflow_name}</strong>
-                <span>{run.run_id}</span>
-              </div>
-              <em>{loadingRunId === run.run_id ? "..." : `${run.elapsed_ms} ms`}</em>
-            </button>
-          ))
-        ) : (
-          <div className="empty-state">还没有工作流审计事件。</div>
-        )}
-      </div>
-      {selectedRun ? (
-        <div className="run-detail">
-          <div className="run-detail-title">
-            <Clock3 size={15} />
-            <strong>{selectedRun.run_id}</strong>
-          </div>
-          {selectedRun.events.map((event, index) => (
-            <div className="event-row" key={`${event.event_type}-${index}`}>
-              <StatusDot tone={event.status === "succeeded" ? "good" : event.status === "failed" ? "bad" : "warn"} />
-              <div>
-                <strong>{translateStatus(event.event_type)}</strong>
-                <span>{event.message || event.step_id}</span>
-                {event.error ? <em>{event.error}</em> : null}
-              </div>
-              <small>{event.elapsed_ms} ms</small>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function ToolPanel({
-  toolCount,
-  toolPreview,
-  toolCall,
-  previewTool,
-  callTool,
-  isPreviewing,
-  isCalling
-}: {
-  toolCount: number;
-  toolPreview: ToolInvocationResponse | null;
-  toolCall: ToolInvocationResponse | null;
-  previewTool: () => void;
-  callTool: () => void;
-  isPreviewing: boolean;
-  isCalling: boolean;
-}) {
-  const latest = toolCall ?? toolPreview;
-  const outputStatus = typeof latest?.output.status === "string" ? latest.output.status : "";
-  const outputLabel = outputStatus ? translateStatus(outputStatus) : latest?.reason || "就绪";
-  return (
-    <section className="panel" id="tools">
-      <div className="panel-header">
-        <div>
-          <h2>工具调用</h2>
-          <span>{toolCount} 个已允许工具</span>
-        </div>
-        <Wrench size={18} />
-      </div>
-      <div className="tool-actions">
-        <button className="tool-button" disabled={isPreviewing} onClick={previewTool} type="button">
-          {isPreviewing ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
-          预览
-        </button>
-        <button className="tool-button secondary" disabled={!toolPreview || isCalling} onClick={callTool} type="button">
-          {isCalling ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
-          调用
-        </button>
-      </div>
-      {latest ? (
-        <div className="tool-result">
-          <div className="metric-row">
-            <span>状态</span>
-            <strong>{translateStatus(latest.status)}</strong>
-          </div>
-          <div className="metric-row">
-            <span>结果</span>
-            <strong>{outputLabel}</strong>
-          </div>
-          <div className="metric-row">
-            <span>运行</span>
-            <strong>{latest.run_id || "仅预览"}</strong>
-          </div>
-        </div>
-      ) : (
-        <div className="empty-state">先预览参数，再调用只读的本地知识检索工具；正式调用会写入工作流审计。</div>
-      )}
-    </section>
-  );
-}
-
-function SessionsPanel({ sessions }: { sessions: SessionRow[] }) {
-  return (
-    <section className="panel" id="sessions">
-      <div className="panel-header">
-        <div>
-          <h2>会话历史</h2>
-          <span>{sessions.length} 个会话文件</span>
-        </div>
-        <Clock3 size={18} />
-      </div>
-      {sessions.length ? (
-        <div className="session-list">
-          {sessions.slice(0, 5).map((session) => (
-            <div className="session-row" key={`${session.kind}-${session.name}`}>
-              <strong>{session.name}</strong>
-              <span>{session.kind} · {formatBytes(session.size_bytes)} · {formatMtime(session.mtime_ns)}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">还没有可展示的会话历史；新回答会先写入当前 session，后续可接入详情和继续会话 API。</div>
-      )}
-    </section>
-  );
-}
-
-function RoadmapPanel() {
-  return (
-    <section className="panel compact" id="prd-roadmap">
-      <div className="panel-header">
-        <div>
-          <h2>双版本对齐</h2>
-          <span>按 PRD 保留能力边界</span>
-        </div>
-        <ShieldCheck size={18} />
-      </div>
-      <ul className="roadmap-list">
-        {roadmapItems.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function MemoryPanel({ memoryStatus }: { memoryStatus: MemoryStatusResponse | null }) {
-  const focus = memoryStatus?.files.find((file) => file.name === "current_focus.md");
-  const progress = memoryStatus?.files.find((file) => file.name === "progress.md");
-  const summary = memoryStatus?.files.find((file) => file.name === "summary.md");
-  return (
-    <section className="panel compact" id="memory">
-      <div className="panel-header">
-        <div>
-          <h2>学习记忆</h2>
-          <span>{memoryStatus ? `${memoryStatus.context_mode} · ${memoryStatus.writable ? "可写" : "只读"}` : "等待 API"}</span>
-        </div>
-        <ShieldCheck size={18} />
-      </div>
-      {memoryStatus ? (
-        <>
-          <div className="memory-note">
-            <StatusDot tone={memoryStatus.writable ? "good" : memoryStatus.safe_mode ? "bad" : "warn"} />
-            <span>
-              memory_mode={memoryStatus.memory_mode} · safe_mode={String(memoryStatus.safe_mode)} · reason={memoryStatus.reason}
-            </span>
-          </div>
-          <div className="memory-grid">
-            {[focus, progress, summary].map((file) =>
-              file ? (
-                <details className="memory-file" key={file.name}>
-                  <summary>{file.name}</summary>
-                  <p>{file.preview || "暂无内容"}</p>
-                </details>
-              ) : null
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="memory-note">
-          <AlertTriangle size={16} />
-          记忆状态接口暂不可用。
-        </div>
-      )}
-    </section>
   );
 }
 
