@@ -65,6 +65,93 @@ def test_cors_allowlist_handles_preflight_and_response_headers(monkeypatch):
     assert response.headers["vary"] == "Origin"
 
 
+def test_runtime_settings_endpoint_reads_and_persists_frontend_defaults(monkeypatch, tmp_path):
+    from src import api
+
+    settings_path = tmp_path / "frontend_settings.yaml"
+    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", settings_path)
+    client = TestClient(app)
+
+    initial = client.get("/runtime/settings")
+    patched = client.patch(
+        "/runtime/settings",
+        json={
+            "selected_role": "keqing",
+            "selected_mode": "项目",
+            "selected_model": "flash",
+            "rag_retrieval_mode": "lexical",
+            "rag_top_k": 4,
+            "rag_min_score": 0.02,
+        },
+    )
+    loaded = client.get("/runtime/settings")
+
+    assert initial.status_code == 200
+    assert initial.json()["settings"]["selected_role"] == "auto"
+    assert patched.status_code == 200
+    assert patched.json()["settings"]["selected_role"] == "keqing"
+    assert patched.json()["settings"]["selected_mode"] == "项目"
+    assert patched.json()["settings"]["rag_retrieval_mode"] == "lexical"
+    assert loaded.json()["settings"]["rag_top_k"] == 4
+    assert settings_path.exists()
+
+
+def test_runtime_settings_endpoint_rejects_invalid_frontend_choice(monkeypatch, tmp_path):
+    from src import api
+
+    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend_settings.yaml")
+    client = TestClient(app)
+
+    response = client.patch("/runtime/settings", json={"selected_role": "unknown"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid selected_role: unknown"
+
+
+def test_runtime_settings_endpoint_ignores_invalid_frontend_yaml(monkeypatch, tmp_path):
+    from src import api
+
+    settings_path = tmp_path / "frontend_settings.yaml"
+    settings_path.write_text("selected_role: [", encoding="utf-8")
+    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", settings_path)
+    client = TestClient(app)
+
+    response = client.get("/runtime/settings")
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["selected_role"] == "auto"
+
+
+def test_roles_endpoints_expose_labels_and_prompt():
+    client = TestClient(app)
+
+    roles = client.get("/roles")
+    role = client.get("/roles/keqing")
+    missing = client.get("/roles/not-a-role")
+
+    assert roles.status_code == 200
+    assert {"id": "keqing", "label": "刻晴", "summary": role.json()["summary"]} in roles.json()["roles"]
+    assert role.status_code == 200
+    assert role.json()["id"] == "keqing"
+    assert role.json()["label"] == "刻晴"
+    assert role.json()["prompt"]
+    assert missing.status_code == 404
+
+
+def test_memory_status_endpoint_reports_runtime_and_files():
+    client = TestClient(app)
+
+    response = client.get("/memory")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["memory_mode"] in {"readonly", "preview", "confirm_write", "locked"}
+    assert data["reason"]
+    assert data["context_mode"] in {"fast", "light", "deep", "archive"}
+    assert "deep" in data["groups"]
+    assert any(item["name"] == "current_focus.md" for item in data["files"])
+
+
 def test_rag_index_and_query_endpoints(tmp_path):
     client = TestClient(app)
     document = tmp_path / "notes.md"

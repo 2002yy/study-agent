@@ -53,6 +53,90 @@ export type ChatMessage = {
   content: string;
 };
 
+export type ChatSettings = {
+  selectedRole: string;
+  selectedMode: string;
+  selectedModel: string;
+  relationshipMode: string;
+  contextMode: string;
+};
+
+export type RagSettings = {
+  retrievalMode: "lexical" | "vector" | "hybrid" | "backend_vector";
+  topK: number;
+  minScore: number;
+  chatTopK: number;
+};
+
+export type RuntimeOption = {
+  id: string;
+  label: string;
+  summary?: string;
+};
+
+export type RuntimeSettingsResponse = {
+  settings: {
+    selected_role: string;
+    selected_mode: string;
+    selected_model: string;
+    relationship_mode: string;
+    entry_mode: string;
+    performance_mode: string;
+    memory_mode: string;
+    debug_mode: boolean;
+    safe_mode: boolean;
+    route_mode: string;
+    context_mode: string;
+    current_version: string;
+    active_task: string;
+    next_version: string;
+    wechat_memory_capture_enabled: boolean;
+    wechat_memory_capture_mode: string;
+    rag_enabled: boolean;
+    rag_retrieval_mode: RagSettings["retrievalMode"];
+    rag_top_k: number;
+    rag_min_score: number;
+  };
+  options: {
+    roles: RuntimeOption[];
+    modes: RuntimeOption[];
+    models: RuntimeOption[];
+    performance_modes: RuntimeOption[];
+    relationship_modes: RuntimeOption[];
+    entry_modes: RuntimeOption[];
+    memory_modes: string[];
+    retrieval_modes: RagSettings["retrievalMode"][];
+  };
+  runtime_profile: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type RoleResponse = {
+  id: string;
+  label: string;
+  prompt: string;
+  summary: string;
+};
+
+export type MemoryFileStatus = {
+  name: string;
+  path: string;
+  exists: boolean;
+  size_bytes: number;
+  mtime_ns: number;
+  preview: string;
+};
+
+export type MemoryStatusResponse = {
+  writable: boolean;
+  memory_mode: string;
+  safe_mode: boolean;
+  reason: string;
+  context_mode: string;
+  groups: Record<string, string[]>;
+  files: MemoryFileStatus[];
+};
+
 export type ChatResponse = {
   reply: string;
   session_id: string;
@@ -134,10 +218,21 @@ export type WorkflowRunDetail = Omit<WorkflowRunSummary, "event_count"> & {
   events: WorkflowEvent[];
 };
 
+export type SessionRow = {
+  kind: string;
+  name: string;
+  path: string;
+  size_bytes: number;
+  mtime_ns: number;
+};
+
 export type ApiSnapshot = {
   health: HealthResponse | null;
   ragStatus: RagStatusResponse | null;
   tools: ToolSpec[];
   workflowRuns: WorkflowRunSummary[];
+  sessions: SessionRow[];
+  runtimeSettings: RuntimeSettingsResponse | null;
+  memoryStatus: MemoryStatusResponse | null;
   error: string;
 };

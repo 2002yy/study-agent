@@ -14,6 +14,8 @@ export default defineConfig({
       "/tools": API_TARGET,
       "/workflows": API_TARGET,
       "/memory": API_TARGET,
+      "/runtime": API_TARGET,
+      "/roles": API_TARGET,
       "/sessions": API_TARGET
     }
   }

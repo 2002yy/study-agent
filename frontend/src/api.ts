@@ -2,14 +2,20 @@ import type {
   ApiSnapshot,
   ChatMessage,
   ChatResponse,
+  ChatSettings,
   HealthResponse,
+  MemoryStatusResponse,
+  RagSettings,
   RagIndexResponse,
   RagQueryResponse,
   RagStatusResponse,
+  RoleResponse,
+  SessionRow,
   ToolInvocationResponse,
   ToolSpec,
   WorkflowRunDetail,
-  WorkflowRunSummary
+  WorkflowRunSummary,
+  RuntimeSettingsResponse
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -50,17 +56,23 @@ async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
 
 export async function loadApiSnapshot(): Promise<ApiSnapshot> {
   try {
-    const [health, ragStatus, tools, workflows] = await Promise.all([
+    const [health, ragStatus, tools, workflows, sessions, runtimeSettings, memoryStatus] = await Promise.all([
       requestJson<HealthResponse>("/health"),
       requestJson<RagStatusResponse>("/rag/status"),
       requestJson<{ tools: ToolSpec[] }>("/tools"),
-      requestJson<{ runs: WorkflowRunSummary[] }>("/workflows/runs")
+      requestJson<{ runs: WorkflowRunSummary[] }>("/workflows/runs"),
+      requestJson<{ sessions: SessionRow[] }>("/sessions"),
+      requestJson<RuntimeSettingsResponse>("/runtime/settings"),
+      requestJson<MemoryStatusResponse>("/memory")
     ]);
     return {
       health,
       ragStatus,
       tools: tools.tools,
       workflowRuns: workflows.runs,
+      sessions: sessions.sessions,
+      runtimeSettings,
+      memoryStatus,
       error: ""
     };
   } catch (error) {
@@ -69,9 +81,28 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
       ragStatus: null,
       tools: [],
       workflowRuns: [],
+      sessions: [],
+      runtimeSettings: null,
+      memoryStatus: null,
       error: error instanceof Error ? error.message : "API unavailable"
     };
   }
+}
+
+export async function saveRuntimeSettings(payload: Partial<RuntimeSettingsResponse["settings"]>): Promise<RuntimeSettingsResponse> {
+  return requestJson<RuntimeSettingsResponse>("/runtime/settings", {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function loadRole(roleId: string): Promise<RoleResponse> {
+  return requestJson<RoleResponse>(`/roles/${encodeURIComponent(roleId)}`);
+}
+
+export async function loadSessions(): Promise<SessionRow[]> {
+  const response = await requestJson<{ sessions: SessionRow[] }>("/sessions");
+  return response.sessions;
 }
 
 export async function loadRagStatus(): Promise<RagStatusResponse> {
@@ -84,13 +115,14 @@ export async function uploadDocuments(files: File[]): Promise<RagIndexResponse> 
   return uploadForm<RagIndexResponse>("/rag/upload", formData);
 }
 
-export async function queryRag(query: string): Promise<RagQueryResponse> {
+export async function queryRag(query: string, settings: RagSettings): Promise<RagQueryResponse> {
   return requestJson<RagQueryResponse>("/rag/query", {
     method: "POST",
     body: JSON.stringify({
       query,
-      top_k: 5,
-      retrieval_mode: "hybrid"
+      top_k: settings.topK,
+      min_score: settings.minScore,
+      retrieval_mode: settings.retrievalMode
     })
   });
 }
@@ -98,24 +130,30 @@ export async function queryRag(query: string): Promise<RagQueryResponse> {
 export async function sendChat(
   userInput: string,
   history: ChatMessage[],
-  options: { ragEnabled: boolean; sessionId?: string }
+  options: {
+    ragEnabled: boolean;
+    sessionId?: string;
+    chatSettings: ChatSettings;
+    ragSettings: RagSettings;
+  }
 ): Promise<ChatResponse> {
   return requestJson<ChatResponse>("/chat", {
     method: "POST",
     body: JSON.stringify({
       user_input: userInput,
-      selected_role: "auto",
-      selected_mode: "auto",
-      selected_model: "auto",
-      relationship_mode: "standard",
+      selected_role: options.chatSettings.selectedRole,
+      selected_mode: options.chatSettings.selectedMode,
+      selected_model: options.chatSettings.selectedModel,
+      relationship_mode: options.chatSettings.relationshipMode,
+      context_mode: options.chatSettings.contextMode || null,
       chat_history: history.map((message) => ({
         role: message.role,
         content: message.content
       })),
       session_id: options.sessionId,
       rag_enabled: options.ragEnabled,
-      rag_top_k: 3,
-      rag_retrieval_mode: "hybrid"
+      rag_top_k: options.ragSettings.chatTopK,
+      rag_retrieval_mode: options.ragSettings.retrievalMode
     })
   });
 }

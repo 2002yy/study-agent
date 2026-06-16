@@ -14,6 +14,7 @@ frontend/dist/
 
 # runtime
 config/runtime_state.yaml
+config/frontend_settings.yaml
 logs/
 backups/
 output/

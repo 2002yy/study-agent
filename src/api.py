@@ -5,39 +5,123 @@ import secrets
 from pathlib import Path
 from typing import Any
 
+import yaml
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from src import memory_writer
+from src.constants import (
+    ATMOS_LABELS,
+    ATMOS_OPTIONS,
+    ENTRY_LABELS,
+    ENTRY_OPTIONS,
+    MODE_LABELS,
+    MODE_OPTIONS,
+    MODEL_LABELS,
+    MODEL_OPTIONS,
+    PERFORMANCE_OPTIONS,
+    PERF_LABELS,
+    ROLE_LABELS,
+    ROLE_OPTIONS,
+)
 from src.context_builder import build_messages
 from src.llm_client import chat
-from src.memory import read_memory_bundle
-from src.mode_manager import is_memory_write_allowed, load_runtime_modes
+from src.memory import CONTEXT_FILE_GROUPS, MEMORY_DIR, read_memory_bundle, read_memory_file
+from src.mode_manager import (
+    get_runtime_config_warnings,
+    is_memory_write_allowed,
+    load_runtime_modes,
+    set_memory_mode,
+    update_debug_mode,
+    update_entry_mode,
+    update_interaction_mode,
+    update_memory_capture,
+    update_performance_mode,
+    update_safe_mode,
+)
 from src.performance_budget import chat_max_tokens
 from src.rag import build_rag_context, format_rag_sources, index_documents
 from src.rag.backends import get_vector_backend_from_env
 from src.rag.eval import RagEvalCase, evaluate_case
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.service import build_rag_debug, search_documents
-from src.role_manager import load_role
+from src.role_manager import list_roles, load_role
 from src.router import route_request
+from src.safe_writer import safe_write_text
 from src.session_logger import flush_current_session, get_or_create_session, init_session, log
 from src.tools.local_knowledge import retrieve_local_knowledge
 from src.tools.registry import create_default_tool_registry
 from src.workflows.store import DEFAULT_WORKFLOW_DIR, WorkflowStore
 
 ROOT = Path(__file__).resolve().parent.parent
+CONFIG_DIR = ROOT / "config"
+FRONTEND_SETTINGS_PATH = CONFIG_DIR / "frontend_settings.yaml"
 RAG_UPLOAD_DIR = ROOT / "logs" / "rag_uploads"
 SESSION_DIR = ROOT / "logs" / "sessions"
 CURRENT_SESSION_DIR = ROOT / "logs" / "current"
 WORKFLOW_DIR = DEFAULT_WORKFLOW_DIR
+
+DEFAULT_FRONTEND_SETTINGS = {
+    "selected_role": "auto",
+    "selected_mode": "auto",
+    "selected_model": "auto",
+    "rag_enabled": True,
+    "rag_retrieval_mode": "hybrid",
+    "rag_top_k": 3,
+    "rag_min_score": 0.01,
+}
 
 
 class HealthResponse(BaseModel):
     status: str
     service: str
     rag_index_exists: bool
+
+
+class RuntimeSettingsPatch(BaseModel):
+    selected_role: str | None = None
+    selected_mode: str | None = None
+    selected_model: str | None = None
+    relationship_mode: str | None = None
+    entry_mode: str | None = None
+    performance_mode: str | None = None
+    memory_mode: str | None = None
+    debug_mode: bool | None = None
+    safe_mode: bool | None = None
+    wechat_memory_capture_enabled: bool | None = None
+    rag_enabled: bool | None = None
+    rag_retrieval_mode: str | None = None
+    rag_top_k: int | None = Field(default=None, ge=1, le=20)
+    rag_min_score: float | None = Field(default=None, ge=0)
+
+
+class RuntimeSettingsResponse(BaseModel):
+    settings: dict[str, Any]
+    options: dict[str, Any]
+    runtime_profile: dict[str, Any]
+    warnings: list[str]
+
+
+class RoleListResponse(BaseModel):
+    roles: list[dict[str, Any]]
+
+
+class RoleResponse(BaseModel):
+    id: str
+    label: str
+    prompt: str
+    summary: str
+
+
+class MemoryStatusResponse(BaseModel):
+    writable: bool
+    memory_mode: str
+    safe_mode: bool
+    reason: str
+    context_mode: str
+    groups: dict[str, list[str]]
+    files: list[dict[str, Any]]
 
 
 class RagIndexRequest(BaseModel):
@@ -332,12 +416,248 @@ def _workflow_summary(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _frontend_settings_defaults() -> dict[str, Any]:
+    return dict(DEFAULT_FRONTEND_SETTINGS)
+
+
+def _load_frontend_settings() -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    if FRONTEND_SETTINGS_PATH.is_file():
+        try:
+            raw = yaml.safe_load(FRONTEND_SETTINGS_PATH.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                data = raw
+        except yaml.YAMLError:
+            data = {}
+    settings = _frontend_settings_defaults()
+    settings.update({key: value for key, value in data.items() if key in settings})
+    return _normalize_frontend_settings(settings)
+
+
+def _write_frontend_settings(settings: dict[str, Any]) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    safe_write_text(
+        FRONTEND_SETTINGS_PATH,
+        yaml.safe_dump(
+            _normalize_frontend_settings(settings),
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+    )
+
+
+def _normalize_frontend_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    normalized = _frontend_settings_defaults()
+    selected_role = settings.get("selected_role")
+    if selected_role in ROLE_OPTIONS:
+        normalized["selected_role"] = selected_role
+    selected_mode = settings.get("selected_mode")
+    if selected_mode in MODE_OPTIONS:
+        normalized["selected_mode"] = selected_mode
+    selected_model = settings.get("selected_model")
+    if selected_model in MODEL_OPTIONS:
+        normalized["selected_model"] = selected_model
+    normalized["rag_enabled"] = bool(settings.get("rag_enabled", normalized["rag_enabled"]))
+    retrieval_mode = settings.get("rag_retrieval_mode")
+    if retrieval_mode in {"lexical", "vector", "hybrid", "backend_vector"}:
+        normalized["rag_retrieval_mode"] = retrieval_mode
+    try:
+        normalized["rag_top_k"] = max(1, min(20, int(settings.get("rag_top_k", normalized["rag_top_k"]))))
+    except (TypeError, ValueError):
+        pass
+    try:
+        normalized["rag_min_score"] = max(0.0, float(settings.get("rag_min_score", normalized["rag_min_score"])))
+    except (TypeError, ValueError):
+        pass
+    return normalized
+
+
+def _runtime_settings_options() -> dict[str, Any]:
+    return {
+        "roles": [{"id": role_id, "label": ROLE_LABELS.get(role_id, role_id)} for role_id in ROLE_OPTIONS],
+        "modes": [{"id": mode, "label": MODE_LABELS.get(mode, mode)} for mode in MODE_OPTIONS],
+        "models": [{"id": model, "label": MODEL_LABELS.get(model, model)} for model in MODEL_OPTIONS],
+        "performance_modes": [
+            {"id": mode, "label": PERF_LABELS.get(mode, mode)} for mode in PERFORMANCE_OPTIONS
+        ],
+        "relationship_modes": [
+            {"id": mode, "label": ATMOS_LABELS.get(mode, mode)} for mode in ATMOS_OPTIONS
+        ],
+        "entry_modes": [{"id": mode, "label": ENTRY_LABELS.get(mode, mode)} for mode in ENTRY_OPTIONS],
+        "memory_modes": ["readonly", "preview", "confirm_write", "locked"],
+        "retrieval_modes": ["lexical", "vector", "hybrid", "backend_vector"],
+    }
+
+
+def _runtime_settings_payload() -> RuntimeSettingsResponse:
+    modes = load_runtime_modes()
+    profile = modes.profile
+    settings = {
+        **_load_frontend_settings(),
+        "relationship_mode": modes.relationship_mode,
+        "entry_mode": modes.entry_mode,
+        "performance_mode": modes.performance_mode,
+        "memory_mode": modes.memory_mode,
+        "debug_mode": modes.debug_mode,
+        "safe_mode": modes.safe_mode,
+        "route_mode": modes.route_mode,
+        "context_mode": modes.context_mode,
+        "current_version": modes.current_version,
+        "active_task": modes.active_task,
+        "next_version": modes.next_version,
+        "wechat_memory_capture_enabled": modes.memory_capture_enabled,
+        "wechat_memory_capture_mode": modes.memory_capture_mode,
+    }
+    return RuntimeSettingsResponse(
+        settings=settings,
+        options=_runtime_settings_options(),
+        runtime_profile=dict(profile.__dict__),
+        warnings=list(get_runtime_config_warnings()),
+    )
+
+
+def _validate_choice(value: str, choices: list[str] | tuple[str, ...], label: str) -> str:
+    if value not in choices:
+        raise HTTPException(status_code=400, detail=f"Invalid {label}: {value}")
+    return value
+
+
+def _role_payload(role_id: str) -> RoleResponse:
+    if role_id == "auto":
+        return RoleResponse(
+            id="auto",
+            label=ROLE_LABELS["auto"],
+            prompt="",
+            summary="自动模式会根据输入内容选择角色，不绑定固定人设。",
+        )
+    if role_id not in list_roles():
+        raise HTTPException(status_code=404, detail=f"Unknown role: {role_id}")
+    prompt = load_role(role_id)
+    summary = prompt.splitlines()[0][:160] if prompt.splitlines() else prompt[:160]
+    return RoleResponse(
+        id=role_id,
+        label=ROLE_LABELS.get(role_id, role_id),
+        prompt=prompt,
+        summary=summary,
+    )
+
+
+def _memory_file_row(name: str) -> dict[str, Any]:
+    path = MEMORY_DIR / name
+    exists = path.is_file()
+    content = read_memory_file(name) if exists else ""
+    stat = path.stat() if exists else None
+    return {
+        "name": name,
+        "path": str(path),
+        "exists": exists,
+        "size_bytes": stat.st_size if stat else 0,
+        "mtime_ns": stat.st_mtime_ns if stat else 0,
+        "preview": content[:1600],
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         service="study-agent",
         rag_index_exists=DEFAULT_RAG_INDEX_PATH.exists(),
+    )
+
+
+@app.get("/runtime/settings", response_model=RuntimeSettingsResponse)
+def get_runtime_settings() -> RuntimeSettingsResponse:
+    return _runtime_settings_payload()
+
+
+@app.patch("/runtime/settings", response_model=RuntimeSettingsResponse)
+def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResponse:
+    frontend_settings = _load_frontend_settings()
+    if request.selected_role is not None:
+        frontend_settings["selected_role"] = _validate_choice(
+            request.selected_role, ROLE_OPTIONS, "selected_role"
+        )
+    if request.selected_mode is not None:
+        frontend_settings["selected_mode"] = _validate_choice(
+            request.selected_mode, MODE_OPTIONS, "selected_mode"
+        )
+    if request.selected_model is not None:
+        frontend_settings["selected_model"] = _validate_choice(
+            request.selected_model, MODEL_OPTIONS, "selected_model"
+        )
+    if request.rag_enabled is not None:
+        frontend_settings["rag_enabled"] = request.rag_enabled
+    if request.rag_retrieval_mode is not None:
+        frontend_settings["rag_retrieval_mode"] = _validate_choice(
+            request.rag_retrieval_mode,
+            ("lexical", "vector", "hybrid", "backend_vector"),
+            "rag_retrieval_mode",
+        )
+    if request.rag_top_k is not None:
+        frontend_settings["rag_top_k"] = request.rag_top_k
+    if request.rag_min_score is not None:
+        frontend_settings["rag_min_score"] = request.rag_min_score
+    _write_frontend_settings(frontend_settings)
+
+    if request.relationship_mode is not None:
+        update_interaction_mode(
+            _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+        )
+    if request.entry_mode is not None:
+        update_entry_mode(_validate_choice(request.entry_mode, ENTRY_OPTIONS, "entry_mode"))
+    if request.performance_mode is not None:
+        update_performance_mode(
+            _validate_choice(request.performance_mode, PERFORMANCE_OPTIONS, "performance_mode")
+        )
+    if request.memory_mode is not None:
+        set_memory_mode(
+            _validate_choice(
+                request.memory_mode,
+                ("readonly", "preview", "confirm_write", "locked"),
+                "memory_mode",
+            )
+        )
+    if request.debug_mode is not None:
+        update_debug_mode(request.debug_mode)
+    if request.safe_mode is not None:
+        update_safe_mode(request.safe_mode)
+    if request.wechat_memory_capture_enabled is not None:
+        update_memory_capture(request.wechat_memory_capture_enabled)
+    return _runtime_settings_payload()
+
+
+@app.get("/roles", response_model=RoleListResponse)
+def get_roles() -> RoleListResponse:
+    roles = [
+        {"id": role_id, "label": ROLE_LABELS.get(role_id, role_id), "summary": _role_payload(role_id).summary}
+        for role_id in ROLE_OPTIONS
+    ]
+    return RoleListResponse(roles=roles)
+
+
+@app.get("/roles/{role_id}", response_model=RoleResponse)
+def get_role(role_id: str) -> RoleResponse:
+    return _role_payload(role_id)
+
+
+@app.get("/memory", response_model=MemoryStatusResponse)
+def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
+    modes = load_runtime_modes()
+    resolved_context_mode = context_mode or modes.context_mode
+    if resolved_context_mode not in CONTEXT_FILE_GROUPS:
+        raise HTTPException(status_code=400, detail=f"Invalid context_mode: {resolved_context_mode}")
+    writable = is_memory_write_allowed(modes)
+    file_names = list(dict.fromkeys(CONTEXT_FILE_GROUPS["archive"]))
+    files = [_memory_file_row(name) for name in file_names]
+    return MemoryStatusResponse(
+        writable=writable,
+        memory_mode=modes.memory_mode,
+        safe_mode=modes.safe_mode,
+        reason=modes.profile.memory_write_reason,
+        context_mode=resolved_context_mode,
+        groups=CONTEXT_FILE_GROUPS,
+        files=files,
     )
 
 
