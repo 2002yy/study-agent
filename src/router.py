@@ -150,6 +150,7 @@ def route_request(
     selected_mode: str,
     selected_model: str,
     runtime_modes: RuntimeModes,
+    previous_role: str | None = None,
 ) -> dict:
     routing_config = load_routing_config()
     mode_is_auto = selected_mode in ("auto", "自动")
@@ -198,6 +199,17 @@ def route_request(
                 get_logger().warning("LLM router fallback failed: %s", e)
                 pass
 
+    sticky_role_applied = False
+    if (
+        selected_role == "auto"
+        and previous_role in {"march7", "keqing", "nahida", "firefly"}
+        and confidence != "high"
+        and auto_role != previous_role
+    ):
+        auto_reason = f"kept previous role: {previous_role}; candidate={auto_role}; {auto_reason}"
+        auto_role = cast(Role, previous_role)
+        sticky_role_applied = True
+
     # Model selection with performance_mode awareness
     if selected_model != "auto":
         model_profile = cast(Model, selected_model)
@@ -235,4 +247,6 @@ def route_request(
         "matched_keywords": hit_kw,
         "llm_router_used": llm_used,
         "llm_router_valid": llm_valid,
+        "sticky_role_applied": sticky_role_applied,
+        "previous_role": previous_role or "",
     }

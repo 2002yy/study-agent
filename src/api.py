@@ -233,6 +233,7 @@ class LocalKnowledgeResponse(BaseModel):
 class ChatMessage(BaseModel):
     role: str
     content: str
+    avatarRole: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -815,6 +816,16 @@ def _news_result_payload(result: Any, session_id: str) -> NewsSearchResponse:
     )
 
 
+def _previous_assistant_role(chat_history: list[ChatMessage]) -> str | None:
+    valid_roles = {"march7", "keqing", "nahida", "firefly"}
+    for message in reversed(chat_history):
+        if message.role != "assistant":
+            continue
+        if message.avatarRole in valid_roles:
+            return message.avatarRole
+    return None
+
+
 def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
     runtime_modes = _runtime_modes_for_request(request.performance_mode)
     context_mode = request.context_mode or runtime_modes.context_mode
@@ -824,6 +835,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         selected_mode=request.selected_mode,
         selected_model=request.selected_model,
         runtime_modes=runtime_modes,
+        previous_role=_previous_assistant_role(request.chat_history),
     )
     role_prompt = build_role_prompt(
         route["role"],
@@ -1435,7 +1447,7 @@ def list_sessions(limit: int = 20) -> SessionListResponse:
     return SessionListResponse(sessions=sessions[:safe_limit])
 
 
-@app.get("/sessions/{session_id}", response_model=SessionDetailResponse)
+@app.get("/sessions/{session_id}", response_model=SessionDetailResponse, response_model_exclude_none=True)
 def get_session_detail(session_id: str) -> SessionDetailResponse:
     entries = get_session_entries(session_id)
     if entries:

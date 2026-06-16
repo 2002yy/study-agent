@@ -559,6 +559,18 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert "[Conversation instruction]\n本轮直接回答，不转交。" in captured["messages"][0]["content"]
 
 
+def test_previous_assistant_role_uses_avatar_role():
+    from src import api
+
+    history = [
+        api.ChatMessage(role="user", content="first"),
+        api.ChatMessage(role="assistant", content="reply", avatarRole="nahida"),
+        api.ChatMessage(role="user", content="follow-up"),
+    ]
+
+    assert api._previous_assistant_role(history) == "nahida"
+
+
 def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
     from src import api
 

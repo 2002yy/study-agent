@@ -73,6 +73,67 @@ def test_route_request_maps_mechanism_question_to_nahida(monkeypatch):
     assert result["model_profile"] == "pro"
 
 
+def test_route_request_keeps_previous_role_for_medium_confidence(monkeypatch):
+    from src import router
+
+    monkeypatch.setattr(
+        router,
+        "load_routing_config",
+        lambda: RoutingConfig(
+            rules=[
+                (["change"], "keqing", "项目", "pro", "task", 90),
+            ],
+            default_role="nahida",
+            default_mode="普通",
+            default_model="flash",
+            default_reason="default",
+        ),
+    )
+
+    result = route_request(
+        "change it",
+        "auto",
+        "auto",
+        "auto",
+        RuntimeModes(performance_mode="standard"),
+        previous_role="nahida",
+    )
+
+    assert result["role"] == "nahida"
+    assert result["sticky_role_applied"] is True
+    assert result["previous_role"] == "nahida"
+
+
+def test_route_request_switches_role_for_high_confidence(monkeypatch):
+    from src import router
+
+    monkeypatch.setattr(
+        router,
+        "load_routing_config",
+        lambda: RoutingConfig(
+            rules=[
+                (["change", "bug"], "keqing", "项目", "pro", "task", 90),
+            ],
+            default_role="nahida",
+            default_mode="普通",
+            default_model="flash",
+            default_reason="default",
+        ),
+    )
+
+    result = route_request(
+        "change this bug",
+        "auto",
+        "auto",
+        "auto",
+        RuntimeModes(performance_mode="standard"),
+        previous_role="nahida",
+    )
+
+    assert result["role"] == "keqing"
+    assert result["sticky_role_applied"] is False
+
+
 def test_fast_mode_does_not_trigger_llm_router(monkeypatch):
     from src import router
 
