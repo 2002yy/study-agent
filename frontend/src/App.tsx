@@ -12,15 +12,13 @@ import {
   MemoryStick,
   MessageSquare,
   RefreshCw,
-  Search,
-  Send,
   Settings,
   ShieldCheck,
   Sparkles,
   Upload,
   Wrench
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   callLocalKnowledge,
   createWechatOpening,
@@ -39,9 +37,13 @@ import {
   uploadDocuments
 } from "./api";
 import { RoleAvatar } from "./components/RoleAvatar";
+import { SourcesPanel } from "./features/rag/SourcesPanel";
+import { RoutePanel } from "./features/route/RoutePanel";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
 import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages } from "./features/single-chat/chatHistory";
-import { roleLabel, roleOptions, speakerToRole } from "./features/roles/roleCatalog";
+import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
+import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
+import { displayValue, translateStatus } from "./utils/format";
 import type {
   ApiSnapshot,
   ChatMessage,
@@ -50,14 +52,11 @@ import type {
   MemoryStatusResponse,
   NewsLookupResponse,
   NewsSearchResponse,
-  RagDebugResult,
   RagQueryResponse,
-  RagResult,
   RagSettings,
   RoleResponse,
   SessionRow,
   ToolInvocationResponse,
-  WechatStateResponse,
   WorkflowRunDetail,
   WorkflowRunSummary
 } from "./types";
@@ -187,62 +186,8 @@ const roadmapItems = [
   "Streamlit 暂时保留为业务闭环回归参考。"
 ];
 
-type SourceRow = {
-  key: string;
-  rank: number;
-  title: string;
-  sourcePath: string;
-  lineRange: string;
-  score: number;
-  matchedTerms: string[];
-  scoreBreakdown: Record<string, number>;
-};
-
 function StatusDot({ tone = "neutral" }: { tone?: "good" | "warn" | "neutral" | "bad" }) {
   return <span className={`status-dot ${tone}`} />;
-}
-
-function formatScore(value: number | undefined): string {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "-";
-  }
-  return value.toFixed(3);
-}
-
-function translateStatus(value: string | undefined): string {
-  const labels: Record<string, string> = {
-    waiting: "等待中",
-    skipped: "已跳过",
-    found: "已找到",
-    not_found: "未找到",
-    index_missing: "索引缺失",
-    error: "错误",
-    preview: "预览",
-    succeeded: "成功",
-    failed: "失败",
-    blocked: "已阻止",
-    started: "已开始",
-    running: "运行中"
-  };
-  return labels[value ?? ""] ?? (value || "-");
-}
-
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : path;
-}
-
-function displayValue(value: unknown): string {
-  if (value === null || typeof value === "undefined" || value === "") {
-    return "-";
-  }
-  if (Array.isArray(value)) {
-    return value.length ? value.join(", ") : "-";
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-  return String(value);
 }
 
 function formatBytes(value: number | undefined): string {
@@ -263,56 +208,6 @@ function formatMtime(ns: number | undefined): string {
     return "-";
   }
   return new Date(Math.floor(ns / 1_000_000)).toLocaleString();
-}
-
-function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
-  const blocks: Array<{ speaker: string; roleId: string; text: string }> = [];
-  const pattern = /【([^】]+)】\s*\n?([\s\S]*?)(?=\n*【[^】]+】|\s*$)/g;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(content)) !== null) {
-    const speaker = match[1].trim();
-    const text = match[2].trim();
-    if (!text) {
-      continue;
-    }
-    blocks.push({
-      speaker,
-      roleId: speakerToRole[speaker] ?? "",
-      text
-    });
-  }
-  return blocks;
-}
-
-function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbackResults: RagResult[]): SourceRow[] {
-  if (debugResults?.length) {
-    return debugResults.map((item, index) => ({
-      key: `${item.source_path ?? "source"}-${item.rank ?? index}`,
-      rank: item.rank ?? index + 1,
-      title: item.title || basename(item.source_path ?? "未命名资料"),
-      sourcePath: item.source_path ?? "未知来源",
-      lineRange: item.line_range ?? "-",
-      score: item.score ?? 0,
-      matchedTerms: item.matched_terms ?? [],
-      scoreBreakdown: item.score_breakdown ?? {}
-    }));
-  }
-  return fallbackResults.map((item, index) => {
-    const chunk = item.chunk ?? {};
-    return {
-      key: chunk.chunk_id ?? `${chunk.source_path ?? "source"}-${index}`,
-      rank: index + 1,
-      title: chunk.title || basename(chunk.source_path ?? "未命名资料"),
-      sourcePath: chunk.source_path ?? "未知来源",
-      lineRange:
-        typeof chunk.start_line === "number" && typeof chunk.end_line === "number"
-          ? `L${chunk.start_line}-L${chunk.end_line}`
-          : "-",
-      score: item.score ?? 0,
-      matchedTerms: item.matched_terms ?? [],
-      scoreBreakdown: {}
-    };
-  });
 }
 
 function Sidebar({
@@ -592,86 +487,6 @@ function Sidebar({
   );
 }
 
-function SourcesPanel({
-  lastChat,
-  ragSearch,
-  isSearching
-}: {
-  lastChat: ChatResponse | null;
-  ragSearch: RagQueryResponse | null;
-  isSearching: boolean;
-}) {
-  const rows = useMemo(() => {
-    const source = ragSearch ?? lastChat?.rag;
-    return sourceRowsFromDebug(source?.debug.results, source?.results ?? []);
-  }, [lastChat, ragSearch]);
-  const activeSource = ragSearch ?? lastChat?.rag;
-  const status = ragSearch ? `检索到 ${ragSearch.result_count} 条` : translateStatus(lastChat?.rag.status ?? "waiting");
-
-  return (
-    <section className="panel" id="sources">
-      <div className="panel-header">
-        <div>
-          <h2>引用来源</h2>
-          <span>{isSearching ? "正在检索" : status}</span>
-        </div>
-        <FileText size={18} />
-      </div>
-      <small className="field-hint">
-        这里展示 RAG 找到的本地资料。分数越高越相关；“注入上下文”是实际送进回答的资料片段。
-      </small>
-      {rows.length ? (
-        <div className="source-table" role="table" aria-label="检索到的引用来源">
-          <div className="source-row header" role="row">
-            <span>排序</span>
-            <span>来源</span>
-            <span>分数</span>
-          </div>
-          {rows.map((row) => (
-            <div className="source-row" role="row" key={row.key}>
-              <strong>#{row.rank}</strong>
-              <div>
-                <b>{row.title}</b>
-                <small>
-                  {row.lineRange} · {row.matchedTerms.length ? row.matchedTerms.join(", ") : "暂无命中词"}
-                </small>
-                <em title={row.sourcePath}>{row.sourcePath}</em>
-                {Object.keys(row.scoreBreakdown).length ? (
-                  <details className="inline-details">
-                    <summary>分数 breakdown</summary>
-                    <pre>{JSON.stringify(row.scoreBreakdown, null, 2)}</pre>
-                  </details>
-                ) : null}
-              </div>
-              <span>{formatScore(row.score)}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">还没有引用来源。开启“用于聊天回答”后提问，或点击顶部检索按钮。</div>
-      )}
-      {activeSource?.context || activeSource?.sources ? (
-        <details className="debug-drawer">
-          <summary>引用上下文与来源块</summary>
-          <small className="field-hint">来源块偏向审计和定位文件；注入上下文偏向还原模型实际看到的内容。</small>
-          {activeSource.sources ? (
-            <>
-              <strong>来源块</strong>
-              <pre>{activeSource.sources}</pre>
-            </>
-          ) : null}
-          {activeSource.context ? (
-            <>
-              <strong>注入上下文</strong>
-              <pre>{activeSource.context}</pre>
-            </>
-          ) : null}
-        </details>
-      ) : null}
-    </section>
-  );
-}
-
 function TimelinePanel({
   runs,
   selectedRun,
@@ -792,50 +607,6 @@ function ToolPanel({
   );
 }
 
-function RoutePanel({ lastChat }: { lastChat: ChatResponse | null }) {
-  const routeRows: Array<[string, unknown]> = [
-    ["实际角色", lastChat?.route.role],
-    ["实际模式", lastChat?.route.mode],
-    ["实际模型", lastChat?.route.model_profile],
-    ["人工覆盖", lastChat?.route.manual_override],
-    ["置信度", lastChat?.route.confidence],
-    ["命中关键词", lastChat?.route.matched_keywords],
-    ["LLM 路由", lastChat?.route.llm_router_used],
-    ["路由原因", lastChat?.route.reason]
-  ];
-  return (
-    <section className="panel" id="route">
-      <div className="panel-header">
-        <div>
-          <h2>回答检查器</h2>
-          <span>{lastChat ? `Session ${lastChat.session_id}` : "等待第一轮回答"}</span>
-        </div>
-        <Activity size={18} />
-      </div>
-      {lastChat ? (
-        <div className="route-grid">
-          {routeRows.map(([label, value]) => (
-            <div className="metric-row" key={label}>
-              <span>{label}</span>
-              <strong title={displayValue(value)}>{displayValue(value)}</strong>
-            </div>
-          ))}
-          <div className="metric-row">
-            <span>RAG 状态</span>
-            <strong>{translateStatus(lastChat.rag?.status)}</strong>
-          </div>
-          <div className="metric-row">
-            <span>引用数量</span>
-            <strong>{lastChat.rag?.result_count ?? 0}</strong>
-          </div>
-        </div>
-      ) : (
-        <div className="empty-state">发送一条消息后，这里会展示后端返回的角色、模式、模型、路由原因和 RAG 状态。</div>
-      )}
-    </section>
-  );
-}
-
 function SessionsPanel({ sessions }: { sessions: SessionRow[] }) {
   return (
     <section className="panel" id="sessions">
@@ -919,183 +690,6 @@ function MemoryPanel({ memoryStatus }: { memoryStatus: MemoryStatusResponse | nu
           记忆状态接口暂不可用。
         </div>
       )}
-    </section>
-  );
-}
-
-function WechatPanel({
-  wechat,
-  newsResult,
-  webLookup,
-  useWebLookup,
-  setUseWebLookup,
-  wechatInput,
-  setWechatInput,
-  newsQuery,
-  setNewsQuery,
-  readArticles,
-  setReadArticles,
-  onOpening,
-  onReset,
-  onMarkRead,
-  onSendWechat,
-  onRunNews,
-  onLookupNews,
-  isWechatBusy,
-  isNewsBusy
-}: {
-  wechat: WechatStateResponse | null;
-  newsResult: NewsSearchResponse | null;
-  webLookup: NewsLookupResponse | null;
-  useWebLookup: boolean;
-  setUseWebLookup: (value: boolean) => void;
-  wechatInput: string;
-  setWechatInput: (value: string) => void;
-  newsQuery: string;
-  setNewsQuery: (value: string) => void;
-  readArticles: boolean;
-  setReadArticles: (value: boolean) => void;
-  onOpening: () => void;
-  onReset: () => void;
-  onMarkRead: () => void;
-  onSendWechat: (event: FormEvent) => void;
-  onRunNews: (event: FormEvent) => void;
-  onLookupNews: () => void;
-  isWechatBusy: boolean;
-  isNewsBusy: boolean;
-}) {
-  const latestNewsItems = newsResult?.news_items.slice(0, 4) ?? [];
-  const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
-  const wechatMessages = parseWechatMessages(wechat?.content ?? "");
-  return (
-    <section className="panel" id="wechat">
-      <div className="panel-header">
-        <div>
-          <h2>群聊与联网</h2>
-          <span>
-            {wechat ? `${wechat.message_count} 条消息 · 未读 ${wechat.unread_count}` : "等待 API"}
-          </span>
-        </div>
-        <MessageSquare size={18} />
-      </div>
-
-      <div className="wechat-actions">
-        <button className="ghost-action compact" disabled={isWechatBusy} onClick={onOpening} type="button">
-          {isWechatBusy ? <Loader2 className="spin" size={14} /> : <Sparkles size={14} />}
-          生成开场
-        </button>
-        <button className="ghost-action compact" disabled={isWechatBusy} onClick={onMarkRead} type="button">
-          标记已读
-        </button>
-        <button className="ghost-action compact danger" disabled={isWechatBusy} onClick={onReset} type="button">
-          新群聊
-        </button>
-      </div>
-
-      <div className="wechat-thread">
-        {wechatMessages.length ? (
-          <div className="wechat-bubbles">
-            {wechatMessages.map((message, index) => (
-              <div className={`wechat-bubble ${message.roleId}`} key={`${message.speaker}-${index}`}>
-                <RoleAvatar fallback={message.roleId === "user" ? "user" : "assistant"} roleId={message.roleId} />
-                <div className="wechat-bubble-body">
-                  <strong>{message.speaker}</strong>
-                  <p>{message.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : wechat?.content ? (
-          <pre>{wechat.content}</pre>
-        ) : (
-          <div className="empty-state">还没有群聊内容。先生成开场，或直接发送一句话。</div>
-        )}
-      </div>
-
-      <form className="mini-form" onSubmit={onSendWechat}>
-        <textarea
-          onChange={(event) => setWechatInput(event.target.value)}
-          placeholder="加入群聊说一句..."
-          rows={3}
-          value={wechatInput}
-        />
-        <button className="primary-action secondary" disabled={isWechatBusy || !wechatInput.trim()} type="submit">
-          {isWechatBusy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-          发送群聊
-        </button>
-      </form>
-
-      <form className="mini-form news-form" onSubmit={onRunNews}>
-        <label className="field-row">
-          <span>联网检索</span>
-          <input
-            onChange={(event) => setNewsQuery(event.target.value)}
-            placeholder="最新新闻 when:1d"
-            value={newsQuery}
-          />
-        </label>
-        <label className="toggle-row">
-          <input checked={readArticles} onChange={(event) => setReadArticles(event.target.checked)} type="checkbox" />
-          <span>尝试读取正文</span>
-        </label>
-        <button className="primary-action secondary" disabled={isNewsBusy || !newsQuery.trim()} type="submit">
-          {isNewsBusy ? <Loader2 className="spin" size={15} /> : <Search size={15} />}
-          联网查并讨论
-        </button>
-        <button className="ghost-action compact lookup-action" disabled={isNewsBusy || !newsQuery.trim()} onClick={onLookupNews} type="button">
-          仅搜索，用于单人聊天
-        </button>
-      </form>
-
-      {webLookup ? (
-        <div className="news-result lookup-result">
-          <label className="toggle-row">
-            <input checked={useWebLookup} onChange={(event) => setUseWebLookup(event.target.checked)} type="checkbox" />
-            <span>用于下一次单人聊天</span>
-          </label>
-          <details open>
-            <summary>单独联网结果 {webLookup.news_items.length} 条</summary>
-            <div className="news-list">
-              {latestLookupItems.map((item, index) => (
-                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
-                  <strong>{displayValue(item.title)}</strong>
-                  <span>{displayValue(item.source)} · {displayValue(item.published_at)}</span>
-                </div>
-              ))}
-            </div>
-          </details>
-        </div>
-      ) : null}
-
-      {newsResult ? (
-        <div className="news-result">
-          <div className="metric-row">
-            <span>耗时</span>
-            <strong>{newsResult.elapsed_ms} ms</strong>
-          </div>
-          <details>
-            <summary>新闻摘要</summary>
-            <pre>{newsResult.digest}</pre>
-          </details>
-          <details>
-            <summary>来源 {newsResult.news_items.length} 条</summary>
-            <div className="news-list">
-              {latestNewsItems.map((item, index) => (
-                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
-                  <strong>{displayValue(item.title)}</strong>
-                  <span>{displayValue(item.source)} · {displayValue(item.published_at)}</span>
-                </div>
-              ))}
-            </div>
-          </details>
-          {newsResult.warnings.length ? (
-            <div className="memory-note warn">
-              <AlertTriangle size={15} />
-              <span>{newsResult.warnings.join("；")}</span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }
