@@ -489,6 +489,14 @@ def _memory_update_action(update: MemoryUpdate) -> str:
     )
 
 
+def _memory_update_preview_text(update: MemoryUpdate, action: str) -> str:
+    content = update.content.strip()
+    if action == "replace":
+        return f"{content}\n"
+    prefix = "### 待确认观察\n\n" if update.learner_pending else "## 课后更新\n\n"
+    return f"{prefix}{content}\n"
+
+
 def _unique_upload_path(upload_dir: Path, filename: str | None, used_names: set[str]) -> Path:
     raw_name = Path(filename or "document").name or "document"
     raw_path = Path(raw_name)
@@ -1276,15 +1284,13 @@ def preview_memory_updates(request: MemoryPreviewRequest) -> MemoryPreviewRespon
     for update in request.updates:
         target = _memory_target_path(update.target)
         action = _memory_update_action(update)
-        prefix = "### 待确认观察\n\n" if update.learner_pending else ""
-        preview = f"{prefix}{update.content.strip()}\n"
         items.append(
             MemoryPreviewItem(
                 target=update.target,
                 path=str(target),
                 action=action,
                 allowed=writable,
-                preview=preview,
+                preview=_memory_update_preview_text(update, action),
             )
         )
     return MemoryPreviewResponse(

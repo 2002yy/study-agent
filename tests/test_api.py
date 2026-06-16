@@ -578,9 +578,42 @@ def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):
     assert preview.status_code == 200
     assert preview.json()["writable"] is True
     assert preview.json()["updates"][0]["path"] == str(target)
+    assert preview.json()["updates"][0]["preview"] == "## 课后更新\n\nAPI memory update\n"
     assert commit.status_code == 200
     assert commit.json()["results"][0]["target"] == "progress"
     assert "API memory update" in target.read_text(encoding="utf-8")
+
+
+def test_memory_preview_matches_pending_and_replace_format(monkeypatch, tmp_path):
+    from src import api, memory_writer
+
+    focus = tmp_path / "current_focus.md"
+    summary = tmp_path / "summary.md"
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "current_focus", focus)
+    monkeypatch.setitem(memory_writer.MEMORY_TARGETS, "summary", summary)
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="confirm_write", safe_mode=False),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/memory/preview",
+        json={
+            "updates": [
+                {"target": "current_focus", "content": "Focus now", "append": False},
+                {"target": "summary", "content": "Maybe useful", "learner_pending": True},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    updates = response.json()["updates"]
+    assert updates[0]["action"] == "replace"
+    assert updates[0]["preview"] == "Focus now\n"
+    assert updates[1]["action"] == "append"
+    assert updates[1]["preview"] == "### 待确认观察\n\nMaybe useful\n"
 
 
 def test_memory_append_false_rejected_for_non_replaceable_target(monkeypatch, tmp_path):

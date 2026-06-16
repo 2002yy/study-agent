@@ -487,7 +487,8 @@ function Inspector({
   onRunNews,
   onLookupNews,
   isWechatBusy,
-  isNewsBusy
+  isNewsBusy,
+  onMemoryChanged
 }: {
   snapshot: ApiSnapshot;
   lastChat: ChatResponse | null;
@@ -520,6 +521,7 @@ function Inspector({
   onLookupNews: () => void;
   isWechatBusy: boolean;
   isNewsBusy: boolean;
+  onMemoryChanged: () => Promise<void> | void;
 }) {
   return (
     <aside className="inspector">
@@ -563,7 +565,7 @@ function Inspector({
       />
       <SessionsPanel sessions={snapshot.sessions} />
       <RoadmapPanel />
-      <MemoryPanel memoryStatus={snapshot.memoryStatus} />
+      <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
     </aside>
   );
 }
@@ -1094,6 +1096,7 @@ export default function App() {
         onLookupNews={handleLookupNews}
         isWechatBusy={isWechatBusy}
         isNewsBusy={isNewsBusy}
+        onMemoryChanged={refresh}
       />
       {snapshot.error ? (
         <div className="api-warning">

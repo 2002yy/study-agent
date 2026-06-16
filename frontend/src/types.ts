@@ -139,6 +139,37 @@ export type MemoryStatusResponse = {
   files: MemoryFileStatus[];
 };
 
+export type MemoryUpdate = {
+  target: string;
+  content: string;
+  append?: boolean;
+  learner_pending?: boolean;
+};
+
+export type MemoryPreviewItem = {
+  target: string;
+  path: string;
+  action: string;
+  allowed: boolean;
+  preview: string;
+};
+
+export type MemoryPreviewResponse = {
+  writable: boolean;
+  memory_mode: string;
+  safe_mode: boolean;
+  updates: MemoryPreviewItem[];
+};
+
+export type MemoryCommitResponse = {
+  writable: boolean;
+  results: Array<{
+    target: string;
+    action: string;
+    path: string;
+  }>;
+};
+
 export type WechatStateResponse = {
   state: Record<string, unknown>;
   content: string;

@@ -1060,6 +1060,124 @@ button {
   line-height: 1.5;
 }
 
+.memory-workbench {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.memory-workbench-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.memory-workbench-heading strong {
+  font-size: 13px;
+}
+
+.memory-workbench-heading span,
+.field-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-workbench textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text);
+  background: #fff;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.memory-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.memory-actions .secondary {
+  background: #f8f9fa;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.memory-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid #cfe5e2;
+  border-radius: 8px;
+  background: #f7fbfa;
+  padding: 10px;
+}
+
+.memory-preview.blocked {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.memory-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-preview-meta strong {
+  color: var(--text);
+}
+
+.memory-preview-item {
+  display: grid;
+  gap: 6px;
+}
+
+.memory-preview-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-preview-item pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5eeee;
+  color: #26353b;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.memory-result {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--success);
+  font-size: 12px;
+}
+
 .wechat-actions {
   display: flex;
   flex-wrap: wrap;

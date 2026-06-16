@@ -4,7 +4,10 @@ import type {
   ChatResponse,
   ChatSettings,
   HealthResponse,
+  MemoryCommitResponse,
+  MemoryPreviewResponse,
   MemoryStatusResponse,
+  MemoryUpdate,
   NewsLookupResponse,
   NewsSearchResponse,
   RagSettings,
@@ -174,6 +177,20 @@ export async function saveRuntimeSettings(payload: Partial<RuntimeSettingsRespon
 
 export async function loadRole(roleId: string): Promise<RoleResponse> {
   return requestJson<RoleResponse>(`/roles/${encodeURIComponent(roleId)}`);
+}
+
+export async function previewMemoryUpdates(updates: MemoryUpdate[]): Promise<MemoryPreviewResponse> {
+  return requestJson<MemoryPreviewResponse>("/memory/preview", {
+    method: "POST",
+    body: JSON.stringify({ updates })
+  });
+}
+
+export async function commitMemoryUpdates(updates: MemoryUpdate[]): Promise<MemoryCommitResponse> {
+  return requestJson<MemoryCommitResponse>("/memory/commit", {
+    method: "POST",
+    body: JSON.stringify({ updates })
+  });
 }
 
 export async function loadWechatState(): Promise<WechatStateResponse> {
