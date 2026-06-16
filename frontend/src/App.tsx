@@ -36,7 +36,7 @@ import {
   resetWechat,
   runNewsSearch,
   saveRuntimeSettings,
-  sendChat,
+  sendChatStream,
   sendWechatMessage,
   uploadDocuments
 } from "./api";
@@ -95,6 +95,22 @@ const RAG_SETTINGS_DEFAULTS: RagSettings = {
   minScore: 0.01,
   chatTopK: 3
 };
+
+function createEmptyRag(): ChatResponse["rag"] {
+  return {
+    status: "waiting",
+    query: "",
+    retrieval_mode: "",
+    reason: "",
+    context: "",
+    sources: "",
+    result_count: 0,
+    results: [],
+    debug: {},
+    attempts: [],
+    rewritten_query: ""
+  };
+}
 
 const roleOptions = [
   ["auto", "自动"],
@@ -548,6 +564,7 @@ function Sidebar({
           <input checked={ragEnabled} onChange={(event) => setRagEnabled(event.target.checked)} type="checkbox" />
           <span>用于聊天回答</span>
         </label>
+        <small className="field-hint">开启后，回答会先查本地资料再生成；关闭则更像普通聊天，不引用资料库。</small>
         <label className="field-row">
           <span>检索模式</span>
           <select
@@ -584,6 +601,7 @@ function Sidebar({
             />
           </label>
         </div>
+        <small className="field-hint">检索 top_k 是单独查来源时最多拿几条；聊天引用是回答时最多塞进上下文的资料条数。</small>
         <label className="field-row">
           <span>最低分</span>
           <input
@@ -594,6 +612,7 @@ function Sidebar({
             value={ragSettings.minScore}
           />
         </label>
+        <small className="field-hint">最低分越高越严格，来源更少但更稳；不确定时保持默认即可。</small>
         <div className="status-line">
           <StatusDot tone={apiTone} />
           <span>{snapshot.health?.service ?? "API 未连接"}</span>
@@ -752,6 +771,9 @@ function SourcesPanel({
         </div>
         <FileText size={18} />
       </div>
+      <small className="field-hint">
+        这里展示 RAG 找到的本地资料。分数越高越相关；“注入上下文”是实际送进回答的资料片段。
+      </small>
       {rows.length ? (
         <div className="source-table" role="table" aria-label="检索到的引用来源">
           <div className="source-row header" role="row">
@@ -785,6 +807,7 @@ function SourcesPanel({
       {activeSource?.context || activeSource?.sources ? (
         <details className="debug-drawer">
           <summary>引用上下文与来源块</summary>
+          <small className="field-hint">来源块偏向审计和定位文件；注入上下文偏向还原模型实际看到的内容。</small>
           {activeSource.sources ? (
             <>
               <strong>来源块</strong>
@@ -953,11 +976,11 @@ function RoutePanel({ lastChat }: { lastChat: ChatResponse | null }) {
           ))}
           <div className="metric-row">
             <span>RAG 状态</span>
-            <strong>{translateStatus(lastChat.rag.status)}</strong>
+            <strong>{translateStatus(lastChat.rag?.status)}</strong>
           </div>
           <div className="metric-row">
             <span>引用数量</span>
-            <strong>{lastChat.rag.result_count}</strong>
+            <strong>{lastChat.rag?.result_count ?? 0}</strong>
           </div>
         </div>
       ) : (
@@ -1375,7 +1398,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const runtimeHydratedRef = useRef(false);
 
-  const activeQuery = input.trim() || lastChat?.rag.query || "本地资料 工作流 引用来源";
+  const activeQuery = input.trim() || lastChat?.rag?.query || "本地资料 工作流 引用来源";
 
   const refresh = async () => {
     setSnapshot(await loadApiSnapshot());
@@ -1455,12 +1478,14 @@ export default function App() {
       return;
     }
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question, avatarRole: "user" }];
-    setMessages(nextMessages);
+    const assistantIndex = nextMessages.length;
+    setMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
     setInput("");
     setIsSending(true);
     setRagSearch(null);
+    let streamedReply = "";
     try {
-      const response = await sendChat(
+      const response = await sendChatStream(
         question,
         nextMessages.filter((message) => message.role !== "system"),
         {
@@ -1469,25 +1494,62 @@ export default function App() {
           chatSettings,
           ragSettings,
           webContext: useWebLookup ? webLookup?.source_block : ""
+        },
+        {
+          onRoute: (route) => {
+            setLastChat((current) => ({
+              reply: current?.reply ?? streamedReply,
+              session_id: current?.session_id ?? sessionId ?? "streaming",
+              route,
+              rag: current?.rag ?? createEmptyRag()
+            }));
+            setMessages((current) =>
+              current.map((message, index) =>
+                index === assistantIndex ? { ...message, avatarRole: String(route.role ?? "auto") } : message
+              )
+            );
+          },
+          onRag: (rag) => {
+            setLastChat((current) => ({
+              reply: current?.reply ?? streamedReply,
+              session_id: current?.session_id ?? sessionId ?? "streaming",
+              route: current?.route ?? {},
+              rag
+            }));
+          },
+          onToken: (token) => {
+            streamedReply += token;
+            setMessages((current) =>
+              current.map((message, index) =>
+                index === assistantIndex ? { ...message, content: `${message.content}${token}` } : message
+              )
+            );
+            setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
+          },
+          onDone: (done) => {
+            if (typeof done.session_id === "string") {
+              setSessionId(done.session_id);
+            }
+          }
         }
       );
       setSessionId(response.session_id);
       setLastChat(response);
-      setMessages([
-        ...nextMessages,
-        { role: "assistant", content: response.reply, avatarRole: String(response.route.role ?? "auto") }
-      ]);
+      setMessages((current) =>
+        current.map((message, index) =>
+          index === assistantIndex
+            ? { ...message, content: response.reply, avatarRole: String(response.route.role ?? "auto") }
+            : message
+        )
+      );
       await refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "聊天请求失败";
-      setMessages([
-        ...nextMessages,
-        {
-          role: "assistant",
-          avatarRole: "auto",
-          content: `请求失败：${message}`
-        }
-      ]);
+      setMessages((current) =>
+        current.map((item, index) =>
+          index === assistantIndex ? { ...item, avatarRole: "auto", content: `请求失败：${message}` } : item
+        )
+      );
     } finally {
       setIsSending(false);
     }

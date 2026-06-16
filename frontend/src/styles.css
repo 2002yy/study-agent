@@ -668,6 +668,30 @@ button {
   line-height: 1.45;
 }
 
+.app-error-boundary {
+  max-width: 520px;
+  margin: 80px auto;
+  border: 1px solid #f0c5c5;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #512020;
+  padding: 18px;
+  line-height: 1.5;
+}
+
+.app-error-boundary strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.app-error-boundary button {
+  border: 1px solid #f0c5c5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--danger);
+  padding: 8px 12px;
+}
+
 .source-table {
   display: grid;
   gap: 8px;

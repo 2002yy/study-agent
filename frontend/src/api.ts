@@ -58,6 +58,71 @@ async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
   return (await response.json()) as T;
 }
 
+type ChatRequestOptions = {
+  ragEnabled: boolean;
+  sessionId?: string;
+  chatSettings: ChatSettings;
+  ragSettings: RagSettings;
+  webContext?: string;
+};
+
+type ChatStreamHandlers = {
+  onRoute?: (route: Record<string, unknown>) => void;
+  onRag?: (rag: ChatResponse["rag"]) => void;
+  onToken?: (token: string) => void;
+  onUsage?: (usage: Record<string, unknown>) => void;
+  onDone?: (done: Record<string, unknown>) => void;
+  onError?: (error: Record<string, unknown>) => void;
+};
+
+type SseMessage = {
+  event: string;
+  data: Record<string, unknown>;
+};
+
+function buildChatPayload(userInput: string, history: ChatMessage[], options: ChatRequestOptions): Record<string, unknown> {
+  return {
+    user_input: userInput,
+    selected_role: options.chatSettings.selectedRole,
+    selected_mode: options.chatSettings.selectedMode,
+    selected_model: options.chatSettings.selectedModel,
+    relationship_mode: options.chatSettings.relationshipMode,
+    context_mode: options.chatSettings.contextMode || null,
+    chat_history: history.map((message) => ({
+      role: message.role,
+      content: message.content
+    })),
+    session_id: options.sessionId,
+    rag_enabled: options.ragEnabled,
+    rag_top_k: options.ragSettings.chatTopK,
+    rag_retrieval_mode: options.ragSettings.retrievalMode,
+    web_context: options.webContext ?? ""
+  };
+}
+
+function parseSseMessages(raw: string): SseMessage[] {
+  return raw
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      let event = "message";
+      const dataLines: string[] = [];
+      for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith("event:")) {
+          event = line.slice("event:".length).trim();
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice("data:".length).trimStart());
+        }
+      }
+      const dataText = dataLines.join("\n") || "{}";
+      return {
+        event,
+        data: JSON.parse(dataText) as Record<string, unknown>
+      };
+    });
+}
+
 export async function loadApiSnapshot(): Promise<ApiSnapshot> {
   try {
     const [health, ragStatus, tools, workflows, sessions, runtimeSettings, memoryStatus, wechat] = await Promise.all([
@@ -230,34 +295,117 @@ export async function queryRag(query: string, settings: RagSettings): Promise<Ra
 export async function sendChat(
   userInput: string,
   history: ChatMessage[],
-  options: {
-    ragEnabled: boolean;
-    sessionId?: string;
-    chatSettings: ChatSettings;
-    ragSettings: RagSettings;
-    webContext?: string;
-  }
+  options: ChatRequestOptions
 ): Promise<ChatResponse> {
   return requestJson<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify({
-      user_input: userInput,
-      selected_role: options.chatSettings.selectedRole,
-      selected_mode: options.chatSettings.selectedMode,
-      selected_model: options.chatSettings.selectedModel,
-      relationship_mode: options.chatSettings.relationshipMode,
-      context_mode: options.chatSettings.contextMode || null,
-      chat_history: history.map((message) => ({
-        role: message.role,
-        content: message.content
-      })),
-      session_id: options.sessionId,
-      rag_enabled: options.ragEnabled,
-      rag_top_k: options.ragSettings.chatTopK,
-      rag_retrieval_mode: options.ragSettings.retrievalMode,
-      web_context: options.webContext ?? ""
-    })
+    body: JSON.stringify(buildChatPayload(userInput, history, options))
   });
+}
+
+export async function sendChatStream(
+  userInput: string,
+  history: ChatMessage[],
+  options: ChatRequestOptions,
+  handlers: ChatStreamHandlers = {}
+): Promise<ChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders()
+    },
+    body: JSON.stringify(buildChatPayload(userInput, history, options))
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${response.status} ${response.statusText}${body ? `: ${body}` : ""}`);
+  }
+  if (!response.body) {
+    return sendChat(userInput, history, options);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let reply = "";
+  let sessionId = options.sessionId ?? "";
+  let route: Record<string, unknown> = {};
+  let rag: ChatResponse["rag"] | null = null;
+
+  const handleMessage = (message: SseMessage) => {
+    if (message.event === "route") {
+      route = message.data.route && typeof message.data.route === "object" ? (message.data.route as Record<string, unknown>) : message.data;
+      handlers.onRoute?.(route);
+      return;
+    }
+    if (message.event === "rag") {
+      rag = (message.data.rag && typeof message.data.rag === "object" ? message.data.rag : message.data) as ChatResponse["rag"];
+      handlers.onRag?.(rag);
+      return;
+    }
+    if (message.event === "token") {
+      const text = typeof message.data.text === "string" ? message.data.text : "";
+      reply += text;
+      handlers.onToken?.(text);
+      return;
+    }
+    if (message.event === "usage") {
+      const usage = message.data.usage && typeof message.data.usage === "object" ? (message.data.usage as Record<string, unknown>) : message.data;
+      handlers.onUsage?.(usage);
+      return;
+    }
+    if (message.event === "done") {
+      if (typeof message.data.session_id === "string") {
+        sessionId = message.data.session_id;
+      }
+      handlers.onDone?.(message.data);
+      return;
+    }
+    if (message.event === "error") {
+      handlers.onError?.(message.data);
+      const detail = typeof message.data.message === "string" ? message.data.message : "聊天流式请求失败";
+      throw new Error(detail);
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split(/\r?\n\r?\n/);
+    buffer = parts.pop() ?? "";
+    for (const message of parseSseMessages(parts.join("\n\n"))) {
+      handleMessage(message);
+    }
+  }
+
+  buffer += decoder.decode();
+  for (const message of parseSseMessages(buffer)) {
+    handleMessage(message);
+  }
+
+  return {
+    reply,
+    session_id: sessionId,
+    route,
+    rag: rag ?? {
+      status: "waiting",
+      query: "",
+      retrieval_mode: "",
+      reason: "",
+      context: "",
+      sources: "",
+      result_count: 0,
+      results: [],
+      debug: {},
+      attempts: [],
+      rewritten_query: ""
+    }
+  };
 }
 
 export async function previewLocalKnowledge(query: string): Promise<ToolInvocationResponse> {
