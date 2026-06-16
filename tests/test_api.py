@@ -505,6 +505,56 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert any("source: web result" in message["content"] for message in captured["messages"])
 
 
+def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
+    from src import api
+
+    logged = {}
+
+    class FakeRagResult:
+        status = "skipped"
+        context = ""
+
+        def to_dict(self):
+            return {"status": self.status, "context": self.context, "result_count": 0}
+
+    monkeypatch.setattr(api, "stream_chat", lambda *args, **kwargs: iter(["Hello", " stream"]))
+    monkeypatch.setattr(api, "load_role", lambda role: f"role prompt for {role}")
+    monkeypatch.setattr(api, "read_memory_bundle", lambda context_mode: {})
+    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
+    monkeypatch.setattr(api, "init_session", lambda: "stream-session")
+    monkeypatch.setattr(api, "log", lambda **kwargs: logged.update(kwargs))
+    monkeypatch.setattr(api, "flush_current_session", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        api,
+        "load_runtime_modes",
+        lambda: RuntimeModes(memory_mode="preview", performance_mode="fast"),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat/stream",
+        json={
+            "user_input": "stream please",
+            "selected_role": "march7",
+            "selected_mode": "普通",
+            "selected_model": "flash",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    body = response.text
+    assert "event: route" in body
+    assert "event: rag" in body
+    assert body.count("event: token") == 2
+    assert 'data: {"text": "Hello"}' in body
+    assert "event: usage" in body
+    assert "event: done" in body
+    assert logged["session_id"] == "stream-session"
+    assert logged["agent_reply"] == "Hello stream"
+    assert logged["route_info"]["streamed"] is True
+
+
 def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):
     from src import api, memory_writer
 

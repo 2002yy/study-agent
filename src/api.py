@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import json
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -27,7 +28,7 @@ from src.constants import (
     ROLE_OPTIONS,
 )
 from src.context_builder import build_messages
-from src.llm_client import chat
+from src.llm_client import chat, stream_chat
 from src.memory import CONTEXT_FILE_GROUPS, MEMORY_DIR, read_memory_bundle, read_memory_file
 from src.mode_manager import (
     get_runtime_config_warnings,
@@ -726,6 +727,62 @@ def _news_result_payload(result: Any, session_id: str) -> NewsSearchResponse:
     )
 
 
+def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
+    runtime_modes = load_runtime_modes()
+    context_mode = request.context_mode or runtime_modes.context_mode
+    route = route_request(
+        user_input=request.user_input,
+        selected_role=request.selected_role,
+        selected_mode=request.selected_mode,
+        selected_model=request.selected_model,
+        runtime_modes=runtime_modes,
+    )
+    role_prompt = load_role(route["role"])
+    memory_bundle = read_memory_bundle(context_mode)
+    rag_result = retrieve_local_knowledge(
+        request.user_input,
+        enabled=request.rag_enabled,
+        top_k=request.rag_top_k,
+        retrieval_mode=request.rag_retrieval_mode,
+    )
+    web_context = request.web_context.strip()
+    context_blocks = [rag_result.context] if rag_result.context.strip() else []
+    if web_context:
+        context_blocks.append(f"【联网检索结果】\n{web_context}")
+    messages = build_messages(
+        user_input=request.user_input,
+        role_prompt=role_prompt,
+        mode=route["mode"],
+        memory_bundle=memory_bundle,
+        chat_history=[message.model_dump() for message in request.chat_history],
+        relationship_mode=request.relationship_mode,
+        runtime_modes=runtime_modes,
+        context_mode=context_mode,
+        rag_context="\n\n".join(context_blocks),
+    )
+    return {
+        "runtime_modes": runtime_modes,
+        "context_mode": context_mode,
+        "route": route,
+        "memory_bundle": memory_bundle,
+        "rag_result": rag_result,
+        "messages": messages,
+        "web_context_used": bool(web_context),
+    }
+
+
+def _sse_event(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _stream_usage_payload(reply: str) -> dict[str, Any]:
+    return {
+        "estimated": True,
+        "output_chars": len(reply),
+        "output_tokens_estimate": max(1, len(reply) // 4) if reply else 0,
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(
@@ -1116,40 +1173,12 @@ def local_knowledge_endpoint(request: LocalKnowledgeRequest) -> LocalKnowledgeRe
 
 @app.post("/chat", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest) -> ChatResponse:
-    runtime_modes = load_runtime_modes()
-    context_mode = request.context_mode or runtime_modes.context_mode
-    route = route_request(
-        user_input=request.user_input,
-        selected_role=request.selected_role,
-        selected_mode=request.selected_mode,
-        selected_model=request.selected_model,
-        runtime_modes=runtime_modes,
-    )
-    role_prompt = load_role(route["role"])
-    memory_bundle = read_memory_bundle(context_mode)
-    rag_result = retrieve_local_knowledge(
-        request.user_input,
-        enabled=request.rag_enabled,
-        top_k=request.rag_top_k,
-        retrieval_mode=request.rag_retrieval_mode,
-    )
-    web_context = request.web_context.strip()
-    context_blocks = [rag_result.context] if rag_result.context.strip() else []
-    if web_context:
-        context_blocks.append(f"【联网检索结果】\n{web_context}")
-    messages = build_messages(
-        user_input=request.user_input,
-        role_prompt=role_prompt,
-        mode=route["mode"],
-        memory_bundle=memory_bundle,
-        chat_history=[message.model_dump() for message in request.chat_history],
-        relationship_mode=request.relationship_mode,
-        runtime_modes=runtime_modes,
-        context_mode=context_mode,
-        rag_context="\n\n".join(context_blocks),
-    )
+    prepared = _prepare_chat_context(request)
+    runtime_modes = prepared["runtime_modes"]
+    route = prepared["route"]
+    rag_result = prepared["rag_result"]
     reply = chat(
-        messages,
+        prepared["messages"],
         model_profile=route["model_profile"],
         max_tokens=chat_max_tokens(runtime_modes.performance_mode),
         task_name="single_chat",
@@ -1162,8 +1191,12 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         model=route["model_profile"],
         user_input=request.user_input,
         agent_reply=reply,
-        memory_enabled=bool(memory_bundle),
-        route_info={**route, "rag_status": rag_result.status, "web_context_used": bool(web_context)},
+        memory_enabled=bool(prepared["memory_bundle"]),
+        route_info={
+            **route,
+            "rag_status": rag_result.status,
+            "web_context_used": prepared["web_context_used"],
+        },
     )
     flush_current_session(
         session_id,
@@ -1175,6 +1208,59 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         session_id=session_id,
         route=route,
         rag=rag_result.to_dict(),
+    )
+
+
+@app.post("/chat/stream")
+def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
+    def events() -> Iterator[str]:
+        session_id = request.session_id or init_session()
+        reply_parts: list[str] = []
+        try:
+            prepared = _prepare_chat_context(request)
+            runtime_modes = prepared["runtime_modes"]
+            route = prepared["route"]
+            rag_result = prepared["rag_result"]
+            yield _sse_event("route", route)
+            yield _sse_event("rag", rag_result.to_dict())
+            for token in stream_chat(
+                prepared["messages"],
+                model_profile=route["model_profile"],
+                max_tokens=chat_max_tokens(runtime_modes.performance_mode),
+                task_name="single_chat",
+            ):
+                reply_parts.append(token)
+                yield _sse_event("token", {"text": token})
+            reply = "".join(reply_parts)
+            yield _sse_event("usage", _stream_usage_payload(reply))
+            log(
+                session_id=session_id,
+                role=route["role"],
+                mode=route["mode"],
+                model=route["model_profile"],
+                user_input=request.user_input,
+                agent_reply=reply,
+                memory_enabled=bool(prepared["memory_bundle"]),
+                route_info={
+                    **route,
+                    "rag_status": rag_result.status,
+                    "web_context_used": prepared["web_context_used"],
+                    "streamed": True,
+                },
+            )
+            flush_current_session(
+                session_id,
+                performance_mode=runtime_modes.performance_mode,
+                debug_mode=runtime_modes.debug_mode,
+            )
+            yield _sse_event("done", {"session_id": session_id, "reply": reply})
+        except Exception as exc:
+            yield _sse_event("error", {"message": str(exc), "error_type": type(exc).__name__})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
