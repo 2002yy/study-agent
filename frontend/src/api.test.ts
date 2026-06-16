@@ -97,6 +97,27 @@ describe("sendChatStream", () => {
     expect(body.performance_mode).toBe("deep");
     expect(body.rag_min_score).toBe(0.42);
   });
+
+  it("passes an abort signal to the streaming request", async () => {
+    const fetchMock = vi.fn(async () =>
+      sseResponse([
+        'event: done\ndata: {"session_id":"session-3","reply":"done"}\n\n'
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await sendChatStream(
+      "stop-aware",
+      [],
+      { ragEnabled: false, chatSettings, ragSettings },
+      {},
+      { signal: controller.signal }
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.signal).toBe(controller.signal);
+  });
 });
 
 describe("local knowledge tool calls", () => {

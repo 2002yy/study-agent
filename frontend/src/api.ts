@@ -341,10 +341,12 @@ export async function sendChatStream(
   userInput: string,
   history: ChatMessage[],
   options: ChatRequestOptions,
-  handlers: ChatStreamHandlers = {}
+  handlers: ChatStreamHandlers = {},
+  requestOptions: { signal?: AbortSignal } = {}
 ): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/chat/stream`, {
     method: "POST",
+    signal: requestOptions.signal,
     headers: {
       "Content-Type": "application/json",
       ...authHeaders()

@@ -641,7 +641,9 @@ export default function App() {
   const [readArticles, setReadArticles] = useState(true);
   const [isWechatBusy, setIsWechatBusy] = useState(false);
   const [isNewsBusy, setIsNewsBusy] = useState(false);
+  const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
@@ -746,24 +748,26 @@ export default function App() {
     );
   }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled]);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const question = input.trim();
+  const sendSingleChat = async (question: string, historyBase = singleChatMessages) => {
     if (!question || isSending) {
       return;
     }
-    const nextMessages: ChatMessage[] = [...singleChatMessages, { role: "user", content: question, avatarRole: "user" }];
+    const nextMessages: ChatMessage[] = [...historyBase, { role: "user", content: question, avatarRole: "user" }];
+    const userIndex = nextMessages.length - 1;
     const assistantIndex = nextMessages.length;
     setSingleChatMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
     setInput("");
+    setStreamRecovery(null);
     setIsSending(true);
     setRagSearch(null);
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
     let streamedReply = "";
     const shouldConsumeWebLookup = useWebLookup && Boolean(webLookup?.source_block);
     try {
       const response = await sendChatStream(
         question,
-        toChatHistoryPayload(singleChatMessages),
+        toChatHistoryPayload(historyBase),
         {
           ragEnabled,
           sessionId,
@@ -807,7 +811,8 @@ export default function App() {
               setSessionId(done.session_id);
             }
           }
-        }
+        },
+        { signal: abortController.signal }
       );
       setSessionId(response.session_id);
       setLastChat(response);
@@ -823,15 +828,67 @@ export default function App() {
       );
       await refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "聊天请求失败";
+      const isAbort = error instanceof DOMException && error.name === "AbortError";
+      const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
+      const preserved = streamedReply
+        ? `${streamedReply}\n\n---\n生成中断：${message}`
+        : `生成中断：${message}`;
+      setStreamRecovery({ question, reply: streamedReply, reason: message });
       setSingleChatMessages((current) =>
         current.map((item, index) =>
-          index === assistantIndex ? { ...item, avatarRole: "auto", content: `请求失败：${message}` } : item
+          index === userIndex
+            ? { ...item, transient: true }
+            : index === assistantIndex
+              ? { ...item, avatarRole: item.avatarRole ?? "auto", content: preserved, transient: true }
+              : item
         )
       );
     } finally {
+      if (chatAbortRef.current === abortController) {
+        chatAbortRef.current = null;
+      }
       setIsSending(false);
     }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    await sendSingleChat(input.trim());
+  };
+
+  const stopChatGeneration = () => {
+    chatAbortRef.current?.abort();
+  };
+
+  const retryInterruptedChat = async () => {
+    if (!streamRecovery || isSending) {
+      return;
+    }
+    const retryQuestion = streamRecovery.question;
+    const trimmedHistory = singleChatMessages.filter((message, index, messages) => {
+      const nextMessage = messages[index + 1];
+      const previousMessage = messages[index - 1];
+      const isInterruptedUser =
+        message.role === "user" &&
+        message.transient &&
+        message.content === retryQuestion &&
+        nextMessage?.role === "assistant" &&
+        nextMessage.transient;
+      const isInterruptedAssistant =
+        message.role === "assistant" &&
+        message.transient &&
+        previousMessage?.role === "user" &&
+        previousMessage.content === retryQuestion;
+      return !isInterruptedUser && !isInterruptedAssistant;
+    });
+    await sendSingleChat(retryQuestion, trimmedHistory);
+  };
+
+  const copyInterruptedReply = async () => {
+    if (!streamRecovery?.reply) {
+      return;
+    }
+    await navigator.clipboard.writeText(streamRecovery.reply);
   };
 
   const searchSources = async () => {
@@ -1157,6 +1214,10 @@ export default function App() {
         setInput={setInput}
         isSending={isSending}
         onSubmit={submit}
+        onStop={stopChatGeneration}
+        streamRecovery={streamRecovery}
+        onRetry={retryInterruptedChat}
+        onCopyInterruptedReply={copyInterruptedReply}
         onUploadClick={() => fileInputRef.current?.click()}
         onSearchSources={searchSources}
         isSearching={isSearching}

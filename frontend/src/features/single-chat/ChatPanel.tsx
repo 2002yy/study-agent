@@ -1,4 +1,4 @@
-import { Loader2, Search, Send, Upload } from "lucide-react";
+import { Clipboard, Loader2, RotateCcw, Search, Send, Square, Upload } from "lucide-react";
 import type { FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
@@ -17,6 +17,10 @@ export function ChatPanel({
   setInput,
   isSending,
   onSubmit,
+  onStop,
+  streamRecovery,
+  onRetry,
+  onCopyInterruptedReply,
   onUploadClick,
   onSearchSources,
   isSearching,
@@ -29,6 +33,10 @@ export function ChatPanel({
   setInput: (value: string) => void;
   isSending: boolean;
   onSubmit: (event: FormEvent) => void;
+  onStop: () => void;
+  streamRecovery: { question: string; reply: string; reason: string } | null;
+  onRetry: () => void;
+  onCopyInterruptedReply: () => void;
   onUploadClick: () => void;
   onSearchSources: () => void;
   isSearching: boolean;
@@ -87,6 +95,28 @@ export function ChatPanel({
         })}
       </section>
 
+      {streamRecovery ? (
+        <div className="stream-recovery">
+          <div>
+            <strong>生成已中断</strong>
+            <span>{streamRecovery.reason}</span>
+          </div>
+          <button className="ghost-action compact" disabled={isSending} onClick={onRetry} type="button">
+            <RotateCcw size={14} />
+            重试
+          </button>
+          <button
+            className="ghost-action compact"
+            disabled={!streamRecovery.reply}
+            onClick={onCopyInterruptedReply}
+            type="button"
+          >
+            <Clipboard size={14} />
+            复制已有内容
+          </button>
+        </div>
+      ) : null}
+
       <form className="composer" onSubmit={onSubmit}>
         <textarea
           aria-label="Message"
@@ -94,10 +124,17 @@ export function ChatPanel({
           placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
           value={input}
         />
-        <button className="send-button" disabled={isSending || !input.trim()} type="submit">
-          {isSending ? <Loader2 className="spin" size={17} /> : <Send size={17} />}
-          {isSending ? "发送中" : "发送"}
-        </button>
+        {isSending ? (
+          <button className="send-button stop-button" onClick={onStop} type="button">
+            <Square size={16} />
+            停止
+          </button>
+        ) : (
+          <button className="send-button" disabled={!input.trim()} type="submit">
+            <Send size={17} />
+            发送
+          </button>
+        )}
       </form>
     </main>
   );
