@@ -68,8 +68,9 @@ jobs:
         continue-on-error: true
         run: timeout 120s mypy --explicit-package-bases src/
 
-      - name: Build frontend
+      - name: Test and build frontend
         working-directory: frontend
         run: |
           npm ci
+          npm test
           npm run build

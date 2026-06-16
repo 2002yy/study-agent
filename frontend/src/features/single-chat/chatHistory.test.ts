@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeSingleChatMessages, seedMessages } from "./chatHistory";
+import { sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload } from "./chatHistory";
 import type { ChatMessage } from "../../types";
 
 describe("sanitizeSingleChatMessages", () => {
@@ -20,6 +20,34 @@ describe("sanitizeSingleChatMessages", () => {
       seedMessages[0],
       { role: "user", content: "讲一下 RAG", avatarRole: "user" },
       { role: "assistant", content: "RAG 是检索增强生成。", avatarRole: "nahida" }
+    ]);
+  });
+
+  it("marks the UI welcome message as transient when restoring older localStorage", () => {
+    const restored = sanitizeSingleChatMessages([
+      {
+        role: "assistant",
+        avatarRole: "nahida",
+        content: seedMessages[0].content
+      },
+      { role: "user", content: "真实问题", avatarRole: "user" }
+    ]);
+
+    expect(restored[0].transient).toBe(true);
+    expect(toChatHistoryPayload(restored)).toEqual([{ role: "user", content: "真实问题", avatarRole: "user" }]);
+  });
+
+  it("excludes system and transient messages from the model history payload", () => {
+    expect(
+      toChatHistoryPayload([
+        seedMessages[0],
+        { role: "system", content: "内部指令" },
+        { role: "user", content: "真实问题", avatarRole: "user" },
+        { role: "assistant", content: "真实回答", avatarRole: "march7" }
+      ])
+    ).toEqual([
+      { role: "user", content: "真实问题", avatarRole: "user" },
+      { role: "assistant", content: "真实回答", avatarRole: "march7" }
     ]);
   });
 });

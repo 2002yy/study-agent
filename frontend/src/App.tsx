@@ -40,7 +40,7 @@ import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages } from "./features/single-chat/chatHistory";
+import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
@@ -685,16 +685,17 @@ export default function App() {
     setIsSending(true);
     setRagSearch(null);
     let streamedReply = "";
+    const shouldConsumeWebLookup = useWebLookup && Boolean(webLookup?.source_block);
     try {
       const response = await sendChatStream(
         question,
-        nextMessages.filter((message) => message.role !== "system"),
+        toChatHistoryPayload(nextMessages),
         {
           ragEnabled,
           sessionId,
           chatSettings,
           ragSettings,
-          webContext: useWebLookup ? webLookup?.source_block : ""
+          webContext: shouldConsumeWebLookup ? webLookup?.source_block : ""
         },
         {
           onRoute: (route) => {
@@ -736,6 +737,9 @@ export default function App() {
       );
       setSessionId(response.session_id);
       setLastChat(response);
+      if (shouldConsumeWebLookup) {
+        setUseWebLookup(false);
+      }
       setSingleChatMessages((current) =>
         current.map((message, index) =>
           index === assistantIndex

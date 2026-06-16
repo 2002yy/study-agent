@@ -52,6 +52,7 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   avatarRole?: string;
+  transient?: boolean;
 };
 
 export type ChatSettings = {

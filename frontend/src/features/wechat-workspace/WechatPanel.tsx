@@ -138,7 +138,7 @@ export function WechatPanel({
           联网查并讨论
         </button>
         <button className="ghost-action compact lookup-action" disabled={isNewsBusy || !newsQuery.trim()} onClick={onLookupNews} type="button">
-          仅搜索，用于单人聊天
+          仅搜索，用于下一轮聊天
         </button>
       </form>
 
@@ -146,7 +146,7 @@ export function WechatPanel({
         <div className="news-result lookup-result">
           <label className="toggle-row">
             <input checked={useWebLookup} onChange={(event) => setUseWebLookup(event.target.checked)} type="checkbox" />
-            <span>用于下一次单人聊天</span>
+            <span>仅用于下一轮单人聊天</span>
           </label>
           <details open>
             <summary>单独联网结果 {webLookup.news_items.length} 条</summary>

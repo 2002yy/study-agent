@@ -1,9 +1,9 @@
 import { ShieldCheck } from "lucide-react";
 
 const roadmapItems = [
-  "微信群、新闻讨论和课后总结仍需要 PRD 中的新增 API 才能完整迁移。",
-  "React 当前先补齐单人学习设置、路由检查、RAG 参数和会话状态。",
-  "Streamlit 暂时保留为业务闭环回归参考。"
+  "微信群和新闻已接入基础兼容流程。",
+  "下一步补齐流式群聊、分阶段新闻、群聊搜索和记忆闭环。",
+  "Streamlit 暂时保留为旧版业务闭环回归参考。"
 ];
 
 export function RoadmapPanel() {
