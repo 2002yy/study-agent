@@ -260,6 +260,7 @@ def test_single_chat_policy_and_conversation_instruction_override_role_limits():
 
     assert "当前场景是单人对话" in prompt
     assert "角色分工只表示擅长领域和回答风格，不构成能力限制" in prompt
+    assert "当用户直接向当前角色提出请求时，必须由当前角色继续完成" in prompt
     assert "不得以“这不是我的职责”“请切换到其他角色”“请去找某角色”等理由拒绝" in prompt
     assert "[Conversation instruction]\n不要转交给其他角色，直接回答我的问题。" in prompt
 
