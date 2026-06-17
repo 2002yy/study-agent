@@ -118,6 +118,7 @@ export type RoleResponse = {
   label: string;
   prompt: string;
   summary: string;
+  description: string;
 };
 
 export type MemoryFileStatus = {

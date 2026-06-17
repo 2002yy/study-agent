@@ -134,6 +134,38 @@ def test_route_request_switches_role_for_high_confidence(monkeypatch):
     assert result["sticky_role_applied"] is False
 
 
+def test_route_request_explicit_keep_current_role_overrides_high_confidence(monkeypatch):
+    from src import router
+
+    monkeypatch.setattr(
+        router,
+        "load_routing_config",
+        lambda: RoutingConfig(
+            rules=[
+                (["change", "bug"], "keqing", "项目", "pro", "task", 90),
+            ],
+            default_role="nahida",
+            default_mode="普通",
+            default_model="flash",
+            default_reason="default",
+        ),
+    )
+
+    result = route_request(
+        "change this bug",
+        "auto",
+        "auto",
+        "auto",
+        RuntimeModes(performance_mode="standard"),
+        previous_role="nahida",
+        keep_current_role=True,
+    )
+
+    assert result["role"] == "nahida"
+    assert result["sticky_role_applied"] is True
+    assert result["keep_current_role"] is True
+
+
 def test_fast_mode_does_not_trigger_llm_router(monkeypatch):
     from src import router
 

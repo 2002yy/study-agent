@@ -24,6 +24,37 @@ export function parseWechatMessages(content: string): Array<{ speaker: string; r
   return blocks;
 }
 
+function newsItemUrl(item: Record<string, unknown>): string {
+  const value = item.canonical_url || item.resolved_link || item.link;
+  return typeof value === "string" ? value : "";
+}
+
+function newsItemStatus(item: Record<string, unknown>): string {
+  const status = typeof item.article_status === "string" ? item.article_status : "仅标题";
+  const included = item.article_excerpt || String(status).startsWith("正文已读") ? "已进入摘要" : "标题级线索";
+  return `${status} · ${included}`;
+}
+
+function NewsItemCard({ item, index }: { item: Record<string, unknown>; index: number }) {
+  const url = newsItemUrl(item);
+  const title = displayValue(item.title) || `来源 ${index + 1}`;
+  return (
+    <div className="news-item" key={`${title}-${index}`}>
+      {url ? (
+        <a href={url} rel="noreferrer" target="_blank">
+          {title}
+        </a>
+      ) : (
+        <strong>{title}</strong>
+      )}
+      <span>
+        {displayValue(item.source)} · {displayValue(item.published_at)}
+      </span>
+      <small>{newsItemStatus(item)}</small>
+    </div>
+  );
+}
+
 export function WechatPanel({
   wechat,
   newsResult,
@@ -152,12 +183,7 @@ export function WechatPanel({
             <summary>单独联网结果 {webLookup.news_items.length} 条</summary>
             <div className="news-list">
               {latestLookupItems.map((item, index) => (
-                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
-                  <strong>{displayValue(item.title)}</strong>
-                  <span>
-                    {displayValue(item.source)} · {displayValue(item.published_at)}
-                  </span>
-                </div>
+                <NewsItemCard item={item} index={index} key={`${displayValue(item.title)}-${index}`} />
               ))}
             </div>
           </details>
@@ -178,12 +204,7 @@ export function WechatPanel({
             <summary>来源 {newsResult.news_items.length} 条</summary>
             <div className="news-list">
               {latestNewsItems.map((item, index) => (
-                <div className="news-item" key={`${displayValue(item.title)}-${index}`}>
-                  <strong>{displayValue(item.title)}</strong>
-                  <span>
-                    {displayValue(item.source)} · {displayValue(item.published_at)}
-                  </span>
-                </div>
+                <NewsItemCard item={item} index={index} key={`${displayValue(item.title)}-${index}`} />
               ))}
             </div>
           </details>

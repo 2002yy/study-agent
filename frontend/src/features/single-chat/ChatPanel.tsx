@@ -2,14 +2,19 @@ import { Clipboard, Loader2, RotateCcw, Search, Send, Square, Upload } from "luc
 import type { FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { ChatMessage, ChatResponse } from "../../types";
+import type { ChatMessage, ChatResponse, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
 const quickPrompts = [
   "继续上次学习，先给我一个下一步建议",
-  "分析当前 Study Agent 架构，并列出最该推进的三件事",
-  "根据本地资料解释 RAG 工作流时间线的作用"
+  "根据当前学习重点，帮我安排今天 25 分钟",
+  "我想开始一个新主题，先帮我拆学习路径"
 ];
+
+function memoryPreview(memoryStatus: MemoryStatusResponse | null, name: string, fallback: string): string {
+  const preview = memoryStatus?.files.find((file) => file.name === name)?.preview.trim();
+  return preview || fallback;
+}
 
 export function ChatPanel({
   messages,
@@ -26,7 +31,8 @@ export function ChatPanel({
   isSearching,
   onQuickPrompt,
   lastChat,
-  ragEnabled
+  ragEnabled,
+  memoryStatus
 }: {
   messages: ChatMessage[];
   input: string;
@@ -43,7 +49,11 @@ export function ChatPanel({
   onQuickPrompt: (value: string) => void;
   lastChat: ChatResponse | null;
   ragEnabled: boolean;
+  memoryStatus: MemoryStatusResponse | null;
 }) {
+  const currentFocus = memoryPreview(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
+  const progress = memoryPreview(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
+  const summary = memoryPreview(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
   return (
     <main className="chat-panel" id="chat">
       <header className="topbar">
@@ -70,7 +80,21 @@ export function ChatPanel({
         <div className="home-brief">
           <div>
             <h2>继续学习</h2>
-            <p>PRD 的方向是把 Streamlit 的学习闭环迁回 React，同时保留工具、来源和工作流审计。</p>
+            <p>先从你的记忆和最近进度恢复上下文；需要资料时再打开本地检索或联网来源。</p>
+            <div className="learning-snapshot">
+              <div>
+                <span>当前学习重点</span>
+                <strong>{currentFocus}</strong>
+              </div>
+              <div>
+                <span>上次停在哪里</span>
+                <strong>{progress}</strong>
+              </div>
+              <div>
+                <span>长期摘要</span>
+                <strong>{summary}</strong>
+              </div>
+            </div>
           </div>
           <div className="quick-grid">
             {quickPrompts.map((prompt) => (

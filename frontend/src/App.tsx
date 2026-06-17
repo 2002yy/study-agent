@@ -196,6 +196,8 @@ function Sidebar({
   isSavingSettings,
   onLoadRole,
   roleDetail,
+  keepCurrentRole,
+  setKeepCurrentRole,
   refresh,
   onUploadClick,
   uploadState,
@@ -214,6 +216,8 @@ function Sidebar({
   isSavingSettings: boolean;
   onLoadRole: () => void;
   roleDetail: RoleResponse | null;
+  keepCurrentRole: boolean;
+  setKeepCurrentRole: (value: boolean) => void;
   refresh: () => void;
   onUploadClick: () => void;
   uploadState: string;
@@ -330,16 +334,28 @@ function Sidebar({
             <span>{chatSettings.selectedRole === "auto" ? "自动路由时按回答结果显示头像" : "当前手动指定角色"}</span>
           </div>
         </div>
+        <button
+          aria-pressed={keepCurrentRole}
+          className={`ghost-action compact ${keepCurrentRole ? "active" : ""}`}
+          disabled={chatSettings.selectedRole !== "auto"}
+          onClick={() => setKeepCurrentRole(!keepCurrentRole)}
+          type="button"
+        >
+          保持当前角色
+        </button>
+        <small className="field-hint">
+          仅在角色为自动时生效；开启后会优先沿用上一轮实际回答角色，避免追问时突然切换。
+        </small>
         {chatSettings.selectedRole !== "auto" ? (
           <button className="ghost-action compact" onClick={onLoadRole} type="button">
             <BookOpen size={15} />
             查看角色人设
           </button>
         ) : null}
-        {roleDetail ? (
+        {roleDetail && roleDetail.id === chatSettings.selectedRole ? (
           <div className="role-preview">
             <strong>{roleDetail.label}</strong>
-            <p>{roleDetail.summary}</p>
+            <p>{roleDetail.description || roleDetail.summary}</p>
             <details>
               <summary>完整提示词</summary>
               <pre>{roleDetail.prompt}</pre>
@@ -613,10 +629,11 @@ function Inspector({
 export default function App() {
   const [snapshot, setSnapshot] = useState<ApiSnapshot>(INITIAL_SNAPSHOT);
   const [singleChatMessages, setSingleChatMessages] = useState<ChatMessage[]>(seedMessages);
-  const [input, setInput] = useState("根据本地资料解释 RAG 工作流时间线的作用");
+  const [input, setInput] = useState("");
   const [ragEnabled, setRagEnabled] = useState(true);
   const [chatSettings, setChatSettings] = useState<ChatSettings>(CHAT_SETTINGS_DEFAULTS);
   const [ragSettings, setRagSettings] = useState<RagSettings>(RAG_SETTINGS_DEFAULTS);
+  const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -644,6 +661,7 @@ export default function App() {
   const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
@@ -687,6 +705,7 @@ export default function App() {
           chatSettings?: ChatSettings;
           ragSettings?: RagSettings;
           ragEnabled?: boolean;
+          keepCurrentRole?: boolean;
         };
         setSingleChatMessages(sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages));
         if (parsed.sessionId) {
@@ -703,6 +722,9 @@ export default function App() {
         if (typeof parsed.ragEnabled === "boolean") {
           sessionSettingsRestoredRef.current = true;
           setRagEnabled(parsed.ragEnabled);
+        }
+        if (typeof parsed.keepCurrentRole === "boolean") {
+          setKeepCurrentRole(parsed.keepCurrentRole);
         }
       } catch {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -742,11 +764,56 @@ export default function App() {
   }, [snapshot.runtimeSettings]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      SESSION_STORAGE_KEY,
-      JSON.stringify({ singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled })
-    );
-  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled]);
+    const payload = JSON.stringify({ singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole });
+    sessionStoragePayloadRef.current = payload;
+    const timeout = window.setTimeout(() => {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
+    }, isSending ? 800 : 200);
+    return () => window.clearTimeout(timeout);
+  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, isSending]);
+
+  useEffect(() => {
+    const flushSessionStorage = () => {
+      if (document.visibilityState === "hidden" && sessionStoragePayloadRef.current) {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, sessionStoragePayloadRef.current);
+      }
+    };
+    document.addEventListener("visibilitychange", flushSessionStorage);
+    return () => document.removeEventListener("visibilitychange", flushSessionStorage);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const roleId = chatSettings.selectedRole;
+    if (roleId === "auto") {
+      setRoleDetail(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setRoleDetail(null);
+    void loadRole(roleId)
+      .then((detail) => {
+        if (!cancelled) {
+          setRoleDetail(detail);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setRoleDetail({
+            id: roleId,
+            label: roleId,
+            prompt: "",
+            summary: error instanceof Error ? error.message : "角色读取失败",
+            description: error instanceof Error ? error.message : "角色读取失败"
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [chatSettings.selectedRole]);
+
 
   const sendSingleChat = async (question: string, historyBase = singleChatMessages) => {
     if (!question || isSending) {
@@ -773,6 +840,7 @@ export default function App() {
           sessionId,
           chatSettings,
           ragSettings,
+          keepCurrentRole,
           webContext: shouldConsumeWebLookup ? webLookup?.source_block : ""
         },
         {
@@ -977,7 +1045,8 @@ export default function App() {
         id: chatSettings.selectedRole,
         label: chatSettings.selectedRole,
         prompt: "",
-        summary: error instanceof Error ? error.message : "角色读取失败"
+        summary: error instanceof Error ? error.message : "角色读取失败",
+        description: error instanceof Error ? error.message : "角色读取失败"
       });
     }
   };
@@ -1212,6 +1281,8 @@ export default function App() {
         isSavingSettings={isSavingSettings}
         onLoadRole={showRole}
         roleDetail={roleDetail}
+        keepCurrentRole={keepCurrentRole}
+        setKeepCurrentRole={setKeepCurrentRole}
         refresh={refresh}
         onUploadClick={() => fileInputRef.current?.click()}
         uploadState={uploadState}
@@ -1233,6 +1304,7 @@ export default function App() {
         onQuickPrompt={setInput}
         lastChat={lastChat}
         ragEnabled={ragEnabled}
+        memoryStatus={snapshot.memoryStatus}
       />
       <Inspector
         snapshot={snapshot}

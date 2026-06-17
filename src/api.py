@@ -147,6 +147,7 @@ class RoleResponse(BaseModel):
     label: str
     prompt: str
     summary: str
+    description: str
 
 
 class MemoryStatusResponse(BaseModel):
@@ -246,6 +247,7 @@ class ChatRequest(BaseModel):
     performance_mode: str | None = None
     context_mode: str | None = None
     chat_history: list[ChatMessage] = Field(default_factory=list)
+    keep_current_role: bool = False
     session_id: str | None = None
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
@@ -716,23 +718,34 @@ def _validate_choice(value: str, choices: list[str] | tuple[str, ...], label: st
     return value
 
 
+ROLE_DESCRIPTIONS = {
+    "auto": "自动模式会根据输入内容选择角色，不绑定固定人设；开启保持当前角色后，会优先延续上一轮角色。",
+    "march7": "轻快、鼓励式的学习伙伴，适合入门启动、卡住时破冰和用问题带你往前走。",
+    "keqing": "偏执行、判断和推进，适合代码、项目计划、风险拆解、验收标准和下一步行动。",
+    "nahida": "偏概念解释和知识连接，适合机制、原理、概念边界、知识结构和深入理解。",
+    "firefly": "偏陪伴、复盘和收束，适合整理感受、回顾学习过程、缓和压力并形成温和结论。",
+}
+
+
 def _role_payload(role_id: str) -> RoleResponse:
     if role_id == "auto":
         return RoleResponse(
             id="auto",
             label=ROLE_LABELS["auto"],
             prompt="",
-            summary="自动模式会根据输入内容选择角色，不绑定固定人设。",
+            summary=ROLE_DESCRIPTIONS["auto"],
+            description=ROLE_DESCRIPTIONS["auto"],
         )
     if role_id not in list_roles():
         raise HTTPException(status_code=404, detail=f"Unknown role: {role_id}")
     prompt = load_role(role_id)
-    summary = prompt.splitlines()[0][:160] if prompt.splitlines() else prompt[:160]
+    description = ROLE_DESCRIPTIONS.get(role_id, ROLE_LABELS.get(role_id, role_id))
     return RoleResponse(
         id=role_id,
         label=ROLE_LABELS.get(role_id, role_id),
         prompt=prompt,
-        summary=summary,
+        summary=description,
+        description=description,
     )
 
 
@@ -835,6 +848,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         selected_model=request.selected_model,
         runtime_modes=runtime_modes,
         previous_role=_previous_assistant_role(request.chat_history),
+        keep_current_role=request.keep_current_role,
     )
     role_prompt = build_role_prompt(
         route["role"],

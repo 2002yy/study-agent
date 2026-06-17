@@ -85,6 +85,7 @@ describe("sendChatStream", () => {
         ragEnabled: false,
         chatSettings: { ...chatSettings, contextMode: "deep" },
         ragSettings: { ...ragSettings, minScore: 0.42 },
+        keepCurrentRole: true,
         conversationInstruction: "不要转交给其他角色。",
         scene: "single"
       }
@@ -96,6 +97,8 @@ describe("sendChatStream", () => {
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
     expect(body.performance_mode).toBe("deep");
     expect(body.rag_min_score).toBe(0.42);
+    expect(body.keep_current_role).toBe(true);
+    expect(body.chat_history[0].avatarRole).toBe("user");
   });
 
   it("passes an abort signal to the streaming request", async () => {

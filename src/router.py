@@ -151,6 +151,7 @@ def route_request(
     selected_model: str,
     runtime_modes: RuntimeModes,
     previous_role: str | None = None,
+    keep_current_role: bool = False,
 ) -> dict:
     routing_config = load_routing_config()
     mode_is_auto = selected_mode in ("auto", "自动")
@@ -203,10 +204,11 @@ def route_request(
     if (
         selected_role == "auto"
         and previous_role in {"march7", "keqing", "nahida", "firefly"}
-        and confidence != "high"
+        and (keep_current_role or confidence != "high")
         and auto_role != previous_role
     ):
-        auto_reason = f"kept previous role: {previous_role}; candidate={auto_role}; {auto_reason}"
+        sticky_source = "explicit keep_current_role" if keep_current_role else "medium/low confidence continuity"
+        auto_reason = f"{sticky_source}: kept previous role {previous_role}; candidate={auto_role}; {auto_reason}"
         auto_role = cast(Role, previous_role)
         sticky_role_applied = True
 
@@ -249,4 +251,5 @@ def route_request(
         "llm_router_valid": llm_valid,
         "sticky_role_applied": sticky_role_applied,
         "previous_role": previous_role or "",
+        "keep_current_role": keep_current_role,
     }

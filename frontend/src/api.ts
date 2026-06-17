@@ -67,6 +67,7 @@ type ChatRequestOptions = {
   sessionId?: string;
   chatSettings: ChatSettings;
   ragSettings: RagSettings;
+  keepCurrentRole?: boolean;
   webContext?: string;
   conversationInstruction?: string;
   scene?: "single" | "group";
@@ -99,8 +100,10 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     context_mode: options.chatSettings.contextMode || null,
     chat_history: history.map((message) => ({
       role: message.role,
-      content: message.content
+      content: message.content,
+      avatarRole: message.avatarRole
     })),
+    keep_current_role: options.keepCurrentRole ?? false,
     session_id: options.sessionId,
     rag_enabled: options.ragEnabled,
     rag_top_k: options.ragSettings.chatTopK,

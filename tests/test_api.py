@@ -138,6 +138,9 @@ def test_roles_endpoints_expose_labels_and_prompt():
     assert role.json()["id"] == "keqing"
     assert role.json()["label"] == "刻晴"
     assert role.json()["prompt"]
+    assert role.json()["description"]
+    assert role.json()["summary"] == role.json()["description"]
+    assert not role.json()["summary"].startswith("#")
     assert missing.status_code == 404
 
 
