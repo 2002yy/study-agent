@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,17 @@ RETRIEVAL_MODES = {"lexical", "vector", "hybrid", "backend_vector"}
 HYBRID_LEXICAL_WEIGHT = 0.7
 
 
+def _transactional_save_index(index: RagIndex, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+    try:
+        save_rag_index(index, temp_path)
+        temp_path.replace(target)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
 def index_documents(
     paths: Sequence[str | Path],
     *,
@@ -40,7 +52,7 @@ def index_documents(
         max_chars=max_chars,
         overlap_chars=overlap_chars,
     )
-    save_rag_index(index, index_path)
+    _transactional_save_index(index, Path(index_path))
     get_vector_backend_from_env().upsert_index(index)
     return index
 
@@ -73,7 +85,7 @@ def append_documents_to_index(
         documents=existing.documents + added_docs,
         chunks=existing.chunks + added_chunks,
     )
-    save_rag_index(merged, target)
+    _transactional_save_index(merged, target)
     get_vector_backend_from_env().upsert_index(merged)
     return merged
 

@@ -517,10 +517,43 @@ button {
   padding: 16px;
 }
 
-.home-brief h2 {
+.home-brief summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  grid-column: 1 / -1;
+  list-style: none;
+}
+
+.home-brief summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-brief summary span {
   margin: 0;
   font-size: 17px;
   line-height: 1.25;
+  font-weight: 800;
+}
+
+.home-brief summary small {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.home-brief:not([open]) {
+  display: block;
+  padding: 12px 14px;
+}
+
+.home-brief:not([open]) summary {
+  grid-column: auto;
 }
 
 .home-brief p {

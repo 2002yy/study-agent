@@ -85,6 +85,13 @@ type ChatStreamHandlers = {
   onError?: (error: Record<string, unknown>) => void;
 };
 
+type WechatStreamHandlers = {
+  onRag?: (rag: Record<string, unknown>) => void;
+  onToken?: (token: string) => void;
+  onDone?: (done: Record<string, unknown>) => void;
+  onError?: (error: Record<string, unknown>) => void;
+};
+
 type SseMessage = {
   event: string;
   data: Record<string, unknown>;
@@ -258,18 +265,133 @@ export async function sendWechatMessage(
 ): Promise<WechatMessageResponse> {
   return requestJson<WechatMessageResponse>("/wechat/message", {
     method: "POST",
-    body: JSON.stringify({
-      message,
-      session_id: options.sessionId,
-      selected_model: options.chatSettings.selectedModel,
-      relationship_mode: options.chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
-      rag_enabled: options.ragEnabled,
-      rag_top_k: options.ragSettings.chatTopK,
-      rag_retrieval_mode: options.ragSettings.retrievalMode,
-      rag_min_score: options.ragSettings.minScore
-    })
+    body: JSON.stringify(buildWechatPayload(message, options))
   });
+}
+
+function buildWechatPayload(
+  message: string,
+  options: {
+    sessionId?: string;
+    ragEnabled: boolean;
+    chatSettings: ChatSettings;
+    ragSettings: RagSettings;
+  }
+): Record<string, unknown> {
+  return {
+    message,
+    session_id: options.sessionId,
+    selected_model: options.chatSettings.selectedModel,
+    relationship_mode: options.chatSettings.relationshipMode,
+    performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
+    rag_enabled: options.ragEnabled,
+    rag_top_k: options.ragSettings.chatTopK,
+    rag_retrieval_mode: options.ragSettings.retrievalMode,
+    rag_min_score: options.ragSettings.minScore
+  };
+}
+
+export async function sendWechatMessageStream(
+  message: string,
+  options: {
+    sessionId?: string;
+    ragEnabled: boolean;
+    chatSettings: ChatSettings;
+    ragSettings: RagSettings;
+  },
+  handlers: WechatStreamHandlers = {},
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<WechatMessageResponse> {
+  const response = await fetch(`${API_BASE_URL}/wechat/message/stream`, {
+    method: "POST",
+    signal: requestOptions.signal,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders()
+    },
+    body: JSON.stringify(buildWechatPayload(message, options))
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${response.status} ${response.statusText}${body ? `: ${body}` : ""}`);
+  }
+  if (!response.body) {
+    return sendWechatMessage(message, options);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let reply = "";
+  let sessionId = options.sessionId ?? "";
+  let content = "";
+  let state: Record<string, unknown> = {};
+  let rag: Record<string, unknown> = {};
+
+  const handleMessage = (sseMessage: SseMessage) => {
+    if (sseMessage.event === "rag") {
+      rag = sseMessage.data.rag && typeof sseMessage.data.rag === "object" ? (sseMessage.data.rag as Record<string, unknown>) : sseMessage.data;
+      handlers.onRag?.(rag);
+      return;
+    }
+    if (sseMessage.event === "token") {
+      const text = typeof sseMessage.data.text === "string" ? sseMessage.data.text : "";
+      reply += text;
+      handlers.onToken?.(text);
+      return;
+    }
+    if (sseMessage.event === "done") {
+      if (typeof sseMessage.data.session_id === "string") {
+        sessionId = sseMessage.data.session_id;
+      }
+      if (typeof sseMessage.data.reply === "string") {
+        reply = sseMessage.data.reply;
+      }
+      if (typeof sseMessage.data.content === "string") {
+        content = sseMessage.data.content;
+      }
+      if (sseMessage.data.state && typeof sseMessage.data.state === "object") {
+        state = sseMessage.data.state as Record<string, unknown>;
+      }
+      if (sseMessage.data.rag && typeof sseMessage.data.rag === "object") {
+        rag = sseMessage.data.rag as Record<string, unknown>;
+      }
+      handlers.onDone?.(sseMessage.data);
+      return;
+    }
+    if (sseMessage.event === "error") {
+      handlers.onError?.(sseMessage.data);
+      const detail = typeof sseMessage.data.message === "string" ? sseMessage.data.message : "微信群流式请求失败";
+      throw new Error(detail);
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split(/\r?\n\r?\n/);
+    buffer = parts.pop() ?? "";
+    for (const sseMessage of parseSseMessages(parts.join("\n\n"))) {
+      handleMessage(sseMessage);
+    }
+  }
+
+  buffer += decoder.decode();
+  for (const sseMessage of parseSseMessages(buffer)) {
+    handleMessage(sseMessage);
+  }
+
+  return {
+    reply,
+    content,
+    state,
+    session_id: sessionId,
+    rag
+  };
 }
 
 export async function searchWechat(keyword: string, maxResults = 10): Promise<WechatSearchResponse> {

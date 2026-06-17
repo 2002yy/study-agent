@@ -66,6 +66,9 @@ export function ChatPanel({
   const currentFocus = latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
   const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
   const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
+  const hasConversationMessages = messages.some(
+    (message) => message.role === "user" || (message.role === "assistant" && !message.transient)
+  );
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -110,9 +113,12 @@ export function ChatPanel({
       </header>
 
       <section className="conversation" aria-label="Conversation" onScroll={updateScrollState} ref={conversationRef}>
-        <div className="home-brief">
+        <details className="home-brief" key={hasConversationMessages ? "collapsed-home-brief" : "expanded-home-brief"} open={!hasConversationMessages}>
+          <summary>
+            <span>继续学习</span>
+            {hasConversationMessages ? <small>已折叠</small> : null}
+          </summary>
           <div>
-            <h2>继续学习</h2>
             <p>先从你的记忆和最近进度恢复上下文；需要资料时再打开本地检索或联网来源。</p>
             <div className="learning-snapshot">
               <div>
@@ -136,7 +142,7 @@ export function ChatPanel({
               </button>
             ))}
           </div>
-        </div>
+        </details>
         {messages.map((message, index) => {
           const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
           const label = message.role === "user" ? "你" : roleLabel(avatarRole);

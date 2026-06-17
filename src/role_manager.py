@@ -81,6 +81,22 @@ def _select_atmosphere_section(section: str, relationship_mode: str) -> str:
     return ""
 
 
+def _has_meaningful_dynamic_record(section: str) -> bool:
+    if not section:
+        return False
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        cleaned = line.lstrip("-*>0123456789.、 \t").strip()
+        if not cleaned:
+            continue
+        if cleaned in {"暂无", "暂无。", "暂无，将在多轮对话中逐步形成。"}:
+            continue
+        return True
+    return False
+
+
 def build_role_prompt(
     role_id: str,
     *,
@@ -104,6 +120,8 @@ def build_role_prompt(
     parts = [sections.get("title", "")]
     for key in selected_keys:
         content = sections.get(key, "")
+        if key == "9. 动态记录区" and not _has_meaningful_dynamic_record(content):
+            continue
         if content:
             parts.append(content)
 

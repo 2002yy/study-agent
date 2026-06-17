@@ -61,6 +61,26 @@ def test_load_markdown_document_normalizes_text_and_metadata(tmp_path):
     assert len(document.content_hash) == 64
 
 
+def test_transactional_index_save_preserves_existing_file_on_failure(monkeypatch, tmp_path):
+    from src.rag import service
+    from src.rag.schema import RagIndex
+
+    target = tmp_path / "rag_index.json"
+    target.write_text("old index", encoding="utf-8")
+
+    def fail_after_temp_write(index, path):
+        path.write_text("new partial index", encoding="utf-8")
+        raise RuntimeError("disk interrupted")
+
+    monkeypatch.setattr(service, "save_rag_index", fail_after_temp_write)
+
+    with pytest.raises(RuntimeError, match="disk interrupted"):
+        service._transactional_save_index(RagIndex(version=1, documents=(), chunks=()), target)
+
+    assert target.read_text(encoding="utf-8") == "old index"
+    assert not list(tmp_path.glob(".rag_index.json.*.tmp"))
+
+
 def test_load_docx_document_when_python_docx_is_available(tmp_path):
     from docx import Document
 

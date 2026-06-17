@@ -70,6 +70,7 @@ from src.tools.local_knowledge import retrieve_local_knowledge
 from src.tools.registry import create_default_tool_registry
 from src.wechat_generator import (
     generate_interactive_wechat_reply,
+    generate_interactive_wechat_reply_stream,
     generate_wechat_opening,
 )
 from src.wechat_service import RuntimeContext, run_news_round
@@ -1177,6 +1178,72 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         state=read_wechat_state(),
         session_id=session_id,
         rag=rag_result.to_dict(),
+    )
+
+
+@app.post("/wechat/message/stream")
+async def send_wechat_message_stream(request: WechatMessageRequest, http_request: Request) -> StreamingResponse:
+    async def events() -> AsyncIterator[str]:
+        disconnected = False
+
+        def should_cancel() -> bool:
+            return disconnected
+
+        reply_parts: list[str] = []
+        try:
+            _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+            _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+            runtime_modes = _runtime_modes_for_request(request.performance_mode)
+            model_profile = _request_model_profile(request.selected_model, runtime_modes.performance_mode)
+            rag_result = retrieve_local_knowledge(
+                request.message,
+                enabled=request.rag_enabled,
+                top_k=request.rag_top_k,
+                retrieval_mode=request.rag_retrieval_mode,
+                min_score=request.rag_min_score,
+            )
+            yield _sse_event("rag", rag_result.to_dict())
+            stream, _is_first = generate_interactive_wechat_reply_stream(
+                request.message,
+                model_profile=model_profile,
+                relationship_mode=request.relationship_mode,
+                rag_context=rag_result.context,
+                performance_mode=runtime_modes.performance_mode,
+                should_cancel=should_cancel,
+            )
+            for token in stream:
+                if await http_request.is_disconnected():
+                    disconnected = True
+                    return
+                reply_parts.append(token)
+                yield _sse_event("token", {"text": token})
+            reply = "".join(reply_parts).strip()
+            append_user_and_interactive_group_reply(request.message, reply)
+            update_wechat_join_state(
+                user_has_joined=True,
+                first_reaction_done=True,
+                mode="interactive_group",
+            )
+            session_id = request.session_id or init_session()
+            set_wechat_interactive(session_id, "generated")
+            set_wechat_status(session_id, "interactive_group")
+            yield _sse_event(
+                "done",
+                {
+                    "reply": reply,
+                    "content": read_wechat_group(),
+                    "state": read_wechat_state(),
+                    "session_id": session_id,
+                    "rag": rag_result.to_dict(),
+                },
+            )
+        except Exception as exc:
+            yield _sse_event("error", {"message": str(exc), "error_type": type(exc).__name__})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

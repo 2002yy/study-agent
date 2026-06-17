@@ -5,6 +5,8 @@ Split from src/wechat.py — Phase 3 decoupling.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from src.llm_client import ModelProfile, chat, stream_chat
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import (
@@ -295,6 +297,7 @@ def generate_interactive_wechat_reply_stream(
     relationship_mode: str | None = None,
     rag_context: str = "",
     performance_mode: str | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ):
     messages, is_first = _build_interactive_messages(
         user_text,
@@ -308,6 +311,7 @@ def generate_interactive_wechat_reply_stream(
             model_profile=model_profile,
             max_tokens=wechat_reply_max_tokens(performance_mode or load_runtime_modes().performance_mode),
             task_name="wechat_interactive",
+            should_cancel=should_cancel,
         ),
         is_first,
     )

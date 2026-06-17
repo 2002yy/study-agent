@@ -31,7 +31,7 @@ import {
   runNewsSearch,
   saveRuntimeSettings,
   sendChatStream,
-  sendWechatMessage,
+  sendWechatMessageStream,
   uploadDocuments
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
@@ -1199,14 +1199,55 @@ export default function App() {
     setIsWechatBusy(true);
     setOperationError("");
     try {
-      const response = await sendWechatMessage(message, {
+      const baseWechat = snapshot.wechat;
+      const baseContent = baseWechat?.content ?? "";
+      let streamedReply = "";
+      const pendingContent = `${baseContent}${baseContent.trim() ? "\n\n" : ""}【用户】\n${message}\n\n【群聊】\n她们正在输入…`;
+      if (baseWechat) {
+        setSnapshot((current) => ({
+          ...current,
+          wechat: {
+            ...baseWechat,
+            content: pendingContent,
+            message_count: baseWechat.message_count + 1
+          }
+        }));
+      }
+      const response = await sendWechatMessageStream(message, {
         sessionId,
         ragEnabled,
         chatSettings,
         ragSettings
+      }, {
+        onToken: (token) => {
+          streamedReply += token;
+          if (!baseWechat) {
+            return;
+          }
+          setSnapshot((current) => ({
+            ...current,
+            wechat: current.wechat
+              ? {
+                  ...current.wechat,
+                  content: `${baseContent}${baseContent.trim() ? "\n\n" : ""}【用户】\n${message}\n\n${streamedReply || "【群聊】\n她们正在输入…"}`
+                }
+              : current.wechat
+          }));
+        }
       });
       setSessionId(response.session_id);
       setWechatInput("");
+      setSnapshot((current) => ({
+        ...current,
+        wechat: current.wechat
+          ? {
+              ...current.wechat,
+              content: response.content,
+              state: response.state,
+              message_count: Math.max(current.wechat.message_count, (response.content.match(/【/g) ?? []).length)
+            }
+          : current.wechat
+      }));
       await refresh();
     } catch (error) {
       setOperationError(`微信群回复生成失败：${error instanceof Error ? error.message : "群聊发送失败"}`);

@@ -481,3 +481,38 @@ def test_role_prompt_builder_keeps_only_current_scene_and_atmosphere():
     assert "### standard" not in single_prompt
     assert "### close" not in single_prompt
     assert "## 6. 微信群风格" in group_prompt
+def test_role_prompt_builder_skips_empty_dynamic_records(monkeypatch):
+    from src import role_manager
+
+    monkeypatch.setattr(
+        role_manager,
+        "load_role",
+        lambda role_id: """# 测试角色
+
+## 1. 核心定位
+
+保持清楚。
+
+## 9. 动态记录区
+
+### 最近观察
+
+暂无，将在多轮对话中逐步形成。
+
+### 偏好
+
+- 暂无。
+
+## 10. 氛围差异化
+
+### standard
+
+自然表达。
+""",
+    )
+
+    prompt = role_manager.build_role_prompt("march7", scene="single", relationship_mode="standard")
+
+    assert "## 9. 动态记录区" not in prompt
+    assert "暂无" not in prompt
+    assert "保持清楚" in prompt

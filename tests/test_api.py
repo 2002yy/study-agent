@@ -282,6 +282,49 @@ def test_wechat_message_generation_failure_does_not_write_group(monkeypatch):
     assert actions == []
 
 
+def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(monkeypatch):
+    from src import api
+
+    class FakeRagResult:
+        context = "rag context"
+
+        def to_dict(self):
+            return {"status": "found", "context": self.context}
+
+    actions = []
+    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
+    monkeypatch.setattr(
+        api,
+        "generate_interactive_wechat_reply_stream",
+        lambda *args, **kwargs: (iter(["【纳西妲】\n", "先看结构。"]), False),
+    )
+    monkeypatch.setattr(
+        api,
+        "append_user_and_interactive_group_reply",
+        lambda message, reply: actions.append(("combined", message, reply)),
+    )
+    monkeypatch.setattr(api, "update_wechat_join_state", lambda **kwargs: actions.append(("state", kwargs)))
+    monkeypatch.setattr(api, "set_wechat_interactive", lambda session_id, status: actions.append(("interactive", status)))
+    monkeypatch.setattr(api, "set_wechat_status", lambda session_id, status: actions.append(("status", status)))
+    monkeypatch.setattr(api, "init_session", lambda: "wechat-stream-session")
+    monkeypatch.setattr(api, "read_wechat_group", lambda: "updated stream group")
+    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
+    client = TestClient(app)
+
+    response = client.post(
+        "/wechat/message/stream",
+        json={"message": "hello stream group", "selected_model": "flash", "rag_enabled": True},
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "event: rag" in body
+    assert body.count("event: token") == 2
+    assert "event: done" in body
+    assert "wechat-stream-session" in body
+    assert ("combined", "hello stream group", "【纳西妲】\n先看结构。") in actions
+
+
 def test_news_search_endpoint_runs_news_round(monkeypatch):
     from src import api
 

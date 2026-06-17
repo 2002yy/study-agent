@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, searchWechat, sendChatStream, sendWechatMessage } from "./api";
+import {
+  callLocalKnowledge,
+  loadApiSnapshot,
+  previewLocalKnowledge,
+  searchWechat,
+  sendChatStream,
+  sendWechatMessage,
+  sendWechatMessageStream
+} from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
 const chatSettings: ChatSettings = {
@@ -201,6 +209,39 @@ describe("wechat API calls", () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(String(init.body));
     expect(body.rag_min_score).toBe(0.37);
+  });
+
+  it("parses streaming group message events", async () => {
+    const tokens: string[] = [];
+    const fetchMock = vi.fn(async () =>
+      sseResponse([
+        'event: rag\ndata: {"status":"found","result_count":1}\n\n',
+        'event: token\ndata: {"text":"【纳西妲】\\n"}\n\n',
+        'event: token\ndata: {"text":"先看结构。"}\n\n',
+        'event: done\ndata: {"reply":"【纳西妲】\\n先看结构。","content":"group content","state":{"mode":"interactive_group"},"session_id":"wechat-session","rag":{"status":"found"}}\n\n'
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendWechatMessageStream(
+      "hello",
+      {
+        sessionId: "session-1",
+        ragEnabled: true,
+        chatSettings,
+        ragSettings: { ...ragSettings, minScore: 0.37 }
+      },
+      { onToken: (token) => tokens.push(token) }
+    );
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(url).toBe("/wechat/message/stream");
+    expect(body.rag_min_score).toBe(0.37);
+    expect(tokens).toEqual(["【纳西妲】\n", "先看结构。"]);
+    expect(response.reply).toBe("【纳西妲】\n先看结构。");
+    expect(response.content).toBe("group content");
+    expect(response.session_id).toBe("wechat-session");
   });
 });
 
