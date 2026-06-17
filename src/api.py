@@ -1833,7 +1833,10 @@ def get_session_detail(session_id: str) -> SessionDetailResponse:
 
 @app.post("/sessions/new", response_model=SessionNewResponse)
 def create_new_session() -> SessionNewResponse:
-    return SessionNewResponse(session_id=init_session(), settings=_load_frontend_settings())
+    return SessionNewResponse(
+        session_id=init_session(),
+        settings=_runtime_settings_payload().settings,
+    )
 
 
 @app.post("/sessions/{session_id}/archive", response_model=SessionArchiveResponse)

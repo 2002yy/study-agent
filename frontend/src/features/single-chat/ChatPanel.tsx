@@ -25,6 +25,7 @@ export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, n
 
 export function ChatPanel({
   messages,
+  sessionId,
   input,
   setInput,
   isSending,
@@ -43,6 +44,7 @@ export function ChatPanel({
   memoryStatus
 }: {
   messages: ChatMessage[];
+  sessionId?: string;
   input: string;
   setInput: (value: string) => void;
   isSending: boolean;
@@ -98,8 +100,8 @@ export function ChatPanel({
           <p>提问、检索本地资料、检查执行链路，再决定哪些内容写入记忆。</p>
           <div className="topbar-meta">
             <span>RAG {ragEnabled ? "已启用" : "未启用"}</span>
-            <span>路由 {lastChat ? "已生成" : "等待提问"}</span>
-            <span>记录 ID {lastChat?.session_id ?? "未开始"}</span>
+            <span>路由 {lastChat?.route?.mode ? `${lastChat.route.mode} · ${lastChat.route.role ?? "auto"}` : "等待提问"}</span>
+            <span>记录 ID {sessionId ?? "未开始"}</span>
           </div>
         </div>
         <div className="topbar-actions">

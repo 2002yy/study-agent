@@ -1357,17 +1357,23 @@ export default function App() {
     const restoredMessages = detail.messages.filter((message) => message.role === "user" || message.role === "assistant");
     const restoredSettings = detail.settings ?? {};
     const restoredRagSettings = restoredSettings.ragSettings ?? {};
-    const nextChatSettings: ChatSettings = {
-      ...chatSettings,
-      ...(["selectedRole", "selectedMode", "selectedModel", "relationshipMode", "contextMode"].reduce((acc, key) => {
-        const value = restoredSettings[key as keyof ChatSettings];
-        return typeof value === "string" ? { ...acc, [key]: value } : acc;
-      }, {} as Partial<ChatSettings>))
-    };
-    const nextRagSettings: RagSettings = {
-      ...ragSettings,
-      ...restoredRagSettings
-    };
+    const hasFullSettings = (
+      typeof restoredSettings.selectedRole === "string"
+      || typeof restoredSettings.selectedMode === "string"
+      || typeof restoredSettings.relationshipMode === "string"
+    );
+    const nextChatSettings: ChatSettings = hasFullSettings
+      ? {
+          selectedRole: typeof restoredSettings.selectedRole === "string" ? restoredSettings.selectedRole : CHAT_SETTINGS_DEFAULTS.selectedRole,
+          selectedMode: typeof restoredSettings.selectedMode === "string" ? restoredSettings.selectedMode : CHAT_SETTINGS_DEFAULTS.selectedMode,
+          selectedModel: typeof restoredSettings.selectedModel === "string" ? restoredSettings.selectedModel : CHAT_SETTINGS_DEFAULTS.selectedModel,
+          relationshipMode: typeof restoredSettings.relationshipMode === "string" ? restoredSettings.relationshipMode : CHAT_SETTINGS_DEFAULTS.relationshipMode,
+          contextMode: typeof restoredSettings.contextMode === "string" ? restoredSettings.contextMode : CHAT_SETTINGS_DEFAULTS.contextMode,
+        }
+      : chatSettings;
+    const nextRagSettings: RagSettings = typeof restoredSettings.ragEnabled === "boolean"
+      ? { ...RAG_SETTINGS_DEFAULTS, ...restoredRagSettings }
+      : ragSettings;
     const lastAssistant = [...restoredMessages].reverse().find((message) => message.role === "assistant");
     const restoredRoute = detail.route ?? {};
     const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
@@ -1399,6 +1405,10 @@ export default function App() {
     setUseWebLookup(false);
     setStreamRecovery(null);
     setInput("");
+    setToolPreview(null);
+    setToolCall(null);
+    setPreviewedInvocation(null);
+    setSelectedRun(null);
   };
 
   const restoreSession = async (restoredSessionId: string) => {
@@ -1486,6 +1496,10 @@ export default function App() {
       setWebLookup(null);
       setUseWebLookup(false);
       setConversationInstruction("");
+      setToolPreview(null);
+      setToolCall(null);
+      setPreviewedInvocation(null);
+      setSelectedRun(null);
       const settings = created.settings ?? {};
       setChatSettings({
         ...CHAT_SETTINGS_DEFAULTS,
@@ -1574,6 +1588,7 @@ export default function App() {
         lastChat={lastChat}
       />
       <ChatPanel
+        sessionId={sessionId}
         messages={singleChatMessages}
         input={input}
         setInput={setInput}

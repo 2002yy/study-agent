@@ -10,10 +10,16 @@ rules:
       - 列步骤
       - 不要追问
       - 总结一下
+      - 直接告诉我
+      - 直接给我
+      - 给我方案
+      - 现在开始改
+      - 停止提问
+      - 不要继续让我复述
     role: nahida
     mode: 普通
     model: flash
-    reason: 要求直给结果/总结 → 纳西妲用普通直接回答，不绕弯
+    reason: 要求直给结果/总结/显式切换 → 纳西妲用普通直接回答，不绕弯
 
   - name: mechanism
     priority: 100
