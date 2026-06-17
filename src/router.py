@@ -151,6 +151,7 @@ def route_request(
     selected_model: str,
     runtime_modes: RuntimeModes,
     previous_role: str | None = None,
+    previous_mode: str | None = None,
     keep_current_role: bool = False,
 ) -> dict:
     routing_config = load_routing_config()
@@ -212,6 +213,18 @@ def route_request(
         auto_role = cast(Role, previous_role)
         sticky_role_applied = True
 
+    sticky_mode_applied = False
+    valid_modes = {"普通", "苏格拉底", "费曼", "项目", "鏅€?", "鑻忔牸鎷夊簳", "璐规浖", "椤圭洰"}
+    if (
+        mode_is_auto
+        and previous_mode in valid_modes
+        and confidence != "high"
+        and auto_mode != previous_mode
+    ):
+        auto_reason = f"mode continuity: kept previous mode {previous_mode}; candidate={auto_mode}; {auto_reason}"
+        auto_mode = cast(Mode, previous_mode)
+        sticky_mode_applied = True
+
     # Model selection with performance_mode awareness
     if selected_model != "auto":
         model_profile = cast(Model, selected_model)
@@ -250,6 +263,8 @@ def route_request(
         "llm_router_used": llm_used,
         "llm_router_valid": llm_valid,
         "sticky_role_applied": sticky_role_applied,
+        "sticky_mode_applied": sticky_mode_applied,
         "previous_role": previous_role or "",
+        "previous_mode": previous_mode or "",
         "keep_current_role": keep_current_role,
     }

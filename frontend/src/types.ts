@@ -319,7 +319,20 @@ export type SessionDetailResponse = {
   kind: string;
   path: string;
   messages: ChatMessage[];
+  settings: Partial<ChatSettings> & {
+    ragEnabled?: boolean;
+    ragSettings?: Partial<RagSettings>;
+    keepCurrentRole?: boolean;
+  };
+  route: Record<string, unknown>;
+  rag: ChatResponse["rag"] | Record<string, unknown>;
+  conversation_instruction: string;
   raw: string;
+};
+
+export type SessionNewResponse = {
+  session_id: string;
+  settings: Partial<RuntimeSettingsResponse["settings"]>;
 };
 
 export type ApiSnapshot = {

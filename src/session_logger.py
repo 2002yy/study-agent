@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -94,8 +95,15 @@ def log(
     agent_reply: str,
     memory_enabled: bool = False,
     route_info: dict | None = None,
+    session_settings: dict | None = None,
+    rag_info: dict | None = None,
+    conversation_instruction: str = "",
 ) -> None:
     sess = get_or_create_session(session_id)
+    messages = [
+        {"role": "user", "content": user_input, "avatarRole": "user"},
+        {"role": "assistant", "content": agent_reply, "avatarRole": role},
+    ]
     sess["entries"].append(
         {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -104,6 +112,10 @@ def log(
             "model": model,
             "memory": memory_enabled,
             "route": route_info,
+            "settings": session_settings or {},
+            "rag": rag_info or {},
+            "conversation_instruction": conversation_instruction,
+            "messages": messages,
             "user": user_input,
             "agent": agent_reply,
         }
@@ -159,6 +171,17 @@ def _current_file(session_id: str) -> Path:
     return CURRENT_DIR / f"{session_id}.md"
 
 
+def _session_entry_snapshot(entry: dict) -> dict:
+    return {
+        "time": entry.get("time", ""),
+        "messages": entry.get("messages", []),
+        "settings": entry.get("settings", {}),
+        "route": entry.get("route", {}),
+        "rag": entry.get("rag", {}),
+        "conversation_instruction": entry.get("conversation_instruction", ""),
+    }
+
+
 def flush_current_session(
     session_id: str,
     performance_mode: str = "standard",
@@ -186,8 +209,11 @@ def flush_current_session(
     lines = []
     for entry in entries[flushed:]:
         lines.append(f"[{entry['time']}] ({entry['role']}/{entry['mode']}/{entry['model']})")
-        lines.append(f"User: {entry['user'][:100]}")
-        lines.append(f"Agent: {entry['agent'][:200]}")
+        lines.append(f"User: {entry['user']}")
+        lines.append(f"Agent: {entry['agent']}")
+        lines.append("```json session_turn")
+        lines.append(json.dumps(_session_entry_snapshot(entry), ensure_ascii=False))
+        lines.append("```")
         lines.append("")
     existing = ""
     if current_file.exists() and flushed > 0:
@@ -259,9 +285,14 @@ def save(session_id: str) -> str:
             lines.append(f"- resolved_mode: {route.get('mode', '')}")
             lines.append(f"- resolved_model: {route.get('model_profile', '')}")
             lines.append(f"- reason: {route.get('reason', '')}")
+        if entry.get("conversation_instruction"):
+            lines.append(f"- conversation_instruction: {entry.get('conversation_instruction', '')}")
         lines.append("")
         lines.append(f"**User**\n{entry['user']}\n")
         lines.append(f"**Agent**\n{entry['agent']}\n")
+        lines.append("```json session_turn")
+        lines.append(json.dumps(_session_entry_snapshot(entry), ensure_ascii=False))
+        lines.append("```")
         lines.append("---\n")
 
     safe_write_text(filepath, "\n".join(lines))

@@ -814,6 +814,57 @@ def test_session_detail_restores_archived_messages(monkeypatch, tmp_path):
     ]
 
 
+def test_current_session_snapshot_restores_full_state_and_avatar(monkeypatch, tmp_path):
+    from src import api, session_logger
+
+    current_dir = tmp_path / "current"
+    current_dir.mkdir()
+    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
+    monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
+    session_id = session_logger.init_session()
+    long_user = "user-" + ("x" * 180)
+    long_agent = "agent-" + ("y" * 260)
+
+    session_logger.log(
+        session_id=session_id,
+        role="nahida",
+        mode="苏格拉底",
+        model="pro",
+        user_input=long_user,
+        agent_reply=long_agent,
+        route_info={"role": "nahida", "mode": "苏格拉底", "model_profile": "pro"},
+        session_settings={"selectedRole": "auto", "selectedMode": "auto", "contextMode": "deep"},
+        rag_info={"status": "found", "result_count": 2},
+        conversation_instruction="直接回答，不转交。",
+    )
+    assert session_logger.flush_current_session(session_id, force=True)
+
+    client = TestClient(app)
+    response = client.get(f"/sessions/{session_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["messages"] == [
+        {"role": "user", "content": long_user, "avatarRole": "user"},
+        {"role": "assistant", "content": long_agent, "avatarRole": "nahida"},
+    ]
+    assert data["settings"]["contextMode"] == "deep"
+    assert data["route"]["mode"] == "苏格拉底"
+    assert data["rag"]["result_count"] == 2
+    assert data["conversation_instruction"] == "直接回答，不转交。"
+
+
+def test_create_new_session_returns_default_settings():
+    client = TestClient(app)
+
+    response = client.post("/sessions/new")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"]
+    assert "selected_role" in data["settings"]
+
+
 def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, tmp_path):
     from src import api
 

@@ -361,15 +361,27 @@ button {
 }
 
 .field-row select,
-.field-row input {
+.field-row input,
+.field-row textarea {
   width: 100%;
-  min-height: 34px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  padding: 0 10px;
   font-size: 12px;
+}
+
+.field-row select,
+.field-row input {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.field-row textarea {
+  min-height: 76px;
+  padding: 9px 10px;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .field-hint {

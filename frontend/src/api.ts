@@ -16,6 +16,7 @@ import type {
   RagStatusResponse,
   RoleResponse,
   SessionDetailResponse,
+  SessionNewResponse,
   SessionRow,
   ToolInvocationResponse,
   ToolSpec,
@@ -71,6 +72,7 @@ type ChatRequestOptions = {
   keepCurrentRole?: boolean;
   webContext?: string;
   conversationInstruction?: string;
+  previousMode?: string;
   scene?: "single" | "group";
 };
 
@@ -99,6 +101,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     conversation_instruction: options.conversationInstruction ?? "",
     performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
     context_mode: options.chatSettings.contextMode || null,
+    previous_mode: options.previousMode ?? null,
     chat_history: history.map((message) => ({
       role: message.role,
       content: message.content,
@@ -316,6 +319,10 @@ export async function loadSessions(): Promise<SessionRow[]> {
 
 export async function loadSessionDetail(sessionId: string): Promise<SessionDetailResponse> {
   return requestJson<SessionDetailResponse>(`/sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export async function createNewSession(): Promise<SessionNewResponse> {
+  return requestJson<SessionNewResponse>("/sessions/new", { method: "POST" });
 }
 
 export async function loadRagStatus(): Promise<RagStatusResponse> {

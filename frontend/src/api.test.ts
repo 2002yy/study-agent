@@ -86,6 +86,7 @@ describe("sendChatStream", () => {
         chatSettings: { ...chatSettings, contextMode: "deep" },
         ragSettings: { ...ragSettings, minScore: 0.42 },
         keepCurrentRole: true,
+        previousMode: "苏格拉底",
         conversationInstruction: "不要转交给其他角色。",
         scene: "single"
       }
@@ -96,6 +97,7 @@ describe("sendChatStream", () => {
     expect(body.scene).toBe("single");
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
     expect(body.performance_mode).toBe("deep");
+    expect(body.previous_mode).toBe("苏格拉底");
     expect(body.rag_min_score).toBe(0.42);
     expect(body.keep_current_role).toBe(true);
     expect(body.chat_history[0].avatarRole).toBe("user");

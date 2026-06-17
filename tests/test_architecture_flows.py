@@ -104,6 +104,37 @@ def test_route_request_keeps_previous_role_for_medium_confidence(monkeypatch):
     assert result["previous_role"] == "nahida"
 
 
+def test_route_request_keeps_previous_mode_for_medium_confidence(monkeypatch):
+    from src import router
+
+    monkeypatch.setattr(
+        router,
+        "load_routing_config",
+        lambda: RoutingConfig(
+            rules=[
+                (["change"], "keqing", "项目", "pro", "task", 90),
+            ],
+            default_role="nahida",
+            default_mode="普通",
+            default_model="flash",
+            default_reason="default",
+        ),
+    )
+
+    result = route_request(
+        "change it",
+        "auto",
+        "auto",
+        "auto",
+        RuntimeModes(performance_mode="standard"),
+        previous_mode="苏格拉底",
+    )
+
+    assert result["mode"] == "苏格拉底"
+    assert result["sticky_mode_applied"] is True
+    assert result["previous_mode"] == "苏格拉底"
+
+
 def test_route_request_switches_role_for_high_confidence(monkeypatch):
     from src import router
 

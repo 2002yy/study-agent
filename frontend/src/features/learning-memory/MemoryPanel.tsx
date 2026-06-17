@@ -66,6 +66,7 @@ function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {
 export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps) {
   const [drafts, setDrafts] = useState<MemoryDraft[]>([createDraft(0)]);
   const [preview, setPreview] = useState<MemoryPreviewResponse | null>(null);
+  const [previewedPayloads, setPreviewedPayloads] = useState<MemoryUpdate[] | null>(null);
   const [commitResult, setCommitResult] = useState<MemoryCommitResponse | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
@@ -82,18 +83,21 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
     setError("");
     setCommitResult(null);
     setPreview(null);
+    setPreviewedPayloads(null);
   };
 
   const addDraft = () => {
     setDrafts((current) => [...current, createDraft(current.length)]);
     setError("");
     setPreview(null);
+    setPreviewedPayloads(null);
   };
 
   const removeDraft = (id: string | undefined) => {
     setDrafts((current) => (current.length === 1 ? current : current.filter((draft) => draft.id !== id)));
     setError("");
     setPreview(null);
+    setPreviewedPayloads(null);
   };
 
   const handlePreview = async (event: FormEvent) => {
@@ -106,9 +110,12 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
     setError("");
     setCommitResult(null);
     try {
-      setPreview(await previewMemoryUpdates(updatePayloads));
+      const frozenPayloads = updatePayloads.map((payload) => ({ ...payload }));
+      setPreview(await previewMemoryUpdates(frozenPayloads));
+      setPreviewedPayloads(frozenPayloads);
     } catch (err) {
       setPreview(null);
+      setPreviewedPayloads(null);
       setError(err instanceof Error ? err.message : "记忆预览失败");
     } finally {
       setIsPreviewing(false);
@@ -116,16 +123,17 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
   };
 
   const handleCommit = async () => {
-    if (!preview || !preview.writable || !updatePayloads.length) {
+    if (!preview || !preview.writable || !previewedPayloads?.length) {
       setError("请先生成可写预览，再确认写入。");
       return;
     }
     setIsCommitting(true);
     setError("");
     try {
-      const result = await commitMemoryUpdates(updatePayloads);
+      const result = await commitMemoryUpdates(previewedPayloads);
       setCommitResult(result);
       setPreview(null);
+      setPreviewedPayloads(null);
       setDrafts([createDraft(0)]);
       await onMemoryChanged?.();
     } catch (err) {
@@ -253,7 +261,7 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
               </button>
               <button
                 className="secondary"
-                disabled={isCommitting || !preview || !preview.writable || !updatePayloads.length}
+                disabled={isCommitting || !preview || !preview.writable || !previewedPayloads?.length}
                 onClick={handleCommit}
                 type="button"
               >

@@ -246,6 +246,7 @@ class ChatRequest(BaseModel):
     conversation_instruction: str = ""
     performance_mode: str | None = None
     context_mode: str | None = None
+    previous_mode: str | None = None
     chat_history: list[ChatMessage] = Field(default_factory=list)
     keep_current_role: bool = False
     session_id: str | None = None
@@ -386,7 +387,16 @@ class SessionDetailResponse(BaseModel):
     kind: str
     path: str
     messages: list[ChatMessage]
+    settings: dict[str, Any] = Field(default_factory=dict)
+    route: dict[str, Any] = Field(default_factory=dict)
+    rag: dict[str, Any] = Field(default_factory=dict)
+    conversation_instruction: str = ""
     raw: str = ""
+
+
+class SessionNewResponse(BaseModel):
+    session_id: str
+    settings: dict[str, Any]
 
 
 class ToolInvocationRequest(BaseModel):
@@ -548,22 +558,71 @@ def _session_file_rows(directory: Path, kind: str, limit: int) -> list[dict[str,
 def _messages_from_session_entries(entries: list[dict[str, Any]]) -> list[ChatMessage]:
     messages: list[ChatMessage] = []
     for entry in entries:
+        entry_messages = entry.get("messages")
+        if isinstance(entry_messages, list):
+            for message in entry_messages:
+                if not isinstance(message, dict):
+                    continue
+                role = str(message.get("role", "")).strip()
+                content = str(message.get("content", "")).strip()
+                if role and content:
+                    messages.append(
+                        ChatMessage(
+                            role=role,
+                            content=content,
+                            avatarRole=message.get("avatarRole"),
+                        )
+                    )
+            continue
         user = str(entry.get("user", "")).strip()
         agent = str(entry.get("agent", "")).strip()
         if user:
-            messages.append(ChatMessage(role="user", content=user))
+            messages.append(ChatMessage(role="user", content=user, avatarRole="user"))
         if agent:
-            messages.append(ChatMessage(role="assistant", content=agent))
+            messages.append(ChatMessage(role="assistant", content=agent, avatarRole=entry.get("role")))
     return messages
 
 
+def _session_snapshot_from_entries(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    if not entries:
+        return {"settings": {}, "route": {}, "rag": {}, "conversation_instruction": ""}
+    latest = entries[-1]
+    return {
+        "settings": latest.get("settings") or {},
+        "route": latest.get("route") or {},
+        "rag": latest.get("rag") or {},
+        "conversation_instruction": latest.get("conversation_instruction") or "",
+    }
+
+
+def _parse_session_turn_snapshots(raw: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    marker = "```json session_turn"
+    for block in raw.split(marker)[1:]:
+        json_part = block.split("```", 1)[0].strip()
+        if not json_part:
+            continue
+        try:
+            parsed = json.loads(json_part)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            entries.append(parsed)
+    return entries
+
+
 def _parse_archived_session_messages(raw: str) -> list[ChatMessage]:
+    snapshots = _parse_session_turn_snapshots(raw)
+    if snapshots:
+        return _messages_from_session_entries(snapshots)
     messages: list[ChatMessage] = []
     for block in raw.split("---"):
         if "**User**" not in block or "**Agent**" not in block:
             continue
         user_part = block.split("**User**", 1)[1].split("**Agent**", 1)[0].strip()
         agent_part = block.split("**Agent**", 1)[1].strip()
+        if "```json session_turn" in agent_part:
+            agent_part = agent_part.split("```json session_turn", 1)[0].strip()
         if user_part:
             messages.append(ChatMessage(role="user", content=user_part))
         if agent_part:
@@ -572,6 +631,9 @@ def _parse_archived_session_messages(raw: str) -> list[ChatMessage]:
 
 
 def _parse_current_session_messages(raw: str) -> list[ChatMessage]:
+    snapshots = _parse_session_turn_snapshots(raw)
+    if snapshots:
+        return _messages_from_session_entries(snapshots)
     messages: list[ChatMessage] = []
     for line in raw.splitlines():
         if line.startswith("User: "):
@@ -579,6 +641,10 @@ def _parse_current_session_messages(raw: str) -> list[ChatMessage]:
         elif line.startswith("Agent: "):
             messages.append(ChatMessage(role="assistant", content=line.removeprefix("Agent: ").strip()))
     return messages
+
+
+def _session_snapshot_from_raw(raw: str) -> dict[str, Any]:
+    return _session_snapshot_from_entries(_parse_session_turn_snapshots(raw))
 
 
 def _find_session_file(session_id: str) -> tuple[str, Path | None]:
@@ -838,6 +904,24 @@ def _previous_assistant_role(chat_history: list[ChatMessage]) -> str | None:
     return None
 
 
+def _session_settings_from_request(request: ChatRequest, context_mode: str) -> dict[str, Any]:
+    return {
+        "selectedRole": request.selected_role,
+        "selectedMode": request.selected_mode,
+        "selectedModel": request.selected_model,
+        "relationshipMode": request.relationship_mode,
+        "contextMode": context_mode,
+        "ragEnabled": request.rag_enabled,
+        "ragSettings": {
+            "chatTopK": request.rag_top_k,
+            "topK": request.rag_top_k,
+            "retrievalMode": request.rag_retrieval_mode,
+            "minScore": request.rag_min_score,
+        },
+        "keepCurrentRole": request.keep_current_role,
+    }
+
+
 def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
     runtime_modes = _runtime_modes_for_request(request.performance_mode)
     context_mode = request.context_mode or runtime_modes.context_mode
@@ -848,6 +932,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         selected_model=request.selected_model,
         runtime_modes=runtime_modes,
         previous_role=_previous_assistant_role(request.chat_history),
+        previous_mode=request.previous_mode,
         keep_current_role=request.keep_current_role,
     )
     role_prompt = build_role_prompt(
@@ -888,6 +973,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         "rag_result": rag_result,
         "messages": messages,
         "web_context_used": bool(web_context),
+        "session_settings": _session_settings_from_request(request, context_mode),
     }
 
 
@@ -1328,6 +1414,9 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
             "rag_status": rag_result.status,
             "web_context_used": prepared["web_context_used"],
         },
+        session_settings=prepared["session_settings"],
+        rag_info=rag_result.to_dict(),
+        conversation_instruction=request.conversation_instruction,
     )
     flush_current_session(
         session_id,
@@ -1378,6 +1467,9 @@ def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                     "web_context_used": prepared["web_context_used"],
                     "streamed": True,
                 },
+                session_settings=prepared["session_settings"],
+                rag_info=rag_result.to_dict(),
+                conversation_instruction=request.conversation_instruction,
             )
             flush_current_session(
                 session_id,
@@ -1463,11 +1555,13 @@ def list_sessions(limit: int = 20) -> SessionListResponse:
 def get_session_detail(session_id: str) -> SessionDetailResponse:
     entries = get_session_entries(session_id)
     if entries:
+        snapshot = _session_snapshot_from_entries(entries)
         return SessionDetailResponse(
             session_id=session_id,
             kind="active",
             path="",
             messages=_messages_from_session_entries(entries),
+            **snapshot,
         )
 
     kind, path = _find_session_file(session_id)
@@ -1480,13 +1574,20 @@ def get_session_detail(session_id: str) -> SessionDetailResponse:
         if kind == "archived"
         else _parse_current_session_messages(raw)
     )
+    snapshot = _session_snapshot_from_raw(raw)
     return SessionDetailResponse(
         session_id=session_id,
         kind=kind,
         path=str(path),
         messages=messages,
+        **snapshot,
         raw=raw[:4000],
     )
+
+
+@app.post("/sessions/new", response_model=SessionNewResponse)
+def create_new_session() -> SessionNewResponse:
+    return SessionNewResponse(session_id=init_session(), settings=_load_frontend_settings())
 
 
 @app.post("/sessions/{session_id}/flush")

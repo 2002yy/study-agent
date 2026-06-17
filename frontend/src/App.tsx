@@ -17,6 +17,7 @@ import {
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   callLocalKnowledge,
+  createNewSession,
   createWechatOpening,
   loadApiSnapshot,
   loadRole,
@@ -58,6 +59,7 @@ import type {
   RagQueryResponse,
   RagSettings,
   RoleResponse,
+  SessionDetailResponse,
   ToolInvocationResponse,
   WorkflowRunDetail
 } from "./types";
@@ -198,6 +200,9 @@ function Sidebar({
   roleDetail,
   keepCurrentRole,
   setKeepCurrentRole,
+  conversationInstruction,
+  setConversationInstruction,
+  onNewSession,
   refresh,
   onUploadClick,
   uploadState,
@@ -218,6 +223,9 @@ function Sidebar({
   roleDetail: RoleResponse | null;
   keepCurrentRole: boolean;
   setKeepCurrentRole: (value: boolean) => void;
+  conversationInstruction: string;
+  setConversationInstruction: (value: string) => void;
+  onNewSession: () => void;
   refresh: () => void;
   onUploadClick: () => void;
   uploadState: string;
@@ -346,6 +354,20 @@ function Sidebar({
         <small className="field-hint">
           仅在角色为自动时生效；开启后会优先沿用上一轮实际回答角色，避免追问时突然切换。
         </small>
+        <label className="field-row">
+          <span>本会话微调</span>
+          <textarea
+            className="session-instruction"
+            onChange={(event) => setConversationInstruction(event.target.value)}
+            placeholder="例如：不要转交给其他角色，直接回答我的问题。"
+            rows={3}
+            value={conversationInstruction}
+          />
+        </label>
+        <small className="field-hint">只影响当前会话，不会修改角色原始人设或全局默认。</small>
+        <button className="ghost-action compact" onClick={onNewSession} type="button">
+          新建单人会话
+        </button>
         {chatSettings.selectedRole !== "auto" ? (
           <button className="ghost-action compact" onClick={onLoadRole} type="button">
             <BookOpen size={15} />
@@ -634,6 +656,7 @@ export default function App() {
   const [chatSettings, setChatSettings] = useState<ChatSettings>(CHAT_SETTINGS_DEFAULTS);
   const [ragSettings, setRagSettings] = useState<RagSettings>(RAG_SETTINGS_DEFAULTS);
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
+  const [conversationInstruction, setConversationInstruction] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -706,6 +729,7 @@ export default function App() {
           ragSettings?: RagSettings;
           ragEnabled?: boolean;
           keepCurrentRole?: boolean;
+          conversationInstruction?: string;
         };
         setSingleChatMessages(sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages));
         if (parsed.sessionId) {
@@ -725,6 +749,9 @@ export default function App() {
         }
         if (typeof parsed.keepCurrentRole === "boolean") {
           setKeepCurrentRole(parsed.keepCurrentRole);
+        }
+        if (typeof parsed.conversationInstruction === "string") {
+          setConversationInstruction(parsed.conversationInstruction);
         }
       } catch {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -764,13 +791,21 @@ export default function App() {
   }, [snapshot.runtimeSettings]);
 
   useEffect(() => {
-    const payload = JSON.stringify({ singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole });
+    const payload = JSON.stringify({
+      singleChatMessages,
+      sessionId,
+      chatSettings,
+      ragSettings,
+      ragEnabled,
+      keepCurrentRole,
+      conversationInstruction
+    });
     sessionStoragePayloadRef.current = payload;
     const timeout = window.setTimeout(() => {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, isSending]);
+  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {
@@ -841,6 +876,8 @@ export default function App() {
           chatSettings,
           ragSettings,
           keepCurrentRole,
+          previousMode: typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : undefined,
+          conversationInstruction,
           webContext: shouldConsumeWebLookup ? webLookup?.source_block : ""
         },
         {
@@ -1218,17 +1255,107 @@ export default function App() {
     }
   };
 
+  const applySessionDetail = (detail: SessionDetailResponse) => {
+    const restoredMessages = detail.messages.filter((message) => message.role === "user" || message.role === "assistant");
+    const restoredSettings = detail.settings ?? {};
+    const restoredRagSettings = restoredSettings.ragSettings ?? {};
+    const nextChatSettings: ChatSettings = {
+      ...chatSettings,
+      ...(["selectedRole", "selectedMode", "selectedModel", "relationshipMode", "contextMode"].reduce((acc, key) => {
+        const value = restoredSettings[key as keyof ChatSettings];
+        return typeof value === "string" ? { ...acc, [key]: value } : acc;
+      }, {} as Partial<ChatSettings>))
+    };
+    const nextRagSettings: RagSettings = {
+      ...ragSettings,
+      ...restoredRagSettings
+    };
+    const lastAssistant = [...restoredMessages].reverse().find((message) => message.role === "assistant");
+    const restoredRoute = detail.route ?? {};
+    const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
+
+    setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
+    setSessionId(detail.session_id);
+    setChatSettings(nextChatSettings);
+    setRagSettings(nextRagSettings);
+    if (typeof restoredSettings.ragEnabled === "boolean") {
+      setRagEnabled(restoredSettings.ragEnabled);
+    }
+    if (typeof restoredSettings.keepCurrentRole === "boolean") {
+      setKeepCurrentRole(restoredSettings.keepCurrentRole);
+    }
+    setConversationInstruction(detail.conversation_instruction ?? "");
+    setLastChat(
+      Object.keys(restoredRoute).length || lastAssistant
+        ? {
+            reply: lastAssistant?.content ?? "",
+            session_id: detail.session_id,
+            route: restoredRoute,
+            rag: restoredRag
+          }
+        : null
+    );
+    setRagSearch(null);
+    setNewsResult(null);
+    setWebLookup(null);
+    setUseWebLookup(false);
+    setStreamRecovery(null);
+    setInput("");
+  };
+
   const restoreSession = async (restoredSessionId: string) => {
     try {
       const detail = await loadSessionDetail(restoredSessionId);
-      const restoredMessages = detail.messages.filter((message) => message.role === "user" || message.role === "assistant");
-      setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
-      setSessionId(detail.session_id);
+      applySessionDetail(detail);
       setSnapshot((current) => ({ ...current, error: "" }));
     } catch (error) {
       setSnapshot((current) => ({
         ...current,
         error: error instanceof Error ? error.message : "会话恢复失败"
+      }));
+    }
+  };
+
+  const startNewSession = async () => {
+    try {
+      const created = await createNewSession();
+      setSessionId(created.session_id);
+      setSingleChatMessages(seedMessages);
+      setInput("");
+      setLastChat(null);
+      setRagSearch(null);
+      setToolPreview(null);
+      setToolCall(null);
+      setPreviewedInvocation(null);
+      setStreamRecovery(null);
+      setNewsResult(null);
+      setWebLookup(null);
+      setUseWebLookup(false);
+      setConversationInstruction("");
+      const settings = created.settings ?? {};
+      setChatSettings({
+        ...CHAT_SETTINGS_DEFAULTS,
+        selectedRole: typeof settings.selected_role === "string" ? settings.selected_role : CHAT_SETTINGS_DEFAULTS.selectedRole,
+        selectedMode: typeof settings.selected_mode === "string" ? settings.selected_mode : CHAT_SETTINGS_DEFAULTS.selectedMode,
+        selectedModel: typeof settings.selected_model === "string" ? settings.selected_model : CHAT_SETTINGS_DEFAULTS.selectedModel,
+        relationshipMode: typeof settings.relationship_mode === "string" ? settings.relationship_mode : CHAT_SETTINGS_DEFAULTS.relationshipMode,
+        contextMode: typeof settings.context_mode === "string" ? settings.context_mode : CHAT_SETTINGS_DEFAULTS.contextMode
+      });
+      setRagEnabled(typeof settings.rag_enabled === "boolean" ? settings.rag_enabled : true);
+      setRagSettings({
+        ...RAG_SETTINGS_DEFAULTS,
+        retrievalMode: settings.rag_retrieval_mode ?? RAG_SETTINGS_DEFAULTS.retrievalMode,
+        topK: settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.topK,
+        chatTopK: settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.chatTopK,
+        minScore: settings.rag_min_score ?? RAG_SETTINGS_DEFAULTS.minScore
+      });
+      setKeepCurrentRole(false);
+      setSnapshot((current) => ({ ...current, error: "" }));
+      await refresh();
+    } catch (error) {
+      setSnapshot((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "新建会话失败"
       }));
     }
   };
@@ -1283,6 +1410,9 @@ export default function App() {
         roleDetail={roleDetail}
         keepCurrentRole={keepCurrentRole}
         setKeepCurrentRole={setKeepCurrentRole}
+        conversationInstruction={conversationInstruction}
+        setConversationInstruction={setConversationInstruction}
+        onNewSession={startNewSession}
         refresh={refresh}
         onUploadClick={() => fileInputRef.current?.click()}
         uploadState={uploadState}
