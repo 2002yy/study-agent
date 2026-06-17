@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Loader2, Search } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { digestNewsStage, discussNewsStage, enrichNewsStage, searchNewsStage } from "../../api";
 import type { ChatSettings } from "../../types";
 import { displayValue } from "../../utils/format";
@@ -59,6 +59,8 @@ export function NewsWorkspace({
   const [busyStage, setBusyStage] = useState("");
   const [error, setError] = useState("");
   const [searchedQuery, setSearchedQuery] = useState("");
+  const newsRunIdRef = useRef(0);
+  const newsAbortRef = useRef<AbortController | null>(null);
 
   const activeItems = enrichedItems.length ? enrichedItems : searchedItems;
   const queryChanged = Boolean(query.trim()) && query.trim() !== searchedQuery;
@@ -72,6 +74,8 @@ export function NewsWorkspace({
 
   // Clear staged news state when session changes
   useEffect(() => {
+    newsAbortRef.current?.abort();
+    newsRunIdRef.current++;
     setSearchedItems([]);
     setEnrichedItems([]);
     setDigestState(null);
@@ -103,18 +107,24 @@ export function NewsWorkspace({
       return;
     }
     const frozenQuery = query.trim();
+    const runId = ++newsRunIdRef.current;
+    const abortController = new AbortController();
+    newsAbortRef.current?.abort();
+    newsAbortRef.current = abortController;
     setBusyStage("search");
     setError("");
     clearDownstream("search");
     try {
       const result = await searchNewsStage(frozenQuery);
+      if (newsRunIdRef.current !== runId) { return; }
       setSearchedItems(result.news_items);
       setEnrichedItems([]);
       setSearchedQuery(frozenQuery);
     } catch (caught) {
+      if (newsRunIdRef.current !== runId || (caught instanceof DOMException && caught.name === "AbortError")) { return; }
       setError(caught instanceof Error ? caught.message : "新闻搜索失败");
     } finally {
-      setBusyStage("");
+      if (newsRunIdRef.current === runId) { setBusyStage(""); }
     }
   };
 
@@ -123,6 +133,10 @@ export function NewsWorkspace({
       return;
     }
     const frozenQuery = searchedQuery || query.trim();
+    const runId = ++newsRunIdRef.current;
+    const abortController = new AbortController();
+    newsAbortRef.current?.abort();
+    newsAbortRef.current = abortController;
     setBusyStage("enrich");
     clearDownstream("enrich");
     try {
@@ -131,11 +145,13 @@ export function NewsWorkspace({
         newsItems: searchedItems,
         maxArticles: readArticles ? 6 : 0
       });
+      if (newsRunIdRef.current !== runId) { return; }
       setEnrichedItems(result.news_items);
     } catch (caught) {
+      if (newsRunIdRef.current !== runId || (caught instanceof DOMException && caught.name === "AbortError")) { return; }
       setError(caught instanceof Error ? caught.message : "正文读取失败");
     } finally {
-      setBusyStage("");
+      if (newsRunIdRef.current === runId) { setBusyStage(""); }
     }
   };
 
@@ -144,22 +160,28 @@ export function NewsWorkspace({
       return;
     }
     const frozenQuery = searchedQuery || query.trim();
+    const runId = ++newsRunIdRef.current;
+    const abortController = new AbortController();
+    newsAbortRef.current?.abort();
+    newsAbortRef.current = abortController;
     // If readArticles is enabled but no articles enriched yet, auto-run enrich first
     let items = activeItems;
     if (readArticles && !enrichedItems.length && searchedItems.length) {
       setBusyStage("enrich");
       try {
-        const result = await enrichNewsStage({
+        const enrichResult = await enrichNewsStage({
           queryText: frozenQuery,
           newsItems: searchedItems,
           maxArticles: 6
         });
-        items = result.news_items;
-        setEnrichedItems(result.news_items);
+        if (newsRunIdRef.current !== runId) { return; }
+        items = enrichResult.news_items;
+        setEnrichedItems(enrichResult.news_items);
       } catch (caught) {
+        if (newsRunIdRef.current !== runId || (caught instanceof DOMException && caught.name === "AbortError")) { return; }
         setError(caught instanceof Error ? caught.message : "正文预读取失败，将仅根据标题生成摘要");
       } finally {
-        setBusyStage("");
+        if (newsRunIdRef.current === runId) { setBusyStage(""); }
       }
     }
     setBusyStage("digest");
@@ -170,15 +192,17 @@ export function NewsWorkspace({
         newsItems: items,
         chatSettings
       });
+      if (newsRunIdRef.current !== runId) { return; }
       setDigestState({
         digest: result.digest,
         sourceBlock: result.source_block,
         warnings: result.warnings
       });
     } catch (caught) {
+      if (newsRunIdRef.current !== runId || (caught instanceof DOMException && caught.name === "AbortError")) { return; }
       setError(caught instanceof Error ? caught.message : "摘要生成失败");
     } finally {
-      setBusyStage("");
+      if (newsRunIdRef.current === runId) { setBusyStage(""); }
     }
   };
 
@@ -186,6 +210,10 @@ export function NewsWorkspace({
     if (!digestState || !canDiscuss) {
       return;
     }
+    const runId = ++newsRunIdRef.current;
+    const abortController = new AbortController();
+    newsAbortRef.current?.abort();
+    newsAbortRef.current = abortController;
     setBusyStage("discuss");
     clearDownstream("digest");
     try {
@@ -195,12 +223,14 @@ export function NewsWorkspace({
         sessionId,
         chatSettings
       });
+      if (newsRunIdRef.current !== runId) { return; }
       setDiscussion(result.discussion);
       onDiscussed(result.session_id);
     } catch (caught) {
+      if (newsRunIdRef.current !== runId || (caught instanceof DOMException && caught.name === "AbortError")) { return; }
       setError(caught instanceof Error ? caught.message : "群聊讨论生成失败");
     } finally {
-      setBusyStage("");
+      if (newsRunIdRef.current === runId) { setBusyStage(""); }
     }
   };
 
