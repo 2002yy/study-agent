@@ -207,13 +207,16 @@ def route_request(
     if (
         selected_role == "auto"
         and previous_role in {"march7", "keqing", "nahida", "firefly"}
-        and (keep_current_role or confidence != "high")
         and auto_role != previous_role
     ):
-        sticky_source = "explicit keep_current_role" if keep_current_role else "medium/low confidence continuity"
-        auto_reason = f"{sticky_source}: kept previous role {previous_role}; candidate={auto_role}; {auto_reason}"
-        auto_role = cast(Role, previous_role)
-        sticky_role_applied = True
+        if keep_current_role:
+            auto_reason = f"forced keep: kept previous role {previous_role} (user requested force keep); candidate={auto_role}; {auto_reason}"
+            auto_role = cast(Role, previous_role)
+            sticky_role_applied = True
+        elif confidence != "high":
+            auto_reason = f"continuity: kept previous role {previous_role} (medium/low confidence); candidate={auto_role}; {auto_reason}"
+            auto_role = cast(Role, previous_role)
+            sticky_role_applied = True
 
     sticky_mode_applied = False
     valid_modes = {"普通", "苏格拉底", "费曼", "项目"}

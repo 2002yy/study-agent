@@ -352,10 +352,10 @@ function Sidebar({
           onClick={() => setKeepCurrentRole(!keepCurrentRole)}
           type="button"
         >
-          保持当前角色
+          强制保持当前角色
         </button>
         <small className="field-hint">
-          仅在角色为自动时生效；开启后会优先沿用上一轮实际回答角色，避免追问时突然切换。
+          仅在角色为自动时生效。系统默认已在中等/低置信度下自动保持上一角色；开启此项后会强制保持，即使高置信度匹配到其他角色也不切换。
         </small>
         <label className="field-row">
           <span>本会话微调</span>
