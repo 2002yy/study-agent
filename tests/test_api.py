@@ -61,6 +61,7 @@ def test_cors_allowlist_handles_preflight_and_response_headers(monkeypatch):
 
     assert preflight.status_code == 204
     assert preflight.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "PATCH" in preflight.headers["access-control-allow-methods"]
     assert "Authorization" in preflight.headers["access-control-allow-headers"]
     assert rejected.status_code == 403
     assert response.status_code == 200
@@ -158,6 +159,20 @@ def test_memory_status_endpoint_reports_runtime_and_files():
     assert any(item["name"] == "current_focus.md" for item in data["files"])
 
 
+def test_memory_file_preview_prefers_latest_content(monkeypatch, tmp_path):
+    from src import api
+
+    path = tmp_path / "progress.md"
+    path.write_text("x" * 1700 + "LATEST", encoding="utf-8")
+    monkeypatch.setattr(api, "MEMORY_DIR", tmp_path)
+    monkeypatch.setattr(api, "read_memory_file", lambda name: path.read_text(encoding="utf-8"))
+
+    row = api._memory_file_row("progress.md")
+
+    assert row["preview"].endswith("LATEST")
+    assert len(row["preview"]) == 1600
+
+
 def test_wechat_status_and_opening_endpoints(monkeypatch):
     from src import api
 
@@ -196,7 +211,13 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
             return {"status": "found", "context": self.context}
 
     actions = []
-    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
+    captured_rag = {}
+
+    def fake_retrieve_local_knowledge(*args, **kwargs):
+        captured_rag.update(kwargs)
+        return FakeRagResult()
+
+    monkeypatch.setattr(api, "retrieve_local_knowledge", fake_retrieve_local_knowledge)
     monkeypatch.setattr(
         api,
         "generate_interactive_wechat_reply",
@@ -217,7 +238,7 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
 
     response = client.post(
         "/wechat/message",
-        json={"message": "hello group", "selected_model": "flash", "rag_enabled": True},
+        json={"message": "hello group", "selected_model": "flash", "rag_enabled": True, "rag_min_score": 0.37},
     )
 
     assert response.status_code == 200
@@ -225,6 +246,7 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
     assert data["reply"] == "group reply"
     assert data["content"] == "updated group"
     assert data["session_id"] == "wechat-session"
+    assert captured_rag["min_score"] == 0.37
     assert ("combined", "hello group", "group reply") in actions
 
 

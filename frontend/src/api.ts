@@ -266,7 +266,8 @@ export async function sendWechatMessage(
       performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
       rag_enabled: options.ragEnabled,
       rag_top_k: options.ragSettings.chatTopK,
-      rag_retrieval_mode: options.ragSettings.retrievalMode
+      rag_retrieval_mode: options.ragSettings.retrievalMode,
+      rag_min_score: options.ragSettings.minScore
     })
   });
 }

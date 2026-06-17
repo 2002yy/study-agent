@@ -18,7 +18,7 @@ export function RoutePanel({ lastChat }: { lastChat: ChatResponse | null }) {
       <div className="panel-header">
         <div>
           <h2>回答检查器</h2>
-          <span>{lastChat ? `Session ${lastChat.session_id}` : "等待第一轮回答"}</span>
+          <span>{lastChat ? `记录 ID ${lastChat.session_id}` : "等待第一轮回答"}</span>
         </div>
         <Activity size={18} />
       </div>

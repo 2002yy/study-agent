@@ -388,6 +388,7 @@ def stream_chat(
     temperature: float | None = 0.7,
     model_profile: ModelProfile | None = None,
     on_first_token: Callable[[], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
     max_tokens: int | None = None,
     timeout: float | None = None,
     response_format: ResponseFormat | None = None,
@@ -417,6 +418,8 @@ def stream_chat(
     first_token_seen = False
     try:
         for chunk in response:
+            if should_cancel is not None and should_cancel():
+                return
             delta = chunk.choices[0].delta
             if delta.content:
                 if not first_token_seen:
@@ -426,6 +429,10 @@ def stream_chat(
                 yield delta.content
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
+    finally:
+        close = getattr(response, "close", None)
+        if callable(close):
+            close()
 
 
 def chat(

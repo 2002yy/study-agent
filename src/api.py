@@ -5,10 +5,11 @@ import json
 import secrets
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, AsyncIterator, Iterator
 
 import yaml
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -291,6 +292,7 @@ class WechatMessageRequest(BaseModel):
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
+    rag_min_score: float = Field(default=0.01, ge=0)
 
 
 class WechatMessageResponse(BaseModel):
@@ -426,6 +428,18 @@ class WorkflowRunResponse(BaseModel):
 
 
 app = FastAPI(title="Study Agent API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 if ASSETS_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 TOOL_REGISTRY = create_default_tool_registry()
@@ -448,7 +462,7 @@ def _add_cors_headers(response: Response, origin: str, allowed_origins: set[str]
     if not origin or not _is_cors_origin_allowed(origin, allowed_origins):
         return
     response.headers["Access-Control-Allow-Origin"] = "*" if "*" in allowed_origins else origin
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PATCH,DELETE,OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,X-Study-Agent-Token"
     if "*" not in allowed_origins:
         response.headers["Vary"] = "Origin"
@@ -826,7 +840,7 @@ def _memory_file_row(name: str) -> dict[str, Any]:
         "exists": exists,
         "size_bytes": stat.st_size if stat else 0,
         "mtime_ns": stat.st_mtime_ns if stat else 0,
-        "preview": content[:1600],
+        "preview": content[-1600:],
     }
 
 
@@ -949,7 +963,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         min_score=request.rag_min_score,
     )
     web_context = request.web_context.strip()
-    context_blocks = [rag_result.context] if rag_result.context.strip() else []
+    context_blocks = [f"【本地资料检索结果】\n{rag_result.context}"] if rag_result.context.strip() else []
     if web_context:
         context_blocks.append(f"【联网检索结果】\n{web_context}")
     messages = build_messages(
@@ -1139,6 +1153,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         enabled=request.rag_enabled,
         top_k=request.rag_top_k,
         retrieval_mode=request.rag_retrieval_mode,
+        min_score=request.rag_min_score,
     )
     reply = generate_interactive_wechat_reply(
         request.message,
@@ -1432,12 +1447,17 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/chat/stream")
-def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
-    def events() -> Iterator[str]:
-        session_id = request.session_id or init_session()
+async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request) -> StreamingResponse:
+    async def events() -> AsyncIterator[str]:
+        session_id = chat_request.session_id or init_session()
         reply_parts: list[str] = []
+        disconnected = False
+
+        def should_cancel() -> bool:
+            return disconnected
+
         try:
-            prepared = _prepare_chat_context(request)
+            prepared = _prepare_chat_context(chat_request)
             runtime_modes = prepared["runtime_modes"]
             route = prepared["route"]
             rag_result = prepared["rag_result"]
@@ -1448,7 +1468,11 @@ def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                 model_profile=route["model_profile"],
                 max_tokens=chat_max_tokens(runtime_modes.performance_mode),
                 task_name="single_chat",
+                should_cancel=should_cancel,
             ):
+                if await http_request.is_disconnected():
+                    disconnected = True
+                    return
                 reply_parts.append(token)
                 yield _sse_event("token", {"text": token})
             reply = "".join(reply_parts)
@@ -1458,7 +1482,7 @@ def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                 role=route["role"],
                 mode=route["mode"],
                 model=route["model_profile"],
-                user_input=request.user_input,
+                user_input=chat_request.user_input,
                 agent_reply=reply,
                 memory_enabled=bool(prepared["memory_bundle"]),
                 route_info={
@@ -1469,7 +1493,7 @@ def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                 },
                 session_settings=prepared["session_settings"],
                 rag_info=rag_result.to_dict(),
-                conversation_instruction=request.conversation_instruction,
+                conversation_instruction=chat_request.conversation_instruction,
             )
             flush_current_session(
                 session_id,

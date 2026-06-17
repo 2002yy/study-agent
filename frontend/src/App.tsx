@@ -682,6 +682,7 @@ export default function App() {
   const [isWechatBusy, setIsWechatBusy] = useState(false);
   const [isNewsBusy, setIsNewsBusy] = useState(false);
   const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string } | null>(null);
+  const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
   const sessionStoragePayloadRef = useRef("");
@@ -860,6 +861,7 @@ export default function App() {
     setSingleChatMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
     setInput("");
     setStreamRecovery(null);
+    setOperationError("");
     setIsSending(true);
     setRagSearch(null);
     const abortController = new AbortController();
@@ -921,6 +923,7 @@ export default function App() {
       );
       setSessionId(response.session_id);
       setLastChat(response);
+      setOperationError("");
       if (shouldConsumeWebLookup) {
         setUseWebLookup(false);
       }
@@ -939,6 +942,9 @@ export default function App() {
         ? `${streamedReply}\n\n---\n生成中断：${message}`
         : `生成中断：${message}`;
       setStreamRecovery({ question, reply: streamedReply, reason: message });
+      if (!isAbort) {
+        setOperationError(`聊天请求失败：${message}`);
+      }
       setSingleChatMessages((current) =>
         current.map((item, index) =>
           index === userIndex
@@ -989,6 +995,27 @@ export default function App() {
     await sendSingleChat(retryQuestion, trimmedHistory);
   };
 
+  const continueInterruptedChat = async () => {
+    if (!streamRecovery?.reply || isSending) {
+      return;
+    }
+    const continuationPrompt = `请从刚才中断处继续回答，不要重复已经输出的内容。\n\n原问题：${streamRecovery.question}`;
+    const continuationHistory = singleChatMessages.map((message) => {
+      if (!message.transient) {
+        return message;
+      }
+      if (message.role === "assistant") {
+        return { ...message, content: streamRecovery.reply, transient: false };
+      }
+      if (message.role === "user" && message.content === streamRecovery.question) {
+        return { ...message, transient: false };
+      }
+      return message;
+    });
+    setStreamRecovery(null);
+    await sendSingleChat(continuationPrompt, continuationHistory);
+  };
+
   const copyInterruptedReply = async () => {
     if (!streamRecovery?.reply) {
       return;
@@ -1001,14 +1028,12 @@ export default function App() {
       return;
     }
     setIsSearching(true);
+    setOperationError("");
     try {
       setRagSearch(await queryRag(activeQuery, ragSettings));
     } catch (error) {
       setRagSearch(null);
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "来源检索失败"
-      }));
+      setOperationError(`本地资料检索失败：${error instanceof Error ? error.message : "来源检索失败"}`);
     } finally {
       setIsSearching(false);
     }
@@ -1039,6 +1064,7 @@ export default function App() {
 
   const saveSettings = async () => {
     setIsSavingSettings(true);
+    setOperationError("");
     try {
       const response = await saveRuntimeSettings({
         selected_role: chatSettings.selectedRole,
@@ -1058,13 +1084,11 @@ export default function App() {
         rag_top_k: ragSettings.chatTopK,
         rag_min_score: ragSettings.minScore
       });
-      setSnapshot((current) => ({ ...current, runtimeSettings: response, error: "" }));
+      setSnapshot((current) => ({ ...current, runtimeSettings: response }));
+      setOperationError("");
       await refresh();
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "设置保存失败"
-      }));
+      setOperationError(`设置保存失败：${error instanceof Error ? error.message : "设置保存失败"}`);
     } finally {
       setIsSavingSettings(false);
     }
@@ -1119,14 +1143,12 @@ export default function App() {
       return;
     }
     setIsWechatBusy(true);
+    setOperationError("");
     try {
       const wechat = await createWechatOpening(chatSettings);
-      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+      setSnapshot((current) => ({ ...current, wechat }));
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "群聊开场生成失败"
-      }));
+      setOperationError(`微信群开场生成失败：${error instanceof Error ? error.message : "群聊开场生成失败"}`);
     } finally {
       setIsWechatBusy(false);
     }
@@ -1146,15 +1168,13 @@ export default function App() {
       return;
     }
     setIsWechatBusy(true);
+    setOperationError("");
     try {
       const wechat = await resetWechat();
       setNewsResult(null);
-      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+      setSnapshot((current) => ({ ...current, wechat }));
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "新群聊创建失败"
-      }));
+      setOperationError(`新群聊创建失败：${error instanceof Error ? error.message : "新群聊创建失败"}`);
     } finally {
       setIsWechatBusy(false);
     }
@@ -1163,12 +1183,10 @@ export default function App() {
   const handleWechatMarkRead = async () => {
     try {
       const wechat = await markWechatRead(sessionId);
-      setSnapshot((current) => ({ ...current, wechat, error: "" }));
+      setSnapshot((current) => ({ ...current, wechat }));
+      setOperationError("");
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "标记已读失败"
-      }));
+      setOperationError(`标记已读失败：${error instanceof Error ? error.message : "标记已读失败"}`);
     }
   };
 
@@ -1179,6 +1197,7 @@ export default function App() {
       return;
     }
     setIsWechatBusy(true);
+    setOperationError("");
     try {
       const response = await sendWechatMessage(message, {
         sessionId,
@@ -1190,10 +1209,7 @@ export default function App() {
       setWechatInput("");
       await refresh();
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "群聊发送失败"
-      }));
+      setOperationError(`微信群回复生成失败：${error instanceof Error ? error.message : "群聊发送失败"}`);
     } finally {
       setIsWechatBusy(false);
     }
@@ -1206,6 +1222,7 @@ export default function App() {
       return;
     }
     setIsNewsBusy(true);
+    setOperationError("");
     try {
       const result = await runNewsSearch(query, {
         sessionId,
@@ -1216,10 +1233,7 @@ export default function App() {
       setSessionId(result.session_id);
       await refresh();
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "联网检索失败"
-      }));
+      setOperationError(`新闻检索失败：${error instanceof Error ? error.message : "联网检索失败"}`);
     } finally {
       setIsNewsBusy(false);
     }
@@ -1231,16 +1245,14 @@ export default function App() {
       return;
     }
     setIsNewsBusy(true);
+    setOperationError("");
     try {
       const result = await lookupNews(query);
       setWebLookup(result);
       setUseWebLookup(true);
-      setSnapshot((current) => ({ ...current, error: "" }));
+      setOperationError("");
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "联网搜索失败"
-      }));
+      setOperationError(`联网搜索失败：${error instanceof Error ? error.message : "联网搜索失败"}`);
     } finally {
       setIsNewsBusy(false);
     }
@@ -1304,19 +1316,18 @@ export default function App() {
   };
 
   const restoreSession = async (restoredSessionId: string) => {
+    setOperationError("");
     try {
       const detail = await loadSessionDetail(restoredSessionId);
       applySessionDetail(detail);
-      setSnapshot((current) => ({ ...current, error: "" }));
+      setOperationError("");
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "会话恢复失败"
-      }));
+      setOperationError(`会话恢复失败：${error instanceof Error ? error.message : "会话恢复失败"}`);
     }
   };
 
   const startNewSession = async () => {
+    setOperationError("");
     try {
       const created = await createNewSession();
       setSessionId(created.session_id);
@@ -1350,13 +1361,10 @@ export default function App() {
         minScore: settings.rag_min_score ?? RAG_SETTINGS_DEFAULTS.minScore
       });
       setKeepCurrentRole(false);
-      setSnapshot((current) => ({ ...current, error: "" }));
+      setOperationError("");
       await refresh();
     } catch (error) {
-      setSnapshot((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : "新建会话失败"
-      }));
+      setOperationError(`新建会话失败：${error instanceof Error ? error.message : "新建会话失败"}`);
     }
   };
 
@@ -1373,12 +1381,15 @@ export default function App() {
       return;
     }
     setUploadState(`${ragUploadMode === "append" ? "正在追加索引" : "正在重建索引"} ${files.length} 个文件...`);
+    setOperationError("");
     try {
       const result = await uploadDocuments(files, ragUploadMode);
       setUploadState(`已索引 ${result.documents} 个文档、${result.chunks} 个片段`);
       await refresh();
     } catch (error) {
-      setUploadState(`上传失败：${error instanceof Error ? error.message : "未知错误"}`);
+      const message = error instanceof Error ? error.message : "未知错误";
+      setUploadState(`上传失败：${message}`);
+      setOperationError(`资料上传失败：${message}`);
     } finally {
       event.target.value = "";
     }
@@ -1426,6 +1437,7 @@ export default function App() {
         onSubmit={submit}
         onStop={stopChatGeneration}
         streamRecovery={streamRecovery}
+        onContinueInterruptedReply={continueInterruptedChat}
         onRetry={retryInterruptedChat}
         onCopyInterruptedReply={copyInterruptedReply}
         onUploadClick={() => fileInputRef.current?.click()}
@@ -1480,7 +1492,13 @@ export default function App() {
           API 未连接：{snapshot.error}
         </div>
       ) : null}
-      {!snapshot.error && partialErrors.length ? (
+      {!snapshot.error && operationError ? (
+        <div className="api-warning operation-warning">
+          <AlertTriangle size={16} />
+          {operationError}
+        </div>
+      ) : null}
+      {!snapshot.error && !operationError && partialErrors.length ? (
         <div className="api-warning">
           <AlertTriangle size={16} />
           部分功能暂不可用：{partialErrors.map(([key]) => key).join(", ")}

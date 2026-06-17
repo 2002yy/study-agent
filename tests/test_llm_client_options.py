@@ -68,6 +68,7 @@ def test_chat_passes_extended_request_options(monkeypatch):
 
 def test_stream_chat_uses_task_defaults(monkeypatch):
     captured = {}
+    state = {"closed": False}
 
     class _FakeResponse:
         def __iter__(self):
@@ -77,6 +78,9 @@ def test_stream_chat_uses_task_defaults(monkeypatch):
             yield SimpleNamespace(
                 choices=[SimpleNamespace(delta=SimpleNamespace(content="B"))]
             )
+
+        def close(self):
+            state["closed"] = True
 
     class _FakeCompletions:
         def create(self, **kwargs):
@@ -109,3 +113,49 @@ def test_stream_chat_uses_task_defaults(monkeypatch):
     assert captured["timeout"] == 20.0
     assert captured["response_format"] == {"type": "json_object"}
     assert captured["stream"] is True
+    assert state["closed"] is True
+
+
+def test_stream_chat_can_cancel_and_closes_response(monkeypatch):
+    state = {"closed": False, "checks": 0}
+
+    class _FakeResponse:
+        def __iter__(self):
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="A"))]
+            )
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="B"))]
+            )
+
+        def close(self):
+            state["closed"] = True
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            return _FakeResponse()
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=_FakeCompletions())
+    )
+
+    monkeypatch.setattr(llm_client, "get_client", lambda provider_profile=None: fake_client)
+    monkeypatch.setattr(
+        llm_client,
+        "get_model_name",
+        lambda model_profile=None, provider_profile=None: "fake-model",
+    )
+
+    def should_cancel():
+        state["checks"] += 1
+        return state["checks"] > 1
+
+    chunks = list(
+        llm_client.stream_chat(
+            [{"role": "user", "content": "hi"}],
+            should_cancel=should_cancel,
+        )
+    )
+
+    assert chunks == ["A"]
+    assert state["closed"] is True

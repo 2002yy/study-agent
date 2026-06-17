@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, searchWechat, sendChatStream } from "./api";
+import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, searchWechat, sendChatStream, sendWechatMessage } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
 const chatSettings: ChatSettings = {
@@ -168,6 +168,39 @@ describe("local knowledge tool calls", () => {
     });
     expect(callBody.run_id).toBe("preview-1");
     expect(callBody.args).toEqual(previewBody.args);
+  });
+});
+
+describe("wechat API calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the current RAG min score with group messages", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          reply: "ok",
+          content: "group",
+          state: {},
+          session_id: "wechat-session",
+          rag: { status: "found" }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendWechatMessage("hello", {
+      sessionId: "session-1",
+      ragEnabled: true,
+      chatSettings,
+      ragSettings: { ...ragSettings, minScore: 0.37 }
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.rag_min_score).toBe(0.37);
   });
 });
 

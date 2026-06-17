@@ -1,5 +1,5 @@
-import { Clipboard, Loader2, RotateCcw, Search, Send, Square, Upload } from "lucide-react";
-import type { FormEvent } from "react";
+import { ArrowDown, Clipboard, Loader2, Play, RotateCcw, Search, Send, Square, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import type { ChatMessage, ChatResponse, MemoryStatusResponse } from "../../types";
@@ -11,9 +11,16 @@ const quickPrompts = [
   "我想开始一个新主题，先帮我拆学习路径"
 ];
 
-function memoryPreview(memoryStatus: MemoryStatusResponse | null, name: string, fallback: string): string {
+export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, name: string, fallback: string): string {
   const preview = memoryStatus?.files.find((file) => file.name === name)?.preview.trim();
-  return preview || fallback;
+  if (!preview) {
+    return fallback;
+  }
+  const sections = preview
+    .split(/\n(?=#{1,6}\s+)/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+  return sections.length ? sections[sections.length - 1] : preview;
 }
 
 export function ChatPanel({
@@ -24,6 +31,7 @@ export function ChatPanel({
   onSubmit,
   onStop,
   streamRecovery,
+  onContinueInterruptedReply,
   onRetry,
   onCopyInterruptedReply,
   onUploadClick,
@@ -41,6 +49,7 @@ export function ChatPanel({
   onSubmit: (event: FormEvent) => void;
   onStop: () => void;
   streamRecovery: { question: string; reply: string; reason: string } | null;
+  onContinueInterruptedReply: () => void;
   onRetry: () => void;
   onCopyInterruptedReply: () => void;
   onUploadClick: () => void;
@@ -51,9 +60,33 @@ export function ChatPanel({
   ragEnabled: boolean;
   memoryStatus: MemoryStatusResponse | null;
 }) {
-  const currentFocus = memoryPreview(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
-  const progress = memoryPreview(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
-  const summary = memoryPreview(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
+  const conversationRef = useRef<HTMLElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const currentFocus = latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
+  const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
+  const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
+
+  const updateScrollState = () => {
+    const element = conversationRef.current;
+    if (!element) {
+      return;
+    }
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    setIsAtBottom(distanceFromBottom < 80);
+  };
+
+  const scrollToLatest = () => {
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    setIsAtBottom(true);
+  };
+
+  useEffect(() => {
+    if (isAtBottom) {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [messages, streamRecovery, isAtBottom]);
+
   return (
     <main className="chat-panel" id="chat">
       <header className="topbar">
@@ -63,7 +96,7 @@ export function ChatPanel({
           <div className="topbar-meta">
             <span>RAG {ragEnabled ? "已启用" : "未启用"}</span>
             <span>路由 {lastChat ? "已生成" : "等待提问"}</span>
-            <span>Session {lastChat?.session_id ?? "未开始"}</span>
+            <span>记录 ID {lastChat?.session_id ?? "未开始"}</span>
           </div>
         </div>
         <div className="topbar-actions">
@@ -76,7 +109,7 @@ export function ChatPanel({
         </div>
       </header>
 
-      <section className="conversation" aria-label="Conversation">
+      <section className="conversation" aria-label="Conversation" onScroll={updateScrollState} ref={conversationRef}>
         <div className="home-brief">
           <div>
             <h2>继续学习</h2>
@@ -117,7 +150,14 @@ export function ChatPanel({
             </article>
           );
         })}
+        <div ref={bottomRef} />
       </section>
+      {!isAtBottom ? (
+        <button className="back-to-latest" onClick={scrollToLatest} type="button">
+          <ArrowDown size={14} />
+          回到最新
+        </button>
+      ) : null}
 
       {streamRecovery ? (
         <div className="stream-recovery">
@@ -125,6 +165,15 @@ export function ChatPanel({
             <strong>生成已中断</strong>
             <span>{streamRecovery.reason}</span>
           </div>
+          <button
+            className="ghost-action compact"
+            disabled={isSending || !streamRecovery.reply}
+            onClick={onContinueInterruptedReply}
+            type="button"
+          >
+            <Play size={14} />
+            继续生成
+          </button>
           <button className="ghost-action compact" disabled={isSending} onClick={onRetry} type="button">
             <RotateCcw size={14} />
             重试

@@ -424,6 +424,7 @@ button {
 }
 
 .chat-panel {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
@@ -713,9 +714,28 @@ button {
   color: #dff7f2;
 }
 
+.back-to-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cfe0df;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent-strong);
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+
 .stream-recovery {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
   padding: 10px 24px;
@@ -1654,6 +1674,21 @@ button {
 
   .conversation {
     padding: 16px;
+  }
+
+  .back-to-latest {
+    bottom: 120px;
+  }
+
+  .stream-recovery {
+    grid-template-columns: 1fr;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .stream-recovery .ghost-action {
+    width: 100%;
+    justify-content: center;
   }
 
   .composer {
