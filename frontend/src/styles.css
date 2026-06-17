@@ -1044,6 +1044,13 @@ button {
   font-size: 11px;
 }
 
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .roadmap-list {
   list-style: none;
 }

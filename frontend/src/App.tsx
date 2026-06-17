@@ -17,6 +17,7 @@ import {
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   callLocalKnowledge,
+  archiveSession,
   createNewSession,
   createWechatOpening,
   loadApiSnapshot,
@@ -28,7 +29,6 @@ import {
   previewLocalKnowledge,
   queryRag,
   resetWechat,
-  runNewsSearch,
   saveRuntimeSettings,
   sendChatStream,
   sendWechatMessageStream,
@@ -525,6 +525,8 @@ function Sidebar({
 
 function Inspector({
   snapshot,
+  sessionId,
+  chatSettings,
   lastChat,
   ragSearch,
   isSearching,
@@ -541,6 +543,7 @@ function Inspector({
   toolCallBlockedReason,
   toolInvocationLabel,
   onRestoreSession,
+  onArchiveSession,
   newsResult,
   webLookup,
   useWebLookup,
@@ -555,13 +558,15 @@ function Inspector({
   onWechatReset,
   onWechatMarkRead,
   onSendWechat,
-  onRunNews,
   onLookupNews,
+  onNewsDiscussed,
   isWechatBusy,
   isNewsBusy,
   onMemoryChanged
 }: {
   snapshot: ApiSnapshot;
+  sessionId?: string;
+  chatSettings: ChatSettings;
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
@@ -578,6 +583,7 @@ function Inspector({
   toolCallBlockedReason: string;
   toolInvocationLabel: string;
   onRestoreSession: (sessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
   newsResult: NewsSearchResponse | null;
   webLookup: NewsLookupResponse | null;
   useWebLookup: boolean;
@@ -592,8 +598,8 @@ function Inspector({
   onWechatReset: () => void;
   onWechatMarkRead: () => void;
   onSendWechat: (event: FormEvent) => void;
-  onRunNews: (event: FormEvent) => void;
   onLookupNews: () => void;
+  onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   isNewsBusy: boolean;
   onMemoryChanged: () => Promise<void> | void;
@@ -613,12 +619,14 @@ function Inspector({
         setNewsQuery={setNewsQuery}
         readArticles={readArticles}
         setReadArticles={setReadArticles}
+        chatSettings={chatSettings}
+        sessionId={sessionId}
         onOpening={onWechatOpening}
         onReset={onWechatReset}
         onMarkRead={onWechatMarkRead}
         onSendWechat={onSendWechat}
-        onRunNews={onRunNews}
         onLookupNews={onLookupNews}
+        onNewsDiscussed={onNewsDiscussed}
         isWechatBusy={isWechatBusy}
         isNewsBusy={isNewsBusy}
       />
@@ -641,7 +649,7 @@ function Inspector({
         callBlockedReason={toolCallBlockedReason}
         invocationLabel={toolInvocationLabel}
       />
-      <SessionsPanel sessions={snapshot.sessions} onRestore={onRestoreSession} />
+      <SessionsPanel sessions={snapshot.sessions} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
       <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
     </aside>
@@ -1256,30 +1264,6 @@ export default function App() {
     }
   };
 
-  const handleRunNews = async (event: FormEvent) => {
-    event.preventDefault();
-    const query = newsQuery.trim();
-    if (!query || isNewsBusy) {
-      return;
-    }
-    setIsNewsBusy(true);
-    setOperationError("");
-    try {
-      const result = await runNewsSearch(query, {
-        sessionId,
-        readArticles,
-        chatSettings
-      });
-      setNewsResult(result);
-      setSessionId(result.session_id);
-      await refresh();
-    } catch (error) {
-      setOperationError(`新闻检索失败：${error instanceof Error ? error.message : "联网检索失败"}`);
-    } finally {
-      setIsNewsBusy(false);
-    }
-  };
-
   const handleLookupNews = async () => {
     const query = newsQuery.trim();
     if (!query || isNewsBusy) {
@@ -1364,6 +1348,16 @@ export default function App() {
       setOperationError("");
     } catch (error) {
       setOperationError(`会话恢复失败：${error instanceof Error ? error.message : "会话恢复失败"}`);
+    }
+  };
+
+  const archiveCurrentSession = async (targetSessionId: string) => {
+    setOperationError("");
+    try {
+      await archiveSession(targetSessionId);
+      await refresh();
+    } catch (error) {
+      setOperationError(`会话归档失败：${error instanceof Error ? error.message : "会话归档失败"}`);
     }
   };
 
@@ -1491,6 +1485,8 @@ export default function App() {
       />
       <Inspector
         snapshot={snapshot}
+        sessionId={sessionId}
+        chatSettings={chatSettings}
         lastChat={lastChat}
         ragSearch={ragSearch}
         isSearching={isSearching}
@@ -1507,6 +1503,7 @@ export default function App() {
         toolCallBlockedReason={toolCallBlockedReason}
         toolInvocationLabel={toolInvocationLabel}
         onRestoreSession={restoreSession}
+        onArchiveSession={archiveCurrentSession}
         newsResult={newsResult}
         webLookup={webLookup}
         useWebLookup={useWebLookup}
@@ -1521,8 +1518,11 @@ export default function App() {
         onWechatReset={handleWechatReset}
         onWechatMarkRead={handleWechatMarkRead}
         onSendWechat={handleSendWechat}
-        onRunNews={handleRunNews}
         onLookupNews={handleLookupNews}
+        onNewsDiscussed={(nextSessionId) => {
+          setSessionId(nextSessionId);
+          void refresh();
+        }}
         isWechatBusy={isWechatBusy}
         isNewsBusy={isNewsBusy}
         onMemoryChanged={refresh}

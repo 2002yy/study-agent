@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -325,7 +326,7 @@ def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(monkeypat
     assert ("combined", "hello stream group", "【纳西妲】\n先看结构。") in actions
 
 
-def test_news_search_endpoint_runs_news_round(monkeypatch):
+def test_news_round_endpoint_runs_compat_flow(monkeypatch):
     from src import api
 
     captured = {}
@@ -353,7 +354,7 @@ def test_news_search_endpoint_runs_news_round(monkeypatch):
     client = TestClient(app)
 
     response = client.post(
-        "/news/search",
+        "/news/round",
         json={
             "query": "OpenAI latest",
             "read_articles": False,
@@ -372,6 +373,65 @@ def test_news_search_endpoint_runs_news_round(monkeypatch):
     assert captured["read_articles"] is False
     assert captured["runtime_context"].interaction_mode == "warm"
     assert captured["runtime_context"].performance_mode == "fast"
+
+
+def test_news_stage_endpoints_run_individual_steps(monkeypatch):
+    from src import api
+
+    calls = {}
+    monkeypatch.setattr(api, "run_search_stage", lambda query, max_items=10: [{"title": query, "rank": max_items}])
+    monkeypatch.setattr(
+        api,
+        "run_enrich_stage",
+        lambda news_items, max_articles, query_text="", max_chars_per_article=5000: [
+            {**news_items[0], "article_text": query_text, "max_articles": max_articles}
+        ],
+    )
+
+    def fake_digest(news_items, query_text, performance_mode, selected_model):
+        calls["digest"] = (news_items, query_text, performance_mode, selected_model)
+        return "digest", "source", {"total": len(news_items)}, ["warn"]
+
+    def fake_discussion(digest, interaction_mode, performance_mode, selected_model, source_block="", session_id="", progress=None):
+        calls["discussion"] = (digest, interaction_mode, performance_mode, selected_model, source_block, session_id)
+        return "discussion", "group"
+
+    monkeypatch.setattr(api, "run_digest_stage", fake_digest)
+    monkeypatch.setattr(api, "run_discussion_stage", fake_discussion)
+    monkeypatch.setattr(api, "init_session", lambda: "news-stage-session")
+    client = TestClient(app)
+
+    search = client.post("/news/search", json={"query": "AI", "max_items": 4})
+    enrich = client.post(
+        "/news/enrich",
+        json={"query_text": "AI", "news_items": search.json()["news_items"], "max_articles": 2},
+    )
+    digest = client.post(
+        "/news/digest",
+        json={"query_text": "AI", "news_items": enrich.json()["news_items"], "selected_model": "flash", "performance_mode": "fast"},
+    )
+    discuss = client.post(
+        "/news/discuss",
+        json={
+            "digest": digest.json()["digest"],
+            "source_block": digest.json()["source_block"],
+            "selected_model": "flash",
+            "relationship_mode": "warm",
+            "performance_mode": "fast",
+        },
+    )
+
+    assert search.status_code == 200
+    assert search.json()["news_items"][0]["rank"] == 4
+    assert enrich.status_code == 200
+    assert enrich.json()["news_items"][0]["max_articles"] == 2
+    assert digest.status_code == 200
+    assert digest.json()["source_block"] == "source"
+    assert digest.json()["warnings"] == ["warn"]
+    assert discuss.status_code == 200
+    assert discuss.json()["session_id"] == "news-stage-session"
+    assert calls["digest"][2] == "fast"
+    assert calls["discussion"][1] == "warm"
 
 
 def test_news_lookup_endpoint_returns_source_block(monkeypatch):
@@ -928,6 +988,60 @@ def test_create_new_session_returns_default_settings():
     data = response.json()
     assert data["session_id"]
     assert "selected_role" in data["settings"]
+
+
+def test_archive_active_session_endpoint(monkeypatch, tmp_path):
+    from src import api, session_logger
+
+    current_dir = tmp_path / "current"
+    session_dir = tmp_path / "sessions"
+    current_dir.mkdir()
+    session_dir.mkdir()
+    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
+    monkeypatch.setattr(api, "SESSION_DIR", session_dir)
+    monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
+    monkeypatch.setattr(session_logger, "LOG_DIR", session_dir)
+    session_id = session_logger.init_session()
+    session_logger.log(
+        session_id=session_id,
+        role="nahida",
+        mode="普通",
+        model="flash",
+        user_input="archive this",
+        agent_reply="archived",
+    )
+    client = TestClient(app)
+
+    response = client.post(f"/sessions/{session_id}/archive")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == session_id
+    assert data["kind"] == "archived"
+    assert data["archived"] is True
+    assert Path(data["path"]).is_file()
+
+
+def test_archive_current_session_file_after_restart(monkeypatch, tmp_path):
+    from src import api
+
+    current_dir = tmp_path / "current"
+    session_dir = tmp_path / "sessions"
+    current_dir.mkdir()
+    session_dir.mkdir()
+    current_file = current_dir / "restartme.md"
+    current_file.write_text("User: hello\nAgent: hi\n", encoding="utf-8")
+    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
+    monkeypatch.setattr(api, "SESSION_DIR", session_dir)
+    client = TestClient(app)
+
+    response = client.post("/sessions/restartme/archive")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["kind"] == "archived"
+    assert Path(data["path"]).is_file()
+    assert not current_file.exists()
 
 
 def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, tmp_path):

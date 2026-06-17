@@ -4,6 +4,7 @@ import os
 import json
 import secrets
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Iterator
 
@@ -62,6 +63,7 @@ from src.session_logger import (
     get_session_entries,
     init_session,
     log,
+    save as archive_session_log,
     set_wechat_interactive,
     set_wechat_status,
     set_wechat_unread_cleared,
@@ -73,7 +75,14 @@ from src.wechat_generator import (
     generate_interactive_wechat_reply_stream,
     generate_wechat_opening,
 )
-from src.wechat_service import RuntimeContext, run_news_round
+from src.wechat_service import (
+    RuntimeContext,
+    run_digest_stage,
+    run_discussion_stage,
+    run_enrich_stage,
+    run_news_round,
+    run_search_stage,
+)
 from src.wechat_state import (
     append_user_and_interactive_group_reply,
     count_wechat_messages,
@@ -328,6 +337,58 @@ class NewsLookupRequest(BaseModel):
     max_items: int = Field(default=8, gt=0, le=20)
 
 
+class NewsStageSearchRequest(BaseModel):
+    query: str = Field(default="最新新闻 when:1d", min_length=1)
+    max_items: int = Field(default=10, gt=0, le=20)
+
+
+class NewsStageSearchResponse(BaseModel):
+    query_text: str
+    news_items: list[dict[str, Any]]
+
+
+class NewsEnrichRequest(BaseModel):
+    query_text: str = Field(default="", min_length=0)
+    news_items: list[dict[str, Any]] = Field(min_length=1)
+    max_articles: int = Field(default=6, ge=0, le=20)
+    max_chars_per_article: int = Field(default=5000, gt=0, le=20000)
+
+
+class NewsEnrichResponse(BaseModel):
+    query_text: str
+    news_items: list[dict[str, Any]]
+
+
+class NewsDigestRequest(BaseModel):
+    query_text: str = Field(default="", min_length=0)
+    news_items: list[dict[str, Any]] = Field(min_length=1)
+    selected_model: str = "auto"
+    performance_mode: str | None = None
+
+
+class NewsDigestResponse(BaseModel):
+    query_text: str
+    digest: str
+    source_block: str
+    article_coverage: dict[str, Any]
+    warnings: list[str]
+
+
+class NewsDiscussRequest(BaseModel):
+    digest: str = Field(min_length=1)
+    source_block: str = ""
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    performance_mode: str | None = None
+    session_id: str | None = None
+
+
+class NewsDiscussResponse(BaseModel):
+    discussion: str
+    group_content: str
+    session_id: str
+
+
 class NewsLookupResponse(BaseModel):
     query_text: str
     news_items: list[dict[str, Any]]
@@ -400,6 +461,13 @@ class SessionDetailResponse(BaseModel):
 class SessionNewResponse(BaseModel):
     session_id: str
     settings: dict[str, Any]
+
+
+class SessionArchiveResponse(BaseModel):
+    session_id: str
+    kind: str
+    path: str
+    archived: bool
 
 
 class ToolInvocationRequest(BaseModel):
@@ -1255,8 +1323,8 @@ def search_wechat_endpoint(request: WechatSearchRequest) -> WechatSearchResponse
     )
 
 
-@app.post("/news/search", response_model=NewsSearchResponse)
-def search_news_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
+@app.post("/news/round", response_model=NewsSearchResponse)
+def run_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
     runtime_modes = load_runtime_modes()
     performance_mode = _request_performance_mode(request.performance_mode)
     _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
@@ -1276,6 +1344,59 @@ def search_news_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
         ),
     )
     return _news_result_payload(result, session_id)
+
+
+@app.post("/news/search", response_model=NewsStageSearchResponse)
+def search_news_stage_endpoint(request: NewsStageSearchRequest) -> NewsStageSearchResponse:
+    items = run_search_stage(request.query, max_items=request.max_items)
+    return NewsStageSearchResponse(query_text=request.query, news_items=items)
+
+
+@app.post("/news/enrich", response_model=NewsEnrichResponse)
+def enrich_news_stage_endpoint(request: NewsEnrichRequest) -> NewsEnrichResponse:
+    items = run_enrich_stage(
+        request.news_items,
+        max_articles=request.max_articles,
+        query_text=request.query_text,
+        max_chars_per_article=request.max_chars_per_article,
+    )
+    return NewsEnrichResponse(query_text=request.query_text, news_items=items)
+
+
+@app.post("/news/digest", response_model=NewsDigestResponse)
+def digest_news_stage_endpoint(request: NewsDigestRequest) -> NewsDigestResponse:
+    _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+    performance_mode = _request_performance_mode(request.performance_mode)
+    digest, source_block, article_coverage, warnings = run_digest_stage(
+        request.news_items,
+        query_text=request.query_text,
+        performance_mode=performance_mode,
+        selected_model=request.selected_model,
+    )
+    return NewsDigestResponse(
+        query_text=request.query_text,
+        digest=digest,
+        source_block=source_block,
+        article_coverage=article_coverage,
+        warnings=warnings,
+    )
+
+
+@app.post("/news/discuss", response_model=NewsDiscussResponse)
+def discuss_news_stage_endpoint(request: NewsDiscussRequest) -> NewsDiscussResponse:
+    _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
+    _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+    performance_mode = _request_performance_mode(request.performance_mode)
+    session_id = request.session_id or init_session()
+    discussion, group_content = run_discussion_stage(
+        request.digest,
+        interaction_mode=request.relationship_mode,
+        performance_mode=performance_mode,
+        selected_model=request.selected_model,
+        source_block=request.source_block,
+        session_id=session_id,
+    )
+    return NewsDiscussResponse(discussion=discussion, group_content=group_content, session_id=session_id)
 
 
 @app.post("/news/lookup", response_model=NewsLookupResponse)
@@ -1679,6 +1800,41 @@ def get_session_detail(session_id: str) -> SessionDetailResponse:
 @app.post("/sessions/new", response_model=SessionNewResponse)
 def create_new_session() -> SessionNewResponse:
     return SessionNewResponse(session_id=init_session(), settings=_load_frontend_settings())
+
+
+@app.post("/sessions/{session_id}/archive", response_model=SessionArchiveResponse)
+def archive_session(session_id: str) -> SessionArchiveResponse:
+    kind, path = _find_session_file(session_id)
+    if kind == "archived" and path is not None:
+        return SessionArchiveResponse(
+            session_id=session_id,
+            kind="archived",
+            path=str(path),
+            archived=True,
+        )
+
+    entries = get_session_entries(session_id)
+    if not entries and path is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    archived_path = archive_session_log(session_id)
+    if not archived_path and kind == "current" and path is not None:
+        SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        archived_file = SESSION_DIR / f"{timestamp}_session_{session_id}_archived_flash.md"
+        safe_write_text(archived_file, path.read_text(encoding="utf-8"))
+        path.unlink(missing_ok=True)
+        archived_path = str(archived_file)
+    if not archived_path:
+        raise HTTPException(status_code=404, detail="Session has no messages to archive")
+
+    kind, path = _find_session_file(session_id)
+    return SessionArchiveResponse(
+        session_id=session_id,
+        kind="archived" if path is not None else kind,
+        path=str(path or archived_path),
+        archived=True,
+    )
 
 
 @app.post("/sessions/{session_id}/flush")

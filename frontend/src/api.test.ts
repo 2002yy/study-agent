@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   callLocalKnowledge,
+  archiveSession,
+  digestNewsStage,
+  discussNewsStage,
+  enrichNewsStage,
   loadApiSnapshot,
   previewLocalKnowledge,
   searchWechat,
+  searchNewsStage,
   sendChatStream,
   sendWechatMessage,
-  sendWechatMessageStream
+  sendWechatMessageStream,
+  runNewsSearch
 } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
@@ -265,6 +271,90 @@ describe("wechat search API", () => {
     expect(url).toBe("/wechat/search");
     expect(JSON.parse(String(init.body))).toEqual({ keyword: "RAG", max_results: 12 });
     expect(response.keyword).toBe("RAG");
+  });
+});
+
+describe("session API calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("archives a session by id", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ session_id: "abc", kind: "archived", path: "session.md", archived: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await archiveSession("abc");
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/sessions/abc/archive");
+    expect(init.method).toBe("POST");
+    expect(response.archived).toBe(true);
+  });
+});
+
+describe("news API calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the compatibility news round on /news/round", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          query_text: "AI",
+          news_items: [],
+          digest: "digest",
+          discussion: "discussion",
+          group_content: "group",
+          source_block: "source",
+          article_coverage: {},
+          elapsed_ms: 1,
+          warnings: [],
+          audit_markdown_path: "",
+          audit_json_path: "",
+          session_id: "news-session"
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await runNewsSearch("AI", { sessionId: "session-1", readArticles: false, chatSettings });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/news/round");
+  });
+
+  it("posts phased news requests to the stage endpoints", async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      const payloads: Record<string, unknown> = {
+        "/news/search": { query_text: "AI", news_items: [{ title: "A" }] },
+        "/news/enrich": { query_text: "AI", news_items: [{ title: "A", article_text: "body" }] },
+        "/news/digest": { query_text: "AI", digest: "digest", source_block: "source", article_coverage: {}, warnings: [] },
+        "/news/discuss": { discussion: "discussion", group_content: "group", session_id: "news-session" }
+      };
+      return new Response(JSON.stringify(payloads[url]), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const search = await searchNewsStage("AI", 4);
+    const enrich = await enrichNewsStage({ queryText: search.query_text, newsItems: search.news_items, maxArticles: 2 });
+    const digest = await digestNewsStage({ queryText: enrich.query_text, newsItems: enrich.news_items, chatSettings });
+    const discuss = await discussNewsStage({ digest: digest.digest, sourceBlock: digest.source_block, sessionId: "session-1", chatSettings });
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => [url, JSON.parse(String(init?.body))]);
+    expect(calls[0][0]).toBe("/news/search");
+    expect(calls[0][1]).toMatchObject({ query: "AI", max_items: 4 });
+    expect(calls[1][0]).toBe("/news/enrich");
+    expect(calls[1][1]).toMatchObject({ query_text: "AI", max_articles: 2 });
+    expect(calls[2][0]).toBe("/news/digest");
+    expect(calls[3][0]).toBe("/news/discuss");
+    expect(discuss.session_id).toBe("news-session");
   });
 });
 

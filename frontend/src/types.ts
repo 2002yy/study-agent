@@ -335,6 +335,13 @@ export type SessionNewResponse = {
   settings: Partial<RuntimeSettingsResponse["settings"]>;
 };
 
+export type SessionArchiveResponse = {
+  session_id: string;
+  kind: string;
+  path: string;
+  archived: boolean;
+};
+
 export type ApiSnapshot = {
   health: HealthResponse | null;
   ragStatus: RagStatusResponse | null;

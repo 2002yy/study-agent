@@ -3,8 +3,9 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { searchWechat } from "../../api";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { NewsLookupResponse, NewsSearchResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
+import type { ChatSettings, NewsLookupResponse, NewsSearchResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
 import { displayValue } from "../../utils/format";
+import { NewsWorkspace } from "../news-workspace/NewsWorkspace";
 import { speakerToRole } from "../roles/roleCatalog";
 
 export function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
@@ -79,12 +80,14 @@ export function WechatPanel({
   setNewsQuery,
   readArticles,
   setReadArticles,
+  chatSettings,
+  sessionId,
   onOpening,
   onReset,
   onMarkRead,
   onSendWechat,
-  onRunNews,
   onLookupNews,
+  onNewsDiscussed,
   isWechatBusy,
   isNewsBusy
 }: {
@@ -99,12 +102,14 @@ export function WechatPanel({
   setNewsQuery: (value: string) => void;
   readArticles: boolean;
   setReadArticles: (value: boolean) => void;
+  chatSettings: ChatSettings;
+  sessionId?: string;
   onOpening: () => void;
   onReset: () => void;
   onMarkRead: () => void;
   onSendWechat: (event: FormEvent) => void;
-  onRunNews: (event: FormEvent) => void;
   onLookupNews: () => void;
+  onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   isNewsBusy: boolean;
 }) {
@@ -241,23 +246,17 @@ export function WechatPanel({
         </button>
       </form>
 
-      <form className="mini-form news-form" onSubmit={onRunNews}>
-        <label className="field-row">
-          <span>联网检索</span>
-          <input onChange={(event) => setNewsQuery(event.target.value)} placeholder="最新新闻 when:1d" value={newsQuery} />
-        </label>
-        <label className="toggle-row">
-          <input checked={readArticles} onChange={(event) => setReadArticles(event.target.checked)} type="checkbox" />
-          <span>尝试读取正文</span>
-        </label>
-        <button className="primary-action secondary" disabled={isNewsBusy || !newsQuery.trim()} type="submit">
-          {isNewsBusy ? <Loader2 className="spin" size={15} /> : <Search size={15} />}
-          联网查并讨论
-        </button>
-        <button className="ghost-action compact lookup-action" disabled={isNewsBusy || !newsQuery.trim()} onClick={onLookupNews} type="button">
-          仅搜索，用于下一轮聊天
-        </button>
-      </form>
+      <NewsWorkspace
+        query={newsQuery}
+        setQuery={setNewsQuery}
+        readArticles={readArticles}
+        setReadArticles={setReadArticles}
+        chatSettings={chatSettings}
+        sessionId={sessionId}
+        onDiscussed={onNewsDiscussed}
+        onLookupNews={onLookupNews}
+        isLookupBusy={isNewsBusy}
+      />
 
       {webLookup ? (
         <div className="news-result lookup-result">

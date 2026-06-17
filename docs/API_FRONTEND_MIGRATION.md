@@ -43,7 +43,11 @@ to the React frontend. React should prefer these APIs over local fake state.
 | WeChat | `POST /wechat/message` | Implemented compatibility route | Writes user/group messages | Non-streaming group reply |
 | WeChat | `POST /wechat/search` | Implemented compatibility route | Read-only | Search group transcript |
 | News | `POST /news/lookup` | Implemented compatibility route | Read-only network fetch | Search web/news for single chat context |
-| News | `POST /news/search` | Implemented compatibility route | Network fetch, model calls, writes group discussion/audit | One-shot news discussion |
+| News | `POST /news/round` | Implemented compatibility route | Network fetch, model calls, writes group discussion/audit | One-shot news discussion |
+| News | `POST /news/search` | Implemented stage route | Read-only network fetch | Stage 1 search results |
+| News | `POST /news/enrich` | Implemented stage route | Reads article text when runtime allows | Stage 2 article enrichment |
+| News | `POST /news/digest` | Implemented stage route | Model call, no group write | Stage 3 digest |
+| News | `POST /news/discuss` | Implemented stage route | Model call and group write | Stage 4 group discussion |
 
 ## Gaps To Close
 
@@ -60,9 +64,6 @@ to the React frontend. React should prefer these APIs over local fake state.
 | P0 | `POST /wechat/messages/stream` | Streaming group reply | SSE token stream plus final state |
 | P0 | `POST /wechat/memory/preview` | Group memory candidates | Preview only |
 | P0 | `POST /wechat/memory/commit` | Commit group memory candidates | Must respect memory safety |
-| P0 | `POST /news/enrich` | Stage 2 news pipeline | Reads article text when runtime allows |
-| P0 | `POST /news/digest` | Stage 3 news pipeline | Model call, no group write |
-| P0 | `POST /news/discuss` | Stage 4 news pipeline | Model call and group write |
 | P1 | `GET /sessions/{session_id}` | Session detail | Read-only |
 | P1 | `POST /sessions/{session_id}/archive` | Archive session | File move/write |
 | P1 | `GET /stats` | Usage/study stats | Read-only |

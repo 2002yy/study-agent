@@ -16,6 +16,7 @@ import type {
   RagStatusResponse,
   RoleResponse,
   SessionDetailResponse,
+  SessionArchiveResponse,
   SessionNewResponse,
   SessionRow,
   ToolInvocationResponse,
@@ -412,7 +413,7 @@ export async function runNewsSearch(
     chatSettings: ChatSettings;
   }
 ): Promise<NewsSearchResponse> {
-  return requestJson<NewsSearchResponse>("/news/search", {
+  return requestJson<NewsSearchResponse>("/news/round", {
     method: "POST",
     body: JSON.stringify({
       query,
@@ -421,6 +422,75 @@ export async function runNewsSearch(
       selected_model: options.chatSettings.selectedModel,
       relationship_mode: options.chatSettings.relationshipMode,
       performance_mode: performanceModeFromContext(options.chatSettings.contextMode)
+    })
+  });
+}
+
+export async function searchNewsStage(query: string, maxItems = 10): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
+  return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/search", {
+    method: "POST",
+    body: JSON.stringify({ query, max_items: maxItems })
+  });
+}
+
+export async function enrichNewsStage(payload: {
+  queryText: string;
+  newsItems: Array<Record<string, unknown>>;
+  maxArticles?: number;
+}): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
+  return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/enrich", {
+    method: "POST",
+    body: JSON.stringify({
+      query_text: payload.queryText,
+      news_items: payload.newsItems,
+      max_articles: payload.maxArticles ?? 6
+    })
+  });
+}
+
+export async function digestNewsStage(payload: {
+  queryText: string;
+  newsItems: Array<Record<string, unknown>>;
+  chatSettings: ChatSettings;
+}): Promise<{
+  query_text: string;
+  digest: string;
+  source_block: string;
+  article_coverage: Record<string, unknown>;
+  warnings: string[];
+}> {
+  return requestJson<{
+    query_text: string;
+    digest: string;
+    source_block: string;
+    article_coverage: Record<string, unknown>;
+    warnings: string[];
+  }>("/news/digest", {
+    method: "POST",
+    body: JSON.stringify({
+      query_text: payload.queryText,
+      news_items: payload.newsItems,
+      selected_model: payload.chatSettings.selectedModel,
+      performance_mode: performanceModeFromContext(payload.chatSettings.contextMode)
+    })
+  });
+}
+
+export async function discussNewsStage(payload: {
+  digest: string;
+  sourceBlock: string;
+  sessionId?: string;
+  chatSettings: ChatSettings;
+}): Promise<{ discussion: string; group_content: string; session_id: string }> {
+  return requestJson<{ discussion: string; group_content: string; session_id: string }>("/news/discuss", {
+    method: "POST",
+    body: JSON.stringify({
+      digest: payload.digest,
+      source_block: payload.sourceBlock,
+      session_id: payload.sessionId,
+      selected_model: payload.chatSettings.selectedModel,
+      relationship_mode: payload.chatSettings.relationshipMode,
+      performance_mode: performanceModeFromContext(payload.chatSettings.contextMode)
     })
   });
 }
@@ -446,6 +516,10 @@ export async function loadSessionDetail(sessionId: string): Promise<SessionDetai
 
 export async function createNewSession(): Promise<SessionNewResponse> {
   return requestJson<SessionNewResponse>("/sessions/new", { method: "POST" });
+}
+
+export async function archiveSession(sessionId: string): Promise<SessionArchiveResponse> {
+  return requestJson<SessionArchiveResponse>(`/sessions/${encodeURIComponent(sessionId)}/archive`, { method: "POST" });
 }
 
 export async function loadRagStatus(): Promise<RagStatusResponse> {
