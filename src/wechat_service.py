@@ -189,6 +189,7 @@ def run_discussion_stage(
         relationship_mode=interaction_mode,
         performance_mode=performance_mode,
         selected_model=selected_model,
+        session_id=session_id,
     )
 
     if progress:

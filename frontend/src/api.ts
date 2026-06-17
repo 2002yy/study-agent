@@ -75,6 +75,8 @@ type ChatRequestOptions = {
   conversationInstruction?: string;
   previousMode?: string;
   scene?: "single" | "group";
+  continuationOfTurnId?: string;
+  partialReply?: string;
 };
 
 type ChatStreamHandlers = {
@@ -121,7 +123,9 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_top_k: options.ragSettings.chatTopK,
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore,
-    web_context: options.webContext ?? ""
+    web_context: options.webContext ?? "",
+    continuation_of_turn_id: options.continuationOfTurnId ?? null,
+    partial_reply: options.partialReply ?? ""
   };
 }
 
@@ -737,4 +741,32 @@ export async function callLocalKnowledge(invocation: LocalKnowledgeInvocation): 
 export async function loadWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
   const response = await requestJson<{ run: WorkflowRunDetail }>(`/workflows/runs/${encodeURIComponent(runId)}`);
   return response.run;
+}
+
+export async function commitTurn(sessionId: string, payload: {
+  userInput: string;
+  agentReply: string;
+  role?: string;
+  mode?: string;
+  model?: string;
+  memoryEnabled?: boolean;
+  routeInfo?: Record<string, unknown>;
+  ragInfo?: Record<string, unknown>;
+  conversationInstruction?: string;
+}): Promise<{ session_id: string; committed: boolean; message: string }> {
+  return requestJson<{ session_id: string; committed: boolean; message: string }>(`/sessions/${sessionId}/commit-turn`, {
+    method: "POST",
+    body: JSON.stringify({
+      session_id: sessionId,
+      user_input: payload.userInput,
+      agent_reply: payload.agentReply,
+      role: payload.role ?? "auto",
+      mode: payload.mode ?? "auto",
+      model: payload.model ?? "auto",
+      memory_enabled: payload.memoryEnabled ?? false,
+      route_info: payload.routeInfo ?? {},
+      rag_info: payload.ragInfo ?? {},
+      conversation_instruction: payload.conversationInstruction ?? ""
+    })
+  });
 }

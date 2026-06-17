@@ -38,6 +38,7 @@ export function ChatPanel({
   onUploadClick,
   onSearchSources,
   isSearching,
+  hasSearchQuery,
   onQuickPrompt,
   lastChat,
   ragEnabled,
@@ -57,6 +58,7 @@ export function ChatPanel({
   onUploadClick: () => void;
   onSearchSources: () => void;
   isSearching: boolean;
+  hasSearchQuery: boolean;
   onQuickPrompt: (value: string) => void;
   lastChat: ChatResponse | null;
   ragEnabled: boolean;
@@ -65,7 +67,7 @@ export function ChatPanel({
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const currentFocus = latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
+  const currentFocus = memoryStatus?.latest_section || latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
   const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
   const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
   const hasConversationMessages = messages.some(
@@ -108,7 +110,7 @@ export function ChatPanel({
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
             <Upload size={17} />
           </button>
-          <button className="icon-button" onClick={onSearchSources} type="button" title="检索来源">
+          <button className="icon-button" disabled={!hasSearchQuery} onClick={onSearchSources} type="button" title={hasSearchQuery ? "检索来源" : "输入关键词或通过 RAG 提问后可检索"}>
             {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
           </button>
         </div>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import secrets
 from dataclasses import replace
 from datetime import datetime
@@ -169,6 +170,8 @@ class MemoryStatusResponse(BaseModel):
     context_mode: str
     groups: dict[str, list[str]]
     files: list[dict[str, Any]]
+    latest_section: str = ""
+    latest_updated_at: str = ""
 
 
 class RagIndexRequest(BaseModel):
@@ -266,6 +269,27 @@ class ChatRequest(BaseModel):
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = Field(default=0.01, ge=0)
     web_context: str = ""
+    continuation_of_turn_id: str | None = None
+    partial_reply: str = ""
+
+
+class CommitTurnRequest(BaseModel):
+    session_id: str
+    user_input: str
+    agent_reply: str
+    role: str = "auto"
+    mode: str = "auto"
+    model: str = "auto"
+    memory_enabled: bool = False
+    route_info: dict[str, Any] = Field(default_factory=dict)
+    rag_info: dict[str, Any] = Field(default_factory=dict)
+    conversation_instruction: str = ""
+
+
+class CommitTurnResponse(BaseModel):
+    session_id: str
+    committed: bool
+    message: str
 
 
 class ChatResponse(BaseModel):
@@ -444,6 +468,7 @@ class MemoryPreviewResponse(BaseModel):
 class MemoryCommitResponse(BaseModel):
     writable: bool
     results: list[dict[str, str]]
+    errors: list[dict[str, str]] | None = None
 
 
 class SessionListResponse(BaseModel):
@@ -922,7 +947,19 @@ def _memory_file_row(name: str) -> dict[str, Any]:
         "size_bytes": stat.st_size if stat else 0,
         "mtime_ns": stat.st_mtime_ns if stat else 0,
         "preview": content[-1600:],
+        "latest_section": _extract_latest_section(content),
+        "latest_updated_at": datetime.fromtimestamp(stat.st_mtime).isoformat() if stat and exists else "",
     }
+
+
+def _extract_latest_section(text: str) -> str:
+    """Return the last heading-delimited section from a markdown text."""
+    if not text.strip():
+        return ""
+    sections = [s.strip() for s in re.split(r"\n(?=#{1,6}\s+)", text) if s.strip()]
+    if not sections:
+        return text.strip()[-400:]
+    return sections[-1]
 
 
 def _request_performance_mode(requested: str | None) -> str:
@@ -1020,6 +1057,21 @@ def _session_settings_from_request(request: ChatRequest, context_mode: str) -> d
 def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
     runtime_modes = _runtime_modes_for_request(request.performance_mode)
     context_mode = request.context_mode or runtime_modes.context_mode
+
+    # If this is a continuation request, build a system instruction instead of
+    # a user-visible message
+    continuation_instruction = ""
+    if request.continuation_of_turn_id and request.partial_reply.strip():
+        continuation_instruction = (
+            "[继续生成指令]\n"
+            "请从下面已经输出的内容之后继续回答，不要重复已输出的部分。\n"
+            f"已输出内容：\n{request.partial_reply.strip()[:800]}"
+        )
+
+    effective_user_input = request.user_input
+    if continuation_instruction:
+        effective_user_input = f"{request.user_input}\n\n{continuation_instruction}"
+
     route = route_request(
         user_input=request.user_input,
         selected_role=request.selected_role,
@@ -1047,6 +1099,8 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
     context_blocks = [f"【本地资料检索结果】\n{rag_result.context}"] if rag_result.context.strip() else []
     if web_context:
         context_blocks.append(f"【联网检索结果】\n{web_context}")
+    if continuation_instruction:
+        context_blocks.append(continuation_instruction)
     messages = build_messages(
         user_input=request.user_input,
         role_prompt=role_prompt,
@@ -1069,6 +1123,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
         "messages": messages,
         "web_context_used": bool(web_context),
         "session_settings": _session_settings_from_request(request, context_mode),
+        "is_continuation": bool(continuation_instruction),
     }
 
 
@@ -1185,6 +1240,8 @@ def get_memory_status(context_mode: str | None = None) -> MemoryStatusResponse:
         context_mode=resolved_context_mode,
         groups=CONTEXT_FILE_GROUPS,
         files=files,
+        latest_section=_extract_latest_section(read_memory_file("current_focus.md")),
+        latest_updated_at="",
     )
 
 
@@ -1252,6 +1309,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         relationship_mode=request.relationship_mode,
         rag_context=rag_result.context,
         performance_mode=runtime_modes.performance_mode,
+        session_id=request.session_id,
     )
     append_user_and_interactive_group_reply(request.message, reply)
     update_wechat_join_state(
@@ -1301,6 +1359,7 @@ async def send_wechat_message_stream(request: WechatMessageRequest, http_request
                 rag_context=rag_result.context,
                 performance_mode=runtime_modes.performance_mode,
                 should_cancel=should_cancel,
+                session_id=request.session_id,
             )
             for token in stream:
                 if await http_request.is_disconnected():
@@ -1661,6 +1720,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
             **route,
             "rag_status": rag_result.status,
             "web_context_used": prepared["web_context_used"],
+            "is_continuation": prepared["is_continuation"],
         },
         session_settings=prepared["session_settings"],
         rag_info=rag_result.to_dict(),
@@ -1723,6 +1783,7 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
                     "rag_status": rag_result.status,
                     "web_context_used": prepared["web_context_used"],
                     "streamed": True,
+                    "is_continuation": prepared["is_continuation"],
                 },
                 session_settings=prepared["session_settings"],
                 rag_info=rag_result.to_dict(),
@@ -1782,20 +1843,46 @@ def commit_memory_updates(request: MemoryPreviewRequest) -> MemoryCommitResponse
                 "reason": runtime_modes.profile.memory_write_reason,
             },
         )
-    results = []
+
+    # Pre-validate: at most one current_focus replace
+    focus_replaces = [
+        u for u in request.updates
+        if _memory_update_action(u) == "replace" and u.target == "current_focus.md"
+    ]
+    if len(focus_replaces) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="最多允许一次 current_focus replace 操作",
+        )
+
+    # Pre-validate all targets before writing any
     for update in request.updates:
         _memory_target_path(update.target)
+
+    results = []
+    errors: list[dict] = []
+    for update in request.updates:
         action = _memory_update_action(update)
-        if action == "replace":
-            path = memory_writer.write_current_focus(update.content.strip())
-        else:
-            path = memory_writer.append_memory(
-                update.target,
-                update.content.strip(),
-                learner_pending=update.learner_pending,
-            )
-        results.append({"target": update.target, "action": action, "path": path})
-    return MemoryCommitResponse(writable=writable, results=results)
+        try:
+            if action == "replace":
+                path = memory_writer.write_current_focus(update.content.strip())
+            else:
+                path = memory_writer.append_memory(
+                    update.target,
+                    update.content.strip(),
+                    learner_pending=update.learner_pending,
+                )
+            results.append({"target": update.target, "action": action, "path": path})
+        except Exception as exc:
+            errors.append({"target": update.target, "action": action, "error": str(exc)})
+
+    if errors and not results:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "所有写入均失败", "errors": errors},
+        )
+
+    return MemoryCommitResponse(writable=writable, results=results, errors=errors or None)
 
 
 @app.get("/sessions", response_model=SessionListResponse)
@@ -1931,3 +2018,35 @@ def get_workflow_run(run_id: str) -> WorkflowRunResponse:
     if run is None:
         raise HTTPException(status_code=404, detail=f"Unknown workflow run: {run_id}")
     return WorkflowRunResponse(run=run.to_dict())
+
+
+@app.post("/sessions/{session_id}/commit-turn", response_model=CommitTurnResponse)
+def commit_turn_endpoint(session_id: str, request: CommitTurnRequest) -> CommitTurnResponse:
+    """Commit a partial/incomplete turn (e.g. interrupted stream) to the session log.
+
+    This allows the frontend to persist a partially-streamed reply before
+    the normal log() call at chat completion time.
+    """
+    from src.session_logger import get_or_create_session
+
+    sess = get_or_create_session(session_id)
+    # Only log if no entry exists for this exact input yet (idempotent)
+    existing = sess.get("entries", [])
+    already_logged = any(
+        e.get("user") == request.user_input and e.get("agent") == request.agent_reply
+        for e in existing
+    )
+    if not already_logged:
+        log(
+            session_id=session_id,
+            role=request.role,
+            mode=request.mode,
+            model=request.model,
+            user_input=request.user_input,
+            agent_reply=request.agent_reply,
+            memory_enabled=request.memory_enabled,
+            route_info=request.route_info,
+            rag_info=request.rag_info,
+            conversation_instruction=request.conversation_instruction,
+        )
+    return CommitTurnResponse(session_id=session_id, committed=not already_logged, message="ok" if not already_logged else "already committed")

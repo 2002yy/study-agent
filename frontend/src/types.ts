@@ -138,6 +138,8 @@ export type MemoryStatusResponse = {
   context_mode: string;
   groups: Record<string, string[]>;
   files: MemoryFileStatus[];
+  latest_section?: string;
+  latest_updated_at?: string;
 };
 
 export type MemoryUpdate = {
@@ -354,4 +356,19 @@ export type ApiSnapshot = {
   wechat: WechatStateResponse | null;
   error: string;
   errors: Record<string, string>;
+};
+
+/* Centralized workspace state for stable persistence and cross-UI coordination.
+   Should be kept in sync between localStorage, App state, and session lifecycle. */
+export type WorkspaceState = {
+  sessionId?: string;
+  singleChatMessages: ChatMessage[];
+  chatSettings: ChatSettings;
+  ragSettings: RagSettings;
+  ragEnabled: boolean;
+  keepCurrentRole: boolean;
+  conversationInstruction: string;
+  lastRoute?: Record<string, unknown>;
+  lastRag?: Record<string, unknown>;
+  lastSessionId?: string;
 };

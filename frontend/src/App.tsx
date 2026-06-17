@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
-  callLocalKnowledge,
   archiveSession,
+  callLocalKnowledge,
+  commitTurn,
   createNewSession,
   createWechatOpening,
   flushSession,
@@ -44,7 +45,7 @@ import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload } from "./features/single-chat/chatHistory";
+import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildWorkspaceState, serializeWorkspaceState, deserializeWorkspaceState } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
@@ -62,6 +63,7 @@ import type {
   RoleResponse,
   SessionDetailResponse,
   ToolInvocationResponse,
+  WorkspaceState,
   WorkflowRunDetail
 } from "./types";
 
@@ -253,7 +255,7 @@ function Sidebar({
         </div>
       </div>
 
-      <button className="primary-action" onClick={onUploadClick} type="button">
+      <button className="primary-action" disabled={isSending} onClick={onUploadClick} type="button">
         <Upload size={17} />
         上传资料
       </button>
@@ -329,7 +331,7 @@ function Sidebar({
         </div>
         <label className="field-row">
           <span>角色</span>
-          <select value={chatSettings.selectedRole} onChange={(event) => updateChatSetting("selectedRole", event.target.value)}>
+          <select disabled={isSending} value={chatSettings.selectedRole} onChange={(event) => updateChatSetting("selectedRole", event.target.value)}>
             {roleOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -348,7 +350,7 @@ function Sidebar({
         <button
           aria-pressed={keepCurrentRole}
           className={`ghost-action compact ${keepCurrentRole ? "active" : ""}`}
-          disabled={chatSettings.selectedRole !== "auto"}
+          disabled={chatSettings.selectedRole !== "auto" || isSending}
           onClick={() => setKeepCurrentRole(!keepCurrentRole)}
           type="button"
         >
@@ -361,6 +363,7 @@ function Sidebar({
           <span>本会话微调</span>
           <textarea
             className="session-instruction"
+            disabled={isSending}
             onChange={(event) => setConversationInstruction(event.target.value)}
             placeholder="例如：不要转交给其他角色，直接回答我的问题。"
             rows={3}
@@ -389,7 +392,7 @@ function Sidebar({
         ) : null}
         <label className="field-row">
           <span>学习模式</span>
-          <select value={chatSettings.selectedMode} onChange={(event) => updateChatSetting("selectedMode", event.target.value)}>
+          <select disabled={isSending} value={chatSettings.selectedMode} onChange={(event) => updateChatSetting("selectedMode", event.target.value)}>
             {modeOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -400,7 +403,7 @@ function Sidebar({
         <small className="field-hint">{modeDescriptions[chatSettings.selectedMode]}</small>
         <label className="field-row">
           <span>模型档位</span>
-          <select value={chatSettings.selectedModel} onChange={(event) => updateChatSetting("selectedModel", event.target.value)}>
+          <select disabled={isSending} value={chatSettings.selectedModel} onChange={(event) => updateChatSetting("selectedModel", event.target.value)}>
             {modelOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -411,7 +414,7 @@ function Sidebar({
         <small className="field-hint">{modelDescriptions[chatSettings.selectedModel]}</small>
         <label className="field-row">
           <span>性能/上下文</span>
-          <select value={chatSettings.contextMode} onChange={(event) => updateChatSetting("contextMode", event.target.value)}>
+          <select disabled={isSending} value={chatSettings.contextMode} onChange={(event) => updateChatSetting("contextMode", event.target.value)}>
             {contextModeOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -422,7 +425,7 @@ function Sidebar({
         <small className="field-hint">{contextModeDescriptions[chatSettings.contextMode]}</small>
         <label className="field-row">
           <span>互动氛围</span>
-          <select value={chatSettings.relationshipMode} onChange={(event) => updateChatSetting("relationshipMode", event.target.value)}>
+          <select disabled={isSending} value={chatSettings.relationshipMode} onChange={(event) => updateChatSetting("relationshipMode", event.target.value)}>
             {relationshipOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -432,13 +435,14 @@ function Sidebar({
         </label>
         <small className="field-hint">{relationshipDescriptions[chatSettings.relationshipMode]}</small>
         <label className="toggle-row">
-          <input checked={ragEnabled} onChange={(event) => setRagEnabled(event.target.checked)} type="checkbox" />
+          <input checked={ragEnabled} disabled={isSending} onChange={(event) => setRagEnabled(event.target.checked)} type="checkbox" />
           <span>用于聊天回答</span>
         </label>
         <small className="field-hint">开启后，回答会先查本地资料再生成；关闭则更像普通聊天，不引用资料库。</small>
         <label className="field-row">
           <span>检索模式</span>
           <select
+            disabled={isSending}
             value={ragSettings.retrievalMode}
             onChange={(event) => updateRagSetting("retrievalMode", event.target.value as RagSettings["retrievalMode"])}
           >
@@ -456,6 +460,7 @@ function Sidebar({
             <input
               min={1}
               max={20}
+              disabled={isSending}
               onChange={(event) => updateRagSetting("topK", Number(event.target.value))}
               type="number"
               value={ragSettings.topK}
@@ -464,6 +469,7 @@ function Sidebar({
           <label className="field-row compact">
             <span>聊天引用</span>
             <input
+              disabled={isSending}
               min={1}
               max={20}
               onChange={(event) => updateRagSetting("chatTopK", Number(event.target.value))}
@@ -477,6 +483,7 @@ function Sidebar({
           <span>最低分</span>
           <input
             min={0}
+            disabled={isSending}
             onChange={(event) => updateRagSetting("minScore", Number(event.target.value))}
             step={0.01}
             type="number"
@@ -488,7 +495,7 @@ function Sidebar({
           <StatusDot tone={apiTone} />
           <span>{snapshot.health?.service ?? "API 未连接"}</span>
         </div>
-        <button className="primary-action secondary" disabled={isSavingSettings} onClick={onSaveSettings} type="button">
+        <button className="primary-action secondary" disabled={isSending || isSavingSettings} onClick={onSaveSettings} type="button">
           {isSavingSettings ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
           设为全局默认
         </button>
@@ -498,7 +505,7 @@ function Sidebar({
       <section className="side-section">
         <div className="section-title">
           <Activity size={15} />
-          当前回答检查
+          最近一次回答实际配置
         </div>
         <div className="metric-row">
           <span>实际角色</span>
@@ -707,7 +714,7 @@ export default function App() {
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
-  const activeQuery = input.trim() || lastChat?.rag?.query || "本地资料 工作流 引用来源";
+  const activeQuery = input.trim() || lastChat?.rag?.query || "";
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(([key]) => key !== "health");
   const currentToolInvocation: LocalKnowledgeInvocation = {
     query: activeQuery,
@@ -826,7 +833,7 @@ export default function App() {
   }, [snapshot.runtimeSettings]);
 
   useEffect(() => {
-    const payload = JSON.stringify({
+    const payload = serializeWorkspaceState({
       singleChatMessages,
       sessionId,
       chatSettings,
@@ -888,7 +895,7 @@ export default function App() {
   }, [chatSettings.selectedRole]);
 
 
-  const sendSingleChat = async (question: string, historyBase = singleChatMessages) => {
+  const sendSingleChat = async (question: string, historyBase = singleChatMessages, extraOpts: { continuationOfTurnId?: string; partialReply?: string } = {}) => {
     if (!question || isSending) {
       return;
     }
@@ -918,7 +925,9 @@ export default function App() {
           keepCurrentRole,
           previousMode: typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : undefined,
           conversationInstruction,
-          webContext: shouldConsumeWebLookup ? webLookup?.source_block : ""
+          webContext: shouldConsumeWebLookup ? webLookup?.source_block : "",
+          continuationOfTurnId: extraOpts.continuationOfTurnId,
+          partialReply: extraOpts.partialReply ?? ""
         },
         {
           onRoute: (route) => {
@@ -1046,7 +1055,6 @@ export default function App() {
     if (!streamRecovery?.reply || isSending) {
       return;
     }
-    const continuationPrompt = `请从刚才中断处继续回答，不要重复已经输出的内容。\n\n原问题：${streamRecovery.question}`;
     const continuationHistory = singleChatMessages.map((message) => {
       if (!message.transient) {
         return message;
@@ -1060,7 +1068,10 @@ export default function App() {
       return message;
     });
     setStreamRecovery(null);
-    await sendSingleChat(continuationPrompt, continuationHistory);
+    await sendSingleChat(streamRecovery.question, continuationHistory, {
+      continuationOfTurnId: streamRecovery.question,
+      partialReply: streamRecovery.reply,
+    });
   };
 
   const copyInterruptedReply = async () => {
@@ -1602,6 +1613,7 @@ export default function App() {
         onUploadClick={() => fileInputRef.current?.click()}
         onSearchSources={searchSources}
         isSearching={isSearching}
+        hasSearchQuery={Boolean(activeQuery)}
         onQuickPrompt={setInput}
         lastChat={lastChat}
         ragEnabled={ragEnabled}

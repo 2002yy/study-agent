@@ -321,6 +321,7 @@ def _stream_pending_reply(content_placeholder):
             pending_input,
             relationship_mode=st.session_state.interaction_mode,
             rag_context=rag_context,
+            session_id=st.session_state.get("session_id"),
         )
         for chunk in stream_result[0]:
             reply += chunk

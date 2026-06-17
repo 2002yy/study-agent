@@ -25,6 +25,64 @@ from src.wechat_format import (
 from src.wechat_prompt import load_interactive_prompt, load_system_prompt
 from src.wechat_state import read_wechat_group, read_wechat_state
 
+# ── Single-chat context helpers ───────────────────────────────────────
+
+def _build_single_chat_context_block(
+    session_id: str | None = None,
+    memory_bundle: dict[str, str] | None = None,
+) -> str:
+    """Build a compact block from single-chat + memory for group-chat prompts.
+
+    Returns "" if no session context is available.
+    """
+    parts: list[str] = []
+
+    # Single-chat recent turns
+    if session_id:
+        from src.session_logger import get_session_entries
+
+        entries = get_session_entries(session_id)
+        if entries:
+            recent = entries[-4:]  # last 4 single-chat turns
+            lines = ["[单聊近期对话]"]
+            for entry in recent:
+                user_text = (entry.get("user") or "").strip()
+                agent_text = (entry.get("agent") or "").strip()
+                if user_text:
+                    lines.append(f"用户: {user_text[:150]}")
+                if agent_text:
+                    lines.append(f"Agent: {agent_text[:150]}")
+            if len(lines) > 1:
+                parts.append("\n".join(lines))
+
+    # Learning memory bundle
+    if memory_bundle is None and session_id:
+        from src.memory import read_memory_bundle
+
+        memory_bundle = read_memory_bundle()
+
+    if memory_bundle:
+        mem_lines = ["[学习记忆]"]
+        added = False
+        for key, label in [
+            ("current_focus.md", "当前重点"),
+            ("summary.md", "学习摘要"),
+            ("progress.md", "进度"),
+            ("learner_profile.md", "学习者概况"),
+        ]:
+            content = memory_bundle.get(key, "")
+            if content and "missing" not in content.lower():
+                truncated = content[:200].strip()
+                if truncated:
+                    mem_lines.append(f"【{label}】{truncated}")
+                    added = True
+        if added:
+            parts.append("\n".join(mem_lines))
+
+    if parts:
+        return "\n\n" + "\n\n".join(parts)
+    return ""
+
 
 # ── Model profile resolution ──────────────────────────────────────────
 
@@ -50,31 +108,42 @@ def generate_wechat_news_discussion(
     relationship_mode: str = "standard",
     performance_mode: str = "standard",
     selected_model: str = "auto",
+    session_id: str | None = None,
+    memory_bundle: dict[str, str] | None = None,
 ) -> str:
     if not news_digest.strip():
         return ""
 
     model_profile = _resolve_model_profile(selected_model, performance_mode)
+
+    system_prompt = (
+        "你要根据一段当天新闻摘要，生成四位学习搭子的微信群讨论。"
+        "必须由三月七、刻晴、纳西妲、流萤四位角色全部发言。"
+        "每位角色都要引用或回应摘要里的具体新闻点，不能空泛安慰，不能只说套话。"
+        "输出格式固定为【角色名】\\n内容。"
+        "三月七偏轻松和反应，刻晴偏判断和重点，纳西妲偏分析和连接，流萤偏感受和收束。"
+    )
+
+    single_chat_block = _build_single_chat_context_block(session_id, memory_bundle)
+    if single_chat_block:
+        system_prompt += (
+            "\n\n[单聊上下文导入]\n"
+            "以下是用户与AI在单聊中的近期对话记录和学习状态。"
+            "角色在群聊中可以自然引用这些背景来让讨论更贴合用户当前情况，"
+            "但不要逐字复述或显式说「你在单聊里说过」。"
+            f"{single_chat_block}"
+        )
+
+    user_content = (
+        f"当前互动氛围：{relationship_mode}\n"
+        f"当前性能模式：{performance_mode}\n\n"
+        "请围绕下面这份新闻摘要展开群聊，不要假装用户刚刚发言。\n\n"
+        f"{news_digest}"
+    )
+
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "你要根据一段当天新闻摘要，生成四位学习搭子的微信群讨论。"
-                "必须由三月七、刻晴、纳西妲、流萤四位角色全部发言。"
-                "每位角色都要引用或回应摘要里的具体新闻点，不能空泛安慰，不能只说套话。"
-                "输出格式固定为【角色名】\\n内容。"
-                "三月七偏轻松和反应，刻晴偏判断和重点，纳西妲偏分析和连接，流萤偏感受和收束。"
-            ),
-        },
-        {
-            "role": "user",
-            "content": (
-                f"当前互动氛围：{relationship_mode}\n"
-                f"当前性能模式：{performance_mode}\n\n"
-                "请围绕下面这份新闻摘要展开群聊，不要假装用户刚刚发言。\n\n"
-                f"{news_digest}"
-            ),
-        },
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
     ]
     raw = chat(
         messages,
@@ -93,6 +162,8 @@ def _build_interactive_messages(
     user_text: str,
     relationship_mode: str | None = None,
     rag_context: str = "",
+    session_id: str | None = None,
+    memory_bundle: dict[str, str] | None = None,
 ) -> tuple[list[dict], bool]:
     modes = load_runtime_modes()
     if relationship_mode is None:
@@ -126,6 +197,16 @@ def _build_interactive_messages(
             "下面是用户本地资料库检索到的引用片段。只有相关时才使用；"
             "如果使用，请保留引用编号，例如 [1]。\n"
             f"{rag_context.strip()}"
+        )
+
+    single_chat_block = _build_single_chat_context_block(session_id, memory_bundle)
+    if single_chat_block:
+        prompt += (
+            "\n\n[单聊上下文导入]\n"
+            "以下是用户与AI在单聊中的近期对话记录和学习状态。"
+            "角色在群聊中可以自然引用这些背景来让对话更连贯，"
+            "但不要逐字复述或显式说「你在单聊里说过」「根据你的学习记录」。"
+            f"{single_chat_block}"
         )
 
     messages = [
@@ -275,11 +356,15 @@ def generate_interactive_wechat_reply(
     relationship_mode: str | None = None,
     rag_context: str = "",
     performance_mode: str | None = None,
+    session_id: str | None = None,
+    memory_bundle: dict[str, str] | None = None,
 ) -> str:
     messages, _is_first = _build_interactive_messages(
         user_text,
         relationship_mode,
         rag_context,
+        session_id=session_id,
+        memory_bundle=memory_bundle,
     )
     raw = chat(
         messages,
@@ -298,11 +383,15 @@ def generate_interactive_wechat_reply_stream(
     rag_context: str = "",
     performance_mode: str | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    session_id: str | None = None,
+    memory_bundle: dict[str, str] | None = None,
 ):
     messages, is_first = _build_interactive_messages(
         user_text,
         relationship_mode,
         rag_context,
+        session_id=session_id,
+        memory_bundle=memory_bundle,
     )
     return (
         stream_chat(

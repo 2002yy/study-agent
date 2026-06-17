@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../types";
+import type { ChatMessage, WorkspaceState } from "../../types";
 
 export const SESSION_STORAGE_KEY = "study-agent-react-session";
 
@@ -12,7 +12,7 @@ export const seedMessages: ChatMessage[] = [
   }
 ];
 
-export const POLLUTED_HISTORY_PREFIXES = ["[群聊]", "[联网检索]", "[联网搜索]"];
+export const POLLUTED_HISTORY_PREFIXES = ["[群聊]", "[联网检索]", "[联网搜索]", "[继续生成指令]"];
 
 export function sanitizeSingleChatMessages(savedMessages: ChatMessage[] | undefined): ChatMessage[] {
   if (!savedMessages?.length) {
@@ -50,4 +50,30 @@ function markTransientWelcome(message: ChatMessage): ChatMessage {
     return { ...message, avatarRole: "nahida", transient: true };
   }
   return message;
+}
+
+const WORKSPACE_STATE_DEFAULTS: WorkspaceState = {
+  singleChatMessages: seedMessages,
+  chatSettings: { selectedRole: "auto", selectedMode: "auto", selectedModel: "auto", relationshipMode: "standard", contextMode: "light" },
+  ragSettings: { retrievalMode: "hybrid", topK: 5, minScore: 0.01, chatTopK: 3 },
+  ragEnabled: true,
+  keepCurrentRole: false,
+  conversationInstruction: "",
+};
+
+export function buildWorkspaceState(partial: Partial<WorkspaceState>): WorkspaceState {
+  return { ...WORKSPACE_STATE_DEFAULTS, ...partial };
+}
+
+export function serializeWorkspaceState(state: WorkspaceState): string {
+  return JSON.stringify(state);
+}
+
+export function deserializeWorkspaceState(raw: string | null): WorkspaceState | null {
+  if (!raw) return null;
+  try {
+    return buildWorkspaceState(JSON.parse(raw));
+  } catch {
+    return null;
+  }
 }
