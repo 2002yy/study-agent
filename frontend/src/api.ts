@@ -20,6 +20,7 @@ import type {
   ToolInvocationResponse,
   ToolSpec,
   WechatMessageResponse,
+  WechatSearchResponse,
   WechatStateResponse,
   WorkflowRunDetail,
   WorkflowRunSummary,
@@ -263,6 +264,16 @@ export async function sendWechatMessage(
       rag_enabled: options.ragEnabled,
       rag_top_k: options.ragSettings.chatTopK,
       rag_retrieval_mode: options.ragSettings.retrievalMode
+    })
+  });
+}
+
+export async function searchWechat(keyword: string, maxResults = 10): Promise<WechatSearchResponse> {
+  return requestJson<WechatSearchResponse>("/wechat/search", {
+    method: "POST",
+    body: JSON.stringify({
+      keyword,
+      max_results: maxResults
     })
   });
 }

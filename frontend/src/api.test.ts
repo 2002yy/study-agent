@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, sendChatStream } from "./api";
+import { callLocalKnowledge, loadApiSnapshot, previewLocalKnowledge, searchWechat, sendChatStream } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
 const chatSettings: ChatSettings = {
@@ -166,6 +166,29 @@ describe("local knowledge tool calls", () => {
     });
     expect(callBody.run_id).toBe("preview-1");
     expect(callBody.args).toEqual(previewBody.args);
+  });
+});
+
+describe("wechat search API", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the keyword and max result limit to the backend", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ keyword: "RAG", results: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await searchWechat("RAG", 12);
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/wechat/search");
+    expect(JSON.parse(String(init.body))).toEqual({ keyword: "RAG", max_results: 12 });
+    expect(response.keyword).toBe("RAG");
   });
 });
 

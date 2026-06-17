@@ -190,6 +190,19 @@ export type WechatMessageResponse = {
   rag: Record<string, unknown>;
 };
 
+export type WechatSearchResult = {
+  speaker?: string;
+  text?: string;
+  line?: number;
+  score?: number;
+  [key: string]: unknown;
+};
+
+export type WechatSearchResponse = {
+  keyword: string;
+  results: WechatSearchResult[];
+};
+
 export type NewsSearchResponse = {
   query_text: string;
   news_items: Array<Record<string, unknown>>;

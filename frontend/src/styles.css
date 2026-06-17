@@ -1190,6 +1190,67 @@ button {
   line-height: 1.5;
 }
 
+.memory-draft-list {
+  display: grid;
+  gap: 10px;
+}
+
+.memory-draft {
+  display: grid;
+  gap: 9px;
+  border: 1px solid #e5eeee;
+  border-radius: 8px;
+  background: #fbfcfc;
+  padding: 10px;
+}
+
+.memory-draft.disabled {
+  opacity: 0.62;
+}
+
+.memory-draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.icon-button.small {
+  width: 30px;
+  min-height: 30px;
+}
+
+.focus-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.focus-diff div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.focus-diff span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.focus-diff p {
+  max-height: 120px;
+  overflow: auto;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #314047;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .memory-check {
   display: flex;
   gap: 8px;
@@ -1363,8 +1424,61 @@ button {
   border-top: 1px dashed var(--border);
 }
 
+.wechat-search-form {
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+
 .lookup-action {
   width: 100%;
+}
+
+.wechat-search-result {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+  border: 1px solid #e5eeee;
+  border-radius: 8px;
+  background: #fbfcff;
+  padding: 10px;
+}
+
+.wechat-search-list {
+  display: grid;
+  gap: 8px;
+}
+
+.wechat-search-item {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 9px;
+}
+
+.wechat-search-item strong {
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.wechat-search-item p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.wechat-search-item span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.empty-state.compact {
+  padding: 8px;
+  font-size: 12px;
 }
 
 .news-result {
@@ -1519,6 +1633,10 @@ button {
   }
 
   .home-brief {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-diff {
     grid-template-columns: 1fr;
   }
 

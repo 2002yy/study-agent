@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildMemoryUpdatePayload } from "./MemoryPanel";
+import { buildMemoryUpdatePayload, buildMemoryUpdatePayloads } from "./MemoryPanel";
 
-describe("buildMemoryUpdatePayload", () => {
+describe("memory update payload builders", () => {
   it("builds append updates for normal memory targets", () => {
     expect(
       buildMemoryUpdatePayload({
@@ -34,7 +34,16 @@ describe("buildMemoryUpdatePayload", () => {
     });
   });
 
-  it("rejects blank memory content", () => {
+  it("rejects disabled or blank memory candidates", () => {
+    expect(
+      buildMemoryUpdatePayload({
+        target: "summary",
+        content: "important but unchecked",
+        replaceCurrentFocus: false,
+        learnerPending: false,
+        enabled: false
+      })
+    ).toBeNull();
     expect(
       buildMemoryUpdatePayload({
         target: "summary",
@@ -43,5 +52,46 @@ describe("buildMemoryUpdatePayload", () => {
         learnerPending: false
       })
     ).toBeNull();
+  });
+
+  it("builds a multi-candidate payload from enabled non-empty drafts", () => {
+    expect(
+      buildMemoryUpdatePayloads([
+        {
+          target: "progress",
+          content: "第一条进展",
+          replaceCurrentFocus: false,
+          learnerPending: false,
+          enabled: true
+        },
+        {
+          target: "summary",
+          content: "  ",
+          replaceCurrentFocus: false,
+          learnerPending: false,
+          enabled: true
+        },
+        {
+          target: "current_focus",
+          content: "下一步只做群聊搜索",
+          replaceCurrentFocus: true,
+          learnerPending: true,
+          enabled: true
+        }
+      ])
+    ).toEqual([
+      {
+        target: "progress",
+        content: "第一条进展",
+        append: true,
+        learner_pending: false
+      },
+      {
+        target: "current_focus",
+        content: "下一步只做群聊搜索",
+        append: false,
+        learner_pending: true
+      }
+    ]);
   });
 });

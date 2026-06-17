@@ -1,13 +1,15 @@
 import { AlertTriangle, Loader2, MessageSquare, Search, Send, Sparkles } from "lucide-react";
 import type { FormEvent } from "react";
+import { useState } from "react";
+import { searchWechat } from "../../api";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { NewsLookupResponse, NewsSearchResponse, WechatStateResponse } from "../../types";
+import type { NewsLookupResponse, NewsSearchResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
 import { displayValue } from "../../utils/format";
 import { speakerToRole } from "../roles/roleCatalog";
 
 export function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
   const blocks: Array<{ speaker: string; roleId: string; text: string }> = [];
-  const pattern = /【([^】]+)】\s*\n?([\s\S]*?)(?=\n*【[^】]+】|\s*$)/g;
+  const pattern = /【([^】]+)】\s*\n?([\s\S]*?)(?=\n*【[^】]+】\s*$|\n*【[^】]+】\s*\n|$)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(content)) !== null) {
     const speaker = match[1].trim();
@@ -55,6 +57,16 @@ function NewsItemCard({ item, index }: { item: Record<string, unknown>; index: n
   );
 }
 
+function resultText(result: Record<string, unknown>): string {
+  const text = result.text ?? result.content ?? result.message ?? result.preview;
+  return typeof text === "string" ? text : JSON.stringify(result, null, 2);
+}
+
+function resultSpeaker(result: Record<string, unknown>): string {
+  const speaker = result.speaker ?? result.role ?? result.name;
+  return typeof speaker === "string" ? speaker : "群聊记录";
+}
+
 export function WechatPanel({
   wechat,
   newsResult,
@@ -96,9 +108,33 @@ export function WechatPanel({
   isWechatBusy: boolean;
   isNewsBusy: boolean;
 }) {
+  const [wechatSearchQuery, setWechatSearchQuery] = useState("");
+  const [wechatSearch, setWechatSearch] = useState<WechatSearchResponse | null>(null);
+  const [isWechatSearching, setIsWechatSearching] = useState(false);
+  const [wechatSearchError, setWechatSearchError] = useState("");
+
   const latestNewsItems = newsResult?.news_items.slice(0, 4) ?? [];
   const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
   const wechatMessages = parseWechatMessages(wechat?.content ?? "");
+
+  const handleWechatSearch = async (event: FormEvent) => {
+    event.preventDefault();
+    const keyword = wechatSearchQuery.trim();
+    if (!keyword || isWechatSearching) {
+      return;
+    }
+    setIsWechatSearching(true);
+    setWechatSearchError("");
+    try {
+      setWechatSearch(await searchWechat(keyword));
+    } catch (error) {
+      setWechatSearch(null);
+      setWechatSearchError(error instanceof Error ? error.message : "群聊搜索失败");
+    } finally {
+      setIsWechatSearching(false);
+    }
+  };
+
   return (
     <section className="panel" id="wechat">
       <div className="panel-header">
@@ -141,6 +177,56 @@ export function WechatPanel({
           <div className="empty-state">还没有群聊内容。先生成开场，或直接发送一句话。</div>
         )}
       </div>
+
+      <form className="mini-form wechat-search-form" onSubmit={handleWechatSearch}>
+        <label className="field-row">
+          <span>搜索群聊记录</span>
+          <input
+            onChange={(event) => setWechatSearchQuery(event.target.value)}
+            placeholder="例如：RAG、记忆闭环、某个角色说过的话"
+            value={wechatSearchQuery}
+          />
+        </label>
+        <button className="ghost-action compact lookup-action" disabled={isWechatSearching || !wechatSearchQuery.trim()} type="submit">
+          {isWechatSearching ? <Loader2 className="spin" size={14} /> : <Search size={14} />}
+          搜索群聊
+        </button>
+      </form>
+
+      {wechatSearch ? (
+        <div className="wechat-search-result">
+          <div className="memory-preview-meta">
+            <strong>命中 {wechatSearch.results.length} 条</strong>
+            <span>关键词：{wechatSearch.keyword}</span>
+          </div>
+          {wechatSearch.results.length ? (
+            <div className="wechat-search-list">
+              {wechatSearch.results.map((result, index) => (
+                <article className="wechat-search-item" key={`${wechatSearch.keyword}-${index}`}>
+                  <strong>{resultSpeaker(result)}</strong>
+                  <p>{resultText(result)}</p>
+                  {typeof result.line === "number" || typeof result.score === "number" ? (
+                    <span>
+                      {typeof result.line === "number" ? `line ${result.line}` : ""}
+                      {typeof result.line === "number" && typeof result.score === "number" ? " · " : ""}
+                      {typeof result.score === "number" ? `score ${result.score.toFixed(3)}` : ""}
+                    </span>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact">没有找到匹配记录。</div>
+          )}
+        </div>
+      ) : null}
+
+      {wechatSearchError ? (
+        <div className="memory-note warn">
+          <AlertTriangle size={15} />
+          <span>{wechatSearchError}</span>
+        </div>
+      ) : null}
 
       <form className="mini-form" onSubmit={onSendWechat}>
         <textarea
