@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Loader2, Search } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { digestNewsStage, discussNewsStage, enrichNewsStage, searchNewsStage } from "../../api";
 import type { ChatSettings } from "../../types";
 import { displayValue } from "../../utils/format";
@@ -64,6 +64,16 @@ export function NewsWorkspace({
   const canEnrich = searchedItems.length > 0 && !busyStage;
   const canDigest = activeItems.length > 0 && !busyStage;
   const canDiscuss = Boolean(digestState?.digest) && !busyStage;
+
+  // Clear staged news state when session changes
+  useEffect(() => {
+    setSearchedItems([]);
+    setEnrichedItems([]);
+    setDigestState(null);
+    setDiscussion("");
+    setBusyStage("");
+    setError("");
+  }, [sessionId]);
 
   const runSearch = async (event?: FormEvent) => {
     event?.preventDefault();

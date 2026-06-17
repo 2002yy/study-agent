@@ -20,6 +20,7 @@ import {
   archiveSession,
   createNewSession,
   createWechatOpening,
+  flushSession,
   loadApiSnapshot,
   loadRole,
   loadSessionDetail,
@@ -203,6 +204,7 @@ function Sidebar({
   conversationInstruction,
   setConversationInstruction,
   onNewSession,
+  isSending,
   refresh,
   onUploadClick,
   uploadState,
@@ -226,6 +228,7 @@ function Sidebar({
   conversationInstruction: string;
   setConversationInstruction: (value: string) => void;
   onNewSession: () => void;
+  isSending: boolean;
   refresh: () => void;
   onUploadClick: () => void;
   uploadState: string;
@@ -365,7 +368,7 @@ function Sidebar({
           />
         </label>
         <small className="field-hint">只影响当前会话，不会修改角色原始人设或全局默认。</small>
-        <button className="ghost-action compact" onClick={onNewSession} type="button">
+        <button className="ghost-action compact" disabled={isSending} onClick={onNewSession} type="button">
           新建单人会话
         </button>
         {chatSettings.selectedRole !== "auto" ? (
@@ -558,10 +561,12 @@ function Inspector({
   onWechatReset,
   onWechatMarkRead,
   onSendWechat,
+  onStopWechat,
   onLookupNews,
   onNewsDiscussed,
   isWechatBusy,
   isNewsBusy,
+  isSending,
   onMemoryChanged
 }: {
   snapshot: ApiSnapshot;
@@ -598,10 +603,12 @@ function Inspector({
   onWechatReset: () => void;
   onWechatMarkRead: () => void;
   onSendWechat: (event: FormEvent) => void;
+  onStopWechat: () => void;
   onLookupNews: () => void;
   onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   isNewsBusy: boolean;
+  isSending: boolean;
   onMemoryChanged: () => Promise<void> | void;
 }) {
   return (
@@ -625,6 +632,7 @@ function Inspector({
         onReset={onWechatReset}
         onMarkRead={onWechatMarkRead}
         onSendWechat={onSendWechat}
+        onStopWechat={onStopWechat}
         onLookupNews={onLookupNews}
         onNewsDiscussed={onNewsDiscussed}
         isWechatBusy={isWechatBusy}
@@ -649,7 +657,7 @@ function Inspector({
         callBlockedReason={toolCallBlockedReason}
         invocationLabel={toolInvocationLabel}
       />
-      <SessionsPanel sessions={snapshot.sessions} onRestore={onRestoreSession} onArchive={onArchiveSession} />
+      <SessionsPanel sessions={snapshot.sessions} activeSessionId={sessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
       <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
     </aside>
@@ -693,6 +701,8 @@ export default function App() {
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const wechatAbortRef = useRef<AbortController | null>(null);
+  const generationIdRef = useRef(0);
   const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
@@ -739,10 +749,26 @@ export default function App() {
           ragEnabled?: boolean;
           keepCurrentRole?: boolean;
           conversationInstruction?: string;
+          lastRoute?: Record<string, unknown>;
+          lastRag?: Record<string, unknown>;
+          lastSessionId?: string;
         };
         setSingleChatMessages(sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages));
         if (parsed.sessionId) {
           setSessionId(parsed.sessionId);
+        }
+        if (parsed.lastRoute && Object.keys(parsed.lastRoute).length) {
+          const restoredRoute = parsed.lastRoute as ChatResponse["route"];
+          const restoredRag = (parsed.lastRag && Object.keys(parsed.lastRag).length ? parsed.lastRag : createEmptyRag()) as ChatResponse["rag"];
+          const lastAssistant = sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages)
+            .filter((m) => m.role === "assistant" && !m.transient)
+            .pop();
+          setLastChat({
+            reply: lastAssistant?.content ?? "",
+            session_id: parsed.lastSessionId ?? parsed.sessionId ?? "restored",
+            route: restoredRoute,
+            rag: restoredRag,
+          });
         }
         if (parsed.chatSettings) {
           sessionSettingsRestoredRef.current = true;
@@ -807,14 +833,17 @@ export default function App() {
       ragSettings,
       ragEnabled,
       keepCurrentRole,
-      conversationInstruction
+      conversationInstruction,
+      lastRoute: lastChat?.route ?? undefined,
+      lastRag: lastChat?.rag ?? undefined,
+      lastSessionId: lastChat?.session_id ?? undefined,
     });
     sessionStoragePayloadRef.current = payload;
     const timeout = window.setTimeout(() => {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, isSending]);
+  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {
@@ -863,6 +892,7 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
+    const generationId = ++generationIdRef.current;
     const nextMessages: ChatMessage[] = [...historyBase, { role: "user", content: question, avatarRole: "user" }];
     const userIndex = nextMessages.length - 1;
     const assistantIndex = nextMessages.length;
@@ -892,6 +922,7 @@ export default function App() {
         },
         {
           onRoute: (route) => {
+            if (generationIdRef.current !== generationId) return;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
               session_id: current?.session_id ?? sessionId ?? "streaming",
@@ -905,6 +936,7 @@ export default function App() {
             );
           },
           onRag: (rag) => {
+            if (generationIdRef.current !== generationId) return;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
               session_id: current?.session_id ?? sessionId ?? "streaming",
@@ -913,6 +945,7 @@ export default function App() {
             }));
           },
           onToken: (token) => {
+            if (generationIdRef.current !== generationId) return;
             streamedReply += token;
             setSingleChatMessages((current) =>
               current.map((message, index) =>
@@ -922,6 +955,7 @@ export default function App() {
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
           },
           onDone: (done) => {
+            if (generationIdRef.current !== generationId) return;
             if (typeof done.session_id === "string") {
               setSessionId(done.session_id);
             }
@@ -929,6 +963,7 @@ export default function App() {
         },
         { signal: abortController.signal }
       );
+      if (generationIdRef.current !== generationId) return;
       setSessionId(response.session_id);
       setLastChat(response);
       setOperationError("");
@@ -977,6 +1012,10 @@ export default function App() {
 
   const stopChatGeneration = () => {
     chatAbortRef.current?.abort();
+  };
+
+  const stopWechatGeneration = () => {
+    wechatAbortRef.current?.abort();
   };
 
   const retryInterruptedChat = async () => {
@@ -1150,6 +1189,11 @@ export default function App() {
     if (isWechatBusy) {
       return;
     }
+    const messageCount = snapshot.wechat?.message_count ?? 0;
+    if (messageCount > 0) {
+      setOperationError("群聊已有历史内容。生成开场会覆盖当前群聊，请先使用「新群聊」归档旧内容后再生成开场。");
+      return;
+    }
     setIsWechatBusy(true);
     setOperationError("");
     try {
@@ -1204,10 +1248,12 @@ export default function App() {
     if (!message || isWechatBusy) {
       return;
     }
+    const baseWechat = snapshot.wechat;
     setIsWechatBusy(true);
     setOperationError("");
+    const abortController = new AbortController();
+    wechatAbortRef.current = abortController;
     try {
-      const baseWechat = snapshot.wechat;
       const baseContent = baseWechat?.content ?? "";
       let streamedReply = "";
       const pendingContent = `${baseContent}${baseContent.trim() ? "\n\n" : ""}【用户】\n${message}\n\n【群聊】\n她们正在输入…`;
@@ -1242,7 +1288,7 @@ export default function App() {
               : current.wechat
           }));
         }
-      });
+      }, { signal: abortController.signal });
       setSessionId(response.session_id);
       setWechatInput("");
       setSnapshot((current) => ({
@@ -1258,8 +1304,23 @@ export default function App() {
       }));
       await refresh();
     } catch (error) {
-      setOperationError(`微信群回复生成失败：${error instanceof Error ? error.message : "群聊发送失败"}`);
+      const isAbort = error instanceof DOMException && error.name === "AbortError";
+      const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "群聊发送失败";
+      // Rollback optimistic UI to base state
+      setSnapshot((current) => ({
+        ...current,
+        wechat: baseWechat
+          ? {
+              ...baseWechat,
+              content: `${baseWechat.content}\n\n【用户】\n${message}\n\n---\n发送失败：${message} [可重试]`
+            }
+          : baseWechat
+      }));
+      setOperationError(`微信群回复生成失败：${message}`);
     } finally {
+      if (wechatAbortRef.current === abortController) {
+        wechatAbortRef.current = null;
+      }
       setIsWechatBusy(false);
     }
   };
@@ -1342,6 +1403,11 @@ export default function App() {
 
   const restoreSession = async (restoredSessionId: string) => {
     setOperationError("");
+    if (isSending) {
+      chatAbortRef.current?.abort();
+      setIsSending(false);
+    }
+    generationIdRef.current++;
     try {
       const detail = await loadSessionDetail(restoredSessionId);
       applySessionDetail(detail);
@@ -1353,8 +1419,27 @@ export default function App() {
 
   const archiveCurrentSession = async (targetSessionId: string) => {
     setOperationError("");
+    if (isSending) {
+      chatAbortRef.current?.abort();
+      setIsSending(false);
+    }
+    generationIdRef.current++;
+    const isArchivingActive = targetSessionId === sessionId;
     try {
       await archiveSession(targetSessionId);
+      if (isArchivingActive) {
+        const created = await createNewSession();
+        setSessionId(created.session_id);
+        setSingleChatMessages(seedMessages);
+        setInput("");
+        setLastChat(null);
+        setRagSearch(null);
+        setToolPreview(null);
+        setToolCall(null);
+        setPreviewedInvocation(null);
+        setStreamRecovery(null);
+        setConversationInstruction("");
+      }
       await refresh();
     } catch (error) {
       setOperationError(`会话归档失败：${error instanceof Error ? error.message : "会话归档失败"}`);
@@ -1363,7 +1448,30 @@ export default function App() {
 
   const startNewSession = async () => {
     setOperationError("");
+    if (isSending) {
+      chatAbortRef.current?.abort();
+      setIsSending(false);
+    }
+    generationIdRef.current++;
     try {
+      if (sessionId) {
+        try {
+          const detail = await loadSessionDetail(sessionId);
+          const hasMessages = detail.messages.some(
+            (message) => message.role === "user" || message.role === "assistant"
+          );
+          if (hasMessages) {
+            await archiveSession(sessionId);
+          }
+        } catch {
+          // Session not on disk yet (still in memory) — flush via API
+          try {
+            await flushSession(sessionId);
+          } catch {
+            // Best-effort; proceed even if flush fails
+          }
+        }
+      }
       const created = await createNewSession();
       setSessionId(created.session_id);
       setSingleChatMessages(seedMessages);
@@ -1459,6 +1567,7 @@ export default function App() {
         conversationInstruction={conversationInstruction}
         setConversationInstruction={setConversationInstruction}
         onNewSession={startNewSession}
+        isSending={isSending}
         refresh={refresh}
         onUploadClick={() => fileInputRef.current?.click()}
         uploadState={uploadState}
@@ -1518,6 +1627,7 @@ export default function App() {
         onWechatReset={handleWechatReset}
         onWechatMarkRead={handleWechatMarkRead}
         onSendWechat={handleSendWechat}
+        onStopWechat={stopWechatGeneration}
         onLookupNews={handleLookupNews}
         onNewsDiscussed={(nextSessionId) => {
           setSessionId(nextSessionId);
@@ -1525,6 +1635,7 @@ export default function App() {
         }}
         isWechatBusy={isWechatBusy}
         isNewsBusy={isNewsBusy}
+        isSending={isSending}
         onMemoryChanged={refresh}
       />
       {snapshot.error ? (

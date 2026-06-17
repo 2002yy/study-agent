@@ -86,6 +86,7 @@ export function WechatPanel({
   onReset,
   onMarkRead,
   onSendWechat,
+  onStopWechat,
   onLookupNews,
   onNewsDiscussed,
   isWechatBusy,
@@ -108,6 +109,7 @@ export function WechatPanel({
   onReset: () => void;
   onMarkRead: () => void;
   onSendWechat: (event: FormEvent) => void;
+  onStopWechat?: () => void;
   onLookupNews: () => void;
   onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
@@ -240,10 +242,17 @@ export function WechatPanel({
           rows={3}
           value={wechatInput}
         />
-        <button className="primary-action secondary" disabled={isWechatBusy || !wechatInput.trim()} type="submit">
-          {isWechatBusy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-          发送群聊
-        </button>
+        <div className="wechat-send-actions">
+          <button className="primary-action secondary" disabled={isWechatBusy || !wechatInput.trim()} type="submit">
+            {isWechatBusy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
+            发送群聊
+          </button>
+          {isWechatBusy ? (
+            <button className="ghost-action compact danger" onClick={(event) => { event.preventDefault(); onStopWechat?.(); }} type="button">
+              停止
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <NewsWorkspace

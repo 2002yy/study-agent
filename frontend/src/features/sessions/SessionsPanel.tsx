@@ -1,6 +1,7 @@
 import { Clock3 } from "lucide-react";
 import type { SessionRow } from "../../types";
 import { formatBytes, formatMtime } from "../../utils/format";
+import { useState } from "react";
 
 export function sessionIdFromRow(session: SessionRow): string {
   if (session.kind === "current") {
@@ -12,13 +13,34 @@ export function sessionIdFromRow(session: SessionRow): string {
 
 export function SessionsPanel({
   sessions,
+  activeSessionId,
+  isSending,
   onRestore,
   onArchive
 }: {
   sessions: SessionRow[];
+  activeSessionId?: string;
+  isSending?: boolean;
   onRestore?: (sessionId: string) => void;
   onArchive?: (sessionId: string) => void;
 }) {
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
+
+  const handleArchiveClick = (sessionId: string) => {
+    if (sessionId === activeSessionId) {
+      setConfirmArchiveId(sessionId);
+    } else {
+      onArchive?.(sessionId);
+    }
+  };
+
+  const confirmArchive = () => {
+    if (confirmArchiveId) {
+      onArchive?.(confirmArchiveId);
+      setConfirmArchiveId(null);
+    }
+  };
+
   return (
     <section className="panel" id="sessions">
       <div className="panel-header">
@@ -32,22 +54,36 @@ export function SessionsPanel({
         <div className="session-list">
           {sessions.slice(0, 5).map((session) => {
             const sessionId = sessionIdFromRow(session);
+            const isActive = sessionId === activeSessionId;
             return (
               <div className="session-row" key={`${session.kind}-${session.name}`}>
                 <strong>{session.name}</strong>
                 <span>
                   {session.kind} · {formatBytes(session.size_bytes)} · {formatMtime(session.mtime_ns)}
+                  {isActive ? " · 当前活跃" : ""}
                 </span>
                 <div className="session-actions">
                   {onRestore ? (
-                    <button className="ghost-action compact" type="button" onClick={() => onRestore(sessionId)}>
+                    <button className="ghost-action compact" disabled={isSending} type="button" onClick={() => onRestore(sessionId)}>
                       恢复到单人聊天
                     </button>
                   ) : null}
                   {onArchive && session.kind === "current" ? (
-                    <button className="ghost-action compact" type="button" onClick={() => onArchive(sessionId)}>
-                      归档
-                    </button>
+                    confirmArchiveId === sessionId ? (
+                      <>
+                        <span className="archive-confirm-text">归档后将自动新建会话，继续吗？</span>
+                        <button className="ghost-action compact danger" disabled={isSending} type="button" onClick={confirmArchive}>
+                          确认归档
+                        </button>
+                        <button className="ghost-action compact" disabled={isSending} type="button" onClick={() => setConfirmArchiveId(null)}>
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <button className="ghost-action compact" disabled={isSending} type="button" onClick={() => handleArchiveClick(sessionId)}>
+                        归档
+                      </button>
+                    )
                   ) : null}
                 </div>
               </div>

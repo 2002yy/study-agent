@@ -3,7 +3,14 @@
 > 修改本文件后重启 Streamlit 即可生效。
 
 ## rule
-- keywords: 为什么, 本质, 底层, 机制, 原理, 从根上讲, 概括, 一句话总结
+- keywords: 一句话总结, 概括一下, 概括, 直接回答, 给结论, 列步骤, 不要追问, 总结一下
+- role: nahida
+- mode: 普通
+- model: flash
+- reason: 要求直给结果/总结 → 纳西妲用普通直接回答，不绕弯
+
+## rule
+- keywords: 为什么, 本质, 底层, 机制, 原理, 从根上讲
 - role: nahida
 - mode: 苏格拉底
 - model: pro

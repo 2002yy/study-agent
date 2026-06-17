@@ -522,6 +522,10 @@ export async function archiveSession(sessionId: string): Promise<SessionArchiveR
   return requestJson<SessionArchiveResponse>(`/sessions/${encodeURIComponent(sessionId)}/archive`, { method: "POST" });
 }
 
+export async function flushSession(sessionId: string): Promise<{ session_id: string; flushed: boolean }> {
+  return requestJson<{ session_id: string; flushed: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/flush`, { method: "POST" });
+}
+
 export async function loadRagStatus(): Promise<RagStatusResponse> {
   return requestJson<RagStatusResponse>("/rag/status");
 }

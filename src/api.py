@@ -352,11 +352,14 @@ class NewsEnrichRequest(BaseModel):
     news_items: list[dict[str, Any]] = Field(min_length=1)
     max_articles: int = Field(default=6, ge=0, le=20)
     max_chars_per_article: int = Field(default=5000, gt=0, le=20000)
+    safe_mode: bool | None = None
 
 
 class NewsEnrichResponse(BaseModel):
     query_text: str
     news_items: list[dict[str, Any]]
+    skipped: bool = False
+    skipped_reason: str = ""
 
 
 class NewsDigestRequest(BaseModel):
@@ -1200,6 +1203,16 @@ def create_wechat_opening(request: WechatOpeningRequest) -> WechatStateResponse:
     _validate_choice(request.selected_role, ROLE_OPTIONS, "selected_role")
     _validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
     _validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
+
+    if has_wechat_group_started():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "群聊已有历史内容。生成开场会覆盖当前群聊。"
+                "如需重新开始，请先使用「新群聊」（会归档旧内容），再生成开场。"
+            ),
+        )
+
     performance_mode = _request_performance_mode(request.performance_mode)
     opening = generate_wechat_opening(
         role_hint=request.selected_role,
@@ -1354,6 +1367,27 @@ def search_news_stage_endpoint(request: NewsStageSearchRequest) -> NewsStageSear
 
 @app.post("/news/enrich", response_model=NewsEnrichResponse)
 def enrich_news_stage_endpoint(request: NewsEnrichRequest) -> NewsEnrichResponse:
+    runtime_modes = load_runtime_modes()
+    profile = runtime_modes.profile
+    safe = (
+        request.safe_mode
+        if request.safe_mode is not None
+        else profile.safe_mode
+    )
+    if safe:
+        return NewsEnrichResponse(
+            query_text=request.query_text,
+            news_items=request.news_items,
+            skipped=True,
+            skipped_reason="safe_mode",
+        )
+    if not profile.allow_article_network_read:
+        return NewsEnrichResponse(
+            query_text=request.query_text,
+            news_items=request.news_items,
+            skipped=True,
+            skipped_reason=profile.article_network_read_reason,
+        )
     items = run_enrich_stage(
         request.news_items,
         max_articles=request.max_articles,
@@ -1418,7 +1452,7 @@ def lookup_news_endpoint(request: NewsLookupRequest) -> NewsLookupResponse:
 
 @app.post("/wechat/news-round", response_model=NewsSearchResponse)
 def wechat_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
-    return search_news_endpoint(request)
+    return run_news_round_endpoint(request)
 
 
 @app.get("/rag/status", response_model=RagStatusResponse)

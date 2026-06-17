@@ -124,18 +124,26 @@ def render_news_round_phases():
             max_articles = max_articles_for_performance(
                 st.session_state.runtime_modes.performance_mode
             )
-            with st.spinner("正在读取新闻正文..."):
-                try:
-                    enriched = run_enrich_stage(
-                        items,
-                        max_articles=max_articles,
-                        query_text=query_text,
-                    )
-                    st.session_state.wechat_news_items = enriched
-                    st.session_state.wechat_news_phase = "enriched"
-                    _rerun_app()
-                except Exception as exc:
-                    st.warning(f"正文读取失败：{exc}")
+            profile = st.session_state.runtime_modes.profile
+            if not profile.allow_article_network_read:
+                st.warning(
+                    f"当前为 {profile.article_network_read_reason} 模式，已跳过正文读取。"
+                )
+                st.session_state.wechat_news_phase = "enriched"
+                _rerun_app()
+            else:
+                with st.spinner("正在读取新闻正文..."):
+                    try:
+                        enriched = run_enrich_stage(
+                            items,
+                            max_articles=max_articles,
+                            query_text=query_text,
+                        )
+                        st.session_state.wechat_news_items = enriched
+                        st.session_state.wechat_news_phase = "enriched"
+                        _rerun_app()
+                    except Exception as exc:
+                        st.warning(f"正文读取失败：{exc}")
 
     if phase in ("searched", "enriched"):
         btn_label = "\U0001f4dd 生成摘要"

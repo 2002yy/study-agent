@@ -382,7 +382,16 @@ def _render_opening_setup():
 
     cols = st.columns(2)
     with cols[0]:
-        if st.button(
+        group_has_messages = has_wechat_group_started()
+        if group_has_messages:
+            st.button(
+                "生成群聊开场",
+                key="generate_wechat_opening",
+                use_container_width=True,
+                disabled=True,
+                help="群聊已有历史内容，请先使用「新群聊」归档旧内容后再生成开场。",
+            )
+        elif st.button(
             "生成群聊开场", key="generate_wechat_opening", use_container_width=True
         ):
             _commit_interaction_mode(choice)

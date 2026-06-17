@@ -181,7 +181,7 @@ def test_wechat_status_and_opening_endpoints(monkeypatch):
     monkeypatch.setattr(api, "read_wechat_group", lambda: "group content")
     monkeypatch.setattr(api, "read_wechat_unread", lambda: "unread content")
     monkeypatch.setattr(api, "has_wechat_unread", lambda: True)
-    monkeypatch.setattr(api, "has_wechat_group_started", lambda: True)
+    monkeypatch.setattr(api, "has_wechat_group_started", lambda: False)  # allow opening to succeed
     monkeypatch.setattr(api, "count_wechat_messages", lambda content: 2 if content else 0)
     monkeypatch.setattr(api, "summarize_wechat", lambda: "summary")
     monkeypatch.setattr(api, "generate_wechat_opening", lambda **kwargs: "opening")
