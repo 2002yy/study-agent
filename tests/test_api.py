@@ -592,7 +592,8 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert captured["messages"][-1]["content"] == "hello api"
     assert sum(1 for message in captured["messages"] if message["content"] == "hello api") == 1
     assert any("source: web result" in message["content"] for message in captured["messages"])
-    assert "当前场景是单人对话" in captured["messages"][0]["content"]
+    assert "当前场景是用户与所选角色的单人对话" in captured["messages"][0]["content"]
+    assert "用户明确提出“直接回答”“不要追问”“不要切换角色”" in captured["messages"][0]["content"]
     assert "[Conversation instruction]\n本轮直接回答，不转交。" in captured["messages"][0]["content"]
 
 

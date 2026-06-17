@@ -6,7 +6,7 @@ from src.mode_manager import (
     is_memory_write_allowed,
     run_with_confirm_write,
 )
-from src.context_builder import build_messages, build_system_prompt
+from src.context_builder import MODE_RULES, build_messages, build_system_prompt
 from src.role_manager import build_role_prompt
 from src.router import RoutingConfig, route_request
 from src.ui.sidebar import _switch_to_wechat_entry
@@ -399,6 +399,17 @@ def test_build_messages_history_window_follows_performance_mode():
     assert [message["content"] for message in deep_messages[1:-1]] == [f"m{index}" for index in range(10, 40)]
 
 
+def test_mode_rules_are_real_prompts_and_exclude_removed_modes():
+    assert set(MODE_RULES) == {"自动", "普通", "苏格拉底", "费曼", "项目"}
+    assert "论文" not in MODE_RULES
+    assert "概念地图" not in MODE_RULES
+    assert "直接、完整地回应用户当前提出的问题或任务" in MODE_RULES["普通"]
+    assert "不要默认向用户出题，不要用反问替代答案" in MODE_RULES["苏格拉底"]
+    assert "不要默认评分" in MODE_RULES["费曼"]
+    assert "可验证进展" in MODE_RULES["项目"]
+    assert "不要因为一句话中出现“为什么”“修改”“解释”等普通词语就频繁切换" in MODE_RULES["自动"]
+
+
 def test_single_chat_policy_and_conversation_instruction_override_role_limits():
     prompt = build_system_prompt(
         role_prompt="角色偏好：遇到项目问题倾向让刻晴收束。",
@@ -408,10 +419,11 @@ def test_single_chat_policy_and_conversation_instruction_override_role_limits():
         conversation_instruction="不要转交给其他角色，直接回答我的问题。",
     )
 
-    assert "当前场景是单人对话" in prompt
-    assert "角色分工只表示擅长领域和回答风格，不构成能力限制" in prompt
-    assert "当用户直接向当前角色提出请求时，必须由当前角色继续完成" in prompt
-    assert "不得以“这不是我的职责”“请切换到其他角色”“请去找某角色”等理由拒绝" in prompt
+    assert "当前场景是用户与所选角色的单人对话" in prompt
+    assert "所有角色都具备处理一般学习、概念解释、代码、项目、写作" in prompt
+    assert "不构成能力限制" in prompt
+    assert "学习模式决定本轮如何与用户互动" in prompt
+    assert "用户明确提出“直接回答”“不要追问”“不要切换角色”" in prompt
     assert "[Conversation instruction]\n不要转交给其他角色，直接回答我的问题。" in prompt
 
 
