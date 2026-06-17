@@ -171,6 +171,11 @@ export type MemoryCommitResponse = {
     action: string;
     path: string;
   }>;
+  errors?: Array<{
+    target: string;
+    action: string;
+    error: string;
+  }>;
 };
 
 export type WechatStateResponse = {

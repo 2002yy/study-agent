@@ -134,7 +134,20 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
       setCommitResult(result);
       setPreview(null);
       setPreviewedPayloads(null);
-      setDrafts([createDraft(0)]);
+      if (result.errors?.length) {
+        // Partial failure: preserve failed candidate from commit, clear succeeded ones
+        const failedTargets = new Set(result.errors.map((e) => e.target));
+        setDrafts((current) => current.filter((draft) => failedTargets.has(draft.target) && draft.content.trim()));
+        if (!result.results.length) {
+          setError(`所有写入均失败：${result.errors.map((e) => `${e.target}: ${e.error}`).join(", ")}`);
+          setIsCommitting(false);
+          return;
+        }
+        // Partial success: succeeded candidates cleared, failed ones stay
+        setError(`部分写入失败：${result.errors.map((e) => `${e.target}: ${e.error}`).join(", ")}`);
+      } else {
+        setDrafts([createDraft(0)]);
+      }
       await onMemoryChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "记忆提交失败");
@@ -293,6 +306,18 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
               <span>
                 已写入 {commitResult.results.map((result) => `${result.target}(${result.action})`).join(", ")}
               </span>
+              {commitResult.errors?.length ? (
+                <details style={{ marginTop: 8 }}>
+                  <summary>部分失败 ({commitResult.errors.length})</summary>
+                  <ul>
+                    {commitResult.errors.map((err, idx) => (
+                      <li key={idx}>
+                        <strong>{err.target}</strong> ({err.action}): {err.error}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </div>
           ) : null}
           {error ? (

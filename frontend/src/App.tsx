@@ -900,8 +900,11 @@ export default function App() {
       return;
     }
     const generationId = ++generationIdRef.current;
-    const nextMessages: ChatMessage[] = [...historyBase, { role: "user", content: question, avatarRole: "user" }];
-    const userIndex = nextMessages.length - 1;
+    const isContinuation = Boolean(extraOpts.continuationOfTurnId);
+    const nextMessages: ChatMessage[] = isContinuation
+      ? [...historyBase]
+      : [...historyBase, { role: "user", content: question, avatarRole: "user" }];
+    const userIndex = isContinuation ? -1 : nextMessages.length - 1;
     const assistantIndex = nextMessages.length;
     setSingleChatMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
     setInput("");
@@ -988,6 +991,7 @@ export default function App() {
       );
       await refresh();
     } catch (error) {
+      if (generationIdRef.current !== generationId) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
       const preserved = streamedReply
@@ -996,6 +1000,24 @@ export default function App() {
       setStreamRecovery({ question, reply: streamedReply, reason: message });
       if (!isAbort) {
         setOperationError(`聊天请求失败：${message}`);
+      }
+      // Attempt to persist partial reply to session log on interrupt/error
+      if (streamedReply && sessionId) {
+        try {
+          await commitTurn(sessionId, {
+            userInput: question,
+            agentReply: streamedReply,
+            role: String(lastChat?.route?.role ?? "auto"),
+            mode: typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : "auto",
+            model: typeof lastChat?.route?.model_profile === "string" ? String(lastChat.route.model_profile) : "auto",
+            memoryEnabled: ragEnabled,
+            routeInfo: lastChat?.route ?? {},
+            ragInfo: lastChat?.rag ?? {},
+            conversationInstruction,
+          });
+        } catch {
+          // Best-effort; don't surface commit failure to user
+        }
       }
       setSingleChatMessages((current) =>
         current.map((item, index) =>

@@ -14,7 +14,7 @@ STYLE_PROMPTS = {
 
 WECHAT_ROLE_ORDER = ["三月七", "刻晴", "纳西妲", "流萤"]
 
-WECHAT_BLOCK_PATTERN = re.compile(r"【(.+?)】\s*(.+?)(?=\n【|\Z)", re.DOTALL)
+WECHAT_BLOCK_PATTERN = re.compile(r"【(.+?)】\s*\n(.+?)(?=\n【|\Z)", re.DOTALL)
 
 WECHAT_MISSING_ROLE_FALLBACKS = {
     "三月七": "我这边也接住啦，这句我听到了。那我先把气氛接上，我们继续往下聊。",

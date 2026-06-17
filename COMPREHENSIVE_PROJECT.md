@@ -38,7 +38,7 @@
 5. `src/wechat_memory.py`: 群聊记忆提取
 6. `src/mode_manager.py`: 运行态模式和版本状态
 7. `src/session_logger.py`: 会话日志与安全写入
-8. `src/safe_writer.py`: 原子写入、备份、tmp 清理
+8. `src/safe_writer.py`: 逐文件原子写入（带备份）、tmp 清理
 9. `src/llm_client.py`: LLM 调用与 client 重置
 10. `src/performance_budget.py`: 性能预算（max_tokens 分级）
 

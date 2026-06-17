@@ -1847,7 +1847,7 @@ def commit_memory_updates(request: MemoryPreviewRequest) -> MemoryCommitResponse
     # Pre-validate: at most one current_focus replace
     focus_replaces = [
         u for u in request.updates
-        if _memory_update_action(u) == "replace" and u.target == "current_focus.md"
+        if _memory_update_action(u) == "replace" and u.target == "current_focus"
     ]
     if len(focus_replaces) > 1:
         raise HTTPException(
