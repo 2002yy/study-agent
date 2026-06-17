@@ -188,6 +188,7 @@ export type WechatMessageResponse = {
   state: Record<string, unknown>;
   session_id: string;
   rag: Record<string, unknown>;
+  message_count?: number;
 };
 
 export type WechatSearchResult = {

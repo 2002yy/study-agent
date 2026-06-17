@@ -161,7 +161,11 @@ function parseSseMessages(raw: string): SseMessage[] {
     });
 }
 
+let _lastSnapshot: ApiSnapshot | null = null;
+let _refreshGeneration = 0;
+
 export async function loadApiSnapshot(): Promise<ApiSnapshot> {
+  const generation = ++_refreshGeneration;
   const results = await Promise.allSettled([
     requestJson<HealthResponse>("/health"),
     requestJson<RagStatusResponse>("/rag/status"),
@@ -191,7 +195,16 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
   const memoryStatus = read<MemoryStatusResponse>(6, "memory");
   const wechat = read<WechatStateResponse>(7, "wechat");
 
-  return {
+  if (generation !== _refreshGeneration) {
+    // A newer refresh started while this one was in-flight — discard
+    return _lastSnapshot ?? {
+      health: null, ragStatus: null, tools: [], workflowRuns: [],
+      sessions: [], runtimeSettings: null, memoryStatus: null, wechat: null,
+      error: "snapshot refresh superseded", errors: {}
+    };
+  }
+
+  const next: ApiSnapshot = {
     health,
     ragStatus,
     tools: tools?.tools ?? [],
@@ -203,6 +216,24 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
     error: errors.health ?? "",
     errors
   };
+
+  // Preserve last-good data for failed modules
+  if (_lastSnapshot) {
+    const nameMap: Array<[keyof ApiSnapshot, string]> = [
+      ["ragStatus", "rag"], ["tools", "tools"],
+      ["workflowRuns", "workflows"], ["sessions", "sessions"],
+      ["runtimeSettings", "settings"], ["memoryStatus", "memory"],
+      ["wechat", "wechat"],
+    ];
+    for (const [key, errorKey] of nameMap) {
+      if (errors[errorKey] && _lastSnapshot[key] != null) {
+        (next as Record<string, unknown>)[key] = _lastSnapshot[key];
+      }
+    }
+  }
+
+  _lastSnapshot = next;
+  return next;
 }
 
 export async function saveRuntimeSettings(payload: Partial<RuntimeSettingsResponse["settings"]>): Promise<RuntimeSettingsResponse> {

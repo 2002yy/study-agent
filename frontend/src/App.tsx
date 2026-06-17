@@ -1298,7 +1298,7 @@ export default function App() {
               ...current.wechat,
               content: response.content,
               state: response.state,
-              message_count: Math.max(current.wechat.message_count, (response.content.match(/【/g) ?? []).length)
+              message_count: response.message_count ?? Math.max(current.wechat.message_count, (response.content.match(/【/g) ?? []).length)
             }
           : current.wechat
       }));
@@ -1663,12 +1663,30 @@ export default function App() {
         <div className="api-warning operation-warning">
           <AlertTriangle size={16} />
           {operationError}
+          <button
+            className="ghost-action compact"
+            onClick={() => setOperationError("")}
+            style={{ marginLeft: 8 }}
+            type="button"
+          >
+            关闭
+          </button>
         </div>
       ) : null}
       {!snapshot.error && !operationError && partialErrors.length ? (
         <div className="api-warning">
           <AlertTriangle size={16} />
-          部分功能暂不可用：{partialErrors.map(([key]) => key).join(", ")}
+          部分功能暂不可用：
+          <details style={{ display: "inline", marginLeft: 4 }}>
+            <summary>{partialErrors.map(([key]) => key).join(", ")}</summary>
+            <div style={{ marginTop: 4 }}>
+              {partialErrors.map(([key, message]) => (
+                <div key={key}>
+                  <strong>{key}</strong>: {message}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       ) : null}
     </div>

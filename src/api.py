@@ -311,6 +311,7 @@ class WechatMessageResponse(BaseModel):
     state: dict[str, Any]
     session_id: str
     rag: dict[str, Any]
+    message_count: int = 0
 
 
 class WechatSearchRequest(BaseModel):
@@ -523,6 +524,14 @@ def _api_token() -> str:
 
 def _allowed_cors_origins() -> set[str]:
     raw = os.getenv("STUDY_AGENT_CORS_ORIGINS", "")
+    if not raw.strip():
+        # Default to the same origins as FastAPI CORSMiddleware
+        return {
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+            "http://127.0.0.1:4173",
+            "http://localhost:4173",
+        }
     return {origin.strip() for origin in raw.split(",") if origin.strip()}
 
 
@@ -1259,6 +1268,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
         state=read_wechat_state(),
         session_id=session_id,
         rag=rag_result.to_dict(),
+        message_count=count_wechat_messages(read_wechat_group()),
     )
 
 
@@ -1316,6 +1326,7 @@ async def send_wechat_message_stream(request: WechatMessageRequest, http_request
                     "state": read_wechat_state(),
                     "session_id": session_id,
                     "rag": rag_result.to_dict(),
+                    "message_count": count_wechat_messages(read_wechat_group()),
                 },
             )
         except Exception as exc:

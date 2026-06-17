@@ -1,6 +1,6 @@
 import { AlertTriangle, Loader2, MessageSquare, Search, Send, Sparkles } from "lucide-react";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { searchWechat } from "../../api";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import type { ChatSettings, NewsLookupResponse, NewsSearchResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
@@ -119,6 +119,12 @@ export function WechatPanel({
   const [wechatSearch, setWechatSearch] = useState<WechatSearchResponse | null>(null);
   const [isWechatSearching, setIsWechatSearching] = useState(false);
   const [wechatSearchError, setWechatSearchError] = useState("");
+
+  // Clear search results when group content changes (new group / reset)
+  useEffect(() => {
+    setWechatSearch(null);
+    setWechatSearchQuery("");
+  }, [wechat?.content]);
 
   const latestNewsItems = newsResult?.news_items.slice(0, 4) ?? [];
   const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
