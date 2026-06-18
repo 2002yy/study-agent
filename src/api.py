@@ -284,6 +284,7 @@ class ChatRequest(BaseModel):
     web_context: str = ""
     continuation_of_turn_id: str | None = None
     partial_reply: str = ""
+    turn_id: str | None = None
 
 
 class CommitTurnRequest(BaseModel):
@@ -297,6 +298,7 @@ class CommitTurnRequest(BaseModel):
     route_info: dict[str, Any] = Field(default_factory=dict)
     rag_info: dict[str, Any] = Field(default_factory=dict)
     conversation_instruction: str = ""
+    turn_id: str | None = None
 
 
 class CommitTurnResponse(BaseModel):
@@ -1790,6 +1792,7 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
             runtime_modes = prepared["runtime_modes"]
             route = prepared["route"]
             rag_result = prepared["rag_result"]
+            yield _sse_event("session", {"session_id": session_id})
             yield _sse_event("route", route)
             yield _sse_event("rag", rag_result.to_dict())
             for token in stream_chat(
@@ -1820,10 +1823,13 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
                     "web_context_used": prepared["web_context_used"],
                     "streamed": True,
                     "is_continuation": prepared["is_continuation"],
+                    "is_continuation_resolved": bool(chat_request.turn_id),
                 },
                 session_settings=prepared["session_settings"],
                 rag_info=rag_result.to_dict(),
                 conversation_instruction=chat_request.conversation_instruction,
+                turn_id=chat_request.turn_id or None,
+                merge_with_existing=bool(chat_request.continuation_of_turn_id and chat_request.turn_id),
             )
             flush_current_session(
                 session_id,
@@ -2084,5 +2090,6 @@ def commit_turn_endpoint(session_id: str, request: CommitTurnRequest) -> CommitT
             route_info=request.route_info,
             rag_info=request.rag_info,
             conversation_instruction=request.conversation_instruction,
+            turn_id=request.turn_id,
         )
     return CommitTurnResponse(session_id=session_id, committed=not already_logged, message="ok" if not already_logged else "already committed")

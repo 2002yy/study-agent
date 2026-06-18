@@ -38,7 +38,6 @@ export function NewsWorkspace({
   setReadArticles,
   chatSettings,
   sessionId,
-  workspaceGeneration,
   onRunStarted,
   onDiscussed,
   onLookupNews,
@@ -50,7 +49,6 @@ export function NewsWorkspace({
   setReadArticles: (value: boolean) => void;
   chatSettings: ChatSettings;
   sessionId?: string;
-  workspaceGeneration: number;
   onRunStarted?: (runId: string) => void;
   onDiscussed: (sessionId: string) => void;
   onLookupNews: () => void;
@@ -87,7 +85,7 @@ export function NewsWorkspace({
     setBusyStage("");
     setError("");
     setSearchedQuery("");
-  }, [sessionId, workspaceGeneration]);
+  }, [sessionId]);
 
   const clearDownstream = (from: "search" | "enrich" | "digest") => {
     if (from === "search") {

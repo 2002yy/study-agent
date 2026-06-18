@@ -98,28 +98,50 @@ def log(
     session_settings: dict | None = None,
     rag_info: dict | None = None,
     conversation_instruction: str = "",
+    turn_id: str | None = None,
+    merge_with_existing: bool = False,
 ) -> None:
     sess = get_or_create_session(session_id)
+
+    # If this is a continuation resolving an earlier partial turn,
+    # find and update the existing entry instead of creating a new one.
+    if merge_with_existing and turn_id:
+        for entry in reversed(sess["entries"]):
+            if entry.get("turn_id") == turn_id:
+                entry["agent"] = agent_reply
+                entry["agent_reply"] = agent_reply
+                if route_info:
+                    entry["route"] = dict(entry.get("route", {}), is_continuation_resolved=True, **(route_info or {}))
+                if rag_info:
+                    entry["rag"] = rag_info
+                entry["messages"] = [
+                    {"role": "user", "content": user_input, "avatarRole": "user"},
+                    {"role": "assistant", "content": agent_reply, "avatarRole": role},
+                ]
+                return
+        # If no matching turn_id found, fall through to append as new entry
+
     messages = [
         {"role": "user", "content": user_input, "avatarRole": "user"},
         {"role": "assistant", "content": agent_reply, "avatarRole": role},
     ]
-    sess["entries"].append(
-        {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "role": role,
-            "mode": mode,
-            "model": model,
-            "memory": memory_enabled,
-            "route": route_info,
-            "settings": session_settings or {},
-            "rag": rag_info or {},
-            "conversation_instruction": conversation_instruction,
-            "messages": messages,
-            "user": user_input,
-            "agent": agent_reply,
-        }
-    )
+    entry = {
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "role": role,
+        "mode": mode,
+        "model": model,
+        "memory": memory_enabled,
+        "route": route_info,
+        "settings": session_settings or {},
+        "rag": rag_info or {},
+        "conversation_instruction": conversation_instruction,
+        "messages": messages,
+        "user": user_input,
+        "agent": agent_reply,
+    }
+    if turn_id:
+        entry["turn_id"] = turn_id
+    sess["entries"].append(entry)
 
     # Stale session guard: warn once if session exceeds 2 hours
     if not sess.get("_stale_warned"):

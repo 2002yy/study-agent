@@ -550,7 +550,6 @@ function Inspector({
   snapshot,
   singleChatSessionId,
   wechatThreadId,
-  workspaceGeneration,
   chatSettings,
   lastChat,
   ragSearch,
@@ -595,7 +594,6 @@ function Inspector({
   snapshot: ApiSnapshot;
   singleChatSessionId?: string;
   wechatThreadId?: string;
-  workspaceGeneration: number;
   chatSettings: ChatSettings;
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
@@ -654,7 +652,6 @@ function Inspector({
         setReadArticles={setReadArticles}
         chatSettings={chatSettings}
         sessionId={wechatThreadId}
-        workspaceGeneration={workspaceGeneration}
         onOpening={onWechatOpening}
         onReset={onWechatReset}
         onMarkRead={onWechatMarkRead}
@@ -733,21 +730,19 @@ export default function App() {
   const chatAbortRef = useRef<AbortController | null>(null);
   const wechatAbortRef = useRef<AbortController | null>(null);
   const newsLookupAbortRef = useRef<AbortController | null>(null);
-  const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
-  const workspaceGenerationRef = useRef(0);
+  const chatGenerationRef = useRef(0);
+  const wechatGenerationRef = useRef(0);
+  const newsGenerationRef = useRef(0);
+  const toolGenerationRef = useRef(0);
   const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
-  const advanceWorkspaceGeneration = () => {
-    const nextGeneration = workspaceGenerationRef.current + 1;
-    workspaceGenerationRef.current = nextGeneration;
-    setWorkspaceGeneration(nextGeneration);
-    return nextGeneration;
-  };
-
   const cancelWorkspaceRuns = () => {
-    advanceWorkspaceGeneration();
+    chatGenerationRef.current++;
+    wechatGenerationRef.current++;
+    newsGenerationRef.current++;
+    toolGenerationRef.current++;
     chatAbortRef.current?.abort();
     wechatAbortRef.current?.abort();
     newsLookupAbortRef.current?.abort();
@@ -952,11 +947,11 @@ export default function App() {
   }, [chatSettings.selectedRole]);
 
 
-  const sendSingleChat = async (question: string, historyBase = singleChatMessages, extraOpts: { continuationOfTurnId?: string; partialReply?: string } = {}) => {
+  const sendSingleChat = async (question: string, historyBase = singleChatMessages, extraOpts: { continuationOfTurnId?: string; partialReply?: string; turnId?: string } = {}) => {
     if (!question || isSending) {
       return;
     }
-    const generationId = advanceWorkspaceGeneration();
+    const generationId = ++chatGenerationRef.current;
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -972,6 +967,8 @@ export default function App() {
     const abortController = new AbortController();
     chatAbortRef.current = abortController;
     let streamedReply = "";
+    let streamedRoute: Record<string, unknown> = {};
+    let streamedRag: ChatResponse["rag"] | null = null;
     const shouldConsumeWebLookup = useWebLookup && Boolean(webLookup?.source_block);
     try {
       const response = await sendChatStream(
@@ -987,11 +984,17 @@ export default function App() {
           conversationInstruction,
           webContext: shouldConsumeWebLookup ? webLookup?.source_block : "",
           continuationOfTurnId: extraOpts.continuationOfTurnId,
-          partialReply: extraOpts.partialReply ?? ""
+          partialReply: extraOpts.partialReply ?? "",
+          turnId: extraOpts.turnId
         },
         {
+          onSession: (sid) => {
+            if (chatGenerationRef.current !== generationId) return;
+            setSingleChatSessionId(sid);
+          },
           onRoute: (route) => {
-            if (workspaceGenerationRef.current !== generationId) return;
+            if (chatGenerationRef.current !== generationId) return;
+            streamedRoute = route;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
               session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
@@ -1005,7 +1008,8 @@ export default function App() {
             );
           },
           onRag: (rag) => {
-            if (workspaceGenerationRef.current !== generationId) return;
+            if (chatGenerationRef.current !== generationId) return;
+            streamedRag = rag;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
               session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
@@ -1014,7 +1018,7 @@ export default function App() {
             }));
           },
           onToken: (token) => {
-            if (workspaceGenerationRef.current !== generationId) return;
+            if (chatGenerationRef.current !== generationId) return;
             streamedReply += token;
             setSingleChatMessages((current) =>
               current.map((message, index) =>
@@ -1024,7 +1028,7 @@ export default function App() {
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
           },
           onDone: (done) => {
-            if (workspaceGenerationRef.current !== generationId) return;
+            if (wechatGenerationRef.current !== generationId) return;
             if (typeof done.session_id === "string") {
               setSingleChatSessionId(done.session_id);
             }
@@ -1032,7 +1036,7 @@ export default function App() {
         },
         { signal: abortController.signal }
       );
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setSingleChatSessionId(response.session_id);
       setLastChat(response);
       setOperationError("");
@@ -1048,7 +1052,7 @@ export default function App() {
       );
       await refresh();
     } catch (error) {
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (chatGenerationRef.current !== generationId) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
       const preserved = streamedReply
@@ -1064,12 +1068,12 @@ export default function App() {
           await commitTurn(singleChatSessionId, {
             userInput: question,
             agentReply: streamedReply,
-            role: String(lastChat?.route?.role ?? "auto"),
-            mode: typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : "auto",
-            model: typeof lastChat?.route?.model_profile === "string" ? String(lastChat.route.model_profile) : "auto",
+            role: String(streamedRoute.role ?? lastChat?.route?.role ?? "auto"),
+            mode: typeof streamedRoute.mode === "string" ? String(streamedRoute.mode) : typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : "auto",
+            model: typeof streamedRoute.model_profile === "string" ? String(streamedRoute.model_profile) : typeof lastChat?.route?.model_profile === "string" ? String(lastChat.route.model_profile) : "auto",
             memoryEnabled: ragEnabled,
-            routeInfo: lastChat?.route ?? {},
-            ragInfo: lastChat?.rag ?? {},
+            routeInfo: Object.keys(streamedRoute).length ? streamedRoute : (lastChat?.route ?? {}),
+            ragInfo: streamedRag ?? lastChat?.rag ?? {},
             conversationInstruction,
           });
         } catch {
@@ -1135,10 +1139,12 @@ export default function App() {
       return;
     }
     const continuationHistory = buildContinuationHistory(singleChatMessages, streamRecovery);
+    const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     setStreamRecovery(null);
     await sendSingleChat(streamRecovery.question, continuationHistory, {
       continuationOfTurnId: streamRecovery.question,
       partialReply: streamRecovery.reply,
+      turnId,
     });
   };
 
@@ -1166,17 +1172,17 @@ export default function App() {
   };
 
   const previewTool = async () => {
-    const generationId = workspaceGenerationRef.current;
+    const generationId = ++toolGenerationRef.current;
     setIsPreviewing(true);
     setToolCall(null);
     const invocation = { ...currentToolInvocation };
     try {
       const response = await previewLocalKnowledge(invocation);
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setToolPreview(response);
       setPreviewedInvocation({ ...invocation, previewId: response.run_id });
     } catch (error) {
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setPreviewedInvocation(null);
       setToolPreview({
         tool_name: "retrieve_local_knowledge",
@@ -1187,7 +1193,7 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      if (workspaceGenerationRef.current === generationId) {
+      if (toolGenerationRef.current === generationId) {
         setIsPreviewing(false);
       }
     }
@@ -1248,18 +1254,18 @@ export default function App() {
     if (!previewedInvocation || !toolCanCall || isCalling) {
       return;
     }
-    const generationId = workspaceGenerationRef.current;
+    const generationId = ++toolGenerationRef.current;
     setIsCalling(true);
     try {
       const result = await callLocalKnowledge(previewedInvocation);
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setToolCall(result);
       await refresh();
       if (result.run_id) {
         await selectRun(result.run_id);
       }
     } catch (error) {
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setToolCall({
         tool_name: "retrieve_local_knowledge",
         status: "failed",
@@ -1269,7 +1275,7 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      if (workspaceGenerationRef.current === generationId) {
+      if (toolGenerationRef.current === generationId) {
         setIsCalling(false);
       }
     }
@@ -1341,7 +1347,7 @@ export default function App() {
       return;
     }
     const baseWechat = snapshot.wechat;
-    const generationId = advanceWorkspaceGeneration();
+    const generationId = ++wechatGenerationRef.current;
     setIsWechatBusy(true);
     setOperationError("");
     const abortController = new AbortController();
@@ -1367,7 +1373,7 @@ export default function App() {
         ragSettings
       }, {
         onToken: (token) => {
-          if (workspaceGenerationRef.current !== generationId) return;
+          if (wechatGenerationRef.current !== generationId) return;
           streamedReply += token;
           if (!baseWechat) {
             return;
@@ -1383,7 +1389,7 @@ export default function App() {
           }));
         }
       }, { signal: abortController.signal });
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       setWechatThreadId(response.session_id);
       setWechatInput("");
       setSnapshot((current) => ({
@@ -1399,7 +1405,7 @@ export default function App() {
       }));
       await refresh();
     } catch (error) {
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (wechatGenerationRef.current !== generationId) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "群聊发送失败";
       // Rollback optimistic UI to base state
@@ -1417,7 +1423,7 @@ export default function App() {
       if (wechatAbortRef.current === abortController) {
         wechatAbortRef.current = null;
       }
-      if (workspaceGenerationRef.current === generationId) {
+      if (wechatGenerationRef.current === generationId) {
         setIsWechatBusy(false);
       }
     }
@@ -1428,7 +1434,7 @@ export default function App() {
     if (!query || isNewsBusy) {
       return;
     }
-    const generationId = workspaceGenerationRef.current;
+    const generationId = ++newsGenerationRef.current;
     const abortController = new AbortController();
     newsLookupAbortRef.current?.abort();
     newsLookupAbortRef.current = abortController;
@@ -1436,18 +1442,18 @@ export default function App() {
     setOperationError("");
     try {
       const result = await lookupNews(query, 8, { signal: abortController.signal });
-      if (workspaceGenerationRef.current !== generationId) return;
+      if (newsGenerationRef.current !== generationId) return;
       setWebLookup(result);
       setUseWebLookup(true);
       setOperationError("");
     } catch (error) {
-      if (workspaceGenerationRef.current !== generationId || (error instanceof DOMException && error.name === "AbortError")) return;
+      if (newsGenerationRef.current !== generationId || (error instanceof DOMException && error.name === "AbortError")) return;
       setOperationError(`联网搜索失败：${error instanceof Error ? error.message : "联网搜索失败"}`);
     } finally {
       if (newsLookupAbortRef.current === abortController) {
         newsLookupAbortRef.current = null;
       }
-      if (workspaceGenerationRef.current === generationId) {
+      if (newsGenerationRef.current === generationId) {
         setIsNewsBusy(false);
       }
     }
@@ -1709,7 +1715,6 @@ export default function App() {
         snapshot={snapshot}
         singleChatSessionId={singleChatSessionId}
         wechatThreadId={wechatThreadId}
-        workspaceGeneration={workspaceGeneration}
         chatSettings={chatSettings}
         lastChat={lastChat}
         ragSearch={ragSearch}

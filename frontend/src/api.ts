@@ -77,9 +77,11 @@ type ChatRequestOptions = {
   scene?: "single" | "group";
   continuationOfTurnId?: string;
   partialReply?: string;
+  turnId?: string;
 };
 
 type ChatStreamHandlers = {
+  onSession?: (sessionId: string) => void;
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onToken?: (token: string) => void;
@@ -127,7 +129,8 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
-    partial_reply: options.partialReply ?? ""
+    partial_reply: options.partialReply ?? "",
+    turn_id: options.turnId ?? null
   };
 }
 
@@ -647,6 +650,13 @@ export async function sendChatStream(
   let rag: ChatResponse["rag"] | null = null;
 
   const handleMessage = (message: SseMessage) => {
+    if (message.event === "session") {
+      if (typeof message.data.session_id === "string") {
+        sessionId = message.data.session_id;
+        handlers.onSession?.(message.data.session_id);
+      }
+      return;
+    }
     if (message.event === "route") {
       route = message.data.route && typeof message.data.route === "object" ? (message.data.route as Record<string, unknown>) : message.data;
       handlers.onRoute?.(route);
@@ -772,6 +782,7 @@ export async function commitTurn(sessionId: string, payload: {
   routeInfo?: Record<string, unknown>;
   ragInfo?: Record<string, unknown>;
   conversationInstruction?: string;
+  turnId?: string;
 }): Promise<{ session_id: string; committed: boolean; message: string }> {
   return requestJson<{ session_id: string; committed: boolean; message: string }>(`/sessions/${sessionId}/commit-turn`, {
     method: "POST",
@@ -785,7 +796,8 @@ export async function commitTurn(sessionId: string, payload: {
       memory_enabled: payload.memoryEnabled ?? false,
       route_info: payload.routeInfo ?? {},
       rag_info: payload.ragInfo ?? {},
-      conversation_instruction: payload.conversationInstruction ?? ""
+      conversation_instruction: payload.conversationInstruction ?? "",
+      turn_id: payload.turnId ?? null
     })
   });
 }
