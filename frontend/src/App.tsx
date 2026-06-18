@@ -37,6 +37,7 @@ import {
   uploadDocuments
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
+import { operationRegistry } from "./app/operationRegistry";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
@@ -727,25 +728,12 @@ export default function App() {
   const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string } | null>(null);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatAbortRef = useRef<AbortController | null>(null);
-  const wechatAbortRef = useRef<AbortController | null>(null);
-  const newsLookupAbortRef = useRef<AbortController | null>(null);
-  const chatGenerationRef = useRef(0);
-  const wechatGenerationRef = useRef(0);
-  const newsGenerationRef = useRef(0);
-  const toolGenerationRef = useRef(0);
   const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
   const cancelWorkspaceRuns = () => {
-    chatGenerationRef.current++;
-    wechatGenerationRef.current++;
-    newsGenerationRef.current++;
-    toolGenerationRef.current++;
-    chatAbortRef.current?.abort();
-    wechatAbortRef.current?.abort();
-    newsLookupAbortRef.current?.abort();
+    operationRegistry.cancelAll();
     setIsSending(false);
     setIsWechatBusy(false);
     setIsNewsBusy(false);
@@ -951,7 +939,7 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
-    const generationId = ++chatGenerationRef.current;
+    const { operationId, controller: abortController, generationId } = operationRegistry.start("chat");
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -964,8 +952,6 @@ export default function App() {
     setOperationError("");
     setIsSending(true);
     setRagSearch(null);
-    const abortController = new AbortController();
-    chatAbortRef.current = abortController;
     let streamedReply = "";
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
@@ -989,11 +975,11 @@ export default function App() {
         },
         {
           onSession: (sid) => {
-            if (chatGenerationRef.current !== generationId) return;
+            if (!operationRegistry.isCurrent(operationId, generationId)) return;
             setSingleChatSessionId(sid);
           },
           onRoute: (route) => {
-            if (chatGenerationRef.current !== generationId) return;
+            if (!operationRegistry.isCurrent(operationId, generationId)) return;
             streamedRoute = route;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
@@ -1008,7 +994,7 @@ export default function App() {
             );
           },
           onRag: (rag) => {
-            if (chatGenerationRef.current !== generationId) return;
+            if (!operationRegistry.isCurrent(operationId, generationId)) return;
             streamedRag = rag;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
@@ -1018,7 +1004,7 @@ export default function App() {
             }));
           },
           onToken: (token) => {
-            if (chatGenerationRef.current !== generationId) return;
+            if (!operationRegistry.isCurrent(operationId, generationId)) return;
             streamedReply += token;
             setSingleChatMessages((current) =>
               current.map((message, index) =>
@@ -1028,7 +1014,7 @@ export default function App() {
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
           },
           onDone: (done) => {
-            if (wechatGenerationRef.current !== generationId) return;
+            if (!operationRegistry.isCurrent(operationId, generationId)) return;
             if (typeof done.session_id === "string") {
               setSingleChatSessionId(done.session_id);
             }
@@ -1036,7 +1022,7 @@ export default function App() {
         },
         { signal: abortController.signal }
       );
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setSingleChatSessionId(response.session_id);
       setLastChat(response);
       setOperationError("");
@@ -1050,9 +1036,10 @@ export default function App() {
             : message
         )
       );
+      operationRegistry.complete(operationId);
       await refresh();
     } catch (error) {
-      if (chatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
       const preserved = streamedReply
@@ -1089,10 +1076,8 @@ export default function App() {
               : item
         )
       );
+      operationRegistry.complete(operationId);
     } finally {
-      if (chatAbortRef.current === abortController) {
-        chatAbortRef.current = null;
-      }
       setIsSending(false);
     }
   };
@@ -1103,11 +1088,11 @@ export default function App() {
   };
 
   const stopChatGeneration = () => {
-    chatAbortRef.current?.abort();
+    operationRegistry.cancel("chat");
   };
 
   const stopWechatGeneration = () => {
-    wechatAbortRef.current?.abort();
+    operationRegistry.cancel("group");
   };
 
   const retryInterruptedChat = async () => {
@@ -1172,17 +1157,17 @@ export default function App() {
   };
 
   const previewTool = async () => {
-    const generationId = ++toolGenerationRef.current;
+    const { operationId, generationId } = operationRegistry.start("tool");
     setIsPreviewing(true);
     setToolCall(null);
     const invocation = { ...currentToolInvocation };
     try {
       const response = await previewLocalKnowledge(invocation);
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setToolPreview(response);
       setPreviewedInvocation({ ...invocation, previewId: response.run_id });
     } catch (error) {
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setPreviewedInvocation(null);
       setToolPreview({
         tool_name: "retrieve_local_knowledge",
@@ -1193,9 +1178,10 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      if (toolGenerationRef.current === generationId) {
+      if (operationRegistry.isCurrent(operationId, generationId)) {
         setIsPreviewing(false);
       }
+      operationRegistry.complete(operationId);
     }
   };
 
@@ -1254,18 +1240,18 @@ export default function App() {
     if (!previewedInvocation || !toolCanCall || isCalling) {
       return;
     }
-    const generationId = ++toolGenerationRef.current;
+    const { operationId, generationId } = operationRegistry.start("tool");
     setIsCalling(true);
     try {
       const result = await callLocalKnowledge(previewedInvocation);
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setToolCall(result);
       await refresh();
       if (result.run_id) {
         await selectRun(result.run_id);
       }
     } catch (error) {
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setToolCall({
         tool_name: "retrieve_local_knowledge",
         status: "failed",
@@ -1275,9 +1261,10 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      if (toolGenerationRef.current === generationId) {
+      if (operationRegistry.isCurrent(operationId, generationId)) {
         setIsCalling(false);
       }
+      operationRegistry.complete(operationId);
     }
   };
 
@@ -1347,11 +1334,9 @@ export default function App() {
       return;
     }
     const baseWechat = snapshot.wechat;
-    const generationId = ++wechatGenerationRef.current;
+    const { operationId, controller: abortController, generationId } = operationRegistry.start("group");
     setIsWechatBusy(true);
     setOperationError("");
-    const abortController = new AbortController();
-    wechatAbortRef.current = abortController;
     try {
       const baseContent = baseWechat?.content ?? "";
       let streamedReply = "";
@@ -1373,7 +1358,7 @@ export default function App() {
         ragSettings
       }, {
         onToken: (token) => {
-          if (wechatGenerationRef.current !== generationId) return;
+          if (!operationRegistry.isCurrent(operationId, generationId)) return;
           streamedReply += token;
           if (!baseWechat) {
             return;
@@ -1389,7 +1374,7 @@ export default function App() {
           }));
         }
       }, { signal: abortController.signal });
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setWechatThreadId(response.session_id);
       setWechatInput("");
       setSnapshot((current) => ({
@@ -1403,9 +1388,10 @@ export default function App() {
             }
           : current.wechat
       }));
+      operationRegistry.complete(operationId);
       await refresh();
     } catch (error) {
-      if (wechatGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "群聊发送失败";
       // Rollback optimistic UI to base state
@@ -1419,11 +1405,9 @@ export default function App() {
           : baseWechat
       }));
       setOperationError(`微信群回复生成失败：${message}`);
+      operationRegistry.complete(operationId);
     } finally {
-      if (wechatAbortRef.current === abortController) {
-        wechatAbortRef.current = null;
-      }
-      if (wechatGenerationRef.current === generationId) {
+      if (operationRegistry.isCurrent(operationId, generationId)) {
         setIsWechatBusy(false);
       }
     }
@@ -1434,28 +1418,23 @@ export default function App() {
     if (!query || isNewsBusy) {
       return;
     }
-    const generationId = ++newsGenerationRef.current;
-    const abortController = new AbortController();
-    newsLookupAbortRef.current?.abort();
-    newsLookupAbortRef.current = abortController;
+    const { operationId, controller: abortController, generationId } = operationRegistry.start("news");
     setIsNewsBusy(true);
     setOperationError("");
     try {
       const result = await lookupNews(query, 8, { signal: abortController.signal });
-      if (newsGenerationRef.current !== generationId) return;
+      if (!operationRegistry.isCurrent(operationId, generationId)) return;
       setWebLookup(result);
       setUseWebLookup(true);
       setOperationError("");
     } catch (error) {
-      if (newsGenerationRef.current !== generationId || (error instanceof DOMException && error.name === "AbortError")) return;
+      if (!operationRegistry.isCurrent(operationId, generationId) || (error instanceof DOMException && error.name === "AbortError")) return;
       setOperationError(`联网搜索失败：${error instanceof Error ? error.message : "联网搜索失败"}`);
     } finally {
-      if (newsLookupAbortRef.current === abortController) {
-        newsLookupAbortRef.current = null;
-      }
-      if (newsGenerationRef.current === generationId) {
+      if (operationRegistry.isCurrent(operationId, generationId)) {
         setIsNewsBusy(false);
       }
+      operationRegistry.complete(operationId);
     }
   };
 

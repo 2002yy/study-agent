@@ -1,7 +1,7 @@
 # Study Agent 项目全貌
 
 > 面向新协作者和无上下文接手者的当前阶段总览。  
-> 当前开发阶段：`v0.8.0`
+> 当前开发阶段：`v0.9.0-dev`（架构 v2 第 1 批 — 停止状态膨胀）
 
 ## 1. 项目定义
 
@@ -82,7 +82,9 @@
 如果你要快速接手，推荐顺序：
 
 1. `CHANGELOG.md`
-2. `USER_GUIDE.md`
-3. `PROJECT_PLAN.md`
-4. `src/wechat_format.py`
-5. `src/ui/wechat_panel.py`
+2. `ARCHITECTURE_V2.md` (目标架构)
+3. `domain_models.md` (领域实体定义)
+4. `state_invariants.md` (系统不变量)
+5. `migration_plan.md` (分批迁移计划)
+6. `src/wechat_format.py`
+7. `src/ui/wechat_panel.py`
