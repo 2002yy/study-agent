@@ -61,8 +61,17 @@ const WORKSPACE_STATE_DEFAULTS: WorkspaceState = {
   conversationInstruction: "",
 };
 
-export function buildWorkspaceState(partial: Partial<WorkspaceState>): WorkspaceState {
-  return { ...WORKSPACE_STATE_DEFAULTS, ...partial };
+type LegacyWorkspaceState = Partial<WorkspaceState> & {
+  sessionId?: string;
+};
+
+export function buildWorkspaceState(partial: LegacyWorkspaceState): WorkspaceState {
+  const { sessionId, ...rest } = partial;
+  return {
+    ...WORKSPACE_STATE_DEFAULTS,
+    ...rest,
+    singleChatSessionId: partial.singleChatSessionId ?? sessionId,
+  };
 }
 
 export function serializeWorkspaceState(state: WorkspaceState): string {
@@ -76,4 +85,35 @@ export function deserializeWorkspaceState(raw: string | null): WorkspaceState | 
   } catch {
     return null;
   }
+}
+
+export function buildContinuationHistory(
+  messages: ChatMessage[],
+  recovery: { question: string; reply: string }
+): ChatMessage[] {
+  return messages.map((message, index) => {
+    const previousMessage = messages[index - 1];
+    const nextMessage = messages[index + 1];
+    if (!message.transient) {
+      return message;
+    }
+    if (
+      message.role === "assistant" &&
+      previousMessage?.role === "user" &&
+      previousMessage.content === recovery.question
+    ) {
+      const { transient: _transient, ...rest } = message;
+      return { ...rest, content: recovery.reply };
+    }
+    if (
+      message.role === "user" &&
+      message.content === recovery.question &&
+      nextMessage?.role === "assistant" &&
+      nextMessage.transient
+    ) {
+      const { transient: _transient, ...rest } = message;
+      return rest;
+    }
+    return message;
+  });
 }

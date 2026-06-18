@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload } from "./chatHistory";
+import {
+  buildContinuationHistory,
+  buildWorkspaceState,
+  sanitizeSingleChatMessages,
+  seedMessages,
+  toChatHistoryPayload,
+} from "./chatHistory";
 import type { ChatMessage } from "../../types";
 
 describe("sanitizeSingleChatMessages", () => {
@@ -48,6 +54,47 @@ describe("sanitizeSingleChatMessages", () => {
     ).toEqual([
       { role: "user", content: "真实问题", avatarRole: "user" },
       { role: "assistant", content: "真实回答", avatarRole: "march7" }
+    ]);
+  });
+});
+
+describe("buildWorkspaceState", () => {
+  it("migrates legacy sessionId into singleChatSessionId", () => {
+    const state = buildWorkspaceState({ sessionId: "legacy-session" });
+
+    expect(state.singleChatSessionId).toBe("legacy-session");
+    expect(state.wechatThreadId).toBeUndefined();
+  });
+
+  it("keeps single chat and wechat ids isolated", () => {
+    const state = buildWorkspaceState({
+      sessionId: "legacy-session",
+      singleChatSessionId: "single-session",
+      wechatThreadId: "wechat-thread",
+      newsRunId: "news-run",
+    });
+
+    expect(state.singleChatSessionId).toBe("single-session");
+    expect(state.wechatThreadId).toBe("wechat-thread");
+    expect(state.newsRunId).toBe("news-run");
+  });
+});
+
+describe("buildContinuationHistory", () => {
+  it("continues an interrupted reply without appending a duplicate user message", () => {
+    const history = buildContinuationHistory(
+      [
+        seedMessages[0],
+        { role: "user", content: "继续解释 RAG", avatarRole: "user", transient: true },
+        { role: "assistant", content: "生成中断", avatarRole: "auto", transient: true },
+      ],
+      { question: "继续解释 RAG", reply: "已有半段回答" }
+    );
+
+    expect(history.filter((message) => message.role === "user" && message.content === "继续解释 RAG")).toHaveLength(1);
+    expect(toChatHistoryPayload(history)).toEqual([
+      { role: "user", content: "继续解释 RAG", avatarRole: "user" },
+      { role: "assistant", content: "已有半段回答", avatarRole: "auto" },
     ]);
   });
 });

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,12 @@ RETRIEVAL_MODES = {"lexical", "vector", "hybrid", "backend_vector"}
 HYBRID_LEXICAL_WEIGHT = 0.7
 
 
+@dataclass(frozen=True)
+class RagIndexWriteResult:
+    index: RagIndex
+    stages: list[dict[str, Any]]
+
+
 def _transactional_save_index(index: RagIndex, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_path = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
@@ -37,6 +44,37 @@ def _transactional_save_index(index: RagIndex, target: Path) -> None:
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+def _completed_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
+    return {
+        "name": "local",
+        "status": "completed",
+        "documents": len(index.documents),
+        "chunks": len(index.chunks),
+        "index_path": str(target),
+    }
+
+
+def _vector_stage(index: RagIndex) -> dict[str, Any]:
+    try:
+        backend = get_vector_backend_from_env()
+        backend.upsert_index(index)
+        return {
+            "name": "vector",
+            "status": "completed",
+            "documents": len(index.documents),
+            "chunks": len(index.chunks),
+            "backend": backend.status().to_dict(),
+        }
+    except Exception as exc:
+        return {
+            "name": "vector",
+            "status": "failed",
+            "documents": len(index.documents),
+            "chunks": len(index.chunks),
+            "detail": str(exc),
+        }
 
 
 def index_documents(
@@ -55,6 +93,29 @@ def index_documents(
     _transactional_save_index(index, Path(index_path))
     get_vector_backend_from_env().upsert_index(index)
     return index
+
+
+def index_documents_with_stages(
+    paths: Sequence[str | Path],
+    *,
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagIndexWriteResult:
+    target = Path(index_path)
+    index = build_rag_index(
+        paths,
+        max_chars=max_chars,
+        overlap_chars=overlap_chars,
+    )
+    _transactional_save_index(index, target)
+    return RagIndexWriteResult(
+        index=index,
+        stages=[
+            _completed_local_stage(index, target),
+            _vector_stage(index),
+        ],
+    )
 
 
 def append_documents_to_index(
@@ -88,6 +149,43 @@ def append_documents_to_index(
     _transactional_save_index(merged, target)
     get_vector_backend_from_env().upsert_index(merged)
     return merged
+
+
+def append_documents_to_index_with_stages(
+    paths: Sequence[str | Path],
+    *,
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagIndexWriteResult:
+    new_index = build_rag_index(
+        paths,
+        max_chars=max_chars,
+        overlap_chars=overlap_chars,
+    )
+    target = Path(index_path)
+    if target.is_file():
+        existing = load_rag_index(target)
+    else:
+        existing = RagIndex(version=new_index.version, documents=(), chunks=())
+
+    existing_hashes = {doc.content_hash for doc in existing.documents}
+    added_docs = tuple(doc for doc in new_index.documents if doc.content_hash not in existing_hashes)
+    added_hashes = {doc.content_hash for doc in added_docs}
+    added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
+    merged = RagIndex(
+        version=new_index.version,
+        documents=existing.documents + added_docs,
+        chunks=existing.chunks + added_chunks,
+    )
+    _transactional_save_index(merged, target)
+    return RagIndexWriteResult(
+        index=merged,
+        stages=[
+            _completed_local_stage(merged, target),
+            _vector_stage(merged),
+        ],
+    )
 
 
 def query_documents(

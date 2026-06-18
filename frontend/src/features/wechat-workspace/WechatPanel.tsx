@@ -82,6 +82,8 @@ export function WechatPanel({
   setReadArticles,
   chatSettings,
   sessionId,
+  workspaceGeneration,
+  onNewsRunStarted,
   onOpening,
   onReset,
   onMarkRead,
@@ -105,6 +107,8 @@ export function WechatPanel({
   setReadArticles: (value: boolean) => void;
   chatSettings: ChatSettings;
   sessionId?: string;
+  workspaceGeneration: number;
+  onNewsRunStarted?: (runId: string) => void;
   onOpening: () => void;
   onReset: () => void;
   onMarkRead: () => void;
@@ -268,6 +272,8 @@ export function WechatPanel({
         setReadArticles={setReadArticles}
         chatSettings={chatSettings}
         sessionId={sessionId}
+        workspaceGeneration={workspaceGeneration}
+        onRunStarted={onNewsRunStarted}
         onDiscussed={onNewsDiscussed}
         onLookupNews={onLookupNews}
         isLookupBusy={isNewsBusy}

@@ -6,13 +6,16 @@ import {
   discussNewsStage,
   enrichNewsStage,
   loadApiSnapshot,
+  lookupNews,
   previewLocalKnowledge,
+  queryRag,
   searchWechat,
   searchNewsStage,
   sendChatStream,
   sendWechatMessage,
   sendWechatMessageStream,
-  runNewsSearch
+  runNewsSearch,
+  uploadDocuments
 } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
 
@@ -113,6 +116,8 @@ describe("sendChatStream", () => {
     expect(body.performance_mode).toBe("deep");
     expect(body.previous_mode).toBe("苏格拉底");
     expect(body.rag_min_score).toBe(0.42);
+    expect(body.rag_search_top_k).toBe(ragSettings.topK);
+    expect(body.rag_chat_top_k).toBe(ragSettings.chatTopK);
     expect(body.keep_current_role).toBe(true);
     expect(body.chat_history[0].avatarRole).toBe("user");
   });
@@ -185,12 +190,69 @@ describe("local knowledge tool calls", () => {
   });
 });
 
+describe("RAG API calls", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses search topK for standalone RAG queries", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          query: "RAG",
+          retrieval_mode: "hybrid",
+          status: "found",
+          reason: "",
+          context: "",
+          sources: "",
+          results: [],
+          result_count: 0,
+          debug: {},
+          attempts: [],
+          rewritten_query: "RAG"
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await queryRag("RAG", { ...ragSettings, topK: 8, chatTopK: 2 });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.top_k).toBe(8);
+  });
+
+  it("parses local and vector upload stages", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          documents: 1,
+          chunks: 2,
+          index_path: "logs/rag_index.json",
+          stages: [
+            { name: "local", status: "completed", documents: 1, chunks: 2 },
+            { name: "vector", status: "failed", detail: "vector offline" }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await uploadDocuments([new File(["hello"], "note.md", { type: "text/markdown" })]);
+
+    expect(response.stages?.[0].name).toBe("local");
+    expect(response.stages?.[1].status).toBe("failed");
+  });
+});
+
 describe("wechat API calls", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("sends the current RAG min score with group messages", async () => {
+  it("sends chat RAG settings with group messages", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
         JSON.stringify({
@@ -209,12 +271,14 @@ describe("wechat API calls", () => {
       sessionId: "session-1",
       ragEnabled: true,
       chatSettings,
-      ragSettings: { ...ragSettings, minScore: 0.37 }
+      ragSettings: { ...ragSettings, topK: 9, chatTopK: 4, minScore: 0.37 }
     });
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(String(init.body));
     expect(body.rag_min_score).toBe(0.37);
+    expect(body.rag_chat_top_k).toBe(4);
+    expect(body.rag_top_k).toBe(4);
   });
 
   it("parses streaming group message events", async () => {
@@ -355,6 +419,46 @@ describe("news API calls", () => {
     expect(calls[2][0]).toBe("/news/digest");
     expect(calls[3][0]).toBe("/news/discuss");
     expect(discuss.session_id).toBe("news-session");
+  });
+
+  it("passes AbortSignal through news stage requests", async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      const payloads: Record<string, unknown> = {
+        "/news/search": { query_text: "AI", news_items: [] },
+        "/news/enrich": { query_text: "AI", news_items: [] },
+        "/news/digest": { query_text: "AI", digest: "digest", source_block: "source", article_coverage: {}, warnings: [] },
+        "/news/discuss": { discussion: "discussion", group_content: "group", session_id: "news-session" },
+        "/news/round": {
+          query_text: "AI",
+          news_items: [],
+          digest: "digest",
+          discussion: "discussion",
+          group_content: "group",
+          source_block: "source",
+          article_coverage: {},
+          elapsed_ms: 1,
+          warnings: [],
+          audit_markdown_path: "",
+          audit_json_path: "",
+          session_id: "news-session"
+        },
+        "/news/lookup": { query_text: "AI", news_items: [], source_block: "", elapsed_ms: 1 }
+      };
+      return new Response(JSON.stringify(payloads[url]), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await searchNewsStage("AI", 4, { signal: controller.signal });
+    await enrichNewsStage({ queryText: "AI", newsItems: [], maxArticles: 2 }, { signal: controller.signal });
+    await digestNewsStage({ queryText: "AI", newsItems: [], chatSettings }, { signal: controller.signal });
+    await discussNewsStage({ digest: "digest", sourceBlock: "source", sessionId: "thread-1", chatSettings }, { signal: controller.signal });
+    await runNewsSearch("AI", { sessionId: "thread-1", readArticles: false, chatSettings }, { signal: controller.signal });
+    await lookupNews("AI", 8, { signal: controller.signal });
+
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).signal).toBe(controller.signal);
+    }
   });
 });
 

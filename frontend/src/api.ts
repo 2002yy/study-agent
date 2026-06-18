@@ -121,6 +121,8 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     session_id: options.sessionId,
     rag_enabled: options.ragEnabled,
     rag_top_k: options.ragSettings.chatTopK,
+    rag_search_top_k: options.ragSettings.topK,
+    rag_chat_top_k: options.ragSettings.chatTopK,
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
@@ -322,6 +324,8 @@ function buildWechatPayload(
     performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
     rag_enabled: options.ragEnabled,
     rag_top_k: options.ragSettings.chatTopK,
+    rag_search_top_k: options.ragSettings.topK,
+    rag_chat_top_k: options.ragSettings.chatTopK,
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore
   };
@@ -446,10 +450,12 @@ export async function runNewsSearch(
     sessionId?: string;
     readArticles: boolean;
     chatSettings: ChatSettings;
-  }
+  },
+  requestOptions: { signal?: AbortSignal } = {}
 ): Promise<NewsSearchResponse> {
   return requestJson<NewsSearchResponse>("/news/round", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
       query,
       session_id: options.sessionId,
@@ -461,9 +467,14 @@ export async function runNewsSearch(
   });
 }
 
-export async function searchNewsStage(query: string, maxItems = 10): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
+export async function searchNewsStage(
+  query: string,
+  maxItems = 10,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
   return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/search", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({ query, max_items: maxItems })
   });
 }
@@ -472,9 +483,10 @@ export async function enrichNewsStage(payload: {
   queryText: string;
   newsItems: Array<Record<string, unknown>>;
   maxArticles?: number;
-}): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
+}, requestOptions: { signal?: AbortSignal } = {}): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
   return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/enrich", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
       query_text: payload.queryText,
       news_items: payload.newsItems,
@@ -487,7 +499,7 @@ export async function digestNewsStage(payload: {
   queryText: string;
   newsItems: Array<Record<string, unknown>>;
   chatSettings: ChatSettings;
-}): Promise<{
+}, requestOptions: { signal?: AbortSignal } = {}): Promise<{
   query_text: string;
   digest: string;
   source_block: string;
@@ -502,6 +514,7 @@ export async function digestNewsStage(payload: {
     warnings: string[];
   }>("/news/digest", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
       query_text: payload.queryText,
       news_items: payload.newsItems,
@@ -516,9 +529,10 @@ export async function discussNewsStage(payload: {
   sourceBlock: string;
   sessionId?: string;
   chatSettings: ChatSettings;
-}): Promise<{ discussion: string; group_content: string; session_id: string }> {
+}, requestOptions: { signal?: AbortSignal } = {}): Promise<{ discussion: string; group_content: string; session_id: string }> {
   return requestJson<{ discussion: string; group_content: string; session_id: string }>("/news/discuss", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
       digest: payload.digest,
       source_block: payload.sourceBlock,
@@ -530,9 +544,14 @@ export async function discussNewsStage(payload: {
   });
 }
 
-export async function lookupNews(query: string, maxItems = 8): Promise<NewsLookupResponse> {
+export async function lookupNews(
+  query: string,
+  maxItems = 8,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<NewsLookupResponse> {
   return requestJson<NewsLookupResponse>("/news/lookup", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
       query,
       max_items: maxItems

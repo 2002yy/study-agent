@@ -52,7 +52,13 @@ from src.rag import build_rag_context, format_rag_sources, index_documents
 from src.rag.backends import get_vector_backend_from_env
 from src.rag.eval import RagEvalCase, evaluate_case
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
-from src.rag.service import append_documents_to_index, build_rag_debug, search_documents
+from src.rag.service import (
+    append_documents_to_index,
+    append_documents_to_index_with_stages,
+    build_rag_debug,
+    index_documents_with_stages,
+    search_documents,
+)
 from src.news.digest import format_news_source_block
 from src.news.rss_fetcher import fetch_news_items, get_last_feed_warnings
 from src.role_manager import build_role_prompt, list_roles, load_role
@@ -115,6 +121,8 @@ DEFAULT_FRONTEND_SETTINGS = {
     "selected_model": "auto",
     "rag_enabled": True,
     "rag_retrieval_mode": "hybrid",
+    "rag_search_top_k": 5,
+    "rag_chat_top_k": 3,
     "rag_top_k": 3,
     "rag_min_score": 0.01,
 }
@@ -139,6 +147,8 @@ class RuntimeSettingsPatch(BaseModel):
     wechat_memory_capture_enabled: bool | None = None
     rag_enabled: bool | None = None
     rag_retrieval_mode: str | None = None
+    rag_search_top_k: int | None = Field(default=None, ge=1, le=20)
+    rag_chat_top_k: int | None = Field(default=None, ge=1, le=20)
     rag_top_k: int | None = Field(default=None, ge=1, le=20)
     rag_min_score: float | None = Field(default=None, ge=0)
 
@@ -185,6 +195,7 @@ class RagIndexResponse(BaseModel):
     documents: int
     chunks: int
     index_path: str
+    stages: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RagStatusResponse(BaseModel):
@@ -266,6 +277,8 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
+    rag_search_top_k: int | None = Field(default=None, gt=0, le=20)
+    rag_chat_top_k: int | None = Field(default=None, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = Field(default=0.01, ge=0)
     web_context: str = ""
@@ -325,6 +338,8 @@ class WechatMessageRequest(BaseModel):
     session_id: str | None = None
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
+    rag_search_top_k: int | None = Field(default=None, gt=0, le=20)
+    rag_chat_top_k: int | None = Field(default=None, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = Field(default=0.01, ge=0)
 
@@ -843,10 +858,22 @@ def _normalize_frontend_settings(settings: dict[str, Any]) -> dict[str, Any]:
     retrieval_mode = settings.get("rag_retrieval_mode")
     if retrieval_mode in {"lexical", "vector", "hybrid", "backend_vector"}:
         normalized["rag_retrieval_mode"] = retrieval_mode
+    legacy_top_k = settings.get("rag_top_k")
     try:
-        normalized["rag_top_k"] = max(1, min(20, int(settings.get("rag_top_k", normalized["rag_top_k"]))))
+        normalized["rag_search_top_k"] = max(
+            1,
+            min(20, int(settings.get("rag_search_top_k", legacy_top_k or normalized["rag_search_top_k"]))),
+        )
     except (TypeError, ValueError):
         pass
+    try:
+        normalized["rag_chat_top_k"] = max(
+            1,
+            min(20, int(settings.get("rag_chat_top_k", legacy_top_k or normalized["rag_chat_top_k"]))),
+        )
+    except (TypeError, ValueError):
+        pass
+    normalized["rag_top_k"] = normalized["rag_chat_top_k"]
     try:
         normalized["rag_min_score"] = max(0.0, float(settings.get("rag_min_score", normalized["rag_min_score"])))
     except (TypeError, ValueError):
@@ -1037,6 +1064,8 @@ def _previous_assistant_role(chat_history: list[ChatMessage]) -> str | None:
 
 
 def _session_settings_from_request(request: ChatRequest, context_mode: str) -> dict[str, Any]:
+    chat_top_k = request.rag_chat_top_k or request.rag_top_k
+    search_top_k = request.rag_search_top_k or chat_top_k
     return {
         "selectedRole": request.selected_role,
         "selectedMode": request.selected_mode,
@@ -1045,8 +1074,8 @@ def _session_settings_from_request(request: ChatRequest, context_mode: str) -> d
         "contextMode": context_mode,
         "ragEnabled": request.rag_enabled,
         "ragSettings": {
-            "chatTopK": request.rag_top_k,
-            "topK": request.rag_top_k,
+            "chatTopK": chat_top_k,
+            "topK": search_top_k,
             "retrievalMode": request.rag_retrieval_mode,
             "minScore": request.rag_min_score,
         },
@@ -1091,7 +1120,7 @@ def _prepare_chat_context(request: ChatRequest) -> dict[str, Any]:
     rag_result = retrieve_local_knowledge(
         request.user_input,
         enabled=request.rag_enabled,
-        top_k=request.rag_top_k,
+        top_k=request.rag_chat_top_k or request.rag_top_k,
         retrieval_mode=request.rag_retrieval_mode,
         min_score=request.rag_min_score,
     )
@@ -1177,7 +1206,12 @@ def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResp
             "rag_retrieval_mode",
         )
     if request.rag_top_k is not None:
-        frontend_settings["rag_top_k"] = request.rag_top_k
+        frontend_settings["rag_search_top_k"] = request.rag_top_k
+        frontend_settings["rag_chat_top_k"] = request.rag_top_k
+    if request.rag_search_top_k is not None:
+        frontend_settings["rag_search_top_k"] = request.rag_search_top_k
+    if request.rag_chat_top_k is not None:
+        frontend_settings["rag_chat_top_k"] = request.rag_chat_top_k
     if request.rag_min_score is not None:
         frontend_settings["rag_min_score"] = request.rag_min_score
     _write_frontend_settings(frontend_settings)
@@ -1299,7 +1333,7 @@ def send_wechat_message(request: WechatMessageRequest) -> WechatMessageResponse:
     rag_result = retrieve_local_knowledge(
         request.message,
         enabled=request.rag_enabled,
-        top_k=request.rag_top_k,
+        top_k=request.rag_chat_top_k or request.rag_top_k,
         retrieval_mode=request.rag_retrieval_mode,
         min_score=request.rag_min_score,
     )
@@ -1347,7 +1381,7 @@ async def send_wechat_message_stream(request: WechatMessageRequest, http_request
             rag_result = retrieve_local_knowledge(
                 request.message,
                 enabled=request.rag_enabled,
-                top_k=request.rag_top_k,
+                top_k=request.rag_chat_top_k or request.rag_top_k,
                 retrieval_mode=request.rag_retrieval_mode,
                 min_score=request.rag_min_score,
             )
@@ -1555,7 +1589,7 @@ def rag_status(index_path: str | None = None) -> RagStatusResponse:
 def build_rag_index_endpoint(request: RagIndexRequest) -> RagIndexResponse:
     try:
         target = _index_path(request.index_path)
-        index = index_documents(
+        result = index_documents_with_stages(
             request.paths,
             index_path=target,
             max_chars=request.max_chars,
@@ -1567,9 +1601,10 @@ def build_rag_index_endpoint(request: RagIndexRequest) -> RagIndexResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return RagIndexResponse(
-        documents=len(index.documents),
-        chunks=len(index.chunks),
+        documents=len(result.index.documents),
+        chunks=len(result.index.chunks),
         index_path=str(target),
+        stages=result.stages,
     )
 
 
@@ -1601,14 +1636,14 @@ async def upload_rag_documents(
     target_index = _index_path(index_path)
     try:
         if mode == "rebuild":
-            index = index_documents(
+            result = index_documents_with_stages(
                 saved_paths,
                 index_path=target_index,
                 max_chars=max_chars,
                 overlap_chars=overlap_chars,
             )
         else:
-            index = append_documents_to_index(
+            result = append_documents_to_index_with_stages(
                 saved_paths,
                 index_path=target_index,
                 max_chars=max_chars,
@@ -1618,9 +1653,10 @@ async def upload_rag_documents(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return RagIndexResponse(
-        documents=len(index.documents),
-        chunks=len(index.chunks),
+        documents=len(result.index.documents),
+        chunks=len(result.index.chunks),
         index_path=str(target_index),
+        stages=result.stages,
     )
 
 

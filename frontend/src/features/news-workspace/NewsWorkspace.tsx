@@ -38,6 +38,8 @@ export function NewsWorkspace({
   setReadArticles,
   chatSettings,
   sessionId,
+  workspaceGeneration,
+  onRunStarted,
   onDiscussed,
   onLookupNews,
   isLookupBusy
@@ -48,6 +50,8 @@ export function NewsWorkspace({
   setReadArticles: (value: boolean) => void;
   chatSettings: ChatSettings;
   sessionId?: string;
+  workspaceGeneration: number;
+  onRunStarted?: (runId: string) => void;
   onDiscussed: (sessionId: string) => void;
   onLookupNews: () => void;
   isLookupBusy: boolean;
@@ -72,7 +76,7 @@ export function NewsWorkspace({
     (item) => typeof item.article_text === "string" || typeof item.article_excerpt === "string"
   ).length;
 
-  // Clear staged news state when session changes
+  // Clear staged news state when the owning workspace changes or cancels work.
   useEffect(() => {
     newsAbortRef.current?.abort();
     newsRunIdRef.current++;
@@ -83,7 +87,7 @@ export function NewsWorkspace({
     setBusyStage("");
     setError("");
     setSearchedQuery("");
-  }, [sessionId]);
+  }, [sessionId, workspaceGeneration]);
 
   const clearDownstream = (from: "search" | "enrich" | "digest") => {
     if (from === "search") {
@@ -108,6 +112,7 @@ export function NewsWorkspace({
     }
     const frozenQuery = query.trim();
     const runId = ++newsRunIdRef.current;
+    onRunStarted?.(`news-${runId}`);
     const abortController = new AbortController();
     newsAbortRef.current?.abort();
     newsAbortRef.current = abortController;
@@ -115,7 +120,7 @@ export function NewsWorkspace({
     setError("");
     clearDownstream("search");
     try {
-      const result = await searchNewsStage(frozenQuery);
+      const result = await searchNewsStage(frozenQuery, 10, { signal: abortController.signal });
       if (newsRunIdRef.current !== runId) { return; }
       setSearchedItems(result.news_items);
       setEnrichedItems([]);
@@ -134,6 +139,7 @@ export function NewsWorkspace({
     }
     const frozenQuery = searchedQuery || query.trim();
     const runId = ++newsRunIdRef.current;
+    onRunStarted?.(`news-${runId}`);
     const abortController = new AbortController();
     newsAbortRef.current?.abort();
     newsAbortRef.current = abortController;
@@ -144,7 +150,7 @@ export function NewsWorkspace({
         queryText: frozenQuery,
         newsItems: searchedItems,
         maxArticles: readArticles ? 6 : 0
-      });
+      }, { signal: abortController.signal });
       if (newsRunIdRef.current !== runId) { return; }
       setEnrichedItems(result.news_items);
     } catch (caught) {
@@ -161,6 +167,7 @@ export function NewsWorkspace({
     }
     const frozenQuery = searchedQuery || query.trim();
     const runId = ++newsRunIdRef.current;
+    onRunStarted?.(`news-${runId}`);
     const abortController = new AbortController();
     newsAbortRef.current?.abort();
     newsAbortRef.current = abortController;
@@ -173,7 +180,7 @@ export function NewsWorkspace({
           queryText: frozenQuery,
           newsItems: searchedItems,
           maxArticles: 6
-        });
+        }, { signal: abortController.signal });
         if (newsRunIdRef.current !== runId) { return; }
         items = enrichResult.news_items;
         setEnrichedItems(enrichResult.news_items);
@@ -191,7 +198,7 @@ export function NewsWorkspace({
         queryText: frozenQuery,
         newsItems: items,
         chatSettings
-      });
+      }, { signal: abortController.signal });
       if (newsRunIdRef.current !== runId) { return; }
       setDigestState({
         digest: result.digest,
@@ -211,6 +218,7 @@ export function NewsWorkspace({
       return;
     }
     const runId = ++newsRunIdRef.current;
+    onRunStarted?.(`news-${runId}`);
     const abortController = new AbortController();
     newsAbortRef.current?.abort();
     newsAbortRef.current = abortController;
@@ -222,7 +230,7 @@ export function NewsWorkspace({
         sourceBlock: digestState.sourceBlock,
         sessionId,
         chatSettings
-      });
+      }, { signal: abortController.signal });
       if (newsRunIdRef.current !== runId) { return; }
       setDiscussion(result.discussion);
       onDiscussed(result.session_id);

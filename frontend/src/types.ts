@@ -21,6 +21,15 @@ export type RagIndexResponse = {
   documents: number;
   chunks: number;
   index_path: string;
+  stages?: Array<{
+    name: string;
+    status: string;
+    documents?: number;
+    chunks?: number;
+    detail?: string;
+    backend?: Record<string, unknown>;
+    index_path?: string;
+  }>;
 };
 
 export type RagChunk = {
@@ -96,6 +105,8 @@ export type RuntimeSettingsResponse = {
     wechat_memory_capture_mode: string;
     rag_enabled: boolean;
     rag_retrieval_mode: RagSettings["retrievalMode"];
+    rag_search_top_k: number;
+    rag_chat_top_k: number;
     rag_top_k: number;
     rag_min_score: number;
   };
@@ -366,7 +377,9 @@ export type ApiSnapshot = {
 /* Centralized workspace state for stable persistence and cross-UI coordination.
    Should be kept in sync between localStorage, App state, and session lifecycle. */
 export type WorkspaceState = {
-  sessionId?: string;
+  singleChatSessionId?: string;
+  wechatThreadId?: string;
+  newsRunId?: string;
   singleChatMessages: ChatMessage[];
   chatSettings: ChatSettings;
   ragSettings: RagSettings;

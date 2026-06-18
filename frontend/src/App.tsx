@@ -45,7 +45,7 @@ import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildWorkspaceState, serializeWorkspaceState, deserializeWorkspaceState } from "./features/single-chat/chatHistory";
+import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildWorkspaceState, serializeWorkspaceState, deserializeWorkspaceState, buildContinuationHistory } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
@@ -58,6 +58,7 @@ import type {
   ChatSettings,
   NewsLookupResponse,
   NewsSearchResponse,
+  RagIndexResponse,
   RagQueryResponse,
   RagSettings,
   RoleResponse,
@@ -109,6 +110,18 @@ function createEmptyRag(): ChatResponse["rag"] {
     attempts: [],
     rewritten_query: ""
   };
+}
+
+function describeRagUploadResult(result: RagIndexResponse): string {
+  const vectorStage = result.stages?.find((stage) => stage.name === "vector");
+  const base = `已索引 ${result.documents} 个文档、${result.chunks} 个片段`;
+  if (!vectorStage) {
+    return base;
+  }
+  if (vectorStage.status === "completed") {
+    return `${base}；向量后端已同步`;
+  }
+  return `${base}；向量后端同步失败：${vectorStage.detail ?? "未知错误"}`;
 }
 
 const roleDescriptions: Record<string, string> = {
@@ -535,7 +548,9 @@ function Sidebar({
 
 function Inspector({
   snapshot,
-  sessionId,
+  singleChatSessionId,
+  wechatThreadId,
+  workspaceGeneration,
   chatSettings,
   lastChat,
   ragSearch,
@@ -570,6 +585,7 @@ function Inspector({
   onSendWechat,
   onStopWechat,
   onLookupNews,
+  onNewsRunStarted,
   onNewsDiscussed,
   isWechatBusy,
   isNewsBusy,
@@ -577,7 +593,9 @@ function Inspector({
   onMemoryChanged
 }: {
   snapshot: ApiSnapshot;
-  sessionId?: string;
+  singleChatSessionId?: string;
+  wechatThreadId?: string;
+  workspaceGeneration: number;
   chatSettings: ChatSettings;
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
@@ -612,6 +630,7 @@ function Inspector({
   onSendWechat: (event: FormEvent) => void;
   onStopWechat: () => void;
   onLookupNews: () => void;
+  onNewsRunStarted: (runId: string) => void;
   onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   isNewsBusy: boolean;
@@ -634,13 +653,15 @@ function Inspector({
         readArticles={readArticles}
         setReadArticles={setReadArticles}
         chatSettings={chatSettings}
-        sessionId={sessionId}
+        sessionId={wechatThreadId}
+        workspaceGeneration={workspaceGeneration}
         onOpening={onWechatOpening}
         onReset={onWechatReset}
         onMarkRead={onWechatMarkRead}
         onSendWechat={onSendWechat}
         onStopWechat={onStopWechat}
         onLookupNews={onLookupNews}
+        onNewsRunStarted={onNewsRunStarted}
         onNewsDiscussed={onNewsDiscussed}
         isWechatBusy={isWechatBusy}
         isNewsBusy={isNewsBusy}
@@ -664,7 +685,7 @@ function Inspector({
         callBlockedReason={toolCallBlockedReason}
         invocationLabel={toolInvocationLabel}
       />
-      <SessionsPanel sessions={snapshot.sessions} activeSessionId={sessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
+      <SessionsPanel sessions={snapshot.sessions} activeSessionId={singleChatSessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
       <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
     </aside>
@@ -685,7 +706,9 @@ export default function App() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [sessionId, setSessionId] = useState<string | undefined>();
+  const [singleChatSessionId, setSingleChatSessionId] = useState<string | undefined>();
+  const [wechatThreadId, setWechatThreadId] = useState<string | undefined>();
+  const [newsRunId, setNewsRunId] = useState<string | undefined>();
   const [lastChat, setLastChat] = useState<ChatResponse | null>(null);
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [toolPreview, setToolPreview] = useState<ToolInvocationResponse | null>(null);
@@ -709,10 +732,31 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
   const wechatAbortRef = useRef<AbortController | null>(null);
-  const generationIdRef = useRef(0);
+  const newsLookupAbortRef = useRef<AbortController | null>(null);
+  const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
+  const workspaceGenerationRef = useRef(0);
   const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
+
+  const advanceWorkspaceGeneration = () => {
+    const nextGeneration = workspaceGenerationRef.current + 1;
+    workspaceGenerationRef.current = nextGeneration;
+    setWorkspaceGeneration(nextGeneration);
+    return nextGeneration;
+  };
+
+  const cancelWorkspaceRuns = () => {
+    advanceWorkspaceGeneration();
+    chatAbortRef.current?.abort();
+    wechatAbortRef.current?.abort();
+    newsLookupAbortRef.current?.abort();
+    setIsSending(false);
+    setIsWechatBusy(false);
+    setIsNewsBusy(false);
+    setIsPreviewing(false);
+    setIsCalling(false);
+  };
 
   const activeQuery = input.trim() || lastChat?.rag?.query || "";
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(([key]) => key !== "health");
@@ -751,6 +795,9 @@ export default function App() {
           messages?: ChatMessage[];
           singleChatMessages?: ChatMessage[];
           sessionId?: string;
+          singleChatSessionId?: string;
+          wechatThreadId?: string;
+          newsRunId?: string;
           chatSettings?: ChatSettings;
           ragSettings?: RagSettings;
           ragEnabled?: boolean;
@@ -760,19 +807,27 @@ export default function App() {
           lastRag?: Record<string, unknown>;
           lastSessionId?: string;
         };
-        setSingleChatMessages(sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages));
-        if (parsed.sessionId) {
-          setSessionId(parsed.sessionId);
+        const restoredWorkspace = buildWorkspaceState(parsed);
+        const restoredMessages = parsed.singleChatMessages ?? parsed.messages ?? restoredWorkspace.singleChatMessages;
+        setSingleChatMessages(sanitizeSingleChatMessages(restoredMessages));
+        if (restoredWorkspace.singleChatSessionId) {
+          setSingleChatSessionId(restoredWorkspace.singleChatSessionId);
+        }
+        if (restoredWorkspace.wechatThreadId) {
+          setWechatThreadId(restoredWorkspace.wechatThreadId);
+        }
+        if (restoredWorkspace.newsRunId) {
+          setNewsRunId(restoredWorkspace.newsRunId);
         }
         if (parsed.lastRoute && Object.keys(parsed.lastRoute).length) {
           const restoredRoute = parsed.lastRoute as ChatResponse["route"];
           const restoredRag = (parsed.lastRag && Object.keys(parsed.lastRag).length ? parsed.lastRag : createEmptyRag()) as ChatResponse["rag"];
-          const lastAssistant = sanitizeSingleChatMessages(parsed.singleChatMessages ?? parsed.messages)
+          const lastAssistant = sanitizeSingleChatMessages(restoredMessages)
             .filter((m) => m.role === "assistant" && !m.transient)
             .pop();
           setLastChat({
             reply: lastAssistant?.content ?? "",
-            session_id: parsed.lastSessionId ?? parsed.sessionId ?? "restored",
+            session_id: parsed.lastSessionId ?? restoredWorkspace.singleChatSessionId ?? "restored",
             route: restoredRoute,
             rag: restoredRag,
           });
@@ -826,8 +881,8 @@ export default function App() {
     setRagEnabled(settings.rag_enabled);
     setRagSettings({
       retrievalMode: settings.rag_retrieval_mode,
-      topK: settings.rag_top_k,
-      chatTopK: settings.rag_top_k,
+      topK: settings.rag_search_top_k ?? settings.rag_top_k,
+      chatTopK: settings.rag_chat_top_k ?? settings.rag_top_k,
       minScore: settings.rag_min_score
     });
   }, [snapshot.runtimeSettings]);
@@ -835,7 +890,9 @@ export default function App() {
   useEffect(() => {
     const payload = serializeWorkspaceState({
       singleChatMessages,
-      sessionId,
+      singleChatSessionId,
+      wechatThreadId,
+      newsRunId,
       chatSettings,
       ragSettings,
       ragEnabled,
@@ -850,7 +907,7 @@ export default function App() {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, sessionId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
+  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {
@@ -899,7 +956,7 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
-    const generationId = ++generationIdRef.current;
+    const generationId = advanceWorkspaceGeneration();
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -922,7 +979,7 @@ export default function App() {
         toChatHistoryPayload(historyBase),
         {
           ragEnabled,
-          sessionId,
+          sessionId: singleChatSessionId,
           chatSettings,
           ragSettings,
           keepCurrentRole,
@@ -934,10 +991,10 @@ export default function App() {
         },
         {
           onRoute: (route) => {
-            if (generationIdRef.current !== generationId) return;
+            if (workspaceGenerationRef.current !== generationId) return;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
-              session_id: current?.session_id ?? sessionId ?? "streaming",
+              session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
               route,
               rag: current?.rag ?? createEmptyRag()
             }));
@@ -948,16 +1005,16 @@ export default function App() {
             );
           },
           onRag: (rag) => {
-            if (generationIdRef.current !== generationId) return;
+            if (workspaceGenerationRef.current !== generationId) return;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
-              session_id: current?.session_id ?? sessionId ?? "streaming",
+              session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
               route: current?.route ?? {},
               rag
             }));
           },
           onToken: (token) => {
-            if (generationIdRef.current !== generationId) return;
+            if (workspaceGenerationRef.current !== generationId) return;
             streamedReply += token;
             setSingleChatMessages((current) =>
               current.map((message, index) =>
@@ -967,16 +1024,16 @@ export default function App() {
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
           },
           onDone: (done) => {
-            if (generationIdRef.current !== generationId) return;
+            if (workspaceGenerationRef.current !== generationId) return;
             if (typeof done.session_id === "string") {
-              setSessionId(done.session_id);
+              setSingleChatSessionId(done.session_id);
             }
           }
         },
         { signal: abortController.signal }
       );
-      if (generationIdRef.current !== generationId) return;
-      setSessionId(response.session_id);
+      if (workspaceGenerationRef.current !== generationId) return;
+      setSingleChatSessionId(response.session_id);
       setLastChat(response);
       setOperationError("");
       if (shouldConsumeWebLookup) {
@@ -991,7 +1048,7 @@ export default function App() {
       );
       await refresh();
     } catch (error) {
-      if (generationIdRef.current !== generationId) return;
+      if (workspaceGenerationRef.current !== generationId) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
       const preserved = streamedReply
@@ -1002,9 +1059,9 @@ export default function App() {
         setOperationError(`聊天请求失败：${message}`);
       }
       // Attempt to persist partial reply to session log on interrupt/error
-      if (streamedReply && sessionId) {
+      if (streamedReply && singleChatSessionId) {
         try {
-          await commitTurn(sessionId, {
+          await commitTurn(singleChatSessionId, {
             userInput: question,
             agentReply: streamedReply,
             role: String(lastChat?.route?.role ?? "auto"),
@@ -1077,18 +1134,7 @@ export default function App() {
     if (!streamRecovery?.reply || isSending) {
       return;
     }
-    const continuationHistory = singleChatMessages.map((message) => {
-      if (!message.transient) {
-        return message;
-      }
-      if (message.role === "assistant") {
-        return { ...message, content: streamRecovery.reply, transient: false };
-      }
-      if (message.role === "user" && message.content === streamRecovery.question) {
-        return { ...message, transient: false };
-      }
-      return message;
-    });
+    const continuationHistory = buildContinuationHistory(singleChatMessages, streamRecovery);
     setStreamRecovery(null);
     await sendSingleChat(streamRecovery.question, continuationHistory, {
       continuationOfTurnId: streamRecovery.question,
@@ -1120,14 +1166,17 @@ export default function App() {
   };
 
   const previewTool = async () => {
+    const generationId = workspaceGenerationRef.current;
     setIsPreviewing(true);
     setToolCall(null);
     const invocation = { ...currentToolInvocation };
     try {
       const response = await previewLocalKnowledge(invocation);
+      if (workspaceGenerationRef.current !== generationId) return;
       setToolPreview(response);
       setPreviewedInvocation({ ...invocation, previewId: response.run_id });
     } catch (error) {
+      if (workspaceGenerationRef.current !== generationId) return;
       setPreviewedInvocation(null);
       setToolPreview({
         tool_name: "retrieve_local_knowledge",
@@ -1138,7 +1187,9 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      setIsPreviewing(false);
+      if (workspaceGenerationRef.current === generationId) {
+        setIsPreviewing(false);
+      }
     }
   };
 
@@ -1161,7 +1212,8 @@ export default function App() {
                 : undefined,
         rag_enabled: ragEnabled,
         rag_retrieval_mode: ragSettings.retrievalMode,
-        rag_top_k: ragSettings.chatTopK,
+        rag_search_top_k: ragSettings.topK,
+        rag_chat_top_k: ragSettings.chatTopK,
         rag_min_score: ragSettings.minScore
       });
       setSnapshot((current) => ({ ...current, runtimeSettings: response }));
@@ -1196,15 +1248,18 @@ export default function App() {
     if (!previewedInvocation || !toolCanCall || isCalling) {
       return;
     }
+    const generationId = workspaceGenerationRef.current;
     setIsCalling(true);
     try {
       const result = await callLocalKnowledge(previewedInvocation);
+      if (workspaceGenerationRef.current !== generationId) return;
       setToolCall(result);
       await refresh();
       if (result.run_id) {
         await selectRun(result.run_id);
       }
     } catch (error) {
+      if (workspaceGenerationRef.current !== generationId) return;
       setToolCall({
         tool_name: "retrieve_local_knowledge",
         status: "failed",
@@ -1214,7 +1269,9 @@ export default function App() {
         run_id: ""
       });
     } finally {
-      setIsCalling(false);
+      if (workspaceGenerationRef.current === generationId) {
+        setIsCalling(false);
+      }
     }
   };
 
@@ -1256,6 +1313,8 @@ export default function App() {
     setOperationError("");
     try {
       const wechat = await resetWechat();
+      setWechatThreadId(undefined);
+      setNewsRunId(undefined);
       setNewsResult(null);
       setSnapshot((current) => ({ ...current, wechat }));
     } catch (error) {
@@ -1267,7 +1326,7 @@ export default function App() {
 
   const handleWechatMarkRead = async () => {
     try {
-      const wechat = await markWechatRead(sessionId);
+      const wechat = await markWechatRead(wechatThreadId);
       setSnapshot((current) => ({ ...current, wechat }));
       setOperationError("");
     } catch (error) {
@@ -1282,6 +1341,7 @@ export default function App() {
       return;
     }
     const baseWechat = snapshot.wechat;
+    const generationId = advanceWorkspaceGeneration();
     setIsWechatBusy(true);
     setOperationError("");
     const abortController = new AbortController();
@@ -1301,12 +1361,13 @@ export default function App() {
         }));
       }
       const response = await sendWechatMessageStream(message, {
-        sessionId,
+        sessionId: wechatThreadId,
         ragEnabled,
         chatSettings,
         ragSettings
       }, {
         onToken: (token) => {
+          if (workspaceGenerationRef.current !== generationId) return;
           streamedReply += token;
           if (!baseWechat) {
             return;
@@ -1322,7 +1383,8 @@ export default function App() {
           }));
         }
       }, { signal: abortController.signal });
-      setSessionId(response.session_id);
+      if (workspaceGenerationRef.current !== generationId) return;
+      setWechatThreadId(response.session_id);
       setWechatInput("");
       setSnapshot((current) => ({
         ...current,
@@ -1337,6 +1399,7 @@ export default function App() {
       }));
       await refresh();
     } catch (error) {
+      if (workspaceGenerationRef.current !== generationId) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "群聊发送失败";
       // Rollback optimistic UI to base state
@@ -1354,7 +1417,9 @@ export default function App() {
       if (wechatAbortRef.current === abortController) {
         wechatAbortRef.current = null;
       }
-      setIsWechatBusy(false);
+      if (workspaceGenerationRef.current === generationId) {
+        setIsWechatBusy(false);
+      }
     }
   };
 
@@ -1363,17 +1428,28 @@ export default function App() {
     if (!query || isNewsBusy) {
       return;
     }
+    const generationId = workspaceGenerationRef.current;
+    const abortController = new AbortController();
+    newsLookupAbortRef.current?.abort();
+    newsLookupAbortRef.current = abortController;
     setIsNewsBusy(true);
     setOperationError("");
     try {
-      const result = await lookupNews(query);
+      const result = await lookupNews(query, 8, { signal: abortController.signal });
+      if (workspaceGenerationRef.current !== generationId) return;
       setWebLookup(result);
       setUseWebLookup(true);
       setOperationError("");
     } catch (error) {
+      if (workspaceGenerationRef.current !== generationId || (error instanceof DOMException && error.name === "AbortError")) return;
       setOperationError(`联网搜索失败：${error instanceof Error ? error.message : "联网搜索失败"}`);
     } finally {
-      setIsNewsBusy(false);
+      if (newsLookupAbortRef.current === abortController) {
+        newsLookupAbortRef.current = null;
+      }
+      if (workspaceGenerationRef.current === generationId) {
+        setIsNewsBusy(false);
+      }
     }
   };
 
@@ -1412,7 +1488,7 @@ export default function App() {
     const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
 
     setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
-    setSessionId(detail.session_id);
+    setSingleChatSessionId(detail.session_id);
     setChatSettings(nextChatSettings);
     setRagSettings(nextRagSettings);
     if (typeof restoredSettings.ragEnabled === "boolean") {
@@ -1446,11 +1522,7 @@ export default function App() {
 
   const restoreSession = async (restoredSessionId: string) => {
     setOperationError("");
-    if (isSending) {
-      chatAbortRef.current?.abort();
-      setIsSending(false);
-    }
-    generationIdRef.current++;
+    cancelWorkspaceRuns();
     try {
       const detail = await loadSessionDetail(restoredSessionId);
       applySessionDetail(detail);
@@ -1462,17 +1534,13 @@ export default function App() {
 
   const archiveCurrentSession = async (targetSessionId: string) => {
     setOperationError("");
-    if (isSending) {
-      chatAbortRef.current?.abort();
-      setIsSending(false);
-    }
-    generationIdRef.current++;
-    const isArchivingActive = targetSessionId === sessionId;
+    cancelWorkspaceRuns();
+    const isArchivingActive = targetSessionId === singleChatSessionId;
     try {
       await archiveSession(targetSessionId);
       if (isArchivingActive) {
         const created = await createNewSession();
-        setSessionId(created.session_id);
+        setSingleChatSessionId(created.session_id);
         setSingleChatMessages(seedMessages);
         setInput("");
         setLastChat(null);
@@ -1491,32 +1559,28 @@ export default function App() {
 
   const startNewSession = async () => {
     setOperationError("");
-    if (isSending) {
-      chatAbortRef.current?.abort();
-      setIsSending(false);
-    }
-    generationIdRef.current++;
+    cancelWorkspaceRuns();
     try {
-      if (sessionId) {
+      if (singleChatSessionId) {
         try {
-          const detail = await loadSessionDetail(sessionId);
+          const detail = await loadSessionDetail(singleChatSessionId);
           const hasMessages = detail.messages.some(
             (message) => message.role === "user" || message.role === "assistant"
           );
           if (hasMessages) {
-            await archiveSession(sessionId);
+            await archiveSession(singleChatSessionId);
           }
         } catch {
           // Session not on disk yet (still in memory) — flush via API
           try {
-            await flushSession(sessionId);
+            await flushSession(singleChatSessionId);
           } catch {
             // Best-effort; proceed even if flush fails
           }
         }
       }
       const created = await createNewSession();
-      setSessionId(created.session_id);
+      setSingleChatSessionId(created.session_id);
       setSingleChatMessages(seedMessages);
       setInput("");
       setLastChat(null);
@@ -1546,8 +1610,8 @@ export default function App() {
       setRagSettings({
         ...RAG_SETTINGS_DEFAULTS,
         retrievalMode: settings.rag_retrieval_mode ?? RAG_SETTINGS_DEFAULTS.retrievalMode,
-        topK: settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.topK,
-        chatTopK: settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.chatTopK,
+        topK: settings.rag_search_top_k ?? settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.topK,
+        chatTopK: settings.rag_chat_top_k ?? settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.chatTopK,
         minScore: settings.rag_min_score ?? RAG_SETTINGS_DEFAULTS.minScore
       });
       setKeepCurrentRole(false);
@@ -1574,13 +1638,13 @@ export default function App() {
     setOperationError("");
     try {
       const result = await uploadDocuments(files, ragUploadMode);
-      setUploadState(`已索引 ${result.documents} 个文档、${result.chunks} 个片段`);
-      await refresh();
+      setUploadState(describeRagUploadResult(result));
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
       setUploadState(`上传失败：${message}`);
       setOperationError(`资料上传失败：${message}`);
     } finally {
+      await refresh();
       event.target.value = "";
     }
   };
@@ -1621,7 +1685,7 @@ export default function App() {
         lastChat={lastChat}
       />
       <ChatPanel
-        sessionId={sessionId}
+        sessionId={singleChatSessionId}
         messages={singleChatMessages}
         input={input}
         setInput={setInput}
@@ -1643,7 +1707,9 @@ export default function App() {
       />
       <Inspector
         snapshot={snapshot}
-        sessionId={sessionId}
+        singleChatSessionId={singleChatSessionId}
+        wechatThreadId={wechatThreadId}
+        workspaceGeneration={workspaceGeneration}
         chatSettings={chatSettings}
         lastChat={lastChat}
         ragSearch={ragSearch}
@@ -1678,8 +1744,9 @@ export default function App() {
         onSendWechat={handleSendWechat}
         onStopWechat={stopWechatGeneration}
         onLookupNews={handleLookupNews}
+        onNewsRunStarted={setNewsRunId}
         onNewsDiscussed={(nextSessionId) => {
-          setSessionId(nextSessionId);
+          setWechatThreadId(nextSessionId);
           void refresh();
         }}
         isWechatBusy={isWechatBusy}

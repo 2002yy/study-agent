@@ -85,7 +85,8 @@ def test_runtime_settings_endpoint_reads_and_persists_frontend_defaults(monkeypa
             "selected_mode": "项目",
             "selected_model": "flash",
             "rag_retrieval_mode": "lexical",
-            "rag_top_k": 4,
+            "rag_search_top_k": 6,
+            "rag_chat_top_k": 4,
             "rag_min_score": 0.02,
         },
     )
@@ -97,8 +98,25 @@ def test_runtime_settings_endpoint_reads_and_persists_frontend_defaults(monkeypa
     assert patched.json()["settings"]["selected_role"] == "keqing"
     assert patched.json()["settings"]["selected_mode"] == "项目"
     assert patched.json()["settings"]["rag_retrieval_mode"] == "lexical"
+    assert loaded.json()["settings"]["rag_search_top_k"] == 6
+    assert loaded.json()["settings"]["rag_chat_top_k"] == 4
     assert loaded.json()["settings"]["rag_top_k"] == 4
     assert settings_path.exists()
+
+
+def test_runtime_settings_endpoint_accepts_legacy_rag_top_k(monkeypatch, tmp_path):
+    from src import api
+
+    monkeypatch.setattr(api, "FRONTEND_SETTINGS_PATH", tmp_path / "frontend_settings.yaml")
+    client = TestClient(app)
+
+    response = client.patch("/runtime/settings", json={"rag_top_k": 7})
+
+    assert response.status_code == 200
+    settings = response.json()["settings"]
+    assert settings["rag_search_top_k"] == 7
+    assert settings["rag_chat_top_k"] == 7
+    assert settings["rag_top_k"] == 7
 
 
 def test_runtime_settings_endpoint_rejects_invalid_frontend_choice(monkeypatch, tmp_path):
@@ -594,7 +612,11 @@ def test_rag_status_and_upload_endpoints(tmp_path):
     status_response = client.get("/rag/status", params={"index_path": str(index_path)})
 
     assert upload_response.status_code == 200
-    assert upload_response.json()["documents"] == 1
+    upload_data = upload_response.json()
+    assert upload_data["documents"] == 1
+    assert upload_data["stages"][0]["name"] == "local"
+    assert upload_data["stages"][0]["status"] == "completed"
+    assert upload_data["stages"][1]["name"] == "vector"
     assert status_response.status_code == 200
     data = status_response.json()
     assert data["index_exists"] is True
@@ -651,8 +673,36 @@ def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert response.json()["documents"] == 2
     assert response.json()["chunks"] == 2
+    assert [stage["name"] for stage in response.json()["stages"]] == ["local", "vector"]
     assert (upload_dir / "same.md").read_text(encoding="utf-8") == "First uploaded duplicate basename."
     assert (upload_dir / "same-2.md").read_text(encoding="utf-8") == "Second uploaded duplicate basename."
+
+
+def test_rag_upload_reports_vector_stage_failure(monkeypatch, tmp_path):
+    from src.rag import service as rag_service
+
+    class BrokenVectorBackend:
+        def upsert_index(self, index):
+            raise RuntimeError("vector offline")
+
+    monkeypatch.setattr(rag_service, "get_vector_backend_from_env", lambda: BrokenVectorBackend())
+    client = TestClient(app)
+    index_path = tmp_path / "partial_index.json"
+
+    response = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path), "max_chars": 200, "overlap_chars": 0},
+        files={"files": ("partial.md", b"Local index should still be saved.", "text/markdown")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["documents"] == 1
+    assert data["stages"][0]["status"] == "completed"
+    assert data["stages"][1]["name"] == "vector"
+    assert data["stages"][1]["status"] == "failed"
+    assert "vector offline" in data["stages"][1]["detail"]
+    assert index_path.exists()
 
 
 def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
