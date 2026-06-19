@@ -4,6 +4,9 @@ import { formatBytes, formatMtime } from "../../utils/format";
 import { useState } from "react";
 
 export function sessionIdFromRow(session: SessionRow): string {
+  if (session.session_id) {
+    return session.session_id;
+  }
   if (session.kind === "current") {
     return session.name.replace(/\.md$/, "");
   }
@@ -46,7 +49,7 @@ export function SessionsPanel({
       <div className="panel-header">
         <div>
           <h2>会话历史</h2>
-          <span>{sessions.length} 个会话文件</span>
+          <span>{sessions.length} 个会话</span>
         </div>
         <Clock3 size={18} />
       </div>

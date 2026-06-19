@@ -420,3 +420,13 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
+## Implementation status 2026-06-20: Chat and Session vertical slice
+
+- Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
+- `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
+- Turn state transitions are now `pending -> streaming -> completed/interrupted`, and continuation updates the same Turn ID.
+- Session list/detail/new/archive/flush now read from SQLite through `SessionService`.
+- Legacy Markdown is imported into SQLite once. Current/archive Markdown files are compatibility exports and are no longer runtime truth.
+- Schema changes use ordered migrations. Schema v2 adds archive/export metadata plus operation and conversation fields.
+- The React root now mounts `WorkspaceProvider`; Chat thread/messages/last response/interruption recovery are owned by its reducer and exposed through `chatController`.
+- GroupThread, NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.

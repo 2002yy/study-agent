@@ -24,6 +24,7 @@ describe("OperationRegistry", () => {
 
     expect(registry.isCurrent(operation.operationId, operation.generationId)).toBe(false);
     expect(registry.isRunning("news")).toBe(false);
+    expect(registry.size).toBe(0);
   });
 
   it("cancels all active scopes for workspace transitions", () => {
@@ -36,5 +37,14 @@ describe("OperationRegistry", () => {
     expect(chat.controller.signal.aborted).toBe(true);
     expect(group.controller.signal.aborted).toBe(true);
     expect(registry.getActiveScopes()).toEqual([]);
+    expect(registry.size).toBe(0);
+  });
+
+  it("rejects callbacks owned by a different thread", () => {
+    const registry = new OperationRegistry();
+    const operation = registry.start("chat", "chat-a");
+
+    expect(registry.isCurrent(operation.operationId, operation.generationId, "chat-a")).toBe(true);
+    expect(registry.isCurrent(operation.operationId, operation.generationId, "chat-b")).toBe(false);
   });
 });

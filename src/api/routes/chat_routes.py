@@ -1,11 +1,10 @@
-"""Chat endpoints — single-chat, streaming, and commit-turn."""
+"""Thin HTTP/SSE adapters for the SQLite-backed chat application service."""
 
 from __future__ import annotations
 
-from typing import AsyncIterator
-from uuid import uuid4
+from typing import Annotated, AsyncIterator
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.api.models.chat import (
@@ -14,93 +13,42 @@ from src.api.models.chat import (
     CommitTurnRequest,
     CommitTurnResponse,
 )
-from src.application.helpers import (
-    prepare_chat_context,
-    sse_event,
-    stream_usage_payload,
-)
+from src.application.chat_service import ChatCommand, ChatService
+from src.application.helpers import sse_event, stream_usage_payload
+from src.application.runtime_repository import get_chat_service
 
 router = APIRouter(tags=["chat"])
-
-
-def _looks_like_turn_id(value: str | None) -> bool:
-    if not value:
-        return False
-    return value.startswith(("turn_", "turn-"))
-
-
-def _effective_turn_id(request: ChatRequest) -> str:
-    if request.turn_id:
-        return request.turn_id
-    if _looks_like_turn_id(request.continuation_of_turn_id):
-        return str(request.continuation_of_turn_id)
-    return f"turn_{uuid4().hex}"
+ChatServiceDependency = Annotated[ChatService, Depends(get_chat_service)]
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat_endpoint(request: ChatRequest) -> ChatResponse:
-    from src.api import chat, chat_max_tokens, flush_current_session, init_session, log
-
-    turn_id = _effective_turn_id(request)
-    prepared = prepare_chat_context(request)
-    runtime_modes = prepared["runtime_modes"]
-    route = prepared["route"]
-    rag_result = prepared["rag_result"]
-    reply = chat(
-        prepared["messages"],
-        model_profile=route["model_profile"],
-        max_tokens=chat_max_tokens(runtime_modes.performance_mode),
-        task_name="single_chat",
-    )
-    session_id = request.session_id or init_session()
-    log(
-        session_id=session_id,
-        role=route["role"],
-        mode=route["mode"],
-        model=route["model_profile"],
-        user_input=request.user_input,
-        agent_reply=reply,
-        memory_enabled=bool(prepared["memory_bundle"]),
-        route_info={
-            **route,
-            "rag_status": rag_result.status,
-            "web_context_used": prepared["web_context_used"],
-            "is_continuation": prepared["is_continuation"],
-        },
-        session_settings=prepared["session_settings"],
-        rag_info=rag_result.to_dict(),
-        conversation_instruction=request.conversation_instruction,
-        turn_id=turn_id,
-        merge_with_existing=bool(request.continuation_of_turn_id),
-        continuation_prefix=request.partial_reply,
-    )
-    flush_current_session(
-        session_id,
-        performance_mode=runtime_modes.performance_mode,
-        debug_mode=runtime_modes.debug_mode,
-    )
+def chat_endpoint(request: ChatRequest, service: ChatServiceDependency) -> ChatResponse:
+    try:
+        prepared = service.start_turn(_chat_command(request))
+        reply = service.generate(prepared)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ChatResponse(
         reply=reply,
-        session_id=session_id,
-        turn_id=turn_id,
-        route=route,
-        rag=rag_result.to_dict(),
+        session_id=prepared.thread.id,
+        turn_id=prepared.turn.id,
+        route=prepared.route,
+        rag=prepared.rag,
     )
 
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request) -> StreamingResponse:
-    async def events() -> AsyncIterator[str]:
-        from src.api import (
-            chat_max_tokens,
-            flush_current_session,
-            init_session,
-            log,
-            stream_chat,
-        )
+async def chat_stream_endpoint(
+    chat_request: ChatRequest,
+    http_request: Request,
+    service: ChatServiceDependency,
+) -> StreamingResponse:
+    try:
+        prepared = service.start_turn(_chat_command(chat_request))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-        session_id = chat_request.session_id or init_session()
-        turn_id = _effective_turn_id(chat_request)
+    async def events() -> AsyncIterator[str]:
         reply_parts: list[str] = []
         disconnected = False
 
@@ -108,58 +56,36 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
             return disconnected
 
         try:
-            prepared = prepare_chat_context(chat_request)
-            runtime_modes = prepared["runtime_modes"]
-            route = prepared["route"]
-            rag_result = prepared["rag_result"]
-            yield sse_event("session", {"session_id": session_id, "turn_id": turn_id})
-            yield sse_event("route", route)
-            yield sse_event("rag", rag_result.to_dict())
-            for token in stream_chat(
-                prepared["messages"],
-                model_profile=route["model_profile"],
-                max_tokens=chat_max_tokens(runtime_modes.performance_mode),
-                task_name="single_chat",
-                should_cancel=should_cancel,
-            ):
+            yield sse_event(
+                "session",
+                {"session_id": prepared.thread.id, "turn_id": prepared.turn.id},
+            )
+            yield sse_event("route", prepared.route)
+            yield sse_event("rag", prepared.rag)
+            for token in service.stream(prepared, should_cancel=should_cancel):
                 if await http_request.is_disconnected():
                     disconnected = True
+                    service.interrupt_turn(prepared, "".join(reply_parts))
                     return
                 reply_parts.append(token)
                 yield sse_event("token", {"text": token})
-            reply = "".join(reply_parts)
-            yield sse_event("usage", stream_usage_payload(reply))
-            log(
-                session_id=session_id,
-                role=route["role"],
-                mode=route["mode"],
-                model=route["model_profile"],
-                user_input=chat_request.user_input,
-                agent_reply=reply,
-                memory_enabled=bool(prepared["memory_bundle"]),
-                route_info={
-                    **route,
-                    "rag_status": rag_result.status,
-                    "web_context_used": prepared["web_context_used"],
-                    "streamed": True,
-                    "is_continuation": prepared["is_continuation"],
-                    "is_continuation_resolved": bool(chat_request.continuation_of_turn_id),
+            suffix = "".join(reply_parts)
+            completed = service.complete_turn(prepared, suffix)
+            yield sse_event("usage", stream_usage_payload(completed.assistant_message))
+            yield sse_event(
+                "done",
+                {
+                    "session_id": prepared.thread.id,
+                    "turn_id": prepared.turn.id,
+                    "reply": completed.assistant_message,
                 },
-                session_settings=prepared["session_settings"],
-                rag_info=rag_result.to_dict(),
-                conversation_instruction=chat_request.conversation_instruction,
-                turn_id=turn_id,
-                merge_with_existing=bool(chat_request.continuation_of_turn_id),
-                continuation_prefix=chat_request.partial_reply,
             )
-            flush_current_session(
-                session_id,
-                performance_mode=runtime_modes.performance_mode,
-                debug_mode=runtime_modes.debug_mode,
-            )
-            yield sse_event("done", {"session_id": session_id, "turn_id": turn_id, "reply": reply})
         except Exception as exc:
-            yield sse_event("error", {"message": str(exc), "error_type": type(exc).__name__})
+            service.interrupt_turn(prepared, "".join(reply_parts))
+            yield sse_event(
+                "error",
+                {"message": str(exc), "error_type": type(exc).__name__},
+            )
 
     return StreamingResponse(
         events(),
@@ -168,45 +94,62 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
     )
 
 
-@router.post("/sessions/{session_id}/commit-turn", response_model=CommitTurnResponse)
-def commit_turn_endpoint(session_id: str, request: CommitTurnRequest) -> CommitTurnResponse:
-    """Commit a partial/incomplete turn (e.g. interrupted stream) to the session log.
-
-    This allows the frontend to persist a partially-streamed reply before
-    the normal log() call at chat completion time.
-    """
-    from src.api import get_or_create_session, log
-
-    sess = get_or_create_session(session_id)
-    existing = sess.get("entries", [])
-    if request.turn_id:
-        matching_turn = next(
-            (entry for entry in reversed(existing) if entry.get("turn_id") == request.turn_id),
-            None,
-        )
-        already_logged = bool(
-            matching_turn and matching_turn.get("agent") == request.agent_reply
-        )
-    else:
-        already_logged = any(
-            entry.get("user") == request.user_input
-            and entry.get("agent") == request.agent_reply
-            for entry in existing
-        )
-    if not already_logged:
-        log(
-            session_id=session_id,
+@router.post(
+    "/sessions/{session_id}/commit-turn",
+    response_model=CommitTurnResponse,
+)
+def commit_turn_endpoint(
+    session_id: str,
+    request: CommitTurnRequest,
+    service: ChatServiceDependency,
+) -> CommitTurnResponse:
+    if not request.turn_id:
+        raise HTTPException(status_code=400, detail="turn_id is required")
+    try:
+        _, changed = service.commit_partial_turn(
+            thread_id=session_id,
+            turn_id=request.turn_id,
+            user_input=request.user_input,
+            assistant_message=request.agent_reply,
             role=request.role,
             mode=request.mode,
             model=request.model,
-            user_input=request.user_input,
-            agent_reply=request.agent_reply,
-            memory_enabled=request.memory_enabled,
-            route_info=request.route_info,
-            rag_info=request.rag_info,
+            route_snapshot=request.route_info,
+            rag_snapshot=request.rag_info,
             conversation_instruction=request.conversation_instruction,
-            turn_id=request.turn_id,
-            replace_existing=bool(request.turn_id),
-            status="interrupted",
         )
-    return CommitTurnResponse(session_id=session_id, committed=not already_logged, message="ok" if not already_logged else "already committed")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return CommitTurnResponse(
+        session_id=session_id,
+        committed=changed,
+        message="ok" if changed else "already committed",
+    )
+
+
+def _chat_command(request: ChatRequest) -> ChatCommand:
+    return ChatCommand(
+        user_input=request.user_input,
+        selected_role=request.selected_role,
+        selected_mode=request.selected_mode,
+        selected_model=request.selected_model,
+        relationship_mode=request.relationship_mode,
+        scene=request.scene,
+        conversation_instruction=request.conversation_instruction,
+        performance_mode=request.performance_mode,
+        context_mode=request.context_mode,
+        previous_mode=request.previous_mode,
+        chat_history=[message.model_dump() for message in request.chat_history],
+        keep_current_role=request.keep_current_role,
+        thread_id=request.session_id,
+        rag_enabled=request.rag_enabled,
+        rag_top_k=request.rag_top_k,
+        rag_search_top_k=request.rag_search_top_k,
+        rag_chat_top_k=request.rag_chat_top_k,
+        rag_retrieval_mode=request.rag_retrieval_mode,
+        rag_min_score=request.rag_min_score,
+        web_context=request.web_context,
+        continuation_of_turn_id=request.continuation_of_turn_id,
+        partial_reply=request.partial_reply,
+        turn_id=request.turn_id,
+    )

@@ -44,4 +44,55 @@ describe("workspaceReducer", () => {
     expect(next.activeGroupThreadId).toBeUndefined();
     expect(next.activeNewsRunId).toBeUndefined();
   });
+
+  it("transitions the complete chat workspace atomically", () => {
+    const state = createWorkspaceRuntimeState({
+      activeChatThreadId: "chat-old",
+      chatMessages: [{ role: "user", content: "old" }],
+      streamRecovery: {
+        question: "old",
+        reply: "partial",
+        reason: "interrupted",
+        turnId: "turn-old"
+      }
+    });
+    const lastChat = {
+      reply: "restored partial",
+      session_id: "chat-new",
+      turn_id: "turn-new",
+      route: {},
+      rag: {
+        status: "waiting",
+        query: "",
+        retrieval_mode: "",
+        reason: "",
+        context: "",
+        sources: "",
+        result_count: 0,
+        results: [],
+        debug: {},
+        attempts: [],
+        rewritten_query: ""
+      }
+    };
+
+    const next = workspaceReducer(state, {
+      type: "TRANSITION_CHAT_SESSION",
+      threadId: "chat-new",
+      messages: [{ role: "assistant", content: "restored partial", avatarRole: "nahida" }],
+      lastChat,
+      streamRecovery: {
+        question: "question",
+        reply: "restored partial",
+        reason: "上次生成中断",
+        turnId: "turn-new"
+      }
+    });
+
+    expect(next.activeChatThreadId).toBe("chat-new");
+    expect(next.chatMessages[0].content).toBe("restored partial");
+    expect(next.lastChat?.turn_id).toBe("turn-new");
+    expect(next.streamRecovery?.turnId).toBe("turn-new");
+    expect(next.transitionVersion).toBe(state.transitionVersion + 1);
+  });
 });

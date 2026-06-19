@@ -23,6 +23,8 @@ class ChatThread:
     settings_snapshot: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
+    archived_at: str | None = None
+    export_path: str = ""
     version: int = 1
 
 
@@ -39,6 +41,8 @@ class ChatTurn:
     route_snapshot: dict[str, Any] = field(default_factory=dict)
     rag_snapshot: dict[str, Any] = field(default_factory=dict)
     parent_turn_id: str | None = None
+    operation_id: str | None = None
+    conversation_instruction: str = ""
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 

@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { WorkspaceProvider } from "./app/WorkspaceProvider";
+import { seedMessages } from "./features/single-chat/chatHistory";
 import "./styles.css";
 
 type AppErrorBoundaryState = {
@@ -33,7 +35,9 @@ class AppErrorBoundary extends React.Component<React.PropsWithChildren, AppError
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <AppErrorBoundary>
-      <App />
+      <WorkspaceProvider initialState={{ chatMessages: seedMessages }}>
+        <App />
+      </WorkspaceProvider>
     </AppErrorBoundary>
   </React.StrictMode>
 );

@@ -162,6 +162,35 @@ def test_session_logger_flush_uses_safe_writer():
     assert "with current_file.open(" not in block
 
 
+def test_chat_and_session_routes_use_application_services_only():
+    chat_route = Path("src/api/routes/chat_routes.py").read_text(encoding="utf-8")
+    session_route = Path("src/api/routes/session_routes.py").read_text(encoding="utf-8")
+
+    for route in (chat_route, session_route):
+        assert "from src.api import" not in route
+        assert "src.session_logger" not in route
+        assert "src.llm_client" not in route
+    assert "ChatService" in chat_route
+    assert "SessionService" in session_route
+
+
+def test_chat_service_does_not_depend_on_api_package():
+    text = Path("src/application/chat_service.py").read_text(encoding="utf-8")
+    assert "from src.api" not in text
+    assert "import src.api" not in text
+
+
+def test_frontend_chat_state_is_owned_by_workspace_provider():
+    app_text = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    main_text = Path("frontend/src/main.tsx").read_text(encoding="utf-8")
+
+    assert "<WorkspaceProvider" in main_text
+    assert "useChatController()" in app_text
+    assert "useState<ChatMessage[]" not in app_text
+    assert "useState<ChatResponse" not in app_text
+    assert "useReducer(workspaceReducer" not in app_text
+
+
 def test_sidebar_force_refresh_clears_memory_cache():
     text = Path("src/ui/sidebar.py").read_text(encoding="utf-8")
     assert 'st.session_state.memory_bundle = {}' in text

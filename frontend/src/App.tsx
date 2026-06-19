@@ -14,7 +14,7 @@ import {
   Upload,
   Wrench
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useReducer, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   archiveSession,
   callLocalKnowledge,
@@ -38,7 +38,7 @@ import {
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
 import { operationRegistry } from "./app/operationRegistry";
-import { createWorkspaceRuntimeState, workspaceReducer } from "./app/workspaceReducer";
+import { useWorkspace } from "./app/WorkspaceProvider";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
@@ -46,6 +46,7 @@ import { RoadmapPanel } from "./features/migration/RoadmapPanel";
 import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
+import { useChatController } from "./features/chat/chatController";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
 import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildWorkspaceState, serializeWorkspaceState, deserializeWorkspaceState, buildContinuationHistory } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
@@ -693,7 +694,14 @@ function Inspector({
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<ApiSnapshot>(INITIAL_SNAPSHOT);
-  const [singleChatMessages, setSingleChatMessages] = useState<ChatMessage[]>(seedMessages);
+  const { state: workspaceRuntime, dispatch: dispatchWorkspace } = useWorkspace();
+  const chatController = useChatController();
+  const singleChatMessages = chatController.messages;
+  const setSingleChatMessages = chatController.setMessages;
+  const lastChat = chatController.lastChat;
+  const setLastChat = chatController.setLastChat;
+  const streamRecovery = chatController.streamRecovery;
+  const setStreamRecovery = chatController.setStreamRecovery;
   const [input, setInput] = useState("");
   const [ragEnabled, setRagEnabled] = useState(true);
   const [chatSettings, setChatSettings] = useState<ChatSettings>(CHAT_SETTINGS_DEFAULTS);
@@ -705,14 +713,12 @@ export default function App() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [workspaceRuntime, dispatchWorkspace] = useReducer(workspaceReducer, createWorkspaceRuntimeState());
-  const singleChatSessionId = workspaceRuntime.activeChatThreadId;
+  const singleChatSessionId = chatController.threadId;
   const wechatThreadId = workspaceRuntime.activeGroupThreadId;
   const newsRunId = workspaceRuntime.activeNewsRunId;
-  const setSingleChatSessionId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_CHAT_THREAD", threadId });
+  const setSingleChatSessionId = chatController.setThreadId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
-  const [lastChat, setLastChat] = useState<ChatResponse | null>(null);
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [toolPreview, setToolPreview] = useState<ToolInvocationResponse | null>(null);
   const [toolCall, setToolCall] = useState<ToolInvocationResponse | null>(null);
@@ -730,7 +736,6 @@ export default function App() {
   const [readArticles, setReadArticles] = useState(true);
   const [isWechatBusy, setIsWechatBusy] = useState(false);
   const [isNewsBusy, setIsNewsBusy] = useState(false);
-  const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null>(null);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionStoragePayloadRef = useRef("");
@@ -797,10 +802,8 @@ export default function App() {
         };
         const restoredWorkspace = buildWorkspaceState(parsed);
         const restoredMessages = parsed.singleChatMessages ?? parsed.messages ?? restoredWorkspace.singleChatMessages;
-        setSingleChatMessages(sanitizeSingleChatMessages(restoredMessages));
-        if (restoredWorkspace.singleChatSessionId) {
-          setSingleChatSessionId(restoredWorkspace.singleChatSessionId);
-        }
+        const sanitizedMessages = sanitizeSingleChatMessages(restoredMessages);
+        let restoredLastChat: ChatResponse | null = null;
         if (restoredWorkspace.wechatThreadId) {
           setWechatThreadId(restoredWorkspace.wechatThreadId);
         }
@@ -813,12 +816,22 @@ export default function App() {
           const lastAssistant = sanitizeSingleChatMessages(restoredMessages)
             .filter((m) => m.role === "assistant" && !m.transient)
             .pop();
-          setLastChat({
+          restoredLastChat = {
             reply: lastAssistant?.content ?? "",
             session_id: parsed.lastSessionId ?? restoredWorkspace.singleChatSessionId ?? "restored",
             route: restoredRoute,
             rag: restoredRag,
-          });
+          };
+        }
+        if (restoredWorkspace.singleChatSessionId) {
+          chatController.transitionSession(
+            restoredWorkspace.singleChatSessionId,
+            sanitizedMessages,
+            restoredLastChat
+          );
+        } else {
+          setSingleChatMessages(sanitizedMessages);
+          setLastChat(restoredLastChat);
         }
         if (parsed.chatSettings) {
           sessionSettingsRestoredRef.current = true;
@@ -944,7 +957,7 @@ export default function App() {
     if (!question || isSending) {
       return;
     }
-    const { operationId, controller: abortController, generationId } = operationRegistry.start("chat");
+    const { operationId, controller: abortController, generationId } = chatController.startOperation();
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -982,7 +995,7 @@ export default function App() {
         },
         {
           onSession: (sid, meta) => {
-            if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            if (!chatController.isCurrentOperation(operationId, generationId)) return;
             activeSessionId = sid;
             if (meta?.turnId) {
               activeTurnId = meta.turnId;
@@ -990,7 +1003,7 @@ export default function App() {
             setSingleChatSessionId(sid);
           },
           onRoute: (route) => {
-            if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            if (!chatController.isCurrentOperation(operationId, generationId)) return;
             streamedRoute = route;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
@@ -1005,7 +1018,7 @@ export default function App() {
             );
           },
           onRag: (rag) => {
-            if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            if (!chatController.isCurrentOperation(operationId, generationId)) return;
             streamedRag = rag;
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
@@ -1015,7 +1028,7 @@ export default function App() {
             }));
           },
           onToken: (token) => {
-            if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            if (!chatController.isCurrentOperation(operationId, generationId)) return;
             streamedReply += token;
             setSingleChatMessages((current) =>
               current.map((message, index) =>
@@ -1025,7 +1038,7 @@ export default function App() {
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
           },
           onDone: (done) => {
-            if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            if (!chatController.isCurrentOperation(operationId, generationId)) return;
             if (typeof done.session_id === "string") {
               activeSessionId = done.session_id;
               setSingleChatSessionId(done.session_id);
@@ -1037,7 +1050,7 @@ export default function App() {
         },
         { signal: abortController.signal }
       );
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
+      if (!chatController.isCurrentOperation(operationId, generationId)) return;
       activeSessionId = response.session_id;
       activeTurnId = response.turn_id ?? activeTurnId;
       setSingleChatSessionId(response.session_id);
@@ -1053,10 +1066,10 @@ export default function App() {
             : message
         )
       );
-      operationRegistry.complete(operationId);
+      chatController.completeOperation(operationId);
       await refresh();
     } catch (error) {
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
+      if (!chatController.isCurrentOperation(operationId, generationId)) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
       const preserved = streamedReply
@@ -1097,7 +1110,7 @@ export default function App() {
               : item
         )
       );
-      operationRegistry.complete(operationId);
+      chatController.completeOperation(operationId);
     } finally {
       setIsSending(false);
     }
@@ -1109,7 +1122,7 @@ export default function App() {
   };
 
   const stopChatGeneration = () => {
-    operationRegistry.cancel("chat");
+    chatController.cancelOperation();
   };
 
   const stopWechatGeneration = () => {
@@ -1491,9 +1504,34 @@ export default function App() {
     const lastAssistant = [...restoredMessages].reverse().find((message) => message.role === "assistant");
     const restoredRoute = detail.route ?? {};
     const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
+    const latestInterruptedTurn = [...(detail.turns ?? [])]
+      .reverse()
+      .find((turn) => turn.status === "interrupted");
+    const restoredLastChat = Object.keys(restoredRoute).length || lastAssistant
+      ? {
+          reply: lastAssistant?.content ?? "",
+          session_id: detail.session_id,
+          turn_id: latestInterruptedTurn?.turn_id ?? null,
+          route: restoredRoute,
+          rag: restoredRag
+        }
+      : null;
+    const restoredRecovery = latestInterruptedTurn?.assistant_message
+      ? {
+          question: latestInterruptedTurn.user_message,
+          reply: latestInterruptedTurn.assistant_message,
+          reason: "上次生成中断",
+          sessionId: detail.session_id,
+          turnId: latestInterruptedTurn.turn_id
+        }
+      : null;
 
-    setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
-    dispatchWorkspace({ type: "RESTORE_CHAT_SESSION", threadId: detail.session_id });
+    chatController.transitionSession(
+      detail.session_id,
+      restoredMessages.length ? restoredMessages : seedMessages,
+      restoredLastChat,
+      restoredRecovery
+    );
     setChatSettings(nextChatSettings);
     setRagSettings(nextRagSettings);
     if (typeof restoredSettings.ragEnabled === "boolean") {
@@ -1503,21 +1541,10 @@ export default function App() {
       setKeepCurrentRole(restoredSettings.keepCurrentRole);
     }
     setConversationInstruction(detail.conversation_instruction ?? "");
-    setLastChat(
-      Object.keys(restoredRoute).length || lastAssistant
-        ? {
-            reply: lastAssistant?.content ?? "",
-            session_id: detail.session_id,
-            route: restoredRoute,
-            rag: restoredRag
-          }
-        : null
-    );
     setRagSearch(null);
     setNewsResult(null);
     setWebLookup(null);
     setUseWebLookup(false);
-    setStreamRecovery(null);
     setInput("");
     setToolPreview(null);
     setToolCall(null);
@@ -1545,15 +1572,12 @@ export default function App() {
       await archiveSession(targetSessionId);
       if (isArchivingActive) {
         const created = await createNewSession();
-        dispatchWorkspace({ type: "START_NEW_CHAT_SESSION", threadId: created.session_id });
-        setSingleChatMessages(seedMessages);
+        chatController.transitionSession(created.session_id, seedMessages, null);
         setInput("");
-        setLastChat(null);
         setRagSearch(null);
         setToolPreview(null);
         setToolCall(null);
         setPreviewedInvocation(null);
-        setStreamRecovery(null);
         setConversationInstruction("");
       }
       await refresh();
@@ -1585,15 +1609,12 @@ export default function App() {
         }
       }
       const created = await createNewSession();
-      dispatchWorkspace({ type: "START_NEW_CHAT_SESSION", threadId: created.session_id });
-      setSingleChatMessages(seedMessages);
+      chatController.transitionSession(created.session_id, seedMessages, null);
       setInput("");
-      setLastChat(null);
       setRagSearch(null);
       setToolPreview(null);
       setToolCall(null);
       setPreviewedInvocation(null);
-      setStreamRecovery(null);
       setNewsResult(null);
       setWebLookup(null);
       setUseWebLookup(false);

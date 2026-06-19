@@ -251,3 +251,11 @@ save → 要么完整写入 archive 文件，要么完全不写
 | newsRunId 仍不是后端实体 | NewsWorkspace.tsx | 中 — 当前来自 operationRegistry.operationId，下一步应切到 SQLite NewsRun.id |
 | preview/commit 无 transaction_id | api.ts:259-271 | 中 — 可能提交过期预览 |
 | 单一 wechat_group.md 文件 | wechat_state.py:26 | 高 — 无法支持多 GroupThread |
+## Verified 2026-06-20: Chat and Session SQLite slice
+
+- One Chat request creates one SQLite `ChatTurn`; continuation and partial commit update that same `turn_id`.
+- `turn_id` ownership is checked against `thread_id`; cross-thread continuation is rejected.
+- Active threads appear in Session lists before Markdown export.
+- Archived threads are write-locked by the Repository.
+- Session restore returns full messages, avatar roles, settings, route/RAG snapshots, conversation instruction, and Turn lifecycle metadata.
+- Markdown is a one-way compatibility import/export boundary, not a concurrent runtime source.

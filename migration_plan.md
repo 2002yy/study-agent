@@ -470,3 +470,13 @@ POST /sessions/{id}/restore
 - A missing partial entry can be reconstructed from `partial_reply + continuation_suffix`.
 - Partial commit failures are surfaced in the React operation error instead of being silently ignored.
 - This is a correctness bridge for the legacy session logger. SQLite is still not the production source of truth; the next slice must introduce `ChatService` and switch Chat/Session reads and writes together.
+
+## Implementation note 2026-06-20: Chat and Session SQLite cutover
+
+- Added ordered SQLite migrations and upgraded the runtime schema to v2.
+- Added production `ChatService`, `SessionService`, `LegacySessionImporter`, and `SessionMarkdownExporter`.
+- Switched Chat and Session routes together to the same `RuntimeRepository`; no Chat dual-write remains.
+- Active unflushed threads are visible in `/sessions`, archived threads reject writes, and interrupted Turn metadata survives restore.
+- Mounted `WorkspaceProvider` at the React root and moved Chat/Session runtime ownership into the workspace reducer and chat controller.
+- Added dependency-override test infrastructure so tests no longer force production code through `src.api` monkeypatches.
+- Remaining V2 migration is intentionally frozen outside this slice: Group, News, Tools, Memory, and broader settings/helper decomposition.

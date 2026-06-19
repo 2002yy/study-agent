@@ -78,6 +78,7 @@ export class OperationRegistry {
         } catch {
           // controller already aborted
         }
+        this.operations.delete(op.id);
       }
     }
   }
@@ -90,10 +91,14 @@ export class OperationRegistry {
   }
 
   /** Return true only while the operation is the current running operation. */
-  isCurrent(operationId: string, generationId: number): boolean {
+  isCurrent(operationId: string, generationId: number, ownerId?: string): boolean {
     const op = this.operations.get(operationId);
     if (!op) return false;
-    return op.generationId === generationId && op.status === "running";
+    return (
+      op.generationId === generationId &&
+      op.status === "running" &&
+      (ownerId === undefined || op.ownerId === ownerId)
+    );
   }
 
   /** Return the latest generation for a scope. */
@@ -116,7 +121,24 @@ export class OperationRegistry {
     const op = this.operations.get(operationId);
     if (op) {
       op.status = "completed";
+      this.operations.delete(operationId);
     }
+  }
+
+  fail(operationId: string): void {
+    const op = this.operations.get(operationId);
+    if (op) {
+      op.status = "failed";
+      this.operations.delete(operationId);
+    }
+  }
+
+  dispose(operationId: string): void {
+    this.operations.delete(operationId);
+  }
+
+  get size(): number {
+    return this.operations.size;
   }
 
   /** Return true if a scope has a running operation. */

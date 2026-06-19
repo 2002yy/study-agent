@@ -705,8 +705,10 @@ def test_rag_upload_reports_vector_stage_failure(monkeypatch, tmp_path):
     assert index_path.exists()
 
 
-def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
-    from src import api
+def test_chat_endpoint_builds_reply_and_logs_session(runtime_test_context):
+    from src.application.chat_service import ChatDependencies
+    from src.context_builder import build_messages
+    from src.router import route_request
 
     captured = {}
 
@@ -726,14 +728,21 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
         captured["rag_kwargs"] = kwargs
         return FakeRagResult()
 
-    monkeypatch.setattr(api, "chat", fake_chat)
-    monkeypatch.setattr(api, "load_role", lambda role: f"role prompt for {role}")
-    monkeypatch.setattr(api, "read_memory_bundle", lambda context_mode: {})
-    monkeypatch.setattr(api, "retrieve_local_knowledge", fake_retrieve)
-    monkeypatch.setattr(
-        api,
-        "load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="preview", performance_mode="fast"),
+    runtime_test_context.override_chat(
+        ChatDependencies(
+            load_runtime_modes=lambda: RuntimeModes(
+                memory_mode="preview",
+                performance_mode="fast",
+            ),
+            read_memory_bundle=lambda context_mode: {},
+            build_role_prompt=lambda role, **kwargs: f"role prompt for {role}",
+            route_request=route_request,
+            retrieve_local_knowledge=fake_retrieve,
+            build_messages=build_messages,
+            chat=fake_chat,
+            stream_chat=lambda *args, **kwargs: iter(()),
+            chat_max_tokens=chat_max_tokens,
+        )
     )
     client = TestClient(app)
 
@@ -785,10 +794,10 @@ def test_previous_assistant_role_uses_avatar_role():
     assert api._previous_assistant_role(history) == "nahida"
 
 
-def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
-    from src import api
-
-    logged = {}
+def test_chat_stream_endpoint_emits_sse_and_logs(runtime_test_context):
+    from src.application.chat_service import ChatDependencies
+    from src.context_builder import build_messages
+    from src.router import route_request
 
     class FakeRagResult:
         status = "skipped"
@@ -797,17 +806,21 @@ def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
         def to_dict(self):
             return {"status": self.status, "context": self.context, "result_count": 0}
 
-    monkeypatch.setattr(api, "stream_chat", lambda *args, **kwargs: iter(["Hello", " stream"]))
-    monkeypatch.setattr(api, "load_role", lambda role: f"role prompt for {role}")
-    monkeypatch.setattr(api, "read_memory_bundle", lambda context_mode: {})
-    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
-    monkeypatch.setattr(api, "init_session", lambda: "stream-session")
-    monkeypatch.setattr(api, "log", lambda **kwargs: logged.update(kwargs))
-    monkeypatch.setattr(api, "flush_current_session", lambda *args, **kwargs: True)
-    monkeypatch.setattr(
-        api,
-        "load_runtime_modes",
-        lambda: RuntimeModes(memory_mode="preview", performance_mode="fast"),
+    runtime_test_context.override_chat(
+        ChatDependencies(
+            load_runtime_modes=lambda: RuntimeModes(
+                memory_mode="preview",
+                performance_mode="fast",
+            ),
+            read_memory_bundle=lambda context_mode: {},
+            build_role_prompt=lambda role, **kwargs: f"role prompt for {role}",
+            route_request=route_request,
+            retrieve_local_knowledge=lambda *args, **kwargs: FakeRagResult(),
+            build_messages=build_messages,
+            chat=lambda *args, **kwargs: "unused",
+            stream_chat=lambda *args, **kwargs: iter(["Hello", " stream"]),
+            chat_max_tokens=chat_max_tokens,
+        )
     )
     client = TestClient(app)
 
@@ -818,6 +831,7 @@ def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
             "selected_role": "march7",
             "selected_mode": "普通",
             "selected_model": "flash",
+            "session_id": "stream-session",
         },
     )
 
@@ -832,10 +846,11 @@ def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
     assert 'data: {"text": "Hello"}' in body
     assert "event: usage" in body
     assert "event: done" in body
-    assert logged["session_id"] == "stream-session"
-    assert logged["turn_id"].startswith("turn_")
-    assert logged["agent_reply"] == "Hello stream"
-    assert logged["route_info"]["streamed"] is True
+    turns = runtime_test_context.repository.list_chat_turns("stream-session")
+    assert len(turns) == 1
+    assert turns[0].id.startswith("turn_")
+    assert turns[0].assistant_message == "Hello stream"
+    assert turns[0].status == "completed"
 
 
 def test_memory_preview_and_commit_endpoints(monkeypatch, tmp_path):
@@ -941,17 +956,13 @@ def test_memory_commit_rejects_when_runtime_is_not_writable(monkeypatch, tmp_pat
     assert not target.exists()
 
 
-def test_sessions_endpoint_lists_current_and_archived_files(monkeypatch, tmp_path):
-    from src import api
-
-    current_dir = tmp_path / "current"
-    archived_dir = tmp_path / "sessions"
+def test_sessions_endpoint_lists_current_and_archived_files(runtime_test_context):
+    current_dir = runtime_test_context.current_dir
+    archived_dir = runtime_test_context.archive_dir
     current_dir.mkdir()
     archived_dir.mkdir()
     (current_dir / "active.md").write_text("active session", encoding="utf-8")
     (archived_dir / "old.md").write_text("old session", encoding="utf-8")
-    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
-    monkeypatch.setattr(api, "SESSION_DIR", archived_dir)
     client = TestClient(app)
 
     response = client.get("/sessions")
@@ -961,11 +972,9 @@ def test_sessions_endpoint_lists_current_and_archived_files(monkeypatch, tmp_pat
     assert names == {"active.md", "old.md"}
 
 
-def test_session_detail_restores_archived_messages(monkeypatch, tmp_path):
-    from src import api
-
-    current_dir = tmp_path / "current"
-    archived_dir = tmp_path / "sessions"
+def test_session_detail_restores_archived_messages(runtime_test_context):
+    current_dir = runtime_test_context.current_dir
+    archived_dir = runtime_test_context.archive_dir
     current_dir.mkdir()
     archived_dir.mkdir()
     session_file = archived_dir / "2026-06-16_10-00-00_session_restoreme_keqing_pro.md"
@@ -977,8 +986,6 @@ def test_session_detail_restores_archived_messages(monkeypatch, tmp_path):
         "---\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
-    monkeypatch.setattr(api, "SESSION_DIR", archived_dir)
     client = TestClient(app)
 
     response = client.get("/sessions/restoreme")
@@ -988,17 +995,19 @@ def test_session_detail_restores_archived_messages(monkeypatch, tmp_path):
     assert data["session_id"] == "restoreme"
     assert data["kind"] == "archived"
     assert data["messages"] == [
-        {"role": "user", "content": "旧问题完整内容"},
-        {"role": "assistant", "content": "旧回答完整内容"},
+        {"role": "user", "content": "旧问题完整内容", "avatarRole": "user"},
+        {"role": "assistant", "content": "旧回答完整内容", "avatarRole": "auto"},
     ]
 
 
-def test_current_session_snapshot_restores_full_state_and_avatar(monkeypatch, tmp_path):
-    from src import api, session_logger
+def test_current_session_snapshot_restores_full_state_and_avatar(
+    monkeypatch,
+    runtime_test_context,
+):
+    from src import session_logger
 
-    current_dir = tmp_path / "current"
+    current_dir = runtime_test_context.current_dir
     current_dir.mkdir()
-    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
     monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
     session_id = session_logger.init_session()
     long_user = "user-" + ("x" * 180)
@@ -1044,10 +1053,8 @@ def test_create_new_session_returns_default_settings():
     assert "selected_role" in data["settings"]
 
 
-def test_commit_turn_upserts_partial_reply_by_turn_id():
-    from src import session_logger
-
-    session_id = session_logger.init_session()
+def test_commit_turn_upserts_partial_reply_by_turn_id(runtime_test_context):
+    session_id = "chat_partial_api"
     client = TestClient(app)
     base_payload = {
         "session_id": session_id,
@@ -1071,63 +1078,55 @@ def test_commit_turn_upserts_partial_reply_by_turn_id():
         json={**base_payload, "agent_reply": "partial plus more"},
     )
 
-    try:
-        entries = session_logger.get_session_entries(session_id)
-        assert first.status_code == 200
-        assert first.json()["committed"] is True
-        assert second.json()["committed"] is True
-        assert duplicate.json()["committed"] is False
-        assert len(entries) == 1
-        assert entries[0]["turn_id"] == "turn_partial"
-        assert entries[0]["agent"] == "partial plus more"
-        assert entries[0]["status"] == "interrupted"
-    finally:
-        session_logger._state.pop(session_id, None)
+    entries = runtime_test_context.repository.list_chat_turns(session_id)
+    assert first.status_code == 200
+    assert first.json()["committed"] is True
+    assert second.json()["committed"] is True
+    assert duplicate.json()["committed"] is False
+    assert len(entries) == 1
+    assert entries[0].id == "turn_partial"
+    assert entries[0].assistant_message == "partial plus more"
+    assert entries[0].status == "interrupted"
 
 
-def test_archive_active_session_endpoint(monkeypatch, tmp_path):
-    from src import api, session_logger
+def test_archive_active_session_endpoint(runtime_test_context):
+    from src.domain.runtime_entities import ChatTurn
 
-    current_dir = tmp_path / "current"
-    session_dir = tmp_path / "sessions"
+    current_dir = runtime_test_context.current_dir
+    session_dir = runtime_test_context.archive_dir
     current_dir.mkdir()
     session_dir.mkdir()
-    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
-    monkeypatch.setattr(api, "SESSION_DIR", session_dir)
-    monkeypatch.setattr(session_logger, "CURRENT_DIR", current_dir)
-    monkeypatch.setattr(session_logger, "LOG_DIR", session_dir)
-    session_id = session_logger.init_session()
-    session_logger.log(
-        session_id=session_id,
-        role="nahida",
-        mode="普通",
-        model="flash",
-        user_input="archive this",
-        agent_reply="archived",
+    thread = runtime_test_context.session_service.create_session({})
+    runtime_test_context.repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            role="nahida",
+            mode="普通",
+            model="flash",
+            user_message="archive this",
+            assistant_message="archived",
+            status="completed",
+        )
     )
     client = TestClient(app)
 
-    response = client.post(f"/sessions/{session_id}/archive")
+    response = client.post(f"/sessions/{thread.id}/archive")
 
     assert response.status_code == 200
     data = response.json()
-    assert data["session_id"] == session_id
+    assert data["session_id"] == thread.id
     assert data["kind"] == "archived"
     assert data["archived"] is True
     assert Path(data["path"]).is_file()
 
 
-def test_archive_current_session_file_after_restart(monkeypatch, tmp_path):
-    from src import api
-
-    current_dir = tmp_path / "current"
-    session_dir = tmp_path / "sessions"
+def test_archive_current_session_file_after_restart(runtime_test_context):
+    current_dir = runtime_test_context.current_dir
+    session_dir = runtime_test_context.archive_dir
     current_dir.mkdir()
     session_dir.mkdir()
     current_file = current_dir / "restartme.md"
     current_file.write_text("User: hello\nAgent: hi\n", encoding="utf-8")
-    monkeypatch.setattr(api, "CURRENT_SESSION_DIR", current_dir)
-    monkeypatch.setattr(api, "SESSION_DIR", session_dir)
     client = TestClient(app)
 
     response = client.post("/sessions/restartme/archive")

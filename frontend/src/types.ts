@@ -327,6 +327,7 @@ export type WorkflowRunDetail = Omit<WorkflowRunSummary, "event_count"> & {
 };
 
 export type SessionRow = {
+  session_id?: string;
   kind: string;
   name: string;
   path: string;
@@ -347,6 +348,17 @@ export type SessionDetailResponse = {
   route: Record<string, unknown>;
   rag: ChatResponse["rag"] | Record<string, unknown>;
   conversation_instruction: string;
+  turns?: Array<{
+    turn_id: string;
+    status: string;
+    parent_turn_id?: string | null;
+    operation_id?: string | null;
+    user_message: string;
+    assistant_message: string;
+    role: string;
+    mode: string;
+    model: string;
+  }>;
   raw: string;
 };
 
