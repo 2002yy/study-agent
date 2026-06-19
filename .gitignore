@@ -21,7 +21,7 @@ output/
 *.bak
 *.bak-*
 *.tmp
-chat/
+/chat/
 memory/
 !memory/.gitkeep
 .codex-pet-runs/

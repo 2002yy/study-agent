@@ -10,8 +10,9 @@
 一个用户问题 → 一个 ChatTurn
 中断 + 续写 → 同一 Turn
 ```
-- 当前代码: `turn_id` + `merge_with_existing` 已实现，但只在 session_logger 层合并
-- 目标: ChatTurn 是独立实体，`continuation_of_turn_id` 指向被继续的 turn
+- ✅ 已满足: ChatTurn 是独立实体，SQLite upsert 确保同 turn_id 仅一条记录
+- 验证: `test_chat_turn_lifecycle_updates_the_same_turn`
+- 剩余边界: 无
 
 ### C2 — Turn 状态机
 ```
@@ -20,7 +21,7 @@ pending → streaming → completed
                        → streaming → completed (同一 turn.assistant_message 被更新)
                        → retry → 新 Turn (parent_turn_id = 旧 turn.id)
 ```
-- 当前违反: 续写后 session log 有两个独立 entry（P0-2 已部分修复，但仍是 message 层合并）
+- ✅ 已满足: SQLite upsert 确保同 turn_id 仅一条记录；`test_chat_turn_lifecycle_updates_the_same_turn` 验证
 
 ### C3 — Session ID 先于第一条 token
 ```
@@ -48,15 +49,16 @@ Turn 完成后 turn_id 不可修改
 ```
 Active Session 必须出现在 /sessions 列表中
 ```
-- 当前可能违反: `/sessions` 只扫描磁盘文件，内存中的 session 可能不出现
-- 应包含进程内 `_state` 中的 session
+- ✅ 已满足: SQLite `chat_threads` 始终包含所有 active session；`list_sessions` 按 `updated_at DESC` 排序
+- 验证: `test_session_service.py` 验证列表完整性和顺序
 
 ### S2 — 归档后不可写
 ```
 Archived Session 拒绝任何写入
 包括: log(), commitTurn(), flush_current_session()
 ```
-- 当前: save() 后 `_state` 被清空，但无显式归档锁
+- ✅ 已满足: `archive_chat_thread` 设置 `status='archived'`，repository 层 `_require_active_thread` 拒绝写入
+- 验证: `test_archived_chat_thread_rejects_new_turns`
 
 ### S3 — 切换 Session 原子替换
 ```
@@ -87,8 +89,8 @@ Session.settings_snapshot 必须包含:
 一个 OperationScope 同时最多一个 active operation
 开始新 operation → 取消同 scope 旧 operation
 ```
-- 当前: 4 个 generation ref 已实现 "递增 ref ← 旧回调被跳过"
-- 但旧 AbortController 仍然可能未 abort（`sendSingleChat` 中 `new AbortController()` 写了但没调用旧 controller.abort()）
+- ✅ 已满足: `operationRegistry` 按 scope 管理；`start(scope)` 自动 cancel 同 scope 旧 operation + abort 旧 controller
+- 验证: `operationRegistry.test.ts`
 
 ### A2 — Scope 隔离
 ```
@@ -98,7 +100,7 @@ Session.settings_snapshot 必须包含:
 开始工具 → 只取消旧工具（toolGenerationRef++）
 开始不同 scope 的操作不互斥
 ```
-- 当前代码: 基本满足（P0-1 已实现）
+- ✅ 已满足: `operationRegistry` 按 scope 隔离；`test_operationRegistry.test.ts` 验证多 scope 并发
 
 ### A3 — Workspace 切换 cancelAll
 ```
@@ -112,11 +114,8 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 每个 SSE 回调必须检查 generation_id 和 operation_id
 响应不匹配 → 静默丢弃（不是报错）
 ```
-- 当前违反: `App.tsx:1031` onDone 检查 `wechatGenerationRef` 而非 `chatGenerationRef`（Bug!）
-- 当前违反: `App.tsx:1181` previewTool 回调检查 `wechatGenerationRef` 而非 `toolGenerationRef`（Bug!）
-- 当前违反: `App.tsx:1185` 同上
-- 当前违反: `App.tsx:1261` callTool 回调检查 `wechatGenerationRef` 而非 `toolGenerationRef`（Bug!）
-- 当前违反: `App.tsx:1268` 同上
+- ✅ 已满足: `operationRegistry` 按 scope 管理 generation；`chatController.isCurrentOperation()` 检查 scope + generation
+- 验证: `operationRegistry.test.ts`
 
 ### A5 — Controller 生命周期
 ```
@@ -129,7 +128,8 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 每个 operation 结束 (finally):
   1. 如果当前 controller ref 仍指向此 controller → 置 null
 ```
-- 当前: `sendSingleChat` 未调用 `chatAbortRef.current?.abort()` 就 new 新 controller
+- ✅ 已满足: `operationRegistry.start(scope)` 在创建新 controller 前自动 abort 同 scope 旧 controller
+- 验证: `operationRegistry.test.ts`
 
 ## 4. Memory 不变量
 
@@ -164,7 +164,7 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 GroupThread ID 决定消息集合
 切换 Thread → 切换全部群聊内容
 ```
-- 当前违反: 只有全局单文件 `chat/wechat_group.md`
+- ❌ 未解决: 只有全局单文件 `chat/wechat_group.md`，见 #8 表
 
 ### G2 — 失败消息隔离
 ```
@@ -222,7 +222,8 @@ NewsRun 可以关联 GroupThread（discuss 后），但不创建 ChatThread
 配置: config/*.yaml
 每个数据有且仅有一个权威来源
 ```
-- 当前违反: localStorage、进程 `_state`、`logs/current/*.md`、`logs/sessions/*.md` 各有各的版本
+- ✅ 已满足: 运行时事实 = SQLite `chat_threads` + `chat_turns`；Markdown 为单向兼容导入导出边界，非并发运行时来源
+- 验证: `test_chat_service.py`、`test_session_service.py` 全套流程验证
 
 ### P2 — 提交原子性
 ```
@@ -238,24 +239,13 @@ save → 要么完整写入 archive 文件，要么完全不写
   2. 返回错误
   3. 不丢失用户数据
 ```
-- 当前: `commitTurn` 的 catch 块静默丢弃错误
+- ✅ 已满足: 服务端 `commit_turn_endpoint` 返回明确 400/409 错误；前端 catch 块显示错误
+- 验证: `test_session_service.py` 测试 commit 路径
 
-## 8. 当前代码中已发现的不变量违反
+## 8. 当前代码中未解决的不变量违反
 
 | 违反 | 位置 | 严重性 |
 |------|------|--------|
-| onDone 检查 wechatGenerationRef | App.tsx:1031 | 中 — 单聊 done/mid-stream wechat generation 不匹配时回调被跳过 |
-| previewTool 检查 wechatGenerationRef | App.tsx:1181,1185,1261,1268 | 高 — 工具预览和调用被群聊 generation 影响 |
-| sendSingleChat 未 abort 旧 controller | App.tsx:967 | 低 — 旧 HTTP 连接可能继续 |
-| /sessions 不包含内存中 session | api.py | 中 — 首轮中断后列表不可见 |
 | newsRunId 仍不是后端实体 | NewsWorkspace.tsx | 中 — 当前来自 operationRegistry.operationId，下一步应切到 SQLite NewsRun.id |
 | preview/commit 无 transaction_id | api.ts:259-271 | 中 — 可能提交过期预览 |
 | 单一 wechat_group.md 文件 | wechat_state.py:26 | 高 — 无法支持多 GroupThread |
-## Verified 2026-06-20: Chat and Session SQLite slice
-
-- One Chat request creates one SQLite `ChatTurn`; continuation and partial commit update that same `turn_id`.
-- `turn_id` ownership is checked against `thread_id`; cross-thread continuation is rejected.
-- Active threads appear in Session lists before Markdown export.
-- Archived threads are write-locked by the Repository.
-- Session restore returns full messages, avatar roles, settings, route/RAG snapshots, conversation instruction, and Turn lifecycle metadata.
-- Markdown is a one-way compatibility import/export boundary, not a concurrent runtime source.

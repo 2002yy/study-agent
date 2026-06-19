@@ -963,14 +963,17 @@ export default function App() {
       ? [...historyBase]
       : [...historyBase, { role: "user", content: question, avatarRole: "user" }];
     const userIndex = isContinuation ? -1 : nextMessages.length - 1;
-    const assistantIndex = nextMessages.length;
-    setSingleChatMessages([...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]);
+    const assistantIndex = isContinuation ? nextMessages.length - 1 : nextMessages.length;
+    setSingleChatMessages(
+      isContinuation ? nextMessages : [...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]
+    );
     setInput("");
     setStreamRecovery(null);
     setOperationError("");
     setIsSending(true);
     setRagSearch(null);
     let streamedReply = "";
+    let fullReply = "";
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
     let activeSessionId = singleChatSessionId ?? "";
@@ -1046,6 +1049,14 @@ export default function App() {
             if (typeof done.turn_id === "string") {
               activeTurnId = done.turn_id;
             }
+            if (typeof done.reply === "string") {
+              fullReply = done.reply;
+              setSingleChatMessages((current) =>
+                current.map((message, index) =>
+                  index === assistantIndex ? { ...message, content: done.reply } : message
+                )
+              );
+            }
           }
         },
         { signal: abortController.signal }
@@ -1054,7 +1065,8 @@ export default function App() {
       activeSessionId = response.session_id;
       activeTurnId = response.turn_id ?? activeTurnId;
       setSingleChatSessionId(response.session_id);
-      setLastChat(response);
+      const effectiveReply = fullReply || response.reply;
+      setLastChat(fullReply ? { ...response, reply: effectiveReply } : response);
       setOperationError("");
       if (shouldConsumeWebLookup) {
         setUseWebLookup(false);
@@ -1062,7 +1074,7 @@ export default function App() {
       setSingleChatMessages((current) =>
         current.map((message, index) =>
           index === assistantIndex
-            ? { ...message, content: response.reply, avatarRole: String(response.route.role ?? "auto") }
+            ? { ...message, content: effectiveReply, avatarRole: String(response.route.role ?? "auto") }
             : message
         )
       );
@@ -1072,19 +1084,20 @@ export default function App() {
       if (!chatController.isCurrentOperation(operationId, generationId)) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
-      const preserved = streamedReply
-        ? `${streamedReply}\n\n---\n生成中断：${message}`
+      const fullPartial = extraOpts.partialReply ? extraOpts.partialReply + streamedReply : streamedReply;
+      const preserved = fullPartial
+        ? `${fullPartial}\n\n---\n生成中断：${message}`
         : `生成中断：${message}`;
-      setStreamRecovery({ question, reply: streamedReply, reason: message, sessionId: activeSessionId || undefined, turnId: activeTurnId || null });
+      setStreamRecovery({ question, reply: fullPartial, reason: message, sessionId: activeSessionId || undefined, turnId: activeTurnId || null });
       if (!isAbort) {
         setOperationError(`聊天请求失败：${message}`);
       }
       // Attempt to persist partial reply to session log on interrupt/error
-      if (streamedReply && activeSessionId) {
+      if (fullPartial && activeSessionId) {
         try {
           await commitTurn(activeSessionId, {
             userInput: question,
-            agentReply: streamedReply,
+            agentReply: fullPartial,
             role: String(streamedRoute.role ?? lastChat?.route?.role ?? "auto"),
             mode: typeof streamedRoute.mode === "string" ? String(streamedRoute.mode) : typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : "auto",
             model: typeof streamedRoute.model_profile === "string" ? String(streamedRoute.model_profile) : typeof lastChat?.route?.model_profile === "string" ? String(lastChat.route.model_profile) : "auto",
