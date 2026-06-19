@@ -3,6 +3,13 @@
 > 从当前 `bc9d81c` 状态出发，分 5 批迁移到目标架构。  
 > 每批独立可发布、可验证、可回滚。
 
+## Implementation status — 2026-06-19
+
+- Batch 1: operation registry is active for chat, group, tool, and news scopes. NewsWorkspace no longer owns a separate run counter or AbortController.
+- Batch 2: Workspace reducer/provider skeleton exists, and active chat/group/news ids are now reducer-owned in App.
+- Batch 3: FastAPI is split into `src/api/app.py`, `src/api/routes/*`, `src/api/models/*`, and `src/application/helpers.py`; compatibility re-exports remain in `src/api/__init__.py`.
+- Batch 4: SQLite runtime schema and repository foundation exists for ChatThread/ChatTurn and NewsRun. Existing APIs still use the legacy runtime stores until the next migration step.
+
 ## 总览
 
 | 批次 | 内容 | 预计改动范围 | 风险 |

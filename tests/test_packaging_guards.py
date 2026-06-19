@@ -2,6 +2,23 @@ from pathlib import Path
 from tools.package_project_helper import should_exclude
 
 
+def test_fastapi_api_is_modular_package():
+    assert Path("src/api").is_dir()
+    assert Path("src/api/app.py").is_file()
+    assert Path("src/api/routes/chat_routes.py").is_file()
+    assert Path("src/api/routes/session_routes.py").is_file()
+    assert not Path("src/api.py").exists()
+
+
+def test_application_helpers_paths_stay_at_project_root():
+    from src.application import helpers
+
+    root = Path.cwd().resolve()
+    assert helpers.ROOT.resolve() == root
+    assert helpers.FRONTEND_SETTINGS_PATH_DEFAULT.resolve() == root / "config" / "frontend_settings.yaml"
+    assert helpers.SESSION_DIR_DEFAULT.resolve() == root / "logs" / "sessions"
+
+
 def test_sidebar_save_uses_session_id():
     text = Path("src/ui/sidebar.py").read_text(encoding="utf-8")
     assert "save(st.session_state.session_id)" in text

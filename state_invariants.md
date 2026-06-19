@@ -187,7 +187,7 @@ GroupThread ID 决定消息集合
 每次 /news/search → 后端返回 news_run_id
 后续 enrich/digest/discuss 引用该 run_id
 ```
-- 当前违反: 前端 `newsRunIdRef.current++` + `onRunStarted?.(`news-${runId}`)`
+- 当前状态: NewsWorkspace 已改用 operationRegistry 的 `operationId`，不再自增 `newsRunIdRef`；但这仍不是后端持久化 `NewsRun.id`。
 - newsRunId 是前端局部自增，不是后端实体
 
 ### N2 — 阶段锁定
@@ -248,6 +248,6 @@ save → 要么完整写入 archive 文件，要么完全不写
 | previewTool 检查 wechatGenerationRef | App.tsx:1181,1185,1261,1268 | 高 — 工具预览和调用被群聊 generation 影响 |
 | sendSingleChat 未 abort 旧 controller | App.tsx:967 | 低 — 旧 HTTP 连接可能继续 |
 | /sessions 不包含内存中 session | api.py | 中 — 首轮中断后列表不可见 |
-| newsRunId 前端自增 | NewsWorkspace.tsx:112 | 中 — 不是真实后端实体 |
+| newsRunId 仍不是后端实体 | NewsWorkspace.tsx | 中 — 当前来自 operationRegistry.operationId，下一步应切到 SQLite NewsRun.id |
 | preview/commit 无 transaction_id | api.ts:259-271 | 中 — 可能提交过期预览 |
 | 单一 wechat_group.md 文件 | wechat_state.py:26 | 高 — 无法支持多 GroupThread |

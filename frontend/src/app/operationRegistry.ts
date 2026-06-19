@@ -1,11 +1,11 @@
 /**
- * 统一异步操作注册器 — 替代分散的 generation refs 和 AbortController refs。
+ * Central async operation registry.
  *
- * 规则：
- *  - start(scope) 自动取消同 scope 旧操作
- *  - 不同 scope 互不影响
- *  - cancelAll() 只在 Workspace 切换时调用
- *  - 每个回调通过 isCurrent(id, genId) 检查是否被取代
+ * Rules:
+ * - start(scope) cancels the previous operation in the same scope.
+ * - Different scopes do not invalidate each other.
+ * - cancelAll() is reserved for workspace/session transitions.
+ * - Async callbacks must check isCurrent(operationId, generationId).
  */
 
 export type OperationScope =
@@ -34,17 +34,16 @@ function nextId(): string {
   return `op-${Date.now()}-${++_nextId}`;
 }
 
-class OperationRegistry {
+export class OperationRegistry {
   private operations = new Map<string, OperationState>();
   private scopeGenerations = new Map<OperationScope, number>();
 
-  /** 启动新操作，自动 cancel 同 scope 旧操作 */
+  /** Start a new operation and cancel the previous operation in the same scope. */
   start(scope: OperationScope, ownerId?: string): {
     operationId: string;
     controller: AbortController;
     generationId: number;
   } {
-    // 取消同 scope 旧操作
     this.cancel(scope);
 
     const gen = (this.scopeGenerations.get(scope) ?? 0) + 1;
@@ -66,9 +65,8 @@ class OperationRegistry {
     return { operationId: id, controller, generationId: gen };
   }
 
-  /** 取消指定 scope 的所有运行中操作 */
+  /** Cancel running operations in one scope. */
   cancel(scope: OperationScope): void {
-    // 递增 generation 使旧回调无效
     const gen = (this.scopeGenerations.get(scope) ?? 0) + 1;
     this.scopeGenerations.set(scope, gen);
 
@@ -84,26 +82,26 @@ class OperationRegistry {
     }
   }
 
-  /** 取消所有 scope 的所有操作（Workspace 切换时使用） */
+  /** Cancel all running operations, used by workspace/session transitions. */
   cancelAll(): void {
     for (const scope of this.scopeGenerations.keys()) {
       this.cancel(scope);
     }
   }
 
-  /** 检查 operation 是否仍是最新的 */
+  /** Return true only while the operation is the current running operation. */
   isCurrent(operationId: string, generationId: number): boolean {
     const op = this.operations.get(operationId);
     if (!op) return false;
     return op.generationId === generationId && op.status === "running";
   }
 
-  /** 获取指定 scope 的当前 generation */
+  /** Return the latest generation for a scope. */
   getGeneration(scope: OperationScope): number {
     return this.scopeGenerations.get(scope) ?? 0;
   }
 
-  /** 获取 scope 的活跃操作 */
+  /** Return the active operation for a scope. */
   getActive(scope: OperationScope): OperationState | null {
     for (const op of this.operations.values()) {
       if (op.scope === scope && op.status === "running") {
@@ -113,7 +111,7 @@ class OperationRegistry {
     return null;
   }
 
-  /** 标记操作完成 */
+  /** Mark an operation as completed. */
   complete(operationId: string): void {
     const op = this.operations.get(operationId);
     if (op) {
@@ -121,7 +119,7 @@ class OperationRegistry {
     }
   }
 
-  /** 检查 scope 是否有运行中的操作 */
+  /** Return true if a scope has a running operation. */
   isRunning(scope: OperationScope): boolean {
     for (const op of this.operations.values()) {
       if (op.scope === scope && op.status === "running") {
@@ -131,7 +129,7 @@ class OperationRegistry {
     return false;
   }
 
-  /** 获取所有活跃的 scope */
+  /** Return all scopes with running operations. */
   getActiveScopes(): OperationScope[] {
     const scopes = new Set<OperationScope>();
     for (const op of this.operations.values()) {
@@ -143,5 +141,5 @@ class OperationRegistry {
   }
 }
 
-/** 全局单例 */
+/** Shared singleton used by feature controllers and App.tsx. */
 export const operationRegistry = new OperationRegistry();

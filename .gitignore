@@ -19,10 +19,12 @@ logs/
 backups/
 output/
 *.bak
+*.bak-*
 *.tmp
 chat/
 memory/
 !memory/.gitkeep
+.codex-pet-runs/
 
 # packaging
 /release/

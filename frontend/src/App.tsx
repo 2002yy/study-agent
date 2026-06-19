@@ -14,7 +14,7 @@ import {
   Upload,
   Wrench
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useReducer, useRef, useState } from "react";
 import {
   archiveSession,
   callLocalKnowledge,
@@ -38,6 +38,7 @@ import {
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
 import { operationRegistry } from "./app/operationRegistry";
+import { createWorkspaceRuntimeState, workspaceReducer } from "./app/workspaceReducer";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
@@ -704,9 +705,13 @@ export default function App() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [singleChatSessionId, setSingleChatSessionId] = useState<string | undefined>();
-  const [wechatThreadId, setWechatThreadId] = useState<string | undefined>();
-  const [newsRunId, setNewsRunId] = useState<string | undefined>();
+  const [workspaceRuntime, dispatchWorkspace] = useReducer(workspaceReducer, createWorkspaceRuntimeState());
+  const singleChatSessionId = workspaceRuntime.activeChatThreadId;
+  const wechatThreadId = workspaceRuntime.activeGroupThreadId;
+  const newsRunId = workspaceRuntime.activeNewsRunId;
+  const setSingleChatSessionId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_CHAT_THREAD", threadId });
+  const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
+  const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
   const [lastChat, setLastChat] = useState<ChatResponse | null>(null);
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [toolPreview, setToolPreview] = useState<ToolInvocationResponse | null>(null);
@@ -1306,8 +1311,7 @@ export default function App() {
     setOperationError("");
     try {
       const wechat = await resetWechat();
-      setWechatThreadId(undefined);
-      setNewsRunId(undefined);
+    dispatchWorkspace({ type: "RESET_GROUP_THREAD", threadId: undefined });
       setNewsResult(null);
       setSnapshot((current) => ({ ...current, wechat }));
     } catch (error) {
@@ -1473,7 +1477,7 @@ export default function App() {
     const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
 
     setSingleChatMessages(restoredMessages.length ? restoredMessages : seedMessages);
-    setSingleChatSessionId(detail.session_id);
+    dispatchWorkspace({ type: "RESTORE_CHAT_SESSION", threadId: detail.session_id });
     setChatSettings(nextChatSettings);
     setRagSettings(nextRagSettings);
     if (typeof restoredSettings.ragEnabled === "boolean") {
@@ -1525,7 +1529,7 @@ export default function App() {
       await archiveSession(targetSessionId);
       if (isArchivingActive) {
         const created = await createNewSession();
-        setSingleChatSessionId(created.session_id);
+        dispatchWorkspace({ type: "START_NEW_CHAT_SESSION", threadId: created.session_id });
         setSingleChatMessages(seedMessages);
         setInput("");
         setLastChat(null);
@@ -1565,7 +1569,7 @@ export default function App() {
         }
       }
       const created = await createNewSession();
-      setSingleChatSessionId(created.session_id);
+      dispatchWorkspace({ type: "START_NEW_CHAT_SESSION", threadId: created.session_id });
       setSingleChatMessages(seedMessages);
       setInput("");
       setLastChat(null);
