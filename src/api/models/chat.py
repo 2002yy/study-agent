@@ -63,5 +63,6 @@ class CommitTurnResponse(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     session_id: str
+    turn_id: str | None = None
     route: dict
     rag: dict

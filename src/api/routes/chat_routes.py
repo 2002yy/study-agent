@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import AsyncIterator
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -22,10 +23,25 @@ from src.application.helpers import (
 router = APIRouter(tags=["chat"])
 
 
+def _looks_like_turn_id(value: str | None) -> bool:
+    if not value:
+        return False
+    return value.startswith(("turn_", "turn-"))
+
+
+def _effective_turn_id(request: ChatRequest) -> str:
+    if request.turn_id:
+        return request.turn_id
+    if _looks_like_turn_id(request.continuation_of_turn_id):
+        return str(request.continuation_of_turn_id)
+    return f"turn_{uuid4().hex}"
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest) -> ChatResponse:
     from src.api import chat, chat_max_tokens, flush_current_session, init_session, log
 
+    turn_id = _effective_turn_id(request)
     prepared = prepare_chat_context(request)
     runtime_modes = prepared["runtime_modes"]
     route = prepared["route"]
@@ -54,6 +70,8 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         session_settings=prepared["session_settings"],
         rag_info=rag_result.to_dict(),
         conversation_instruction=request.conversation_instruction,
+        turn_id=turn_id,
+        merge_with_existing=bool(request.continuation_of_turn_id),
     )
     flush_current_session(
         session_id,
@@ -63,6 +81,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
     return ChatResponse(
         reply=reply,
         session_id=session_id,
+        turn_id=turn_id,
         route=route,
         rag=rag_result.to_dict(),
     )
@@ -80,6 +99,7 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
         )
 
         session_id = chat_request.session_id or init_session()
+        turn_id = _effective_turn_id(chat_request)
         reply_parts: list[str] = []
         disconnected = False
 
@@ -91,7 +111,7 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
             runtime_modes = prepared["runtime_modes"]
             route = prepared["route"]
             rag_result = prepared["rag_result"]
-            yield sse_event("session", {"session_id": session_id})
+            yield sse_event("session", {"session_id": session_id, "turn_id": turn_id})
             yield sse_event("route", route)
             yield sse_event("rag", rag_result.to_dict())
             for token in stream_chat(
@@ -122,20 +142,20 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
                     "web_context_used": prepared["web_context_used"],
                     "streamed": True,
                     "is_continuation": prepared["is_continuation"],
-                    "is_continuation_resolved": bool(chat_request.turn_id),
+                    "is_continuation_resolved": bool(chat_request.continuation_of_turn_id),
                 },
                 session_settings=prepared["session_settings"],
                 rag_info=rag_result.to_dict(),
                 conversation_instruction=chat_request.conversation_instruction,
-                turn_id=chat_request.turn_id or None,
-                merge_with_existing=bool(chat_request.continuation_of_turn_id and chat_request.turn_id),
+                turn_id=turn_id,
+                merge_with_existing=bool(chat_request.continuation_of_turn_id),
             )
             flush_current_session(
                 session_id,
                 performance_mode=runtime_modes.performance_mode,
                 debug_mode=runtime_modes.debug_mode,
             )
-            yield sse_event("done", {"session_id": session_id, "reply": reply})
+            yield sse_event("done", {"session_id": session_id, "turn_id": turn_id, "reply": reply})
         except Exception as exc:
             yield sse_event("error", {"message": str(exc), "error_type": type(exc).__name__})
 

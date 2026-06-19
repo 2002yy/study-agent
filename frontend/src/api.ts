@@ -81,7 +81,7 @@ type ChatRequestOptions = {
 };
 
 type ChatStreamHandlers = {
-  onSession?: (sessionId: string) => void;
+  onSession?: (sessionId: string, meta?: { turnId?: string }) => void;
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onToken?: (token: string) => void;
@@ -646,6 +646,7 @@ export async function sendChatStream(
   let buffer = "";
   let reply = "";
   let sessionId = options.sessionId ?? "";
+  let turnId = options.turnId ?? "";
   let route: Record<string, unknown> = {};
   let rag: ChatResponse["rag"] | null = null;
 
@@ -653,7 +654,12 @@ export async function sendChatStream(
     if (message.event === "session") {
       if (typeof message.data.session_id === "string") {
         sessionId = message.data.session_id;
-        handlers.onSession?.(message.data.session_id);
+      }
+      if (typeof message.data.turn_id === "string") {
+        turnId = message.data.turn_id;
+      }
+      if (sessionId) {
+        handlers.onSession?.(sessionId, { turnId: turnId || undefined });
       }
       return;
     }
@@ -681,6 +687,9 @@ export async function sendChatStream(
     if (message.event === "done") {
       if (typeof message.data.session_id === "string") {
         sessionId = message.data.session_id;
+      }
+      if (typeof message.data.turn_id === "string") {
+        turnId = message.data.turn_id;
       }
       handlers.onDone?.(message.data);
       return;
@@ -713,6 +722,7 @@ export async function sendChatStream(
   return {
     reply,
     session_id: sessionId,
+    turn_id: turnId || null,
     route,
     rag: rag ?? {
       status: "waiting",

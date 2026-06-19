@@ -451,3 +451,12 @@ POST /sessions/{id}/restore
 - pytest 全部通过（排除 LLM 依赖的 2 个）
 - 手动冒烟: 单聊 → 群聊 → 新闻 → 工具 → Session 切换
 - `git diff --stat` 在预期范围内
+
+## Implementation note 2026-06-19: Batch 5 first slice
+
+- `/chat` and `/chat/stream` now assign a server-side `turn_id` when the client does not provide one.
+- The stream `session` event is emitted before tokens and now carries both `session_id` and `turn_id`.
+- The stream `done` event and `ChatResponse` also include `turn_id`.
+- The React stream recovery state stores the server `turn_id`; "continue generation" reuses that ID instead of creating a client-only ID or sending the question text as `continuation_of_turn_id`.
+- Partial `commitTurn` calls now include the current `turn_id`, allowing the later continuation to merge into the same session entry.
+- Remaining Batch 5 work: move the full turn lifecycle into the runtime repository/SQLite (`pending`, `streaming`, `interrupted`, `completed`) and simplify frontend recovery once the backend owns partial-turn persistence.

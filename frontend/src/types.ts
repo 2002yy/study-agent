@@ -247,6 +247,7 @@ export type NewsLookupResponse = {
 export type ChatResponse = {
   reply: string;
   session_id: string;
+  turn_id?: string | null;
   route: Record<string, unknown>;
   rag: {
     status: string;

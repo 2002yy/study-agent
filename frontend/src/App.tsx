@@ -730,7 +730,7 @@ export default function App() {
   const [readArticles, setReadArticles] = useState(true);
   const [isWechatBusy, setIsWechatBusy] = useState(false);
   const [isNewsBusy, setIsNewsBusy] = useState(false);
-  const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string } | null>(null);
+  const [streamRecovery, setStreamRecovery] = useState<{ question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null>(null);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionStoragePayloadRef = useRef("");
@@ -960,6 +960,8 @@ export default function App() {
     let streamedReply = "";
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
+    let activeSessionId = singleChatSessionId ?? "";
+    let activeTurnId = extraOpts.turnId ?? "";
     const shouldConsumeWebLookup = useWebLookup && Boolean(webLookup?.source_block);
     try {
       const response = await sendChatStream(
@@ -979,8 +981,12 @@ export default function App() {
           turnId: extraOpts.turnId
         },
         {
-          onSession: (sid) => {
+          onSession: (sid, meta) => {
             if (!operationRegistry.isCurrent(operationId, generationId)) return;
+            activeSessionId = sid;
+            if (meta?.turnId) {
+              activeTurnId = meta.turnId;
+            }
             setSingleChatSessionId(sid);
           },
           onRoute: (route) => {
@@ -1021,13 +1027,19 @@ export default function App() {
           onDone: (done) => {
             if (!operationRegistry.isCurrent(operationId, generationId)) return;
             if (typeof done.session_id === "string") {
+              activeSessionId = done.session_id;
               setSingleChatSessionId(done.session_id);
+            }
+            if (typeof done.turn_id === "string") {
+              activeTurnId = done.turn_id;
             }
           }
         },
         { signal: abortController.signal }
       );
       if (!operationRegistry.isCurrent(operationId, generationId)) return;
+      activeSessionId = response.session_id;
+      activeTurnId = response.turn_id ?? activeTurnId;
       setSingleChatSessionId(response.session_id);
       setLastChat(response);
       setOperationError("");
@@ -1050,14 +1062,14 @@ export default function App() {
       const preserved = streamedReply
         ? `${streamedReply}\n\n---\n生成中断：${message}`
         : `生成中断：${message}`;
-      setStreamRecovery({ question, reply: streamedReply, reason: message });
+      setStreamRecovery({ question, reply: streamedReply, reason: message, sessionId: activeSessionId || undefined, turnId: activeTurnId || null });
       if (!isAbort) {
         setOperationError(`聊天请求失败：${message}`);
       }
       // Attempt to persist partial reply to session log on interrupt/error
-      if (streamedReply && singleChatSessionId) {
+      if (streamedReply && activeSessionId) {
         try {
-          await commitTurn(singleChatSessionId, {
+          await commitTurn(activeSessionId, {
             userInput: question,
             agentReply: streamedReply,
             role: String(streamedRoute.role ?? lastChat?.route?.role ?? "auto"),
@@ -1067,6 +1079,7 @@ export default function App() {
             routeInfo: Object.keys(streamedRoute).length ? streamedRoute : (lastChat?.route ?? {}),
             ragInfo: streamedRag ?? lastChat?.rag ?? {},
             conversationInstruction,
+            turnId: activeTurnId || undefined,
           });
         } catch {
           // Best-effort; don't surface commit failure to user
@@ -1129,10 +1142,10 @@ export default function App() {
       return;
     }
     const continuationHistory = buildContinuationHistory(singleChatMessages, streamRecovery);
-    const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const turnId = streamRecovery.turnId ?? undefined;
     setStreamRecovery(null);
     await sendSingleChat(streamRecovery.question, continuationHistory, {
-      continuationOfTurnId: streamRecovery.question,
+      continuationOfTurnId: turnId,
       partialReply: streamRecovery.reply,
       turnId,
     });

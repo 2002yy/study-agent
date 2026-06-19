@@ -51,7 +51,7 @@ export function ChatPanel({
   isSending: boolean;
   onSubmit: (event: FormEvent) => void;
   onStop: () => void;
-  streamRecovery: { question: string; reply: string; reason: string } | null;
+  streamRecovery: { question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null;
   onContinueInterruptedReply: () => void;
   onRetry: () => void;
   onCopyInterruptedReply: () => void;

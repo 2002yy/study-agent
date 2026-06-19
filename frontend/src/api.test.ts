@@ -87,6 +87,31 @@ describe("sendChatStream", () => {
     expect(tokens).toEqual(["RAG", " 是检索增强生成。"]);
   });
 
+  it("returns the server turn id from streaming session and done events", async () => {
+    const sessions: Array<{ sessionId: string; turnId?: string }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sseResponse([
+          'event: session\ndata: {"session_id":"session-turn","turn_id":"turn_abc"}\n\n',
+          'event: token\ndata: {"text":"ok"}\n\n',
+          'event: done\ndata: {"session_id":"session-turn","turn_id":"turn_abc","reply":"ok"}\n\n'
+        ])
+      )
+    );
+
+    const response = await sendChatStream(
+      "turn-aware",
+      [],
+      { ragEnabled: false, chatSettings, ragSettings },
+      { onSession: (sessionId, meta) => sessions.push({ sessionId, turnId: meta?.turnId }) }
+    );
+
+    expect(response.session_id).toBe("session-turn");
+    expect(response.turn_id).toBe("turn_abc");
+    expect(sessions).toEqual([{ sessionId: "session-turn", turnId: "turn_abc" }]);
+  });
+
   it("sends scene and conversation instruction in the chat payload", async () => {
     const fetchMock = vi.fn(async () =>
       sseResponse([

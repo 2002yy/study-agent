@@ -759,6 +759,7 @@ def test_chat_endpoint_builds_reply_and_logs_session(monkeypatch):
     assert response.status_code == 200
     data = response.json()
     assert data["reply"] == "API reply"
+    assert data["turn_id"].startswith("turn_")
     assert data["route"]["role"] == "march7"
     assert data["rag"]["status"] == "skipped"
     assert captured["kwargs"]["task_name"] == "single_chat"
@@ -824,12 +825,15 @@ def test_chat_stream_endpoint_emits_sse_and_logs(monkeypatch):
     assert response.headers["content-type"].startswith("text/event-stream")
     body = response.text
     assert "event: route" in body
+    assert "event: session" in body
+    assert '"turn_id": "turn_' in body
     assert "event: rag" in body
     assert body.count("event: token") == 2
     assert 'data: {"text": "Hello"}' in body
     assert "event: usage" in body
     assert "event: done" in body
     assert logged["session_id"] == "stream-session"
+    assert logged["turn_id"].startswith("turn_")
     assert logged["agent_reply"] == "Hello stream"
     assert logged["route_info"]["streamed"] is True
 
