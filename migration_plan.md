@@ -460,3 +460,13 @@ POST /sessions/{id}/restore
 - The React stream recovery state stores the server `turn_id`; "continue generation" reuses that ID instead of creating a client-only ID or sending the question text as `continuation_of_turn_id`.
 - Partial `commitTurn` calls now include the current `turn_id`, allowing the later continuation to merge into the same session entry.
 - Remaining Batch 5 work: move the full turn lifecycle into the runtime repository/SQLite (`pending`, `streaming`, `interrupted`, `completed`) and simplify frontend recovery once the backend owns partial-turn persistence.
+
+## Implementation note 2026-06-19: continuation persistence bridge
+
+- Continuation output now appends to the stored partial reply instead of replacing it with the suffix.
+- Partial commits are idempotent by `turn_id` and replace the existing partial snapshot rather than creating duplicate entries.
+- Current and archived `session_turn` snapshots now retain `turn_id`, `status`, and `parent_turn_id`.
+- Updating a previously flushed turn marks the session dirty and rewrites the current Markdown snapshot on the next flush.
+- A missing partial entry can be reconstructed from `partial_reply + continuation_suffix`.
+- Partial commit failures are surfaced in the React operation error instead of being silently ignored.
+- This is a correctness bridge for the legacy session logger. SQLite is still not the production source of truth; the next slice must introduce `ChatService` and switch Chat/Session reads and writes together.

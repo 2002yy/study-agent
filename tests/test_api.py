@@ -1044,6 +1044,47 @@ def test_create_new_session_returns_default_settings():
     assert "selected_role" in data["settings"]
 
 
+def test_commit_turn_upserts_partial_reply_by_turn_id():
+    from src import session_logger
+
+    session_id = session_logger.init_session()
+    client = TestClient(app)
+    base_payload = {
+        "session_id": session_id,
+        "user_input": "question",
+        "role": "nahida",
+        "mode": "normal",
+        "model": "flash",
+        "turn_id": "turn_partial",
+    }
+
+    first = client.post(
+        f"/sessions/{session_id}/commit-turn",
+        json={**base_payload, "agent_reply": "partial"},
+    )
+    second = client.post(
+        f"/sessions/{session_id}/commit-turn",
+        json={**base_payload, "agent_reply": "partial plus more"},
+    )
+    duplicate = client.post(
+        f"/sessions/{session_id}/commit-turn",
+        json={**base_payload, "agent_reply": "partial plus more"},
+    )
+
+    try:
+        entries = session_logger.get_session_entries(session_id)
+        assert first.status_code == 200
+        assert first.json()["committed"] is True
+        assert second.json()["committed"] is True
+        assert duplicate.json()["committed"] is False
+        assert len(entries) == 1
+        assert entries[0]["turn_id"] == "turn_partial"
+        assert entries[0]["agent"] == "partial plus more"
+        assert entries[0]["status"] == "interrupted"
+    finally:
+        session_logger._state.pop(session_id, None)
+
+
 def test_archive_active_session_endpoint(monkeypatch, tmp_path):
     from src import api, session_logger
 

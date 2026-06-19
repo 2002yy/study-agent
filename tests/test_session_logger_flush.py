@@ -71,3 +71,89 @@ def test_save_forces_pending_entries_flush():
     assert session_logger._state[session_id]["entries"] == []
     assert session_logger._state[session_id]["flushed_count"] == 0
     assert not (session_logger.CURRENT_DIR / f"{session_id}.md").exists()
+
+
+def test_continuation_appends_suffix_to_same_turn():
+    session_id = session_logger.init_session()
+    session_logger.log(
+        session_id,
+        role="nahida",
+        mode="normal",
+        model="flash",
+        user_input="question",
+        agent_reply="partial ",
+        turn_id="turn_one",
+        status="interrupted",
+    )
+
+    session_logger.log(
+        session_id,
+        role="nahida",
+        mode="normal",
+        model="flash",
+        user_input="question",
+        agent_reply="suffix",
+        turn_id="turn_one",
+        merge_with_existing=True,
+    )
+
+    entries = session_logger.get_session_entries(session_id)
+    assert len(entries) == 1
+    assert entries[0]["agent"] == "partial suffix"
+    assert entries[0]["messages"][1]["content"] == "partial suffix"
+    assert entries[0]["status"] == "completed"
+
+
+def test_continuation_restores_prefix_when_partial_entry_is_missing():
+    session_id = session_logger.init_session()
+
+    session_logger.log(
+        session_id,
+        role="nahida",
+        mode="normal",
+        model="flash",
+        user_input="question",
+        agent_reply="suffix",
+        turn_id="turn_missing",
+        merge_with_existing=True,
+        continuation_prefix="partial ",
+    )
+
+    entries = session_logger.get_session_entries(session_id)
+    assert len(entries) == 1
+    assert entries[0]["agent"] == "partial suffix"
+
+
+def test_updating_flushed_turn_rewrites_snapshot_with_turn_metadata():
+    session_id = session_logger.init_session()
+    session_logger.log(
+        session_id,
+        role="nahida",
+        mode="normal",
+        model="flash",
+        user_input="question",
+        agent_reply="partial ",
+        turn_id="turn_rewrite",
+        status="interrupted",
+    )
+    assert session_logger.flush_current_session(session_id, force=True) is True
+
+    session_logger.log(
+        session_id,
+        role="nahida",
+        mode="normal",
+        model="flash",
+        user_input="question",
+        agent_reply="suffix",
+        turn_id="turn_rewrite",
+        merge_with_existing=True,
+    )
+    assert session_logger.flush_current_session(session_id) is True
+
+    current_file = session_logger.CURRENT_DIR / f"{session_id}.md"
+    text = current_file.read_text(encoding="utf-8")
+    assert text.count("User: question") == 1
+    assert "Agent: partial suffix" in text
+    assert '"turn_id": "turn_rewrite"' in text
+    assert '"status": "completed"' in text
+    assert '"parent_turn_id": null' in text

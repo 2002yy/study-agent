@@ -1081,8 +1081,11 @@ export default function App() {
             conversationInstruction,
             turnId: activeTurnId || undefined,
           });
-        } catch {
-          // Best-effort; don't surface commit failure to user
+        } catch (commitError) {
+          const commitMessage = commitError instanceof Error ? commitError.message : "未知错误";
+          setOperationError((current) =>
+            [current, `部分回答保存失败：${commitMessage}`].filter(Boolean).join("\n")
+          );
         }
       }
       setSingleChatMessages((current) =>

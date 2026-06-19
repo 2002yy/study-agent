@@ -72,6 +72,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         conversation_instruction=request.conversation_instruction,
         turn_id=turn_id,
         merge_with_existing=bool(request.continuation_of_turn_id),
+        continuation_prefix=request.partial_reply,
     )
     flush_current_session(
         session_id,
@@ -149,6 +150,7 @@ async def chat_stream_endpoint(chat_request: ChatRequest, http_request: Request)
                 conversation_instruction=chat_request.conversation_instruction,
                 turn_id=turn_id,
                 merge_with_existing=bool(chat_request.continuation_of_turn_id),
+                continuation_prefix=chat_request.partial_reply,
             )
             flush_current_session(
                 session_id,
@@ -176,12 +178,21 @@ def commit_turn_endpoint(session_id: str, request: CommitTurnRequest) -> CommitT
     from src.api import get_or_create_session, log
 
     sess = get_or_create_session(session_id)
-    # Only log if no entry exists for this exact input yet (idempotent)
     existing = sess.get("entries", [])
-    already_logged = any(
-        e.get("user") == request.user_input and e.get("agent") == request.agent_reply
-        for e in existing
-    )
+    if request.turn_id:
+        matching_turn = next(
+            (entry for entry in reversed(existing) if entry.get("turn_id") == request.turn_id),
+            None,
+        )
+        already_logged = bool(
+            matching_turn and matching_turn.get("agent") == request.agent_reply
+        )
+    else:
+        already_logged = any(
+            entry.get("user") == request.user_input
+            and entry.get("agent") == request.agent_reply
+            for entry in existing
+        )
     if not already_logged:
         log(
             session_id=session_id,
@@ -195,5 +206,7 @@ def commit_turn_endpoint(session_id: str, request: CommitTurnRequest) -> CommitT
             rag_info=request.rag_info,
             conversation_instruction=request.conversation_instruction,
             turn_id=request.turn_id,
+            replace_existing=bool(request.turn_id),
+            status="interrupted",
         )
     return CommitTurnResponse(session_id=session_id, committed=not already_logged, message="ok" if not already_logged else "already committed")

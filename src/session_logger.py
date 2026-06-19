@@ -35,6 +35,7 @@ def init_session() -> str:
         "entries": [],
         "meta": SessionMeta(),
         "flushed_count": 0,
+        "dirty_from": None,
         "created_at": datetime.now(),
     }
     return sid
@@ -46,6 +47,7 @@ def get_or_create_session(session_id: str) -> dict:
             "entries": [],
             "meta": SessionMeta(),
             "flushed_count": 0,
+            "dirty_from": None,
             "created_at": datetime.now(),
         }
     return _state[session_id]
@@ -100,26 +102,48 @@ def log(
     conversation_instruction: str = "",
     turn_id: str | None = None,
     merge_with_existing: bool = False,
+    replace_existing: bool = False,
+    status: str = "completed",
+    parent_turn_id: str | None = None,
+    continuation_prefix: str = "",
 ) -> None:
     sess = get_or_create_session(session_id)
 
-    # If this is a continuation resolving an earlier partial turn,
-    # find and update the existing entry instead of creating a new one.
-    if merge_with_existing and turn_id:
-        for entry in reversed(sess["entries"]):
+    if turn_id and (merge_with_existing or replace_existing):
+        for index in range(len(sess["entries"]) - 1, -1, -1):
+            entry = sess["entries"][index]
             if entry.get("turn_id") == turn_id:
-                entry["agent"] = agent_reply
-                entry["agent_reply"] = agent_reply
+                updated_reply = (
+                    f"{entry.get('agent', '')}{agent_reply}"
+                    if merge_with_existing
+                    else agent_reply
+                )
+                entry["role"] = role
+                entry["mode"] = mode
+                entry["model"] = model
+                entry["memory"] = memory_enabled
+                entry["agent"] = updated_reply
+                entry["agent_reply"] = updated_reply
+                entry["status"] = status
+                entry["parent_turn_id"] = parent_turn_id
+                entry["settings"] = session_settings or entry.get("settings", {})
+                entry["conversation_instruction"] = conversation_instruction
                 if route_info:
-                    entry["route"] = dict(entry.get("route", {}), is_continuation_resolved=True, **(route_info or {}))
+                    entry["route"] = dict(entry.get("route", {}), **route_info)
+                    if merge_with_existing:
+                        entry["route"]["is_continuation_resolved"] = True
                 if rag_info:
                     entry["rag"] = rag_info
                 entry["messages"] = [
                     {"role": "user", "content": user_input, "avatarRole": "user"},
-                    {"role": "assistant", "content": agent_reply, "avatarRole": role},
+                    {"role": "assistant", "content": updated_reply, "avatarRole": role},
                 ]
+                dirty_from = sess.get("dirty_from")
+                sess["dirty_from"] = index if dirty_from is None else min(dirty_from, index)
                 return
-        # If no matching turn_id found, fall through to append as new entry
+        # Missing legacy entries fall through and create one canonical turn.
+        if merge_with_existing and continuation_prefix:
+            agent_reply = f"{continuation_prefix}{agent_reply}"
 
     messages = [
         {"role": "user", "content": user_input, "avatarRole": "user"},
@@ -135,6 +159,8 @@ def log(
         "settings": session_settings or {},
         "rag": rag_info or {},
         "conversation_instruction": conversation_instruction,
+        "status": status,
+        "parent_turn_id": parent_turn_id,
         "messages": messages,
         "user": user_input,
         "agent": agent_reply,
@@ -175,6 +201,8 @@ def should_flush_current_session(
     force: bool = False,
 ) -> bool:
     sess = get_or_create_session(session_id)
+    if sess.get("dirty_from") is not None:
+        return True
     pending = _pending_entry_count(sess)
     if pending <= 0:
         return False
@@ -195,6 +223,9 @@ def _current_file(session_id: str) -> Path:
 
 def _session_entry_snapshot(entry: dict) -> dict:
     return {
+        "turn_id": entry.get("turn_id"),
+        "status": entry.get("status", "completed"),
+        "parent_turn_id": entry.get("parent_turn_id"),
         "time": entry.get("time", ""),
         "messages": entry.get("messages", []),
         "settings": entry.get("settings", {}),
@@ -216,7 +247,10 @@ def flush_current_session(
         return False
 
     flushed = sess["flushed_count"]
-    if flushed >= len(entries):
+    dirty_from = sess.get("dirty_from")
+    rewrite_current = dirty_from is not None and dirty_from < flushed
+    start_index = 0 if rewrite_current else flushed
+    if start_index >= len(entries):
         return False
     if not should_flush_current_session(
         session_id,
@@ -229,7 +263,7 @@ def flush_current_session(
     _ensure_dir()
     current_file = _current_file(session_id)
     lines = []
-    for entry in entries[flushed:]:
+    for entry in entries[start_index:]:
         lines.append(f"[{entry['time']}] ({entry['role']}/{entry['mode']}/{entry['model']})")
         lines.append(f"User: {entry['user']}")
         lines.append(f"Agent: {entry['agent']}")
@@ -238,7 +272,7 @@ def flush_current_session(
         lines.append("```")
         lines.append("")
     existing = ""
-    if current_file.exists() and flushed > 0:
+    if current_file.exists() and start_index > 0:
         existing = current_file.read_text(encoding="utf-8")
 
     chunk = "\n".join(lines)
@@ -247,6 +281,7 @@ def flush_current_session(
 
     safe_write_text(current_file, existing + chunk)
     sess["flushed_count"] = len(entries)
+    sess["dirty_from"] = None
     return True
 
 
@@ -321,6 +356,7 @@ def save(session_id: str) -> str:
 
     sess["entries"].clear()
     sess["flushed_count"] = 0
+    sess["dirty_from"] = None
     meta.reset()
     try:
         current = _current_file(session_id)
