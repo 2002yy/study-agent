@@ -48,7 +48,7 @@ import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { useChatController } from "./features/chat/chatController";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildWorkspaceState, serializeWorkspaceState, deserializeWorkspaceState, buildContinuationHistory } from "./features/single-chat/chatHistory";
+import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildContinuationHistory } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
@@ -784,62 +784,23 @@ export default function App() {
     const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as {
-          messages?: ChatMessage[];
-          singleChatMessages?: ChatMessage[];
-          sessionId?: string;
-          singleChatSessionId?: string;
-          wechatThreadId?: string;
-          newsRunId?: string;
-          chatSettings?: ChatSettings;
-          ragSettings?: RagSettings;
-          ragEnabled?: boolean;
-          keepCurrentRole?: boolean;
-          conversationInstruction?: string;
-          lastRoute?: Record<string, unknown>;
-          lastRag?: Record<string, unknown>;
-          lastSessionId?: string;
-        };
-        const restoredWorkspace = buildWorkspaceState(parsed);
-        const restoredMessages = parsed.singleChatMessages ?? parsed.messages ?? restoredWorkspace.singleChatMessages;
-        const sanitizedMessages = sanitizeSingleChatMessages(restoredMessages);
-        let restoredLastChat: ChatResponse | null = null;
-        if (restoredWorkspace.wechatThreadId) {
-          setWechatThreadId(restoredWorkspace.wechatThreadId);
+        const parsed = JSON.parse(saved) as Record<string, unknown>;
+        const restoredThreadId = String(parsed.singleChatSessionId ?? parsed.sessionId ?? "");
+        const restoredWechatThreadId = String(parsed.wechatThreadId ?? "");
+        const restoredNewsRunId = String(parsed.newsRunId ?? "");
+        if (restoredWechatThreadId) {
+          setWechatThreadId(restoredWechatThreadId);
         }
-        if (restoredWorkspace.newsRunId) {
-          setNewsRunId(restoredWorkspace.newsRunId);
+        if (restoredNewsRunId) {
+          setNewsRunId(restoredNewsRunId);
         }
-        if (parsed.lastRoute && Object.keys(parsed.lastRoute).length) {
-          const restoredRoute = parsed.lastRoute as ChatResponse["route"];
-          const restoredRag = (parsed.lastRag && Object.keys(parsed.lastRag).length ? parsed.lastRag : createEmptyRag()) as ChatResponse["rag"];
-          const lastAssistant = sanitizeSingleChatMessages(restoredMessages)
-            .filter((m) => m.role === "assistant" && !m.transient)
-            .pop();
-          restoredLastChat = {
-            reply: lastAssistant?.content ?? "",
-            session_id: parsed.lastSessionId ?? restoredWorkspace.singleChatSessionId ?? "restored",
-            route: restoredRoute,
-            rag: restoredRag,
-          };
-        }
-        if (restoredWorkspace.singleChatSessionId) {
-          chatController.transitionSession(
-            restoredWorkspace.singleChatSessionId,
-            sanitizedMessages,
-            restoredLastChat
-          );
-        } else {
-          setSingleChatMessages(sanitizedMessages);
-          setLastChat(restoredLastChat);
-        }
-        if (parsed.chatSettings) {
+        if (parsed.chatSettings && typeof parsed.chatSettings === "object") {
           sessionSettingsRestoredRef.current = true;
-          setChatSettings({ ...CHAT_SETTINGS_DEFAULTS, ...parsed.chatSettings });
+          setChatSettings({ ...CHAT_SETTINGS_DEFAULTS, ...(parsed.chatSettings as ChatSettings) });
         }
-        if (parsed.ragSettings) {
+        if (parsed.ragSettings && typeof parsed.ragSettings === "object") {
           sessionSettingsRestoredRef.current = true;
-          setRagSettings({ ...RAG_SETTINGS_DEFAULTS, ...parsed.ragSettings });
+          setRagSettings({ ...RAG_SETTINGS_DEFAULTS, ...(parsed.ragSettings as RagSettings) });
         }
         if (typeof parsed.ragEnabled === "boolean") {
           sessionSettingsRestoredRef.current = true;
@@ -851,9 +812,50 @@ export default function App() {
         if (typeof parsed.conversationInstruction === "string") {
           setConversationInstruction(parsed.conversationInstruction);
         }
+        if (restoredThreadId) {
+          setSingleChatSessionId(restoredThreadId);
+          loadSessionDetail(restoredThreadId)
+            .then((detail) => {
+              const apiMessages = sanitizeSingleChatMessages(detail.messages);
+              const assistantMsg = apiMessages.filter((m) => m.role === "assistant" && !m.transient).pop();
+              const lastChatFromApi: ChatResponse | null = assistantMsg
+                ? {
+                    reply: assistantMsg.content,
+                    session_id: detail.session_id,
+                    route: detail.route as ChatResponse["route"],
+                    rag: detail.rag as ChatResponse["rag"],
+                  }
+                : null;
+              chatController.transitionSession(detail.session_id, apiMessages, lastChatFromApi);
+            })
+            .catch(() => {
+              const cached = parsed.cachedMessages;
+              if (Array.isArray(cached) && cached.length) {
+                const fallbackMessages = sanitizeSingleChatMessages(cached as ChatMessage[]);
+                chatController.transitionSession(restoredThreadId, fallbackMessages, null);
+              } else {
+                setSingleChatMessages(seedMessages);
+              }
+            });
+        } else {
+          setSingleChatMessages(seedMessages);
+        }
+        if (parsed.lastRoute && typeof parsed.lastRoute === "object") {
+          const restoredRoute = parsed.lastRoute as ChatResponse["route"];
+          const restoredRag = (parsed.lastRag && typeof parsed.lastRag === "object" ? parsed.lastRag : createEmptyRag()) as ChatResponse["rag"];
+          setLastChat({
+            reply: "",
+            session_id: String(parsed.lastSessionId ?? restoredThreadId ?? "restored"),
+            route: restoredRoute,
+            rag: restoredRag,
+          });
+        }
       } catch {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        setSingleChatMessages(seedMessages);
       }
+    } else {
+      setSingleChatMessages(seedMessages);
     }
     void refresh();
   }, []);
@@ -889,8 +891,7 @@ export default function App() {
   }, [snapshot.runtimeSettings]);
 
   useEffect(() => {
-    const payload = serializeWorkspaceState({
-      singleChatMessages,
+    const payload = JSON.stringify({
       singleChatSessionId,
       wechatThreadId,
       newsRunId,
@@ -902,6 +903,7 @@ export default function App() {
       lastRoute: lastChat?.route ?? undefined,
       lastRag: lastChat?.rag ?? undefined,
       lastSessionId: lastChat?.session_id ?? undefined,
+      cachedMessages: singleChatMessages,
     });
     sessionStoragePayloadRef.current = payload;
     const timeout = window.setTimeout(() => {
@@ -1049,11 +1051,12 @@ export default function App() {
             if (typeof done.turn_id === "string") {
               activeTurnId = done.turn_id;
             }
-            if (typeof done.reply === "string") {
-              fullReply = done.reply;
+            const serverReply = done.reply;
+            if (typeof serverReply === "string") {
+              fullReply = serverReply;
               setSingleChatMessages((current) =>
                 current.map((message, index) =>
-                  index === assistantIndex ? { ...message, content: done.reply } : message
+                  index === assistantIndex ? { ...message, content: serverReply } : message
                 )
               );
             }
