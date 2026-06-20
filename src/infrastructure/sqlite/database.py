@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -115,6 +115,28 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON chat_threads(status, updated_at DESC);
         CREATE INDEX idx_chat_turns_operation
             ON chat_turns(operation_id);
+        """,
+    ),
+    (
+        3,
+        """
+        ALTER TABLE chat_threads ADD COLUMN active_operation_id TEXT;
+        ALTER TABLE chat_threads ADD COLUMN active_operation_started_at TEXT;
+        ALTER TABLE chat_threads ADD COLUMN archive_operation_id TEXT;
+        ALTER TABLE chat_threads ADD COLUMN archive_started_at TEXT;
+
+        UPDATE chat_turns
+        SET status = 'interrupted'
+        WHERE status IN ('pending', 'streaming');
+
+        UPDATE chat_threads
+        SET status = 'active'
+        WHERE status = 'archiving';
+
+        CREATE INDEX idx_chat_threads_active_operation
+            ON chat_threads(active_operation_id);
+        CREATE INDEX idx_chat_threads_archive_operation
+            ON chat_threads(archive_operation_id);
         """,
     ),
 )

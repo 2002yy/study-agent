@@ -34,11 +34,16 @@ class SessionMarkdownExporter:
         self,
         thread: ChatThread,
         turns: list[ChatTurn],
+        *,
+        path: Path | None = None,
     ) -> Path:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        path = self.archive_dir / f"{timestamp}_session_{thread.id}_archived.md"
+        path = path or self.archive_path(thread)
         safe_write_text(path, _render_thread(thread, turns, archived=True))
         return path
+
+    def archive_path(self, thread: ChatThread) -> Path:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        return self.archive_dir / f"{timestamp}_session_{thread.id}_archived.md"
 
 
 class LegacySessionImporter:

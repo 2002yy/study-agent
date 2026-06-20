@@ -999,10 +999,15 @@ def test_session_detail_restores_archived_messages(runtime_test_context):
     data = response.json()
     assert data["session_id"] == "restoreme"
     assert data["kind"] == "archived"
-    assert data["messages"] == [
+    assert [
+        {key: message[key] for key in ("role", "content", "avatarRole")}
+        for message in data["messages"]
+    ] == [
         {"role": "user", "content": "旧问题完整内容", "avatarRole": "user"},
         {"role": "assistant", "content": "旧回答完整内容", "avatarRole": "auto"},
     ]
+    assert data["messages"][0]["turnId"] == data["messages"][1]["turnId"]
+    assert data["messages"][0]["turnStatus"] == "completed"
 
 
 def test_current_session_snapshot_restores_full_state_and_avatar(
@@ -1037,10 +1042,15 @@ def test_current_session_snapshot_restores_full_state_and_avatar(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["messages"] == [
+    assert [
+        {key: message[key] for key in ("role", "content", "avatarRole")}
+        for message in data["messages"]
+    ] == [
         {"role": "user", "content": long_user, "avatarRole": "user"},
         {"role": "assistant", "content": long_agent, "avatarRole": "nahida"},
     ]
+    assert data["messages"][0]["turnId"] == data["messages"][1]["turnId"]
+    assert data["messages"][0]["turnStatus"] == "completed"
     assert data["settings"]["contextMode"] == "deep"
     assert data["route"]["mode"] == "苏格拉底"
     assert data["rag"]["result_count"] == 2

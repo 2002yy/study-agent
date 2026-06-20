@@ -10,9 +10,8 @@
 一个用户问题 → 一个 ChatTurn
 中断 + 续写 → 同一 Turn
 ```
-- ✅ 已满足: ChatTurn 是独立实体，SQLite upsert 确保同 turn_id 仅一条记录
-- 验证: `test_chat_turn_lifecycle_updates_the_same_turn`
-- 剩余边界: 无
+- ✅ 已满足: ChatTurn 独立持久化；`chat_threads.active_operation_id` 保证同 Thread 仅一个 active Turn；Turn 终态更新按 `operation_id + streaming status` compare-and-set
+- 验证: `test_chat_turn_lifecycle_updates_the_same_turn`、`test_chat_service_allows_only_one_active_turn_per_thread`、`test_stale_operation_cannot_overwrite_continuation_owner`
 
 ### C2 — Turn 状态机
 ```
@@ -42,10 +41,10 @@ session event → route event → rag event → token* → done
 
 ### C5 — 完成 Turn 的 ID 不可变
 ```
-- ✅ 已满足: continuation target 必须存在、同 Thread、状态可续写，且 `turn_id` 必须与 target 一致
 Turn 完成后 turn_id 不可修改
 任何后续请求引用已完成 Turn 时必须校验
 ```
+- ✅ 已满足: continuation target 必须存在、同 Thread、状态可续写，且 `turn_id` 必须与 target 一致
 
 ## 2. Session 不变量
 
@@ -62,7 +61,8 @@ Archived Session 拒绝任何写入
 包括: log(), commitTurn(), flush_current_session()
 ```
 - ✅ 已满足: 归档先原子切换为 `archiving` 锁住写入，再导出不可变 Turn 快照，最后进入 `archived`
-- 验证: `test_archived_chat_thread_rejects_new_turns`、`test_archiving_chat_thread_rejects_turn_updates`
+- ✅ 已满足: 归档带 owner、started_at 和预留 export_path；超时恢复会按 archive 文件是否存在完成或回滚状态
+- 验证: `test_archived_chat_thread_rejects_new_turns`、`test_archive_owner_rejects_concurrent_archive_and_recovers_stale_lock`
 
 ### S3 — 切换 Session 原子替换
 ```
@@ -90,9 +90,10 @@ Session.settings_snapshot 必须包含:
 ### A1 — Scope 互斥
 ```
 一个 OperationScope 同时最多一个 active operation
-开始新 operation → 取消同 scope 旧 operation
+开始新 operation → invalidate 同 scope 旧 operation
+用户停止 → abort I/O，但保留 operation identity 直到 catch/finally 收尾
 ```
-- ✅ 已满足: `operationRegistry` 按 scope 管理；`start(scope)` 自动 cancel 同 scope 旧 operation + abort 旧 controller
+- ✅ 已满足: `abort(scope)` 与 `invalidate(scope)` 语义分离；主动 stop 可生成 recovery，替换操作不会被旧 finally 清 busy
 - 验证: `operationRegistry.test.ts`
 
 ### A2 — Scope 隔离
@@ -131,7 +132,7 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 每个 operation 结束 (finally):
   1. 如果当前 controller ref 仍指向此 controller → 置 null
 ```
-- ✅ 已满足: `operationRegistry.start(scope)` 在创建新 controller 前自动 abort 同 scope 旧 controller
+- ✅ 已满足: `operationRegistry.start(scope)` invalidate 同 scope 旧操作；只有 `isOwned()` 的 operation 可以执行 settlement 和清 busy
 - 验证: `operationRegistry.test.ts`
 
 ## 4. Memory 不变量
@@ -233,8 +234,8 @@ NewsRun 可以关联 GroupThread（discuss 后），但不创建 ChatThread
 flush → 要么完整写入 current 文件，要么完全不写
 save → 要么完整写入 archive 文件，要么完全不写
 ```
-- ✅ 已满足: `safe_write_text` 提供文件原子写；归档失败会删除未提交 archive、恢复 Thread 为 `active`，并保留 current 镜像
-- 验证: `test_archive_export_failure_restores_active_thread_and_current_mirror`
+- ✅ 已满足: `safe_write_text` 提供文件原子写；DB 提交前失败会回滚，DB 进入 archived 后 current 镜像删除仅 best-effort，不会回删正式 archive
+- 验证: `test_archive_export_failure_restores_active_thread_and_current_mirror`、`test_current_mirror_cleanup_failure_keeps_committed_archive`
 
 ### P3 — 无静默失败
 ```
@@ -243,7 +244,7 @@ save → 要么完整写入 archive 文件，要么完全不写
   2. 返回错误
   3. 不丢失用户数据
 ```
-- ✅ 已满足: 服务端 `commit_turn_endpoint` 返回明确 400/409 错误；前端 catch 块显示错误
+- ✅ 已满足: 服务端 `commit_turn_endpoint` 返回明确 400/409 错误；新建 Session 的 load/archive 失败会停止流程并显示错误，不再以 legacy flush 静默兜底
 - 验证: `test_session_service.py` 测试 commit 路径
 
 ### P4 — Migration 可恢复且并发安全
@@ -260,6 +261,13 @@ App → ChatController.send/stop/continue/retry/restore/startNew/archive
 ```
 - ✅ 已满足: `App.tsx` 仅转发 Chat UI 事件；SSE 合并、Turn partial、Operation 和 Session 命令由 ChatController 拥有
 - 验证: `chatControllerBoundary.test.ts`
+
+### P6 — Retry Prompt 一致
+```
+刷新前 retry history = 刷新后 retry history
+```
+- ✅ 已满足: Session 恢复消息携带 `turnId/turnStatus/parentTurnId`，retry 按结构化 Turn ID 删除旧问题与 partial，不依赖 transient
+- 验证: `buildRetryHistory` 单元测试
 
 ## 8. 当前代码中未解决的不变量违反
 

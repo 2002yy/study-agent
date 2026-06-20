@@ -150,43 +150,51 @@ class ChatService:
             },
         )
         operation_id = new_id("op")
-        base_reply = ""
-        if is_continuation:
-            base_reply = _preferred_partial_reply(
-                existing.assistant_message if existing else "",
-                command.partial_reply,
-            )
-        now = utc_now()
-        if existing is None:
-            pending = ChatTurn(
-                id=turn_id,
-                thread_id=thread.id,
-                user_message=command.user_input,
+        self.repository.acquire_chat_operation(thread.id, operation_id)
+        try:
+            base_reply = ""
+            if is_continuation:
+                base_reply = _preferred_partial_reply(
+                    existing.assistant_message if existing else "",
+                    command.partial_reply,
+                )
+            now = utc_now()
+            if existing is None:
+                pending = ChatTurn(
+                    id=turn_id,
+                    thread_id=thread.id,
+                    user_message=command.user_input,
+                    assistant_message=base_reply,
+                    status="pending",
+                    role=route["role"],
+                    mode=route["mode"],
+                    model=route["model_profile"],
+                    route_snapshot=route,
+                    rag_snapshot=rag,
+                    parent_turn_id=retry_parent.id if retry_parent else None,
+                    operation_id=operation_id,
+                    conversation_instruction=command.conversation_instruction,
+                    created_at=now,
+                    updated_at=now,
+                )
+                self.repository.add_chat_turn(pending)
+            streaming = self.repository.update_chat_turn(
+                turn_id,
                 assistant_message=base_reply,
-                status="pending",
+                status="streaming",
                 role=route["role"],
                 mode=route["mode"],
                 model=route["model_profile"],
                 route_snapshot=route,
                 rag_snapshot=rag,
-                parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
-                conversation_instruction=command.conversation_instruction,
-                created_at=now,
-                updated_at=now,
+                expected_operation_id=(operation_id if existing is None else existing.operation_id),
+                enforce_operation_owner=True,
+                expected_status="pending" if existing is None else "interrupted",
             )
-            self.repository.add_chat_turn(pending)
-        streaming = self.repository.update_chat_turn(
-            turn_id,
-            assistant_message=base_reply,
-            status="streaming",
-            role=route["role"],
-            mode=route["mode"],
-            model=route["model_profile"],
-            route_snapshot=route,
-            rag_snapshot=rag,
-            operation_id=operation_id,
-        )
+        except Exception:
+            self.repository.release_chat_operation(thread.id, operation_id)
+            raise
         if streaming is None:
             raise RuntimeError(f"Chat turn was not created: {turn_id}")
         return PreparedChatTurn(
@@ -213,10 +221,10 @@ class ChatService:
                 ),
                 task_name="single_chat",
             )
-            return self.complete_turn(prepared, suffix).assistant_message
         except Exception:
             self.fail_turn(prepared)
             raise
+        return self.complete_turn(prepared, suffix).assistant_message
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         return self.dependencies.stream_chat(
@@ -257,14 +265,14 @@ class ChatService:
             },
             rag_snapshot=prepared.rag,
             operation_id=prepared.turn.operation_id,
+            expected_operation_id=prepared.turn.operation_id,
+            enforce_operation_owner=True,
+            expected_status="streaming",
+            release_operation=True,
+            supersede_parent_turn_id=prepared.retry_parent_turn_id,
         )
         if updated is None:
             raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
-        if prepared.retry_parent_turn_id:
-            self.repository.update_chat_turn_status(
-                prepared.retry_parent_turn_id,
-                status="superseded",
-            )
         return updated
 
     def interrupt_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
@@ -276,6 +284,10 @@ class ChatService:
             route_snapshot={**prepared.route, "interrupted": True},
             rag_snapshot=prepared.rag,
             operation_id=prepared.turn.operation_id,
+            expected_operation_id=prepared.turn.operation_id,
+            enforce_operation_owner=True,
+            expected_status="streaming",
+            release_operation=True,
         )
         if updated is None:
             raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
@@ -290,6 +302,10 @@ class ChatService:
             route_snapshot={**prepared.route, "failed": True},
             rag_snapshot=prepared.rag,
             operation_id=prepared.turn.operation_id,
+            expected_operation_id=prepared.turn.operation_id,
+            enforce_operation_owner=True,
+            expected_status="streaming",
+            release_operation=True,
         )
         if updated is None:
             raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
@@ -310,7 +326,7 @@ class ChatService:
                 raise ValueError(f"Continuation target does not exist: {target_id}")
             if command.thread_id and command.thread_id != existing.thread_id:
                 raise ValueError(f"Chat turn {target_id} belongs to a different thread")
-            if existing.status not in {"interrupted", "streaming"}:
+            if existing.status != "interrupted":
                 raise ValueError(
                     f"Chat turn cannot be continued from status {existing.status}: {target_id}"
                 )
@@ -367,7 +383,7 @@ class ChatService:
             raise ValueError(
                 f"Chat turn {turn_id} belongs to a different thread"
             )
-        if existing is not None and existing.status == "completed":
+        if existing is not None and existing.status != "interrupted":
             return existing, False
         stored_reply = assistant_message
         if existing and existing.assistant_message:

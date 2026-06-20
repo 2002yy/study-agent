@@ -279,3 +279,82 @@ def test_chat_service_rejects_divergent_partial_instead_of_appending_suffix_twic
     assert stored is not None
     assert stored.assistant_message == "stored partial"
     assert stored.status == "interrupted"
+
+
+def test_chat_service_allows_only_one_active_turn_per_thread(tmp_path):
+    service, repository = _service(tmp_path)
+    first = service.start_turn(
+        ChatCommand(user_input="first", thread_id="chat_single_active")
+    )
+
+    with pytest.raises(ValueError, match="active operation"):
+        service.start_turn(
+            ChatCommand(user_input="second", thread_id="chat_single_active")
+        )
+
+    service.interrupt_turn(first, "partial")
+    second = service.start_turn(
+        ChatCommand(user_input="second", thread_id="chat_single_active")
+    )
+    service.complete_turn(second, "answer")
+
+    assert [turn.status for turn in repository.list_chat_turns("chat_single_active")] == [
+        "interrupted",
+        "completed",
+    ]
+
+
+def test_stale_operation_cannot_overwrite_continuation_owner(tmp_path):
+    service, repository = _service(tmp_path)
+    first = service.start_turn(
+        ChatCommand(user_input="question", thread_id="chat_cas")
+    )
+    service.interrupt_turn(first, "partial")
+    continuation = service.start_turn(
+        ChatCommand(
+            user_input="question",
+            thread_id="chat_cas",
+            continuation_of_turn_id=first.turn.id,
+            partial_reply="partial",
+        )
+    )
+
+    with pytest.raises(ValueError, match="ownership lost"):
+        service.complete_turn(first, "stale suffix")
+
+    completed = service.complete_turn(continuation, " fresh suffix")
+    assert completed.assistant_message == "partial fresh suffix"
+    assert repository.get_chat_thread("chat_cas").active_operation_id is None
+
+
+def test_partial_commit_cannot_revive_superseded_turn(tmp_path):
+    service, repository = _service(tmp_path)
+    first = service.start_turn(
+        ChatCommand(user_input="question", thread_id="chat_terminal_partial")
+    )
+    service.interrupt_turn(first, "old partial")
+    retry = service.start_turn(
+        ChatCommand(
+            user_input="question",
+            thread_id="chat_terminal_partial",
+            retry_of_turn_id=first.turn.id,
+        )
+    )
+    service.complete_turn(retry, "replacement")
+
+    stored, changed = service.commit_partial_turn(
+        thread_id="chat_terminal_partial",
+        turn_id=first.turn.id,
+        user_input="question",
+        assistant_message="late partial",
+        role="nahida",
+        mode="普通",
+        model="flash",
+        route_snapshot={},
+        rag_snapshot={},
+        conversation_instruction="",
+    )
+
+    assert changed is False
+    assert stored.status == "superseded"
+    assert repository.get_chat_turn(first.turn.id).status == "superseded"

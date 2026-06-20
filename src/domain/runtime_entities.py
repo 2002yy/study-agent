@@ -25,6 +25,10 @@ class ChatThread:
     updated_at: str = field(default_factory=utc_now)
     archived_at: str | None = None
     export_path: str = ""
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    archive_operation_id: str | None = None
+    archive_started_at: str | None = None
     version: int = 1
 
 

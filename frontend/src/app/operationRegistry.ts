@@ -38,13 +38,13 @@ export class OperationRegistry {
   private operations = new Map<string, OperationState>();
   private scopeGenerations = new Map<OperationScope, number>();
 
-  /** Start a new operation and cancel the previous operation in the same scope. */
+  /** Start a new operation and invalidate the previous operation in the same scope. */
   start(scope: OperationScope, ownerId?: string): {
     operationId: string;
     controller: AbortController;
     generationId: number;
   } {
-    this.cancel(scope);
+    this.invalidate(scope);
 
     const gen = (this.scopeGenerations.get(scope) ?? 0) + 1;
     this.scopeGenerations.set(scope, gen);
@@ -65,8 +65,22 @@ export class OperationRegistry {
     return { operationId: id, controller, generationId: gen };
   }
 
-  /** Cancel running operations in one scope. */
-  cancel(scope: OperationScope): void {
+  /** User-requested stop: abort I/O but retain identity so its catch/finally can settle. */
+  abort(scope: OperationScope): void {
+    for (const op of this.operations.values()) {
+      if (op.scope === scope && op.status === "running") {
+        op.status = "cancelling";
+        try {
+          op.controller.abort();
+        } catch {
+          // controller already aborted
+        }
+      }
+    }
+  }
+
+  /** Invalidate stale work during replacement or workspace transitions. */
+  invalidate(scope: OperationScope): void {
     const gen = (this.scopeGenerations.get(scope) ?? 0) + 1;
     this.scopeGenerations.set(scope, gen);
 
@@ -86,8 +100,13 @@ export class OperationRegistry {
   /** Cancel all running operations, used by workspace/session transitions. */
   cancelAll(): void {
     for (const scope of this.scopeGenerations.keys()) {
-      this.cancel(scope);
+      this.invalidate(scope);
     }
+  }
+
+  /** Backward-compatible hard cancellation for non-chat callers. */
+  cancel(scope: OperationScope): void {
+    this.invalidate(scope);
   }
 
   /** Return true only while the operation is the current running operation. */
@@ -97,6 +116,17 @@ export class OperationRegistry {
     return (
       op.generationId === generationId &&
       op.status === "running" &&
+      (ownerId === undefined || op.ownerId === ownerId)
+    );
+  }
+
+  /** True while a running or user-aborted operation still owns its settlement path. */
+  isOwned(operationId: string, generationId: number, ownerId?: string): boolean {
+    const op = this.operations.get(operationId);
+    if (!op) return false;
+    return (
+      op.generationId === generationId &&
+      (op.status === "running" || op.status === "cancelling") &&
       (ownerId === undefined || op.ownerId === ownerId)
     );
   }

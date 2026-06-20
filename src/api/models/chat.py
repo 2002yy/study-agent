@@ -12,6 +12,9 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     avatarRole: str | None = None
+    turnId: str | None = None
+    turnStatus: str | None = None
+    parentTurnId: str | None = None
 
 
 class ChatRequest(BaseModel):

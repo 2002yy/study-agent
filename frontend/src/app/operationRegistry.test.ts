@@ -47,4 +47,25 @@ describe("OperationRegistry", () => {
     expect(registry.isCurrent(operation.operationId, operation.generationId, "chat-a")).toBe(true);
     expect(registry.isCurrent(operation.operationId, operation.generationId, "chat-b")).toBe(false);
   });
+
+  it("preserves ownership for user abort settlement", () => {
+    const registry = new OperationRegistry();
+    const operation = registry.start("chat", "chat-a");
+
+    registry.abort("chat");
+
+    expect(operation.controller.signal.aborted).toBe(true);
+    expect(registry.isCurrent(operation.operationId, operation.generationId, "chat-a")).toBe(false);
+    expect(registry.isOwned(operation.operationId, operation.generationId, "chat-a")).toBe(true);
+    expect(registry.size).toBe(1);
+  });
+
+  it("invalidates old settlement when a replacement starts", () => {
+    const registry = new OperationRegistry();
+    const first = registry.start("chat", "chat-a");
+    const second = registry.start("chat", "chat-a");
+
+    expect(registry.isOwned(first.operationId, first.generationId, "chat-a")).toBe(false);
+    expect(registry.isCurrent(second.operationId, second.generationId, "chat-a")).toBe(true);
+  });
 });

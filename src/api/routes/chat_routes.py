@@ -80,13 +80,16 @@ async def chat_stream_endpoint(
                 },
             )
         except _ClientDisconnected:
-            service.interrupt_turn(prepared, "".join(reply_parts))
+            with suppress(ValueError):
+                service.interrupt_turn(prepared, "".join(reply_parts))
             return
         except asyncio.CancelledError:
-            service.interrupt_turn(prepared, "".join(reply_parts))
+            with suppress(ValueError):
+                service.interrupt_turn(prepared, "".join(reply_parts))
             raise
         except Exception as exc:
-            service.interrupt_turn(prepared, "".join(reply_parts))
+            with suppress(ValueError):
+                service.interrupt_turn(prepared, "".join(reply_parts))
             yield sse_event(
                 "error",
                 {"message": str(exc), "error_type": type(exc).__name__},
@@ -96,7 +99,8 @@ async def chat_stream_endpoint(
                 await stream.aclose()
             current = service.repository.get_chat_turn(prepared.turn.id)
             if current is not None and current.status == "streaming":
-                service.interrupt_turn(prepared, "".join(reply_parts))
+                with suppress(ValueError):
+                    service.interrupt_turn(prepared, "".join(reply_parts))
 
     return StreamingResponse(
         events(),

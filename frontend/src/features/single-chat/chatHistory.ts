@@ -124,3 +124,28 @@ export function tailInterruptedTurn<T extends RestoredTurn>(turns: T[] | undefin
   const latest = turns?.length ? turns[turns.length - 1] : undefined;
   return latest?.status === "interrupted" ? latest : undefined;
 }
+
+export function buildRetryHistory(
+  messages: ChatMessage[],
+  recovery: { question: string; turnId?: string | null }
+): ChatMessage[] {
+  return messages.filter((message, index, allMessages) => {
+    if (recovery.turnId && message.turnId) {
+      return message.turnId !== recovery.turnId;
+    }
+    const nextMessage = allMessages[index + 1];
+    const previousMessage = allMessages[index - 1];
+    const isInterruptedUser =
+      message.role === "user" &&
+      message.transient &&
+      message.content === recovery.question &&
+      nextMessage?.role === "assistant" &&
+      nextMessage.transient;
+    const isInterruptedAssistant =
+      message.role === "assistant" &&
+      message.transient &&
+      previousMessage?.role === "user" &&
+      previousMessage.content === recovery.question;
+    return !isInterruptedUser && !isInterruptedAssistant;
+  });
+}

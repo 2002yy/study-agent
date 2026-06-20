@@ -19,7 +19,6 @@ describe("chat controller ownership boundary", () => {
       "loadSessionDetail",
       "archiveSession",
       "createNewSession",
-      "flushSession",
     ]) {
       const invocation = new RegExp(`\\b${command}\\s*\\(`);
       expect(appSource).not.toMatch(invocation);

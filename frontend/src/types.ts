@@ -62,6 +62,9 @@ export type ChatMessage = {
   content: string;
   avatarRole?: string;
   transient?: boolean;
+  turnId?: string;
+  turnStatus?: string;
+  parentTurnId?: string | null;
 };
 
 export type ChatSettings = {

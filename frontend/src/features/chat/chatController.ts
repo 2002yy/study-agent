@@ -3,7 +3,6 @@ import {
   archiveSession,
   commitTurn,
   createNewSession,
-  flushSession,
   loadSessionDetail,
   sendChatStream,
 } from "../../api";
@@ -19,6 +18,7 @@ import type {
 } from "../../types";
 import {
   buildContinuationHistory,
+  buildRetryHistory,
   sanitizeSingleChatMessages,
   seedMessages,
   tailInterruptedTurn,
@@ -128,6 +128,8 @@ export function useChatController(options: ControllerOptions) {
     );
     const isCurrent = () =>
       operationRegistry.isCurrent(operationId, generationId, operationOwner);
+    const isOwned = () =>
+      operationRegistry.isOwned(operationId, generationId, operationOwner);
     const isContinuation = Boolean(extraOpts.continuationOfTurnId);
     const nextMessages: ChatMessage[] = isContinuation
       ? [...historyBase]
@@ -179,6 +181,15 @@ export function useChatController(options: ControllerOptions) {
             activeSessionId = sessionId;
             activeTurnId = meta?.turnId ?? activeTurnId;
             setThreadId(sessionId);
+            if (activeTurnId) {
+              setMessages((current) =>
+                current.map((message, index) =>
+                  index === userIndex || index === assistantIndex
+                    ? { ...message, turnId: activeTurnId, turnStatus: "streaming" }
+                    : message
+                )
+              );
+            }
           },
           onRoute: (route) => {
             if (!isCurrent()) return;
@@ -230,7 +241,11 @@ export function useChatController(options: ControllerOptions) {
               fullReply = done.reply;
               setMessages((current) =>
                 current.map((message, index) =>
-                  index === assistantIndex ? { ...message, content: done.reply as string } : message
+                  index === assistantIndex
+                    ? { ...message, content: done.reply as string, turnStatus: "completed" }
+                    : index === userIndex
+                      ? { ...message, turnStatus: "completed" }
+                      : message
                 )
               );
             }
@@ -259,7 +274,7 @@ export function useChatController(options: ControllerOptions) {
       );
       await options.refresh();
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!isOwned()) return;
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       const message = isAbort
         ? "已停止生成"
@@ -317,42 +332,35 @@ export function useChatController(options: ControllerOptions) {
       setMessages((current) =>
         current.map((item, index) =>
           index === userIndex
-            ? { ...item, transient: true }
+            ? {
+                ...item,
+                transient: true,
+                turnId: activeTurnId || item.turnId,
+                turnStatus: "interrupted",
+              }
             : index === assistantIndex
               ? {
                   ...item,
                   avatarRole: item.avatarRole ?? "auto",
                   content: preserved,
                   transient: true,
+                  turnId: activeTurnId || item.turnId,
+                  turnStatus: "interrupted",
                 }
               : item
         )
       );
     } finally {
+      const ownsSettlement = isOwned();
       operationRegistry.complete(operationId);
-      setIsSending(false);
+      if (ownsSettlement) setIsSending(false);
     }
   };
 
   const retry = async () => {
     const recovery = state.streamRecovery;
     if (!recovery || isSending) return;
-    const trimmedHistory = state.chatMessages.filter((message, index, messages) => {
-      const nextMessage = messages[index + 1];
-      const previousMessage = messages[index - 1];
-      const isInterruptedUser =
-        message.role === "user" &&
-        message.transient &&
-        message.content === recovery.question &&
-        nextMessage?.role === "assistant" &&
-        nextMessage.transient;
-      const isInterruptedAssistant =
-        message.role === "assistant" &&
-        message.transient &&
-        previousMessage?.role === "user" &&
-        previousMessage.content === recovery.question;
-      return !isInterruptedUser && !isInterruptedAssistant;
-    });
+    const trimmedHistory = buildRetryHistory(state.chatMessages, recovery);
     await send(recovery.question, trimmedHistory, {
       retryOfTurnId: recovery.turnId ?? undefined,
     });
@@ -517,21 +525,13 @@ export function useChatController(options: ControllerOptions) {
     cancelWorkspaceRuns();
     try {
       if (state.activeChatThreadId) {
-        try {
-          const detail = await loadSessionDetail(state.activeChatThreadId);
-          if (
-            detail.messages.some(
-              (message) => message.role === "user" || message.role === "assistant"
-            )
-          ) {
-            await archiveSession(state.activeChatThreadId);
-          }
-        } catch {
-          try {
-            await flushSession(state.activeChatThreadId);
-          } catch {
-            // A new session remains available even if the compatibility mirror fails.
-          }
+        const detail = await loadSessionDetail(state.activeChatThreadId);
+        if (
+          detail.messages.some(
+            (message) => message.role === "user" || message.role === "assistant"
+          )
+        ) {
+          await archiveSession(state.activeChatThreadId);
         }
       }
       const created = await createNewSession();
@@ -602,7 +602,7 @@ export function useChatController(options: ControllerOptions) {
     transitionSession,
     applySessionDetail,
     send,
-    stop: () => operationRegistry.cancel("chat"),
+    stop: () => operationRegistry.abort("chat"),
     retry,
     continueInterrupted,
     copyInterrupted,

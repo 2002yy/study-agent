@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildContinuationHistory,
+  buildRetryHistory,
   buildWorkspaceState,
   sanitizeSingleChatMessages,
   seedMessages,
@@ -117,5 +118,20 @@ describe("tailInterruptedTurn", () => {
     ];
 
     expect(tailInterruptedTurn(turns)?.turn_id).toBe("retry");
+  });
+});
+
+describe("buildRetryHistory", () => {
+  it("removes a restored interrupted turn using structured turn metadata", () => {
+    const messages: ChatMessage[] = [
+      { role: "user", content: "older", turnId: "turn-old", turnStatus: "completed" },
+      { role: "assistant", content: "older answer", turnId: "turn-old", turnStatus: "completed" },
+      { role: "user", content: "question", turnId: "turn-retry", turnStatus: "interrupted" },
+      { role: "assistant", content: "partial", turnId: "turn-retry", turnStatus: "interrupted" },
+    ];
+
+    expect(
+      buildRetryHistory(messages, { question: "question", turnId: "turn-retry" })
+    ).toEqual(messages.slice(0, 2));
   });
 });

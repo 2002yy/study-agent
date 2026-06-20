@@ -54,8 +54,22 @@ def test_active_unflushed_thread_is_listed_and_restored_from_sqlite(tmp_path):
     assert rows[0]["path"] == ""
     assert detail is not None
     assert detail["messages"] == [
-        {"role": "user", "content": "question", "avatarRole": "user"},
-        {"role": "assistant", "content": "answer", "avatarRole": "nahida"},
+        {
+            "role": "user",
+            "content": "question",
+            "avatarRole": "user",
+            "turnId": "turn_restore",
+            "turnStatus": "completed",
+            "parentTurnId": None,
+        },
+        {
+            "role": "assistant",
+            "content": "answer",
+            "avatarRole": "nahida",
+            "turnId": "turn_restore",
+            "turnStatus": "completed",
+            "parentTurnId": None,
+        },
     ]
     assert detail["turns"][0]["turn_id"] == "turn_restore"
     assert detail["settings"]["contextMode"] == "deep"
@@ -189,17 +203,52 @@ def test_archive_export_failure_restores_active_thread_and_current_mirror(tmp_pa
 def test_archive_rejects_active_turn_and_releases_archive_lock(tmp_path):
     service, repository = _service(tmp_path)
     thread = service.create_session({})
+    repository.acquire_chat_operation(thread.id, "chat-op")
     repository.add_chat_turn(
         ChatTurn(
             thread_id=thread.id,
             user_message="question",
             status="streaming",
+            operation_id="chat-op",
         )
     )
 
-    with pytest.raises(ValueError, match="active turn"):
+    with pytest.raises(ValueError, match="active operation"):
         service.archive_session(thread.id)
 
     restored = repository.get_chat_thread(thread.id)
     assert restored is not None
     assert restored.status == "active"
+
+
+def test_current_mirror_cleanup_failure_keeps_committed_archive(tmp_path, monkeypatch):
+    service, repository = _service(tmp_path)
+    thread = service.create_session({})
+    repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            assistant_message="answer",
+            status="completed",
+        )
+    )
+    current_path = service.flush_session(thread.id)
+    assert current_path is not None
+    original_unlink = Path.unlink
+
+    def fail_current_unlink(path, *args, **kwargs):
+        if path == current_path:
+            raise PermissionError("current mirror is busy")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_current_unlink)
+
+    archived = service.archive_session(thread.id)
+
+    assert archived is not None
+    assert archived.status == "archived"
+    assert Path(archived.export_path).is_file()
+    assert current_path.is_file()
+    stored = repository.get_chat_thread(thread.id)
+    assert stored is not None
+    assert stored.export_path == archived.export_path

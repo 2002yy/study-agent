@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.domain.runtime_entities import ChatThread
+from src.domain.runtime_entities import ChatThread, new_id
 from src.infrastructure.markdown.session_archive import (
     LegacySessionImporter,
     SessionMarkdownExporter,
@@ -43,7 +44,14 @@ class SessionService:
         messages: list[dict[str, str]] = []
         for turn in turns:
             messages.append(
-                {"role": "user", "content": turn.user_message, "avatarRole": "user"}
+                {
+                    "role": "user",
+                    "content": turn.user_message,
+                    "avatarRole": "user",
+                    "turnId": turn.id,
+                    "turnStatus": turn.status,
+                    "parentTurnId": turn.parent_turn_id,
+                }
             )
             if turn.assistant_message:
                 messages.append(
@@ -51,6 +59,9 @@ class SessionService:
                         "role": "assistant",
                         "content": turn.assistant_message,
                         "avatarRole": turn.role or "auto",
+                        "turnId": turn.id,
+                        "turnStatus": turn.status,
+                        "parentTurnId": turn.parent_turn_id,
                     }
                 )
         latest = turns[-1] if turns else None
@@ -92,31 +103,59 @@ class SessionService:
             return None
         if thread.status == "archived":
             return thread
-        locked = self.repository.begin_archive_chat_thread(session_id)
+        archive_operation_id = new_id("archive")
+        locked = self.repository.begin_archive_chat_thread(
+            session_id,
+            operation_id=archive_operation_id,
+        )
         if locked.status == "archived":
             return locked
         export_path: Path | None = None
         try:
             turns = self.repository.list_chat_turns(session_id)
             if not turns:
-                self.repository.cancel_archive_chat_thread(session_id)
+                self.repository.cancel_archive_chat_thread(
+                    session_id,
+                    operation_id=archive_operation_id,
+                )
                 return None
             if any(turn.status in {"pending", "streaming"} for turn in turns):
                 raise ValueError("Chat thread has an active turn and cannot be archived")
-            export_path = self.exporter.export_archive(locked, turns)
-            archived = self.repository.finish_archive_chat_thread(
+            export_path = self.exporter.archive_path(locked)
+            self.repository.reserve_archive_path(
                 session_id,
+                operation_id=archive_operation_id,
                 export_path=str(export_path),
             )
-            (self.exporter.current_dir / f"{session_id}.md").unlink(missing_ok=True)
-            return archived
+            export_path = self.exporter.export_archive(locked, turns, path=export_path)
+            archived = self.repository.finish_archive_chat_thread(
+                session_id,
+                operation_id=archive_operation_id,
+                export_path=str(export_path),
+            )
         except Exception:
             if export_path is not None:
                 export_path.unlink(missing_ok=True)
             current = self.repository.get_chat_thread(session_id)
-            if current is not None and current.status == "archiving":
-                self.repository.cancel_archive_chat_thread(session_id)
+            if (
+                current is not None
+                and current.status == "archiving"
+                and current.archive_operation_id == archive_operation_id
+            ):
+                self.repository.cancel_archive_chat_thread(
+                    session_id,
+                    operation_id=archive_operation_id,
+                )
             raise
+        try:
+            (self.exporter.current_dir / f"{session_id}.md").unlink(missing_ok=True)
+        except OSError as exc:
+            logging.getLogger(__name__).warning(
+                "Archived session %s but could not remove current mirror: %s",
+                session_id,
+                exc,
+            )
+        return archived
 
     def flush_session(self, session_id: str) -> Path | None:
         thread = self.repository.get_chat_thread(session_id)

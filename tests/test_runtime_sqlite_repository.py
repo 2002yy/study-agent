@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
@@ -40,7 +41,7 @@ def test_runtime_database_initializes_core_tables(tmp_path):
         "tool_runs",
         "operations",
     } <= tables
-    assert version == "2"
+    assert version == "3"
     assert "runtime_migrations" in tables
 
 
@@ -65,8 +66,15 @@ def test_runtime_database_migrates_existing_v1_database(tmp_path):
             "SELECT value FROM runtime_meta WHERE key = 'schema_version'"
         ).fetchone()[0]
 
-    assert version == "2"
-    assert {"archived_at", "export_path"} <= thread_columns
+    assert version == "3"
+    assert {
+        "archived_at",
+        "export_path",
+        "active_operation_id",
+        "active_operation_started_at",
+        "archive_operation_id",
+        "archive_started_at",
+    } <= thread_columns
     assert {"operation_id", "conversation_instruction"} <= turn_columns
 
 
@@ -110,7 +118,7 @@ def test_migration_failure_rolls_back_and_restart_recovers(tmp_path):
             "SELECT status FROM runtime_migrations WHERE version = 2"
         ).fetchone()[0]
 
-    assert version == "2"
+    assert version == "3"
     assert {"archived_at", "export_path"} <= thread_columns
     assert ledger_status == "completed"
 
@@ -137,14 +145,59 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
             row[1] for row in connection.execute("PRAGMA table_info(chat_threads)")
         ]
 
-    assert version == "2"
-    assert ledger == [(1, "completed"), (2, "completed")]
+    assert version == "3"
+    assert ledger == [(1, "completed"), (2, "completed"), (3, "completed")]
     assert thread_columns.count("archived_at") == 1
+
+
+def test_v3_migration_recovers_unowned_legacy_intermediate_states(tmp_path):
+    db_path = tmp_path / "runtime.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(MIGRATIONS[0][1])
+        connection.executescript(MIGRATIONS[1][1])
+        connection.execute(
+            "INSERT INTO runtime_meta(key, value) VALUES('schema_version', '2')"
+        )
+        connection.execute(
+            """
+            INSERT INTO chat_threads(
+                id, status, settings_snapshot, created_at, updated_at,
+                archived_at, export_path, version
+            ) VALUES ('legacy-thread', 'archiving', '{}', 'now', 'now', NULL, '', 1)
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO chat_turns(
+                id, thread_id, user_message, assistant_message, status,
+                role, mode, model, route_snapshot, rag_snapshot,
+                parent_turn_id, operation_id, conversation_instruction,
+                created_at, updated_at
+            ) VALUES (
+                'legacy-turn', 'legacy-thread', 'question', 'partial', 'streaming',
+                '', '', '', '{}', '{}', NULL, 'old-op', '', 'now', 'now'
+            )
+            """
+        )
+
+    RuntimeDatabase(db_path).initialize()
+
+    with sqlite3.connect(db_path) as connection:
+        thread_status = connection.execute(
+            "SELECT status FROM chat_threads WHERE id = 'legacy-thread'"
+        ).fetchone()[0]
+        turn_status = connection.execute(
+            "SELECT status FROM chat_turns WHERE id = 'legacy-turn'"
+        ).fetchone()[0]
+
+    assert thread_status == "active"
+    assert turn_status == "interrupted"
 
 
 def test_chat_turn_lifecycle_updates_the_same_turn(tmp_path):
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     thread = repository.create_chat_thread(ChatThread(settings_snapshot={"role": "nahida"}))
+    repository.acquire_chat_operation(thread.id, "op_chat_1")
     turn = repository.add_chat_turn(
         ChatTurn(
             thread_id=thread.id,
@@ -164,6 +217,10 @@ def test_chat_turn_lifecycle_updates_the_same_turn(tmp_path):
         turn.id,
         assistant_message="RAG means retrieval augmented generation.",
         status="completed",
+        expected_operation_id="op_chat_1",
+        enforce_operation_owner=True,
+        expected_status="streaming",
+        release_operation=True,
     )
     turns = repository.list_chat_turns(thread.id)
 
@@ -196,18 +253,125 @@ def test_archiving_chat_thread_rejects_turn_updates(tmp_path):
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     thread = repository.create_chat_thread(ChatThread())
     turn = repository.add_chat_turn(
-        ChatTurn(thread_id=thread.id, user_message="question", status="streaming")
+        ChatTurn(thread_id=thread.id, user_message="question", status="completed")
     )
 
-    locked = repository.begin_archive_chat_thread(thread.id)
+    locked = repository.begin_archive_chat_thread(thread.id, operation_id="archive-op")
 
     assert locked.status == "archiving"
-    with pytest.raises(ValueError, match="not writable"):
+    with pytest.raises(ValueError, match="ownership lost"):
         repository.update_chat_turn(
             turn.id,
             assistant_message="late answer",
             status="completed",
         )
+
+
+def test_archive_owner_rejects_concurrent_archive_and_recovers_stale_lock(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    repository = RuntimeRepository(database)
+    thread = repository.create_chat_thread(ChatThread())
+
+    locked = repository.begin_archive_chat_thread(thread.id, operation_id="archive-a")
+    assert locked.archive_operation_id == "archive-a"
+
+    with pytest.raises(ValueError, match="already being archived"):
+        repository.begin_archive_chat_thread(thread.id, operation_id="archive-b")
+
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE chat_threads SET archive_started_at = ? WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", thread.id),
+        )
+
+    recovered_repository = RuntimeRepository(database)
+    recovered = recovered_repository.get_chat_thread(thread.id)
+    assert recovered is not None
+    assert recovered.status == "active"
+    assert recovered.archive_operation_id is None
+
+    committed_path = tmp_path / "committed-archive.md"
+    committed_path.write_text("# complete archive", encoding="utf-8")
+    recovered_repository.begin_archive_chat_thread(
+        thread.id,
+        operation_id="archive-c",
+    )
+    recovered_repository.reserve_archive_path(
+        thread.id,
+        operation_id="archive-c",
+        export_path=str(committed_path),
+    )
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE chat_threads SET archive_started_at = ? WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", thread.id),
+        )
+
+    completed_repository = RuntimeRepository(database)
+    completed = completed_repository.get_chat_thread(thread.id)
+    assert completed is not None
+    assert completed.status == "archived"
+    assert completed.export_path == str(committed_path)
+
+
+def test_archive_rejects_thread_with_active_chat_operation(tmp_path):
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    thread = repository.create_chat_thread(ChatThread())
+    repository.acquire_chat_operation(thread.id, "chat-op")
+
+    with pytest.raises(ValueError, match="active operation"):
+        repository.begin_archive_chat_thread(thread.id, operation_id="archive-op")
+
+
+def test_stale_chat_operation_is_interrupted_and_lease_is_released(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    repository = RuntimeRepository(database)
+    thread = repository.create_chat_thread(ChatThread())
+    repository.acquire_chat_operation(thread.id, "chat-op")
+    turn = repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            status="streaming",
+            operation_id="chat-op",
+        )
+    )
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE chat_threads SET active_operation_started_at = ? WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", thread.id),
+        )
+
+    recovered_repository = RuntimeRepository(database)
+    recovered_thread = recovered_repository.get_chat_thread(thread.id)
+    recovered_turn = recovered_repository.get_chat_turn(turn.id)
+
+    assert recovered_thread is not None
+    assert recovered_thread.active_operation_id is None
+    assert recovered_turn is not None
+    assert recovered_turn.status == "interrupted"
+
+
+def test_concurrent_chat_operation_acquire_has_single_winner(tmp_path):
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    thread = repository.create_chat_thread(ChatThread())
+    barrier = Barrier(2)
+
+    def acquire(operation_id: str) -> str:
+        barrier.wait(timeout=5)
+        try:
+            repository.acquire_chat_operation(thread.id, operation_id)
+            return operation_id
+        except ValueError:
+            return ""
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        winners = list(executor.map(acquire, ["op-a", "op-b"]))
+
+    assert len([winner for winner in winners if winner]) == 1
+    stored = repository.get_chat_thread(thread.id)
+    assert stored is not None
+    assert stored.active_operation_id in {"op-a", "op-b"}
 
 
 def test_news_run_stage_transitions_are_persisted(tmp_path):
