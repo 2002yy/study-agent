@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Literal
+from typing import Any, AsyncIterator, Callable, Iterator, Literal
 
 from dotenv import load_dotenv
 
@@ -15,6 +15,8 @@ ResponseFormat = Literal["json_object"]
 
 _client = None
 _client_signature: tuple[str, str, int] | None = None
+_async_client = None
+_async_client_signature: tuple[str, str, int] | None = None
 
 _SUPPORTED_PROVIDER_PROFILES = {
     "openai",
@@ -97,9 +99,11 @@ def _classify_error(e: Exception) -> str:
 
 
 def reset_client() -> None:
-    global _client, _client_signature
+    global _client, _client_signature, _async_client, _async_client_signature
     _client = None
     _client_signature = None
+    _async_client = None
+    _async_client_signature = None
 
 
 def _normalize_provider_profile(provider_profile: str | None = None) -> str:
@@ -230,6 +234,31 @@ def get_client(provider_profile: str | None = None):
     )
     _client_signature = signature
     return _client
+
+
+def get_async_client(provider_profile: str | None = None):
+    global _async_client, _async_client_signature
+
+    from openai import AsyncOpenAI
+
+    settings = get_provider_settings(provider_profile)
+    signature = (
+        settings.api_key,
+        settings.base_url,
+        settings.max_retries,
+    )
+
+    if _async_client is not None and _async_client_signature == signature:
+        return _async_client
+
+    _async_client = AsyncOpenAI(
+        api_key=settings.api_key,
+        base_url=settings.base_url,
+        timeout=settings.timeout_seconds,
+        max_retries=settings.max_retries,
+    )
+    _async_client_signature = signature
+    return _async_client
 
 
 def get_model_name(
@@ -433,6 +462,59 @@ def stream_chat(
         close = getattr(response, "close", None)
         if callable(close):
             close()
+
+
+async def async_stream_chat(
+    messages: list[dict],
+    temperature: float | None = 0.7,
+    model_profile: ModelProfile | None = None,
+    on_first_token: Callable[[], None] | None = None,
+    max_tokens: int | None = None,
+    timeout: float | None = None,
+    response_format: ResponseFormat | None = None,
+    provider_profile: str | None = None,
+    task_name: str | None = None,
+) -> AsyncIterator[str]:
+    """Stream provider output without blocking the server event loop."""
+
+    if not messages:
+        return
+
+    client = get_async_client(provider_profile=provider_profile)
+    request_kwargs = _build_request_kwargs(
+        messages=messages,
+        temperature=temperature,
+        model_profile=model_profile,
+        provider_profile=provider_profile,
+        task_name=task_name,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        response_format=response_format,
+        stream=True,
+    )
+    try:
+        response = await client.chat.completions.create(**request_kwargs)
+    except Exception as e:
+        raise RuntimeError(_classify_error(e)) from e
+
+    first_token_seen = False
+    try:
+        async for chunk in response:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                if not first_token_seen:
+                    first_token_seen = True
+                    if on_first_token is not None:
+                        on_first_token()
+                yield delta.content
+    except Exception as e:
+        raise RuntimeError(_classify_error(e)) from e
+    finally:
+        close = getattr(response, "close", None)
+        if callable(close):
+            result = close()
+            if hasattr(result, "__await__"):
+                await result
 
 
 def chat(

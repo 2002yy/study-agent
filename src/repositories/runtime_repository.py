@@ -109,6 +109,31 @@ class RuntimeRepository:
         return thread
 
     def archive_chat_thread(self, thread_id: str, *, export_path: str = "") -> ChatThread:
+        self.begin_archive_chat_thread(thread_id)
+        return self.finish_archive_chat_thread(thread_id, export_path=export_path)
+
+    def begin_archive_chat_thread(self, thread_id: str) -> ChatThread:
+        updated_at = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_threads
+                SET status = 'archiving', updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'active'
+                """,
+                (updated_at, thread_id),
+            )
+        if cursor.rowcount != 1:
+            current = self.get_chat_thread(thread_id)
+            if current is not None and current.status in {"archiving", "archived"}:
+                return current
+            raise ValueError(f"Chat thread not found or not writable: {thread_id}")
+        thread = self.get_chat_thread(thread_id)
+        if thread is None:
+            raise ValueError(f"Chat thread not found: {thread_id}")
+        return thread
+
+    def finish_archive_chat_thread(self, thread_id: str, *, export_path: str) -> ChatThread:
         updated_at = utc_now()
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -116,7 +141,7 @@ class RuntimeRepository:
                 UPDATE chat_threads
                 SET status = 'archived', archived_at = ?, export_path = ?,
                     updated_at = ?, version = version + 1
-                WHERE id = ? AND status = 'active'
+                WHERE id = ? AND status = 'archiving'
                 """,
                 (updated_at, export_path, updated_at, thread_id),
             )
@@ -124,7 +149,25 @@ class RuntimeRepository:
             current = self.get_chat_thread(thread_id)
             if current is not None and current.status == "archived":
                 return current
-            raise ValueError(f"Chat thread not found or not writable: {thread_id}")
+            raise ValueError(f"Chat thread is not being archived: {thread_id}")
+        thread = self.get_chat_thread(thread_id)
+        if thread is None:
+            raise ValueError(f"Chat thread not found: {thread_id}")
+        return thread
+
+    def cancel_archive_chat_thread(self, thread_id: str) -> ChatThread:
+        updated_at = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_threads
+                SET status = 'active', updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'archiving'
+                """,
+                (updated_at, thread_id),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError(f"Chat thread is not being archived: {thread_id}")
         thread = self.get_chat_thread(thread_id)
         if thread is None:
             raise ValueError(f"Chat thread not found: {thread_id}")
@@ -240,17 +283,18 @@ class RuntimeRepository:
         current = self.get_chat_turn(turn_id)
         if current is None:
             return None
-        thread = self.get_chat_thread(current.thread_id)
-        if thread is None or thread.status != "active":
-            raise ValueError(f"Chat thread is not writable: {current.thread_id}")
         updated_at = utc_now()
         with self.database.connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE chat_turns
                 SET assistant_message = ?, status = ?, role = ?, mode = ?, model = ?,
                     route_snapshot = ?, rag_snapshot = ?, operation_id = ?, updated_at = ?
-                WHERE id = ?
+                WHERE id = ? AND EXISTS (
+                    SELECT 1 FROM chat_threads
+                    WHERE chat_threads.id = chat_turns.thread_id
+                      AND chat_threads.status = 'active'
+                )
                 """,
                 (
                     assistant_message,
@@ -265,6 +309,8 @@ class RuntimeRepository:
                     turn_id,
                 ),
             )
+            if cursor.rowcount != 1:
+                raise ValueError(f"Chat thread is not writable: {current.thread_id}")
             connection.execute(
                 """
                 UPDATE chat_threads
@@ -274,6 +320,19 @@ class RuntimeRepository:
                 (updated_at, current.thread_id),
             )
         return self.get_chat_turn(turn_id)
+
+    def update_chat_turn_status(self, turn_id: str, *, status: str) -> ChatTurn:
+        current = self.get_chat_turn(turn_id)
+        if current is None:
+            raise ValueError(f"Chat turn not found: {turn_id}")
+        updated = self.update_chat_turn(
+            turn_id,
+            assistant_message=current.assistant_message,
+            status=status,
+        )
+        if updated is None:
+            raise ValueError(f"Chat turn not found: {turn_id}")
+        return updated
 
     def get_chat_turn(self, turn_id: str) -> ChatTurn | None:
         with self.database.connect() as connection:

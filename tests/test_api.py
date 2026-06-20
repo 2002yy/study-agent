@@ -806,6 +806,10 @@ def test_chat_stream_endpoint_emits_sse_and_logs(runtime_test_context):
         def to_dict(self):
             return {"status": self.status, "context": self.context, "result_count": 0}
 
+    async def async_tokens(*args, **kwargs):
+        yield "Hello"
+        yield " stream"
+
     runtime_test_context.override_chat(
         ChatDependencies(
             load_runtime_modes=lambda: RuntimeModes(
@@ -819,6 +823,7 @@ def test_chat_stream_endpoint_emits_sse_and_logs(runtime_test_context):
             build_messages=build_messages,
             chat=lambda *args, **kwargs: "unused",
             stream_chat=lambda *args, **kwargs: iter(["Hello", " stream"]),
+            async_stream_chat=async_tokens,
             chat_max_tokens=chat_max_tokens,
         )
     )

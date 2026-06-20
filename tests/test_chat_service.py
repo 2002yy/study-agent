@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.application.chat_service import ChatCommand, ChatDependencies, ChatService
@@ -187,3 +189,93 @@ def test_chat_service_rejects_cross_thread_turn_reuse(tmp_path):
             )
         )
     assert repository.get_chat_thread("chat-owner-b") is None
+
+
+def test_chat_service_rejects_missing_or_conflicting_continuation_target(tmp_path):
+    service, repository = _service(tmp_path)
+
+    with pytest.raises(ValueError, match="does not exist"):
+        service.start_turn(
+            ChatCommand(
+                user_input="question",
+                thread_id="chat_missing",
+                continuation_of_turn_id="turn_missing",
+            )
+        )
+    assert repository.get_chat_thread("chat_missing") is None
+
+    with pytest.raises(ValueError, match="must match"):
+        service.start_turn(
+            ChatCommand(
+                user_input="question",
+                continuation_of_turn_id="turn_a",
+                turn_id="turn_b",
+            )
+        )
+
+
+def test_chat_service_non_stream_failure_moves_turn_to_failed(tmp_path):
+    service, repository = _service(tmp_path)
+
+    def fail_chat(*args, **kwargs):
+        raise RuntimeError("provider timeout")
+
+    service.dependencies = replace(service.dependencies, chat=fail_chat)
+    prepared = service.start_turn(
+        ChatCommand(user_input="question", thread_id="chat_failure")
+    )
+
+    with pytest.raises(RuntimeError, match="provider timeout"):
+        service.generate(prepared)
+
+    failed = repository.get_chat_turn(prepared.turn.id)
+    assert failed is not None
+    assert failed.status == "failed"
+
+
+def test_chat_service_retry_records_parent_and_supersedes_it_on_success(tmp_path):
+    service, repository = _service(tmp_path)
+    first = service.start_turn(
+        ChatCommand(user_input="question", thread_id="chat_retry")
+    )
+    service.interrupt_turn(first, "partial")
+
+    retry = service.start_turn(
+        ChatCommand(
+            user_input="client copy is ignored",
+            thread_id="chat_retry",
+            retry_of_turn_id=first.turn.id,
+        )
+    )
+    completed = service.complete_turn(retry, "replacement")
+
+    original = repository.get_chat_turn(first.turn.id)
+    assert retry.turn.parent_turn_id == first.turn.id
+    assert retry.turn.user_message == "question"
+    assert completed.status == "completed"
+    assert original is not None
+    assert original.status == "superseded"
+    assert len(repository.list_chat_turns("chat_retry")) == 2
+
+
+def test_chat_service_rejects_divergent_partial_instead_of_appending_suffix_twice(tmp_path):
+    service, repository = _service(tmp_path)
+    prepared = service.start_turn(
+        ChatCommand(user_input="question", thread_id="chat_partial_conflict")
+    )
+    service.interrupt_turn(prepared, "stored partial")
+
+    with pytest.raises(ValueError, match="conflicts"):
+        service.start_turn(
+            ChatCommand(
+                user_input="question",
+                thread_id="chat_partial_conflict",
+                continuation_of_turn_id=prepared.turn.id,
+                partial_reply="suffix only",
+            )
+        )
+
+    stored = repository.get_chat_turn(prepared.turn.id)
+    assert stored is not None
+    assert stored.assistant_message == "stored partial"
+    assert stored.status == "interrupted"

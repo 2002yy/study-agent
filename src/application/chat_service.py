@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Iterator
+from typing import Any, AsyncIterator, Callable, Iterator
 
 from src.context_builder import build_messages
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
-from src.llm_client import chat, stream_chat
+from src.llm_client import async_stream_chat, chat, stream_chat
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import chat_max_tokens
@@ -42,6 +42,7 @@ class ChatCommand:
     rag_min_score: float = 0.01
     web_context: str = ""
     continuation_of_turn_id: str | None = None
+    retry_of_turn_id: str | None = None
     partial_reply: str = ""
     turn_id: str | None = None
 
@@ -56,6 +57,7 @@ class ChatDependencies:
     build_messages: Callable[..., list[dict[str, Any]]] = build_messages
     chat: Callable[..., str] = chat
     stream_chat: Callable[..., Iterator[str]] = stream_chat
+    async_stream_chat: Callable[..., AsyncIterator[str]] = async_stream_chat
     chat_max_tokens: Callable[[str], int] = chat_max_tokens
 
 
@@ -71,6 +73,7 @@ class PreparedChatTurn:
     web_context_used: bool
     is_continuation: bool
     base_reply: str
+    retry_parent_turn_id: str | None
 
 
 class ChatService:
@@ -83,6 +86,7 @@ class ChatService:
         self.dependencies = dependencies or ChatDependencies()
 
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
+        command, existing, retry_parent = self._validate_turn_command(command)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
         route = self.dependencies.route_request(
@@ -131,26 +135,13 @@ class ChatService:
             conversation_instruction=command.conversation_instruction,
         )
         settings = _session_settings(command, context_mode)
-        turn_id = (
-            command.turn_id
-            or command.continuation_of_turn_id
-            or new_id("turn")
-        )
-        existing = self.repository.get_chat_turn(turn_id)
+        turn_id = command.turn_id or command.continuation_of_turn_id or new_id("turn")
         is_continuation = bool(command.continuation_of_turn_id)
         thread_id = command.thread_id or (
             existing.thread_id if existing is not None and is_continuation else ChatThread().id
         )
-        if existing is not None and existing.thread_id != thread_id:
-            raise ValueError(
-                f"Chat turn {turn_id} belongs to a different thread"
-            )
         if existing is not None and not is_continuation:
             raise ValueError(f"Chat turn already exists: {turn_id}")
-        if existing is not None and existing.status not in {"interrupted", "streaming"}:
-            raise ValueError(
-                f"Chat turn cannot be continued from status {existing.status}: {turn_id}"
-            )
         thread = self.repository.ensure_chat_thread(
             thread_id,
             settings_snapshot={
@@ -178,7 +169,7 @@ class ChatService:
                 model=route["model_profile"],
                 route_snapshot=route,
                 rag_snapshot=rag,
-                parent_turn_id=None,
+                parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
                 conversation_instruction=command.conversation_instruction,
                 created_at=now,
@@ -209,18 +200,23 @@ class ChatService:
             web_context_used=bool(command.web_context.strip()),
             is_continuation=is_continuation,
             base_reply=base_reply,
+            retry_parent_turn_id=retry_parent.id if retry_parent else None,
         )
 
     def generate(self, prepared: PreparedChatTurn) -> str:
-        suffix = self.dependencies.chat(
-            prepared.messages,
-            model_profile=prepared.route["model_profile"],
-            max_tokens=self.dependencies.chat_max_tokens(
-                prepared.runtime_modes.performance_mode
-            ),
-            task_name="single_chat",
-        )
-        return self.complete_turn(prepared, suffix).assistant_message
+        try:
+            suffix = self.dependencies.chat(
+                prepared.messages,
+                model_profile=prepared.route["model_profile"],
+                max_tokens=self.dependencies.chat_max_tokens(
+                    prepared.runtime_modes.performance_mode
+                ),
+                task_name="single_chat",
+            )
+            return self.complete_turn(prepared, suffix).assistant_message
+        except Exception:
+            self.fail_turn(prepared)
+            raise
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         return self.dependencies.stream_chat(
@@ -232,6 +228,17 @@ class ChatService:
             task_name="single_chat",
             should_cancel=should_cancel,
         )
+
+    async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
+        async for token in self.dependencies.async_stream_chat(
+            prepared.messages,
+            model_profile=prepared.route["model_profile"],
+            max_tokens=self.dependencies.chat_max_tokens(
+                prepared.runtime_modes.performance_mode
+            ),
+            task_name="single_chat",
+        ):
+            yield token
 
     def complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
@@ -253,6 +260,11 @@ class ChatService:
         )
         if updated is None:
             raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
+        if prepared.retry_parent_turn_id:
+            self.repository.update_chat_turn_status(
+                prepared.retry_parent_turn_id,
+                status="superseded",
+            )
         return updated
 
     def interrupt_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
@@ -268,6 +280,72 @@ class ChatService:
         if updated is None:
             raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
         return updated
+
+    def fail_turn(self, prepared: PreparedChatTurn, suffix: str = "") -> ChatTurn:
+        reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
+        updated = self.repository.update_chat_turn(
+            prepared.turn.id,
+            assistant_message=reply,
+            status="failed",
+            route_snapshot={**prepared.route, "failed": True},
+            rag_snapshot=prepared.rag,
+            operation_id=prepared.turn.operation_id,
+        )
+        if updated is None:
+            raise RuntimeError(f"Chat turn disappeared: {prepared.turn.id}")
+        return updated
+
+    def _validate_turn_command(
+        self,
+        command: ChatCommand,
+    ) -> tuple[ChatCommand, ChatTurn | None, ChatTurn | None]:
+        if command.continuation_of_turn_id and command.retry_of_turn_id:
+            raise ValueError("A chat turn cannot be both a continuation and a retry")
+        if command.continuation_of_turn_id:
+            target_id = command.continuation_of_turn_id
+            if command.turn_id and command.turn_id != target_id:
+                raise ValueError("turn_id must match continuation_of_turn_id")
+            existing = self.repository.get_chat_turn(target_id)
+            if existing is None:
+                raise ValueError(f"Continuation target does not exist: {target_id}")
+            if command.thread_id and command.thread_id != existing.thread_id:
+                raise ValueError(f"Chat turn {target_id} belongs to a different thread")
+            if existing.status not in {"interrupted", "streaming"}:
+                raise ValueError(
+                    f"Chat turn cannot be continued from status {existing.status}: {target_id}"
+                )
+            return (
+                replace(
+                    command,
+                    user_input=existing.user_message,
+                    thread_id=existing.thread_id,
+                    turn_id=target_id,
+                ),
+                existing,
+                None,
+            )
+        retry_parent = None
+        if command.retry_of_turn_id:
+            retry_parent = self.repository.get_chat_turn(command.retry_of_turn_id)
+            if retry_parent is None:
+                raise ValueError(f"Retry target does not exist: {command.retry_of_turn_id}")
+            if command.thread_id and command.thread_id != retry_parent.thread_id:
+                raise ValueError(
+                    f"Chat turn {command.retry_of_turn_id} belongs to a different thread"
+                )
+            if retry_parent.status not in {"interrupted", "failed"}:
+                raise ValueError(
+                    f"Chat turn cannot be retried from status {retry_parent.status}: {retry_parent.id}"
+                )
+            command = replace(
+                command,
+                user_input=retry_parent.user_message,
+                thread_id=retry_parent.thread_id,
+            )
+        existing = self.repository.get_chat_turn(command.turn_id) if command.turn_id else None
+        if existing is not None and command.thread_id and existing.thread_id != command.thread_id:
+            raise ValueError(f"Chat turn {existing.id} belongs to a different thread")
+        return command, existing, retry_parent
 
     def commit_partial_turn(
         self,
@@ -357,7 +435,7 @@ def _preferred_partial_reply(stored: str, supplied: str) -> str:
         return supplied
     if stored.startswith(supplied):
         return stored
-    return f"{stored}{supplied}"
+    raise ValueError("Supplied partial reply conflicts with the stored turn")
 
 
 def _session_settings(command: ChatCommand, context_mode: str) -> dict[str, Any]:

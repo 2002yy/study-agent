@@ -17,11 +17,14 @@
 ### C2 — Turn 状态机
 ```
 pending → streaming → completed
-                   → interrupted
+                   → interrupted / failed
                        → streaming → completed (同一 turn.assistant_message 被更新)
                        → retry → 新 Turn (parent_turn_id = 旧 turn.id)
 ```
-- ✅ 已满足: SQLite upsert 确保同 turn_id 仅一条记录；`test_chat_turn_lifecycle_updates_the_same_turn` 验证
+- ✅ 已满足: 非流式 provider 异常进入 `failed`；续写严格复用原 Turn；重试创建带 `parent_turn_id` 的新 Turn，成功后旧 Turn 进入 `superseded`
+- 验证: `test_chat_service.py` 覆盖失败终态、严格 continuation、重试血缘和 partial 冲突
+- ✅ 已满足: Chat Route 使用 `AsyncOpenAI` 流，并在等待每个 `anext()` 时轮询客户端断线；首 token 前或 partial 后断线都会取消 provider task 并保存 `interrupted`
+- 验证: `test_chat_stream_cancellation.py`
 
 ### C3 — Session ID 先于第一条 token
 ```
@@ -39,6 +42,7 @@ session event → route event → rag event → token* → done
 
 ### C5 — 完成 Turn 的 ID 不可变
 ```
+- ✅ 已满足: continuation target 必须存在、同 Thread、状态可续写，且 `turn_id` 必须与 target 一致
 Turn 完成后 turn_id 不可修改
 任何后续请求引用已完成 Turn 时必须校验
 ```
@@ -57,8 +61,8 @@ Active Session 必须出现在 /sessions 列表中
 Archived Session 拒绝任何写入
 包括: log(), commitTurn(), flush_current_session()
 ```
-- ✅ 已满足: `archive_chat_thread` 设置 `status='archived'`，repository 层 `_require_active_thread` 拒绝写入
-- 验证: `test_archived_chat_thread_rejects_new_turns`
+- ✅ 已满足: 归档先原子切换为 `archiving` 锁住写入，再导出不可变 Turn 快照，最后进入 `archived`
+- 验证: `test_archived_chat_thread_rejects_new_turns`、`test_archiving_chat_thread_rejects_turn_updates`
 
 ### S3 — 切换 Session 原子替换
 ```
@@ -68,8 +72,7 @@ restoreSession(targetId) →
   3. 原子替换: messages, settings, route, rag, lastChat, streamRecovery
   4. 不清不撤: 不触动 GroupThread 和 NewsRun（它们在各自 scope）
 ```
-- 当前: `applySessionDetail` 重置了 `ragSearch`, `newsResult`, `webLookup` 等
-- 应该只重置 ChatThread 范围的状态
+- ✅ 已满足: `applySessionDetail` 只重置 Chat 范围的 `ragSearch` 与工具状态，不再清除 News/Web Lookup 独立结果
 
 ### S4 — Session 设置快照完整性
 ```
@@ -114,7 +117,7 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 每个 SSE 回调必须检查 generation_id 和 operation_id
 响应不匹配 → 静默丢弃（不是报错）
 ```
-- ✅ 已满足: `operationRegistry` 按 scope 管理 generation；`chatController.isCurrentOperation()` 检查 scope + generation
+- ✅ 已满足: `operationRegistry` 按 scope 管理 generation；ChatController 在命令开始时捕获 operation owner，并在每个 SSE 回调检查 scope + generation + owner
 - 验证: `operationRegistry.test.ts`
 
 ### A5 — Controller 生命周期
@@ -230,7 +233,8 @@ NewsRun 可以关联 GroupThread（discuss 后），但不创建 ChatThread
 flush → 要么完整写入 current 文件，要么完全不写
 save → 要么完整写入 archive 文件，要么完全不写
 ```
-- 当前: `safe_write_text` 提供原子写入
+- ✅ 已满足: `safe_write_text` 提供文件原子写；归档失败会删除未提交 archive、恢复 Thread 为 `active`，并保留 current 镜像
+- 验证: `test_archive_export_failure_restores_active_thread_and_current_mirror`
 
 ### P3 — 无静默失败
 ```
@@ -241,6 +245,21 @@ save → 要么完整写入 archive 文件，要么完全不写
 ```
 - ✅ 已满足: 服务端 `commit_turn_endpoint` 返回明确 400/409 错误；前端 catch 块显示错误
 - 验证: `test_session_service.py` 测试 commit 路径
+
+### P4 — Migration 可恢复且并发安全
+```
+每个版本: BEGIN IMMEDIATE → ledger applying → DDL → schema_version → ledger completed → COMMIT
+任一步失败: ROLLBACK DDL → ledger failed → 重启可重试
+```
+- ✅ 已满足: 获取写锁后重新读取 schema version，避免并发初始化按陈旧版本重复执行 DDL
+- 验证: `test_migration_failure_rolls_back_and_restart_recovers`、`test_concurrent_database_initialization_applies_each_migration_once`
+
+### P5 — Chat 编排单一入口
+```
+App → ChatController.send/stop/continue/retry/restore/startNew/archive
+```
+- ✅ 已满足: `App.tsx` 仅转发 Chat UI 事件；SSE 合并、Turn partial、Operation 和 Session 命令由 ChatController 拥有
+- 验证: `chatControllerBoundary.test.ts`
 
 ## 8. 当前代码中未解决的不变量违反
 

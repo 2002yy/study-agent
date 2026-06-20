@@ -16,15 +16,10 @@ import {
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
-  archiveSession,
   callLocalKnowledge,
-  commitTurn,
-  createNewSession,
   createWechatOpening,
-  flushSession,
   loadApiSnapshot,
   loadRole,
-  loadSessionDetail,
   loadWorkflowRun,
   lookupNews,
   markWechatRead,
@@ -32,7 +27,6 @@ import {
   queryRag,
   resetWechat,
   saveRuntimeSettings,
-  sendChatStream,
   sendWechatMessageStream,
   uploadDocuments
 } from "./api";
@@ -46,9 +40,9 @@ import { RoadmapPanel } from "./features/migration/RoadmapPanel";
 import { SourcesPanel } from "./features/rag/SourcesPanel";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
-import { useChatController } from "./features/chat/chatController";
+import { createEmptyRag, useChatController } from "./features/chat/chatController";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, sanitizeSingleChatMessages, seedMessages, toChatHistoryPayload, buildContinuationHistory } from "./features/single-chat/chatHistory";
+import { SESSION_STORAGE_KEY, seedMessages } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
@@ -65,7 +59,6 @@ import type {
   RagQueryResponse,
   RagSettings,
   RoleResponse,
-  SessionDetailResponse,
   ToolInvocationResponse,
   WorkspaceState,
   WorkflowRunDetail
@@ -98,22 +91,6 @@ const RAG_SETTINGS_DEFAULTS: RagSettings = {
   minScore: 0.01,
   chatTopK: 3
 };
-
-function createEmptyRag(): ChatResponse["rag"] {
-  return {
-    status: "waiting",
-    query: "",
-    retrieval_mode: "",
-    reason: "",
-    context: "",
-    sources: "",
-    result_count: 0,
-    results: [],
-    debug: {},
-    attempts: [],
-    rewritten_query: ""
-  };
-}
 
 function describeRagUploadResult(result: RagIndexResponse): string {
   const vectorStage = result.stages?.find((stage) => stage.name === "vector");
@@ -695,28 +672,18 @@ function Inspector({
 export default function App() {
   const [snapshot, setSnapshot] = useState<ApiSnapshot>(INITIAL_SNAPSHOT);
   const { state: workspaceRuntime, dispatch: dispatchWorkspace } = useWorkspace();
-  const chatController = useChatController();
-  const singleChatMessages = chatController.messages;
-  const setSingleChatMessages = chatController.setMessages;
-  const lastChat = chatController.lastChat;
-  const setLastChat = chatController.setLastChat;
-  const streamRecovery = chatController.streamRecovery;
-  const setStreamRecovery = chatController.setStreamRecovery;
   const [input, setInput] = useState("");
   const [ragEnabled, setRagEnabled] = useState(true);
   const [chatSettings, setChatSettings] = useState<ChatSettings>(CHAT_SETTINGS_DEFAULTS);
   const [ragSettings, setRagSettings] = useState<RagSettings>(RAG_SETTINGS_DEFAULTS);
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [conversationInstruction, setConversationInstruction] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const singleChatSessionId = chatController.threadId;
   const wechatThreadId = workspaceRuntime.activeGroupThreadId;
   const newsRunId = workspaceRuntime.activeNewsRunId;
-  const setSingleChatSessionId = chatController.setThreadId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
@@ -742,14 +709,52 @@ export default function App() {
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
 
-  const cancelWorkspaceRuns = () => {
-    operationRegistry.cancelAll();
-    setIsSending(false);
-    setIsWechatBusy(false);
-    setIsNewsBusy(false);
-    setIsPreviewing(false);
-    setIsCalling(false);
+  const refresh = async () => {
+    setSnapshot(await loadApiSnapshot());
   };
+
+  const chatController = useChatController({
+    chatSettings,
+    chatSettingsDefaults: CHAT_SETTINGS_DEFAULTS,
+    setChatSettings,
+    ragSettings,
+    ragSettingsDefaults: RAG_SETTINGS_DEFAULTS,
+    setRagSettings,
+    ragEnabled,
+    setRagEnabled,
+    keepCurrentRole,
+    setKeepCurrentRole,
+    conversationInstruction,
+    setConversationInstruction,
+    webLookupSource: webLookup?.source_block ?? "",
+    useWebLookup,
+    setUseWebLookup,
+    setInput,
+    setOperationError,
+    clearChatArtifacts: () => {
+      setRagSearch(null);
+      setToolPreview(null);
+      setToolCall(null);
+      setPreviewedInvocation(null);
+      setSelectedRun(null);
+    },
+    onWorkspaceCancelled: () => {
+      setIsWechatBusy(false);
+      setIsNewsBusy(false);
+      setIsPreviewing(false);
+      setIsCalling(false);
+    },
+    refresh,
+  });
+  const singleChatMessages = chatController.messages;
+  const setSingleChatMessages = chatController.setMessages;
+  const lastChat = chatController.lastChat;
+  const setLastChat = chatController.setLastChat;
+  const streamRecovery = chatController.streamRecovery;
+  const singleChatSessionId = chatController.threadId;
+  const setSingleChatSessionId = chatController.setThreadId;
+  const isSending = chatController.isSending;
+  const cancelWorkspaceRuns = chatController.cancelWorkspaceRuns;
 
   const activeQuery = input.trim() || lastChat?.rag?.query || "";
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(([key]) => key !== "health");
@@ -775,10 +780,6 @@ export default function App() {
   const toolInvocationLabel = previewedInvocation
     ? `${previewedInvocation.query} · ${previewedInvocation.retrievalMode} · top_k=${previewedInvocation.topK} · min_score=${previewedInvocation.minScore}`
     : "";
-
-  const refresh = async () => {
-    setSnapshot(await loadApiSnapshot());
-  };
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
@@ -813,30 +814,10 @@ export default function App() {
           setConversationInstruction(parsed.conversationInstruction);
         }
         if (restoredThreadId) {
-          setSingleChatSessionId(restoredThreadId);
-          loadSessionDetail(restoredThreadId)
-            .then((detail) => {
-              const apiMessages = sanitizeSingleChatMessages(detail.messages);
-              const assistantMsg = apiMessages.filter((m) => m.role === "assistant" && !m.transient).pop();
-              const lastChatFromApi: ChatResponse | null = assistantMsg
-                ? {
-                    reply: assistantMsg.content,
-                    session_id: detail.session_id,
-                    route: detail.route as ChatResponse["route"],
-                    rag: detail.rag as ChatResponse["rag"],
-                  }
-                : null;
-              chatController.transitionSession(detail.session_id, apiMessages, lastChatFromApi);
-            })
-            .catch(() => {
-              const cached = parsed.cachedMessages;
-              if (Array.isArray(cached) && cached.length) {
-                const fallbackMessages = sanitizeSingleChatMessages(cached as ChatMessage[]);
-                chatController.transitionSession(restoredThreadId, fallbackMessages, null);
-              } else {
-                setSingleChatMessages(seedMessages);
-              }
-            });
+          const cached = Array.isArray(parsed.cachedMessages)
+            ? (parsed.cachedMessages as ChatMessage[])
+            : undefined;
+          void chatController.hydrateSession(restoredThreadId, cached);
         } else {
           setSingleChatMessages(seedMessages);
         }
@@ -955,240 +936,20 @@ export default function App() {
   }, [chatSettings.selectedRole]);
 
 
-  const sendSingleChat = async (question: string, historyBase = singleChatMessages, extraOpts: { continuationOfTurnId?: string; partialReply?: string; turnId?: string } = {}) => {
-    if (!question || isSending) {
-      return;
-    }
-    const { operationId, controller: abortController, generationId } = chatController.startOperation();
-    const isContinuation = Boolean(extraOpts.continuationOfTurnId);
-    const nextMessages: ChatMessage[] = isContinuation
-      ? [...historyBase]
-      : [...historyBase, { role: "user", content: question, avatarRole: "user" }];
-    const userIndex = isContinuation ? -1 : nextMessages.length - 1;
-    const assistantIndex = isContinuation ? nextMessages.length - 1 : nextMessages.length;
-    setSingleChatMessages(
-      isContinuation ? nextMessages : [...nextMessages, { role: "assistant", content: "", avatarRole: "auto" }]
-    );
-    setInput("");
-    setStreamRecovery(null);
-    setOperationError("");
-    setIsSending(true);
-    setRagSearch(null);
-    let streamedReply = "";
-    let fullReply = "";
-    let streamedRoute: Record<string, unknown> = {};
-    let streamedRag: ChatResponse["rag"] | null = null;
-    let activeSessionId = singleChatSessionId ?? "";
-    let activeTurnId = extraOpts.turnId ?? "";
-    const shouldConsumeWebLookup = useWebLookup && Boolean(webLookup?.source_block);
-    try {
-      const response = await sendChatStream(
-        question,
-        toChatHistoryPayload(historyBase),
-        {
-          ragEnabled,
-          sessionId: singleChatSessionId,
-          chatSettings,
-          ragSettings,
-          keepCurrentRole,
-          previousMode: typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : undefined,
-          conversationInstruction,
-          webContext: shouldConsumeWebLookup ? webLookup?.source_block : "",
-          continuationOfTurnId: extraOpts.continuationOfTurnId,
-          partialReply: extraOpts.partialReply ?? "",
-          turnId: extraOpts.turnId
-        },
-        {
-          onSession: (sid, meta) => {
-            if (!chatController.isCurrentOperation(operationId, generationId)) return;
-            activeSessionId = sid;
-            if (meta?.turnId) {
-              activeTurnId = meta.turnId;
-            }
-            setSingleChatSessionId(sid);
-          },
-          onRoute: (route) => {
-            if (!chatController.isCurrentOperation(operationId, generationId)) return;
-            streamedRoute = route;
-            setLastChat((current) => ({
-              reply: current?.reply ?? streamedReply,
-              session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
-              route,
-              rag: current?.rag ?? createEmptyRag()
-            }));
-            setSingleChatMessages((current) =>
-              current.map((message, index) =>
-                index === assistantIndex ? { ...message, avatarRole: String(route.role ?? "auto") } : message
-              )
-            );
-          },
-          onRag: (rag) => {
-            if (!chatController.isCurrentOperation(operationId, generationId)) return;
-            streamedRag = rag;
-            setLastChat((current) => ({
-              reply: current?.reply ?? streamedReply,
-              session_id: current?.session_id ?? singleChatSessionId ?? "streaming",
-              route: current?.route ?? {},
-              rag
-            }));
-          },
-          onToken: (token) => {
-            if (!chatController.isCurrentOperation(operationId, generationId)) return;
-            streamedReply += token;
-            setSingleChatMessages((current) =>
-              current.map((message, index) =>
-                index === assistantIndex ? { ...message, content: `${message.content}${token}` } : message
-              )
-            );
-            setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
-          },
-          onDone: (done) => {
-            if (!chatController.isCurrentOperation(operationId, generationId)) return;
-            if (typeof done.session_id === "string") {
-              activeSessionId = done.session_id;
-              setSingleChatSessionId(done.session_id);
-            }
-            if (typeof done.turn_id === "string") {
-              activeTurnId = done.turn_id;
-            }
-            const serverReply = done.reply;
-            if (typeof serverReply === "string") {
-              fullReply = serverReply;
-              setSingleChatMessages((current) =>
-                current.map((message, index) =>
-                  index === assistantIndex ? { ...message, content: serverReply } : message
-                )
-              );
-            }
-          }
-        },
-        { signal: abortController.signal }
-      );
-      if (!chatController.isCurrentOperation(operationId, generationId)) return;
-      activeSessionId = response.session_id;
-      activeTurnId = response.turn_id ?? activeTurnId;
-      setSingleChatSessionId(response.session_id);
-      const effectiveReply = fullReply || response.reply;
-      setLastChat(fullReply ? { ...response, reply: effectiveReply } : response);
-      setOperationError("");
-      if (shouldConsumeWebLookup) {
-        setUseWebLookup(false);
-      }
-      setSingleChatMessages((current) =>
-        current.map((message, index) =>
-          index === assistantIndex
-            ? { ...message, content: effectiveReply, avatarRole: String(response.route.role ?? "auto") }
-            : message
-        )
-      );
-      chatController.completeOperation(operationId);
-      await refresh();
-    } catch (error) {
-      if (!chatController.isCurrentOperation(operationId, generationId)) return;
-      const isAbort = error instanceof DOMException && error.name === "AbortError";
-      const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "聊天请求失败";
-      const fullPartial = extraOpts.partialReply ? extraOpts.partialReply + streamedReply : streamedReply;
-      const preserved = fullPartial
-        ? `${fullPartial}\n\n---\n生成中断：${message}`
-        : `生成中断：${message}`;
-      setStreamRecovery({ question, reply: fullPartial, reason: message, sessionId: activeSessionId || undefined, turnId: activeTurnId || null });
-      if (!isAbort) {
-        setOperationError(`聊天请求失败：${message}`);
-      }
-      // Attempt to persist partial reply to session log on interrupt/error
-      if (fullPartial && activeSessionId) {
-        try {
-          await commitTurn(activeSessionId, {
-            userInput: question,
-            agentReply: fullPartial,
-            role: String(streamedRoute.role ?? lastChat?.route?.role ?? "auto"),
-            mode: typeof streamedRoute.mode === "string" ? String(streamedRoute.mode) : typeof lastChat?.route?.mode === "string" ? String(lastChat.route.mode) : "auto",
-            model: typeof streamedRoute.model_profile === "string" ? String(streamedRoute.model_profile) : typeof lastChat?.route?.model_profile === "string" ? String(lastChat.route.model_profile) : "auto",
-            memoryEnabled: ragEnabled,
-            routeInfo: Object.keys(streamedRoute).length ? streamedRoute : (lastChat?.route ?? {}),
-            ragInfo: streamedRag ?? lastChat?.rag ?? {},
-            conversationInstruction,
-            turnId: activeTurnId || undefined,
-          });
-        } catch (commitError) {
-          const commitMessage = commitError instanceof Error ? commitError.message : "未知错误";
-          setOperationError((current) =>
-            [current, `部分回答保存失败：${commitMessage}`].filter(Boolean).join("\n")
-          );
-        }
-      }
-      setSingleChatMessages((current) =>
-        current.map((item, index) =>
-          index === userIndex
-            ? { ...item, transient: true }
-            : index === assistantIndex
-              ? { ...item, avatarRole: item.avatarRole ?? "auto", content: preserved, transient: true }
-              : item
-        )
-      );
-      chatController.completeOperation(operationId);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await sendSingleChat(input.trim());
+    await chatController.send(input.trim());
   };
 
-  const stopChatGeneration = () => {
-    chatController.cancelOperation();
-  };
+  const stopChatGeneration = chatController.stop;
 
   const stopWechatGeneration = () => {
     operationRegistry.cancel("group");
   };
 
-  const retryInterruptedChat = async () => {
-    if (!streamRecovery || isSending) {
-      return;
-    }
-    const retryQuestion = streamRecovery.question;
-    const trimmedHistory = singleChatMessages.filter((message, index, messages) => {
-      const nextMessage = messages[index + 1];
-      const previousMessage = messages[index - 1];
-      const isInterruptedUser =
-        message.role === "user" &&
-        message.transient &&
-        message.content === retryQuestion &&
-        nextMessage?.role === "assistant" &&
-        nextMessage.transient;
-      const isInterruptedAssistant =
-        message.role === "assistant" &&
-        message.transient &&
-        previousMessage?.role === "user" &&
-        previousMessage.content === retryQuestion;
-      return !isInterruptedUser && !isInterruptedAssistant;
-    });
-    await sendSingleChat(retryQuestion, trimmedHistory);
-  };
-
-  const continueInterruptedChat = async () => {
-    if (!streamRecovery?.reply || isSending) {
-      return;
-    }
-    const continuationHistory = buildContinuationHistory(singleChatMessages, streamRecovery);
-    const turnId = streamRecovery.turnId ?? undefined;
-    setStreamRecovery(null);
-    await sendSingleChat(streamRecovery.question, continuationHistory, {
-      continuationOfTurnId: turnId,
-      partialReply: streamRecovery.reply,
-      turnId,
-    });
-  };
-
-  const copyInterruptedReply = async () => {
-    if (!streamRecovery?.reply) {
-      return;
-    }
-    await navigator.clipboard.writeText(streamRecovery.reply);
-  };
+  const retryInterruptedChat = chatController.retry;
+  const continueInterruptedChat = chatController.continueInterrupted;
+  const copyInterruptedReply = chatController.copyInterrupted;
 
   const searchSources = async () => {
     if (!activeQuery || isSearching) {
@@ -1496,173 +1257,9 @@ export default function App() {
     }
   };
 
-  const applySessionDetail = (detail: SessionDetailResponse) => {
-    const restoredMessages = detail.messages.filter((message) => message.role === "user" || message.role === "assistant");
-    const restoredSettings = detail.settings ?? {};
-    const restoredRagSettings = restoredSettings.ragSettings ?? {};
-    const hasFullSettings = (
-      typeof restoredSettings.selectedRole === "string"
-      || typeof restoredSettings.selectedMode === "string"
-      || typeof restoredSettings.relationshipMode === "string"
-    );
-    const nextChatSettings: ChatSettings = hasFullSettings
-      ? {
-          selectedRole: typeof restoredSettings.selectedRole === "string" ? restoredSettings.selectedRole : CHAT_SETTINGS_DEFAULTS.selectedRole,
-          selectedMode: typeof restoredSettings.selectedMode === "string" ? restoredSettings.selectedMode : CHAT_SETTINGS_DEFAULTS.selectedMode,
-          selectedModel: typeof restoredSettings.selectedModel === "string" ? restoredSettings.selectedModel : CHAT_SETTINGS_DEFAULTS.selectedModel,
-          relationshipMode: typeof restoredSettings.relationshipMode === "string" ? restoredSettings.relationshipMode : CHAT_SETTINGS_DEFAULTS.relationshipMode,
-          contextMode: typeof restoredSettings.contextMode === "string" ? restoredSettings.contextMode : CHAT_SETTINGS_DEFAULTS.contextMode,
-        }
-      : chatSettings;
-    const nextRagSettings: RagSettings = typeof restoredSettings.ragEnabled === "boolean"
-      ? { ...RAG_SETTINGS_DEFAULTS, ...restoredRagSettings }
-      : ragSettings;
-    const lastAssistant = [...restoredMessages].reverse().find((message) => message.role === "assistant");
-    const restoredRoute = detail.route ?? {};
-    const restoredRag = detail.rag && Object.keys(detail.rag).length ? (detail.rag as ChatResponse["rag"]) : createEmptyRag();
-    const latestInterruptedTurn = [...(detail.turns ?? [])]
-      .reverse()
-      .find((turn) => turn.status === "interrupted");
-    const restoredLastChat = Object.keys(restoredRoute).length || lastAssistant
-      ? {
-          reply: lastAssistant?.content ?? "",
-          session_id: detail.session_id,
-          turn_id: latestInterruptedTurn?.turn_id ?? null,
-          route: restoredRoute,
-          rag: restoredRag
-        }
-      : null;
-    const restoredRecovery = latestInterruptedTurn?.assistant_message
-      ? {
-          question: latestInterruptedTurn.user_message,
-          reply: latestInterruptedTurn.assistant_message,
-          reason: "上次生成中断",
-          sessionId: detail.session_id,
-          turnId: latestInterruptedTurn.turn_id
-        }
-      : null;
-
-    chatController.transitionSession(
-      detail.session_id,
-      restoredMessages.length ? restoredMessages : seedMessages,
-      restoredLastChat,
-      restoredRecovery
-    );
-    setChatSettings(nextChatSettings);
-    setRagSettings(nextRagSettings);
-    if (typeof restoredSettings.ragEnabled === "boolean") {
-      setRagEnabled(restoredSettings.ragEnabled);
-    }
-    if (typeof restoredSettings.keepCurrentRole === "boolean") {
-      setKeepCurrentRole(restoredSettings.keepCurrentRole);
-    }
-    setConversationInstruction(detail.conversation_instruction ?? "");
-    setRagSearch(null);
-    setNewsResult(null);
-    setWebLookup(null);
-    setUseWebLookup(false);
-    setInput("");
-    setToolPreview(null);
-    setToolCall(null);
-    setPreviewedInvocation(null);
-    setSelectedRun(null);
-  };
-
-  const restoreSession = async (restoredSessionId: string) => {
-    setOperationError("");
-    cancelWorkspaceRuns();
-    try {
-      const detail = await loadSessionDetail(restoredSessionId);
-      applySessionDetail(detail);
-      setOperationError("");
-    } catch (error) {
-      setOperationError(`会话恢复失败：${error instanceof Error ? error.message : "会话恢复失败"}`);
-    }
-  };
-
-  const archiveCurrentSession = async (targetSessionId: string) => {
-    setOperationError("");
-    cancelWorkspaceRuns();
-    const isArchivingActive = targetSessionId === singleChatSessionId;
-    try {
-      await archiveSession(targetSessionId);
-      if (isArchivingActive) {
-        const created = await createNewSession();
-        chatController.transitionSession(created.session_id, seedMessages, null);
-        setInput("");
-        setRagSearch(null);
-        setToolPreview(null);
-        setToolCall(null);
-        setPreviewedInvocation(null);
-        setConversationInstruction("");
-      }
-      await refresh();
-    } catch (error) {
-      setOperationError(`会话归档失败：${error instanceof Error ? error.message : "会话归档失败"}`);
-    }
-  };
-
-  const startNewSession = async () => {
-    setOperationError("");
-    cancelWorkspaceRuns();
-    try {
-      if (singleChatSessionId) {
-        try {
-          const detail = await loadSessionDetail(singleChatSessionId);
-          const hasMessages = detail.messages.some(
-            (message) => message.role === "user" || message.role === "assistant"
-          );
-          if (hasMessages) {
-            await archiveSession(singleChatSessionId);
-          }
-        } catch {
-          // Session not on disk yet (still in memory) — flush via API
-          try {
-            await flushSession(singleChatSessionId);
-          } catch {
-            // Best-effort; proceed even if flush fails
-          }
-        }
-      }
-      const created = await createNewSession();
-      chatController.transitionSession(created.session_id, seedMessages, null);
-      setInput("");
-      setRagSearch(null);
-      setToolPreview(null);
-      setToolCall(null);
-      setPreviewedInvocation(null);
-      setNewsResult(null);
-      setWebLookup(null);
-      setUseWebLookup(false);
-      setConversationInstruction("");
-      setToolPreview(null);
-      setToolCall(null);
-      setPreviewedInvocation(null);
-      setSelectedRun(null);
-      const settings = created.settings ?? {};
-      setChatSettings({
-        ...CHAT_SETTINGS_DEFAULTS,
-        selectedRole: typeof settings.selected_role === "string" ? settings.selected_role : CHAT_SETTINGS_DEFAULTS.selectedRole,
-        selectedMode: typeof settings.selected_mode === "string" ? settings.selected_mode : CHAT_SETTINGS_DEFAULTS.selectedMode,
-        selectedModel: typeof settings.selected_model === "string" ? settings.selected_model : CHAT_SETTINGS_DEFAULTS.selectedModel,
-        relationshipMode: typeof settings.relationship_mode === "string" ? settings.relationship_mode : CHAT_SETTINGS_DEFAULTS.relationshipMode,
-        contextMode: typeof settings.context_mode === "string" ? settings.context_mode : CHAT_SETTINGS_DEFAULTS.contextMode
-      });
-      setRagEnabled(typeof settings.rag_enabled === "boolean" ? settings.rag_enabled : true);
-      setRagSettings({
-        ...RAG_SETTINGS_DEFAULTS,
-        retrievalMode: settings.rag_retrieval_mode ?? RAG_SETTINGS_DEFAULTS.retrievalMode,
-        topK: settings.rag_search_top_k ?? settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.topK,
-        chatTopK: settings.rag_chat_top_k ?? settings.rag_top_k ?? RAG_SETTINGS_DEFAULTS.chatTopK,
-        minScore: settings.rag_min_score ?? RAG_SETTINGS_DEFAULTS.minScore
-      });
-      setKeepCurrentRole(false);
-      setOperationError("");
-      await refresh();
-    } catch (error) {
-      setOperationError(`新建会话失败：${error instanceof Error ? error.message : "新建会话失败"}`);
-    }
-  };
+  const restoreSession = chatController.restoreSession;
+  const archiveCurrentSession = chatController.archiveCurrentSession;
+  const startNewSession = chatController.startNewSession;
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);

@@ -366,6 +366,20 @@ def test_news_query_change_invalidates_downstream_stages(monkeypatch):
     """Simulate the frontend logic: when searchedQuery differs from input,
     downstream stages should be disabled."""
     client = TestClient(app)
+    from src import api
+
+    monkeypatch.setattr(
+        api,
+        "run_search_stage",
+        lambda query, max_items: [
+            {
+                "title": f"News {index}",
+                "url": f"https://example.com/{index}",
+                "source": "Example",
+            }
+            for index in range(min(max_items, 3))
+        ],
+    )
 
     # Stage 1: search
     resp1 = client.post("/news/search", json={"query": "OpenAI 最新新闻", "max_items": 5})
@@ -384,17 +398,40 @@ def test_news_query_change_invalidates_downstream_stages(monkeypatch):
 
 def test_news_digest_uses_enriched_items(monkeypatch):
     """Verify enrich→digest pipeline: digest receives enriched items."""
-    client = TestClient(app)
+    from src import api
 
-    # Stage 1: search — find real news
+    client = TestClient(app)
+    search_items = [
+        {
+            "title": f"News {index}",
+            "url": f"https://example.com/{index}",
+            "source": "Example",
+            "snippet": f"summary {index}",
+        }
+        for index in range(3)
+    ]
+    captured = {}
+
+    monkeypatch.setattr(
+        api,
+        "run_search_stage",
+        lambda query, max_items: search_items[:max_items],
+    )
+
+    def fake_enrich(items, **kwargs):
+        return [{**item, "article_text": f"body:{item['title']}"} for item in items]
+
+    def fake_digest(items, **kwargs):
+        captured["items"] = items
+        return "digest", "sources", {"available": len(items)}, []
+
+    monkeypatch.setattr(api, "run_enrich_stage", fake_enrich)
+    monkeypatch.setattr(api, "run_digest_stage", fake_digest)
+
     search_resp = client.post("/news/search", json={"query": "China tech news today", "max_items": 6})
     assert search_resp.status_code == 200
 
     search_items = search_resp.json().get("news_items", [])
-    if len(search_items) < 3:
-        # If real search returns too few, skip the downstream test gracefully
-        pytest.skip(f"Search returned {len(search_items)} items (< 3 needed), skipping digest test")
-
     enrich_resp = client.post(
         "/news/enrich",
         json={
@@ -416,7 +453,9 @@ def test_news_digest_uses_enriched_items(monkeypatch):
         },
     )
     assert digest_resp.status_code == 200
-    assert "digest" in digest_resp.json()
+    assert digest_resp.json()["digest"] == "digest"
+    assert captured["items"] == enriched
+    assert all(item["article_text"].startswith("body:") for item in captured["items"])
 
 
 # ── 12. New group chat clears old search results ────────────────────────

@@ -156,3 +156,50 @@ def test_legacy_archive_wins_when_current_duplicate_exists(tmp_path):
     assert thread.status == "archived"
     assert len(turns) == 1
     assert turns[0].user_message == "final"
+
+
+def test_archive_export_failure_restores_active_thread_and_current_mirror(tmp_path, monkeypatch):
+    service, repository = _service(tmp_path)
+    thread = service.create_session({})
+    repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            assistant_message="answer",
+            status="completed",
+        )
+    )
+    current_path = service.flush_session(thread.id)
+    assert current_path is not None
+
+    def fail_export(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(service.exporter, "export_archive", fail_export)
+
+    with pytest.raises(OSError, match="disk full"):
+        service.archive_session(thread.id)
+
+    restored = repository.get_chat_thread(thread.id)
+    assert restored is not None
+    assert restored.status == "active"
+    assert current_path.exists()
+
+
+def test_archive_rejects_active_turn_and_releases_archive_lock(tmp_path):
+    service, repository = _service(tmp_path)
+    thread = service.create_session({})
+    repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            status="streaming",
+        )
+    )
+
+    with pytest.raises(ValueError, match="active turn"):
+        service.archive_session(thread.id)
+
+    restored = repository.get_chat_thread(thread.id)
+    assert restored is not None
+    assert restored.status == "active"

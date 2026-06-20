@@ -4,6 +4,7 @@ import {
   buildWorkspaceState,
   sanitizeSingleChatMessages,
   seedMessages,
+  tailInterruptedTurn,
   toChatHistoryPayload,
 } from "./chatHistory";
 import type { ChatMessage } from "../../types";
@@ -96,5 +97,25 @@ describe("buildContinuationHistory", () => {
       { role: "user", content: "继续解释 RAG", avatarRole: "user" },
       { role: "assistant", content: "已有半段回答", avatarRole: "auto" },
     ]);
+  });
+});
+
+describe("tailInterruptedTurn", () => {
+  it("does not revive an older interruption after a later retry completed", () => {
+    const turns = [
+      { turn_id: "old", status: "interrupted" },
+      { turn_id: "retry", status: "completed" },
+    ];
+
+    expect(tailInterruptedTurn(turns)).toBeUndefined();
+  });
+
+  it("restores the latest turn when that turn is interrupted", () => {
+    const turns = [
+      { turn_id: "old", status: "superseded" },
+      { turn_id: "retry", status: "interrupted" },
+    ];
+
+    expect(tailInterruptedTurn(turns)?.turn_id).toBe("retry");
   });
 });

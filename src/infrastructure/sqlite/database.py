@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 SCHEMA_VERSION = 2
 
@@ -124,9 +126,10 @@ class RuntimeDatabase:
 
     def connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.path)
+        connection = sqlite3.connect(self.path, timeout=30.0)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 30000")
         return connection
 
     def initialize(self) -> None:
@@ -146,22 +149,97 @@ def schema_version(connection: sqlite3.Connection) -> int:
     return int(row[0]) if row else 0
 
 
-def apply_migrations(connection: sqlite3.Connection) -> None:
+def apply_migrations(
+    connection: sqlite3.Connection,
+    *,
+    after_statement: Callable[[int, int], None] | None = None,
+) -> None:
+    _ensure_migration_ledger(connection)
     current = schema_version(connection)
     if current > SCHEMA_VERSION:
         raise RuntimeError(
             f"Runtime database schema {current} is newer than supported {SCHEMA_VERSION}"
         )
     for version, sql in MIGRATIONS:
-        if version <= current:
-            continue
-        connection.executescript(sql)
-        connection.execute(
-            "INSERT OR REPLACE INTO runtime_meta(key, value) VALUES('schema_version', ?)",
-            (str(version),),
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            current = schema_version(connection)
+            if version <= current:
+                connection.commit()
+                continue
+            started_at = _utc_now()
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO runtime_migrations(
+                    version, status, started_at, completed_at, error
+                ) VALUES (?, 'applying', ?, NULL, '')
+                """,
+                (version, started_at),
+            )
+            for index, statement in enumerate(_migration_statements(sql)):
+                connection.execute(statement)
+                if after_statement is not None:
+                    after_statement(version, index)
+            connection.execute(
+                "INSERT OR REPLACE INTO runtime_meta(key, value) VALUES('schema_version', ?)",
+                (str(version),),
+            )
+            connection.execute(
+                """
+                UPDATE runtime_migrations
+                SET status = 'completed', completed_at = ?, error = ''
+                WHERE version = ?
+                """,
+                (_utc_now(), version),
+            )
+            connection.commit()
+            current = version
+        except Exception as exc:
+            connection.rollback()
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO runtime_migrations(
+                    version, status, started_at, completed_at, error
+                ) VALUES (?, 'failed', ?, ?, ?)
+                """,
+                (version, _utc_now(), _utc_now(), str(exc)),
+            )
+            connection.commit()
+            raise
+
+
+def _ensure_migration_ledger(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runtime_migrations (
+            version INTEGER PRIMARY KEY,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            error TEXT NOT NULL DEFAULT ''
         )
-        connection.commit()
-        current = version
+        """
+    )
+    connection.commit()
+
+
+def _migration_statements(sql: str) -> list[str]:
+    statements: list[str] = []
+    buffer = ""
+    for line in sql.splitlines():
+        buffer = f"{buffer}\n{line}" if buffer else line
+        if sqlite3.complete_statement(buffer):
+            statement = buffer.strip()
+            if statement:
+                statements.append(statement)
+            buffer = ""
+    if buffer.strip():
+        raise RuntimeError("Migration contains an incomplete SQL statement")
+    return statements
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def apply_schema(connection: sqlite3.Connection) -> None:

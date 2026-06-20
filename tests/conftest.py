@@ -44,6 +44,10 @@ class RuntimeTestContext:
 
 
 def default_chat_dependencies() -> ChatDependencies:
+    async def async_tokens(*args, **kwargs):
+        yield "Hello"
+        yield " stream"
+
     return ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(performance_mode="fast"),
         read_memory_bundle=lambda context_mode: {},
@@ -53,6 +57,7 @@ def default_chat_dependencies() -> ChatDependencies:
         build_messages=build_messages,
         chat=lambda messages, **kwargs: f"reply:{messages[-1]['content']}",
         stream_chat=lambda *args, **kwargs: iter(["Hello", " stream"]),
+        async_stream_chat=async_tokens,
         chat_max_tokens=chat_max_tokens,
     )
 

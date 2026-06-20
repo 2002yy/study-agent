@@ -38,8 +38,6 @@ class SessionMarkdownExporter:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         path = self.archive_dir / f"{timestamp}_session_{thread.id}_archived.md"
         safe_write_text(path, _render_thread(thread, turns, archived=True))
-        current = self.current_dir / f"{thread.id}.md"
-        current.unlink(missing_ok=True)
         return path
 
 

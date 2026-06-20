@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from typing import Annotated, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -19,6 +21,10 @@ from src.application.runtime_repository import get_chat_service
 
 router = APIRouter(tags=["chat"])
 ChatServiceDependency = Annotated[ChatService, Depends(get_chat_service)]
+
+
+class _ClientDisconnected(Exception):
+    pass
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -50,10 +56,7 @@ async def chat_stream_endpoint(
 
     async def events() -> AsyncIterator[str]:
         reply_parts: list[str] = []
-        disconnected = False
-
-        def should_cancel() -> bool:
-            return disconnected
+        stream = service.stream_async(prepared)
 
         try:
             yield sse_event(
@@ -62,11 +65,7 @@ async def chat_stream_endpoint(
             )
             yield sse_event("route", prepared.route)
             yield sse_event("rag", prepared.rag)
-            for token in service.stream(prepared, should_cancel=should_cancel):
-                if await http_request.is_disconnected():
-                    disconnected = True
-                    service.interrupt_turn(prepared, "".join(reply_parts))
-                    return
+            async for token in _tokens_until_disconnected(stream, http_request):
                 reply_parts.append(token)
                 yield sse_event("token", {"text": token})
             suffix = "".join(reply_parts)
@@ -80,18 +79,61 @@ async def chat_stream_endpoint(
                     "reply": completed.assistant_message,
                 },
             )
+        except _ClientDisconnected:
+            service.interrupt_turn(prepared, "".join(reply_parts))
+            return
+        except asyncio.CancelledError:
+            service.interrupt_turn(prepared, "".join(reply_parts))
+            raise
         except Exception as exc:
             service.interrupt_turn(prepared, "".join(reply_parts))
             yield sse_event(
                 "error",
                 {"message": str(exc), "error_type": type(exc).__name__},
             )
+        finally:
+            with suppress(RuntimeError):
+                await stream.aclose()
+            current = service.repository.get_chat_turn(prepared.turn.id)
+            if current is not None and current.status == "streaming":
+                service.interrupt_turn(prepared, "".join(reply_parts))
 
     return StreamingResponse(
         events(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+async def _tokens_until_disconnected(
+    stream: AsyncIterator[str],
+    request: Request,
+    *,
+    poll_interval: float = 0.05,
+) -> AsyncIterator[str]:
+    """Wait for provider tokens while keeping client disconnects observable."""
+
+    while True:
+        next_token = asyncio.create_task(anext(stream))
+        try:
+            while not next_token.done():
+                done, _ = await asyncio.wait({next_token}, timeout=poll_interval)
+                if done:
+                    break
+                if await request.is_disconnected():
+                    next_token.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await next_token
+                    raise _ClientDisconnected
+            try:
+                yield next_token.result()
+            except StopAsyncIteration:
+                return
+        finally:
+            if not next_token.done():
+                next_token.cancel()
+                with suppress(asyncio.CancelledError):
+                    await next_token
 
 
 @router.post(
@@ -150,6 +192,7 @@ def _chat_command(request: ChatRequest) -> ChatCommand:
         rag_min_score=request.rag_min_score,
         web_context=request.web_context,
         continuation_of_turn_id=request.continuation_of_turn_id,
+        retry_of_turn_id=request.retry_of_turn_id,
         partial_reply=request.partial_reply,
         turn_id=request.turn_id,
     )

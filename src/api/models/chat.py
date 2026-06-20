@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     rag_min_score: float = Field(default=0.01, ge=0)
     web_context: str = ""
     continuation_of_turn_id: str | None = None
+    retry_of_turn_id: str | None = None
     partial_reply: str = ""
     turn_id: str | None = None
 

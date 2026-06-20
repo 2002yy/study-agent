@@ -76,6 +76,7 @@ type ChatRequestOptions = {
   previousMode?: string;
   scene?: "single" | "group";
   continuationOfTurnId?: string;
+  retryOfTurnId?: string;
   partialReply?: string;
   turnId?: string;
 };
@@ -129,6 +130,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
+    retry_of_turn_id: options.retryOfTurnId ?? null,
     partial_reply: options.partialReply ?? "",
     turn_id: options.turnId ?? null
   };

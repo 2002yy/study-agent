@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 from src import llm_client
@@ -158,4 +159,59 @@ def test_stream_chat_can_cancel_and_closes_response(monkeypatch):
     )
 
     assert chunks == ["A"]
+    assert state["closed"] is True
+
+
+def test_async_stream_chat_uses_async_provider_and_closes_response(monkeypatch):
+    captured = {}
+    state = {"closed": False}
+
+    class _FakeResponse:
+        async def __aiter__(self):
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="A"))]
+            )
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="B"))]
+            )
+
+        async def close(self):
+            state["closed"] = True
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            captured.update(kwargs)
+            return _FakeResponse()
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=_FakeCompletions())
+    )
+
+    monkeypatch.setattr(
+        llm_client,
+        "get_async_client",
+        lambda provider_profile=None: fake_client,
+    )
+    monkeypatch.setattr(
+        llm_client,
+        "get_model_name",
+        lambda model_profile=None, provider_profile=None: "fake-model",
+    )
+
+    async def consume():
+        return [
+            chunk
+            async for chunk in llm_client.async_stream_chat(
+                [{"role": "user", "content": "hi"}],
+                temperature=None,
+                model_profile="flash",
+                task_name="llm_router",
+            )
+        ]
+
+    chunks = asyncio.run(consume())
+
+    assert chunks == ["A", "B"]
+    assert captured["stream"] is True
+    assert captured["timeout"] == 20.0
     assert state["closed"] is True

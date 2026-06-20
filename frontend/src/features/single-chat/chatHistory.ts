@@ -1,5 +1,7 @@
 import type { ChatMessage, WorkspaceState } from "../../types";
 
+type RestoredTurn = { status: string };
+
 export const SESSION_STORAGE_KEY = "study-agent-react-session";
 
 export const seedMessages: ChatMessage[] = [
@@ -116,4 +118,9 @@ export function buildContinuationHistory(
     }
     return message;
   });
+}
+
+export function tailInterruptedTurn<T extends RestoredTurn>(turns: T[] | undefined): T | undefined {
+  const latest = turns?.length ? turns[turns.length - 1] : undefined;
+  return latest?.status === "interrupted" ? latest : undefined;
 }

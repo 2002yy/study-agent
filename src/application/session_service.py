@@ -92,17 +92,30 @@ class SessionService:
             return None
         if thread.status == "archived":
             return thread
-        turns = self.repository.list_chat_turns(session_id)
-        if not turns:
-            return None
-        export_path = self.exporter.export_archive(thread, turns)
+        locked = self.repository.begin_archive_chat_thread(session_id)
+        if locked.status == "archived":
+            return locked
+        export_path: Path | None = None
         try:
-            return self.repository.archive_chat_thread(
+            turns = self.repository.list_chat_turns(session_id)
+            if not turns:
+                self.repository.cancel_archive_chat_thread(session_id)
+                return None
+            if any(turn.status in {"pending", "streaming"} for turn in turns):
+                raise ValueError("Chat thread has an active turn and cannot be archived")
+            export_path = self.exporter.export_archive(locked, turns)
+            archived = self.repository.finish_archive_chat_thread(
                 session_id,
                 export_path=str(export_path),
             )
+            (self.exporter.current_dir / f"{session_id}.md").unlink(missing_ok=True)
+            return archived
         except Exception:
-            export_path.unlink(missing_ok=True)
+            if export_path is not None:
+                export_path.unlink(missing_ok=True)
+            current = self.repository.get_chat_thread(session_id)
+            if current is not None and current.status == "archiving":
+                self.repository.cancel_archive_chat_thread(session_id)
             raise
 
     def flush_session(self, session_id: str) -> Path | None:
