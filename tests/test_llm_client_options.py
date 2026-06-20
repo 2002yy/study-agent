@@ -155,6 +155,7 @@ def test_stream_chat_can_cancel_and_closes_response(monkeypatch):
         llm_client.stream_chat(
             [{"role": "user", "content": "hi"}],
             should_cancel=should_cancel,
+            timeout=10.0,
         )
     )
 

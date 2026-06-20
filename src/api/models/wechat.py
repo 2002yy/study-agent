@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WechatStateResponse(BaseModel):
@@ -35,6 +35,14 @@ class WechatMessageRequest(BaseModel):
     rag_chat_top_k: int | None = Field(default=None, gt=0, le=20)
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = Field(default=0.01, ge=0)
+
+    @field_validator("message")
+    @classmethod
+    def reject_blank_message(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("message must not be blank")
+        return normalized
 
 
 class WechatMessageResponse(BaseModel):

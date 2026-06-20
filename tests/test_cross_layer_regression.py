@@ -298,12 +298,7 @@ def test_wechat_stream_failure_preserves_group_content(monkeypatch):
             "relationship_mode": "standard",
         },
     )
-    # Empty message should fail validation (min_length=1 or whitespace handling)
-    assert resp.status_code in (200, 422), f"Unexpected status: {resp.status_code}"
-    if resp.status_code == 200:
-        # If server accepts whitespace, it should not have corrupted the group file
-        data = resp.json()
-        assert "reply" in data
+    assert resp.status_code == 422
 
 
 # ── 9. Session A news digest not leaked to Session B ────────────────────
