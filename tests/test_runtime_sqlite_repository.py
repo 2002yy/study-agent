@@ -374,6 +374,33 @@ def test_concurrent_chat_operation_acquire_has_single_winner(tmp_path):
     assert stored.active_operation_id in {"op-a", "op-b"}
 
 
+def test_concurrent_operation_settings_belong_to_lease_winner(tmp_path):
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    thread = repository.create_chat_thread(ChatThread())
+    barrier = Barrier(2)
+
+    def acquire(operation_id: str) -> str:
+        barrier.wait(timeout=5)
+        try:
+            repository.acquire_chat_operation(
+                thread.id,
+                operation_id,
+                settings_snapshot={"owner": operation_id},
+            )
+            return operation_id
+        except ValueError:
+            return ""
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        winners = list(executor.map(acquire, ["op-a", "op-b"]))
+
+    winner = next(item for item in winners if item)
+    stored = repository.get_chat_thread(thread.id)
+    assert stored is not None
+    assert stored.active_operation_id == winner
+    assert stored.settings_snapshot == {"owner": winner}
+
+
 def test_news_run_stage_transitions_are_persisted(tmp_path):
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     run = repository.create_news_run(NewsRun(query="AI news", stage="searched", status="completed"))

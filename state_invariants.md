@@ -93,8 +93,8 @@ Session.settings_snapshot 必须包含:
 开始新 operation → invalidate 同 scope 旧 operation
 用户停止 → abort I/O，但保留 operation identity 直到 catch/finally 收尾
 ```
-- ✅ 已满足: `abort(scope)` 与 `invalidate(scope)` 语义分离；主动 stop 可生成 recovery，替换操作不会被旧 finally 清 busy
-- 验证: `operationRegistry.test.ts`
+- ✅ 已满足: `abort(scope)` 与 `invalidate(scope)` 语义分离；主动 stop 可保留 partial 并生成 recovery，替换或 Workspace 切换会作废 cancelling operation，旧 finally 不会清理新 busy
+- 验证: `operationRegistry.test.ts` 覆盖 abort 后 invalidate；`chatController.test.tsx` 挂载 Hook 并验证 token → stop → partial commit / recovery / busy 收尾
 
 ### A2 — Scope 隔离
 ```

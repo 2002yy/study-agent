@@ -265,17 +265,36 @@ class RuntimeRepository:
                 recovered += 1
         return recovered
 
-    def acquire_chat_operation(self, thread_id: str, operation_id: str) -> ChatThread:
+    def acquire_chat_operation(
+        self,
+        thread_id: str,
+        operation_id: str,
+        *,
+        settings_snapshot: dict[str, Any] | None = None,
+    ) -> ChatThread:
         updated_at = utc_now()
+        serialized_settings = (
+            _dump(settings_snapshot) if settings_snapshot is not None else None
+        )
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """
                 UPDATE chat_threads
                 SET active_operation_id = ?, active_operation_started_at = ?,
+                    settings_snapshot = CASE
+                        WHEN ? IS NULL THEN settings_snapshot ELSE ?
+                    END,
                     updated_at = ?, version = version + 1
                 WHERE id = ? AND status = 'active' AND active_operation_id IS NULL
                 """,
-                (operation_id, updated_at, updated_at, thread_id),
+                (
+                    operation_id,
+                    updated_at,
+                    serialized_settings,
+                    serialized_settings,
+                    updated_at,
+                    thread_id,
+                ),
             )
         if cursor.rowcount != 1:
             raise ValueError(f"Chat thread already has an active operation: {thread_id}")

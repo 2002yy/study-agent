@@ -89,51 +89,6 @@ class ChatService:
         command, existing, retry_parent = self._validate_turn_command(command)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
-        route = self.dependencies.route_request(
-            user_input=command.user_input,
-            selected_role=command.selected_role,
-            selected_mode=command.selected_mode,
-            selected_model=command.selected_model,
-            runtime_modes=runtime_modes,
-            previous_role=_previous_assistant_role(command.chat_history),
-            previous_mode=command.previous_mode,
-            keep_current_role=command.keep_current_role,
-        )
-        role_prompt = self.dependencies.build_role_prompt(
-            route["role"],
-            scene=command.scene,
-            relationship_mode=command.relationship_mode,
-        )
-        memory_bundle = self.dependencies.read_memory_bundle(context_mode)
-        rag_result = self.dependencies.retrieve_local_knowledge(
-            command.user_input,
-            enabled=command.rag_enabled,
-            top_k=command.rag_chat_top_k or command.rag_top_k,
-            retrieval_mode=command.rag_retrieval_mode,
-            min_score=command.rag_min_score,
-        )
-        rag = rag_result.to_dict()
-        continuation_instruction = _continuation_instruction(command)
-        context_blocks: list[str] = []
-        if str(getattr(rag_result, "context", "")).strip():
-            context_blocks.append(f"【本地资料检索结果】\n{rag_result.context}")
-        if command.web_context.strip():
-            context_blocks.append(f"【联网检索结果】\n{command.web_context.strip()}")
-        if continuation_instruction:
-            context_blocks.append(continuation_instruction)
-        messages = self.dependencies.build_messages(
-            user_input=command.user_input,
-            role_prompt=role_prompt,
-            mode=route["mode"],
-            memory_bundle=memory_bundle,
-            chat_history=command.chat_history,
-            relationship_mode=command.relationship_mode,
-            runtime_modes=runtime_modes,
-            context_mode=context_mode,
-            rag_context="\n\n".join(context_blocks),
-            scene=command.scene,
-            conversation_instruction=command.conversation_instruction,
-        )
         settings = _session_settings(command, context_mode)
         turn_id = command.turn_id or command.continuation_of_turn_id or new_id("turn")
         is_continuation = bool(command.continuation_of_turn_id)
@@ -142,16 +97,62 @@ class ChatService:
         )
         if existing is not None and not is_continuation:
             raise ValueError(f"Chat turn already exists: {turn_id}")
-        thread = self.repository.ensure_chat_thread(
-            thread_id,
+        thread = self.repository.ensure_chat_thread(thread_id)
+        operation_id = new_id("op")
+        thread = self.repository.acquire_chat_operation(
+            thread.id,
+            operation_id,
             settings_snapshot={
                 **settings,
                 "conversationInstruction": command.conversation_instruction,
             },
         )
-        operation_id = new_id("op")
-        self.repository.acquire_chat_operation(thread.id, operation_id)
         try:
+            route = self.dependencies.route_request(
+                user_input=command.user_input,
+                selected_role=command.selected_role,
+                selected_mode=command.selected_mode,
+                selected_model=command.selected_model,
+                runtime_modes=runtime_modes,
+                previous_role=_previous_assistant_role(command.chat_history),
+                previous_mode=command.previous_mode,
+                keep_current_role=command.keep_current_role,
+            )
+            role_prompt = self.dependencies.build_role_prompt(
+                route["role"],
+                scene=command.scene,
+                relationship_mode=command.relationship_mode,
+            )
+            memory_bundle = self.dependencies.read_memory_bundle(context_mode)
+            rag_result = self.dependencies.retrieve_local_knowledge(
+                command.user_input,
+                enabled=command.rag_enabled,
+                top_k=command.rag_chat_top_k or command.rag_top_k,
+                retrieval_mode=command.rag_retrieval_mode,
+                min_score=command.rag_min_score,
+            )
+            rag = rag_result.to_dict()
+            continuation_instruction = _continuation_instruction(command)
+            context_blocks: list[str] = []
+            if str(getattr(rag_result, "context", "")).strip():
+                context_blocks.append(f"【本地资料检索结果】\n{rag_result.context}")
+            if command.web_context.strip():
+                context_blocks.append(f"【联网检索结果】\n{command.web_context.strip()}")
+            if continuation_instruction:
+                context_blocks.append(continuation_instruction)
+            messages = self.dependencies.build_messages(
+                user_input=command.user_input,
+                role_prompt=role_prompt,
+                mode=route["mode"],
+                memory_bundle=memory_bundle,
+                chat_history=command.chat_history,
+                relationship_mode=command.relationship_mode,
+                runtime_modes=runtime_modes,
+                context_mode=context_mode,
+                rag_context="\n\n".join(context_blocks),
+                scene=command.scene,
+                conversation_instruction=command.conversation_instruction,
+            )
             base_reply = ""
             if is_continuation:
                 base_reply = _preferred_partial_reply(
@@ -192,11 +193,11 @@ class ChatService:
                 enforce_operation_owner=True,
                 expected_status="pending" if existing is None else "interrupted",
             )
+            if streaming is None:
+                raise RuntimeError(f"Chat turn was not created: {turn_id}")
         except Exception:
             self.repository.release_chat_operation(thread.id, operation_id)
             raise
-        if streaming is None:
-            raise RuntimeError(f"Chat turn was not created: {turn_id}")
         return PreparedChatTurn(
             thread=self.repository.get_chat_thread(thread.id) or thread,
             turn=streaming,
@@ -377,40 +378,38 @@ class ChatService:
         rag_snapshot: dict[str, Any],
         conversation_instruction: str,
     ) -> tuple[ChatTurn, bool]:
-        self.repository.ensure_chat_thread(thread_id)
+        thread = self.repository.get_chat_thread(thread_id)
+        if thread is None or thread.status != "active":
+            raise ValueError(f"Chat thread not found or inactive: {thread_id}")
         existing = self.repository.get_chat_turn(turn_id)
-        if existing is not None and existing.thread_id != thread_id:
+        if existing is None:
+            raise ValueError(f"Chat turn not found: {turn_id}")
+        if existing.thread_id != thread_id:
             raise ValueError(
                 f"Chat turn {turn_id} belongs to a different thread"
             )
-        if existing is not None and existing.status != "interrupted":
+        if existing.status not in {"streaming", "interrupted"}:
             return existing, False
         stored_reply = assistant_message
-        if existing and existing.assistant_message:
+        if existing.assistant_message:
             stored_reply = _preferred_partial_reply(
                 existing.assistant_message,
                 assistant_message,
             )
-        if existing is not None and existing.assistant_message == stored_reply:
+        if existing.status == "interrupted" and existing.assistant_message == stored_reply:
             return existing, False
-        now = utc_now()
-        turn = ChatTurn(
-            id=turn_id,
-            thread_id=thread_id,
-            user_message=user_input,
+        updated = self.repository.update_chat_turn(
+            turn_id,
             assistant_message=stored_reply,
             status="interrupted",
-            role=role,
-            mode=mode,
-            model=model,
-            route_snapshot=route_snapshot,
-            rag_snapshot=rag_snapshot,
-            operation_id=existing.operation_id if existing else None,
-            conversation_instruction=conversation_instruction,
-            created_at=existing.created_at if existing else now,
-            updated_at=now,
+            expected_operation_id=existing.operation_id,
+            enforce_operation_owner=existing.status == "streaming",
+            expected_status=existing.status,
+            release_operation=existing.status == "streaming",
         )
-        return self.repository.upsert_chat_turn(turn), True
+        if updated is None:
+            raise ValueError(f"Chat turn not found: {turn_id}")
+        return updated, True
 
     def _runtime_modes(self, requested: str | None):
         runtime_modes = self.dependencies.load_runtime_modes()

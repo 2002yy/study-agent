@@ -85,7 +85,7 @@ export class OperationRegistry {
     this.scopeGenerations.set(scope, gen);
 
     for (const op of this.operations.values()) {
-      if (op.scope === scope && op.status === "running") {
+      if (op.scope === scope && (op.status === "running" || op.status === "cancelling")) {
         op.status = "cancelling";
         try {
           op.controller.abort();
@@ -126,6 +126,7 @@ export class OperationRegistry {
     if (!op) return false;
     return (
       op.generationId === generationId &&
+      this.scopeGenerations.get(op.scope) === generationId &&
       (op.status === "running" || op.status === "cancelling") &&
       (ownerId === undefined || op.ownerId === ownerId)
     );

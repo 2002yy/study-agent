@@ -1068,9 +1068,24 @@ def test_create_new_session_returns_default_settings():
     assert "selected_role" in data["settings"]
 
 
-def test_commit_turn_upserts_partial_reply_by_turn_id(runtime_test_context):
+def test_commit_turn_updates_existing_partial_reply_by_turn_id(runtime_test_context):
+    from src.domain.runtime_entities import ChatThread, ChatTurn
+
     session_id = "chat_partial_api"
     client = TestClient(app)
+    runtime_test_context.repository.create_chat_thread(ChatThread(id=session_id))
+    runtime_test_context.repository.upsert_chat_turn(
+        ChatTurn(
+            id="turn_partial",
+            thread_id=session_id,
+            user_message="question",
+            assistant_message="",
+            status="interrupted",
+            role="nahida",
+            mode="normal",
+            model="flash",
+        )
+    )
     base_payload = {
         "session_id": session_id,
         "user_input": "question",
@@ -1102,6 +1117,27 @@ def test_commit_turn_upserts_partial_reply_by_turn_id(runtime_test_context):
     assert entries[0].id == "turn_partial"
     assert entries[0].assistant_message == "partial plus more"
     assert entries[0].status == "interrupted"
+
+
+def test_commit_turn_rejects_client_created_thread_and_turn(runtime_test_context):
+    client = TestClient(app)
+
+    response = client.post(
+        "/sessions/chat_ghost/commit-turn",
+        json={
+            "session_id": "chat_ghost",
+            "user_input": "question",
+            "agent_reply": "partial",
+            "role": "nahida",
+            "mode": "normal",
+            "model": "flash",
+            "turn_id": "turn_ghost",
+        },
+    )
+
+    assert response.status_code == 409
+    assert runtime_test_context.repository.get_chat_thread("chat_ghost") is None
+    assert runtime_test_context.repository.get_chat_turn("turn_ghost") is None
 
 
 def test_archive_active_session_endpoint(runtime_test_context):

@@ -125,6 +125,14 @@ def test_chat_service_rejects_duplicate_or_completed_turn_reuse(tmp_path):
 
 def test_chat_service_partial_commit_is_idempotent_by_turn_id(tmp_path):
     service, repository = _service(tmp_path)
+    prepared = service.start_turn(
+        ChatCommand(
+            user_input="question",
+            thread_id="chat_partial",
+            turn_id="turn_partial",
+        )
+    )
+    service.interrupt_turn(prepared, "")
 
     first, first_changed = service.commit_partial_turn(
         thread_id="chat_partial",
@@ -169,6 +177,76 @@ def test_chat_service_partial_commit_is_idempotent_by_turn_id(tmp_path):
     assert first.id == updated.id == duplicate.id
     assert updated.assistant_message == "partial plus"
     assert len(repository.list_chat_turns("chat_partial")) == 1
+
+
+def test_partial_commit_rejects_missing_thread_and_turn(tmp_path):
+    service, repository = _service(tmp_path)
+
+    with pytest.raises(ValueError, match="thread not found"):
+        service.commit_partial_turn(
+            thread_id="chat_missing",
+            turn_id="turn_missing",
+            user_input="question",
+            assistant_message="partial",
+            role="nahida",
+            mode="普通",
+            model="flash",
+            route_snapshot={},
+            rag_snapshot={},
+            conversation_instruction="",
+        )
+
+    repository.ensure_chat_thread("chat_existing")
+    with pytest.raises(ValueError, match="turn not found"):
+        service.commit_partial_turn(
+            thread_id="chat_existing",
+            turn_id="turn_missing",
+            user_input="question",
+            assistant_message="partial",
+            role="nahida",
+            mode="普通",
+            model="flash",
+            route_snapshot={},
+            rag_snapshot={},
+            conversation_instruction="",
+        )
+
+    assert repository.get_chat_thread("chat_missing") is None
+    assert repository.get_chat_turn("turn_missing") is None
+
+
+def test_partial_commit_interrupts_streaming_turn_without_overwriting_server_metadata(tmp_path):
+    service, repository = _service(tmp_path)
+    prepared = service.start_turn(
+        ChatCommand(
+            user_input="server question",
+            thread_id="chat_streaming_partial",
+            turn_id="turn_streaming_partial",
+        )
+    )
+
+    stored, changed = service.commit_partial_turn(
+        thread_id="chat_streaming_partial",
+        turn_id="turn_streaming_partial",
+        user_input="client replacement",
+        assistant_message="partial",
+        role="client-role",
+        mode="client-mode",
+        model="client-model",
+        route_snapshot={"role": "client-role"},
+        rag_snapshot={"result_count": 999},
+        conversation_instruction="client replacement",
+    )
+
+    thread = repository.get_chat_thread("chat_streaming_partial")
+    assert changed is True
+    assert stored.status == "interrupted"
+    assert stored.user_message == "server question"
+    assert stored.role == prepared.turn.role
+    assert stored.route_snapshot == prepared.turn.route_snapshot
+    assert stored.rag_snapshot == prepared.turn.rag_snapshot
+    assert thread is not None
+    assert thread.active_operation_id is None
 
 
 def test_chat_service_rejects_cross_thread_turn_reuse(tmp_path):
@@ -302,6 +380,44 @@ def test_chat_service_allows_only_one_active_turn_per_thread(tmp_path):
         "interrupted",
         "completed",
     ]
+
+
+def test_losing_request_does_not_prepare_or_overwrite_settings(tmp_path):
+    service, repository = _service(tmp_path)
+    first = service.start_turn(
+        ChatCommand(
+            user_input="first",
+            thread_id="chat_settings_owner",
+            selected_role="nahida",
+        )
+    )
+    route_calls = 0
+
+    def count_route(**kwargs):
+        nonlocal route_calls
+        route_calls += 1
+        return {
+            "role": "march7",
+            "mode": "普通",
+            "model_profile": "flash",
+            "reason": "test",
+        }
+
+    service.dependencies = replace(service.dependencies, route_request=count_route)
+    with pytest.raises(ValueError, match="active operation"):
+        service.start_turn(
+            ChatCommand(
+                user_input="second",
+                thread_id="chat_settings_owner",
+                selected_role="march7",
+            )
+        )
+
+    stored = repository.get_chat_thread("chat_settings_owner")
+    assert route_calls == 0
+    assert stored is not None
+    assert stored.settings_snapshot["selectedRole"] == "nahida"
+    service.interrupt_turn(first, "partial")
 
 
 def test_stale_operation_cannot_overwrite_continuation_owner(tmp_path):

@@ -68,4 +68,27 @@ describe("OperationRegistry", () => {
     expect(registry.isOwned(first.operationId, first.generationId, "chat-a")).toBe(false);
     expect(registry.isCurrent(second.operationId, second.generationId, "chat-a")).toBe(true);
   });
+
+  it("invalidates a cancelling operation during a workspace transition", () => {
+    const registry = new OperationRegistry();
+    const operation = registry.start("chat", "chat-a");
+
+    registry.abort("chat");
+    registry.cancelAll();
+
+    expect(registry.isOwned(operation.operationId, operation.generationId, "chat-a")).toBe(false);
+    expect(registry.size).toBe(0);
+  });
+
+  it("invalidates a cancelling operation when a replacement starts", () => {
+    const registry = new OperationRegistry();
+    const first = registry.start("chat", "chat-a");
+
+    registry.abort("chat");
+    const second = registry.start("chat", "chat-a");
+
+    expect(registry.isOwned(first.operationId, first.generationId, "chat-a")).toBe(false);
+    expect(registry.isCurrent(second.operationId, second.generationId, "chat-a")).toBe(true);
+    expect(registry.size).toBe(1);
+  });
 });
