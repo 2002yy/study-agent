@@ -15,16 +15,13 @@ These tests cover the 18 suggested scenarios spanning:
 
 from __future__ import annotations
 
-import json
-import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.mode_manager import RuntimeModes, build_runtime_profile
+from src.mode_manager import RuntimeModes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -256,7 +253,6 @@ def test_session_restore_during_generation_isolates_stream(monkeypatch):
     )
     assert resp_a.status_code == 200
     sid_a = resp_a.json()["session_id"]
-    reply_a = resp_a.json()["reply"]
 
     # Create session B
     resp_b = client.post(
@@ -309,7 +305,6 @@ def test_news_discuss_session_isolation():
     from src.wechat_service import run_discussion_stage
 
     writes: list = []
-    orig_append_reply = None
     try:
         from src import wechat_service
 
@@ -461,7 +456,7 @@ def test_wechat_reset_clears_group_and_returns_empty():
     client = TestClient(app)
 
     # Seed some content first
-    from src.wechat_state import GROUP_FILE, UNREAD_FILE, safe_write_text
+    from src.wechat_state import GROUP_FILE, safe_write_text
 
     GROUP_FILE.parent.mkdir(parents=True, exist_ok=True)
     safe_write_text(

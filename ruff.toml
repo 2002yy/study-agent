@@ -1,0 +1,4 @@
+[lint.per-file-ignores]
+"src/api/__init__.py" = ["E402", "F401"]
+"src/api/models/__init__.py" = ["F401"]
+"src/api/app.py" = ["E402"]

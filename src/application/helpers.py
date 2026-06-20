@@ -14,10 +14,7 @@ IMPORTANT — Monkeypatch bridge
 from __future__ import annotations
 
 import json
-import os
 import re
-import secrets
-from dataclasses import Field as _DataclassField_dummy
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -609,10 +606,6 @@ def prepare_chat_context(request: Any) -> dict[str, Any]:
             "请从下面已经输出的内容之后继续回答，不要重复已输出的部分。\n"
             f"已输出内容：\n{request.partial_reply.strip()[:800]}"
         )
-
-    effective_user_input = request.user_input
-    if continuation_instruction:
-        effective_user_input = f"{request.user_input}\n\n{continuation_instruction}"
 
     route = route_request(
         user_input=request.user_input,

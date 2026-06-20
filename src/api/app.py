@@ -59,10 +59,6 @@ app.include_router(_news_router)
 app.include_router(_rag_router)
 app.include_router(_chat_router)
 
-# Import DEFAULT_RAG_INDEX_PATH for use by routes
-from src.rag.index import DEFAULT_RAG_INDEX_PATH  # noqa: E402
-
-
 # ── Security helpers ──────────────────────────────────────────────────
 
 def _api_token() -> str:
