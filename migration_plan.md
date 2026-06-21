@@ -1,24 +1,29 @@
 # Migration Plan — Architecture V2
 
-> 从当前 `bc9d81c` 状态出发，分 5 批迁移到目标架构。  
-> 每批独立可发布、可验证、可回滚。
+> 从当前 `6f28990` 状态出发，按纵向切片封板，而非分批推进。
+> 每个切片封板后该模块所有业务冻结，只修 bug。
 
-## Implementation status — 2026-06-19
+## Implementation status — 2026-06-21
 
-- Batch 1: operation registry is active for chat, group, tool, and news scopes. NewsWorkspace no longer owns a separate run counter or AbortController.
-- Batch 2: Workspace reducer/provider skeleton exists, and active chat/group/news ids are now reducer-owned in App.
-- Batch 3: FastAPI is split into `src/api/app.py`, `src/api/routes/*`, `src/api/models/*`, and `src/application/helpers.py`; compatibility re-exports remain in `src/api/__init__.py`.
-- Batch 4: SQLite runtime schema and repository foundation exists for ChatThread/ChatTurn and NewsRun. Existing APIs still use the legacy runtime stores until the next migration step.
+- Batch 1 (operation registry): sealed.
+- Batch 2 (Workspace reducer/controllers): Chat/Session controllers + provider sealed. Group controller main path migrated.
+- Batch 3 (FastAPI split): sealed. `src/api/app.py` + `routes/` + `application/` + `models/` all live; compatibility re-exports remain in `src/api/__init__.py`.
+- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session → sealed. GroupThread/GroupMessage → main path migrated, final seal in progress (News Round legacy route + archive crash recovery pending).
+- Batch 5 (Turn lifecycle): sealed. Turn state machine, continuation, retry, supersede, partial commit all owned by ChatService/SQLite.
 
-## 总览
+> 当前策略已从"分 5 批横向推进"改为**按纵向切片封板**。
+> 每个切片覆盖完整调用链（route → service → repository → DB → controller），完成后该模块冻结。
+> 下表记录原始批次的当前封板状态。
 
-| 批次 | 内容 | 预计改动范围 | 风险 |
-|------|------|------------|------|
-| 1 | 停止状态膨胀 + operation registry | App.tsx (~100行), 3个新文件 | 低 |
-| 2 | 前端 Workspace Reducer | App.tsx 拆为 reducer + controllers | 中 |
-| 3 | 拆后端 api.py | api.py → routes + services | 低（不改行为） |
-| 4 | SQLite 接管运行时实体 | 新 infrastructure/sqlite/ | 中 |
-| 5 | 重新实现 continuation 和恢复 | ChatTurn 实体 + 完整生命周期 | 中高 |
+## 纵向切片封板状态
+
+| 切片 | 内容 | 封板状态 |
+|------|------|---------|
+| Chat/Session (原 Batch 4+5) | SQLite ChatThread/Turn, ChatService, SessionService, chatController | ✅ **Sealed** |
+| Web GroupThread (原 Batch 4) | Schema v4, GroupRepository, GroupChatService, groupChatController | 🟡 **Main path migrated** — News Round legacy route 未关闭，archive crash recovery 未硬化 |
+| NewsRun | — | ❌ 未开始 |
+| Tools | — | ❌ 未开始 |
+| Memory | — | ❌ 未开始 |
 
 ## Batch 1: 停止状态膨胀 + operation registry + 修已知 bug
 
@@ -479,4 +484,13 @@ POST /sessions/{id}/restore
 - Active unflushed threads are visible in `/sessions`, archived threads reject writes, and interrupted Turn metadata survives restore.
 - Mounted `WorkspaceProvider` at the React root and moved Chat/Session runtime ownership into the workspace reducer and chat controller.
 - Added dependency-override test infrastructure so tests no longer force production code through `src.api` monkeypatches.
-- Remaining V2 migration is intentionally frozen outside this slice: Group, News, Tools, Memory, and broader settings/helper decomposition.
+- Chat/Session is sealed. Group main path migrated.
+
+## Implementation note 2026-06-21: Group vertical slice (schema v4 + GroupRepository + GroupChatService)
+
+- Schema v4 adds `group_threads` and `group_messages` tables with operation CAS, unread count, archive ownership.
+- `GroupRepository`, `GroupChatService`, and FastAPI WeChat routes now own Web GroupThread runtime state.
+- `groupChatController` + `groupChatControllerBoundary` replace App.tsx group logic in React.
+- Legacy wechat_group.md file is imported once on first access; Markdown remains archive-only.
+- ⚠️ Not sealed: News Round legacy route still references file-level group state; Group archive crash recovery needs hardening.
+- Remaining V2 migration frozen outside this slice: News (standalone), Tools, Memory, and broader settings/helper decomposition.

@@ -420,7 +420,7 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
-## Implementation status 2026-06-21: Chat/Session and Web GroupThread sealed
+## Implementation status 2026-06-21: Chat/Session sealed; Web GroupThread main path migrated, Final Seal in progress
 
 - Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
 - `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
@@ -435,6 +435,8 @@ AppShell 不再包含任何业务 handler。
 - Schema v4, `GroupRepository`, and `GroupChatService` now own Web GroupThread runtime state, message operation CAS, unread counts, reset/archive, recovery, and search.
 - FastAPI WeChat routes use dependency-injected Group services and no longer import the `src.api` compatibility locator or write runtime Markdown. Legacy three-file state is imported once; Markdown remains archive output.
 - `groupChatController` owns Web Group input, busy/error, optimistic stream, stop, mark-read, opening, and reset orchestration; `App.tsx` only wires it to the panel.
-- News discuss remains a legacy NewsRun stage, but its Group output now enters SQLite only through `GroupChatService`.
+- ⚠️ Not yet sealed — two remaining gaps:
+  1. **FastAPI legacy News Round route** (`news_routes.py`) still has a code path that references old file-based group state; the News Round → Group output flow needs a dedicated ownership slice before the Group path is fully sealed.
+  2. **Archive crash recovery** for GroupThread needs a concrete test and edge-case hardening (e.g. mid-archive power loss, concurrent archive race) before claiming production readiness.
 - The legacy Streamlit WeChat UI remains on its compatibility file path and is not considered part of the sealed React/FastAPI runtime.
 - NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.
