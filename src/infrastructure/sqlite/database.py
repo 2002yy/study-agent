@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -137,6 +137,36 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON chat_threads(active_operation_id);
         CREATE INDEX idx_chat_threads_archive_operation
             ON chat_threads(archive_operation_id);
+        """,
+    ),
+    (
+        4,
+        """
+        ALTER TABLE group_threads ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+        ALTER TABLE group_threads ADD COLUMN settings_snapshot TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE group_threads ADD COLUMN active_operation_id TEXT;
+        ALTER TABLE group_threads ADD COLUMN active_operation_started_at TEXT;
+        ALTER TABLE group_threads ADD COLUMN unread_count INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE group_threads ADD COLUMN archive_operation_id TEXT;
+        ALTER TABLE group_threads ADD COLUMN archive_started_at TEXT;
+        ALTER TABLE group_threads ADD COLUMN export_path TEXT NOT NULL DEFAULT '';
+
+        ALTER TABLE group_messages ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+        ALTER TABLE group_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat';
+        ALTER TABLE group_messages ADD COLUMN operation_id TEXT;
+        ALTER TABLE group_messages ADD COLUMN error TEXT NOT NULL DEFAULT '';
+
+        UPDATE group_threads SET updated_at = created_at WHERE updated_at = '';
+        UPDATE group_messages SET updated_at = created_at WHERE updated_at = '';
+
+        CREATE INDEX idx_group_threads_status_updated
+            ON group_threads(status, updated_at DESC);
+        CREATE INDEX idx_group_threads_active_operation
+            ON group_threads(active_operation_id);
+        CREATE INDEX idx_group_threads_archive_operation
+            ON group_threads(archive_operation_id);
+        CREATE INDEX idx_group_messages_operation
+            ON group_messages(operation_id);
         """,
     ),
 )

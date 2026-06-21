@@ -168,7 +168,7 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 GroupThread ID 决定消息集合
 切换 Thread → 切换全部群聊内容
 ```
-- ❌ 未解决: 只有全局单文件 `chat/wechat_group.md`，见 #8 表
+- 🟡 基础层已就绪: Schema v4 + `GroupRepository` 已按 Thread 隔离消息，legacy 三文件可一次性导入；现有 WeChat routes 尚未切换，因此整体仍未封板
 
 ### G2 — 失败消息隔离
 ```

@@ -420,13 +420,18 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
-## Implementation status 2026-06-20: Chat and Session vertical slice
+## Implementation status 2026-06-21: Chat/Session sealed; Group Batch 1 foundation
 
 - Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
 - `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
 - Turn state transitions are now `pending -> streaming -> completed/interrupted`, and continuation updates the same Turn ID.
 - Session list/detail/new/archive/flush now read from SQLite through `SessionService`.
 - Legacy Markdown is imported into SQLite once. Current/archive Markdown files are compatibility exports and are no longer runtime truth.
-- Schema changes use ordered migrations. Schema v2 adds archive/export metadata plus operation and conversation fields.
+- Schema changes use ordered migrations. Schema v3 adds Chat operation/archive ownership and recovery fields.
+- Chat partial recovery carries the server-issued operation ID end to end; stale tabs cannot interrupt a newer continuation.
+- Session detail keeps superseded Turns for audit while excluding them from the user-visible message projection.
 - The React root now mounts `WorkspaceProvider`; Chat thread/messages/last response/interruption recovery are owned by its reducer and exposed through `chatController`.
-- GroupThread, NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.
+- Chat/Session is sealed. Except for confirmed bugs, its service, state model, and controller are frozen while the next vertical slices migrate.
+- Schema v4, `GroupRepository`, `GroupChatService`, legacy three-file import, and Markdown archive export form GroupThread Batch 1's backend foundation.
+- Existing WeChat routes still use the legacy file path. GroupThread is not claimed as migrated until routes and a frontend controller switch to SQLite in later batches.
+- NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.

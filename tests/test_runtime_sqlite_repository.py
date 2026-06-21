@@ -10,6 +10,7 @@ from src.domain.runtime_entities import ChatThread, ChatTurn, NewsRun
 from src.infrastructure.sqlite.database import (
     MIGRATIONS,
     RuntimeDatabase,
+    SCHEMA_VERSION,
     apply_migrations,
 )
 from src.repositories.runtime_repository import RuntimeRepository
@@ -41,7 +42,7 @@ def test_runtime_database_initializes_core_tables(tmp_path):
         "tool_runs",
         "operations",
     } <= tables
-    assert version == "3"
+    assert version == str(SCHEMA_VERSION)
     assert "runtime_migrations" in tables
 
 
@@ -66,7 +67,7 @@ def test_runtime_database_migrates_existing_v1_database(tmp_path):
             "SELECT value FROM runtime_meta WHERE key = 'schema_version'"
         ).fetchone()[0]
 
-    assert version == "3"
+    assert version == str(SCHEMA_VERSION)
     assert {
         "archived_at",
         "export_path",
@@ -118,7 +119,7 @@ def test_migration_failure_rolls_back_and_restart_recovers(tmp_path):
             "SELECT status FROM runtime_migrations WHERE version = 2"
         ).fetchone()[0]
 
-    assert version == "3"
+    assert version == str(SCHEMA_VERSION)
     assert {"archived_at", "export_path"} <= thread_columns
     assert ledger_status == "completed"
 
@@ -145,8 +146,13 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
             row[1] for row in connection.execute("PRAGMA table_info(chat_threads)")
         ]
 
-    assert version == "3"
-    assert ledger == [(1, "completed"), (2, "completed"), (3, "completed")]
+    assert version == str(SCHEMA_VERSION)
+    assert ledger == [
+        (1, "completed"),
+        (2, "completed"),
+        (3, "completed"),
+        (4, "completed"),
+    ]
     assert thread_columns.count("archived_at") == 1
 
 

@@ -57,8 +57,30 @@ class GroupThread:
     status: str = "active"
     title: str = ""
     created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
     archived_at: str | None = None
+    settings_snapshot: dict[str, Any] = field(default_factory=dict)
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    unread_count: int = 0
+    archive_operation_id: str | None = None
+    archive_started_at: str | None = None
+    export_path: str = ""
     version: int = 1
+
+
+@dataclass(frozen=True)
+class GroupMessage:
+    id: str = field(default_factory=lambda: new_id("group_msg"))
+    thread_id: str = ""
+    speaker: str = ""
+    content: str = ""
+    status: str = "committed"
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+    message_type: str = "chat"
+    operation_id: str | None = None
+    error: str = ""
 
 
 @dataclass(frozen=True)
