@@ -252,3 +252,53 @@ def test_current_mirror_cleanup_failure_keeps_committed_archive(tmp_path, monkey
     stored = repository.get_chat_thread(thread.id)
     assert stored is not None
     assert stored.export_path == archived.export_path
+
+
+def test_retry_refresh_hides_superseded_branch_but_keeps_audit_turn(tmp_path):
+    service, repository = _service(tmp_path)
+    thread = service.create_session({})
+    repository.add_chat_turn(
+        ChatTurn(
+            id="turn_old",
+            thread_id=thread.id,
+            user_message="question",
+            assistant_message="old partial",
+            status="superseded",
+        )
+    )
+    repository.add_chat_turn(
+        ChatTurn(
+            id="turn_retry",
+            thread_id=thread.id,
+            user_message="question",
+            assistant_message="replacement answer",
+            status="completed",
+            parent_turn_id="turn_old",
+        )
+    )
+
+    detail = service.get_session(thread.id)
+
+    assert detail is not None
+    assert [turn["status"] for turn in detail["turns"]] == [
+        "superseded",
+        "completed",
+    ]
+    assert detail["messages"] == [
+        {
+            "role": "user",
+            "content": "question",
+            "avatarRole": "user",
+            "turnId": "turn_retry",
+            "turnStatus": "completed",
+            "parentTurnId": "turn_old",
+        },
+        {
+            "role": "assistant",
+            "content": "replacement answer",
+            "avatarRole": "auto",
+            "turnId": "turn_retry",
+            "turnStatus": "completed",
+            "parentTurnId": "turn_old",
+        },
+    ]

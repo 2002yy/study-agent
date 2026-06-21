@@ -46,7 +46,10 @@ describe("useChatController stop behavior", () => {
     apiMocks.sendChatStream.mockImplementation(
       async (_question, _history, _options, callbacks, requestOptions) =>
         new Promise((_resolve, reject) => {
-          callbacks.onSession("chat-stop", { turnId: "turn-stop" });
+          callbacks.onSession("chat-stop", {
+            turnId: "turn-stop",
+            operationId: "op-stop",
+          });
           callbacks.onRoute({ role: "nahida", mode: "normal", model_profile: "flash" });
           callbacks.onToken("partial token");
           requestOptions.signal.addEventListener("abort", () => {
@@ -124,6 +127,7 @@ describe("useChatController stop behavior", () => {
         userInput: "question",
         agentReply: "partial token",
         turnId: "turn-stop",
+        operationId: "op-stop",
       })
     );
     expect(operationRegistry.size).toBe(0);

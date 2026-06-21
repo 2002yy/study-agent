@@ -56,6 +56,7 @@ class CommitTurnRequest(BaseModel):
     rag_info: dict = Field(default_factory=dict)
     conversation_instruction: str = ""
     turn_id: str | None = None
+    operation_id: str = Field(min_length=1)
 
 
 class CommitTurnResponse(BaseModel):

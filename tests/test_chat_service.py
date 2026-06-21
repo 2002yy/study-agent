@@ -137,6 +137,7 @@ def test_chat_service_partial_commit_is_idempotent_by_turn_id(tmp_path):
     first, first_changed = service.commit_partial_turn(
         thread_id="chat_partial",
         turn_id="turn_partial",
+        operation_id=prepared.turn.operation_id or "",
         user_input="question",
         assistant_message="partial",
         role="nahida",
@@ -149,6 +150,7 @@ def test_chat_service_partial_commit_is_idempotent_by_turn_id(tmp_path):
     updated, updated_changed = service.commit_partial_turn(
         thread_id="chat_partial",
         turn_id="turn_partial",
+        operation_id=prepared.turn.operation_id or "",
         user_input="question",
         assistant_message="partial plus",
         role="nahida",
@@ -161,6 +163,7 @@ def test_chat_service_partial_commit_is_idempotent_by_turn_id(tmp_path):
     duplicate, duplicate_changed = service.commit_partial_turn(
         thread_id="chat_partial",
         turn_id="turn_partial",
+        operation_id=prepared.turn.operation_id or "",
         user_input="question",
         assistant_message="partial plus",
         role="nahida",
@@ -186,6 +189,7 @@ def test_partial_commit_rejects_missing_thread_and_turn(tmp_path):
         service.commit_partial_turn(
             thread_id="chat_missing",
             turn_id="turn_missing",
+            operation_id="op_missing",
             user_input="question",
             assistant_message="partial",
             role="nahida",
@@ -201,6 +205,7 @@ def test_partial_commit_rejects_missing_thread_and_turn(tmp_path):
         service.commit_partial_turn(
             thread_id="chat_existing",
             turn_id="turn_missing",
+            operation_id="op_missing",
             user_input="question",
             assistant_message="partial",
             role="nahida",
@@ -228,6 +233,7 @@ def test_partial_commit_interrupts_streaming_turn_without_overwriting_server_met
     stored, changed = service.commit_partial_turn(
         thread_id="chat_streaming_partial",
         turn_id="turn_streaming_partial",
+        operation_id=prepared.turn.operation_id or "",
         user_input="client replacement",
         assistant_message="partial",
         role="client-role",
@@ -461,6 +467,7 @@ def test_partial_commit_cannot_revive_superseded_turn(tmp_path):
     stored, changed = service.commit_partial_turn(
         thread_id="chat_terminal_partial",
         turn_id=first.turn.id,
+        operation_id=first.turn.operation_id or "",
         user_input="question",
         assistant_message="late partial",
         role="nahida",

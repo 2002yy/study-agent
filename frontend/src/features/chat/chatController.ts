@@ -152,6 +152,7 @@ export function useChatController(options: ControllerOptions) {
     let streamedRag: ChatResponse["rag"] | null = null;
     let activeSessionId = state.activeChatThreadId ?? "";
     let activeTurnId = extraOpts.turnId ?? "";
+    let activeOperationId = "";
     const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);
 
     try {
@@ -180,6 +181,7 @@ export function useChatController(options: ControllerOptions) {
             if (!isCurrent()) return;
             activeSessionId = sessionId;
             activeTurnId = meta?.turnId ?? activeTurnId;
+            activeOperationId = meta?.operationId ?? activeOperationId;
             setThreadId(sessionId);
             if (activeTurnId) {
               setMessages((current) =>
@@ -295,7 +297,7 @@ export function useChatController(options: ControllerOptions) {
         turnId: activeTurnId || null,
       });
       if (!isAbort) options.setOperationError(`聊天请求失败：${message}`);
-      if (fullPartial && activeSessionId) {
+      if (fullPartial && activeSessionId && activeOperationId) {
         try {
           await commitTurn(activeSessionId, {
             userInput: question,
@@ -320,6 +322,7 @@ export function useChatController(options: ControllerOptions) {
             ragInfo: streamedRag ?? state.lastChat?.rag ?? {},
             conversationInstruction: options.conversationInstruction,
             turnId: activeTurnId || undefined,
+            operationId: activeOperationId,
           });
         } catch (commitError) {
           const commitMessage =

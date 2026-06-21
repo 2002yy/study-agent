@@ -61,7 +61,11 @@ async def chat_stream_endpoint(
         try:
             yield sse_event(
                 "session",
-                {"session_id": prepared.thread.id, "turn_id": prepared.turn.id},
+                {
+                    "session_id": prepared.thread.id,
+                    "turn_id": prepared.turn.id,
+                    "operation_id": prepared.turn.operation_id,
+                },
             )
             yield sse_event("route", prepared.route)
             yield sse_event("rag", prepared.rag)
@@ -155,6 +159,7 @@ def commit_turn_endpoint(
         _, changed = service.commit_partial_turn(
             thread_id=session_id,
             turn_id=request.turn_id,
+            operation_id=request.operation_id,
             user_input=request.user_input,
             assistant_message=request.agent_reply,
             role=request.role,

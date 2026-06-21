@@ -42,7 +42,7 @@ class SessionService:
             return None
         turns = self.repository.list_chat_turns(session_id)
         messages: list[dict[str, str]] = []
-        for turn in turns:
+        for turn in (turn for turn in turns if turn.status != "superseded"):
             messages.append(
                 {
                     "role": "user",

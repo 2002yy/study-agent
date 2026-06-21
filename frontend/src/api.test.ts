@@ -88,12 +88,12 @@ describe("sendChatStream", () => {
   });
 
   it("returns the server turn id from streaming session and done events", async () => {
-    const sessions: Array<{ sessionId: string; turnId?: string }> = [];
+    const sessions: Array<{ sessionId: string; turnId?: string; operationId?: string }> = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         sseResponse([
-          'event: session\ndata: {"session_id":"session-turn","turn_id":"turn_abc"}\n\n',
+          'event: session\ndata: {"session_id":"session-turn","turn_id":"turn_abc","operation_id":"op_abc"}\n\n',
           'event: token\ndata: {"text":"ok"}\n\n',
           'event: done\ndata: {"session_id":"session-turn","turn_id":"turn_abc","reply":"ok"}\n\n'
         ])
@@ -104,12 +104,21 @@ describe("sendChatStream", () => {
       "turn-aware",
       [],
       { ragEnabled: false, chatSettings, ragSettings },
-      { onSession: (sessionId, meta) => sessions.push({ sessionId, turnId: meta?.turnId }) }
+      {
+        onSession: (sessionId, meta) =>
+          sessions.push({
+            sessionId,
+            turnId: meta?.turnId,
+            operationId: meta?.operationId
+          })
+      }
     );
 
     expect(response.session_id).toBe("session-turn");
     expect(response.turn_id).toBe("turn_abc");
-    expect(sessions).toEqual([{ sessionId: "session-turn", turnId: "turn_abc" }]);
+    expect(sessions).toEqual([
+      { sessionId: "session-turn", turnId: "turn_abc", operationId: "op_abc" }
+    ]);
   });
 
   it("sends scene and conversation instruction in the chat payload", async () => {

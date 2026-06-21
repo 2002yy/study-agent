@@ -846,6 +846,7 @@ def test_chat_stream_endpoint_emits_sse_and_logs(runtime_test_context):
     assert "event: route" in body
     assert "event: session" in body
     assert '"turn_id": "turn_' in body
+    assert '"operation_id": "op_' in body
     assert "event: rag" in body
     assert body.count("event: token") == 2
     assert 'data: {"text": "Hello"}' in body
@@ -1081,6 +1082,7 @@ def test_commit_turn_updates_existing_partial_reply_by_turn_id(runtime_test_cont
             user_message="question",
             assistant_message="",
             status="interrupted",
+            operation_id="op_partial",
             role="nahida",
             mode="normal",
             model="flash",
@@ -1093,6 +1095,7 @@ def test_commit_turn_updates_existing_partial_reply_by_turn_id(runtime_test_cont
         "mode": "normal",
         "model": "flash",
         "turn_id": "turn_partial",
+        "operation_id": "op_partial",
     }
 
     first = client.post(
@@ -1132,12 +1135,48 @@ def test_commit_turn_rejects_client_created_thread_and_turn(runtime_test_context
             "mode": "normal",
             "model": "flash",
             "turn_id": "turn_ghost",
+            "operation_id": "op_ghost",
         },
     )
 
     assert response.status_code == 409
     assert runtime_test_context.repository.get_chat_thread("chat_ghost") is None
     assert runtime_test_context.repository.get_chat_turn("turn_ghost") is None
+
+
+def test_stale_commit_cannot_interrupt_active_operation(runtime_test_context):
+    from src.domain.runtime_entities import ChatThread, ChatTurn
+
+    repository = runtime_test_context.repository
+    repository.create_chat_thread(ChatThread(id="chat_active_owner"))
+    repository.acquire_chat_operation("chat_active_owner", "op_current")
+    repository.add_chat_turn(
+        ChatTurn(
+            id="turn_active_owner",
+            thread_id="chat_active_owner",
+            user_message="question",
+            status="streaming",
+            operation_id="op_current",
+        )
+    )
+
+    response = TestClient(app).post(
+        "/sessions/chat_active_owner/commit-turn",
+        json={
+            "session_id": "chat_active_owner",
+            "user_input": "question",
+            "agent_reply": "stale partial",
+            "turn_id": "turn_active_owner",
+            "operation_id": "op_stale",
+        },
+    )
+
+    stored = repository.get_chat_turn("turn_active_owner")
+    thread = repository.get_chat_thread("chat_active_owner")
+    assert response.status_code == 409
+    assert stored is not None and stored.status == "streaming"
+    assert stored.assistant_message == ""
+    assert thread is not None and thread.active_operation_id == "op_current"
 
 
 def test_archive_active_session_endpoint(runtime_test_context):

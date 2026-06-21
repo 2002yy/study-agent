@@ -369,6 +369,7 @@ class ChatService:
         *,
         thread_id: str,
         turn_id: str,
+        operation_id: str,
         user_input: str,
         assistant_message: str,
         role: str,
@@ -388,6 +389,8 @@ class ChatService:
             raise ValueError(
                 f"Chat turn {turn_id} belongs to a different thread"
             )
+        if existing.operation_id != operation_id:
+            raise ValueError(f"Chat turn operation ownership lost: {turn_id}")
         if existing.status not in {"streaming", "interrupted"}:
             return existing, False
         stored_reply = assistant_message
@@ -402,7 +405,7 @@ class ChatService:
             turn_id,
             assistant_message=stored_reply,
             status="interrupted",
-            expected_operation_id=existing.operation_id,
+            expected_operation_id=operation_id,
             enforce_operation_owner=existing.status == "streaming",
             expected_status=existing.status,
             release_operation=existing.status == "streaming",

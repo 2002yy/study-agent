@@ -82,7 +82,7 @@ type ChatRequestOptions = {
 };
 
 type ChatStreamHandlers = {
-  onSession?: (sessionId: string, meta?: { turnId?: string }) => void;
+  onSession?: (sessionId: string, meta?: { turnId?: string; operationId?: string }) => void;
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onToken?: (token: string) => void;
@@ -661,7 +661,13 @@ export async function sendChatStream(
         turnId = message.data.turn_id;
       }
       if (sessionId) {
-        handlers.onSession?.(sessionId, { turnId: turnId || undefined });
+        handlers.onSession?.(sessionId, {
+          turnId: turnId || undefined,
+          operationId:
+            typeof message.data.operation_id === "string"
+              ? message.data.operation_id
+              : undefined
+        });
       }
       return;
     }
@@ -795,6 +801,7 @@ export async function commitTurn(sessionId: string, payload: {
   ragInfo?: Record<string, unknown>;
   conversationInstruction?: string;
   turnId?: string;
+  operationId: string;
 }): Promise<{ session_id: string; committed: boolean; message: string }> {
   return requestJson<{ session_id: string; committed: boolean; message: string }>(`/sessions/${sessionId}/commit-turn`, {
     method: "POST",
@@ -809,7 +816,8 @@ export async function commitTurn(sessionId: string, payload: {
       route_info: payload.routeInfo ?? {},
       rag_info: payload.ragInfo ?? {},
       conversation_instruction: payload.conversationInstruction ?? "",
-      turn_id: payload.turnId ?? null
+      turn_id: payload.turnId ?? null,
+      operation_id: payload.operationId
     })
   });
 }
