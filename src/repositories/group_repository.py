@@ -25,6 +25,7 @@ class GroupRepository:
         self.database = database
         self.database.initialize()
         self.recover_stale_operations()
+        self.recover_stale_archives()
 
     def create_thread(self, thread: GroupThread) -> GroupThread:
         with self.database.connect() as connection:
@@ -34,8 +35,9 @@ class GroupRepository:
                     id, status, title, created_at, archived_at, version,
                     updated_at, settings_snapshot, active_operation_id,
                     active_operation_started_at, unread_count,
-                    archive_operation_id, archive_started_at, export_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_read_message_id, archive_operation_id,
+                    archive_started_at, export_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     thread.id,
@@ -49,6 +51,7 @@ class GroupRepository:
                     thread.active_operation_id,
                     thread.active_operation_started_at,
                     thread.unread_count,
+                    thread.last_read_message_id,
                     thread.archive_operation_id,
                     thread.archive_started_at,
                     thread.export_path,
@@ -123,6 +126,40 @@ class GroupRepository:
             ).fetchall()
         return [_message_from_row(row) for row in rows]
 
+    def list_unread_messages(self, thread_id: str) -> list[GroupMessage]:
+        thread = self._required_thread(thread_id)
+        with self.database.connect() as connection:
+            if thread.last_read_message_id:
+                cursor = connection.execute(
+                    "SELECT rowid FROM group_messages WHERE id = ? AND thread_id = ?",
+                    (thread.last_read_message_id, thread_id),
+                ).fetchone()
+            else:
+                cursor = None
+            if cursor is not None:
+                rows = connection.execute(
+                    """
+                    SELECT * FROM group_messages
+                    WHERE thread_id = ? AND status = 'committed'
+                      AND speaker NOT IN ('用户', '系统') AND rowid > ?
+                    ORDER BY rowid
+                    """,
+                    (thread_id, cursor["rowid"]),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT * FROM (
+                        SELECT rowid AS message_rowid, * FROM group_messages
+                        WHERE thread_id = ? AND status = 'committed'
+                          AND speaker NOT IN ('用户', '系统')
+                        ORDER BY rowid DESC LIMIT ?
+                    ) ORDER BY message_rowid
+                    """,
+                    (thread_id, thread.unread_count),
+                ).fetchall()
+        return [_message_from_row(row) for row in rows]
+
     def get_message(self, message_id: str) -> GroupMessage | None:
         with self.database.connect() as connection:
             row = connection.execute(
@@ -185,6 +222,108 @@ class GroupRepository:
             )
         return assistant_message
 
+    def settle_exchange(
+        self,
+        placeholder_id: str,
+        *,
+        operation_id: str,
+        messages: list[GroupMessage],
+        status: str,
+        content: str = "",
+        error: str = "",
+        count_unread: bool = True,
+    ) -> list[GroupMessage]:
+        """Atomically settle the user row, assistant placeholder, and thread lease."""
+
+        now = utc_now()
+        with self.database.connect() as connection:
+            placeholder = connection.execute(
+                "SELECT * FROM group_messages WHERE id = ?", (placeholder_id,)
+            ).fetchone()
+            if placeholder is None:
+                raise ValueError(f"Group message not found: {placeholder_id}")
+            thread_id = placeholder["thread_id"]
+            owner = connection.execute(
+                "SELECT active_operation_id FROM group_threads WHERE id = ?",
+                (thread_id,),
+            ).fetchone()
+            if owner is None or owner["active_operation_id"] != operation_id:
+                raise ValueError(f"Group operation ownership lost: {operation_id}")
+            if placeholder["operation_id"] != operation_id or placeholder["status"] != "streaming":
+                raise ValueError(f"Group message operation ownership lost: {placeholder_id}")
+
+            connection.execute(
+                """
+                UPDATE group_messages SET status = ?, error = ?, updated_at = ?
+                WHERE thread_id = ? AND operation_id = ? AND status = 'pending'
+                """,
+                (status, error, now, thread_id, operation_id),
+            )
+            stored: list[GroupMessage] = []
+            if status == "committed" and messages:
+                first, *remaining = messages
+                cursor = connection.execute(
+                    """
+                    UPDATE group_messages
+                    SET speaker = ?, content = ?, status = 'committed',
+                        message_type = ?, error = '', updated_at = ?
+                    WHERE id = ? AND operation_id = ? AND status = 'streaming'
+                    """,
+                    (
+                        first.speaker,
+                        first.content,
+                        first.message_type,
+                        now,
+                        placeholder_id,
+                        operation_id,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise ValueError(f"Group message operation ownership lost: {placeholder_id}")
+                stored.append(
+                    GroupMessage(
+                        id=placeholder_id,
+                        thread_id=thread_id,
+                        speaker=first.speaker,
+                        content=first.content,
+                        status="committed",
+                        created_at=placeholder["created_at"],
+                        updated_at=now,
+                        message_type=first.message_type,
+                        operation_id=operation_id,
+                    )
+                )
+                for message in remaining:
+                    self._insert_message(connection, message)
+                    stored.append(message)
+            else:
+                cursor = connection.execute(
+                    """
+                    UPDATE group_messages
+                    SET content = ?, status = ?, error = ?, updated_at = ?
+                    WHERE id = ? AND operation_id = ? AND status = 'streaming'
+                    """,
+                    (content, status, error, now, placeholder_id, operation_id),
+                )
+                if cursor.rowcount != 1:
+                    raise ValueError(f"Group message operation ownership lost: {placeholder_id}")
+
+            unread_delta = len(stored) if status == "committed" and count_unread else 0
+            released = connection.execute(
+                """
+                UPDATE group_threads
+                SET active_operation_id = NULL,
+                    active_operation_started_at = NULL,
+                    unread_count = unread_count + ?,
+                    updated_at = ?, version = version + 1
+                WHERE id = ? AND active_operation_id = ?
+                """,
+                (unread_delta, now, thread_id, operation_id),
+            )
+            if released.rowcount != 1:
+                raise ValueError(f"Group operation ownership lost: {operation_id}")
+        return stored
+
     def settle_message(
         self,
         message_id: str,
@@ -237,10 +376,17 @@ class GroupRepository:
             cursor = connection.execute(
                 """
                 UPDATE group_threads
-                SET unread_count = 0, updated_at = ?, version = version + 1
+                SET unread_count = 0,
+                    last_read_message_id = (
+                        SELECT id FROM group_messages
+                        WHERE thread_id = ? AND status = 'committed'
+                          AND speaker != '用户'
+                        ORDER BY rowid DESC LIMIT 1
+                    ),
+                    updated_at = ?, version = version + 1
                 WHERE id = ? AND status = 'active'
                 """,
-                (now, thread_id),
+                (thread_id, now, thread_id),
             )
         if cursor.rowcount != 1:
             raise ValueError(f"Group thread is not readable: {thread_id}")
@@ -280,7 +426,8 @@ class GroupRepository:
                     UPDATE group_messages
                     SET status = 'interrupted', error = 'stale operation recovered',
                         updated_at = ?
-                    WHERE thread_id = ? AND operation_id = ? AND status = 'streaming'
+                    WHERE thread_id = ? AND operation_id = ?
+                      AND status IN ('pending', 'streaming')
                     """,
                     (now, row["id"], row["active_operation_id"]),
                 )
@@ -313,6 +460,22 @@ class GroupRepository:
             raise ValueError(f"Group thread is not archivable: {thread_id}")
         return self._required_thread(thread_id)
 
+    def reserve_archive_path(
+        self, thread_id: str, operation_id: str, export_path: Path | str
+    ) -> GroupThread:
+        now = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE group_threads SET export_path = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'archiving' AND archive_operation_id = ?
+                """,
+                (str(export_path), now, thread_id, operation_id),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError(f"Group archive ownership lost: {operation_id}")
+        return self._required_thread(thread_id)
+
     def finish_archive(
         self, thread_id: str, operation_id: str, export_path: Path | str
     ) -> GroupThread:
@@ -340,7 +503,8 @@ class GroupRepository:
                 """
                 UPDATE group_threads
                 SET status = 'active', archive_operation_id = NULL,
-                    archive_started_at = NULL, updated_at = ?, version = version + 1
+                    archive_started_at = NULL, export_path = '',
+                    updated_at = ?, version = version + 1
                 WHERE id = ? AND status = 'archiving'
                   AND archive_operation_id = ?
                 """,
@@ -349,6 +513,40 @@ class GroupRepository:
         if cursor.rowcount != 1:
             raise ValueError(f"Group archive ownership lost: {operation_id}")
         return self._required_thread(thread_id)
+
+    def recover_stale_archives(self, *, stale_after_seconds: int = 300) -> int:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
+        ).isoformat()
+        now = utc_now()
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, export_path FROM group_threads
+                WHERE status = 'archiving' AND archive_started_at IS NOT NULL
+                  AND archive_started_at < ?
+                """,
+                (cutoff,),
+            ).fetchall()
+            for row in rows:
+                exported = bool(row["export_path"] and Path(row["export_path"]).is_file())
+                connection.execute(
+                    """
+                    UPDATE group_threads
+                    SET status = ?, archived_at = ?, export_path = ?,
+                        archive_operation_id = NULL, archive_started_at = NULL,
+                        updated_at = ?, version = version + 1
+                    WHERE id = ? AND status = 'archiving'
+                    """,
+                    (
+                        "archived" if exported else "active",
+                        now if exported else None,
+                        row["export_path"] if exported else "",
+                        now,
+                        row["id"],
+                    ),
+                )
+        return len(rows)
 
     def _required_thread(self, thread_id: str) -> GroupThread:
         thread = self.get_thread(thread_id)
@@ -392,6 +590,7 @@ def _thread_from_row(row) -> GroupThread:
         active_operation_id=row["active_operation_id"],
         active_operation_started_at=row["active_operation_started_at"],
         unread_count=row["unread_count"],
+        last_read_message_id=row["last_read_message_id"],
         archive_operation_id=row["archive_operation_id"],
         archive_started_at=row["archive_started_at"],
         export_path=row["export_path"],

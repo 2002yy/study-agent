@@ -30,28 +30,11 @@ GroupServiceDependency = Annotated[GroupChatService, Depends(get_group_service)]
 
 @router.post("/news/round", response_model=NewsSearchResponse)
 def run_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
-    from src.api import init_session, load_runtime_modes, news_result_payload, request_performance_mode, run_news_round, validate_choice
-    from src.wechat_service import RuntimeContext
-
-    runtime_modes = load_runtime_modes()
-    performance_mode = request_performance_mode(request.performance_mode)
-    validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
-    validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
-    session_id = request.session_id or init_session()
-    result = run_news_round(
-        query_text=request.query,
-        read_articles=request.read_articles,
-        runtime_context=RuntimeContext(
-            performance_mode=performance_mode,
-            selected_model=request.selected_model,
-            interaction_mode=request.relationship_mode,
-            session_id=session_id,
-            safe_mode=runtime_modes.safe_mode,
-            memory_mode=runtime_modes.memory_mode,
-            route_mode=runtime_modes.route_mode,
-        ),
+    del request
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy news round is retired; use /news/search, /news/enrich, /news/digest, and /news/discuss.",
     )
-    return news_result_payload(result, session_id)
 
 
 @router.post("/news/search", response_model=NewsStageSearchResponse)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
+from threading import Event
 from typing import Annotated, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -28,6 +31,10 @@ from src.constants import ATMOS_OPTIONS, MODEL_OPTIONS, ROLE_OPTIONS
 
 router = APIRouter(tags=["wechat"])
 GroupServiceDependency = Annotated[GroupChatService, Depends(get_group_service)]
+
+
+class _ClientDisconnected(Exception):
+    pass
 
 
 @router.get("/wechat", response_model=WechatStateResponse)
@@ -94,10 +101,10 @@ def send_wechat_message(
     service: GroupServiceDependency,
 ) -> WechatMessageResponse:
     prepared = _prepare(request, service)
-    completed = service.generate(prepared)
+    reply = service.generate(prepared)
     state = service.get_state(prepared.thread.id)
     return WechatMessageResponse(
-        reply=completed.content,
+        reply=reply,
         content=state["content"],
         state=state["state"],
         session_id=prepared.thread.id,
@@ -118,35 +125,28 @@ async def send_wechat_message_stream(
     prepared = _prepare(request, service)
 
     async def events() -> AsyncIterator[str]:
-        disconnected = False
         reply_parts: list[str] = []
-
-        def should_cancel() -> bool:
-            return disconnected
-
-        yield sse_event(
-            "session",
-            {
-                "group_thread_id": prepared.thread.id,
-                "message_id": prepared.message.id,
-                "operation_id": prepared.operation_id,
-            },
-        )
-        yield sse_event("rag", prepared.rag)
+        cancel_event = Event()
+        stream = service.stream_async(prepared, cancel_event=cancel_event)
         try:
-            for token in service.stream(prepared, should_cancel=should_cancel):
-                if await http_request.is_disconnected():
-                    disconnected = True
-                    service.interrupt(prepared, "".join(reply_parts))
-                    return
+            yield sse_event(
+                "session",
+                {
+                    "group_thread_id": prepared.thread.id,
+                    "message_id": prepared.message.id,
+                    "operation_id": prepared.operation_id,
+                },
+            )
+            yield sse_event("rag", prepared.rag)
+            async for token in _tokens_until_disconnected(stream, http_request):
                 reply_parts.append(token)
                 yield sse_event("token", {"text": token})
-            completed = service.complete(prepared, "".join(reply_parts))
+            reply = service.complete(prepared, "".join(reply_parts))
             state = service.get_state(prepared.thread.id)
             yield sse_event(
                 "done",
                 {
-                    "reply": completed.content,
+                    "reply": reply,
                     "content": state["content"],
                     "state": state["state"],
                     "session_id": prepared.thread.id,
@@ -157,9 +157,18 @@ async def send_wechat_message_stream(
                     "has_unread": state["has_unread"],
                 },
             )
+        except _ClientDisconnected:
+            cancel_event.set()
+            with suppress(ValueError):
+                service.interrupt(prepared, "".join(reply_parts))
+            return
+        except asyncio.CancelledError:
+            cancel_event.set()
+            with suppress(ValueError):
+                service.interrupt(prepared, "".join(reply_parts))
+            raise
         except Exception as exc:
-            current = service.repository.get_message(prepared.message.id)
-            if current is not None and current.status == "streaming":
+            with suppress(ValueError):
                 if reply_parts:
                     service.interrupt(prepared, "".join(reply_parts))
                 else:
@@ -167,12 +176,51 @@ async def send_wechat_message_stream(
             yield sse_event(
                 "error", {"message": str(exc), "error_type": type(exc).__name__}
             )
+        finally:
+            cancel_event.set()
+            with suppress(RuntimeError):
+                await stream.aclose()
+            current = service.repository.get_message(prepared.message.id)
+            if current is not None and current.status == "streaming":
+                with suppress(ValueError):
+                    service.interrupt(prepared, "".join(reply_parts))
 
     return StreamingResponse(
         events(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+async def _tokens_until_disconnected(
+    stream: AsyncIterator[str],
+    request: Request,
+    *,
+    poll_interval: float = 0.05,
+) -> AsyncIterator[str]:
+    """Poll disconnect state even while a synchronous provider awaits its first token."""
+
+    while True:
+        next_token = asyncio.create_task(anext(stream))
+        try:
+            while not next_token.done():
+                done, _ = await asyncio.wait({next_token}, timeout=poll_interval)
+                if done:
+                    break
+                if await request.is_disconnected():
+                    next_token.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await next_token
+                    raise _ClientDisconnected
+            try:
+                yield next_token.result()
+            except StopAsyncIteration:
+                return
+        finally:
+            if not next_token.done():
+                next_token.cancel()
+                with suppress(asyncio.CancelledError):
+                    await next_token
 
 
 @router.post("/wechat/search", response_model=WechatSearchResponse)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -271,7 +270,7 @@ def test_wechat_message_generation_failure_marks_failed_message(runtime_test_con
     assert response.status_code == 500
     thread = runtime_test_context.group_repository.list_threads()[0]
     messages = runtime_test_context.group_repository.list_messages(thread.id)
-    assert [message.status for message in messages] == ["committed", "failed"]
+    assert [message.status for message in messages] == ["failed", "failed"]
     assert "model unavailable" in messages[-1].error
 
 
@@ -296,53 +295,54 @@ def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(runtime_t
     assert [message.status for message in messages] == ["committed", "committed"]
 
 
-def test_news_round_endpoint_runs_compat_flow(monkeypatch):
+def test_legacy_news_round_routes_are_gone_without_running_legacy_flow(
+    monkeypatch, runtime_test_context
+):
     from src import api
 
-    captured = {}
+    def fail_legacy(*args, **kwargs):
+        raise AssertionError("legacy flow must not run")
 
-    def fake_run_news_round(query_text, read_articles, runtime_context):
-        captured["query_text"] = query_text
-        captured["read_articles"] = read_articles
-        captured["runtime_context"] = runtime_context
-        return SimpleNamespace(
-            query_text=query_text,
-            news_items=[{"title": "A"}],
-            digest="digest",
-            discussion="discussion",
-            group_content="group",
-            source_block="source",
-            article_coverage={"total": 1},
-            elapsed_ms=12,
-            warnings=[],
-            audit_markdown_path="audit.md",
-            audit_json_path="audit.json",
-        )
+    monkeypatch.setattr(
+        api,
+        "run_news_round",
+        fail_legacy,
+    )
+    client = TestClient(app)
+    payload = {"query": "OpenAI latest"}
+    group_file = runtime_test_context.group_service.importer.group_file
 
-    monkeypatch.setattr(api, "run_news_round", fake_run_news_round)
-    monkeypatch.setattr(api, "init_session", lambda: "news-session")
+    assert client.post("/news/round", json=payload).status_code == 410
+    assert client.post("/wechat/news-round", json=payload).status_code == 410
+    assert not group_file.exists()
+
+
+def test_news_discussion_outputs_remain_isolated_by_group_thread(
+    monkeypatch, runtime_test_context
+):
+    from src import api
+
+    monkeypatch.setattr(
+        api,
+        "run_discussion_stage",
+        lambda digest, **kwargs: (f"【纳西妲】\nreply for {digest}", "legacy ignored"),
+    )
+    first = runtime_test_context.group_service.create_thread(title="First")
+    second = runtime_test_context.group_service.create_thread(title="Second")
     client = TestClient(app)
 
-    response = client.post(
-        "/news/round",
-        json={
-            "query": "OpenAI latest",
-            "read_articles": False,
-            "selected_model": "flash",
-            "relationship_mode": "warm",
-            "performance_mode": "fast",
-        },
-    )
+    for thread, digest in ((first, "alpha"), (second, "beta")):
+        response = client.post(
+            "/news/discuss",
+            json={"digest": digest, "session_id": thread.id},
+        )
+        assert response.status_code == 200
+        assert response.json()["session_id"] == thread.id
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["digest"] == "digest"
-    assert data["discussion"] == "discussion"
-    assert data["session_id"] == "news-session"
-    assert captured["query_text"] == "OpenAI latest"
-    assert captured["read_articles"] is False
-    assert captured["runtime_context"].interaction_mode == "warm"
-    assert captured["runtime_context"].performance_mode == "fast"
+    first_content = runtime_test_context.group_service.get_state(first.id)["content"]
+    second_content = runtime_test_context.group_service.get_state(second.id)["content"]
+    assert "alpha" in first_content and "beta" not in first_content
+    assert "beta" in second_content and "alpha" not in second_content
 
 
 def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_context):

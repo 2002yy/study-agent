@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator
+import asyncio
+from threading import Event
+from typing import Any, AsyncIterator, Callable, Iterator
 
 from src.domain.runtime_entities import GroupMessage, GroupThread, new_id
 from src.infrastructure.markdown.group_archive import (
@@ -78,14 +80,7 @@ class GroupChatService:
         messages = self.repository.list_messages(thread.id)
         visible = [message for message in messages if message.status == "committed"]
         content = _format_messages(visible)
-        unread_candidates = [
-            message
-            for message in visible
-            if message.speaker != "用户"
-        ]
-        unread_messages = (
-            unread_candidates[-thread.unread_count :] if thread.unread_count else []
-        )
+        unread_messages = self.repository.list_unread_messages(thread.id)
         return {
             "group_thread_id": thread.id,
             "state": {
@@ -96,7 +91,7 @@ class GroupChatService:
             "unread": _format_messages(unread_messages),
             "has_unread": thread.unread_count > 0,
             "started": bool(visible),
-            "message_count": sum(_display_count(message) for message in visible),
+            "message_count": len(visible),
             "unread_count": thread.unread_count,
             "summary": content[-500:] if content else "暂无群聊记录",
         }
@@ -199,7 +194,7 @@ class GroupChatService:
                 thread_id=thread.id,
                 speaker="用户",
                 content=user_text,
-                status="committed",
+                status="pending",
                 operation_id=operation_id,
             )
             pending = GroupMessage(
@@ -225,7 +220,7 @@ class GroupChatService:
             rag_context=str(getattr(rag_result, "context", "")),
         )
 
-    def generate(self, prepared: PreparedGroupMessage) -> GroupMessage:
+    def generate(self, prepared: PreparedGroupMessage) -> str:
         try:
             reply = self.dependencies.generate_reply(
                 prepared.user_text,
@@ -254,15 +249,39 @@ class GroupChatService:
         )
         return stream
 
-    def complete(self, prepared: PreparedGroupMessage, reply: str) -> GroupMessage:
-        return self._settle(
+    async def stream_async(
+        self, prepared: PreparedGroupMessage, *, cancel_event: Event | None = None
+    ) -> AsyncIterator[str]:
+        """Bridge the synchronous provider iterator without blocking the event loop."""
+
+        stopped = cancel_event or Event()
+        iterator = iter(self.stream(prepared, should_cancel=stopped.is_set))
+        try:
+            while not stopped.is_set():
+                token, done = await asyncio.to_thread(_next_token, iterator)
+                if done:
+                    return
+                yield token
+        finally:
+            stopped.set()
+            close = getattr(iterator, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except (RuntimeError, ValueError):
+                    pass
+
+    def complete(self, prepared: PreparedGroupMessage, reply: str) -> str:
+        normalized = self.dependencies.normalize_reply(reply.strip())
+        self._settle(
             prepared.message,
             prepared.operation_id,
-            self.dependencies.normalize_reply(reply.strip()),
+            normalized,
             "committed",
         )
+        return normalized
 
-    def interrupt(self, prepared: PreparedGroupMessage, partial: str) -> GroupMessage:
+    def interrupt(self, prepared: PreparedGroupMessage, partial: str) -> list[GroupMessage]:
         return self._settle(
             prepared.message,
             prepared.operation_id,
@@ -271,7 +290,7 @@ class GroupChatService:
             error="generation interrupted",
         )
 
-    def fail(self, prepared: PreparedGroupMessage, error: str) -> GroupMessage:
+    def fail(self, prepared: PreparedGroupMessage, error: str) -> list[GroupMessage]:
         return self._settle(
             prepared.message,
             prepared.operation_id,
@@ -291,12 +310,10 @@ class GroupChatService:
         for message in self.repository.list_messages(thread.id):
             if message.status != "committed":
                 continue
-            blocks = _message_blocks(message.content) or [(message.speaker, message.content)]
-            for speaker, text in blocks:
-                if needle in text.casefold():
-                    results.append({"speaker": speaker, "text": text[:150]})
-                    if len(results) >= limit:
-                        return results
+            if needle in message.content.casefold():
+                results.append({"speaker": message.speaker, "text": message.content[:150]})
+                if len(results) >= limit:
+                    return results
         return results
 
     def reset(self, thread_id: str | None) -> GroupThread:
@@ -324,12 +341,19 @@ class GroupChatService:
             operation_id=operation_id,
         )
         self.repository.start_exchange(None, pending)
-        self.repository.settle_message(
+        messages = _reply_messages(
+            thread.id,
+            operation_id,
+            content.strip(),
+            message_type=message_type,
+            fallback_speaker=speaker,
+        )
+        self.repository.settle_exchange(
             pending.id,
             operation_id=operation_id,
-            content=content.strip(),
+            messages=messages,
             status="committed",
-            unread_delta=_display_count(pending, content=content) if unread else 0,
+            count_unread=unread,
         )
         return self.repository.get_thread(thread.id) or thread
 
@@ -343,6 +367,7 @@ class GroupChatService:
         operation_id = new_id("group_archive")
         locked = self.repository.begin_archive(thread_id, operation_id)
         path = self.exporter.archive_path(locked)
+        self.repository.reserve_archive_path(thread_id, operation_id, path)
         try:
             exported = self.exporter.export_archive(
                 locked, self.repository.list_messages(thread_id), path=path
@@ -367,15 +392,25 @@ class GroupChatService:
         status: str,
         *,
         error: str = "",
-    ) -> GroupMessage:
-        unread_delta = _display_count(message, content=content) if status == "committed" else 0
-        return self.repository.settle_message(
+    ) -> list[GroupMessage]:
+        messages = (
+            _reply_messages(
+                message.thread_id,
+                operation_id,
+                content,
+                message_type=message.message_type,
+                fallback_speaker=message.speaker,
+            )
+            if status == "committed"
+            else []
+        )
+        return self.repository.settle_exchange(
             message.id,
             operation_id=operation_id,
+            messages=messages,
             content=content,
             status=status,
             error=error,
-            unread_delta=unread_delta,
         )
 
     def _resolve_thread(self, thread_id: str | None, *, create: bool) -> GroupThread:
@@ -414,6 +449,31 @@ def _format_messages(messages: list[GroupMessage]) -> str:
     return "\n\n".join(blocks)
 
 
-def _display_count(message: GroupMessage, *, content: str | None = None) -> int:
-    text = message.content if content is None else content
-    return len(_message_blocks(text)) or (1 if text.strip() else 0)
+def _reply_messages(
+    thread_id: str,
+    operation_id: str,
+    content: str,
+    *,
+    message_type: str,
+    fallback_speaker: str,
+) -> list[GroupMessage]:
+    blocks = _message_blocks(content) or [(fallback_speaker, content)]
+    return [
+        GroupMessage(
+            thread_id=thread_id,
+            speaker=speaker,
+            content=text.strip(),
+            status="committed",
+            message_type=message_type,
+            operation_id=operation_id,
+        )
+        for speaker, text in blocks
+        if text.strip()
+    ]
+
+
+def _next_token(iterator: Iterator[str]) -> tuple[str, bool]:
+    try:
+        return next(iterator), False
+    except StopIteration:
+        return "", True

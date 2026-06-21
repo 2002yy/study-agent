@@ -170,14 +170,14 @@ GroupThread ID 决定消息集合
 ```
 - ✅ React/FastAPI 主链满足: FastAPI routes + `GroupChatService` + `GroupRepository` 按真实 GroupThread ID 隔离；React 由 `groupChatController` 持有活动 Thread
 - 🟡 遗留 Streamlit: 仍使用单一文件 `wechat_group.md`，无 Thread 隔离（兼容路径，不改）
-- ❌ FastAPI legacy News Round: `news_routes.py` 中旧的 News Round endpoint 仍引用文件级 group 状态，需关闭
+- ✅ FastAPI legacy News Round 已关闭: `/news/round` 与 `/wechat/news-round` 返回 410，不再进入文件级 Group 写入
 
 ### G2 — 失败消息隔离
 ```
 发送失败的消息标记为 failed
 不能与已提交消息混在同一集合
 ```
-- ✅ React/FastAPI 主链满足: message 使用 `streaming -> committed/interrupted/failed` + operation CAS，可见 content 只投影 committed
+- ✅ React/FastAPI 主链满足: 同一 operation 下 user `pending` 与 assistant `streaming` 在单事务中共同结算；成功拆成逐 speaker committed 行，失败/中断整组不可见
 - 🟡 遗留 Streamlit: 不适用（无操作 CAS）
 
 ### G3 — 未读状态一致性
@@ -185,7 +185,7 @@ GroupThread ID 决定消息集合
 未读消息数 = 上次标记已读后新增的消息数
 标记已读后 has_unread = false
 ```
-- ✅ React/FastAPI 主链满足: `group_threads.unread_count` 按 Thread 累计，mark-read 原子清零
+- ✅ React/FastAPI 主链满足: `last_read_message_id` 记录已读游标，未读数只统计游标后的 committed 角色消息行，mark-read 原子推进游标并清零
 - 🟡 遗留 Streamlit: 不适用（单一文件，无未读追踪）
 
 ## 6. News 不变量
@@ -280,4 +280,3 @@ App → ChatController.send/stop/continue/retry/restore/startNew/archive
 | newsRunId 仍不是后端实体 | NewsWorkspace.tsx | 中 — 当前来自 operationRegistry.operationId，下一步应切到 SQLite NewsRun.id |
 | preview/commit 无 transaction_id | api.ts:259-271 | 中 — 可能提交过期预览 |
 | 遗留 Streamlit 仍使用单一 wechat_group.md | wechat_state.py:26 | 低 — 兼容路径，React/FastAPI 主链已走 SQLite GroupThread |
-| FastAPI legacy News Round 仍引用文件级别 group 状态 | news_routes.py | 中 — 需关闭旧路由，切到 GroupChatService |

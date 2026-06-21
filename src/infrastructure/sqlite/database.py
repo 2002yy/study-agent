@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -167,6 +167,15 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON group_threads(archive_operation_id);
         CREATE INDEX idx_group_messages_operation
             ON group_messages(operation_id);
+        """,
+    ),
+    (
+        5,
+        """
+        ALTER TABLE group_threads ADD COLUMN last_read_message_id TEXT;
+
+        CREATE INDEX idx_group_messages_thread_status
+            ON group_messages(thread_id, status);
         """,
     ),
 )

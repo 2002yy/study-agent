@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from src.application.group_chat_service import GroupChatService
-from src.domain.runtime_entities import GroupMessage
 from src.infrastructure.markdown.group_archive import LEGACY_GROUP_THREAD_ID
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
@@ -97,24 +96,19 @@ def test_archive_export_failure_restores_active_group_thread(tmp_path, monkeypat
 def test_group_unread_search_and_reset_are_thread_scoped(tmp_path):
     service, repository, _, _, _ = _service(tmp_path)
     thread = service.create_thread(title="First")
-    operation_id = "operation-message"
-    repository.acquire_operation(thread.id, operation_id)
-    pending = GroupMessage(
+    service.append_external_message(
         thread_id=thread.id,
-        speaker="群聊",
-        status="streaming",
-        operation_id=operation_id,
+        speaker="用户",
+        content="RAG question",
+        message_type="chat",
+        unread=False,
     )
-    repository.start_exchange(
-        GroupMessage(thread_id=thread.id, speaker="用户", content="RAG question"),
-        pending,
-    )
-    repository.settle_message(
-        pending.id,
-        operation_id=operation_id,
-        content="【纳西妲】\nRAG answer",
-        status="committed",
-        unread_delta=1,
+    service.append_external_message(
+        thread_id=thread.id,
+        speaker="纳西妲",
+        content="RAG answer",
+        message_type="chat",
+        unread=True,
     )
 
     assert service.get_state(thread.id)["unread_count"] == 1
@@ -130,6 +124,79 @@ def test_group_unread_search_and_reset_are_thread_scoped(tmp_path):
     assert archived is not None and archived.status == "archived"
     assert created.id != thread.id and created.status == "active"
     assert service.get_state(created.id)["content"] == ""
+
+
+def test_failed_exchange_is_hidden_before_and_after_refresh(tmp_path):
+    service, repository, _, _, _ = _service(tmp_path)
+    thread = service.create_thread(title="Failure")
+    prepared = service.prepare_message(
+        "question that fails",
+        thread_id=thread.id,
+        model_profile="flash",
+        relationship_mode="standard",
+        performance_mode="fast",
+        rag_enabled=False,
+        rag_top_k=3,
+        rag_retrieval_mode="hybrid",
+        rag_min_score=0.0,
+    )
+
+    service.fail(prepared, "provider unavailable")
+
+    assert service.get_state(thread.id)["content"] == ""
+    reloaded, _, _, _, _ = _service(tmp_path)
+    assert reloaded.get_state(thread.id)["content"] == ""
+    messages = repository.list_messages(thread.id)
+    assert [message.status for message in messages] == ["failed", "failed"]
+    assert repository.get_thread(thread.id).active_operation_id is None
+
+
+def test_four_role_reply_uses_rows_and_read_cursor(tmp_path):
+    service, repository, _, _, _ = _service(tmp_path)
+    thread = service.create_thread(title="Unread")
+    service.append_external_message(
+        thread_id=thread.id,
+        speaker="纳西妲",
+        content="old reply",
+        message_type="chat",
+        unread=True,
+    )
+    service.mark_read(thread.id)
+    service.append_external_message(
+        thread_id=thread.id,
+        speaker="系统",
+        content="news source metadata",
+        message_type="news_source",
+        unread=False,
+    )
+    prepared = service.prepare_message(
+        "new question",
+        thread_id=thread.id,
+        model_profile="flash",
+        relationship_mode="standard",
+        performance_mode="fast",
+        rag_enabled=False,
+        rag_top_k=3,
+        rag_retrieval_mode="hybrid",
+        rag_min_score=0.0,
+    )
+    service.complete(
+        prepared,
+        "【纳西妲】\nA\n\n【三月七】\nB\n\n【晴】\nC\n\n【流萤】\nD",
+    )
+
+    state = service.get_state(thread.id)
+    stored = repository.list_messages(thread.id)
+    assert state["unread_count"] == 4
+    assert state["unread"].count("【") == 4
+    assert "old reply" not in state["unread"]
+    assert "news source metadata" not in state["unread"]
+    assert {message.speaker for message in stored[-4:]} == {
+        "纳西妲",
+        "三月七",
+        "刻晴",
+        "流萤",
+    }
 
 
 def test_failed_opening_can_retry_without_showing_failed_message(tmp_path):

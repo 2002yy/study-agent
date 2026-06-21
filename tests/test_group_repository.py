@@ -79,6 +79,8 @@ def test_group_archive_requires_owner_and_blocks_writes(tmp_path):
     locked = repository.begin_archive(thread.id, "archive-owner")
 
     assert locked.status == "archiving"
+    with pytest.raises(ValueError, match="not archivable"):
+        repository.begin_archive(thread.id, "archive-concurrent")
     with pytest.raises(ValueError, match="not writable"):
         repository.add_message(
             GroupMessage(thread_id=thread.id, speaker="user", content="late")
@@ -159,3 +161,28 @@ def test_stale_group_operation_recovers_as_interrupted(tmp_path):
     current_thread = recovered.get_thread(thread.id)
     assert stored is not None and stored.status == "interrupted"
     assert current_thread is not None and current_thread.active_operation_id is None
+
+
+@pytest.mark.parametrize("archive_exists", [True, False])
+def test_stale_group_archive_recovers_from_reserved_path(tmp_path, archive_exists):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    repository = GroupRepository(database)
+    thread = repository.create_thread(GroupThread(id=f"group-archive-{archive_exists}"))
+    path = tmp_path / "archives" / f"{thread.id}.md"
+    repository.begin_archive(thread.id, "archive-old")
+    repository.reserve_archive_path(thread.id, "archive-old", path)
+    if archive_exists:
+        path.parent.mkdir(parents=True)
+        path.write_text("archive complete", encoding="utf-8")
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE group_threads SET archive_started_at = ? WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", thread.id),
+        )
+
+    recovered = GroupRepository(database).get_thread(thread.id)
+
+    assert recovered is not None
+    assert recovered.status == ("archived" if archive_exists else "active")
+    assert recovered.archive_operation_id is None
+    assert recovered.export_path == (str(path) if archive_exists else "")

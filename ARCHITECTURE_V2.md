@@ -420,7 +420,7 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
-## Implementation status 2026-06-21: Chat/Session sealed; Web GroupThread main path migrated, Final Seal in progress
+## Implementation status 2026-06-21: Chat/Session and Web GroupThread sealed
 
 - Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
 - `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
@@ -432,11 +432,11 @@ AppShell 不再包含任何业务 handler。
 - Session detail keeps superseded Turns for audit while excluding them from the user-visible message projection.
 - The React root now mounts `WorkspaceProvider`; Chat thread/messages/last response/interruption recovery are owned by its reducer and exposed through `chatController`.
 - Chat/Session is sealed. Except for confirmed bugs, its service, state model, and controller are frozen while the next vertical slices migrate.
-- Schema v4, `GroupRepository`, and `GroupChatService` now own Web GroupThread runtime state, message operation CAS, unread counts, reset/archive, recovery, and search.
-- FastAPI WeChat routes use dependency-injected Group services and no longer import the `src.api` compatibility locator or write runtime Markdown. Legacy three-file state is imported once; Markdown remains archive output.
+- Schema v5, `GroupRepository`, and `GroupChatService` now own Web GroupThread runtime state, Exchange CAS, per-speaker messages, read cursor, reset/archive, recovery, and search.
+- FastAPI WeChat routes use dependency-injected Group services and no longer import the `src.api` compatibility locator or write runtime Markdown. The legacy `/news/round` and `/wechat/news-round` writers return 410; the three-file state is imported once and Markdown remains archive output.
 - `groupChatController` owns Web Group input, busy/error, optimistic stream, stop, mark-read, opening, and reset orchestration; `App.tsx` only wires it to the panel.
-- ⚠️ Not yet sealed — two remaining gaps:
-  1. **FastAPI legacy News Round route** (`news_routes.py`) still has a code path that references old file-based group state; the News Round → Group output flow needs a dedicated ownership slice before the Group path is fully sealed.
-  2. **Archive crash recovery** for GroupThread needs a concrete test and edge-case hardening (e.g. mid-archive power loss, concurrent archive race) before claiming production readiness.
+- Group streaming uses a thread bridge so disconnects remain observable before the first token; disconnect, ASGI cancellation, provider failure, and the final guard all settle the full Exchange and release its operation lease.
+- Group archive reserves `export_path` before file export. Startup recovery completes an archive when that file exists and restores an active Thread when it does not; concurrent archive owners are rejected.
+- Web GroupThread is sealed. Except for confirmed bugs, its service, state model, and controller are frozen while NewsRun becomes the next vertical slice.
 - The legacy Streamlit WeChat UI remains on its compatibility file path and is not considered part of the sealed React/FastAPI runtime.
 - NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.

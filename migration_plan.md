@@ -6,9 +6,9 @@
 ## Implementation status — 2026-06-21
 
 - Batch 1 (operation registry): sealed.
-- Batch 2 (Workspace reducer/controllers): Chat/Session controllers + provider sealed. Group controller main path migrated.
+- Batch 2 (Workspace reducer/controllers): Chat/Session and Group controllers + provider sealed.
 - Batch 3 (FastAPI split): sealed. `src/api/app.py` + `routes/` + `application/` + `models/` all live; compatibility re-exports remain in `src/api/__init__.py`.
-- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session → sealed. GroupThread/GroupMessage → main path migrated, final seal in progress (News Round legacy route + archive crash recovery pending).
+- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session and GroupThread/GroupMessage → sealed. NewsRun is the next vertical slice.
 - Batch 5 (Turn lifecycle): sealed. Turn state machine, continuation, retry, supersede, partial commit all owned by ChatService/SQLite.
 
 > 当前策略已从"分 5 批横向推进"改为**按纵向切片封板**。
@@ -20,7 +20,7 @@
 | 切片 | 内容 | 封板状态 |
 |------|------|---------|
 | Chat/Session (原 Batch 4+5) | SQLite ChatThread/Turn, ChatService, SessionService, chatController | ✅ **Sealed** |
-| Web GroupThread (原 Batch 4) | Schema v4, GroupRepository, GroupChatService, groupChatController | 🟡 **Main path migrated** — News Round legacy route 未关闭，archive crash recovery 未硬化 |
+| Web GroupThread (原 Batch 4) | Schema v5, GroupRepository, GroupChatService, groupChatController | ✅ **Sealed** |
 | NewsRun | — | ❌ 未开始 |
 | Tools | — | ❌ 未开始 |
 | Memory | — | ❌ 未开始 |
@@ -486,11 +486,11 @@ POST /sessions/{id}/restore
 - Added dependency-override test infrastructure so tests no longer force production code through `src.api` monkeypatches.
 - Chat/Session is sealed. Group main path migrated.
 
-## Implementation note 2026-06-21: Group vertical slice (schema v4 + GroupRepository + GroupChatService)
+## Implementation note 2026-06-21: Group vertical slice (schema v5 + GroupRepository + GroupChatService)
 
-- Schema v4 adds `group_threads` and `group_messages` tables with operation CAS, unread count, archive ownership.
+- Schema v4 adds `group_threads` and `group_messages`; schema v5 seals Exchange CAS, per-speaker messages, read cursor, reserved archive path, and stale archive recovery.
 - `GroupRepository`, `GroupChatService`, and FastAPI WeChat routes now own Web GroupThread runtime state.
 - `groupChatController` + `groupChatControllerBoundary` replace App.tsx group logic in React.
 - Legacy wechat_group.md file is imported once on first access; Markdown remains archive-only.
-- ⚠️ Not sealed: News Round legacy route still references file-level group state; Group archive crash recovery needs hardening.
+- Sealed: legacy FastAPI News Round writers return 410; stream disconnect/cancellation settles the full Exchange; archive crash recovery and concurrent ownership are test-covered.
 - Remaining V2 migration frozen outside this slice: News (standalone), Tools, Memory, and broader settings/helper decomposition.

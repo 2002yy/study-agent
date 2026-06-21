@@ -152,6 +152,7 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
         (2, "completed"),
         (3, "completed"),
         (4, "completed"),
+        (5, "completed"),
     ]
     assert thread_columns.count("archived_at") == 1
 

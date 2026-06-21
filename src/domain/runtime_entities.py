@@ -63,6 +63,7 @@ class GroupThread:
     active_operation_id: str | None = None
     active_operation_started_at: str | None = None
     unread_count: int = 0
+    last_read_message_id: str | None = None
     archive_operation_id: str | None = None
     archive_started_at: str | None = None
     export_path: str = ""
