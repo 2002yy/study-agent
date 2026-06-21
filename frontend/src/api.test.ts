@@ -294,6 +294,7 @@ describe("wechat API calls", () => {
           content: "group",
           state: {},
           session_id: "wechat-session",
+          group_thread_id: "group-1",
           rag: { status: "found" }
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -302,7 +303,7 @@ describe("wechat API calls", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await sendWechatMessage("hello", {
-      sessionId: "session-1",
+      groupThreadId: "group-1",
       ragEnabled: true,
       chatSettings,
       ragSettings: { ...ragSettings, topK: 9, chatTopK: 4, minScore: 0.37 }
@@ -330,7 +331,7 @@ describe("wechat API calls", () => {
     const response = await sendWechatMessageStream(
       "hello",
       {
-        sessionId: "session-1",
+        groupThreadId: "group-1",
         ragEnabled: true,
         chatSettings,
         ragSettings: { ...ragSettings, minScore: 0.37 }

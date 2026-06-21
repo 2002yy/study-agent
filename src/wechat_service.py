@@ -179,6 +179,7 @@ def run_discussion_stage(
     source_block: str = "",
     session_id: str = "",
     progress: ProgressCallback | None = None,
+    persist_group: bool = True,
 ) -> tuple[str, str]:
     """Stage 4: generate group discussion, write to group file, return (discussion, group_content)."""
     if progress:
@@ -195,21 +196,19 @@ def run_discussion_stage(
     if progress:
         progress("正在写入群聊...")
 
-    if source_block:
-        append_system_group_note(source_block)
-
-    append_interactive_group_reply(discussion)
-
-    update_wechat_join_state(
-        user_has_joined=False,
-        first_reaction_done=False,
-        mode="interactive_group",
-    )
-
-    group_content = read_wechat_group()
-
-    if session_id:
-        set_wechat_interactive(session_id, "news_round")
+    group_content = ""
+    if persist_group:
+        if source_block:
+            append_system_group_note(source_block)
+        append_interactive_group_reply(discussion)
+        update_wechat_join_state(
+            user_has_joined=False,
+            first_reaction_done=False,
+            mode="interactive_group",
+        )
+        group_content = read_wechat_group()
+        if session_id:
+            set_wechat_interactive(session_id, "news_round")
 
     return discussion, group_content
 

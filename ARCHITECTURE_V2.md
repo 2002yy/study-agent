@@ -420,7 +420,7 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
-## Implementation status 2026-06-21: Chat/Session sealed; Group Batch 1 foundation
+## Implementation status 2026-06-21: Chat/Session and Web GroupThread sealed
 
 - Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
 - `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
@@ -432,6 +432,9 @@ AppShell 不再包含任何业务 handler。
 - Session detail keeps superseded Turns for audit while excluding them from the user-visible message projection.
 - The React root now mounts `WorkspaceProvider`; Chat thread/messages/last response/interruption recovery are owned by its reducer and exposed through `chatController`.
 - Chat/Session is sealed. Except for confirmed bugs, its service, state model, and controller are frozen while the next vertical slices migrate.
-- Schema v4, `GroupRepository`, `GroupChatService`, legacy three-file import, and Markdown archive export form GroupThread Batch 1's backend foundation.
-- Existing WeChat routes still use the legacy file path. GroupThread is not claimed as migrated until routes and a frontend controller switch to SQLite in later batches.
+- Schema v4, `GroupRepository`, and `GroupChatService` now own Web GroupThread runtime state, message operation CAS, unread counts, reset/archive, recovery, and search.
+- FastAPI WeChat routes use dependency-injected Group services and no longer import the `src.api` compatibility locator or write runtime Markdown. Legacy three-file state is imported once; Markdown remains archive output.
+- `groupChatController` owns Web Group input, busy/error, optimistic stream, stop, mark-read, opening, and reset orchestration; `App.tsx` only wires it to the panel.
+- News discuss remains a legacy NewsRun stage, but its Group output now enters SQLite only through `GroupChatService`.
+- The legacy Streamlit WeChat UI remains on its compatibility file path and is not considered part of the sealed React/FastAPI runtime.
 - NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.

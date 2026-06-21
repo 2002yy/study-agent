@@ -17,17 +17,13 @@ import {
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   callLocalKnowledge,
-  createWechatOpening,
   loadApiSnapshot,
   loadRole,
   loadWorkflowRun,
   lookupNews,
-  markWechatRead,
   previewLocalKnowledge,
   queryRag,
-  resetWechat,
   saveRuntimeSettings,
-  sendWechatMessageStream,
   uploadDocuments
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
@@ -46,6 +42,7 @@ import { SESSION_STORAGE_KEY, seedMessages } from "./features/single-chat/chatHi
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
+import { useGroupChatController } from "./features/group-chat/groupChatController";
 import { TimelinePanel } from "./features/workflows/TimelinePanel";
 import { displayValue } from "./utils/format";
 import type {
@@ -567,6 +564,7 @@ function Inspector({
   onNewsRunStarted,
   onNewsDiscussed,
   isWechatBusy,
+  wechatError,
   isNewsBusy,
   isSending,
   onMemoryChanged
@@ -611,6 +609,7 @@ function Inspector({
   onNewsRunStarted: (runId: string) => void;
   onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
+  wechatError: string;
   isNewsBusy: boolean;
   isSending: boolean;
   onMemoryChanged: () => Promise<void> | void;
@@ -641,6 +640,7 @@ function Inspector({
         onNewsRunStarted={onNewsRunStarted}
         onNewsDiscussed={onNewsDiscussed}
         isWechatBusy={isWechatBusy}
+        error={wechatError}
         isNewsBusy={isNewsBusy}
       />
       <SourcesPanel lastChat={lastChat} ragSearch={ragSearch} isSearching={isSearching} />
@@ -682,7 +682,7 @@ export default function App() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const wechatThreadId = workspaceRuntime.activeGroupThreadId;
+  const wechatThreadId = workspaceRuntime.activeGroupThreadId ?? snapshot.wechat?.group_thread_id;
   const newsRunId = workspaceRuntime.activeNewsRunId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
@@ -698,10 +698,8 @@ export default function App() {
   const [loadingRunId, setLoadingRunId] = useState("");
   const [uploadState, setUploadState] = useState("");
   const [ragUploadMode, setRagUploadMode] = useState<"append" | "rebuild">("append");
-  const [wechatInput, setWechatInput] = useState("");
   const [newsQuery, setNewsQuery] = useState("最新新闻 when:1d");
   const [readArticles, setReadArticles] = useState(true);
-  const [isWechatBusy, setIsWechatBusy] = useState(false);
   const [isNewsBusy, setIsNewsBusy] = useState(false);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -712,6 +710,25 @@ export default function App() {
   const refresh = async () => {
     setSnapshot(await loadApiSnapshot());
   };
+
+  const groupController = useGroupChatController({
+    wechat: snapshot.wechat,
+    setWechat: (wechat) => setSnapshot((current) => ({ ...current, wechat })),
+    chatSettings,
+    ragSettings,
+    ragEnabled,
+    clearAssociatedNews: () => {
+      setNewsResult(null);
+      setNewsRunId(undefined);
+    },
+  });
+
+  useEffect(() => {
+    const serverThreadId = snapshot.wechat?.group_thread_id;
+    if (serverThreadId && workspaceRuntime.activeGroupThreadId !== serverThreadId) {
+      setWechatThreadId(serverThreadId);
+    }
+  }, [snapshot.wechat?.group_thread_id, workspaceRuntime.activeGroupThreadId]);
 
   const chatController = useChatController({
     chatSettings,
@@ -739,7 +756,7 @@ export default function App() {
       setSelectedRun(null);
     },
     onWorkspaceCancelled: () => {
-      setIsWechatBusy(false);
+      groupController.cancelWorkspace();
       setIsNewsBusy(false);
       setIsPreviewing(false);
       setIsCalling(false);
@@ -943,10 +960,6 @@ export default function App() {
 
   const stopChatGeneration = chatController.stop;
 
-  const stopWechatGeneration = () => {
-    operationRegistry.cancel("group");
-  };
-
   const retryInterruptedChat = chatController.retry;
   const continueInterruptedChat = chatController.continueInterrupted;
   const copyInterruptedReply = chatController.copyInterrupted;
@@ -1076,150 +1089,6 @@ export default function App() {
         setIsCalling(false);
       }
       operationRegistry.complete(operationId);
-    }
-  };
-
-  const handleWechatOpening = async () => {
-    if (isWechatBusy) {
-      return;
-    }
-    const messageCount = snapshot.wechat?.message_count ?? 0;
-    if (messageCount > 0) {
-      setOperationError("群聊已有历史内容。生成开场会覆盖当前群聊，请先使用「新群聊」归档旧内容后再生成开场。");
-      return;
-    }
-    setIsWechatBusy(true);
-    setOperationError("");
-    try {
-      const wechat = await createWechatOpening(chatSettings);
-      setSnapshot((current) => ({ ...current, wechat }));
-    } catch (error) {
-      setOperationError(`微信群开场生成失败：${error instanceof Error ? error.message : "群聊开场生成失败"}`);
-    } finally {
-      setIsWechatBusy(false);
-    }
-  };
-
-  const handleWechatReset = async () => {
-    if (isWechatBusy) {
-      return;
-    }
-    const messageCount = snapshot.wechat?.message_count ?? 0;
-    const ok = window.confirm(
-      messageCount > 0
-        ? `当前群聊有 ${messageCount} 条消息，将先归档再创建新群聊。继续吗？`
-        : "创建一个新的空群聊？"
-    );
-    if (!ok) {
-      return;
-    }
-    setIsWechatBusy(true);
-    setOperationError("");
-    try {
-      const wechat = await resetWechat();
-    dispatchWorkspace({ type: "RESET_GROUP_THREAD", threadId: undefined });
-      setNewsResult(null);
-      setSnapshot((current) => ({ ...current, wechat }));
-    } catch (error) {
-      setOperationError(`新群聊创建失败：${error instanceof Error ? error.message : "新群聊创建失败"}`);
-    } finally {
-      setIsWechatBusy(false);
-    }
-  };
-
-  const handleWechatMarkRead = async () => {
-    try {
-      const wechat = await markWechatRead(wechatThreadId);
-      setSnapshot((current) => ({ ...current, wechat }));
-      setOperationError("");
-    } catch (error) {
-      setOperationError(`标记已读失败：${error instanceof Error ? error.message : "标记已读失败"}`);
-    }
-  };
-
-  const handleSendWechat = async (event: FormEvent) => {
-    event.preventDefault();
-    const message = wechatInput.trim();
-    if (!message || isWechatBusy) {
-      return;
-    }
-    const baseWechat = snapshot.wechat;
-    const { operationId, controller: abortController, generationId } = operationRegistry.start("group");
-    setIsWechatBusy(true);
-    setOperationError("");
-    try {
-      const baseContent = baseWechat?.content ?? "";
-      let streamedReply = "";
-      const pendingContent = `${baseContent}${baseContent.trim() ? "\n\n" : ""}【用户】\n${message}\n\n【群聊】\n她们正在输入…`;
-      if (baseWechat) {
-        setSnapshot((current) => ({
-          ...current,
-          wechat: {
-            ...baseWechat,
-            content: pendingContent,
-            message_count: baseWechat.message_count + 1
-          }
-        }));
-      }
-      const response = await sendWechatMessageStream(message, {
-        sessionId: wechatThreadId,
-        ragEnabled,
-        chatSettings,
-        ragSettings
-      }, {
-        onToken: (token) => {
-          if (!operationRegistry.isCurrent(operationId, generationId)) return;
-          streamedReply += token;
-          if (!baseWechat) {
-            return;
-          }
-          setSnapshot((current) => ({
-            ...current,
-            wechat: current.wechat
-              ? {
-                  ...current.wechat,
-                  content: `${baseContent}${baseContent.trim() ? "\n\n" : ""}【用户】\n${message}\n\n${streamedReply || "【群聊】\n她们正在输入…"}`
-                }
-              : current.wechat
-          }));
-        }
-      }, { signal: abortController.signal });
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setWechatThreadId(response.session_id);
-      setWechatInput("");
-      setSnapshot((current) => ({
-        ...current,
-        wechat: current.wechat
-          ? {
-              ...current.wechat,
-              content: response.content,
-              state: response.state,
-              message_count: response.message_count ?? Math.max(current.wechat.message_count, (response.content.match(/【/g) ?? []).length)
-            }
-          : current.wechat
-      }));
-      operationRegistry.complete(operationId);
-      await refresh();
-    } catch (error) {
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      const isAbort = error instanceof DOMException && error.name === "AbortError";
-      const message = isAbort ? "已停止生成" : error instanceof Error ? error.message : "群聊发送失败";
-      // Rollback optimistic UI to base state
-      setSnapshot((current) => ({
-        ...current,
-        wechat: baseWechat
-          ? {
-              ...baseWechat,
-              content: `${baseWechat.content}\n\n【用户】\n${message}\n\n---\n发送失败：${message} [可重试]`
-            }
-          : baseWechat
-      }));
-      setOperationError(`微信群回复生成失败：${message}`);
-      operationRegistry.complete(operationId);
-    } finally {
-      if (operationRegistry.isCurrent(operationId, generationId)) {
-        setIsWechatBusy(false);
-      }
     }
   };
 
@@ -1370,24 +1239,25 @@ export default function App() {
         webLookup={webLookup}
         useWebLookup={useWebLookup}
         setUseWebLookup={setUseWebLookup}
-        wechatInput={wechatInput}
-        setWechatInput={setWechatInput}
+        wechatInput={groupController.input}
+        setWechatInput={groupController.setInput}
         newsQuery={newsQuery}
         setNewsQuery={setNewsQuery}
         readArticles={readArticles}
         setReadArticles={setReadArticles}
-        onWechatOpening={handleWechatOpening}
-        onWechatReset={handleWechatReset}
-        onWechatMarkRead={handleWechatMarkRead}
-        onSendWechat={handleSendWechat}
-        onStopWechat={stopWechatGeneration}
+        onWechatOpening={groupController.opening}
+        onWechatReset={groupController.reset}
+        onWechatMarkRead={groupController.markRead}
+        onSendWechat={groupController.send}
+        onStopWechat={groupController.stop}
         onLookupNews={handleLookupNews}
         onNewsRunStarted={setNewsRunId}
         onNewsDiscussed={(nextSessionId) => {
           setWechatThreadId(nextSessionId);
           void refresh();
         }}
-        isWechatBusy={isWechatBusy}
+        isWechatBusy={groupController.isBusy}
+        wechatError={groupController.error}
         isNewsBusy={isNewsBusy}
         isSending={isSending}
         onMemoryChanged={refresh}

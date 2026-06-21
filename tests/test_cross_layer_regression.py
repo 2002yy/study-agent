@@ -124,29 +124,24 @@ def test_single_round_session_visible_before_save(monkeypatch, tmp_path):
 # ── 3. Opening with existing group must not overwrite ───────────────────
 
 
-def test_opening_with_existing_group_rejected(monkeypatch):
-    """Calling /wechat/opening when group file already has content must 409."""
+def test_opening_with_existing_group_rejected(runtime_test_context):
+    """Calling /wechat/opening when the SQLite thread has content must 409."""
     client = TestClient(app)
-
-    # Seed group with some content
-    from src.wechat_state import GROUP_FILE, safe_write_text
-
-    GROUP_FILE.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_text(GROUP_FILE, "【三月七】\n现有群聊内容\n\n【刻晴】\n内容2\n\n【纳西妲】\n内容3\n\n【流萤】\n内容4\n")
-
-    resp = client.post(
-        "/wechat/opening",
-        json={
-            "selected_role": "auto",
-            "relationship_mode": "standard",
-            "performance_mode": "standard",
-            "selected_model": "auto",
-        },
-    )
+    state = client.get("/wechat").json()
+    payload = {
+        "group_thread_id": state["group_thread_id"],
+        "selected_role": "auto",
+        "relationship_mode": "standard",
+        "performance_mode": "standard",
+        "selected_model": "auto",
+    }
+    first = client.post("/wechat/opening", json=payload)
+    resp = client.post("/wechat/opening", json=payload)
+    assert first.status_code == 200
     assert resp.status_code == 409
-
-    # Clean up
-    safe_write_text(GROUP_FILE, "")
+    assert runtime_test_context.group_repository.get_thread(
+        state["group_thread_id"]
+    ) is not None
 
 
 # ── 4. safe mode skips enrich (no network read) ─────────────────────────
@@ -451,24 +446,24 @@ def test_news_digest_uses_enriched_items(monkeypatch):
 # ── 12. New group chat clears old search results ────────────────────────
 
 
-def test_wechat_reset_clears_group_and_returns_empty():
-    """After /wechat/reset, group content should be empty."""
+def test_wechat_reset_archives_group_and_returns_new_empty_thread(runtime_test_context):
+    """Reset archives the SQLite thread and returns a new empty thread."""
     client = TestClient(app)
-
-    # Seed some content first
-    from src.wechat_state import GROUP_FILE, safe_write_text
-
-    GROUP_FILE.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_text(
-        GROUP_FILE,
-        "【三月七】\n旧群聊\n\n【刻晴】\n旧内容\n\n【纳西妲】\n旧内容\n\n【流萤】\n旧内容\n",
+    state = client.get("/wechat").json()
+    old_id = state["group_thread_id"]
+    opening = client.post(
+        "/wechat/opening",
+        json={"group_thread_id": old_id, "selected_model": "flash"},
     )
+    assert opening.status_code == 200
 
-    resp = client.post("/wechat/reset")
+    resp = client.post(f"/wechat/reset?group_thread_id={old_id}")
     assert resp.status_code == 200
     data = resp.json()
-    # After reset, group content should be empty
     assert data["content"] == ""
+    assert data["group_thread_id"] != old_id
+    archived = runtime_test_context.group_repository.get_thread(old_id)
+    assert archived is not None and archived.status == "archived"
 
 
 # ── 13. No duplicate session IDs in active state ────────────────────────

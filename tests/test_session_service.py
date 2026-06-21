@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -302,3 +303,23 @@ def test_retry_refresh_hides_superseded_branch_but_keeps_audit_turn(tmp_path):
             "parentTurnId": "turn_old",
         },
     ]
+
+
+def test_concurrent_legacy_import_is_idempotent(tmp_path):
+    service, repository = _service(tmp_path)
+    current_dir = tmp_path / "current"
+    current_dir.mkdir()
+    (current_dir / "concurrent.md").write_text(
+        "User: question\nAgent: answer\n",
+        encoding="utf-8",
+    )
+
+    def import_sessions():
+        return service.importer.import_all(repository)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: import_sessions(), range(2)))
+
+    assert sum(results) == 1
+    assert repository.get_chat_thread("concurrent") is not None
+    assert len(repository.list_chat_turns("concurrent")) == 1

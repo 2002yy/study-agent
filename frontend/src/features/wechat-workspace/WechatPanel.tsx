@@ -91,6 +91,7 @@ export function WechatPanel({
   onLookupNews,
   onNewsDiscussed,
   isWechatBusy,
+  error,
   isNewsBusy
 }: {
   wechat: WechatStateResponse | null;
@@ -115,6 +116,7 @@ export function WechatPanel({
   onLookupNews: () => void;
   onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
+  error: string;
   isNewsBusy: boolean;
 }) {
   const [wechatSearchQuery, setWechatSearchQuery] = useState("");
@@ -141,7 +143,7 @@ export function WechatPanel({
     setIsWechatSearching(true);
     setWechatSearchError("");
     try {
-      setWechatSearch(await searchWechat(keyword));
+      setWechatSearch(await searchWechat(keyword, 10, sessionId));
     } catch (error) {
       setWechatSearch(null);
       setWechatSearchError(error instanceof Error ? error.message : "群聊搜索失败");
@@ -172,6 +174,13 @@ export function WechatPanel({
           新群聊
         </button>
       </div>
+
+      {error ? (
+        <div className="memory-note warn">
+          <AlertTriangle size={15} />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
       <div className="wechat-thread">
         {wechatMessages.length ? (

@@ -168,21 +168,21 @@ startNewSession() / restoreSession() / archiveCurrentSession() →
 GroupThread ID 决定消息集合
 切换 Thread → 切换全部群聊内容
 ```
-- 🟡 基础层已就绪: Schema v4 + `GroupRepository` 已按 Thread 隔离消息，legacy 三文件可一次性导入；现有 WeChat routes 尚未切换，因此整体仍未封板
+- ✅ Web 运行时已满足: FastAPI routes + `GroupChatService` + `GroupRepository` 按真实 GroupThread ID 隔离；React 由 `groupChatController` 持有活动 Thread
 
 ### G2 — 失败消息隔离
 ```
 发送失败的消息标记为 failed
 不能与已提交消息混在同一集合
 ```
-- 当前: 失败时把错误信息写进 content 本身，而不是标记 status
+- ✅ Web 运行时已满足: message 使用 `streaming -> committed/interrupted/failed` + operation CAS，可见 content 只投影 committed
 
 ### G3 — 未读状态一致性
 ```
 未读消息数 = 上次标记已读后新增的消息数
 标记已读后 has_unread = false
 ```
-- 当前: 通过 `wechat_unread.md` 文件跟踪，基本正确
+- ✅ Web 运行时已满足: `group_threads.unread_count` 按 Thread 累计，mark-read 原子清零
 
 ## 6. News 不变量
 

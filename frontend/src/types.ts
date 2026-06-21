@@ -193,6 +193,7 @@ export type MemoryCommitResponse = {
 };
 
 export type WechatStateResponse = {
+  group_thread_id: string;
   state: Record<string, unknown>;
   content: string;
   unread: string;
@@ -208,8 +209,11 @@ export type WechatMessageResponse = {
   content: string;
   state: Record<string, unknown>;
   session_id: string;
+  group_thread_id: string;
   rag: Record<string, unknown>;
   message_count?: number;
+  unread_count?: number;
+  has_unread?: boolean;
 };
 
 export type WechatSearchResult = {

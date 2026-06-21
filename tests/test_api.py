@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -192,67 +193,48 @@ def test_memory_file_preview_prefers_latest_content(monkeypatch, tmp_path):
     assert len(row["preview"]) == 1600
 
 
-def test_wechat_status_and_opening_endpoints(monkeypatch):
-    from src import api
-
-    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
-    monkeypatch.setattr(api, "read_wechat_group", lambda: "group content")
-    monkeypatch.setattr(api, "read_wechat_unread", lambda: "unread content")
-    monkeypatch.setattr(api, "has_wechat_unread", lambda: True)
-    monkeypatch.setattr(api, "has_wechat_group_started", lambda: False)  # allow opening to succeed
-    monkeypatch.setattr(api, "count_wechat_messages", lambda content: 2 if content else 0)
-    monkeypatch.setattr(api, "summarize_wechat", lambda: "summary")
-    monkeypatch.setattr(api, "generate_wechat_opening", lambda **kwargs: "opening")
-    started = []
-    monkeypatch.setattr(api, "start_wechat_group_with_opening", lambda content: started.append(content))
+def test_wechat_status_and_opening_endpoints(runtime_test_context):
     client = TestClient(app)
 
     status = client.get("/wechat")
+    thread_id = status.json()["group_thread_id"]
     opening = client.post(
         "/wechat/opening",
-        json={"selected_role": "auto", "selected_model": "flash", "relationship_mode": "standard"},
+        json={
+            "group_thread_id": thread_id,
+            "selected_role": "auto",
+            "selected_model": "flash",
+            "relationship_mode": "standard",
+        },
     )
 
     assert status.status_code == 200
-    assert status.json()["content"] == "group content"
-    assert status.json()["has_unread"] is True
+    assert status.json()["content"] == ""
     assert opening.status_code == 200
-    assert started == ["opening"]
+    assert opening.json()["group_thread_id"] == thread_id
+    assert "opening" in opening.json()["content"]
+    assert runtime_test_context.group_repository.list_messages(thread_id)[0].status == "committed"
 
 
-def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
-    from src import api
-
+def test_wechat_message_endpoint_generates_reply_and_updates_group(runtime_test_context):
     class FakeRagResult:
         context = "rag context"
 
         def to_dict(self):
             return {"status": "found", "context": self.context}
 
-    actions = []
     captured_rag = {}
 
     def fake_retrieve_local_knowledge(*args, **kwargs):
         captured_rag.update(kwargs)
         return FakeRagResult()
 
-    monkeypatch.setattr(api, "retrieve_local_knowledge", fake_retrieve_local_knowledge)
-    monkeypatch.setattr(
-        api,
-        "generate_interactive_wechat_reply",
-        lambda *args, **kwargs: "group reply",
+    service = runtime_test_context.group_service
+    service.dependencies = replace(
+        service.dependencies,
+        retrieve_local_knowledge=fake_retrieve_local_knowledge,
+        generate_reply=lambda *args, **kwargs: "group reply",
     )
-    monkeypatch.setattr(
-        api,
-        "append_user_and_interactive_group_reply",
-        lambda message, reply: actions.append(("combined", message, reply)),
-    )
-    monkeypatch.setattr(api, "update_wechat_join_state", lambda **kwargs: actions.append(("state", kwargs)))
-    monkeypatch.setattr(api, "set_wechat_interactive", lambda session_id, status: actions.append(("interactive", status)))
-    monkeypatch.setattr(api, "set_wechat_status", lambda session_id, status: actions.append(("status", status)))
-    monkeypatch.setattr(api, "init_session", lambda: "wechat-session")
-    monkeypatch.setattr(api, "read_wechat_group", lambda: "updated group")
-    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
     client = TestClient(app)
 
     response = client.post(
@@ -263,32 +245,21 @@ def test_wechat_message_endpoint_generates_reply_and_updates_group(monkeypatch):
     assert response.status_code == 200
     data = response.json()
     assert data["reply"] == "group reply"
-    assert data["content"] == "updated group"
-    assert data["session_id"] == "wechat-session"
+    assert "hello group" in data["content"]
+    assert data["session_id"] == data["group_thread_id"]
     assert captured_rag["min_score"] == 0.37
-    assert ("combined", "hello group", "group reply") in actions
+    messages = runtime_test_context.group_repository.list_messages(data["group_thread_id"])
+    assert [message.status for message in messages] == ["committed", "committed"]
 
 
-def test_wechat_message_generation_failure_does_not_write_group(monkeypatch):
-    from src import api
-
-    class FakeRagResult:
-        context = ""
-
-        def to_dict(self):
-            return {"status": "skipped", "context": self.context}
-
-    actions = []
-    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
-
+def test_wechat_message_generation_failure_marks_failed_message(runtime_test_context):
     def fail_generation(*args, **kwargs):
         raise RuntimeError("model unavailable")
 
-    monkeypatch.setattr(api, "generate_interactive_wechat_reply", fail_generation)
-    monkeypatch.setattr(
-        api,
-        "append_user_and_interactive_group_reply",
-        lambda message, reply: actions.append(("combined", message, reply)),
+    service = runtime_test_context.group_service
+    service.dependencies = replace(
+        service.dependencies,
+        generate_reply=fail_generation,
     )
     client = TestClient(app, raise_server_exceptions=False)
 
@@ -298,36 +269,13 @@ def test_wechat_message_generation_failure_does_not_write_group(monkeypatch):
     )
 
     assert response.status_code == 500
-    assert actions == []
+    thread = runtime_test_context.group_repository.list_threads()[0]
+    messages = runtime_test_context.group_repository.list_messages(thread.id)
+    assert [message.status for message in messages] == ["committed", "failed"]
+    assert "model unavailable" in messages[-1].error
 
 
-def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(monkeypatch):
-    from src import api
-
-    class FakeRagResult:
-        context = "rag context"
-
-        def to_dict(self):
-            return {"status": "found", "context": self.context}
-
-    actions = []
-    monkeypatch.setattr(api, "retrieve_local_knowledge", lambda *args, **kwargs: FakeRagResult())
-    monkeypatch.setattr(
-        api,
-        "generate_interactive_wechat_reply_stream",
-        lambda *args, **kwargs: (iter(["【纳西妲】\n", "先看结构。"]), False),
-    )
-    monkeypatch.setattr(
-        api,
-        "append_user_and_interactive_group_reply",
-        lambda message, reply: actions.append(("combined", message, reply)),
-    )
-    monkeypatch.setattr(api, "update_wechat_join_state", lambda **kwargs: actions.append(("state", kwargs)))
-    monkeypatch.setattr(api, "set_wechat_interactive", lambda session_id, status: actions.append(("interactive", status)))
-    monkeypatch.setattr(api, "set_wechat_status", lambda session_id, status: actions.append(("status", status)))
-    monkeypatch.setattr(api, "init_session", lambda: "wechat-stream-session")
-    monkeypatch.setattr(api, "read_wechat_group", lambda: "updated stream group")
-    monkeypatch.setattr(api, "read_wechat_state", lambda: {"mode": "interactive_group"})
+def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(runtime_test_context):
     client = TestClient(app)
 
     response = client.post(
@@ -338,10 +286,14 @@ def test_wechat_message_stream_endpoint_emits_tokens_and_commits_group(monkeypat
     assert response.status_code == 200
     body = response.text
     assert "event: rag" in body
+    assert "event: session" in body
+    assert "group_thread_id" in body
+    assert "operation_id" in body
     assert body.count("event: token") == 2
     assert "event: done" in body
-    assert "wechat-stream-session" in body
-    assert ("combined", "hello stream group", "【纳西妲】\n先看结构。") in actions
+    thread = runtime_test_context.group_repository.list_threads()[0]
+    messages = runtime_test_context.group_repository.list_messages(thread.id)
+    assert [message.status for message in messages] == ["committed", "committed"]
 
 
 def test_news_round_endpoint_runs_compat_flow(monkeypatch):
@@ -393,7 +345,7 @@ def test_news_round_endpoint_runs_compat_flow(monkeypatch):
     assert captured["runtime_context"].performance_mode == "fast"
 
 
-def test_news_stage_endpoints_run_individual_steps(monkeypatch):
+def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_context):
     from src import api
 
     calls = {}
@@ -410,7 +362,16 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch):
         calls["digest"] = (news_items, query_text, performance_mode, selected_model)
         return "digest", "source", {"total": len(news_items)}, ["warn"]
 
-    def fake_discussion(digest, interaction_mode, performance_mode, selected_model, source_block="", session_id="", progress=None):
+    def fake_discussion(
+        digest,
+        interaction_mode,
+        performance_mode,
+        selected_model,
+        source_block="",
+        session_id="",
+        progress=None,
+        persist_group=True,
+    ):
         calls["discussion"] = (digest, interaction_mode, performance_mode, selected_model, source_block, session_id)
         return "discussion", "group"
 
@@ -447,7 +408,15 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch):
     assert digest.json()["source_block"] == "source"
     assert digest.json()["warnings"] == ["warn"]
     assert discuss.status_code == 200
-    assert discuss.json()["session_id"] == "news-stage-session"
+    group_thread_id = discuss.json()["session_id"]
+    assert group_thread_id.startswith("group_")
+    group_messages = runtime_test_context.group_repository.list_messages(
+        group_thread_id
+    )
+    assert [message.message_type for message in group_messages] == [
+        "news_source",
+        "news_discussion",
+    ]
     assert calls["digest"][2] == "fast"
     assert calls["discussion"][1] == "warm"
 

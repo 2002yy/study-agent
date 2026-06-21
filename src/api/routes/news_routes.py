@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.models.news import (
     NewsDigestRequest,
@@ -19,8 +21,11 @@ from src.api.models.news import (
     NewsStageSearchResponse,
 )
 from src.constants import ATMOS_OPTIONS, MODEL_OPTIONS
+from src.application.group_chat_service import GroupChatService
+from src.application.runtime_repository import get_group_service
 
 router = APIRouter(tags=["news"])
+GroupServiceDependency = Annotated[GroupChatService, Depends(get_group_service)]
 
 
 @router.post("/news/round", response_model=NewsSearchResponse)
@@ -113,22 +118,47 @@ def digest_news_stage_endpoint(request: NewsDigestRequest) -> NewsDigestResponse
 
 
 @router.post("/news/discuss", response_model=NewsDiscussResponse)
-def discuss_news_stage_endpoint(request: NewsDiscussRequest) -> NewsDiscussResponse:
-    from src.api import init_session, request_performance_mode, run_discussion_stage, validate_choice
+def discuss_news_stage_endpoint(
+    request: NewsDiscussRequest,
+    group_service: GroupServiceDependency,
+) -> NewsDiscussResponse:
+    from src.api import request_performance_mode, run_discussion_stage, validate_choice
 
     validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
     validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
     performance_mode = request_performance_mode(request.performance_mode)
-    session_id = request.session_id or init_session()
-    discussion, group_content = run_discussion_stage(
+    discussion, _ = run_discussion_stage(
         request.digest,
         interaction_mode=request.relationship_mode,
         performance_mode=performance_mode,
         selected_model=request.selected_model,
         source_block=request.source_block,
-        session_id=session_id,
+        session_id=request.session_id,
+        persist_group=False,
     )
-    return NewsDiscussResponse(discussion=discussion, group_content=group_content, session_id=session_id)
+    thread_id = request.session_id
+    if request.source_block:
+        thread = group_service.append_external_message(
+            thread_id=thread_id,
+            speaker="系统",
+            content=request.source_block,
+            message_type="news_source",
+            unread=False,
+        )
+        thread_id = thread.id
+    thread = group_service.append_external_message(
+        thread_id=thread_id,
+        speaker="群聊",
+        content=discussion,
+        message_type="news_discussion",
+        unread=True,
+    )
+    state = group_service.get_state(thread.id)
+    return NewsDiscussResponse(
+        discussion=discussion,
+        group_content=state["content"],
+        session_id=thread.id,
+    )
 
 
 @router.post("/news/lookup", response_model=NewsLookupResponse)

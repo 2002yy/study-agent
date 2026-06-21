@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class WechatStateResponse(BaseModel):
+    group_thread_id: str
     state: dict
     content: str
     unread: str
@@ -17,6 +18,7 @@ class WechatStateResponse(BaseModel):
 
 
 class WechatOpeningRequest(BaseModel):
+    group_thread_id: str | None = None
     selected_role: str = "auto"
     selected_model: str = "auto"
     relationship_mode: str = "standard"
@@ -29,6 +31,7 @@ class WechatMessageRequest(BaseModel):
     relationship_mode: str = "standard"
     performance_mode: str | None = None
     session_id: str | None = None
+    group_thread_id: str | None = None
     rag_enabled: bool = False
     rag_top_k: int = Field(default=3, gt=0, le=20)
     rag_search_top_k: int | None = Field(default=None, gt=0, le=20)
@@ -50,13 +53,17 @@ class WechatMessageResponse(BaseModel):
     content: str
     state: dict
     session_id: str
+    group_thread_id: str
     rag: dict
     message_count: int = 0
+    unread_count: int = 0
+    has_unread: bool = False
 
 
 class WechatSearchRequest(BaseModel):
     keyword: str = Field(min_length=1)
     max_results: int = Field(default=10, gt=0, le=50)
+    group_thread_id: str | None = None
 
 
 class WechatSearchResponse(BaseModel):

@@ -164,14 +164,20 @@ def _build_interactive_messages(
     rag_context: str = "",
     session_id: str | None = None,
     memory_bundle: dict[str, str] | None = None,
+    history_text: str | None = None,
+    first_reaction_done: bool | None = None,
 ) -> tuple[list[dict], bool]:
     modes = load_runtime_modes()
     if relationship_mode is None:
         relationship_mode = modes.relationship_mode
 
-    is_first = not modes.first_reaction_done
+    is_first = not (
+        modes.first_reaction_done
+        if first_reaction_done is None
+        else first_reaction_done
+    )
     prompt = load_interactive_prompt()
-    history = read_wechat_group()
+    history = read_wechat_group() if history_text is None else history_text
     history_limit = wechat_history_lines(modes.performance_mode)
     history_lines = history.splitlines()[-history_limit:] if history else []
 
@@ -358,6 +364,8 @@ def generate_interactive_wechat_reply(
     performance_mode: str | None = None,
     session_id: str | None = None,
     memory_bundle: dict[str, str] | None = None,
+    history_text: str | None = None,
+    first_reaction_done: bool | None = None,
 ) -> str:
     messages, _is_first = _build_interactive_messages(
         user_text,
@@ -365,6 +373,8 @@ def generate_interactive_wechat_reply(
         rag_context,
         session_id=session_id,
         memory_bundle=memory_bundle,
+        history_text=history_text,
+        first_reaction_done=first_reaction_done,
     )
     raw = chat(
         messages,
@@ -385,6 +395,8 @@ def generate_interactive_wechat_reply_stream(
     should_cancel: Callable[[], bool] | None = None,
     session_id: str | None = None,
     memory_bundle: dict[str, str] | None = None,
+    history_text: str | None = None,
+    first_reaction_done: bool | None = None,
 ):
     messages, is_first = _build_interactive_messages(
         user_text,
@@ -392,6 +404,8 @@ def generate_interactive_wechat_reply_stream(
         rag_context,
         session_id=session_id,
         memory_bundle=memory_bundle,
+        history_text=history_text,
+        first_reaction_done=first_reaction_done,
     )
     return (
         stream_chat(

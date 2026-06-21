@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
@@ -89,3 +91,71 @@ def test_group_archive_requires_owner_and_blocks_writes(tmp_path):
     )
     assert archived.status == "archived"
     assert archived.archive_operation_id is None
+
+
+def test_group_operation_has_single_winner_and_stale_settle_is_rejected(tmp_path):
+    repository = _repository(tmp_path)
+    thread = repository.create_thread(GroupThread(id="group-concurrent"))
+    barrier = Barrier(2)
+
+    def acquire(operation_id: str) -> str:
+        barrier.wait(timeout=5)
+        try:
+            repository.acquire_operation(thread.id, operation_id)
+            return operation_id
+        except ValueError:
+            return ""
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        winners = list(executor.map(acquire, ["operation-a", "operation-b"]))
+    winner = next(item for item in winners if item)
+    pending = GroupMessage(
+        id="group-pending",
+        thread_id=thread.id,
+        speaker="群聊",
+        status="streaming",
+        operation_id=winner,
+    )
+    repository.start_exchange(None, pending)
+
+    with pytest.raises(ValueError, match="ownership lost"):
+        repository.settle_message(
+            pending.id,
+            operation_id="operation-stale",
+            content="stale",
+            status="committed",
+        )
+
+    stored = repository.get_message(pending.id)
+    current_thread = repository.get_thread(thread.id)
+    assert stored is not None and stored.status == "streaming"
+    assert current_thread is not None and current_thread.active_operation_id == winner
+
+
+def test_stale_group_operation_recovers_as_interrupted(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    repository = GroupRepository(database)
+    thread = repository.create_thread(GroupThread(id="group-recovery"))
+    repository.acquire_operation(thread.id, "operation-old")
+    repository.start_exchange(
+        None,
+        GroupMessage(
+            id="message-old",
+            thread_id=thread.id,
+            speaker="群聊",
+            status="streaming",
+            operation_id="operation-old",
+        ),
+    )
+    with database.connect() as connection:
+        connection.execute(
+            "UPDATE group_threads SET active_operation_started_at = ? WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", thread.id),
+        )
+
+    recovered = GroupRepository(database)
+
+    stored = recovered.get_message("message-old")
+    current_thread = recovered.get_thread(thread.id)
+    assert stored is not None and stored.status == "interrupted"
+    assert current_thread is not None and current_thread.active_operation_id is None

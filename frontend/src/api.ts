@@ -92,6 +92,7 @@ type ChatStreamHandlers = {
 };
 
 type WechatStreamHandlers = {
+  onSession?: (meta: { groupThreadId: string; messageId?: string; operationId?: string }) => void;
   onRag?: (rag: Record<string, unknown>) => void;
   onToken?: (token: string) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -272,27 +273,30 @@ export async function commitMemoryUpdates(updates: MemoryUpdate[]): Promise<Memo
   });
 }
 
-export async function loadWechatState(): Promise<WechatStateResponse> {
-  return requestJson<WechatStateResponse>("/wechat");
+export async function loadWechatState(groupThreadId?: string): Promise<WechatStateResponse> {
+  const suffix = groupThreadId ? `?group_thread_id=${encodeURIComponent(groupThreadId)}` : "";
+  return requestJson<WechatStateResponse>(`/wechat${suffix}`);
 }
 
-export async function resetWechat(): Promise<WechatStateResponse> {
-  return requestJson<WechatStateResponse>("/wechat/reset", { method: "POST" });
+export async function resetWechat(groupThreadId?: string): Promise<WechatStateResponse> {
+  const suffix = groupThreadId ? `?group_thread_id=${encodeURIComponent(groupThreadId)}` : "";
+  return requestJson<WechatStateResponse>(`/wechat/reset${suffix}`, { method: "POST" });
 }
 
-export async function markWechatRead(sessionId?: string): Promise<WechatStateResponse> {
-  const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+export async function markWechatRead(groupThreadId?: string): Promise<WechatStateResponse> {
+  const suffix = groupThreadId ? `?group_thread_id=${encodeURIComponent(groupThreadId)}` : "";
   return requestJson<WechatStateResponse>(`/wechat/mark-read${suffix}`, { method: "POST" });
 }
 
-export async function createWechatOpening(chatSettings: ChatSettings): Promise<WechatStateResponse> {
+export async function createWechatOpening(chatSettings: ChatSettings, groupThreadId?: string): Promise<WechatStateResponse> {
   return requestJson<WechatStateResponse>("/wechat/opening", {
     method: "POST",
     body: JSON.stringify({
       selected_role: chatSettings.selectedRole,
       selected_model: chatSettings.selectedModel,
       relationship_mode: chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(chatSettings.contextMode)
+      performance_mode: performanceModeFromContext(chatSettings.contextMode),
+      group_thread_id: groupThreadId
     })
   });
 }
@@ -300,7 +304,7 @@ export async function createWechatOpening(chatSettings: ChatSettings): Promise<W
 export async function sendWechatMessage(
   message: string,
   options: {
-    sessionId?: string;
+    groupThreadId?: string;
     ragEnabled: boolean;
     chatSettings: ChatSettings;
     ragSettings: RagSettings;
@@ -315,7 +319,7 @@ export async function sendWechatMessage(
 function buildWechatPayload(
   message: string,
   options: {
-    sessionId?: string;
+    groupThreadId?: string;
     ragEnabled: boolean;
     chatSettings: ChatSettings;
     ragSettings: RagSettings;
@@ -323,7 +327,7 @@ function buildWechatPayload(
 ): Record<string, unknown> {
   return {
     message,
-    session_id: options.sessionId,
+    group_thread_id: options.groupThreadId,
     selected_model: options.chatSettings.selectedModel,
     relationship_mode: options.chatSettings.relationshipMode,
     performance_mode: performanceModeFromContext(options.chatSettings.contextMode),
@@ -339,7 +343,7 @@ function buildWechatPayload(
 export async function sendWechatMessageStream(
   message: string,
   options: {
-    sessionId?: string;
+    groupThreadId?: string;
     ragEnabled: boolean;
     chatSettings: ChatSettings;
     ragSettings: RagSettings;
@@ -369,12 +373,23 @@ export async function sendWechatMessageStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let reply = "";
-  let sessionId = options.sessionId ?? "";
+  let sessionId = options.groupThreadId ?? "";
   let content = "";
   let state: Record<string, unknown> = {};
   let rag: Record<string, unknown> = {};
 
   const handleMessage = (sseMessage: SseMessage) => {
+    if (sseMessage.event === "session") {
+      if (typeof sseMessage.data.group_thread_id === "string") {
+        sessionId = sseMessage.data.group_thread_id;
+        handlers.onSession?.({
+          groupThreadId: sessionId,
+          messageId: typeof sseMessage.data.message_id === "string" ? sseMessage.data.message_id : undefined,
+          operationId: typeof sseMessage.data.operation_id === "string" ? sseMessage.data.operation_id : undefined
+        });
+      }
+      return;
+    }
     if (sseMessage.event === "rag") {
       rag = sseMessage.data.rag && typeof sseMessage.data.rag === "object" ? (sseMessage.data.rag as Record<string, unknown>) : sseMessage.data;
       handlers.onRag?.(rag);
@@ -435,16 +450,18 @@ export async function sendWechatMessageStream(
     content,
     state,
     session_id: sessionId,
+    group_thread_id: sessionId,
     rag
   };
 }
 
-export async function searchWechat(keyword: string, maxResults = 10): Promise<WechatSearchResponse> {
+export async function searchWechat(keyword: string, maxResults = 10, groupThreadId?: string): Promise<WechatSearchResponse> {
   return requestJson<WechatSearchResponse>("/wechat/search", {
     method: "POST",
     body: JSON.stringify({
       keyword,
-      max_results: maxResults
+      max_results: maxResults,
+      group_thread_id: groupThreadId
     })
   });
 }

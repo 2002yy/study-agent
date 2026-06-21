@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -104,15 +105,19 @@ class LegacySessionImporter:
             timezone.utc,
         ).isoformat()
         settings = snapshots[-1].get("settings", {}) if snapshots else {}
-        repository.create_chat_thread(
-            ChatThread(
-                id=session_id,
-                status="active",
-                settings_snapshot=settings if isinstance(settings, dict) else {},
-                created_at=file_time,
-                updated_at=file_time,
+        try:
+            repository.create_chat_thread(
+                ChatThread(
+                    id=session_id,
+                    status="active",
+                    settings_snapshot=settings if isinstance(settings, dict) else {},
+                    created_at=file_time,
+                    updated_at=file_time,
+                )
             )
-        )
+        except sqlite3.IntegrityError:
+            # Another request imported the same legacy session after our read check.
+            return False
         for index, snapshot in enumerate(snapshots):
             repository.add_chat_turn(
                 _turn_from_snapshot(session_id, snapshot, path, index, file_time)
