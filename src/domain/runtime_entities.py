@@ -117,6 +117,13 @@ class ToolRun:
     status: str = "previewed"
     preview: dict[str, Any] = field(default_factory=dict)
     result: dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
+    elapsed_ms: int = 0
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    previewed_at: str | None = None
+    completed_at: str | None = None
+    version: int = 1
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 

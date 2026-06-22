@@ -14,6 +14,7 @@ export type WorkspaceRuntimeState = {
   activeChatThreadId?: string;
   activeGroupThreadId?: string;
   activeNewsRunId?: string;
+  activeToolRunId?: string;
   chatMessages: ChatMessage[];
   lastChat: ChatResponse | null;
   streamRecovery: StreamRecoveryState | null;
@@ -25,6 +26,7 @@ export type WorkspaceAction =
   | { type: "SET_ACTIVE_CHAT_THREAD"; threadId?: string }
   | { type: "SET_ACTIVE_GROUP_THREAD"; threadId?: string }
   | { type: "SET_ACTIVE_NEWS_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_TOOL_RUN"; runId?: string }
   | { type: "SET_CHAT_MESSAGES"; value: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]) }
   | { type: "SET_LAST_CHAT"; value: ChatResponse | null | ((current: ChatResponse | null) => ChatResponse | null) }
   | { type: "SET_STREAM_RECOVERY"; value: StreamRecoveryState | null }
@@ -64,6 +66,8 @@ export function workspaceReducer(
       return { ...state, activeGroupThreadId: action.threadId };
     case "SET_ACTIVE_NEWS_RUN":
       return { ...state, activeNewsRunId: action.runId };
+    case "SET_ACTIVE_TOOL_RUN":
+      return { ...state, activeToolRunId: action.runId };
     case "SET_CHAT_MESSAGES":
       return {
         ...state,
@@ -101,6 +105,7 @@ export function workspaceReducer(
         lastChat: null,
         streamRecovery: null,
         activeNewsRunId: undefined,
+        activeToolRunId: undefined,
         transitionVersion: state.transitionVersion + 1
       };
     case "RESET_GROUP_THREAD":

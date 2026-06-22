@@ -12,6 +12,7 @@ export default defineConfig({
       "/chat": API_TARGET,
       "/rag": API_TARGET,
       "/tools": API_TARGET,
+      "/tool-runs": API_TARGET,
       "/workflows": API_TARGET,
       "/memory": API_TARGET,
       "/runtime": API_TARGET,

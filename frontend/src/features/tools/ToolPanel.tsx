@@ -1,11 +1,11 @@
 import { CheckCircle2, Loader2, Sparkles, Wrench } from "lucide-react";
-import type { ToolInvocationResponse } from "../../types";
+import type { ToolRunResponse } from "../../types";
 import { translateStatus } from "../../utils/format";
 
 export function ToolPanel({
   toolCount,
-  toolPreview,
-  toolCall,
+  run,
+  error,
   previewTool,
   callTool,
   isPreviewing,
@@ -15,8 +15,8 @@ export function ToolPanel({
   invocationLabel = ""
 }: {
   toolCount: number;
-  toolPreview: ToolInvocationResponse | null;
-  toolCall: ToolInvocationResponse | null;
+  run: ToolRunResponse | null;
+  error?: string;
   previewTool: () => void;
   callTool: () => void;
   isPreviewing: boolean;
@@ -25,9 +25,9 @@ export function ToolPanel({
   callBlockedReason?: string;
   invocationLabel?: string;
 }) {
-  const latest = toolCall ?? toolPreview;
-  const outputStatus = typeof latest?.output.status === "string" ? latest.output.status : "";
-  const outputLabel = outputStatus ? translateStatus(outputStatus) : latest?.reason || "就绪";
+  const output = run?.status === "previewed" || run?.status === "blocked" ? run.preview : run?.result;
+  const outputStatus = typeof output?.status === "string" ? output.status : "";
+  const outputLabel = outputStatus ? translateStatus(outputStatus) : run?.reason || "就绪";
   return (
     <section className="panel" id="tools">
       <div className="panel-header">
@@ -42,18 +42,19 @@ export function ToolPanel({
           {isPreviewing ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
           预览
         </button>
-        <button className="tool-button secondary" disabled={!toolPreview || isCalling || !canCall} onClick={callTool} type="button">
+        <button className="tool-button secondary" disabled={!run || isCalling || !canCall} onClick={callTool} type="button">
           {isCalling ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
           调用
         </button>
       </div>
       {invocationLabel ? <div className="tool-hint">已预览：{invocationLabel}</div> : null}
       {callBlockedReason ? <div className="tool-hint warn">{callBlockedReason}</div> : null}
-      {latest ? (
+      {error ? <div className="tool-hint warn">{error}</div> : null}
+      {run ? (
         <div className="tool-result">
           <div className="metric-row">
             <span>状态</span>
-            <strong>{translateStatus(latest.status)}</strong>
+            <strong>{translateStatus(run.status)}</strong>
           </div>
           <div className="metric-row">
             <span>结果</span>
@@ -61,7 +62,7 @@ export function ToolPanel({
           </div>
           <div className="metric-row">
             <span>运行</span>
-            <strong>{latest.run_id || "仅预览"}</strong>
+            <strong>{run.id}</strong>
           </div>
         </div>
       ) : (

@@ -63,6 +63,9 @@ def test_runtime_database_migrates_existing_v1_database(tmp_path):
         turn_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(chat_turns)")
         }
+        tool_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(tool_runs)")
+        }
         version = connection.execute(
             "SELECT value FROM runtime_meta WHERE key = 'schema_version'"
         ).fetchone()[0]
@@ -77,6 +80,15 @@ def test_runtime_database_migrates_existing_v1_database(tmp_path):
         "archive_started_at",
     } <= thread_columns
     assert {"operation_id", "conversation_instruction"} <= turn_columns
+    assert {
+        "reason",
+        "elapsed_ms",
+        "version",
+        "active_operation_id",
+        "active_operation_started_at",
+        "previewed_at",
+        "completed_at",
+    } <= tool_columns
 
 
 def test_migration_failure_rolls_back_and_restart_recovers(tmp_path):
@@ -148,12 +160,7 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
 
     assert version == str(SCHEMA_VERSION)
     assert ledger == [
-        (1, "completed"),
-        (2, "completed"),
-        (3, "completed"),
-        (4, "completed"),
-        (5, "completed"),
-        (6, "completed"),
+        (version, "completed") for version in range(1, SCHEMA_VERSION + 1)
     ]
     assert thread_columns.count("archived_at") == 1
 

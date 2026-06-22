@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  callLocalKnowledge,
+  callToolRun,
   archiveSession,
   createNewsRun,
   digestNewsRun,
@@ -10,7 +10,7 @@ import {
   searchNewsRun,
   loadApiSnapshot,
   lookupNews,
-  previewLocalKnowledge,
+  createToolRun,
   queryRag,
   searchWechat,
   sendChatStream,
@@ -203,25 +203,24 @@ describe("local knowledge tool calls", () => {
       query: "RAG",
       retrievalMode: "hybrid" as const,
       topK: 7,
-      minScore: 0.33,
-      previewId: "preview-1"
+      minScore: 0.33
     };
 
-    await previewLocalKnowledge(invocation);
-    await callLocalKnowledge(invocation);
+    await createToolRun(invocation);
+    await callToolRun("preview-1");
 
     const [, previewInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    const [, callInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    const [callUrl, callInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
     const previewBody = JSON.parse(String(previewInit.body));
-    const callBody = JSON.parse(String(callInit.body));
+    expect(previewBody.tool_name).toBe("retrieve_local_knowledge");
     expect(previewBody.args).toEqual({
       query: "RAG",
       retrieval_mode: "hybrid",
       top_k: 7,
       min_score: 0.33
     });
-    expect(callBody.run_id).toBe("preview-1");
-    expect(callBody.args).toEqual(previewBody.args);
+    expect(callUrl).toBe("/tool-runs/preview-1/call");
+    expect(callInit.body).toBeUndefined();
   });
 });
 

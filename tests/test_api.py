@@ -1250,13 +1250,9 @@ def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, t
 
     tools_response = client.get("/tools")
     preview_response = client.post(
-        "/tools/retrieve_local_knowledge/preview",
-        json={"args": {"query": "local knowledge workflow evidence", "index_path": str(index_path)}},
-    )
-    call_response = client.post(
-        "/tools/retrieve_local_knowledge/call",
+        "/tool-runs",
         json={
-            "run_id": "api-tool-run",
+            "tool_name": "retrieve_local_knowledge",
             "args": {
                 "query": "local knowledge workflow evidence",
                 "index_path": str(index_path),
@@ -1264,20 +1260,43 @@ def test_tools_and_workflow_endpoints_record_local_knowledge_call(monkeypatch, t
             },
         },
     )
+    tool_run_id = preview_response.json()["id"]
+    call_response = client.post(
+        f"/tool-runs/{tool_run_id}/call",
+    )
+    restored_response = client.get(f"/tool-runs/{tool_run_id}")
+    listed_response = client.get("/tool-runs")
     runs_response = client.get("/workflows/runs")
-    run_response = client.get("/workflows/runs/api-tool-run")
+    run_response = client.get(f"/workflows/runs/{tool_run_id}")
 
     assert tools_response.status_code == 200
     assert tools_response.json()["tools"][0]["name"] == "retrieve_local_knowledge"
     assert preview_response.status_code == 200
-    assert preview_response.json()["status"] == "preview"
+    assert preview_response.json()["status"] == "previewed"
+    assert preview_response.json()["args"]["top_k"] == 1
     assert call_response.status_code == 200
     assert call_response.json()["status"] == "succeeded"
-    assert call_response.json()["output"]["status"] == "found"
+    assert call_response.json()["result"]["status"] == "found"
+    assert restored_response.json()["status"] == "succeeded"
+    assert listed_response.json()["runs"][0]["id"] == tool_run_id
     assert runs_response.status_code == 200
-    assert runs_response.json()["runs"][0]["run_id"] == "api-tool-run"
+    assert runs_response.json()["runs"][0]["run_id"] == tool_run_id
     assert run_response.status_code == 200
     assert [event["event_type"] for event in run_response.json()["run"]["events"]] == [
         "started",
         "succeeded",
     ]
+
+
+def test_legacy_tool_invocation_routes_are_retired():
+    client = TestClient(app)
+
+    preview = client.post(
+        "/tools/retrieve_local_knowledge/preview", json={"args": {"query": "x"}}
+    )
+    call = client.post(
+        "/tools/retrieve_local_knowledge/call", json={"args": {"query": "x"}}
+    )
+
+    assert preview.status_code == 410
+    assert call.status_code == 410

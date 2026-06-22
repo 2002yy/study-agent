@@ -50,6 +50,34 @@ class ToolInvocationResponse(BaseModel):
     run_id: str
 
 
+class ToolRunCreateRequest(BaseModel):
+    tool_name: str = Field(min_length=1)
+    args: dict = Field(default_factory=dict)
+
+
+class ToolRunResponse(BaseModel):
+    id: str
+    tool_name: str
+    args: dict
+    args_hash: str
+    status: str
+    preview: dict
+    result: dict
+    reason: str
+    elapsed_ms: int
+    active_operation_id: str | None
+    active_operation_started_at: str | None
+    previewed_at: str | None
+    completed_at: str | None
+    version: int
+    created_at: str
+    updated_at: str
+
+
+class ToolRunListResponse(BaseModel):
+    runs: list[ToolRunResponse]
+
+
 class ToolListResponse(BaseModel):
     tools: list[dict]
 

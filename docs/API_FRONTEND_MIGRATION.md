@@ -31,8 +31,11 @@ to the React frontend. React should prefer these APIs over local fake state.
 | Sessions | `GET /sessions` | Existing | Read-only | Session list |
 | Sessions | `POST /sessions/{session_id}/flush` | Existing | Flushes current session log | Manual flush |
 | Tools | `GET /tools` | Existing | Read-only | Tool registry |
-| Tools | `POST /tools/{tool_name}/preview` | Existing | Read-only preview | Tool dry run |
-| Tools | `POST /tools/{tool_name}/call` | Existing | Tool-dependent, audited | Confirmed tool execution |
+| Tools | `POST /tool-runs` | Sealed | Persists validated tool name, frozen args, hash, and preview | Create server-owned ToolRun |
+| Tools | `POST /tool-runs/{run_id}/call` | Sealed | Executes only persisted args and records the result | Confirmed tool execution by ID |
+| Tools | `GET /tool-runs/{run_id}` | Sealed | Read-only | Restore preview, running, failure, or result state |
+| Tools | `GET /tool-runs` | Sealed | Read-only | Recent ToolRun recovery |
+| Tools | Legacy preview/call routes | Retired (`410`) | None | Legacy clients must migrate to ToolRun IDs |
 | Workflows | `GET /workflows/runs` | Existing | Read-only | Workflow timeline |
 | Workflows | `GET /workflows/runs/{run_id}` | Existing | Read-only | Workflow detail |
 | Assets | `GET /assets/*` | Existing | Read-only | Role avatars and UI media |
@@ -102,3 +105,12 @@ to the React frontend. React should prefer these APIs over local fake state.
 - Later stages accept only the Run ID. The server owns items, digest, source block, discussion, warnings, and stage transitions.
 - The React controller restores `GET /news/runs/{run_id}` after a known-Run stage failure and immediately stores automatic enrich results before digest.
 - Discuss reserves `group_thread_id` on the NewsRun before generation and the atomic Group bundle write. A retry therefore cannot drift to a different GroupThread after a process interruption.
+
+## ToolRun Final Seal
+
+- `POST /tool-runs` validates and previews once, then persists the canonical tool name, arguments, and deterministic argument hash before returning the ToolRun ID.
+- `POST /tool-runs/{run_id}/call` has no argument payload. The service reloads the frozen server arguments and verifies their hash before execution.
+- SQLite compare-and-set ownership allows only one call owner. Stale running operations recover to a visible failed state without inventing a result.
+- Unknown or disabled tools are persisted as blocked ToolRuns; execution failures retain their reason and elapsed time for refresh recovery.
+- Workflow JSONL remains a best-effort audit mirror. Audit write failure cannot overturn a successfully committed ToolRun result.
+- React persists the active ToolRun ID and restores it through `GET /tool-runs/{run_id}`. Tool orchestration and parameter invalidation live in `toolController`, not `App.tsx`.

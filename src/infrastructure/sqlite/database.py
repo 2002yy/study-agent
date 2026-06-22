@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -195,6 +195,23 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON news_runs(stage, updated_at DESC);
         CREATE INDEX idx_news_runs_active_operation
             ON news_runs(active_operation_id);
+        """,
+    ),
+    (
+        7,
+        """
+        ALTER TABLE tool_runs ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+        ALTER TABLE tool_runs ADD COLUMN elapsed_ms INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE tool_runs ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE tool_runs ADD COLUMN active_operation_id TEXT;
+        ALTER TABLE tool_runs ADD COLUMN active_operation_started_at TEXT;
+        ALTER TABLE tool_runs ADD COLUMN previewed_at TEXT;
+        ALTER TABLE tool_runs ADD COLUMN completed_at TEXT;
+
+        CREATE INDEX idx_tool_runs_status_updated
+            ON tool_runs(status, updated_at DESC);
+        CREATE INDEX idx_tool_runs_active_operation
+            ON tool_runs(active_operation_id);
         """,
     ),
 )

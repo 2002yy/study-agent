@@ -9,6 +9,7 @@ from pathlib import Path
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
+from src.repositories.tool_repository import ToolRepository
 from src.repositories.runtime_repository import RuntimeRepository
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +53,11 @@ def get_news_repository() -> NewsRepository:
 
 
 @lru_cache(maxsize=1)
+def get_tool_repository() -> ToolRepository:
+    return ToolRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatService
 
@@ -89,11 +95,27 @@ def get_news_service():
     return NewsService(get_news_repository(), get_group_service())
 
 
+@lru_cache(maxsize=1)
+def get_tool_service():
+    from src import api
+    from src.api.app import TOOL_REGISTRY
+    from src.application.tool_service import ToolService
+    from src.workflows.store import WorkflowStore
+
+    return ToolService(
+        get_tool_repository(),
+        TOOL_REGISTRY,
+        workflow_store_factory=lambda: WorkflowStore(api.WORKFLOW_DIR),
+    )
+
+
 def reset_runtime_repository_cache() -> None:
+    get_tool_service.cache_clear()
     get_news_service.cache_clear()
     get_group_service.cache_clear()
     get_chat_service.cache_clear()
     get_session_service.cache_clear()
     get_group_repository.cache_clear()
     get_news_repository.cache_clear()
+    get_tool_repository.cache_clear()
     get_runtime_repository.cache_clear()

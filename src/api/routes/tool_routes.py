@@ -2,11 +2,30 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from dataclasses import asdict
+from typing import Annotated
 
-from src.api.models.common import ToolInvocationRequest, ToolInvocationResponse, ToolListResponse, WorkflowListResponse, WorkflowRunResponse
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.api.models.common import (
+    ToolInvocationRequest,
+    ToolInvocationResponse,
+    ToolListResponse,
+    ToolRunCreateRequest,
+    ToolRunListResponse,
+    ToolRunResponse,
+    WorkflowListResponse,
+    WorkflowRunResponse,
+)
+from src.application.runtime_repository import get_tool_service
+from src.application.tool_service import ToolService
 
 router = APIRouter(tags=["tools"])
+ToolServiceDependency = Annotated[ToolService, Depends(get_tool_service)]
+
+
+def _tool_run_response(run) -> ToolRunResponse:
+    return ToolRunResponse(**asdict(run))
 
 
 @router.get("/tools", response_model=ToolListResponse)
@@ -18,27 +37,46 @@ def list_tools() -> ToolListResponse:
 
 @router.post("/tools/{tool_name}/preview", response_model=ToolInvocationResponse)
 def preview_tool(tool_name: str, request: ToolInvocationRequest) -> ToolInvocationResponse:
-    from src.api.app import TOOL_REGISTRY
-
-    if TOOL_REGISTRY.get_spec(tool_name) is None:
-        raise HTTPException(status_code=404, detail=f"Unknown tool: {tool_name}")
-    result = TOOL_REGISTRY.preview(tool_name, request.args)
-    return ToolInvocationResponse(**result.to_dict())
+    del tool_name, request
+    raise HTTPException(status_code=410, detail="Use POST /tool-runs")
 
 
 @router.post("/tools/{tool_name}/call", response_model=ToolInvocationResponse)
 def call_tool(tool_name: str, request: ToolInvocationRequest) -> ToolInvocationResponse:
-    from src.api.app import TOOL_REGISTRY
+    del tool_name, request
+    raise HTTPException(status_code=410, detail="Use POST /tool-runs/{id}/call")
 
-    if TOOL_REGISTRY.get_spec(tool_name) is None:
-        raise HTTPException(status_code=404, detail=f"Unknown tool: {tool_name}")
-    result = TOOL_REGISTRY.call_with_audit(
-        tool_name,
-        request.args,
-        store=_workflow_store(),
-        run_id=request.run_id,
+
+@router.post("/tool-runs", response_model=ToolRunResponse)
+def create_tool_run(
+    request: ToolRunCreateRequest, service: ToolServiceDependency
+) -> ToolRunResponse:
+    return _tool_run_response(service.create(request.tool_name, request.args))
+
+
+@router.post("/tool-runs/{run_id}/call", response_model=ToolRunResponse)
+def call_tool_run(run_id: str, service: ToolServiceDependency) -> ToolRunResponse:
+    try:
+        return _tool_run_response(service.call(run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/tool-runs/{run_id}", response_model=ToolRunResponse)
+def get_tool_run(run_id: str, service: ToolServiceDependency) -> ToolRunResponse:
+    try:
+        return _tool_run_response(service.get(run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/tool-runs", response_model=ToolRunListResponse)
+def list_tool_runs(
+    service: ToolServiceDependency, limit: int = 20
+) -> ToolRunListResponse:
+    return ToolRunListResponse(
+        runs=[_tool_run_response(run) for run in service.list(limit=limit)]
     )
-    return ToolInvocationResponse(**result.to_dict())
 
 
 @router.get("/workflows/runs", response_model=WorkflowListResponse)

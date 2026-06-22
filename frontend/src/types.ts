@@ -282,15 +282,6 @@ export type ToolSpec = {
   enabled: boolean;
 };
 
-export type ToolInvocationResponse = {
-  tool_name: string;
-  status: "preview" | "succeeded" | "failed" | "blocked";
-  output: Record<string, unknown>;
-  reason: string;
-  elapsed_ms: number;
-  run_id: string;
-};
-
 export type WorkflowEvent = {
   run_id: string;
   step_id: string;
@@ -352,6 +343,25 @@ export type SessionDetailResponse = {
     model: string;
   }>;
   raw: string;
+};
+
+export type ToolRunResponse = {
+  id: string;
+  tool_name: string;
+  args: Record<string, unknown>;
+  args_hash: string;
+  status: "previewed" | "running" | "succeeded" | "failed" | "blocked";
+  preview: Record<string, unknown>;
+  result: Record<string, unknown>;
+  reason: string;
+  elapsed_ms: number;
+  active_operation_id: string | null;
+  active_operation_started_at: string | null;
+  previewed_at: string | null;
+  completed_at: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type NewsRunResponse = {

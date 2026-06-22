@@ -21,7 +21,8 @@ describe("workspaceReducer", () => {
     const state = createWorkspaceRuntimeState({
       activeChatThreadId: "chat-old",
       activeGroupThreadId: "group-1",
-      activeNewsRunId: "news-1"
+      activeNewsRunId: "news-1",
+      activeToolRunId: "tool-1"
     });
 
     const next = workspaceReducer(state, { type: "START_NEW_CHAT_SESSION", threadId: "chat-new" });
@@ -29,6 +30,7 @@ describe("workspaceReducer", () => {
     expect(next.activeChatThreadId).toBe("chat-new");
     expect(next.activeGroupThreadId).toBe("group-1");
     expect(next.activeNewsRunId).toBeUndefined();
+    expect(next.activeToolRunId).toBeUndefined();
   });
 
   it("resets group thread and clears the associated news run", () => {

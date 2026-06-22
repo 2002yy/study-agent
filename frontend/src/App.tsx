@@ -16,12 +16,10 @@ import {
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
-  callLocalKnowledge,
   loadApiSnapshot,
   loadRole,
   loadWorkflowRun,
   lookupNews,
-  previewLocalKnowledge,
   queryRag,
   saveRuntimeSettings,
   uploadDocuments
@@ -40,6 +38,7 @@ import { createEmptyRag, useChatController } from "./features/chat/chatControlle
 import { ChatPanel } from "./features/single-chat/ChatPanel";
 import { SESSION_STORAGE_KEY, seedMessages } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
+import { useToolController, type ToolController } from "./features/tools/toolController";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
 import { useGroupChatController } from "./features/group-chat/groupChatController";
@@ -56,7 +55,6 @@ import type {
   RagQueryResponse,
   RagSettings,
   RoleResponse,
-  ToolInvocationResponse,
   WorkspaceState,
   WorkflowRunDetail
 } from "./types";
@@ -533,15 +531,7 @@ function Inspector({
   selectedRun,
   loadingRunId,
   selectRun,
-  toolPreview,
-  toolCall,
-  previewTool,
-  callTool,
-  isPreviewing,
-  isCalling,
-  toolCanCall,
-  toolCallBlockedReason,
-  toolInvocationLabel,
+  toolController,
   onRestoreSession,
   onArchiveSession,
   newsController,
@@ -575,15 +565,7 @@ function Inspector({
   selectedRun: WorkflowRunDetail | null;
   loadingRunId: string;
   selectRun: (runId: string) => void;
-  toolPreview: ToolInvocationResponse | null;
-  toolCall: ToolInvocationResponse | null;
-  previewTool: () => void;
-  callTool: () => void;
-  isPreviewing: boolean;
-  isCalling: boolean;
-  toolCanCall: boolean;
-  toolCallBlockedReason: string;
-  toolInvocationLabel: string;
+  toolController: ToolController;
   onRestoreSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   newsController: NewsController;
@@ -643,15 +625,15 @@ function Inspector({
       />
       <ToolPanel
         toolCount={snapshot.tools.length}
-        toolPreview={toolPreview}
-        toolCall={toolCall}
-        previewTool={previewTool}
-        callTool={callTool}
-        isPreviewing={isPreviewing}
-        isCalling={isCalling}
-        canCall={toolCanCall}
-        callBlockedReason={toolCallBlockedReason}
-        invocationLabel={toolInvocationLabel}
+        run={toolController.run}
+        error={toolController.error}
+        previewTool={toolController.preview}
+        callTool={toolController.call}
+        isPreviewing={toolController.isPreviewing}
+        isCalling={toolController.isCalling}
+        canCall={toolController.canCall}
+        callBlockedReason={toolController.callBlockedReason}
+        invocationLabel={toolController.invocationLabel}
       />
       <SessionsPanel sessions={snapshot.sessions} activeSessionId={singleChatSessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
@@ -670,17 +652,14 @@ export default function App() {
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [conversationInstruction, setConversationInstruction] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [isCalling, setIsCalling] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const wechatThreadId = workspaceRuntime.activeGroupThreadId ?? snapshot.wechat?.group_thread_id;
   const newsRunId = workspaceRuntime.activeNewsRunId;
+  const toolRunId = workspaceRuntime.activeToolRunId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
+  const setToolRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_TOOL_RUN", runId });
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
-  const [toolPreview, setToolPreview] = useState<ToolInvocationResponse | null>(null);
-  const [toolCall, setToolCall] = useState<ToolInvocationResponse | null>(null);
-  const [previewedInvocation, setPreviewedInvocation] = useState<LocalKnowledgeInvocation | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
   const [webLookup, setWebLookup] = useState<NewsLookupResponse | null>(null);
@@ -752,17 +731,15 @@ export default function App() {
     setOperationError,
     clearChatArtifacts: () => {
       setRagSearch(null);
-      setToolPreview(null);
-      setToolCall(null);
-      setPreviewedInvocation(null);
+      operationRegistry.invalidate("tool");
+      setToolRunId(undefined);
       setSelectedRun(null);
     },
     onWorkspaceCancelled: () => {
       groupController.cancelWorkspace();
       newsController.cancelWorkspace();
+      operationRegistry.invalidate("tool");
       setIsNewsBusy(false);
-      setIsPreviewing(false);
-      setIsCalling(false);
     },
     refresh,
   });
@@ -784,22 +761,14 @@ export default function App() {
     topK: ragSettings.chatTopK,
     minScore: ragSettings.minScore
   };
-  const toolCanCall = Boolean(
-    toolPreview &&
-      previewedInvocation &&
-      previewedInvocation.query === currentToolInvocation.query &&
-      previewedInvocation.retrievalMode === currentToolInvocation.retrievalMode &&
-      previewedInvocation.topK === currentToolInvocation.topK &&
-      previewedInvocation.minScore === currentToolInvocation.minScore
-  );
-  const toolCallBlockedReason = !toolPreview
-    ? ""
-    : toolCanCall
-      ? ""
-      : "输入或 RAG 参数已变化，请重新预览后再调用。";
-  const toolInvocationLabel = previewedInvocation
-    ? `${previewedInvocation.query} · ${previewedInvocation.retrievalMode} · top_k=${previewedInvocation.topK} · min_score=${previewedInvocation.minScore}`
-    : "";
+  const toolController = useToolController({
+    invocation: currentToolInvocation,
+    activeRunId: toolRunId,
+    setActiveRunId: setToolRunId,
+    onCalled: async () => {
+      await refresh();
+    },
+  });
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
@@ -809,11 +778,15 @@ export default function App() {
         const restoredThreadId = String(parsed.singleChatSessionId ?? parsed.sessionId ?? "");
         const restoredWechatThreadId = String(parsed.wechatThreadId ?? "");
         const restoredNewsRunId = String(parsed.newsRunId ?? "");
+        const restoredToolRunId = String(parsed.toolRunId ?? "");
         if (restoredWechatThreadId) {
           setWechatThreadId(restoredWechatThreadId);
         }
         if (restoredNewsRunId) {
           setNewsRunId(restoredNewsRunId);
+        }
+        if (restoredToolRunId) {
+          setToolRunId(restoredToolRunId);
         }
         if (parsed.chatSettings && typeof parsed.chatSettings === "object") {
           sessionSettingsRestoredRef.current = true;
@@ -896,6 +869,7 @@ export default function App() {
       singleChatSessionId,
       wechatThreadId,
       newsRunId,
+      toolRunId,
       chatSettings,
       ragSettings,
       ragEnabled,
@@ -911,7 +885,7 @@ export default function App() {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
+  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {
@@ -983,35 +957,6 @@ export default function App() {
     }
   };
 
-  const previewTool = async () => {
-    const { operationId, generationId } = operationRegistry.start("tool");
-    setIsPreviewing(true);
-    setToolCall(null);
-    const invocation = { ...currentToolInvocation };
-    try {
-      const response = await previewLocalKnowledge(invocation);
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setToolPreview(response);
-      setPreviewedInvocation({ ...invocation, previewId: response.run_id });
-    } catch (error) {
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setPreviewedInvocation(null);
-      setToolPreview({
-        tool_name: "retrieve_local_knowledge",
-        status: "failed",
-        output: {},
-        reason: error instanceof Error ? error.message : "预览失败",
-        elapsed_ms: 0,
-        run_id: ""
-      });
-    } finally {
-      if (operationRegistry.isCurrent(operationId, generationId)) {
-        setIsPreviewing(false);
-      }
-      operationRegistry.complete(operationId);
-    }
-  };
-
   const saveSettings = async () => {
     setIsSavingSettings(true);
     setOperationError("");
@@ -1060,38 +1005,6 @@ export default function App() {
         summary: error instanceof Error ? error.message : "角色读取失败",
         description: error instanceof Error ? error.message : "角色读取失败"
       });
-    }
-  };
-
-  const callTool = async () => {
-    if (!previewedInvocation || !toolCanCall || isCalling) {
-      return;
-    }
-    const { operationId, generationId } = operationRegistry.start("tool");
-    setIsCalling(true);
-    try {
-      const result = await callLocalKnowledge(previewedInvocation);
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setToolCall(result);
-      await refresh();
-      if (result.run_id) {
-        await selectRun(result.run_id);
-      }
-    } catch (error) {
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setToolCall({
-        tool_name: "retrieve_local_knowledge",
-        status: "failed",
-        output: {},
-        reason: error instanceof Error ? error.message : "调用失败",
-        elapsed_ms: 0,
-        run_id: ""
-      });
-    } finally {
-      if (operationRegistry.isCurrent(operationId, generationId)) {
-        setIsCalling(false);
-      }
-      operationRegistry.complete(operationId);
     }
   };
 
@@ -1226,15 +1139,7 @@ export default function App() {
         selectedRun={selectedRun}
         loadingRunId={loadingRunId}
         selectRun={selectRun}
-        toolPreview={toolPreview}
-        toolCall={toolCall}
-        previewTool={previewTool}
-        callTool={callTool}
-        isPreviewing={isPreviewing}
-        isCalling={isCalling}
-        toolCanCall={toolCanCall}
-        toolCallBlockedReason={toolCallBlockedReason}
-        toolInvocationLabel={toolInvocationLabel}
+        toolController={toolController}
         onRestoreSession={restoreSession}
         onArchiveSession={archiveCurrentSession}
         newsController={newsController}

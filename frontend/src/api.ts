@@ -19,7 +19,7 @@ import type {
   SessionArchiveResponse,
   SessionNewResponse,
   SessionRow,
-  ToolInvocationResponse,
+  ToolRunResponse,
   ToolSpec,
   WechatMessageResponse,
   WechatSearchResponse,
@@ -742,13 +742,17 @@ export type LocalKnowledgeInvocation = {
   retrievalMode: RagSettings["retrievalMode"];
   topK: number;
   minScore: number;
-  previewId?: string;
 };
 
-export async function previewLocalKnowledge(invocation: LocalKnowledgeInvocation): Promise<ToolInvocationResponse> {
-  return requestJson<ToolInvocationResponse>("/tools/retrieve_local_knowledge/preview", {
+export async function createToolRun(
+  invocation: LocalKnowledgeInvocation,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<ToolRunResponse> {
+  return requestJson<ToolRunResponse>("/tool-runs", {
     method: "POST",
+    signal: requestOptions.signal,
     body: JSON.stringify({
+      tool_name: "retrieve_local_knowledge",
       args: {
         query: invocation.query,
         retrieval_mode: invocation.retrievalMode,
@@ -759,19 +763,18 @@ export async function previewLocalKnowledge(invocation: LocalKnowledgeInvocation
   });
 }
 
-export async function callLocalKnowledge(invocation: LocalKnowledgeInvocation): Promise<ToolInvocationResponse> {
-  return requestJson<ToolInvocationResponse>("/tools/retrieve_local_knowledge/call", {
+export async function callToolRun(
+  runId: string,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<ToolRunResponse> {
+  return requestJson<ToolRunResponse>(`/tool-runs/${encodeURIComponent(runId)}/call`, {
     method: "POST",
-    body: JSON.stringify({
-      run_id: invocation.previewId,
-      args: {
-        query: invocation.query,
-        retrieval_mode: invocation.retrievalMode,
-        top_k: invocation.topK,
-        min_score: invocation.minScore
-      }
-    })
+    signal: requestOptions.signal
   });
+}
+
+export async function getToolRun(runId: string): Promise<ToolRunResponse> {
+  return requestJson<ToolRunResponse>(`/tool-runs/${encodeURIComponent(runId)}`);
 }
 
 export async function loadWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
