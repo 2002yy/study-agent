@@ -43,11 +43,14 @@ to the React frontend. React should prefer these APIs over local fake state.
 | WeChat | `POST /wechat/message` | Implemented compatibility route | Writes user/group messages | Non-streaming group reply |
 | WeChat | `POST /wechat/search` | Implemented compatibility route | Read-only | Search group transcript |
 | News | `POST /news/lookup` | Implemented compatibility route | Read-only network fetch | Search web/news for single chat context |
-| News | `POST /news/round` | Implemented compatibility route | Network fetch, model calls, writes group discussion/audit | One-shot news discussion |
-| News | `POST /news/search` | Implemented stage route | Read-only network fetch | Stage 1 search results |
-| News | `POST /news/enrich` | Implemented stage route | Reads article text when runtime allows | Stage 2 article enrichment |
-| News | `POST /news/digest` | Implemented stage route | Model call, no group write | Stage 3 digest |
-| News | `POST /news/discuss` | Implemented stage route | Model call and group write | Stage 4 group discussion |
+| News | `POST /news/runs` | Sealed | Creates and immediately returns a server-owned `NewsRun` ID | Start a recoverable news workflow |
+| News | `POST /news/runs/{run_id}/search` | Sealed | Network fetch; persists results on the existing Run | Stage 1 search |
+| News | `POST /news/runs/{run_id}/enrich` | Sealed | Reads article text when runtime allows | Stage 2 article enrichment |
+| News | `POST /news/runs/{run_id}/digest` | Sealed | Model call; persists digest and sources | Stage 3 digest |
+| News | `POST /news/runs/{run_id}/discuss` | Sealed | Model call and atomic Group bundle write | Stage 4 group discussion |
+| News | `GET /news/runs/{run_id}` | Sealed | Read-only | Restore authoritative stage after refresh or failure |
+| News | `GET /news/runs` | Sealed | Read-only | Recent NewsRun recovery |
+| News | `/news/round`, `/news/search`, `/news/enrich`, `/news/digest`, `/news/discuss` | Retired (`410`) | None | Legacy clients must migrate to NewsRun IDs |
 
 ## Gaps To Close
 
@@ -81,7 +84,7 @@ to the React frontend. React should prefer these APIs over local fake state.
 | `src/ui/chat_panel.py` single chat | `/chat/stream` |
 | `src/ui/after_session_panel.py` after-session flow | `/after-session/preview`, `/after-session/commit` |
 | `src/ui/wechat_panel.py` group lifecycle and messages | `/wechat/state`, `/wechat/thread`, `/wechat/messages`, `/wechat/messages/stream` |
-| `src/ui/wechat_news_panel.py` staged news round | `/news/search`, `/news/enrich`, `/news/digest`, `/news/discuss` |
+| `src/ui/wechat_news_panel.py` staged news round | `/news/runs`, then `/news/runs/{run_id}/*` |
 | `src/ui/rag_panel.py` knowledge base controls | `/rag/*`, future `/rag/documents` |
 
 ## Confirmation Rules
@@ -91,3 +94,11 @@ to the React frontend. React should prefer these APIs over local fake state.
 - Writes memory files: require preview/commit or an explicit user confirmation in UI.
 - Deletes/resets/archive actions: require explicit button intent and clear labels.
 - Network article reads: respect `safe_mode` and runtime profile; surface skipped reasons.
+
+## NewsRun Final Seal
+
+- Creation and search are separate requests, so the client owns the real Run ID before any network work starts.
+- Search failures keep the same Run at `created/failed`; retry reacquires the stage lease instead of creating an orphan Run.
+- Later stages accept only the Run ID. The server owns items, digest, source block, discussion, warnings, and stage transitions.
+- The React controller restores `GET /news/runs/{run_id}` after a known-Run stage failure and immediately stores automatic enrich results before digest.
+- Discuss reserves `group_thread_id` on the NewsRun before generation and the atomic Group bundle write. A retry therefore cannot drift to a different GroupThread after a process interruption.

@@ -16,6 +16,9 @@ class NewsSearchRequest(BaseModel):
 
 class NewsRunCreateRequest(BaseModel):
     query: str = Field(default="最新新闻 when:1d", min_length=1)
+
+
+class NewsRunSearchRequest(BaseModel):
     max_items: int = Field(default=10, gt=0, le=20)
 
 

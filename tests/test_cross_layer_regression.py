@@ -156,6 +156,7 @@ def test_safe_mode_skips_news_enrich(monkeypatch):
     )
     client = TestClient(app)
     created = client.post("/news/runs", json={"query": "test"})
+    client.post(f"/news/runs/{created.json()['id']}/search", json={})
     resp = client.post(
         f"/news/runs/{created.json()['id']}/enrich",
         json={"safe_mode": True},
@@ -369,7 +370,10 @@ def test_news_query_change_invalidates_downstream_stages(monkeypatch):
     )
 
     # Stage 1: search
-    resp1 = client.post("/news/runs", json={"query": "OpenAI 最新新闻", "max_items": 5})
+    created = client.post("/news/runs", json={"query": "OpenAI 最新新闻"})
+    resp1 = client.post(
+        f"/news/runs/{created.json()['id']}/search", json={"max_items": 5}
+    )
     assert resp1.status_code == 200
     items = resp1.json()["items"]
     assert len(items) > 0
@@ -413,7 +417,10 @@ def test_news_digest_uses_enriched_items(monkeypatch):
     monkeypatch.setattr(api, "run_enrich_stage", fake_enrich)
     monkeypatch.setattr(api, "run_digest_stage", fake_digest)
 
-    search_resp = client.post("/news/runs", json={"query": "China tech news today", "max_items": 6})
+    created = client.post("/news/runs", json={"query": "China tech news today"})
+    search_resp = client.post(
+        f"/news/runs/{created.json()['id']}/search", json={"max_items": 6}
+    )
     assert search_resp.status_code == 200
     run_id = search_resp.json()["id"]
     enrich_resp = client.post(

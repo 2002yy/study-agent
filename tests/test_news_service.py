@@ -32,7 +32,8 @@ def test_news_run_pipeline_persists_server_owned_stage_data(runtime_test_context
         ),
     )
 
-    searched = service.create_and_search("AI", max_items=5)
+    created = service.create("AI")
+    searched = service.search(created.id, max_items=5)
     enriched = service.enrich(
         searched.id,
         max_articles=3,
@@ -73,7 +74,8 @@ def test_failed_news_stage_can_retry_from_same_stage(runtime_test_context):
         service.dependencies,
         search=lambda query, max_items: [{"title": query}],
     )
-    searched = service.create_and_search("retry", max_items=2)
+    created = service.create("retry")
+    searched = service.search(created.id, max_items=2)
 
     def fail_digest(*args, **kwargs):
         raise RuntimeError("provider down")
@@ -97,13 +99,42 @@ def test_failed_news_stage_can_retry_from_same_stage(runtime_test_context):
     assert retried.error == ""
 
 
+def test_failed_search_keeps_created_run_id_and_can_retry(runtime_test_context):
+    service = runtime_test_context.news_service
+    created = service.create("retry search")
+    service.dependencies = replace(
+        service.dependencies,
+        search=lambda query, max_items: (_ for _ in ()).throw(
+            RuntimeError("search provider down")
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="search provider down"):
+        service.search(created.id, max_items=2)
+
+    failed = service.get(created.id)
+    assert failed.stage == "created"
+    assert failed.status == "failed"
+    assert failed.active_operation_id is None
+
+    service.dependencies = replace(
+        service.dependencies,
+        search=lambda query, max_items: [{"title": query, "rank": max_items}],
+    )
+    retried = service.search(created.id, max_items=3)
+    assert retried.id == created.id
+    assert retried.stage == "searched"
+    assert retried.items == [{"title": "retry search", "rank": 3}]
+
+
 def test_safe_mode_skip_is_persisted_on_news_run(runtime_test_context):
     service = runtime_test_context.news_service
     service.dependencies = replace(
         service.dependencies,
         search=lambda query, max_items: [{"title": query}],
     )
-    searched = service.create_and_search("safe", max_items=2)
+    created = service.create("safe")
+    searched = service.search(created.id, max_items=2)
 
     skipped = service.enrich(
         searched.id,
@@ -170,3 +201,54 @@ def test_group_news_bundle_is_idempotent_by_news_run(runtime_test_context):
             discussion="【纳西妲】\nreply",
             news_run_id="news-idempotent",
         )
+
+
+def test_news_discuss_retry_uses_reserved_group_after_completion_crash(
+    runtime_test_context, monkeypatch
+):
+    service = runtime_test_context.news_service
+    service.dependencies = replace(
+        service.dependencies,
+        search=lambda query, max_items: [{"title": query}],
+        digest=lambda items, **kwargs: ("digest", "source", {}, []),
+        discuss=lambda digest, **kwargs: ("【纳西妲】\nreply", "ignored"),
+    )
+    created = service.create("reserved target")
+    searched = service.search(created.id, max_items=1)
+    service.digest(searched.id, performance_mode="fast", selected_model="flash")
+    target = runtime_test_context.group_service.create_thread(title="Reserved")
+    repository = runtime_test_context.news_repository
+    original_complete = repository.complete_operation
+    crashed = False
+
+    def crash_before_news_completion(*args, **kwargs):
+        nonlocal crashed
+        if kwargs.get("stage") == "discussed" and not crashed:
+            crashed = True
+            raise RuntimeError("crash after Group commit")
+        return original_complete(*args, **kwargs)
+
+    monkeypatch.setattr(repository, "complete_operation", crash_before_news_completion)
+    with pytest.raises(RuntimeError, match="crash after Group commit"):
+        service.discuss(
+            searched.id,
+            group_thread_id=target.id,
+            interaction_mode="standard",
+            performance_mode="fast",
+            selected_model="flash",
+        )
+
+    failed = service.get(searched.id)
+    assert failed.stage == "digested"
+    assert failed.group_thread_id == target.id
+
+    retried = service.discuss(
+        searched.id,
+        group_thread_id=None,
+        interaction_mode="standard",
+        performance_mode="fast",
+        selected_model="flash",
+    )
+    assert retried.group_thread_id == target.id
+    messages = runtime_test_context.group_repository.list_messages(target.id)
+    assert [message.content for message in messages] == ["source", "reply"]

@@ -468,13 +468,24 @@ export async function searchWechat(keyword: string, maxResults = 10, groupThread
 
 export async function createNewsRun(
   query: string,
-  maxItems = 10,
   requestOptions: { signal?: AbortSignal } = {}
 ): Promise<NewsRunResponse> {
   return requestJson<NewsRunResponse>("/news/runs", {
     method: "POST",
     signal: requestOptions.signal,
-    body: JSON.stringify({ query, max_items: maxItems })
+    body: JSON.stringify({ query })
+  });
+}
+
+export async function searchNewsRun(
+  runId: string,
+  maxItems = 10,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/search`, {
+    method: "POST",
+    signal: requestOptions.signal,
+    body: JSON.stringify({ max_items: maxItems })
   });
 }
 

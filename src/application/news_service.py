@@ -60,11 +60,13 @@ class NewsService:
         self.group_service = group_service
         self.dependencies = dependencies or NewsDependencies()
 
-    def create_and_search(self, query: str, *, max_items: int) -> NewsRun:
-        run = self.repository.create(NewsRun(query=query.strip(), stage="created"))
+    def create(self, query: str) -> NewsRun:
+        return self.repository.create(NewsRun(query=query.strip(), stage="created"))
+
+    def search(self, run_id: str, *, max_items: int) -> NewsRun:
         operation_id = new_id("news_search")
-        self.repository.acquire_operation(
-            run.id, operation_id, expected_stages=("created",)
+        run = self.repository.acquire_operation(
+            run_id, operation_id, expected_stages=("created",)
         )
         try:
             items = self.dependencies.search(run.query, max_items=max_items)
@@ -172,17 +174,31 @@ class NewsService:
             run_id, operation_id, expected_stages=("digested",)
         )
         try:
+            if (
+                run.group_thread_id
+                and group_thread_id
+                and run.group_thread_id != group_thread_id
+            ):
+                raise ValueError(
+                    "NewsRun is already reserved for another Group thread"
+                )
+            thread = self.group_service.ensure_thread(
+                run.group_thread_id or group_thread_id
+            )
+            run = self.repository.reserve_group_thread(
+                run.id, operation_id, thread.id
+            )
             discussion, _ = self.dependencies.discuss(
                 run.digest,
                 interaction_mode=interaction_mode,
                 performance_mode=performance_mode,
                 selected_model=selected_model,
                 source_block=run.source_block,
-                session_id=group_thread_id or "",
+                session_id=thread.id,
                 persist_group=False,
             )
             thread = self.group_service.append_news_bundle(
-                thread_id=group_thread_id,
+                thread_id=thread.id,
                 source_block=run.source_block,
                 discussion=discussion,
                 news_run_id=run.id,

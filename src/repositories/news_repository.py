@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
@@ -109,12 +110,12 @@ class NewsRepository:
         operation_id: str,
         *,
         stage: str,
-        items: list[dict[str, Any]] | None = None,
+        items: builtins.list[dict[str, Any]] | None = None,
         digest: str | None = None,
         source_block: str | None = None,
         article_coverage: dict[str, Any] | None = None,
         discussion: str | None = None,
-        warnings: list[str] | None = None,
+        warnings: builtins.list[str] | None = None,
         group_thread_id: str | None = None,
         safe_mode: bool | None = None,
         completed: bool = False,
@@ -172,6 +173,24 @@ class NewsRepository:
             )
         if cursor.rowcount != 1:
             raise ValueError(f"NewsRun operation ownership lost: {operation_id}")
+        return self._required(run_id)
+
+    def reserve_group_thread(
+        self, run_id: str, operation_id: str, group_thread_id: str
+    ) -> NewsRun:
+        now = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE news_runs
+                SET group_thread_id = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND active_operation_id = ?
+                  AND (group_thread_id IS NULL OR group_thread_id = ?)
+                """,
+                (group_thread_id, now, run_id, operation_id, group_thread_id),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError(f"NewsRun Group thread reservation lost: {run_id}")
         return self._required(run_id)
 
     def recover_stale_operations(self, *, stale_after_seconds: int = 300) -> int:

@@ -7,6 +7,7 @@ import {
   discussNewsRun,
   enrichNewsRun,
   getNewsRun,
+  searchNewsRun,
   loadApiSnapshot,
   lookupNews,
   previewLocalKnowledge,
@@ -413,21 +414,23 @@ describe("news API calls", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const created = await createNewsRun("AI", 4);
+    const created = await createNewsRun("AI");
+    await searchNewsRun(created.id, 4);
     await enrichNewsRun(created.id, 2);
     await digestNewsRun(created.id, chatSettings);
     await discussNewsRun(created.id, "group-1", chatSettings);
     await getNewsRun(created.id);
 
-    const calls = fetchMock.mock.calls.slice(0, 4).map(([url, init]) => [url, JSON.parse(String(init?.body))]);
+    const calls = fetchMock.mock.calls.slice(0, 5).map(([url, init]) => [url, JSON.parse(String(init?.body))]);
     expect(calls[0][0]).toBe("/news/runs");
-    expect(calls[0][1]).toMatchObject({ query: "AI", max_items: 4 });
-    expect(calls[1]).toEqual(["/news/runs/news-1/enrich", { max_articles: 2 }]);
-    expect(calls[2][0]).toBe("/news/runs/news-1/digest");
-    expect(calls[3][0]).toBe("/news/runs/news-1/discuss");
-    expect(calls[3][1]).toMatchObject({ group_thread_id: "group-1" });
-    expect(fetchMock.mock.calls[4][0]).toBe("/news/runs/news-1");
-    for (const [, body] of calls.slice(1, 4)) expect(body).not.toHaveProperty("news_items");
+    expect(calls[0][1]).toEqual({ query: "AI" });
+    expect(calls[1]).toEqual(["/news/runs/news-1/search", { max_items: 4 }]);
+    expect(calls[2]).toEqual(["/news/runs/news-1/enrich", { max_articles: 2 }]);
+    expect(calls[3][0]).toBe("/news/runs/news-1/digest");
+    expect(calls[4][0]).toBe("/news/runs/news-1/discuss");
+    expect(calls[4][1]).toMatchObject({ group_thread_id: "group-1" });
+    expect(fetchMock.mock.calls[5][0]).toBe("/news/runs/news-1");
+    for (const [, body] of calls.slice(1, 5)) expect(body).not.toHaveProperty("news_items");
   });
 
   it("passes AbortSignal through news stage requests", async () => {
@@ -440,7 +443,8 @@ describe("news API calls", () => {
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
 
-    await createNewsRun("AI", 4, { signal: controller.signal });
+    await createNewsRun("AI", { signal: controller.signal });
+    await searchNewsRun("news-1", 4, { signal: controller.signal });
     await enrichNewsRun("news-1", 2, { signal: controller.signal });
     await digestNewsRun("news-1", chatSettings, { signal: controller.signal });
     await discussNewsRun("news-1", "thread-1", chatSettings, { signal: controller.signal });

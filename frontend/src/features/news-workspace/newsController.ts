@@ -6,6 +6,7 @@ import {
   discussNewsRun,
   enrichNewsRun,
   getNewsRun,
+  searchNewsRun,
 } from "../../api";
 import { operationRegistry } from "../../app/operationRegistry";
 import type { ChatSettings, NewsRunResponse } from "../../types";
@@ -64,7 +65,8 @@ export function useNewsController(options: NewsControllerOptions) {
 
   const runStage = async (
     stage: string,
-    action: (signal: AbortSignal) => Promise<NewsRunResponse>
+    action: (signal: AbortSignal) => Promise<NewsRunResponse>,
+    recoveryRunId?: () => string | undefined
   ) => {
     const operation = operationRegistry.start("news", run?.id ?? stage);
     setBusyStage(stage);
@@ -80,6 +82,16 @@ export function useNewsController(options: NewsControllerOptions) {
         !operationRegistry.isCurrent(operation.operationId, operation.generationId) ||
         (caught instanceof DOMException && caught.name === "AbortError")
       ) return null;
+      const runId = recoveryRunId?.() ?? run?.id;
+      if (runId) {
+        try {
+          const latest = await getNewsRun(runId);
+          setRun(latest);
+          options.setActiveRunId(latest.id);
+        } catch {
+          // Preserve the stage error when recovery is unavailable.
+        }
+      }
       setError(messageOf(caught));
       return null;
     } finally {
@@ -94,7 +106,18 @@ export function useNewsController(options: NewsControllerOptions) {
     event?.preventDefault();
     if (!canSearch) return;
     const query = options.query.trim();
-    await runStage("search", (signal) => createNewsRun(query, 10, { signal }));
+    let createdRunId: string | undefined;
+    await runStage(
+      "search",
+      async (signal) => {
+        const created = await createNewsRun(query, { signal });
+        createdRunId = created.id;
+        setRun(created);
+        options.setActiveRunId(created.id);
+        return searchNewsRun(created.id, 10, { signal });
+      },
+      () => createdRunId
+    );
   };
 
   const enrich = async () => {
@@ -114,6 +137,8 @@ export function useNewsController(options: NewsControllerOptions) {
           options.readArticles ? 6 : 0,
           { signal }
         );
+        setRun(current);
+        options.setActiveRunId(current.id);
       }
       return digestNewsRun(current.id, options.chatSettings, { signal });
     });

@@ -394,6 +394,10 @@ class GroupChatService:
         )
         return self.repository.get_thread(thread.id) or thread
 
+    def ensure_thread(self, thread_id: str | None = None) -> GroupThread:
+        """Resolve one stable active target before a cross-workflow write."""
+        return self._resolve_thread(thread_id, create=True)
+
     def archive_thread(self, thread_id: str) -> GroupThread:
         self._import_legacy_once()
         current = self.repository.get_thread(thread_id)

@@ -19,6 +19,7 @@ describe("news controller boundary", () => {
   it("keeps News API orchestration and stage state out of App and NewsWorkspace", () => {
     for (const command of [
       "createNewsRun",
+      "searchNewsRun",
       "enrichNewsRun",
       "digestNewsRun",
       "discussNewsRun",

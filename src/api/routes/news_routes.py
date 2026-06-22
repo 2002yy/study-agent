@@ -22,6 +22,7 @@ from src.api.models.news import (
     NewsRunEnrichRequest,
     NewsRunListResponse,
     NewsRunResponse,
+    NewsRunSearchRequest,
     NewsSearchRequest,
     NewsSearchResponse,
     NewsStageSearchRequest,
@@ -46,9 +47,21 @@ def create_news_run_endpoint(
     service: NewsServiceDependency,
 ) -> NewsRunResponse:
     try:
-        return _response(
-            service.create_and_search(request.query, max_items=request.max_items)
-        )
+        return _response(service.create(request.query))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/news/runs/{run_id}/search", response_model=NewsRunResponse)
+def search_news_run_endpoint(
+    run_id: str,
+    request: NewsRunSearchRequest,
+    service: NewsServiceDependency,
+) -> NewsRunResponse:
+    try:
+        return _response(service.search(run_id, max_items=request.max_items))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"News search failed: {exc}") from exc
 

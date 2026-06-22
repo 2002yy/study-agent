@@ -357,6 +357,8 @@ def test_news_discussion_outputs_remain_isolated_by_group_thread(
     for thread, digest in ((first, "alpha"), (second, "beta")):
         created = client.post("/news/runs", json={"query": digest})
         run_id = created.json()["id"]
+        searched = client.post(f"/news/runs/{run_id}/search", json={})
+        assert searched.status_code == 200
         digested = client.post(
             f"/news/runs/{run_id}/digest",
             json={"selected_model": "flash", "performance_mode": "fast"},
@@ -410,8 +412,9 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     monkeypatch.setattr(api, "init_session", lambda: "news-stage-session")
     client = TestClient(app)
 
-    search = client.post("/news/runs", json={"query": "AI", "max_items": 4})
-    run_id = search.json()["id"]
+    created = client.post("/news/runs", json={"query": "AI"})
+    run_id = created.json()["id"]
+    search = client.post(f"/news/runs/{run_id}/search", json={"max_items": 4})
     enrich = client.post(
         f"/news/runs/{run_id}/enrich",
         json={"max_articles": 2},
@@ -429,6 +432,8 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
         },
     )
 
+    assert created.status_code == 200
+    assert created.json()["stage"] == "created"
     assert search.status_code == 200
     assert search.json()["items"][0]["rank"] == 4
     assert enrich.status_code == 200
