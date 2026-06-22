@@ -357,6 +357,43 @@ class GroupChatService:
         )
         return self.repository.get_thread(thread.id) or thread
 
+    def append_news_bundle(
+        self,
+        *,
+        thread_id: str | None,
+        source_block: str,
+        discussion: str,
+        news_run_id: str,
+    ) -> GroupThread:
+        thread = self._resolve_thread(thread_id, create=True)
+        operation_id = f"group_news_{news_run_id}"
+        messages: list[GroupMessage] = []
+        if source_block.strip():
+            messages.append(
+                GroupMessage(
+                    thread_id=thread.id,
+                    speaker="系统",
+                    content=source_block.strip(),
+                    message_type="news_source",
+                    operation_id=operation_id,
+                )
+            )
+        replies = _reply_messages(
+            thread.id,
+            operation_id,
+            discussion.strip(),
+            message_type="news_discussion",
+            fallback_speaker="群聊",
+        )
+        messages.extend(replies)
+        self.repository.append_news_bundle(
+            thread.id,
+            operation_id,
+            messages,
+            unread_count=len(replies),
+        )
+        return self.repository.get_thread(thread.id) or thread
+
     def archive_thread(self, thread_id: str) -> GroupThread:
         self._import_legacy_once()
         current = self.repository.get_thread(thread_id)

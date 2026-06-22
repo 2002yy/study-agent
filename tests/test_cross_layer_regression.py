@@ -148,21 +148,23 @@ def test_opening_with_existing_group_rejected(runtime_test_context):
 
 
 def test_safe_mode_skips_news_enrich(monkeypatch):
-    """Under safe_mode, /news/enrich must skip with skipped=True."""
-    client = TestClient(app)
+    """Under safe_mode, NewsRun persists a visible enrich_skipped stage."""
+    from src import api
 
+    monkeypatch.setattr(
+        api, "run_search_stage", lambda query, max_items: [{"title": "A"}]
+    )
+    client = TestClient(app)
+    created = client.post("/news/runs", json={"query": "test"})
     resp = client.post(
-        "/news/enrich",
-        json={
-            "query_text": "test",
-            "news_items": [{"title": "A"}],
-            "safe_mode": True,
-        },
+        f"/news/runs/{created.json()['id']}/enrich",
+        json={"safe_mode": True},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["skipped"] is True
-    assert data["skipped_reason"] == "safe_mode"
+    assert data["stage"] == "enrich_skipped"
+    assert data["safe_mode"] is True
+    assert data["warnings"][-1] == "safe_mode"
 
 
 # ── 5. "一句话总结" routes to 普通 ──────────────────────────────────────
@@ -367,15 +369,13 @@ def test_news_query_change_invalidates_downstream_stages(monkeypatch):
     )
 
     # Stage 1: search
-    resp1 = client.post("/news/search", json={"query": "OpenAI 最新新闻", "max_items": 5})
+    resp1 = client.post("/news/runs", json={"query": "OpenAI 最新新闻", "max_items": 5})
     assert resp1.status_code == 200
-    items = resp1.json()["news_items"]
+    items = resp1.json()["items"]
     assert len(items) > 0
 
-    # If query changes, enrich with old items should still work (items are frozen)
-    # but the frontend would disable it. The server-side doesn't track this —
-    # the important thing is that items from search A don't carry query B's context.
-    assert resp1.json()["query_text"] == "OpenAI 最新新闻"
+    # The frozen server Run owns query and items; the client cannot resubmit either.
+    assert resp1.json()["query"] == "OpenAI 最新新闻"
 
 
 # ── 11. Enrich after digest must invalidate digest in frontend logic ─────
@@ -413,29 +413,20 @@ def test_news_digest_uses_enriched_items(monkeypatch):
     monkeypatch.setattr(api, "run_enrich_stage", fake_enrich)
     monkeypatch.setattr(api, "run_digest_stage", fake_digest)
 
-    search_resp = client.post("/news/search", json={"query": "China tech news today", "max_items": 6})
+    search_resp = client.post("/news/runs", json={"query": "China tech news today", "max_items": 6})
     assert search_resp.status_code == 200
-
-    search_items = search_resp.json().get("news_items", [])
+    run_id = search_resp.json()["id"]
     enrich_resp = client.post(
-        "/news/enrich",
-        json={
-            "query_text": "China tech news today",
-            "news_items": search_items,
-            "safe_mode": False,
-        },
+        f"/news/runs/{run_id}/enrich",
+        json={"safe_mode": False},
     )
     assert enrich_resp.status_code == 200
-    enriched = enrich_resp.json().get("news_items", [])
+    enriched = enrich_resp.json().get("items", [])
 
     # Digest should work with enriched items
     digest_resp = client.post(
-        "/news/digest",
-        json={
-            "query_text": "China tech news today",
-            "news_items": enriched,
-            "selected_model": "auto",
-        },
+        f"/news/runs/{run_id}/digest",
+        json={"selected_model": "auto"},
     )
     assert digest_resp.status_code == 200
     assert digest_resp.json()["digest"] == "digest"

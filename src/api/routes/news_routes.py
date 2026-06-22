@@ -1,7 +1,8 @@
-"""News endpoints — search, enrich, digest, discuss, lookup."""
+"""Thin HTTP adapters for server-owned NewsRun workflows."""
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,133 +16,122 @@ from src.api.models.news import (
     NewsEnrichResponse,
     NewsLookupRequest,
     NewsLookupResponse,
+    NewsRunCreateRequest,
+    NewsRunDigestRequest,
+    NewsRunDiscussRequest,
+    NewsRunEnrichRequest,
+    NewsRunListResponse,
+    NewsRunResponse,
     NewsSearchRequest,
     NewsSearchResponse,
     NewsStageSearchRequest,
     NewsStageSearchResponse,
 )
+from src.application.helpers import request_performance_mode, validate_choice
+from src.application.news_service import NewsService
+from src.application.runtime_repository import get_news_service
 from src.constants import ATMOS_OPTIONS, MODEL_OPTIONS
-from src.application.group_chat_service import GroupChatService
-from src.application.runtime_repository import get_group_service
 
 router = APIRouter(tags=["news"])
-GroupServiceDependency = Annotated[GroupChatService, Depends(get_group_service)]
+NewsServiceDependency = Annotated[NewsService, Depends(get_news_service)]
 
 
-@router.post("/news/round", response_model=NewsSearchResponse)
-def run_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
-    del request
-    raise HTTPException(
-        status_code=410,
-        detail="Legacy news round is retired; use /news/search, /news/enrich, /news/digest, and /news/discuss.",
-    )
+def _response(run) -> NewsRunResponse:
+    return NewsRunResponse(**asdict(run))
 
 
-@router.post("/news/search", response_model=NewsStageSearchResponse)
-def search_news_stage_endpoint(request: NewsStageSearchRequest) -> NewsStageSearchResponse:
-    from src.api import run_search_stage
-
-    items = run_search_stage(request.query, max_items=request.max_items)
-    return NewsStageSearchResponse(query_text=request.query, news_items=items)
-
-
-@router.post("/news/enrich", response_model=NewsEnrichResponse)
-def enrich_news_stage_endpoint(request: NewsEnrichRequest) -> NewsEnrichResponse:
-    from src.api import load_runtime_modes, run_enrich_stage
-
-    runtime_modes = load_runtime_modes()
-    profile = runtime_modes.profile
-    safe = (
-        request.safe_mode
-        if request.safe_mode is not None
-        else profile.safe_mode
-    )
-    if safe:
-        return NewsEnrichResponse(
-            query_text=request.query_text,
-            news_items=request.news_items,
-            skipped=True,
-            skipped_reason="safe_mode",
+@router.post("/news/runs", response_model=NewsRunResponse)
+def create_news_run_endpoint(
+    request: NewsRunCreateRequest,
+    service: NewsServiceDependency,
+) -> NewsRunResponse:
+    try:
+        return _response(
+            service.create_and_search(request.query, max_items=request.max_items)
         )
-    if not profile.allow_article_network_read:
-        return NewsEnrichResponse(
-            query_text=request.query_text,
-            news_items=request.news_items,
-            skipped=True,
-            skipped_reason=profile.article_network_read_reason,
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News search failed: {exc}") from exc
+
+
+@router.get("/news/runs", response_model=NewsRunListResponse)
+def list_news_runs_endpoint(
+    service: NewsServiceDependency, limit: int = 20
+) -> NewsRunListResponse:
+    return NewsRunListResponse(runs=[_response(run) for run in service.list(limit=limit)])
+
+
+@router.get("/news/runs/{run_id}", response_model=NewsRunResponse)
+def get_news_run_endpoint(run_id: str, service: NewsServiceDependency) -> NewsRunResponse:
+    try:
+        return _response(service.get(run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/news/runs/{run_id}/enrich", response_model=NewsRunResponse)
+def enrich_news_run_endpoint(
+    run_id: str,
+    request: NewsRunEnrichRequest,
+    service: NewsServiceDependency,
+) -> NewsRunResponse:
+    try:
+        return _response(
+            service.enrich(
+                run_id,
+                max_articles=request.max_articles,
+                max_chars_per_article=request.max_chars_per_article,
+                safe_mode=request.safe_mode,
+            )
         )
-    items = run_enrich_stage(
-        request.news_items,
-        max_articles=request.max_articles,
-        query_text=request.query_text,
-        max_chars_per_article=request.max_chars_per_article,
-    )
-    return NewsEnrichResponse(query_text=request.query_text, news_items=items)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News enrich failed: {exc}") from exc
 
 
-@router.post("/news/digest", response_model=NewsDigestResponse)
-def digest_news_stage_endpoint(request: NewsDigestRequest) -> NewsDigestResponse:
-    from src.api import request_performance_mode, run_digest_stage, validate_choice
-
+@router.post("/news/runs/{run_id}/digest", response_model=NewsRunResponse)
+def digest_news_run_endpoint(
+    run_id: str,
+    request: NewsRunDigestRequest,
+    service: NewsServiceDependency,
+) -> NewsRunResponse:
     validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
-    performance_mode = request_performance_mode(request.performance_mode)
-    digest, source_block, article_coverage, warnings = run_digest_stage(
-        request.news_items,
-        query_text=request.query_text,
-        performance_mode=performance_mode,
-        selected_model=request.selected_model,
-    )
-    return NewsDigestResponse(
-        query_text=request.query_text,
-        digest=digest,
-        source_block=source_block,
-        article_coverage=article_coverage,
-        warnings=warnings,
-    )
+    try:
+        return _response(
+            service.digest(
+                run_id,
+                performance_mode=request_performance_mode(request.performance_mode),
+                selected_model=request.selected_model,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News digest failed: {exc}") from exc
 
 
-@router.post("/news/discuss", response_model=NewsDiscussResponse)
-def discuss_news_stage_endpoint(
-    request: NewsDiscussRequest,
-    group_service: GroupServiceDependency,
-) -> NewsDiscussResponse:
-    from src.api import request_performance_mode, run_discussion_stage, validate_choice
-
+@router.post("/news/runs/{run_id}/discuss", response_model=NewsRunResponse)
+def discuss_news_run_endpoint(
+    run_id: str,
+    request: NewsRunDiscussRequest,
+    service: NewsServiceDependency,
+) -> NewsRunResponse:
     validate_choice(request.selected_model, MODEL_OPTIONS, "selected_model")
     validate_choice(request.relationship_mode, ATMOS_OPTIONS, "relationship_mode")
-    performance_mode = request_performance_mode(request.performance_mode)
-    discussion, _ = run_discussion_stage(
-        request.digest,
-        interaction_mode=request.relationship_mode,
-        performance_mode=performance_mode,
-        selected_model=request.selected_model,
-        source_block=request.source_block,
-        session_id=request.session_id,
-        persist_group=False,
-    )
-    thread_id = request.session_id
-    if request.source_block:
-        thread = group_service.append_external_message(
-            thread_id=thread_id,
-            speaker="系统",
-            content=request.source_block,
-            message_type="news_source",
-            unread=False,
+    try:
+        return _response(
+            service.discuss(
+                run_id,
+                group_thread_id=request.group_thread_id,
+                interaction_mode=request.relationship_mode,
+                performance_mode=request_performance_mode(request.performance_mode),
+                selected_model=request.selected_model,
+            )
         )
-        thread_id = thread.id
-    thread = group_service.append_external_message(
-        thread_id=thread_id,
-        speaker="群聊",
-        content=discussion,
-        message_type="news_discussion",
-        unread=True,
-    )
-    state = group_service.get_state(thread.id)
-    return NewsDiscussResponse(
-        discussion=discussion,
-        group_content=state["content"],
-        session_id=thread.id,
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News discuss failed: {exc}") from exc
 
 
 @router.post("/news/lookup", response_model=NewsLookupResponse)
@@ -163,6 +153,36 @@ def lookup_news_endpoint(request: NewsLookupRequest) -> NewsLookupResponse:
     )
 
 
+@router.post("/news/round", response_model=NewsSearchResponse)
+def run_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
+    del request
+    raise HTTPException(status_code=410, detail="Use POST /news/runs")
+
+
 @router.post("/wechat/news-round", response_model=NewsSearchResponse)
 def wechat_news_round_endpoint(request: NewsSearchRequest) -> NewsSearchResponse:
     return run_news_round_endpoint(request)
+
+
+@router.post("/news/search", response_model=NewsStageSearchResponse)
+def search_news_stage_endpoint(request: NewsStageSearchRequest) -> NewsStageSearchResponse:
+    del request
+    raise HTTPException(status_code=410, detail="Use POST /news/runs")
+
+
+@router.post("/news/enrich", response_model=NewsEnrichResponse)
+def enrich_news_stage_endpoint(request: NewsEnrichRequest) -> NewsEnrichResponse:
+    del request
+    raise HTTPException(status_code=410, detail="Use POST /news/runs/{id}/enrich")
+
+
+@router.post("/news/digest", response_model=NewsDigestResponse)
+def digest_news_stage_endpoint(request: NewsDigestRequest) -> NewsDigestResponse:
+    del request
+    raise HTTPException(status_code=410, detail="Use POST /news/runs/{id}/digest")
+
+
+@router.post("/news/discuss", response_model=NewsDiscussResponse)
+def discuss_news_stage_endpoint(request: NewsDiscussRequest) -> NewsDiscussResponse:
+    del request
+    raise HTTPException(status_code=410, detail="Use POST /news/runs/{id}/discuss")

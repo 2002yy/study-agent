@@ -6,7 +6,7 @@ from threading import Barrier
 
 import pytest
 
-from src.domain.runtime_entities import ChatThread, ChatTurn, NewsRun
+from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import (
     MIGRATIONS,
     RuntimeDatabase,
@@ -153,6 +153,7 @@ def test_concurrent_database_initialization_applies_each_migration_once(tmp_path
         (3, "completed"),
         (4, "completed"),
         (5, "completed"),
+        (6, "completed"),
     ]
     assert thread_columns.count("archived_at") == 1
 
@@ -406,32 +407,3 @@ def test_concurrent_operation_settings_belong_to_lease_winner(tmp_path):
     assert stored is not None
     assert stored.active_operation_id == winner
     assert stored.settings_snapshot == {"owner": winner}
-
-
-def test_news_run_stage_transitions_are_persisted(tmp_path):
-    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
-    run = repository.create_news_run(NewsRun(query="AI news", stage="searched", status="completed"))
-
-    enriched = repository.update_news_run(
-        run.id,
-        stage="enriched",
-        status="completed",
-        items=[{"title": "A", "article_text": "body"}],
-    )
-    digested = repository.update_news_run(
-        run.id,
-        stage="digested",
-        status="completed",
-        digest="summary",
-        warnings=["limited-source"],
-    )
-    loaded = repository.get_news_run(run.id)
-
-    assert enriched is not None
-    assert digested is not None
-    assert loaded is not None
-    assert loaded.id == run.id
-    assert loaded.stage == "digested"
-    assert loaded.items == [{"title": "A", "article_text": "body"}]
-    assert loaded.digest == "summary"
-    assert loaded.warnings == ["limited-source"]

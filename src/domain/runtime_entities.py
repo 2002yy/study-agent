@@ -93,8 +93,17 @@ class NewsRun:
     safe_mode: bool = False
     items: list[dict[str, Any]] = field(default_factory=list)
     digest: str = ""
+    source_block: str = ""
+    article_coverage: dict[str, Any] = field(default_factory=dict)
+    discussion: str = ""
     warnings: list[str] = field(default_factory=list)
+    error: str = ""
     group_thread_id: str | None = None
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    stage_started_at: str | None = None
+    completed_at: str | None = None
+    version: int = 1
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 

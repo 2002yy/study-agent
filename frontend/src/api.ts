@@ -9,7 +9,7 @@ import type {
   MemoryStatusResponse,
   MemoryUpdate,
   NewsLookupResponse,
-  NewsSearchResponse,
+  NewsRunResponse,
   RagSettings,
   RagIndexResponse,
   RagQueryResponse,
@@ -466,102 +466,63 @@ export async function searchWechat(keyword: string, maxResults = 10, groupThread
   });
 }
 
-export async function runNewsSearch(
-  query: string,
-  options: {
-    sessionId?: string;
-    readArticles: boolean;
-    chatSettings: ChatSettings;
-  },
-  requestOptions: { signal?: AbortSignal } = {}
-): Promise<NewsSearchResponse> {
-  return requestJson<NewsSearchResponse>("/news/round", {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({
-      query,
-      session_id: options.sessionId,
-      read_articles: options.readArticles,
-      selected_model: options.chatSettings.selectedModel,
-      relationship_mode: options.chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(options.chatSettings.contextMode)
-    })
-  });
-}
-
-export async function searchNewsStage(
+export async function createNewsRun(
   query: string,
   maxItems = 10,
   requestOptions: { signal?: AbortSignal } = {}
-): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
-  return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/search", {
+): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>("/news/runs", {
     method: "POST",
     signal: requestOptions.signal,
     body: JSON.stringify({ query, max_items: maxItems })
   });
 }
 
-export async function enrichNewsStage(payload: {
-  queryText: string;
-  newsItems: Array<Record<string, unknown>>;
-  maxArticles?: number;
-}, requestOptions: { signal?: AbortSignal } = {}): Promise<{ query_text: string; news_items: Array<Record<string, unknown>> }> {
-  return requestJson<{ query_text: string; news_items: Array<Record<string, unknown>> }>("/news/enrich", {
+export async function getNewsRun(runId: string): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}`);
+}
+
+export async function enrichNewsRun(
+  runId: string,
+  maxArticles: number,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/enrich`, {
+    method: "POST",
+    signal: requestOptions.signal,
+    body: JSON.stringify({ max_articles: maxArticles })
+  });
+}
+
+export async function digestNewsRun(
+  runId: string,
+  chatSettings: ChatSettings,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/digest`, {
     method: "POST",
     signal: requestOptions.signal,
     body: JSON.stringify({
-      query_text: payload.queryText,
-      news_items: payload.newsItems,
-      max_articles: payload.maxArticles ?? 6
+      selected_model: chatSettings.selectedModel,
+      performance_mode: performanceModeFromContext(chatSettings.contextMode)
     })
   });
 }
 
-export async function digestNewsStage(payload: {
-  queryText: string;
-  newsItems: Array<Record<string, unknown>>;
-  chatSettings: ChatSettings;
-}, requestOptions: { signal?: AbortSignal } = {}): Promise<{
-  query_text: string;
-  digest: string;
-  source_block: string;
-  article_coverage: Record<string, unknown>;
-  warnings: string[];
-}> {
-  return requestJson<{
-    query_text: string;
-    digest: string;
-    source_block: string;
-    article_coverage: Record<string, unknown>;
-    warnings: string[];
-  }>("/news/digest", {
+export async function discussNewsRun(
+  runId: string,
+  groupThreadId: string | undefined,
+  chatSettings: ChatSettings,
+  requestOptions: { signal?: AbortSignal } = {}
+): Promise<NewsRunResponse> {
+  return requestJson<NewsRunResponse>(`/news/runs/${encodeURIComponent(runId)}/discuss`, {
     method: "POST",
     signal: requestOptions.signal,
     body: JSON.stringify({
-      query_text: payload.queryText,
-      news_items: payload.newsItems,
-      selected_model: payload.chatSettings.selectedModel,
-      performance_mode: performanceModeFromContext(payload.chatSettings.contextMode)
-    })
-  });
-}
-
-export async function discussNewsStage(payload: {
-  digest: string;
-  sourceBlock: string;
-  sessionId?: string;
-  chatSettings: ChatSettings;
-}, requestOptions: { signal?: AbortSignal } = {}): Promise<{ discussion: string; group_content: string; session_id: string }> {
-  return requestJson<{ discussion: string; group_content: string; session_id: string }>("/news/discuss", {
-    method: "POST",
-    signal: requestOptions.signal,
-    body: JSON.stringify({
-      digest: payload.digest,
-      source_block: payload.sourceBlock,
-      session_id: payload.sessionId,
-      selected_model: payload.chatSettings.selectedModel,
-      relationship_mode: payload.chatSettings.relationshipMode,
-      performance_mode: performanceModeFromContext(payload.chatSettings.contextMode)
+      group_thread_id: groupThreadId,
+      selected_model: chatSettings.selectedModel,
+      relationship_mode: chatSettings.relationshipMode,
+      performance_mode: performanceModeFromContext(chatSettings.contextMode)
     })
   });
 }

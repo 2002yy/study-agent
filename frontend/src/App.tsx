@@ -43,6 +43,7 @@ import { ToolPanel } from "./features/tools/ToolPanel";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
 import { useGroupChatController } from "./features/group-chat/groupChatController";
+import { useNewsController, type NewsController } from "./features/news-workspace/newsController";
 import { TimelinePanel } from "./features/workflows/TimelinePanel";
 import { displayValue } from "./utils/format";
 import type {
@@ -51,7 +52,6 @@ import type {
   ChatResponse,
   ChatSettings,
   NewsLookupResponse,
-  NewsSearchResponse,
   RagIndexResponse,
   RagQueryResponse,
   RagSettings,
@@ -527,7 +527,6 @@ function Inspector({
   snapshot,
   singleChatSessionId,
   wechatThreadId,
-  chatSettings,
   lastChat,
   ragSearch,
   isSearching,
@@ -545,7 +544,7 @@ function Inspector({
   toolInvocationLabel,
   onRestoreSession,
   onArchiveSession,
-  newsResult,
+  newsController,
   webLookup,
   useWebLookup,
   setUseWebLookup,
@@ -561,8 +560,6 @@ function Inspector({
   onSendWechat,
   onStopWechat,
   onLookupNews,
-  onNewsRunStarted,
-  onNewsDiscussed,
   isWechatBusy,
   wechatError,
   isNewsBusy,
@@ -572,7 +569,6 @@ function Inspector({
   snapshot: ApiSnapshot;
   singleChatSessionId?: string;
   wechatThreadId?: string;
-  chatSettings: ChatSettings;
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
@@ -590,7 +586,7 @@ function Inspector({
   toolInvocationLabel: string;
   onRestoreSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
-  newsResult: NewsSearchResponse | null;
+  newsController: NewsController;
   webLookup: NewsLookupResponse | null;
   useWebLookup: boolean;
   setUseWebLookup: (value: boolean) => void;
@@ -606,8 +602,6 @@ function Inspector({
   onSendWechat: (event: FormEvent) => void;
   onStopWechat: () => void;
   onLookupNews: () => void;
-  onNewsRunStarted: (runId: string) => void;
-  onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   wechatError: string;
   isNewsBusy: boolean;
@@ -619,7 +613,7 @@ function Inspector({
       <RoutePanel lastChat={lastChat} />
       <WechatPanel
         wechat={snapshot.wechat}
-        newsResult={newsResult}
+        newsController={newsController}
         webLookup={webLookup}
         useWebLookup={useWebLookup}
         setUseWebLookup={setUseWebLookup}
@@ -629,7 +623,6 @@ function Inspector({
         setNewsQuery={setNewsQuery}
         readArticles={readArticles}
         setReadArticles={setReadArticles}
-        chatSettings={chatSettings}
         sessionId={wechatThreadId}
         onOpening={onWechatOpening}
         onReset={onWechatReset}
@@ -637,8 +630,6 @@ function Inspector({
         onSendWechat={onSendWechat}
         onStopWechat={onStopWechat}
         onLookupNews={onLookupNews}
-        onNewsRunStarted={onNewsRunStarted}
-        onNewsDiscussed={onNewsDiscussed}
         isWechatBusy={isWechatBusy}
         error={wechatError}
         isNewsBusy={isNewsBusy}
@@ -692,7 +683,6 @@ export default function App() {
   const [previewedInvocation, setPreviewedInvocation] = useState<LocalKnowledgeInvocation | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
-  const [newsResult, setNewsResult] = useState<NewsSearchResponse | null>(null);
   const [webLookup, setWebLookup] = useState<NewsLookupResponse | null>(null);
   const [useWebLookup, setUseWebLookup] = useState(true);
   const [loadingRunId, setLoadingRunId] = useState("");
@@ -718,8 +708,20 @@ export default function App() {
     ragSettings,
     ragEnabled,
     clearAssociatedNews: () => {
-      setNewsResult(null);
       setNewsRunId(undefined);
+    },
+  });
+
+  const newsController = useNewsController({
+    query: newsQuery,
+    readArticles,
+    chatSettings,
+    groupThreadId: wechatThreadId,
+    activeRunId: newsRunId,
+    setActiveRunId: setNewsRunId,
+    onDiscussed: (threadId) => {
+      setWechatThreadId(threadId);
+      void refresh();
     },
   });
 
@@ -757,6 +759,7 @@ export default function App() {
     },
     onWorkspaceCancelled: () => {
       groupController.cancelWorkspace();
+      newsController.cancelWorkspace();
       setIsNewsBusy(false);
       setIsPreviewing(false);
       setIsCalling(false);
@@ -1217,7 +1220,6 @@ export default function App() {
         snapshot={snapshot}
         singleChatSessionId={singleChatSessionId}
         wechatThreadId={wechatThreadId}
-        chatSettings={chatSettings}
         lastChat={lastChat}
         ragSearch={ragSearch}
         isSearching={isSearching}
@@ -1235,7 +1237,7 @@ export default function App() {
         toolInvocationLabel={toolInvocationLabel}
         onRestoreSession={restoreSession}
         onArchiveSession={archiveCurrentSession}
-        newsResult={newsResult}
+        newsController={newsController}
         webLookup={webLookup}
         useWebLookup={useWebLookup}
         setUseWebLookup={setUseWebLookup}
@@ -1251,11 +1253,6 @@ export default function App() {
         onSendWechat={groupController.send}
         onStopWechat={groupController.stop}
         onLookupNews={handleLookupNews}
-        onNewsRunStarted={setNewsRunId}
-        onNewsDiscussed={(nextSessionId) => {
-          setWechatThreadId(nextSessionId);
-          void refresh();
-        }}
         isWechatBusy={groupController.isBusy}
         wechatError={groupController.error}
         isNewsBusy={isNewsBusy}

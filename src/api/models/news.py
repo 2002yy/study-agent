@@ -14,6 +14,56 @@ class NewsSearchRequest(BaseModel):
     session_id: str | None = None
 
 
+class NewsRunCreateRequest(BaseModel):
+    query: str = Field(default="最新新闻 when:1d", min_length=1)
+    max_items: int = Field(default=10, gt=0, le=20)
+
+
+class NewsRunEnrichRequest(BaseModel):
+    max_articles: int = Field(default=6, ge=0, le=20)
+    max_chars_per_article: int = Field(default=5000, gt=0, le=20000)
+    safe_mode: bool | None = None
+
+
+class NewsRunDigestRequest(BaseModel):
+    selected_model: str = "auto"
+    performance_mode: str | None = None
+
+
+class NewsRunDiscussRequest(BaseModel):
+    group_thread_id: str | None = None
+    selected_model: str = "auto"
+    relationship_mode: str = "standard"
+    performance_mode: str | None = None
+
+
+class NewsRunResponse(BaseModel):
+    id: str
+    query: str
+    stage: str
+    status: str
+    safe_mode: bool
+    items: list[dict]
+    digest: str
+    source_block: str
+    article_coverage: dict
+    discussion: str
+    warnings: list[str]
+    error: str
+    group_thread_id: str | None
+    active_operation_id: str | None
+    active_operation_started_at: str | None
+    stage_started_at: str | None
+    completed_at: str | None
+    version: int
+    created_at: str
+    updated_at: str
+
+
+class NewsRunListResponse(BaseModel):
+    runs: list[NewsRunResponse]
+
+
 class NewsLookupRequest(BaseModel):
     query: str = Field(default="最新新闻 when:1d", min_length=1)
     max_items: int = Field(default=8, gt=0, le=20)

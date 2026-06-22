@@ -195,8 +195,7 @@ GroupThread ID 决定消息集合
 每次 /news/search → 后端返回 news_run_id
 后续 enrich/digest/discuss 引用该 run_id
 ```
-- 当前状态: NewsWorkspace 已改用 operationRegistry 的 `operationId`，不再自增 `newsRunIdRef`；但这仍不是后端持久化 `NewsRun.id`。
-- newsRunId 是前端局部自增，不是后端实体
+- ✅ 已满足: `POST /news/runs` 返回 SQLite `NewsRun.id`；后续阶段和 Workspace 恢复只传该 ID，operationRegistry ID 仅用于浏览器内取消
 
 ### N2 — 阶段锁定
 ```
@@ -205,20 +204,21 @@ digest 只能处理 enrich 阶段的 items（或 search 阶段 + 无 enrich）
 discuss 只能处理 digest 的结果
 各阶段不可跳过不可逆序
 ```
-- 当前: 逻辑基本正确，但靠前端局部 state 维护阶段
+- ✅ 已满足: NewsRepository 用 expected stage + active operation owner CAS；失败和 stale recovery 不推进 stage
 
 ### N3 — Safe Mode 可见
 ```
 safe_mode 跳过正文读取 → 必须在 UI 显示
 作为 NewsRun 的字段，不是 inference
 ```
-- 当前: 只在提示文案中静态显示，不是服务器返回的状态
+- ✅ 已满足: enrich skip 在同一阶段事务中持久化 `safe_mode` 和 reason，NewsWorkspace 直接渲染服务器返回值
 
 ### N4 — Run 隔离
 ```
 NewsRun 不修改单聊 Session ID
 NewsRun 可以关联 GroupThread（discuss 后），但不创建 ChatThread
 ```
+- ✅ 已满足: NewsRun discuss 只调用 GroupChatService bundle 并记录 `group_thread_id`；双 Run/双 Thread 隔离有 API 测试
 
 ## 7. 持久化不变量
 
@@ -230,7 +230,7 @@ NewsRun 可以关联 GroupThread（discuss 后），但不创建 ChatThread
 配置: config/*.yaml
 每个数据有且仅有一个权威来源
 ```
-- ✅ 已满足: 运行时事实 = SQLite `chat_threads` + `chat_turns`；Markdown 为单向兼容导入导出边界，非并发运行时来源
+- ✅ 已满足: Chat、Group、News 运行时事实分别由 SQLite repositories 持有；Markdown 为单向兼容导入导出边界，非并发运行时来源
 - 验证: `test_chat_service.py`、`test_session_service.py` 全套流程验证
 
 ### P2 — 提交原子性
@@ -277,6 +277,5 @@ App → ChatController.send/stop/continue/retry/restore/startNew/archive
 
 | 违反 | 位置 | 严重性 |
 |------|------|--------|
-| newsRunId 仍不是后端实体 | NewsWorkspace.tsx | 中 — 当前来自 operationRegistry.operationId，下一步应切到 SQLite NewsRun.id |
 | preview/commit 无 transaction_id | api.ts:259-271 | 中 — 可能提交过期预览 |
 | 遗留 Streamlit 仍使用单一 wechat_group.md | wechat_state.py:26 | 低 — 兼容路径，React/FastAPI 主链已走 SQLite GroupThread |

@@ -314,6 +314,14 @@ def test_legacy_news_round_routes_are_gone_without_running_legacy_flow(
 
     assert client.post("/news/round", json=payload).status_code == 410
     assert client.post("/wechat/news-round", json=payload).status_code == 410
+    assert client.post("/news/search", json=payload).status_code == 410
+    assert client.post(
+        "/news/enrich", json={"news_items": [{"title": "A"}]}
+    ).status_code == 410
+    assert client.post(
+        "/news/digest", json={"news_items": [{"title": "A"}]}
+    ).status_code == 410
+    assert client.post("/news/discuss", json={"digest": "old"}).status_code == 410
     assert not group_file.exists()
 
 
@@ -327,17 +335,39 @@ def test_news_discussion_outputs_remain_isolated_by_group_thread(
         "run_discussion_stage",
         lambda digest, **kwargs: (f"【纳西妲】\nreply for {digest}", "legacy ignored"),
     )
+    monkeypatch.setattr(
+        api,
+        "run_search_stage",
+        lambda query, max_items=10: [{"title": query}],
+    )
+    monkeypatch.setattr(
+        api,
+        "run_digest_stage",
+        lambda items, query_text, **kwargs: (
+            f"digest {query_text}",
+            f"source {query_text}",
+            {"total": len(items)},
+            [],
+        ),
+    )
     first = runtime_test_context.group_service.create_thread(title="First")
     second = runtime_test_context.group_service.create_thread(title="Second")
     client = TestClient(app)
 
     for thread, digest in ((first, "alpha"), (second, "beta")):
+        created = client.post("/news/runs", json={"query": digest})
+        run_id = created.json()["id"]
+        digested = client.post(
+            f"/news/runs/{run_id}/digest",
+            json={"selected_model": "flash", "performance_mode": "fast"},
+        )
+        assert digested.status_code == 200
         response = client.post(
-            "/news/discuss",
-            json={"digest": digest, "session_id": thread.id},
+            f"/news/runs/{run_id}/discuss",
+            json={"group_thread_id": thread.id},
         )
         assert response.status_code == 200
-        assert response.json()["session_id"] == thread.id
+        assert response.json()["group_thread_id"] == thread.id
 
     first_content = runtime_test_context.group_service.get_state(first.id)["content"]
     second_content = runtime_test_context.group_service.get_state(second.id)["content"]
@@ -380,20 +410,19 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     monkeypatch.setattr(api, "init_session", lambda: "news-stage-session")
     client = TestClient(app)
 
-    search = client.post("/news/search", json={"query": "AI", "max_items": 4})
+    search = client.post("/news/runs", json={"query": "AI", "max_items": 4})
+    run_id = search.json()["id"]
     enrich = client.post(
-        "/news/enrich",
-        json={"query_text": "AI", "news_items": search.json()["news_items"], "max_articles": 2},
+        f"/news/runs/{run_id}/enrich",
+        json={"max_articles": 2},
     )
     digest = client.post(
-        "/news/digest",
-        json={"query_text": "AI", "news_items": enrich.json()["news_items"], "selected_model": "flash", "performance_mode": "fast"},
+        f"/news/runs/{run_id}/digest",
+        json={"selected_model": "flash", "performance_mode": "fast"},
     )
     discuss = client.post(
-        "/news/discuss",
+        f"/news/runs/{run_id}/discuss",
         json={
-            "digest": digest.json()["digest"],
-            "source_block": digest.json()["source_block"],
             "selected_model": "flash",
             "relationship_mode": "warm",
             "performance_mode": "fast",
@@ -401,14 +430,14 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     )
 
     assert search.status_code == 200
-    assert search.json()["news_items"][0]["rank"] == 4
+    assert search.json()["items"][0]["rank"] == 4
     assert enrich.status_code == 200
-    assert enrich.json()["news_items"][0]["max_articles"] == 2
+    assert enrich.json()["items"][0]["max_articles"] == 2
     assert digest.status_code == 200
     assert digest.json()["source_block"] == "source"
     assert digest.json()["warnings"] == ["warn"]
     assert discuss.status_code == 200
-    group_thread_id = discuss.json()["session_id"]
+    group_thread_id = discuss.json()["group_thread_id"]
     assert group_thread_id.startswith("group_")
     group_messages = runtime_test_context.group_repository.list_messages(
         group_thread_id
@@ -419,6 +448,12 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     ]
     assert calls["digest"][2] == "fast"
     assert calls["discussion"][1] == "warm"
+    restored = client.get(f"/news/runs/{run_id}")
+    listed = client.get("/news/runs")
+    assert restored.status_code == 200
+    assert restored.json()["stage"] == "discussed"
+    assert listed.status_code == 200
+    assert run_id in [run["id"] for run in listed.json()["runs"]]
 
 
 def test_news_lookup_endpoint_returns_source_block(monkeypatch):

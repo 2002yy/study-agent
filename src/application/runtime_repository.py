@@ -7,8 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from src.infrastructure.sqlite.database import RuntimeDatabase
-from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.group_repository import GroupRepository
+from src.repositories.news_repository import NewsRepository
+from src.repositories.runtime_repository import RuntimeRepository
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNTIME_DB = ROOT / "logs" / "runtime" / "study_agent.db"
@@ -46,6 +47,11 @@ def get_group_repository() -> GroupRepository:
 
 
 @lru_cache(maxsize=1)
+def get_news_repository() -> NewsRepository:
+    return NewsRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatService
 
@@ -76,9 +82,18 @@ def get_group_service():
     )
 
 
+@lru_cache(maxsize=1)
+def get_news_service():
+    from src.application.news_service import NewsService
+
+    return NewsService(get_news_repository(), get_group_service())
+
+
 def reset_runtime_repository_cache() -> None:
+    get_news_service.cache_clear()
     get_group_service.cache_clear()
     get_chat_service.cache_clear()
     get_session_service.cache_clear()
     get_group_repository.cache_clear()
+    get_news_repository.cache_clear()
     get_runtime_repository.cache_clear()

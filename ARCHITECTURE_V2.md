@@ -420,7 +420,7 @@ AppShell 不再包含任何业务 handler。
 | session_logger._state | SQLite chat_turns | Batch 4 |
 | chat/wechat_group.md | SQLite group_messages + export | Batch 4 |
 | localStorage workspace | serverQueryCache + localStorage 仅用于恢复 | Batch 2 |
-## Implementation status 2026-06-21: Chat/Session and Web GroupThread sealed
+## Implementation status 2026-06-21: Chat/Session, Web GroupThread, and NewsRun sealed
 
 - Chat HTTP and SSE routes now call `ChatService`; they no longer import the `src.api` compatibility locator, the LLM client, or `session_logger`.
 - `ChatThread` and `ChatTurn` are persisted through `RuntimeRepository` in SQLite before generation begins.
@@ -438,5 +438,10 @@ AppShell 不再包含任何业务 handler。
 - Group streaming uses a thread bridge so disconnects remain observable before the first token; disconnect, ASGI cancellation, provider failure, and the final guard all settle the full Exchange and release its operation lease.
 - Group archive reserves `export_path` before file export. Startup recovery completes an archive when that file exists and restores an active Thread when it does not; concurrent archive owners are rejected.
 - Web GroupThread is sealed. Except for confirmed bugs, its service, state model, and controller are frozen while NewsRun becomes the next vertical slice.
+- Schema v6 and the independent `NewsRepository`/`NewsService` make SQLite the NewsRun source of truth. Search creates a server ID; enrich, digest, discuss, get, and list use that ID without accepting client-owned intermediate data.
+- News stages acquire a run operation lease with expected-stage CAS. Failures and stale operations release ownership without advancing the stage, so the same stage can be retried.
+- `GroupChatService.append_news_bundle()` writes source plus per-speaker discussion in one Group transaction and is idempotent by NewsRun ID; the completed NewsRun stores its GroupThread association.
+- `newsController` owns stage data, busy/error, restore, cancellation, and orchestration. `NewsWorkspace` is a rendering surface, and `activeNewsRunId` is always the server-issued ID.
+- NewsRun is sealed. Except for confirmed bugs, its repository, stage model, routes, and controller are frozen while ToolRun becomes the next vertical slice.
 - The legacy Streamlit WeChat UI remains on its compatibility file path and is not considered part of the sealed React/FastAPI runtime.
-- NewsRun, ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.
+- ToolRun, Memory, and their existing persistence flows remain frozen on the legacy path and are not claimed as migrated.

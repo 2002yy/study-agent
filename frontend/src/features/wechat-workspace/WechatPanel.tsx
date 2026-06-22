@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { searchWechat } from "../../api";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { ChatSettings, NewsLookupResponse, NewsSearchResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
+import type { NewsLookupResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
 import { displayValue } from "../../utils/format";
 import { NewsWorkspace } from "../news-workspace/NewsWorkspace";
+import type { NewsController } from "../news-workspace/newsController";
 import { speakerToRole } from "../roles/roleCatalog";
 
 export function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
@@ -70,7 +71,7 @@ function resultSpeaker(result: Record<string, unknown>): string {
 
 export function WechatPanel({
   wechat,
-  newsResult,
+  newsController,
   webLookup,
   useWebLookup,
   setUseWebLookup,
@@ -80,22 +81,19 @@ export function WechatPanel({
   setNewsQuery,
   readArticles,
   setReadArticles,
-  chatSettings,
   sessionId,
-  onNewsRunStarted,
   onOpening,
   onReset,
   onMarkRead,
   onSendWechat,
   onStopWechat,
   onLookupNews,
-  onNewsDiscussed,
   isWechatBusy,
   error,
   isNewsBusy
 }: {
   wechat: WechatStateResponse | null;
-  newsResult: NewsSearchResponse | null;
+  newsController: NewsController;
   webLookup: NewsLookupResponse | null;
   useWebLookup: boolean;
   setUseWebLookup: (value: boolean) => void;
@@ -105,16 +103,13 @@ export function WechatPanel({
   setNewsQuery: (value: string) => void;
   readArticles: boolean;
   setReadArticles: (value: boolean) => void;
-  chatSettings: ChatSettings;
   sessionId?: string;
-  onNewsRunStarted?: (runId: string) => void;
   onOpening: () => void;
   onReset: () => void;
   onMarkRead: () => void;
   onSendWechat: (event: FormEvent) => void;
   onStopWechat?: () => void;
   onLookupNews: () => void;
-  onNewsDiscussed: (sessionId: string) => void;
   isWechatBusy: boolean;
   error: string;
   isNewsBusy: boolean;
@@ -130,7 +125,6 @@ export function WechatPanel({
     setWechatSearchQuery("");
   }, [wechat?.content]);
 
-  const latestNewsItems = newsResult?.news_items.slice(0, 4) ?? [];
   const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
   const wechatMessages = parseWechatMessages(wechat?.content ?? "");
 
@@ -277,10 +271,7 @@ export function WechatPanel({
         setQuery={setNewsQuery}
         readArticles={readArticles}
         setReadArticles={setReadArticles}
-        chatSettings={chatSettings}
-        sessionId={sessionId}
-        onRunStarted={onNewsRunStarted}
-        onDiscussed={onNewsDiscussed}
+        controller={newsController}
         onLookupNews={onLookupNews}
         isLookupBusy={isNewsBusy}
       />
@@ -302,32 +293,6 @@ export function WechatPanel({
         </div>
       ) : null}
 
-      {newsResult ? (
-        <div className="news-result">
-          <div className="metric-row">
-            <span>耗时</span>
-            <strong>{newsResult.elapsed_ms} ms</strong>
-          </div>
-          <details>
-            <summary>新闻摘要</summary>
-            <pre>{newsResult.digest}</pre>
-          </details>
-          <details>
-            <summary>来源 {newsResult.news_items.length} 条</summary>
-            <div className="news-list">
-              {latestNewsItems.map((item, index) => (
-                <NewsItemCard item={item} index={index} key={`${displayValue(item.title)}-${index}`} />
-              ))}
-            </div>
-          </details>
-          {newsResult.warnings.length ? (
-            <div className="memory-note warn">
-              <AlertTriangle size={15} />
-              <span>{newsResult.warnings.join("；")}</span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }

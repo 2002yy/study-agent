@@ -1,14 +1,14 @@
 # Migration Plan — Architecture V2
 
-> 从当前 `6f28990` 状态出发，按纵向切片封板，而非分批推进。
+> 从当前 Architecture V2 主线出发，按纵向切片封板，而非分批推进。
 > 每个切片封板后该模块所有业务冻结，只修 bug。
 
 ## Implementation status — 2026-06-21
 
 - Batch 1 (operation registry): sealed.
-- Batch 2 (Workspace reducer/controllers): Chat/Session and Group controllers + provider sealed.
+- Batch 2 (Workspace reducer/controllers): Chat/Session, Group, and News controllers + provider sealed.
 - Batch 3 (FastAPI split): sealed. `src/api/app.py` + `routes/` + `application/` + `models/` all live; compatibility re-exports remain in `src/api/__init__.py`.
-- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session and GroupThread/GroupMessage → sealed. NewsRun is the next vertical slice.
+- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session, GroupThread/GroupMessage, and NewsRun → sealed. ToolRun is the next vertical slice.
 - Batch 5 (Turn lifecycle): sealed. Turn state machine, continuation, retry, supersede, partial commit all owned by ChatService/SQLite.
 
 > 当前策略已从"分 5 批横向推进"改为**按纵向切片封板**。
@@ -21,7 +21,7 @@
 |------|------|---------|
 | Chat/Session (原 Batch 4+5) | SQLite ChatThread/Turn, ChatService, SessionService, chatController | ✅ **Sealed** |
 | Web GroupThread (原 Batch 4) | Schema v5, GroupRepository, GroupChatService, groupChatController | ✅ **Sealed** |
-| NewsRun | — | ❌ 未开始 |
+| NewsRun | Schema v6, NewsRepository, NewsService, newsController | ✅ **Sealed** |
 | Tools | — | ❌ 未开始 |
 | Memory | — | ❌ 未开始 |
 
@@ -493,4 +493,13 @@ POST /sessions/{id}/restore
 - `groupChatController` + `groupChatControllerBoundary` replace App.tsx group logic in React.
 - Legacy wechat_group.md file is imported once on first access; Markdown remains archive-only.
 - Sealed: legacy FastAPI News Round writers return 410; stream disconnect/cancellation settles the full Exchange; archive crash recovery and concurrent ownership are test-covered.
-- Remaining V2 migration frozen outside this slice: News (standalone), Tools, Memory, and broader settings/helper decomposition.
+- Remaining V2 migration frozen outside this slice: Tools, Memory, and broader settings/helper decomposition.
+
+## Implementation note 2026-06-21: NewsRun vertical slice (schema v6 + NewsRepository + NewsService)
+
+- `POST /news/runs` creates the server-owned Run and performs search; enrich, digest, discuss, get, and list address that Run ID.
+- Expected-stage CAS plus an operation owner prevents concurrent or out-of-order stage settlement; failures and stale operations remain retryable at the prior stage.
+- News items, source block, digest, coverage, warnings, safe-mode reason, discussion, GroupThread link, timestamps, and version are persisted in SQLite.
+- `append_news_bundle` atomically writes source and per-speaker discussion to GroupThread and is idempotent by NewsRun ID.
+- `newsController` owns stage state and orchestration; `NewsWorkspace` no longer calls stage APIs or stores staged results.
+- NewsRun is sealed. ToolRun is the next vertical slice; Memory and broader RAG/AppShell work remain frozen.

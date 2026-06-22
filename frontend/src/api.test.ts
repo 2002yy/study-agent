@@ -2,19 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   callLocalKnowledge,
   archiveSession,
-  digestNewsStage,
-  discussNewsStage,
-  enrichNewsStage,
+  createNewsRun,
+  digestNewsRun,
+  discussNewsRun,
+  enrichNewsRun,
+  getNewsRun,
   loadApiSnapshot,
   lookupNews,
   previewLocalKnowledge,
   queryRag,
   searchWechat,
-  searchNewsStage,
   sendChatStream,
   sendWechatMessage,
   sendWechatMessageStream,
-  runNewsSearch,
   uploadDocuments
 } from "./api";
 import type { ChatSettings, RagSettings } from "./types";
@@ -122,7 +122,7 @@ describe("sendChatStream", () => {
   });
 
   it("sends scene and conversation instruction in the chat payload", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       sseResponse([
         'event: done\ndata: {"session_id":"session-2","reply":"done"}\n\n'
       ])
@@ -401,94 +401,49 @@ describe("news API calls", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the compatibility news round on /news/round", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          query_text: "AI",
-          news_items: [],
-          digest: "digest",
-          discussion: "discussion",
-          group_content: "group",
-          source_block: "source",
-          article_coverage: {},
-          elapsed_ms: 1,
-          warnings: [],
-          audit_markdown_path: "",
-          audit_json_path: "",
-          session_id: "news-session"
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+  it("sends only the server NewsRun ID to later stages", async () => {
+    const run = {
+      id: "news-1", query: "AI", stage: "searched", status: "running",
+      safe_mode: false, items: [{ title: "A" }], digest: "", source_block: "",
+      article_coverage: {}, discussion: "", warnings: [], error: "",
+      group_thread_id: null, version: 1, created_at: "now", updated_at: "now"
+    };
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify(run), { status: 200, headers: { "Content-Type": "application/json" } })
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await runNewsSearch("AI", { sessionId: "session-1", readArticles: false, chatSettings });
+    const created = await createNewsRun("AI", 4);
+    await enrichNewsRun(created.id, 2);
+    await digestNewsRun(created.id, chatSettings);
+    await discussNewsRun(created.id, "group-1", chatSettings);
+    await getNewsRun(created.id);
 
-    const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/news/round");
-  });
-
-  it("posts phased news requests to the stage endpoints", async () => {
-    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-      const payloads: Record<string, unknown> = {
-        "/news/search": { query_text: "AI", news_items: [{ title: "A" }] },
-        "/news/enrich": { query_text: "AI", news_items: [{ title: "A", article_text: "body" }] },
-        "/news/digest": { query_text: "AI", digest: "digest", source_block: "source", article_coverage: {}, warnings: [] },
-        "/news/discuss": { discussion: "discussion", group_content: "group", session_id: "news-session" }
-      };
-      return new Response(JSON.stringify(payloads[url]), { status: 200, headers: { "Content-Type": "application/json" } });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const search = await searchNewsStage("AI", 4);
-    const enrich = await enrichNewsStage({ queryText: search.query_text, newsItems: search.news_items, maxArticles: 2 });
-    const digest = await digestNewsStage({ queryText: enrich.query_text, newsItems: enrich.news_items, chatSettings });
-    const discuss = await discussNewsStage({ digest: digest.digest, sourceBlock: digest.source_block, sessionId: "session-1", chatSettings });
-
-    const calls = fetchMock.mock.calls.map(([url, init]) => [url, JSON.parse(String(init?.body))]);
-    expect(calls[0][0]).toBe("/news/search");
+    const calls = fetchMock.mock.calls.slice(0, 4).map(([url, init]) => [url, JSON.parse(String(init?.body))]);
+    expect(calls[0][0]).toBe("/news/runs");
     expect(calls[0][1]).toMatchObject({ query: "AI", max_items: 4 });
-    expect(calls[1][0]).toBe("/news/enrich");
-    expect(calls[1][1]).toMatchObject({ query_text: "AI", max_articles: 2 });
-    expect(calls[2][0]).toBe("/news/digest");
-    expect(calls[3][0]).toBe("/news/discuss");
-    expect(discuss.session_id).toBe("news-session");
+    expect(calls[1]).toEqual(["/news/runs/news-1/enrich", { max_articles: 2 }]);
+    expect(calls[2][0]).toBe("/news/runs/news-1/digest");
+    expect(calls[3][0]).toBe("/news/runs/news-1/discuss");
+    expect(calls[3][1]).toMatchObject({ group_thread_id: "group-1" });
+    expect(fetchMock.mock.calls[4][0]).toBe("/news/runs/news-1");
+    for (const [, body] of calls.slice(1, 4)) expect(body).not.toHaveProperty("news_items");
   });
 
   it("passes AbortSignal through news stage requests", async () => {
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-      const payloads: Record<string, unknown> = {
-        "/news/search": { query_text: "AI", news_items: [] },
-        "/news/enrich": { query_text: "AI", news_items: [] },
-        "/news/digest": { query_text: "AI", digest: "digest", source_block: "source", article_coverage: {}, warnings: [] },
-        "/news/discuss": { discussion: "discussion", group_content: "group", session_id: "news-session" },
-        "/news/round": {
-          query_text: "AI",
-          news_items: [],
-          digest: "digest",
-          discussion: "discussion",
-          group_content: "group",
-          source_block: "source",
-          article_coverage: {},
-          elapsed_ms: 1,
-          warnings: [],
-          audit_markdown_path: "",
-          audit_json_path: "",
-          session_id: "news-session"
-        },
-        "/news/lookup": { query_text: "AI", news_items: [], source_block: "", elapsed_ms: 1 }
-      };
-      return new Response(JSON.stringify(payloads[url]), { status: 200, headers: { "Content-Type": "application/json" } });
+      const payload = url === "/news/lookup"
+        ? { query_text: "AI", news_items: [], source_block: "", warnings: [] }
+        : { id: "news-1", query: "AI", stage: "searched", status: "running", safe_mode: false, items: [], digest: "", source_block: "", article_coverage: {}, discussion: "", warnings: [], error: "", version: 1, created_at: "now", updated_at: "now" };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
 
-    await searchNewsStage("AI", 4, { signal: controller.signal });
-    await enrichNewsStage({ queryText: "AI", newsItems: [], maxArticles: 2 }, { signal: controller.signal });
-    await digestNewsStage({ queryText: "AI", newsItems: [], chatSettings }, { signal: controller.signal });
-    await discussNewsStage({ digest: "digest", sourceBlock: "source", sessionId: "thread-1", chatSettings }, { signal: controller.signal });
-    await runNewsSearch("AI", { sessionId: "thread-1", readArticles: false, chatSettings }, { signal: controller.signal });
+    await createNewsRun("AI", 4, { signal: controller.signal });
+    await enrichNewsRun("news-1", 2, { signal: controller.signal });
+    await digestNewsRun("news-1", chatSettings, { signal: controller.signal });
+    await discussNewsRun("news-1", "thread-1", chatSettings, { signal: controller.signal });
     await lookupNews("AI", 8, { signal: controller.signal });
 
     for (const [, init] of fetchMock.mock.calls) {

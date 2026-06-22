@@ -222,6 +222,63 @@ class GroupRepository:
             )
         return assistant_message
 
+    def append_news_bundle(
+        self,
+        thread_id: str,
+        operation_id: str,
+        messages: list[GroupMessage],
+        *,
+        unread_count: int,
+    ) -> list[GroupMessage]:
+        """Acquire the thread lease and append a complete News bundle atomically."""
+
+        if not messages:
+            raise ValueError("News bundle requires at least one message")
+        now = utc_now()
+        with self.database.connect() as connection:
+            existing = connection.execute(
+                """
+                SELECT * FROM group_messages
+                WHERE operation_id = ?
+                  AND message_type = 'news_discussion'
+                ORDER BY rowid
+                """,
+                (operation_id,),
+            ).fetchall()
+            if existing:
+                if existing[0]["thread_id"] != thread_id:
+                    raise ValueError(
+                        f"News bundle already belongs to another Group thread: {operation_id}"
+                    )
+                return [_message_from_row(row) for row in existing]
+            acquired = connection.execute(
+                """
+                UPDATE group_threads
+                SET active_operation_id = ?, active_operation_started_at = ?,
+                    updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'active' AND active_operation_id IS NULL
+                """,
+                (operation_id, now, now, thread_id),
+            )
+            if acquired.rowcount != 1:
+                raise ValueError(f"Group thread already has an active operation: {thread_id}")
+            for message in messages:
+                if message.thread_id != thread_id or message.operation_id != operation_id:
+                    raise ValueError("News bundle message ownership mismatch")
+                self._insert_message(connection, message)
+            released = connection.execute(
+                """
+                UPDATE group_threads
+                SET active_operation_id = NULL, active_operation_started_at = NULL,
+                    unread_count = unread_count + ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND active_operation_id = ?
+                """,
+                (max(0, unread_count), now, thread_id, operation_id),
+            )
+            if released.rowcount != 1:
+                raise ValueError(f"Group operation ownership lost: {operation_id}")
+        return messages
+
     def settle_exchange(
         self,
         placeholder_id: str,
