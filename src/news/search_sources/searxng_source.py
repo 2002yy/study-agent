@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import json
 import os
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from src.news.search_sources.base import SearchSourceResult
 from src.news.url_normalizer import is_public_http_url
+
+
+_LAST_SEARXNG_ERROR = ""
+
+
+def get_last_searxng_error() -> str:
+    return _LAST_SEARXNG_ERROR
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -31,8 +38,33 @@ def searxng_base_url() -> str:
     return (os.getenv("SEARXNG_BASE_URL") or "").strip().rstrip("/")
 
 
+def _is_explicitly_allowed_local_searxng(base_url: str) -> bool:
+    if not _env_flag("SEARXNG_ALLOW_LOCAL", default=False):
+        return False
+
+    try:
+        parsed = urlparse(base_url)
+    except Exception:
+        return False
+
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return False
+
+    if parsed.username or parsed.password:
+        return False
+
+    hostname = (parsed.hostname or "").lower()
+    return hostname in {"127.0.0.1", "::1", "localhost"}
+
+
 def _valid_base_url(base_url: str) -> bool:
-    return bool(base_url and is_public_http_url(base_url))
+    return bool(
+        base_url
+        and (
+            is_public_http_url(base_url)
+            or _is_explicitly_allowed_local_searxng(base_url)
+        )
+    )
 
 
 def build_searxng_search_url(
@@ -101,6 +133,9 @@ def search_searxng(
     base_url: str | None = None,
 ) -> list[dict]:
     """Return normalized news items from SearXNG or [] on any failure."""
+    global _LAST_SEARXNG_ERROR
+    _LAST_SEARXNG_ERROR = ""
+
     if not searxng_enabled():
         return []
 
@@ -124,9 +159,13 @@ def search_searxng(
         with urlopen(req, timeout=timeout) as response:
             content_type = response.headers.get("Content-Type", "")
             if "json" not in content_type.lower():
+                _LAST_SEARXNG_ERROR = (
+                    f"Unexpected Content-Type: {content_type!r}"
+                )
                 return []
             payload = response.read(500_000)
-    except Exception:
+    except Exception as exc:
+        _LAST_SEARXNG_ERROR = f"{type(exc).__name__}: {exc}"
         return []
 
     return [item.to_news_item() for item in _parse_searxng_results(payload, max_results)]
