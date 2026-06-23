@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import re
+import socket
+import ssl
 import time
 from collections.abc import MutableMapping
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -345,6 +348,38 @@ def _resolve_and_dedupe_news_items(
 
 # ── RSS fetching (no link resolution) ─────────────────────────────────
 
+_TRANSIENT_NETWORK_ERRORS = (
+    TimeoutError,
+    ConnectionResetError,
+    ConnectionAbortedError,
+    socket.timeout,
+    ssl.SSLError,
+    URLError,
+)
+
+
+def _urlopen_with_retry(
+    request: Request,
+    *,
+    timeout: float = 15,
+    max_attempts: int = 3,
+):
+    last_error: Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return urlopen(request, timeout=timeout)
+        except _TRANSIENT_NETWORK_ERRORS as exc:
+            last_error = exc
+            if attempt >= max_attempts:
+                break
+
+            # 0.5s / 1s; avoid hammering multiple sources in rapid succession
+            time.sleep(0.5 * (2 ** (attempt - 1)))
+
+    assert last_error is not None
+    raise last_error
+
 
 def _fetch_rss_items_from_url(
     feed_url: str,
@@ -376,7 +411,7 @@ def _fetch_rss_items_with_metadata(
         },
     )
 
-    with urlopen(req, timeout=15) as response:
+    with _urlopen_with_retry(req, timeout=15, max_attempts=3) as response:
         metadata = {
             "etag": response.headers.get("ETag", ""),
             "modified": response.headers.get("Last-Modified", ""),
@@ -493,7 +528,20 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     if not items and errors:
         _set_last_feed_warnings(feed_warnings)
-        raise errors[0]
+
+        details = "; ".join(
+            (
+                f"{warning.get('source', 'unknown')}: "
+                f"{warning.get('error_type', 'Error')}: "
+                f"{warning.get('message', '')}"
+            )
+            for warning in feed_warnings
+        )
+
+        raise RuntimeError(
+            "All enabled news sources failed"
+            + (f": {details}" if details else "")
+        )
 
     _set_last_feed_warnings(feed_warnings)
 
