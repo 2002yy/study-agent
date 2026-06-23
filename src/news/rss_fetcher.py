@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 import socket
 import ssl
@@ -416,7 +417,41 @@ def _fetch_rss_items_with_metadata(
             "etag": response.headers.get("ETag", ""),
             "modified": response.headers.get("Last-Modified", ""),
         }
+
+        content_type = response.headers.get("Content-Type", "")
+        content_encoding = response.headers.get("Content-Encoding", "")
         payload = response.read()
+
+    if content_encoding.lower() == "gzip" or payload.startswith(b"\x1f\x8b"):
+        payload = gzip.decompress(payload)
+
+    payload = payload.lstrip(b"\xef\xbb\xbf \t\r\n")
+
+    if not payload:
+        raise ValueError(
+            f"Empty RSS response: {source_fallback}; content_type={content_type!r}"
+        )
+
+    lowered = payload[:500].lower()
+
+    if b"<html" in lowered or b"<!doctype html" in lowered:
+        preview = payload[:200].decode("utf-8", errors="replace")
+        raise ValueError(
+            f"HTML returned instead of RSS: {source_fallback}; "
+            f"content_type={content_type!r}; preview={preview!r}"
+        )
+
+    if not (
+        payload.startswith(b"<?xml")
+        or payload.startswith(b"<rss")
+        or payload.startswith(b"<feed")
+    ):
+        preview = repr(payload[:80])
+        raise ValueError(
+            f"Unsupported feed payload: {source_fallback}; "
+            f"content_type={content_type!r}; first_bytes={preview}"
+        )
+
     _LAST_FEED_METADATA[feed_url] = metadata
 
     try:
