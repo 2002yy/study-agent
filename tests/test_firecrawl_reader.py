@@ -99,7 +99,7 @@ def test_article_fetcher_does_not_call_firecrawl_by_default(monkeypatch):
     monkeypatch.setattr(
         article_fetcher,
         "_fetch_html_payload",
-        lambda url, timeout, max_bytes: ("<html><body>too short</body></html>", url),
+        lambda url, timeout, max_bytes: ("<html><body>too short</body></html>", url, "text/html", ""),
     )
     monkeypatch.setattr(
         article_fetcher,
@@ -132,7 +132,7 @@ def test_article_fetcher_uses_firecrawl_before_jina_when_enabled(monkeypatch):
     monkeypatch.setattr(
         article_fetcher,
         "_fetch_html_payload",
-        lambda url, timeout, max_bytes: ("<html><body>too short</body></html>", url),
+        lambda url, timeout, max_bytes: ("<html><body>too short</body></html>", url, "text/html", ""),
     )
     monkeypatch.setattr(
         article_fetcher,

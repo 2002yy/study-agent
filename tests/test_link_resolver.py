@@ -46,6 +46,20 @@ def test_google_news_html_rejects_unsafe_extracted_target():
     assert _extract_resolved_url_from_google_news_html(html) == ""
 
 
+def test_google_news_html_skips_favicon_before_article_link():
+    html = """
+    <html>
+      <head><link rel="icon" href="https://publisher.example/favicon.ico"></head>
+      <body><a href="https://publisher.example/news/real-story">read</a></body>
+    </html>
+    """
+
+    assert (
+        _extract_resolved_url_from_google_news_html(html)
+        == "https://publisher.example/news/real-story"
+    )
+
+
 def test_google_news_host_detection_is_exact_enough():
     assert _is_google_news_url("https://news.google.com/rss/articles/abc")
     assert not _is_google_news_url("https://evilnews.google.com/rss/articles/abc")

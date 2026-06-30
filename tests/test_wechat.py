@@ -1,5 +1,6 @@
 import pytest
 from pathlib import Path
+import threading
 import time
 from src.wechat import (
     _ARTICLE_CACHE,
@@ -132,7 +133,13 @@ def test_enrich_news_items_falls_back_when_article_unavailable(monkeypatch):
     from src.news import article_fetcher
 
     monkeypatch.setattr(
-        article_fetcher, "fetch_article_text_with_method", lambda *args, **kwargs: ("", "")
+        article_fetcher,
+        "fetch_article_read_result",
+        lambda url, **kwargs: article_fetcher.ArticleReadResult(
+            ok=False,
+            requested_url=url,
+            reason="all_backends_failed",
+        ),
     )
 
     items = [{"title": "测试新闻", "link": "https://example.com/a"}]
@@ -256,9 +263,15 @@ def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
 
     def fake_fetch(url, **kwargs):
         calls.append(url)
-        return f"text-for:{url}", "trafilatura"
+        return article_fetcher.ArticleReadResult(
+            ok=True,
+            text=f"text-for:{url}",
+            method="trafilatura",
+            requested_url=url,
+            final_url=url,
+        )
 
-    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_read_result", fake_fetch)
 
     items = [
         {
@@ -287,6 +300,36 @@ def test_enrich_news_items_reads_high_priority_articles_not_just_first_five(
     assert "未进入正文读取候选" in enriched[5]["article_status"]
 
 
+def test_enrich_news_items_reads_selected_articles_concurrently(monkeypatch):
+    from src.news import article_fetcher
+
+    barrier = threading.Barrier(3)
+
+    def fake_fetch(url, **kwargs):
+        barrier.wait(timeout=2)
+        return article_fetcher.ArticleReadResult(
+            ok=True,
+            text=f"text-for:{url}",
+            method="trafilatura",
+            requested_url=url,
+            final_url=url,
+        )
+
+    monkeypatch.setattr(article_fetcher, "fetch_article_read_result", fake_fetch)
+    items = [
+        {
+            "title": f"article-{idx}",
+            "link": f"https://example.com/article-{idx}",
+            "source": "Example",
+        }
+        for idx in range(3)
+    ]
+
+    enriched = enrich_news_items_with_article_text(items, max_articles=3)
+
+    assert all(item["article_excerpt"].startswith("text-for:") for item in enriched)
+
+
 def test_enrich_news_items_prefers_resolved_link(monkeypatch):
     from src.news import article_fetcher
 
@@ -294,9 +337,15 @@ def test_enrich_news_items_prefers_resolved_link(monkeypatch):
 
     def fake_fetch(url, **kwargs):
         calls.append(url)
-        return "resolved text", "readability"
+        return article_fetcher.ArticleReadResult(
+            ok=True,
+            text="resolved text",
+            method="readability",
+            requested_url=url,
+            final_url=url,
+        )
 
-    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_read_result", fake_fetch)
 
     items = [
         {
@@ -317,11 +366,15 @@ def test_enrich_news_items_marks_unresolved_google_link_without_fetch(monkeypatc
 
     calls = []
 
-    def fake_fetch(*args, **kwargs):
-        calls.append(args[0] if args else "")
-        return ""
+    def fake_fetch(url, **kwargs):
+        calls.append(url)
+        return article_fetcher.ArticleReadResult(
+            ok=False,
+            requested_url=url,
+            reason="all_backends_failed",
+        )
 
-    monkeypatch.setattr(article_fetcher, "fetch_article_text_with_method", fake_fetch)
+    monkeypatch.setattr(article_fetcher, "fetch_article_read_result", fake_fetch)
 
     items = [
         {

@@ -7,6 +7,8 @@ import os
 import re
 import time
 from collections.abc import MutableMapping
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from socket import getaddrinfo
 from typing import Any
 from urllib.parse import urlparse
@@ -24,6 +26,20 @@ from src.news.domain_policy import article_priority_adjustment, should_fetch_art
 from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firecrawl
 from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
+from src.news.url_normalizer import is_probable_article_page_url
+
+
+@dataclass(frozen=True)
+class ArticleReadResult:
+    """Structured result for article content fetching."""
+
+    ok: bool
+    text: str = ""
+    method: str = ""
+    requested_url: str = ""
+    final_url: str = ""
+    content_type: str = ""
+    reason: str = ""
 
 
 # ── Cache ─────────────────────────────────────────────────────────────
@@ -175,7 +191,12 @@ def _fetch_html_payload(
     url: str,
     timeout: int,
     max_bytes: int,
-) -> tuple[str, str]:
+) -> tuple[str, str, str, str]:
+    """Return (html_text, final_url, content_type, reason).
+
+    reason is empty on success, otherwise a diagnostic key like
+    "non_html_resource", "empty_response", etc.
+    """
     req = Request(
         url,
         headers={
@@ -187,17 +208,17 @@ def _fetch_html_payload(
     with _SAFE_OPENER.open(req, timeout=timeout) as response:
         final_url = response.geturl()
         if final_url and not _is_fetchable_article_url(final_url):
-            return "", ""
+            return "", final_url or url, "", "unsafe_redirect_target"
 
         content_type = response.headers.get("Content-Type", "")
         if "html" not in content_type.lower() and "text" not in content_type.lower():
-            return "", ""
+            return "", final_url or url, content_type, "non_html_resource"
 
         payload = response.read(max_bytes + 1)
         if len(payload) > max_bytes:
             payload = payload[:max_bytes]
 
-    return _decode_html_payload(payload, content_type), final_url or url
+    return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
 
 def _try_firecrawl(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
@@ -237,7 +258,9 @@ def fetch_article_text_with_method(
 
     try:
         final_url = url
-        html, final_url = _fetch_html_payload(url, timeout=timeout, max_bytes=max_bytes)
+        html, final_url, content_type, reason = _fetch_html_payload(
+            url, timeout=timeout, max_bytes=max_bytes
+        )
         if html:
             local_result = read_html_locally(
                 html,
@@ -274,19 +297,117 @@ def fetch_article_text_with_method(
         return "", ""
 
 
-def fetch_article_text(
+def fetch_article_read_result(
     url: str,
     timeout: int = 8,
     max_bytes: int = 350_000,
     max_chars: int = 5000,
-) -> str:
-    text, _ = fetch_article_text_with_method(
-        url,
-        timeout=timeout,
-        max_bytes=max_bytes,
-        max_chars=max_chars,
-    )
-    return text
+) -> ArticleReadResult:
+    """Fetch article and return a structured result with failure diagnostics."""
+    url = (url or "").strip()
+    if not url or not _is_fetchable_article_url(url):
+        return ArticleReadResult(ok=False, requested_url=url, reason="unsafe_or_empty_url")
+
+    now = time.time()
+    _prune_article_cache(now)
+
+    cached = _ARTICLE_CACHE.get(url)
+    if cached and now - cached[0] < _ARTICLE_CACHE_TTL:
+        return ArticleReadResult(
+            ok=bool(cached[1]),
+            text=cached[1],
+            method=cached[2],
+            requested_url=url,
+            reason="" if cached[1] else "empty_cache_entry",
+        )
+
+    try:
+        html, final_url, content_type, reason = _fetch_html_payload(
+            url, timeout=timeout, max_bytes=max_bytes
+        )
+        if reason:
+            _ARTICLE_CACHE[url] = (now, "", "")
+            return ArticleReadResult(
+                ok=False,
+                requested_url=url,
+                final_url=final_url,
+                content_type=content_type,
+                reason=reason,
+            )
+
+        if html:
+            local_result = read_html_locally(
+                html,
+                url=final_url or url,
+                max_chars=max_chars,
+            )
+            if local_result.ok:
+                _ARTICLE_CACHE[url] = (now, local_result.text, local_result.method)
+                return ArticleReadResult(
+                    ok=True,
+                    text=local_result.text,
+                    method=local_result.method,
+                    requested_url=url,
+                    final_url=final_url,
+                    content_type=content_type,
+                )
+
+        fallback_url = final_url or url
+        text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return ArticleReadResult(
+                ok=True,
+                text=text,
+                method=method,
+                requested_url=url,
+                final_url=fallback_url,
+            )
+
+        text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return ArticleReadResult(
+                ok=True,
+                text=text,
+                method=method,
+                requested_url=url,
+                final_url=fallback_url,
+            )
+
+        _ARTICLE_CACHE[url] = (now, "", "")
+        return ArticleReadResult(
+            ok=False,
+            requested_url=url,
+            final_url=final_url or url,
+            reason="all_backends_failed",
+        )
+    except Exception as exc:
+        text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return ArticleReadResult(
+                ok=True,
+                text=text,
+                method=method,
+                requested_url=url,
+            )
+
+        text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
+        if text:
+            _ARTICLE_CACHE[url] = (now, text, method)
+            return ArticleReadResult(
+                ok=True,
+                text=text,
+                method=method,
+                requested_url=url,
+            )
+
+        return ArticleReadResult(
+            ok=False,
+            requested_url=url,
+            reason=f"exception:{type(exc).__name__}:{exc}",
+        )
 
 
 # ── Article priority & enrichment ─────────────────────────────────────
@@ -332,6 +453,32 @@ def _article_fetch_priority(item: dict, query_text: str = "") -> int:
     return score
 
 
+def _apply_article_read_result(item: dict, result: ArticleReadResult) -> None:
+    item["article_url"] = result.requested_url
+    item["article_content_type"] = result.content_type
+
+    if result.ok and result.text:
+        item["article_excerpt"] = result.text
+        method_label = _article_method_label(result.method)
+        item["article_status"] = f"正文已读｜{method_label}"
+        item["article_failure_reason"] = ""
+    elif result.reason == "non_html_resource":
+        item["article_excerpt"] = ""
+        item["article_status"] = (
+            "链接指向图片或静态资源，未读取正文"
+            + (f" ({result.content_type})" if result.content_type else "")
+        )
+        item["article_failure_reason"] = "non_html_resource"
+    elif result.reason:
+        item["article_excerpt"] = ""
+        item["article_status"] = f"正文不可用（{result.reason}），使用标题与来源"
+        item["article_failure_reason"] = result.reason
+    else:
+        item["article_excerpt"] = ""
+        item["article_status"] = "正文不可用，使用标题与来源"
+        item["article_failure_reason"] = "unknown"
+
+
 def enrich_news_items_with_article_text(
     news_items: list[dict],
     max_articles: int = 5,
@@ -345,34 +492,62 @@ def enrich_news_items_with_article_text(
         key=lambda idx: (_article_fetch_priority(enriched[idx], query_text), idx),
     )
     selected_indices = set(ranked_indices[:max_articles])
+    pending_reads: list[tuple[int, str]] = []
 
     for idx, item in enumerate(enriched):
         if idx not in selected_indices:
             item["article_excerpt"] = ""
             item["article_status"] = "未进入正文读取候选，仅使用标题与来源"
+            item["article_failure_reason"] = "not_selected"
             continue
 
         if not should_fetch_article(item, query_text):
             item["article_excerpt"] = ""
             item["article_status"] = "域名策略过滤，未读取正文"
+            item["article_failure_reason"] = "domain_policy_blocked"
             continue
 
-        article_url = item.get("resolved_link") or item.get("link", "")
+        # Second defence: prefer article-specific URL fields over raw link
+        article_url = (
+            item.get("canonical_url")
+            or item.get("resolved_link")
+            or item.get("link")
+            or ""
+        ).strip()
+
         if "news.google.com" in article_url:
             item["article_excerpt"] = ""
             item["article_status"] = "未解析到原文链接，使用标题与来源"
+            item["article_failure_reason"] = "google_news_transit_link"
             continue
 
-        article_text, method = fetch_article_text_with_method(
-            article_url,
-            max_chars=max_chars_per_article,
-        )
-        if article_text:
-            item["article_excerpt"] = article_text
-            method_label = _article_method_label(method)
-            item["article_status"] = f"正文已读｜{method_label}"
-        else:
+        # Second gate: validate URL is likely an article page before requesting
+        if article_url and not is_probable_article_page_url(article_url):
             item["article_excerpt"] = ""
-            item["article_status"] = "正文不可用，使用标题与来源"
+            item["article_status"] = "链接指向图片或静态资源，未读取正文"
+            item["article_failure_reason"] = "non_article_url"
+            continue
+
+        pending_reads.append((idx, article_url))
+
+    if pending_reads:
+        worker_count = min(6, len(pending_reads))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="article-reader",
+        ) as pool:
+            futures = [
+                (
+                    idx,
+                    pool.submit(
+                        fetch_article_read_result,
+                        article_url,
+                        max_chars=max_chars_per_article,
+                    ),
+                )
+                for idx, article_url in pending_reads
+            ]
+            for idx, future in futures:
+                _apply_article_read_result(enriched[idx], future.result())
 
     return enriched

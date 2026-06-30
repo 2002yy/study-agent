@@ -35,6 +35,7 @@ def test_build_searxng_search_url_uses_json_format():
     assert url.startswith("https://search.example.com/search?")
     assert "format=json" in url
     assert "q=python+urllib.parse" in url
+    assert "categories=news" in url
 
 
 def test_search_searxng_disabled_by_default(monkeypatch):
@@ -64,6 +65,7 @@ def test_search_searxng_parses_json_results(monkeypatch):
                     "url": "https://docs.python.org/3/library/urllib.parse.html",
                     "content": "urllib.parse documentation",
                     "engine": "duckduckgo",
+                    "score": 2.5,
                 },
                 {
                     "title": "Unsafe local",
@@ -89,6 +91,31 @@ def test_search_searxng_parses_json_results(monkeypatch):
     assert items[0]["source"] == "SearXNG/duckduckgo"
     assert items[0]["link"] == "https://docs.python.org/3/library/urllib.parse.html"
     assert items[0]["search_excerpt"] == "urllib.parse documentation"
+    assert items[0]["_search_score"] == 2.5
+
+
+def test_search_searxng_sorts_results_by_provider_score(monkeypatch):
+    from src.news.search_sources import searxng_source
+
+    payload = json.dumps(
+        {
+            "results": [
+                {"title": "Low", "url": "https://example.com/low", "score": 0.1},
+                {"title": "High", "url": "https://example.com/high", "score": 3.0},
+            ]
+        }
+    ).encode("utf-8")
+    monkeypatch.setenv("NEWS_ENABLE_SEARXNG", "true")
+    monkeypatch.setenv("SEARXNG_BASE_URL", "https://search.example.com")
+    monkeypatch.setattr(
+        searxng_source,
+        "urlopen",
+        lambda req, timeout: _FakeResponse(payload),
+    )
+
+    items = searxng_source.search_searxng("python", max_results=5)
+
+    assert [item["title"] for item in items] == ["High", "Low"]
 
 
 def test_search_searxng_non_json_fails_soft(monkeypatch):

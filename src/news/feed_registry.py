@@ -72,7 +72,7 @@ DEFAULT_FEEDS = (
     ),
     FeedDefinition(
         name="Bing News",
-        url="https://www.bing.com/news/search?q={query}&format=rss&setlang=zh-hans",
+        url="https://www.bing.com/search?q={query}&format=rss&setlang=zh-hans",
         requires_query=True,
     ),
     FeedDefinition(

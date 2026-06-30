@@ -2,9 +2,30 @@ import { AlertTriangle, CheckCircle2, Loader2, Search } from "lucide-react";
 import { displayValue } from "../../utils/format";
 import type { NewsController } from "./newsController";
 
+function isLikelyArticlePageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    const path = url.pathname.toLowerCase();
+
+    return !(
+      /\.(ico|png|jpe?g|gif|webp|svg|css|js|woff2?|ttf|mp4|webm)$/i.test(path) ||
+      /\/(favicon|favicons|icons?|thumbnail|thumbnails|logo)\//i.test(path)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function NewsItemCard({ item, index }: { item: Record<string, unknown>; index: number }) {
-  const url = item.canonical_url || item.resolved_link || item.link;
-  const href = typeof url === "string" ? url : "";
+  const articleUrl = (
+    item.article_url ||
+    item.canonical_url ||
+    item.resolved_link ||
+    item.link
+  );
+  const href = typeof articleUrl === "string" && isLikelyArticlePageUrl(articleUrl) ? articleUrl : "";
   const title = displayValue(item.title) || `来源 ${index + 1}`;
   return (
     <div className="news-item">

@@ -13,7 +13,7 @@ from urllib.parse import urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from src.news.search_sources.base import SearchSourceResult
-from src.news.url_normalizer import is_public_http_url
+from src.news.url_normalizer import is_probable_article_page_url, is_public_http_url
 
 
 _LAST_SEARXNG_ERROR = ""
@@ -72,6 +72,7 @@ def build_searxng_search_url(
     base_url: str,
     max_results: int = 10,
     language: str = "zh-CN",
+    categories: str = "news",
 ) -> str:
     """Build a SearXNG JSON search URL.
 
@@ -87,7 +88,7 @@ def build_searxng_search_url(
         "q": query,
         "format": "json",
         "language": language,
-        "categories": "general",
+        "categories": categories.strip() or "news",
     }
     if max_results > 0:
         params["pageno"] = "1"
@@ -101,13 +102,25 @@ def _parse_searxng_results(payload: bytes, max_results: int) -> list[SearchSourc
     except Exception:
         return []
 
+    raw_results = data.get("results", [])
+    if not isinstance(raw_results, list):
+        return []
+
+    def score_of(raw: object) -> float:
+        if not isinstance(raw, dict):
+            return 0.0
+        try:
+            return float(raw.get("score") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
     results: list[SearchSourceResult] = []
-    for raw in data.get("results", []):
+    for raw in sorted(raw_results, key=score_of, reverse=True):
         if not isinstance(raw, dict):
             continue
         title = str(raw.get("title") or "").strip()
         url = str(raw.get("url") or "").strip()
-        if not title or not is_public_http_url(url):
+        if not title or not is_probable_article_page_url(url):
             continue
         engine = raw.get("engine") or raw.get("engines") or "SearXNG"
         if isinstance(engine, list):
@@ -119,6 +132,10 @@ def _parse_searxng_results(payload: bytes, max_results: int) -> list[SearchSourc
                 source=f"SearXNG/{engine}",
                 content=str(raw.get("content") or "").strip(),
                 published_at=str(raw.get("publishedDate") or raw.get("published_at") or "").strip(),
+                thumbnail=str(raw.get("thumbnail") or "").strip(),
+                img_src=str(raw.get("img_src") or "").strip(),
+                favicon=str(raw.get("favicon") or "").strip(),
+                score=score_of(raw),
             )
         )
         if len(results) >= max_results:
@@ -129,7 +146,7 @@ def _parse_searxng_results(payload: bytes, max_results: int) -> list[SearchSourc
 def search_searxng(
     query: str,
     max_results: int = 10,
-    timeout: int = 8,
+    timeout: float | None = None,
     base_url: str | None = None,
 ) -> list[dict]:
     """Return normalized news items from SearXNG or [] on any failure."""
@@ -144,6 +161,7 @@ def search_searxng(
         query,
         configured_base_url,
         max_results=max_results,
+        categories=os.getenv("NEWS_SEARXNG_CATEGORIES", "news"),
     )
     if not search_url:
         return []
@@ -155,6 +173,14 @@ def search_searxng(
             "Accept": "application/json",
         },
     )
+    if timeout is None:
+        try:
+            timeout = max(
+                1.0,
+                min(float(os.getenv("NEWS_SOURCE_TIMEOUT_SECONDS", "8")), 30.0),
+            )
+        except ValueError:
+            timeout = 8.0
     try:
         with urlopen(req, timeout=timeout) as response:
             content_type = response.headers.get("Content-Type", "")

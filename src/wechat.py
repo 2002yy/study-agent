@@ -87,7 +87,8 @@ from src.news.article_fetcher import (  # noqa: F401
     _check_dns_target_safe,
     _is_fetchable_article_url,
     enrich_news_items_with_article_text,
-    fetch_article_text,
+    ArticleReadResult,
+    fetch_article_read_result,
     fetch_article_text_with_method,
 )
 from src.news.link_resolver import (  # noqa: F401

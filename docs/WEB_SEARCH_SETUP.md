@@ -48,11 +48,19 @@ Use this when you have a working local SearXNG instance:
 ```env
 NEWS_ENABLE_SEARXNG=true
 SEARXNG_BASE_URL=http://127.0.0.1:8080
+NEWS_SEARXNG_CATEGORIES=news
+NEWS_SOURCE_TIMEOUT_SECONDS=8
+NEWS_SOURCE_MAX_ATTEMPTS=2
 NEWS_ENABLE_JINA_READER=false
 NEWS_ENABLE_FIRECRAWL_READER=false
 ```
 
 SearXNG is used as an extra candidate source. If it returns 403, HTML, non-JSON, or times out, the pipeline falls back to RSS.
+
+`NEWS_SEARXNG_CATEGORIES` is forwarded to SearXNG and defaults to `news`.
+Search providers, redirect resolution, and selected article reads run concurrently.
+`NEWS_SOURCE_TIMEOUT_SECONDS` is clamped to 1-30 seconds and
+`NEWS_SOURCE_MAX_ATTEMPTS` is clamped to 1-3 attempts.
 
 ### C. Local/self-hosted extraction fallback with Firecrawl-compatible API
 

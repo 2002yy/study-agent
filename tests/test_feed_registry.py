@@ -49,6 +49,10 @@ def test_registered_feed_urls_resolves_default_query_sources():
 
     assert any(source == "Google News" and "python+url" in url for source, url, _ in urls)
     assert any(source == "Bing News" and "python+url" in url for source, url, _ in urls)
+    assert any(
+        source == "Bing News" and "/search?" in url and "format=rss" in url
+        for source, url, _ in urls
+    )
 
 
 def test_record_feed_result_persists_health(tmp_path):

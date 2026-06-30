@@ -21,6 +21,7 @@ from src.news.url_normalizer import (
     extract_redirect_target,
     extract_redirect_target_candidate,
     display_domain,
+    is_probable_article_page_url,
     is_public_http_url,
 )
 
@@ -84,7 +85,7 @@ def _extract_resolved_url_from_google_news_html(html: str) -> str:
             candidate = _normalize_extracted_url(match)
             if (
                 candidate
-                and is_public_http_url(candidate)
+                and is_probable_article_page_url(candidate)
                 and not _is_google_news_url(candidate)
             ):
                 return candidate
@@ -226,9 +227,9 @@ def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionRe
                             reason="response_final_url",
                         )
                     )
-                if is_public_http_url(final_url):
+                if is_probable_article_page_url(final_url):
                     return _metadata_result(url, final_url, "resolved", hops)
-                return _metadata_result(url, final_url, "unsafe", hops)
+                return _metadata_result(url, url, "original", hops)
 
             content_type = response.headers.get("Content-Type", "")
             if "html" in content_type.lower():

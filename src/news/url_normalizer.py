@@ -11,6 +11,7 @@ from __future__ import annotations
 import ipaddress
 import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 
 
@@ -54,6 +55,50 @@ _DOMAIN_QUERY_ALLOWLISTS: dict[str, set[str]] = {
     "openai.com": set(),
     "www.nature.com": {"doi"},
 }
+
+_NON_PAGE_EXTENSIONS = {
+    ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".css", ".js", ".woff", ".woff2", ".ttf",
+    ".mp3", ".mp4", ".webm",
+    ".pdf", ".zip", ".rar", ".7z",
+}
+
+_NON_PAGE_PATH_MARKERS = (
+    "/favicon",
+    "/favicons/",
+    "/icon/",
+    "/icons/",
+    "/thumbnail/",
+    "/thumbnails/",
+    "/logo/",
+)
+
+
+def is_probable_article_page_url(url: str) -> bool:
+    """Return True only when a URL plausibly leads to a readable article page.
+
+    Excludes static resources (favicons, thumbnails, images, fonts, CSS, JS,
+    video, archives) by extension and by common path markers.  This is a
+    lightweight filter — not a substitute for the full DNS/IP SSRF check.
+    """
+    if not is_public_http_url(url):
+        return False
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    path = (parsed.path or "").lower()
+    suffix = PurePosixPath(path).suffix.lower()
+
+    if suffix in _NON_PAGE_EXTENSIONS:
+        return False
+
+    if any(marker in path for marker in _NON_PAGE_PATH_MARKERS):
+        return False
+
+    return True
 
 
 @dataclass(frozen=True)

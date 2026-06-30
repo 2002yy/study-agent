@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 
 class _FakeResponse:
     def __init__(self, payload: bytes):
@@ -144,4 +146,46 @@ def test_fetch_rss_items_records_response_cache_headers(monkeypatch):
     assert rss_fetcher._LAST_FEED_METADATA["https://example.com/rss"] == {
         "etag": '"abc"',
         "modified": "Wed, 03 Jun 2026 10:00:00 GMT",
+    }
+
+
+def test_search_sources_start_concurrently(monkeypatch):
+    from src.news import rss_fetcher
+
+    barrier = threading.Barrier(3)
+
+    def item(source: str, url: str) -> dict:
+        return {
+            "title": f"{source} result",
+            "source": source,
+            "published_at": "2026-06-30 10:00",
+            "link": url,
+            "_sort_ts": 1_800_000_000.0,
+        }
+
+    def fake_searxng(*args, **kwargs):
+        barrier.wait(timeout=2)
+        return [item("SearXNG", "https://search.example/story")]
+
+    def fake_fetch(feed_url, max_items=10, source_fallback="", query_text=""):
+        barrier.wait(timeout=2)
+        return [item(source_fallback, feed_url)]
+
+    monkeypatch.setattr(rss_fetcher, "search_searxng", fake_searxng)
+    monkeypatch.setattr(
+        rss_fetcher,
+        "registered_feed_urls",
+        lambda query: [
+            ("Feed A", "https://a.example/rss", False),
+            ("Feed B", "https://b.example/rss", False),
+        ],
+    )
+    monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
+
+    results = rss_fetcher._fetch_query_news_items("result", max_items=5)
+
+    assert {result["source"] for result in results} == {
+        "SearXNG",
+        "Feed A",
+        "Feed B",
     }

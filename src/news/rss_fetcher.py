@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import gzip
+import os
 import re
 import socket
 import ssl
 import time
 from collections.abc import MutableMapping
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.error import URLError
@@ -25,7 +27,10 @@ from src.news.link_resolver import (
     _news_item_url,
     resolve_news_link_metadata,
 )
-from src.news.search_sources.searxng_source import search_searxng
+from src.news.search_sources.searxng_source import (
+    get_last_searxng_error,
+    search_searxng,
+)
 from src.news.url_normalizer import build_url_metadata
 
 
@@ -37,7 +42,7 @@ NEWS_FEED_URL = (
     "https://news.google.com/rss/search?q={query}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
 )
 BING_NEWS_FEED_URL = (
-    "https://www.bing.com/news/search?q={query}&format=rss&setlang=zh-hans"
+    "https://www.bing.com/search?q={query}&format=rss&setlang=zh-hans"
 )
 DOMESTIC_NEWS_FEEDS = (
     {
@@ -209,19 +214,21 @@ def _news_item_sort_key(
     item: dict,
     query_text: str,
     now_ts: float,
-) -> tuple[int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, float, int, float]:
     preferred_domains = _preferred_source_domains(query_text)
     item_url = _news_item_url(item)
     source_priority = int(any(domain in item_url for domain in preferred_domains))
     direct_link_priority = int(_has_direct_article_link(item))
     recent_priority = int(_is_recent_news_item(item, now_ts))
     query_match_count = _count_query_term_matches(item.get("title", ""), query_text)
+    search_score = float(item.get("_search_score", 0.0) or 0.0)
     domain_policy_score = news_sort_score(item, query_text)
     return (
         source_priority,
         direct_link_priority,
         recent_priority,
         query_match_count,
+        search_score,
         domain_policy_score,
         item.get("_sort_ts", 0.0),
     )
@@ -231,6 +238,8 @@ def _dedupe_and_trim_news_items(
     news_items: list[dict],
     max_items: int,
     query_text: str = "",
+    *,
+    preserve_sort_metadata: bool = False,
 ) -> list[dict]:
     now_ts = time.time()
     sorted_items = sorted(
@@ -251,7 +260,9 @@ def _dedupe_and_trim_news_items(
 
         seen.add(dedupe_key)
         cleaned = dict(item)
-        cleaned.pop("_sort_ts", None)
+        if not preserve_sort_metadata:
+            cleaned.pop("_sort_ts", None)
+            cleaned.pop("_search_score", None)
         if _is_recent_news_item(item, now_ts):
             recent_items.append(cleaned)
             if len(recent_items) >= max_items:
@@ -315,6 +326,7 @@ def _dedupe_by_canonical_url(news_items: list[dict], max_items: int) -> list[dic
 
         cleaned = dict(item)
         cleaned.pop("_sort_ts", None)
+        cleaned.pop("_search_score", None)
         deduped.append(cleaned)
         if len(deduped) >= max_items:
             break
@@ -331,12 +343,21 @@ def _resolve_and_dedupe_news_items(
     # Resolve a small over-fetch window so canonical dedup can remove duplicate
     # redirect URLs without leaving too few usable items.
     resolve_count = min(max(resolve_top_n, max_items), len(news_items))
-    resolved_items: list[dict] = []
-
-    for idx, item in enumerate(news_items):
-        resolved_items.append(
-            _attach_url_metadata(item, resolve=idx < resolve_count, query_text=query_text)
-        )
+    worker_count = max(1, min(6, len(news_items)))
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="news-link-resolver",
+    ) as pool:
+        futures = [
+            pool.submit(
+                _attach_url_metadata,
+                item,
+                resolve=idx < resolve_count,
+                query_text=query_text,
+            )
+            for idx, item in enumerate(news_items)
+        ]
+        resolved_items = [future.result() for future in futures]
 
     now_ts = time.time()
     sorted_items = sorted(
@@ -362,8 +383,8 @@ _TRANSIENT_NETWORK_ERRORS = (
 def _urlopen_with_retry(
     request: Request,
     *,
-    timeout: float = 15,
-    max_attempts: int = 3,
+    timeout: float = 8,
+    max_attempts: int = 2,
 ):
     last_error: Exception | None = None
 
@@ -380,6 +401,20 @@ def _urlopen_with_retry(
 
     assert last_error is not None
     raise last_error
+
+
+def _network_timeout_seconds() -> float:
+    try:
+        return max(1.0, min(float(os.getenv("NEWS_SOURCE_TIMEOUT_SECONDS", "8")), 30.0))
+    except ValueError:
+        return 8.0
+
+
+def _network_max_attempts() -> int:
+    try:
+        return max(1, min(int(os.getenv("NEWS_SOURCE_MAX_ATTEMPTS", "2")), 3))
+    except ValueError:
+        return 2
 
 
 def _fetch_rss_items_from_url(
@@ -412,7 +447,11 @@ def _fetch_rss_items_with_metadata(
         },
     )
 
-    with _urlopen_with_retry(req, timeout=15, max_attempts=3) as response:
+    with _urlopen_with_retry(
+        req,
+        timeout=_network_timeout_seconds(),
+        max_attempts=_network_max_attempts(),
+    ) as response:
         metadata = {
             "etag": response.headers.get("ETag", ""),
             "modified": response.headers.get("Last-Modified", ""),
@@ -513,53 +552,83 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
     feed_warnings: list[dict] = []
     per_feed_limit = max(max_items * 2, 8)
 
-    try:
-        items.extend(search_searxng(query_text, max_results=per_feed_limit))
-    except Exception as exc:
-        errors.append(exc)
-        feed_warnings.append(
-            {
-                "source": "SearXNG",
-                "url": "",
-                "error_type": type(exc).__name__,
-                "message": str(exc),
-            }
+    # Search providers are independent I/O operations. Run them concurrently,
+    # then consume outcomes in configured order so result ordering stays stable.
+    worker_count = max(1, min(6, len(feed_urls) + 1))
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="news-search") as pool:
+        searxng_future = pool.submit(
+            search_searxng,
+            query_text,
+            max_results=per_feed_limit,
         )
-
-    for source_name, feed_url, filter_by_query in feed_urls:
-        try:
-            feed_items = _fetch_rss_items_from_url(
-                feed_url,
-                max_items=per_feed_limit,
-                source_fallback=source_name,
-                query_text=query_text if filter_by_query else "",
-            )
-            feed_metadata = _LAST_FEED_METADATA.get(feed_url, {})
-            items.extend(feed_items)
-            _record_feed_result_safely(
+        feed_futures = [
+            (
                 source_name,
                 feed_url,
-                ok=True,
-                item_count=len(feed_items),
-                etag=feed_metadata.get("etag", ""),
-                modified=feed_metadata.get("modified", ""),
+                pool.submit(
+                    _fetch_rss_items_from_url,
+                    feed_url,
+                    max_items=per_feed_limit,
+                    source_fallback=source_name,
+                    query_text=query_text if filter_by_query else "",
+                ),
             )
+            for source_name, feed_url, filter_by_query in feed_urls
+        ]
+
+        try:
+            searxng_items = searxng_future.result()
+            items.extend(searxng_items)
+            searxng_error = get_last_searxng_error()
+            if not searxng_items and searxng_error:
+                feed_warnings.append(
+                    {
+                        "source": "SearXNG",
+                        "url": "",
+                        "error_type": "SearchProviderError",
+                        "message": searxng_error,
+                    }
+                )
         except Exception as exc:
             errors.append(exc)
-            _record_feed_result_safely(
-                source_name,
-                feed_url,
-                ok=False,
-                error=exc,
-            )
             feed_warnings.append(
                 {
-                    "source": source_name,
-                    "url": feed_url,
+                    "source": "SearXNG",
+                    "url": "",
                     "error_type": type(exc).__name__,
                     "message": str(exc),
                 }
             )
+
+        for source_name, feed_url, future in feed_futures:
+            try:
+                feed_items = future.result()
+                feed_metadata = _LAST_FEED_METADATA.get(feed_url, {})
+                items.extend(feed_items)
+                _record_feed_result_safely(
+                    source_name,
+                    feed_url,
+                    ok=True,
+                    item_count=len(feed_items),
+                    etag=feed_metadata.get("etag", ""),
+                    modified=feed_metadata.get("modified", ""),
+                )
+            except Exception as exc:
+                errors.append(exc)
+                _record_feed_result_safely(
+                    source_name,
+                    feed_url,
+                    ok=False,
+                    error=exc,
+                )
+                feed_warnings.append(
+                    {
+                        "source": source_name,
+                        "url": feed_url,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    }
+                )
 
     if not items and errors:
         _set_last_feed_warnings(feed_warnings)
@@ -582,7 +651,12 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     # Keep a modest candidate pool before redirect resolution; final trimming
     # happens after canonical URL deduplication.
-    return _dedupe_and_trim_news_items(items, max_items * 2, query_text=query_text)
+    return _dedupe_and_trim_news_items(
+        items,
+        max_items * 2,
+        query_text=query_text,
+        preserve_sort_metadata=True,
+    )
 
 
 def fetch_news_items(

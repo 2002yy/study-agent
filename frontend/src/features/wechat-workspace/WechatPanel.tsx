@@ -29,8 +29,24 @@ export function parseWechatMessages(content: string): Array<{ speaker: string; r
 }
 
 function newsItemUrl(item: Record<string, unknown>): string {
-  const value = item.canonical_url || item.resolved_link || item.link;
+  const value = item.article_url || item.canonical_url || item.resolved_link || item.link;
   return typeof value === "string" ? value : "";
+}
+
+function isLikelyArticlePageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    const path = url.pathname.toLowerCase();
+
+    return !(
+      /\.(ico|png|jpe?g|gif|webp|svg|css|js|woff2?|ttf|mp4|webm)$/i.test(path) ||
+      /\/(favicon|favicons|icons?|thumbnail|thumbnails|logo)\//i.test(path)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function newsItemStatus(item: Record<string, unknown>): string {
@@ -41,11 +57,12 @@ function newsItemStatus(item: Record<string, unknown>): string {
 
 function NewsItemCard({ item, index }: { item: Record<string, unknown>; index: number }) {
   const url = newsItemUrl(item);
+  const href = isLikelyArticlePageUrl(url) ? url : "";
   const title = displayValue(item.title) || `来源 ${index + 1}`;
   return (
     <div className="news-item" key={`${title}-${index}`}>
-      {url ? (
-        <a href={url} rel="noreferrer" target="_blank">
+      {href ? (
+        <a href={href} rel="noreferrer" target="_blank">
           {title}
         </a>
       ) : (
