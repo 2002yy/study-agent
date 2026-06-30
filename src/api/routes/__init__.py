@@ -9,6 +9,7 @@ from .session_routes import router as session_router
 from .settings_routes import router as settings_router
 from .tool_routes import router as tool_router
 from .wechat_routes import router as wechat_router
+from .web_lookup_routes import router as web_lookup_router
 
 __all__ = [
     "chat_router",
@@ -20,4 +21,5 @@ __all__ = [
     "settings_router",
     "tool_router",
     "wechat_router",
+    "web_lookup_router",
 ]

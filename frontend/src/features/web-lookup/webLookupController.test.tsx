@@ -7,6 +7,7 @@ import { useWebLookupController } from "./webLookupController";
 
 const apiMocks = vi.hoisted(() => ({
   lookupNews: vi.fn(),
+  loadWebLookupRun: vi.fn(),
 }));
 
 vi.mock("../../api", () => apiMocks);
@@ -32,6 +33,8 @@ describe("useWebLookupController", () => {
       controller = useWebLookupController({
         query: "Python docs",
         setOperationError: (message) => errors.push(message),
+        activeRunId: undefined,
+        setActiveRunId: vi.fn(),
       });
       return null;
     }
@@ -47,5 +50,36 @@ describe("useWebLookupController", () => {
     expect(controller?.useInChat).toBe(true);
     expect(controller?.isBusy).toBe(false);
     expect(errors[errors.length - 1]).toBe("");
+  });
+
+  it("rehydrates a durable run after refresh", async () => {
+    apiMocks.loadWebLookupRun.mockResolvedValue({
+      run_id: "web_lookup_saved",
+      query_text: "saved",
+      news_items: [{ title: "Saved result" }],
+      source_block: "saved source",
+      warnings: [],
+    });
+    let controller: ReturnType<typeof useWebLookupController> | undefined;
+
+    function Harness() {
+      controller = useWebLookupController({
+        query: "saved",
+        setOperationError: vi.fn(),
+        activeRunId: "web_lookup_saved",
+        setActiveRunId: vi.fn(),
+      });
+      return null;
+    }
+
+    await act(async () => {
+      create(<Harness />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiMocks.loadWebLookupRun).toHaveBeenCalledWith("web_lookup_saved");
+    expect(controller?.result?.run_id).toBe("web_lookup_saved");
   });
 });

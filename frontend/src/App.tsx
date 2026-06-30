@@ -668,9 +668,11 @@ export default function App() {
   const wechatThreadId = workspaceRuntime.activeGroupThreadId ?? snapshot.wechat?.group_thread_id;
   const newsRunId = workspaceRuntime.activeNewsRunId;
   const toolRunId = workspaceRuntime.activeToolRunId;
+  const webLookupRunId = workspaceRuntime.activeWebLookupRunId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
   const setToolRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_TOOL_RUN", runId });
+  const setWebLookupRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_WEB_LOOKUP_RUN", runId });
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
@@ -715,6 +717,8 @@ export default function App() {
   const webLookupController = useWebLookupController({
     query: newsQuery,
     setOperationError,
+    activeRunId: webLookupRunId,
+    setActiveRunId: setWebLookupRunId,
   });
   const webLookup = webLookupController.result;
   const useWebLookup = webLookupController.useInChat;
@@ -795,6 +799,7 @@ export default function App() {
         const restoredWechatThreadId = String(parsed.wechatThreadId ?? "");
         const restoredNewsRunId = String(parsed.newsRunId ?? "");
         const restoredToolRunId = String(parsed.toolRunId ?? "");
+        const restoredWebLookupRunId = String(parsed.webLookupRunId ?? "");
         if (restoredWechatThreadId) {
           setWechatThreadId(restoredWechatThreadId);
         }
@@ -803,6 +808,9 @@ export default function App() {
         }
         if (restoredToolRunId) {
           setToolRunId(restoredToolRunId);
+        }
+        if (restoredWebLookupRunId) {
+          setWebLookupRunId(restoredWebLookupRunId);
         }
         if (parsed.chatSettings && typeof parsed.chatSettings === "object") {
           sessionSettingsRestoredRef.current = true;
@@ -886,6 +894,7 @@ export default function App() {
       wechatThreadId,
       newsRunId,
       toolRunId,
+      webLookupRunId,
       chatSettings,
       ragSettings,
       ragEnabled,
@@ -901,7 +910,7 @@ export default function App() {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
+  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, webLookupRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {

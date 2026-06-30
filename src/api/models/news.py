@@ -135,6 +135,24 @@ class NewsLookupResponse(BaseModel):
     warnings: list[str]
 
 
+class WebLookupRunResponse(BaseModel):
+    id: str
+    query: str
+    status: str
+    items: list[dict]
+    source_block: str
+    warnings: list[str]
+    error: str
+    version: int
+    created_at: str
+    updated_at: str
+    completed_at: str | None
+
+
+class WebLookupRunListResponse(BaseModel):
+    runs: list[WebLookupRunResponse]
+
+
 class NewsSearchResponse(BaseModel):
     query_text: str
     news_items: list[dict]

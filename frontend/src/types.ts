@@ -349,6 +349,20 @@ export type SessionDetailResponse = {
   raw: string;
 };
 
+export type WebLookupRunResponse = {
+  id: string;
+  query: string;
+  status: "running" | "completed" | "failed";
+  items: Array<Record<string, unknown>>;
+  source_block: string;
+  warnings: string[];
+  error: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+};
+
 export type ToolRunResponse = {
   id: string;
   tool_name: string;
@@ -422,6 +436,7 @@ export type WorkspaceState = {
   singleChatSessionId?: string;
   wechatThreadId?: string;
   newsRunId?: string;
+  webLookupRunId?: string;
   singleChatMessages: ChatMessage[];
   chatSettings: ChatSettings;
   ragSettings: RagSettings;

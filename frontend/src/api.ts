@@ -9,6 +9,7 @@ import type {
   MemoryStatusResponse,
   MemoryUpdate,
   NewsLookupResponse,
+  WebLookupRunResponse,
   NewsRunResponse,
   RagSettings,
   RagIndexResponse,
@@ -543,7 +544,7 @@ export async function lookupNews(
   maxItems = 8,
   requestOptions: { signal?: AbortSignal } = {}
 ): Promise<NewsLookupResponse> {
-  return requestJson<NewsLookupResponse>("/news/lookup", {
+  const run = await requestJson<WebLookupRunResponse>("/web-lookup-runs", {
     method: "POST",
     signal: requestOptions.signal,
     body: JSON.stringify({
@@ -551,6 +552,24 @@ export async function lookupNews(
       max_items: maxItems
     })
   });
+  return webLookupRunToLegacyResponse(run);
+}
+
+export async function loadWebLookupRun(runId: string): Promise<NewsLookupResponse> {
+  const run = await requestJson<WebLookupRunResponse>(
+    `/web-lookup-runs/${encodeURIComponent(runId)}`
+  );
+  return webLookupRunToLegacyResponse(run);
+}
+
+function webLookupRunToLegacyResponse(run: WebLookupRunResponse): NewsLookupResponse {
+  return {
+    run_id: run.id,
+    query_text: run.query,
+    news_items: run.items,
+    source_block: run.source_block,
+    warnings: run.warnings,
+  };
 }
 
 export async function loadSessions(): Promise<SessionRow[]> {

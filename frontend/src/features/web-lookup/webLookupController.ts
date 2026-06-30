@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { lookupNews } from "../../api";
+import { loadWebLookupRun, lookupNews } from "../../api";
 import { operationRegistry } from "../../app/operationRegistry";
 import type { NewsLookupResponse } from "../../types";
 
 type WebLookupControllerOptions = {
   query: string;
   setOperationError: (message: string) => void;
+  activeRunId?: string;
+  setActiveRunId: (runId?: string) => void;
 };
 
 export function useWebLookupController(options: WebLookupControllerOptions) {
@@ -26,6 +28,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       });
       if (!operationRegistry.isCurrent(operation.operationId, operation.generationId)) return;
       setResult(response);
+      options.setActiveRunId(response.run_id);
       setUseInChat(true);
     } catch (error) {
       if (
@@ -42,6 +45,29 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       operationRegistry.complete(operation.operationId);
     }
   };
+
+  useEffect(() => {
+    if (!options.activeRunId || options.activeRunId === result?.run_id) return;
+    let active = true;
+    void loadWebLookupRun(options.activeRunId)
+      .then((response) => {
+        if (active) {
+          setResult(response);
+          setUseInChat(true);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          options.setOperationError(
+            `联网结果恢复失败：${error instanceof Error ? error.message : "记录不存在"}`
+          );
+          options.setActiveRunId(undefined);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [options.activeRunId, result?.run_id]);
 
   const cancel = () => {
     operationRegistry.invalidate("web_lookup");

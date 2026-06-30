@@ -10,6 +10,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.tool_repository import ToolRepository
+from src.repositories.web_lookup_repository import WebLookupRepository
 from src.repositories.runtime_repository import RuntimeRepository
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +59,11 @@ def get_tool_repository() -> ToolRepository:
 
 
 @lru_cache(maxsize=1)
+def get_web_lookup_repository() -> WebLookupRepository:
+    return WebLookupRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatService
 
@@ -99,7 +105,7 @@ def get_news_service():
 def get_web_lookup_service():
     from src.application.web_lookup_service import WebLookupService
 
-    return WebLookupService()
+    return WebLookupService(get_web_lookup_repository())
 
 
 @lru_cache(maxsize=1)
@@ -126,4 +132,5 @@ def reset_runtime_repository_cache() -> None:
     get_group_repository.cache_clear()
     get_news_repository.cache_clear()
     get_tool_repository.cache_clear()
+    get_web_lookup_repository.cache_clear()
     get_runtime_repository.cache_clear()

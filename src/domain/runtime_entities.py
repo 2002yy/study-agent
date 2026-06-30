@@ -111,6 +111,21 @@ class NewsRun:
 
 
 @dataclass(frozen=True)
+class WebLookupRun:
+    id: str = field(default_factory=lambda: new_id("web_lookup"))
+    query: str = ""
+    status: str = "running"
+    items: list[dict[str, Any]] = field(default_factory=list)
+    source_block: str = ""
+    warnings: list[str] = field(default_factory=list)
+    error: str = ""
+    version: int = 1
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+    completed_at: str | None = None
+
+
+@dataclass(frozen=True)
 class ToolRun:
     id: str = field(default_factory=lambda: new_id("tool"))
     tool_name: str = ""

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -221,6 +221,27 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ADD COLUMN learning_state TEXT NOT NULL DEFAULT '{}';
         ALTER TABLE chat_turns
             ADD COLUMN pedagogy_snapshot TEXT NOT NULL DEFAULT '{}';
+        """,
+    ),
+    (
+        9,
+        """
+        CREATE TABLE web_lookup_runs (
+            id TEXT PRIMARY KEY,
+            query TEXT NOT NULL,
+            status TEXT NOT NULL,
+            items TEXT NOT NULL DEFAULT '[]',
+            source_block TEXT NOT NULL DEFAULT '',
+            warnings TEXT NOT NULL DEFAULT '[]',
+            error TEXT NOT NULL DEFAULT '',
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+
+        CREATE INDEX idx_web_lookup_runs_status_updated
+            ON web_lookup_runs(status, updated_at DESC);
         """,
     ),
 )

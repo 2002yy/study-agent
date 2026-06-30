@@ -10,6 +10,7 @@ from src.api import app
 from src.application.chat_service import ChatDependencies, ChatService
 from src.application.group_chat_service import GroupChatService, GroupDependencies
 from src.application.news_service import NewsService
+from src.application.web_lookup_service import WebLookupService
 from src.application.tool_service import ToolService
 from src.application.runtime_repository import (
     get_chat_service,
@@ -17,6 +18,7 @@ from src.application.runtime_repository import (
     get_news_service,
     get_session_service,
     get_tool_service,
+    get_web_lookup_service,
 )
 from src.application.session_service import SessionService
 from src.context_builder import build_messages
@@ -27,6 +29,7 @@ from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.tool_repository import ToolRepository
+from src.repositories.web_lookup_repository import WebLookupRepository
 from src.router import route_request
 from src.tools.registry import create_default_tool_registry
 from src.workflows.store import WorkflowStore
@@ -57,6 +60,8 @@ class RuntimeTestContext:
     news_service: NewsService
     tool_repository: ToolRepository
     tool_service: ToolService
+    web_lookup_repository: WebLookupRepository
+    web_lookup_service: WebLookupService
 
     def override_chat(self, dependencies: ChatDependencies) -> ChatService:
         service = ChatService(self.repository, dependencies)
@@ -122,11 +127,14 @@ def runtime_test_context(tmp_path):
         create_default_tool_registry(),
         workflow_store_factory=lambda: WorkflowStore(api_module.WORKFLOW_DIR),
     )
+    web_lookup_repository = WebLookupRepository(RuntimeDatabase(api_root / "runtime.db"))
+    web_lookup_service = WebLookupService(web_lookup_repository)
     app.dependency_overrides[get_chat_service] = lambda: chat_service
     app.dependency_overrides[get_session_service] = lambda: session_service
     app.dependency_overrides[get_group_service] = lambda: group_service
     app.dependency_overrides[get_news_service] = lambda: news_service
     app.dependency_overrides[get_tool_service] = lambda: tool_service
+    app.dependency_overrides[get_web_lookup_service] = lambda: web_lookup_service
     context = RuntimeTestContext(
         repository=repository,
         session_service=session_service,
@@ -138,6 +146,8 @@ def runtime_test_context(tmp_path):
         news_service=news_service,
         tool_repository=tool_repository,
         tool_service=tool_service,
+        web_lookup_repository=web_lookup_repository,
+        web_lookup_service=web_lookup_service,
     )
     yield context
     app.dependency_overrides.pop(get_chat_service, None)
@@ -145,3 +155,4 @@ def runtime_test_context(tmp_path):
     app.dependency_overrides.pop(get_group_service, None)
     app.dependency_overrides.pop(get_news_service, None)
     app.dependency_overrides.pop(get_tool_service, None)
+    app.dependency_overrides.pop(get_web_lookup_service, None)

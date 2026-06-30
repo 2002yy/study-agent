@@ -49,7 +49,10 @@ to the React frontend. React should prefer these APIs over local fake state.
 | WeChat | `POST /wechat/opening` | Implemented compatibility route | Writes group opening | Generate group opening |
 | WeChat | `POST /wechat/message` | Implemented compatibility route | Writes user/group messages | Non-streaming group reply |
 | WeChat | `POST /wechat/search` | Implemented compatibility route | Read-only | Search group transcript |
-| Web lookup | `POST /news/lookup` | Partial WebLookupRun | Read-only network fetch through WebLookupService | Search web/news for single chat context |
+| Web lookup | `POST /web-lookup-runs` | Sealed | Creates and persists a WebLookupRun | Search web/news for single chat context |
+| Web lookup | `GET /web-lookup-runs/{id}` | Sealed | Read-only | Refresh recovery |
+| Web lookup | `GET /web-lookup-runs` | Sealed | Read-only | Recent lookup recovery |
+| Web lookup | `POST /news/lookup` | Temporary compatibility | Delegates to WebLookupService and persists a run | Legacy clients |
 | News | `POST /news/runs` | Sealed | Creates and immediately returns a server-owned `NewsRun` ID | Start a recoverable news workflow |
 | News | `POST /news/runs/{run_id}/search` | Sealed | Network fetch; persists results on the existing Run | Stage 1 search |
 | News | `POST /news/runs/{run_id}/enrich` | Sealed | Reads article text when runtime allows | Stage 2 article enrichment |

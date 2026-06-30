@@ -48,6 +48,7 @@ from .routes.wechat_routes import router as _wechat_router
 from .routes.news_routes import router as _news_router
 from .routes.rag_routes import router as _rag_router
 from .routes.chat_routes import router as _chat_router
+from .routes.web_lookup_routes import router as _web_lookup_router
 
 app.include_router(_health_router)
 app.include_router(_settings_router)
@@ -58,6 +59,7 @@ app.include_router(_wechat_router)
 app.include_router(_news_router)
 app.include_router(_rag_router)
 app.include_router(_chat_router)
+app.include_router(_web_lookup_router)
 
 # ── Security helpers ──────────────────────────────────────────────────
 
