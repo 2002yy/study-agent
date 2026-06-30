@@ -11,6 +11,9 @@ from src.llm_client import async_stream_chat, chat, stream_chat
 from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import chat_max_tokens
+from src.pedagogy.engine import PedagogyEngine
+from src.pedagogy.evidence import EvidenceDisclosurePolicy
+from src.pedagogy.types import LearningState, PedagogyTurnPlan
 from src.repositories.runtime_repository import RuntimeRepository
 from src.role_manager import build_role_prompt
 from src.router import route_request
@@ -59,6 +62,10 @@ class ChatDependencies:
     stream_chat: Callable[..., Iterator[str]] = stream_chat
     async_stream_chat: Callable[..., AsyncIterator[str]] = async_stream_chat
     chat_max_tokens: Callable[[str], int] = chat_max_tokens
+    pedagogy_engine: PedagogyEngine = field(default_factory=PedagogyEngine)
+    disclosure_policy: EvidenceDisclosurePolicy = field(
+        default_factory=EvidenceDisclosurePolicy
+    )
 
 
 @dataclass(frozen=True)
@@ -74,6 +81,9 @@ class PreparedChatTurn:
     is_continuation: bool
     base_reply: str
     retry_parent_turn_id: str | None
+    pedagogy_plan: PedagogyTurnPlan
+    learning_state: LearningState
+    disclosure_policy: str
 
 
 class ChatService:
@@ -115,18 +125,34 @@ class ChatService:
                 selected_model=command.selected_model,
                 runtime_modes=runtime_modes,
                 previous_role=_previous_assistant_role(command.chat_history),
-                previous_mode=command.previous_mode,
+                previous_mode=command.previous_mode or self._previous_persisted_mode(thread.id),
                 keep_current_role=command.keep_current_role,
             )
+            learning_state = LearningState.from_dict(thread.learning_state)
+            pedagogy_plan, next_learning_state = self.dependencies.pedagogy_engine.plan(
+                user_input=command.user_input,
+                mode=route["mode"],
+                state=learning_state,
+            )
+            route = {
+                **route,
+                "pedagogy": pedagogy_plan.to_dict(),
+                "learning_state": next_learning_state.to_dict(),
+            }
             role_prompt = self.dependencies.build_role_prompt(
                 route["role"],
                 scene=command.scene,
                 relationship_mode=command.relationship_mode,
             )
             memory_bundle = self.dependencies.read_memory_bundle(context_mode)
+            retrieval_enabled = command.rag_enabled and (
+                route["mode"] != "苏格拉底"
+                or pedagogy_plan.library_needed
+                or pedagogy_plan.disclosure_level >= 2
+            )
             rag_result = self.dependencies.retrieve_local_knowledge(
                 command.user_input,
-                enabled=command.rag_enabled,
+                enabled=retrieval_enabled,
                 top_k=command.rag_chat_top_k or command.rag_top_k,
                 retrieval_mode=command.rag_retrieval_mode,
                 min_score=command.rag_min_score,
@@ -134,10 +160,29 @@ class ChatService:
             rag = rag_result.to_dict()
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
-            if str(getattr(rag_result, "context", "")).strip():
-                context_blocks.append(f"【本地资料检索结果】\n{rag_result.context}")
-            if command.web_context.strip():
-                context_blocks.append(f"【联网检索结果】\n{command.web_context.strip()}")
+            raw_evidence = "\n\n".join(
+                block
+                for block in (
+                    (
+                        f"【本地资料检索结果】\n{rag_result.context}"
+                        if str(getattr(rag_result, "context", "")).strip()
+                        else ""
+                    ),
+                    (
+                        f"【联网检索结果】\n{command.web_context.strip()}"
+                        if command.web_context.strip()
+                        else ""
+                    ),
+                )
+                if block
+            )
+            disclosed = self.dependencies.disclosure_policy.select(
+                context=raw_evidence,
+                plan=pedagogy_plan,
+            )
+            route["evidence_disclosure"] = disclosed.policy
+            if disclosed.context:
+                context_blocks.append(disclosed.context)
             if continuation_instruction:
                 context_blocks.append(continuation_instruction)
             messages = self.dependencies.build_messages(
@@ -152,6 +197,8 @@ class ChatService:
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
                 conversation_instruction=command.conversation_instruction,
+                pedagogy_plan=pedagogy_plan,
+                learning_state=learning_state,
             )
             base_reply = ""
             if is_continuation:
@@ -172,6 +219,12 @@ class ChatService:
                     model=route["model_profile"],
                     route_snapshot=route,
                     rag_snapshot=rag,
+                    pedagogy_snapshot={
+                        **pedagogy_plan.to_dict(),
+                        "learning_state_before": learning_state.to_dict(),
+                        "learning_state_after": next_learning_state.to_dict(),
+                        "evidence_disclosure": disclosed.policy,
+                    },
                     parent_turn_id=retry_parent.id if retry_parent else None,
                     operation_id=operation_id,
                     conversation_instruction=command.conversation_instruction,
@@ -188,6 +241,12 @@ class ChatService:
                 model=route["model_profile"],
                 route_snapshot=route,
                 rag_snapshot=rag,
+                pedagogy_snapshot={
+                    **pedagogy_plan.to_dict(),
+                    "learning_state_before": learning_state.to_dict(),
+                    "learning_state_after": next_learning_state.to_dict(),
+                    "evidence_disclosure": disclosed.policy,
+                },
                 operation_id=operation_id,
                 expected_operation_id=(operation_id if existing is None else existing.operation_id),
                 enforce_operation_owner=True,
@@ -210,6 +269,9 @@ class ChatService:
             is_continuation=is_continuation,
             base_reply=base_reply,
             retry_parent_turn_id=retry_parent.id if retry_parent else None,
+            pedagogy_plan=pedagogy_plan,
+            learning_state=next_learning_state,
+            disclosure_policy=disclosed.policy,
         )
 
     def generate(self, prepared: PreparedChatTurn) -> str:
@@ -251,6 +313,11 @@ class ChatService:
 
     def complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
+        self.repository.update_chat_thread_learning_state(
+            prepared.thread.id,
+            prepared.learning_state.to_dict(),
+            operation_id=prepared.turn.operation_id or "",
+        )
         updated = self.repository.update_chat_turn(
             prepared.turn.id,
             assistant_message=reply,
@@ -265,6 +332,7 @@ class ChatService:
                 "is_continuation_resolved": prepared.is_continuation,
             },
             rag_snapshot=prepared.rag,
+            pedagogy_snapshot=prepared.turn.pedagogy_snapshot,
             operation_id=prepared.turn.operation_id,
             expected_operation_id=prepared.turn.operation_id,
             enforce_operation_owner=True,
@@ -284,6 +352,7 @@ class ChatService:
             status="interrupted",
             route_snapshot={**prepared.route, "interrupted": True},
             rag_snapshot=prepared.rag,
+            pedagogy_snapshot=prepared.turn.pedagogy_snapshot,
             operation_id=prepared.turn.operation_id,
             expected_operation_id=prepared.turn.operation_id,
             enforce_operation_owner=True,
@@ -302,6 +371,7 @@ class ChatService:
             status="failed",
             route_snapshot={**prepared.route, "failed": True},
             rag_snapshot=prepared.rag,
+            pedagogy_snapshot=prepared.turn.pedagogy_snapshot,
             operation_id=prepared.turn.operation_id,
             expected_operation_id=prepared.turn.operation_id,
             enforce_operation_owner=True,
@@ -421,6 +491,13 @@ class ChatService:
         if requested not in PERFORMANCE_MODES:
             raise ValueError(f"Invalid performance_mode: {requested}")
         return replace(runtime_modes, performance_mode=requested)
+
+    def _previous_persisted_mode(self, thread_id: str) -> str | None:
+        turns = self.repository.list_chat_turns(thread_id)
+        for turn in reversed(turns):
+            if turn.status != "superseded" and turn.mode:
+                return turn.mode
+        return None
 
 
 def _previous_assistant_role(history: list[dict[str, Any]]) -> str | None:

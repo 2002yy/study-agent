@@ -33,17 +33,18 @@ class RuntimeRepository:
             connection.execute(
                 """
                 INSERT INTO chat_threads(
-                    id, status, settings_snapshot, created_at, updated_at,
+                    id, status, settings_snapshot, learning_state, created_at, updated_at,
                     archived_at, export_path, active_operation_id,
                     active_operation_started_at,
                     archive_operation_id, archive_started_at, version
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     thread.id,
                     thread.status,
                     _dump(thread.settings_snapshot),
+                    _dump(thread.learning_state),
                     thread.created_at,
                     thread.updated_at,
                     thread.archived_at,
@@ -107,6 +108,30 @@ class RuntimeRepository:
             )
         if cursor.rowcount != 1:
             raise ValueError(f"Chat thread is not writable: {thread_id}")
+        thread = self.get_chat_thread(thread_id)
+        if thread is None:
+            raise ValueError(f"Chat thread not found: {thread_id}")
+        return thread
+
+    def update_chat_thread_learning_state(
+        self,
+        thread_id: str,
+        learning_state: dict[str, Any],
+        *,
+        operation_id: str,
+    ) -> ChatThread:
+        updated_at = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_threads
+                SET learning_state = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'active' AND active_operation_id = ?
+                """,
+                (_dump(learning_state), updated_at, thread_id, operation_id),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError(f"Chat operation ownership lost: {operation_id}")
         thread = self.get_chat_thread(thread_id)
         if thread is None:
             raise ValueError(f"Chat thread not found: {thread_id}")
@@ -362,10 +387,10 @@ class RuntimeRepository:
                 """
                 INSERT INTO chat_turns(
                     id, thread_id, user_message, assistant_message, status, role, mode, model,
-                    route_snapshot, rag_snapshot, parent_turn_id, operation_id,
+                    route_snapshot, rag_snapshot, pedagogy_snapshot, parent_turn_id, operation_id,
                     conversation_instruction, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     turn.id,
@@ -378,6 +403,7 @@ class RuntimeRepository:
                     turn.model,
                     _dump(turn.route_snapshot),
                     _dump(turn.rag_snapshot),
+                    _dump(turn.pedagogy_snapshot),
                     turn.parent_turn_id,
                     turn.operation_id,
                     turn.conversation_instruction,
@@ -402,10 +428,10 @@ class RuntimeRepository:
                 """
                 INSERT INTO chat_turns(
                     id, thread_id, user_message, assistant_message, status, role, mode, model,
-                    route_snapshot, rag_snapshot, parent_turn_id, operation_id,
+                    route_snapshot, rag_snapshot, pedagogy_snapshot, parent_turn_id, operation_id,
                     conversation_instruction, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     assistant_message = excluded.assistant_message,
                     status = excluded.status,
@@ -414,6 +440,7 @@ class RuntimeRepository:
                     model = excluded.model,
                     route_snapshot = excluded.route_snapshot,
                     rag_snapshot = excluded.rag_snapshot,
+                    pedagogy_snapshot = excluded.pedagogy_snapshot,
                     operation_id = excluded.operation_id,
                     conversation_instruction = excluded.conversation_instruction,
                     updated_at = excluded.updated_at
@@ -429,6 +456,7 @@ class RuntimeRepository:
                     turn.model,
                     _dump(turn.route_snapshot),
                     _dump(turn.rag_snapshot),
+                    _dump(turn.pedagogy_snapshot),
                     turn.parent_turn_id,
                     turn.operation_id,
                     turn.conversation_instruction,
@@ -460,6 +488,7 @@ class RuntimeRepository:
         model: str | None = None,
         route_snapshot: dict[str, Any] | None = None,
         rag_snapshot: dict[str, Any] | None = None,
+        pedagogy_snapshot: dict[str, Any] | None = None,
         operation_id: str | None = None,
         expected_operation_id: str | None = None,
         enforce_operation_owner: bool = False,
@@ -489,7 +518,8 @@ class RuntimeRepository:
                 f"""
                 UPDATE chat_turns
                 SET assistant_message = ?, status = ?, role = ?, mode = ?, model = ?,
-                    route_snapshot = ?, rag_snapshot = ?, operation_id = ?, updated_at = ?
+                    route_snapshot = ?, rag_snapshot = ?, pedagogy_snapshot = ?,
+                    operation_id = ?, updated_at = ?
                 WHERE {' AND '.join(conditions)}
                 """,
                 (
@@ -500,6 +530,11 @@ class RuntimeRepository:
                     current.model if model is None else model,
                     _dump(current.route_snapshot if route_snapshot is None else route_snapshot),
                     _dump(current.rag_snapshot if rag_snapshot is None else rag_snapshot),
+                    _dump(
+                        current.pedagogy_snapshot
+                        if pedagogy_snapshot is None
+                        else pedagogy_snapshot
+                    ),
                     current.operation_id if operation_id is None else operation_id,
                     updated_at,
                     *condition_values,
@@ -584,6 +619,7 @@ def _chat_turn_from_row(row: sqlite3.Row) -> ChatTurn:
         model=row["model"],
         route_snapshot=_load_object(row["route_snapshot"]),
         rag_snapshot=_load_object(row["rag_snapshot"]),
+        pedagogy_snapshot=_load_object(row["pedagogy_snapshot"]),
         parent_turn_id=row["parent_turn_id"],
         operation_id=row["operation_id"],
         conversation_instruction=row["conversation_instruction"],
@@ -597,6 +633,7 @@ def _chat_thread_from_row(row: sqlite3.Row) -> ChatThread:
         id=row["id"],
         status=row["status"],
         settings_snapshot=_load_object(row["settings_snapshot"]),
+        learning_state=_load_object(row["learning_state"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         archived_at=row["archived_at"],

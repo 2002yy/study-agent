@@ -331,6 +331,8 @@ export type SessionDetailResponse = {
   };
   route: Record<string, unknown>;
   rag: ChatResponse["rag"] | Record<string, unknown>;
+  learning_state: Record<string, unknown>;
+  pedagogy: Record<string, unknown>;
   conversation_instruction: string;
   turns?: Array<{
     turn_id: string;
@@ -342,6 +344,7 @@ export type SessionDetailResponse = {
     role: string;
     mode: string;
     model: string;
+    pedagogy_snapshot?: Record<string, unknown>;
   }>;
   raw: string;
 };

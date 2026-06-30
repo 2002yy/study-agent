@@ -3,11 +3,12 @@
 This file is the single source of truth for migration status. Other planning
 documents must link here instead of maintaining competing status tables.
 
-Updated: 2026-06-30
+Updated: 2026-07-01
 
 | Vertical slice | Status | Authoritative owner |
 | --- | --- | --- |
 | Chat/Session | **sealed** | FastAPI services + SQLite + `chatController` |
+| Pedagogy protocol | **sealed** | `PedagogyEngine` + per-turn plan + SQLite learning state |
 | GroupThread | **sealed** | Group service/repository + `groupChatController` |
 | NewsRun | **sealed** | News service/repository + `newsController` |
 | ToolRun | **sealed** | Tool service/repository + `toolController` |
@@ -19,6 +20,11 @@ Updated: 2026-06-30
 | Streamlit | **legacy compatibility** | `app.py` and `src/ui/*`; not the primary architecture |
 
 ## Required execution order
+
+The Socratic-mode upgrade is complete: the UI label remains `苏格拉底`, while
+the protocol is internally identified as `socratic_rediscovery`. Chat planning
+now happens before evidence disclosure; `ChatThread.learning_state` owns the
+cross-turn phase and `ChatTurn.pedagogy_snapshot` explains each move.
 
 1. **P0 — Web alignment:** WebSearchGateway, ArticleReader, evidence levels,
    deadlines, WebLookup service/controller, and removal of `src.api` reverse

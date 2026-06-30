@@ -21,8 +21,28 @@ rules:
     model: flash
     reason: 要求直给结果/总结/显式切换 → 纳西妲用普通直接回答，不绕弯
 
-  - name: mechanism
-    priority: 100
+  - name: socratic_rediscovery
+    priority: 105
+    keywords:
+      - 别直接告诉我
+      - 引导我思考
+      - 一步步问我
+      - 让我自己推出
+      - 用苏格拉底法
+      - 带我发现
+      - 先听我的判断
+      - 不要马上给答案
+      - 通过反例引导我
+      - 我想自己想明白
+      - 先问我
+      - 别直接讲
+    role: nahida
+    mode: 苏格拉底
+    model: pro
+    reason: 用户明确要求通过引导完成知识再发现
+
+  - name: mechanism_explanation
+    priority: 80
     keywords:
       - 为什么
       - 本质
@@ -31,9 +51,9 @@ rules:
       - 原理
       - 从根上讲
     role: nahida
-    mode: 苏格拉底
+    mode: 普通
     model: pro
-    reason: 追问本质/底层机制 → 纳西妲用苏格拉底深度引导
+    reason: 用户要求深入解释，但没有明确要求自行推导
 
   - name: task
     priority: 90
@@ -111,15 +131,13 @@ rules:
     keywords:
       - 入门
       - 开始学
-      - 先问我
       - 有趣点
-      - 别直接讲
       - 新手
       - 零基础
     role: march7
-    mode: 苏格拉底
+    mode: 普通
     model: flash
-    reason: 入门/启动 → 三月七苏格拉底引导
+    reason: 入门/启动 → 三月七用普通模式讲清基础
 
   - name: concept_map
     priority: 60

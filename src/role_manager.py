@@ -114,8 +114,9 @@ def build_role_prompt(
     ]
     if scene == "group":
         selected_keys.extend(["6. 微信群风格", "7. 与其他角色的互动方式"])
-    else:
-        selected_keys.extend(["3. 教学风格", "4. 项目推进风格", "5. 论文修改风格"])
+    # Teaching actions belong to PedagogyProtocol. Role prompts deliberately
+    # omit the old teaching/project/paper sections so they cannot override the
+    # selected protocol with instructions such as "answer first" or "ask first".
 
     parts = [sections.get("title", "")]
     for key in selected_keys:

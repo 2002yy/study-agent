@@ -19,6 +19,8 @@ class SessionDetailResponse(BaseModel):
     settings: dict = Field(default_factory=dict)
     route: dict = Field(default_factory=dict)
     rag: dict = Field(default_factory=dict)
+    learning_state: dict = Field(default_factory=dict)
+    pedagogy: dict = Field(default_factory=dict)
     conversation_instruction: str = ""
     turns: list[dict] = Field(default_factory=list)
     raw: str = ""

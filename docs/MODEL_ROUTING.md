@@ -44,7 +44,24 @@ Valid outputs:
 
 `论文` and `概念地图` are task intents now, not learning modes. Paper-like requests route to `项目` with Keqing; concept-structure requests route to Nahida with an active learning mode chosen from the list above.
 
-Route caching via `st.session_state.current_route` — cleared when settings change.
+“为什么、本质、机制、原理” express desired content depth and route to a
+normal, deep explanation. Automatic routing selects `苏格拉底` only for an
+explicit learning-behavior intent such as “别直接告诉我，引导我思考”. A manual
+Socratic selection always activates the protocol.
+
+## Stateful pedagogy routing
+
+`ChatService` turns the visible mode into a protocol-specific
+`PedagogyTurnPlan`. For Socratic rediscovery, each turn selects one cognitive
+move and an evidence disclosure level. External facts (dates, measured values,
+API/version names, paper results) are supplied explicitly by the library;
+derivable answers can be withheld while examples, counterexamples, or bounded
+hints are disclosed.
+
+The current phase is stored in `chat_threads.learning_state`; the plan,
+before/after state, and evidence policy are stored in
+`chat_turns.pedagogy_snapshot`. Session restoration therefore resumes the same
+discovery phase instead of relying on trimmed chat history.
 
 ## Performance Budget
 

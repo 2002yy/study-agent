@@ -116,9 +116,9 @@ const modeOptions = [
 ] as const;
 
 const modeDescriptions: Record<string, string> = {
-  auto: "根据你当前的学习行为和任务阶段，在直接回答、逐层探究、费曼复述和项目推进之间选择。",
+  auto: "根据学习行为选择协议；询问“为什么/原理”仍会直接讲解，只有明确要求自行推导才进入苏格拉底。",
   普通: "直接、完整地回答当前问题；必要时才澄清，不强制进入教学流程。",
-  苏格拉底: "你通过持续思考和提问决定学习路径，AI直接回答当前一层，并帮助你逐步深入。",
+  苏格拉底: "苏格拉底式再发现：你承担关键推理，AI每轮用一个问题、反例或有限线索设计发现路径；外部事实会直接说明。",
   费曼: "你用自己的话解释，AI定位理解缺口，补充关键点后引导你重新说明。",
   项目: "围绕当前项目阶段解决实际问题，给出最小修改、实施顺序、验证方式和主要风险。"
 };
@@ -506,6 +506,18 @@ function Sidebar({
         <div className="metric-row">
           <span>实际模型</span>
           <strong>{displayValue(lastChat?.route.model_profile)}</strong>
+        </div>
+        <div className="metric-row">
+          <span>教学阶段</span>
+          <strong>{displayValue((lastChat?.route.pedagogy as Record<string, unknown> | undefined)?.phase)}</strong>
+        </div>
+        <div className="metric-row">
+          <span>本轮动作</span>
+          <strong>{displayValue((lastChat?.route.pedagogy as Record<string, unknown> | undefined)?.move)}</strong>
+        </div>
+        <div className="metric-row">
+          <span>知识披露</span>
+          <strong>{displayValue(lastChat?.route.evidence_disclosure)}</strong>
         </div>
         <div className="metric-row">
           <span>Session</span>

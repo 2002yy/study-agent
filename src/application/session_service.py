@@ -75,6 +75,8 @@ class SessionService:
             "settings": thread.settings_snapshot,
             "route": latest.route_snapshot if latest else {},
             "rag": latest.rag_snapshot if latest else {},
+            "learning_state": thread.learning_state,
+            "pedagogy": latest.pedagogy_snapshot if latest else {},
             "conversation_instruction": latest.conversation_instruction if latest else "",
             "turns": [
                 {
@@ -87,6 +89,7 @@ class SessionService:
                     "role": turn.role,
                     "mode": turn.mode,
                     "model": turn.model,
+                    "pedagogy_snapshot": turn.pedagogy_snapshot,
                 }
                 for turn in turns
             ],
