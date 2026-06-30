@@ -128,6 +128,7 @@ class NewsDiscussResponse(BaseModel):
 
 
 class NewsLookupResponse(BaseModel):
+    run_id: str
     query_text: str
     news_items: list[dict]
     source_block: str

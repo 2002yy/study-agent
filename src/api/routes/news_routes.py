@@ -30,11 +30,16 @@ from src.api.models.news import (
 )
 from src.application.helpers import request_performance_mode, validate_choice
 from src.application.news_service import NewsService
-from src.application.runtime_repository import get_news_service
+from src.application.runtime_repository import get_news_service, get_web_lookup_service
+from src.application.web_lookup_service import WebLookupService
 from src.constants import ATMOS_OPTIONS, MODEL_OPTIONS
 
 router = APIRouter(tags=["news"])
 NewsServiceDependency = Annotated[NewsService, Depends(get_news_service)]
+WebLookupServiceDependency = Annotated[
+    WebLookupService,
+    Depends(get_web_lookup_service),
+]
 
 
 def _response(run) -> NewsRunResponse:
@@ -148,21 +153,20 @@ def discuss_news_run_endpoint(
 
 
 @router.post("/news/lookup", response_model=NewsLookupResponse)
-def lookup_news_endpoint(request: NewsLookupRequest) -> NewsLookupResponse:
-    from src.api import fetch_news_items, format_news_source_block, get_last_feed_warnings
-
+def lookup_news_endpoint(
+    request: NewsLookupRequest,
+    service: WebLookupServiceDependency,
+) -> NewsLookupResponse:
     try:
-        news_items = fetch_news_items(
-            query_text=request.query,
-            max_items=request.max_items,
-        )
+        run = service.lookup(request.query, max_items=request.max_items)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"News lookup failed: {exc}") from exc
     return NewsLookupResponse(
-        query_text=request.query,
-        news_items=news_items,
-        source_block=format_news_source_block(request.query, news_items),
-        warnings=get_last_feed_warnings(),
+        run_id=run.id,
+        query_text=run.query,
+        news_items=run.items,
+        source_block=run.source_block,
+        warnings=run.warnings,
     )
 
 

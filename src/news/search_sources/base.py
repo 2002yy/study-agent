@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.web.models import parse_published_at
+
 
 @dataclass(frozen=True)
 class SearchSourceResult:
@@ -20,11 +22,13 @@ class SearchSourceResult:
     score: float = 0.0
 
     def to_news_item(self) -> dict:
+        published = parse_published_at(self.published_at)
+        published_timestamp = published.timestamp() if published else 0.0
         item: dict = {
             "title": self.title.strip(),
             "source": self.source.strip() or "Search Source",
             "published_at": self.published_at.strip() or "Today",
-            "published_timestamp": 0.0,
+            "published_timestamp": published_timestamp,
             "link": self.url.strip(),
             "resolved_link": "",
             "canonical_url": "",
@@ -32,7 +36,7 @@ class SearchSourceResult:
             "resolution_status": "pending",
             "search_excerpt": self.content.strip(),
             "_search_score": self.score,
-            "_sort_ts": 0.0,
+            "_sort_ts": published_timestamp,
         }
         if self.thumbnail.strip():
             item["search_thumbnail"] = self.thumbnail.strip()

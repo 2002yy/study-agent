@@ -3,12 +3,17 @@
 > 从当前 Architecture V2 主线出发，按纵向切片封板，而非分批推进。
 > 每个切片封板后该模块所有业务冻结，只修 bug。
 
-## Implementation status — 2026-06-21
+## Implementation status
+
+> Status is maintained only in
+> [`docs/ARCHITECTURE_STATUS.md`](docs/ARCHITECTURE_STATUS.md). The table below
+> is retained as historical planning context.
 
 - Batch 1 (operation registry): sealed.
 - Batch 2 (Workspace reducer/controllers): Chat/Session, Group, and News controllers + provider sealed.
 - Batch 3 (FastAPI split): sealed. `src/api/app.py` + `routes/` + `application/` + `models/` all live; compatibility re-exports remain in `src/api/__init__.py`.
-- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session, GroupThread/GroupMessage, and NewsRun → sealed. ToolRun is the next vertical slice.
+- Batch 4 (SQLite runtime): ChatThread/ChatTurn/Session, GroupThread/GroupMessage,
+  NewsRun, and ToolRun are sealed. MemoryTransaction is next.
 - Batch 5 (Turn lifecycle): sealed. Turn state machine, continuation, retry, supersede, partial commit all owned by ChatService/SQLite.
 
 > 当前策略已从"分 5 批横向推进"改为**按纵向切片封板**。
@@ -22,8 +27,8 @@
 | Chat/Session (原 Batch 4+5) | SQLite ChatThread/Turn, ChatService, SessionService, chatController | ✅ **Sealed** |
 | Web GroupThread (原 Batch 4) | Schema v5, GroupRepository, GroupChatService, groupChatController | ✅ **Sealed** |
 | NewsRun | Schema v6, NewsRepository, NewsService, newsController | ✅ **Sealed** |
-| Tools | — | ❌ 未开始 |
-| Memory | — | ❌ 未开始 |
+| ToolRun | SQLite ToolRun, ToolService, toolController | ✅ **Sealed** |
+| MemoryTransaction | — | ⏭️ **Next** |
 
 ## Batch 1: 停止状态膨胀 + operation registry + 修已知 bug
 
@@ -502,4 +507,5 @@ POST /sessions/{id}/restore
 - News items, source block, digest, coverage, warnings, safe-mode reason, discussion, GroupThread link, timestamps, and version are persisted in SQLite.
 - `append_news_bundle` atomically writes source and per-speaker discussion to GroupThread and is idempotent by NewsRun ID.
 - `newsController` owns stage state and orchestration; `NewsWorkspace` no longer calls stage APIs or stores staged results.
-- NewsRun is sealed. ToolRun is the next vertical slice; Memory and broader RAG/AppShell work remain frozen.
+- NewsRun and ToolRun are sealed. MemoryTransaction is the next vertical slice;
+  broader RAG/AppShell work remains frozen.

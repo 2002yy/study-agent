@@ -15,6 +15,10 @@ from urllib.request import Request, urlopen
 from src.news.article_extractor import clean_article_text
 from src.news.readers.base import ReaderResult
 from src.news.url_normalizer import is_public_http_url
+from src.web.security import validate_service_endpoint
+
+
+MAX_FIRECRAWL_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -80,6 +84,12 @@ def read_with_firecrawl(
     configured_base_url = (base_url or firecrawl_base_url()).strip().rstrip("/")
     if not configured_base_url:
         return ReaderResult(error="missing-firecrawl-base-url")
+    if not validate_service_endpoint(
+        configured_base_url,
+        allow_loopback=_env_flag("FIRECRAWL_ALLOW_LOOPBACK"),
+        allow_private_network=_env_flag("FIRECRAWL_ALLOW_PRIVATE_NETWORK"),
+    ):
+        return ReaderResult(error="invalid-firecrawl-base-url")
 
     scrape_url = build_firecrawl_scrape_url(configured_base_url)
     if not scrape_url:
@@ -108,7 +118,9 @@ def read_with_firecrawl(
             content_type = response.headers.get("Content-Type", "")
             if "json" not in content_type.lower():
                 return ReaderResult(error="non-json-firecrawl-response")
-            payload = response.read(max_chars * 8)
+            payload = response.read(MAX_FIRECRAWL_RESPONSE_BYTES + 1)
+            if len(payload) > MAX_FIRECRAWL_RESPONSE_BYTES:
+                return ReaderResult(error="firecrawl-response-too-large")
         data = json.loads(payload.decode("utf-8", errors="ignore"))
         text = clean_article_text(_extract_firecrawl_text(data), max_chars=max_chars)
         if not text:

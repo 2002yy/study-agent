@@ -1,5 +1,9 @@
 # API Frontend Migration
 
+> Current status is maintained in
+> [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md). This document describes API
+> contracts and historical migration details.
+
 This document is the contract map for migrating the Streamlit business baseline
 to the React frontend. React should prefer these APIs over local fake state.
 
@@ -25,7 +29,7 @@ to the React frontend. React should prefer these APIs over local fake state.
 | RAG | `POST /rag/index` | Existing | Writes index | Rebuild index from paths |
 | RAG | `POST /rag/query` | Existing | Read-only | Source inspector |
 | Chat | `POST /chat` | Existing | Writes session logs | Non-streaming single chat fallback |
-| Chat | `POST /chat/stream` | P0 planned/next | Writes session logs after completion | Streaming single chat |
+| Chat | `POST /chat/stream` | Sealed | Writes committed turns through ChatService | Streaming single chat |
 | Memory | `POST /memory/preview` | Existing | Read-only preview | Generic memory write preview |
 | Memory | `POST /memory/commit` | Existing | Writes memory files when allowed | Generic memory commit |
 | Sessions | `GET /sessions` | Existing | Read-only | Session list |
@@ -45,7 +49,7 @@ to the React frontend. React should prefer these APIs over local fake state.
 | WeChat | `POST /wechat/opening` | Implemented compatibility route | Writes group opening | Generate group opening |
 | WeChat | `POST /wechat/message` | Implemented compatibility route | Writes user/group messages | Non-streaming group reply |
 | WeChat | `POST /wechat/search` | Implemented compatibility route | Read-only | Search group transcript |
-| News | `POST /news/lookup` | Implemented compatibility route | Read-only network fetch | Search web/news for single chat context |
+| Web lookup | `POST /news/lookup` | Partial WebLookupRun | Read-only network fetch through WebLookupService | Search web/news for single chat context |
 | News | `POST /news/runs` | Sealed | Creates and immediately returns a server-owned `NewsRun` ID | Start a recoverable news workflow |
 | News | `POST /news/runs/{run_id}/search` | Sealed | Network fetch; persists results on the existing Run | Stage 1 search |
 | News | `POST /news/runs/{run_id}/enrich` | Sealed | Reads article text when runtime allows | Stage 2 article enrichment |
@@ -59,17 +63,8 @@ to the React frontend. React should prefer these APIs over local fake state.
 
 | Priority | Endpoint | Purpose | Notes |
 | --- | --- | --- | --- |
-| P0 | `POST /chat/stream` | Stream single chat | SSE events: `route`, `rag`, `token`, `usage`, `done`, `error` |
 | P0 | `POST /after-session/preview` | Generate after-session candidates | Should not write memory; can call LLM |
 | P0 | `POST /after-session/commit` | Commit selected after-session updates | Must respect `safe_mode` and `memory_mode` |
-| P0 | `GET /wechat/state` | Canonical WeChat state route | Alias/replace `GET /wechat` |
-| P0 | `GET /wechat/thread` | Group thread only | Read-only |
-| P0 | `GET /wechat/unread` | Unread messages only | Read-only |
-| P0 | `POST /wechat/read` | Canonical mark-read route | Side effect: clears unread |
-| P0 | `POST /wechat/messages` | Canonical non-streaming group reply | Side effect: writes group files |
-| P0 | `POST /wechat/messages/stream` | Streaming group reply | SSE token stream plus final state |
-| P0 | `POST /wechat/memory/preview` | Group memory candidates | Preview only |
-| P0 | `POST /wechat/memory/commit` | Commit group memory candidates | Must respect memory safety |
 | P1 | `GET /sessions/{session_id}` | Session detail | Read-only |
 | P1 | `POST /sessions/{session_id}/archive` | Archive session | File move/write |
 | P1 | `GET /stats` | Usage/study stats | Read-only |

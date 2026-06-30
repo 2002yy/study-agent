@@ -385,9 +385,10 @@ def test_news_query_change_invalidates_downstream_stages(monkeypatch):
 # ── 11. Enrich after digest must invalidate digest in frontend logic ─────
 
 
-def test_news_digest_uses_enriched_items(monkeypatch):
+def test_news_digest_uses_enriched_items(runtime_test_context):
     """Verify enrich→digest pipeline: digest receives enriched items."""
     from src import api
+    from src.application.news_service import NewsDependencies
 
     client = TestClient(app)
     search_items = [
@@ -401,12 +402,6 @@ def test_news_digest_uses_enriched_items(monkeypatch):
     ]
     captured = {}
 
-    monkeypatch.setattr(
-        api,
-        "run_search_stage",
-        lambda query, max_items: search_items[:max_items],
-    )
-
     def fake_enrich(items, **kwargs):
         return [{**item, "article_text": f"body:{item['title']}"} for item in items]
 
@@ -414,8 +409,13 @@ def test_news_digest_uses_enriched_items(monkeypatch):
         captured["items"] = items
         return "digest", "sources", {"available": len(items)}, []
 
-    monkeypatch.setattr(api, "run_enrich_stage", fake_enrich)
-    monkeypatch.setattr(api, "run_digest_stage", fake_digest)
+    runtime_test_context.news_service.dependencies = NewsDependencies(
+        search=lambda query, max_items: search_items[:max_items],
+        enrich=fake_enrich,
+        digest=fake_digest,
+        discuss=lambda digest, **kwargs: ("discussion", ""),
+        load_runtime_modes=api.load_runtime_modes,
+    )
 
     created = client.post("/news/runs", json={"query": "China tech news today"})
     search_resp = client.post(

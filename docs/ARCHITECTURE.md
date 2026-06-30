@@ -1,5 +1,9 @@
 # Architecture
 
+> Historical Streamlit architecture reference. The primary runtime is now
+> React + FastAPI; current migration truth lives in
+> [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Streamlit Runtime                        │

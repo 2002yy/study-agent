@@ -118,6 +118,34 @@ def test_search_searxng_sorts_results_by_provider_score(monkeypatch):
     assert [item["title"] for item in items] == ["High", "Low"]
 
 
+def test_search_searxng_preserves_nonzero_published_timestamp(monkeypatch):
+    from src.news.search_sources import searxng_source
+
+    payload = json.dumps(
+        {
+            "results": [
+                {
+                    "title": "Dated",
+                    "url": "https://example.com/dated",
+                    "publishedDate": "2026-06-30T12:34:56+08:00",
+                }
+            ]
+        }
+    ).encode("utf-8")
+    monkeypatch.setenv("NEWS_ENABLE_SEARXNG", "true")
+    monkeypatch.setenv("SEARXNG_BASE_URL", "https://search.example.com")
+    monkeypatch.setattr(
+        searxng_source,
+        "urlopen",
+        lambda req, timeout: _FakeResponse(payload),
+    )
+
+    item = searxng_source.search_searxng("dated")[0]
+
+    assert item["published_timestamp"] > 0
+    assert item["_sort_ts"] == item["published_timestamp"]
+
+
 def test_search_searxng_non_json_fails_soft(monkeypatch):
     from src.news.search_sources import searxng_source
 
@@ -138,7 +166,7 @@ def test_rss_fetcher_includes_searxng_items_when_enabled(monkeypatch):
     monkeypatch.setattr(
         rss_fetcher,
         "search_searxng",
-        lambda query_text, max_results: [
+        lambda query_text, max_results, **kwargs: [
             {
                 "title": "Python docs",
                 "source": "SearXNG/test",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 
 
 class _FakeResponse:
@@ -49,7 +50,7 @@ def test_fetch_query_news_items_keeps_feed_warnings_for_partial_success(monkeypa
     monkeypatch.setattr(rss_fetcher, "search_searxng", fake_searxng)
     monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
 
-    items = rss_fetcher._fetch_query_news_items("python url", max_items=3)
+    items = rss_fetcher._fetch_query_news_items("python latest news", max_items=3)
     warnings = rss_fetcher.get_last_feed_warnings()
 
     assert items
@@ -107,7 +108,7 @@ def test_fetch_query_news_items_records_feed_health(monkeypatch):
     monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
     monkeypatch.setattr(rss_fetcher, "record_feed_result", fake_record)
 
-    rss_fetcher._fetch_query_news_items("python url", max_items=3)
+    rss_fetcher._fetch_query_news_items("python latest news", max_items=3)
 
     assert any(
         item["source"] == "Google News"
@@ -182,10 +183,39 @@ def test_search_sources_start_concurrently(monkeypatch):
     )
     monkeypatch.setattr(rss_fetcher, "_fetch_rss_items_from_url", fake_fetch)
 
-    results = rss_fetcher._fetch_query_news_items("result", max_items=5)
+    results = rss_fetcher._fetch_query_news_items("latest result news", max_items=5)
 
     assert {result["source"] for result in results} == {
         "SearXNG",
         "Feed A",
         "Feed B",
     }
+
+
+def test_search_deadline_returns_without_waiting_for_slow_provider(monkeypatch):
+    from src.news import rss_fetcher
+
+    monkeypatch.setenv("NEWS_SEARCH_DEADLINE_SECONDS", "0.05")
+    monkeypatch.setattr(rss_fetcher, "search_searxng", lambda *a, **k: [])
+    monkeypatch.setattr(
+        rss_fetcher,
+        "registered_feed_urls",
+        lambda query: [("Slow Feed", "https://slow.example/rss", False)],
+    )
+    monkeypatch.setattr(
+        rss_fetcher,
+        "_fetch_rss_items_from_url",
+        lambda *a, **k: time.sleep(1.0),
+    )
+    started = time.perf_counter()
+
+    try:
+        rss_fetcher._fetch_query_news_items("latest news", max_items=3)
+    except RuntimeError:
+        pass
+
+    assert time.perf_counter() - started < 0.7
+    assert any(
+        warning["error_type"] == "DeadlineExceeded"
+        for warning in rss_fetcher.get_last_feed_warnings()
+    )

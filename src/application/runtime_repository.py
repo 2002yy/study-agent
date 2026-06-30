@@ -96,6 +96,13 @@ def get_news_service():
 
 
 @lru_cache(maxsize=1)
+def get_web_lookup_service():
+    from src.application.web_lookup_service import WebLookupService
+
+    return WebLookupService()
+
+
+@lru_cache(maxsize=1)
 def get_tool_service():
     from src import api
     from src.api.app import TOOL_REGISTRY
@@ -110,6 +117,7 @@ def get_tool_service():
 
 
 def reset_runtime_repository_cache() -> None:
+    get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()
     get_group_service.cache_clear()

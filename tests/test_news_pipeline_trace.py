@@ -35,6 +35,18 @@ def test_build_item_trace_marks_article_text_and_redirect_hops():
     assert trace.domain_policy_reasons == ("prefer-tech-domain",)
 
 
+def test_build_item_trace_uses_search_snippet_before_title_only():
+    trace = build_item_trace(
+        {
+            "title": "Search result",
+            "link": "https://example.com",
+            "search_excerpt": "Provider supplied snippet",
+        }
+    )
+
+    assert trace.evidence_level == "search_snippet"
+
+
 def test_build_pipeline_trace_summarizes_round_health():
     trace = build_pipeline_trace(
         "python url parsing",

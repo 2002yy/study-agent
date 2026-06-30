@@ -12,6 +12,7 @@ export type OperationScope =
   | "chat"
   | "group"
   | "news"
+  | "web_lookup"
   | "tool"
   | "rag-search"
   | "rag-upload"

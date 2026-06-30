@@ -7,7 +7,6 @@ import os
 import re
 import time
 from collections.abc import MutableMapping
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from socket import getaddrinfo
 from typing import Any
@@ -27,6 +26,7 @@ from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firec
 from src.news.readers.jina_reader import read_with_jina_reader
 from src.news.readers.local_reader import read_html_locally
 from src.news.url_normalizer import is_probable_article_page_url
+from src.web.concurrency import BoundedTask, run_bounded
 
 
 @dataclass(frozen=True)
@@ -245,56 +245,14 @@ def fetch_article_text_with_method(
     max_bytes: int = 350_000,
     max_chars: int = 5000,
 ) -> tuple[str, str]:
-    url = (url or "").strip()
-    if not url or not _is_fetchable_article_url(url):
-        return "", ""
-
-    now = time.time()
-    _prune_article_cache(now)
-
-    cached = _ARTICLE_CACHE.get(url)
-    if cached and now - cached[0] < _ARTICLE_CACHE_TTL:
-        return cached[1], cached[2]
-
-    try:
-        final_url = url
-        html, final_url, content_type, reason = _fetch_html_payload(
-            url, timeout=timeout, max_bytes=max_bytes
-        )
-        if html:
-            local_result = read_html_locally(
-                html,
-                url=final_url or url,
-                max_chars=max_chars,
-            )
-            if local_result.ok:
-                _ARTICLE_CACHE[url] = (now, local_result.text, local_result.method)
-                return local_result.text, local_result.method
-
-        fallback_url = final_url or url
-        text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
-        if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
-            return text, method
-
-        text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
-        if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
-            return text, method
-
-        _ARTICLE_CACHE[url] = (now, "", "")
-        return "", ""
-    except Exception:
-        text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
-        if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
-            return text, method
-
-        text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
-        if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
-            return text, method
-        return "", ""
+    """Compatibility wrapper around the structured article reader API."""
+    result = fetch_article_read_result(
+        url,
+        timeout=timeout,
+        max_bytes=max_bytes,
+        max_chars=max_chars,
+    )
+    return (result.text, result.method) if result.ok else ("", "")
 
 
 def fetch_article_read_result(
@@ -532,22 +490,46 @@ def enrich_news_items_with_article_text(
 
     if pending_reads:
         worker_count = min(6, len(pending_reads))
-        with ThreadPoolExecutor(
-            max_workers=worker_count,
-            thread_name_prefix="article-reader",
-        ) as pool:
-            futures = [
-                (
-                    idx,
-                    pool.submit(
-                        fetch_article_read_result,
+        try:
+            deadline = max(
+                0.1,
+                min(float(os.getenv("NEWS_ARTICLE_DEADLINE_SECONDS", "20")), 120.0),
+            )
+        except ValueError:
+            deadline = 20.0
+        outcomes = run_bounded(
+            [
+                BoundedTask(
+                    name=str(idx),
+                    call=lambda article_url=article_url: fetch_article_read_result(
                         article_url,
                         max_chars=max_chars_per_article,
                     ),
                 )
                 for idx, article_url in pending_reads
-            ]
-            for idx, future in futures:
-                _apply_article_read_result(enriched[idx], future.result())
+            ],
+            concurrency=worker_count,
+            total_timeout=deadline,
+        )
+        for (idx, article_url), outcome in zip(
+            pending_reads,
+            outcomes,
+            strict=True,
+        ):
+            if isinstance(outcome.value, ArticleReadResult):
+                result = outcome.value
+            elif outcome.timed_out:
+                result = ArticleReadResult(
+                    ok=False,
+                    requested_url=article_url,
+                    reason="deadline_exceeded",
+                )
+            else:
+                result = ArticleReadResult(
+                    ok=False,
+                    requested_url=article_url,
+                    reason=f"exception:{type(outcome.error).__name__}",
+                )
+            _apply_article_read_result(enriched[idx], result)
 
     return enriched

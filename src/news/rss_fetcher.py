@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import gzip
+from html import unescape
 import os
 import re
 import socket
 import ssl
 import time
 from collections.abc import MutableMapping
-from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.error import URLError
@@ -32,6 +32,8 @@ from src.news.search_sources.searxng_source import (
     search_searxng,
 )
 from src.news.url_normalizer import build_url_metadata
+from src.web.concurrency import BoundedTask, run_bounded
+from src.web.orchestrator import build_search_plan
 
 
 # ── Constants ──────────────────────────────────────────────────────────
@@ -130,6 +132,11 @@ def _prune_news_cache(now: float) -> None:
 
 def _clean_news_title(title: str) -> str:
     return re.sub(r"\s*-\s*[^-]+$", "", title).strip()
+
+
+def _clean_feed_summary(value: str, max_chars: int = 1200) -> str:
+    text = re.sub(r"<[^>]+>", " ", unescape(value or ""))
+    return re.sub(r"\s+", " ", text).strip()[:max_chars]
 
 
 def normalize_news_query(query_text: str, max_chars: int = 120) -> str:
@@ -344,20 +351,38 @@ def _resolve_and_dedupe_news_items(
     # redirect URLs without leaving too few usable items.
     resolve_count = min(max(resolve_top_n, max_items), len(news_items))
     worker_count = max(1, min(6, len(news_items)))
-    with ThreadPoolExecutor(
-        max_workers=worker_count,
-        thread_name_prefix="news-link-resolver",
-    ) as pool:
-        futures = [
-            pool.submit(
-                _attach_url_metadata,
-                item,
-                resolve=idx < resolve_count,
-                query_text=query_text,
+    outcomes = run_bounded(
+        [
+            BoundedTask(
+                name=str(idx),
+                call=lambda idx=idx, item=item: _attach_url_metadata(
+                    item,
+                    resolve=idx < resolve_count,
+                    query_text=query_text,
+                ),
             )
             for idx, item in enumerate(news_items)
-        ]
-        resolved_items = [future.result() for future in futures]
+        ],
+        concurrency=worker_count,
+        total_timeout=_deadline_seconds("NEWS_RESOLVE_DEADLINE_SECONDS", 10.0),
+    )
+    resolved_items: list[dict] = []
+    for idx, outcome in enumerate(outcomes):
+        if outcome.value is not None:
+            resolved_items.append(outcome.value)
+            continue
+        fallback = _attach_url_metadata(
+            news_items[idx],
+            resolve=False,
+            query_text=query_text,
+        )
+        fallback["resolution_status"] = "timeout" if outcome.timed_out else "error"
+        fallback["resolution_error"] = (
+            "deadline_exceeded"
+            if outcome.timed_out
+            else f"{type(outcome.error).__name__}: {outcome.error}"
+        )
+        resolved_items.append(fallback)
 
     now_ts = time.time()
     sorted_items = sorted(
@@ -408,6 +433,13 @@ def _network_timeout_seconds() -> float:
         return max(1.0, min(float(os.getenv("NEWS_SOURCE_TIMEOUT_SECONDS", "8")), 30.0))
     except ValueError:
         return 8.0
+
+
+def _deadline_seconds(name: str, default: float) -> float:
+    try:
+        return max(0.1, min(float(os.getenv(name, str(default))), 120.0))
+    except ValueError:
+        return default
 
 
 def _network_max_attempts() -> int:
@@ -508,6 +540,9 @@ def _fetch_rss_items_with_metadata(
         title = (node.findtext("title") or "").strip()
         link = (node.findtext("link") or "").strip()
         pub_date = (node.findtext("pubDate") or "").strip()
+        feed_summary = _clean_feed_summary(
+            node.findtext("description") or node.findtext("summary") or ""
+        )
         source = ""
         source_node = node.find("source")
         if source_node is not None and source_node.text:
@@ -531,6 +566,7 @@ def _fetch_rss_items_with_metadata(
                 "canonical_url": "",
                 "domain": "",
                 "resolution_status": "pending",
+                "feed_summary": feed_summary,
                 "_sort_ts": published_ts,
             }
         )
@@ -545,7 +581,28 @@ def _fetch_rss_items_with_metadata(
 
 
 def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
+    plan = build_search_plan(query_text)
+    if plan.direct_url:
+        _set_last_feed_warnings([])
+        return [
+            {
+                "title": plan.direct_url,
+                "source": "Direct URL",
+                "published_at": "Today",
+                "published_timestamp": 0.0,
+                "link": plan.direct_url,
+                "resolved_link": "",
+                "canonical_url": "",
+                "domain": "",
+                "resolution_status": "pending",
+                "_sort_ts": 0.0,
+            }
+        ]
     feed_urls = registered_feed_urls(query_text)
+    if not plan.include_news_feeds:
+        feed_urls = [
+            feed for feed in feed_urls if feed[0] == "Bing News"
+        ]
 
     items: list[dict] = []
     errors: list[Exception] = []
@@ -554,19 +611,20 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
 
     # Search providers are independent I/O operations. Run them concurrently,
     # then consume outcomes in configured order so result ordering stays stable.
-    worker_count = max(1, min(6, len(feed_urls) + 1))
-    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="news-search") as pool:
-        searxng_future = pool.submit(
-            search_searxng,
-            query_text,
-            max_results=per_feed_limit,
-        )
-        feed_futures = [
-            (
-                source_name,
-                feed_url,
-                pool.submit(
-                    _fetch_rss_items_from_url,
+    provider_specs = [("SearXNG", "", False), *feed_urls]
+    tasks = [
+        BoundedTask(
+            name="SearXNG",
+            call=lambda: search_searxng(
+                query_text,
+                max_results=per_feed_limit,
+                categories=plan.searxng_categories,
+            ),
+        ),
+        *[
+            BoundedTask(
+                name=source_name,
+                call=lambda source_name=source_name, feed_url=feed_url, filter_by_query=filter_by_query: _fetch_rss_items_from_url(
                     feed_url,
                     max_items=per_feed_limit,
                     source_fallback=source_name,
@@ -574,61 +632,63 @@ def _fetch_query_news_items(query_text: str, max_items: int = 10) -> list[dict]:
                 ),
             )
             for source_name, feed_url, filter_by_query in feed_urls
-        ]
-
-        try:
-            searxng_items = searxng_future.result()
-            items.extend(searxng_items)
-            searxng_error = get_last_searxng_error()
-            if not searxng_items and searxng_error:
-                feed_warnings.append(
-                    {
-                        "source": "SearXNG",
-                        "url": "",
-                        "error_type": "SearchProviderError",
-                        "message": searxng_error,
-                    }
-                )
-        except Exception as exc:
-            errors.append(exc)
-            feed_warnings.append(
-                {
-                    "source": "SearXNG",
-                    "url": "",
-                    "error_type": type(exc).__name__,
-                    "message": str(exc),
-                }
-            )
-
-        for source_name, feed_url, future in feed_futures:
-            try:
-                feed_items = future.result()
-                feed_metadata = _LAST_FEED_METADATA.get(feed_url, {})
-                items.extend(feed_items)
+        ],
+    ]
+    outcomes = run_bounded(
+        tasks,
+        concurrency=max(1, min(6, len(tasks))),
+        total_timeout=_deadline_seconds("NEWS_SEARCH_DEADLINE_SECONDS", 20.0),
+    )
+    for (source_name, source_url, _), outcome in zip(
+        provider_specs,
+        outcomes,
+        strict=True,
+    ):
+        if outcome.value is not None:
+            provider_items = outcome.value
+            items.extend(provider_items)
+            if source_name != "SearXNG":
+                feed_metadata = _LAST_FEED_METADATA.get(source_url, {})
                 _record_feed_result_safely(
                     source_name,
-                    feed_url,
+                    source_url,
                     ok=True,
-                    item_count=len(feed_items),
+                    item_count=len(provider_items),
                     etag=feed_metadata.get("etag", ""),
                     modified=feed_metadata.get("modified", ""),
                 )
-            except Exception as exc:
-                errors.append(exc)
-                _record_feed_result_safely(
-                    source_name,
-                    feed_url,
-                    ok=False,
-                    error=exc,
-                )
-                feed_warnings.append(
-                    {
-                        "source": source_name,
-                        "url": feed_url,
-                        "error_type": type(exc).__name__,
-                        "message": str(exc),
-                    }
-                )
+            else:
+                searxng_error = get_last_searxng_error()
+                if not provider_items and searxng_error:
+                    feed_warnings.append(
+                        {
+                            "source": "SearXNG",
+                            "url": "",
+                            "error_type": "SearchProviderError",
+                            "message": searxng_error,
+                            "elapsed_ms": outcome.elapsed_ms,
+                        }
+                    )
+            continue
+
+        error = outcome.error or TimeoutError("deadline_exceeded")
+        errors.append(error)
+        if source_name != "SearXNG":
+            _record_feed_result_safely(
+                source_name,
+                source_url,
+                ok=False,
+                error=error,
+            )
+        feed_warnings.append(
+            {
+                "source": source_name,
+                "url": source_url,
+                "error_type": "DeadlineExceeded" if outcome.timed_out else type(error).__name__,
+                "message": "deadline_exceeded" if outcome.timed_out else str(error),
+                "elapsed_ms": outcome.elapsed_ms,
+            }
+        )
 
     if not items and errors:
         _set_last_feed_warnings(feed_warnings)

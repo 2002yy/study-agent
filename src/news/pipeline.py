@@ -56,6 +56,10 @@ def _evidence_level(item: dict) -> str:
         return "domain_blocked"
     if article_status.startswith("域名策略过滤"):
         return "domain_blocked"
+    if item.get("search_excerpt"):
+        return "search_snippet"
+    if item.get("feed_summary"):
+        return "feed_summary"
     if "正文不可用" in article_status:
         return "title_only"
     return "title_only"
@@ -127,6 +131,8 @@ def build_pipeline_trace(
 def _evidence_label(level: str) -> str:
     return {
         "article_text": "页面文本",
+        "search_snippet": "搜索摘要（未读取原文）",
+        "feed_summary": "RSS 摘要",
         "domain_blocked": "域名过滤",
         "title_only": "标题/来源",
     }.get(level, level or "未知")

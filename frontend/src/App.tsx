@@ -19,7 +19,6 @@ import {
   loadApiSnapshot,
   loadRole,
   loadWorkflowRun,
-  lookupNews,
   queryRag,
   saveRuntimeSettings,
   uploadDocuments
@@ -43,6 +42,7 @@ import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
 import { WechatPanel } from "./features/wechat-workspace/WechatPanel";
 import { useGroupChatController } from "./features/group-chat/groupChatController";
 import { useNewsController, type NewsController } from "./features/news-workspace/newsController";
+import { useWebLookupController } from "./features/web-lookup/webLookupController";
 import { TimelinePanel } from "./features/workflows/TimelinePanel";
 import { displayValue } from "./utils/format";
 import type {
@@ -662,14 +662,11 @@ export default function App() {
   const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
-  const [webLookup, setWebLookup] = useState<NewsLookupResponse | null>(null);
-  const [useWebLookup, setUseWebLookup] = useState(true);
   const [loadingRunId, setLoadingRunId] = useState("");
   const [uploadState, setUploadState] = useState("");
   const [ragUploadMode, setRagUploadMode] = useState<"append" | "rebuild">("append");
   const [newsQuery, setNewsQuery] = useState("最新新闻 when:1d");
   const [readArticles, setReadArticles] = useState(true);
-  const [isNewsBusy, setIsNewsBusy] = useState(false);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionStoragePayloadRef = useRef("");
@@ -703,6 +700,13 @@ export default function App() {
       void refresh();
     },
   });
+  const webLookupController = useWebLookupController({
+    query: newsQuery,
+    setOperationError,
+  });
+  const webLookup = webLookupController.result;
+  const useWebLookup = webLookupController.useInChat;
+  const setUseWebLookup = webLookupController.setUseInChat;
 
   useEffect(() => {
     const serverThreadId = snapshot.wechat?.group_thread_id;
@@ -739,7 +743,7 @@ export default function App() {
       groupController.cancelWorkspace();
       newsController.cancelWorkspace();
       operationRegistry.invalidate("tool");
-      setIsNewsBusy(false);
+      webLookupController.cancel();
     },
     refresh,
   });
@@ -1008,31 +1012,6 @@ export default function App() {
     }
   };
 
-  const handleLookupNews = async () => {
-    const query = newsQuery.trim();
-    if (!query || isNewsBusy) {
-      return;
-    }
-    const { operationId, controller: abortController, generationId } = operationRegistry.start("news");
-    setIsNewsBusy(true);
-    setOperationError("");
-    try {
-      const result = await lookupNews(query, 8, { signal: abortController.signal });
-      if (!operationRegistry.isCurrent(operationId, generationId)) return;
-      setWebLookup(result);
-      setUseWebLookup(true);
-      setOperationError("");
-    } catch (error) {
-      if (!operationRegistry.isCurrent(operationId, generationId) || (error instanceof DOMException && error.name === "AbortError")) return;
-      setOperationError(`联网搜索失败：${error instanceof Error ? error.message : "联网搜索失败"}`);
-    } finally {
-      if (operationRegistry.isCurrent(operationId, generationId)) {
-        setIsNewsBusy(false);
-      }
-      operationRegistry.complete(operationId);
-    }
-  };
-
   const selectRun = async (runId: string) => {
     setLoadingRunId(runId);
     try {
@@ -1157,10 +1136,10 @@ export default function App() {
         onWechatMarkRead={groupController.markRead}
         onSendWechat={groupController.send}
         onStopWechat={groupController.stop}
-        onLookupNews={handleLookupNews}
+        onLookupNews={webLookupController.lookup}
         isWechatBusy={groupController.isBusy}
         wechatError={groupController.error}
-        isNewsBusy={isNewsBusy}
+        isNewsBusy={webLookupController.isBusy}
         isSending={isSending}
         onMemoryChanged={refresh}
       />

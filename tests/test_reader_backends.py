@@ -95,3 +95,23 @@ def test_article_fetcher_calls_jina_when_enabled(monkeypatch):
     assert text == "jina text"
     assert method == "jina_reader"
     assert calls == ["https://example.com/story"]
+
+
+def test_legacy_article_reader_wraps_structured_api(monkeypatch):
+    from src.news import article_fetcher
+
+    monkeypatch.setattr(
+        article_fetcher,
+        "fetch_article_read_result",
+        lambda url, **kwargs: article_fetcher.ArticleReadResult(
+            ok=True,
+            text="structured text",
+            method="structured_reader",
+            requested_url=url,
+        ),
+    )
+
+    assert article_fetcher.fetch_article_text_with_method("https://example.com") == (
+        "structured text",
+        "structured_reader",
+    )

@@ -325,30 +325,24 @@ def test_legacy_news_round_routes_are_gone_without_running_legacy_flow(
     assert not group_file.exists()
 
 
-def test_news_discussion_outputs_remain_isolated_by_group_thread(
-    monkeypatch, runtime_test_context
-):
+def test_news_discussion_outputs_remain_isolated_by_group_thread(runtime_test_context):
     from src import api
+    from src.application.news_service import NewsDependencies
 
-    monkeypatch.setattr(
-        api,
-        "run_discussion_stage",
-        lambda digest, **kwargs: (f"【纳西妲】\nreply for {digest}", "legacy ignored"),
-    )
-    monkeypatch.setattr(
-        api,
-        "run_search_stage",
-        lambda query, max_items=10: [{"title": query}],
-    )
-    monkeypatch.setattr(
-        api,
-        "run_digest_stage",
-        lambda items, query_text, **kwargs: (
+    runtime_test_context.news_service.dependencies = NewsDependencies(
+        search=lambda query, max_items=10: [{"title": query}],
+        enrich=lambda items, **kwargs: items,
+        digest=lambda items, query_text, **kwargs: (
             f"digest {query_text}",
             f"source {query_text}",
             {"total": len(items)},
             [],
         ),
+        discuss=lambda digest, **kwargs: (
+            f"【纳西妲】\nreply for {digest}",
+            "legacy ignored",
+        ),
+        load_runtime_modes=api.load_runtime_modes,
     )
     first = runtime_test_context.group_service.create_thread(title="First")
     second = runtime_test_context.group_service.create_thread(title="Second")
@@ -379,16 +373,9 @@ def test_news_discussion_outputs_remain_isolated_by_group_thread(
 
 def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_context):
     from src import api
+    from src.application.news_service import NewsDependencies
 
     calls = {}
-    monkeypatch.setattr(api, "run_search_stage", lambda query, max_items=10: [{"title": query, "rank": max_items}])
-    monkeypatch.setattr(
-        api,
-        "run_enrich_stage",
-        lambda news_items, max_articles, query_text="", max_chars_per_article=5000: [
-            {**news_items[0], "article_text": query_text, "max_articles": max_articles}
-        ],
-    )
 
     def fake_digest(news_items, query_text, performance_mode, selected_model):
         calls["digest"] = (news_items, query_text, performance_mode, selected_model)
@@ -407,8 +394,15 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
         calls["discussion"] = (digest, interaction_mode, performance_mode, selected_model, source_block, session_id)
         return "discussion", "group"
 
-    monkeypatch.setattr(api, "run_digest_stage", fake_digest)
-    monkeypatch.setattr(api, "run_discussion_stage", fake_discussion)
+    runtime_test_context.news_service.dependencies = NewsDependencies(
+        search=lambda query, max_items=10: [{"title": query, "rank": max_items}],
+        enrich=lambda news_items, max_articles, query_text="", max_chars_per_article=5000: [
+            {**news_items[0], "article_text": query_text, "max_articles": max_articles}
+        ],
+        digest=fake_digest,
+        discuss=fake_discussion,
+        load_runtime_modes=api.load_runtime_modes,
+    )
     monkeypatch.setattr(api, "init_session", lambda: "news-stage-session")
     client = TestClient(app)
 
@@ -461,17 +455,30 @@ def test_news_stage_endpoints_run_individual_steps(monkeypatch, runtime_test_con
     assert run_id in [run["id"] for run in listed.json()["runs"]]
 
 
-def test_news_lookup_endpoint_returns_source_block(monkeypatch):
-    from src import api
+def test_news_lookup_endpoint_returns_source_block():
+    from src.application.runtime_repository import get_web_lookup_service
+    from src.application.web_lookup_service import WebLookupRun
 
-    monkeypatch.setattr(api, "fetch_news_items", lambda **kwargs: [{"title": "A", "source": "S"}])
-    monkeypatch.setattr(api, "format_news_source_block", lambda query, items: f"source:{query}:{len(items)}")
-    monkeypatch.setattr(api, "get_last_feed_warnings", lambda: ["warn"])
+    class FakeLookupService:
+        def lookup(self, query, *, max_items):
+            return WebLookupRun(
+                id="web_lookup_test",
+                query=query,
+                items=[{"title": "A", "source": "S"}],
+                source_block=f"source:{query}:1",
+                warnings=["warn"],
+            )
+
+    app.dependency_overrides[get_web_lookup_service] = FakeLookupService
     client = TestClient(app)
 
-    response = client.post("/news/lookup", json={"query": "OpenAI latest", "max_items": 3})
+    try:
+        response = client.post("/news/lookup", json={"query": "OpenAI latest", "max_items": 3})
+    finally:
+        app.dependency_overrides.pop(get_web_lookup_service, None)
 
     assert response.status_code == 200
+    assert response.json()["run_id"] == "web_lookup_test"
     assert response.json()["news_items"] == [{"title": "A", "source": "S"}]
     assert response.json()["source_block"] == "source:OpenAI latest:1"
     assert response.json()["warnings"] == ["warn"]

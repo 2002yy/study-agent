@@ -1,5 +1,9 @@
 # Technical Stack & Engineering Highlights
 
+> Some sections below describe the legacy Streamlit implementation. The primary
+> runtime and current migration status are defined in
+> [ARCHITECTURE_STATUS.md](ARCHITECTURE_STATUS.md).
+
 本文档梳理 Study Agent 的技术栈、核心技术点和适合对外展示的项目表述口径。
 
 ## 1. Project Positioning

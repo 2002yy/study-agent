@@ -86,6 +86,29 @@ def test_firecrawl_reader_non_json_fails_soft(monkeypatch):
     assert result.error == "non-json-firecrawl-response"
 
 
+def test_firecrawl_reader_parses_large_valid_json_before_truncating_text(monkeypatch):
+    from src.news.readers import firecrawl_reader
+
+    markdown = ("Useful paragraph with factual content. " * 3000).strip()
+    payload = json.dumps({"data": {"markdown": markdown}}).encode("utf-8")
+    monkeypatch.setenv("FIRECRAWL_ALLOW_LOOPBACK", "true")
+    monkeypatch.setattr(
+        firecrawl_reader,
+        "urlopen",
+        lambda req, timeout: _FakeResponse(payload),
+    )
+
+    result = firecrawl_reader.read_with_firecrawl(
+        "https://example.com/story",
+        base_url="http://127.0.0.1:3002",
+        max_chars=5000,
+    )
+
+    assert len(payload) > 40_000
+    assert result.ok is True
+    assert len(result.text) <= 5000
+
+
 def test_article_fetcher_does_not_call_firecrawl_by_default(monkeypatch):
     from src.news import article_fetcher
     from src.news.readers.base import ReaderResult

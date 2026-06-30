@@ -48,9 +48,13 @@ Use this when you have a working local SearXNG instance:
 ```env
 NEWS_ENABLE_SEARXNG=true
 SEARXNG_BASE_URL=http://127.0.0.1:8080
+SEARXNG_ALLOW_LOOPBACK=true
 NEWS_SEARXNG_CATEGORIES=news
 NEWS_SOURCE_TIMEOUT_SECONDS=8
 NEWS_SOURCE_MAX_ATTEMPTS=2
+NEWS_SEARCH_DEADLINE_SECONDS=20
+NEWS_RESOLVE_DEADLINE_SECONDS=10
+NEWS_ARTICLE_DEADLINE_SECONDS=20
 NEWS_ENABLE_JINA_READER=false
 NEWS_ENABLE_FIRECRAWL_READER=false
 ```
@@ -71,6 +75,7 @@ NEWS_ENABLE_SEARXNG=true
 SEARXNG_BASE_URL=http://127.0.0.1:8080
 NEWS_ENABLE_FIRECRAWL_READER=true
 FIRECRAWL_BASE_URL=http://127.0.0.1:3002
+FIRECRAWL_ALLOW_LOOPBACK=true
 # FIRECRAWL_API_KEY=your_optional_key
 NEWS_ENABLE_JINA_READER=false
 ```
@@ -125,6 +130,7 @@ The adapter reads `data.markdown`, `markdown`, `data.content`, or `content` from
 - Firecrawl is disabled unless `NEWS_ENABLE_FIRECRAWL_READER=true`.
 - Jina is disabled unless `NEWS_ENABLE_JINA_READER=true`.
 - Article target URLs must be public HTTP(S) URLs.
+- Local SearXNG/Firecrawl service endpoints require explicit loopback flags.
 - `file://`, localhost, loopback, private IP, and unsafe targets are rejected before hosted reader calls.
 - Login/account/auth pages are filtered by domain policy before article reading.
 

@@ -8,36 +8,34 @@ from typing import Any, Callable
 from src.application.group_chat_service import GroupChatService
 from src.domain.runtime_entities import NewsRun, new_id
 from src.repositories.news_repository import NewsRepository
+from src.web.article_reader import ArticleReader
+from src.web.gateway import WebSearchGateway
 
 
 def _search(query: str, *, max_items: int):
-    from src import api
-
-    return api.run_search_stage(query, max_items=max_items)
+    return WebSearchGateway().search(query, max_items=max_items)
 
 
 def _enrich(items, **kwargs):
-    from src import api
-
-    return api.run_enrich_stage(items, **kwargs)
+    return ArticleReader().enrich(items, **kwargs)
 
 
 def _digest(items, **kwargs):
-    from src import api
+    from src.wechat_service import run_digest_stage
 
-    return api.run_digest_stage(items, **kwargs)
+    return run_digest_stage(items, **kwargs)
 
 
 def _discuss(digest: str, **kwargs):
-    from src import api
+    from src.wechat_service import run_discussion_stage
 
-    return api.run_discussion_stage(digest, **kwargs)
+    return run_discussion_stage(digest, **kwargs)
 
 
 def _runtime_modes():
-    from src import api
+    from src.mode_manager import load_runtime_modes
 
-    return api.load_runtime_modes()
+    return load_runtime_modes()
 
 
 @dataclass(frozen=True)

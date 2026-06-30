@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import json
 import os
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 from src.news.search_sources.base import SearchSourceResult
-from src.news.url_normalizer import is_probable_article_page_url, is_public_http_url
+from src.news.url_normalizer import is_probable_article_page_url
+from src.web.security import validate_service_endpoint
 
 
 _LAST_SEARXNG_ERROR = ""
@@ -38,32 +39,14 @@ def searxng_base_url() -> str:
     return (os.getenv("SEARXNG_BASE_URL") or "").strip().rstrip("/")
 
 
-def _is_explicitly_allowed_local_searxng(base_url: str) -> bool:
-    if not _env_flag("SEARXNG_ALLOW_LOCAL", default=False):
-        return False
-
-    try:
-        parsed = urlparse(base_url)
-    except Exception:
-        return False
-
-    if parsed.scheme.lower() not in {"http", "https"}:
-        return False
-
-    if parsed.username or parsed.password:
-        return False
-
-    hostname = (parsed.hostname or "").lower()
-    return hostname in {"127.0.0.1", "::1", "localhost"}
-
-
 def _valid_base_url(base_url: str) -> bool:
-    return bool(
-        base_url
-        and (
-            is_public_http_url(base_url)
-            or _is_explicitly_allowed_local_searxng(base_url)
-        )
+    return validate_service_endpoint(
+        base_url,
+        allow_loopback=(
+            _env_flag("SEARXNG_ALLOW_LOOPBACK")
+            or _env_flag("SEARXNG_ALLOW_LOCAL")
+        ),
+        allow_private_network=_env_flag("SEARXNG_ALLOW_PRIVATE_NETWORK"),
     )
 
 
@@ -148,6 +131,7 @@ def search_searxng(
     max_results: int = 10,
     timeout: float | None = None,
     base_url: str | None = None,
+    categories: str | None = None,
 ) -> list[dict]:
     """Return normalized news items from SearXNG or [] on any failure."""
     global _LAST_SEARXNG_ERROR
@@ -161,7 +145,7 @@ def search_searxng(
         query,
         configured_base_url,
         max_results=max_results,
-        categories=os.getenv("NEWS_SEARXNG_CATEGORIES", "news"),
+        categories=categories or os.getenv("NEWS_SEARXNG_CATEGORIES", "news"),
     )
     if not search_url:
         return []
