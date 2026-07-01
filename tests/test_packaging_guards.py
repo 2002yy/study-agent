@@ -182,13 +182,15 @@ def test_chat_service_does_not_depend_on_api_package():
 
 def test_frontend_chat_state_is_owned_by_workspace_provider():
     app_text = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    shell_text = Path("frontend/src/AppShell.tsx").read_text(encoding="utf-8")
     controller_text = Path(
         "frontend/src/features/chat/chatController.ts"
     ).read_text(encoding="utf-8")
     main_text = Path("frontend/src/main.tsx").read_text(encoding="utf-8")
 
     assert "<WorkspaceProvider" in main_text
-    assert "useChatController({" in app_text
+    assert "<AppShell" in app_text
+    assert "useChatController({" in shell_text
     assert "useState<ChatMessage[]" not in app_text
     assert "useState<ChatResponse" not in app_text
     assert "useReducer(workspaceReducer" not in app_text

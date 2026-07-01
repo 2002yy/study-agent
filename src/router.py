@@ -30,6 +30,13 @@ FALLBACK_RULES = [
 
 FALLBACK_DEFAULT: tuple[str, str, str, str] = ("nahida", "普通", "flash", "无匹配规则，使用默认")
 
+EXPLICIT_MODE_INTENTS = {
+    "苏格拉底": ("别直接告诉我", "引导我思考", "让我自己推出", "用苏格拉底法"),
+    "费曼": ("我来讲", "我解释一遍", "检查我理解", "你找漏洞", "我复述"),
+    "普通": ("直接回答", "直接告诉我", "给我答案", "停止引导", "不要追问"),
+    "项目": ("现在帮我写成代码", "开始实现", "应用补丁", "帮我排查"),
+}
+
 
 @dataclass
 class RoutingConfig:
@@ -178,6 +185,24 @@ def route_request(
         hit_kw = []
         confidence = "low"
 
+    explicit_mode_intent = next(
+        (
+            candidate
+            for candidate, markers in EXPLICIT_MODE_INTENTS.items()
+            if any(marker in user_input for marker in markers)
+        ),
+        None,
+    )
+    behavior_transition = bool(
+        explicit_mode_intent
+        and previous_mode in {"普通", "苏格拉底", "费曼", "项目"}
+        and explicit_mode_intent != previous_mode
+    )
+    if explicit_mode_intent:
+        auto_mode = cast(Mode, explicit_mode_intent)
+        confidence = "high"
+        auto_reason = f"explicit learning behavior: {explicit_mode_intent}"
+
     llm_used = False
     llm_valid = False
     if confidence == "low" and runtime_modes.allow_llm_router:
@@ -225,6 +250,7 @@ def route_request(
         mode_is_auto
         and previous_mode in valid_modes
         and confidence != "high"
+        and not explicit_mode_intent
         and auto_mode != previous_mode
     ):
         auto_reason = f"mode continuity: kept previous mode {previous_mode}; candidate={auto_mode}; {auto_reason}"
@@ -273,4 +299,6 @@ def route_request(
         "previous_role": previous_role or "",
         "previous_mode": previous_mode or "",
         "keep_current_role": keep_current_role,
+        "explicit_mode_intent": bool(explicit_mode_intent),
+        "behavior_transition": behavior_transition,
     }

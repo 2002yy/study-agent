@@ -5,6 +5,9 @@ compatibility. Tests do ``monkeypatch.setattr(api, "...")`` so
 the package must carry these as direct attributes.
 """
 
+# Legacy compatibility boundary: production modules must import their owning
+# services/providers directly. Keep these attributes frozen for older clients
+# and monkeypatch-based tests; do not add new exports here.
 from .app import app
 
 # ── Models ─────────────────────────────────────────────────────────────

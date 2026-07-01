@@ -77,14 +77,12 @@ to the React frontend. React should prefer these APIs over local fake state.
 | --- | --- | --- | --- |
 | P0 | `POST /after-session/preview` | Generate after-session candidates | Should not write memory; can call LLM |
 | P0 | `POST /after-session/commit` | Commit selected after-session updates | Must respect `safe_mode` and `memory_mode` |
-| P1 | `GET /sessions/{session_id}` | Session detail | Read-only |
-| P1 | `POST /sessions/{session_id}/archive` | Archive session | File move/write |
 | P1 | `GET /stats` | Usage/study stats | Read-only |
 | P1 | `POST /stats/reset` | Reset stats | Destructive write, needs confirmation |
 | P1 | `GET /health/full` | Deep health check | Read-only, can inspect provider/config |
-| P1 | `GET /rag/documents` | Indexed document list | Read-only |
-| P1 | `DELETE /rag/documents/{document_id}` | Remove indexed doc | Destructive write, needs confirmation |
-| P1 | `POST /rag/rebuild` | Rebuild index | Writes index |
+
+Session detail/archive and KnowledgeBase document lifecycle are implemented;
+their stale entries were removed from this gap table.
 
 ## Streamlit Entrypoints To Migrate
 
@@ -93,9 +91,9 @@ to the React frontend. React should prefer these APIs over local fake state.
 | `src/ui/sidebar.py` runtime controls | `/runtime/settings`, `/roles`, `/memory` |
 | `src/ui/chat_panel.py` single chat | `/chat/stream` |
 | `src/ui/after_session_panel.py` after-session flow | `/after-session/preview`, `/after-session/commit` |
-| `src/ui/wechat_panel.py` group lifecycle and messages | `/wechat/state`, `/wechat/thread`, `/wechat/messages`, `/wechat/messages/stream` |
+| `src/ui/wechat_panel.py` group lifecycle and messages | server-owned GroupThread routes and `groupChatController` |
 | `src/ui/wechat_news_panel.py` staged news round | `/news/runs`, then `/news/runs/{run_id}/*` |
-| `src/ui/rag_panel.py` knowledge base controls | `/rag/*`, future `/rag/documents` |
+| `src/ui/rag_panel.py` knowledge base controls | `/rag-runs/*` and `/knowledge-base/documents` |
 
 ## Confirmation Rules
 

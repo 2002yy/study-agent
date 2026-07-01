@@ -65,6 +65,10 @@ class SessionService:
                     }
                 )
         latest = turns[-1] if turns else None
+        latest_completed = next(
+            (turn for turn in reversed(turns) if turn.status == "completed"),
+            None,
+        )
         path = self._thread_path(thread)
         raw = path.read_text(encoding="utf-8")[:4000] if path and path.is_file() else ""
         return {
@@ -76,7 +80,8 @@ class SessionService:
             "route": latest.route_snapshot if latest else {},
             "rag": latest.rag_snapshot if latest else {},
             "learning_state": thread.learning_state,
-            "pedagogy": latest.pedagogy_snapshot if latest else {},
+            "pedagogy": latest_completed.pedagogy_snapshot if latest_completed else {},
+            "latest_attempted_pedagogy": latest.pedagogy_snapshot if latest else {},
             "conversation_instruction": latest.conversation_instruction if latest else "",
             "turns": [
                 {

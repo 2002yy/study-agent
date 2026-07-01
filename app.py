@@ -1,3 +1,9 @@
+"""Legacy Streamlit compatibility UI.
+
+The supported product runtime is the React frontend backed by FastAPI. This
+entrypoint remains only for migration checks.
+"""
+
 from __future__ import annotations
 
 import time
@@ -17,6 +23,9 @@ from src.ui.wechat_panel import render_wechat_panel
 
 st.set_page_config(page_title="学习伙伴 | 个人学习 Agent", layout="wide")
 inject_theme()
+st.warning(
+    "Legacy compatibility UI：主产品入口已迁移到 React（http://127.0.0.1:5173）。"
+)
 
 
 @st.fragment

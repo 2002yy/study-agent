@@ -354,6 +354,7 @@ export type SessionDetailResponse = {
   rag: ChatResponse["rag"] | Record<string, unknown>;
   learning_state: Record<string, unknown>;
   pedagogy: Record<string, unknown>;
+  latest_attempted_pedagogy: Record<string, unknown>;
   conversation_instruction: string;
   turns?: Array<{
     turn_id: string;

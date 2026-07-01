@@ -22,7 +22,15 @@ def plan_socratic(
         and not any(marker in text for marker in REDISCOVERY_MARKERS)
     )
     stuck = any(marker in text for marker in STUCK_MARKERS)
-    concluded = state.turn_count > 0 and any(marker in text for marker in CONCLUSION_MARKERS)
+    learner_evaluation = state.payload.get("learner_response_evaluation", {})
+    concluded = bool(
+        state.turn_count > 0
+        and any(marker in text for marker in CONCLUSION_MARKERS)
+        and learner_evaluation.get("passed")
+    )
+    invalid_claim = bool(
+        learner_evaluation.get("is_claim") and not learner_evaluation.get("passed")
+    )
     external = knowledge_kind in {"empirical", "conventional"}
 
     if direct:
@@ -74,6 +82,29 @@ def plan_socratic(
             confirmed_points=(*state.confirmed_points, text), turn_count=next_count,
         )
 
+    if invalid_claim:
+        plan = PedagogyTurnPlan(
+            mode="socratic_rediscovery",
+            phase="test_assumption",
+            knowledge_kind=knowledge_kind,
+            move="surface_contradiction",
+            disclosure_level=1,
+            learner_claim=text,
+            unresolved_gap=str(
+                learner_evaluation.get("reason", "The conclusion is not yet justified.")
+            ),
+            target_understanding=state.objective,
+            constraints=(
+                "Do not confirm this conclusion. Test the conflicting premise with one concrete case.",
+            ),
+        )
+        return plan, replace(
+            state,
+            phase="test_assumption",
+            learner_claim=text,
+            unresolved_gap=plan.unresolved_gap,
+            turn_count=next_count,
+        )
     if state.turn_count == 0:
         move = "elicit_claim"
         phase = "orientation"

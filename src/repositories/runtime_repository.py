@@ -592,6 +592,74 @@ class RuntimeRepository:
             raise ValueError(f"Chat turn not found: {turn_id}")
         return updated
 
+    def complete_chat_turn_with_pedagogy(
+        self,
+        turn_id: str,
+        *,
+        assistant_message: str,
+        learning_state: dict[str, Any],
+        pedagogy_snapshot: dict[str, Any],
+        route_snapshot: dict[str, Any],
+        rag_snapshot: dict[str, Any],
+        operation_id: str,
+        supersede_parent_turn_id: str | None = None,
+    ) -> ChatTurn:
+        current = self.get_chat_turn(turn_id)
+        if current is None:
+            raise ValueError(f"Chat turn not found: {turn_id}")
+        now = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_turns
+                SET assistant_message = ?, status = 'completed',
+                    route_snapshot = ?, rag_snapshot = ?,
+                    pedagogy_snapshot = ?, updated_at = ?
+                WHERE id = ? AND status = 'streaming' AND operation_id = ?
+                """,
+                (
+                    assistant_message,
+                    _dump(route_snapshot),
+                    _dump(rag_snapshot),
+                    _dump(pedagogy_snapshot),
+                    now,
+                    turn_id,
+                    operation_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(f"Chat turn operation ownership lost: {turn_id}")
+            thread_cursor = connection.execute(
+                """
+                UPDATE chat_threads
+                SET learning_state = ?, active_operation_id = NULL,
+                    active_operation_started_at = NULL, updated_at = ?,
+                    version = version + 1
+                WHERE id = ? AND status = 'active' AND active_operation_id = ?
+                """,
+                (_dump(learning_state), now, current.thread_id, operation_id),
+            )
+            if thread_cursor.rowcount != 1:
+                raise ValueError(f"Chat operation ownership lost: {operation_id}")
+            if supersede_parent_turn_id is not None:
+                superseded = connection.execute(
+                    """
+                    UPDATE chat_turns
+                    SET status = 'superseded', updated_at = ?
+                    WHERE id = ? AND thread_id = ?
+                      AND status IN ('interrupted', 'failed')
+                    """,
+                    (now, supersede_parent_turn_id, current.thread_id),
+                )
+                if superseded.rowcount != 1:
+                    raise ValueError(
+                        f"Retry parent is not supersedable: {supersede_parent_turn_id}"
+                    )
+        completed = self.get_chat_turn(turn_id)
+        if completed is None:
+            raise ValueError(f"Chat turn not found after completion: {turn_id}")
+        return completed
+
     def get_chat_turn(self, turn_id: str) -> ChatTurn | None:
         with self.database.connect() as connection:
             row = connection.execute("SELECT * FROM chat_turns WHERE id = ?", (turn_id,)).fetchone()

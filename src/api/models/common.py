@@ -21,6 +21,7 @@ class SessionDetailResponse(BaseModel):
     rag: dict = Field(default_factory=dict)
     learning_state: dict = Field(default_factory=dict)
     pedagogy: dict = Field(default_factory=dict)
+    latest_attempted_pedagogy: dict = Field(default_factory=dict)
     conversation_instruction: str = ""
     turns: list[dict] = Field(default_factory=list)
     raw: str = ""

@@ -414,3 +414,50 @@ def test_concurrent_operation_settings_belong_to_lease_winner(tmp_path):
     assert stored is not None
     assert stored.active_operation_id == winner
     assert stored.settings_snapshot == {"owner": winner}
+
+
+def test_turn_completion_and_pedagogy_state_commit_atomically(tmp_path):
+    db_path = tmp_path / "runtime.db"
+    repository = RuntimeRepository(RuntimeDatabase(db_path))
+    thread = repository.create_chat_thread(
+        ChatThread(learning_state={"phase": "orientation"})
+    )
+    repository.acquire_chat_operation(thread.id, "operation-1")
+    turn = repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            status="streaming",
+            operation_id="operation-1",
+        )
+    )
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TRIGGER reject_completed_turn
+            BEFORE UPDATE OF status ON chat_turns
+            WHEN NEW.status = 'completed'
+            BEGIN
+                SELECT RAISE(ABORT, 'simulated completion failure');
+            END
+            """
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="simulated completion failure"):
+        repository.complete_chat_turn_with_pedagogy(
+            turn.id,
+            assistant_message="answer",
+            learning_state={"phase": "transfer"},
+            pedagogy_snapshot={"after": {"phase": "transfer"}},
+            route_snapshot={},
+            rag_snapshot={},
+            operation_id="operation-1",
+        )
+
+    stored_thread = repository.get_chat_thread(thread.id)
+    stored_turn = repository.get_chat_turn(turn.id)
+    assert stored_thread is not None
+    assert stored_thread.learning_state == {"phase": "orientation"}
+    assert stored_thread.active_operation_id == "operation-1"
+    assert stored_turn is not None
+    assert stored_turn.status == "streaming"

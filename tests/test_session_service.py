@@ -323,3 +323,34 @@ def test_concurrent_legacy_import_is_idempotent(tmp_path):
     assert sum(results) == 1
     assert repository.get_chat_thread("concurrent") is not None
     assert len(repository.list_chat_turns("concurrent")) == 1
+
+
+def test_session_separates_committed_and_latest_attempted_pedagogy(tmp_path):
+    service, repository = _service(tmp_path)
+    thread = service.create_session({})
+    repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="first",
+            assistant_message="committed",
+            status="completed",
+            pedagogy_snapshot={"after": {"phase": "orientation"}},
+        )
+    )
+    repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="retry",
+            assistant_message="failed",
+            status="failed",
+            pedagogy_snapshot={"after": {"phase": "transfer"}},
+        )
+    )
+
+    detail = service.get_session(thread.id)
+
+    assert detail is not None
+    assert detail["pedagogy"] == {"after": {"phase": "orientation"}}
+    assert detail["latest_attempted_pedagogy"] == {
+        "after": {"phase": "transfer"}
+    }
