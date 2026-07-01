@@ -1,9 +1,6 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { LocalKnowledgeInvocation } from "../api";
-import { operationRegistry } from "./operationRegistry";
 import { useWorkspace } from "./WorkspaceProvider";
 import { useWorkspaceBootstrap } from "./WorkspaceBootstrap";
-import { WorkspaceCoordinator } from "./WorkspaceCoordinator";
 import {
   useWorkspacePersistence,
   type WorkspaceRecovery,
@@ -14,19 +11,10 @@ import {
 } from "../layout/Sidebar";
 import { Inspector } from "../layout/Inspector";
 import { GlobalNotices } from "../layout/GlobalNotices";
-import { useMemoryController } from "../features/learning-memory/memoryController";
-import { useRagController } from "../features/rag/ragController";
-import { useUploadController } from "../features/rag/uploadController";
-import { createEmptyRag, useChatController } from "../features/chat/chatController";
+import { useWorkspaceControllers } from "./useWorkspaceControllers";
+import { createEmptyRag } from "../features/chat/chatController";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { seedMessages } from "../features/single-chat/chatHistory";
-import { useToolController } from "../features/tools/toolController";
-import { useRoleController } from "../features/roles/roleController";
-import { useSettingsController } from "../features/settings/settingsController";
-import { useGroupChatController } from "../features/group-chat/groupChatController";
-import { useNewsController } from "../features/news-workspace/newsController";
-import { useWebLookupController } from "../features/web-lookup/webLookupController";
-import { useWorkflowController } from "../features/workflows/workflowController";
 import type {
   ChatSettings,
   RagSettings
@@ -41,7 +29,6 @@ export default function WorkspaceRuntime() {
   const [ragSettings, setRagSettings] = useState<RagSettings>(RAG_SETTINGS_DEFAULTS);
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [conversationInstruction, setConversationInstruction] = useState("");
-  const wechatThreadId = workspaceRuntime.activeGroupThreadId ?? snapshot.wechat?.group_thread_id;
   const newsRunId = workspaceRuntime.activeNewsRunId;
   const toolRunId = workspaceRuntime.activeToolRunId;
   const memoryRunId = workspaceRuntime.activeMemoryRunId;
@@ -61,105 +48,29 @@ export default function WorkspaceRuntime() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
-  const roleController = useRoleController(chatSettings.selectedRole);
-  const workflowController = useWorkflowController();
-  const settingsController = useSettingsController({
-    chatSettings,
-    ragSettings,
-    ragEnabled,
-    setRuntimeSettings: (runtimeSettings) =>
-      setSnapshot((current) => ({ ...current, runtimeSettings })),
-    setOperationError,
-    refresh,
-  });
-
-  const groupController = useGroupChatController({
-    wechat: snapshot.wechat,
-    setWechat: (wechat) => setSnapshot((current) => ({ ...current, wechat })),
-    chatSettings,
-    ragSettings,
-    ragEnabled,
-    clearAssociatedNews: () => {
-      setNewsRunId(undefined);
-    },
-  });
-
-  const newsController = useNewsController({
-    query: newsQuery,
-    readArticles,
-    chatSettings,
+  const {
+    activeQuery,
     groupThreadId: wechatThreadId,
-    activeRunId: newsRunId,
-    setActiveRunId: setNewsRunId,
-    onDiscussed: (threadId) => {
-      setWechatThreadId(threadId);
-      void refresh();
-    },
-  });
-  const webLookupController = useWebLookupController({
-    query: newsQuery,
-    setOperationError,
-    activeRunId: webLookupRunId,
-    setActiveRunId: setWebLookupRunId,
-  });
-  const memoryController = useMemoryController({
-    activeRunId: memoryRunId,
-    setActiveRunId: setMemoryRunId,
-    onMemoryChanged: refresh,
-  });
-  const ragController = useRagController({
-    settings: ragSettings,
-    activeRunId: ragQueryRunId,
-    setActiveRunId: setRagQueryRunId,
-    setOperationError,
-  });
-  const uploadController = useUploadController({
-    activeRunId: ragWriteRunId,
-    setActiveRunId: setRagWriteRunId,
-    setOperationError,
-    onChanged: refresh,
-  });
-  const webLookup = webLookupController.result;
-  const useWebLookup = webLookupController.useInChat;
-  const setUseWebLookup = webLookupController.setUseInChat;
-  const workspaceCoordinator = useMemo(
-    () =>
-      new WorkspaceCoordinator(
-        {
-          cancelChat: () => operationRegistry.cancelAll(),
-          cancelGroup: groupController.cancelWorkspace,
-          cancelNews: newsController.cancelWorkspace,
-          cancelWebLookup: webLookupController.cancel,
-          invalidateTool: () => operationRegistry.invalidate("tool"),
-        },
-        {
-          clearRag: ragController.clear,
-          clearToolRun: () => setToolRunId(undefined),
-          clearWorkflow: workflowController.clear,
-        }
-      ),
-    [
-      groupController.cancelWorkspace,
-      newsController.cancelWorkspace,
-      webLookupController.cancel,
-      ragController.clear,
-      workflowController.clear,
-    ]
-  );
-
-  useEffect(() => {
-    const serverThreadId = snapshot.wechat?.group_thread_id;
-    if (serverThreadId && workspaceRuntime.activeGroupThreadId !== serverThreadId) {
-      setWechatThreadId(serverThreadId);
-    }
-  }, [snapshot.wechat?.group_thread_id, workspaceRuntime.activeGroupThreadId]);
-
-  const chatController = useChatController({
+    roleController,
+    workflowController,
+    settingsController,
+    groupController,
+    newsController,
+    webLookupController,
+    memoryController,
+    ragController,
+    uploadController,
+    chatController,
+    toolController,
+  } = useWorkspaceControllers({
+    snapshot,
+    setSnapshot,
+    refresh,
+    input,
+    setInput,
     chatSettings,
-    chatSettingsDefaults: CHAT_SETTINGS_DEFAULTS,
     setChatSettings,
     ragSettings,
-    ragSettingsDefaults: RAG_SETTINGS_DEFAULTS,
     setRagSettings,
     ragEnabled,
     setRagEnabled,
@@ -167,42 +78,35 @@ export default function WorkspaceRuntime() {
     setKeepCurrentRole,
     conversationInstruction,
     setConversationInstruction,
-    webLookupSource: webLookup?.source_block ?? "",
-    useWebLookup,
-    setUseWebLookup,
-    setInput,
-    setOperationError,
-    clearChatArtifacts: workspaceCoordinator.clearChatArtifacts.bind(workspaceCoordinator),
-    onWorkspaceCancelled:
-      workspaceCoordinator.cancelAllActiveOperations.bind(workspaceCoordinator),
-    refresh,
+    newsQuery,
+    readArticles,
+    operationError: setOperationError,
+    activeGroupThreadId: workspaceRuntime.activeGroupThreadId,
+    runIds: {
+      news: newsRunId, tool: toolRunId, memory: memoryRunId,
+      ragQuery: ragQueryRunId, ragWrite: ragWriteRunId,
+      webLookup: webLookupRunId,
+    },
+    setGroupThreadId: setWechatThreadId,
+    setRunId: {
+      news: setNewsRunId, tool: setToolRunId, memory: setMemoryRunId,
+      ragQuery: setRagQueryRunId, ragWrite: setRagWriteRunId,
+      webLookup: setWebLookupRunId,
+    },
   });
+  const webLookup = webLookupController.result;
+  const useWebLookup = webLookupController.useInChat;
+  const setUseWebLookup = webLookupController.setUseInChat;
   const singleChatMessages = chatController.messages;
   const setSingleChatMessages = chatController.setMessages;
   const lastChat = chatController.lastChat;
   const setLastChat = chatController.setLastChat;
   const streamRecovery = chatController.streamRecovery;
   const singleChatSessionId = chatController.threadId;
-  const setSingleChatSessionId = chatController.setThreadId;
   const isSending = chatController.isSending;
-  const cancelWorkspaceRuns = chatController.cancelWorkspaceRuns;
-
-  const activeQuery = input.trim() || lastChat?.rag?.query || "";
-  const partialErrors = Object.entries(snapshot.errors ?? {}).filter(([key]) => key !== "health");
-  const currentToolInvocation: LocalKnowledgeInvocation = {
-    query: activeQuery,
-    retrievalMode: ragSettings.retrievalMode,
-    topK: ragSettings.chatTopK,
-    minScore: ragSettings.minScore
-  };
-  const toolController = useToolController({
-    invocation: currentToolInvocation,
-    activeRunId: toolRunId,
-    setActiveRunId: setToolRunId,
-    onCalled: async () => {
-      await refresh();
-    },
-  });
+  const partialErrors = Object.entries(snapshot.errors ?? {}).filter(
+    ([key]) => key !== "health"
+  );
 
   const restoreWorkspace = useCallback((parsed: WorkspaceRecovery | null) => {
     if (!parsed) {

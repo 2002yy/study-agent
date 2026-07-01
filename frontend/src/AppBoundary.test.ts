@@ -35,14 +35,14 @@ describe("App shell boundary", () => {
   });
 
   it("keeps runtime side effects behind dedicated boundaries", () => {
-    expect(runtimeSource.split(/\r?\n/).length).toBeLessThanOrEqual(450);
+    expect(runtimeSource.split(/\r?\n/).length).toBeLessThanOrEqual(360);
     expect(runtimeSource).not.toContain("localStorage");
     expect(runtimeSource).not.toContain("SESSION_STORAGE_KEY");
     expect(runtimeSource).not.toContain("loadApiSnapshot");
     expect(runtimeSource).not.toContain("serverQueryCache");
     expect(runtimeSource).toContain("useWorkspaceBootstrap()");
     expect(runtimeSource).toContain("useWorkspacePersistence({");
-    expect(runtimeSource).toContain("new WorkspaceCoordinator(");
+    expect(runtimeSource).not.toContain("new WorkspaceCoordinator(");
     for (const presentationImport of [
       "RoleAvatar",
       "StatusDot",
@@ -61,5 +61,6 @@ describe("App shell boundary", () => {
     expect(runtimeSource).toContain('from "../layout/Sidebar"');
     expect(runtimeSource).toContain('from "../layout/Inspector"');
     expect(runtimeSource).toContain('from "../layout/GlobalNotices"');
+    expect(runtimeSource).toContain("useWorkspaceControllers({");
   });
 });
