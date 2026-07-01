@@ -29,11 +29,10 @@ Updated: 2026-07-01
    hash-locked commit, controller and display-only panel.
 3. **P2 — RAG/KnowledgeBase:** durable query/upload/rebuild runs, controllers,
    document lifecycle and monotonic index versions.
-4. **P3 — Shell convergence (partial):** shared server query cache,
-   settings/role/workflow controllers and a composition-only `App.tsx` are
-   complete. Workspace bootstrap, schema-versioned persistence and cross-feature
-   coordination have moved out of `AppShell`; layout extraction and remaining
-   state wiring are still open.
+4. **P3 — Shell convergence (complete):** shared server query cache,
+   settings/role/workflow controllers, composition-only `App.tsx`, layout-only
+   `AppShell`, schema-versioned persistence, cross-feature coordination,
+   recovery and view binding all have explicit owners.
 
 `AppShell` is now genuinely layout-only rather than a renamed application
 component. The remaining large composition root is explicitly named
