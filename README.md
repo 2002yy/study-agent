@@ -108,7 +108,7 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 | **角色群聊** | 四位角色（三月七、刻晴、纳西妲、流萤）群聊讨论，各有独立人设 |
 | **联网搜索** | Google News + Bing News + RSSHub 多源聚合，页面正文三层提取 |
 | **来源追溯** | 搜索结果写入群聊记录，可回溯依据 |
-| **RAG MVP** | 本地 Markdown / TXT / DOCX / PDF 文档索引，前端面板返回带文件路径、行号、分数、命中词和 score breakdown 的引用片段，并可注入单人聊天和微信群互动回复；FastAPI 提供 `/health`、`/rag`、`/rag/index`、`/rag/query`、`/rag/status`、`/rag/upload`、`/rag/local-knowledge` |
+| **RAG / KnowledgeBase** | 本地 Markdown / TXT / DOCX / PDF 文档索引；查询、追加和重建均保存为可恢复的 `RagRun`，支持文档列表、删除和索引版本；旧 `/rag/query`、`/rag/upload` 暂作兼容入口 |
 | **课后总结** | 学习完成后自动总结进展，用户确认后写入记忆 |
 | **长期记忆** | 学习者画像、进度追踪、项目上下文、当前焦点，多级记忆档案 |
 | **多 Provider** | 支持 OpenAI / DeepSeek / OpenRouter / SiliconFlow / 本地模型 |

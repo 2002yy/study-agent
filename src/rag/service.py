@@ -46,6 +46,23 @@ def _transactional_save_index(index: RagIndex, target: Path) -> None:
             temp_path.unlink()
 
 
+def _next_index_version(target: Path) -> int:
+    if not target.is_file():
+        return 1
+    try:
+        return load_rag_index(target).version + 1
+    except (OSError, ValueError, KeyError):
+        return 1
+
+
+def _with_version(index: RagIndex, version: int) -> RagIndex:
+    return RagIndex(
+        version=version,
+        documents=index.documents,
+        chunks=index.chunks,
+    )
+
+
 def _completed_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
     return {
         "name": "local",
@@ -90,6 +107,7 @@ def index_documents(
         max_chars=max_chars,
         overlap_chars=overlap_chars,
     )
+    index = _with_version(index, _next_index_version(Path(index_path)))
     _transactional_save_index(index, Path(index_path))
     get_vector_backend_from_env().upsert_index(index)
     return index
@@ -108,6 +126,7 @@ def index_documents_with_stages(
         max_chars=max_chars,
         overlap_chars=overlap_chars,
     )
+    index = _with_version(index, _next_index_version(target))
     _transactional_save_index(index, target)
     return RagIndexWriteResult(
         index=index,
@@ -142,7 +161,7 @@ def append_documents_to_index(
     added_hashes = {doc.content_hash for doc in added_docs}
     added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
     merged = RagIndex(
-        version=new_index.version,
+        version=existing.version + 1 if target.is_file() else 1,
         documents=existing.documents + added_docs,
         chunks=existing.chunks + added_chunks,
     )
@@ -174,7 +193,7 @@ def append_documents_to_index_with_stages(
     added_hashes = {doc.content_hash for doc in added_docs}
     added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
     merged = RagIndex(
-        version=new_index.version,
+        version=existing.version + 1 if target.is_file() else 1,
         documents=existing.documents + added_docs,
         chunks=existing.chunks + added_chunks,
     )
@@ -186,6 +205,76 @@ def append_documents_to_index_with_stages(
             _vector_stage(merged),
         ],
     )
+
+
+def list_knowledge_documents(
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+) -> dict[str, Any]:
+    target = Path(index_path)
+    if not target.is_file():
+        return {
+            "index_path": str(target),
+            "index_exists": False,
+            "index_version": 0,
+            "documents": [],
+            "chunks": 0,
+        }
+    index = load_rag_index(target)
+    chunk_counts: dict[str, int] = {}
+    for chunk in index.chunks:
+        chunk_counts[chunk.document_hash] = chunk_counts.get(chunk.document_hash, 0) + 1
+    return {
+        "index_path": str(target),
+        "index_exists": True,
+        "index_version": index.version,
+        "documents": [
+            {
+                "document_id": document.content_hash,
+                "title": document.title,
+                "source_path": document.source_path,
+                "file_type": document.file_type,
+                "content_hash": document.content_hash,
+                "chunks": chunk_counts.get(document.content_hash, 0),
+                "metadata": document.metadata,
+            }
+            for document in index.documents
+        ],
+        "chunks": len(index.chunks),
+    }
+
+
+def delete_knowledge_document(
+    document_id: str,
+    *,
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+) -> dict[str, Any]:
+    target = Path(index_path)
+    index = load_rag_index(target)
+    documents = tuple(
+        document for document in index.documents
+        if document.content_hash != document_id
+    )
+    if len(documents) == len(index.documents):
+        raise ValueError(f"Knowledge document not found: {document_id}")
+    chunks = tuple(
+        chunk for chunk in index.chunks
+        if chunk.document_hash != document_id
+    )
+    updated = RagIndex(
+        version=index.version + 1,
+        documents=documents,
+        chunks=chunks,
+    )
+    _transactional_save_index(updated, target)
+    vector_stage = _vector_stage(updated)
+    return {
+        "deleted_document_id": document_id,
+        "documents": len(updated.documents),
+        "chunks": len(updated.chunks),
+        "index_path": str(target),
+        "index_version": updated.version,
+        "stages": [_completed_local_stage(updated, target), vector_stage],
+    }
 
 
 def query_documents(

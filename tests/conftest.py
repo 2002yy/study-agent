@@ -10,12 +10,16 @@ from src.api import app
 from src.application.chat_service import ChatDependencies, ChatService
 from src.application.group_chat_service import GroupChatService, GroupDependencies
 from src.application.news_service import NewsService
+from src.application.memory_service import MemoryService
+from src.application.rag_run_service import RagRunService
 from src.application.web_lookup_service import WebLookupService
 from src.application.tool_service import ToolService
 from src.application.runtime_repository import (
     get_chat_service,
     get_group_service,
     get_news_service,
+    get_memory_service,
+    get_rag_run_service,
     get_session_service,
     get_tool_service,
     get_web_lookup_service,
@@ -28,6 +32,8 @@ from src.performance_budget import chat_max_tokens
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
+from src.repositories.memory_repository import MemoryRepository
+from src.repositories.rag_repository import RagRepository
 from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.router import route_request
@@ -58,6 +64,10 @@ class RuntimeTestContext:
     group_service: GroupChatService
     news_repository: NewsRepository
     news_service: NewsService
+    memory_repository: MemoryRepository
+    memory_service: MemoryService
+    rag_repository: RagRepository
+    rag_run_service: RagRunService
     tool_repository: ToolRepository
     tool_service: ToolService
     web_lookup_repository: WebLookupRepository
@@ -121,6 +131,10 @@ def runtime_test_context(tmp_path):
     )
     news_repository = NewsRepository(RuntimeDatabase(api_root / "runtime.db"))
     news_service = NewsService(news_repository, group_service)
+    memory_repository = MemoryRepository(RuntimeDatabase(api_root / "runtime.db"))
+    memory_service = MemoryService(memory_repository)
+    rag_repository = RagRepository(RuntimeDatabase(api_root / "runtime.db"))
+    rag_run_service = RagRunService(rag_repository)
     tool_repository = ToolRepository(RuntimeDatabase(api_root / "runtime.db"))
     tool_service = ToolService(
         tool_repository,
@@ -133,6 +147,8 @@ def runtime_test_context(tmp_path):
     app.dependency_overrides[get_session_service] = lambda: session_service
     app.dependency_overrides[get_group_service] = lambda: group_service
     app.dependency_overrides[get_news_service] = lambda: news_service
+    app.dependency_overrides[get_memory_service] = lambda: memory_service
+    app.dependency_overrides[get_rag_run_service] = lambda: rag_run_service
     app.dependency_overrides[get_tool_service] = lambda: tool_service
     app.dependency_overrides[get_web_lookup_service] = lambda: web_lookup_service
     context = RuntimeTestContext(
@@ -144,6 +160,10 @@ def runtime_test_context(tmp_path):
         group_service=group_service,
         news_repository=news_repository,
         news_service=news_service,
+        memory_repository=memory_repository,
+        memory_service=memory_service,
+        rag_repository=rag_repository,
+        rag_run_service=rag_run_service,
         tool_repository=tool_repository,
         tool_service=tool_service,
         web_lookup_repository=web_lookup_repository,
@@ -154,5 +174,7 @@ def runtime_test_context(tmp_path):
     app.dependency_overrides.pop(get_session_service, None)
     app.dependency_overrides.pop(get_group_service, None)
     app.dependency_overrides.pop(get_news_service, None)
+    app.dependency_overrides.pop(get_memory_service, None)
+    app.dependency_overrides.pop(get_rag_run_service, None)
     app.dependency_overrides.pop(get_tool_service, None)
     app.dependency_overrides.pop(get_web_lookup_service, None)

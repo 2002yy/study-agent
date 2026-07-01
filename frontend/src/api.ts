@@ -7,6 +7,7 @@ import type {
   MemoryCommitResponse,
   MemoryPreviewResponse,
   MemoryStatusResponse,
+  MemoryRunResponse,
   MemoryUpdate,
   NewsLookupResponse,
   WebLookupRunResponse,
@@ -15,6 +16,8 @@ import type {
   RagIndexResponse,
   RagQueryResponse,
   RagStatusResponse,
+  RagRunResponse,
+  KnowledgeDocumentListResponse,
   RoleResponse,
   SessionDetailResponse,
   SessionArchiveResponse,
@@ -272,6 +275,24 @@ export async function commitMemoryUpdates(updates: MemoryUpdate[]): Promise<Memo
     method: "POST",
     body: JSON.stringify({ updates })
   });
+}
+
+export async function createMemoryRun(updates: MemoryUpdate[]): Promise<MemoryRunResponse> {
+  return requestJson<MemoryRunResponse>("/memory-runs", {
+    method: "POST",
+    body: JSON.stringify({ updates })
+  });
+}
+
+export async function loadMemoryRun(runId: string): Promise<MemoryRunResponse> {
+  return requestJson<MemoryRunResponse>(`/memory-runs/${encodeURIComponent(runId)}`);
+}
+
+export async function commitMemoryRun(runId: string): Promise<MemoryRunResponse> {
+  return requestJson<MemoryRunResponse>(
+    `/memory-runs/${encodeURIComponent(runId)}/commit`,
+    { method: "POST" }
+  );
 }
 
 export async function loadWechatState(groupThreadId?: string): Promise<WechatStateResponse> {
@@ -612,6 +633,49 @@ export async function queryRag(query: string, settings: RagSettings): Promise<Ra
       min_score: settings.minScore,
       retrieval_mode: settings.retrievalMode
     })
+  });
+}
+
+export async function createRagQueryRun(query: string, settings: RagSettings): Promise<RagRunResponse> {
+  return requestJson<RagRunResponse>("/rag-runs/query", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      top_k: settings.topK,
+      min_score: settings.minScore,
+      retrieval_mode: settings.retrievalMode
+    })
+  });
+}
+
+export async function createRagWriteRun(
+  files: File[],
+  mode: "upload" | "rebuild"
+): Promise<RagRunResponse> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+  return uploadForm<RagRunResponse>(
+    mode === "rebuild" ? "/rag-runs/rebuild" : "/rag-runs/upload",
+    formData
+  );
+}
+
+export async function loadRagRun(runId: string): Promise<RagRunResponse> {
+  return requestJson<RagRunResponse>(`/rag-runs/${encodeURIComponent(runId)}`);
+}
+
+export async function loadKnowledgeDocuments(): Promise<KnowledgeDocumentListResponse> {
+  return requestJson<KnowledgeDocumentListResponse>("/knowledge-base/documents");
+}
+
+export async function deleteKnowledgeDocument(documentId: string): Promise<{
+  deleted_document_id: string;
+  documents: number;
+  chunks: number;
+  index_version: number;
+}> {
+  return requestJson(`/knowledge-base/documents/${encodeURIComponent(documentId)}`, {
+    method: "DELETE"
   });
 }
 

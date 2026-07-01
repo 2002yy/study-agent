@@ -126,6 +126,39 @@ class WebLookupRun:
 
 
 @dataclass(frozen=True)
+class MemoryRun:
+    id: str = field(default_factory=lambda: new_id("memory"))
+    status: str = "previewed"
+    updates: list[dict[str, Any]] = field(default_factory=list)
+    updates_hash: str = ""
+    preview: dict[str, Any] = field(default_factory=dict)
+    result: dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    previewed_at: str | None = None
+    completed_at: str | None = None
+    version: int = 1
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+
+
+@dataclass(frozen=True)
+class RagRun:
+    id: str = field(default_factory=lambda: new_id("rag"))
+    kind: str = "query"
+    status: str = "running"
+    request: dict[str, Any] = field(default_factory=dict)
+    result: dict[str, Any] = field(default_factory=dict)
+    error: str = ""
+    index_version: int = 0
+    version: int = 1
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+    completed_at: str | None = None
+
+
+@dataclass(frozen=True)
 class ToolRun:
     id: str = field(default_factory=lambda: new_id("tool"))
     tool_name: str = ""

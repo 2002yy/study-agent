@@ -17,6 +17,7 @@ class RagIndexResponse(BaseModel):
     chunks: int
     index_path: str
     stages: list[dict] = Field(default_factory=list)
+    index_version: int = 0
 
 
 class RagStatusResponse(BaseModel):
@@ -24,6 +25,7 @@ class RagStatusResponse(BaseModel):
     index_exists: bool
     documents: int = 0
     chunks: int = 0
+    index_version: int = 0
     vector_backend: dict
 
 
@@ -74,3 +76,48 @@ class LocalKnowledgeResponse(BaseModel):
     debug: dict
     attempts: list[dict]
     rewritten_query: str
+
+
+class RagRunResponse(BaseModel):
+    id: str
+    kind: str
+    status: str
+    request: dict
+    result: dict
+    error: str
+    index_version: int
+    version: int
+    created_at: str
+    updated_at: str
+    completed_at: str | None
+
+
+class RagRunListResponse(BaseModel):
+    runs: list[RagRunResponse]
+
+
+class KnowledgeDocumentResponse(BaseModel):
+    document_id: str
+    title: str
+    source_path: str
+    file_type: str
+    content_hash: str
+    chunks: int
+    metadata: dict
+
+
+class KnowledgeDocumentListResponse(BaseModel):
+    index_path: str
+    index_exists: bool
+    index_version: int
+    documents: list[KnowledgeDocumentResponse]
+    chunks: int
+
+
+class KnowledgeDocumentDeleteResponse(BaseModel):
+    deleted_document_id: str
+    documents: int
+    chunks: int
+    index_path: str
+    index_version: int
+    stages: list[dict]

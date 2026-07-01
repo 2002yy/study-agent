@@ -9,9 +9,11 @@ from pathlib import Path
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
+from src.repositories.memory_repository import MemoryRepository
 from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.repositories.runtime_repository import RuntimeRepository
+from src.repositories.rag_repository import RagRepository
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNTIME_DB = ROOT / "logs" / "runtime" / "study_agent.db"
@@ -44,6 +46,11 @@ def get_runtime_repository() -> RuntimeRepository:
 
 
 @lru_cache(maxsize=1)
+def get_rag_repository() -> RagRepository:
+    return RagRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_group_repository() -> GroupRepository:
     return GroupRepository(RuntimeDatabase(runtime_database_path()))
 
@@ -51,6 +58,11 @@ def get_group_repository() -> GroupRepository:
 @lru_cache(maxsize=1)
 def get_news_repository() -> NewsRepository:
     return NewsRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_memory_repository() -> MemoryRepository:
+    return MemoryRepository(RuntimeDatabase(runtime_database_path()))
 
 
 @lru_cache(maxsize=1)
@@ -68,6 +80,13 @@ def get_chat_service():
     from src.application.chat_service import ChatService
 
     return ChatService(get_runtime_repository())
+
+
+@lru_cache(maxsize=1)
+def get_rag_run_service():
+    from src.application.rag_run_service import RagRunService
+
+    return RagRunService(get_rag_repository())
 
 
 @lru_cache(maxsize=1)
@@ -102,6 +121,13 @@ def get_news_service():
 
 
 @lru_cache(maxsize=1)
+def get_memory_service():
+    from src.application.memory_service import MemoryService
+
+    return MemoryService(get_memory_repository())
+
+
+@lru_cache(maxsize=1)
 def get_web_lookup_service():
     from src.application.web_lookup_service import WebLookupService
 
@@ -126,11 +152,15 @@ def reset_runtime_repository_cache() -> None:
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()
+    get_memory_service.cache_clear()
     get_group_service.cache_clear()
     get_chat_service.cache_clear()
+    get_rag_run_service.cache_clear()
     get_session_service.cache_clear()
     get_group_repository.cache_clear()
     get_news_repository.cache_clear()
+    get_memory_repository.cache_clear()
     get_tool_repository.cache_clear()
     get_web_lookup_repository.cache_clear()
     get_runtime_repository.cache_clear()
+    get_rag_repository.cache_clear()

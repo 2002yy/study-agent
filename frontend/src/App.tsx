@@ -19,9 +19,7 @@ import {
   loadApiSnapshot,
   loadRole,
   loadWorkflowRun,
-  queryRag,
-  saveRuntimeSettings,
-  uploadDocuments
+  saveRuntimeSettings
 } from "./api";
 import type { LocalKnowledgeInvocation } from "./api";
 import { operationRegistry } from "./app/operationRegistry";
@@ -29,8 +27,11 @@ import { useWorkspace } from "./app/WorkspaceProvider";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
+import { useMemoryController } from "./features/learning-memory/memoryController";
 import { RoadmapPanel } from "./features/migration/RoadmapPanel";
 import { SourcesPanel } from "./features/rag/SourcesPanel";
+import { useRagController } from "./features/rag/ragController";
+import { useUploadController } from "./features/rag/uploadController";
 import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { createEmptyRag, useChatController } from "./features/chat/chatController";
@@ -51,7 +52,6 @@ import type {
   ChatResponse,
   ChatSettings,
   NewsLookupResponse,
-  RagIndexResponse,
   RagQueryResponse,
   RagSettings,
   RoleResponse,
@@ -86,18 +86,6 @@ const RAG_SETTINGS_DEFAULTS: RagSettings = {
   minScore: 0.01,
   chatTopK: 3
 };
-
-function describeRagUploadResult(result: RagIndexResponse): string {
-  const vectorStage = result.stages?.find((stage) => stage.name === "vector");
-  const base = `已索引 ${result.documents} 个文档、${result.chunks} 个片段`;
-  if (!vectorStage) {
-    return base;
-  }
-  if (vectorStage.status === "completed") {
-    return `${base}；向量后端已同步`;
-  }
-  return `${base}；向量后端同步失败：${vectorStage.detail ?? "未知错误"}`;
-}
 
 const roleDescriptions: Record<string, string> = {
   auto: "后端根据问题自动选择合适角色。",
@@ -202,8 +190,8 @@ function Sidebar({
 }: {
   snapshot: ApiSnapshot;
   ragEnabled: boolean;
-  ragUploadMode: "append" | "rebuild";
-  setRagUploadMode: (mode: "append" | "rebuild") => void;
+  ragUploadMode: "upload" | "rebuild";
+  setRagUploadMode: (mode: "upload" | "rebuild") => void;
   setRagEnabled: (value: boolean) => void;
   chatSettings: ChatSettings;
   setChatSettings: (value: ChatSettings) => void;
@@ -250,9 +238,9 @@ function Sidebar({
       <div className="upload-mode">
         <label>
           <input
-            checked={ragUploadMode === "append"}
+            checked={ragUploadMode === "upload"}
             name="rag-upload-mode"
-            onChange={() => setRagUploadMode("append")}
+            onChange={() => setRagUploadMode("upload")}
             type="radio"
           />
           添加到现有知识库
@@ -566,7 +554,8 @@ function Inspector({
   wechatError,
   isNewsBusy,
   isSending,
-  onMemoryChanged
+  memoryController,
+  uploadController
 }: {
   snapshot: ApiSnapshot;
   singleChatSessionId?: string;
@@ -600,7 +589,8 @@ function Inspector({
   wechatError: string;
   isNewsBusy: boolean;
   isSending: boolean;
-  onMemoryChanged: () => Promise<void> | void;
+  memoryController: ReturnType<typeof useMemoryController>;
+  uploadController: ReturnType<typeof useUploadController>;
 }) {
   return (
     <aside className="inspector">
@@ -628,7 +618,13 @@ function Inspector({
         error={wechatError}
         isNewsBusy={isNewsBusy}
       />
-      <SourcesPanel lastChat={lastChat} ragSearch={ragSearch} isSearching={isSearching} />
+      <SourcesPanel
+        lastChat={lastChat}
+        ragSearch={ragSearch}
+        isSearching={isSearching}
+        knowledgeBase={uploadController.documents}
+        onDeleteDocument={(documentId) => void uploadController.removeDocument(documentId)}
+      />
       <TimelinePanel
         runs={snapshot.workflowRuns}
         selectedRun={selectedRun}
@@ -649,7 +645,7 @@ function Inspector({
       />
       <SessionsPanel sessions={snapshot.sessions} activeSessionId={singleChatSessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
-      <MemoryPanel memoryStatus={snapshot.memoryStatus} onMemoryChanged={onMemoryChanged} />
+      <MemoryPanel memoryStatus={snapshot.memoryStatus} controller={memoryController} />
     </aside>
   );
 }
@@ -664,21 +660,23 @@ export default function App() {
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [conversationInstruction, setConversationInstruction] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const wechatThreadId = workspaceRuntime.activeGroupThreadId ?? snapshot.wechat?.group_thread_id;
   const newsRunId = workspaceRuntime.activeNewsRunId;
   const toolRunId = workspaceRuntime.activeToolRunId;
+  const memoryRunId = workspaceRuntime.activeMemoryRunId;
+  const ragQueryRunId = workspaceRuntime.activeRagQueryRunId;
+  const ragWriteRunId = workspaceRuntime.activeRagWriteRunId;
   const webLookupRunId = workspaceRuntime.activeWebLookupRunId;
   const setWechatThreadId = (threadId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_GROUP_THREAD", threadId });
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
   const setToolRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_TOOL_RUN", runId });
+  const setMemoryRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_MEMORY_RUN", runId });
+  const setRagQueryRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_RAG_QUERY_RUN", runId });
+  const setRagWriteRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_RAG_WRITE_RUN", runId });
   const setWebLookupRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_WEB_LOOKUP_RUN", runId });
-  const [ragSearch, setRagSearch] = useState<RagQueryResponse | null>(null);
   const [selectedRun, setSelectedRun] = useState<WorkflowRunDetail | null>(null);
   const [roleDetail, setRoleDetail] = useState<RoleResponse | null>(null);
   const [loadingRunId, setLoadingRunId] = useState("");
-  const [uploadState, setUploadState] = useState("");
-  const [ragUploadMode, setRagUploadMode] = useState<"append" | "rebuild">("append");
   const [newsQuery, setNewsQuery] = useState("最新新闻 when:1d");
   const [readArticles, setReadArticles] = useState(true);
   const [operationError, setOperationError] = useState("");
@@ -720,6 +718,23 @@ export default function App() {
     activeRunId: webLookupRunId,
     setActiveRunId: setWebLookupRunId,
   });
+  const memoryController = useMemoryController({
+    activeRunId: memoryRunId,
+    setActiveRunId: setMemoryRunId,
+    onMemoryChanged: refresh,
+  });
+  const ragController = useRagController({
+    settings: ragSettings,
+    activeRunId: ragQueryRunId,
+    setActiveRunId: setRagQueryRunId,
+    setOperationError,
+  });
+  const uploadController = useUploadController({
+    activeRunId: ragWriteRunId,
+    setActiveRunId: setRagWriteRunId,
+    setOperationError,
+    onChanged: refresh,
+  });
   const webLookup = webLookupController.result;
   const useWebLookup = webLookupController.useInChat;
   const setUseWebLookup = webLookupController.setUseInChat;
@@ -750,7 +765,7 @@ export default function App() {
     setInput,
     setOperationError,
     clearChatArtifacts: () => {
-      setRagSearch(null);
+      ragController.clear();
       operationRegistry.invalidate("tool");
       setToolRunId(undefined);
       setSelectedRun(null);
@@ -799,6 +814,9 @@ export default function App() {
         const restoredWechatThreadId = String(parsed.wechatThreadId ?? "");
         const restoredNewsRunId = String(parsed.newsRunId ?? "");
         const restoredToolRunId = String(parsed.toolRunId ?? "");
+        const restoredMemoryRunId = String(parsed.memoryRunId ?? "");
+        const restoredRagQueryRunId = String(parsed.ragQueryRunId ?? "");
+        const restoredRagWriteRunId = String(parsed.ragWriteRunId ?? "");
         const restoredWebLookupRunId = String(parsed.webLookupRunId ?? "");
         if (restoredWechatThreadId) {
           setWechatThreadId(restoredWechatThreadId);
@@ -808,6 +826,15 @@ export default function App() {
         }
         if (restoredToolRunId) {
           setToolRunId(restoredToolRunId);
+        }
+        if (restoredMemoryRunId) {
+          setMemoryRunId(restoredMemoryRunId);
+        }
+        if (restoredRagQueryRunId) {
+          setRagQueryRunId(restoredRagQueryRunId);
+        }
+        if (restoredRagWriteRunId) {
+          setRagWriteRunId(restoredRagWriteRunId);
         }
         if (restoredWebLookupRunId) {
           setWebLookupRunId(restoredWebLookupRunId);
@@ -894,6 +921,9 @@ export default function App() {
       wechatThreadId,
       newsRunId,
       toolRunId,
+      memoryRunId,
+      ragQueryRunId,
+      ragWriteRunId,
       webLookupRunId,
       chatSettings,
       ragSettings,
@@ -910,7 +940,7 @@ export default function App() {
       window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
     }, isSending ? 800 : 200);
     return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, webLookupRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
+  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, memoryRunId, ragQueryRunId, ragWriteRunId, webLookupRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
 
   useEffect(() => {
     const flushSessionStorage = () => {
@@ -966,21 +996,7 @@ export default function App() {
   const continueInterruptedChat = chatController.continueInterrupted;
   const copyInterruptedReply = chatController.copyInterrupted;
 
-  const searchSources = async () => {
-    if (!activeQuery || isSearching) {
-      return;
-    }
-    setIsSearching(true);
-    setOperationError("");
-    try {
-      setRagSearch(await queryRag(activeQuery, ragSettings));
-    } catch (error) {
-      setRagSearch(null);
-      setOperationError(`本地资料检索失败：${error instanceof Error ? error.message : "来源检索失败"}`);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  const searchSources = () => ragController.search(activeQuery);
 
   const saveSettings = async () => {
     setIsSavingSettings(true);
@@ -1052,25 +1068,14 @@ export default function App() {
       return;
     }
     if (
-      ragUploadMode === "rebuild" &&
+      uploadController.mode === "rebuild" &&
       !window.confirm(`将用本次 ${files.length} 个文件重建整个知识库索引，旧索引会被替换。继续吗？`)
     ) {
       event.target.value = "";
       return;
     }
-    setUploadState(`${ragUploadMode === "append" ? "正在追加索引" : "正在重建索引"} ${files.length} 个文件...`);
-    setOperationError("");
-    try {
-      const result = await uploadDocuments(files, ragUploadMode);
-      setUploadState(describeRagUploadResult(result));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "未知错误";
-      setUploadState(`上传失败：${message}`);
-      setOperationError(`资料上传失败：${message}`);
-    } finally {
-      await refresh();
-      event.target.value = "";
-    }
+    await uploadController.upload(files);
+    event.target.value = "";
   };
 
   return (
@@ -1086,8 +1091,8 @@ export default function App() {
       <Sidebar
         snapshot={snapshot}
         ragEnabled={ragEnabled}
-        ragUploadMode={ragUploadMode}
-        setRagUploadMode={setRagUploadMode}
+        ragUploadMode={uploadController.mode}
+        setRagUploadMode={uploadController.setMode}
         setRagEnabled={setRagEnabled}
         chatSettings={chatSettings}
         setChatSettings={setChatSettings}
@@ -1105,7 +1110,7 @@ export default function App() {
         isSending={isSending}
         refresh={refresh}
         onUploadClick={() => fileInputRef.current?.click()}
-        uploadState={uploadState}
+        uploadState={uploadController.status}
         lastChat={lastChat}
       />
       <ChatPanel
@@ -1122,7 +1127,7 @@ export default function App() {
         onCopyInterruptedReply={copyInterruptedReply}
         onUploadClick={() => fileInputRef.current?.click()}
         onSearchSources={searchSources}
-        isSearching={isSearching}
+        isSearching={ragController.isSearching}
         hasSearchQuery={Boolean(activeQuery)}
         onQuickPrompt={setInput}
         lastChat={lastChat}
@@ -1134,8 +1139,8 @@ export default function App() {
         singleChatSessionId={singleChatSessionId}
         wechatThreadId={wechatThreadId}
         lastChat={lastChat}
-        ragSearch={ragSearch}
-        isSearching={isSearching}
+        ragSearch={ragController.result}
+        isSearching={ragController.isSearching}
         selectedRun={selectedRun}
         loadingRunId={loadingRunId}
         selectRun={selectRun}
@@ -1162,7 +1167,8 @@ export default function App() {
         wechatError={groupController.error}
         isNewsBusy={webLookupController.isBusy}
         isSending={isSending}
-        onMemoryChanged={refresh}
+        memoryController={memoryController}
+        uploadController={uploadController}
       />
       {snapshot.error ? (
         <div className="api-warning">

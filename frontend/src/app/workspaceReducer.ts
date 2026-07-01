@@ -16,6 +16,9 @@ export type WorkspaceRuntimeState = {
   activeNewsRunId?: string;
   activeWebLookupRunId?: string;
   activeToolRunId?: string;
+  activeMemoryRunId?: string;
+  activeRagQueryRunId?: string;
+  activeRagWriteRunId?: string;
   chatMessages: ChatMessage[];
   lastChat: ChatResponse | null;
   streamRecovery: StreamRecoveryState | null;
@@ -29,6 +32,9 @@ export type WorkspaceAction =
   | { type: "SET_ACTIVE_NEWS_RUN"; runId?: string }
   | { type: "SET_ACTIVE_WEB_LOOKUP_RUN"; runId?: string }
   | { type: "SET_ACTIVE_TOOL_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_MEMORY_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_RAG_QUERY_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_RAG_WRITE_RUN"; runId?: string }
   | { type: "SET_CHAT_MESSAGES"; value: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]) }
   | { type: "SET_LAST_CHAT"; value: ChatResponse | null | ((current: ChatResponse | null) => ChatResponse | null) }
   | { type: "SET_STREAM_RECOVERY"; value: StreamRecoveryState | null }
@@ -72,6 +78,12 @@ export function workspaceReducer(
       return { ...state, activeWebLookupRunId: action.runId };
     case "SET_ACTIVE_TOOL_RUN":
       return { ...state, activeToolRunId: action.runId };
+    case "SET_ACTIVE_MEMORY_RUN":
+      return { ...state, activeMemoryRunId: action.runId };
+    case "SET_ACTIVE_RAG_QUERY_RUN":
+      return { ...state, activeRagQueryRunId: action.runId };
+    case "SET_ACTIVE_RAG_WRITE_RUN":
+      return { ...state, activeRagWriteRunId: action.runId };
     case "SET_CHAT_MESSAGES":
       return {
         ...state,
@@ -111,6 +123,9 @@ export function workspaceReducer(
         activeNewsRunId: undefined,
         activeWebLookupRunId: undefined,
         activeToolRunId: undefined,
+        activeMemoryRunId: undefined,
+        activeRagQueryRunId: undefined,
+        activeRagWriteRunId: undefined,
         transitionVersion: state.transitionVersion + 1
       };
     case "RESET_GROUP_THREAD":

@@ -47,3 +47,24 @@ class MemoryCommitResponse(BaseModel):
     writable: bool
     results: list[dict[str, str]]
     errors: list[dict[str, str]] | None = None
+
+
+class MemoryRunResponse(BaseModel):
+    id: str
+    status: str
+    updates: list[dict]
+    updates_hash: str
+    preview: dict
+    result: dict
+    reason: str
+    active_operation_id: str | None
+    active_operation_started_at: str | None
+    previewed_at: str | None
+    completed_at: str | None
+    version: int
+    created_at: str
+    updated_at: str
+
+
+class MemoryRunListResponse(BaseModel):
+    runs: list[MemoryRunResponse]

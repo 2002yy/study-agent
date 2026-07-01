@@ -30,6 +30,7 @@ export type RagIndexResponse = {
     backend?: Record<string, unknown>;
     index_path?: string;
   }>;
+  index_version?: number;
 };
 
 export type RagChunk = {
@@ -192,6 +193,26 @@ export type MemoryCommitResponse = {
   }>;
 };
 
+export type MemoryRunResponse = {
+  id: string;
+  status: "previewed" | "running" | "succeeded" | "partial" | "failed" | "blocked";
+  updates: MemoryUpdate[];
+  updates_hash: string;
+  preview: MemoryPreviewResponse;
+  result: {
+    results?: MemoryCommitResponse["results"];
+    errors?: NonNullable<MemoryCommitResponse["errors"]>;
+  };
+  reason: string;
+  active_operation_id?: string | null;
+  active_operation_started_at?: string | null;
+  previewed_at?: string | null;
+  completed_at?: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WechatStateResponse = {
   group_thread_id: string;
   state: Record<string, unknown>;
@@ -347,6 +368,38 @@ export type SessionDetailResponse = {
     pedagogy_snapshot?: Record<string, unknown>;
   }>;
   raw: string;
+};
+
+export type RagRunResponse = {
+  id: string;
+  kind: "query" | "upload" | "rebuild";
+  status: "running" | "completed" | "failed";
+  request: Record<string, unknown>;
+  result: Record<string, unknown>;
+  error: string;
+  index_version: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+};
+
+export type KnowledgeDocument = {
+  document_id: string;
+  title: string;
+  source_path: string;
+  file_type: string;
+  content_hash: string;
+  chunks: number;
+  metadata: Record<string, unknown>;
+};
+
+export type KnowledgeDocumentListResponse = {
+  index_path: string;
+  index_exists: boolean;
+  index_version: number;
+  documents: KnowledgeDocument[];
+  chunks: number;
 };
 
 export type WebLookupRunResponse = {

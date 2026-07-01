@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from dataclasses import asdict
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from src.api.models.rag import (
     LocalKnowledgeRequest,
@@ -12,9 +15,20 @@ from src.api.models.rag import (
     RagQueryRequest,
     RagQueryResponse,
     RagStatusResponse,
+    RagRunListResponse,
+    RagRunResponse,
+    KnowledgeDocumentDeleteResponse,
+    KnowledgeDocumentListResponse,
 )
+from src.application.rag_run_service import RagRunService
+from src.application.runtime_repository import get_rag_run_service
 
 router = APIRouter(tags=["rag"])
+RagRunServiceDependency = Annotated[RagRunService, Depends(get_rag_run_service)]
+
+
+def _run_response(run) -> RagRunResponse:
+    return RagRunResponse(**asdict(run))
 
 
 def _index_path(value: str | None) -> __import__("pathlib").Path:
@@ -31,10 +45,12 @@ def rag_status(index_path: str | None = None) -> RagStatusResponse:
     target = _index_path(index_path)
     documents = 0
     chunks = 0
+    index_version = 0
     if target.exists():
         index = load_rag_index(target)
         documents = len(index.documents)
         chunks = len(index.chunks)
+        index_version = index.version
     try:
         backend_status = get_vector_backend_from_env().status().to_dict()
     except Exception as exc:
@@ -48,18 +64,21 @@ def rag_status(index_path: str | None = None) -> RagStatusResponse:
         index_exists=target.exists(),
         documents=documents,
         chunks=chunks,
+        index_version=index_version,
         vector_backend=backend_status,
     )
 
 
-@router.post("/rag/index", response_model=RagIndexResponse)
-def build_rag_index_endpoint(request: RagIndexRequest) -> RagIndexResponse:
-    from src.api import index_documents_with_stages
-
+@router.post("/rag-runs/index", response_model=RagRunResponse)
+def create_rag_index_run(
+    request: RagIndexRequest,
+    service: RagRunServiceDependency,
+) -> RagRunResponse:
     try:
         target = _index_path(request.index_path)
-        result = index_documents_with_stages(
-            request.paths,
+        run = service.index(
+            [__import__("pathlib").Path(path) for path in request.paths],
+            mode="rebuild",
             index_path=target,
             max_chars=request.max_chars,
             overlap_chars=request.overlap_chars,
@@ -69,35 +88,23 @@ def build_rag_index_endpoint(request: RagIndexRequest) -> RagIndexResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return RagIndexResponse(
-        documents=len(result.index.documents),
-        chunks=len(result.index.chunks),
-        index_path=str(target),
-        stages=result.stages,
-    )
+    return _run_response(run)
 
 
-@router.post("/rag/upload", response_model=RagIndexResponse)
-async def upload_rag_documents(
-    files: list[UploadFile] = File(...),
-    index_path: str | None = None,
-    max_chars: int = 900,
-    overlap_chars: int = 120,
-    mode: str = "append",
+@router.post("/rag/index", response_model=RagIndexResponse, deprecated=True)
+def build_rag_index_endpoint(
+    request: RagIndexRequest,
+    service: RagRunServiceDependency,
 ) -> RagIndexResponse:
-    from src.api import append_documents_to_index_with_stages, index_documents_with_stages
+    run = create_rag_index_run(request, service)
+    return RagIndexResponse(**run.result)
+
+
+async def _save_uploads(files: list[UploadFile]):
+    from src.application.helpers import _api_path, unique_upload_path
 
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
-    if max_chars <= 0 or max_chars > 10_000:
-        raise HTTPException(status_code=400, detail="max_chars out of range")
-    if overlap_chars < 0 or overlap_chars > 5_000:
-        raise HTTPException(status_code=400, detail="overlap_chars out of range")
-    if mode not in {"append", "rebuild"}:
-        raise HTTPException(status_code=400, detail="mode must be append or rebuild")
-
-    from src.application.helpers import _api_path, unique_upload_path
-
     upload_dir = _api_path("RAG_UPLOAD_DIR")
     upload_dir.mkdir(parents=True, exist_ok=True)
     saved_paths = []
@@ -106,95 +113,176 @@ async def upload_rag_documents(
         target = unique_upload_path(upload_dir, uploaded.filename, used_names)
         target.write_bytes(await uploaded.read())
         saved_paths.append(target)
+    return saved_paths
 
-    target_index = _index_path(index_path)
+
+async def _create_upload_run(
+    *,
+    files: list[UploadFile],
+    service: RagRunService,
+    mode: str,
+    index_path: str | None,
+    max_chars: int,
+    overlap_chars: int,
+) -> RagRunResponse:
+    if max_chars <= 0 or max_chars > 10_000:
+        raise HTTPException(status_code=400, detail="max_chars out of range")
+    if overlap_chars < 0 or overlap_chars > 5_000:
+        raise HTTPException(status_code=400, detail="overlap_chars out of range")
+    saved_paths = await _save_uploads(files)
     try:
-        if mode == "rebuild":
-            result = index_documents_with_stages(
-                saved_paths,
-                index_path=target_index,
-                max_chars=max_chars,
-                overlap_chars=overlap_chars,
-            )
-        else:
-            result = append_documents_to_index_with_stages(
-                saved_paths,
-                index_path=target_index,
-                max_chars=max_chars,
-                overlap_chars=overlap_chars,
-            )
+        run = service.index(
+            saved_paths,
+            mode=mode,
+            index_path=_index_path(index_path),
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _run_response(run)
 
-    return RagIndexResponse(
-        documents=len(result.index.documents),
-        chunks=len(result.index.chunks),
-        index_path=str(target_index),
-        stages=result.stages,
+
+@router.post("/rag-runs/upload", response_model=RagRunResponse)
+async def create_rag_upload_run(
+    service: RagRunServiceDependency,
+    files: list[UploadFile] = File(...),
+    index_path: str | None = None,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagRunResponse:
+    return await _create_upload_run(
+        files=files, service=service, mode="upload", index_path=index_path,
+        max_chars=max_chars, overlap_chars=overlap_chars,
     )
 
 
-@router.post("/rag/query", response_model=RagQueryResponse)
-def query_rag_endpoint(request: RagQueryRequest) -> RagQueryResponse:
-    from src.api import (
-        build_rag_context,
-        build_rag_debug,
-        format_rag_sources,
-        load_rag_index,
-        search_documents,
+@router.post("/rag-runs/rebuild", response_model=RagRunResponse)
+async def create_rag_rebuild_run(
+    service: RagRunServiceDependency,
+    files: list[UploadFile] = File(...),
+    index_path: str | None = None,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+) -> RagRunResponse:
+    return await _create_upload_run(
+        files=files, service=service, mode="rebuild", index_path=index_path,
+        max_chars=max_chars, overlap_chars=overlap_chars,
     )
-    from src.rag.eval import RagEvalCase, evaluate_case
 
+
+@router.post("/rag/upload", response_model=RagIndexResponse)
+async def upload_rag_documents(
+    service: RagRunServiceDependency,
+    files: list[UploadFile] = File(...),
+    index_path: str | None = None,
+    max_chars: int = 900,
+    overlap_chars: int = 120,
+    mode: str = "append",
+) -> RagIndexResponse:
+    if mode not in {"append", "rebuild"}:
+        raise HTTPException(status_code=400, detail="mode must be append or rebuild")
+    run = await _create_upload_run(
+        files=files, service=service,
+        mode="rebuild" if mode == "rebuild" else "upload",
+        index_path=index_path, max_chars=max_chars,
+        overlap_chars=overlap_chars,
+    )
+    return RagIndexResponse(**run.result)
+
+
+@router.post("/rag-runs/query", response_model=RagRunResponse)
+def create_rag_query_run(
+    request: RagQueryRequest,
+    service: RagRunServiceDependency,
+) -> RagRunResponse:
     try:
-        index = load_rag_index(_index_path(request.index_path))
-        results = search_documents(
-            index,
-            request.query,
-            top_k=request.top_k,
-            min_score=request.min_score,
-            retrieval_mode=request.retrieval_mode,
+        run = service.query(
+            request.model_dump(exclude={"index_path"}),
+            index_path=_index_path(request.index_path),
         )
-        debug = build_rag_debug(
-            index,
-            request.query,
-            results,
-            retrieval_mode=request.retrieval_mode,
-            top_k=request.top_k,
-            min_score=request.min_score,
-        )
-        evaluation = None
-        if request.expected_sources:
-            evaluation = evaluate_case(
-                index,
-                RagEvalCase(
-                    query=request.query,
-                    expected_sources=tuple(request.expected_sources),
-                    expected_terms=tuple(request.expected_terms),
-                    top_k=request.top_k,
-                    retrieval_mode=request.retrieval_mode,
-                ),
-                min_score=request.min_score,
-            ).to_dict()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="RAG index not found") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _run_response(run)
 
-    return RagQueryResponse(
-        query=request.query,
-        retrieval_mode=request.retrieval_mode,
-        result_count=len(results),
-        context=build_rag_context(results, max_chars=request.context_max_chars),
-        sources=format_rag_sources(results),
-        results=[result.to_dict() for result in results],
-        debug=debug,
-        evaluation=evaluation,
+
+@router.post("/rag/query", response_model=RagQueryResponse, deprecated=True)
+def query_rag_endpoint(
+    request: RagQueryRequest,
+    service: RagRunServiceDependency,
+) -> RagQueryResponse:
+    run = create_rag_query_run(request, service)
+    return RagQueryResponse(**run.result)
+
+
+@router.post("/rag", response_model=RagQueryResponse, deprecated=True)
+def query_rag_alias(
+    request: RagQueryRequest,
+    service: RagRunServiceDependency,
+) -> RagQueryResponse:
+    return query_rag_endpoint(request, service)
+
+
+@router.get("/rag-runs", response_model=RagRunListResponse)
+def list_rag_runs(
+    service: RagRunServiceDependency,
+    kind: str | None = None,
+    limit: int = 20,
+) -> RagRunListResponse:
+    return RagRunListResponse(
+        runs=[
+            _run_response(run)
+            for run in service.list(kind=kind, limit=limit)
+        ]
     )
 
 
-@router.post("/rag", response_model=RagQueryResponse)
-def query_rag_alias(request: RagQueryRequest) -> RagQueryResponse:
-    return query_rag_endpoint(request)
+@router.get("/rag-runs/{run_id}", response_model=RagRunResponse)
+def get_rag_run(
+    run_id: str,
+    service: RagRunServiceDependency,
+) -> RagRunResponse:
+    try:
+        return _run_response(service.get(run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/knowledge-base/documents",
+    response_model=KnowledgeDocumentListResponse,
+)
+def list_knowledge_base_documents(
+    service: RagRunServiceDependency,
+    index_path: str | None = None,
+) -> KnowledgeDocumentListResponse:
+    return KnowledgeDocumentListResponse(
+        **service.documents(index_path=_index_path(index_path))
+    )
+
+
+@router.delete(
+    "/knowledge-base/documents/{document_id}",
+    response_model=KnowledgeDocumentDeleteResponse,
+)
+def delete_knowledge_base_document(
+    document_id: str,
+    service: RagRunServiceDependency,
+    index_path: str | None = None,
+) -> KnowledgeDocumentDeleteResponse:
+    try:
+        return KnowledgeDocumentDeleteResponse(
+            **service.delete_document(
+                document_id,
+                index_path=_index_path(index_path),
+            )
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="RAG index not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/rag/local-knowledge", response_model=LocalKnowledgeResponse)

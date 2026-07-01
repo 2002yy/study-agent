@@ -25,13 +25,22 @@ to the React frontend. React should prefer these APIs over local fake state.
 | Roles | `GET /roles/{role_id}` | P0 implemented | Read-only | Role prompt preview |
 | Memory | `GET /memory` | P0 implemented | Read-only | Memory mode, safe mode, focus/progress/summary previews |
 | RAG | `GET /rag/status` | Existing | Read-only | Knowledge base status |
-| RAG | `POST /rag/upload` | Existing | Writes uploaded docs and index | Upload and index docs |
+| RAG | `POST /rag-runs/upload` | Sealed | Persists append run and index version | `uploadController` |
+| RAG | `POST /rag-runs/rebuild` | Sealed | Persists rebuild run and index version | `uploadController` |
+| RAG | `GET /rag-runs/{id}` | Sealed | Read-only | Refresh recovery |
+| KnowledgeBase | `GET /knowledge-base/documents` | Sealed | Read-only | Document list and index version |
+| KnowledgeBase | `DELETE /knowledge-base/documents/{id}` | Sealed | Deletes document and advances index version | Document lifecycle |
+| RAG | `POST /rag/upload` | Temporary compatibility | Delegates to durable RagRun workflow | Legacy clients |
 | RAG | `POST /rag/index` | Existing | Writes index | Rebuild index from paths |
-| RAG | `POST /rag/query` | Existing | Read-only | Source inspector |
+| RAG | `POST /rag-runs/query` | Sealed | Persists query request/result | `ragController` |
+| RAG | `POST /rag/query` | Temporary compatibility | Delegates to durable RagRun workflow | Legacy clients |
 | Chat | `POST /chat` | Existing | Writes session logs | Non-streaming single chat fallback |
 | Chat | `POST /chat/stream` | Sealed | Writes committed turns through ChatService | Streaming single chat |
-| Memory | `POST /memory/preview` | Existing | Read-only preview | Generic memory write preview |
-| Memory | `POST /memory/commit` | Existing | Writes memory files when allowed | Generic memory commit |
+| Memory | `POST /memory-runs` | Sealed | Freezes updates, hash and preview | `memoryController` |
+| Memory | `POST /memory-runs/{id}/commit` | Sealed | Commits frozen server payload only | Hash-locked commit |
+| Memory | `GET /memory-runs/{id}` | Sealed | Read-only | Refresh recovery |
+| Memory | `POST /memory/preview` | Temporary compatibility | Creates a MemoryRun and returns legacy shape | Legacy clients |
+| Memory | `POST /memory/commit` | Temporary compatibility | Creates and immediately commits a MemoryRun | Legacy clients |
 | Sessions | `GET /sessions` | Existing | Read-only | Session list |
 | Sessions | `POST /sessions/{session_id}/flush` | Existing | Flushes current session log | Manual flush |
 | Tools | `GET /tools` | Existing | Read-only | Tool registry |

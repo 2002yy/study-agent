@@ -1,22 +1,18 @@
 import { AlertTriangle, CheckCircle2, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
-import { commitMemoryUpdates, previewMemoryUpdates } from "../../api";
 import { StatusDot } from "../../components/StatusDot";
-import type { MemoryCommitResponse, MemoryPreviewResponse, MemoryStatusResponse, MemoryUpdate } from "../../types";
+import type { MemoryStatusResponse } from "../../types";
 import { basename } from "../../utils/format";
+import type { useMemoryController } from "./memoryController";
+export {
+  buildMemoryUpdatePayload,
+  buildMemoryUpdatePayloads
+} from "./memoryController";
 
-export type MemoryDraft = {
-  id?: string;
-  target: string;
-  content: string;
-  replaceCurrentFocus: boolean;
-  learnerPending: boolean;
-  enabled?: boolean;
-};
+type MemoryController = ReturnType<typeof useMemoryController>;
 
 type MemoryPanelProps = {
   memoryStatus: MemoryStatusResponse | null;
-  onMemoryChanged?: () => Promise<void> | void;
+  controller: MemoryController;
 };
 
 const TARGET_OPTIONS = [
@@ -27,134 +23,29 @@ const TARGET_OPTIONS = [
   { value: "project_context", label: "project_context.md", hint: "项目背景和长期约束" }
 ] as const;
 
-const createDraft = (index: number): MemoryDraft => ({
-  id: `draft-${Date.now()}-${index}`,
-  target: index === 0 ? "progress" : "summary",
-  content: "",
-  replaceCurrentFocus: false,
-  learnerPending: false,
-  enabled: true
-});
-
-export function buildMemoryUpdatePayload(draft: MemoryDraft): MemoryUpdate | null {
-  if (draft.enabled === false) {
-    return null;
-  }
-  const content = draft.content.trim();
-  if (!content) {
-    return null;
-  }
-  return {
-    target: draft.target,
-    content,
-    append: draft.target === "current_focus" ? !draft.replaceCurrentFocus : true,
-    learner_pending: draft.learnerPending
-  };
-}
-
-export function buildMemoryUpdatePayloads(drafts: MemoryDraft[]): MemoryUpdate[] {
-  return drafts.flatMap((draft) => {
-    const payload = buildMemoryUpdatePayload(draft);
-    return payload ? [payload] : [];
-  });
-}
-
 function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {
   return memoryStatus?.files.find((file) => file.name === name);
 }
 
-export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps) {
-  const [drafts, setDrafts] = useState<MemoryDraft[]>([createDraft(0)]);
-  const [preview, setPreview] = useState<MemoryPreviewResponse | null>(null);
-  const [previewedPayloads, setPreviewedPayloads] = useState<MemoryUpdate[] | null>(null);
-  const [commitResult, setCommitResult] = useState<MemoryCommitResponse | null>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [isCommitting, setIsCommitting] = useState(false);
-  const [error, setError] = useState("");
-
+export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
+  const {
+    drafts,
+    preview,
+    commitResult,
+    isPreviewing,
+    isCommitting,
+    error,
+    canPreview,
+    updateDraft,
+    addDraft,
+    removeDraft,
+    previewUpdates,
+    commitRun
+  } = controller;
   const focus = previewFile(memoryStatus, "current_focus.md");
   const progress = previewFile(memoryStatus, "progress.md");
   const summary = previewFile(memoryStatus, "summary.md");
-  const updatePayloads = useMemo(() => buildMemoryUpdatePayloads(drafts), [drafts]);
   const activeDraftCount = drafts.filter((draft) => draft.enabled !== false && draft.content.trim()).length;
-
-  const updateDraft = <K extends keyof MemoryDraft>(id: string | undefined, key: K, value: MemoryDraft[K]) => {
-    setDrafts((current) => current.map((draft) => (draft.id === id ? { ...draft, [key]: value } : draft)));
-    setError("");
-    setCommitResult(null);
-    setPreview(null);
-    setPreviewedPayloads(null);
-  };
-
-  const addDraft = () => {
-    setDrafts((current) => [...current, createDraft(current.length)]);
-    setError("");
-    setPreview(null);
-    setPreviewedPayloads(null);
-  };
-
-  const removeDraft = (id: string | undefined) => {
-    setDrafts((current) => (current.length === 1 ? current : current.filter((draft) => draft.id !== id)));
-    setError("");
-    setPreview(null);
-    setPreviewedPayloads(null);
-  };
-
-  const handlePreview = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!updatePayloads.length) {
-      setError("请先填写至少一条启用的记忆候选。");
-      return;
-    }
-    setIsPreviewing(true);
-    setError("");
-    setCommitResult(null);
-    try {
-      const frozenPayloads = updatePayloads.map((payload) => ({ ...payload }));
-      setPreview(await previewMemoryUpdates(frozenPayloads));
-      setPreviewedPayloads(frozenPayloads);
-    } catch (err) {
-      setPreview(null);
-      setPreviewedPayloads(null);
-      setError(err instanceof Error ? err.message : "记忆预览失败");
-    } finally {
-      setIsPreviewing(false);
-    }
-  };
-
-  const handleCommit = async () => {
-    if (!preview || !preview.writable || !previewedPayloads?.length) {
-      setError("请先生成可写预览，再确认写入。");
-      return;
-    }
-    setIsCommitting(true);
-    setError("");
-    try {
-      const result = await commitMemoryUpdates(previewedPayloads);
-      setCommitResult(result);
-      setPreview(null);
-      setPreviewedPayloads(null);
-      if (result.errors?.length) {
-        // Partial failure: preserve failed candidate from commit, clear succeeded ones
-        const failedTargets = new Set(result.errors.map((e) => e.target));
-        setDrafts((current) => current.filter((draft) => failedTargets.has(draft.target) && draft.content.trim()));
-        if (!result.results.length) {
-          setError(`所有写入均失败：${result.errors.map((e) => `${e.target}: ${e.error}`).join(", ")}`);
-          setIsCommitting(false);
-          return;
-        }
-        // Partial success: succeeded candidates cleared, failed ones stay
-        setError(`部分写入失败：${result.errors.map((e) => `${e.target}: ${e.error}`).join(", ")}`);
-      } else {
-        setDrafts([createDraft(0)]);
-      }
-      await onMemoryChanged?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "记忆提交失败");
-    } finally {
-      setIsCommitting(false);
-    }
-  };
 
   return (
     <section className="panel compact" id="memory">
@@ -183,7 +74,7 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
               ) : null
             )}
           </div>
-          <form className="memory-workbench" onSubmit={handlePreview}>
+          <form className="memory-workbench" onSubmit={(event) => { event.preventDefault(); void previewUpdates(); }}>
             <div className="memory-workbench-heading">
               <strong>写入候选</strong>
               <span>{activeDraftCount} 条将进入预览</span>
@@ -269,13 +160,13 @@ export function MemoryPanel({ memoryStatus, onMemoryChanged }: MemoryPanelProps)
               添加候选
             </button>
             <div className="memory-actions">
-              <button disabled={isPreviewing || !updatePayloads.length} type="submit">
+              <button disabled={isPreviewing || !canPreview} type="submit">
                 {isPreviewing ? "预览中..." : "生成预览"}
               </button>
               <button
                 className="secondary"
-                disabled={isCommitting || !preview || !preview.writable || !previewedPayloads?.length}
-                onClick={handleCommit}
+                disabled={isCommitting || !preview || !preview.writable}
+                onClick={() => void commitRun()}
                 type="button"
               >
                 {isCommitting ? "提交中..." : "确认写入选中候选"}

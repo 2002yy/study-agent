@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -242,6 +242,55 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
 
         CREATE INDEX idx_web_lookup_runs_status_updated
             ON web_lookup_runs(status, updated_at DESC);
+        """,
+    ),
+    (
+        10,
+        """
+        CREATE TABLE memory_runs (
+            id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            updates TEXT NOT NULL DEFAULT '[]',
+            updates_hash TEXT NOT NULL,
+            preview TEXT NOT NULL DEFAULT '{}',
+            result TEXT NOT NULL DEFAULT '{}',
+            reason TEXT NOT NULL DEFAULT '',
+            active_operation_id TEXT,
+            active_operation_started_at TEXT,
+            previewed_at TEXT,
+            completed_at TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_memory_runs_status_updated
+            ON memory_runs(status, updated_at DESC);
+        CREATE INDEX idx_memory_runs_active_operation
+            ON memory_runs(active_operation_id);
+        """,
+    ),
+    (
+        11,
+        """
+        CREATE TABLE rag_runs (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            status TEXT NOT NULL,
+            request TEXT NOT NULL DEFAULT '{}',
+            result TEXT NOT NULL DEFAULT '{}',
+            error TEXT NOT NULL DEFAULT '',
+            index_version INTEGER NOT NULL DEFAULT 0,
+            version INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+
+        CREATE INDEX idx_rag_runs_kind_updated
+            ON rag_runs(kind, updated_at DESC);
+        CREATE INDEX idx_rag_runs_status_updated
+            ON rag_runs(status, updated_at DESC);
         """,
     ),
 )

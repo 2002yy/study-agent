@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import { useMemo } from "react";
-import type { ChatResponse, RagDebugResult, RagQueryResponse, RagResult } from "../../types";
+import type { ChatResponse, KnowledgeDocumentListResponse, RagDebugResult, RagQueryResponse, RagResult } from "../../types";
 import { basename, formatScore, translateStatus } from "../../utils/format";
 
 type SourceRow = {
@@ -48,11 +48,15 @@ function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbac
 export function SourcesPanel({
   lastChat,
   ragSearch,
-  isSearching
+  isSearching,
+  knowledgeBase,
+  onDeleteDocument
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
+  knowledgeBase?: KnowledgeDocumentListResponse | null;
+  onDeleteDocument?: (documentId: string) => void;
 }) {
   const rows = useMemo(() => {
     const source = ragSearch ?? lastChat?.rag;
@@ -119,6 +123,31 @@ export function SourcesPanel({
               <pre>{activeSource.context}</pre>
             </>
           ) : null}
+        </details>
+      ) : null}
+      {knowledgeBase ? (
+        <details className="debug-drawer">
+          <summary>
+            知识库文档 {knowledgeBase.documents.length} 个 · 索引版本 v{knowledgeBase.index_version}
+          </summary>
+          <div className="session-list">
+            {knowledgeBase.documents.map((document) => (
+              <div className="session-row" key={document.document_id}>
+                <strong>{document.title}</strong>
+                <span>{document.file_type} · {document.chunks} 个片段</span>
+                <em title={document.source_path}>{document.source_path}</em>
+                {onDeleteDocument ? (
+                  <button
+                    className="ghost-action compact danger"
+                    onClick={() => onDeleteDocument(document.document_id)}
+                    type="button"
+                  >
+                    删除文档
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </details>
       ) : null}
     </section>
