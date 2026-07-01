@@ -17,7 +17,7 @@ Updated: 2026-07-01
 | WebLookupRun | **sealed** | SQLite repository + `WebLookupService` + `webLookupController` |
 | App entry | **sealed** | composition-only `App.tsx` |
 | AppShell | **sealed** | six-line layout-only component with no state, API or persistence |
-| Workspace Runtime | **partial** | layout, lifecycle and feature-controller composition extracted; recovery/view binding remains |
+| Workspace Runtime | **sealed** | 134-line composition root; lifecycle, recovery, controllers and views have explicit owners |
 | Compatibility API | **legacy shim** | frozen `src/api/__init__.py` attributes for old tests/clients |
 | Streamlit | **legacy compatibility** | `app.py` and `src/ui/*`; not the primary architecture |
 
@@ -39,9 +39,9 @@ Updated: 2026-07-01
 component. The remaining large composition root is explicitly named
 `WorkspaceRuntime`. Sidebar, Inspector and GlobalNotices now live under
 `frontend/src/layout`; feature-controller construction and cross-feature
-coordination now live in `useWorkspaceControllers`. The runtime still owns
-recovery application and view binding, so the Workspace Runtime slice remains
-partial.
+coordination live in `useWorkspaceControllers`; restore/hydration/persistence
+live in `useWorkspaceRecovery`; and feature rendering lives in `WorkspaceView`.
+`WorkspaceRuntime` now only binds shared state to those four boundaries.
 
 ## Pedagogy status
 
