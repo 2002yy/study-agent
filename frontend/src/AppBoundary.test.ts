@@ -35,6 +35,7 @@ describe("App shell boundary", () => {
   });
 
   it("keeps runtime side effects behind dedicated boundaries", () => {
+    expect(runtimeSource.split(/\r?\n/).length).toBeLessThanOrEqual(450);
     expect(runtimeSource).not.toContain("localStorage");
     expect(runtimeSource).not.toContain("SESSION_STORAGE_KEY");
     expect(runtimeSource).not.toContain("loadApiSnapshot");
@@ -42,5 +43,23 @@ describe("App shell boundary", () => {
     expect(runtimeSource).toContain("useWorkspaceBootstrap()");
     expect(runtimeSource).toContain("useWorkspacePersistence({");
     expect(runtimeSource).toContain("new WorkspaceCoordinator(");
+    for (const presentationImport of [
+      "RoleAvatar",
+      "StatusDot",
+      "MemoryPanel",
+      "SourcesPanel",
+      "RoutePanel",
+      "SessionsPanel",
+      "ToolPanel",
+      "WechatPanel",
+      "TimelinePanel",
+    ]) {
+      expect(runtimeSource).not.toMatch(
+        new RegExp(`import .*${presentationImport}`)
+      );
+    }
+    expect(runtimeSource).toContain('from "../layout/Sidebar"');
+    expect(runtimeSource).toContain('from "../layout/Inspector"');
+    expect(runtimeSource).toContain('from "../layout/GlobalNotices"');
   });
 });
