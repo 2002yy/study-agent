@@ -16,7 +16,8 @@ Updated: 2026-07-01
 | RAG/KnowledgeBase | **sealed** | durable query/upload/rebuild runs + KB document lifecycle |
 | WebLookupRun | **sealed** | SQLite repository + `WebLookupService` + `webLookupController` |
 | App entry | **sealed** | composition-only `App.tsx` |
-| AppShell / Workspace Runtime | **partial** | bootstrap, persistence and coordination extracted; layout/state wiring remains |
+| AppShell | **sealed** | six-line layout-only component with no state, API or persistence |
+| Workspace Runtime | **partial** | bootstrap/persistence/coordination extracted; UI definitions and feature wiring remain |
 | Compatibility API | **legacy shim** | frozen `src/api/__init__.py` attributes for old tests/clients |
 | Streamlit | **legacy compatibility** | `app.py` and `src/ui/*`; not the primary architecture |
 
@@ -34,9 +35,10 @@ Updated: 2026-07-01
    coordination have moved out of `AppShell`; layout extraction and remaining
    state wiring are still open.
 
-`AppShell` is not sealed merely because `App.tsx` is small. Its acceptance
-target is a layout-only component (roughly 200 lines) with no persistence,
-server loading, session recovery or feature business state.
+`AppShell` is now genuinely layout-only rather than a renamed application
+component. The remaining large composition root is explicitly named
+`WorkspaceRuntime`; it still owns embedded Sidebar/Inspector definitions and
+feature-controller wiring, so the Workspace Runtime slice remains partial.
 
 ## Pedagogy status
 

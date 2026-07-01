@@ -10,11 +10,15 @@ const shellSource = readFileSync(
   fileURLToPath(new URL("./AppShell.tsx", import.meta.url)),
   "utf8"
 );
+const runtimeSource = readFileSync(
+  fileURLToPath(new URL("./app/WorkspaceRuntime.tsx", import.meta.url)),
+  "utf8"
+);
 
 describe("App shell boundary", () => {
   it("keeps App as a composition boundary under 250 lines", () => {
     expect(appSource.split(/\r?\n/).length).toBeLessThanOrEqual(250);
-    expect(appSource).toContain("<AppShell");
+    expect(appSource).toContain("<WorkspaceRuntime");
   });
 
   it("does not own feature state or API orchestration", () => {
@@ -22,15 +26,21 @@ describe("App shell boundary", () => {
     expect(appSource).not.toMatch(/\b(load|save|create|archive)\w*\s*\(/);
   });
 
-  it("prevents runtime persistence and server loading from returning to AppShell", () => {
-    // Ratchet only: layout extraction will lower this ceiling in later slices.
-    expect(shellSource.split(/\r?\n/).length).toBeLessThanOrEqual(1100);
+  it("keeps AppShell as a small layout-only component", () => {
+    expect(shellSource.split(/\r?\n/).length).toBeLessThanOrEqual(50);
     expect(shellSource).not.toContain("localStorage");
-    expect(shellSource).not.toContain("SESSION_STORAGE_KEY");
-    expect(shellSource).not.toContain("loadApiSnapshot");
-    expect(shellSource).not.toContain("serverQueryCache");
-    expect(shellSource).toContain("useWorkspaceBootstrap()");
-    expect(shellSource).toContain("useWorkspacePersistence({");
-    expect(shellSource).toContain("new WorkspaceCoordinator(");
+    expect(shellSource).not.toMatch(/from ["'].\/api["']/);
+    expect(shellSource).not.toContain("useState");
+    expect(shellSource).toContain('className="app-shell"');
+  });
+
+  it("keeps runtime side effects behind dedicated boundaries", () => {
+    expect(runtimeSource).not.toContain("localStorage");
+    expect(runtimeSource).not.toContain("SESSION_STORAGE_KEY");
+    expect(runtimeSource).not.toContain("loadApiSnapshot");
+    expect(runtimeSource).not.toContain("serverQueryCache");
+    expect(runtimeSource).toContain("useWorkspaceBootstrap()");
+    expect(runtimeSource).toContain("useWorkspacePersistence({");
+    expect(runtimeSource).toContain("new WorkspaceCoordinator(");
   });
 });
