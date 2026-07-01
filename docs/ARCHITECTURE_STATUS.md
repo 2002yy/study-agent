@@ -5,6 +5,9 @@ documents must link here instead of maintaining competing status tables.
 
 Updated: 2026-07-01
 
+Future work is ordered in [NEXT_PHASE_PLAN.md](NEXT_PHASE_PLAN.md). Planned
+items are not implementation status.
+
 | Vertical slice | Status | Authoritative owner |
 | --- | --- | --- |
 | Chat/Session | **sealed** | FastAPI services + SQLite + `chatController` |
