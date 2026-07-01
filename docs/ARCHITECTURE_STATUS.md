@@ -15,7 +15,8 @@ Updated: 2026-07-01
 | MemoryTransaction | **sealed** | `MemoryRun` + hash-locked commit + `memoryController` |
 | RAG/KnowledgeBase | **sealed** | durable query/upload/rebuild runs + KB document lifecycle |
 | WebLookupRun | **sealed** | SQLite repository + `WebLookupService` + `webLookupController` |
-| AppShell | **sealed** | composition-only `App.tsx`; `AppShell` + feature controllers |
+| App entry | **sealed** | composition-only `App.tsx` |
+| AppShell / Workspace Runtime | **partial** | bootstrap, persistence and coordination extracted; layout/state wiring remains |
 | Compatibility API | **legacy shim** | frozen `src/api/__init__.py` attributes for old tests/clients |
 | Streamlit | **legacy compatibility** | `app.py` and `src/ui/*`; not the primary architecture |
 
@@ -27,9 +28,15 @@ Updated: 2026-07-01
    hash-locked commit, controller and display-only panel.
 3. **P2 — RAG/KnowledgeBase:** durable query/upload/rebuild runs, controllers,
    document lifecycle and monotonic index versions.
-4. **P3 — Shell convergence:** shared server query cache,
-   settings/role/workflow controllers, composition-only `App.tsx`, extracted
-   `AppShell`, frozen compatibility shim and explicit Streamlit legacy status.
+4. **P3 — Shell convergence (partial):** shared server query cache,
+   settings/role/workflow controllers and a composition-only `App.tsx` are
+   complete. Workspace bootstrap, schema-versioned persistence and cross-feature
+   coordination have moved out of `AppShell`; layout extraction and remaining
+   state wiring are still open.
+
+`AppShell` is not sealed merely because `App.tsx` is small. Its acceptance
+target is a layout-only component (roughly 200 lines) with no persistence,
+server loading, session recovery or feature business state.
 
 ## Pedagogy status
 
@@ -44,6 +51,12 @@ The remaining gap is model-backed semantic evaluation plus broader
 golden-dialogue coverage. The deterministic evaluator currently catches known
 wrong conclusions and unsupported understanding claims, but it is not a
 general-purpose judge of conceptual correctness.
+
+`PedagogyEvalRun` now defines the structured evaluation boundary: deterministic
+result, optional semantic result, confidence, evidence references and final
+decision. Its service returns `needs_semantic_review` when no provider can judge
+an ambiguous claim. Wiring that service into the live turn pipeline and
+persisting eval runs remain open, so Pedagogy stays **partial**.
 
 ## Compatibility policy
 

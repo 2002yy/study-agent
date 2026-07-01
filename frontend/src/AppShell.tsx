@@ -14,14 +14,16 @@ import {
   Upload,
   Wrench
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import {
-  loadApiSnapshot
-} from "./api";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalKnowledgeInvocation } from "./api";
 import { operationRegistry } from "./app/operationRegistry";
 import { useWorkspace } from "./app/WorkspaceProvider";
-import { serverQueryCache } from "./app/serverQueryCache";
+import { useWorkspaceBootstrap } from "./app/WorkspaceBootstrap";
+import { WorkspaceCoordinator } from "./app/WorkspaceCoordinator";
+import {
+  useWorkspacePersistence,
+  type WorkspaceRecovery,
+} from "./app/WorkspacePersistence";
 import { RoleAvatar } from "./components/RoleAvatar";
 import { StatusDot } from "./components/StatusDot";
 import { MemoryPanel } from "./features/learning-memory/MemoryPanel";
@@ -34,7 +36,7 @@ import { RoutePanel } from "./features/route/RoutePanel";
 import { SessionsPanel } from "./features/sessions/SessionsPanel";
 import { createEmptyRag, useChatController } from "./features/chat/chatController";
 import { ChatPanel } from "./features/single-chat/ChatPanel";
-import { SESSION_STORAGE_KEY, seedMessages } from "./features/single-chat/chatHistory";
+import { seedMessages } from "./features/single-chat/chatHistory";
 import { ToolPanel } from "./features/tools/ToolPanel";
 import { useToolController, type ToolController } from "./features/tools/toolController";
 import { roleLabel, roleOptions } from "./features/roles/roleCatalog";
@@ -56,22 +58,8 @@ import type {
   RagQueryResponse,
   RagSettings,
   RoleResponse,
-  WorkspaceState,
   WorkflowRunDetail
 } from "./types";
-
-const INITIAL_SNAPSHOT: ApiSnapshot = {
-  health: null,
-  ragStatus: null,
-  tools: [],
-  workflowRuns: [],
-  sessions: [],
-  runtimeSettings: null,
-  memoryStatus: null,
-  wechat: null,
-  error: "",
-  errors: {}
-};
 
 const CHAT_SETTINGS_DEFAULTS: ChatSettings = {
   selectedRole: "auto",
@@ -652,7 +640,7 @@ function Inspector({
 }
 
 export default function AppShell() {
-  const [snapshot, setSnapshot] = useState<ApiSnapshot>(INITIAL_SNAPSHOT);
+  const { snapshot, setSnapshot, refresh } = useWorkspaceBootstrap();
   const { state: workspaceRuntime, dispatch: dispatchWorkspace } = useWorkspace();
   const [input, setInput] = useState("");
   const [ragEnabled, setRagEnabled] = useState(true);
@@ -678,15 +666,8 @@ export default function AppShell() {
   const [readArticles, setReadArticles] = useState(true);
   const [operationError, setOperationError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sessionStoragePayloadRef = useRef("");
   const runtimeHydratedRef = useRef(false);
   const sessionSettingsRestoredRef = useRef(false);
-
-  const refresh = async () => {
-    setSnapshot(
-      await serverQueryCache.query("snapshot:main", loadApiSnapshot, 1500)
-    );
-  };
   const roleController = useRoleController(chatSettings.selectedRole);
   const workflowController = useWorkflowController();
   const settingsController = useSettingsController({
@@ -748,6 +729,30 @@ export default function AppShell() {
   const webLookup = webLookupController.result;
   const useWebLookup = webLookupController.useInChat;
   const setUseWebLookup = webLookupController.setUseInChat;
+  const workspaceCoordinator = useMemo(
+    () =>
+      new WorkspaceCoordinator(
+        {
+          cancelChat: () => operationRegistry.cancelAll(),
+          cancelGroup: groupController.cancelWorkspace,
+          cancelNews: newsController.cancelWorkspace,
+          cancelWebLookup: webLookupController.cancel,
+          invalidateTool: () => operationRegistry.invalidate("tool"),
+        },
+        {
+          clearRag: ragController.clear,
+          clearToolRun: () => setToolRunId(undefined),
+          clearWorkflow: workflowController.clear,
+        }
+      ),
+    [
+      groupController.cancelWorkspace,
+      newsController.cancelWorkspace,
+      webLookupController.cancel,
+      ragController.clear,
+      workflowController.clear,
+    ]
+  );
 
   useEffect(() => {
     const serverThreadId = snapshot.wechat?.group_thread_id;
@@ -774,18 +779,9 @@ export default function AppShell() {
     setUseWebLookup,
     setInput,
     setOperationError,
-    clearChatArtifacts: () => {
-      ragController.clear();
-      operationRegistry.invalidate("tool");
-      setToolRunId(undefined);
-      workflowController.clear();
-    },
-    onWorkspaceCancelled: () => {
-      groupController.cancelWorkspace();
-      newsController.cancelWorkspace();
-      operationRegistry.invalidate("tool");
-      webLookupController.cancel();
-    },
+    clearChatArtifacts: workspaceCoordinator.clearChatArtifacts.bind(workspaceCoordinator),
+    onWorkspaceCancelled:
+      workspaceCoordinator.cancelAllActiveOperations.bind(workspaceCoordinator),
     refresh,
   });
   const singleChatMessages = chatController.messages;
@@ -815,85 +811,51 @@ export default function AppShell() {
     },
   });
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Record<string, unknown>;
-        const restoredThreadId = String(parsed.singleChatSessionId ?? parsed.sessionId ?? "");
-        const restoredWechatThreadId = String(parsed.wechatThreadId ?? "");
-        const restoredNewsRunId = String(parsed.newsRunId ?? "");
-        const restoredToolRunId = String(parsed.toolRunId ?? "");
-        const restoredMemoryRunId = String(parsed.memoryRunId ?? "");
-        const restoredRagQueryRunId = String(parsed.ragQueryRunId ?? "");
-        const restoredRagWriteRunId = String(parsed.ragWriteRunId ?? "");
-        const restoredWebLookupRunId = String(parsed.webLookupRunId ?? "");
-        if (restoredWechatThreadId) {
-          setWechatThreadId(restoredWechatThreadId);
-        }
-        if (restoredNewsRunId) {
-          setNewsRunId(restoredNewsRunId);
-        }
-        if (restoredToolRunId) {
-          setToolRunId(restoredToolRunId);
-        }
-        if (restoredMemoryRunId) {
-          setMemoryRunId(restoredMemoryRunId);
-        }
-        if (restoredRagQueryRunId) {
-          setRagQueryRunId(restoredRagQueryRunId);
-        }
-        if (restoredRagWriteRunId) {
-          setRagWriteRunId(restoredRagWriteRunId);
-        }
-        if (restoredWebLookupRunId) {
-          setWebLookupRunId(restoredWebLookupRunId);
-        }
-        if (parsed.chatSettings && typeof parsed.chatSettings === "object") {
-          sessionSettingsRestoredRef.current = true;
-          setChatSettings({ ...CHAT_SETTINGS_DEFAULTS, ...(parsed.chatSettings as ChatSettings) });
-        }
-        if (parsed.ragSettings && typeof parsed.ragSettings === "object") {
-          sessionSettingsRestoredRef.current = true;
-          setRagSettings({ ...RAG_SETTINGS_DEFAULTS, ...(parsed.ragSettings as RagSettings) });
-        }
-        if (typeof parsed.ragEnabled === "boolean") {
-          sessionSettingsRestoredRef.current = true;
-          setRagEnabled(parsed.ragEnabled);
-        }
-        if (typeof parsed.keepCurrentRole === "boolean") {
-          setKeepCurrentRole(parsed.keepCurrentRole);
-        }
-        if (typeof parsed.conversationInstruction === "string") {
-          setConversationInstruction(parsed.conversationInstruction);
-        }
-        if (restoredThreadId) {
-          const cached = Array.isArray(parsed.cachedMessages)
-            ? (parsed.cachedMessages as ChatMessage[])
-            : undefined;
-          void chatController.hydrateSession(restoredThreadId, cached);
-        } else {
-          setSingleChatMessages(seedMessages);
-        }
-        if (parsed.lastRoute && typeof parsed.lastRoute === "object") {
-          const restoredRoute = parsed.lastRoute as ChatResponse["route"];
-          const restoredRag = (parsed.lastRag && typeof parsed.lastRag === "object" ? parsed.lastRag : createEmptyRag()) as ChatResponse["rag"];
-          setLastChat({
-            reply: "",
-            session_id: String(parsed.lastSessionId ?? restoredThreadId ?? "restored"),
-            route: restoredRoute,
-            rag: restoredRag,
-          });
-        }
-      } catch {
-        window.localStorage.removeItem(SESSION_STORAGE_KEY);
-        setSingleChatMessages(seedMessages);
-      }
+  const restoreWorkspace = useCallback((parsed: WorkspaceRecovery | null) => {
+    if (!parsed) {
+      setSingleChatMessages(seedMessages);
+      return;
+    }
+    const restoredThreadId = parsed.singleChatSessionId ?? parsed.sessionId ?? "";
+    if (parsed.wechatThreadId) setWechatThreadId(parsed.wechatThreadId);
+    if (parsed.newsRunId) setNewsRunId(parsed.newsRunId);
+    if (parsed.toolRunId) setToolRunId(parsed.toolRunId);
+    if (parsed.memoryRunId) setMemoryRunId(parsed.memoryRunId);
+    if (parsed.ragQueryRunId) setRagQueryRunId(parsed.ragQueryRunId);
+    if (parsed.ragWriteRunId) setRagWriteRunId(parsed.ragWriteRunId);
+    if (parsed.webLookupRunId) setWebLookupRunId(parsed.webLookupRunId);
+    if (parsed.chatSettings) {
+      sessionSettingsRestoredRef.current = true;
+      setChatSettings({ ...CHAT_SETTINGS_DEFAULTS, ...parsed.chatSettings });
+    }
+    if (parsed.ragSettings) {
+      sessionSettingsRestoredRef.current = true;
+      setRagSettings({ ...RAG_SETTINGS_DEFAULTS, ...parsed.ragSettings });
+    }
+    if (typeof parsed.ragEnabled === "boolean") {
+      sessionSettingsRestoredRef.current = true;
+      setRagEnabled(parsed.ragEnabled);
+    }
+    if (typeof parsed.keepCurrentRole === "boolean") {
+      setKeepCurrentRole(parsed.keepCurrentRole);
+    }
+    if (typeof parsed.conversationInstruction === "string") {
+      setConversationInstruction(parsed.conversationInstruction);
+    }
+    if (restoredThreadId) {
+      void chatController.hydrateSession(restoredThreadId, parsed.cachedMessages);
     } else {
       setSingleChatMessages(seedMessages);
     }
-    void refresh();
-  }, []);
+    if (parsed.lastRoute) {
+      setLastChat({
+        reply: "",
+        session_id: parsed.lastSessionId ?? restoredThreadId ?? "restored",
+        route: parsed.lastRoute,
+        rag: parsed.lastRag ?? createEmptyRag(),
+      });
+    }
+  }, [chatController, setLastChat, setSingleChatMessages]);
 
   useEffect(() => {
     const settings = snapshot.runtimeSettings?.settings;
@@ -925,8 +887,7 @@ export default function AppShell() {
     });
   }, [snapshot.runtimeSettings]);
 
-  useEffect(() => {
-    const payload = JSON.stringify({
+  const persistenceState = useMemo(() => ({
       singleChatSessionId,
       wechatThreadId,
       newsRunId,
@@ -944,23 +905,17 @@ export default function AppShell() {
       lastRag: lastChat?.rag ?? undefined,
       lastSessionId: lastChat?.session_id ?? undefined,
       cachedMessages: singleChatMessages,
-    });
-    sessionStoragePayloadRef.current = payload;
-    const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, payload);
-    }, isSending ? 800 : 200);
-    return () => window.clearTimeout(timeout);
-  }, [singleChatMessages, singleChatSessionId, wechatThreadId, newsRunId, toolRunId, memoryRunId, ragQueryRunId, ragWriteRunId, webLookupRunId, chatSettings, ragSettings, ragEnabled, keepCurrentRole, conversationInstruction, lastChat, isSending]);
-
-  useEffect(() => {
-    const flushSessionStorage = () => {
-      if (document.visibilityState === "hidden" && sessionStoragePayloadRef.current) {
-        window.localStorage.setItem(SESSION_STORAGE_KEY, sessionStoragePayloadRef.current);
-      }
-    };
-    document.addEventListener("visibilitychange", flushSessionStorage);
-    return () => document.removeEventListener("visibilitychange", flushSessionStorage);
-  }, []);
+      isSending,
+    }), [
+      singleChatSessionId, wechatThreadId, newsRunId, toolRunId, memoryRunId,
+      ragQueryRunId, ragWriteRunId, webLookupRunId, chatSettings, ragSettings,
+      ragEnabled, keepCurrentRole, conversationInstruction, lastChat,
+      singleChatMessages, isSending,
+    ]);
+  useWorkspacePersistence({
+    state: persistenceState,
+    onRestore: restoreWorkspace,
+  });
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

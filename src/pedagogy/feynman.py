@@ -13,6 +13,10 @@ def plan_feynman(user_input, knowledge_kind, state):
     transfer_passed = bool(payload.get("transfer_passed"))
     if transfer_passed:
         phase, move, level = "complete", "close_stage", 2
+    elif state.phase == "transfer" and len(text) >= 18:
+        phase, move, level = "complete", "close_stage", 2
+        payload["transfer_passed"] = True
+        payload["transfer_evidence"] = text
     elif re_explanation and any(marker in text for marker in ("现在", "重新", "也就是说", "所以")):
         phase, move, level = "transfer", "transfer_test", 2
         payload["latest_explanation"] = text

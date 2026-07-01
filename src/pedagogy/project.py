@@ -31,6 +31,9 @@ def plan_project(user_input, knowledge_kind, state):
         stage, move = "decide", "choose_solution"
     else:
         move = "inspect_artifact"
+    if stage == "deliver" and payload.get("project_validation_passed") is not True:
+        stage, move = "verify", "run_validation"
+        payload["validation_required"] = True
     payload["current_stage"] = stage
     payload["next_action"] = move
     if not payload.get("objective"):

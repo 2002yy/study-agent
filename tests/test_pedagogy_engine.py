@@ -212,6 +212,22 @@ def test_feynman_protocol_repairs_one_unconditional_gap():
     assert state.payload["repair_given"] == "counterexample"
 
 
+def test_feynman_transfer_records_evidence_before_closing():
+    plan, state = PedagogyEngine().plan(
+        user_input="因为输入为空时没有元素，所以这个边界情况应直接返回空结果。",
+        mode="费曼",
+        state=LearningState(
+            protocol="feynman_diagnosis",
+            objective="解释空输入边界",
+            phase="transfer",
+            payload={"repair_given": "boundary", "reexplanation_passed": True},
+        ),
+    )
+    assert plan.phase == "complete"
+    assert state.payload["transfer_passed"] is True
+    assert state.payload["transfer_evidence"]
+
+
 def test_project_protocol_advances_to_verification():
     plan, state = PedagogyEngine().plan(
         user_input="代码已修改，现在运行测试验证回归",
@@ -227,6 +243,22 @@ def test_project_protocol_advances_to_verification():
     assert plan.phase == "verify"
     assert plan.move == "run_validation"
     assert state.payload["current_stage"] == "verify"
+
+
+def test_project_cannot_deliver_without_validation_evidence():
+    plan, state = PedagogyEngine().plan(
+        user_input="已经完成，可以交付收尾了",
+        mode="项目",
+        state=LearningState(
+            protocol="project_execution",
+            objective="修复滚动跳顶",
+            phase="implement",
+            payload={"current_stage": "implement"},
+        ),
+    )
+    assert plan.phase == "verify"
+    assert plan.move == "run_validation"
+    assert state.payload["validation_required"] is True
 
 
 def test_failed_assistant_contract_does_not_commit_planned_progress():
