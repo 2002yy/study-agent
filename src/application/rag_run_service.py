@@ -97,13 +97,21 @@ class RagRunService:
             "overlap_chars": overlap_chars,
         }
         run = self.repository.create(RagRun(kind=mode, request=request))
+        expected_version = _index_version(index_path)
+        staging_version = expected_version + 1
         try:
+            state = self.repository.begin_index_write(
+                str(index_path.resolve()),
+                expected_version=expected_version,
+            )
+            staging_version = int(state["staging_version"])
             if mode == "rebuild":
                 write = index_documents_with_stages(
                     paths,
                     index_path=index_path,
                     max_chars=max_chars,
                     overlap_chars=overlap_chars,
+                    target_version=staging_version,
                 )
             else:
                 write = append_documents_to_index_with_stages(
@@ -111,20 +119,54 @@ class RagRunService:
                     index_path=index_path,
                     max_chars=max_chars,
                     overlap_chars=overlap_chars,
+                    target_version=staging_version,
                 )
             payload = {
                 "documents": len(write.index.documents),
                 "chunks": len(write.index.chunks),
                 "index_path": str(index_path),
-                "index_version": write.index.version,
+                "index_version": write.active_version,
+                "staging_version": staging_version,
+                "activated": write.activated,
                 "stages": write.stages,
             }
+            if not write.activated:
+                detail = _failed_stage_detail(write.stages)
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=detail,
+                )
+                return self.repository.partial_success(
+                    run.id,
+                    result=payload,
+                    error=detail,
+                    index_version=write.active_version,
+                )
+            self.repository.activate_index(
+                str(index_path.resolve()),
+                staging_version=staging_version,
+                document_count=len(write.index.documents),
+                chunk_count=len(write.index.chunks),
+            )
             return self.repository.complete(
                 run.id,
                 result=payload,
-                index_version=write.index.version,
+                index_version=write.active_version,
             )
         except Exception as exc:
+            current_state = self.repository.get_index_state(
+                str(index_path.resolve())
+            )
+            if (
+                current_state is not None
+                and current_state.get("staging_version") == staging_version
+            ):
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=str(exc),
+                )
             self.repository.fail(run.id, str(exc))
             raise
 
@@ -143,4 +185,58 @@ class RagRunService:
     def delete_document(
         self, document_id: str, *, index_path: Path
     ) -> dict[str, Any]:
-        return delete_knowledge_document(document_id, index_path=index_path)
+        expected_version = _index_version(index_path)
+        state = self.repository.begin_index_write(
+            str(index_path.resolve()),
+            expected_version=expected_version,
+        )
+        staging_version = int(state["staging_version"])
+        try:
+            result = delete_knowledge_document(
+                document_id,
+                index_path=index_path,
+                target_version=staging_version,
+            )
+            if not result["activated"]:
+                detail = _failed_stage_detail(result["stages"])
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=detail,
+                )
+                raise RuntimeError(
+                    f"Knowledge document deletion was not activated: {detail}"
+                )
+            self.repository.activate_index(
+                str(index_path.resolve()),
+                staging_version=staging_version,
+                document_count=int(result["documents"]),
+                chunk_count=int(result["chunks"]),
+            )
+            return result
+        except Exception as exc:
+            current = self.repository.get_index_state(str(index_path.resolve()))
+            if (
+                current is not None
+                and current.get("staging_version") == staging_version
+            ):
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=str(exc),
+                )
+            raise
+
+
+def _index_version(index_path: Path) -> int:
+    if not index_path.is_file():
+        return 0
+    return load_rag_index(index_path).version
+
+
+def _failed_stage_detail(stages: list[dict[str, Any]]) -> str:
+    failed = next(
+        (stage for stage in stages if stage.get("status") == "failed"),
+        None,
+    )
+    return str((failed or {}).get("detail") or "required RAG index stage failed")

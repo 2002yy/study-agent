@@ -689,7 +689,11 @@ def test_rag_upload_keeps_duplicate_basenames_unique(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert response.json()["documents"] == 2
     assert response.json()["chunks"] == 2
-    assert [stage["name"] for stage in response.json()["stages"]] == ["local", "vector"]
+    assert [stage["name"] for stage in response.json()["stages"]] == [
+        "local",
+        "vector",
+        "activation",
+    ]
     assert (upload_dir / "same.md").read_text(encoding="utf-8") == "First uploaded duplicate basename."
     assert (upload_dir / "same-2.md").read_text(encoding="utf-8") == "Second uploaded duplicate basename."
 
@@ -714,11 +718,13 @@ def test_rag_upload_reports_vector_stage_failure(monkeypatch, tmp_path):
     assert response.status_code == 200
     data = response.json()
     assert data["documents"] == 1
-    assert data["stages"][0]["status"] == "completed"
+    assert data["stages"][0]["status"] == "staged"
     assert data["stages"][1]["name"] == "vector"
     assert data["stages"][1]["status"] == "failed"
     assert "vector offline" in data["stages"][1]["detail"]
-    assert index_path.exists()
+    assert data["stages"][2]["name"] == "activation"
+    assert data["stages"][2]["status"] == "skipped"
+    assert not index_path.exists()
 
 
 def test_chat_endpoint_builds_reply_and_logs_session(runtime_test_context):

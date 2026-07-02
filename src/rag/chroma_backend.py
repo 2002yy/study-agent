@@ -61,6 +61,11 @@ class ChromaVectorBackend:
     def upsert_index(self, index: RagIndex) -> None:
         collection = self._collection()
         ids = [chunk.chunk_id for chunk in index.chunks]
+        existing = collection.get(include=[])
+        existing_ids = {str(item) for item in existing.get("ids", [])}
+        stale_ids = sorted(existing_ids - set(ids))
+        if stale_ids:
+            collection.delete(ids=stale_ids)
         if not ids:
             return
 

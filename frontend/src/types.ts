@@ -374,7 +374,7 @@ export type SessionDetailResponse = {
 export type RagRunResponse = {
   id: string;
   kind: "query" | "upload" | "rebuild";
-  status: "running" | "completed" | "failed";
+    status: "running" | "completed" | "partial_success" | "failed";
   request: Record<string, unknown>;
   result: Record<string, unknown>;
   error: string;

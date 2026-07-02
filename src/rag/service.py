@@ -33,6 +33,8 @@ HYBRID_LEXICAL_WEIGHT = 0.7
 class RagIndexWriteResult:
     index: RagIndex
     stages: list[dict[str, Any]]
+    activated: bool = True
+    active_version: int = 0
 
 
 def _transactional_save_index(index: RagIndex, target: Path) -> None:
@@ -70,6 +72,29 @@ def _completed_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
         "documents": len(index.documents),
         "chunks": len(index.chunks),
         "index_path": str(target),
+    }
+
+
+def _staged_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
+    return {
+        **_completed_local_stage(index, target),
+        "status": "staged",
+    }
+
+
+def _activation_stage(
+    index: RagIndex,
+    target: Path,
+    *,
+    status: str,
+    detail: str = "",
+) -> dict[str, Any]:
+    return {
+        "name": "activation",
+        "status": status,
+        "index_version": index.version,
+        "index_path": str(target),
+        "detail": detail,
     }
 
 
@@ -119,6 +144,7 @@ def index_documents_with_stages(
     index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
     max_chars: int = 900,
     overlap_chars: int = 120,
+    target_version: int | None = None,
 ) -> RagIndexWriteResult:
     target = Path(index_path)
     index = build_rag_index(
@@ -126,14 +152,34 @@ def index_documents_with_stages(
         max_chars=max_chars,
         overlap_chars=overlap_chars,
     )
-    index = _with_version(index, _next_index_version(target))
+    active_version = _next_index_version(target) - 1
+    index = _with_version(index, target_version or active_version + 1)
+    vector_stage = _vector_stage(index)
+    if vector_stage["status"] != "completed":
+        return RagIndexWriteResult(
+            index=index,
+            stages=[
+                _staged_local_stage(index, target),
+                vector_stage,
+                _activation_stage(
+                    index,
+                    target,
+                    status="skipped",
+                    detail="required vector stage failed",
+                ),
+            ],
+            activated=False,
+            active_version=active_version,
+        )
     _transactional_save_index(index, target)
     return RagIndexWriteResult(
         index=index,
         stages=[
             _completed_local_stage(index, target),
-            _vector_stage(index),
+            vector_stage,
+            _activation_stage(index, target, status="completed"),
         ],
+        active_version=index.version,
     )
 
 
@@ -176,6 +222,7 @@ def append_documents_to_index_with_stages(
     index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
     max_chars: int = 900,
     overlap_chars: int = 120,
+    target_version: int | None = None,
 ) -> RagIndexWriteResult:
     new_index = build_rag_index(
         paths,
@@ -193,17 +240,36 @@ def append_documents_to_index_with_stages(
     added_hashes = {doc.content_hash for doc in added_docs}
     added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
     merged = RagIndex(
-        version=existing.version + 1 if target.is_file() else 1,
+        version=target_version or (existing.version + 1 if target.is_file() else 1),
         documents=existing.documents + added_docs,
         chunks=existing.chunks + added_chunks,
     )
+    vector_stage = _vector_stage(merged)
+    if vector_stage["status"] != "completed":
+        return RagIndexWriteResult(
+            index=merged,
+            stages=[
+                _staged_local_stage(merged, target),
+                vector_stage,
+                _activation_stage(
+                    merged,
+                    target,
+                    status="skipped",
+                    detail="required vector stage failed",
+                ),
+            ],
+            activated=False,
+            active_version=existing.version if target.is_file() else 0,
+        )
     _transactional_save_index(merged, target)
     return RagIndexWriteResult(
         index=merged,
         stages=[
             _completed_local_stage(merged, target),
-            _vector_stage(merged),
+            vector_stage,
+            _activation_stage(merged, target, status="completed"),
         ],
+        active_version=merged.version,
     )
 
 
@@ -247,6 +313,7 @@ def delete_knowledge_document(
     document_id: str,
     *,
     index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+    target_version: int | None = None,
 ) -> dict[str, Any]:
     target = Path(index_path)
     index = load_rag_index(target)
@@ -261,19 +328,44 @@ def delete_knowledge_document(
         if chunk.document_hash != document_id
     )
     updated = RagIndex(
-        version=index.version + 1,
+        version=target_version or index.version + 1,
         documents=documents,
         chunks=chunks,
     )
-    _transactional_save_index(updated, target)
     vector_stage = _vector_stage(updated)
+    if vector_stage["status"] != "completed":
+        return {
+            "deleted_document_id": document_id,
+            "documents": len(index.documents),
+            "chunks": len(index.chunks),
+            "index_path": str(target),
+            "index_version": index.version,
+            "staging_version": updated.version,
+            "activated": False,
+            "stages": [
+                _staged_local_stage(updated, target),
+                vector_stage,
+                _activation_stage(
+                    updated,
+                    target,
+                    status="skipped",
+                    detail="required vector stage failed",
+                ),
+            ],
+        }
+    _transactional_save_index(updated, target)
     return {
         "deleted_document_id": document_id,
         "documents": len(updated.documents),
         "chunks": len(updated.chunks),
         "index_path": str(target),
         "index_version": updated.version,
-        "stages": [_completed_local_stage(updated, target), vector_stage],
+        "activated": True,
+        "stages": [
+            _completed_local_stage(updated, target),
+            vector_stage,
+            _activation_stage(updated, target, status="completed"),
+        ],
     }
 
 

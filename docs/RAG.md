@@ -1,5 +1,21 @@
 # RAG MVP
 
+## Index activation and consistency
+
+RAG writes use a versioned activation protocol:
+
+1. acquire the SQLite `rag_index_states` lease with the expected active version;
+2. build a staging candidate;
+3. synchronize the configured vector backend;
+4. atomically replace the local active index only after required stages pass;
+5. activate the staging version in SQLite.
+
+Chroma synchronization removes IDs that are not present in the replacement
+index, so delete and rebuild cannot leave retrievable stale chunks. A required
+vector-stage failure preserves the previous active index and completes the
+durable RagRun as `partial_success`, with separate local, vector and activation
+stage diagnostics.
+
 ## Status
 
 Current status: **MVP implemented with a local-first retrieval path, configurable embeddings and an optional Chroma adapter**.

@@ -6,6 +6,21 @@ until code, tests, documentation and remote CI prove it.
 
 Updated: 2026-07-01
 
+## Progress
+
+Completed on 2026-07-02:
+
+- Chroma replacement writes remove chunk IDs absent from the candidate index.
+- SQLite `rag_index_states` owns active/staging versions and an
+  expected-version write lease.
+- Required vector-stage failure skips activation, preserves the old active
+  index and records the RagRun as `partial_success`.
+- Local, vector and activation stages are reported separately.
+
+Remaining in the Phase 0 correctness gate: stable document/revision identity,
+stronger upload validation, pedagogy-aware `RetrievalQueryPlan`, and marking
+`local_hash` as test/fallback-only.
+
 ## Planning principles
 
 - Preserve the server-owned `RagRun`, explainable retrieval and pedagogy
@@ -160,4 +175,3 @@ When implementation resumes, start with Phase 0 items 1–4:
 2. define versioned staging/activation contracts;
 3. model partial stage status;
 4. add concurrency and rollback tests before changing the implementation.
-

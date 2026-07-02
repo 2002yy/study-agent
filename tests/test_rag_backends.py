@@ -39,6 +39,8 @@ class _RecordingEmbeddingProvider:
 class _FakeCollection:
     def __init__(self) -> None:
         self.upserts = []
+        self.ids = []
+        self.deletes = []
         self.response = {
             "ids": [["chunk-1"]],
             "distances": [[0.2]],
@@ -61,6 +63,15 @@ class _FakeCollection:
 
     def upsert(self, **kwargs) -> None:
         self.upserts.append(kwargs)
+        self.ids = list(dict.fromkeys([*self.ids, *kwargs["ids"]]))
+
+    def get(self, **_kwargs):
+        return {"ids": list(self.ids)}
+
+    def delete(self, **kwargs) -> None:
+        self.deletes.append(kwargs)
+        removed = set(kwargs["ids"])
+        self.ids = [item for item in self.ids if item not in removed]
 
     def query(self, **kwargs):
         self.last_query = kwargs
@@ -211,6 +222,30 @@ def test_chroma_backend_upserts_chunks_with_embeddings(tmp_path):
     assert upsert["documents"] == [index.chunks[0].text]
     assert upsert["metadatas"][0]["source_path"] == str(path)
     assert embedding_provider.embed_many_inputs == [[index.chunks[0].text]]
+
+
+def test_chroma_backend_removes_chunks_missing_from_replacement_index(tmp_path):
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first stale knowledge", encoding="utf-8")
+    second.write_text("second active knowledge", encoding="utf-8")
+    first_index = build_rag_index([first], max_chars=200, overlap_chars=0)
+    second_index = build_rag_index([second], max_chars=200, overlap_chars=0)
+    fake_client = _FakeClient()
+    backend = ChromaVectorBackend(
+        path=tmp_path / "chroma",
+        collection_name="study_agent_test",
+        client=fake_client,
+        embedding_provider=_RecordingEmbeddingProvider(),
+    )
+
+    backend.upsert_index(first_index)
+    backend.upsert_index(second_index)
+
+    assert fake_client.collection.deletes == [
+        {"ids": [first_index.chunks[0].chunk_id]}
+    ]
+    assert fake_client.collection.ids == [second_index.chunks[0].chunk_id]
 
 
 def test_chroma_backend_query_reconstructs_search_results(tmp_path):

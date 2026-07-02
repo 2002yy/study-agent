@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -291,6 +291,25 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON rag_runs(kind, updated_at DESC);
         CREATE INDEX idx_rag_runs_status_updated
             ON rag_runs(status, updated_at DESC);
+        """,
+    ),
+    (
+        12,
+        """
+        CREATE TABLE rag_index_states (
+            index_path TEXT PRIMARY KEY,
+            active_version INTEGER NOT NULL DEFAULT 0,
+            staging_version INTEGER,
+            status TEXT NOT NULL DEFAULT 'idle',
+            document_count INTEGER NOT NULL DEFAULT 0,
+            chunk_count INTEGER NOT NULL DEFAULT 0,
+            error TEXT NOT NULL DEFAULT '',
+            version INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_rag_index_states_status
+            ON rag_index_states(status, updated_at DESC);
         """,
     ),
 )

@@ -16,7 +16,7 @@ items are not implementation status.
 | NewsRun | **sealed** | News service/repository + `newsController` |
 | ToolRun | **sealed** | Tool service/repository + `toolController` |
 | MemoryTransaction | **sealed** | `MemoryRun` + hash-locked commit + `memoryController` |
-| RAG/KnowledgeBase | **sealed** | durable query/upload/rebuild runs + KB document lifecycle |
+| RAG/KnowledgeBase | **sealed** | durable runs + version-leased staging/activation + KB document lifecycle |
 | WebLookupRun | **sealed** | SQLite repository + `WebLookupService` + `webLookupController` |
 | App entry | **sealed** | composition-only `App.tsx` |
 | AppShell | **sealed** | six-line layout-only component with no state, API or persistence |
