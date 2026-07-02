@@ -17,6 +17,11 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _stable_document_id(source: Path) -> str:
+    identity = source.resolve().as_posix().casefold()
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+
+
 def _normalize_text(text: str) -> str:
     normalized = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     lines = [line.rstrip() for line in normalized.split("\n")]
@@ -119,12 +124,20 @@ def load_document(
         raise ValueError(f"RAG document is empty: {source}")
 
     stat = source.stat()
+    document_id = _stable_document_id(source)
+    content_hash = _sha256_text(text)
+    parser_version = "loader_v1"
     return RagDocument(
         source_path=str(source),
         title=source.stem,
         text=text,
-        content_hash=_sha256_text(text),
+        content_hash=content_hash,
         file_type=suffix.lstrip("."),
+        document_id=document_id,
+        revision_id=_sha256_text(
+            f"{document_id}:{content_hash}:{parser_version}"
+        )[:24],
+        parser_version=parser_version,
         metadata={
             "size_bytes": stat.st_size,
             "mtime_ns": stat.st_mtime_ns,

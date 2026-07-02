@@ -65,6 +65,42 @@ def _with_version(index: RagIndex, version: int) -> RagIndex:
     )
 
 
+def _document_id(document) -> str:
+    return document.document_id or document.content_hash
+
+
+def _chunk_document_id(chunk) -> str:
+    return chunk.document_id or chunk.document_hash
+
+
+def _merge_document_revisions(
+    existing: RagIndex,
+    incoming: RagIndex,
+    *,
+    version: int,
+) -> RagIndex:
+    incoming_documents = {
+        _document_id(document): document for document in incoming.documents
+    }
+    incoming_ids = set(incoming_documents)
+    documents = [
+        incoming_documents.pop(_document_id(document), document)
+        for document in existing.documents
+    ]
+    documents.extend(incoming_documents.values())
+    chunks = [
+        chunk
+        for chunk in existing.chunks
+        if _chunk_document_id(chunk) not in incoming_ids
+    ]
+    chunks.extend(incoming.chunks)
+    return RagIndex(
+        version=version,
+        documents=tuple(documents),
+        chunks=tuple(chunks),
+    )
+
+
 def _completed_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
     return {
         "name": "local",
@@ -202,14 +238,10 @@ def append_documents_to_index(
     else:
         existing = RagIndex(version=new_index.version, documents=(), chunks=())
 
-    existing_hashes = {doc.content_hash for doc in existing.documents}
-    added_docs = tuple(doc for doc in new_index.documents if doc.content_hash not in existing_hashes)
-    added_hashes = {doc.content_hash for doc in added_docs}
-    added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
-    merged = RagIndex(
+    merged = _merge_document_revisions(
+        existing,
+        new_index,
         version=existing.version + 1 if target.is_file() else 1,
-        documents=existing.documents + added_docs,
-        chunks=existing.chunks + added_chunks,
     )
     _transactional_save_index(merged, target)
     get_vector_backend_from_env().upsert_index(merged)
@@ -235,14 +267,12 @@ def append_documents_to_index_with_stages(
     else:
         existing = RagIndex(version=new_index.version, documents=(), chunks=())
 
-    existing_hashes = {doc.content_hash for doc in existing.documents}
-    added_docs = tuple(doc for doc in new_index.documents if doc.content_hash not in existing_hashes)
-    added_hashes = {doc.content_hash for doc in added_docs}
-    added_chunks = tuple(chunk for chunk in new_index.chunks if chunk.document_hash in added_hashes)
-    merged = RagIndex(
-        version=target_version or (existing.version + 1 if target.is_file() else 1),
-        documents=existing.documents + added_docs,
-        chunks=existing.chunks + added_chunks,
+    merged = _merge_document_revisions(
+        existing,
+        new_index,
+        version=target_version or (
+            existing.version + 1 if target.is_file() else 1
+        ),
     )
     vector_stage = _vector_stage(merged)
     if vector_stage["status"] != "completed":
@@ -288,19 +318,21 @@ def list_knowledge_documents(
     index = load_rag_index(target)
     chunk_counts: dict[str, int] = {}
     for chunk in index.chunks:
-        chunk_counts[chunk.document_hash] = chunk_counts.get(chunk.document_hash, 0) + 1
+        document_id = _chunk_document_id(chunk)
+        chunk_counts[document_id] = chunk_counts.get(document_id, 0) + 1
     return {
         "index_path": str(target),
         "index_exists": True,
         "index_version": index.version,
         "documents": [
             {
-                "document_id": document.content_hash,
+                "document_id": _document_id(document),
+                "revision_id": document.revision_id or document.content_hash,
                 "title": document.title,
                 "source_path": document.source_path,
                 "file_type": document.file_type,
                 "content_hash": document.content_hash,
-                "chunks": chunk_counts.get(document.content_hash, 0),
+                "chunks": chunk_counts.get(_document_id(document), 0),
                 "metadata": document.metadata,
             }
             for document in index.documents
@@ -319,13 +351,13 @@ def delete_knowledge_document(
     index = load_rag_index(target)
     documents = tuple(
         document for document in index.documents
-        if document.content_hash != document_id
+        if _document_id(document) != document_id
     )
     if len(documents) == len(index.documents):
         raise ValueError(f"Knowledge document not found: {document_id}")
     chunks = tuple(
         chunk for chunk in index.chunks
-        if chunk.document_hash != document_id
+        if _chunk_document_id(chunk) != document_id
     )
     updated = RagIndex(
         version=target_version or index.version + 1,

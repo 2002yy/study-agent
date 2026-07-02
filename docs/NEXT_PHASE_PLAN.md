@@ -16,10 +16,17 @@ Completed on 2026-07-02:
 - Required vector-stage failure skips activation, preserves the old active
   index and records the RagRun as `partial_success`.
 - Local, vector and activation stages are reported separately.
+- Stable document identity is separated from content-derived revision identity;
+  re-uploading the same source replaces its active revision.
+- Uploads enforce batch/file limits, supported MIME types, UTF-8 text, PDF
+  signatures, DOCX structure and archive expansion limits before persistence.
+- Chat retrieval builds a private `RetrievalQueryPlan` from the learning
+  objective, unresolved gap, protocol and current input.
+- `local_hash` status/config metadata identifies it as non-semantic
+  `test_fallback`.
 
-Remaining in the Phase 0 correctness gate: stable document/revision identity,
-stronger upload validation, pedagogy-aware `RetrievalQueryPlan`, and marking
-`local_hash` as test/fallback-only.
+The Phase 0 correctness gate is complete. Phase 1 Pedagogy Evaluation is the
+next implementation slice; RAG retrieval-quality work remains Phase 2.
 
 ## Planning principles
 

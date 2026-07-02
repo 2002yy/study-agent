@@ -48,6 +48,12 @@ class ChromaVectorBackend:
                 path=str(self.path),
                 collection=self.collection_name,
                 embedding_provider=self.embedding_provider.name,
+                embedding_semantic=self.embedding_provider.name != "local_hash",
+                embedding_intended_use=(
+                    "test_fallback"
+                    if self.embedding_provider.name == "local_hash"
+                    else "production"
+                ),
             )
         return VectorBackendStatus(
             name=self.name,
@@ -56,6 +62,12 @@ class ChromaVectorBackend:
             path=str(self.path),
             collection=self.collection_name,
             embedding_provider=self.embedding_provider.name,
+            embedding_semantic=self.embedding_provider.name != "local_hash",
+            embedding_intended_use=(
+                "test_fallback"
+                if self.embedding_provider.name == "local_hash"
+                else "production"
+            ),
         )
 
     def upsert_index(self, index: RagIndex) -> None:
@@ -123,6 +135,8 @@ def _first(value: list) -> list:
 def _chunk_metadata(chunk: RagChunk) -> dict[str, str | int]:
     return {
         "document_hash": chunk.document_hash,
+        "document_id": chunk.document_id,
+        "revision_id": chunk.revision_id,
         "source_path": chunk.source_path,
         "title": chunk.title,
         "chunk_index": chunk.chunk_index,
@@ -143,6 +157,8 @@ def _chunk_from_metadata(chunk_id: str, text: str, metadata: dict) -> RagChunk:
         chunk_index=int(metadata.get("chunk_index", 0)),
         start_line=int(metadata.get("start_line", 1)),
         end_line=int(metadata.get("end_line", 1)),
+        document_id=str(metadata.get("document_id", "")),
+        revision_id=str(metadata.get("revision_id", "")),
         metadata={
             "file_type": metadata.get("file_type", ""),
             "char_count": int(metadata.get("char_count", len(text))),

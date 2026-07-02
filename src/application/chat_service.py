@@ -14,6 +14,7 @@ from src.performance_budget import chat_max_tokens
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evidence import EvidenceDisclosurePolicy, build_evidence_units
 from src.pedagogy.types import LearningState, PedagogyTurnPlan
+from src.rag.query_plan import build_retrieval_query_plan
 from src.repositories.runtime_repository import RuntimeRepository
 from src.role_manager import build_role_prompt
 from src.router import route_request
@@ -146,14 +147,21 @@ class ChatService:
                 relationship_mode=command.relationship_mode,
             )
             memory_bundle = self.dependencies.read_memory_bundle(context_mode)
-            rag_result = self.dependencies.retrieve_local_knowledge(
+            retrieval_plan = build_retrieval_query_plan(
                 command.user_input,
+                state=learning_state,
+                plan=pedagogy_plan,
+            )
+            rag_result = self.dependencies.retrieve_local_knowledge(
+                retrieval_plan.private_query,
                 enabled=command.rag_enabled,
+                force=retrieval_plan.force_retrieval,
                 top_k=command.rag_chat_top_k or command.rag_top_k,
                 retrieval_mode=command.rag_retrieval_mode,
                 min_score=command.rag_min_score,
             )
             rag = rag_result.to_dict()
+            rag["query_plan"] = retrieval_plan.to_dict()
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
             evidence_units = build_evidence_units(

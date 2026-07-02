@@ -195,6 +195,7 @@ RAG_VECTOR_BACKEND=local
 # RAG_CHROMA_PATH=logs/chroma
 # RAG_CHROMA_COLLECTION=study_agent
 
+# Deterministic test/offline fallback only.
 RAG_EMBEDDING_PROVIDER=local_hash
 # RAG_EMBEDDING_PROVIDER=openai
 # RAG_EMBEDDING_MODEL=text-embedding-3-small

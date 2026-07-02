@@ -16,6 +16,28 @@ vector-stage failure preserves the previous active index and completes the
 durable RagRun as `partial_success`, with separate local, vector and activation
 stage diagnostics.
 
+## Document revisions and upload validation
+
+`document_id` is stable for a source path, while `revision_id` identifies a
+specific normalized-content/parser revision. Appending a changed version of the
+same source replaces its document and chunks instead of leaving both revisions
+active.
+
+Upload validation runs before files are persisted. It enforces per-file and
+aggregate limits, extension/MIME agreement, UTF-8 text, PDF signatures, DOCX
+ZIP structure and an uncompressed archive ceiling.
+
+## Pedagogy-aware query planning
+
+Single-chat retrieval uses `RetrievalQueryPlan`. The private query combines the
+current learning objective and unresolved gap with meaningful user input. A
+reply such as “不知道” therefore does not erase the retrieval topic. The raw
+input, protocol, knowledge kind and private query remain available in the turn
+RAG snapshot for diagnosis.
+
+`local_hash` remains deterministic for tests and offline fallback, but is
+explicitly reported as non-semantic and is not a production embedding profile.
+
 ## Status
 
 Current status: **MVP implemented with a local-first retrieval path, configurable embeddings and an optional Chroma adapter**.

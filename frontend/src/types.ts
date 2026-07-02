@@ -385,8 +385,9 @@ export type RagRunResponse = {
   completed_at?: string | null;
 };
 
-export type KnowledgeDocument = {
-  document_id: string;
+  export type KnowledgeDocument = {
+    document_id: string;
+    revision_id: string;
   title: string;
   source_path: string;
   file_type: string;

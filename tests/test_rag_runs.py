@@ -90,6 +90,40 @@ def test_knowledge_base_document_list_delete_and_index_version(tmp_path):
     assert all(doc["document_id"] != document_id for doc in after["documents"])
 
 
+def test_reupload_same_source_replaces_revision_without_duplicate_document(
+    tmp_path,
+):
+    service = RagRunService(
+        RagRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    )
+    index_path = tmp_path / "rag.json"
+    document = tmp_path / "notes.md"
+    document.write_text("revision one", encoding="utf-8")
+    service.index(
+        [document],
+        mode="upload",
+        index_path=index_path,
+        max_chars=200,
+        overlap_chars=0,
+    )
+    before = service.documents(index_path=index_path)["documents"][0]
+
+    document.write_text("revision two with corrected content", encoding="utf-8")
+    service.index(
+        [document],
+        mode="upload",
+        index_path=index_path,
+        max_chars=200,
+        overlap_chars=0,
+    )
+    documents = service.documents(index_path=index_path)["documents"]
+
+    assert len(documents) == 1
+    assert documents[0]["document_id"] == before["document_id"]
+    assert documents[0]["revision_id"] != before["revision_id"]
+    assert documents[0]["content_hash"] != before["content_hash"]
+
+
 def test_required_vector_failure_does_not_activate_candidate(
     tmp_path, monkeypatch
 ):

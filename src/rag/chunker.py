@@ -73,6 +73,8 @@ def chunk_document(
                 chunk_index=chunk_index,
                 start_line=current_start,
                 end_line=current_end,
+                document_id=document.document_id,
+                revision_id=document.revision_id,
                 metadata={
                     "file_type": document.file_type,
                     "char_count": len(text),
@@ -110,6 +112,8 @@ def chunk_document(
                     chunk_index=chunk_index,
                     start_line=current_start,
                     end_line=current_end,
+                    document_id=document.document_id,
+                    revision_id=document.revision_id,
                     metadata={
                         "file_type": document.file_type,
                         "char_count": len(head),

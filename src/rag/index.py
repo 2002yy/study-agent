@@ -85,6 +85,9 @@ def _document_from_dict(data: dict[str, Any]) -> RagDocument:
         text=str(data["text"]),
         content_hash=str(data["content_hash"]),
         file_type=str(data["file_type"]),
+        document_id=str(data.get("document_id") or data["content_hash"]),
+        revision_id=str(data.get("revision_id") or data["content_hash"]),
+        parser_version=str(data.get("parser_version") or "legacy_v1"),
         metadata=dict(data.get("metadata") or {}),
     )
 
@@ -99,6 +102,8 @@ def _chunk_from_dict(data: dict[str, Any]) -> RagChunk:
         chunk_index=int(data["chunk_index"]),
         start_line=int(data["start_line"]),
         end_line=int(data["end_line"]),
+        document_id=str(data.get("document_id") or data["document_hash"]),
+        revision_id=str(data.get("revision_id") or data["document_hash"]),
         metadata=dict(data.get("metadata") or {}),
     )
 

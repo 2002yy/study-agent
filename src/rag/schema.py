@@ -11,6 +11,9 @@ class RagDocument:
     text: str
     content_hash: str
     file_type: str
+    document_id: str = ""
+    revision_id: str = ""
+    parser_version: str = "loader_v1"
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,6 +30,8 @@ class RagChunk:
     chunk_index: int
     start_line: int
     end_line: int
+    document_id: str = ""
+    revision_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

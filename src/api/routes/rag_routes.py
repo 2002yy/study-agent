@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -21,6 +22,10 @@ from src.api.models.rag import (
     KnowledgeDocumentListResponse,
 )
 from src.application.rag_run_service import RagRunService
+from src.rag.upload_validation import (
+    UploadCandidate,
+    validate_upload_batch,
+)
 from src.application.runtime_repository import get_rag_run_service
 
 router = APIRouter(tags=["rag"])
@@ -107,11 +112,27 @@ async def _save_uploads(files: list[UploadFile]):
         raise HTTPException(status_code=400, detail="No files uploaded")
     upload_dir = _api_path("RAG_UPLOAD_DIR")
     upload_dir.mkdir(parents=True, exist_ok=True)
+    candidates = [
+        UploadCandidate(
+            filename=uploaded.filename or "",
+            content_type=uploaded.content_type or "application/octet-stream",
+            data=await uploaded.read(),
+        )
+        for uploaded in files
+    ]
+    validate_upload_batch(candidates)
     saved_paths = []
     used_names: set[str] = set()
-    for uploaded in files:
-        target = unique_upload_path(upload_dir, uploaded.filename, used_names)
-        target.write_bytes(await uploaded.read())
+    for candidate in candidates:
+        base_name = Path(candidate.filename or "document").name or "document"
+        if base_name not in used_names:
+            used_names.add(base_name)
+            target = upload_dir / base_name
+        else:
+            target = unique_upload_path(
+                upload_dir, candidate.filename, used_names
+            )
+        target.write_bytes(candidate.data)
         saved_paths.append(target)
     return saved_paths
 
@@ -129,7 +150,10 @@ async def _create_upload_run(
         raise HTTPException(status_code=400, detail="max_chars out of range")
     if overlap_chars < 0 or overlap_chars > 5_000:
         raise HTTPException(status_code=400, detail="overlap_chars out of range")
-    saved_paths = await _save_uploads(files)
+    try:
+        saved_paths = await _save_uploads(files)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         run = service.index(
             saved_paths,

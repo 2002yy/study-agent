@@ -123,6 +123,8 @@ def test_embedding_provider_config_reads_environment(monkeypatch):
         "dimensions": "768",
         "base_url_configured": "true",
         "api_key_configured": "true",
+        "semantic_capable": "true",
+        "intended_use": "production",
     }
 
 
@@ -169,6 +171,8 @@ def test_local_vector_backend_queries_index(tmp_path):
 
     assert backend.status().available is True
     assert backend.status().embedding_provider == "local_hash"
+    assert backend.status().embedding_semantic is False
+    assert backend.status().embedding_intended_use == "test_fallback"
     assert results
     assert results[0].chunk.source_path == str(path)
 

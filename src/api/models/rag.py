@@ -98,6 +98,7 @@ class RagRunListResponse(BaseModel):
 
 class KnowledgeDocumentResponse(BaseModel):
     document_id: str
+    revision_id: str
     title: str
     source_path: str
     file_type: str

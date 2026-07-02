@@ -114,8 +114,10 @@ def _env_float(name: str) -> float | None:
 
 
 def embedding_provider_config_from_env() -> dict[str, str]:
+    provider = os.getenv("RAG_EMBEDDING_PROVIDER", "local_hash").strip() or "local_hash"
+    is_local_hash = provider.lower() in {"local", "local_hash", "hash"}
     return {
-        "provider": os.getenv("RAG_EMBEDDING_PROVIDER", "local_hash").strip() or "local_hash",
+        "provider": provider,
         "model": os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small").strip()
         or "text-embedding-3-small",
         "dimensions": os.getenv("RAG_EMBEDDING_DIMENSIONS", "").strip(),
@@ -125,6 +127,8 @@ def embedding_provider_config_from_env() -> dict[str, str]:
         "api_key_configured": "true"
         if (os.getenv("RAG_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY"))
         else "false",
+        "semantic_capable": "false" if is_local_hash else "true",
+        "intended_use": "test_fallback" if is_local_hash else "production",
     }
 
 

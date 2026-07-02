@@ -22,6 +22,8 @@ class VectorBackendStatus:
     path: str = ""
     collection: str = ""
     embedding_provider: str = ""
+    embedding_semantic: bool = True
+    embedding_intended_use: str = "production"
 
     def to_dict(self) -> dict[str, str | bool]:
         return {
@@ -31,6 +33,8 @@ class VectorBackendStatus:
             "path": self.path,
             "collection": self.collection,
             "embedding_provider": self.embedding_provider,
+            "embedding_semantic": self.embedding_semantic,
+            "embedding_intended_use": self.embedding_intended_use,
         }
 
 
@@ -66,6 +70,8 @@ class LocalVectorBackend:
             available=True,
             detail="In-memory deterministic local vector prototype",
             embedding_provider=self.embedding_provider.name,
+            embedding_semantic=False,
+            embedding_intended_use="test_fallback",
         )
 
     def upsert_index(self, index: RagIndex) -> None:

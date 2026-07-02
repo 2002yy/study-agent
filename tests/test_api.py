@@ -727,6 +727,21 @@ def test_rag_upload_reports_vector_stage_failure(monkeypatch, tmp_path):
     assert not index_path.exists()
 
 
+def test_rag_upload_rejects_invalid_file_signature(tmp_path):
+    client = TestClient(app)
+    index_path = tmp_path / "unsafe_index.json"
+
+    response = client.post(
+        "/rag/upload",
+        params={"index_path": str(index_path)},
+        files={"files": ("fake.pdf", b"not a PDF", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert "PDF signature" in response.json()["detail"]
+    assert not index_path.exists()
+
+
 def test_chat_endpoint_builds_reply_and_logs_session(runtime_test_context):
     from src.application.chat_service import ChatDependencies
     from src.context_builder import build_messages
