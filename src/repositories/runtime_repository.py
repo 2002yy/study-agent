@@ -10,6 +10,8 @@ from typing import Any
 
 from src.domain.runtime_entities import ChatThread, ChatTurn, utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.pedagogy.evaluation import PedagogyEvalRun
+from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
 
 
 def _dump(value: Any) -> str:
@@ -603,6 +605,7 @@ class RuntimeRepository:
         rag_snapshot: dict[str, Any],
         operation_id: str,
         supersede_parent_turn_id: str | None = None,
+        pedagogy_eval_run: PedagogyEvalRun | None = None,
     ) -> ChatTurn:
         current = self.get_chat_turn(turn_id)
         if current is None:
@@ -655,6 +658,14 @@ class RuntimeRepository:
                     raise ValueError(
                         f"Retry parent is not supersedable: {supersede_parent_turn_id}"
                     )
+            if pedagogy_eval_run is not None:
+                PedagogyEvalRepository.insert(
+                    connection,
+                    run=pedagogy_eval_run,
+                    thread_id=current.thread_id,
+                    turn_id=turn_id,
+                    created_at=now,
+                )
         completed = self.get_chat_turn(turn_id)
         if completed is None:
             raise ValueError(f"Chat turn not found after completion: {turn_id}")

@@ -9,7 +9,28 @@ from src.pedagogy.types import (
     PedagogyTurnPlan,
 )
 
-BARE_UNDERSTANDING = {"我明白了", "懂了", "知道了", "原来如此", "明白"}
+BARE_UNDERSTANDING = {
+    "我明白了",
+    "懂了",
+    "知道了",
+    "原来如此",
+    "明白",
+    "i understand",
+    "got it",
+}
+CLAIM_MARKERS = ("所以", "因此", "也就是说", "结论是", "so ", "therefore")
+REASON_MARKERS = (
+    "因为",
+    "由于",
+    "每次",
+    "当",
+    "如果",
+    "意味着",
+    "because",
+    "since",
+    "when",
+    "if",
+)
 
 
 def evaluate_learner_response(
@@ -17,26 +38,32 @@ def evaluate_learner_response(
     *,
     state: LearningState,
 ) -> LearnerResponseEvaluation:
-    normalized = text.strip().rstrip("。！!")
+    normalized = text.strip().rstrip("。！？.!").lower()
     if normalized in BARE_UNDERSTANDING:
         return LearnerResponseEvaluation(
-            passed=False, is_claim=False, reason="understanding_asserted_without_reasoning"
+            passed=False,
+            is_claim=False,
+            reason="understanding_asserted_without_reasoning",
         )
-    is_claim = any(marker in text for marker in ("所以", "因此", "也就是说", "结论是"))
+    lowered_text = text.lower()
+    is_claim = any(marker in lowered_text for marker in CLAIM_MARKERS)
     if not is_claim:
         return LearnerResponseEvaluation(
-            passed=False, is_claim=False, reason="no_conclusion_claim"
+            passed=False,
+            is_claim=False,
+            reason="no_conclusion_claim",
         )
     misconceptions: list[str] = []
     objective = state.objective.lower()
-    lowered = text.lower().replace(" ", "")
+    compact = lowered_text.replace(" ", "")
     if ("二分" in objective or "binary" in objective) and (
-        "o(n)" in lowered or "线性复杂度" in text
+        "o(n)" in compact
+        or "线性复杂度" in text
+        or "islinear" in compact
     ):
         misconceptions.append("binary_search_linear_complexity")
-    has_reasoning = (
-        len(normalized) >= 18
-        and any(marker in text for marker in ("因为", "由于", "每次", "当", "如果", "意味着"))
+    has_reasoning = len(normalized) >= 18 and any(
+        marker in lowered_text for marker in REASON_MARKERS
     )
     if misconceptions:
         return LearnerResponseEvaluation(
@@ -64,7 +91,8 @@ def evaluate_assistant_response(
     if not response.strip():
         violations.append("empty_response")
     if plan.disclosure_level <= 1 and any(
-        marker in response for marker in ("完整答案是", "最终结论是", "直接答案是")
+        marker in response
+        for marker in ("完整答案是", "最终结论是", "直接答案是")
     ):
         violations.append("premature_conclusion_disclosure")
     return AssistantResponseEvaluation(

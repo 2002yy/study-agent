@@ -54,16 +54,19 @@ per mode; Feynman and Project own distinct phase machines. Retrieval is private
 by default, and disclosure selects complete evidence units. Turn completion and
 `ChatThread.learning_state` advance in one SQLite transaction.
 
-The remaining gap is model-backed semantic evaluation plus broader
-golden-dialogue coverage. The deterministic evaluator currently catches known
-wrong conclusions and unsupported understanding claims, but it is not a
-general-purpose judge of conceptual correctness.
+`PedagogyEvalRun` is now **sealed** as a server-owned vertical slice. The live
+turn pipeline evaluates learner claims deterministic-first, delegates only
+ambiguous claims to a strict structured semantic adapter, and records
+deterministic/semantic results, confidence, evidence references, versions and
+the final decision in SQLite. Completed turn, committed learning state and eval
+run share one transaction. Provider/parse failure becomes
+`needs_semantic_review`; transfer, completion and delivery states cannot advance
+without an accepted evidence-grounded result.
 
-`PedagogyEvalRun` now defines the structured evaluation boundary: deterministic
-result, optional semantic result, confidence, evidence references and final
-decision. Its service returns `needs_semantic_review` when no provider can judge
-an ambiguous claim. Wiring that service into the live turn pipeline and
-persisting eval runs remain open, so Pedagogy stays **partial**.
+The replayable golden corpus covers Direct, Socratic, Feynman and Project
+protocols plus paraphrase, plausible misconception, counterexample, missing
+condition, evidence leakage and provider-failure behavior. Learner Model work
+remains intentionally downstream of evaluation stability.
 
 ## Compatibility policy
 

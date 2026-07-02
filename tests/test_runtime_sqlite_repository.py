@@ -461,3 +461,52 @@ def test_turn_completion_and_pedagogy_state_commit_atomically(tmp_path):
     assert stored_thread.active_operation_id == "operation-1"
     assert stored_turn is not None
     assert stored_turn.status == "streaming"
+
+
+def test_eval_insert_failure_rolls_back_turn_and_pedagogy_state(tmp_path, monkeypatch):
+    from src.pedagogy.evaluation import PedagogyEvaluationService
+    from src.pedagogy.types import LearningState
+    from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    repository = RuntimeRepository(database)
+    thread = repository.create_chat_thread(
+        ChatThread(learning_state={"phase": "orientation"})
+    )
+    repository.acquire_chat_operation(thread.id, "operation-eval")
+    turn = repository.add_chat_turn(
+        ChatTurn(
+            thread_id=thread.id,
+            user_message="question",
+            status="streaming",
+            operation_id="operation-eval",
+        )
+    )
+    run = PedagogyEvaluationService().evaluate_learner(
+        learner_input="question",
+        state=LearningState(protocol="direct_answer", objective="question"),
+    )
+
+    def fail_insert(*_args, **_kwargs):
+        raise sqlite3.IntegrityError("simulated eval failure")
+
+    monkeypatch.setattr(PedagogyEvalRepository, "insert", fail_insert)
+    with pytest.raises(sqlite3.IntegrityError, match="simulated eval failure"):
+        repository.complete_chat_turn_with_pedagogy(
+            turn.id,
+            assistant_message="answer",
+            learning_state={"phase": "answer"},
+            pedagogy_snapshot={"phase": "answer"},
+            route_snapshot={},
+            rag_snapshot={},
+            operation_id="operation-eval",
+            pedagogy_eval_run=run,
+        )
+
+    stored_thread = repository.get_chat_thread(thread.id)
+    stored_turn = repository.get_chat_turn(turn.id)
+    assert stored_thread is not None
+    assert stored_thread.learning_state == {"phase": "orientation"}
+    assert stored_thread.active_operation_id == "operation-eval"
+    assert stored_turn is not None
+    assert stored_turn.status == "streaming"

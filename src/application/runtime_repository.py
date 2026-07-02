@@ -10,6 +10,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
+from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
 from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.repositories.runtime_repository import RuntimeRepository
@@ -76,10 +77,21 @@ def get_web_lookup_repository() -> WebLookupRepository:
 
 
 @lru_cache(maxsize=1)
-def get_chat_service():
-    from src.application.chat_service import ChatService
+def get_pedagogy_eval_repository() -> PedagogyEvalRepository:
+    return PedagogyEvalRepository(RuntimeDatabase(runtime_database_path()))
 
-    return ChatService(get_runtime_repository())
+
+@lru_cache(maxsize=1)
+def get_chat_service():
+    from src.application.chat_service import ChatDependencies, ChatService
+    from src.pedagogy.evaluation import LLMSemanticEvaluator, PedagogyEvaluationService
+
+    return ChatService(
+        get_runtime_repository(),
+        ChatDependencies(
+            pedagogy_evaluation=PedagogyEvaluationService(LLMSemanticEvaluator())
+        ),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -162,5 +174,6 @@ def reset_runtime_repository_cache() -> None:
     get_memory_repository.cache_clear()
     get_tool_repository.cache_clear()
     get_web_lookup_repository.cache_clear()
+    get_pedagogy_eval_repository.cache_clear()
     get_runtime_repository.cache_clear()
     get_rag_repository.cache_clear()

@@ -1,0 +1,209 @@
+{
+  "cases": [
+    {
+      "id": "socratic_reasoned_paraphrase",
+      "state": {
+        "protocol": "socratic_rediscovery",
+        "objective": "Explain why binary search is logarithmic"
+      },
+      "learner_input": "So each comparison halves the remaining range, because only one half can still contain the target.",
+      "expected_concepts": ["halving", "logarithmic depth"],
+      "evidence": ["binary-search-invariant"],
+      "semantic_result": {
+        "claims": ["the remaining range halves"],
+        "correct_points": ["one half preserves the search invariant"],
+        "gaps": [],
+        "misconceptions": [],
+        "reasoning_complete": true,
+        "transfer_ready": true,
+        "confidence": 0.92,
+        "evidence_refs": ["binary-search-invariant"]
+      },
+      "plan": {
+        "mode": "socratic_rediscovery",
+        "phase": "transfer",
+        "move": "transfer",
+        "disclosure_level": 2
+      },
+      "assistant_response": "Good. What changes if the array has duplicate values?",
+      "expected_decision": "accept",
+      "expected_assistant_pass": true
+    },
+    {
+      "id": "socratic_plausible_misconception",
+      "state": {
+        "protocol": "socratic_rediscovery",
+        "objective": "Explain balanced tree lookup"
+      },
+      "learner_input": "So a balanced tree lookup is linear because it compares one node at a time.",
+      "semantic_result": {
+        "claims": ["balanced tree lookup is linear"],
+        "misconceptions": ["confuses comparisons per step with tree height"],
+        "reasoning_complete": false,
+        "transfer_ready": false,
+        "confidence": 0.97,
+        "evidence_refs": []
+      },
+      "plan": {
+        "mode": "socratic_rediscovery",
+        "phase": "test_assumption",
+        "move": "offer_counterexample",
+        "disclosure_level": 1
+      },
+      "assistant_response": "For a balanced tree with 15 nodes, how many levels can a search visit?",
+      "expected_decision": "reject",
+      "expected_assistant_pass": true,
+      "required_reasons": ["semantic_misconception"]
+    },
+    {
+      "id": "feynman_missing_condition",
+      "state": {
+        "protocol": "feynman_diagnosis",
+        "objective": "Explain caching"
+      },
+      "learner_input": "So caching always makes every request faster because data is stored.",
+      "semantic_result": {
+        "claims": ["caching always makes requests faster"],
+        "correct_points": ["reusing stored data can avoid work"],
+        "gaps": ["misses invalidation, misses, and lookup overhead"],
+        "misconceptions": ["unconditional speedup"],
+        "reasoning_complete": false,
+        "transfer_ready": false,
+        "confidence": 0.9,
+        "evidence_refs": []
+      },
+      "plan": {
+        "mode": "feynman_diagnosis",
+        "phase": "repair",
+        "move": "minimal_repair",
+        "disclosure_level": 2
+      },
+      "assistant_response": "A cache can avoid work. Re-explain it for a cache miss with lookup overhead.",
+      "expected_decision": "reject",
+      "expected_assistant_pass": true,
+      "required_reasons": ["semantic_misconception", "reasoning_incomplete"]
+    },
+    {
+      "id": "project_counterexample_and_validation",
+      "state": {
+        "protocol": "project_execution",
+        "objective": "Fix a race condition"
+      },
+      "learner_input": "Therefore the fix is correct because one manual run passed.",
+      "semantic_result": {
+        "claims": ["one passing run proves the race is fixed"],
+        "correct_points": [],
+        "gaps": ["no concurrent stress or invariant check"],
+        "misconceptions": ["single-run validation proves concurrency safety"],
+        "reasoning_complete": false,
+        "transfer_ready": false,
+        "confidence": 0.95,
+        "evidence_refs": ["test-run-1"]
+      },
+      "evidence": ["test-run-1"],
+      "plan": {
+        "mode": "project_execution",
+        "phase": "verify",
+        "move": "run_validation",
+        "disclosure_level": 5
+      },
+      "assistant_response": "Run the concurrent stress test and verify the invariant before delivery.",
+      "expected_decision": "reject",
+      "expected_assistant_pass": true,
+      "required_reasons": ["semantic_misconception"]
+    },
+    {
+      "id": "direct_answer_does_not_claim_mastery",
+      "state": {
+        "protocol": "direct_answer",
+        "objective": "Define eventual consistency"
+      },
+      "learner_input": "What is eventual consistency?",
+      "plan": {
+        "mode": "direct_answer",
+        "phase": "answer",
+        "move": "direct_explain",
+        "disclosure_level": 5
+      },
+      "assistant_response": "Eventual consistency means replicas may temporarily differ but converge if updates stop.",
+      "expected_decision": "reject",
+      "expected_assistant_pass": true,
+      "required_reasons": ["no_conclusion_claim"]
+    },
+    {
+      "id": "evidence_leakage_is_rejected",
+      "state": {
+        "protocol": "socratic_rediscovery",
+        "objective": "Explain a measured result"
+      },
+      "learner_input": "So the treatment improved the outcome because the reported effect is positive.",
+      "evidence": ["study-1"],
+      "semantic_result": {
+        "claims": ["the treatment improved the outcome"],
+        "correct_points": ["the effect estimate is positive"],
+        "gaps": [],
+        "misconceptions": [],
+        "reasoning_complete": true,
+        "transfer_ready": true,
+        "confidence": 0.93,
+        "evidence_refs": ["invented-study"]
+      },
+      "plan": {
+        "mode": "socratic_rediscovery",
+        "phase": "transfer",
+        "move": "transfer",
+        "disclosure_level": 2
+      },
+      "assistant_response": "Which reported uncertainty would change that conclusion?",
+      "expected_decision": "reject",
+      "expected_assistant_pass": true,
+      "required_reasons": ["unknown_evidence_reference"]
+    },
+    {
+      "id": "provider_failure_cannot_advance",
+      "state": {
+        "protocol": "feynman_diagnosis",
+        "objective": "Explain transactions"
+      },
+      "learner_input": "So atomicity prevents partial commits because all writes succeed or all roll back.",
+      "semantic_result": "provider_failure",
+      "plan": {
+        "mode": "feynman_diagnosis",
+        "phase": "transfer",
+        "move": "transfer_test",
+        "disclosure_level": 2
+      },
+      "assistant_response": "Apply that explanation to a failed two-table update.",
+      "expected_decision": "needs_semantic_review",
+      "expected_assistant_pass": true,
+      "required_reasons": ["semantic_evaluator_failed:TimeoutError"]
+    },
+    {
+      "id": "feynman_counterexample_repairs_rule",
+      "state": {
+        "protocol": "feynman_diagnosis",
+        "objective": "Explain why averages can mislead"
+      },
+      "learner_input": "So the average alone can mislead because one extreme value can move it far from most observations.",
+      "semantic_result": {
+        "claims": ["an extreme value can distort the average"],
+        "correct_points": ["the mean is sensitive to outliers"],
+        "gaps": [],
+        "misconceptions": [],
+        "reasoning_complete": true,
+        "transfer_ready": true,
+        "confidence": 0.91,
+        "evidence_refs": []
+      },
+      "plan": {
+        "mode": "feynman_diagnosis",
+        "phase": "transfer",
+        "move": "transfer_test",
+        "disclosure_level": 2
+      },
+      "assistant_response": "Give a five-number counterexample where the mean describes no typical observation.",
+      "expected_decision": "accept",
+      "expected_assistant_pass": true
+    }
+  ]
+}

@@ -12,6 +12,7 @@ from src.memory import read_memory_bundle
 from src.mode_manager import load_runtime_modes
 from src.performance_budget import chat_max_tokens
 from src.pedagogy.engine import PedagogyEngine
+from src.pedagogy.evaluation import PedagogyEvalRun, PedagogyEvaluationService
 from src.pedagogy.evidence import EvidenceDisclosurePolicy, build_evidence_units
 from src.pedagogy.types import LearningState, PedagogyTurnPlan
 from src.rag.query_plan import build_retrieval_query_plan
@@ -64,6 +65,9 @@ class ChatDependencies:
     async_stream_chat: Callable[..., AsyncIterator[str]] = async_stream_chat
     chat_max_tokens: Callable[[str], int] = chat_max_tokens
     pedagogy_engine: PedagogyEngine = field(default_factory=PedagogyEngine)
+    pedagogy_evaluation: PedagogyEvaluationService = field(
+        default_factory=PedagogyEvaluationService
+    )
     disclosure_policy: EvidenceDisclosurePolicy = field(
         default_factory=EvidenceDisclosurePolicy
     )
@@ -86,6 +90,7 @@ class PreparedChatTurn:
     learning_state: LearningState
     learning_state_before: LearningState
     disclosure_policy: str
+    learner_evaluation: PedagogyEvalRun
 
 
 class ChatService:
@@ -131,6 +136,28 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            expected_concepts = tuple(
+                str(item)
+                for item in learning_state.payload.get(
+                    "expected_concepts", learning_state.confirmed_points
+                )
+            )
+            evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
+            learner_evaluation = self.dependencies.pedagogy_evaluation.evaluate_learner(
+                learner_input=command.user_input,
+                state=learning_state,
+                expected_concepts=expected_concepts,
+                evidence=evidence_ids,
+            )
+            learning_state = LearningState.from_dict(
+                {
+                    **learning_state.to_dict(),
+                    "payload": {
+                        **learning_state.payload,
+                        "pedagogy_evaluation": learner_evaluation.to_dict(),
+                    },
+                }
+            )
             pedagogy_plan, next_learning_state = self.dependencies.pedagogy_engine.plan(
                 user_input=command.user_input,
                 mode=route["mode"],
@@ -269,6 +296,7 @@ class ChatService:
             learning_state=next_learning_state,
             learning_state_before=learning_state,
             disclosure_policy=disclosed.policy,
+            learner_evaluation=learner_evaluation,
         )
 
     def generate(self, prepared: PreparedChatTurn) -> str:
@@ -319,6 +347,18 @@ class ChatService:
             planned=prepared.learning_state,
             evaluation=evaluation,
         )
+        if _requires_mastery_evidence(prepared.pedagogy_plan):
+            if prepared.learner_evaluation.final_decision != "accept":
+                committed_state = LearningState.from_dict(
+                    {
+                        **prepared.learning_state_before.to_dict(),
+                        "payload": {
+                            **prepared.learning_state_before.payload,
+                            "pedagogy_evaluation": prepared.learner_evaluation.to_dict(),
+                            "state_advance_blocked": True,
+                        },
+                    }
+                )
         pedagogy_snapshot = {
             **prepared.turn.pedagogy_snapshot,
             "assistant_evaluation": {
@@ -343,9 +383,9 @@ class ChatService:
             operation_id=prepared.turn.operation_id or "",
             pedagogy_snapshot=pedagogy_snapshot,
             supersede_parent_turn_id=prepared.retry_parent_turn_id,
+            pedagogy_eval_run=prepared.learner_evaluation,
         )
         return updated
-
     def interrupt_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
         updated = self.repository.update_chat_turn(
@@ -500,6 +540,28 @@ class ChatService:
             if turn.status != "superseded" and turn.mode:
                 return turn.mode
         return None
+
+    def _previous_disclosed_evidence_ids(self, thread_id: str) -> tuple[str, ...]:
+        turns = self.repository.list_chat_turns(thread_id)
+        for turn in reversed(turns):
+            if turn.status != "completed":
+                continue
+            units = turn.pedagogy_snapshot.get("evidence_units", ())
+            if not isinstance(units, list):
+                return ()
+            return tuple(
+                str(unit["source_id"])
+                for unit in units
+                if isinstance(unit, dict) and str(unit.get("source_id", "")).strip()
+            )
+        return ()
+
+
+def _requires_mastery_evidence(plan: PedagogyTurnPlan) -> bool:
+    return (
+        plan.phase in {"transfer", "complete", "deliver"}
+        or plan.move in {"transfer", "transfer_test", "close_stage"}
+    )
 
 
 def _previous_assistant_role(history: list[dict[str, Any]]) -> str | None:

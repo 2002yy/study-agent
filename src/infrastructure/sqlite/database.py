@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -310,6 +310,35 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
 
         CREATE INDEX idx_rag_index_states_status
             ON rag_index_states(status, updated_at DESC);
+        """,
+    ),
+    (
+        13,
+        """
+        CREATE TABLE pedagogy_eval_runs (
+            id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL REFERENCES chat_threads(id),
+            turn_id TEXT NOT NULL UNIQUE REFERENCES chat_turns(id),
+            learner_input TEXT NOT NULL,
+            objective TEXT NOT NULL DEFAULT '',
+            protocol TEXT NOT NULL DEFAULT '',
+            expected_concepts TEXT NOT NULL DEFAULT '[]',
+            evidence TEXT NOT NULL DEFAULT '[]',
+            deterministic_result TEXT NOT NULL DEFAULT '{}',
+            semantic_result TEXT,
+            confidence REAL NOT NULL DEFAULT 0,
+            final_decision TEXT NOT NULL,
+            reasons TEXT NOT NULL DEFAULT '[]',
+            evaluator_version TEXT NOT NULL,
+            prompt_version TEXT NOT NULL,
+            schema_version TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_pedagogy_eval_runs_thread_created
+            ON pedagogy_eval_runs(thread_id, created_at DESC);
+        CREATE INDEX idx_pedagogy_eval_runs_decision
+            ON pedagogy_eval_runs(final_decision, created_at DESC);
         """,
     ),
 )

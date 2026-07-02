@@ -1,4 +1,5 @@
 from src.pedagogy.evaluation import (
+    LLMSemanticEvaluator,
     PedagogyEvaluationService,
     SemanticEvaluation,
 )
@@ -84,3 +85,66 @@ def test_unknown_evidence_reference_blocks_state_progression():
     )
     assert run.final_decision == "reject"
     assert "unknown_evidence_reference" in run.reasons
+
+
+def test_available_evidence_requires_an_explicit_grounded_reference():
+    semantic = FakeSemanticEvaluator(
+        SemanticEvaluation(
+            reasoning_complete=True,
+            transfer_ready=True,
+            confidence=0.95,
+        )
+    )
+    run = PedagogyEvaluationService(semantic).evaluate_learner(
+        learner_input="所以该结论成立，因为实验报告显示效应为正。",
+        state=LearningState(objective="interpret result", protocol="socratic_rediscovery"),
+        evidence=("study-1",),
+    )
+
+    assert run.final_decision == "reject"
+    assert "missing_evidence_reference" in run.reasons
+
+
+def test_semantic_provider_failure_is_recorded_as_review_not_acceptance():
+    class FailingSemanticEvaluator:
+        def evaluate(self, **_kwargs):
+            raise TimeoutError("provider unavailable")
+
+    run = PedagogyEvaluationService(FailingSemanticEvaluator()).evaluate_learner(
+        learner_input="所以范围每轮减半，因为剩余规模变成之前的一半。",
+        state=LearningState(objective="binary search", protocol="socratic_rediscovery"),
+    )
+
+    assert run.final_decision == "needs_semantic_review"
+    assert run.confidence == 0.0
+    assert run.reasons == ("semantic_evaluator_failed:TimeoutError",)
+
+
+def test_llm_semantic_adapter_uses_versioned_strict_json_contract():
+    calls = []
+
+    def complete(messages, **kwargs):
+        calls.append((messages, kwargs))
+        return """{
+            "claims": ["range halves"],
+            "correct_points": ["geometric reduction"],
+            "gaps": [],
+            "misconceptions": [],
+            "reasoning_complete": true,
+            "transfer_ready": true,
+            "confidence": 0.9,
+            "evidence_refs": ["e-1"]
+        }"""
+
+    result = LLMSemanticEvaluator(complete).evaluate(
+        learner_input="reasoned answer",
+        objective="binary search",
+        protocol="socratic_rediscovery",
+        expected_concepts=("halving",),
+        evidence=("e-1",),
+    )
+
+    assert result.reasoning_complete is True
+    assert result.evidence_refs == ("e-1",)
+    assert calls[0][1]["response_format"] == {"type": "json_object"}
+    assert calls[0][1]["task_name"] == "pedagogy_evaluation"

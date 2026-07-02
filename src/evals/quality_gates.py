@@ -9,6 +9,9 @@ from src.mode_manager import RuntimeModes, is_memory_write_allowed
 from src.news.domain_policy import evaluate_domain_policy
 from src.news.url_normalizer import build_url_metadata, is_public_http_url
 from src.tools.local_knowledge import should_retrieve_local_knowledge
+from src.pedagogy.evaluation import PedagogyEvaluationService, SemanticEvaluation
+from src.pedagogy.evaluator import evaluate_assistant_response
+from src.pedagogy.types import LearningState, PedagogyTurnPlan
 
 
 @dataclass(frozen=True)
@@ -173,3 +176,66 @@ def evaluate_url_safety_case(case: dict[str, Any]) -> EvalCheckResult:
         )
 
     return _result(str(case.get("id", "url_safety")), failures)
+
+
+def evaluate_pedagogy_dialogue_case(case: dict[str, Any]) -> EvalCheckResult:
+    """Evaluate one replayable learner/teacher exchange from the golden corpus."""
+
+    semantic_payload = case.get("semantic_result")
+
+    class FixtureSemanticEvaluator:
+        def evaluate(self, **_kwargs) -> SemanticEvaluation:
+            if semantic_payload == "provider_failure":
+                raise TimeoutError("golden provider failure")
+            payload = dict(semantic_payload or {})
+            return SemanticEvaluation(
+                claims=_as_str_tuple(payload.get("claims")),
+                correct_points=_as_str_tuple(payload.get("correct_points")),
+                gaps=_as_str_tuple(payload.get("gaps")),
+                misconceptions=_as_str_tuple(payload.get("misconceptions")),
+                reasoning_complete=payload.get("reasoning_complete") is True,
+                transfer_ready=payload.get("transfer_ready") is True,
+                confidence=float(payload.get("confidence", 0.0)),
+                evidence_refs=_as_str_tuple(payload.get("evidence_refs")),
+            )
+
+    state = LearningState.from_dict(dict(case.get("state") or {}))
+    semantic = (
+        None if semantic_payload is None else FixtureSemanticEvaluator()
+    )
+    run = PedagogyEvaluationService(semantic).evaluate_learner(
+        learner_input=str(case.get("learner_input", "")),
+        state=state,
+        expected_concepts=_as_str_tuple(case.get("expected_concepts")),
+        evidence=_as_str_tuple(case.get("evidence")),
+    )
+    plan_payload = dict(case.get("plan") or {})
+    plan = PedagogyTurnPlan(
+        mode=str(plan_payload.get("mode", "direct_answer")),
+        phase=str(plan_payload.get("phase", "answer")),
+        knowledge_kind=str(plan_payload.get("knowledge_kind", "derivable")),  # type: ignore[arg-type]
+        move=str(plan_payload.get("move", "direct_explain")),  # type: ignore[arg-type]
+        disclosure_level=int(plan_payload.get("disclosure_level", 5)),
+    )
+    assistant = evaluate_assistant_response(
+        str(case.get("assistant_response", "")),
+        plan=plan,
+    )
+    failures: list[str] = []
+    expected_decision = str(case.get("expected_decision", ""))
+    if expected_decision and run.final_decision != expected_decision:
+        failures.append(
+            f"expected decision={expected_decision}, got {run.final_decision}"
+        )
+    expected_assistant_pass = case.get("expected_assistant_pass")
+    if (
+        expected_assistant_pass is not None
+        and assistant.passed != bool(expected_assistant_pass)
+    ):
+        failures.append(
+            f"expected assistant_pass={expected_assistant_pass}, got {assistant.passed}"
+        )
+    for reason in _as_str_tuple(case.get("required_reasons")):
+        if reason not in run.reasons:
+            failures.append(f"missing evaluation reason: {reason}")
+    return _result(str(case.get("id", "pedagogy_dialogue")), failures)

@@ -7,7 +7,14 @@ import pytest
 from src.application.chat_service import ChatCommand, ChatDependencies, ChatService
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
+from src.pedagogy.evaluation import PedagogyEvaluationService
+from src.pedagogy.types import (
+    AssistantResponseEvaluation,
+    LearningState,
+    PedagogyTurnPlan,
+)
 from src.repositories.runtime_repository import RuntimeRepository
+from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
 
 
 class FakeRagResult:
@@ -72,6 +79,83 @@ def test_chat_service_persists_pending_streaming_and_completed_turn(tmp_path):
     assert completed.status == "completed"
     assert completed.assistant_message == "complete reply"
     assert len(repository.list_chat_turns("chat_test")) == 1
+    eval_run = PedagogyEvalRepository(repository.database).get_for_turn(prepared.turn.id)
+    assert eval_run is not None
+    assert eval_run.learner_input == "Explain RAG"
+    assert eval_run.final_decision == "reject"
+    assert eval_run.evaluator_version
+    assert eval_run.prompt_version
+    assert eval_run.schema_version
+
+
+def test_semantic_provider_failure_cannot_advance_mastery_state(tmp_path):
+    service, repository = _service(tmp_path)
+    thread = repository.ensure_chat_thread("chat_eval_failure")
+    repository.acquire_chat_operation(thread.id, "seed-state")
+    repository.update_chat_thread_learning_state(
+        thread.id,
+        LearningState(
+            protocol="feynman_diagnosis",
+            objective="Explain transactions",
+            phase="re_explain",
+            turn_count=2,
+        ).to_dict(),
+        operation_id="seed-state",
+    )
+    repository.release_chat_operation(thread.id, "seed-state")
+
+    class TransferEngine:
+        def plan(self, *, user_input, mode, state):
+            return (
+                PedagogyTurnPlan(
+                    mode="feynman_diagnosis",
+                    phase="transfer",
+                    knowledge_kind="derivable",
+                    move="transfer_test",
+                    disclosure_level=2,
+                ),
+                LearningState.from_dict(
+                    {**state.to_dict(), "phase": "transfer", "turn_count": 3}
+                ),
+            )
+
+        def evaluate_response(self, response, *, plan):
+            return AssistantResponseEvaluation(passed=True)
+
+        def apply_transition(self, *, before, planned, evaluation):
+            return planned
+
+    class FailingEvaluator:
+        def evaluate(self, **_kwargs):
+            raise TimeoutError("provider down")
+
+    guarded = ChatService(
+        repository,
+        replace(
+            service.dependencies,
+            pedagogy_engine=TransferEngine(),  # type: ignore[arg-type]
+            pedagogy_evaluation=PedagogyEvaluationService(FailingEvaluator()),
+        ),
+    )
+    prepared = guarded.start_turn(
+        ChatCommand(
+            user_input=(
+                "So atomicity prevents partial commits because every write succeeds "
+                "or every write rolls back."
+            ),
+            thread_id=thread.id,
+        )
+    )
+    guarded.complete_turn(prepared, "Apply that reasoning to two tables.")
+
+    stored = repository.get_chat_thread(thread.id)
+    run = PedagogyEvalRepository(repository.database).get_for_turn(prepared.turn.id)
+    assert stored is not None
+    assert stored.learning_state["phase"] == "re_explain"
+    assert stored.learning_state["turn_count"] == 2
+    assert stored.learning_state["payload"]["state_advance_blocked"] is True
+    assert run is not None
+    assert run.final_decision == "needs_semantic_review"
 
 
 def test_chat_service_continuation_updates_the_same_interrupted_turn(tmp_path):

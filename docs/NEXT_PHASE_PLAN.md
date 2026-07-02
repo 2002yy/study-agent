@@ -69,7 +69,7 @@ Acceptance:
 - “不知道” in a guided learning turn still produces a useful private query
   from pedagogy state.
 
-### Phase 1 — Pedagogy Evaluation vertical slice
+### Phase 1 — Pedagogy Evaluation vertical slice (complete)
 
 1. Attach `PedagogyEvalRun` to the real chat-turn completion pipeline.
 2. Add SQLite schema, repository and service ownership.
@@ -90,6 +90,19 @@ Acceptance:
 - Provider failure cannot silently advance learner state.
 - Golden suites cover correct reasoning, plausible misconceptions, paraphrase,
   counterexamples, missing conditions and evidence leakage.
+
+Implementation status (2026-07-02):
+
+- `PedagogyEvalRun` is evaluated from the real learner turn before planning and
+  is committed with the completed `ChatTurn` and `ChatThread.learning_state` in
+  one SQLite transaction.
+- Schema version 13 owns replayable evaluator, prompt and result-schema
+  versions, evidence IDs, confidence, reasons and the final decision.
+- Deterministic checks reject known cases without model cost. Ambiguous claims
+  use the strict-JSON semantic adapter; provider or parse failure becomes
+  `needs_semantic_review` and cannot advance transfer/complete/deliver states.
+- `tests/fixtures/evals/pedagogy_dialogues.json` covers Direct, Socratic,
+  Feynman and Project exchanges, including the acceptance cases above.
 
 ### Phase 2 — RAG retrieval quality
 
