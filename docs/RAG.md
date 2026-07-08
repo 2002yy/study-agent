@@ -167,7 +167,10 @@ Regression coverage lives in `tests/test_rag.py` and verifies:
 - Source hit rate
 - `recall@k`
 - Mean reciprocal rank
+- `nDCG@K`
 - Empty-result and miss accounting
+- Side-by-side lexical, vector, hybrid and reranked profile comparisons on the
+  same corpus
 - Unknown retrieval mode rejection
 
 `tests/test_eval_quality_gates.py` adds the first broader P8.4 quality-gate fixtures under `tests/fixtures/evals/` and verifies:
@@ -225,6 +228,7 @@ Goal: prove retrieval quality before expanding the stack.
 
 - [x] Add a small gold fixture set with queries, expected sources and expected terms.
 - [x] Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
+- [x] Track `nDCG@K` and compare lexical/vector/hybrid/reranked profiles.
 - [x] Surface retrieval debug data in tests and API responses before adding more UI polish.
 - [x] Add a Streamlit source/debug panel for inspecting score breakdowns.
 - [x] Upgrade sparse retrieval from TF-IDF-style scoring to BM25.

@@ -109,8 +109,9 @@ Implementation status (2026-07-02):
 Current status: BM25 sparse retrieval, RRF hybrid fusion, retrieval-stage debug
 metrics, exact duplicate suppression, per-source diversity limits, metadata
 filters, explicit embedding profiles and an optional local reranker are
-implemented. The remaining work should focus on external reranker providers and
-larger retrieval-quality evaluation.
+implemented. The eval loop now compares lexical, vector, hybrid and reranked
+profiles with Recall, MRR and nDCG. The remaining work should focus on external
+reranker providers and larger retrieval-quality corpora.
 
 1. [x] Add a production multilingual Chinese/English embedding profile.
 2. [x] Upgrade sparse retrieval to BM25.
@@ -120,13 +121,14 @@ larger retrieval-quality evaluation.
 6. [x] Record candidate count and latency for local lexical/vector retrieval stages.
 7. [x] Extend candidate count and latency accounting to backend-vector query runs.
 8. [x] Extend candidate count and latency accounting to reranker stages.
-9. [ ] Add an external reranker provider only after expanding the eval corpus.
+9. [x] Compare lexical, dense, hybrid and reranked profiles on the same corpus.
+10. [ ] Add an external reranker provider only after expanding the eval corpus.
 
 Acceptance:
 
-- The same evaluation corpus compares lexical, dense, hybrid and reranked
+- [x] The same evaluation corpus compares lexical, dense, hybrid and reranked
   profiles.
-- Quality changes must show Recall/MRR/nDCG gains without violating latency and
+- [x] Quality changes must show Recall/MRR/nDCG gains without violating latency and
   cost budgets.
 
 ### Phase 3 — Ingestion and KnowledgeBase domain

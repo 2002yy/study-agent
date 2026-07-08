@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.rag.index import search_rag_index
-from src.rag.backends import get_vector_backend_from_env
 from src.rag.schema import RagIndex, RagSearchResult
-from src.rag.vector import search_rag_index_hybrid, search_rag_index_vector
+from src.rag.service import search_documents
 
 
 @dataclass(frozen=True)
@@ -18,6 +17,14 @@ class RagEvalCase:
     expected_terms: tuple[str, ...] = ()
     top_k: int = 3
     retrieval_mode: str = "hybrid"
+    reranker: str = "disabled"
+
+
+@dataclass(frozen=True)
+class RagEvalProfile:
+    name: str
+    retrieval_mode: str
+    reranker: str = "disabled"
 
 
 @dataclass(frozen=True)
@@ -28,6 +35,7 @@ class RagEvalResult:
     first_relevant_rank: int | None
     recall_at_k: float
     reciprocal_rank: float
+    ndcg_at_k: float
     matched_expected_terms: tuple[str, ...]
 
     @property
@@ -46,6 +54,7 @@ class RagEvalResult:
             "first_relevant_rank": self.first_relevant_rank,
             "recall_at_k": self.recall_at_k,
             "reciprocal_rank": self.reciprocal_rank,
+            "ndcg_at_k": self.ndcg_at_k,
             "matched_expected_terms": list(self.matched_expected_terms),
         }
 
@@ -56,6 +65,7 @@ class RagEvalSummary:
     source_hit_rate: float
     mean_recall_at_k: float
     mean_reciprocal_rank: float
+    mean_ndcg_at_k: float
     empty_result_rate: float
     results: tuple[RagEvalResult, ...]
 
@@ -65,6 +75,7 @@ class RagEvalSummary:
             "source_hit_rate": self.source_hit_rate,
             "mean_recall_at_k": self.mean_recall_at_k,
             "mean_reciprocal_rank": self.mean_reciprocal_rank,
+            "mean_ndcg_at_k": self.mean_ndcg_at_k,
             "empty_result_rate": self.empty_result_rate,
             "results": [result.to_dict() for result in self.results],
         }
@@ -76,20 +87,14 @@ def _search(
     *,
     min_score: float,
 ) -> list[RagSearchResult]:
-    if case.retrieval_mode == "lexical":
-        return search_rag_index(index, case.query, top_k=case.top_k, min_score=min_score)
-    if case.retrieval_mode == "vector":
-        return search_rag_index_vector(index, case.query, top_k=case.top_k, min_score=min_score)
-    if case.retrieval_mode == "hybrid":
-        return search_rag_index_hybrid(index, case.query, top_k=case.top_k, min_score=min_score)
-    if case.retrieval_mode == "backend_vector":
-        return get_vector_backend_from_env().query(
-            index,
-            case.query,
-            top_k=case.top_k,
-            min_score=min_score,
-        )
-    raise ValueError(f"Unsupported RAG retrieval mode: {case.retrieval_mode}")
+    return search_documents(
+        index,
+        case.query,
+        top_k=case.top_k,
+        min_score=min_score,
+        retrieval_mode=case.retrieval_mode,
+        reranker=case.reranker,
+    )
 
 
 def _source_matches(actual: str, expected: str) -> bool:
@@ -140,9 +145,23 @@ def load_eval_cases(path: str | Path) -> tuple[RagEvalCase, ...]:
                 expected_terms=tuple(str(term) for term in item.get("expected_terms", ())),
                 top_k=int(item.get("top_k", 3)),
                 retrieval_mode=str(item.get("retrieval_mode", "hybrid")),
+                reranker=str(item.get("reranker", "disabled")),
             )
         )
     return tuple(loaded)
+
+
+def default_eval_profiles() -> tuple[RagEvalProfile, ...]:
+    return (
+        RagEvalProfile(name="lexical", retrieval_mode="lexical"),
+        RagEvalProfile(name="vector", retrieval_mode="vector"),
+        RagEvalProfile(name="hybrid", retrieval_mode="hybrid"),
+        RagEvalProfile(
+            name="hybrid_reranked",
+            retrieval_mode="hybrid",
+            reranker="lexical_overlap",
+        ),
+    )
 
 
 def evaluate_case(
@@ -166,6 +185,7 @@ def evaluate_case(
     recall = len(matched_expected) / len(case.expected_sources)
     first_rank = min(matching_ranks) if matching_ranks else None
     reciprocal_rank = 1.0 / first_rank if first_rank else 0.0
+    ndcg = _ndcg_at_k(retrieved_sources, case.expected_sources, case.top_k)
 
     return RagEvalResult(
         case=case,
@@ -174,6 +194,7 @@ def evaluate_case(
         first_relevant_rank=first_rank,
         recall_at_k=round(recall, 6),
         reciprocal_rank=round(reciprocal_rank, 6),
+        ndcg_at_k=round(ndcg, 6),
         matched_expected_terms=_matched_expected_terms(results, case.expected_terms),
     )
 
@@ -192,6 +213,7 @@ def evaluate_rag_index(
             source_hit_rate=0.0,
             mean_recall_at_k=0.0,
             mean_reciprocal_rank=0.0,
+            mean_ndcg_at_k=0.0,
             empty_result_rate=0.0,
             results=(),
         )
@@ -204,6 +226,56 @@ def evaluate_rag_index(
             sum(result.reciprocal_rank for result in results) / total,
             6,
         ),
+        mean_ndcg_at_k=round(sum(result.ndcg_at_k for result in results) / total, 6),
         empty_result_rate=round(sum(1 for result in results if result.result_count == 0) / total, 6),
         results=results,
     )
+
+
+def evaluate_retrieval_profiles(
+    index: RagIndex,
+    cases: tuple[RagEvalCase, ...],
+    *,
+    profiles: tuple[RagEvalProfile, ...] | None = None,
+    min_score: float = 0.01,
+) -> dict[str, RagEvalSummary]:
+    resolved_profiles = profiles or default_eval_profiles()
+    return {
+        profile.name: evaluate_rag_index(
+            index,
+            tuple(
+                RagEvalCase(
+                    query=case.query,
+                    expected_sources=case.expected_sources,
+                    expected_terms=case.expected_terms,
+                    top_k=case.top_k,
+                    retrieval_mode=profile.retrieval_mode,
+                    reranker=profile.reranker,
+                )
+                for case in cases
+            ),
+            min_score=min_score,
+        )
+        for profile in resolved_profiles
+    }
+
+
+def _ndcg_at_k(
+    retrieved_sources: tuple[str, ...],
+    expected_sources: tuple[str, ...],
+    top_k: int,
+) -> float:
+    if not expected_sources or top_k <= 0:
+        return 0.0
+    gains = [
+        1.0 if _matches_expected_source(source, expected_sources) else 0.0
+        for source in retrieved_sources[:top_k]
+    ]
+    dcg = _discounted_cumulative_gain(gains)
+    ideal_relevant = min(len(expected_sources), top_k)
+    ideal_dcg = _discounted_cumulative_gain([1.0] * ideal_relevant)
+    return dcg / ideal_dcg if ideal_dcg else 0.0
+
+
+def _discounted_cumulative_gain(gains: list[float]) -> float:
+    return sum(gain / math.log2(rank + 1) for rank, gain in enumerate(gains, start=1))

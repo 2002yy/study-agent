@@ -24,10 +24,13 @@ from src.rag.embeddings import (
 )
 from src.rag.eval import (
     RagEvalCase,
+    RagEvalProfile,
     RagEvalResult,
     RagEvalSummary,
+    default_eval_profiles,
     evaluate_case,
     evaluate_rag_index,
+    evaluate_retrieval_profiles,
     load_eval_cases,
 )
 from src.rag.service import (
@@ -61,6 +64,7 @@ __all__ = [
     "embed_text",
     "evaluate_case",
     "evaluate_rag_index",
+    "evaluate_retrieval_profiles",
     "format_rag_sources",
     "index_documents",
     "EmbeddingProfile",
@@ -79,8 +83,10 @@ __all__ = [
     "RagSearchDiagnostics",
     "RerankerConfig",
     "RagEvalCase",
+    "RagEvalProfile",
     "RagEvalResult",
     "RagEvalSummary",
+    "default_eval_profiles",
     "save_rag_index",
     "search_rag_index_hybrid",
     "search_rag_index",

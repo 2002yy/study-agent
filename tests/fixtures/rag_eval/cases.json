@@ -20,6 +20,27 @@
       "expected_terms": ["redirects", "article", "source"],
       "retrieval_mode": "hybrid",
       "top_k": 2
+    },
+    {
+      "query": "FastAPI durable RagRun upload rebuild index version",
+      "expected_sources": ["fastapi_rag_runs.md"],
+      "expected_terms": ["FastAPI", "RagRun", "index"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
+    },
+    {
+      "query": "React workspace durable run ids controllers App shell",
+      "expected_sources": ["frontend_workspace.md"],
+      "expected_terms": ["React", "controllers", "server-owned"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
+    },
+    {
+      "query": "中文 向量检索 本地知识库 来源引用",
+      "expected_sources": ["chinese_vector.md"],
+      "expected_terms": ["向量检索", "本地知识库", "来源"],
+      "retrieval_mode": "hybrid",
+      "top_k": 2
     }
   ]
 }
