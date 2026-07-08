@@ -39,6 +39,10 @@ class RagRunService:
                 metadata_filters=dict(frozen.get("metadata_filters") or {}),
                 max_chunks_per_source=int(frozen.get("max_chunks_per_source", 3)),
                 suppress_duplicate_text=bool(frozen.get("suppress_duplicate_text", True)),
+                reranker=str(frozen.get("reranker", "disabled")),
+                rerank_top_n=int(frozen.get("rerank_top_n", 20)),
+                rerank_latency_budget_ms=int(frozen.get("rerank_latency_budget_ms", 250)),
+                rerank_cost_budget=float(frozen.get("rerank_cost_budget", 0.0)),
             )
             results = diagnostics.results
             debug = diagnostics.debug

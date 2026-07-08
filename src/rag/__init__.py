@@ -14,9 +14,11 @@ from src.rag.backends import (
     vector_backend_config_from_env,
 )
 from src.rag.embeddings import (
+    EmbeddingProfile,
     LocalHashEmbeddingProvider,
     OpenAIEmbeddingProvider,
     embedding_provider_config_from_env,
+    embedding_profile_from_env,
     get_embedding_provider,
     get_embedding_provider_from_env,
 )
@@ -29,12 +31,20 @@ from src.rag.eval import (
     load_eval_cases,
 )
 from src.rag.service import (
+    RagSearchDiagnostics,
     build_rag_debug,
     build_rag_context,
     format_rag_sources,
     index_documents,
     query_documents,
     search_documents,
+    search_documents_with_debug,
+)
+from src.rag.rerank import (
+    RerankerConfig,
+    apply_reranker,
+    get_reranker,
+    reranker_config_from_env,
 )
 from src.rag.vector import (
     cosine_similarity,
@@ -53,17 +63,21 @@ __all__ = [
     "evaluate_rag_index",
     "format_rag_sources",
     "index_documents",
+    "EmbeddingProfile",
     "get_vector_backend",
     "get_vector_backend_from_env",
     "LocalHashEmbeddingProvider",
     "OpenAIEmbeddingProvider",
     "embedding_provider_config_from_env",
+    "embedding_profile_from_env",
     "get_embedding_provider",
     "get_embedding_provider_from_env",
     "LocalVectorBackend",
     "load_eval_cases",
     "load_rag_index",
     "query_documents",
+    "RagSearchDiagnostics",
+    "RerankerConfig",
     "RagEvalCase",
     "RagEvalResult",
     "RagEvalSummary",
@@ -72,6 +86,10 @@ __all__ = [
     "search_rag_index",
     "search_rag_index_vector",
     "search_documents",
+    "search_documents_with_debug",
+    "apply_reranker",
+    "get_reranker",
+    "reranker_config_from_env",
     "VectorBackendStatus",
     "vector_backend_config_from_env",
 ]

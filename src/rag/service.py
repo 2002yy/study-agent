@@ -20,6 +20,7 @@ from src.rag.index import (
     search_rag_index,
 )
 from src.rag.backends import get_vector_backend_from_env
+from src.rag.rerank import apply_reranker, reranker_config_from_env
 from src.rag.schema import RagIndex, RagSearchResult
 from src.rag.vector import (
     RRF_K,
@@ -440,9 +441,13 @@ def search_documents(
     metadata_filters: dict[str, Any] | None = None,
     max_chunks_per_source: int = 0,
     suppress_duplicate_text: bool = True,
+    reranker: str | None = None,
+    rerank_top_n: int | None = None,
+    rerank_latency_budget_ms: int | None = None,
+    rerank_cost_budget: float | None = None,
 ) -> list[RagSearchResult]:
     """Search an in-memory RAG index."""
-    results, _post_filter = _search_documents_with_stats(
+    results, _post_filter, _reranker_stage = _search_documents_with_stats(
         index,
         query,
         top_k=top_k,
@@ -451,6 +456,10 @@ def search_documents(
         metadata_filters=metadata_filters,
         max_chunks_per_source=max_chunks_per_source,
         suppress_duplicate_text=suppress_duplicate_text,
+        reranker=reranker,
+        rerank_top_n=rerank_top_n,
+        rerank_latency_budget_ms=rerank_latency_budget_ms,
+        rerank_cost_budget=rerank_cost_budget,
     )
     return results
 
@@ -465,9 +474,13 @@ def search_documents_with_debug(
     metadata_filters: dict[str, Any] | None = None,
     max_chunks_per_source: int = 0,
     suppress_duplicate_text: bool = True,
+    reranker: str | None = None,
+    rerank_top_n: int | None = None,
+    rerank_latency_budget_ms: int | None = None,
+    rerank_cost_budget: float | None = None,
 ) -> RagSearchDiagnostics:
     started = time.perf_counter()
-    results, post_filter = _search_documents_with_stats(
+    results, post_filter, reranker_stage = _search_documents_with_stats(
         index,
         query,
         top_k=top_k,
@@ -476,6 +489,10 @@ def search_documents_with_debug(
         metadata_filters=metadata_filters,
         max_chunks_per_source=max_chunks_per_source,
         suppress_duplicate_text=suppress_duplicate_text,
+        reranker=reranker,
+        rerank_top_n=rerank_top_n,
+        rerank_latency_budget_ms=rerank_latency_budget_ms,
+        rerank_cost_budget=rerank_cost_budget,
     )
     elapsed_ms = (time.perf_counter() - started) * 1000
     debug = build_rag_debug(
@@ -489,6 +506,7 @@ def search_documents_with_debug(
         max_chunks_per_source=max_chunks_per_source,
         suppress_duplicate_text=suppress_duplicate_text,
         post_filter=post_filter,
+        reranker_stage=reranker_stage,
         stage_timings={"backend_vector": elapsed_ms} if retrieval_mode == "backend_vector" else None,
     )
     return RagSearchDiagnostics(results=results, debug=debug)
@@ -504,8 +522,25 @@ def _search_documents_with_stats(
     metadata_filters: dict[str, Any] | None,
     max_chunks_per_source: int,
     suppress_duplicate_text: bool,
-) -> tuple[list[RagSearchResult], dict[str, Any]]:
-    candidate_k = _candidate_limit(index, top_k, metadata_filters, max_chunks_per_source, suppress_duplicate_text)
+    reranker: str | None,
+    rerank_top_n: int | None,
+    rerank_latency_budget_ms: int | None,
+    rerank_cost_budget: float | None,
+) -> tuple[list[RagSearchResult], dict[str, Any], dict[str, Any] | None]:
+    reranker_config = reranker_config_from_env(
+        name=reranker,
+        top_n=rerank_top_n,
+        latency_budget_ms=rerank_latency_budget_ms,
+        cost_budget=rerank_cost_budget,
+    )
+    candidate_k = _candidate_limit(
+        index,
+        top_k,
+        metadata_filters,
+        max_chunks_per_source,
+        suppress_duplicate_text,
+        reranker_config.enabled,
+    )
     if retrieval_mode == "lexical":
         raw_results = search_rag_index(index, query, top_k=candidate_k, min_score=min_score)
     elif retrieval_mode == "vector":
@@ -527,7 +562,10 @@ def _search_documents_with_stats(
         )
     else:
         raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
-    return _post_process_results(
+    rerank_outcome = apply_reranker(query, raw_results, config=reranker_config)
+    reranker_stage = rerank_outcome.stage if reranker_config.enabled else None
+    raw_results = rerank_outcome.results
+    results, post_filter = _post_process_results(
         index,
         raw_results,
         top_k=top_k,
@@ -535,6 +573,7 @@ def _search_documents_with_stats(
         max_chunks_per_source=max_chunks_per_source,
         suppress_duplicate_text=suppress_duplicate_text,
     )
+    return results, post_filter, reranker_stage
 
 
 def _candidate_limit(
@@ -543,10 +582,16 @@ def _candidate_limit(
     metadata_filters: dict[str, Any] | None,
     max_chunks_per_source: int,
     suppress_duplicate_text: bool,
+    reranker_enabled: bool,
 ) -> int:
     if top_k <= 0:
         return 0
-    needs_post_filter = bool(metadata_filters) or max_chunks_per_source > 0 or suppress_duplicate_text
+    needs_post_filter = (
+        bool(metadata_filters)
+        or max_chunks_per_source > 0
+        or suppress_duplicate_text
+        or reranker_enabled
+    )
     if not needs_post_filter:
         return top_k
     return min(len(index.chunks), max(top_k, top_k * 4))
@@ -754,6 +799,7 @@ def build_rag_debug(
     max_chunks_per_source: int = 0,
     suppress_duplicate_text: bool = True,
     post_filter: dict[str, Any] | None = None,
+    reranker_stage: dict[str, Any] | None = None,
     stage_timings: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build explainable retrieval diagnostics for API and evaluation views."""
@@ -787,6 +833,8 @@ def build_rag_debug(
                 "elapsed_ms": round((stage_timings or {}).get("backend_vector", 0.0), 3),
             }
         )
+    if reranker_stage is not None:
+        stages.append(reranker_stage)
 
     max_lexical_score = max(lexical_scores.values(), default=0.0)
     lexical_ranks = _rank_map(index, lexical_scores)

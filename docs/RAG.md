@@ -208,7 +208,12 @@ P5 adds the first vector-backend abstraction:
 - `EmbeddingProvider` protocol plus `LocalHashEmbeddingProvider` and `OpenAIEmbeddingProvider`
 - `VectorBackend` protocol plus `LocalVectorBackend`
 - `RAG_VECTOR_BACKEND=local|chroma`
-- `RAG_EMBEDDING_PROVIDER=local_hash|openai`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_DIMENSIONS`, `RAG_EMBEDDING_API_KEY`, `RAG_EMBEDDING_BASE_URL`
+- `RAG_EMBEDDING_PROFILE=local_hash|openai_multilingual`,
+  `RAG_EMBEDDING_PROVIDER=local_hash|openai`, `RAG_EMBEDDING_MODEL`,
+  `RAG_EMBEDDING_DIMENSIONS`, `RAG_EMBEDDING_API_KEY`,
+  `RAG_EMBEDDING_BASE_URL`
+- `RAG_RERANKER=disabled|lexical_overlap`, `RAG_RERANK_TOP_N`,
+  `RAG_RERANK_LATENCY_BUDGET_MS`, `RAG_RERANK_COST_BUDGET`
 - Optional `ChromaVectorBackend` using lazy `chromadb` import, `PersistentClient`, collection `upsert` and vector query
 - `tests/test_rag_backends.py` verifies local backend behavior, embedding environment config, OpenAI-compatible embedding batching and Chroma fake-client upsert/query behavior
 
@@ -227,6 +232,8 @@ Goal: prove retrieval quality before expanding the stack.
 - [x] Record local retrieval-stage candidate counts and latency in debug output.
 - [x] Add exact duplicate suppression, metadata filters and per-source diversity limits.
 - [x] Record backend-vector query latency when callers use the traced query path.
+- [x] Add explicit local and production multilingual embedding profiles.
+- [x] Add an optional lexical-overlap reranker with latency/cost budget diagnostics.
 - Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
 
 ### P5: Real Embedding Backend

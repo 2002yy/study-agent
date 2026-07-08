@@ -19,6 +19,7 @@ from src.rag.index import build_rag_index, load_rag_index, search_rag_index
 from src.rag.loader import load_document
 from src.rag.schema import RagChunk, RagDocument, RagIndex, RagSearchResult
 from src.rag.service import search_documents, search_documents_with_debug
+from src.rag.rerank import RerankerConfig, apply_reranker, get_reranker
 from src.rag.vector import cosine_similarity, embed_text, search_rag_index_hybrid, search_rag_index_vector
 from src.ui.rag_panel import (
     chunk_preview_rows,
@@ -375,6 +376,66 @@ def test_search_documents_with_debug_records_backend_vector_latency(monkeypatch,
     assert stage["name"] == "backend_vector"
     assert stage["elapsed_ms"] > 0
     assert diagnostics.debug["post_filter"]["output_count"] == 1
+
+
+def test_lexical_overlap_reranker_reorders_candidates_by_query_terms():
+    weak = RagSearchResult(
+        chunk=RagChunk(
+            chunk_id="weak",
+            document_hash="doc-a",
+            source_path="weak.md",
+            title="weak",
+            text="alpha only",
+            chunk_index=0,
+            start_line=1,
+            end_line=1,
+        ),
+        score=0.9,
+        matched_terms=("alpha",),
+    )
+    strong = RagSearchResult(
+        chunk=RagChunk(
+            chunk_id="strong",
+            document_hash="doc-b",
+            source_path="strong.md",
+            title="strong",
+            text="alpha beta gamma",
+            chunk_index=1,
+            start_line=1,
+            end_line=1,
+        ),
+        score=0.5,
+        matched_terms=("alpha", "beta", "gamma"),
+    )
+
+    outcome = apply_reranker(
+        "alpha beta gamma",
+        [weak, strong],
+        config=RerankerConfig(name="lexical_overlap", top_n=2, latency_budget_ms=250),
+    )
+
+    assert get_reranker("lexical_overlap").name == "lexical_overlap"
+    assert [result.chunk.chunk_id for result in outcome.results] == ["strong", "weak"]
+    assert outcome.stage["name"] == "reranker:lexical_overlap"
+    assert outcome.stage["within_latency_budget"] is True
+    assert outcome.stage["within_cost_budget"] is True
+
+
+def test_search_documents_with_debug_includes_reranker_stage(tmp_path):
+    path = tmp_path / "notes.md"
+    path.write_text("alpha beta gamma\n\nalpha only", encoding="utf-8")
+    index = build_rag_index([path], max_chars=18, overlap_chars=0)
+
+    diagnostics = search_documents_with_debug(
+        index,
+        "alpha beta gamma",
+        retrieval_mode="hybrid",
+        top_k=2,
+        reranker="lexical_overlap",
+        rerank_top_n=2,
+    )
+
+    assert any(stage["name"] == "reranker:lexical_overlap" for stage in diagnostics.debug["stages"])
 
 
 def test_build_rag_debug_explains_hybrid_scores(tmp_path):

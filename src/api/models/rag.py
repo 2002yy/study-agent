@@ -41,6 +41,10 @@ class RagQueryRequest(BaseModel):
     metadata_filters: dict = Field(default_factory=dict)
     max_chunks_per_source: int = Field(default=3, ge=0, le=20)
     suppress_duplicate_text: bool = True
+    reranker: str = Field(default="disabled")
+    rerank_top_n: int = Field(default=20, gt=0, le=100)
+    rerank_latency_budget_ms: int = Field(default=250, gt=0, le=10_000)
+    rerank_cost_budget: float = Field(default=0.0, ge=0)
 
 
 class RagQueryResponse(BaseModel):

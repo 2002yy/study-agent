@@ -10,9 +10,11 @@ from src.rag.backends import (
 )
 from src.rag.chroma_backend import ChromaVectorBackend
 from src.rag.embeddings import (
+    EmbeddingProfile,
     LocalHashEmbeddingProvider,
     OpenAIEmbeddingProvider,
     embedding_provider_config_from_env,
+    embedding_profile_from_env,
     get_embedding_provider,
     get_embedding_provider_from_env,
 )
@@ -118,14 +120,35 @@ def test_embedding_provider_config_reads_environment(monkeypatch):
     config = embedding_provider_config_from_env()
 
     assert config == {
+        "profile": "openai",
         "provider": "openai",
         "model": "text-embedding-3-small",
         "dimensions": "768",
+        "language_coverage": "provider_default",
         "base_url_configured": "true",
         "api_key_configured": "true",
         "semantic_capable": "true",
         "intended_use": "production",
     }
+
+
+def test_embedding_profile_supports_openai_multilingual(monkeypatch):
+    monkeypatch.setenv("RAG_EMBEDDING_PROFILE", "openai_multilingual")
+    monkeypatch.delenv("RAG_EMBEDDING_PROVIDER", raising=False)
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL", raising=False)
+    monkeypatch.delenv("RAG_EMBEDDING_DIMENSIONS", raising=False)
+
+    profile = embedding_profile_from_env()
+
+    assert profile == EmbeddingProfile(
+        name="openai_multilingual",
+        provider="openai",
+        model="text-embedding-3-small",
+        dimensions=1536,
+        semantic_capable=True,
+        intended_use="production",
+        language_coverage="multilingual",
+    )
 
 
 def test_get_embedding_provider_from_env_defaults_to_local(monkeypatch):

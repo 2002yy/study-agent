@@ -196,11 +196,20 @@ RAG_VECTOR_BACKEND=local
 # RAG_CHROMA_COLLECTION=study_agent
 
 # Deterministic test/offline fallback only.
+RAG_EMBEDDING_PROFILE=local_hash
 RAG_EMBEDDING_PROVIDER=local_hash
+# Production multilingual profile.
+# RAG_EMBEDDING_PROFILE=openai_multilingual
 # RAG_EMBEDDING_PROVIDER=openai
 # RAG_EMBEDDING_MODEL=text-embedding-3-small
 # RAG_EMBEDDING_DIMENSIONS=1536
 # RAG_EMBEDDING_API_KEY=...
+# Optional local reranker with explicit budgets.
+RAG_RERANKER=disabled
+# RAG_RERANKER=lexical_overlap
+# RAG_RERANK_TOP_N=20
+# RAG_RERANK_LATENCY_BUDGET_MS=250
+# RAG_RERANK_COST_BUDGET=0
 ```
 
 ---
