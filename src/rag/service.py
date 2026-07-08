@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from src.rag.index import (
@@ -38,6 +39,12 @@ class RagIndexWriteResult:
     stages: list[dict[str, Any]]
     activated: bool = True
     active_version: int = 0
+
+
+@dataclass(frozen=True)
+class RagSearchDiagnostics:
+    results: list[RagSearchResult]
+    debug: dict[str, Any]
 
 
 def _transactional_save_index(index: RagIndex, target: Path) -> None:
@@ -430,28 +437,211 @@ def search_documents(
     top_k: int = 5,
     min_score: float = 0.01,
     retrieval_mode: str = "lexical",
+    metadata_filters: dict[str, Any] | None = None,
+    max_chunks_per_source: int = 0,
+    suppress_duplicate_text: bool = True,
 ) -> list[RagSearchResult]:
     """Search an in-memory RAG index."""
+    results, _post_filter = _search_documents_with_stats(
+        index,
+        query,
+        top_k=top_k,
+        min_score=min_score,
+        retrieval_mode=retrieval_mode,
+        metadata_filters=metadata_filters,
+        max_chunks_per_source=max_chunks_per_source,
+        suppress_duplicate_text=suppress_duplicate_text,
+    )
+    return results
+
+
+def search_documents_with_debug(
+    index: RagIndex,
+    query: str,
+    *,
+    top_k: int = 5,
+    min_score: float = 0.01,
+    retrieval_mode: str = "lexical",
+    metadata_filters: dict[str, Any] | None = None,
+    max_chunks_per_source: int = 0,
+    suppress_duplicate_text: bool = True,
+) -> RagSearchDiagnostics:
+    started = time.perf_counter()
+    results, post_filter = _search_documents_with_stats(
+        index,
+        query,
+        top_k=top_k,
+        min_score=min_score,
+        retrieval_mode=retrieval_mode,
+        metadata_filters=metadata_filters,
+        max_chunks_per_source=max_chunks_per_source,
+        suppress_duplicate_text=suppress_duplicate_text,
+    )
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    debug = build_rag_debug(
+        index,
+        query,
+        results,
+        retrieval_mode=retrieval_mode,
+        top_k=top_k,
+        min_score=min_score,
+        metadata_filters=metadata_filters,
+        max_chunks_per_source=max_chunks_per_source,
+        suppress_duplicate_text=suppress_duplicate_text,
+        post_filter=post_filter,
+        stage_timings={"backend_vector": elapsed_ms} if retrieval_mode == "backend_vector" else None,
+    )
+    return RagSearchDiagnostics(results=results, debug=debug)
+
+
+def _search_documents_with_stats(
+    index: RagIndex,
+    query: str,
+    *,
+    top_k: int,
+    min_score: float,
+    retrieval_mode: str,
+    metadata_filters: dict[str, Any] | None,
+    max_chunks_per_source: int,
+    suppress_duplicate_text: bool,
+) -> tuple[list[RagSearchResult], dict[str, Any]]:
+    candidate_k = _candidate_limit(index, top_k, metadata_filters, max_chunks_per_source, suppress_duplicate_text)
     if retrieval_mode == "lexical":
-        return search_rag_index(index, query, top_k=top_k, min_score=min_score)
-    if retrieval_mode == "vector":
-        return search_rag_index_vector(index, query, top_k=top_k, min_score=min_score)
-    if retrieval_mode == "hybrid":
-        return search_rag_index_hybrid(
+        raw_results = search_rag_index(index, query, top_k=candidate_k, min_score=min_score)
+    elif retrieval_mode == "vector":
+        raw_results = search_rag_index_vector(index, query, top_k=candidate_k, min_score=min_score)
+    elif retrieval_mode == "hybrid":
+        raw_results = search_rag_index_hybrid(
             index,
             query,
-            top_k=top_k,
+            top_k=candidate_k,
             min_score=min_score,
             rrf_k=HYBRID_RRF_K,
         )
-    if retrieval_mode == "backend_vector":
-        return get_vector_backend_from_env().query(
+    elif retrieval_mode == "backend_vector":
+        raw_results = get_vector_backend_from_env().query(
             index,
             query,
-            top_k=top_k,
+            top_k=candidate_k,
             min_score=min_score,
         )
-    raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
+    else:
+        raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
+    return _post_process_results(
+        index,
+        raw_results,
+        top_k=top_k,
+        metadata_filters=metadata_filters,
+        max_chunks_per_source=max_chunks_per_source,
+        suppress_duplicate_text=suppress_duplicate_text,
+    )
+
+
+def _candidate_limit(
+    index: RagIndex,
+    top_k: int,
+    metadata_filters: dict[str, Any] | None,
+    max_chunks_per_source: int,
+    suppress_duplicate_text: bool,
+) -> int:
+    if top_k <= 0:
+        return 0
+    needs_post_filter = bool(metadata_filters) or max_chunks_per_source > 0 or suppress_duplicate_text
+    if not needs_post_filter:
+        return top_k
+    return min(len(index.chunks), max(top_k, top_k * 4))
+
+
+def _post_process_results(
+    index: RagIndex,
+    results: list[RagSearchResult],
+    *,
+    top_k: int,
+    metadata_filters: dict[str, Any] | None,
+    max_chunks_per_source: int,
+    suppress_duplicate_text: bool,
+) -> tuple[list[RagSearchResult], dict[str, Any]]:
+    stats: dict[str, Any] = {
+        "input_count": len(results),
+        "output_count": 0,
+        "metadata_filtered": 0,
+        "duplicates_suppressed": 0,
+        "source_diversity_suppressed": 0,
+        "metadata_filters": metadata_filters or {},
+        "max_chunks_per_source": max_chunks_per_source,
+        "suppress_duplicate_text": suppress_duplicate_text,
+    }
+    selected: list[RagSearchResult] = []
+    seen_texts: set[str] = set()
+    source_counts: dict[str, int] = {}
+    for result in results:
+        if metadata_filters and not _matches_metadata_filters(index, result, metadata_filters):
+            stats["metadata_filtered"] += 1
+            continue
+        text_key = _normalized_result_text(result)
+        if suppress_duplicate_text and text_key in seen_texts:
+            stats["duplicates_suppressed"] += 1
+            continue
+        source_key = result.chunk.document_id or result.chunk.source_path
+        if max_chunks_per_source > 0 and source_counts.get(source_key, 0) >= max_chunks_per_source:
+            stats["source_diversity_suppressed"] += 1
+            continue
+        selected.append(result)
+        seen_texts.add(text_key)
+        source_counts[source_key] = source_counts.get(source_key, 0) + 1
+        if len(selected) >= top_k:
+            break
+    stats["output_count"] = len(selected)
+    return selected, stats
+
+
+def _normalized_result_text(result: RagSearchResult) -> str:
+    return re.sub(r"\s+", " ", result.chunk.text.strip().lower())
+
+
+def _matches_metadata_filters(
+    index: RagIndex,
+    result: RagSearchResult,
+    metadata_filters: dict[str, Any],
+) -> bool:
+    metadata = _chunk_metadata(index, result)
+    return all(_metadata_value_matches(metadata.get(key), expected) for key, expected in metadata_filters.items())
+
+
+def _chunk_metadata(index: RagIndex, result: RagSearchResult) -> dict[str, Any]:
+    chunk = result.chunk
+    document = next(
+        (
+            item
+            for item in index.documents
+            if item.document_id == chunk.document_id or item.content_hash == chunk.document_hash
+        ),
+        None,
+    )
+    metadata: dict[str, Any] = {
+        "source_path": chunk.source_path,
+        "title": chunk.title,
+        "document_id": chunk.document_id,
+        "revision_id": chunk.revision_id,
+        "document_hash": chunk.document_hash,
+    }
+    metadata.update(chunk.metadata)
+    if document is not None:
+        metadata.update(
+            {
+                "document_title": document.title,
+                "file_type": document.file_type,
+                "document_content_hash": document.content_hash,
+            }
+        )
+        metadata.update(document.metadata)
+    return metadata
+
+
+def _metadata_value_matches(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, list | tuple | set):
+        return actual in expected
+    return actual == expected
 
 
 def _lexical_scores(index: RagIndex, query: str) -> dict[str, float]:
@@ -560,6 +750,11 @@ def build_rag_debug(
     retrieval_mode: str,
     top_k: int,
     min_score: float,
+    metadata_filters: dict[str, Any] | None = None,
+    max_chunks_per_source: int = 0,
+    suppress_duplicate_text: bool = True,
+    post_filter: dict[str, Any] | None = None,
+    stage_timings: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build explainable retrieval diagnostics for API and evaluation views."""
     if retrieval_mode not in RETRIEVAL_MODES:
@@ -589,7 +784,7 @@ def build_rag_debug(
                 "name": "backend_vector",
                 "candidate_count": len(index.chunks),
                 "scored_count": len(results),
-                "elapsed_ms": 0.0,
+                "elapsed_ms": round((stage_timings or {}).get("backend_vector", 0.0), 3),
             }
         )
 
@@ -605,6 +800,17 @@ def build_rag_debug(
         "candidate_count": len(index.chunks),
         "returned_count": len(results),
         "stages": stages,
+        "post_filter": post_filter
+        or {
+            "input_count": len(results),
+            "output_count": len(results),
+            "metadata_filtered": 0,
+            "duplicates_suppressed": 0,
+            "source_diversity_suppressed": 0,
+            "metadata_filters": metadata_filters or {},
+            "max_chunks_per_source": max_chunks_per_source,
+            "suppress_duplicate_text": suppress_duplicate_text,
+        },
         "query_terms": list(query_terms),
         "empty_query": not query_terms,
         "results": [

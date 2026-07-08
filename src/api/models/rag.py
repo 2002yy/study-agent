@@ -38,6 +38,9 @@ class RagQueryRequest(BaseModel):
     context_max_chars: int = Field(default=3000, gt=0, le=20_000)
     expected_sources: list[str] = Field(default_factory=list)
     expected_terms: list[str] = Field(default_factory=list)
+    metadata_filters: dict = Field(default_factory=dict)
+    max_chunks_per_source: int = Field(default=3, ge=0, le=20)
+    suppress_duplicate_text: bool = True
 
 
 class RagQueryResponse(BaseModel):

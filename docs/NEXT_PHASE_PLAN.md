@@ -106,17 +106,19 @@ Implementation status (2026-07-02):
 
 ### Phase 2 — RAG retrieval quality
 
-Current status: BM25 sparse retrieval, RRF hybrid fusion and local retrieval-stage
-debug metrics are implemented. The remaining work should focus on production
-embedding/reranking quality and diversity controls.
+Current status: BM25 sparse retrieval, RRF hybrid fusion, retrieval-stage debug
+metrics, exact duplicate suppression, per-source diversity limits and metadata
+filters are implemented. The remaining work should focus on production
+embedding/reranking quality.
 
 1. [ ] Add a production multilingual Chinese/English embedding profile.
 2. [x] Upgrade sparse retrieval to BM25.
 3. [x] Replace fixed cross-score weighting with reciprocal-rank fusion.
 4. [ ] Add an optional reranker with explicit latency/cost budgets.
-5. [ ] Add duplicate suppression, source diversity and metadata filters.
+5. [x] Add duplicate suppression, source diversity and metadata filters.
 6. [x] Record candidate count and latency for local lexical/vector retrieval stages.
-7. [ ] Extend candidate count and latency accounting to external vector/reranker stages.
+7. [x] Extend candidate count and latency accounting to backend-vector query runs.
+8. [ ] Extend candidate count and latency accounting to future reranker stages.
 
 Acceptance:
 

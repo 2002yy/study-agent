@@ -11,12 +11,11 @@ from src.rag.index import load_rag_index
 from src.rag.service import (
     append_documents_to_index_with_stages,
     build_rag_context,
-    build_rag_debug,
     delete_knowledge_document,
     format_rag_sources,
     index_documents_with_stages,
     list_knowledge_documents,
-    search_documents,
+    search_documents_with_debug,
 )
 from src.repositories.rag_repository import RagRepository
 
@@ -31,21 +30,18 @@ class RagRunService:
         run = self.repository.create(RagRun(kind="query", request=frozen))
         try:
             index = load_rag_index(index_path)
-            results = search_documents(
+            diagnostics = search_documents_with_debug(
                 index,
                 str(frozen["query"]),
                 top_k=int(frozen.get("top_k", 5)),
                 min_score=float(frozen.get("min_score", 0.01)),
                 retrieval_mode=str(frozen.get("retrieval_mode", "hybrid")),
+                metadata_filters=dict(frozen.get("metadata_filters") or {}),
+                max_chunks_per_source=int(frozen.get("max_chunks_per_source", 3)),
+                suppress_duplicate_text=bool(frozen.get("suppress_duplicate_text", True)),
             )
-            debug = build_rag_debug(
-                index,
-                str(frozen["query"]),
-                results,
-                retrieval_mode=str(frozen.get("retrieval_mode", "hybrid")),
-                top_k=int(frozen.get("top_k", 5)),
-                min_score=float(frozen.get("min_score", 0.01)),
-            )
+            results = diagnostics.results
+            debug = diagnostics.debug
             evaluation = None
             if frozen.get("expected_sources"):
                 evaluation = evaluate_case(

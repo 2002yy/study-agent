@@ -191,6 +191,8 @@ P4-B adds API/query diagnostics:
 - Candidate count and returned result count
 - Per-stage candidate count, scored count and elapsed milliseconds
 - Per-result rank, chunk id, source path, matched terms and score breakdown
+- Retrieval post-processing diagnostics for metadata filters, exact duplicate
+  suppression and per-source diversity limits
 - Optional one-query evaluation when `/rag/query` receives `expected_sources`
 
 P4-C / P6 adds Streamlit inspection controls:
@@ -223,6 +225,8 @@ Goal: prove retrieval quality before expanding the stack.
 - [x] Upgrade sparse retrieval from TF-IDF-style scoring to BM25.
 - [x] Replace fixed hybrid cross-score weighting with RRF.
 - [x] Record local retrieval-stage candidate counts and latency in debug output.
+- [x] Add exact duplicate suppression, metadata filters and per-source diversity limits.
+- [x] Record backend-vector query latency when callers use the traced query path.
 - Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
 
 ### P5: Real Embedding Backend

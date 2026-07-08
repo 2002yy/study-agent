@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +17,8 @@ from src.rag import (
 from src.rag.chunker import chunk_document
 from src.rag.index import build_rag_index, load_rag_index, search_rag_index
 from src.rag.loader import load_document
+from src.rag.schema import RagChunk, RagDocument, RagIndex, RagSearchResult
+from src.rag.service import search_documents, search_documents_with_debug
 from src.rag.vector import cosine_similarity, embed_text, search_rag_index_hybrid, search_rag_index_vector
 from src.ui.rag_panel import (
     chunk_preview_rows,
@@ -258,6 +261,120 @@ def test_query_documents_rejects_unknown_retrieval_mode(tmp_path):
 
     with pytest.raises(ValueError, match="Unsupported RAG retrieval mode"):
         query_documents("retrieval", index_path=index_path, retrieval_mode="semantic")
+
+
+def test_search_documents_filters_duplicates_metadata_and_source_diversity():
+    index = RagIndex(
+        version=1,
+        documents=(
+            RagDocument(
+                source_path="python.md",
+                title="python",
+                text="alpha retrieval session",
+                content_hash="doc-a",
+                file_type="md",
+                document_id="doc-a",
+                metadata={"course": "python"},
+            ),
+            RagDocument(
+                source_path="java.md",
+                title="java",
+                text="alpha retrieval session",
+                content_hash="doc-b",
+                file_type="md",
+                document_id="doc-b",
+                metadata={"course": "java"},
+            ),
+        ),
+        chunks=(
+            RagChunk(
+                chunk_id="a1",
+                document_hash="doc-a",
+                source_path="python.md",
+                title="python",
+                text="alpha retrieval session",
+                chunk_index=0,
+                start_line=1,
+                end_line=1,
+                document_id="doc-a",
+            ),
+            RagChunk(
+                chunk_id="a2",
+                document_hash="doc-a",
+                source_path="python.md",
+                title="python",
+                text="alpha retrieval session",
+                chunk_index=1,
+                start_line=2,
+                end_line=2,
+                document_id="doc-a",
+            ),
+            RagChunk(
+                chunk_id="b1",
+                document_hash="doc-b",
+                source_path="java.md",
+                title="java",
+                text="alpha retrieval stream",
+                chunk_index=2,
+                start_line=1,
+                end_line=1,
+                document_id="doc-b",
+            ),
+        ),
+    )
+
+    filtered = search_documents(
+        index,
+        "alpha retrieval",
+        retrieval_mode="lexical",
+        top_k=3,
+        metadata_filters={"course": "python"},
+    )
+    diverse = search_documents(
+        index,
+        "alpha retrieval",
+        retrieval_mode="lexical",
+        top_k=3,
+        max_chunks_per_source=1,
+    )
+
+    assert [result.chunk.chunk_id for result in filtered] == ["a1"]
+    assert [result.chunk.document_id for result in diverse] == ["doc-a", "doc-b"]
+
+
+def test_search_documents_with_debug_records_backend_vector_latency(monkeypatch, tmp_path):
+    path = tmp_path / "notes.md"
+    path.write_text("Backend vector retrieval keeps diagnostics.", encoding="utf-8")
+    index = build_rag_index([path], max_chars=200, overlap_chars=0)
+
+    class FakeBackend:
+        name = "fake"
+
+        def query(self, index, query, *, top_k=5, min_score=0.05):
+            time.sleep(0.002)
+            return [
+                RagSearchResult(
+                    chunk=index.chunks[0],
+                    score=0.9,
+                    matched_terms=("backend",),
+                )
+            ]
+
+    from src.rag import service
+
+    monkeypatch.setattr(service, "get_vector_backend_from_env", lambda: FakeBackend())
+
+    diagnostics = search_documents_with_debug(
+        index,
+        "backend diagnostics",
+        retrieval_mode="backend_vector",
+        top_k=1,
+    )
+
+    stage = diagnostics.debug["stages"][0]
+    assert stage["name"] == "backend_vector"
+    assert stage["elapsed_ms"] > 0
+    assert diagnostics.debug["post_filter"]["output_count"] == 1
 
 
 def test_build_rag_debug_explains_hybrid_scores(tmp_path):

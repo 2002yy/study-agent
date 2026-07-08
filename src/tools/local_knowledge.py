@@ -8,7 +8,7 @@ from typing import Any, Literal
 from src.rag import build_rag_context, format_rag_sources
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.schema import RagSearchResult
-from src.rag.service import build_rag_debug, search_documents
+from src.rag.service import search_documents_with_debug
 
 LocalKnowledgeStatus = Literal[
     "skipped",
@@ -218,49 +218,38 @@ def retrieve_local_knowledge(
     attempts: list[RetrievalAttempt] = []
     debug: dict[str, Any] = {}
     try:
-        results = search_documents(
+        diagnostics = search_documents_with_debug(
             index,
             query,
             top_k=top_k,
             min_score=min_score,
             retrieval_mode=retrieval_mode,
         )
+        results = diagnostics.results
         attempts.append(_attempt_from_results(query, results))
-        debug = build_rag_debug(
-            index,
-            query,
-            results,
-            retrieval_mode=retrieval_mode,
-            top_k=top_k,
-            min_score=min_score,
-        )
+        debug = diagnostics.debug
 
         rewritten_query = ""
         if allow_rewrite and _is_weak_result(results, weak_score_threshold):
             candidate = rewrite_local_knowledge_query(query)
             if candidate and candidate != query.strip():
-                rewritten_results = search_documents(
+                rewritten_diagnostics = search_documents_with_debug(
                     index,
                     candidate,
                     top_k=top_k,
                     min_score=min_score,
                     retrieval_mode=retrieval_mode,
                 )
+                rewritten_results = rewritten_diagnostics.results
                 attempts.append(_attempt_from_results(candidate, rewritten_results))
                 if rewritten_results:
                     results = rewritten_results
                     rewritten_query = candidate
-                    debug = build_rag_debug(
-                        index,
-                        candidate,
-                        results,
-                        retrieval_mode=retrieval_mode,
-                        top_k=top_k,
-                        min_score=min_score,
-                    )
+                    debug = rewritten_diagnostics.debug
                 else:
                     results = []
                     rewritten_query = candidate
+                    debug = rewritten_diagnostics.debug
 
         if not results:
             return LocalKnowledgeResult(
