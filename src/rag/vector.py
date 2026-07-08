@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Iterable
 
 from src.rag.index import _tokenize, search_rag_index
 from src.rag.schema import RagIndex, RagSearchResult
 
 VECTOR_DIMENSIONS = 256
+RRF_K = 60
 
 
 def embed_text(text: str, *, dimensions: int = VECTOR_DIMENSIONS) -> tuple[float, ...]:
@@ -72,39 +74,41 @@ def search_rag_index_hybrid(
     *,
     top_k: int = 5,
     min_score: float = 0.01,
-    lexical_weight: float = 0.7,
+    rrf_k: int = RRF_K,
 ) -> list[RagSearchResult]:
     if top_k <= 0 or not index.chunks:
         return []
-    if not 0 <= lexical_weight <= 1:
-        raise ValueError("lexical_weight must be between 0 and 1")
+    if rrf_k <= 0:
+        raise ValueError("rrf_k must be positive")
+    if not _tokenize(query):
+        return []
 
-    lexical_results = search_rag_index(
-        index,
-        query,
-        top_k=len(index.chunks),
-        min_score=0.0,
-    )
-    vector_results = search_rag_index_vector(
-        index,
-        query,
-        top_k=len(index.chunks),
-        min_score=0.0,
-    )
-    max_lexical = max((result.score for result in lexical_results), default=0.0) or 1.0
+    lexical_results = [
+        result
+        for result in search_rag_index(index, query, top_k=len(index.chunks), min_score=0.0)
+        if result.score > 0
+    ]
+    vector_results = [
+        result
+        for result in search_rag_index_vector(
+            index,
+            query,
+            top_k=len(index.chunks),
+            min_score=0.0,
+        )
+        if result.score > 0
+    ]
 
     by_chunk_id = {chunk.chunk_id: chunk for chunk in index.chunks}
-    lexical_scores = {result.chunk.chunk_id: result.score / max_lexical for result in lexical_results}
-    vector_scores = {result.chunk.chunk_id: result.score for result in vector_results}
+    fused_scores: dict[str, float] = {}
     matched_terms: dict[str, set[str]] = {}
-    for result in [*lexical_results, *vector_results]:
-        matched_terms.setdefault(result.chunk.chunk_id, set()).update(result.matched_terms)
+
+    for result_set in (lexical_results, vector_results):
+        _apply_rrf(result_set, fused_scores, matched_terms, rrf_k=rrf_k)
 
     scored: list[RagSearchResult] = []
     for chunk_id, chunk in by_chunk_id.items():
-        lexical_score = lexical_scores.get(chunk_id, 0.0)
-        vector_score = vector_scores.get(chunk_id, 0.0)
-        combined = lexical_weight * lexical_score + (1 - lexical_weight) * vector_score
+        combined = fused_scores.get(chunk_id, 0.0)
         if combined >= min_score:
             scored.append(
                 RagSearchResult(
@@ -116,3 +120,16 @@ def search_rag_index_hybrid(
 
     scored.sort(key=lambda result: (-result.score, result.chunk.chunk_index, result.chunk.title))
     return scored[:top_k]
+
+
+def _apply_rrf(
+    results: Iterable[RagSearchResult],
+    fused_scores: dict[str, float],
+    matched_terms: dict[str, set[str]],
+    *,
+    rrf_k: int,
+) -> None:
+    for rank, result in enumerate(results, start=1):
+        chunk_id = result.chunk.chunk_id
+        fused_scores[chunk_id] = fused_scores.get(chunk_id, 0.0) + (1.0 / (rrf_k + rank))
+        matched_terms.setdefault(chunk_id, set()).update(result.matched_terms)

@@ -258,6 +258,9 @@ def retrieve_local_knowledge(
                         top_k=top_k,
                         min_score=min_score,
                     )
+                else:
+                    results = []
+                    rewritten_query = candidate
 
         if not results:
             return LocalKnowledgeResult(

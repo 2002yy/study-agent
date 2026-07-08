@@ -48,9 +48,9 @@ Implemented:
 - Text normalization and empty-document rejection
 - PDF parsing through `pypdf`, with file-size, page-count, extracted-text and encrypted-file guards
 - Source-traceable chunking with file path, title and line range
-- Local keyword retrieval with TF-IDF-style scoring
+- Local keyword retrieval with BM25 scoring
 - Deterministic local hash-vector retrieval prototype
-- Hybrid retrieval that combines normalized lexical score with local vector similarity
+- Hybrid retrieval that fuses BM25 and local-vector rankings with reciprocal-rank fusion
 - CJK bigram matching for simple Chinese queries
 - Persisted JSON index under `logs/rag_index.json` by default
 - Citation-first context formatting for later LLM calls
@@ -105,13 +105,13 @@ local files
 
 ## Retrieval Behavior
 
-The default mode is `hybrid`: lexical scoring plus deterministic local hash-vector similarity. This is a retrieval prototype, not a semantic embedding model. English-like tokens are lowercased words with trailing punctuation stripped. Chinese text is indexed as longer CJK spans plus overlapping two-character terms, so a query such as `向量` can match a longer phrase such as `向量检索`.
+The default mode is `hybrid`: BM25 sparse retrieval plus deterministic local hash-vector similarity fused with reciprocal-rank fusion (RRF). This is a retrieval prototype, not a semantic embedding model. English-like tokens are lowercased words with trailing punctuation stripped. Chinese text is indexed as longer CJK spans plus overlapping two-character terms, so a query such as `向量` can match a longer phrase such as `向量检索`.
 
 Supported retrieval modes:
 
-- `lexical`: TF-IDF-style term scoring
+- `lexical`: BM25 sparse term scoring
 - `vector`: deterministic local hash-vector cosine similarity
-- `hybrid`: normalized lexical score plus vector similarity
+- `hybrid`: BM25 and local-vector rankings fused with RRF
 - `backend_vector`: configured vector backend; defaults to local and can use the optional Chroma adapter with configured embeddings
 
 Each result keeps:
@@ -189,6 +189,7 @@ P4-B adds API/query diagnostics:
 
 - Retrieval mode, `top_k`, `min_score` and tokenized query terms
 - Candidate count and returned result count
+- Per-stage candidate count, scored count and elapsed milliseconds
 - Per-result rank, chunk id, source path, matched terms and score breakdown
 - Optional one-query evaluation when `/rag/query` receives `expected_sources`
 
@@ -219,6 +220,9 @@ Goal: prove retrieval quality before expanding the stack.
 - [x] Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
 - [x] Surface retrieval debug data in tests and API responses before adding more UI polish.
 - [x] Add a Streamlit source/debug panel for inspecting score breakdowns.
+- [x] Upgrade sparse retrieval from TF-IDF-style scoring to BM25.
+- [x] Replace fixed hybrid cross-score weighting with RRF.
+- [x] Record local retrieval-stage candidate counts and latency in debug output.
 - Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
 
 ### P5: Real Embedding Backend

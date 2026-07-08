@@ -16,6 +16,8 @@ from src.safe_writer import safe_write_text
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_RAG_INDEX_PATH = ROOT / "logs" / "rag_index.json"
 INDEX_VERSION = 1
+BM25_K1 = 1.5
+BM25_B = 0.75
 
 
 def _tokenize(text: str) -> list[str]:
@@ -42,17 +44,27 @@ def _document_frequency(chunks: tuple[RagChunk, ...]) -> Counter[str]:
     return df
 
 
+def _average_chunk_length(chunks: tuple[RagChunk, ...]) -> float:
+    if not chunks:
+        return 0.0
+    total_terms = sum(len(_tokenize(chunk.text)) for chunk in chunks)
+    return total_terms / len(chunks)
+
+
 def _score_chunk(
     query: str,
     chunk: RagChunk,
     df: Counter[str],
     total_chunks: int,
+    avg_chunk_length: float | None = None,
 ) -> tuple[float, tuple[str, ...]]:
-    query_terms = _tokenize(query)
+    query_terms = sorted(set(_tokenize(query)))
     if not query_terms:
         return 0.0, ()
 
     chunk_terms = Counter(_tokenize(chunk.text))
+    chunk_length = sum(chunk_terms.values()) or 1
+    avg_length = avg_chunk_length or float(chunk_length)
     matched_terms: list[str] = []
     score = 0.0
     for term in query_terms:
@@ -60,8 +72,10 @@ def _score_chunk(
         if tf <= 0:
             continue
         matched_terms.append(term)
-        idf = math.log((1 + total_chunks) / (1 + df.get(term, 0))) + 1.0
-        score += (1.0 + math.log(tf)) * idf
+        term_df = df.get(term, 0)
+        idf = math.log(1.0 + (total_chunks - term_df + 0.5) / (term_df + 0.5))
+        denominator = tf + BM25_K1 * (1.0 - BM25_B + BM25_B * (chunk_length / avg_length))
+        score += idf * ((tf * (BM25_K1 + 1.0)) / denominator)
 
     if not matched_terms:
         return 0.0, ()
@@ -157,9 +171,16 @@ def search_rag_index(
         return []
 
     df = _document_frequency(index.chunks)
+    avg_chunk_length = _average_chunk_length(index.chunks)
     scored: list[RagSearchResult] = []
     for chunk in index.chunks:
-        score, matched_terms = _score_chunk(query, chunk, df, len(index.chunks))
+        score, matched_terms = _score_chunk(
+            query,
+            chunk,
+            df,
+            len(index.chunks),
+            avg_chunk_length,
+        )
         if score >= min_score:
             scored.append(
                 RagSearchResult(

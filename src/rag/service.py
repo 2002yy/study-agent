@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from src.rag.index import (
+    _average_chunk_length,
     DEFAULT_RAG_INDEX_PATH,
     _document_frequency,
     _score_chunk,
@@ -19,6 +21,7 @@ from src.rag.index import (
 from src.rag.backends import get_vector_backend_from_env
 from src.rag.schema import RagIndex, RagSearchResult
 from src.rag.vector import (
+    RRF_K,
     cosine_similarity,
     embed_text,
     search_rag_index_hybrid,
@@ -26,7 +29,7 @@ from src.rag.vector import (
 )
 
 RETRIEVAL_MODES = {"lexical", "vector", "hybrid", "backend_vector"}
-HYBRID_LEXICAL_WEIGHT = 0.7
+HYBRID_RRF_K = RRF_K
 
 
 @dataclass(frozen=True)
@@ -439,7 +442,7 @@ def search_documents(
             query,
             top_k=top_k,
             min_score=min_score,
-            lexical_weight=HYBRID_LEXICAL_WEIGHT,
+            rrf_k=HYBRID_RRF_K,
         )
     if retrieval_mode == "backend_vector":
         return get_vector_backend_from_env().query(
@@ -455,8 +458,12 @@ def _lexical_scores(index: RagIndex, query: str) -> dict[str, float]:
     if not index.chunks:
         return {}
     df = _document_frequency(index.chunks)
+    avg_chunk_length = _average_chunk_length(index.chunks)
     return {
-        chunk.chunk_id: round(_score_chunk(query, chunk, df, len(index.chunks))[0], 6)
+        chunk.chunk_id: round(
+            _score_chunk(query, chunk, df, len(index.chunks), avg_chunk_length)[0],
+            6,
+        )
         for chunk in index.chunks
     }
 
@@ -477,8 +484,10 @@ def _score_breakdown(
     retrieval_mode: str,
     lexical_scores: dict[str, float],
     vector_scores: dict[str, float],
+    lexical_ranks: dict[str, int],
+    vector_ranks: dict[str, int],
     max_lexical_score: float,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     chunk_id = result.chunk.chunk_id
     lexical_score = lexical_scores.get(chunk_id, 0.0)
     lexical_normalized = lexical_score / max_lexical_score if max_lexical_score > 0 else 0.0
@@ -491,14 +500,56 @@ def _score_breakdown(
     if retrieval_mode == "backend_vector":
         return {"backend_score": round(result.score, 6)}
     if retrieval_mode == "hybrid":
+        lexical_rank = lexical_ranks.get(chunk_id)
+        vector_rank = vector_ranks.get(chunk_id)
+        lexical_rrf = 1.0 / (HYBRID_RRF_K + lexical_rank) if lexical_rank else 0.0
+        vector_rrf = 1.0 / (HYBRID_RRF_K + vector_rank) if vector_rank else 0.0
         return {
-            "lexical_weight": HYBRID_LEXICAL_WEIGHT,
+            "fusion": "rrf",
+            "rrf_k": HYBRID_RRF_K,
+            "lexical_rank": lexical_rank,
             "lexical_score": round(lexical_score, 6),
             "lexical_normalized": round(lexical_normalized, 6),
+            "lexical_rrf": round(lexical_rrf, 6),
+            "vector_rank": vector_rank,
             "vector_score": round(vector_score, 6),
+            "vector_rrf": round(vector_rrf, 6),
             "combined_score": round(result.score, 6),
         }
     raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
+
+
+def _rank_map(index: RagIndex, scores: dict[str, float]) -> dict[str, int]:
+    chunks = {chunk.chunk_id: chunk for chunk in index.chunks}
+    ranked = sorted(
+        (
+            (chunk_id, score)
+            for chunk_id, score in scores.items()
+            if score > 0 and chunk_id in chunks
+        ),
+        key=lambda item: (-item[1], chunks[item[0]].chunk_index, chunks[item[0]].title),
+    )
+    return {chunk_id: rank for rank, (chunk_id, _score) in enumerate(ranked, start=1)}
+
+
+def _timed_stage(name: str, candidate_count: int, work: Callable[[], Any]) -> tuple[dict[str, Any], Any]:
+    started = time.perf_counter()
+    value = work()
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    scored_count = (
+        sum(1 for score in value.values() if score > 0)
+        if isinstance(value, dict)
+        else candidate_count
+    )
+    return (
+        {
+            "name": name,
+            "candidate_count": candidate_count,
+            "scored_count": scored_count,
+            "elapsed_ms": round(elapsed_ms, 3),
+        },
+        value,
+    )
 
 
 def build_rag_debug(
@@ -514,9 +565,37 @@ def build_rag_debug(
     if retrieval_mode not in RETRIEVAL_MODES:
         raise ValueError(f"Unsupported RAG retrieval mode: {retrieval_mode}")
 
-    lexical_scores = _lexical_scores(index, query)
-    vector_scores = _vector_scores(index, query)
+    stages: list[dict[str, Any]] = []
+    lexical_scores: dict[str, float] = {}
+    vector_scores: dict[str, float] = {}
+
+    if retrieval_mode in {"lexical", "hybrid"}:
+        stage, lexical_scores = _timed_stage(
+            "lexical_bm25",
+            len(index.chunks),
+            lambda: _lexical_scores(index, query),
+        )
+        stages.append(stage)
+    if retrieval_mode in {"vector", "hybrid"}:
+        stage, vector_scores = _timed_stage(
+            "local_vector",
+            len(index.chunks),
+            lambda: _vector_scores(index, query),
+        )
+        stages.append(stage)
+    if retrieval_mode == "backend_vector":
+        stages.append(
+            {
+                "name": "backend_vector",
+                "candidate_count": len(index.chunks),
+                "scored_count": len(results),
+                "elapsed_ms": 0.0,
+            }
+        )
+
     max_lexical_score = max(lexical_scores.values(), default=0.0)
+    lexical_ranks = _rank_map(index, lexical_scores)
+    vector_ranks = _rank_map(index, vector_scores)
     query_terms = tuple(sorted(set(_tokenize(query))))
 
     return {
@@ -525,6 +604,7 @@ def build_rag_debug(
         "min_score": min_score,
         "candidate_count": len(index.chunks),
         "returned_count": len(results),
+        "stages": stages,
         "query_terms": list(query_terms),
         "empty_query": not query_terms,
         "results": [
@@ -540,6 +620,8 @@ def build_rag_debug(
                     retrieval_mode=retrieval_mode,
                     lexical_scores=lexical_scores,
                     vector_scores=vector_scores,
+                    lexical_ranks=lexical_ranks,
+                    vector_ranks=vector_ranks,
                     max_lexical_score=max_lexical_score,
                 ),
             }

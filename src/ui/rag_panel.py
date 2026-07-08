@@ -117,9 +117,14 @@ def format_score_breakdown(result_debug: dict) -> str:
         return ""
     parts = []
     for key in [
-        "lexical_weight",
+        "fusion",
+        "rrf_k",
+        "lexical_rank",
+        "lexical_rrf",
         "lexical_score",
         "lexical_normalized",
+        "vector_rank",
+        "vector_rrf",
         "vector_score",
         "combined_score",
         "backend_score",

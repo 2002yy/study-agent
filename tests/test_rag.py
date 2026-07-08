@@ -188,6 +188,19 @@ def test_chinese_query_matches_cjk_bigrams(tmp_path):
     assert "\u5411\u91cf" in results[0].matched_terms
 
 
+def test_lexical_retrieval_uses_bm25_length_normalization(tmp_path):
+    concise_doc = tmp_path / "concise.md"
+    long_doc = tmp_path / "repeated.md"
+    concise_doc.write_text("requests sessions", encoding="utf-8")
+    long_doc.write_text(("requests " * 60) + "sessions", encoding="utf-8")
+    index = build_rag_index([concise_doc, long_doc], max_chars=2000, overlap_chars=0)
+
+    results = search_rag_index(index, "requests sessions", top_k=2)
+
+    assert results[0].chunk.source_path == str(concise_doc)
+    assert results[0].score > results[1].score
+
+
 def test_vector_retrieval_ranks_matching_chunk(tmp_path):
     python_doc = tmp_path / "python.md"
     cooking_doc = tmp_path / "cooking.md"
@@ -202,7 +215,7 @@ def test_vector_retrieval_ranks_matching_chunk(tmp_path):
     assert "connections" in results[0].matched_terms
 
 
-def test_hybrid_retrieval_combines_lexical_and_vector_scores(tmp_path):
+def test_hybrid_retrieval_fuses_lexical_and_vector_ranks_with_rrf(tmp_path):
     python_doc = tmp_path / "python.md"
     cooking_doc = tmp_path / "cooking.md"
     python_doc.write_text("HTTP requests sessions reuse connections.", encoding="utf-8")
@@ -212,6 +225,7 @@ def test_hybrid_retrieval_combines_lexical_and_vector_scores(tmp_path):
     results = search_rag_index_hybrid(index, "requests connections", top_k=1)
 
     assert results[0].chunk.source_path == str(python_doc)
+    assert 0 < results[0].score < 0.05
     assert "requests" in results[0].matched_terms
 
 
@@ -265,9 +279,17 @@ def test_build_rag_debug_explains_hybrid_scores(tmp_path):
 
     assert debug["candidate_count"] == 2
     assert debug["returned_count"] == 1
+    assert [stage["name"] for stage in debug["stages"]] == ["lexical_bm25", "local_vector"]
+    assert all(stage["candidate_count"] == 2 for stage in debug["stages"])
+    assert all(stage["elapsed_ms"] >= 0 for stage in debug["stages"])
     assert debug["query_terms"] == ["connections", "requests"]
     breakdown = debug["results"][0]["score_breakdown"]
-    assert breakdown["lexical_weight"] == 0.7
+    assert breakdown["fusion"] == "rrf"
+    assert breakdown["rrf_k"] == 60
+    assert breakdown["lexical_rank"] == 1
+    assert breakdown["lexical_rrf"] > 0
+    assert breakdown["vector_rank"] >= 1
+    assert breakdown["vector_rrf"] > 0
     assert breakdown["combined_score"] == results[0].score
     assert breakdown["lexical_score"] > 0
     assert breakdown["vector_score"] > 0
@@ -301,18 +323,24 @@ def test_rag_panel_formats_debug_summary_and_breakdown():
     }
     result_debug = {
         "score_breakdown": {
-            "lexical_weight": 0.7,
+            "fusion": "rrf",
+            "rrf_k": 60,
+            "lexical_rank": 1,
+            "lexical_rrf": 0.016393,
             "lexical_score": 3.5,
             "lexical_normalized": 1.0,
+            "vector_rank": 2,
+            "vector_rrf": 0.016129,
             "vector_score": 0.25,
-            "combined_score": 0.775,
+            "combined_score": 0.032522,
         }
     }
 
     assert format_rag_debug_summary(debug) == (
         "mode=hybrid; top_k=3; min_score=0.01; candidates=8; returned=2; terms=debug, rag"
     )
-    assert "combined_score=0.775" in format_score_breakdown(result_debug)
+    assert "fusion=rrf" in format_score_breakdown(result_debug)
+    assert "combined_score=0.033" in format_score_breakdown(result_debug)
 
 
 def test_build_rag_debug_marks_empty_queries(tmp_path):
@@ -332,6 +360,7 @@ def test_build_rag_debug_marks_empty_queries(tmp_path):
     assert debug["empty_query"] is True
     assert debug["candidate_count"] == 1
     assert debug["returned_count"] == 0
+    assert debug["stages"][0]["name"] == "lexical_bm25"
 
 
 def test_local_hash_embeddings_are_deterministic():
