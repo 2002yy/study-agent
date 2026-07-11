@@ -38,6 +38,7 @@ from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.router import route_request
 from src.tools.registry import create_default_tool_registry
+from src.tools.web_agent import WebToolTrace
 from src.workflows.store import WorkflowStore
 
 
@@ -95,6 +96,7 @@ def default_chat_dependencies() -> ChatDependencies:
         stream_chat=lambda *args, **kwargs: iter(["Hello", " stream"]),
         async_stream_chat=async_tokens,
         chat_max_tokens=chat_max_tokens,
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
     )
 
 
@@ -120,6 +122,7 @@ def runtime_test_context(tmp_path):
             False,
         ),
         normalize_reply=lambda content: content,
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
     )
     group_service = GroupChatService(
         group_repository,

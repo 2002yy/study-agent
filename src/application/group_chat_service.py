@@ -15,6 +15,7 @@ from src.infrastructure.markdown.group_archive import (
 )
 from src.repositories.group_repository import GroupRepository
 from src.tools.local_knowledge import retrieve_local_knowledge
+from src.tools.web_agent import WebToolTrace, web_tools_disabled
 from src.wechat_format import _message_blocks
 from src.wechat_generator import (
     generate_interactive_wechat_reply,
@@ -31,6 +32,7 @@ class GroupDependencies:
     generate_reply: Callable[..., str] = generate_interactive_wechat_reply
     generate_reply_stream: Callable[..., Any] = generate_interactive_wechat_reply_stream
     normalize_reply: Callable[[str], str] = normalize_interactive_wechat_reply
+    resolve_web_tools: Callable[..., WebToolTrace] = web_tools_disabled
 
 
 @dataclass(frozen=True)
@@ -190,6 +192,11 @@ class GroupChatService:
                 retrieval_mode=rag_retrieval_mode,
                 min_score=rag_min_score,
             )
+            web_tools = self.dependencies.resolve_web_tools(
+                user_text,
+                model_profile=model_profile,
+                conversation_context=history[-3000:],
+            )
             user_message = GroupMessage(
                 thread_id=thread.id,
                 speaker="用户",
@@ -216,8 +223,12 @@ class GroupChatService:
             relationship_mode=relationship_mode,
             performance_mode=performance_mode,
             history_text=history,
-            rag=rag_result.to_dict(),
-            rag_context=str(getattr(rag_result, "context", "")),
+            rag={**rag_result.to_dict(), "web_tools": web_tools.to_dict()},
+            rag_context="\n\n".join(
+                part
+                for part in (str(getattr(rag_result, "context", "")), web_tools.context_block())
+                if part.strip()
+            ),
         )
 
     def generate(self, prepared: PreparedGroupMessage) -> str:

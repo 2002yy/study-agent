@@ -32,7 +32,11 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 
 def searxng_enabled() -> bool:
-    return _env_flag("NEWS_ENABLE_SEARXNG", default=False)
+    # News and model-directed web search share the configured instance, but
+    # have different categories. Keep the existing news switch compatible.
+    return _env_flag("NEWS_ENABLE_SEARXNG", default=False) or _env_flag(
+        "WEB_ENABLE_SEARXNG", default=False
+    )
 
 
 def searxng_base_url() -> str:

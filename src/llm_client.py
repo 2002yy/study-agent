@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import json
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator, Literal
 
@@ -547,3 +548,90 @@ def chat(
         return response.choices[0].message.content or ""
     except Exception as e:
         raise RuntimeError(_classify_error(e)) from e
+
+
+def run_tool_loop(
+    messages: list[dict],
+    *,
+    tools: list[dict],
+    execute_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
+    model_profile: ModelProfile | None = None,
+    provider_profile: str | None = None,
+    task_name: str | None = None,
+    max_rounds: int = 3,
+) -> list[dict[str, Any]]:
+    """Run an OpenAI-compatible function-call loop and return tool evidence.
+
+    The final natural-language planner response is deliberately not returned:
+    the caller will make its normal streaming generation request with the
+    collected evidence in context, so the UI keeps one assistant response.
+    """
+    if not messages or not tools:
+        return []
+    client = get_client(provider_profile=provider_profile)
+    transcript = list(messages)
+    evidence: list[dict[str, Any]] = []
+    for _ in range(max(1, max_rounds)):
+        request_kwargs = _build_request_kwargs(
+            messages=transcript,
+            temperature=0.0,
+            model_profile=model_profile,
+            provider_profile=provider_profile,
+            task_name=task_name,
+            max_tokens=600,
+            timeout=None,
+            response_format=None,
+            stream=False,
+        )
+        request_kwargs["tools"] = tools
+        request_kwargs["tool_choice"] = "auto"
+        try:
+            response = client.chat.completions.create(**request_kwargs)
+        except Exception as exc:
+            raise RuntimeError(_classify_error(exc)) from exc
+        message = response.choices[0].message
+        raw_calls = getattr(message, "tool_calls", None) or []
+        if not raw_calls:
+            return evidence
+        assistant_calls: list[dict[str, Any]] = []
+        for index, call in enumerate(raw_calls):
+            function = getattr(call, "function", None)
+            name = str(getattr(function, "name", "") or "")
+            raw_arguments = str(getattr(function, "arguments", "") or "{}")
+            try:
+                arguments = json.loads(raw_arguments)
+                if not isinstance(arguments, dict):
+                    raise ValueError("tool arguments must be an object")
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                arguments = {}
+                result: dict[str, Any] = {"error": f"invalid_tool_arguments:{exc}"}
+            else:
+                try:
+                    result = execute_tool(name, arguments)
+                except Exception as exc:  # Individual tools fail soft for the model.
+                    result = {"error": f"{type(exc).__name__}: {exc}"}
+            call_id = str(getattr(call, "id", "") or f"tool_call_{index}")
+            evidence.append({"name": name, "arguments": arguments, "result": result})
+            assistant_calls.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": name, "arguments": raw_arguments},
+                }
+            )
+            transcript.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                }
+            )
+        transcript.insert(
+            len(transcript) - len(assistant_calls),
+            {
+                "role": "assistant",
+                "content": getattr(message, "content", None) or "",
+                "tool_calls": assistant_calls,
+            },
+        )
+    return evidence

@@ -278,6 +278,12 @@ export type ChatResponse = {
     };
     attempts: Array<Record<string, unknown>>;
     rewritten_query: string;
+    web_tools?: {
+      enabled: boolean;
+      used: boolean;
+      calls: Array<Record<string, unknown>>;
+      error?: string;
+    };
   };
 };
 

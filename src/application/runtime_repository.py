@@ -85,11 +85,13 @@ def get_pedagogy_eval_repository() -> PedagogyEvalRepository:
 def get_chat_service():
     from src.application.chat_service import ChatDependencies, ChatService
     from src.pedagogy.evaluation import LLMSemanticEvaluator, PedagogyEvaluationService
+    from src.tools.web_agent import resolve_web_tools
 
     return ChatService(
         get_runtime_repository(),
         ChatDependencies(
-            pedagogy_evaluation=PedagogyEvaluationService(LLMSemanticEvaluator())
+            pedagogy_evaluation=PedagogyEvaluationService(LLMSemanticEvaluator()),
+            resolve_web_tools=resolve_web_tools,
         ),
     )
 
@@ -115,6 +117,8 @@ def get_session_service():
 @lru_cache(maxsize=1)
 def get_group_service():
     from src.application.group_chat_service import GroupChatService
+    from src.application.group_chat_service import GroupDependencies
+    from src.tools.web_agent import resolve_web_tools
 
     return GroupChatService(
         get_group_repository(),
@@ -122,6 +126,7 @@ def get_group_service():
         unread_file=DEFAULT_GROUP_UNREAD_FILE,
         state_file=DEFAULT_GROUP_STATE_FILE,
         archive_dir=DEFAULT_GROUP_ARCHIVE_DIR,
+        dependencies=GroupDependencies(resolve_web_tools=resolve_web_tools),
     )
 
 

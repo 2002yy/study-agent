@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from src.application.group_chat_service import GroupChatService
+from src.application.group_chat_service import GroupChatService, GroupDependencies
 from src.infrastructure.markdown.group_archive import LEGACY_GROUP_THREAD_ID
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.group_repository import GroupRepository
+from src.tools.web_agent import WebToolTrace
 
 
 def _service(tmp_path):
@@ -22,6 +23,9 @@ def _service(tmp_path):
         unread_file=unread_file,
         state_file=state_file,
         archive_dir=tmp_path / "archive",
+        dependencies=GroupDependencies(
+            resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False)
+        ),
     )
     return service, repository, group_file, unread_file, state_file
 
@@ -149,6 +153,42 @@ def test_failed_exchange_is_hidden_before_and_after_refresh(tmp_path):
     messages = repository.list_messages(thread.id)
     assert [message.status for message in messages] == ["failed", "failed"]
     assert repository.get_thread(thread.id).active_operation_id is None
+
+
+def test_group_chat_injects_model_selected_web_evidence(tmp_path):
+    trace = WebToolTrace(
+        calls=(
+            {
+                "name": "web_search",
+                "arguments": {"query": "Python docs"},
+                "result": {"results": [{"url": "https://docs.python.org"}]},
+            },
+        )
+    )
+    service, _, group_file, unread_file, state_file = _service(tmp_path)
+    service = GroupChatService(
+        service.repository,
+        group_file=group_file,
+        unread_file=unread_file,
+        state_file=state_file,
+        archive_dir=tmp_path / "archive",
+        dependencies=GroupDependencies(resolve_web_tools=lambda *args, **kwargs: trace),
+    )
+
+    prepared = service.prepare_message(
+        "Can the group check the official Python docs?",
+        thread_id=None,
+        model_profile="flash",
+        relationship_mode="standard",
+        performance_mode="fast",
+        rag_enabled=False,
+        rag_top_k=3,
+        rag_retrieval_mode="hybrid",
+        rag_min_score=0.0,
+    )
+
+    assert prepared.rag["web_tools"]["used"] is True
+    assert "https://docs.python.org" in prepared.rag_context
 
 
 def test_four_role_reply_uses_rows_and_read_cursor(tmp_path):

@@ -38,6 +38,16 @@ export function RoutePanel({ lastChat }: { lastChat: ChatResponse | null }) {
             <span>引用数量</span>
             <strong>{lastChat.rag?.result_count ?? 0}</strong>
           </div>
+          <div className="metric-row">
+            <span>模型联网工具</span>
+            <strong>
+              {lastChat.rag?.web_tools?.used
+                ? `已调用 ${lastChat.rag.web_tools.calls.length} 次`
+                : lastChat.rag?.web_tools?.enabled === false
+                  ? "已关闭"
+                  : "本轮未调用"}
+            </strong>
+          </div>
         </div>
       ) : (
         <div className="empty-state">发送一条消息后，这里会展示后端返回的角色、模式、模型、路由原因和 RAG 状态。</div>

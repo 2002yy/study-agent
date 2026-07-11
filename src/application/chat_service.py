@@ -20,6 +20,7 @@ from src.repositories.runtime_repository import RuntimeRepository
 from src.role_manager import build_role_prompt
 from src.router import route_request
 from src.tools.local_knowledge import retrieve_local_knowledge
+from src.tools.web_agent import WebToolTrace, web_tools_disabled
 
 PERFORMANCE_MODES = {"fast", "standard", "deep"}
 
@@ -71,6 +72,7 @@ class ChatDependencies:
     disclosure_policy: EvidenceDisclosurePolicy = field(
         default_factory=EvidenceDisclosurePolicy
     )
+    resolve_web_tools: Callable[..., WebToolTrace] = web_tools_disabled
 
 
 @dataclass(frozen=True)
@@ -189,11 +191,21 @@ class ChatService:
             )
             rag = rag_result.to_dict()
             rag["query_plan"] = retrieval_plan.to_dict()
+            web_tools = self.dependencies.resolve_web_tools(
+                command.user_input,
+                model_profile=route["model_profile"],
+                conversation_context=_tool_context(command.chat_history),
+            )
+            rag["web_tools"] = web_tools.to_dict()
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
             evidence_units = build_evidence_units(
                 rag=rag,
-                web_context=command.web_context,
+                web_context="\n\n".join(
+                    part
+                    for part in (command.web_context, web_tools.context_block())
+                    if part.strip()
+                ),
             )
             disclosed = self.dependencies.disclosure_policy.select(
                 units=evidence_units,
@@ -288,7 +300,7 @@ class ChatService:
             rag=rag,
             runtime_modes=runtime_modes,
             memory_enabled=bool(memory_bundle),
-            web_context_used=bool(command.web_context.strip()),
+            web_context_used=bool(command.web_context.strip()) or web_tools.used,
             is_continuation=is_continuation,
             base_reply=base_reply,
             retry_parent_turn_id=retry_parent.id if retry_parent else None,
@@ -573,6 +585,16 @@ def _previous_assistant_role(history: list[dict[str, Any]]) -> str | None:
         if avatar_role in valid_roles:
             return str(avatar_role)
     return None
+
+
+def _tool_context(history: list[dict[str, Any]]) -> str:
+    """Keep the planner aware of the immediate thread without leaking a full log."""
+    recent = history[-6:]
+    return "\n".join(
+        f"{str(message.get('role', 'user'))}: {str(message.get('content', ''))[:500]}"
+        for message in recent
+        if isinstance(message, dict)
+    )
 
 
 def _continuation_instruction(command: ChatCommand) -> str:

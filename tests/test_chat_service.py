@@ -15,6 +15,7 @@ from src.pedagogy.types import (
 )
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.tools.web_agent import WebToolTrace
 
 
 class FakeRagResult:
@@ -52,6 +53,7 @@ def _service(tmp_path) -> tuple[ChatService, RuntimeRepository]:
         chat=lambda *args, **kwargs: "complete reply",
         stream_chat=lambda *args, **kwargs: iter(["part", " two"]),
         chat_max_tokens=lambda performance_mode: 1000,
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
     )
     return ChatService(repository, dependencies), repository
 
@@ -86,6 +88,37 @@ def test_chat_service_persists_pending_streaming_and_completed_turn(tmp_path):
     assert eval_run.evaluator_version
     assert eval_run.prompt_version
     assert eval_run.schema_version
+
+
+def test_chat_service_injects_model_selected_web_evidence(tmp_path):
+    service, _ = _service(tmp_path)
+    trace = WebToolTrace(
+        calls=(
+            {
+                "name": "web_search",
+                "arguments": {"query": "FastAPI"},
+                "result": {"results": [{"url": "https://fastapi.tiangolo.com"}]},
+            },
+        )
+    )
+    captured: dict = {}
+    service = ChatService(
+        service.repository,
+        replace(
+            service.dependencies,
+            resolve_web_tools=lambda *args, **kwargs: trace,
+            build_messages=lambda **kwargs: captured.setdefault("messages", [
+                {"role": "system", "content": kwargs["rag_context"]},
+                {"role": "user", "content": kwargs["user_input"]},
+            ]),
+        ),
+    )
+
+    prepared = service.start_turn(ChatCommand(user_input="Find current FastAPI information"))
+
+    assert prepared.rag["web_tools"]["used"] is True
+    assert "https://fastapi.tiangolo.com" in captured["messages"][0]["content"]
+    assert prepared.web_context_used is True
 
 
 def test_semantic_provider_failure_cannot_advance_mastery_state(tmp_path):
