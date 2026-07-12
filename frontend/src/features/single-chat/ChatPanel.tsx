@@ -1,8 +1,9 @@
-import { ArrowDown, Clipboard, Loader2, Play, RotateCcw, Search, Send, Square, Upload } from "lucide-react";
+import { ArrowDown, BookOpen, Clipboard, Database, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { ChatMessage, ChatResponse, MemoryStatusResponse } from "../../types";
+import { EvidenceTrail } from "../evidence/EvidenceTrail";
+import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
 const quickPrompts = [
@@ -42,7 +43,8 @@ export function ChatPanel({
   onQuickPrompt,
   lastChat,
   ragEnabled,
-  memoryStatus
+  memoryStatus,
+  onOpenDrawer
 }: {
   messages: ChatMessage[];
   sessionId?: string;
@@ -63,6 +65,7 @@ export function ChatPanel({
   lastChat: ChatResponse | null;
   ragEnabled: boolean;
   memoryStatus: MemoryStatusResponse | null;
+  onOpenDrawer: (drawer: DrawerId) => void;
 }) {
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -113,6 +116,13 @@ export function ChatPanel({
           <button className="icon-button" disabled={!hasSearchQuery} onClick={onSearchSources} type="button" title={hasSearchQuery ? "检索来源" : "输入关键词或通过 RAG 提问后可检索"}>
             {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
           </button>
+          <span className="dock-divider" />
+          <button className="icon-button" onClick={() => onOpenDrawer("group")} type="button" title="群聊"><MessageSquare size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("news")} type="button" title="新闻"><Database size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("tools")} type="button" title="工具"><Wrench size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话"><BookOpen size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("memory")} type="button" title="记忆"><MemoryStick size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("settings")} type="button" title="设置"><Settings size={16} /></button>
         </div>
       </header>
 
@@ -156,6 +166,7 @@ export function ChatPanel({
               <div className="message-body">
                 <span>{label}</span>
                 <MarkdownMessage content={message.content} />
+                {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
               </div>
             </article>
           );
