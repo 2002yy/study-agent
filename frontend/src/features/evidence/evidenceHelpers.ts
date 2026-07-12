@@ -7,22 +7,34 @@ export type WebSearchSummary = {
 export type WebReadSummary = { url: string; ok: boolean; preview: string; error?: string };
 export type WebCallsSummary = { searches: WebSearchSummary[]; reads: WebReadSummary[] };
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
 export function summarizeWebCalls(calls: WebToolCall[] | undefined): WebCallsSummary {
   const out: WebCallsSummary = { searches: [], reads: [] };
   for (const call of calls ?? []) {
     if (call.name === "web_search") {
-      const results = Array.isArray((call.result as { results?: unknown }).results)
-        ? (call.result as { results: { title?: string; url?: string; snippet?: string }[] }).results
+      const rawResults = Array.isArray((call.result as { results?: unknown }).results)
+        ? ((call.result as { results: unknown[] }).results ?? [])
         : [];
-      out.searches.push({ query: String(call.arguments.query ?? ""), results });
-    } else if (call.name === "web_read") {
-      const r = call.result as { ok?: string; content?: string; url?: string; error?: string };
-      out.reads.push({
-        url: String(call.arguments.url ?? r.url ?? ""),
-        ok: r.ok === "true",
-        preview: (r.content ?? "").slice(0, 300),
-        error: r.error,
+      const results = rawResults.flatMap((value) => {
+        const result = asRecord(value);
+        const title = String(result.title ?? "").trim();
+        const url = String(result.url ?? "").trim();
+        const snippet = String(result.snippet ?? "").trim();
+        if (!title && !url) return [];
+        return [{ title: title || undefined, url: url || undefined, snippet: snippet || undefined }];
       });
+      const query = String(call.arguments.query ?? "").trim();
+      if (query || results.length) out.searches.push({ query, results });
+    } else if (call.name === "web_read") {
+      const r = asRecord(call.result);
+      const url = String(call.arguments.url ?? r.url ?? "").trim();
+      const ok = r.ok === true || r.ok === "true";
+      const preview = String(r.content ?? "").slice(0, 300);
+      const error = String(r.error ?? "").trim() || undefined;
+      if (url || preview || error) out.reads.push({ url, ok, preview, error });
     }
   }
   return out;
@@ -30,13 +42,28 @@ export function summarizeWebCalls(calls: WebToolCall[] | undefined): WebCallsSum
 
 export type Citation = { title: string; source: string; score: number };
 
+function basename(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
 export function buildCitations(rag: ChatResponse["rag"]): Citation[] {
   const results = (rag.results ?? []) as Array<Record<string, unknown>>;
-  return results.map((r) => ({
-    title: String(r.title ?? r.source_path ?? "未命名"),
-    source: String(r.source_path ?? r.source ?? ""),
-    score: Number(r.score ?? 0),
-  }));
+  const seen = new Set<string>();
+  return results.flatMap((result) => {
+    const chunk = asRecord(result.chunk);
+    const source = String(
+      chunk.source_path ?? result.source_path ?? result.source ?? ""
+    ).trim();
+    const rawTitle = String(chunk.title ?? result.title ?? "").trim();
+    const score = Number(result.score ?? 0);
+    if ((!rawTitle && !source) || !Number.isFinite(score) || score <= 0) return [];
+    const title = rawTitle || basename(source);
+    const key = `${source}\u0000${title}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ title, source, score }];
+  });
 }
 
 export function evidenceFromResponse(resp: ChatResponse): TurnEvidence {
