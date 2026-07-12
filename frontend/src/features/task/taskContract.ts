@@ -16,7 +16,7 @@ export function taskContractFromRoute(
 ): TaskContract | undefined {
   const raw = asRecord(route?.task_contract);
   if (!raw || typeof raw.task_intent !== "string") return undefined;
-  return {
+  const contract: TaskContract = {
     task_intent: raw.task_intent,
     source_policy: String(raw.source_policy ?? "model_only"),
     closure_eligibility: String(raw.closure_eligibility ?? "not_applicable"),
@@ -24,6 +24,26 @@ export function taskContractFromRoute(
     confidence: typeof raw.confidence === "string" ? raw.confidence : undefined,
     reason: typeof raw.reason === "string" ? raw.reason : undefined,
   };
+  const learningState = asRecord(route?.learning_state);
+  const hasActiveLearning = Boolean(
+    String(learningState?.objective ?? "").trim() ||
+    String(learningState?.protocol ?? "").trim()
+  );
+  if (
+    hasActiveLearning &&
+    contract.task_intent === "quick_answer" &&
+    contract.confidence === "low"
+  ) {
+    return {
+      ...contract,
+      task_intent: "learn",
+      closure_eligibility: "learning_summary",
+      learning_state_enabled: true,
+      confidence: "medium",
+      reason: "continue_active_learning",
+    };
+  }
+  return contract;
 }
 
 export function taskIntentLabel(intent: string): string {
