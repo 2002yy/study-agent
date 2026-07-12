@@ -10,7 +10,7 @@ export const seedMessages: ChatMessage[] = [
     avatarRole: "nahida",
     transient: true,
     content:
-      "本地学习工作台已就绪。你可以提问、上传资料；左侧会显示学习目标和进度，回答下方可展开证据轨迹，其余功能在顶部抽屉里。"
+      "本地学习工作台已就绪。你可以直接提问、上传资料，或继续历史会话；回答下方可展开证据轨迹，当前学习目标和阶段位于对话区顶部。"
   }
 ];
 
