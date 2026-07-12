@@ -4,6 +4,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
+import { closureActionLabel, taskContractFromRoute } from "../task/taskContract";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
@@ -82,6 +83,8 @@ export function ChatPanel({
   const hasConversationMessages = messages.some(
     (message) => message.role === "user" || (message.role === "assistant" && !message.transient)
   );
+  const taskContract = taskContractFromRoute(lastChat?.route);
+  const closureLabel = closureActionLabel(taskContract);
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -136,16 +139,18 @@ export function ChatPanel({
           </div>
         </div>
         <div className="topbar-actions">
-          <button
-            className="end-session-button"
-            disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
-            onClick={onEndSession}
-            type="button"
-            title="生成课后总结候选（确认后才写入）"
-          >
-            {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
-            整理学习
-          </button>
+          {closureLabel ? (
+            <button
+              className="end-session-button"
+              disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
+              onClick={onEndSession}
+              type="button"
+              title="生成结果整理候选（确认后才写入）"
+            >
+              {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
+              {closureLabel}
+            </button>
+          ) : null}
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
             <Upload size={17} />
           </button>
