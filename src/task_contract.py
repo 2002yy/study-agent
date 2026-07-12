@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Literal
+from typing import Callable, Literal
 from uuid import uuid4
 
 from src.pedagogy.classifier import classify_knowledge
-from src.pedagogy.evaluation import PedagogyEvalRun
+from src.pedagogy.engine import PedagogyEngine
+from src.pedagogy.evaluation import PedagogyEvalRun, PedagogyEvaluationService
 from src.pedagogy.types import LearningState, PedagogyTurnPlan
 
 TaskIntent = Literal[
@@ -173,6 +174,101 @@ def classify_task_contract(user_input: str) -> TaskContract:
     )
 
 
+def route_request_with_task_contract(**kwargs) -> dict:
+    """Add task semantics without coupling them to the role router."""
+
+    from src.router import route_request
+
+    route = route_request(**kwargs)
+    contract = classify_task_contract(str(kwargs.get("user_input", "")))
+    return {**route, "task_contract": contract.to_dict()}
+
+
+def _not_applicable_evaluation(
+    *,
+    contract: TaskContract,
+    learner_input: str,
+    state: LearningState,
+    expected_concepts: tuple[str, ...],
+    evidence: tuple[str, ...],
+) -> PedagogyEvalRun:
+    return PedagogyEvalRun(
+        id=f"ped_eval_{uuid4().hex}",
+        learner_input=learner_input,
+        objective=state.objective,
+        protocol=state.protocol,
+        expected_concepts=expected_concepts,
+        evidence=evidence,
+        deterministic_result={
+            "skipped": True,
+            "reason": "task_contract_not_learning",
+        },
+        semantic_result=None,
+        confidence=1.0,
+        final_decision="not_applicable",
+        reasons=(f"task_intent:{contract.task_intent}",),
+    )
+
+
+def _direct_task_plan(
+    *, contract: TaskContract, learner_input: str
+) -> PedagogyTurnPlan:
+    knowledge_kind = classify_knowledge(learner_input)
+    return PedagogyTurnPlan(
+        mode="direct_answer",
+        phase="answer",
+        knowledge_kind=knowledge_kind,
+        move="direct_explain",
+        disclosure_level=5,
+        target_understanding=learner_input,
+        library_needed=knowledge_kind in {"empirical", "conventional", "diagnostic"},
+        constraints=(
+            "do_not_update_learning_state",
+            f"task_intent:{contract.task_intent}",
+        ),
+    )
+
+
+class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
+    """Skip mastery evaluation for temporary or conversational tasks."""
+
+    def evaluate_learner(
+        self,
+        *,
+        learner_input: str,
+        state: LearningState,
+        expected_concepts: tuple[str, ...] = (),
+        evidence: tuple[str, ...] = (),
+    ) -> PedagogyEvalRun:
+        contract = classify_task_contract(learner_input)
+        if contract.learning_state_enabled:
+            return super().evaluate_learner(
+                learner_input=learner_input,
+                state=state,
+                expected_concepts=expected_concepts,
+                evidence=evidence,
+            )
+        return _not_applicable_evaluation(
+            contract=contract,
+            learner_input=learner_input,
+            state=state,
+            expected_concepts=expected_concepts,
+            evidence=evidence,
+        )
+
+
+class TaskAwarePedagogyEngine(PedagogyEngine):
+    """Use a direct response plan while preserving the current learning phase."""
+
+    def plan(
+        self, *, user_input: str, mode: str, state: LearningState
+    ) -> tuple[PedagogyTurnPlan, LearningState]:
+        contract = classify_task_contract(user_input)
+        if contract.learning_state_enabled:
+            return super().plan(user_input=user_input, mode=mode, state=state)
+        return _direct_task_plan(contract=contract, learner_input=user_input), state
+
+
 def prepare_task_pedagogy(
     *,
     contract: TaskContract,
@@ -184,7 +280,7 @@ def prepare_task_pedagogy(
     evaluate_learner: Callable[..., PedagogyEvalRun],
     plan_pedagogy: Callable[..., tuple[PedagogyTurnPlan, LearningState]],
 ) -> tuple[PedagogyEvalRun, PedagogyTurnPlan, LearningState, LearningState]:
-    """Prepare pedagogy without letting temporary tasks mutate learning state."""
+    """Pure seam for a future direct ChatService integration."""
 
     if contract.learning_state_enabled:
         learner_evaluation = evaluate_learner(
@@ -209,34 +305,11 @@ def prepare_task_pedagogy(
         )
         return learner_evaluation, plan, next_state, evaluated_state
 
-    knowledge_kind = classify_knowledge(learner_input)
-    plan = PedagogyTurnPlan(
-        mode="direct_answer",
-        phase="answer",
-        knowledge_kind=knowledge_kind,
-        move="direct_explain",
-        disclosure_level=5,
-        target_understanding=learner_input,
-        library_needed=knowledge_kind in {"empirical", "conventional", "diagnostic"},
-        constraints=(
-            "do_not_update_learning_state",
-            f"task_intent:{contract.task_intent}",
-        ),
-    )
-    skipped = PedagogyEvalRun(
-        id=f"ped_eval_{uuid4().hex}",
+    skipped = _not_applicable_evaluation(
+        contract=contract,
         learner_input=learner_input,
-        objective=state.objective,
-        protocol=state.protocol,
+        state=state,
         expected_concepts=expected_concepts,
         evidence=evidence,
-        deterministic_result={
-            "skipped": True,
-            "reason": "task_contract_not_learning",
-        },
-        semantic_result=None,
-        confidence=1.0,
-        final_decision="not_applicable",
-        reasons=(f"task_intent:{contract.task_intent}",),
     )
-    return skipped, plan, state, state
+    return skipped, _direct_task_plan(contract=contract, learner_input=learner_input), state, state
