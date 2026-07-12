@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Annotated, AsyncIterator
+from typing import Annotated, Any, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -27,6 +27,16 @@ class _ClientDisconnected(Exception):
     pass
 
 
+def pedagogy_summary_from_plan(plan: Any) -> dict[str, Any]:
+    """Compact pedagogy snapshot for the chat response (decision point a)."""
+    return {
+        "mode": str(getattr(plan, "mode", "") or ""),
+        "phase": str(getattr(plan, "phase", "") or ""),
+        "move": str(getattr(plan, "move", "") or ""),
+        "disclosure_level": int(getattr(plan, "disclosure_level", 0) or 0),
+    }
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest, service: ChatServiceDependency) -> ChatResponse:
     try:
@@ -40,6 +50,7 @@ def chat_endpoint(request: ChatRequest, service: ChatServiceDependency) -> ChatR
         turn_id=prepared.turn.id,
         route=prepared.route,
         rag=prepared.rag,
+        pedagogy=pedagogy_summary_from_plan(prepared.pedagogy_plan),
     )
 
 
@@ -81,6 +92,7 @@ async def chat_stream_endpoint(
                     "session_id": prepared.thread.id,
                     "turn_id": prepared.turn.id,
                     "reply": completed.assistant_message,
+                    "pedagogy": pedagogy_summary_from_plan(prepared.pedagogy_plan),
                 },
             )
         except _ClientDisconnected:

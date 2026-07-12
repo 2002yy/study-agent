@@ -71,3 +71,4 @@ class ChatResponse(BaseModel):
     turn_id: str | None = None
     route: dict
     rag: dict
+    pedagogy: dict = Field(default_factory=dict)
