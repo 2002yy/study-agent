@@ -1,6 +1,5 @@
 import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
@@ -75,7 +74,6 @@ export function ChatPanel({
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const currentFocus = memoryStatus?.latest_section || latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
   const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
   const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
@@ -97,27 +95,6 @@ export function ChatPanel({
     setIsAtBottom(true);
   };
 
-  const copyMessage = async (content: string, index: number) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopiedMessageIndex(index);
-      window.setTimeout(() => {
-        setCopiedMessageIndex((current) => (current === index ? null : current));
-      }, 1600);
-    } catch {
-      // Clipboard permission or browser support may be unavailable.
-    }
-  };
-
-  const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    const composing = event.nativeEvent.isComposing;
-    if (event.key !== "Enter" || event.shiftKey || composing) return;
-    event.preventDefault();
-    if (!isSending && input.trim()) {
-      event.currentTarget.form?.requestSubmit();
-    }
-  };
-
   useEffect(() => {
     if (isAtBottom) {
       bottomRef.current?.scrollIntoView({ block: "end" });
@@ -129,7 +106,7 @@ export function ChatPanel({
       <header className="topbar">
         <div>
           <h1>学习工作台</h1>
-          <p>围绕目标提问；需要时调用本地资料和联网证据，学习结果由你确认后再写入记忆。</p>
+          <p>提问、检索本地资料、检查执行链路，再决定哪些内容写入记忆。</p>
           <div className="topbar-meta">
             <span>RAG {ragEnabled ? "已启用" : "未启用"}</span>
             <span>路由 {lastChat?.route?.mode ? `${lastChat.route.mode} · ${lastChat.route.role ?? "auto"}` : "等待提问"}</span>
@@ -204,17 +181,6 @@ export function ChatPanel({
               <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
               <div className="message-body">
                 <span>{label}</span>
-                {message.role === "assistant" && message.content ? (
-                  <button
-                    aria-label="复制回答正文"
-                    className="ghost-action compact message-copy-button"
-                    onClick={() => void copyMessage(message.content, index)}
-                    type="button"
-                  >
-                    <Clipboard size={13} />
-                    {copiedMessageIndex === index ? "已复制" : "复制"}
-                  </button>
-                ) : null}
                 <MarkdownMessage content={message.content} />
                 {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
               </div>
@@ -265,7 +231,6 @@ export function ChatPanel({
         <textarea
           aria-label="Message"
           onChange={(event) => setInput(event.target.value)}
-          onKeyDown={handleComposerKeyDown}
           placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
           value={input}
         />
