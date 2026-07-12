@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatResponse } from "../types";
+import type { ChatMessage, ChatResponse, DrawerId } from "../types";
 
 export type WorkspacePanel = "chat" | "sources" | "group" | "news" | "tools" | "memory";
 
@@ -23,6 +23,7 @@ export type WorkspaceRuntimeState = {
   lastChat: ChatResponse | null;
   streamRecovery: StreamRecoveryState | null;
   selectedPanel: WorkspacePanel;
+  activeDrawer: DrawerId | null;
   transitionVersion: number;
 };
 
@@ -48,13 +49,16 @@ export type WorkspaceAction =
   | { type: "RESTORE_CHAT_SESSION"; threadId: string }
   | { type: "START_NEW_CHAT_SESSION"; threadId: string }
   | { type: "RESET_GROUP_THREAD"; threadId?: string }
-  | { type: "SELECT_PANEL"; panel: WorkspacePanel };
+  | { type: "SELECT_PANEL"; panel: WorkspacePanel }
+  | { type: "OPEN_DRAWER"; drawer: DrawerId }
+  | { type: "CLOSE_DRAWER" };
 
 export function createWorkspaceRuntimeState(
   partial: Partial<WorkspaceRuntimeState> = {}
 ): WorkspaceRuntimeState {
   return {
     selectedPanel: "chat",
+    activeDrawer: null,
     transitionVersion: 0,
     chatMessages: [],
     lastChat: null,
@@ -137,6 +141,10 @@ export function workspaceReducer(
       };
     case "SELECT_PANEL":
       return { ...state, selectedPanel: action.panel };
+    case "OPEN_DRAWER":
+      return { ...state, activeDrawer: action.drawer };
+    case "CLOSE_DRAWER":
+      return { ...state, activeDrawer: null };
     default:
       return state;
   }

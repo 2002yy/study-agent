@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createWorkspaceRuntimeState, workspaceReducer } from "./workspaceReducer";
 
+
 describe("workspaceReducer", () => {
   it("restores a chat session without clearing group or news scopes", () => {
     const state = createWorkspaceRuntimeState({
@@ -96,5 +97,16 @@ describe("workspaceReducer", () => {
     expect(next.lastChat?.turn_id).toBe("turn-new");
     expect(next.streamRecovery?.turnId).toBe("turn-new");
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
+  });
+
+  it("opens and closes a slide-over drawer", () => {
+    const opened = workspaceReducer(createWorkspaceRuntimeState(), { type: "OPEN_DRAWER", drawer: "settings" });
+    expect(opened.activeDrawer).toBe("settings");
+    expect(workspaceReducer(opened, { type: "CLOSE_DRAWER" }).activeDrawer).toBeNull();
+  });
+
+  it("opening a drawer replaces the previous one", () => {
+    const next = workspaceReducer(createWorkspaceRuntimeState({ activeDrawer: "group" }), { type: "OPEN_DRAWER", drawer: "memory" });
+    expect(next.activeDrawer).toBe("memory");
   });
 });
