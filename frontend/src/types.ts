@@ -58,6 +58,42 @@ export type RagDebugResult = {
   score_breakdown?: Record<string, number>;
 };
 
+export type PedagogySummary = {
+  mode: string;
+  phase: string;
+  move: string;
+  disclosure_level: number;
+};
+
+export type LearningState = {
+  protocol: string;
+  protocol_version?: number;
+  objective: string;
+  phase: string;
+  learner_claim?: string;
+  confirmed_points?: string[];
+  unresolved_gap: string;
+  attempted_examples?: string[];
+  hint_level: number;
+  library_facts_given?: string[];
+  turn_count: number;
+  payload?: Record<string, unknown>;
+};
+
+export type WebToolCall = {
+  name: string;
+  arguments: Record<string, unknown>;
+  result: Record<string, unknown>;
+};
+
+export type TurnEvidence = {
+  pedagogy?: PedagogySummary;
+  rag?: ChatResponse["rag"];
+  route?: Record<string, unknown>;
+};
+
+export type DrawerId = "group" | "news" | "tools" | "sessions" | "memory" | "settings";
+
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
@@ -66,6 +102,7 @@ export type ChatMessage = {
   turnId?: string;
   turnStatus?: string;
   parentTurnId?: string | null;
+  evidence?: TurnEvidence;
 };
 
 export type ChatSettings = {
@@ -285,6 +322,7 @@ export type ChatResponse = {
       error?: string;
     };
   };
+  pedagogy?: PedagogySummary;
 };
 
 export type RagQueryResponse = {
