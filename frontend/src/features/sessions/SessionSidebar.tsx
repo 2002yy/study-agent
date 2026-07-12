@@ -45,14 +45,21 @@ export function SessionSidebar({
               <div
                 className={`session-sidebar-row${isActive ? " is-active" : ""}`}
                 key={`${session.kind}-${session.name}`}
-                onClick={() => !isActive && onRestore?.(sessionId)}
-                role="button"
-                tabIndex={0}
               >
-                <div className="session-sidebar-row-main">
+                <button
+                  className="session-sidebar-row-main"
+                  disabled={isActive}
+                  onClick={() => {
+                    if (isSending && !window.confirm("当前回答正在生成，切换会话将停止生成。继续吗？")) {
+                      return;
+                    }
+                    onRestore?.(sessionId);
+                  }}
+                  type="button"
+                >
                   <strong>{session.name}</strong>
                   <span>{formatMtime(session.mtime_ns)}</span>
-                </div>
+                </button>
                 {isActive && onArchive ? (
                   archiving ? (
                     <div className="session-sidebar-confirm" onClick={(e) => e.stopPropagation()}>

@@ -1,4 +1,4 @@
-import { Activity, ArrowDown, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
@@ -119,10 +119,10 @@ export function ChatPanel({
             disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
             onClick={onEndSession}
             type="button"
-            title="生成课后总结并写入记忆"
+            title="生成课后总结候选（确认后才写入）"
           >
             {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
-            结束学习
+            整理学习
           </button>
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
             <Upload size={17} />
@@ -131,6 +131,7 @@ export function ChatPanel({
             {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
           </button>
           <span className="dock-divider" />
+          <button className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史"><BookOpen size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("group")} type="button" title="群聊"><MessageSquare size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("news")} type="button" title="新闻"><Database size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("tools")} type="button" title="工具"><Wrench size={16} /></button>

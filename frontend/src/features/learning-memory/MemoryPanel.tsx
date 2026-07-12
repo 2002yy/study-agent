@@ -20,7 +20,9 @@ const TARGET_OPTIONS = [
   { value: "progress", label: "progress.md", hint: "学习进展和阶段记录" },
   { value: "summary", label: "summary.md", hint: "长期摘要和关键结论" },
   { value: "learner_profile", label: "learner_profile.md", hint: "稳定偏好和学习画像" },
-  { value: "project_context", label: "project_context.md", hint: "项目背景和长期约束" }
+  { value: "project_context", label: "project_context.md", hint: "项目背景和长期约束" },
+  { value: "revision_notes", label: "revision_notes.md", hint: "后续需要补强的内容" },
+  { value: "session_archive", label: "session_archive.md", hint: "本次学习归档" }
 ] as const;
 
 function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {

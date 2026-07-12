@@ -1785,6 +1785,17 @@ button {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+.session-sidebar-row-main:disabled {
+  cursor: default;
 }
 .session-sidebar-row-main strong {
   font-size: 13px;

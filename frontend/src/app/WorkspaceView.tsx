@@ -8,6 +8,7 @@ import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
 import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
+import { SessionsPanel } from "../features/sessions/SessionsPanel";
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
@@ -108,7 +109,13 @@ export function WorkspaceView({
         isSending={chatController.isSending}
         onRestore={chatController.restoreSession}
         onArchive={chatController.archiveCurrentSession}
-        onNewSession={chatController.startNewSession}
+        onNewSession={() => {
+          const hasMessages = chatController.messages.some((m) => m.role === "user");
+          if (hasMessages && !window.confirm("当前学习尚未整理，直接开始新会话？")) {
+            return;
+          }
+          void chatController.startNewSession();
+        }}
       />
       <div className="chat-column">
         <LearningStrip
@@ -145,6 +152,15 @@ export function WorkspaceView({
         isEndingSession={memoryController.isPreviewing}
       />
       </div>
+      <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
+        <SessionsPanel
+          sessions={snapshot.sessions}
+          activeSessionId={chatController.threadId}
+          isSending={chatController.isSending}
+          onRestore={chatController.restoreSession}
+          onArchive={chatController.archiveCurrentSession}
+        />
+      </SlideOver>
       <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
         <Sidebar
           snapshot={snapshot}
