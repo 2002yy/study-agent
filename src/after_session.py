@@ -242,3 +242,40 @@ def apply_role_updates(role_updates: dict) -> list[str]:
         safe_write_text(target, content.strip() + "\n")
         updated.append(role_id)
     return updated
+
+
+# Maps after-session SECTION_KEYS to (memory_target, append) pairs.
+_AFTER_SESSION_TARGETS = {
+    "progress_update": ("progress", True),
+    "learner_profile_update": ("learner_profile", True),
+    "current_focus_update": ("current_focus", False),
+    "revision_notes_update": ("revision_notes", True),
+    "session_archive_update": ("session_archive", True),
+}
+
+_PLACEHOLDER_MARKERS = ("（本轮无需更新）", "（无对话记录）", "（LLM 调用失败", "（JSON 解析失败")
+
+
+def after_session_to_memory_updates(generated: dict[str, str]) -> list[dict]:
+    """Convert generated after-session text into MemoryRun update dicts.
+
+    Drops empty/placeholder content so the preview only contains real candidates.
+    """
+    updates: list[dict] = []
+    for key, (target, append) in _AFTER_SESSION_TARGETS.items():
+        content = str(generated.get(key, "")).strip()
+        if not content:
+            continue
+        if any(marker in content for marker in _PLACEHOLDER_MARKERS):
+            continue
+        if content.startswith("（") and content.endswith("）"):
+            continue
+        updates.append(
+            {
+                "target": target,
+                "content": content,
+                "append": append,
+                "learner_pending": False,
+            }
+        )
+    return updates
