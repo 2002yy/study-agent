@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.mode_manager import RuntimeModes
-from src.pedagogy.types import LearningState
+from src.pedagogy.types import AssistantResponseEvaluation, LearningState
 from src.task_contract import (
     TaskAwarePedagogyEngine,
     TaskAwarePedagogyEvaluationService,
@@ -97,6 +97,46 @@ def test_research_plan_preserves_existing_learning_state():
     assert plan.phase == "answer"
     assert "do_not_update_learning_state" in plan.constraints
     assert "task_intent:research" in plan.constraints
+
+
+def test_research_commit_removes_the_transient_evaluation_payload():
+    engine = TaskAwarePedagogyEngine()
+    original = LearningState(
+        protocol="socratic_rediscovery",
+        objective="理解二分查找复杂度",
+        phase="scaffold",
+        confirmed_points=("每轮缩小一半",),
+        unresolved_gap="从减半推到对数",
+        turn_count=3,
+        payload={"stable": "keep"},
+    )
+    injected = LearningState.from_dict(
+        {
+            **original.to_dict(),
+            "payload": {
+                **original.payload,
+                "pedagogy_evaluation": {
+                    "final_decision": "not_applicable",
+                    "reasons": ["task_intent:research"],
+                },
+            },
+        }
+    )
+
+    plan, planned = engine.plan(
+        user_input="联网看看gpt5.6sol",
+        mode="苏格拉底",
+        state=injected,
+    )
+    committed = engine.apply_transition(
+        before=injected,
+        planned=planned,
+        evaluation=AssistantResponseEvaluation(passed=False, violations=("test",)),
+    )
+
+    assert plan.mode == "direct_answer"
+    assert committed == original
+    assert "pedagogy_evaluation" not in committed.payload
 
 
 def test_learning_request_still_uses_the_pedagogy_engine():
