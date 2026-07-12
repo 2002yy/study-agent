@@ -43,21 +43,24 @@ export function evidenceFromResponse(resp: ChatResponse): TurnEvidence {
   return { pedagogy: resp.pedagogy, rag: resp.rag, route: resp.route };
 }
 
+export function pedagogySummaryFromSnapshot(snap: unknown): PedagogySummary | undefined {
+  if (!snap || typeof snap !== "object") return undefined;
+  const o = snap as Record<string, unknown>;
+  if (typeof o.mode !== "string" && typeof o.move !== "string") return undefined;
+  return {
+    mode: String(o.mode ?? ""),
+    phase: String(o.phase ?? ""),
+    move: String(o.move ?? ""),
+    disclosure_level: Number(o.disclosure_level ?? 0),
+  };
+}
+
 type SessionTurn = { turn_id: string; pedagogy_snapshot?: Record<string, unknown> };
 
 export function evidenceFromSessionTurns(turns: SessionTurn[]): Map<string, TurnEvidence> {
   const map = new Map<string, TurnEvidence>();
   for (const turn of turns) {
-    const snap = turn.pedagogy_snapshot ?? {};
-    const pedagogy: PedagogySummary | undefined =
-      typeof snap.mode === "string" || typeof snap.move === "string"
-        ? {
-            mode: String(snap.mode ?? ""),
-            phase: String(snap.phase ?? ""),
-            move: String(snap.move ?? ""),
-            disclosure_level: Number(snap.disclosure_level ?? 0),
-          }
-        : undefined;
+    const pedagogy = pedagogySummaryFromSnapshot(turn.pedagogy_snapshot);
     if (pedagogy) map.set(turn.turn_id, { pedagogy });
   }
   return map;

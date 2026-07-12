@@ -1,6 +1,6 @@
 import { AlertTriangle, BookOpen, CheckCircle2, Target } from "lucide-react";
 import { latestMemorySection } from "../single-chat/ChatPanel";
-import { deriveMastery, moveLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
+import { deriveMastery, moveLabel, phaseLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
 import type { ChatResponse, LearningState, MemoryStatusResponse } from "../../types";
 
 function asLearningState(raw: unknown): LearningState | null {
@@ -52,13 +52,13 @@ export function LearningPanel({
         {state ? (
           <div className="phase-indicator">
             <span className="phase-current">
-              {protocolLabel(state.protocol)} · {state.phase || "未开始"}
+              {protocolLabel(state.protocol)} · {state.phase ? phaseLabel(state.phase) : "未开始"}
             </span>
             {visitedPhases.length ? (
               <ol className="phase-trail">
                 {visitedPhases.map((p) => (
                   <li key={p} className={p === state.phase ? "is-current" : ""}>
-                    {p}
+                    {phaseLabel(p)}
                   </li>
                 ))}
               </ol>
@@ -70,7 +70,7 @@ export function LearningPanel({
       </section>
 
       <section className="learning-card mastery-card">
-        <div className="card-label">掌握度</div>
+        <div className="card-label">本轮理解进度</div>
         <div className="mastery-row">
           <div
             className="mastery-ring"
@@ -78,10 +78,9 @@ export function LearningPanel({
               background: `conic-gradient(var(--accent) ${mastery * 360}deg, var(--surface-strong) 0)`,
             }}
           >
-            <span>{Math.round(mastery * 100)}%</span>
+            <span>已确认 {confirmed.length}</span>
           </div>
           <div className="mastery-meta">
-            <span>已确认 {confirmed.length} 点</span>
             <span>提示级别 L{state?.hint_level ?? 0}</span>
             <span>第 {state?.turn_count ?? 0} 轮</span>
           </div>

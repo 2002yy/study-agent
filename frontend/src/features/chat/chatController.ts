@@ -24,7 +24,7 @@ import {
   tailInterruptedTurn,
   toChatHistoryPayload,
 } from "../single-chat/chatHistory";
-import { evidenceFromResponse, evidenceFromSessionTurns } from "../evidence/evidenceHelpers";
+import { evidenceFromResponse, evidenceFromSessionTurns, pedagogySummaryFromSnapshot } from "../evidence/evidenceHelpers";
 import { phaseTrail } from "../pedagogy/pedagogyLabels";
 
 type ControllerOptions = {
@@ -260,6 +260,12 @@ export function useChatController(options: ControllerOptions) {
                       : message
                 )
               );
+              if (donePedagogy?.phase) {
+                dispatch({
+                  type: "SET_PEDAGOGY_PHASES",
+                  value: phaseTrail([...state.pedagogyPhases, donePedagogy.phase]),
+                });
+              }
             }
           },
         },
@@ -457,6 +463,7 @@ export function useChatController(options: ControllerOptions) {
             turn_id: interrupted?.turn_id ?? null,
             route: restoredRoute,
             rag: restoredRag,
+            pedagogy: pedagogySummaryFromSnapshot(detail.pedagogy),
           }
         : null;
     const restoredRecovery = interrupted?.assistant_message
@@ -484,7 +491,10 @@ export function useChatController(options: ControllerOptions) {
     );
     const phases = phaseTrail(
       (detail.turns ?? [])
-        .map((t) => String((t as { phase?: string }).phase ?? ""))
+        .map((t) => {
+          const snap = (t as { pedagogy_snapshot?: { phase?: string } }).pedagogy_snapshot;
+          return String(snap?.phase ?? "");
+        })
         .filter(Boolean)
     );
     dispatch({ type: "SET_PEDAGOGY_PHASES", value: phases });
