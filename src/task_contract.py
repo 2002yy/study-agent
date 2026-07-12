@@ -111,7 +111,9 @@ _CONVERSATION_MARKERS = (
 )
 
 
-def classify_task_contract(user_input: str) -> TaskContract:
+def classify_task_contract(
+    user_input: str, *, active_learning: bool = False
+) -> TaskContract:
     text = " ".join(user_input.strip().lower().split())
 
     if any(marker in text for marker in _EXPLAIN_BACK_MARKERS):
@@ -168,6 +170,15 @@ def classify_task_contract(user_input: str) -> TaskContract:
             confidence="high",
             reason="explicit_conversation",
         )
+    if active_learning:
+        return TaskContract(
+            task_intent="learn",
+            source_policy="local_and_web",
+            closure_eligibility="learning_summary",
+            learning_state_enabled=True,
+            confidence="medium",
+            reason="continue_active_learning",
+        )
     return TaskContract(
         task_intent="quick_answer",
         source_policy="local_and_web",
@@ -184,7 +195,11 @@ def route_request_with_task_contract(**kwargs: Any) -> dict[str, Any]:
     from src.router import route_request
 
     route = route_request(**kwargs)
-    contract = classify_task_contract(str(kwargs.get("user_input", "")))
+    previous_mode = str(kwargs.get("previous_mode") or "")
+    contract = classify_task_contract(
+        str(kwargs.get("user_input", "")),
+        active_learning=previous_mode in {"苏格拉底", "费曼", "项目"},
+    )
     return {**route, "task_contract": contract.to_dict()}
 
 
@@ -252,7 +267,10 @@ class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
         expected_concepts: tuple[str, ...] = (),
         evidence: tuple[str, ...] = (),
     ) -> PedagogyEvalRun:
-        contract = classify_task_contract(learner_input)
+        contract = classify_task_contract(
+            learner_input,
+            active_learning=bool(state.objective or state.protocol),
+        )
         if contract.learning_state_enabled:
             return super().evaluate_learner(
                 learner_input=learner_input,
@@ -275,7 +293,10 @@ class TaskAwarePedagogyEngine(PedagogyEngine):
     def plan(
         self, *, user_input: str, mode: str, state: LearningState
     ) -> tuple[PedagogyTurnPlan, LearningState]:
-        contract = classify_task_contract(user_input)
+        contract = classify_task_contract(
+            user_input,
+            active_learning=bool(state.objective or state.protocol),
+        )
         if contract.learning_state_enabled:
             return super().plan(user_input=user_input, mode=mode, state=state)
         preserved = _without_non_learning_evaluation(state)
