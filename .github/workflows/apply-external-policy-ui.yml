@@ -1,0 +1,129 @@
+name: Apply external policy UI patch
+
+on:
+  push:
+    branches:
+      - feat/p0-external-data-policy
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message != 'feat: wire external data policy controls'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/p0-external-data-policy
+          fetch-depth: 0
+      - name: Patch UI, controller and tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"anchor not found in {path}: {old[:80]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          sidebar = "frontend/src/layout/Sidebar.tsx"
+          replace_once(
+              sidebar,
+              'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\n',
+              'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\n'
+              'import { ExternalDataPolicySettings } from "../features/settings/ExternalDataPolicySettings";\n',
+          )
+          replace_once(
+              sidebar,
+              '      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n',
+              '      <ExternalDataPolicySettings\n'
+              '        runtimeSettings={snapshot.runtimeSettings}\n'
+              '        disabled={isSending}\n'
+              '        onSaved={refresh}\n'
+              '      />\n\n'
+              '      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n',
+          )
+
+          controller = "frontend/src/features/chat/chatController.ts"
+          replace_once(
+              controller,
+              'type ControllerOptions = {\n',
+              'const WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__";\n\n'
+              'type ControllerOptions = {\n',
+          )
+          replace_once(
+              controller,
+              '  useWebLookup: boolean;\n',
+              '  useWebLookup: boolean;\n  webPolicy?: string;\n',
+          )
+          replace_once(
+              controller,
+              '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n',
+              '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n'
+              '    let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";\n'
+              '    if (\n'
+              '      !turnWebContext &&\n'
+              '      options.webPolicy === "ask" &&\n'
+              '      window.confirm("允许本轮联网搜索吗？搜索词会发送给外部搜索服务。")\n'
+              '    ) {\n'
+              '      turnWebContext = WEB_CONSENT_MARKER;\n'
+              '    }\n',
+          )
+          replace_once(
+              controller,
+              '          webContext: shouldConsumeWebLookup ? options.webLookupSource : "",\n',
+              '          webContext: turnWebContext,\n',
+          )
+
+          composition = "frontend/src/app/useWorkspaceControllers.ts"
+          replace_once(
+              composition,
+              '  const chatController = useChatController({\n',
+              '  const runtimeSettings = (options.snapshot.runtimeSettings?.settings ?? {}) as Record<string, unknown>;\n'
+              '  const webPolicy = String(runtimeSettings.web_policy ?? "auto");\n'
+              '  const chatController = useChatController({\n',
+          )
+          replace_once(
+              composition,
+              '    useWebLookup: webLookupController.useInChat,\n',
+              '    useWebLookup: webLookupController.useInChat,\n    webPolicy,\n',
+          )
+
+          test_file = Path("tests/test_external_data_policy.py")
+          test_text = test_file.read_text(encoding="utf-8")
+          test_text = test_text.replace(
+              'from src.infrastructure.sqlite.database import RuntimeDatabase\n',
+              'from src.infrastructure.sqlite.database import RuntimeDatabase\n'
+              'from src.pedagogy.evaluation import PedagogyEvalRun\n',
+              1,
+          )
+          old_class = '''class _FailingSemanticEvaluator:\n    def evaluate(self, **kwargs):\n        raise AssertionError("semantic evaluation must not run for quick answers")\n'''
+          new_class = '''class _EvaluationService:\n    def evaluate_learner(self, *, learner_input, state, expected_concepts=(), evidence=()):\n        return PedagogyEvalRun(\n            id="ped_eval_policy",\n            learner_input=learner_input,\n            objective=state.objective,\n            protocol=state.protocol,\n            expected_concepts=expected_concepts,\n            evidence=evidence,\n            deterministic_result={"accepted": True},\n            semantic_result=None,\n            confidence=1.0,\n            final_decision="accept",\n            reasons=("policy_test",),\n        )\n'''
+          if old_class not in test_text:
+              raise SystemExit("external policy evaluator anchor not found")
+          test_text = test_text.replace(old_class, new_class, 1)
+          test_text = test_text.replace(
+              'pedagogy_evaluation=TaskAwarePedagogyEvaluationService(\n            _FailingSemanticEvaluator()\n        ),',
+              'pedagogy_evaluation=_EvaluationService(),',
+              1,
+          )
+          test_text = test_text.replace(
+              'user_input="数据库索引是什么？",',
+              'user_input="带我系统学习数据库索引",',
+              3,
+          )
+          test_file.write_text(test_text, encoding="utf-8")
+
+          workflow = Path(".github/workflows/apply-external-policy-ui.yml")
+          workflow.unlink()
+          PY
+      - name: Commit generated patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat: wire external data policy controls"
+          git push origin HEAD:feat/p0-external-data-policy
