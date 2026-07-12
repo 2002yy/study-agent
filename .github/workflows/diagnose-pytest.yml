@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/p0-experience-integrity
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
