@@ -1,4 +1,4 @@
-import { Activity, ArrowDown, Clipboard, Database, Library, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
@@ -44,7 +44,9 @@ export function ChatPanel({
   lastChat,
   ragEnabled,
   memoryStatus,
-  onOpenDrawer
+  onOpenDrawer,
+  onEndSession,
+  isEndingSession
 }: {
   messages: ChatMessage[];
   sessionId?: string;
@@ -66,6 +68,8 @@ export function ChatPanel({
   ragEnabled: boolean;
   memoryStatus: MemoryStatusResponse | null;
   onOpenDrawer: (drawer: DrawerId) => void;
+  onEndSession: () => void;
+  isEndingSession?: boolean;
 }) {
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +114,16 @@ export function ChatPanel({
           </div>
         </div>
         <div className="topbar-actions">
+          <button
+            className="end-session-button"
+            disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
+            onClick={onEndSession}
+            type="button"
+            title="生成课后总结并写入记忆"
+          >
+            {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
+            结束学习
+          </button>
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
             <Upload size={17} />
           </button>

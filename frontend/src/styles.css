@@ -2114,6 +2114,25 @@ button {
   display: inline-block;
   margin: 0 4px;
 }
+.end-session-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.end-session-button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+.end-session-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* === 响应式：窄屏隐藏会话侧栏 === */
 @media (max-width: 1100px) {

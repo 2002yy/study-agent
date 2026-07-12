@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { commitMemoryRun, createMemoryRun, loadMemoryRun } from "../../api";
+import { commitMemoryRun, createMemoryRun, loadMemoryRun, requestAfterSessionPreview } from "../../api";
 import type { MemoryCommitResponse, MemoryRunResponse, MemoryUpdate } from "../../types";
 
 export type MemoryDraft = {
@@ -162,6 +162,34 @@ export function useMemoryController(options: MemoryControllerOptions) {
     };
   }, [options.activeRunId, run?.id]);
 
+  const generateFromSession = async (sessionId: string) => {
+    if (!sessionId) {
+      setError("没有活动会话，无法生成课后总结。");
+      return;
+    }
+    setIsPreviewing(true);
+    setError("");
+    try {
+      const created = await requestAfterSessionPreview(sessionId);
+      setRun(created);
+      options.setActiveRunId(created.id);
+      setDrafts(
+        created.updates.map((update, index) => ({
+          id: `after-${created.id}-${index}`,
+          target: update.target,
+          content: update.content,
+          replaceCurrentFocus: update.target === "current_focus" && update.append === false,
+          learnerPending: Boolean(update.learner_pending),
+          enabled: true,
+        }))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "课后总结生成失败");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
   return {
     drafts,
     run,
@@ -175,7 +203,8 @@ export function useMemoryController(options: MemoryControllerOptions) {
     addDraft,
     removeDraft,
     previewUpdates: preview,
-    commitRun: commit
+    commitRun: commit,
+    generateFromSession
   };
 }
 

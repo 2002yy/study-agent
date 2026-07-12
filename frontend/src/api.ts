@@ -614,6 +614,13 @@ export async function flushSession(sessionId: string): Promise<{ session_id: str
   return requestJson<{ session_id: string; flushed: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/flush`, { method: "POST" });
 }
 
+export async function requestAfterSessionPreview(sessionId: string): Promise<MemoryRunResponse> {
+  return requestJson<MemoryRunResponse>(
+    `/sessions/${encodeURIComponent(sessionId)}/after-session/preview`,
+    { method: "POST" }
+  );
+}
+
 export async function loadRagStatus(): Promise<RagStatusResponse> {
   return requestJson<RagStatusResponse>("/rag/status");
 }

@@ -137,6 +137,12 @@ export function WorkspaceView({
         ragEnabled={ui.ragEnabled}
         memoryStatus={snapshot.memoryStatus}
         onOpenDrawer={openDrawer}
+        onEndSession={async () => {
+          if (!chatController.threadId) return;
+          await memoryController.generateFromSession(chatController.threadId);
+          openDrawer("memory");
+        }}
+        isEndingSession={memoryController.isPreviewing}
       />
       </div>
       <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
