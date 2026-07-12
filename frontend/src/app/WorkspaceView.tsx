@@ -1,11 +1,20 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import AppShell from "../AppShell";
+import { SlideOver } from "../components/SlideOver";
+import { LearningPanel } from "../features/learning/LearningPanel";
+import { MemoryPanel } from "../features/learning-memory/MemoryPanel";
+import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
+import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
+import { SessionsPanel } from "../features/sessions/SessionsPanel";
+import { TimelinePanel } from "../features/workflows/TimelinePanel";
+import { ToolPanel } from "../features/tools/ToolPanel";
+import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
 import { GlobalNotices } from "../layout/GlobalNotices";
-import { Inspector } from "../layout/Inspector";
 import { Sidebar } from "../layout/Sidebar";
-import type { ApiSnapshot, ChatSettings, RagSettings } from "../types";
+import type { ApiSnapshot, ChatSettings, DrawerId, RagSettings } from "../types";
+import { useWorkspace } from "./WorkspaceProvider";
 import type { useWorkspaceControllers } from "./useWorkspaceControllers";
 
 type Controllers = ReturnType<typeof useWorkspaceControllers>;
@@ -57,6 +66,9 @@ export function WorkspaceView({
     chatController,
     toolController,
   } = controllers;
+  const { state, dispatch } = useWorkspace();
+  const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
+  const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     await chatController.send(ui.input.trim());
@@ -90,30 +102,10 @@ export function WorkspaceView({
         ref={fileInputRef}
         type="file"
       />
-      <Sidebar
-        snapshot={snapshot}
-        ragEnabled={ui.ragEnabled}
-        ragUploadMode={uploadController.mode}
-        setRagUploadMode={uploadController.setMode}
-        setRagEnabled={ui.setRagEnabled}
-        chatSettings={ui.chatSettings}
-        setChatSettings={ui.setChatSettings}
-        ragSettings={ui.ragSettings}
-        setRagSettings={ui.setRagSettings}
-        onSaveSettings={settingsController.save}
-        isSavingSettings={settingsController.isSaving}
-        onLoadRole={roleController.load}
-        roleDetail={roleController.detail}
-        keepCurrentRole={ui.keepCurrentRole}
-        setKeepCurrentRole={ui.setKeepCurrentRole}
-        conversationInstruction={ui.conversationInstruction}
-        setConversationInstruction={ui.setConversationInstruction}
-        onNewSession={chatController.startNewSession}
-        isSending={chatController.isSending}
-        refresh={refresh}
-        onUploadClick={() => fileInputRef.current?.click()}
-        uploadState={uploadController.status}
+      <LearningPanel
         lastChat={chatController.lastChat}
+        visitedPhases={state.pedagogyPhases}
+        memoryStatus={snapshot.memoryStatus}
       />
       <ChatPanel
         sessionId={chatController.threadId}
@@ -135,43 +127,114 @@ export function WorkspaceView({
         lastChat={chatController.lastChat}
         ragEnabled={ui.ragEnabled}
         memoryStatus={snapshot.memoryStatus}
+        onOpenDrawer={openDrawer}
       />
-      <Inspector
-        snapshot={snapshot}
-        singleChatSessionId={chatController.threadId}
-        wechatThreadId={groupThreadId}
-        lastChat={chatController.lastChat}
-        ragSearch={ragController.result}
-        isSearching={ragController.isSearching}
-        selectedRun={workflowController.selectedRun}
-        loadingRunId={workflowController.loadingRunId}
-        selectRun={workflowController.selectRun}
-        toolController={toolController}
-        onRestoreSession={chatController.restoreSession}
-        onArchiveSession={chatController.archiveCurrentSession}
-        newsController={newsController}
-        webLookup={webLookupController.result}
-        useWebLookup={webLookupController.useInChat}
-        setUseWebLookup={webLookupController.setUseInChat}
-        wechatInput={groupController.input}
-        setWechatInput={groupController.setInput}
-        newsQuery={ui.newsQuery}
-        setNewsQuery={ui.setNewsQuery}
-        readArticles={ui.readArticles}
-        setReadArticles={ui.setReadArticles}
-        onWechatOpening={groupController.opening}
-        onWechatReset={groupController.reset}
-        onWechatMarkRead={groupController.markRead}
-        onSendWechat={groupController.send}
-        onStopWechat={groupController.stop}
-        onLookupNews={webLookupController.lookup}
-        isWechatBusy={groupController.isBusy}
-        wechatError={groupController.error}
-        isNewsBusy={webLookupController.isBusy}
-        isSending={chatController.isSending}
-        memoryController={memoryController}
-        uploadController={uploadController}
-      />
+      <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
+        <Sidebar
+          snapshot={snapshot}
+          ragEnabled={ui.ragEnabled}
+          ragUploadMode={uploadController.mode}
+          setRagUploadMode={uploadController.setMode}
+          setRagEnabled={ui.setRagEnabled}
+          chatSettings={ui.chatSettings}
+          setChatSettings={ui.setChatSettings}
+          ragSettings={ui.ragSettings}
+          setRagSettings={ui.setRagSettings}
+          onSaveSettings={settingsController.save}
+          isSavingSettings={settingsController.isSaving}
+          onLoadRole={roleController.load}
+          roleDetail={roleController.detail}
+          keepCurrentRole={ui.keepCurrentRole}
+          setKeepCurrentRole={ui.setKeepCurrentRole}
+          conversationInstruction={ui.conversationInstruction}
+          setConversationInstruction={ui.setConversationInstruction}
+          onNewSession={chatController.startNewSession}
+          isSending={chatController.isSending}
+          refresh={refresh}
+          onUploadClick={() => fileInputRef.current?.click()}
+          uploadState={uploadController.status}
+          lastChat={chatController.lastChat}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "group"} title="群聊" onClose={closeDrawer}>
+        <WechatPanel
+          wechat={snapshot.wechat}
+          newsController={newsController}
+          webLookup={webLookupController.result}
+          useWebLookup={webLookupController.useInChat}
+          setUseWebLookup={webLookupController.setUseInChat}
+          wechatInput={groupController.input}
+          setWechatInput={groupController.setInput}
+          newsQuery={ui.newsQuery}
+          setNewsQuery={ui.setNewsQuery}
+          readArticles={ui.readArticles}
+          setReadArticles={ui.setReadArticles}
+          sessionId={groupThreadId}
+          onOpening={groupController.opening}
+          onReset={groupController.reset}
+          onMarkRead={groupController.markRead}
+          onSendWechat={groupController.send}
+          onStopWechat={groupController.stop}
+          onLookupNews={webLookupController.lookup}
+          isWechatBusy={groupController.isBusy}
+          error={groupController.error}
+          isNewsBusy={webLookupController.isBusy}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "news"} title="新闻" onClose={closeDrawer}>
+        <NewsWorkspace
+          query={ui.newsQuery}
+          setQuery={ui.setNewsQuery}
+          readArticles={ui.readArticles}
+          setReadArticles={ui.setReadArticles}
+          controller={newsController}
+          onLookupNews={webLookupController.lookup}
+          isLookupBusy={webLookupController.isBusy}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "tools"} title="工具" onClose={closeDrawer}>
+        <ToolPanel
+          toolCount={snapshot.tools.length}
+          run={toolController.run}
+          error={toolController.error}
+          previewTool={toolController.preview}
+          callTool={toolController.call}
+          isPreviewing={toolController.isPreviewing}
+          isCalling={toolController.isCalling}
+          canCall={toolController.canCall}
+          callBlockedReason={toolController.callBlockedReason}
+          invocationLabel={toolController.invocationLabel}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
+        <SessionsPanel
+          sessions={snapshot.sessions}
+          activeSessionId={chatController.threadId}
+          isSending={chatController.isSending}
+          onRestore={chatController.restoreSession}
+          onArchive={chatController.archiveCurrentSession}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "memory"} title="学习记忆" onClose={closeDrawer}>
+        <MemoryPanel memoryStatus={snapshot.memoryStatus} controller={memoryController} />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "sources"} title="引用来源与知识库" onClose={closeDrawer}>
+        <SourcesPanel
+          lastChat={chatController.lastChat}
+          ragSearch={ragController.result}
+          isSearching={ragController.isSearching}
+          knowledgeBase={uploadController.documents}
+          onDeleteDocument={(documentId) => void uploadController.removeDocument(documentId)}
+        />
+      </SlideOver>
+      <SlideOver open={state.activeDrawer === "timeline"} title="工作流时间线" onClose={closeDrawer}>
+        <TimelinePanel
+          runs={snapshot.workflowRuns}
+          selectedRun={workflowController.selectedRun}
+          loadingRunId={workflowController.loadingRunId}
+          onSelectRun={workflowController.selectRun}
+        />
+      </SlideOver>
       <GlobalNotices
         apiError={snapshot.error}
         operationError={ui.operationError}

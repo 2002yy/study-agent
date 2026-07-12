@@ -1,4 +1,4 @@
-import { ArrowDown, BookOpen, Clipboard, Database, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
@@ -122,6 +122,8 @@ export function ChatPanel({
           <button className="icon-button" onClick={() => onOpenDrawer("tools")} type="button" title="工具"><Wrench size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话"><BookOpen size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("memory")} type="button" title="记忆"><MemoryStick size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("sources")} type="button" title="引用来源与知识库"><Library size={16} /></button>
+          <button className="icon-button" onClick={() => onOpenDrawer("timeline")} type="button" title="工作流时间线"><Activity size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("settings")} type="button" title="设置"><Settings size={16} /></button>
         </div>
       </header>

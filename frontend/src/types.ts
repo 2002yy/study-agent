@@ -92,7 +92,15 @@ export type TurnEvidence = {
   route?: Record<string, unknown>;
 };
 
-export type DrawerId = "group" | "news" | "tools" | "sessions" | "memory" | "settings";
+export type DrawerId =
+  | "group"
+  | "news"
+  | "tools"
+  | "sessions"
+  | "memory"
+  | "settings"
+  | "sources"
+  | "timeline";
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system";

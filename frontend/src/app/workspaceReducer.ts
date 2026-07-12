@@ -24,6 +24,7 @@ export type WorkspaceRuntimeState = {
   streamRecovery: StreamRecoveryState | null;
   selectedPanel: WorkspacePanel;
   activeDrawer: DrawerId | null;
+  pedagogyPhases: string[];
   transitionVersion: number;
 };
 
@@ -51,7 +52,8 @@ export type WorkspaceAction =
   | { type: "RESET_GROUP_THREAD"; threadId?: string }
   | { type: "SELECT_PANEL"; panel: WorkspacePanel }
   | { type: "OPEN_DRAWER"; drawer: DrawerId }
-  | { type: "CLOSE_DRAWER" };
+  | { type: "CLOSE_DRAWER" }
+  | { type: "SET_PEDAGOGY_PHASES"; value: string[] };
 
 export function createWorkspaceRuntimeState(
   partial: Partial<WorkspaceRuntimeState> = {}
@@ -59,6 +61,7 @@ export function createWorkspaceRuntimeState(
   return {
     selectedPanel: "chat",
     activeDrawer: null,
+    pedagogyPhases: [],
     transitionVersion: 0,
     chatMessages: [],
     lastChat: null,
@@ -124,6 +127,7 @@ export function workspaceReducer(
         chatMessages: [],
         lastChat: null,
         streamRecovery: null,
+        pedagogyPhases: [],
         activeNewsRunId: undefined,
         activeWebLookupRunId: undefined,
         activeToolRunId: undefined,
@@ -145,6 +149,8 @@ export function workspaceReducer(
       return { ...state, activeDrawer: action.drawer };
     case "CLOSE_DRAWER":
       return { ...state, activeDrawer: null };
+    case "SET_PEDAGOGY_PHASES":
+      return { ...state, pedagogyPhases: action.value };
     default:
       return state;
   }

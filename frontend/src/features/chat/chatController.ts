@@ -25,6 +25,7 @@ import {
   toChatHistoryPayload,
 } from "../single-chat/chatHistory";
 import { evidenceFromResponse, evidenceFromSessionTurns } from "../evidence/evidenceHelpers";
+import { phaseTrail } from "../pedagogy/pedagogyLabels";
 
 type ControllerOptions = {
   chatSettings: ChatSettings;
@@ -481,6 +482,12 @@ export function useChatController(options: ControllerOptions) {
       restoredLastChat,
       restoredRecovery
     );
+    const phases = phaseTrail(
+      (detail.turns ?? [])
+        .map((t) => String((t as { phase?: string }).phase ?? ""))
+        .filter(Boolean)
+    );
+    dispatch({ type: "SET_PEDAGOGY_PHASES", value: phases });
     options.setChatSettings(nextChatSettings);
     options.setRagSettings(nextRagSettings);
     if (typeof restoredSettings.ragEnabled === "boolean") {
