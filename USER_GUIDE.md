@@ -1,30 +1,41 @@
 # 用户指南
 
-## 1. 当前阶段
+## 1. 产品定位
 
-当前项目处于 `v0.8.0` 阶段，核心能力包括：
+Study Agent 是一个**本地优先、教学法驱动的 AI 学习工作台**。它不仅回答问题，还会识别你当前的学习阶段、验证你的理解、指出缺口，并在确认后把知识沉淀进长期记忆。
 
-1. 单人学习对话
-2. 课后更新预览与确认写入
-3. 微信群互动（四位角色群聊）
-4. 联网搜索与页面文本增强摘要
-5. 多源新闻聚合与来源追溯
-6. 性能预算系统（fast/standard/deep 三级 max_tokens）
+主循环：
 
-日常使用请优先参考本文件和 [v0.8.0 发布说明](changelog/README_v0_8_0.md)。
+```text
+建立目标 -> 教学法推进（苏格拉底/费曼/项目/普通）
+-> 调用本地资料与联网证据 -> 验证理解
+-> 记录已确认点与缺口 -> 课后总结 -> 写入长期记忆 -> 下次继续
+```
+
+核心能力：
+
+1. **教学法驱动学习**：四种教学协议 + 学习状态机 + 学习者应答评估 + 掌握度门控
+2. **学习状态可见**：左侧学习伴侣栏常驻目标、阶段、已确认点、缺口、本轮动作
+3. **证据可追溯**：每条回答下方可展开 RAG 引用 + 模型自主联网搜索/阅读
+4. **跨会话恢复**：学习状态、逐轮证据、中断生成均可恢复
+5. **本地知识库**：Markdown / TXT / DOCX / PDF 索引与多模式检索
+6. **长期记忆**：safe writer 预览确认写入
+7. 角色群聊、新闻研究为延伸学习空间（位于顶部抽屉）
+
+> 当前主架构是 React + FastAPI。旧 Streamlit 入口（`streamlit run app.py`）仅作 legacy 兼容验证，不再是推荐用法。
 
 ## 2. 启动
 
 ```powershell
 git clone https://github.com/2002yy/study-agent.git study-agent
 cd study-agent
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-Copy-Item .env.example .env
-streamlit run app.py
+Copy-Item .env.example .env   # 编辑 .env，填入 API Key
+tools\start-study-agent.bat    # 一键启动（自动建 venv、装依赖、起后端 8000 + 前端 5173）
 ```
 
-浏览器打开 `http://localhost:8501`。
+浏览器打开 `http://127.0.0.1:5173`。后端 API 在 `http://127.0.0.1:8000`，健康检查 `/health`。
+
+> 旧 `streamlit run app.py`（`localhost:8501`）仅用于兼容验证，功能不完整，请优先使用上面的 React 入口。
 
 ## 3. 基本配置
 
@@ -46,7 +57,9 @@ DEEPSEEK_MODEL_PRO_NAME=deepseek-reasoner
 2. 更复杂的课后总结、论文修改可切到 `Pro`
 3. 不确定时可先保持自动配置
 
-## 4. 微信群使用
+## 4. 角色群聊与新闻研究（延伸功能）
+
+> 以下为延伸学习空间，位于工作台顶部的"群聊"与"新闻"抽屉中，不是核心学习主流程。核心学习对话本身已支持模型自主联网搜索，普通用户通常无需手动操作新闻工作流。
 
 ### 4.1 群聊入口
 

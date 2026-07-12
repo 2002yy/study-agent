@@ -5,40 +5,40 @@
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12">
 </p>
 
-A local AI learning assistant with long-term memory, role-based group chat,
-web search, model routing and context-tier management.
+A local-first AI learning workbench: pedagogy-driven study sessions with a
+visible learning state, traceable evidence, and long-term memory.
 
 ## One-minute Overview
 
-Study Agent 是一个本地优先的 AI 学习助手，重点不是简单调用大模型，而是把 LLM 接入完整应用流程：
+Study Agent 不是又一个 AI 问答工具，而是把 LLM 接入完整的学习闭环：识别学习阶段、验证你的理解、指出缺口，并在确认后沉淀长期记忆。
 
+- **教学法驱动**：苏格拉底 / 费曼 / 项目 / 普通四种教学协议，配合学习状态机、学习者应答评估和掌握度门控
+- **学习状态可见**：学习目标、当前阶段、已确认点、当前缺口常驻左侧学习伴侣栏
+- **证据可追溯**：本地 RAG 引用 + 模型自主联网搜索/阅读，每条回答下方可展开证据轨迹
+- **跨会话恢复**：学习状态、逐轮证据、中断生成都能准确恢复
+- **长期记忆**：Markdown memory + safe writer，课后总结确认后写入
 - **多 Provider LLM 接入**：OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models
-- **长期记忆**：Markdown memory + safe writer
-- **上下文分层**：fast / light / deep / archive
-- **联网搜索**：RSS / News fetch → article extraction → LLM digest → source tracing
-- **RAG MVP**：本地 Markdown / TXT / DOCX / PDF 索引、关键词 / 本地向量原型 / hybrid / backend-vector 检索、可配置 embedding provider、可选 Chroma 持久化、受控本地知识检索工具、引用上下文、来源块、Streamlit 检索/调试面板、聊天注入和 FastAPI RAG / chat / memory 基础接口
-- **工程安全**：SSRF protection、detect-secrets、配置模板
-- **工程质量**：pytest 测试套件、Ruff、GitHub Actions CI、打包检查
+- **工程安全**：SSRF protection、detect-secrets、配置模板、pytest / Ruff / CI
 
 ## Highlights
 
-- **Multi-provider LLM client**: OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models
-- **Model routing** with fast / light / deep / archive context tiers
-- **Long-term memory** based on Markdown files and safe-writer persistence
-- **Web search pipeline**: feed registry → URL safety checks → article extraction → LLM digest → auditable source trace
-- **RAG MVP**: local Markdown / TXT / DOCX / PDF indexing, lexical / local vector prototype / hybrid / backend-vector retrieval, configurable embedding providers, optional Chroma persistence, a controlled local-knowledge retrieval tool, citation-first context formatting, source blocks, a Streamlit retrieval/debug panel, optional chat injection, FastAPI RAG / chat / memory / tools / workflows foundation endpoints, and a first React / Vite / TypeScript console
-- **SSRF protection** for article fetching, **detect-secrets** in CI
-- **Batched session logging** and multi-layer caching for performance
-- **Performance budget**: mode-based `max_tokens` bounds on the main chat, WeChat, and news LLM paths
-- Pytest regression suite, Ruff, mypy and GitHub Actions CI workflow
+- **Pedagogy-driven learning**: Socratic / Feynman / Project / Direct protocols over a learning-state machine, with learner-response evaluation and mastery gating
+- **Visible learning state**: objective, phase trail, confirmed points, current gap, and this-turn pedagogical move in a persistent learning panel
+- **Traceable evidence**: local RAG citations plus model-directed web search/read, expandable under each answer; per-turn evidence survives refresh
+- **Cross-session recovery**: learning state, per-turn evidence, and interrupted generation all restore accurately
+- **Long-term memory**: tiered Markdown memory with safe preview/commit writer
+- **Multi-provider LLM client**: OpenAI / DeepSeek / OpenRouter / SiliconFlow / local models with context-tier routing
+- **Local knowledge base**: Markdown / TXT / DOCX / PDF indexing, lexical / hybrid / vector / backend-vector retrieval, configurable embeddings, optional Chroma
+- **Engineering safety**: SSRF protection, detect-secrets in CI, pytest / Ruff / mypy / GitHub Actions
+- **Performance budget**: mode-based `max_tokens` bounds on chat, group-chat, and news LLM paths
 
 For a detailed breakdown of the stack and engineering highlights, see [Technical Stack & Engineering Highlights](docs/TECH_STACK.md).
 
 ---
 
-**一个面向个人学习复盘的本地 AI 学习搭子系统** — 支持角色群聊、联网搜索、长期记忆和课后总结。
+**一个本地优先、证据可追溯、能够持续推进学习目标的 AI 学习工作台** — 支持角色群聊、联网搜索、长期记忆和课后总结。
 
-> 不是又一个 AI 问答工具，而是一个会记住你学什么的 AI 学习伙伴。
+> 不是又一个 AI 问答工具，而是一个会识别学习阶段、验证理解、追溯证据并沉淀记忆的学习工作台。
 
 ---
 
@@ -46,11 +46,11 @@ For a detailed breakdown of the stack and engineering highlights, see [Technical
 
 通用 AI 对话工具擅长回答问题，但不擅长「陪伴学习」：
 
+- 它们不知道你**当前学到哪个阶段**，也无法验证你是否真的理解
 - 它们不记得你**昨天**学了什么、**上周**卡在了哪里
-- 它们不会主动帮你**总结**学习进展
-- 它们没有「角色感」—— 严肃还是轻松？鼓励还是挑战？全看随机
+- 它们不会主动帮你**总结**学习进展并把知识沉淀下来
 
-Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆的、有角色区分的 AI 学习搭子**。它会记住你的学习轨迹，在群聊中用不同角色和你讨论，课后自动总结进展，并把新的知识写进长期记忆。
+Study Agent 的定位很明确：**一个运行在你本地的、教学法驱动的 AI 学习工作台**。它用四种教学协议（苏格拉底引导、费曼诊断、项目推进、普通讲解）配合学习状态机持续推进你的学习目标，必要时调用本地资料和联网证据，每轮回答都可追溯依据，课后总结确认后写入长期记忆。角色群聊和新闻研究是延伸的学习空间，而非主入口。
 
 ---
 
@@ -81,21 +81,18 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 ---
 
 ```
-启动 App  →  选择学习模式 (氛围/专注度)
+建立学习目标
     │
-    ├── 单人对话 ──→ 提问/讨论 ──→ 课后总结 ──→ 记忆更新
+    ├── 教学法推进（苏格拉底 / 费曼 / 项目 / 普通）
+    │       │
+    │       ├── 本地 RAG 检索 ──-> 引用来源
+    │       └── 模型自主联网 ──-> 搜索 / 阅读 / 来源追溯
+    │       │
+    │       └── 证据按教学协议受控披露 -> 生成回答（下方可展开证据轨迹）
     │
-    └── 微信群聊 ──→ 生成开场 / 聊新闻 / 查资料
-                        │
-                    ┌────┴────┐
-                    │         │
-                联网搜索    角色互动讨论
-                    │         │
-               来源追溯写入  观点碰撞
-                    │         │
-                    └────┬────┘
-                        │
-                   课后总结 → 确认 → 写入长期记忆
+    ├── 验证理解 -> 记录已确认点 / 当前缺口 / 阶段推进
+    │
+    └── 课后总结 -> 确认 -> 写入长期记忆 -> 下次准确恢复
 ```
 
 ---
@@ -104,15 +101,16 @@ Study Agent 的定位很明确：**一个运行在你本地的、有长期记忆
 
 | 功能 | 说明 |
 |------|------|
-| **单人对话** | 与 AI 一对一讨论学习内容，支持 flash/pro 模型切换 |
-| **角色群聊** | 四位角色（三月七、刻晴、纳西妲、流萤）群聊讨论，各有独立人设 |
-| **联网搜索** | Google News + Bing News + RSSHub 多源聚合，页面正文三层提取 |
-| **来源追溯** | 搜索结果写入群聊记录，可回溯依据 |
-| **RAG / KnowledgeBase** | 本地 Markdown / TXT / DOCX / PDF 文档索引；查询、追加和重建均保存为可恢复的 `RagRun`，支持文档列表、删除和索引版本；旧 `/rag/query`、`/rag/upload` 暂作兼容入口 |
-| **课后总结** | 学习完成后自动总结进展，用户确认后写入记忆 |
-| **长期记忆** | 学习者画像、进度追踪、项目上下文、当前焦点，多级记忆档案 |
-| **多 Provider** | 支持 OpenAI / DeepSeek / OpenRouter / SiliconFlow / 本地模型 |
-| **氛围选择** | warm / close / standard 多种互动氛围切换 |
+| **教学法驱动学习** | 苏格拉底 / 费曼 / 项目 / 普通四种教学协议 + 学习状态机 + 学习者应答评估 + 掌握度门控 |
+| **学习状态可见** | 学习目标、阶段轨迹、已确认点、当前缺口、本轮教学动作常驻学习伴侣栏 |
+| **证据可追溯** | 本地 RAG 引用 + 模型自主联网搜索/阅读，每轮回答下方展开证据轨迹 |
+| **跨会话恢复** | 学习状态、逐轮证据、中断生成均可恢复继续 |
+| **本地知识库** | Markdown / TXT / DOCX / PDF 索引；lexical / hybrid / vector / backend-vector 检索；文档管理与删除 |
+| **长期记忆** | current_focus / progress / summary / learner_profile / project_context，safe writer 预览确认写入 |
+| **课后总结** | 学习完成后生成总结候选，用户确认后写入记忆 |
+| **角色群聊（延伸）** | 四位角色（三月七、刻晴、纳西妲、流萤）群聊讨论，延伸学习空间 |
+| **新闻研究（延伸）** | 多源聚合 + 正文提取 + LLM 摘要 + 来源追溯 |
+| **多 Provider** | OpenAI / DeepSeek / OpenRouter / SiliconFlow / 本地模型 |
 
 ---
 
