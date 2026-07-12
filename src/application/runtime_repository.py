@@ -125,11 +125,11 @@ def get_session_service():
 
 @lru_cache(maxsize=1)
 def get_group_service():
-    from src.application.group_chat_service import GroupService
+    from src.application.group_chat_service import GroupChatService
     from src.application.group_chat_service import GroupDependencies
     from src.tools.web_agent import resolve_web_tools
 
-    return GroupService(
+    return GroupChatService(
         get_group_repository(),
         group_file=DEFAULT_GROUP_FILE,
         unread_file=DEFAULT_GROUP_UNREAD_FILE,
