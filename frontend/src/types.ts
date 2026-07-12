@@ -418,6 +418,8 @@ export type SessionDetailResponse = {
     role: string;
     mode: string;
     model: string;
+    route_snapshot?: Record<string, unknown>;
+    rag_snapshot?: Record<string, unknown>;
     pedagogy_snapshot?: Record<string, unknown>;
   }>;
   raw: string;

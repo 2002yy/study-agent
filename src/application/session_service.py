@@ -94,6 +94,8 @@ class SessionService:
                     "role": turn.role,
                     "mode": turn.mode,
                     "model": turn.model,
+                    "route_snapshot": turn.route_snapshot,
+                    "rag_snapshot": turn.rag_snapshot,
                     "pedagogy_snapshot": turn.pedagogy_snapshot,
                 }
                 for turn in turns

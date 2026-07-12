@@ -55,13 +55,28 @@ export function pedagogySummaryFromSnapshot(snap: unknown): PedagogySummary | un
   };
 }
 
-type SessionTurn = { turn_id: string; pedagogy_snapshot?: Record<string, unknown> };
+type SessionTurn = {
+  turn_id: string;
+  pedagogy_snapshot?: Record<string, unknown>;
+  route_snapshot?: Record<string, unknown>;
+  rag_snapshot?: Record<string, unknown>;
+};
 
 export function evidenceFromSessionTurns(turns: SessionTurn[]): Map<string, TurnEvidence> {
   const map = new Map<string, TurnEvidence>();
   for (const turn of turns) {
     const pedagogy = pedagogySummaryFromSnapshot(turn.pedagogy_snapshot);
-    if (pedagogy) map.set(turn.turn_id, { pedagogy });
+    const rag =
+      turn.rag_snapshot && Object.keys(turn.rag_snapshot).length
+        ? (turn.rag_snapshot as ChatResponse["rag"])
+        : undefined;
+    const route =
+      turn.route_snapshot && Object.keys(turn.route_snapshot).length
+        ? turn.route_snapshot
+        : undefined;
+    if (pedagogy || rag || route) {
+      map.set(turn.turn_id, { pedagogy, rag, route });
+    }
   }
   return map;
 }

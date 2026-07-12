@@ -52,14 +52,23 @@ describe("evidenceHelpers", () => {
     expect(ev.rag).toBe(baseRag);
     expect(ev.route).toEqual({ mode: "socratic" });
   });
-  it("maps session turns to evidence by turnId (pedagogy only)", () => {
+  it("maps session turns to evidence by turnId (pedagogy + route + rag)", () => {
     const map = evidenceFromSessionTurns([
       {
         turn_id: "t1",
         pedagogy_snapshot: { mode: "socratic", move: "give_hint", phase: "scaffold", disclosure_level: 1 },
+        route_snapshot: { mode: "socratic", role: "nahida" },
+        rag_snapshot: { status: "ok", results: [{ title: "Doc" }], web_tools: { used: true } },
+      },
+      {
+        turn_id: "t2",
+        pedagogy_snapshot: { mode: "feynman_diagnosis", move: "diagnose", phase: "diagnose", disclosure_level: 2 },
       },
     ]);
     expect(map.get("t1")?.pedagogy?.move).toBe("give_hint");
-    expect(map.get("t1")?.rag).toBeUndefined();
+    expect(map.get("t1")?.route).toEqual({ mode: "socratic", role: "nahida" });
+    expect(map.get("t1")?.rag?.results).toEqual([{ title: "Doc" }]);
+    expect(map.get("t2")?.rag).toBeUndefined();
+    expect(map.get("t2")?.pedagogy?.move).toBe("diagnose");
   });
 });
