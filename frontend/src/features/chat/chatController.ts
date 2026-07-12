@@ -46,7 +46,6 @@ type ControllerOptions = {
   setInput: Dispatch<SetStateAction<string>>;
   setOperationError: Dispatch<SetStateAction<string>>;
   clearChatArtifacts: () => void;
-  onWorkspaceCancelled: () => void;
   refresh: () => Promise<void>;
 };
 
@@ -111,10 +110,9 @@ export function useChatController(options: ControllerOptions) {
   );
 
   const cancelWorkspaceRuns = useCallback(() => {
-    operationRegistry.cancelAll();
+    operationRegistry.invalidate("chat");
     setIsSending(false);
-    options.onWorkspaceCancelled();
-  }, [options.onWorkspaceCancelled]);
+  }, []);
 
   const send = async (
     question: string,
@@ -449,7 +447,11 @@ export function useChatController(options: ControllerOptions) {
     const lastAssistant = [...restoredMessages]
       .reverse()
       .find((message) => message.role === "assistant");
-    const restoredRoute = detail.route ?? {};
+    const baseRoute = detail.route ?? {};
+    const committedLearningState = detail.learning_state ?? {};
+    const restoredRoute = Object.keys(committedLearningState).length
+      ? { ...baseRoute, learning_state: committedLearningState }
+      : baseRoute;
     const restoredRag =
       detail.rag && Object.keys(detail.rag).length
         ? (detail.rag as ChatResponse["rag"])
@@ -491,9 +493,14 @@ export function useChatController(options: ControllerOptions) {
     );
     const phases = phaseTrail(
       (detail.turns ?? [])
-        .map((t) => {
-          const snap = (t as { pedagogy_snapshot?: { phase?: string } }).pedagogy_snapshot;
-          return String(snap?.phase ?? "");
+        .filter((turn) => turn.status === "completed")
+        .map((turn) => {
+          const snap = turn.pedagogy_snapshot ?? {};
+          const committed = snap.committed_learning_state;
+          if (committed && typeof committed === "object") {
+            return String((committed as { phase?: string }).phase ?? "");
+          }
+          return String((snap as { phase?: string }).phase ?? "");
         })
         .filter(Boolean)
     );
@@ -561,16 +568,6 @@ export function useChatController(options: ControllerOptions) {
     options.setOperationError("");
     cancelWorkspaceRuns();
     try {
-      if (state.activeChatThreadId) {
-        const detail = await loadSessionDetail(state.activeChatThreadId);
-        if (
-          detail.messages.some(
-            (message) => message.role === "user" || message.role === "assistant"
-          )
-        ) {
-          await archiveSession(state.activeChatThreadId);
-        }
-      }
       const created = await createNewSession();
       transitionSession(created.session_id, seedMessages, null);
       options.setInput("");
