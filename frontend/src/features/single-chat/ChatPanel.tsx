@@ -1,9 +1,8 @@
-import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, Clipboard, Database, Library, Loader2, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
-import { phaseLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
@@ -77,12 +76,6 @@ export function ChatPanel({
   const hasConversationMessages = messages.some(
     (message) => message.role === "user" || (message.role === "assistant" && !message.transient)
   );
-  const learningState = lastChat?.route?.learning_state as
-    | { protocol?: string; phase?: string; unresolved_gap?: string }
-    | undefined;
-  const summaryProtocol = learningState?.protocol;
-  const summaryPhase = learningState?.phase;
-  const summaryGap = learningState?.unresolved_gap;
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -115,12 +108,6 @@ export function ChatPanel({
             <span>路由 {lastChat?.route?.mode ? `${lastChat.route.mode} · ${lastChat.route.role ?? "auto"}` : "等待提问"}</span>
             <span>记录 ID {sessionId ?? "未开始"}</span>
           </div>
-          {summaryProtocol || summaryPhase ? (
-            <div className="learning-summary-bar">
-              <span>{summaryProtocol ? protocolLabel(summaryProtocol) : ""}{summaryPhase ? ` · ${phaseLabel(summaryPhase)}` : ""}</span>
-              {summaryGap ? <span className="summary-gap">缺口：{summaryGap}</span> : null}
-            </div>
-          ) : null}
         </div>
         <div className="topbar-actions">
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
@@ -133,7 +120,6 @@ export function ChatPanel({
           <button className="icon-button" onClick={() => onOpenDrawer("group")} type="button" title="群聊"><MessageSquare size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("news")} type="button" title="新闻"><Database size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("tools")} type="button" title="工具"><Wrench size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话"><BookOpen size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("memory")} type="button" title="记忆"><MemoryStick size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("sources")} type="button" title="引用来源与知识库"><Library size={16} /></button>
           <button className="icon-button" onClick={() => onOpenDrawer("timeline")} type="button" title="工作流时间线"><Activity size={16} /></button>

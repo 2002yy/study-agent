@@ -2,12 +2,12 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import AppShell from "../AppShell";
 import { SlideOver } from "../components/SlideOver";
-import { LearningPanel } from "../features/learning/LearningPanel";
+import { LearningStrip } from "../features/learning/LearningStrip";
 import { MemoryPanel } from "../features/learning-memory/MemoryPanel";
 import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
 import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
-import { SessionsPanel } from "../features/sessions/SessionsPanel";
+import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
@@ -102,11 +102,20 @@ export function WorkspaceView({
         ref={fileInputRef}
         type="file"
       />
-      <LearningPanel
-        lastChat={chatController.lastChat}
-        visitedPhases={state.pedagogyPhases}
-        memoryStatus={snapshot.memoryStatus}
+      <SessionSidebar
+        sessions={snapshot.sessions}
+        activeSessionId={chatController.threadId}
+        isSending={chatController.isSending}
+        onRestore={chatController.restoreSession}
+        onArchive={chatController.archiveCurrentSession}
+        onNewSession={chatController.startNewSession}
       />
+      <div className="chat-column">
+        <LearningStrip
+          lastChat={chatController.lastChat}
+          visitedPhases={state.pedagogyPhases}
+          memoryStatus={snapshot.memoryStatus}
+        />
       <ChatPanel
         sessionId={chatController.threadId}
         messages={chatController.messages}
@@ -129,6 +138,7 @@ export function WorkspaceView({
         memoryStatus={snapshot.memoryStatus}
         onOpenDrawer={openDrawer}
       />
+      </div>
       <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
         <Sidebar
           snapshot={snapshot}
@@ -204,15 +214,6 @@ export function WorkspaceView({
           canCall={toolController.canCall}
           callBlockedReason={toolController.callBlockedReason}
           invocationLabel={toolController.invocationLabel}
-        />
-      </SlideOver>
-      <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
-        <SessionsPanel
-          sessions={snapshot.sessions}
-          activeSessionId={chatController.threadId}
-          isSending={chatController.isSending}
-          onRestore={chatController.restoreSession}
-          onArchive={chatController.archiveCurrentSession}
         />
       </SlideOver>
       <SlideOver open={state.activeDrawer === "memory"} title="学习记忆" onClose={closeDrawer}>
