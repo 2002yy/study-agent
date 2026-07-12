@@ -16,6 +16,22 @@ describe("OperationRegistry", () => {
     expect(registry.isCurrent(nextChat.operationId, nextChat.generationId)).toBe(true);
   });
 
+  it("keeps upload, memory and research work alive when chat is invalidated", () => {
+    const registry = new OperationRegistry();
+    const chat = registry.start("chat", "chat-a");
+    const upload = registry.start("rag-upload", "upload-a");
+    const memory = registry.start("memory", "memory-a");
+    const research = registry.start("web_lookup", "research-a");
+
+    registry.invalidate("chat");
+
+    expect(chat.controller.signal.aborted).toBe(true);
+    expect(registry.isCurrent(chat.operationId, chat.generationId, "chat-a")).toBe(false);
+    expect(registry.isCurrent(upload.operationId, upload.generationId, "upload-a")).toBe(true);
+    expect(registry.isCurrent(memory.operationId, memory.generationId, "memory-a")).toBe(true);
+    expect(registry.isCurrent(research.operationId, research.generationId, "research-a")).toBe(true);
+  });
+
   it("marks completed operations as no longer current", () => {
     const registry = new OperationRegistry();
     const operation = registry.start("news");
