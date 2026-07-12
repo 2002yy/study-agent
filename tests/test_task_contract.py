@@ -45,6 +45,25 @@ def test_safe_default_is_temporary_quick_answer():
     assert contract.closure_eligibility == "not_applicable"
 
 
+def test_ambiguous_follow_up_inherits_active_learning():
+    contract = classify_task_contract("我不知道", active_learning=True)
+
+    assert contract.task_intent == "learn"
+    assert contract.learning_state_enabled is True
+    assert contract.confidence == "medium"
+    assert contract.reason == "continue_active_learning"
+
+
+def test_explicit_research_overrides_active_learning_temporarily():
+    contract = classify_task_contract(
+        "联网看看gpt5.6sol",
+        active_learning=True,
+    )
+
+    assert contract.task_intent == "research"
+    assert contract.learning_state_enabled is False
+
+
 def test_research_skips_semantic_mastery_evaluation():
     class FailingSemanticEvaluator:
         def evaluate(self, **kwargs):
@@ -154,6 +173,25 @@ def test_learning_request_still_uses_the_pedagogy_engine():
     assert next_state.turn_count == 1
 
 
+def test_active_learning_follow_up_still_uses_the_pedagogy_engine():
+    engine = TaskAwarePedagogyEngine()
+    state = LearningState(
+        protocol="socratic_rediscovery",
+        objective="理解二分查找复杂度",
+        phase="scaffold",
+        turn_count=2,
+    )
+
+    _, next_state = engine.plan(
+        user_input="我不知道",
+        mode="苏格拉底",
+        state=state,
+    )
+
+    assert next_state.turn_count == 3
+    assert next_state.objective == state.objective
+
+
 def test_route_snapshot_contains_task_contract():
     route = route_request_with_task_contract(
         user_input="联网看看gpt5.6sol",
@@ -170,3 +208,20 @@ def test_route_snapshot_contains_task_contract():
     assert isinstance(task_contract, dict)
     assert task_contract["task_intent"] == "research"
     assert task_contract["learning_state_enabled"] is False
+
+
+def test_route_snapshot_inherits_non_direct_learning_mode():
+    route = route_request_with_task_contract(
+        user_input="我不知道",
+        selected_role="auto",
+        selected_mode="auto",
+        selected_model="auto",
+        runtime_modes=RuntimeModes(performance_mode="fast"),
+        previous_role="nahida",
+        previous_mode="苏格拉底",
+        keep_current_role=False,
+    )
+
+    task_contract = route["task_contract"]
+    assert task_contract["task_intent"] == "learn"
+    assert task_contract["reason"] == "continue_active_learning"
