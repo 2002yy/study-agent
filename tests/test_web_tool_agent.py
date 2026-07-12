@@ -8,6 +8,11 @@ from src.web.tool_gateway import _DuckDuckGoResultsParser
 
 
 def test_tool_loop_executes_function_calls_and_returns_evidence(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("MODEL_FLASH_NAME", "test-flash")
+    monkeypatch.setenv("MODEL_PRO_NAME", "test-pro")
+
     tool_call = SimpleNamespace(
         id="call_1",
         function=SimpleNamespace(name="web_search", arguments='{"query":"FastAPI release"}'),

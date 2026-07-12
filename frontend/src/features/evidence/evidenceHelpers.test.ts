@@ -22,22 +22,48 @@ const baseRag: ChatResponse["rag"] = {
 };
 
 describe("evidenceHelpers", () => {
-  it("summarizes web_search and web_read calls", () => {
+  it("summarizes valid web_search and web_read calls", () => {
     const calls = summarizeWebCalls([
-      { name: "web_search", arguments: { query: "FastAPI" }, result: { results: [{ title: "t", url: "u" }] } },
-      { name: "web_read", arguments: { url: "https://x.com" }, result: { ok: "true", content: "page".repeat(200) } },
+      {
+        name: "web_search",
+        arguments: { query: "FastAPI" },
+        result: { results: [{ title: "t", url: "u" }, { title: "", url: "" }] },
+      },
+      {
+        name: "web_read",
+        arguments: { url: "https://x.com" },
+        result: { ok: "true", content: "page".repeat(200) },
+      },
     ]);
-    expect(calls.searches).toEqual([{ query: "FastAPI", results: [{ title: "t", url: "u" }] }]);
+    expect(calls.searches).toEqual([{ query: "FastAPI", results: [{ title: "t", url: "u", snippet: undefined }] }]);
     expect(calls.reads[0].url).toBe("https://x.com");
+    expect(calls.reads[0].ok).toBe(true);
     expect(calls.reads[0].preview.length).toBeLessThanOrEqual(300);
   });
-  it("builds citations from rag results", () => {
+
+  it("builds citations from the actual nested RagResult chunk shape", () => {
     const cites = buildCitations({
       ...baseRag,
-      results: [{ title: "Doc", source_path: "a.md", score: 0.8 }] as never,
+      results: [
+        { chunk: { title: "Doc", source_path: "docs/a.md" }, score: 0.8 },
+      ],
     });
-    expect(cites[0]).toMatchObject({ title: "Doc", source: "a.md", score: 0.8 });
+    expect(cites).toEqual([{ title: "Doc", source: "docs/a.md", score: 0.8 }]);
   });
+
+  it("filters empty, zero-score and duplicate citation placeholders", () => {
+    const cites = buildCitations({
+      ...baseRag,
+      results: [
+        { chunk: {}, score: 0 },
+        { chunk: { title: "", source_path: "" }, score: 0.5 },
+        { chunk: { source_path: "docs/a.md" }, score: 0.7 },
+        { chunk: { source_path: "docs/a.md" }, score: 0.6 },
+      ],
+    });
+    expect(cites).toEqual([{ title: "a.md", source: "docs/a.md", score: 0.7 }]);
+  });
+
   it("builds evidence from a ChatResponse", () => {
     const resp: ChatResponse = {
       reply: "r",
@@ -52,6 +78,7 @@ describe("evidenceHelpers", () => {
     expect(ev.rag).toBe(baseRag);
     expect(ev.route).toEqual({ mode: "socratic" });
   });
+
   it("maps session turns to evidence by turnId (pedagogy + route + rag)", () => {
     const map = evidenceFromSessionTurns([
       {

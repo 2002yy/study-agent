@@ -123,7 +123,7 @@ export function useWorkspaceControllers(options: {
     () =>
       new WorkspaceCoordinator(
         {
-          cancelChat: () => operationRegistry.cancelAll(),
+          cancelChat: () => operationRegistry.invalidate("chat"),
           cancelGroup: groupController.cancelWorkspace,
           cancelNews: newsController.cancelWorkspace,
           cancelWebLookup: webLookupController.cancel,
@@ -164,8 +164,6 @@ export function useWorkspaceControllers(options: {
     setOperationError: options.operationError,
     clearChatArtifacts:
       workspaceCoordinator.clearChatArtifacts.bind(workspaceCoordinator),
-    onWorkspaceCancelled:
-      workspaceCoordinator.cancelAllActiveOperations.bind(workspaceCoordinator),
     refresh: options.refresh,
   });
   const activeQuery =

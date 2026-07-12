@@ -36,10 +36,12 @@ describe("workspace controller composition boundary", () => {
     }
   });
 
-  it("owns cross-feature cancellation and artifact cleanup", () => {
+  it("owns cross-feature artifact cleanup while chat cancellation stays scoped", () => {
     expect(compositionSource).toContain("new WorkspaceCoordinator(");
     expect(compositionSource).toContain("clearChatArtifacts:");
-    expect(compositionSource).toContain("onWorkspaceCancelled:");
+    expect(compositionSource).toContain('cancelChat: () => operationRegistry.invalidate("chat")');
+    expect(compositionSource).not.toContain("onWorkspaceCancelled:");
+    expect(compositionSource).not.toContain("operationRegistry.cancelAll()");
     expect(runtimeSource).not.toContain("new WorkspaceCoordinator(");
   });
 });

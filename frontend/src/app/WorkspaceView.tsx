@@ -9,9 +9,9 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
-import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
+import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { GlobalNotices } from "../layout/GlobalNotices";
 import { Sidebar } from "../layout/Sidebar";
 import type { ApiSnapshot, ChatSettings, DrawerId, RagSettings } from "../types";
@@ -74,6 +74,16 @@ export function WorkspaceView({
     event.preventDefault();
     await chatController.send(ui.input.trim());
   };
+  const requestNewSession = () => {
+    const hasMessages = chatController.messages.some((message) => message.role === "user");
+    if (
+      hasMessages &&
+      !window.confirm("当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。")
+    ) {
+      return;
+    }
+    void chatController.startNewSession();
+  };
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -109,13 +119,7 @@ export function WorkspaceView({
         isSending={chatController.isSending}
         onRestore={chatController.restoreSession}
         onArchive={chatController.archiveCurrentSession}
-        onNewSession={() => {
-          const hasMessages = chatController.messages.some((m) => m.role === "user");
-          if (hasMessages && !window.confirm("当前学习尚未整理，直接开始新会话？")) {
-            return;
-          }
-          void chatController.startNewSession();
-        }}
+        onNewSession={requestNewSession}
       />
       <div className="chat-column">
         <LearningStrip
@@ -123,34 +127,34 @@ export function WorkspaceView({
           visitedPhases={state.pedagogyPhases}
           memoryStatus={snapshot.memoryStatus}
         />
-      <ChatPanel
-        sessionId={chatController.threadId}
-        messages={chatController.messages}
-        input={ui.input}
-        setInput={ui.setInput}
-        isSending={chatController.isSending}
-        onSubmit={submit}
-        onStop={chatController.stop}
-        streamRecovery={chatController.streamRecovery}
-        onContinueInterruptedReply={chatController.continueInterrupted}
-        onRetry={chatController.retry}
-        onCopyInterruptedReply={chatController.copyInterrupted}
-        onUploadClick={() => fileInputRef.current?.click()}
-        onSearchSources={() => ragController.search(activeQuery)}
-        isSearching={ragController.isSearching}
-        hasSearchQuery={Boolean(activeQuery)}
-        onQuickPrompt={ui.setInput}
-        lastChat={chatController.lastChat}
-        ragEnabled={ui.ragEnabled}
-        memoryStatus={snapshot.memoryStatus}
-        onOpenDrawer={openDrawer}
-        onEndSession={async () => {
-          if (!chatController.threadId) return;
-          await memoryController.generateFromSession(chatController.threadId);
-          openDrawer("memory");
-        }}
-        isEndingSession={memoryController.isPreviewing}
-      />
+        <ChatPanel
+          sessionId={chatController.threadId}
+          messages={chatController.messages}
+          input={ui.input}
+          setInput={ui.setInput}
+          isSending={chatController.isSending}
+          onSubmit={submit}
+          onStop={chatController.stop}
+          streamRecovery={chatController.streamRecovery}
+          onContinueInterruptedReply={chatController.continueInterrupted}
+          onRetry={chatController.retry}
+          onCopyInterruptedReply={chatController.copyInterrupted}
+          onUploadClick={() => fileInputRef.current?.click()}
+          onSearchSources={() => ragController.search(activeQuery)}
+          isSearching={ragController.isSearching}
+          hasSearchQuery={Boolean(activeQuery)}
+          onQuickPrompt={ui.setInput}
+          lastChat={chatController.lastChat}
+          ragEnabled={ui.ragEnabled}
+          memoryStatus={snapshot.memoryStatus}
+          onOpenDrawer={openDrawer}
+          onEndSession={async () => {
+            if (!chatController.threadId) return;
+            await memoryController.generateFromSession(chatController.threadId);
+            openDrawer("memory");
+          }}
+          isEndingSession={memoryController.isPreviewing}
+        />
       </div>
       <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
         <SessionsPanel
@@ -180,7 +184,7 @@ export function WorkspaceView({
           setKeepCurrentRole={ui.setKeepCurrentRole}
           conversationInstruction={ui.conversationInstruction}
           setConversationInstruction={ui.setConversationInstruction}
-          onNewSession={chatController.startNewSession}
+          onNewSession={requestNewSession}
           isSending={chatController.isSending}
           refresh={refresh}
           onUploadClick={() => fileInputRef.current?.click()}
@@ -247,7 +251,11 @@ export function WorkspaceView({
           ragSearch={ragController.result}
           isSearching={ragController.isSearching}
           knowledgeBase={uploadController.documents}
-          onDeleteDocument={(documentId) => void uploadController.removeDocument(documentId)}
+          onDeleteDocument={(documentId) => {
+            if (window.confirm("确定从长期知识库中删除这个文档及其索引片段吗？")) {
+              void uploadController.removeDocument(documentId);
+            }
+          }}
         />
       </SlideOver>
       <SlideOver open={state.activeDrawer === "timeline"} title="工作流时间线" onClose={closeDrawer}>

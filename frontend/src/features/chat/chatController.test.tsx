@@ -79,7 +79,6 @@ describe("useChatController stop behavior", () => {
         setInput: setter<string>(),
         setOperationError: setter<string>(),
         clearChatArtifacts: vi.fn(),
-        onWorkspaceCancelled: vi.fn(),
         refresh: vi.fn().mockResolvedValue(undefined),
       });
       return null;
