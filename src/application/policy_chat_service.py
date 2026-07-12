@@ -19,6 +19,7 @@ from src.application.chat_service import (
     _session_settings,
     _tool_context,
 )
+from src.application.helpers import load_frontend_settings
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.external_data_policy import decide_external_data
 from src.pedagogy.evidence import build_evidence_units
@@ -38,9 +39,9 @@ _SOURCE_POLICIES: set[str] = {
 
 @dataclass(frozen=True)
 class PolicyChatCommand(ChatCommand):
-    web_policy: str = "auto"
+    web_policy: str | None = None
     web_consent: bool = False
-    cloud_context_policy: str = "allow_local_evidence"
+    cloud_context_policy: str | None = None
 
 
 def _source_policy(route: dict[str, Any]) -> SourcePolicy:
@@ -62,10 +63,20 @@ class ExternalDataPolicyChatService(ChatService):
         command, existing, retry_parent = self._validate_turn_command(command)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
+        saved_policy = load_frontend_settings()
+        effective_web_policy = command.web_policy or str(
+            saved_policy.get("web_policy", "auto")
+        )
+        effective_cloud_context_policy = command.cloud_context_policy or str(
+            saved_policy.get("cloud_context_policy", "allow_local_evidence")
+        )
+        effective_web_consent = command.web_consent or (
+            effective_web_policy == "ask" and bool(command.web_context.strip())
+        )
         settings = {
             **_session_settings(command, context_mode),
-            "webPolicy": command.web_policy,
-            "cloudContextPolicy": command.cloud_context_policy,
+            "webPolicy": effective_web_policy,
+            "cloudContextPolicy": effective_cloud_context_policy,
         }
         turn_id = command.turn_id or command.continuation_of_turn_id or new_id("turn")
         is_continuation = bool(command.continuation_of_turn_id)
@@ -96,9 +107,9 @@ class ExternalDataPolicyChatService(ChatService):
                 keep_current_role=command.keep_current_role,
             )
             decision = decide_external_data(
-                web_policy=command.web_policy,
-                web_consent=command.web_consent,
-                cloud_context_policy=command.cloud_context_policy,
+                web_policy=effective_web_policy,
+                web_consent=effective_web_consent,
+                cloud_context_policy=effective_cloud_context_policy,
                 task_source_policy=_source_policy(route),
             )
             route = {**route, "external_data_policy": decision.to_dict()}
