@@ -1,5 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+import { createNewSession } from "../api";
 import AppShell from "../AppShell";
 import { SlideOver } from "../components/SlideOver";
 import { LearningStrip } from "../features/learning/LearningStrip";
@@ -7,6 +8,7 @@ import { MemoryPanel } from "../features/learning-memory/MemoryPanel";
 import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
 import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
+import { seedMessages } from "../features/single-chat/chatHistory";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
@@ -89,6 +91,20 @@ export function WorkspaceView({
     await uploadController.upload(files);
     event.target.value = "";
   };
+  const startNewSessionWithoutArchive = async () => {
+    ui.setOperationError("");
+    try {
+      const created = await createNewSession();
+      chatController.transitionSession(created.session_id, seedMessages, null);
+      ui.setInput("");
+      ui.setConversationInstruction("");
+      await refresh();
+    } catch (error) {
+      ui.setOperationError(
+        `新建会话失败：${error instanceof Error ? error.message : "新建会话失败"}`
+      );
+    }
+  };
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(
     ([key]) => key !== "health"
   );
@@ -111,10 +127,10 @@ export function WorkspaceView({
         onArchive={chatController.archiveCurrentSession}
         onNewSession={() => {
           const hasMessages = chatController.messages.some((m) => m.role === "user");
-          if (hasMessages && !window.confirm("当前学习尚未整理，直接开始新会话？")) {
+          if (hasMessages && !window.confirm("当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。")) {
             return;
           }
-          void chatController.startNewSession();
+          void startNewSessionWithoutArchive();
         }}
       />
       <div className="chat-column">
@@ -180,7 +196,7 @@ export function WorkspaceView({
           setKeepCurrentRole={ui.setKeepCurrentRole}
           conversationInstruction={ui.conversationInstruction}
           setConversationInstruction={ui.setConversationInstruction}
-          onNewSession={chatController.startNewSession}
+          onNewSession={() => void startNewSessionWithoutArchive()}
           isSending={chatController.isSending}
           refresh={refresh}
           onUploadClick={() => fileInputRef.current?.click()}
