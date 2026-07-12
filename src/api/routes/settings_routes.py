@@ -20,13 +20,42 @@ from src.application.helpers import (
     runtime_settings_payload,
     validate_choice,
 )
+from src.external_data_policy import (
+    CLOUD_CONTEXT_POLICIES,
+    WEB_POLICIES,
+    normalize_cloud_context_policy,
+    normalize_web_policy,
+)
 
 router = APIRouter(tags=["settings"])
 
 
+def _runtime_settings_with_external_policy() -> RuntimeSettingsResponse:
+    from src.api import load_frontend_settings
+
+    response = runtime_settings_payload()
+    stored = load_frontend_settings()
+    settings = dict(response.settings)
+    options = dict(response.options)
+    settings["web_policy"] = normalize_web_policy(
+        str(stored.get("web_policy", "auto"))
+    )
+    settings["cloud_context_policy"] = normalize_cloud_context_policy(
+        str(stored.get("cloud_context_policy", "allow_local_evidence"))
+    )
+    options["web_policies"] = list(WEB_POLICIES)
+    options["cloud_context_policies"] = list(CLOUD_CONTEXT_POLICIES)
+    return RuntimeSettingsResponse(
+        settings=settings,
+        options=options,
+        runtime_profile=response.runtime_profile,
+        warnings=response.warnings,
+    )
+
+
 @router.get("/runtime/settings", response_model=RuntimeSettingsResponse)
 def get_runtime_settings() -> RuntimeSettingsResponse:
-    return runtime_settings_payload()
+    return _runtime_settings_with_external_policy()
 
 
 @router.patch("/runtime/settings", response_model=RuntimeSettingsResponse)
@@ -73,6 +102,16 @@ def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResp
         frontend_settings["rag_chat_top_k"] = request.rag_chat_top_k
     if request.rag_min_score is not None:
         frontend_settings["rag_min_score"] = request.rag_min_score
+    if request.web_policy is not None:
+        frontend_settings["web_policy"] = validate_choice(
+            request.web_policy, WEB_POLICIES, "web_policy"
+        )
+    if request.cloud_context_policy is not None:
+        frontend_settings["cloud_context_policy"] = validate_choice(
+            request.cloud_context_policy,
+            CLOUD_CONTEXT_POLICIES,
+            "cloud_context_policy",
+        )
     write_frontend_settings(frontend_settings)
 
     if request.relationship_mode is not None:
@@ -99,7 +138,7 @@ def patch_runtime_settings(request: RuntimeSettingsPatch) -> RuntimeSettingsResp
         update_safe_mode(request.safe_mode)
     if request.wechat_memory_capture_enabled is not None:
         update_memory_capture(request.wechat_memory_capture_enabled)
-    return runtime_settings_payload()
+    return _runtime_settings_with_external_policy()
 
 
 @router.get("/roles", response_model=RoleListResponse)
