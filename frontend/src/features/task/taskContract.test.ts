@@ -27,6 +27,49 @@ describe("taskContract", () => {
     });
   });
 
+  it("inherits active learning for a low-confidence follow-up", () => {
+    const contract = taskContractFromRoute({
+      task_contract: {
+        task_intent: "quick_answer",
+        source_policy: "local_and_web",
+        closure_eligibility: "not_applicable",
+        learning_state_enabled: false,
+        confidence: "low",
+      },
+      learning_state: {
+        protocol: "socratic_rediscovery",
+        objective: "理解二分查找复杂度",
+      },
+    });
+
+    expect(contract).toMatchObject({
+      task_intent: "learn",
+      closure_eligibility: "learning_summary",
+      learning_state_enabled: true,
+      confidence: "medium",
+      reason: "continue_active_learning",
+    });
+  });
+
+  it("does not override an explicit research task inside a learning thread", () => {
+    const contract = taskContractFromRoute({
+      task_contract: {
+        task_intent: "research",
+        source_policy: "web_only",
+        closure_eligibility: "optional_note",
+        learning_state_enabled: false,
+        confidence: "high",
+      },
+      learning_state: {
+        protocol: "socratic_rediscovery",
+        objective: "理解二分查找复杂度",
+      },
+    });
+
+    expect(contract?.task_intent).toBe("research");
+    expect(contract?.learning_state_enabled).toBe(false);
+  });
+
   it("keeps historical routes compatible", () => {
     expect(taskContractFromRoute({ mode: "普通" })).toBeUndefined();
     expect(closureActionLabel(undefined)).toBe("整理学习");
