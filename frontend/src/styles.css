@@ -477,6 +477,7 @@ button {
 
 .topbar-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1992,11 +1993,35 @@ button {
 }
 
 /* === 响应式：窄屏隐藏学习伴侣栏 === */
+.learning-summary-bar {
+  display: none;
+}
+
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
   .learning-panel {
     display: none;
+  }
+  .learning-summary-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-strong);
+    font-size: 12px;
+    color: var(--accent-strong);
+  }
+  .learning-summary-bar .summary-gap {
+    color: var(--amber);
+  }
+  .topbar-actions {
+    flex-wrap: wrap;
+    max-width: 100%;
   }
 }

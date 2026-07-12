@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
+import { phaseLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
@@ -76,6 +77,12 @@ export function ChatPanel({
   const hasConversationMessages = messages.some(
     (message) => message.role === "user" || (message.role === "assistant" && !message.transient)
   );
+  const learningState = lastChat?.route?.learning_state as
+    | { protocol?: string; phase?: string; unresolved_gap?: string }
+    | undefined;
+  const summaryProtocol = learningState?.protocol;
+  const summaryPhase = learningState?.phase;
+  const summaryGap = learningState?.unresolved_gap;
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -108,6 +115,12 @@ export function ChatPanel({
             <span>路由 {lastChat?.route?.mode ? `${lastChat.route.mode} · ${lastChat.route.role ?? "auto"}` : "等待提问"}</span>
             <span>记录 ID {sessionId ?? "未开始"}</span>
           </div>
+          {summaryProtocol || summaryPhase ? (
+            <div className="learning-summary-bar">
+              <span>{summaryProtocol ? protocolLabel(summaryProtocol) : ""}{summaryPhase ? ` · ${phaseLabel(summaryPhase)}` : ""}</span>
+              {summaryGap ? <span className="summary-gap">缺口：{summaryGap}</span> : null}
+            </div>
+          ) : null}
         </div>
         <div className="topbar-actions">
           <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
