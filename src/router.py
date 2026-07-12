@@ -166,6 +166,13 @@ def route_request(
 ) -> dict:
     routing_config = load_routing_config()
     mode_is_auto = selected_mode in ("auto", "自动")
+    invalid_mode = False
+    if not mode_is_auto and selected_mode not in {"普通", "苏格拉底", "费曼", "项目"}:
+        get_logger().warning(
+            "invalid selected_mode %r, falling back to auto", selected_mode
+        )
+        mode_is_auto = True
+        invalid_mode = True
     matched = _match(user_input, routing_config.rules)
     default_role: Role = routing_config.default_role  # type: ignore[assignment]
     default_mode: Mode = routing_config.default_mode  # type: ignore[assignment]
@@ -281,6 +288,8 @@ def route_request(
     reasons.append(f"mode={mode}")
     reasons.append(f"model={model_profile}")
     reasons.append(f"source={auto_reason}")
+    if invalid_mode:
+        reasons.append("warning=invalid selected_mode fell back to auto")
 
     return {
         "role": role,
