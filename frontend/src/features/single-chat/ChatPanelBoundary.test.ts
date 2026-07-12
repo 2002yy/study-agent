@@ -21,4 +21,11 @@ describe("active ChatPanel interaction boundary", () => {
     expect(source).toContain("navigator.clipboard.writeText(content)");
     expect(source).not.toContain("navigator.clipboard.writeText(label)");
   });
+
+  it("derives closure actions from the persisted task contract", () => {
+    expect(source).toContain("taskContractFromRoute(lastChat?.route)");
+    expect(source).toContain("closureActionLabel(taskContract)");
+    expect(source).toContain("{closureLabel ? (");
+    expect(source).toContain("{closureLabel}");
+  });
 });
