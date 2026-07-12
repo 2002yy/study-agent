@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 from uuid import uuid4
 
 from src.pedagogy.classifier import classify_knowledge
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evaluation import PedagogyEvalRun, PedagogyEvaluationService
-from src.pedagogy.types import LearningState, PedagogyTurnPlan
+from src.pedagogy.types import (
+    AssistantResponseEvaluation,
+    LearningState,
+    PedagogyTurnPlan,
+)
 
 TaskIntent = Literal[
     "quick_answer",
@@ -174,7 +178,7 @@ def classify_task_contract(user_input: str) -> TaskContract:
     )
 
 
-def route_request_with_task_contract(**kwargs) -> dict:
+def route_request_with_task_contract(**kwargs: Any) -> dict[str, Any]:
     """Add task semantics without coupling them to the role router."""
 
     from src.router import route_request
@@ -229,6 +233,14 @@ def _direct_task_plan(
     )
 
 
+def _without_non_learning_evaluation(state: LearningState) -> LearningState:
+    payload = dict(state.payload)
+    evaluation = payload.get("pedagogy_evaluation")
+    if isinstance(evaluation, dict) and evaluation.get("final_decision") == "not_applicable":
+        payload.pop("pedagogy_evaluation", None)
+    return LearningState.from_dict({**state.to_dict(), "payload": payload})
+
+
 class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
     """Skip mastery evaluation for temporary or conversational tasks."""
 
@@ -258,7 +270,7 @@ class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
 
 
 class TaskAwarePedagogyEngine(PedagogyEngine):
-    """Use a direct response plan while preserving the current learning phase."""
+    """Use a direct response plan while preserving persisted learning state."""
 
     def plan(
         self, *, user_input: str, mode: str, state: LearningState
@@ -266,7 +278,27 @@ class TaskAwarePedagogyEngine(PedagogyEngine):
         contract = classify_task_contract(user_input)
         if contract.learning_state_enabled:
             return super().plan(user_input=user_input, mode=mode, state=state)
-        return _direct_task_plan(contract=contract, learner_input=user_input), state
+        preserved = _without_non_learning_evaluation(state)
+        return _direct_task_plan(contract=contract, learner_input=user_input), preserved
+
+    def apply_transition(
+        self,
+        *,
+        before: LearningState,
+        planned: LearningState,
+        evaluation: AssistantResponseEvaluation,
+    ) -> LearningState:
+        learner_evaluation = before.payload.get("pedagogy_evaluation")
+        if (
+            isinstance(learner_evaluation, dict)
+            and learner_evaluation.get("final_decision") == "not_applicable"
+        ):
+            return planned
+        return super().apply_transition(
+            before=before,
+            planned=planned,
+            evaluation=evaluation,
+        )
 
 
 def prepare_task_pedagogy(
