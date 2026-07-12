@@ -28,6 +28,8 @@ from src.rag.query_plan import build_retrieval_query_plan
 from src.task_intent import SourcePolicy
 from src.tools.web_agent import WebToolTrace
 
+WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__"
+
 _SOURCE_POLICIES: set[str] = {
     "model_only",
     "local_only",
@@ -70,8 +72,10 @@ class ExternalDataPolicyChatService(ChatService):
         effective_cloud_context_policy = command.cloud_context_policy or str(
             saved_policy.get("cloud_context_policy", "allow_local_evidence")
         )
-        effective_web_consent = command.web_consent or (
-            effective_web_policy == "ask" and bool(command.web_context.strip())
+        marker_consent = command.web_context.strip() == WEB_CONSENT_MARKER
+        manual_web_context = "" if marker_consent else command.web_context
+        effective_web_consent = command.web_consent or marker_consent or (
+            effective_web_policy == "ask" and bool(manual_web_context.strip())
         )
         settings = {
             **_session_settings(command, context_mode),
@@ -193,7 +197,7 @@ class ExternalDataPolicyChatService(ChatService):
             web_context = "\n\n".join(
                 part
                 for part in (
-                    command.web_context if decision.web_allowed else "",
+                    manual_web_context if decision.web_allowed else "",
                     web_tools.context_block(),
                 )
                 if part.strip()
