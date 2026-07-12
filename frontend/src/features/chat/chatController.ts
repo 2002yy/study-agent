@@ -24,6 +24,7 @@ import {
   tailInterruptedTurn,
   toChatHistoryPayload,
 } from "../single-chat/chatHistory";
+import { evidenceFromResponse, evidenceFromSessionTurns } from "../evidence/evidenceHelpers";
 
 type ControllerOptions = {
   chatSettings: ChatSettings;
@@ -241,10 +242,18 @@ export function useChatController(options: ControllerOptions) {
             if (typeof done.turn_id === "string") activeTurnId = done.turn_id;
             if (typeof done.reply === "string") {
               fullReply = done.reply;
+              const donePedagogy = (done as { pedagogy?: ChatResponse["pedagogy"] }).pedagogy;
               setMessages((current) =>
                 current.map((message, index) =>
                   index === assistantIndex
-                    ? { ...message, content: done.reply as string, turnStatus: "completed" }
+                    ? {
+                        ...message,
+                        content: done.reply as string,
+                        turnStatus: "completed",
+                        evidence: donePedagogy
+                          ? { pedagogy: donePedagogy, route: streamedRoute, rag: streamedRag ?? undefined }
+                          : message.evidence,
+                      }
                     : index === userIndex
                       ? { ...message, turnStatus: "completed" }
                       : message
@@ -270,6 +279,7 @@ export function useChatController(options: ControllerOptions) {
                 ...message,
                 content: effectiveReply,
                 avatarRole: String(response.route.role ?? "auto"),
+                evidence: evidenceFromResponse(response),
               }
             : message
         )
@@ -458,9 +468,16 @@ export function useChatController(options: ControllerOptions) {
         }
       : null;
 
+    const evidenceByTurn = evidenceFromSessionTurns(detail.turns ?? []);
+    const restoredWithEvidence = restoredMessages.map((message) =>
+      message.turnId && evidenceByTurn.has(message.turnId)
+        ? { ...message, evidence: evidenceByTurn.get(message.turnId) }
+        : message
+    );
+
     transitionSession(
       detail.session_id,
-      restoredMessages.length ? restoredMessages : seedMessages,
+      restoredWithEvidence.length ? restoredWithEvidence : seedMessages,
       restoredLastChat,
       restoredRecovery
     );
