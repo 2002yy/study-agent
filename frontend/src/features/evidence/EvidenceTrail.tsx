@@ -12,7 +12,8 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
     ? summarizeWebCalls((rag.web_tools?.calls as never) ?? [])
     : { searches: [], reads: [] };
   const citations = rag ? buildCitations(rag) : [];
-  const webUsed = Boolean(rag?.web_tools?.used);
+  const successfulReads = web.reads.filter((read) => read.ok).length;
+  const webUsed = web.searches.length > 0 || web.reads.length > 0;
   const webError = rag?.web_tools?.error;
   if (!pedagogy && citations.length === 0 && !webUsed && !webError) return null;
   return (
@@ -25,8 +26,9 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
             {protocolLabel(pedagogy.mode)} · {moveLabel(pedagogy.move)}
           </span>
         ) : null}
-        {webUsed ? <span className="web-flag">联网 {web.searches.length + web.reads.length}</span> : null}
-        {citations.length ? <span className="cite-flag">引用 {citations.length}</span> : null}
+        {web.searches.length ? <span className="web-flag">查询 {web.searches.length}</span> : null}
+        {successfulReads ? <span className="web-flag">阅读 {successfulReads}</span> : null}
+        {citations.length ? <span className="cite-flag">本地引用 {citations.length}</span> : null}
       </button>
       {open ? (
         <div className="evidence-detail">
@@ -36,12 +38,16 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
               <div className="web-call-head">
                 <Search size={13} /> 搜索 “{s.query}”
               </div>
-              {s.results.slice(0, 3).map((r, j) => (
-                <a key={j} className="web-result" href={r.url} target="_blank" rel="noreferrer">
-                  {r.title || r.url}
-                  {r.url ? <span className="web-url">{r.url}</span> : null}
-                </a>
-              ))}
+              {s.results.length ? (
+                s.results.slice(0, 3).map((r, j) => (
+                  <a key={`${r.url ?? r.title ?? j}`} className="web-result" href={r.url} target="_blank" rel="noreferrer">
+                    {r.title || r.url}
+                    {r.url ? <span className="web-url">{r.url}</span> : null}
+                  </a>
+                ))
+              ) : (
+                <p className="web-preview">本次查询没有返回可展示的结果。</p>
+              )}
             </div>
           ))}
           {web.reads.map((r, i) => (
@@ -55,7 +61,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
           {citations.length ? (
             <ol className="citation-list">
               {citations.map((c, i) => (
-                <li key={i}>
+                <li key={`${c.source}-${c.title}`}>
                   <strong>[{i + 1}]</strong> {c.title} <span className="cite-src">{c.source}</span>{" "}
                   <span className="cite-score">{c.score.toFixed(2)}</span>
                 </li>
