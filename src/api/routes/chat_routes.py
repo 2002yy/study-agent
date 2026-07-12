@@ -15,8 +15,9 @@ from src.api.models.chat import (
     CommitTurnRequest,
     CommitTurnResponse,
 )
-from src.application.chat_service import ChatCommand, ChatService
+from src.application.chat_service import ChatService
 from src.application.helpers import sse_event, stream_usage_payload
+from src.application.policy_chat_service import PolicyChatCommand
 from src.application.runtime_repository import get_chat_service
 
 router = APIRouter(tags=["chat"])
@@ -190,8 +191,8 @@ def commit_turn_endpoint(
     )
 
 
-def _chat_command(request: ChatRequest) -> ChatCommand:
-    return ChatCommand(
+def _chat_command(request: ChatRequest) -> PolicyChatCommand:
+    return PolicyChatCommand(
         user_input=request.user_input,
         selected_role=request.selected_role,
         selected_mode=request.selected_mode,
@@ -212,6 +213,9 @@ def _chat_command(request: ChatRequest) -> ChatCommand:
         rag_retrieval_mode=request.rag_retrieval_mode,
         rag_min_score=request.rag_min_score,
         web_context=request.web_context,
+        web_policy=request.web_policy,
+        web_consent=request.web_consent,
+        cloud_context_policy=request.cloud_context_policy,
         continuation_of_turn_id=request.continuation_of_turn_id,
         retry_of_turn_id=request.retry_of_turn_id,
         partial_reply=request.partial_reply,
