@@ -18,19 +18,17 @@ class ResearchWebGateway:
         self.gateway = gateway or GeneralWebGateway()
         self._warnings: list[dict[str, str]] = []
 
-    def reset(self) -> None:
-        self._warnings.clear()
-
     def search(self, query: str, *, max_items: int = 10) -> list[dict[str, Any]]:
         result = self.gateway.search_exact(query, max_results=max_items)
-        for error in result.get("provider_errors", []):
-            warning = {
+        self._warnings = [
+            {
                 "source": "general_web",
                 "error_type": "provider_error",
                 "message": str(error),
             }
-            if warning["message"] and warning not in self._warnings:
-                self._warnings.append(warning)
+            for error in result.get("provider_errors", [])
+            if str(error).strip()
+        ]
         status = str(result.get("status") or "")
         if status == "invalid_query":
             raise ValueError("Web lookup query is required")
