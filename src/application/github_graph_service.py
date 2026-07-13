@@ -25,7 +25,11 @@ def _index_key(snapshot: dict[str, Any]) -> str:
     return f"{run_id}:{tree_sha}:{files}"
 
 
-def _ensure_root_file(result: dict[str, Any]) -> dict[str, Any]:
+def _ensure_root_file(
+    result: dict[str, Any],
+    *,
+    max_files: int,
+) -> dict[str, Any]:
     resolution = result.get("resolution")
     if not isinstance(resolution, dict):
         return result
@@ -40,10 +44,13 @@ def _ensure_root_file(result: dict[str, Any]) -> dict[str, Any]:
         return result
     files = [dict(item) for item in result.get("files", []) if isinstance(item, dict)]
     existing = next((item for item in files if item.get("path") == path), None)
+    inserted = existing is None
     if existing is not None:
         reasons = {str(reason) for reason in existing.get("reasons", [])}
         reasons.add("root")
         existing["reasons"] = sorted(reasons)
+        files.remove(existing)
+        files.insert(0, existing)
     else:
         files.insert(
             0,
@@ -53,9 +60,13 @@ def _ensure_root_file(result: dict[str, Any]) -> dict[str, Any]:
                 "reasons": ["root"],
             },
         )
+    bounded_files = max(1, min(max_files, 100))
+    trimmed = len(files) > bounded_files
+    files = files[:bounded_files]
     return {
         **result,
         "files": files,
+        "truncated": bool(result.get("truncated")) or trimmed or inserted and trimmed,
         "stats": {
             **dict(result.get("stats") or {}),
             "file_count": len(files),
@@ -143,13 +154,14 @@ class GitHubGraphService:
         snapshot = self._snapshot(repo_url, focused_symbol, ref=ref)
         if snapshot.get("ok") is not True:
             return {**snapshot, "symbol": focused_symbol}
+        bounded_files = max(1, min(max_files, 100))
         result = self._semantic_index(snapshot).impact(
             focused_symbol,
             depth=max(1, min(depth, 4)),
-            max_files=max(1, min(max_files, 100)),
+            max_files=bounded_files,
             max_edges=max(1, min(max_edges, 500)),
         )
-        result = _ensure_root_file(result)
+        result = _ensure_root_file(result, max_files=bounded_files)
         return {
             **result,
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
