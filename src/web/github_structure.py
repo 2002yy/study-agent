@@ -1,15 +1,15 @@
 """Structured source analysis over persisted GitHub repository snapshots.
 
-The first production slice stays dependency-free: Python uses the standard-library
-AST, while JavaScript/TypeScript use conservative declaration/import patterns.
-The public contracts are deliberately parser-agnostic so tree-sitter or LSP can
-replace the fallback parsers later without changing API consumers.
+Python uses the standard-library AST. JavaScript and TypeScript use conservative
+patterns until a tree-sitter/LSP backend is added. Public result contracts are
+parser-agnostic so that later parser upgrades do not break API consumers.
 """
 
 from __future__ import annotations
 
 import ast
 from dataclasses import asdict, dataclass
+import posixpath
 from pathlib import PurePosixPath
 import re
 from typing import Any, Iterable
@@ -17,23 +17,65 @@ from typing import Any, Iterable
 
 _IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
 _JS_DECLARATIONS = (
-    ("class", re.compile(r"^\s*(?:export\s+(?:default\s+)?)?class\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
-    ("function", re.compile(r"^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
-    ("interface", re.compile(r"^\s*(?:export\s+)?interface\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
-    ("type", re.compile(r"^\s*(?:export\s+)?type\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
-    ("enum", re.compile(r"^\s*(?:export\s+)?enum\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
-    ("variable", re.compile(r"^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE)),
+    (
+        "class",
+        re.compile(
+            r"^\s*(?:export\s+(?:default\s+)?)?class\s+"
+            r"([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "function",
+        re.compile(
+            r"^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s+"
+            r"([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "interface",
+        re.compile(
+            r"^\s*(?:export\s+)?interface\s+([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "type",
+        re.compile(
+            r"^\s*(?:export\s+)?type\s+([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "enum",
+        re.compile(
+            r"^\s*(?:export\s+)?enum\s+([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "variable",
+        re.compile(
+            r"^\s*(?:export\s+)?(?:const|let|var)\s+"
+            r"([A-Za-z_$][A-Za-z0-9_$]*)",
+            re.MULTILINE,
+        ),
+    ),
 )
 _JS_IMPORT = re.compile(
-    r"^\s*import\s+(?:(?P<what>.+?)\s+from\s+)?[\"'](?P<module>[^\"']+)[\"']",
+    r"^\s*import\s+(?:(?P<what>.+?)\s+from\s+)?"
+    r"[\"'](?P<module>[^\"']+)[\"']",
     re.MULTILINE,
 )
 _JS_EXPORT_FROM = re.compile(
-    r"^\s*export\s+(?P<what>.+?)\s+from\s+[\"'](?P<module>[^\"']+)[\"']",
+    r"^\s*export\s+(?P<what>.+?)\s+from\s+"
+    r"[\"'](?P<module>[^\"']+)[\"']",
     re.MULTILINE,
 )
 _JS_REQUIRE = re.compile(
-    r"^\s*(?:const|let|var)\s+(?P<what>[^=]+?)\s*=\s*require\([\"'](?P<module>[^\"']+)[\"']\)",
+    r"^\s*(?:const|let|var)\s+(?P<what>[^=]+?)\s*=\s*"
+    r"require\([\"'](?P<module>[^\"']+)[\"']\)",
     re.MULTILINE,
 )
 
@@ -131,14 +173,15 @@ def _evidence(
     symbol: str = "",
     kind: str = "source",
 ) -> EvidenceRef:
+    safe_start = max(1, int(start_line))
     return EvidenceRef(
         repository=str(snapshot.get("repository") or ""),
         ref=str(snapshot.get("ref") or ""),
         tree_sha=str(snapshot.get("tree_sha") or ""),
         path=str(raw_file.get("path") or ""),
         file_sha=str(raw_file.get("sha") or ""),
-        start_line=max(1, int(start_line)),
-        end_line=max(max(1, int(start_line)), int(end_line)),
+        start_line=safe_start,
+        end_line=max(safe_start, int(end_line)),
         symbol=symbol,
         kind=kind,
     )
@@ -154,14 +197,12 @@ def evidence_for_range(
     symbol: str = "",
     kind: str = "source",
 ) -> dict[str, Any]:
-    return EvidenceRef(
-        repository=str(snapshot.get("repository") or ""),
-        ref=str(snapshot.get("ref") or ""),
-        tree_sha=str(snapshot.get("tree_sha") or ""),
-        path=path,
-        file_sha=file_sha,
-        start_line=max(1, int(start_line)),
-        end_line=max(max(1, int(start_line)), int(end_line)),
+    raw_file = {"path": path, "sha": file_sha}
+    return _evidence(
+        snapshot,
+        raw_file,
+        start_line=start_line,
+        end_line=end_line,
         symbol=symbol,
         kind=kind,
     ).to_dict()
@@ -180,16 +221,16 @@ class _PythonCollector(ast.NodeVisitor):
     def __init__(self, snapshot: dict[str, Any], raw_file: dict[str, Any]) -> None:
         self.snapshot = snapshot
         self.raw_file = raw_file
-        self.scope: list[str] = []
+        self.scope: list[tuple[str, str]] = []
         self.symbols: list[CodeSymbol] = []
         self.imports: list[ImportEdge] = []
 
     def _parent(self) -> str:
-        return ".".join(self.scope)
+        return ".".join(name for name, _kind in self.scope)
 
     def _symbol(self, node: ast.AST, *, name: str, kind: str, signature: str) -> None:
         parent = self._parent()
-        qualified = ".".join((*self.scope, name)) if self.scope else name
+        qualified = f"{parent}.{name}" if parent else name
         self.symbols.append(
             CodeSymbol(
                 name=name,
@@ -202,7 +243,11 @@ class _PythonCollector(ast.NodeVisitor):
                     self.snapshot,
                     self.raw_file,
                     start_line=getattr(node, "lineno", 1),
-                    end_line=getattr(node, "end_lineno", getattr(node, "lineno", 1)),
+                    end_line=getattr(
+                        node,
+                        "end_lineno",
+                        getattr(node, "lineno", 1),
+                    ),
                     symbol=qualified,
                     kind="definition",
                 ),
@@ -213,27 +258,42 @@ class _PythonCollector(ast.NodeVisitor):
         bases = ""
         if node.bases:
             try:
-                bases = "(" + ", ".join(ast.unparse(base) for base in node.bases) + ")"
+                bases = "(" + ", ".join(
+                    ast.unparse(base) for base in node.bases
+                ) + ")"
             except Exception:
                 bases = ""
-        self._symbol(node, name=node.name, kind="class", signature=f"class {node.name}{bases}")
-        self.scope.append(node.name)
+        self._symbol(
+            node,
+            name=node.name,
+            kind="class",
+            signature=f"class {node.name}{bases}",
+        )
+        self.scope.append((node.name, "class"))
+        self.generic_visit(node)
+        self.scope.pop()
+
+    def _visit_function(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> Any:
+        parent_kind = self.scope[-1][1] if self.scope else ""
+        kind = "method" if parent_kind == "class" else "function"
+        self._symbol(
+            node,
+            name=node.name,
+            kind=kind,
+            signature=_python_signature(node),
+        )
+        self.scope.append((node.name, "function"))
         self.generic_visit(node)
         self.scope.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
-        kind = "method" if self.scope else "function"
-        self._symbol(node, name=node.name, kind=kind, signature=_python_signature(node))
-        self.scope.append(node.name)
-        self.generic_visit(node)
-        self.scope.pop()
+        return self._visit_function(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
-        kind = "method" if self.scope else "function"
-        self._symbol(node, name=node.name, kind=kind, signature=_python_signature(node))
-        self.scope.append(node.name)
-        self.generic_visit(node)
-        self.scope.pop()
+        return self._visit_function(node)
 
     def visit_Import(self, node: ast.Import) -> Any:
         for alias in node.names:
@@ -272,7 +332,10 @@ class _PythonCollector(ast.NodeVisitor):
         )
 
 
-def _parse_python(snapshot: dict[str, Any], raw_file: dict[str, Any]) -> StructuredFile:
+def _parse_python(
+    snapshot: dict[str, Any],
+    raw_file: dict[str, Any],
+) -> StructuredFile:
     content = str(raw_file.get("content") or "")
     path = str(raw_file.get("path") or "")
     try:
@@ -295,7 +358,9 @@ def _parse_python(snapshot: dict[str, Any], raw_file: dict[str, Any]) -> Structu
             line_count=max(1, len(content.splitlines())),
             symbols=(),
             imports=(),
-            parse_error=f"SyntaxError: {exc.msg} at line {exc.lineno or 0}",
+            parse_error=(
+                f"SyntaxError: {exc.msg} at line {exc.lineno or 0}"
+            ),
         )
 
 
@@ -303,12 +368,17 @@ def _js_names(value: str) -> tuple[str, ...]:
     ignored = {"as", "default", "from", "type"}
     return tuple(
         dict.fromkeys(
-            token for token in _IDENTIFIER.findall(value or "") if token not in ignored
+            token
+            for token in _IDENTIFIER.findall(value or "")
+            if token not in ignored
         )
     )
 
 
-def _parse_javascript(snapshot: dict[str, Any], raw_file: dict[str, Any]) -> StructuredFile:
+def _parse_javascript(
+    snapshot: dict[str, Any],
+    raw_file: dict[str, Any],
+) -> StructuredFile:
     content = str(raw_file.get("content") or "")
     path = str(raw_file.get("path") or "")
     language = _language(path)
@@ -346,7 +416,9 @@ def _parse_javascript(snapshot: dict[str, Any], raw_file: dict[str, Any]) -> Str
             imports.append(
                 ImportEdge(
                     module=str(match.group("module") or ""),
-                    names=_js_names(str(match.groupdict().get("what") or "")),
+                    names=_js_names(
+                        str(match.groupdict().get("what") or "")
+                    ),
                     kind=kind,
                     resolved_path="",
                     evidence=_evidence(
@@ -370,10 +442,47 @@ def _parse_javascript(snapshot: dict[str, Any], raw_file: dict[str, Any]) -> Str
     )
 
 
-def _resolve_relative_import(source_path: str, module: str, paths: set[str]) -> str:
+def _normalized_path(value: str | PurePosixPath) -> str:
+    return posixpath.normpath(str(value)).lstrip("./")
+
+
+def _match_candidate(candidate: str, paths: set[str]) -> str:
+    normalized = _normalized_path(candidate)
+    if normalized in paths:
+        return normalized
+    suffix = f"/{normalized}"
+    matches = sorted(path for path in paths if path.endswith(suffix))
+    return matches[0] if len(matches) == 1 else ""
+
+
+def _resolve_relative_import(
+    source_path: str,
+    module: str,
+    paths: set[str],
+) -> str:
     source = PurePosixPath(source_path)
     candidates: list[str] = []
-    if module.startswith("."):
+
+    # JavaScript/TypeScript relative paths must be handled before Python's
+    # leading-dot module notation.
+    if module.startswith(("./", "../")):
+        base = _normalized_path(source.parent / module)
+        candidates.extend(
+            [
+                base,
+                f"{base}.ts",
+                f"{base}.tsx",
+                f"{base}.js",
+                f"{base}.jsx",
+                f"{base}.mjs",
+                f"{base}.cjs",
+                f"{base}/index.ts",
+                f"{base}/index.tsx",
+                f"{base}/index.js",
+                f"{base}/index.jsx",
+            ]
+        )
+    elif module.startswith("."):
         level = len(module) - len(module.lstrip("."))
         remainder = module[level:]
         base = source.parent
@@ -397,23 +506,11 @@ def _resolve_relative_import(source_path: str, module: str, paths: set[str]) -> 
                 f"{dotted}/index.js",
             ]
         )
-        if module.startswith("./") or module.startswith("../"):
-            base = source.parent.joinpath(module)
-            candidates.extend(
-                [
-                    str(base),
-                    f"{base}.ts",
-                    f"{base}.tsx",
-                    f"{base}.js",
-                    f"{base}.jsx",
-                    f"{base}/index.ts",
-                    f"{base}/index.tsx",
-                ]
-            )
+
     for candidate in candidates:
-        normalized = str(PurePosixPath(candidate))
-        if normalized in paths:
-            return normalized
+        matched = _match_candidate(candidate, paths)
+        if matched:
+            return matched
     return ""
 
 
@@ -421,12 +518,14 @@ def _identifier_variants(value: str) -> set[str]:
     focused = value.strip()
     if not focused:
         return set()
-    variants = {focused, focused.casefold()}
     snake = re.sub(r"(?<!^)(?=[A-Z])", "_", focused).casefold()
-    variants.add(snake)
-    variants.add(snake.replace("_", ""))
-    variants.add(focused.replace("_", "").casefold())
-    return {item for item in variants if item}
+    return {
+        focused,
+        focused.casefold(),
+        snake,
+        snake.replace("_", ""),
+        focused.replace("_", "").casefold(),
+    }
 
 
 class RepositoryStructureIndex:
@@ -437,33 +536,43 @@ class RepositoryStructureIndex:
             for item in snapshot.get("files", [])
             if isinstance(item, dict) and str(item.get("path") or "")
         }
-        parsed = [self._parse_file(raw) for raw in self.raw_files.values()]
         paths = set(self.raw_files)
         self.files: dict[str, StructuredFile] = {}
-        for file in parsed:
+        for raw in self.raw_files.values():
+            parsed = self._parse_file(raw)
             imports = tuple(
                 ImportEdge(
                     module=edge.module,
                     names=edge.names,
                     kind=edge.kind,
-                    resolved_path=_resolve_relative_import(file.path, edge.module, paths),
+                    resolved_path=_resolve_relative_import(
+                        parsed.path,
+                        edge.module,
+                        paths,
+                    ),
                     evidence=edge.evidence,
                 )
-                for edge in file.imports
+                for edge in parsed.imports
             )
-            self.files[file.path] = StructuredFile(
-                path=file.path,
-                file_sha=file.file_sha,
-                language=file.language,
-                line_count=file.line_count,
-                symbols=file.symbols,
+            self.files[parsed.path] = StructuredFile(
+                path=parsed.path,
+                file_sha=parsed.file_sha,
+                language=parsed.language,
+                line_count=parsed.line_count,
+                symbols=parsed.symbols,
                 imports=imports,
-                parse_error=file.parse_error,
+                parse_error=parsed.parse_error,
             )
         self.symbols = tuple(
-            symbol for file in self.files.values() for symbol in file.symbols
+            symbol
+            for structured_file in self.files.values()
+            for symbol in structured_file.symbols
         )
-        self.imports = tuple(edge for file in self.files.values() for edge in file.imports)
+        self.imports = tuple(
+            edge
+            for structured_file in self.files.values()
+            for edge in structured_file.imports
+        )
 
     def _parse_file(self, raw_file: dict[str, Any]) -> StructuredFile:
         language = _language(str(raw_file.get("path") or ""))
@@ -481,7 +590,12 @@ class RepositoryStructureIndex:
             imports=(),
         )
 
-    def definitions(self, symbol: str, *, top_k: int = 20) -> list[dict[str, Any]]:
+    def definitions(
+        self,
+        symbol: str,
+        *,
+        top_k: int = 20,
+    ) -> list[dict[str, Any]]:
         variants = _identifier_variants(symbol)
         ranked: list[tuple[int, CodeSymbol]] = []
         for item in self.symbols:
@@ -495,45 +609,60 @@ class RepositoryStructureIndex:
                 score = 100
             elif names & variants:
                 score = 90
-            elif any(variant in name for variant in variants for name in names):
+            elif any(
+                variant in name
+                for variant in variants
+                for name in names
+            ):
                 score = 50
             else:
                 continue
             ranked.append((score, item))
         ranked.sort(
-            key=lambda row: (-row[0], row[1].evidence.path, row[1].evidence.start_line)
+            key=lambda row: (
+                -row[0],
+                row[1].evidence.path,
+                row[1].evidence.start_line,
+            )
         )
+        limit = max(1, min(top_k, 100))
         return [
             {**item.to_dict(), "score": score, "rank": index + 1}
-            for index, (score, item) in enumerate(ranked[: max(1, min(top_k, 100))])
+            for index, (score, item) in enumerate(ranked[:limit])
         ]
 
-    def references(self, symbol: str, *, top_k: int = 50) -> list[dict[str, Any]]:
+    def references(
+        self,
+        symbol: str,
+        *,
+        top_k: int = 50,
+    ) -> list[dict[str, Any]]:
         variants = _identifier_variants(symbol)
-        if not variants:
-            return []
         patterns = [
-            re.compile(rf"(?<![A-Za-z0-9_$]){re.escape(value)}(?![A-Za-z0-9_$])", re.IGNORECASE)
+            re.compile(
+                rf"(?<![A-Za-z0-9_$]){re.escape(value)}"
+                rf"(?![A-Za-z0-9_$])",
+                re.IGNORECASE,
+            )
             for value in variants
             if len(value) >= 2
         ]
-        hits: list[dict[str, Any]] = []
-        definition_locations = {
-            (item.evidence.path, item.evidence.start_line, item.name.casefold())
+        if not patterns:
+            return []
+        definition_lines = {
+            (item.evidence.path, item.evidence.start_line)
             for item in self.symbols
+            if item.name.casefold() in variants
+            or item.name.replace("_", "").casefold() in variants
         }
+        hits: list[dict[str, Any]] = []
+        limit = max(1, min(top_k, 200))
         for path, raw_file in self.raw_files.items():
-            for line_number, line in enumerate(
-                str(raw_file.get("content") or "").splitlines(), start=1
-            ):
-                if not any(pattern.search(line) for pattern in patterns):
+            content = str(raw_file.get("content") or "")
+            for line_number, line in enumerate(content.splitlines(), start=1):
+                if (path, line_number) in definition_lines:
                     continue
-                if any(
-                    location_path == path
-                    and location_line == line_number
-                    and any(variant == location_name for variant in variants)
-                    for location_path, location_line, location_name in definition_locations
-                ):
+                if not any(pattern.search(line) for pattern in patterns):
                     continue
                 hits.append(
                     {
@@ -549,40 +678,50 @@ class RepositoryStructureIndex:
                         ).to_dict(),
                     }
                 )
-                if len(hits) >= max(1, min(top_k, 200)):
+                if len(hits) >= limit:
                     return hits
         return hits
 
-    def related_files(self, symbol: str, *, top_k: int = 20) -> list[dict[str, Any]]:
+    def related_files(
+        self,
+        symbol: str,
+        *,
+        top_k: int = 20,
+    ) -> list[dict[str, Any]]:
         definitions = self.definitions(symbol, top_k=top_k)
         references = self.references(symbol, top_k=top_k * 3)
-        paths: dict[str, dict[str, Any]] = {}
+        paths: dict[str, set[str]] = {}
         for item in [*definitions, *references]:
             evidence = item.get("evidence") if isinstance(item, dict) else None
             if not isinstance(evidence, dict):
                 continue
             path = str(evidence.get("path") or "")
             if path:
-                paths.setdefault(path, {"path": path, "reasons": []})["reasons"].append(
+                paths.setdefault(path, set()).add(
                     str(evidence.get("kind") or "source")
                 )
-        definition_paths = set(paths)
+        seed_paths = set(paths)
         for edge in self.imports:
-            if edge.evidence.path in definition_paths or edge.resolved_path in definition_paths:
+            if (
+                edge.evidence.path in seed_paths
+                or edge.resolved_path in seed_paths
+            ):
                 for path in (edge.evidence.path, edge.resolved_path):
                     if path:
-                        paths.setdefault(path, {"path": path, "reasons": []})[
-                            "reasons"
-                        ].append("import")
+                        paths.setdefault(path, set()).add("import")
         result = []
-        for path, payload in sorted(paths.items()):
-            file = self.files.get(path)
+        for path in sorted(paths):
+            structured_file = self.files.get(path)
             result.append(
                 {
-                    **payload,
-                    "reasons": sorted(set(payload["reasons"])),
-                    "language": file.language if file else "text",
-                    "file_sha": file.file_sha if file else "",
+                    "path": path,
+                    "reasons": sorted(paths[path]),
+                    "language": (
+                        structured_file.language if structured_file else "text"
+                    ),
+                    "file_sha": (
+                        structured_file.file_sha if structured_file else ""
+                    ),
                 }
             )
         return result[: max(1, min(top_k, 100))]
@@ -605,9 +744,16 @@ class RepositoryStructureIndex:
             "file_count": len(self.files),
             "symbol_count": len(self.symbols),
             "import_count": len(self.imports),
-            "resolved_import_count": sum(bool(edge.resolved_path) for edge in self.imports),
-            "parse_error_count": sum(bool(file.parse_error) for file in self.files.values()),
-            "languages": sorted({file.language for file in self.files.values()}),
+            "resolved_import_count": sum(
+                bool(edge.resolved_path) for edge in self.imports
+            ),
+            "parse_error_count": sum(
+                bool(structured_file.parse_error)
+                for structured_file in self.files.values()
+            ),
+            "languages": sorted(
+                {structured_file.language for structured_file in self.files.values()}
+            ),
             "parser": "python_ast+js_ts_fallback",
         }
 
