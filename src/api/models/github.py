@@ -1,4 +1,4 @@
-"""API models for persistent GitHub repository and history research."""
+"""API models for persistent GitHub repository, history, and work-item research."""
 
 from __future__ import annotations
 
@@ -52,6 +52,39 @@ class GitHubBlameQueryRequest(BaseModel):
     ref: str = ""
     start_line: int = Field(default=1, ge=1)
     end_line: int = Field(default=0, ge=0)
+
+
+class GitHubPullRequestQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    number: int = Field(gt=0)
+    max_files: int = Field(default=50, ge=1, le=100)
+    max_patch_chars: int = Field(default=120000, ge=1000, le=1000000)
+    max_comments: int = Field(default=100, ge=1, le=100)
+    max_reviews: int = Field(default=100, ge=1, le=100)
+    include_checks: bool = True
+
+
+class GitHubIssueQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    number: int = Field(gt=0)
+    max_comments: int = Field(default=100, ge=1, le=100)
+    max_events: int = Field(default=100, ge=1, le=100)
+
+
+class GitHubChecksQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    ref: str = ""
+    max_runs: int = Field(default=20, ge=1, le=100)
+    max_checks: int = Field(default=100, ge=1, le=100)
+    max_jobs: int = Field(default=100, ge=1, le=300)
+    include_jobs: bool = True
+
+
+class GitHubCILogsQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    job_id: int = Field(gt=0)
+    max_chars: int = Field(default=40000, ge=1000, le=200000)
+    max_lines: int = Field(default=400, ge=20, le=2000)
 
 
 class GitHubSnapshotResultResponse(BaseModel):
