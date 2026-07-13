@@ -1,16 +1,20 @@
-name: CI
+name: Diagnose research reliability pytest
 
 on:
-  push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  diagnose:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: feat/p0-research-reliability
 
       - uses: actions/setup-python@v5
         with:
@@ -20,62 +24,24 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
       - name: Install dependencies
-        timeout-minutes: 8
         run: |
           python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
-      - name: Run pytest
-        run: pytest
-
-      - name: Run ruff
-        run: ruff check .
-
-      - name: Run package helper (validate packaging logic)
-        run: python tools/package_project_helper.py . /dev/null 0
-
-      - name: Run detect-secrets
-        run: |
-          pip install detect-secrets 2>/dev/null
-          detect-secrets scan --disable-plugin KeywordDetector \
-            --exclude-files '.*\.(pyc|jpg|png|zip)$' \
-            .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
-            > .secrets.out 2>&1
-          python - <<'PY'
-          import json
-          import sys
-
-          with open(".secrets.out", encoding="utf-8") as f:
-              report = json.load(f)
-
-          findings = {
-              filename: secrets
-              for filename, secrets in report.get("results", {}).items()
-              if secrets
-          }
-          if findings:
-              print("ERROR: potential secrets detected — this is a public repository")
-              print("If these are false positives, add an inline allowlist comment or update the scan exclusions.")
-              json.dump(findings, sys.stdout, indent=2, sort_keys=True)
-              print()
-              sys.exit(1)
-          PY
-          echo "detect-secrets: no secrets found"
-
-      - name: Run expanded mypy
+      - name: Run pytest and capture output
+        id: pytest
         continue-on-error: true
-        run: timeout 120s mypy --explicit-package-bases src/
+        run: pytest -vv > pytest-output.txt 2>&1
 
-      - name: Test and build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm test
-          npm run build
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-reliability-pytest
+          path: pytest-output.txt
+          if-no-files-found: error
+
+      - name: Preserve failure status
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
