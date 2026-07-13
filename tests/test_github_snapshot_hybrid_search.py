@@ -44,7 +44,7 @@ def _service(tmp_path, snapshotter: FakeSnapshotter):
     )
 
 
-def test_search_repository_returns_line_level_hybrid_results(tmp_path):
+def test_search_repository_returns_structured_line_level_results(tmp_path):
     snapshotter = FakeSnapshotter()
     _, service = _service(tmp_path, snapshotter)
 
@@ -55,14 +55,19 @@ def test_search_repository_returns_line_level_hybrid_results(tmp_path):
     )
 
     assert result["ok"] is True
-    assert result["mode"] == "local_snapshot_hybrid"
-    assert result["results"][0]["path"] == "src/application/chat_service.py"
-    assert result["results"][0]["line_range"] == "L1-L2"
-    assert result["results"][0]["score_breakdown"]["bm25"] > 0
+    assert result["mode"] == "local_snapshot_hybrid_structured"
+    first = result["results"][0]
+    assert first["path"] == "src/application/chat_service.py"
+    assert first["line_range"] == "L1-L2"
+    assert first["score_breakdown"]["bm25"] > 0
+    assert first["definitions"][0]["name"] == "prepare_chat_turn"
+    assert first["evidence_ref"]["tree_sha"] == "tree-123"
+    assert first["evidence_ref"]["file_sha"] == "sha-chat"
+    assert result["structure"]["symbol_count"] == 2
     assert result["snapshot_run_id"]
 
 
-def test_search_rebuilds_index_from_persisted_snapshot_after_restart(tmp_path):
+def test_search_rebuilds_indexes_from_persisted_snapshot_after_restart(tmp_path):
     snapshotter = FakeSnapshotter()
     database, first = _service(tmp_path, snapshotter)
     first_result = first.search_repository(
@@ -82,6 +87,33 @@ def test_search_rebuilds_index_from_persisted_snapshot_after_restart(tmp_path):
     )
 
     assert restored["results"][0]["path"] == "src/web/github_reader.py"
+    assert restored["results"][0]["definitions"][0]["kind"] == "class"
     assert restored["cache_hit"] is True
     assert restored["snapshot_run_id"] == first_result["snapshot_run_id"]
+    assert snapshotter.calls == 1
+
+
+def test_structure_inspection_reuses_persisted_snapshot(tmp_path):
+    snapshotter = FakeSnapshotter()
+    database, first = _service(tmp_path, snapshotter)
+    first.snapshot(
+        "https://github.com/openai/example",
+        query="GitHubSourceReader",
+        ref="main",
+    )
+
+    second = GitHubSnapshotService(
+        GitHubSnapshotRepository(RagRepository(database)),
+        snapshotter,  # type: ignore[arg-type]
+    )
+    inspected = second.inspect_structure(
+        "https://github.com/openai/example",
+        "GitHubSourceReader",
+        ref="main",
+    )
+
+    assert inspected["ok"] is True
+    assert inspected["definitions"][0]["name"] == "GitHubSourceReader"
+    assert inspected["definitions"][0]["evidence"]["path"] == "src/web/github_reader.py"
+    assert inspected["cache_hit"] is True
     assert snapshotter.calls == 1

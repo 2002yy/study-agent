@@ -363,12 +363,33 @@ class WebLookupRepository:
             self._assert_running_owner(run, operation_id)
         elif run.status != "running":
             raise ValueError(f"WebLookupRun is not completable: {run_id}")
+
+        raw_context = research_context or run.research_context
+        attempts = query_attempts if query_attempts is not None else run.query_attempts
+        current_attempt = int(raw_context.get("run_attempt") or 0)
+        current_provider_failure = any(
+            attempt.get("status") == "provider_failed"
+            and int(attempt.get("run_attempt") or 0) == current_attempt
+            for attempt in attempts
+        )
+        read_summary = raw_context.get("read_summary")
+        had_read_failure = (
+            isinstance(read_summary, dict)
+            and int(read_summary.get("failed") or 0) > 0
+        )
+        if (
+            provider_status == "partial"
+            and not current_provider_failure
+            and not had_read_failure
+        ):
+            provider_status = "found" if items else "empty"
+
         now = utc_now()
         status = final_status or (
-            "partial" if provider_status in {"partial", "insufficient"} else "completed"
+            "partial" if provider_status == "insufficient" else "completed"
         )
         context = _with_operation(
-            research_context or run.research_context,
+            raw_context,
             active_operation_id=None,
             active_operation_started_at=None,
             stage_started_at=None,
@@ -389,13 +410,17 @@ class WebLookupRepository:
                 (
                     status,
                     _dump(context),
-                    _dump(query_attempts if query_attempts is not None else run.query_attempts),
+                    _dump(attempts),
                     _dump(
                         selected_sources
                         if selected_sources is not None
                         else (run.selected_sources or items)
                     ),
-                    _dump(rejected_sources if rejected_sources is not None else run.rejected_sources),
+                    _dump(
+                        rejected_sources
+                        if rejected_sources is not None
+                        else run.rejected_sources
+                    ),
                     provider_status,
                     stop_reason,
                     answer_confidence,

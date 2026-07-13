@@ -13,11 +13,11 @@ import { SessionsPanel } from "../features/sessions/SessionsPanel";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import type { ToolController } from "../features/tools/toolController";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
+import type { ResearchLookupResponse } from "../features/web-lookup/researchApi";
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { displayValue } from "../utils/format";
 import type {
-  ApiSnapshot, ChatResponse, NewsLookupResponse, RagQueryResponse,
-  WorkflowRunDetail
+  ApiSnapshot, ChatResponse, RagQueryResponse, WorkflowRunDetail
 } from "../types";
 
 export function Inspector({
@@ -69,7 +69,7 @@ export function Inspector({
   onRestoreSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   newsController: NewsController;
-  webLookup: NewsLookupResponse | null;
+  webLookup: ResearchLookupResponse | null;
   useWebLookup: boolean;
   setUseWebLookup: (value: boolean) => void;
   wechatInput: string;
@@ -148,3 +148,14 @@ export function Inspector({
     </aside>
   );
 }
+
+export const inspectorLabels = {
+  activity: Activity,
+  book: BookOpen,
+  database: Database,
+  file: FileText,
+  memory: MemoryStick,
+  message: MessageSquare,
+  wrench: Wrench,
+  displayValue
+};
