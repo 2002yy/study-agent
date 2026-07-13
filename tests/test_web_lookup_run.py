@@ -153,7 +153,7 @@ def test_one_shot_lookup_compatibility_still_raises_and_persists_failure(tmp_pat
 
 
 def test_research_run_api_create_search_get_list_and_retry(runtime_test_context):
-    gateway = FakeGateway(["empty"] * 8 + ["success"])
+    gateway = FakeGateway(["empty", "success"])
     service = WebLookupService(
         runtime_test_context.web_lookup_repository,
         gateway,
