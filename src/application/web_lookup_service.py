@@ -6,6 +6,13 @@ from src.domain.runtime_entities import WebLookupRun
 from src.news.digest import format_news_source_block
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.gateway import WebSearchGateway
+from src.web.research_contract import (
+    QueryAttempt,
+    build_research_context,
+    failed_attempt,
+    stop_reason,
+    successful_attempt,
+)
 
 
 class WebLookupService:
@@ -21,30 +28,64 @@ class WebLookupService:
         normalized = query.strip()
         if not normalized:
             raise ValueError("Web lookup query is required")
+
+        context = build_research_context(normalized)
         run = self.repository.create(WebLookupRun(query=normalized))
-        try:
-            items = self.gateway.search(normalized, max_items=max_items)
-            warnings = [
-                ": ".join(
-                    part
-                    for part in (
-                        str(item.get("source", "")).strip(),
-                        str(item.get("error_type", "")).strip(),
-                        str(item.get("message", "")).strip(),
-                    )
-                    if part
+        attempts: list[QueryAttempt] = []
+        items: list[dict] = []
+        attempt_warnings: list[str] = []
+        last_error: Exception | None = None
+
+        for search_query in context.query_variants:
+            try:
+                candidate_items = self.gateway.search(
+                    search_query,
+                    max_items=max_items,
                 )
-                for item in self.gateway.warnings()
-            ]
-            return self.repository.complete(
-                run.id,
-                items=items,
-                source_block=format_news_source_block(normalized, items),
-                warnings=warnings,
+                attempt = successful_attempt(search_query, len(candidate_items))
+                attempts.append(attempt)
+                if candidate_items:
+                    items = candidate_items
+                    break
+            except Exception as exc:
+                last_error = exc
+                attempts.append(failed_attempt(search_query, exc))
+                attempt_warnings.append(
+                    f"research query failed ({search_query}): {exc}"
+                )
+
+        if attempts and all(attempt.status == "provider_failed" for attempt in attempts):
+            error = last_error or RuntimeError("All web lookup providers failed")
+            self.repository.fail(run.id, str(error))
+            raise error
+
+        warnings = [
+            ": ".join(
+                part
+                for part in (
+                    str(item.get("source", "")).strip(),
+                    str(item.get("error_type", "")).strip(),
+                    str(item.get("message", "")).strip(),
+                )
+                if part
             )
-        except Exception as exc:
-            self.repository.fail(run.id, str(exc))
-            raise
+            for item in self.gateway.warnings()
+        ]
+        warnings.extend(attempt_warnings)
+        warnings.append(
+            "research trace: "
+            f"as_of={context.as_of_date}; "
+            f"canonical={context.canonical_query}; "
+            f"attempts={len(attempts)}; "
+            f"stop_reason={stop_reason(attempts)}"
+        )
+
+        return self.repository.complete(
+            run.id,
+            items=items,
+            source_block=format_news_source_block(normalized, items),
+            warnings=warnings,
+        )
 
     def get(self, run_id: str) -> WebLookupRun:
         run = self.repository.get(run_id)
