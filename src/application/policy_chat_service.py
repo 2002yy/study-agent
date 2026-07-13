@@ -60,9 +60,15 @@ class ExternalDataPolicyChatService(ChatService):
     """Apply user-controlled source and model-context gates."""
 
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
-        if not isinstance(command, PolicyChatCommand):
-            command = PolicyChatCommand(**command.__dict__)
-        command, existing, retry_parent = self._validate_turn_command(command)
+        policy_command = (
+            command
+            if isinstance(command, PolicyChatCommand)
+            else PolicyChatCommand(**command.__dict__)
+        )
+        validated_command, existing, retry_parent = self._validate_turn_command(
+            policy_command
+        )
+        command = cast(PolicyChatCommand, validated_command)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
         saved_policy = load_frontend_settings()
@@ -74,9 +80,7 @@ class ExternalDataPolicyChatService(ChatService):
         )
         marker_consent = command.web_context.strip() == WEB_CONSENT_MARKER
         manual_web_context = "" if marker_consent else command.web_context
-        effective_web_consent = command.web_consent or marker_consent or (
-            effective_web_policy == "ask" and bool(manual_web_context.strip())
-        )
+        effective_web_consent = command.web_consent or marker_consent
         settings = {
             **_session_settings(command, context_mode),
             "webPolicy": effective_web_policy,
