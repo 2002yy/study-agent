@@ -26,6 +26,11 @@ SNAPSHOT = {
             "content": """from .repository import Repository\n\nclass Service:\n    def __init__(self, repository: Repository):\n        self.repository = repository\n\n    def execute(self, value):\n        return self.repository.save(value)\n""",
         },
         {
+            "path": "src/leaf.py",
+            "sha": "sha-leaf",
+            "content": """def isolated_leaf():\n    return 'leaf'\n""",
+        },
+        {
             "path": "tests/test_service.py",
             "sha": "sha-test",
             "content": """from src.service import Service\n\ndef test_execute():\n    assert Service(None).execute('x') == 'x'\n""",
@@ -47,10 +52,13 @@ class FakeSnapshotService:
         return {**SNAPSHOT, "ref": ref or "main"}
 
 
-def test_github_structure_includes_semantic_resolution_and_identity():
-    service = FakeSnapshotService()
+def _client(service: FakeSnapshotService) -> TestClient:
     app.dependency_overrides[get_github_snapshot_service] = lambda: service
-    client = TestClient(app)
+    return TestClient(app)
+
+
+def test_github_structure_includes_semantic_resolution_and_identity():
+    client = _client(FakeSnapshotService())
     try:
         response = client.post(
             "/github-repo-structure",
@@ -71,9 +79,7 @@ def test_github_structure_includes_semantic_resolution_and_identity():
 
 
 def test_github_impact_api_returns_upstream_files_and_tests():
-    service = FakeSnapshotService()
-    app.dependency_overrides[get_github_snapshot_service] = lambda: service
-    client = TestClient(app)
+    client = _client(FakeSnapshotService())
     try:
         response = client.post(
             "/github-repo-impact",
@@ -100,3 +106,30 @@ def test_github_impact_api_returns_upstream_files_and_tests():
         "tests/test_service.py"
     }
     assert result["stats"]["test_count"] == 1
+
+
+def test_github_impact_api_keeps_leaf_definition_file_without_edges():
+    client = _client(FakeSnapshotService())
+    try:
+        response = client.post(
+            "/github-repo-impact",
+            json={
+                "repo_url": "https://github.com/openai/example",
+                "symbol": "isolated_leaf",
+                "ref": "main",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["edges"] == []
+    assert result["files"] == [
+        {
+            "path": "src/leaf.py",
+            "file_sha": "sha-leaf",
+            "reasons": ["root"],
+        }
+    ]
+    assert result["stats"]["file_count"] == 1
