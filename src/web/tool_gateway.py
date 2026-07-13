@@ -1,8 +1,8 @@
 """Safe, general-purpose web tools for model-directed research.
 
 This gateway is intentionally separate from the news pipeline: news uses RSS
-ranking and a ``news`` SearXNG category, while chat tools need general web
-search and explicit page reads.
+ranking and a ``news`` SearXNG category, while chat and durable research need
+general web search, explicit page reads, and bounded GitHub repository access.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from src.news.search_sources.searxng_source import (
     search_searxng,
     searxng_enabled,
 )
+from src.web.github_reader import GitHubSourceReader
 from src.web.query_normalizer import normalize_web_query
 
 
@@ -65,7 +66,9 @@ class _DuckDuckGoResultsParser(HTMLParser):
 
 def _unwrap_duckduckgo_url(url: str) -> str:
     parsed = urlparse(url)
-    if parsed.scheme in {"http", "https"} and "duckduckgo.com" not in (parsed.hostname or ""):
+    if parsed.scheme in {"http", "https"} and "duckduckgo.com" not in (
+        parsed.hostname or ""
+    ):
         return url
     target = parse_qs(parsed.query).get("uddg", [""])[0]
     target = unquote(target)
@@ -92,13 +95,67 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
 
 
 class GeneralWebGateway:
-    """Expose bounded search and read operations to a model tool loop."""
+    """Expose bounded search, page reading, and GitHub browsing to model tools."""
+
+    def __init__(self, github_reader: GitHubSourceReader | None = None) -> None:
+        self.github_reader = github_reader or GitHubSourceReader()
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, str]]:
         """Compatibility list API used by older callers."""
 
         payload = self.search_detailed(query, max_results=max_results)
         return list(payload["results"])
+
+    def search_exact(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Search one already-planned query without creating more variants."""
+
+        focused = " ".join(str(query or "").split())
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        current = current.astimezone(timezone.utc)
+        limit = max(1, min(max_results, 12))
+        if not focused:
+            return {
+                "status": "invalid_query",
+                "reason": "empty_query",
+                "query": focused,
+                "results": [],
+                "provider_errors": [],
+                "searched_at": current.isoformat(),
+            }
+
+        results = self._search_single(focused, limit)
+        provider_errors: list[str] = []
+        error = get_last_searxng_error()
+        if error:
+            provider_errors.append(error)
+        providers_enabled = searxng_enabled() or _env_flag(
+            "WEB_ENABLE_DUCKDUCKGO", default=True
+        )
+        if results:
+            status = "ok"
+            reason = "results_found"
+        elif not providers_enabled:
+            status = "unavailable"
+            reason = "no_search_provider_enabled"
+        else:
+            status = "empty"
+            reason = "providers_returned_no_results"
+        return {
+            "status": status,
+            "reason": reason,
+            "query": focused,
+            "results": results,
+            "provider_errors": provider_errors,
+            "searched_at": current.isoformat(),
+        }
 
     def search_detailed(
         self,
@@ -112,7 +169,7 @@ class GeneralWebGateway:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        limit = max(1, min(max_results, 8))
+        limit = max(1, min(max_results, 12))
         if not normalization.raw_query:
             return {
                 **normalization.to_dict(),
@@ -127,23 +184,26 @@ class GeneralWebGateway:
         attempted: list[str] = []
         provider_errors: list[str] = []
         results: list[dict[str, str]] = []
+        saw_available_provider = False
         for variant in normalization.query_variants:
             attempted.append(variant)
-            batch = self._search_single(variant, limit)
-            error = get_last_searxng_error()
-            if error and error not in provider_errors:
-                provider_errors.append(error)
-            results = _dedupe_results([*results, *batch], limit)
+            exact = self.search_exact(variant, max_results=limit, now=current)
+            if exact["status"] != "unavailable":
+                saw_available_provider = True
+            for error in exact.get("provider_errors", []):
+                if error and error not in provider_errors:
+                    provider_errors.append(str(error))
+            results = _dedupe_results(
+                [*results, *list(exact.get("results", []))],
+                limit,
+            )
             if results:
                 break
 
-        providers_enabled = searxng_enabled() or _env_flag(
-            "WEB_ENABLE_DUCKDUCKGO", default=True
-        )
         if results:
             status = "ok"
             reason = "results_found"
-        elif not providers_enabled:
+        elif not saw_available_provider:
             status = "unavailable"
             reason = "no_search_provider_enabled"
         else:
@@ -170,35 +230,55 @@ class GeneralWebGateway:
                 {
                     "title": str(item.get("title", "")),
                     "url": str(item.get("link") or item.get("resolved_link") or ""),
-                    "snippet": str(item.get("search_excerpt") or item.get("summary") or ""),
+                    "snippet": str(
+                        item.get("search_excerpt") or item.get("summary") or ""
+                    ),
                     "source": str(item.get("source") or "SearXNG"),
                     "published_at": str(item.get("published_at") or ""),
                 }
                 for item in searx_results[:limit]
-                if item.get("title") and (item.get("link") or item.get("resolved_link"))
+                if item.get("title")
+                and (item.get("link") or item.get("resolved_link"))
             ]
         if not _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True):
             return []
         return self._search_duckduckgo(query, limit)
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, str]:
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        value = str(url or "").strip()
+        if self.github_reader.supports(value):
+            return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(
-            url.strip(),
+            value,
             timeout=10,
-            max_chars=max(500, min(max_chars, 12_000)),
+            max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
             return {
-                "ok": "false",
+                "ok": False,
                 "url": result.requested_url,
                 "error": result.reason or "page_read_failed",
             }
         return {
-            "ok": "true",
+            "ok": True,
+            "kind": "web_page",
             "url": result.final_url or result.requested_url,
             "method": result.method,
             "content": result.text,
         }
+
+    def github_search(
+        self,
+        repo_url: str,
+        query: str,
+        *,
+        max_results: int = 8,
+    ) -> dict[str, Any]:
+        return self.github_reader.search_repository(
+            repo_url,
+            query,
+            max_results=max_results,
+        )
 
     @staticmethod
     def _search_duckduckgo(query: str, limit: int) -> list[dict[str, str]]:
