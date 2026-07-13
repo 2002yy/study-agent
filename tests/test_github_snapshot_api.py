@@ -23,7 +23,19 @@ class FakeGitHubSnapshotService:
             "query": query,
             "snapshot_run_id": "rag_snapshot_1",
             "cache_hit": not force_refresh,
-            "files": [{"path": "src/app.py", "sha": "sha-app"}],
+            "cache_mode": "exact",
+            "files": [
+                {
+                    "path": "src/app.py",
+                    "sha": "sha-app",
+                    "content": (
+                        "def prepare_chat_turn(message):\n"
+                        "    return helper(message)\n\n"
+                        "def helper(message):\n"
+                        "    return message\n"
+                    ),
+                }
+            ],
         }
 
     def inspect_structure(
@@ -40,25 +52,10 @@ class FakeGitHubSnapshotService:
             "ref": ref or "main",
             "tree_sha": "tree-123",
             "symbol": symbol,
-            "definitions": [
-                {
-                    "name": symbol,
-                    "evidence": {
-                        "repository": "openai/example",
-                        "ref": ref or "main",
-                        "tree_sha": "tree-123",
-                        "path": "src/app.py",
-                        "file_sha": "sha-app",
-                        "start_line": 1,
-                        "end_line": 3,
-                        "symbol": symbol,
-                        "kind": "definition",
-                    },
-                }
-            ][:top_k],
+            "definitions": [],
             "references": [],
-            "related_files": [{"path": "src/app.py"}],
-            "stats": {"symbol_count": 1},
+            "related_files": [],
+            "stats": {},
         }
 
     def get(self, run_id: str) -> dict:
@@ -124,3 +121,4 @@ def test_github_structure_api_returns_definition_evidence():
     assert result["definitions"][0]["name"] == "prepare_chat_turn"
     assert result["definitions"][0]["evidence"]["file_sha"] == "sha-app"
     assert result["definitions"][0]["evidence"]["start_line"] == 1
+    assert result["callees"][0]["callee"] == "helper"
