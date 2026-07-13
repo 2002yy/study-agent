@@ -1,13 +1,13 @@
-name: Apply and validate external policy patch
+name: Diagnose external policy pytest
 
 on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-and-test:
+  diagnose:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: .
@@ -15,7 +15,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/p0-external-data-policy
-          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -24,12 +23,6 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Apply focused patch
         run: |
@@ -44,234 +37,63 @@ jobs:
               file.write_text(text.replace(old, new, 1), encoding="utf-8")
 
           sidebar = "frontend/src/layout/Sidebar.tsx"
-          replace_once(
-              sidebar,
-              'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\n',
-              'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\n'
-              'import { ExternalDataPolicySettings } from "../features/settings/ExternalDataPolicySettings";\n',
-          )
-          replace_once(
-              sidebar,
-              '      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n',
-              '      <ExternalDataPolicySettings\n'
-              '        runtimeSettings={snapshot.runtimeSettings}\n'
-              '        disabled={isSending}\n'
-              '        onSaved={refresh}\n'
-              '      />\n\n'
-              '      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n',
-          )
+          replace_once(sidebar, 'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\n', 'import { roleLabel, roleOptions } from "../features/roles/roleCatalog";\nimport { ExternalDataPolicySettings } from "../features/settings/ExternalDataPolicySettings";\n')
+          replace_once(sidebar, '      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n', '      <ExternalDataPolicySettings\n        runtimeSettings={snapshot.runtimeSettings}\n        disabled={isSending}\n        onSaved={refresh}\n      />\n\n      <section className="side-section">\n        <div className="section-title">\n          <Settings size={15} />\n          单人学习设置\n')
 
           controller = "frontend/src/features/chat/chatController.ts"
-          replace_once(
-              controller,
-              'type ControllerOptions = {\n',
-              'const WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__";\n\n'
-              'type ControllerOptions = {\n',
-          )
-          replace_once(
-              controller,
-              '  useWebLookup: boolean;\n',
-              '  useWebLookup: boolean;\n  webPolicy?: string;\n',
-          )
-          replace_once(
-              controller,
-              '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n',
-              '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n'
-              '    let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";\n'
-              '    if (\n'
-              '      !turnWebContext &&\n'
-              '      options.webPolicy === "ask" &&\n'
-              '      window.confirm("允许本轮联网搜索吗？搜索词会发送给外部搜索服务。")\n'
-              '    ) {\n'
-              '      turnWebContext = WEB_CONSENT_MARKER;\n'
-              '    }\n',
-          )
-          replace_once(
-              controller,
-              '          webContext: shouldConsumeWebLookup ? options.webLookupSource : "",\n',
-              '          webContext: turnWebContext,\n',
-          )
+          replace_once(controller, 'type ControllerOptions = {\n', 'const WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__";\n\ntype ControllerOptions = {\n')
+          replace_once(controller, '  useWebLookup: boolean;\n', '  useWebLookup: boolean;\n  webPolicy?: string;\n')
+          replace_once(controller, '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n', '    const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);\n    let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";\n    if (\n      !turnWebContext &&\n      options.webPolicy === "ask" &&\n      window.confirm("允许本轮联网搜索吗？搜索词会发送给外部搜索服务。")\n    ) {\n      turnWebContext = WEB_CONSENT_MARKER;\n    }\n')
+          replace_once(controller, '          webContext: shouldConsumeWebLookup ? options.webLookupSource : "",\n', '          webContext: turnWebContext,\n')
 
           composition = "frontend/src/app/useWorkspaceControllers.ts"
-          replace_once(
-              composition,
-              '  const chatController = useChatController({\n',
-              '  const runtimeSettings = (options.snapshot.runtimeSettings?.settings ?? {}) as Record<string, unknown>;\n'
-              '  const webPolicy = String(runtimeSettings.web_policy ?? "auto");\n'
-              '  const chatController = useChatController({\n',
-          )
-          replace_once(
-              composition,
-              '    useWebLookup: webLookupController.useInChat,\n',
-              '    useWebLookup: webLookupController.useInChat,\n    webPolicy,\n',
-          )
+          replace_once(composition, '  const chatController = useChatController({\n', '  const runtimeSettings = (options.snapshot.runtimeSettings?.settings ?? {}) as Record<string, unknown>;\n  const webPolicy = String(runtimeSettings.web_policy ?? "auto");\n  const chatController = useChatController({\n')
+          replace_once(composition, '    useWebLookup: webLookupController.useInChat,\n', '    useWebLookup: webLookupController.useInChat,\n    webPolicy,\n')
 
           frontend_types = "frontend/src/types.ts"
-          replace_once(
-              frontend_types,
-              '    rag_min_score: number;\n',
-              '    rag_min_score: number;\n'
-              '    web_policy?: "off" | "ask" | "auto";\n'
-              '    cloud_context_policy?: "question_only" | "recent_chat" | "allow_local_evidence";\n',
-          )
-          replace_once(
-              frontend_types,
-              '    retrieval_modes: RagSettings["retrievalMode"][];\n',
-              '    retrieval_modes: RagSettings["retrievalMode"][];\n'
-              '    web_policies?: string[];\n'
-              '    cloud_context_policies?: string[];\n',
-          )
+          replace_once(frontend_types, '    rag_min_score: number;\n', '    rag_min_score: number;\n    web_policy?: "off" | "ask" | "auto";\n    cloud_context_policy?: "question_only" | "recent_chat" | "allow_local_evidence";\n')
+          replace_once(frontend_types, '    retrieval_modes: RagSettings["retrievalMode"][];\n', '    retrieval_modes: RagSettings["retrievalMode"][];\n    web_policies?: string[];\n    cloud_context_policies?: string[];\n')
 
           helpers = "src/application/helpers.py"
-          replace_once(
-              helpers,
-              '    "rag_min_score": 0.01,\n}',
-              '    "rag_min_score": 0.01,\n'
-              '    "web_policy": "auto",\n'
-              '    "cloud_context_policy": "allow_local_evidence",\n'
-              '}',
-          )
-          replace_once(
-              helpers,
-              '    except (TypeError, ValueError):\n        pass\n    return normalized\n',
-              '    except (TypeError, ValueError):\n'
-              '        pass\n'
-              '    web_policy = settings.get("web_policy")\n'
-              '    if web_policy in {"off", "ask", "auto"}:\n'
-              '        normalized["web_policy"] = web_policy\n'
-              '    cloud_context_policy = settings.get("cloud_context_policy")\n'
-              '    if cloud_context_policy in {\n'
-              '        "question_only",\n'
-              '        "recent_chat",\n'
-              '        "allow_local_evidence",\n'
-              '    }:\n'
-              '        normalized["cloud_context_policy"] = cloud_context_policy\n'
-              '    return normalized\n',
-          )
+          replace_once(helpers, '    "rag_min_score": 0.01,\n}', '    "rag_min_score": 0.01,\n    "web_policy": "auto",\n    "cloud_context_policy": "allow_local_evidence",\n}')
+          replace_once(helpers, '    except (TypeError, ValueError):\n        pass\n    return normalized\n', '    except (TypeError, ValueError):\n        pass\n    web_policy = settings.get("web_policy")\n    if web_policy in {"off", "ask", "auto"}:\n        normalized["web_policy"] = web_policy\n    cloud_context_policy = settings.get("cloud_context_policy")\n    if cloud_context_policy in {\n        "question_only",\n        "recent_chat",\n        "allow_local_evidence",\n    }:\n        normalized["cloud_context_policy"] = cloud_context_policy\n    return normalized\n')
 
           task_contract = "src/task_contract.py"
-          replace_once(
-              task_contract,
-              'def _not_applicable_evaluation(\n',
-              'def _has_active_learning_state(state: LearningState) -> bool:\n'
-              '    return bool(state.objective.strip()) or state.protocol in {\n'
-              '        "socratic_rediscovery",\n'
-              '        "feynman_diagnosis",\n'
-              '        "project_execution",\n'
-              '    }\n\n\n'
-              'def _not_applicable_evaluation(\n',
-          )
+          replace_once(task_contract, 'def _not_applicable_evaluation(\n', 'def _has_active_learning_state(state: LearningState) -> bool:\n    return bool(state.objective.strip()) or state.protocol in {\n        "socratic_rediscovery",\n        "feynman_diagnosis",\n        "project_execution",\n    }\n\n\ndef _not_applicable_evaluation(\n')
           text = Path(task_contract).read_text(encoding="utf-8")
           old = 'active_learning=bool(state.objective or state.protocol),'
           if text.count(old) != 2:
               raise SystemExit(f"expected 2 active-learning anchors, found {text.count(old)}")
-          Path(task_contract).write_text(
-              text.replace(old, 'active_learning=_has_active_learning_state(state),'),
-              encoding="utf-8",
-          )
+          Path(task_contract).write_text(text.replace(old, 'active_learning=_has_active_learning_state(state),'), encoding="utf-8")
 
           policy_service = "src/application/policy_chat_service.py"
-          replace_once(
-              policy_service,
-              'from dataclasses import dataclass\n',
-              'from dataclasses import dataclass, replace\n',
-          )
-          replace_once(
-              policy_service,
-              '            messages = self.dependencies.build_messages(\n',
-              '            model_learning_state = (\n'
-              '                learning_state\n'
-              '                if decision.memory_allowed\n'
-              '                else LearningState(\n'
-              '                    protocol=learning_state.protocol,\n'
-              '                    protocol_version=learning_state.protocol_version,\n'
-              '                )\n'
-              '            )\n'
-              '            model_pedagogy_plan = (\n'
-              '                pedagogy_plan\n'
-              '                if decision.memory_allowed\n'
-              '                else replace(\n'
-              '                    pedagogy_plan,\n'
-              '                    learner_claim="",\n'
-              '                    unresolved_gap="",\n'
-              '                    target_understanding=command.user_input,\n'
-              '                    evidence_ids=(),\n'
-              '                )\n'
-              '            )\n'
-              '            messages = self.dependencies.build_messages(\n',
-          )
-          replace_once(
-              policy_service,
-              '                pedagogy_plan=pedagogy_plan,\n                learning_state=learning_state,\n',
-              '                pedagogy_plan=model_pedagogy_plan,\n'
-              '                learning_state=model_learning_state,\n',
-          )
+          replace_once(policy_service, 'from dataclasses import dataclass\n', 'from dataclasses import dataclass, replace\n')
+          replace_once(policy_service, '            messages = self.dependencies.build_messages(\n', '            model_learning_state = (\n                learning_state\n                if decision.memory_allowed\n                else LearningState(\n                    protocol=learning_state.protocol,\n                    protocol_version=learning_state.protocol_version,\n                )\n            )\n            model_pedagogy_plan = (\n                pedagogy_plan\n                if decision.memory_allowed\n                else replace(\n                    pedagogy_plan,\n                    learner_claim="",\n                    unresolved_gap="",\n                    target_understanding=command.user_input,\n                    evidence_ids=(),\n                )\n            )\n            messages = self.dependencies.build_messages(\n')
+          replace_once(policy_service, '                pedagogy_plan=pedagogy_plan,\n                learning_state=learning_state,\n', '                pedagogy_plan=model_pedagogy_plan,\n                learning_state=model_learning_state,\n')
 
-          test_contract = "tests/test_task_contract.py"
-          with Path(test_contract).open("a", encoding="utf-8") as handle:
-              handle.write(
-                  '\n\ndef test_default_direct_answer_state_is_not_active_learning():\n'
-                  '    state = LearningState(protocol="direct_answer")\n'
-                  '    evaluator = TaskAwarePedagogyEvaluationService()\n'
-                  '    result = evaluator.evaluate_learner(\n'
-                  '        learner_input="数据库索引是什么？",\n'
-                  '        state=state,\n'
-                  '    )\n'
-                  '    assert result.final_decision == "not_applicable"\n'
-              )
+          with Path("tests/test_task_contract.py").open("a", encoding="utf-8") as handle:
+              handle.write('\n\ndef test_default_direct_answer_state_is_not_active_learning():\n    state = LearningState(protocol="direct_answer")\n    evaluator = TaskAwarePedagogyEvaluationService()\n    result = evaluator.evaluate_learner(\n        learner_input="数据库索引是什么？",\n        state=state,\n    )\n    assert result.final_decision == "not_applicable"\n')
           PY
 
       - name: Install dependencies
-        timeout-minutes: 8
         run: |
           python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
-      - name: Run pytest
-        run: pytest
-
-      - name: Run ruff
-        run: ruff check .
-
-      - name: Run package helper
-        run: python tools/package_project_helper.py . /dev/null 0
-
-      - name: Run detect-secrets
-        run: |
-          pip install detect-secrets 2>/dev/null
-          detect-secrets scan --disable-plugin KeywordDetector \
-            --exclude-files '.*\.(pyc|jpg|png|zip)$' \
-            .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
-            > .secrets.out 2>&1
-          python - <<'PY'
-          import json
-          import sys
-          with open('.secrets.out', encoding='utf-8') as f:
-              report = json.load(f)
-          findings = {name: items for name, items in report.get('results', {}).items() if items}
-          if findings:
-              json.dump(findings, sys.stdout, indent=2, sort_keys=True)
-              print()
-              raise SystemExit(1)
-          PY
-
-      - name: Run expanded mypy
+      - name: Run pytest and capture output
+        id: pytest
         continue-on-error: true
-        run: timeout 120s mypy --explicit-package-bases src/
-
-      - name: Test and build frontend
-        working-directory: frontend
         run: |
-          npm ci
-          npm test
-          npm run build
+          pytest -vv > pytest-output.txt 2>&1
 
-      - name: Restore workflow and commit validated patch
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm -f .github/workflows/apply-external-policy-ui.yml
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          git commit -m "feat: wire and validate external data policy controls"
-          git push origin HEAD:feat/p0-external-data-policy
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-policy-pytest
+          path: pytest-output.txt
+          if-no-files-found: error
+
+      - name: Preserve failure status
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
