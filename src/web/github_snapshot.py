@@ -221,13 +221,13 @@ class GitHubRepositorySnapshotter:
                     "error": "github_tree_response_invalid",
                 }
             candidates = self._rank_candidates(
-                target,
                 list(tree.get("tree") or [])[: active_budget.max_tree_entries],
                 query=query,
             )
             files, used_chars, failures = self._read_candidates(
                 target,
                 candidates,
+                ref=active_ref,
                 budget=active_budget,
             )
             return {
@@ -264,7 +264,6 @@ class GitHubRepositorySnapshotter:
 
     def _rank_candidates(
         self,
-        target: GitHubTarget,
         tree_entries: list[Any],
         *,
         query: str,
@@ -297,11 +296,13 @@ class GitHubRepositorySnapshotter:
         target: GitHubTarget,
         candidates: list[SnapshotCandidate],
         *,
+        ref: str,
         budget: GitHubSnapshotBudget,
     ) -> tuple[list[dict[str, Any]], int, list[dict[str, str]]]:
         files: list[dict[str, Any]] = []
         failures: list[dict[str, str]] = []
         used_chars = 0
+        display_ref = quote(ref, safe="/")
         for candidate in candidates:
             if len(files) >= budget.max_files:
                 break
@@ -333,8 +334,7 @@ class GitHubRepositorySnapshotter:
                         "truncated": len(content) > limit,
                         "url": (
                             f"https://github.com/{target.repository}/blob/"
-                            f"{quote(str(payload.get('sha') or candidate.sha), safe='')}/"
-                            f"{candidate.path}"
+                            f"{display_ref}/{quote(candidate.path, safe='/')}"
                         ),
                     }
                 )
