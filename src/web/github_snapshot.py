@@ -1,9 +1,8 @@
 """Bounded GitHub repository snapshots for cross-file source analysis.
 
-A snapshot is not a local git checkout. It records one repository ref, obtains a
-recursive tree, ranks text files against the current research query, and fetches
-a bounded set of blobs. The result is deterministic and safe to place in a tool
-trace or persist in a ResearchRun.
+A snapshot is not a local git checkout. It records one repository ref, resolves
+that moving ref to an immutable commit SHA, obtains a recursive tree, ranks text
+files against the current research query, and fetches a bounded set of blobs.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from src.web.github_history import GitHubHistoryService
 from src.web.github_reader import (
     GitHubTarget,
     _api,
@@ -180,6 +180,14 @@ def _decode_blob(payload: dict[str, Any]) -> str:
 
 
 class GitHubRepositorySnapshotter:
+    def __init__(self, history_service: GitHubHistoryService | None = None) -> None:
+        self.history_service = history_service
+
+    def _history(self) -> GitHubHistoryService:
+        # Resolve at call time so offline tests can replace this module's request
+        # adapter before constructing or invoking the snapshotter.
+        return self.history_service or GitHubHistoryService(request_json=_request_json)
+
     def snapshot(
         self,
         repo_url: str,
@@ -196,19 +204,30 @@ class GitHubRepositorySnapshotter:
                 "url": str(repo_url or ""),
             }
         active_budget = budget or GitHubSnapshotBudget.from_env()
+        requested_ref = ref or target.ref
+        resolved = self._history().resolve_ref(repo_url, requested_ref)
+        if resolved.get("ok") is not True:
+            return {
+                **resolved,
+                "ok": False,
+                "kind": "github_snapshot",
+                "repository": target.repository,
+                "requested_ref": requested_ref,
+                "error": str(resolved.get("error") or "github_ref_resolution_failed"),
+            }
+        commit_sha = str(resolved.get("commit_sha") or "")
+        tree_ref = str(resolved.get("tree_sha") or commit_sha)
+        display_requested_ref = str(resolved.get("requested_ref") or requested_ref)
         try:
             metadata = dict(
                 _request_json(
                     _api(f"/repos/{quote(target.owner)}/{quote(target.repo)}")
                 )
             )
-            active_ref = ref or target.ref or str(
-                metadata.get("default_branch") or "main"
-            )
             tree = _request_json(
                 _api(
                     f"/repos/{quote(target.owner)}/{quote(target.repo)}"
-                    f"/git/trees/{quote(active_ref, safe='')}",
+                    f"/git/trees/{quote(tree_ref, safe='')}",
                     recursive=1,
                 ),
                 max_bytes=8_000_000,
@@ -217,7 +236,9 @@ class GitHubRepositorySnapshotter:
                 return {
                     "ok": False,
                     "repository": target.repository,
-                    "ref": active_ref,
+                    "ref": display_requested_ref,
+                    "requested_ref": display_requested_ref,
+                    "commit_sha": commit_sha,
                     "error": "github_tree_response_invalid",
                 }
             candidates = self._rank_candidates(
@@ -227,19 +248,23 @@ class GitHubRepositorySnapshotter:
             files, used_chars, failures = self._read_candidates(
                 target,
                 candidates,
-                ref=active_ref,
+                ref=commit_sha,
                 budget=active_budget,
             )
             return {
                 "ok": bool(files),
                 "kind": "github_snapshot",
                 "repository": target.repository,
-                "ref": active_ref,
+                "ref": display_requested_ref,
+                "requested_ref": display_requested_ref,
+                "resolved_ref_type": str(resolved.get("resolved_type") or ""),
+                "resolved_ref_name": str(resolved.get("resolved_name") or ""),
+                "commit_sha": commit_sha,
                 "query": " ".join(str(query or "").split()),
                 "description": str(metadata.get("description") or ""),
                 "language": str(metadata.get("language") or ""),
                 "default_branch": str(metadata.get("default_branch") or ""),
-                "tree_sha": str(tree.get("sha") or ""),
+                "tree_sha": str(tree.get("sha") or resolved.get("tree_sha") or ""),
                 "tree_truncated": bool(tree.get("truncated")),
                 "candidate_count": len(candidates),
                 "files": files,
@@ -253,12 +278,18 @@ class GitHubRepositorySnapshotter:
             return {
                 "ok": False,
                 "repository": target.repository,
+                "ref": display_requested_ref,
+                "requested_ref": display_requested_ref,
+                "commit_sha": commit_sha,
                 "error": f"github_http_{exc.code}",
             }
         except Exception as exc:
             return {
                 "ok": False,
                 "repository": target.repository,
+                "ref": display_requested_ref,
+                "requested_ref": display_requested_ref,
+                "commit_sha": commit_sha,
                 "error": f"{type(exc).__name__}: {exc}",
             }
 
@@ -302,7 +333,7 @@ class GitHubRepositorySnapshotter:
         files: list[dict[str, Any]] = []
         failures: list[dict[str, str]] = []
         used_chars = 0
-        display_ref = quote(ref, safe="/")
+        display_ref = quote(ref, safe="")
         for candidate in candidates:
             if len(files) >= budget.max_files:
                 break

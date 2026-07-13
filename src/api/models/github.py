@@ -1,4 +1,4 @@
-"""API models for persistent GitHub repository snapshots."""
+"""API models for persistent GitHub repository and history research."""
 
 from __future__ import annotations
 
@@ -26,6 +26,32 @@ class GitHubImpactQueryRequest(BaseModel):
     depth: int = Field(default=2, ge=1, le=4)
     max_files: int = Field(default=30, ge=1, le=100)
     max_edges: int = Field(default=120, ge=1, le=500)
+
+
+class GitHubRefQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    ref: str = ""
+
+
+class GitHubCommitQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    ref: str = ""
+
+
+class GitHubCompareQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    base: str = Field(min_length=1)
+    head: str = Field(min_length=1)
+    max_files: int = Field(default=100, ge=1, le=300)
+    max_patch_chars: int = Field(default=120000, ge=1000, le=1000000)
+
+
+class GitHubBlameQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    ref: str = ""
+    start_line: int = Field(default=1, ge=1)
+    end_line: int = Field(default=0, ge=0)
 
 
 class GitHubSnapshotResultResponse(BaseModel):

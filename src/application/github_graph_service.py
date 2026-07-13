@@ -7,6 +7,7 @@ from weakref import WeakKeyDictionary
 
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.advanced_module_semantics import AdvancedModuleSemanticIndex
+from src.web.evidence_pinning import pin_evidence_refs
 from src.web.lsp_adapter import LspAdapter, NullLspAdapter
 from src.web.repository_graph import RepositoryGraphIndex
 
@@ -18,12 +19,13 @@ def _focused(value: str) -> str:
 def _index_key(snapshot: dict[str, Any]) -> str:
     run_id = str(snapshot.get("snapshot_run_id") or "")
     tree_sha = str(snapshot.get("tree_sha") or "")
+    commit_sha = str(snapshot.get("commit_sha") or "")
     files = ",".join(
         f"{item.get('path', '')}:{item.get('sha', '')}"
         for item in snapshot.get("files", [])
         if isinstance(item, dict)
     )
-    return f"{run_id}:{tree_sha}:{files}"
+    return f"{run_id}:{commit_sha}:{tree_sha}:{files}"
 
 
 def _ensure_root_file(
@@ -136,7 +138,10 @@ class GitHubGraphService:
         return {
             "status": (
                 "available"
-                if any(item.status not in {"unavailable", "failed"} for item in (definition, references, type_info))
+                if any(
+                    item.status not in {"unavailable", "failed"}
+                    for item in (definition, references, type_info)
+                )
                 else "unavailable"
             ),
             "provider": self.lsp_adapter.provider,
@@ -167,8 +172,11 @@ class GitHubGraphService:
             focused_symbol,
             top_k=max(1, min(top_k, 50)),
         )
+        inspected = pin_evidence_refs(inspected, snapshot)
         return {
             **inspected,
+            "requested_ref": str(snapshot.get("requested_ref") or snapshot.get("ref") or ""),
+            "commit_sha": str(snapshot.get("commit_sha") or ""),
             "lsp": self._lsp_payload(inspected),
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
             "cache_hit": bool(snapshot.get("cache_hit")),
@@ -203,8 +211,11 @@ class GitHubGraphService:
             max_edges=max(1, min(max_edges, 500)),
         )
         result = _ensure_root_file(result, max_files=bounded_files)
+        result = pin_evidence_refs(result, snapshot)
         return {
             **result,
+            "requested_ref": str(snapshot.get("requested_ref") or snapshot.get("ref") or ""),
+            "commit_sha": str(snapshot.get("commit_sha") or ""),
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
             "cache_hit": bool(snapshot.get("cache_hit")),
             "cache_mode": str(snapshot.get("cache_mode") or ""),

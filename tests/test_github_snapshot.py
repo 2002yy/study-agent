@@ -8,6 +8,24 @@ from src.web.github_snapshot import GitHubRepositorySnapshotter, GitHubSnapshotB
 from src.web.tool_gateway import GeneralWebGateway
 
 
+COMMIT_SHA = "a" * 40
+TREE_SHA = "tree-sha"
+
+
+class FakeHistory:
+    def resolve_ref(self, _repo_url: str, ref: str = ""):
+        return {
+            "ok": True,
+            "status": "resolved",
+            "repository": "openai/example",
+            "requested_ref": ref or "main",
+            "resolved_type": "branch" if ref else "default_branch",
+            "resolved_name": ref or "main",
+            "commit_sha": COMMIT_SHA,
+            "tree_sha": TREE_SHA,
+        }
+
+
 def test_snapshot_ranks_related_source_and_excludes_generated_content(monkeypatch):
     blobs = {
         "sha-reader": "class GitHubSourceReader:\n    pass\n",
@@ -23,8 +41,9 @@ def test_snapshot_ranks_related_source_and_excludes_generated_content(monkeypatc
                 "language": "Python",
             }
         if "/git/trees/" in url:
+            assert TREE_SHA in url
             return {
-                "sha": "tree-sha",
+                "sha": TREE_SHA,
                 "truncated": False,
                 "tree": [
                     {
@@ -76,7 +95,7 @@ def test_snapshot_ranks_related_source_and_excludes_generated_content(monkeypatc
 
     monkeypatch.setattr(github_snapshot, "_request_json", fake_request_json)
 
-    result = GitHubRepositorySnapshotter().snapshot(
+    result = GitHubRepositorySnapshotter(history_service=FakeHistory()).snapshot(  # type: ignore[arg-type]
         "https://github.com/openai/example",
         query="github reader",
         budget=GitHubSnapshotBudget(
@@ -89,7 +108,9 @@ def test_snapshot_ranks_related_source_and_excludes_generated_content(monkeypatc
 
     assert result["ok"] is True
     assert result["repository"] == "openai/example"
-    assert result["tree_sha"] == "tree-sha"
+    assert result["requested_ref"] == "main"
+    assert result["commit_sha"] == COMMIT_SHA
+    assert result["tree_sha"] == TREE_SHA
     assert result["file_count"] == 2
     paths = [item["path"] for item in result["files"]]
     assert paths[0] == "src/web/github_reader.py"
@@ -97,6 +118,7 @@ def test_snapshot_ranks_related_source_and_excludes_generated_content(monkeypatc
     assert "package-lock.json" not in paths
     assert "assets/logo.png" not in paths
     assert "GitHubSourceReader" in result["files"][0]["content"]
+    assert f"/blob/{COMMIT_SHA}/" in result["files"][0]["url"]
 
 
 def test_snapshot_enforces_total_character_budget(monkeypatch):
@@ -105,7 +127,7 @@ def test_snapshot_enforces_total_character_budget(monkeypatch):
             return {"default_branch": "main"}
         if "/git/trees/" in url:
             return {
-                "sha": "tree-sha",
+                "sha": TREE_SHA,
                 "truncated": False,
                 "tree": [
                     {
@@ -131,7 +153,7 @@ def test_snapshot_enforces_total_character_budget(monkeypatch):
 
     monkeypatch.setattr(github_snapshot, "_request_json", fake_request_json)
 
-    result = GitHubRepositorySnapshotter().snapshot(
+    result = GitHubRepositorySnapshotter(history_service=FakeHistory()).snapshot(  # type: ignore[arg-type]
         "https://github.com/openai/example",
         budget=GitHubSnapshotBudget(
             max_files=10,

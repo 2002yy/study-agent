@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
+from src.web.evidence_pinning import pin_evidence_refs
 from src.web.github_code_index import GitHubCodeIndex
 from src.web.github_reader import parse_github_url
 from src.web.github_snapshot import GitHubRepositorySnapshotter
@@ -68,13 +69,18 @@ def _followup_subset(
 
 def _index_key(snapshot: dict[str, Any]) -> str:
     run_id = str(snapshot.get("snapshot_run_id") or "")
+    commit_sha = str(snapshot.get("commit_sha") or "")
     tree_sha = str(snapshot.get("tree_sha") or "")
     files = ",".join(
         f"{item.get('path', '')}:{item.get('sha', '')}"
         for item in snapshot.get("files", [])
         if isinstance(item, dict)
     )
-    return f"{run_id}:{tree_sha}:{files}"
+    return f"{run_id}:{commit_sha}:{tree_sha}:{files}"
+
+
+def _is_pinned(result: dict[str, Any]) -> bool:
+    return bool(result.get("commit_sha") and result.get("tree_sha"))
 
 
 class GitHubSnapshotService:
@@ -118,7 +124,7 @@ class GitHubSnapshotService:
                 query=focused_query,
                 max_age_seconds=ttl,
             )
-            if exact is not None:
+            if exact is not None and _is_pinned(dict(exact.result)):
                 return {
                     **dict(exact.result),
                     "snapshot_run_id": exact.id,
@@ -131,7 +137,11 @@ class GitHubSnapshotService:
                 ref=focused_ref,
                 max_age_seconds=ttl,
             )
-            if previous is not None and focused_query:
+            if (
+                previous is not None
+                and focused_query
+                and _is_pinned(dict(previous.result))
+            ):
                 files = _followup_subset(
                     previous.result,
                     query=focused_query,
@@ -262,13 +272,15 @@ class GitHubSnapshotService:
             )
             result["definitions"] = definitions
             result["imports"] = imports
-            enriched_results.append(result)
+            enriched_results.append(pin_evidence_refs(result, snapshot))
         searched = {**searched, "results": enriched_results}
         return {
             "ok": True,
             "mode": "local_snapshot_hybrid_structured",
             "repository": str(snapshot.get("repository") or ""),
             "ref": str(snapshot.get("ref") or ""),
+            "requested_ref": str(snapshot.get("requested_ref") or snapshot.get("ref") or ""),
+            "commit_sha": str(snapshot.get("commit_sha") or ""),
             "tree_sha": str(snapshot.get("tree_sha") or ""),
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
             "cache_hit": bool(snapshot.get("cache_hit")),
@@ -299,8 +311,11 @@ class GitHubSnapshotService:
             focused_symbol,
             top_k=max(1, min(top_k, 50)),
         )
+        inspected = pin_evidence_refs(inspected, snapshot)
         return {
             **inspected,
+            "requested_ref": str(snapshot.get("requested_ref") or snapshot.get("ref") or ""),
+            "commit_sha": str(snapshot.get("commit_sha") or ""),
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
             "cache_hit": bool(snapshot.get("cache_hit")),
             "cache_mode": str(snapshot.get("cache_mode") or ""),
