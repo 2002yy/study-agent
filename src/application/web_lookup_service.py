@@ -10,6 +10,7 @@ from src.web.research_contract import (
     QueryAttempt,
     build_research_context,
     failed_attempt,
+    stop_reason,
     successful_attempt,
 )
 
@@ -29,7 +30,13 @@ class WebLookupService:
             raise ValueError("Web lookup query is required")
 
         context = build_research_context(normalized)
-        run = self.repository.create(WebLookupRun(query=normalized))
+        run = self.repository.create(
+            WebLookupRun(
+                query=normalized,
+                stage="searching",
+                research_context=context.to_dict(),
+            )
+        )
         attempts: list[QueryAttempt] = []
         items: list[dict] = []
         attempt_warnings: list[str] = []
@@ -52,9 +59,18 @@ class WebLookupService:
                     f"research query failed ({search_query}): {exc}"
                 )
 
+        attempt_payload = [attempt.to_dict() for attempt in attempts]
+        reason = stop_reason(attempts)
         if attempts and all(attempt.status == "provider_failed" for attempt in attempts):
             error = last_error or RuntimeError("All web lookup providers failed")
-            self.repository.fail(run.id, str(error))
+            self.repository.fail(
+                run.id,
+                str(error),
+                research_context=context.to_dict(),
+                query_attempts=attempt_payload,
+                provider_status="provider_failed",
+                stop_reason=reason,
+            )
             raise error
 
         warnings = [
@@ -70,12 +86,25 @@ class WebLookupService:
             for item in self.gateway.warnings()
         ]
         warnings.extend(attempt_warnings)
+        had_provider_failure = any(
+            attempt.status == "provider_failed" for attempt in attempts
+        )
+        provider_status = (
+            "partial" if had_provider_failure else "found" if items else "empty"
+        )
 
         return self.repository.complete(
             run.id,
             items=items,
             source_block=format_news_source_block(normalized, items),
             warnings=warnings,
+            research_context=context.to_dict(),
+            query_attempts=attempt_payload,
+            selected_sources=items,
+            rejected_sources=[],
+            provider_status=provider_status,
+            stop_reason=reason,
+            answer_confidence="unassessed",
         )
 
     def get(self, run_id: str) -> WebLookupRun:
