@@ -12,6 +12,13 @@ class GitHubSnapshotCreateRequest(BaseModel):
     force_refresh: bool = False
 
 
+class GitHubStructureQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    symbol: str = Field(min_length=1)
+    ref: str = ""
+    top_k: int = Field(default=20, gt=0, le=50)
+
+
 class GitHubSnapshotResultResponse(BaseModel):
     result: dict
 
