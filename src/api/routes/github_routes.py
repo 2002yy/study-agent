@@ -1,4 +1,4 @@
-"""Persistent GitHub snapshot, structure, impact, and history endpoints."""
+"""Persistent GitHub snapshot, structure, history, work-item, and CI endpoints."""
 
 from __future__ import annotations
 
@@ -8,9 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.models.github import (
     GitHubBlameQueryRequest,
+    GitHubCILogsQueryRequest,
+    GitHubChecksQueryRequest,
     GitHubCommitQueryRequest,
     GitHubCompareQueryRequest,
     GitHubImpactQueryRequest,
+    GitHubIssueQueryRequest,
+    GitHubPullRequestQueryRequest,
     GitHubRefQueryRequest,
     GitHubSnapshotCreateRequest,
     GitHubSnapshotResultResponse,
@@ -22,6 +26,7 @@ from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.application.runtime_repository import get_github_snapshot_service
 from src.web.github_history import GitHubHistoryService
+from src.web.github_work_items import GitHubWorkItemService
 
 router = APIRouter(tags=["github-research"])
 GitHubSnapshotServiceDependency = Annotated[
@@ -29,15 +34,24 @@ GitHubSnapshotServiceDependency = Annotated[
     Depends(get_github_snapshot_service),
 ]
 _history_service = GitHubHistoryService()
+_work_item_service = GitHubWorkItemService(_history_service)
 
 
 def get_github_history_service() -> GitHubHistoryService:
     return _history_service
 
 
+def get_github_work_item_service() -> GitHubWorkItemService:
+    return _work_item_service
+
+
 GitHubHistoryServiceDependency = Annotated[
     GitHubHistoryService,
     Depends(get_github_history_service),
+]
+GitHubWorkItemServiceDependency = Annotated[
+    GitHubWorkItemService,
+    Depends(get_github_work_item_service),
 ]
 
 
@@ -54,7 +68,7 @@ def _history_http_error(result: dict) -> HTTPException:
     return HTTPException(
         status_code=code,
         detail={
-            "error": str(result.get("error") or "GitHub history request failed"),
+            "error": str(result.get("error") or "GitHub request failed"),
             "status": status,
             "result": result,
         },
@@ -193,6 +207,87 @@ def inspect_github_blame(
         ref=request.ref,
         start_line=request.start_line,
         end_line=request.end_line,
+    )
+    if result.get("ok") is not True:
+        raise _history_http_error(result)
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post(
+    "/github-pr",
+    response_model=GitHubSnapshotResultResponse,
+)
+def inspect_github_pull_request(
+    request: GitHubPullRequestQueryRequest,
+    service: GitHubWorkItemServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = service.pull_request(
+        request.repo_url,
+        request.number,
+        max_files=request.max_files,
+        max_patch_chars=request.max_patch_chars,
+        max_comments=request.max_comments,
+        max_reviews=request.max_reviews,
+        include_checks=request.include_checks,
+    )
+    if result.get("ok") is not True:
+        raise _history_http_error(result)
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post(
+    "/github-issue",
+    response_model=GitHubSnapshotResultResponse,
+)
+def inspect_github_issue(
+    request: GitHubIssueQueryRequest,
+    service: GitHubWorkItemServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = service.issue(
+        request.repo_url,
+        request.number,
+        max_comments=request.max_comments,
+        max_events=request.max_events,
+    )
+    if result.get("ok") is not True:
+        raise _history_http_error(result)
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post(
+    "/github-checks",
+    response_model=GitHubSnapshotResultResponse,
+)
+def inspect_github_checks(
+    request: GitHubChecksQueryRequest,
+    service: GitHubWorkItemServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = service.checks(
+        request.repo_url,
+        ref=request.ref,
+        max_runs=request.max_runs,
+        max_checks=request.max_checks,
+        max_jobs=request.max_jobs,
+        include_jobs=request.include_jobs,
+    )
+    if result.get("ok") is not True:
+        raise _history_http_error(result)
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post(
+    "/github-ci-logs",
+    response_model=GitHubSnapshotResultResponse,
+)
+def inspect_github_ci_logs(
+    request: GitHubCILogsQueryRequest,
+    service: GitHubWorkItemServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = service.ci_logs(
+        request.repo_url,
+        request.job_id,
+        max_chars=request.max_chars,
+        max_lines=request.max_lines,
     )
     if result.get("ok") is not True:
         raise _history_http_error(result)
