@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.tool_gateway import GeneralWebGateway
 
@@ -11,6 +12,7 @@ from src.web.tool_gateway import GeneralWebGateway
 class PersistentGeneralWebGateway(GeneralWebGateway):
     def __init__(self, snapshot_service: GitHubSnapshotService) -> None:
         self.snapshot_service = snapshot_service
+        self.graph_service = graph_service_for(snapshot_service)
         super().__init__(
             github_snapshotter=snapshot_service,  # type: ignore[arg-type]
         )
@@ -49,7 +51,7 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         ref: str = "",
         max_results: int = 20,
     ) -> dict[str, Any]:
-        return self.snapshot_service.inspect_structure(
+        return self.graph_service.inspect(
             repo_url,
             symbol,
             ref=ref,

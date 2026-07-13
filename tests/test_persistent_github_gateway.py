@@ -8,7 +8,6 @@ class FakeSnapshotService:
         self.result_count = result_count
         self.search_calls: list[tuple[str, str, int]] = []
         self.snapshot_calls: list[tuple[str, str, str]] = []
-        self.structure_calls: list[tuple[str, str, str, int]] = []
 
     def search_repository(
         self,
@@ -46,23 +45,17 @@ class FakeSnapshotService:
             "ok": True,
             "repository": "openai/example",
             "ref": ref or "main",
-            "files": [],
-        }
-
-    def inspect_structure(
-        self,
-        repo_url: str,
-        symbol: str,
-        *,
-        ref: str = "",
-        top_k: int = 20,
-    ) -> dict:
-        self.structure_calls.append((repo_url, symbol, ref, top_k))
-        return {
-            "ok": True,
-            "repository": "openai/example",
-            "symbol": symbol,
-            "definitions": [{"name": symbol}],
+            "tree_sha": "tree-123",
+            "snapshot_run_id": "rag_snapshot_1",
+            "cache_hit": True,
+            "cache_mode": "exact",
+            "files": [
+                {
+                    "path": "src/app.py",
+                    "sha": "sha-app",
+                    "content": "def prepare_chat_turn(message):\n    return helper(message)\n\ndef helper(message):\n    return message\n",
+                }
+            ],
         }
 
 
@@ -99,7 +92,7 @@ def test_gateway_snapshot_uses_persistent_service():
     ]
 
 
-def test_gateway_structure_uses_persistent_service():
+def test_gateway_structure_builds_graph_from_persistent_snapshot():
     service = FakeSnapshotService()
     gateway = PersistentGeneralWebGateway(service)  # type: ignore[arg-type]
 
@@ -111,11 +104,12 @@ def test_gateway_structure_uses_persistent_service():
     )
 
     assert result["definitions"][0]["name"] == "prepare_chat_turn"
-    assert service.structure_calls == [
+    assert result["callees"][0]["callee"] == "helper"
+    assert result["stats"]["parser"] == "tree_sitter+legacy_fallback"
+    assert service.snapshot_calls == [
         (
             "https://github.com/openai/example",
             "prepare_chat_turn",
             "main",
-            9,
         )
     ]
