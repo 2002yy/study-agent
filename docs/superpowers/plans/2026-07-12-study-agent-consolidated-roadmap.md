@@ -1,742 +1,487 @@
-# Study Agent 整体规划（目的导向）
+# Study Agent 整体规划与全流程审计
 
-> 范围：汇总五轮远程复审、一次真实使用体验与一次全流程需求复审，按产品目的组织，列出每项边界。
-> 这是**需求地图**，不是任务级 TDD 计划。具体实现前再拆 Task。
+> **当前状态版本：2026-07-13**  
+> **审计实现基线：** `7ab8c3d42495032288d5a1b06df6a03052a91fd0`  
+> **定位：** 本文件是产品需求、体验审计和 G1–G17 完成状态的统一真值。架构封板状态见 `docs/ARCHITECTURE_STATUS.md`，执行顺序见 `docs/NEXT_PHASE_PLAN.md`。
 
-## 产品目的（不变）
+## 1. 产品目的
 
-本地优先、教学法驱动、证据可追溯、能沉淀长期记忆的学习工作台。
+Study Agent 是一个本地优先、教学法驱动、证据可追溯、能够沉淀长期记忆的学习工作台。
 
-核心闭环：
+正式学习闭环：
 
-```
-建立目标 -> 教学推进 -> 证据追溯 -> 验证理解
--> 课后总结 -> 确认记忆 -> 标记已总结 -> 下次准确恢复
+```text
+明确学习目标
+-> 教学推进
+-> 本地资料 / 联网证据
+-> 验证理解
+-> 记录已确认点和缺口
+-> 课后整理
+-> 用户确认记忆
+-> 标记已整理
+-> 下次准确恢复
 ```
 
 同时支持不进入长期学习闭环的临时任务：
 
+```text
+快速问答 / 联网研究 / 临时资料查询 / 闲聊
+-> 给出可用结果和有效证据
+-> 默认不推进学习状态
+-> 用户自行决定是否转为学习目标或保存笔记
 ```
-快速问答 / 联网研究 / 临时资料查询
--> 给出可用结果与证据
--> 用户自行决定是否转成正式学习目标或保存为笔记
-```
 
-## 全局边界
+## 2. 全局原则与边界
 
-**不改：** 教学协议引擎（苏格拉底/费曼/项目/普通）、RAG 检索算法、记忆 safe-writer 机制、Provider 抽象、SQLite 迁移 ledger 已有字段语义。
+1. API Route 只做 adapter；多步业务编排归 Application Service。
+2. 多步 LLM 流程必须成为 server-owned、可恢复的 Run。
+3. committed state 是产品真值；planned/attempted/failed 状态不得伪装成完成。
+4. 写入长期记忆必须由用户确认；推断性 learner profile 默认 pending。
+5. 任务意图、教学协议、角色表达、来源策略和记忆资格必须分层。
+6. 角色语气不能改变是否联网、事实结论、来源可信度或任务状态。
+7. 陌生、新兴或疑似拼写异常的术语先视为“可能真实”，先归一化和检索，不因模型未知而判断不存在。
+8. `empty_result / provider_failed / insufficient_evidence / confirmed_absence` 必须严格区分。
+9. 当前日期、用户时区和明确时间范围必须进入时效性查询规划；不得无依据注入旧年份。
+10. 只有可展示、有效、被采用的来源进入引用计数；空标题、空来源、零分、解析失败和重复占位不得计数。
+11. 新建会话不等于归档；总结、记忆、归档和新建都是独立动作。
+12. 取消操作按 owner/scope 执行；普通会话切换不能用全局 `cancelAll()`。
+13. 本地优先必须表现为实际运行时门禁：是否联网、发送哪些上下文、是否允许本地资料外发。
+14. 默认 UI 展示目标、状态、缺口、有效来源和下一步；route code、record ID、top_k、Provider 调试信息进入高级详情。
+15. 不建设原生移动端、多用户账号、插件市场、通用爬虫平台或后台长期任务。
+16. 不以 GraphRAG 替代基础可追溯 chunk RAG。
 
-**不做：** 原生移动端 App、多用户/账号、插件化市场、自动归档（归档永远用户选择）。
+## 3. 状态口径
 
-**原则：**
-1. API Route 只做 adapter，业务编排必须在 Application Service。
-2. 任何多步 LLM 流程必须是 server-owned 可恢复 Run（对齐 RagRun/MemoryRun/NewsRun/PedagogyEvalRun）。
-3. 总结/记忆优先用结构化教学状态，原始聊天仅作补充。
-4. 写入记忆必须用户确认；推断性内容标 `learner_pending`。
-5. 普通用户不暴露内部文件名/参数；这些进“高级”。
-6. 陌生、新兴或疑似拼写异常的术语，先按“可能真实的新实体”处理；先归一化和联网核验，不以模型记忆直接判定不存在。
-7. `search_failed / empty_result / insufficient_evidence / confirmed_absence` 必须是不同状态；空结果不能被表述成“公开信息不存在”。
-8. 联网查询规划必须注入当前日期、用户时区和明确时间范围；不得残留硬编码旧年份覆盖用户的“最近/现在”意图。
-9. 证据数量只统计可展示的有效来源；空标题、空来源、零分占位和解析失败条目不得生成“引用”。
-10. 名称解析、搜索规划、来源筛选和答案生成必须是不同阶段；答案模型不得在搜索前先决定实体“不存在”。
-11. 用户只负责表达需求，不应在系统尚未完成合理检索前承担“提供链接证明实体存在”的责任。
-12. 联网研究优先保证证据质量和可解释停止条件，不以查询次数、引用数量或输出长度代表完成度。
-13. 简单查询可以走快速路径；需要多轮扩展、网页阅读或交叉核验时，必须升级为可恢复的研究 Run。
-14. 用户任务、教学协议、角色表达、来源策略和记忆资格必须分层；角色语气不能决定事实结论，临时查询不能自动污染学习状态。
-15. UI 的当前学习状态只消费 committed state；planned/attempted state 必须单独标记，失败或中断回合不能伪装成已经推进。
-16. 新建会话不等于归档旧会话；归档、总结、写入记忆都必须是明确动作。
-17. 会话切换和取消操作必须按 owner/scope 执行，不能用 `cancelAll()` 顺带终止无关上传、索引、研究或记忆任务。
-18. 本地优先必须体现为可见的数据边界：是否联网、向哪个 Provider 发送哪些上下文、是否允许本地资料外发，都必须可控。
-19. 产品默认视图显示用户目标、进度和可执行下一步；路由码、记录 ID、top_k、Provider 调试信息进入高级详情。
+- **已完成：** 当前需求范围已进入真实生产路径，并有针对性回归。
+- **部分完成：** 最小正确性或入口已落地，但完整生命周期、持久化、恢复、交互或验收尚缺。
+- **过渡实现：** 当前可用，但 owner/state machine 不是最终设计。
+- **未开始：** 仅有需求和边界，没有正式生产切片。
 
-## 已完成基线（P0，多轮）
+## 4. 当前总状态
 
-教学法可视化、证据可追溯（实时+恢复逐轮 route/rag）、协议/阶段中文标签、路由 mode 校验、左侧会话列表+顶部学习条、after-session 端点+整理学习按钮、窄屏会话入口、记忆目标选项对齐、文档定位。
-
-> 注：已存在入口或数据字段不等于体验已封板。下列 G11–G17 专门处理“功能存在但用户流程语义不成立”的问题。
-
----
-
-## 真实体验复盘（2026-07-12：`gpt5.6sol`）
-
-**用户请求：** `联网看看gpt5.6sol`
-
-**实际公开结果：** 本次复核通过 Reuters、Axios 等近期来源可以识别到 `GPT-5.6 Sol`，它是 GPT-5.6 系列中的高端型号；相关报道集中在 2026 年 7 月。该名称不是 Claude Sonnet 的误记，也不能因为一次搜索为空就推断为伪造。
-
-**Study Agent 当时表现：**
-- 搜索了原始词，但后续扩展查询混入 `GPT5.6 发布 2025`、`GPT-5 最新消息 2025`，与当前日期 2026-07-12 不一致。
-- 将“没有检索到”直接表述成“没有任何公开信息”。
-- 在证据不足时提前猜测 Claude 3.5 Sonnet、内部项目或伪造信息。
-- 回答先要求用户补充来源，没有先穷尽合理的名称变体和近期可信源。
-- 证据区显示 `引用 1`，实际条目却是 `未命名 0.00`，把无效占位当成了引用。
-
-**与本次 ChatGPT 对话的关键区别：**
-- 先把用户输入视为可能真实的新术语，而不是默认当作拼写错误。
-- 自动生成 `gpt5.6sol / GPT-5.6 Sol / GPT 5.6 Sol` 等名称变体。
-- 使用当前日期和近期窗口检索，并优先核验官方或高可信新闻来源。
-- 找到证据后直接回答“它是什么”，再补充来源与不确定性；只有仍然歧义时才追问上下文。
-- 明确区分“搜索失败”“暂未找到”“证据不足”和“已确认不存在”。
-
-### 更深层的交互差异
-
-| 环节 | Study Agent 当时体验 | 本次 ChatGPT 对话 | 对应需求 |
+| Goal | 状态 | 当前已完成 | 主要缺口 |
 |---|---|---|---|
-| 未知词处理 | 先按错词、假词或其他产品猜测 | 先保留原词，视为可能真实的新实体 | 建立 unknown-entity policy；未经检索不得改写实体身份 |
-| 查询规划 | 原词失败后拼接旧年份和泛化词 | 围绕名称变体、当前日期和近期窗口逐层扩展 | 查询计划必须结构化、日期感知，并记录每次扩展原因 |
-| 工具使用 | 更像一次搜索调用，空结果后快速结束 | 搜索、评估结果、调整查询、打开来源、交叉核验 | 需要受预算约束的多步 research loop，而不只是单次 WebLookup |
-| 来源判断 | 结果数量和占位条目也进入证据展示 | 优先官方/高可信来源，低质量结果不支撑结论 | SourceRank 与 EvidenceValidator 必须在答案生成前运行 |
-| 不确定性 | “没搜到”被升级为“不存在”，随后自由猜测 | 明确陈述检索边界和剩余不确定性 | 回答置信度必须由证据状态驱动，不能由语言模型语气决定 |
-| 用户负担 | 要求用户补链接或上下文来证明术语 | 系统先完成合理检索，仍歧义才追问 | 增加“先研究、后追问”门禁；追问必须说明已查范围 |
-| 停止条件 | 首轮空结果近似等于结束 | 找到足够直接证据或达到明确预算后停止 | 记录 stop_reason：direct_evidence / budget_exhausted / provider_failed 等 |
-| 最终回答 | 展开猜测但没有回答实体本身 | 先给可用结论，再给证据、日期和边界 | AnswerComposer 采用 answer-first，不把调试过程当主答案 |
+| G1 LearningClosureRun | **未开始；存在过渡入口** | after-session preview 可生成 MemoryRun 候选 | 正式 service/run、持久化、幂等、恢复、取消 |
+| G2 结构化总结输入 | **未开始** | 已有 committed learning state 和 PedagogyEvalRun 可供消费 | 证据化 prompt、预算、候选来源/置信度 |
+| G3 真正结束状态 | **未开始** | 用户可确认 MemoryRun 写入 | summary_status、重复防护、结束态、继续/归档选择 |
+| G4 会话导航语义化 | **未开始** | 已有会话列表和恢复入口 | 标题、预览、任务/阶段/缺口/总结状态、搜索分组 |
+| G5 学习状态去伪精化 | **部分完成** | 恢复只用 committed state；非学习任务显示任务条 | 启发式 mastery ring 仍存在；最近评估未展示 |
+| G6 结构化恢复卡 | **未开始** | 可从历史会话和记忆恢复数据 | 首页仍堆叠三段 Markdown，缺行动性恢复卡 |
+| G7 UI 聚焦收敛 | **未开始** | slide-over 抽屉和 dock 已存在 | 一级入口过多，基础/高级/表达设置未分层 |
+| G8 窄屏完整可用 | **部分完成** | 会话入口、学习条和基础防溢出已修 | 四入口收敛、文字标签、完整窄屏旅程未完成 |
+| G9 新词与时效检索 | **部分完成** | 确定性归一化、UTC 日期、查询变体、空/不可用语义、黄金回归 | 分层搜索、来源评估、答案门禁、真实 E2E |
+| G10 ResearchRun | **未开始** | 已有 WebLookupRun、web_search/web_read 和安全边界 | 多步状态机、来源选择、停止原因、恢复、追问复用 |
+| G11 任务意图契约 | **部分完成** | 最小分类已接入路由和教学状态；临时任务不推进学习 | 显式覆盖、换题门禁、目标生命周期、线程级真值 |
+| G12 过程可见与完整取消 | **部分完成** | 会话切换只取消 chat scope | 服务端阶段事件、研究/RAG/Provider 取消传播和预算 |
+| G13 证据与消息完整性 | **部分完成** | 嵌套 RAG 映射、无效引用过滤、正文复制、头像语义、恢复证据 | 统一 EvidenceRef、selected 计数、claim-source |
+| G14 资料导入与来源范围 | **部分完成** | 后端校验、版本安全、删除确认 | 每文件状态、临时/长期范围、失败重试、清理策略 |
+| G15 会话转换与状态真值 | **部分完成** | 新建不归档、committed 恢复、completed turn 轨迹、scoped cancel | summarized 状态、离开门禁、partial run 恢复 |
+| G16 外发数据与隐私 | **部分完成** | web off/ask/auto、云端上下文范围、真实 chat 门禁 | 附件敏感标记、外发摘要、Provider 展示、首次说明 |
+| G17 首次使用与可访问性 | **部分完成** | Enter/Shift+Enter、IME、正文复制、头像去重、部分导航修复 | 首次任务入口、恢复卡、focus trap/return、错误动作 |
 
-### 需求问题归类
+## 5. 2026-07-12 真实体验审计：`联网看看gpt5.6sol`
 
-这次失败不是单一“搜索词不够好”，而是三层需求同时缺失：
+### 5.1 原始失败
 
-1. **认知策略缺失：** 模型没有遵守“未知不等于不存在，疑似错词不等于应被纠正”的认识边界。
-2. **研究编排缺失：** 系统没有把名称归一化、查询扩展、来源核验、网页阅读和停止判断组织成一个可观察的循环。
-3. **产品语义缺失：** UI 把无效占位展示为引用，回答把 Provider/检索失败伪装成事实结论，并把补证责任过早交给用户。
+当时的 Study Agent：
 
-**需求结论：** 不应为 `GPT-5.6 Sol` 写特殊规则。G9 负责“新兴实体识别、时效规划、结果语义和证据清洗”的最小正确性；G10 负责把多步联网研究建设成 server-owned、可恢复、可评测的正式运行流程。
+- 原词搜索后扩展出带 `2025` 的旧年份查询；
+- 将一次没有结果表述为“没有任何公开信息”；
+- 在证据不足时优先猜测 Sonnet、内部项目或伪造；
+- 过早要求用户补链接，没有先完成合理名称变体和近期来源检索；
+- 证据区出现 `引用 1 / 未命名 / 0.00`。
 
----
+该失败不是单个搜索词问题，而是三层缺口：
 
-## 全流程体验审计基准
+1. **认识边界缺失：** 未知被错误升级为不存在。
+2. **研究编排缺失：** 没有名称归一化、日期 grounding、查询扩展、来源评估和停止条件组成的循环。
+3. **产品语义缺失：** Provider/检索失败被伪装成事实，空占位被展示为引用。
 
-以后每个功能不能只验收“接口返回成功”，必须沿以下体验链验收：
+### 5.2 已落地的最小修复
 
-```
+`7ab8c3d` 已实现：
+
+- 去除“联网看看/查一下”等搜索指令，提取聚焦查询；
+- 对紧凑 GPT 型号做通用连字符/空格/大小写归一化；
+- 保留 raw query，并生成规范化和原始变体；
+- 注入当前 UTC 日期；只有用户表达 latest/recent/today 时生成相应 freshness；
+- 搜索结果返回结构化 `ok / empty / unavailable / invalid_query` 语义；
+- 工具提示明确：空结果和不可用不是不存在证明；
+- `gpt5.6sol` fixture 固定日期回归，不硬编码产品存在性结论。
+
+### 5.3 仍未封板
+
+- 当前 normalizer 不是完整 `WebResearchContext`；时区和显式历史范围仍需统一模型。
+- 尚无 7 天 -> 30 天 -> 1 年的受控扩展与停止条件。
+- 尚无 SourceAssessment、selected/rejected sources 和 claim-source 映射。
+- 尚无正式 ResearchRun，刷新/重试/追问不能复用完整研究状态。
+- 仍需真实应用路径手工验收，不能只依赖 fixture。
+
+## 6. 全流程体验审计基准
+
+每个功能必须沿完整用户旅程验收，而不只检查接口返回：
+
+```text
 首次进入
--> 表达本次任务
+-> 选择或表达任务
 -> 系统确认任务契约
--> 准备阶段可见且可取消
--> 返回答案/教学动作与有效证据
--> 连续追问复用上下文和研究成果
--> 上传资料时范围与状态明确
--> 切换/新建会话不丢失真值、不误归档
+-> 准备阶段真实可见
+-> 用户可取消
+-> 返回答案/教学动作和有效证据
+-> 连续追问复用上下文和研究结果
+-> 上传资料时范围和状态明确
+-> 切换/新建不丢真值、不误归档、不误取消其他任务
 -> 按任务类型整理结果
 -> 用户确认后写入记忆
--> 下次准确恢复目标、缺口、证据与未完成任务
+-> 下次准确恢复目标、缺口、证据和未完成任务
 ```
 
-需要重点区分：
+任务默认语义：
 
-| 用户行为 | 默认任务 | 学习状态 | 记忆/收束 |
+| 用户行为 | TaskIntent | 学习状态 | 默认收束 |
 |---|---|---|---|
-| “联网看看某个新模型” | research | 不建立长期掌握目标 | 可选保存研究笔记，默认不写 learner profile |
-| “给我解释数据库索引” | quick_answer 或 learn（按表达判断） | quick_answer 不推进；learn 建立目标 | quick_answer 可选保存，learn 可整理学习 |
-| “我来解释，你检查” | explain_back | 费曼协议 | 保存误区、修补点与验证结果 |
-| “帮我修这个项目” | project_execution | 项目协议状态 | 保存修改、验证、风险与下一步 |
-| 闲聊/情绪整理 | conversation | 默认不建立知识掌握状态 | 不自动生成学习画像 |
+| 联网看看某个新模型 | research | 不建立长期掌握目标 | 不显示学习总结；未来可保存研究笔记 |
+| 简单解释一个稳定概念 | quick_answer | 默认不推进 | 可选笔记 |
+| 带我系统学习某主题 | learn | 建立/继续目标 | 学习总结 |
+| 我来解释，你检查 | explain_back | 费曼状态机 | 误区、修补点、验证结果 |
+| 帮我修改项目并跑测试 | project_execution | 项目状态机 | 修改、验证、风险、下一步 |
+| 闲聊/情绪整理 | conversation | 不建立知识掌握状态 | 默认不生成画像 |
 
----
+## 7. P0 验收门槛与当前结果
 
-## G1. 课后总结成为正式可恢复服务流程
+| 门槛 | 当前结果 | 说明 |
+|---|---|---|
+| 新词联网不无依据输出“不存在”、不注入旧年份 | **部分通过** | 代码和 fixture 已修；真实应用路径尚未记录验收 |
+| 临时 research 不推进学习状态 | **通过（最小切片）** | task-aware evaluation/engine 保留 committed state |
+| 新建会话不自动归档 | **通过** | 已移除 startNewSession 中的自动 archive |
+| 中断/失败后顶部只读 committed state | **通过（核心）** | 恢复优先 committed state，阶段轨迹过滤 completed turn |
+| 切换会话不取消无关上传/记忆/研究 | **通过（前端 owner 核心）** | chat invalidate 替代 cancelAll；完整服务端取消归 G12 |
+| 用户能关闭联网并控制云端上下文 | **通过（最小策略）** | attachment-level 限制仍未完成 |
+| 引用数等于有效采用证据数 | **部分通过** | 本地 RAG 无效占位已过滤；统一 web selected evidence 未完成 |
+| 欢迎、复制、角色、基础键盘无明显错误 | **部分通过** | copy/IME/avatar 已修；首次入口、焦点、错误动作未完成 |
 
-**目的：** after-session 从“路由里临时编排 LLM+记忆”升级为 server-owned 可恢复 Run，与现有 Run 体系一致。
+**结论：** P0 高风险状态污染路径已被显著收紧，但 P0 还不能宣布完整封板。进入 G10/G1 前应先跑一次真实 P0 旅程，并修复阻断性结果。
 
-**需求：**
-- 新建 `LearningClosureService`（application service），路由只调 `service.create(session_id)`。
-- `LearningClosureRun` 持久化：`source_thread_id / source_thread_version / source_last_turn_id / status / learning_snapshot / generated_summary / memory_run_id / commit_status / error`。
-- 状态机：`created -> collecting -> generating -> preview_ready -> committing -> completed | failed | cancelled`。
-- 幂等：`closure_source_hash = hash(thread_id + thread_version + latest_completed_turn_id)`；同版本已有 preview 直接复用，不重调 LLM。
-- 失败恢复：生成中断后可重试，不重复消耗模型。
-- 前端：暴露生成阶段状态（collecting/generating/preview_ready）。
-- 接收 G11 提供的 `ClosureEligibility`；不适用的任务不得生成学习型总结。
+## 8. G1：课后总结成为正式可恢复服务流程
 
-**边界：**
-- 做：后端新切片 + 持久化 + 幂等 + 路由瘦身。
-- 不做：不改前端 MemoryPanel 的 preview/commit 机制（复用 MemoryRun）；不改 `generate_after_session_updates` 的 LLM 调用签名（G2 改其输入）。
-- 不含：总结输入改造（G2）、真正结束动作（G3）。
+**目的：** 将 after-session 从 route 内临时编排升级为 server-owned `LearningClosureRun`。
 
-**优先级：** P1　**依赖：** G11 最小任务契约（可先并行设计）
+**当前：** 过渡实现已完成：API 可生成 MemoryRun preview，按钮可打开候选。
 
----
+**剩余：**
 
-## G2. 总结输入用结构化教学状态
+- `LearningClosureService` 统一 owner；route 只创建/读取/重试 run；
+- 持久化 source thread/version/last completed turn、committed snapshot、generated result、MemoryRun、status/error；
+- 状态机：created -> collecting -> generating -> preview_ready -> committing -> completed/failed/cancelled；
+- `closure_source_hash` 幂等，相同线程版本复用 preview；
+- 失败/取消可恢复，不重复模型成本；
+- 消费 G11 ClosureEligibility，不适用任务不得生成学习总结。
 
-**目的：** 总结基于可靠的教学状态而非“LLM 读原始聊天自行判断”，提升可信度。
+**验收：** 刷新后恢复阶段；相同版本重复点击不重调 LLM；失败重试继承已完成步骤；research 不进入学习总结。
 
-**需求：**
-- 优先喂入 committed `learning_state`：objective / confirmed_points / unresolved_gap / phase / protocol。
-- 引用 `PedagogyEvalRun` 最终决定（通过/待复核/未通过）。
-- 原始聊天限预算：最近 N 轮完整，更早服务器摘要或丢弃；长会话不爆 prompt。
-- `learner_profile` 候选默认 `learner_pending=true`（推断非事实）；其余 target `false`。
-- 每条候选记录依据来源（哪条 confirmed_point / 哪轮 eval）与置信度。
-- 按 G11 的任务类型生成不同结果：学习总结、研究笔记、项目收束或不适用。
+## 9. G2：总结输入使用结构化教学状态
 
-**边界：**
-- 做：改 `generate_after_session_updates` 的 prompt 构造 + 候选元数据。
-- 不做：不改教学协议/评估逻辑；不改记忆文件格式。
-- 不含：prompt 预算的精确数值（先粗后调）。
+**目的：** 总结基于可靠教学证据，而不是让 LLM 重新猜测整段聊天。
 
-**优先级：** P2　**依赖：** G1, G11
+**剩余：**
 
----
+- 优先输入 committed objective/confirmed points/gap/phase/protocol；
+- 引用最终 PedagogyEvalRun 决定、evidence IDs 和 evaluator versions；
+- 最近 N 轮完整，更早内容服务器摘要或丢弃；
+- learner profile 推断默认 `learner_pending=true`；
+- 每条候选保存来源、置信度、对应 confirmed point/eval；
+- 按任务生成学习总结、研究笔记、项目收束或 not applicable。
 
-## G3. 真正的“结束学习”闭环动作
+**验收：** provider/parse 失败和未提交回合不能成为“已掌握”；长会话不爆 prompt；候选可解释来源。
 
-**目的：** “整理学习”不止生成候选，确认写入后真正结束本次学习。
+## 10. G3：真正的结束与总结状态
 
-**需求：**
-- 确认写入后标记会话 `summary_status = summarized`。
-- 写入后给选择：归档并新建下一会话 / 继续当前会话。
-- “本次学习已结束”态展示。
-- 阻止对已总结会话重复生成（除非对话有新轮次，即 thread_version 变化）。
-- 按 ClosureEligibility 使用不同按钮和结果名称：`整理学习 / 保存研究笔记 / 收束项目 / 无需整理`。
+**目的：** 写入记忆后真正结束本次学习，而非只生成候选。
 
-**边界：**
-- 做：ChatThread 加 `summary_status` 字段 + 状态迁移 + 前端结束流程按钮。
-- 不做：不自动归档；不删会话。
-- 不含：会话标题（G4）。
+**剩余：**
 
-**优先级：** P3　**依赖：** G1, G2, G11
+- commit 后设置 `summary_status=summarized`；
+- 显示“本次学习已整理”；
+- unchanged thread version 禁止重复 closure；新增回合后可重新整理；
+- 写入后选择继续当前 / 归档并新建；
+- 按 eligibility 使用整理学习 / 保存研究笔记 / 收束项目 / 无需整理。
 
----
+**边界：** 绝不自动归档，不删除会话。
 
-## G4. 会话导航语义化
+## 11. G4：会话导航语义化
 
-**目的：** 侧栏显示有意义的标题，而非 `chat_01J...md` 文件名。
+**剩余：**
 
-**需求：**
-- `ChatThread` 加 `title`（由 objective 或首条用户消息生成）、`objective_summary`、`last_message_preview`、`task_intent`、`current_phase`、`unresolved_gap`、`summary_status`、`updated_at`。
-- 侧栏行展示：标题 + 任务/阶段或缺口 + 时间 + 状态徽标（未总结/已总结/已归档）。
-- 标题生成：首轮后由 learning_state.objective、research subject 或首条消息截断生成；可手动改。
-- 搜索 + 分组（按状态/时间/任务类型）。
+- ChatThread 增加 title、objective/research summary、last preview、task intent、phase/gap、summary status、updated_at；
+- 标题由目标、研究主题或首条消息生成；允许手改且不覆盖；
+- 侧栏显示任务/阶段/缺口/时间/状态；
+- 支持按时间、状态、任务搜索和分组。
 
-**边界：**
-- 做：ChatThread 加字段 + 生成 + 侧栏展示。
-- 不做：不改会话存储格式（仅加列/迁移）；不做标签系统。
-- 不含：跨会话知识图谱。
+**验收：** 侧栏不再以内部文件名/ID 作为主要标题，历史数据兼容可见。
 
-**优先级：** P3　**依赖：** G11, G15；summary_status 展示依赖 G3
+## 12. G5：学习状态展示去伪精化
 
----
+**当前：** committed truth 和非学习任务条已落地；`LearningPanel` 仍计算 `deriveMastery` 并绘制 conic-gradient ring。
 
-## G5. 学习状态展示去伪精化
+**剩余：**
 
-**目的：** 不再用启发式百分比误导，改用真实评估状态。
+- 折叠态：目标 -> 阶段 -> 缺口/下一步 -> 最近评估；
+- 移除启发式进度环；
+- 显示已验证 / 待验证 / 需重讲 / 待语义复核；
+- planned/attempted 只作单独提示，不覆盖主状态；
+- research/quick_answer 使用研究/回答状态，不显示学习阶段。
 
-**需求：**
-- LearningStrip 折叠态顺序：**目标 -> 阶段 -> 缺口/下一步 -> 最近评估**；协议名降为次级 badge。
-- 移除“本轮理解进度”圆环的伪百分比；改用 PedagogyEvalRun 决定：`✓已验证 / ○待验证 / !需重讲 / ?待语义复核`。
-- 展开态保留目标/已确认点/缺口/阶段轨迹，去掉推算环。
-- 只读取 committed learning state；attempted state 使用单独提示，不覆盖主状态。
-- research/quick_answer 等非学习任务不显示伪学习阶段，改显示研究或回答状态。
+## 13. G6：结构化恢复卡
 
-**边界：**
-- 做：展示层（LearningStrip/LearningPanel）改。
-- 不做：不改评估逻辑、不改 `deriveMastery`（保留函数但 UI 不再用作进度）。
-- 不含：学习者能力模型（真百分比等 Learner Model 再做）。
+**当前：** 首页仍展示 current_focus/progress/summary 三段 Markdown。
 
-**优先级：** P0（committed truth）+ P2（完整展示）　**依赖：** G11, G15
+**剩余：**
 
----
+- 新用户显示快速问答、系统学习、联网研究、项目、资料入口；
+- 老用户显示任务/目标、确认点或采用来源、缺口、下一步；
+- 操作：继续这里 / 开始新主题；
+- partial/interrupted run 提供继续、重试、放弃；
+- 数据来自 committed learning、ResearchRun 或项目状态 + G4 title。
 
-## G6. 恢复卡（结构化“上次学习”）
+## 14. G7：UI 聚焦收敛
 
-**目的：** 老用户恢复时看行动性恢复卡，而非三段原始 Markdown。
+**剩余：**
 
-**需求：**
-- 老用户首页恢复卡：任务/目标、已确认点或已采用来源、当前缺口、下一步 + `[继续这里] [开始新主题]`。
-- 新用户显示任务入口，不显示空的“继续学习”占位。
-- 卡片数据来自 committed learning state、ResearchRun 或项目状态 + 会话 title(G4)。
-- 存在 interrupted/partial Run 时提供继续、重试或放弃，不把尝试状态当完成状态。
+- 一级 dock 收敛为上传资料 / 会话 / 当前任务收束 / 更多；
+- 来源、设置、群聊、新闻、工具、时间线进入更多；
+- 设置分基础 / 高级 / 表达；
+- MemoryPanel 普通态不展示 `current_focus.md` 等内部文件名；
+- 顶部隐藏 record ID、route code、内部 profile；
+- 不删功能，只降低次要功能默认曝光。
 
-**边界：**
-- 做：ChatPanel home-brief 区改。
-- 不做：不建设跨会话自动复习计划。
-- 不含：知识图谱推荐。
+## 15. G8：移动端与窄屏完整可用
 
-**优先级：** P2　**依赖：** G4, G10, G15
+**当前：** 窄屏会话入口和基础 flex-wrap 已有。
 
----
+**剩余：**
 
-## G7. UI 聚焦收敛
+- 顶部任务/目标/研究状态/缺口一行可读并可展开；
+- 四个一级动作全部可达；
+- 非 hover 环境有可见标签或正确 aria name；
+- 抽屉、输入、收束和来源旅程在窄屏完整验收。
 
-**目的：** 减少次要功能曝光，让产品像学习工具而非控制台。
+## 16. G9：新兴术语与时效性联网可靠性
 
-**需求：**
-- dock 收敛为 4 个一级：上传资料 / 会话 / 当前任务收束 / 更多。
-- “更多”菜单：来源与知识库 / 设置 / 群聊 / 新闻 / 工具 / 工作流时间线。
-- 设置分“基础”（任务来源策略、教学方式、模型档位）与“高级”折叠（角色/氛围、top_k/min_score/检索模式/上下文层）。
-- MemoryPanel 高级详情才显示 `current_focus.md` 等文件名；普通态用友好标签（本次学习进度/下一次重点/学习偏好…）。
-- 角色与氛围移入“表达”设置区，不再作主产品卖点文案。
-- 顶部移除记录 ID、内部 route code 等默认展示；改为当前任务、来源策略和状态。
+**当前已完成：**
 
-**边界：**
-- 做：信息架构 + 设置分层 + 标签友好化。
-- 不做：不删任何功能（都进“更多”）；不砍群聊/新闻。
-- 不含：主题/换肤。
+- raw/focused/canonical query；
+- 通用紧凑型号归一化；
+- 当前 UTC 日期和 freshness markers；
+- 查询变体；
+- structured empty/unavailable/invalid semantics；
+- 固定 fixture 黄金回归。
 
-**优先级：** P2　**依赖：** G11, G16, G17
+**剩余：**
 
----
-
-## G8. 移动端/窄屏完整可用
+- 统一 WebResearchContext：时区、显式历史范围、conversation topic；
+- 精确词 -> 官方 -> 高可信近期媒体 -> 更宽别名的分层计划；
+- 7/30/365 天受控扩展和 stop reason；
+- SourceAssessment 和有效来源门禁；
+- answer-first，证据不足时不自由猜测；
+- UI 展示规范化查询、实际尝试、窗口、采用来源；
+- 可选真实联网 smoke test，不让 CI 依赖实时互联网。
 
-**目的：** 窄屏不丢失核心差异化功能。
-
-**需求：**
-- 窄屏会话入口（P0 已恢复 dock 按钮+抽屉）。
-- 顶部任务/学习状态条窄屏可用（目标/阶段或研究状态/缺口一行+展开）。
-- dock 窄屏防溢出；最终收敛为“上传、会话、收束、更多”。
-- 当前任务收束按钮窄屏可见可达。
-- 非 hover 环境提供可见文字或可访问标签，不能只靠 title 解释图标。
-
-**边界：**
-- 做：响应式适配。
-- 不做：不做原生 App、不做独立移动端布局。
-- 不含：离线 PWA。
-
-**优先级：** P2（部分 P0 已做）　**依赖：** G7, G17
-
----
-
-## G9. 新兴术语与时效性联网检索可靠性
-
-**目的：** 对刚发布、无空格、带版本号、疑似拼写异常或模型未见过的实体，稳定完成“识别名称 -> 近期检索 -> 可信源核验 -> 谨慎回答”，避免把搜索失败误报为信息不存在。
-
-**需求：**
-
-### G9.1 查询上下文与名称归一化
-- 新建结构化 `WebResearchContext` 或等价对象：`raw_query / canonical_candidates / current_date / timezone / explicit_time_range / conversation_topic / freshness_required`。
-- 保留原始查询，同时生成有限名称变体；例如 `gpt5.6sol` 可生成 `GPT-5.6 Sol / GPT 5.6 Sol / "GPT-5.6" Sol`，但不得直接替换成 Claude Sonnet。
-- 数字、版本号、连字符、空格和大小写归一化必须是通用规则，不为单个产品名写特例。
-- 用户明确询问历史年份时尊重原时间；只有“最近/现在/最新”或无时间且实体疑似新兴时使用当前日期和近期窗口。
+## 17. G10：多步联网研究成为 ResearchRun
 
-### G9.2 分层搜索计划
-- 第一层：原始精确词和规范化精确短语。
-- 第二层：官方域名/发布方渠道。
-- 第三层：Reuters、AP、Axios 等高可信近期新闻和一手采访。
-- 第四层：更宽泛别名、语言变体和上下文查询。
-- 使用 7 天 -> 30 天 -> 1 年的受控扩展，不得默认拼接过期年份。
-- 找到高可信直接证据后停止无意义的重复扩展，避免一次请求发出大量近义查询。
-
-### G9.3 空结果与失败语义
-- WebLookupRun/工具结果应明确输出：`found / ambiguous / insufficient_evidence / empty_result / provider_failed`。
-- 只有在定义了检索范围、多个独立来源均无结果且任务允许作此判断时，才能使用 `confirmed_absence`；默认不提供该结论。
-- `provider_failed` 或 `empty_result` 时，回答必须说“本次搜索未找到/搜索服务失败”，不得说“没有任何公开信息”。
-- 搜索失败时保留已尝试的规范化词和来源范围，支持用户一键重试，而不是从零开始。
-
-### G9.4 回答策略
-- 找到证据时先回答实体是什么、何时发布、主要定位，再给来源和仍不确定的部分。
-- 不在证据不足时优先罗列“可能是 Sonnet / 内部项目 / 伪造”等猜测；候选解释只能标为低置信度，并放在已完成合理检索之后。
-- 需要追问上下文时，也先说明已确认和未确认的内容，不把信息搜集责任完全退回给用户。
-- 涉及时效信息时使用具体日期，不只写“最近”“目前”。
-
-### G9.5 证据清洗与展示
-- Web 来源和本地 RAG 引用分区计数，不能把空 RAG 占位混成联网引用。
-- 引用必须至少有可读标题或域名、有效 URL/来源标识和可解释的选择理由。
-- `未命名`、空来源、解析失败、`score <= 0` 的占位不得进入引用列表或引用数量。
-- 证据轨迹展示：规范化查询、实际搜索词、时间窗口、选中来源；低层 Provider 调试信息只放高级详情。
-
-### G9.6 可观测性与评测
-- 为每次研究记录：当前日期、候选实体、查询序列、Provider、时间窗口、结果数、入选来源、停止原因、最终置信度。
-- 建立新兴实体黄金用例，至少覆盖：无空格版本名、大小写/连字符差异、真实拼写错误、同名歧义、Provider 空结果、Provider 超时、历史查询。
-- CI 使用固定 fixture/mock，不依赖实时互联网；另保留可选联网 smoke test。
-- 将本次 `gpt5.6sol` 体验作为回归用例，fixture 日期固定为 `2026-07-12`。
-
-**验收：**
-- 输入 `联网看看gpt5.6sol` 时，系统能把它识别为候选 `GPT-5.6 Sol`，并在存在可信近期 fixture 的情况下返回该实体，而不是回答“没有公开信息”。
-- 查询计划不得无依据注入 `2025`；应显示或记录当前日期 `2026-07-12` 及近期检索窗口。
-- 在找到直接证据时，不得把 Claude Sonnet 或“伪造”作为主要答案。
-- Provider 超时和零结果分别返回 `provider_failed`、`empty_result/insufficient_evidence`，均不得升级为 `confirmed_absence`。
-- 证据区不得出现 `引用 1 / 未命名 / 0.00`；无有效引用时计数必须为 0。
-- 至少两类独立可信来源可被交叉核验；只有一类来源时明确说明证据范围。
-
-**边界：**
-- 做：查询理解、时间 grounding、名称候选、搜索编排、结果语义、回答约束、证据清洗和回归评测。
-- 不做：不替换现有搜索 Provider，不引入完整搜索引擎框架，不为 `GPT-5.6 Sol` 写硬编码答案。
-- 不含：通用事实知识图谱、自动舆情分析、长期新闻订阅。
-
-**优先级：** P0（核心正确性）　**依赖：** G11 的 research intent 可先用最小规则提供
-
----
-
-## G10. 多步联网研究成为正式 ResearchRun
-
-**目的：** 将 ChatGPT 式的“搜索 -> 判断 -> 调整查询 -> 阅读来源 -> 交叉核验 -> 回答”从临时模型行为升级为可恢复、可审计、可评测的服务流程。
-
-**需求：**
-- 在现有 `WebLookupRun` 上扩展，或新建 `ResearchRun`；必须明确唯一 owner，不能并存两套含义相近的运行实体。
-- 建议状态机：`created -> normalizing -> searching -> assessing -> expanding -> reading -> synthesizing -> completed | partial | failed | cancelled`。
-- 持久化：`raw_query / research_context / canonical_candidates / query_attempts / selected_sources / rejected_sources / time_window / provider_status / stop_reason / answer_confidence / synthesized_answer / error`。
-- 每轮搜索结果进入 `SourceAssessment`：相关性、时效性、来源类型、直接性、是否重复、是否值得阅读正文。
-- Planner 根据当前证据决定：停止、改写查询、扩大时间窗口、改查官方源、阅读页面或请求用户补充。
-- 只有达到以下任一条件才结束：
-  - 获得足够直接且相互独立的证据；
-  - 达到查询/阅读/时间/成本预算；
-  - Provider 明确失败；
-  - 实体仍歧义且必须由用户补充上下文。
-- 同一 `raw_query + canonical_candidates + date/time_range + conversation_topic` 支持幂等恢复；重试继承已完成查询，不重复消耗。
-- 前端默认只展示答案、有效来源和简短研究说明；完整查询序列、被拒来源和 Provider 错误进入高级证据轨迹。
-- 快速路径：明确、稳定、首轮即有高可信直接结果时，不强制走全部状态。
-- 后续追问复用 `last_research_run_id / canonical_entities / selected_source_ids`，只补检缺失部分。
-
-**架构边界：**
-- API Route 只创建/读取/重试 Run；查询循环归 `ResearchService`。
-- 复用现有 `web_search / web_read` Provider 和 SSRF 安全边界，不更换搜索基础设施。
-- AnswerComposer 只消费已评估证据和 ResearchRun 状态，不直接根据空搜索结果自由猜测。
-- G9 是 ResearchRun 的策略与正确性规范；G10 是生命周期、持久化、恢复和产品体验。
-- G12 提供阶段事件与取消；G13 提供统一证据展示契约。
-
-**验收：**
-- `gpt5.6sol` fixture 中，第一次精确搜索为空后可继续执行名称变体和近期可信源查询，最终命中后进入 reading/synthesizing。
-- Provider 在第二次查询超时时，Run 保留第一次尝试和候选实体，状态为 `partial` 或 `failed`，用户可重试而不从零开始。
-- 找到足够直接证据后记录 `stop_reason=direct_evidence_sufficient`，不会继续发出无意义近义查询。
-- 最终答案使用 ResearchRun 的有效证据；删除或拒绝的占位来源不会进入引用区。
-- 刷新页面后可恢复研究状态、查询轨迹和已选来源。
-- 连续追问优先复用上一轮已读来源，不重复从零搜索。
-
-**边界：**
-- 做：研究状态机、持久化、重试恢复、证据评估接口、停止条件和前端恢复。
-- 不做：不建设通用爬虫平台，不做无限深度研究，不支持后台长期运行。
-- 不含：新闻订阅、自动定时监控、GraphRAG。
-
-**优先级：** P1　**依赖：** G9, G11, G12 最小事件契约, G13 证据契约
-
----
-
-## G11. 任务意图与结果契约
-
-**目的：** 在进入角色、教学协议、RAG、联网和记忆前，先确定用户本次究竟要完成什么，防止临时研究或闲聊污染学习状态。
-
-**核心模型：**
-
-```
-TaskIntent
-- quick_answer
-- research
-- learn
-- explain_back
-- project_execution
-- conversation
-- organize
-
-PedagogyProtocol
-- direct
-- socratic
-- feynman
-- project
-
-VoiceProfile
-- neutral / auto / march7 / keqing / nahida / firefly
-
-SourcePolicy
-- model_only
-- local_only
-- web_only
-- local_and_web
-- ask_before_external
-
-ClosureEligibility
-- not_applicable
-- optional_note
-- learning_summary
-- research_summary
-- project_summary
-```
-
-**需求：**
-- TaskIntent 在角色和教学协议之前判定；允许用户显式覆盖。
-- 角色只控制表达风格，不影响是否搜索、事实判断、来源可信度和任务状态。
-- `research` 默认 direct + web/source policy；不自动建立长期掌握目标，不默认生成 learner profile。
-- `learn/explain_back/project_execution` 才进入对应长期状态机。
-- 同一会话明显换题时给选择：`作为临时问题回答 / 切换当前目标 / 新建会话`。
-- 学习目标增加生命周期：`proposed / confirmed / modified / suspended / completed / abandoned`。
-- 首轮可自动提出目标，但用户可确认或修改；不强制在发送前填写表单。
-- 将 task_intent/source_policy/closure_eligibility 持久化到 ChatThread/Turn snapshot，刷新后保持一致。
-
-**验收：**
-- `联网看看gpt5.6sol` 判为 research，不写入 confirmed_points、不产生学习缺口，收束按钮显示“保存研究笔记”或不显示。
-- `带我系统学习 GPT-5.6` 判为 learn，可建立目标并使用教学协议。
-- `我来解释二分查找，你检查` 判为 explain_back + feynman。
-- `帮我修改项目并跑测试` 判为 project_execution，不被普通聊天模式吞掉。
-- 用户显式选择模式时保留任务意图语义，例如 research 仍可指定“苏格拉底讨论”，但不会自动成为长期掌握记录，除非用户确认转为学习目标。
-
-**边界：**
-- 做：顶层任务契约、目标生命周期、换题门禁、状态持久化。
-- 不做：不建设通用 Agent 自动规划系统，不引入复杂意图 ontology。
-- 不含：课程计划生成、跨会话概念图。
-
-**优先级：** P0（产品正确性）　**依赖：** 无
-
----
-
-## G12. 预回答过程可见与完整取消
-
-**目的：** 用户在首 token 前知道系统在做什么，并能真正停止路由、RAG、联网搜索、网页阅读和回答生成。
-
-**需求：**
-- Chat/Research 提供结构化阶段事件：`routing / evaluating / retrieving_local / normalizing / searching / assessing / reading / composing / streaming / saving`。
-- 前端显示简洁且真实的状态，不使用无法验证的假百分比。
-- 高级详情显示当前 Run、已耗时、查询/阅读次数、预算和最近错误。
-- Abort/cancel 信号必须传到 WebToolAgent/ResearchService、RAG 和 Provider；不能只停止浏览器等待。
-- 每个阶段定义超时、查询数、阅读数、token/成本上限和停止原因。
-- 中断后保留可用部分，允许继续、重试或放弃；重试不得重复已完成研究步骤。
-- 会话切换只取消当前 chat owner；独立上传/研究/记忆任务按 scope 处理。
-
-**验收：**
-- 用户点击停止后，新的搜索/阅读调用不再启动，服务器 Run 进入 cancelled/interrupted。
-- 首 token 延迟期间至少显示真实阶段，不出现空白 Assistant 气泡长时间无反馈。
-- Provider 超时显示 provider_failed/partial，不伪装成正常空回答。
-- 刷新后能恢复“研究到哪一步”和已完成结果。
-
-**边界：**
-- 做：阶段事件、取消传播、预算、部分结果和恢复。
-- 不做：不提供后台长期任务，不保证所有第三方 Provider 都能立即终止已发出的网络请求。
-- 不含：通用任务队列平台。
-
-**优先级：** P1；其中“停止信号传到联网循环”和“首 token 前阶段提示”为 P0　**依赖：** G11 owner/scope，G10 完整研究状态
-
----
-
-## G13. 证据与消息完整性
-
-**目的：** 让用户看到的引用数量、来源、角色标签和复制内容与真实数据一致，修复 `引用 1 / 未命名 / 0.00` 等直接破坏信任的问题。
-
-**需求：**
-- 修复前端 `RagResult` 嵌套映射：从 `result.chunk.title/source_path` 读取，而不是只读顶层字段。
-- 新建统一 `EvidenceRef`：`evidence_id / type / title / source_or_url / domain / published_at / score / selected / rejection_reason / supported_claim_ids`。
-- 分开显示：`查询 N 次 / 阅读 N 页 / 采用 N 个来源 / 本地引用 N 条`；默认突出采用来源，不把工具调用数叫“联网来源”。
-- 搜索候选、已阅读、已采用、已拒绝必须区分；只有 selected evidence 进入引用计数。
-- 支持 claim-source 对应：正文中的关键时效事实可引用 `[1][2]`，证据区说明来源支持哪条结论。
-- 空标题、空 URL/路径、解析失败、重复、零分占位不进入引用。
-- 每条 Assistant 消息提供“复制纯正文”；复制结果不包含头像 alt、重复角色名、按钮或调试轨迹。
-- 头像为装饰时使用空 alt/aria-hidden；可见角色名只保留一份。
-- 实时和恢复后的 route/rag/pedagogy/evidence 保持同一数据合同。
-
-**验收：**
-- 有效嵌套 RAG 结果能显示真实标题、路径和分数。
-- 无有效引用时显示 0，不出现 `未命名 0.00`。
-- “联网 6”被替换为清晰的查询/阅读/采用来源统计。
-- 复制消息只得到一次角色名或默认不含角色名，并保留正文 Markdown 文本。
-- 刷新后证据计数和已采用来源不变化。
-
-**边界：**
-- 做：证据数据合同、前端映射、消息复制和可访问标签。
-- 不做：不在本项重写 SourceRank 或 RAG 算法（分别归 G9/G10 和后续 RAG 计划）。
-- 不含：学术引用格式导出。
-
-**优先级：** P0　**依赖：** 无；G10 后续复用该合同
-
----
-
-## G14. 资料导入与来源范围
-
-**目的：** 上传后用户明确知道每个文件是否解析成功、资料保存在哪里、是否会用于当前回答，以及如何从这些资料开始学习。
-
-**需求：**
-- 上传流程显示每文件阶段：`uploading / validating / parsing / chunking / indexing / ready / partial / failed`。
-- 入口与结果反馈在同一可见流程，不要求用户打开设置抽屉查看状态。
-- 明确区分：`当前会话临时附件` 与 `长期知识库`；用户在上传时选择，默认策略可配置。
-- 当前会话保存 `active_knowledge_base/source_scope`，回答和证据区显示本轮实际使用了哪些资料。
-- 上传成功后提供 `[从这些资料开始提问]` 和推荐问题。
-- 批量任务显示每文件错误和总体 partial_success；支持重试失败文件。
-- 重建整个知识库必须二次确认并说明影响；删除文档必须确认。
-- 临时附件可选择：禁止联网、禁止发送给云端模型、会话结束时删除。
-
-**验收：**
-- 上传三个文件、一个解析失败时，用户能看到 2 ready + 1 failed，并单独重试。
-- 上传完成后主对话区域有明确成功反馈和快捷提问。
-- 删除和重建均不会因一次误点直接执行。
-- 回答证据区能区分临时附件与长期知识库。
-
-**边界：**
-- 做：导入流程、来源范围、反馈、确认和临时资料语义。
-- 不做：不在本项实现复杂 PDF/OCR/父子切块升级。
-- 不含：云端文件同步。
-
-**优先级：** P1　**依赖：** G16 数据边界；后端复用现有 RagRun
-
----
-
-## G15. 会话转换与状态真值
-
-**目的：** 新建、切换、归档、总结和恢复各自语义清晰，任何失败/中断都不会把未提交状态展示为已完成。
-
-**需求：**
-- `新建会话 ≠ 归档旧会话`；新建只创建新线程，旧线程保留 active/history，只有用户明确归档才 archived。
-- 会话状态至少区分：`active / summarized / archived`，并兼容历史数据。
-- 主 UI 只读取 committed learning state；attempted/planned state 使用独立字段和提示。
-- 中断/失败回合不能覆盖顶部 committed objective/phase/gap。
-- 切换会话时如当前 Chat 正在生成，明确提示会停止当前回答；只取消 chat owner。
-- 离开存在 previewed MemoryRun、partial ResearchRun 或未完成上传时，提示并允许继续后台前台恢复（不做真正后台运行）。
-- scoped cancellation：chat、research、rag_write、memory 各自 owner，不使用全局 cancelAll 作为普通切换逻辑。
-- 新建会话时如当前学习未整理，提供：`先整理 / 直接新建 / 取消`，但不强制归档。
-
-**验收：**
-- 点击“新会话”后旧会话仍可在历史中打开，状态不是 archived。
-- 中断发生后刷新，顶部显示最后 committed 阶段，并注明本轮计划未提交。
-- 切换会话不会取消独立 RAG 上传或清空已生成记忆预览。
-- 归档必须经过明确动作，且活动会话归档后再创建/选择新会话。
-
-**边界：**
-- 做：会话状态语义、committed truth、离开门禁、scoped cancellation。
-- 不做：不实现多窗口协同编辑或后台任务守护。
-- 不含：会话标签和文件夹。
-
-**优先级：** P0　**依赖：** 无；G4/G5/G6/G3 消费其真值
-
----
-
-## G16. 外发数据与隐私控制
-
-**目的：** 让“本地优先”成为可操作的数据策略，而不是只在文案中出现；用户知道本轮哪些内容会发送到搜索服务和模型 Provider。
-
-**需求：**
-- 联网策略：`关闭 / 每次询问 / 自动`。
-- 云端上下文范围：`仅当前问题 / 最近对话 / 允许本地资料片段`。
-- SourcePolicy 和 ProviderPolicy 持久化到会话设置，任务可临时覆盖。
-- 发起外部请求前可显示简要外发摘要：查询词、是否含对话上下文、是否含本地资料；敏感资料模式要求确认。
-- 文档/附件支持标记：`仅本地模型 / 禁止联网 / 禁止写入长期记忆 / 允许云端模型`。
-- Web search 默认只发送规范化查询和必要上下文，不发送整段本地文档。
-- 日志和 EvidenceTrail 展示外发类型与 Provider，不默认暴露密钥或完整敏感正文。
-- 首次启用自动联网或云端资料上下文时进行一次明确说明。
-
-**验收：**
-- 关闭联网后不会调用 web_search/web_read。
-- “每次询问”模式在发起联网前给出明确操作。
-- 标记为禁止云端的附件不会进入远程模型 Prompt 或搜索上下文。
-- EvidenceTrail 能说明本轮用了本地资料、联网搜索或两者，但不泄露敏感正文。
-
-**边界：**
-- 做：用户策略、外发摘要、资料敏感标记和运行时门禁。
-- 不做：不提供企业级 DLP、账号权限和多租户审计。
-- 不含：端到端加密同步。
-
-**优先级：** P0（最小开关和资料外发门禁）+ P1（完整摘要与文档策略）　**依赖：** G11 SourcePolicy
-
----
-
-## G17. 首次使用、消息操作与可访问性
-
-**目的：** 减少工程控制台感，让第一次使用、日常输入、复制、重试、抽屉和窄屏操作都符合常规聊天产品预期。
-
-**需求：**
-- 新用户首页显示任务入口；没有历史时不显示空的“当前重点/上次进度/长期摘要”。
-- 老用户显示结构化恢复卡，不重复堆三段 Markdown。
-- 修正欢迎语和布局说明，不能再描述已不存在的“左侧学习目标面板”。
-- 顶部默认展示当前任务、目标和状态；RAG route、记录 ID、内部 model profile 进入高级详情。
-- 输入框支持：`Enter 发送 / Shift+Enter 换行`，并允许在设置中切换。
-- 每条 Assistant 消息提供复制、重试；中断消息提供继续/重试/复制已有内容。
-- 抽屉实现 focus trap、Escape 关闭、关闭后焦点返回触发按钮；背景不可误操作。
-- 抽屉内部导航必须 dispatch 打开目标抽屉，不能使用失效的 `href="#sources"` 等锚点替代。
-- 移动端图标提供可见标签或无障碍名称，不依赖 hover title。
-- 全局错误提示提供具体动作：重试、打开设置、查看详情；不能只有“关闭”。
-- 角色头像装饰 alt 为空，屏幕阅读器只读一次角色名称。
-
-**验收：**
-- 新用户打开页面能在一个屏幕内选定“快速问答/学习/研究/项目/资料”之一。
-- Enter/Shift+Enter 行为符合设置，中文输入法组合状态不会误发送。
-- 键盘可完整打开、操作和关闭抽屉，焦点返回原按钮。
-- 设置抽屉中的“来源/时间线/工具/记忆”入口能真正打开对应抽屉。
-- 页面复制和屏幕阅读器不再输出两次“刻晴”。
-
-**边界：**
-- 做：首次使用、消息动作、键盘、焦点、错误操作和标签。
-- 不做：不进行全量视觉品牌重设计。
-- 不含：语音输入、国际化。
-
-**优先级：** P1；欢迎语、失效导航、重复角色名和输入快捷键为 P0/P1 小修　**依赖：** G11, G7
-
----
-
-## 执行顺序（建议）
-
-### 第一阶段：先阻止错误结论和状态污染（P0）
-
-```
-G11 最小任务契约
-+ G13 证据映射与计数修复
-+ G15 新建不归档、committed truth、scoped cancel
-+ G16 联网开关与资料外发门禁
-+ G9 当前日期/名称归一化/空结果语义
-+ G5 主状态只读 committed
-```
-
-**第一批 A（可并行小步提交）：**
-- G13：修复 `RagResult.chunk`、无效引用过滤、查询/阅读/采用来源分开、头像重复。
-- G15：移除新建会话自动归档；主状态只用 committed；普通切换不再 cancelAll。
-- G16：联网 `关闭/询问/自动` 最小开关；禁止云端资料门禁。
-- G17：欢迎语、失效抽屉导航、Enter/Shift+Enter、纯正文复制。
-
-**第一批 B（顶层正确性）：**
-- G11：`quick_answer/research/learn/explain_back/project_execution` 最小分类与显式覆盖。
-- G9：当前日期、名称候选、空结果状态和 `gpt5.6sol` 黄金回归。
-
-### 第二阶段：把多步流程变成可恢复 Run（P1）
-
-```
-G9 -> G10 ResearchRun
-G11 -> G1 LearningClosureRun
-G11/G10 -> G12 阶段事件与完整取消
-G16 -> G14 资料导入与范围
-```
-
-- **第二批 A：** G10 最小 ResearchRun：状态、查询尝试、来源选择、停止原因、失败恢复。
-- **第二批 B：** G1 LearningClosureService：路由瘦身、幂等、恢复。
-- **第二批 C：** G12 首 token 前阶段事件、取消传播、预算。
-- **第二批 D：** G14 每文件上传状态、临时/长期范围、删除和重建确认。
-
-### 第三阶段：闭合学习与结果收束（P2/P3）
-
-```
-G1 + G11 -> G2 结构化总结
-G2 -> G3 真正结束/保存流程
-G11 + G15 -> G4 会话语义化
-G4 + G10 + G15 -> G6 恢复卡
-```
-
-- **第三批 A：** G2 + G3。
-- **第三批 B：** G4 + G6。
-
-### 第四阶段：产品聚焦与完整可用
-
-- G5 完整去伪精化。
-- G7 Dock/设置/顶部信息收敛。
-- G8 窄屏完整适配。
-- G17 完整键盘、焦点、错误动作和消息操作。
-
-## P0 验收门槛
-
-在继续增加新模式、新面板或复杂 RAG 功能前，以下必须全部成立：
-
-1. `联网看看gpt5.6sol` 不会无依据输出“不存在”，不会注入 2025，不会显示 `未命名 0.00`。
-2. 临时 research 不会自动推进学习阶段、confirmed_points 或 learner profile。
-3. 新建会话不会自动归档旧会话。
-4. 中断/失败后顶部只显示 committed state。
-5. 切换会话不会取消无关上传/索引/记忆任务。
-6. 用户可关闭自动联网，并控制本地资料是否发送给云端模型。
-7. 引用计数等于有效已采用证据数；查询次数不再伪装成来源数量。
-8. 欢迎语、消息复制、角色标签和基础键盘交互无明显错误。
-
-## 跨项风险
-
-- **G1 持久化：** 新增 `LearningClosureRun` 表需 SQLite 迁移（SCHEMA_VERSION +1），必须不破坏既有 ledger。
-- **G3 summary_status：** ChatThread 加字段同样需迁移；状态迁移要兼容历史会话（默认 `unsummarized`）。
-- **G2 prompt 预算：** 粗值可能影响总结质量，需小样本验证后调参。
-- **G4 标题生成：** 首轮自动生成可能不准；必须允许手动改 + 不覆盖用户已改。
-- **G7 收敛：** 移动现有 dock 到“更多”不能丢入口，需回归每个抽屉可达。
-- **G9 名称归一化：** 过度纠错可能把真实新名称改错；必须同时保留 raw query 和多个候选，不做单一路径强替换。
-- **G9 时效窗口：** 当前日期 grounding 不能覆盖用户明确指定的历史范围。
-- **G9 搜索成本：** 多层查询必须有停止条件、最大查询数和超时预算，防止一次简单请求触发无上限搜索。
-- **G9 测试稳定性：** CI 不依赖实时搜索结果；使用固定 fixture，实时 smoke test 只作辅助。
-- **G10 实体重复：** 优先评估扩展现有 WebLookupRun，避免 WebLookupRun/ResearchRun 两套重叠状态。
-- **G10 状态爆炸：** 不是每个普通联网请求都进入完整循环；快速路径与研究路径必须有明确升级条件。
-- **G10 来源评估偏差：** 来源排名规则需要 fixture 和人工复核，不能把单一媒体白名单当作绝对真实性。
-- **G10 恢复一致性：** 查询尝试、选中来源和最终答案需要同一版本/事务语义，不能恢复出“答案完成但来源缺失”的状态。
-- **G11 误分类：** TaskIntent 必须允许显式覆盖，并在低置信度时采用低风险 quick_answer/临时问题路径，不得强制建立长期目标。
-- **G11 状态迁移：** 旧会话缺少 task_intent 时需兼容推断，不能批量污染历史 learning_state。
-- **G12 假进度：** 只能显示真实阶段事件，不生成模型臆测百分比。
-- **G12 取消一致性：** 取消后不得继续提交 completed answer 或错误推进学习状态。
-- **G13 双重来源：** Web 搜索结果与本地 RAG 都可能引用同一页面/文档，需要稳定去重键。
-- **G14 临时资料：** 临时与长期索引必须有明确生命周期，避免会话结束后残留或误删长期资料。
-- **G15 迁移：** active/summarized/archived 与现有 status 字段需设计兼容迁移，不能让历史会话消失。
-- **G15 scoped cancel：** operation owner 不完整时需要安全 fallback，但不能继续使用全局取消作为默认路径。
-- **G16 外发提示疲劳：** “每次询问”需要记忆本会话选择和合理批次，不应每个底层请求都弹窗。
-- **G16 Provider 差异：** 不同模型 Provider 的上下文和工具能力不同，策略层必须统一，适配层单独实现。
-- **G17 输入法：** Enter 发送必须处理 IME composition，防止中文候选确认时误发。
-- **G17 抽屉焦点：** 多抽屉切换要维护单一 active drawer 和焦点返回栈，避免焦点丢失。
+**目的：** 将搜索 -> 判断 -> 扩展 -> 阅读 -> 交叉核验 -> 回答变成正式服务流程。
+
+**设计约束：** 扩展现有 WebLookup ownership，不能并存两个含义重叠的 run。
+
+**剩余：**
+
+- 状态机：created/normalizing/searching/assessing/expanding/reading/synthesizing/completed/partial/failed/cancelled；
+- 持久化 query context、attempts、selected/rejected sources、time window、provider status、stop reason、confidence、answer；
+- Planner 基于当前证据决定停止、改写、扩大窗口、官方源、阅读或追问；
+- 查询/阅读/时间/成本预算；
+- 幂等恢复和 retry 继承；
+- follow-up 复用上一 run 的实体和来源；
+- 默认 UI 只显示答案和有效来源，高级区显示完整轨迹。
+
+## 18. G11：任务意图与结果契约
+
+**当前已完成：**
+
+- TaskIntent 最小分类；
+- research/quick answer/conversation 不更新学习状态；
+- explain-back/project/learn 进入对应长期路径；
+- 活跃学习中的低风险追问可继承目标；
+- route snapshot 和前端任务条/closure visibility 消费 task contract。
+
+**剩余：**
+
+- 用户显式覆盖 TaskIntent；
+- 明显换题门禁；
+- 目标 proposed/confirmed/modified/suspended/completed/abandoned；
+- thread-level task/source/closure 真值与旧会话兼容；
+- research 指定苏格拉底讨论仍不自动写入长期掌握，除非用户确认转目标。
+
+## 19. G12：预回答过程可见与完整取消
+
+**当前：** 前端会话转换已使用 chat scope invalidation。
+
+**剩余：**
+
+- routing/evaluating/retrieving_local/normalizing/searching/assessing/reading/composing/streaming/saving 事件；
+- 首 token 前真实状态，禁止假百分比；
+- 高级区显示 run、耗时、次数、预算、错误；
+- cancel 传到 ResearchService、RAG 和 Provider 能力边界；
+- 中断保留可用部分，可继续/重试/放弃；
+- 取消后不得提交 completed answer 或推进学习状态。
+
+## 20. G13：证据与消息完整性
+
+**当前已完成：**
+
+- 从 `result.chunk.title/source_path` 读取本地来源；
+- 空/零分/重复占位过滤；
+- 实时和恢复 turn evidence 基础一致；
+- 复制纯正文；头像装饰语义。
+
+**剩余：**
+
+- 统一 EvidenceRef：id/type/title/source/domain/published_at/score/selected/rejection/supported claims；
+- 分开查询次数、阅读页数、采用 web 来源、本地引用；
+- candidate/read/selected/rejected 分层；
+- claim-source 对应；
+- web 与本地稳定去重；
+- 刷新前后计数和采用来源完全一致。
+
+## 21. G14：资料导入与来源范围
+
+**当前：** 后端有安全校验、版本化写入、partial stage；删除需要确认。
+
+**剩余：**
+
+- 每文件 uploading/validating/parsing/chunking/indexing/ready/partial/failed；
+- 上传入口和结果在同一可见流程；
+- 当前会话临时附件 vs 长期知识库；
+- active source scope 和实际使用资料可见；
+- 从这些资料开始提问和推荐问题；
+- 失败文件单独重试；重建说明影响并二次确认；
+- 临时附件禁止联网/云端/记忆和会话结束删除。
+
+## 22. G15：会话转换与状态真值
+
+**当前已完成：**
+
+- 新建会话不归档旧会话；
+- committed state 恢复；
+- phase trail 只读 completed turns；
+- ordinary transition 只 invalidate chat；
+- 删除知识文档显式确认。
+
+**剩余：**
+
+- active/summarized/archived 迁移；
+- 中断回合 planned state 提示；
+- 切换生成中的 chat 明确提示；
+- Memory preview、partial research、未完成上传的离开门禁；
+- 先整理 / 直接新建 / 取消；
+- 归档后明确创建或选择下一会话。
+
+## 23. G16：外发数据与隐私控制
+
+**当前已完成：**
+
+- runtime web off/ask/auto；
+- cloud context question-only/recent-chat/allow-local-evidence；
+- 前后端真实门禁；
+- ask 模式本轮确认；
+- 本地检索可保留审计但不一定进入云端 prompt。
+
+**剩余：**
+
+- SourcePolicy/ProviderPolicy 线程持久化和任务覆盖；
+- 外发摘要：查询、历史、本地资料、Provider；
+- 附件仅本地/禁联网/禁记忆/允许云端；
+- EvidenceTrail 显示外发类型但不泄露正文；
+- 首次自动联网/云端资料说明；
+- ask 选择按会话合理记忆，避免每个底层请求弹窗。
+
+## 24. G17：首次使用、消息操作与可访问性
+
+**当前已完成：**
+
+- Enter/Shift+Enter 和 IME composition；
+- Assistant 正文复制；
+- 中断继续/重试/复制已有入口；
+- 角色头像空 alt/aria-hidden；
+- 部分抽屉入口和欢迎语修复。
+
+**剩余：**
+
+- 新用户一屏选择五类任务；
+- 老用户结构化恢复卡；
+- 顶部移除 route/ID/profile；
+- 输入行为可配置；
+- 每条 Assistant 明确复制和重试；
+- focus trap、Escape、关闭后焦点返回、背景不可操作；
+- 移动端可见标签；
+- 全局错误提供重试/设置/详情动作。
+
+## 25. 执行顺序
+
+### 阶段 A：P0 真实旅程复核
+
+1. `gpt5.6sol` 应用路径。
+2. 临时 research 不污染学习。
+3. 新建/切换/取消 scope。
+4. web policy 和 cloud context 实际外发。
+5. refresh 后 committed state 和 evidence 稳定。
+
+### 阶段 B：正式可恢复 Run
+
+1. G10 ResearchRun。
+2. G1 LearningClosureRun。
+3. G12 阶段事件、预算和取消传播。
+4. G14 资料范围与逐文件状态。
+
+### 阶段 C：闭合学习和会话
+
+1. G2 + G3。
+2. G4 + G6。
+
+### 阶段 D：产品收敛
+
+1. G5 去伪精化。
+2. G7 信息架构。
+3. G8 窄屏。
+4. G17 完整可访问性和首次使用。
+
+## 26. 跨项风险
+
+- G1/G3/G4/G15 都涉及 SQLite 迁移，必须递增 schema version 并兼容历史 ledger。
+- G2 原始聊天预算过小会丢信息，过大会增加成本和误判；需小样本验证。
+- G4 自动标题必须允许手改且不覆盖用户版本。
+- G7 移动入口时必须回归所有抽屉可达。
+- G9 归一化必须保留 raw query，避免把真实新名称纠错成旧实体。
+- G9 当前日期不能覆盖用户明确历史范围。
+- G10 必须扩展现有 owner，避免 WebLookupRun/ResearchRun 双轨。
+- G10 来源排名不能等同媒体白名单；必须 fixture + 人工复核。
+- G10 answer/source/version 必须同一恢复语义。
+- G11 误分类时采用低风险 quick-answer 临时路径，并允许用户纠正。
+- G12 只能显示真实阶段，取消后不得晚到提交 completed。
+- G13 web/local 同源需要稳定去重键。
+- G14 临时索引生命周期必须与长期知识库隔离。
+- G16 ask 模式要避免提示疲劳，不同 Provider 能力由统一策略层适配。
+- G17 输入法、抽屉焦点和窄屏标签必须做真实浏览器验收。
+
+## 27. 验证要求
+
+每个切片必须同时完成：
+
+- 目标测试先行；
+- 后端全量 pytest；
+- 前端全量 Vitest；
+- Vite production build；
+- 涉及存储时做迁移/兼容/失败恢复；
+- 桌面和窄屏人工旅程；
+- 刷新前后状态、证据和来源比较；
+- 同步更新本文件、`ARCHITECTURE_STATUS.md`、`NEXT_PHASE_PLAN.md` 和对应专项计划。
+
+连接的 GitHub 状态接口未返回审计 head `7ab8c3d` 的 workflow run 或 combined status，因此本次文档只确认代码/提交级证据，不宣称远程 CI 已验证。
