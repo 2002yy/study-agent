@@ -1,16 +1,13 @@
 name: Apply recoverable research run integration
 
 on:
-  push:
-    branches:
-      - feat/p0-research-run
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.head_commit.message != 'feat: add recoverable staged research runs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
