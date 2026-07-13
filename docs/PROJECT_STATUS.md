@@ -2,13 +2,13 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-13  
-> 当前实现基线：`f35c14711fd1c934a0eb3ce17552738c7094ec60`
+> 当前实现基线：`e948b1ffe4c06ef8db2c1c352326e6619e4d440e`
 
-这里只回答：**做到哪里、还差什么、下一步做什么**。详细设计、架构边界和历史计划不在这里重复。
+这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。G10 联网研究已具备广域搜索、来源筛选、网页正文读取、GitHub 仓库/目录/源码读取，以及有预算的跨文件仓库快照。下一阶段是正式的取消、恢复、连续追问和仓库索引。**
+> **React + FastAPI + SQLite 主架构已完成。G10 已具备可取消、可重试、可恢复的广域 ResearchRun；GitHub 仓库快照已经持久化并支持连续追问复用，生产代码搜索已使用本地 path + symbol + BM25 + exact 混合索引。**
 
 ## 2. 已完成
 
@@ -17,173 +17,141 @@
 - committed learning state 是恢复真值，只采纳 completed turn。
 - 临时 research、quick answer、conversation 不推进长期学习状态。
 - 新建会话不自动归档；会话切换只取消 chat scope。
-- Enter、Shift+Enter、中文输入法、正文复制和头像可访问性已修。
-- 联网支持关闭、每次询问、自动；云端上下文范围进入真实请求路径。
+- 联网支持关闭、每次询问、自动；外发上下文范围进入真实请求路径。
 - 空结果、Provider 不可用和“确认不存在”严格区分。
 
 ### 广域网页研究
 
-- WebLookupRun 已从新闻/RSS 专用搜索切换到通用搜索。
-- 支持自建 SearXNG，并可降级到 DuckDuckGo HTML。
-- 模型可自主调用 `web_search`、`web_read`，默认最多 5 轮，硬上限 8 轮。
-- 支持多次聚焦搜索、比较来源、读取页面后再回答。
-- SourceAssessment 会记录标题、URL、域名、来源类型、相关性、直接性、时效信息、重复和拒绝原因。
-- 无效 URL、缺少来源标识和重复结果不进入最终引用。
-- ResearchRun 已持久化 query attempts、selected/rejected sources、Provider 状态、停止原因和 evidence confidence。
+- 通用搜索支持 SearXNG，并可降级到 DuckDuckGo HTML。
+- 模型可调用 `web_search`、`web_read`、`github_search`、`github_snapshot`。
+- 默认最多 5 轮工具规划，硬上限 8 轮。
+- SourceAssessment 会过滤无效 URL、无来源标识和重复结果。
+- 页面和源码按外部证据处理，不作为系统指令。
 
-### Durable 阅读阶段
+### 可恢复 ResearchRun
 
-真实阶段：
+阶段：
 
 ```text
-searching -> assessing -> reading -> synthesizing -> completed
+planned
+-> searching
+-> assessing
+-> reading
+-> synthesizing
+-> completed | partial | failed | cancelled
 ```
 
-- 默认读取最多 3 个高价值来源。
-- 默认每来源 6000 字符，整轮 16000 字符。
-- 成功、失败、跳过、字符消耗和预算写入 durable run。
-- 每个 selected source 保存自己的 `read` 结果，刷新后可恢复。
-- 单个页面读取失败不会丢弃其他结果；以 partial 语义完成。
-- 外部网页和源码显式标记为不可信证据，不作为系统指令。
+- 先创建 Run，再访问外部 Provider。
+- 每个查询变体和来源读取后写 checkpoint。
+- 保存查询尝试、采用/拒绝来源、读取结果、预算、错误和停止原因。
+- `retry` 可从失败状态重新搜索。
+- `resume` 根据 candidate、assessment 和 read 状态选择恢复点。
+- 已成功读取的来源不会重复读取。
+- operation ownership + version CAS 阻止旧请求覆盖新结果。
+- API：create / search / retry / resume / cancel / get / list。
+- 前端显示 planned/searching/assessing/reading/synthesizing，并提供停止、重试和继续。
 
-### GitHub 单仓库与源码读取
+当前取消属于协作式取消：在查询、来源读取和阶段提交之间生效。正在等待响应的同步请求需要在返回或超时后才能进入取消分支，但不会再提交 completed 结果。
 
-支持：
+### GitHub 仓库和源码
 
-- 仓库根目录、README、元数据；
-- `tree` 目录；
-- `blob` 文件；
-- `raw.githubusercontent.com`；
-- GitHub Contents API URL。
+支持仓库根目录、README、tree、blob、raw URL 和 Contents API URL。用户直接粘贴 GitHub URL 时会直接读取。GitHub code search 不可用时会降级到 tree/path 或 bounded snapshot。
 
-行为：
+### 持久化 GitHubRepoSnapshot
 
-- 用户直接粘贴 GitHub URL 时跳过搜索引擎，直接读取。
-- 公共仓库无需 Token。
-- `GITHUB_TOKEN` / `GH_TOKEN` 可用于更高限额和已授权仓库。
-- `github_search` 优先使用 GitHub code search；不可用、403 或限流时自动降级为 tree/path 或 bounded snapshot。
-- 返回的源码链接固定到当前 ref，保留文件 SHA、路径和截断状态。
+- 使用独立 `GitHubSnapshotRepository/Service`，底层复用版本化 `rag_runs`，kind 为 `github_repo_snapshot`。
+- 保存 repo、ref、tree SHA、file SHA、路径、源码、失败和预算。
+- exact query 在 TTL 内直接复用。
+- 后续问题先在上一份快照中筛选相关文件；不足时再刷新。
+- 服务重启后可从 SQLite 恢复并重建代码索引。
+- API：create / list / get。
 
-### 跨文件 GitHub 快照
-
-模型新增 `github_snapshot` 工具，用于架构、调用链、调试和跨文件问题：
-
-- 读取一个明确 ref 的 recursive tree；
-- 根据当前问题排序相关文件；
-- 拉取多份文本 blob；
-- 默认最多 24 个文件、每文件 12000 字符、总计 120000 字符；
-- 排除 `node_modules`、vendor、dist、build、generated、缓存、二进制、minified 和锁文件；
-- 保存 repository、ref、tree SHA、file SHA、路径、失败和预算。
-
-### 回归覆盖
-
-已增加不依赖公网的测试：
-
-- GitHub URL 解析；
-- 仓库、README、目录、源码读取；
-- pasted URL 直读；
-- code search/tree/snapshot 降级；
-- 网页与源码读取成功、部分失败、预算耗尽；
-- durable read 恢复；
-- snapshot 文件排序、排除规则、文件数和字符预算；
-- 模型工具分发。
-
-## 3. 距离 Codex 式能力还差什么
-
-| 能力 | 状态 | 缺口 |
-|---|---|---|
-| 多轮广域网页搜索 | 基础完成 | 缺正式 durable planner 和追问复用 |
-| 网页正文读取 | 基础完成 | 缺更强页面类型、PDF/动态页面专项处理 |
-| GitHub repo/tree/blob/raw | 完成基础 | 缺 branch 名歧义、submodule、大文件专项处理 |
-| GitHub 代码搜索 | 部分完成 | 无 Token 时主要是路径/快照检索，不是完整全文索引 |
-| 跨文件源码快照 | 基础完成 | 尚未持久化为独立版本化实体 |
-| 整仓本地 checkout | 未开始 | 尚未 `git clone/fetch/checkout` |
-| 代码语义索引 | 未开始 | 缺 BM25/vector/symbol 混合索引 |
-| 定义与引用关系 | 未开始 | 缺 tree-sitter/LSP 层 |
-| commit、branch、tag、diff | 未开始 | 缺正式工具和证据合同 |
-| PR、review、issue、CI | 未开始 | 缺 GitHub 工作对象研究链路 |
-| 仓库测试和构建 | 未开始 | 当前只读，不执行远程代码 |
-| cancel/retry/resume | 未开始 | 内部搜索和读取尚不能从 durable stage 继续 |
-| 连续追问复用 | 未开始 | snapshot 和读取结果尚无会话级缓存/索引 |
-| 私有仓库授权 UX | 未开始 | 缺逐仓库确认、外发摘要和 Token 管理界面 |
-
-## 4. 后续实施顺序
-
-### P0：验证当前切片
-
-1. 完整运行 pytest、Ruff、前端测试和 production build。
-2. 真实公网验收 SearXNG、DuckDuckGo、GitHub API、403/404/429、超时和 truncated tree。
-3. 验证不同模型 Provider 的 5–8 轮 function calling。
-4. 验证源码中的 prompt injection 不会改变系统行为。
-
-### G10-A：正式可恢复 ResearchRun
-
-1. 将聊天工具循环关联到 durable ResearchRun。
-2. 保存阶段开始时间、预算、错误和 partial result。
-3. 加 cancel endpoint 和传播。
-4. retry/resume 从当前阶段继续，不重复搜索和读取。
-5. 连续追问复用上一轮网页、来源和 snapshot。
-
-### G10-B：仓库级代码研究
-
-1. 建立版本化 `GitHubRepoSnapshot`：repo、ref、commit/tree SHA、manifest 和过期策略。
-2. 对 snapshot 建临时 BM25 + 可选 embedding 索引。
-3. 代码按文件、类、函数、配置段和测试用例分块。
-4. 加 tree-sitter；必要时接 LSP，支持 definition/reference。
-5. 支持路径、符号、文本和语义混合检索。
-6. 自动扩展入口文件、依赖文件、调用方和测试文件。
-
-### G10-C：GitHub 工作对象
-
-1. branch/tag/commit 和固定 ref。
-2. compare、diff、blame。
-3. PR、changed files、patch、review comments、CI。
-4. issue、release、docs 联合研究。
-5. 结论引用到 path、ref、SHA 和行区间。
-
-### G10-D：可执行仓库代理
-
-1. 受控临时目录 clone/fetch/checkout。
-2. 只读/可写权限和分支边界。
-3. 沙箱运行依赖、测试、lint、build 和有限命令。
-4. 修改、diff、回归、回滚。
-5. 私有源码、Token、日志脱敏和外发策略。
-6. 增量更新、缓存清理和磁盘预算。
-
-该部分应成为独立 `RepositoryResearchService` / `RepositoryRun`，复用 G10 的证据、预算、取消和恢复协议，不塞回单次 WebLookupService。
-
-## 5. 下一代码切片
-
-1. **ResearchRun cancellation + retry/resume。**
-2. **GitHubRepoSnapshot 持久化和连续追问复用。**
-3. **仓库临时混合索引与代码分块。**
-4. commit/diff/PR/issue。
-5. 受控本地 clone 和只读测试执行。
-6. 再回到 G1 LearningClosureRun。
-
-## 6. 推荐默认预算
+默认缓存和预算：
 
 ```env
-WEB_TOOL_MAX_ROUNDS=5
-WEB_TOOL_CONTEXT_MAX_CHARS=30000
-WEB_RESEARCH_MAX_READS=3
-WEB_RESEARCH_MAX_CHARS_PER_SOURCE=6000
-WEB_RESEARCH_MAX_TOTAL_CHARS=16000
+GITHUB_SNAPSHOT_CACHE_TTL_SECONDS=1800
+GITHUB_SNAPSHOT_FOLLOWUP_MAX_FILES=12
 GITHUB_SNAPSHOT_MAX_FILES=24
 GITHUB_SNAPSHOT_MAX_FILE_CHARS=12000
 GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 ```
 
-“自由大范围搜索”指模型可自主决定搜索、阅读和扩大范围，不代表取消所有时间、请求、字符和安全上限。
+### 本地代码混合索引
 
-## 7. 验证状态
+初版 `GitHubCodeIndex` 已实现：
 
-- 新增测试和代码已提交到 `main`。
-- GitHub Actions 应运行 pytest、Ruff、detect-secrets、mypy、前端测试和构建。
-- 当前 GitHub 连接没有返回这些 push commit 的 combined status/workflow run，因此**不宣称 CI 已通过**。
-- 当前执行容器无法拉取完整仓库运行全量测试，最终以仓库 Actions 或本地完整环境为准。
+- 文件路径匹配；
+- 常见代码声明的符号提取；
+- snake_case 和 CamelCase 拆词；
+- BM25 风格词法检索；
+- 精确短语加权；
+- 文件、SHA、URL、语言、symbol、行区间和 score breakdown。
 
-## 8. 文档规则
+生产 `github_search` 优先查询持久化快照的本地混合索引；无本地命中时再使用远端搜索和 tree fallback。
+
+## 3. 还差什么
+
+| 能力 | 状态 | 主要缺口 |
+|---|---|---|
+| 广域网页搜索 | 基础完成 | 聊天工具循环尚未整体关联一个 durable ResearchRun |
+| cancel/retry/resume | 基础完成 | 异步请求级取消、统一超时和实时阶段事件 |
+| 网页读取 | 基础完成 | PDF、动态页面和需要会话状态的页面 |
+| GitHub repo/tree/blob/raw | 基础完成 | branch 名歧义、submodule、LFS、超大文件 |
+| 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理和磁盘统计 |
+| 本地代码搜索 | 初版完成 | embedding 检索、结果融合和评测集 |
+| 定义与引用 | 未完成 | tree-sitter / LSP、调用图、import/export 图 |
+| Git 历史对象 | 未完成 | branch/tag/commit/compare/diff/blame |
+| PR/issue/CI | 未完成 | changed files、patch、review、workflow logs |
+| 本地 checkout | 未完成 | clone/fetch/checkout 和工作树隔离 |
+| 测试与构建 | 未完成 | 受控运行环境、命令预算、日志和回滚 |
+| 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要和仅本地模式 |
+
+## 4. 下一代码顺序
+
+### G10-C1：结构化代码理解
+
+1. tree-sitter 解析文件、类、函数、方法、import/export。
+2. definition/reference 和调用关系。
+3. 自动扩展入口文件、依赖文件、调用方和测试文件。
+4. 建立 path + ref + SHA + 行区间的统一 EvidenceRef。
+
+### G10-C2：GitHub 工作对象
+
+1. branch/tag/commit 固定 ref。
+2. compare、diff、blame。
+3. PR、changed files、patch、review comments、CI。
+4. issue、release、docs 联合研究。
+
+### G10-D：可执行仓库代理
+
+1. 受控临时目录 checkout。
+2. 只读运行环境和命令白名单。
+3. 运行测试、lint、build。
+4. 可写工作树、diff、回归和回滚。
+5. 增量更新、缓存清理和磁盘预算。
+
+这些能力应进入独立 `RepositoryResearchService / RepositoryRun / SandboxRun`，复用现有证据、预算、取消和恢复协议。
+
+## 5. 当前验证
+
+新增离线回归覆盖：
+
+- Run 先持久化后搜索；
+- Provider 失败后跨 repository restart 重试；
+- 读取中取消并保留 checkpoint；
+- resume 不重复搜索和已成功读取来源；
+- stale operation 不能写回；
+- API create/search/retry/resume/cancel；
+- 前端创建、恢复、重试和服务端取消；
+- 快照 exact cache、follow-up subset、force refresh 和重启恢复；
+- path/symbol/BM25/exact 排序；
+- snake_case/CamelCase；
+- 行区间与 score breakdown；
+- 生产 gateway 优先本地快照索引。
+
+GitHub 连接仍未返回最新 push 的 combined status/workflow run，当前执行容器也不能拉取完整仓库，因此**不宣称完整 pytest、Ruff、前端测试和 production build 已通过**。
+
+## 6. 文档规则
 
 - 当前状态只更新本文件。
 - 文档导航见 [`README.md`](README.md)。
