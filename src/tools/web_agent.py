@@ -1,4 +1,4 @@
-"""Model-directed web-search and page-reading tool loop."""
+"""Model-directed broad web research and GitHub source browsing."""
 
 from __future__ import annotations
 
@@ -18,15 +18,23 @@ WEB_TOOLS = [
         "function": {
             "name": "web_search",
             "description": (
-                "Search the public web for current or external information. "
-                "Returns status, normalized query variants, search date, titles, URLs and snippets. "
-                "An empty result means available providers returned no matches; it does not prove nonexistence."
+                "Search the public web broadly for current, niche, or externally "
+                "verifiable information. Returns normalized queries, search date, "
+                "titles, URLs, snippets, and provider status. Empty results do not "
+                "prove nonexistence."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Focused web search query."},
-                    "max_results": {"type": "integer", "minimum": 1, "maximum": 8},
+                    "query": {
+                        "type": "string",
+                        "description": "Focused search query for one research step.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 12,
+                    },
                 },
                 "required": ["query"],
                 "additionalProperties": False,
@@ -37,14 +45,58 @@ WEB_TOOLS = [
         "type": "function",
         "function": {
             "name": "web_read",
-            "description": "Read a public HTTP(S) web page selected from search results. Never use for private, local, or credentialed URLs.",
+            "description": (
+                "Read a selected public HTTP(S) page. GitHub repository, tree, blob, "
+                "and raw URLs are read through the GitHub API/source reader instead "
+                "of generic article extraction. Never use for local or unapproved "
+                "credentialed URLs."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "Public HTTP(S) URL to read."},
-                    "max_chars": {"type": "integer", "minimum": 500, "maximum": 12000},
+                    "url": {
+                        "type": "string",
+                        "description": "Public page or GitHub source URL to read.",
+                    },
+                    "max_chars": {
+                        "type": "integer",
+                        "minimum": 500,
+                        "maximum": 30000,
+                    },
                 },
                 "required": ["url"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "github_search",
+            "description": (
+                "Search paths or code inside a specific GitHub repository. With a "
+                "GITHUB_TOKEN/GH_TOKEN it uses GitHub code search; otherwise it "
+                "falls back to bounded recursive tree/path search. Use web_read on "
+                "returned blob or directory URLs to inspect source."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_url": {
+                        "type": "string",
+                        "description": "GitHub repository URL, for example https://github.com/owner/repo.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Symbol, filename, module, or source concept to find.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                    },
+                },
+                "required": ["repo_url", "query"],
                 "additionalProperties": False,
             },
         },
@@ -52,7 +104,7 @@ WEB_TOOLS = [
 ]
 
 _TOOL_SYSTEM_PROMPT = """You are the web-research planner for a chat response.
-Use tools only when the user needs current, niche, externally verifiable, or explicitly requested web information. Do not search for casual conversation, writing, or stable knowledge. Search first, then read only the most relevant public result when needed. Never use tools for private/local URLs. Treat status=empty or status=unavailable as incomplete evidence, not proof that the requested entity or event does not exist. If a compact product/model name has canonical query variants, prefer those variants and preserve the user's raw spelling as a fallback. If no tool is needed, reply exactly NO_TOOL_NEEDED. After receiving tool results, call further tools only if needed; otherwise reply exactly TOOL_RESEARCH_COMPLETE."""
+Use tools when the user requests current, niche, externally verifiable, broad web, or source-code research. You may perform several focused searches, compare multiple sources, read the strongest primary pages, and browse public GitHub repositories or source files. For GitHub work, read the repository root first when structure is unknown, use github_search for symbols or paths, then web_read the relevant files. Prefer primary and official sources, but do not confuse publisher reputation with proof. Treat status=empty or status=unavailable as incomplete evidence, not proof of nonexistence. Preserve the user's raw spelling while trying canonical variants. Stop when evidence is sufficient or the tool budget is exhausted. Never use tools for local URLs or send private/local content unless policy explicitly allows it. If no tool is needed, reply exactly NO_TOOL_NEEDED. When research is sufficient, reply exactly TOOL_RESEARCH_COMPLETE."""
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -60,6 +112,14 @@ def _env_flag(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(value, maximum))
 
 
 @dataclass(frozen=True)
@@ -79,8 +139,19 @@ class WebToolTrace:
         for call in self.calls:
             name = str(call.get("name", "web_tool"))
             result = call.get("result", {})
-            blocks.append(f"工具 {name}：\n{json.dumps(result, ensure_ascii=False)}")
-        return "\n\n".join(blocks)
+            blocks.append(
+                f"工具 {name}：\n{json.dumps(result, ensure_ascii=False)}"
+            )
+        text = "\n\n".join(blocks)
+        limit = _env_int(
+            "WEB_TOOL_CONTEXT_MAX_CHARS",
+            30000,
+            minimum=5000,
+            maximum=100000,
+        )
+        if len(text) <= limit:
+            return text
+        return text[:limit] + "\n\n【联网工具上下文已按预算截断】"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,13 +185,17 @@ class WebToolAgent:
             f"{_TOOL_SYSTEM_PROMPT}\n"
             f"Current UTC date: {query_context.as_of_date}.\n"
             f"Canonical user query: {query_context.canonical_query}.\n"
-            f"Candidate search variants: {json.dumps(query_context.query_variants, ensure_ascii=False)}."
+            f"Candidate search variants: "
+            f"{json.dumps(query_context.query_variants, ensure_ascii=False)}."
         )
         messages = [
             {"role": "system", "content": system_prompt},
             {
                 "role": "user",
-                "content": f"Conversation context:\n{conversation_context[-3000:]}\n\nUser request:\n{user_input}",
+                "content": (
+                    f"Conversation context:\n{conversation_context[-3000:]}\n\n"
+                    f"User request:\n{user_input}"
+                ),
             },
         ]
         try:
@@ -130,7 +205,12 @@ class WebToolAgent:
                 execute_tool=self._execute,
                 model_profile=model_profile,
                 task_name="web_tool_planner",
-                max_rounds=3,
+                max_rounds=_env_int(
+                    "WEB_TOOL_MAX_ROUNDS",
+                    5,
+                    minimum=1,
+                    maximum=8,
+                ),
             )
             return WebToolTrace(calls=tuple(calls))
         except Exception as exc:
@@ -150,7 +230,9 @@ class WebToolAgent:
             return {
                 **normalization.to_dict(),
                 "status": "ok" if results else "empty",
-                "reason": "results_found" if results else "providers_returned_no_results",
+                "reason": (
+                    "results_found" if results else "providers_returned_no_results"
+                ),
                 "attempted_queries": [query] if query.strip() else [],
                 "results": results,
                 "provider_errors": [],
@@ -158,7 +240,13 @@ class WebToolAgent:
         if name == "web_read":
             return self.gateway.read(
                 str(arguments.get("url", "")),
-                max_chars=int(arguments.get("max_chars", 6000)),
+                max_chars=int(arguments.get("max_chars", 8000)),
+            )
+        if name == "github_search":
+            return self.gateway.github_search(
+                str(arguments.get("repo_url", "")),
+                str(arguments.get("query", "")),
+                max_results=int(arguments.get("max_results", 8)),
             )
         return {"error": f"unknown_tool:{name}"}
 
