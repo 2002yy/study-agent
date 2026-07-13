@@ -106,6 +106,19 @@ def test_bounded_impact_includes_upstream_service_and_test_file():
     assert result["truncated"] is False
 
 
+def test_impact_budget_marks_truncation_instead_of_silently_dropping_edges():
+    result = _index().impact(
+        "UserRepository.save",
+        depth=3,
+        max_files=1,
+        max_edges=1,
+    )
+
+    assert len(result["edges"]) == 1
+    assert len(result["files"]) <= 1
+    assert result["truncated"] is True
+
+
 def test_symbol_identity_is_stable_for_same_snapshot_and_changes_with_tree():
     first = _index().resolve("UserRepository.save")["selected"]["symbol_identity"]
     second = _index().resolve("UserRepository.save")["selected"]["symbol_identity"]
