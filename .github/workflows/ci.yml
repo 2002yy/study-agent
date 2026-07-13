@@ -1,13 +1,13 @@
-name: Diagnose external policy pytest
+name: Finalize and validate external policy
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  finalize:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: .
@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/p0-external-data-policy
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -24,7 +25,13 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
-      - name: Apply focused patch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Apply focused product patch
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -75,25 +82,66 @@ jobs:
               handle.write('\n\ndef test_default_direct_answer_state_is_not_active_learning():\n    state = LearningState(protocol="direct_answer")\n    evaluator = TaskAwarePedagogyEvaluationService()\n    result = evaluator.evaluate_learner(\n        learner_input="数据库索引是什么？",\n        state=state,\n    )\n    assert result.final_decision == "not_applicable"\n')
           PY
 
+      - name: Restore canonical CI before validation
+        run: |
+          git checkout origin/main -- .github/workflows/ci.yml
+          rm -f .github/workflows/apply-external-policy-ui.yml
+
       - name: Install dependencies
+        timeout-minutes: 8
         run: |
           python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
-      - name: Run pytest and capture output
-        id: pytest
-        continue-on-error: true
+      - name: Run pytest
+        run: pytest
+
+      - name: Run ruff
+        run: ruff check .
+
+      - name: Run package helper
+        run: python tools/package_project_helper.py . /dev/null 0
+
+      - name: Run detect-secrets
         run: |
-          pytest -vv > pytest-output.txt 2>&1
+          pip install detect-secrets 2>/dev/null
+          detect-secrets scan --disable-plugin KeywordDetector \
+            --exclude-files '.*\.(pyc|jpg|png|zip)$' \
+            .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
+            > .secrets.out 2>&1
+          python - <<'PY'
+          import json
+          import sys
+          with open(".secrets.out", encoding="utf-8") as f:
+              report = json.load(f)
+          findings = {
+              filename: secrets
+              for filename, secrets in report.get("results", {}).items()
+              if secrets
+          }
+          if findings:
+              print("ERROR: potential secrets detected — this is a public repository")
+              json.dump(findings, sys.stdout, indent=2, sort_keys=True)
+              print()
+              sys.exit(1)
+          PY
+          echo "detect-secrets: no secrets found"
 
-      - name: Upload pytest diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: external-policy-pytest
-          path: pytest-output.txt
-          if-no-files-found: error
+      - name: Run expanded mypy
+        continue-on-error: true
+        run: timeout 120s mypy --explicit-package-bases src/
 
-      - name: Preserve failure status
-        if: steps.pytest.outcome == 'failure'
-        run: exit 1
+      - name: Test and build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Commit validated product patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat: wire and validate external data policy controls"
+          git push origin HEAD:feat/p0-external-data-policy
