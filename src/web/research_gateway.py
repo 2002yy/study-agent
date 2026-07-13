@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.web.github_reader import parse_github_url
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -19,6 +20,29 @@ class ResearchWebGateway:
         self._warnings: list[dict[str, str]] = []
 
     def search(self, query: str, *, max_items: int = 10) -> list[dict[str, Any]]:
+        direct_target = parse_github_url(query)
+        if direct_target is not None:
+            self._warnings = []
+            label = direct_target.path or direct_target.repository
+            return [
+                {
+                    "title": f"GitHub source: {label}",
+                    "url": query,
+                    "link": query,
+                    "snippet": (
+                        "Direct GitHub repository, directory, or source file supplied "
+                        "by the user."
+                    ),
+                    "search_excerpt": (
+                        "Direct GitHub repository, directory, or source file supplied "
+                        "by the user."
+                    ),
+                    "source": "github.com",
+                    "source_type": "github_source",
+                    "published_at": "",
+                }
+            ]
+
         result = self.gateway.search_exact(query, max_results=max_items)
         self._warnings = [
             {
