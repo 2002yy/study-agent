@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Loader2, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Search, Square } from "lucide-react";
 import { displayValue } from "../../utils/format";
 import type { NewsController } from "./newsController";
 
@@ -51,6 +51,7 @@ export function NewsWorkspace({
   setReadArticles,
   controller,
   onLookupNews,
+  onStopLookup,
   isLookupBusy
 }: {
   query: string;
@@ -59,6 +60,7 @@ export function NewsWorkspace({
   setReadArticles: (value: boolean) => void;
   controller: NewsController;
   onLookupNews: () => void;
+  onStopLookup?: () => void;
   isLookupBusy: boolean;
 }) {
   const activeItems = controller.run?.items ?? [];
@@ -83,9 +85,16 @@ export function NewsWorkspace({
         {controller.queryChanged ? (
           <small className="field-hint">搜索词已变化，请重新搜索后再执行后续操作。</small>
         ) : null}
-        <button className="ghost-action compact lookup-action" disabled={isLookupBusy || !query.trim()} onClick={onLookupNews} type="button">
-          仅搜索，用于下一轮聊天
-        </button>
+        {isLookupBusy ? (
+          <button className="ghost-action compact danger" onClick={onStopLookup} type="button">
+            <Square size={13} />
+            停止研究
+          </button>
+        ) : (
+          <button className="ghost-action compact lookup-action" disabled={!query.trim()} onClick={onLookupNews} type="button">
+            研究并用于下一轮聊天
+          </button>
+        )}
       </form>
 
       {activeItems.length ? (
