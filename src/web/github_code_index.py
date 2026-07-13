@@ -14,14 +14,34 @@ import re
 from typing import Any
 
 
-_TOKEN_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[\u3400-\u9fff]+")
+_RAW_TOKEN_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[\u3400-\u9fff]+")
+_CAMEL_PART_PATTERN = re.compile(
+    r"[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|[0-9]+"
+)
 _SYMBOL_PATTERNS = (
     re.compile(r"^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE),
     re.compile(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE),
-    re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE),
-    re.compile(r"^\s*(?:export\s+)?(?:class|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE),
-    re.compile(r"^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)", re.MULTILINE),
-    re.compile(r"^\s*(?:public|private|protected|static|final|async|suspend|override|virtual|internal|open|abstract|\s)+\s*[A-Za-z0-9_<>,?\[\].:]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", re.MULTILINE),
+    re.compile(
+        r"^\s*(?:export\s+)?(?:async\s+)?function\s+"
+        r"([A-Za-z_$][A-Za-z0-9_$]*)",
+        re.MULTILINE,
+    ),
+    re.compile(
+        r"^\s*(?:export\s+)?(?:class|interface|type|enum)\s+"
+        r"([A-Za-z_$][A-Za-z0-9_$]*)",
+        re.MULTILINE,
+    ),
+    re.compile(
+        r"^\s*(?:export\s+)?(?:const|let|var)\s+"
+        r"([A-Za-z_$][A-Za-z0-9_$]*)",
+        re.MULTILINE,
+    ),
+    re.compile(
+        r"^\s*(?:public|private|protected|static|final|async|suspend|override|"
+        r"virtual|internal|open|abstract|\s)+\s*[A-Za-z0-9_<>,?\[\].:]+\s+"
+        r"([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+        re.MULTILINE,
+    ),
 )
 _LANGUAGE_BY_SUFFIX = {
     ".py": "python",
@@ -53,8 +73,27 @@ _LANGUAGE_BY_SUFFIX = {
 }
 
 
+def _identifier_tokens(value: str) -> list[str]:
+    normalized = value.replace("$", "_")
+    parts: list[str] = []
+    for segment in normalized.split("_"):
+        if not segment:
+            continue
+        camel_parts = _CAMEL_PART_PATTERN.findall(segment)
+        parts.extend(camel_parts or [segment])
+    return [part.casefold() for part in parts if part]
+
+
 def _tokens(value: str) -> list[str]:
-    return [token.casefold() for token in _TOKEN_PATTERN.findall(value or "")]
+    result: list[str] = []
+    for raw in _RAW_TOKEN_PATTERN.findall(value or ""):
+        if raw and "\u3400" <= raw[0] <= "\u9fff":
+            result.append(raw.casefold())
+            continue
+        folded = raw.casefold()
+        result.append(folded)
+        result.extend(token for token in _identifier_tokens(raw) if token != folded)
+    return result
 
 
 def _language(path: str) -> str:
@@ -164,16 +203,24 @@ class GitHubCodeIndex:
         ranked: list[tuple[float, CodeChunk, dict[str, float]]] = []
         for chunk, document_tokens in zip(self.chunks, self._tokens):
             lexical = self._bm25(query_tokens, document_tokens)
+            path_tokens = set(_tokens(chunk.path))
             path_folded = chunk.path.casefold()
             path_score = sum(
-                3.0 if token in PurePosixPath(path_folded).name else 1.0
-                if token in path_folded
-                else 0.0
+                3.0 if token in path_tokens else 1.0 if token in path_folded else 0.0
                 for token in query_tokens
             )
+            symbol_tokens = {
+                token
+                for symbol in chunk.symbols
+                for token in _tokens(symbol)
+            }
             symbols_folded = {symbol.casefold() for symbol in chunk.symbols}
             symbol_score = sum(
-                8.0 if token in symbols_folded else 3.0
+                8.0
+                if token in symbols_folded
+                else 4.0
+                if token in symbol_tokens
+                else 2.0
                 if any(token in symbol for symbol in symbols_folded)
                 else 0.0
                 for token in query_tokens
@@ -239,11 +286,17 @@ class GitHubCodeIndex:
                 continue
             document_frequency = self._doc_freq.get(token, 0)
             inverse_document_frequency = math.log(
-                1 + (document_count - document_frequency + 0.5)
+                1
+                + (document_count - document_frequency + 0.5)
                 / (document_frequency + 0.5)
             )
             denominator = frequency + k1 * (
                 1 - b + b * length / max(1.0, self._average_length)
             )
-            score += inverse_document_frequency * frequency * (k1 + 1) / denominator
+            score += (
+                inverse_document_frequency
+                * frequency
+                * (k1 + 1)
+                / denominator
+            )
         return score
