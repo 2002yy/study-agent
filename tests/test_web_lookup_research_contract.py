@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import sqlite3
 
 import pytest
 
 from src.application.web_lookup_service import WebLookupService
-from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.infrastructure.sqlite.database import (
+    MIGRATIONS,
+    RuntimeDatabase,
+    _migration_statements,
+    apply_migrations,
+    schema_version,
+)
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_contract import (
     build_research_context,
@@ -50,7 +57,7 @@ def test_research_context_preserves_raw_query_and_normalizes_compact_model_name(
     assert len(context.query_variants) <= 3
 
 
-def test_direct_lookup_tries_bounded_variants_until_results_are_found(tmp_path):
+def test_direct_lookup_persists_bounded_attempts_and_selected_sources(tmp_path):
     gateway = FakeGateway(
         {
             "GPT-5.6 Sol": [],
@@ -66,32 +73,46 @@ def test_direct_lookup_tries_bounded_variants_until_results_are_found(tmp_path):
     service, repository = _service(tmp_path, gateway)
 
     run = service.lookup("联网看看gpt5.6sol", max_items=5)
+    restored = repository.get(run.id)
 
     assert gateway.calls == ["GPT-5.6 Sol", "gpt5.6sol"]
+    assert run.stage == "completed"
     assert run.status == "completed"
-    assert len(run.items) == 1
-    assert repository.get(run.id) == run
+    assert run.research_context["canonical_query"] == "GPT-5.6 Sol"
+    assert [attempt["status"] for attempt in run.query_attempts] == ["empty", "found"]
+    assert run.provider_status == "found"
+    assert run.stop_reason == "direct_results_found"
+    assert run.answer_confidence == "unassessed"
+    assert run.selected_sources == run.items
+    assert run.rejected_sources == []
     assert run.warnings == []
+    assert restored == run
 
 
 def test_empty_results_remain_empty_evidence_not_confirmed_absence(tmp_path):
     gateway = FakeGateway({})
-    service, _ = _service(tmp_path, gateway)
+    service, repository = _service(tmp_path, gateway)
 
     run = service.lookup("unknown-new-entity", max_items=5)
+    restored = repository.get(run.id)
 
+    assert run.stage == "completed"
     assert run.status == "completed"
     assert run.items == []
-    assert run.warnings == []
-    assert stop_reason([successful_attempt("unknown-new-entity", 0)]) == (
-        "providers_returned_no_results"
-    )
+    assert run.selected_sources == []
+    assert run.provider_status == "empty"
+    assert run.stop_reason == "providers_returned_no_results"
+    assert "confirmed_absence" not in run.stop_reason
+    assert restored == run
 
 
-def test_all_provider_failures_fail_the_run_after_bounded_attempts(tmp_path):
+def test_all_provider_failures_persist_failed_attempts(tmp_path):
     context = build_research_context("联网看看gpt5.6sol")
     gateway = FakeGateway(
-        {query: RuntimeError(f"provider unavailable for {query}") for query in context.query_variants}
+        {
+            query: RuntimeError(f"provider unavailable for {query}")
+            for query in context.query_variants
+        }
     )
     service, repository = _service(tmp_path, gateway)
 
@@ -100,8 +121,58 @@ def test_all_provider_failures_fail_the_run_after_bounded_attempts(tmp_path):
 
     runs = repository.list()
     assert len(runs) == 1
+    assert runs[0].stage == "failed"
     assert runs[0].status == "failed"
+    assert runs[0].provider_status == "provider_failed"
+    assert runs[0].stop_reason == "providers_failed"
+    assert all(
+        attempt["status"] == "provider_failed" for attempt in runs[0].query_attempts
+    )
     assert len(gateway.calls) == len(context.query_variants)
+
+
+def test_schema_14_backfills_legacy_completed_web_lookup(tmp_path):
+    path = tmp_path / "legacy.db"
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    for version, sql in MIGRATIONS:
+        if version >= 14:
+            break
+        for statement in _migration_statements(sql):
+            connection.execute(statement)
+        connection.execute(
+            "INSERT OR REPLACE INTO runtime_meta(key, value) VALUES('schema_version', ?)",
+            (str(version),),
+        )
+    connection.execute(
+        """
+        INSERT INTO web_lookup_runs(
+            id, query, status, items, source_block, warnings, error,
+            version, created_at, updated_at, completed_at
+        ) VALUES (?, ?, 'completed', ?, '', '[]', '', 1, ?, ?, ?)
+        """,
+        (
+            "web_lookup_legacy",
+            "legacy query",
+            '[{"title": "Legacy"}]',
+            "2026-07-01T00:00:00+00:00",
+            "2026-07-01T00:00:00+00:00",
+            "2026-07-01T00:00:00+00:00",
+        ),
+    )
+    connection.commit()
+
+    apply_migrations(connection)
+    row = connection.execute(
+        "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy'"
+    ).fetchone()
+
+    assert schema_version(connection) == 14
+    assert row["stage"] == "completed"
+    assert row["provider_status"] == "found"
+    assert row["stop_reason"] == "direct_results_found"
+    assert row["selected_sources"] == row["items"]
+    connection.close()
 
 
 def test_stop_reason_distinguishes_found_empty_and_failed_attempts():
