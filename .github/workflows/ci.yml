@@ -104,7 +104,6 @@ jobs:
           exit 1
 
       - name: Run expanded mypy
-        continue-on-error: true
         run: timeout 120s mypy --explicit-package-bases src/
 
       - name: Test and build frontend
