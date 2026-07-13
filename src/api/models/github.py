@@ -19,6 +19,15 @@ class GitHubStructureQueryRequest(BaseModel):
     top_k: int = Field(default=20, gt=0, le=50)
 
 
+class GitHubImpactQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    symbol: str = Field(min_length=1)
+    ref: str = ""
+    depth: int = Field(default=2, ge=1, le=4)
+    max_files: int = Field(default=30, ge=1, le=100)
+    max_edges: int = Field(default=120, ge=1, le=500)
+
+
 class GitHubSnapshotResultResponse(BaseModel):
     result: dict
 
