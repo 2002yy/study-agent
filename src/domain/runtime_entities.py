@@ -1,3 +1,5 @@
+"""Runtime domain entities for the Architecture V2 persistence layer."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,12 +8,12 @@ from typing import Any
 from uuid import uuid4
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex}"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass(frozen=True)
@@ -20,15 +22,15 @@ class ChatThread:
     status: str = "active"
     settings_snapshot: dict[str, Any] = field(default_factory=dict)
     learning_state: dict[str, Any] = field(default_factory=dict)
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+    archived_at: str | None = None
+    export_path: str = ""
     active_operation_id: str | None = None
     active_operation_started_at: str | None = None
     archive_operation_id: str | None = None
     archive_started_at: str | None = None
-    archived_at: str | None = None
-    export_path: str = ""
     version: int = 1
-    created_at: str = field(default_factory=utc_now)
-    updated_at: str = field(default_factory=utc_now)
 
 
 @dataclass(frozen=True)
@@ -56,32 +58,32 @@ class GroupThread:
     id: str = field(default_factory=lambda: new_id("group"))
     status: str = "active"
     title: str = ""
-    settings_snapshot: dict[str, Any] = field(default_factory=dict)
-    active_operation_id: str | None = None
-    active_operation_started_at: str | None = None
-    archive_operation_id: str | None = None
-    archive_started_at: str | None = None
-    last_read_message_id: str | None = None
-    unread_count: int = 0
-    export_path: str = ""
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     archived_at: str | None = None
+    settings_snapshot: dict[str, Any] = field(default_factory=dict)
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    unread_count: int = 0
+    last_read_message_id: str | None = None
+    archive_operation_id: str | None = None
+    archive_started_at: str | None = None
+    export_path: str = ""
     version: int = 1
 
 
 @dataclass(frozen=True)
 class GroupMessage:
-    id: str = field(default_factory=lambda: new_id("group_message"))
+    id: str = field(default_factory=lambda: new_id("group_msg"))
     thread_id: str = ""
     speaker: str = ""
     content: str = ""
-    status: str = "completed"
+    status: str = "committed"
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
     message_type: str = "chat"
     operation_id: str | None = None
     error: str = ""
-    created_at: str = field(default_factory=utc_now)
-    updated_at: str = field(default_factory=utc_now)
 
 
 @dataclass(frozen=True)
@@ -190,8 +192,8 @@ class ToolRun:
 
 
 @dataclass(frozen=True)
-class Operation:
-    id: str = field(default_factory=lambda: new_id("operation"))
+class OperationRecord:
+    id: str = field(default_factory=lambda: new_id("op"))
     scope: str = ""
     owner_id: str | None = None
     status: str = "running"
