@@ -39,9 +39,8 @@ def handle(value):
         {
             "path": "tests/test_service.py",
             "sha": "sha-test-old",
-            "content": """from src.service import process
-
-def test_process():
+            "content": """def test_process():
+    process = lambda value: value.strip()
     assert process(' x ') == 'x'
 """,
         },
@@ -83,9 +82,8 @@ def handle(value):
         {
             "path": "tests/test_service.py",
             "sha": "sha-test-new",
-            "content": """from src.service import process
-
-def test_process():
+            "content": """def test_process():
+    process = lambda value: value.strip()
     assert process(' x ') == 'x'
 """,
         },
