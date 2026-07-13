@@ -23,14 +23,24 @@ class WebLookupRepository:
             connection.execute(
                 """
                 INSERT INTO web_lookup_runs(
-                    id, query, status, items, source_block, warnings, error,
-                    version, created_at, updated_at, completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, query, stage, status, research_context, query_attempts,
+                    selected_sources, rejected_sources, provider_status,
+                    stop_reason, answer_confidence, items, source_block,
+                    warnings, error, version, created_at, updated_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run.id,
                     run.query,
+                    run.stage,
                     run.status,
+                    _dump(run.research_context),
+                    _dump(run.query_attempts),
+                    _dump(run.selected_sources),
+                    _dump(run.rejected_sources),
+                    run.provider_status,
+                    run.stop_reason,
+                    run.answer_confidence,
                     _dump(run.items),
                     run.source_block,
                     _dump(run.warnings),
@@ -69,34 +79,78 @@ class WebLookupRepository:
         items: list[dict[str, Any]],
         source_block: str,
         warnings: list[str],
+        research_context: dict[str, Any] | None = None,
+        query_attempts: list[dict[str, Any]] | None = None,
+        selected_sources: list[dict[str, Any]] | None = None,
+        rejected_sources: list[dict[str, Any]] | None = None,
+        provider_status: str = "",
+        stop_reason: str = "",
+        answer_confidence: str = "",
     ) -> WebLookupRun:
         now = utc_now()
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """
                 UPDATE web_lookup_runs
-                SET status = 'completed', items = ?, source_block = ?,
-                    warnings = ?, error = '', completed_at = ?,
-                    updated_at = ?, version = version + 1
+                SET stage = 'completed', status = 'completed',
+                    research_context = ?, query_attempts = ?,
+                    selected_sources = ?, rejected_sources = ?,
+                    provider_status = ?, stop_reason = ?, answer_confidence = ?,
+                    items = ?, source_block = ?, warnings = ?, error = '',
+                    completed_at = ?, updated_at = ?, version = version + 1
                 WHERE id = ? AND status = 'running'
                 """,
-                (_dump(items), source_block, _dump(warnings), now, now, run_id),
+                (
+                    _dump(research_context or {}),
+                    _dump(query_attempts or []),
+                    _dump(selected_sources if selected_sources is not None else items),
+                    _dump(rejected_sources or []),
+                    provider_status,
+                    stop_reason,
+                    answer_confidence,
+                    _dump(items),
+                    source_block,
+                    _dump(warnings),
+                    now,
+                    now,
+                    run_id,
+                ),
             )
         if cursor.rowcount != 1:
             raise ValueError(f"WebLookupRun is not completable: {run_id}")
         return self._required(run_id)
 
-    def fail(self, run_id: str, error: str) -> WebLookupRun:
+    def fail(
+        self,
+        run_id: str,
+        error: str,
+        *,
+        research_context: dict[str, Any] | None = None,
+        query_attempts: list[dict[str, Any]] | None = None,
+        provider_status: str = "provider_failed",
+        stop_reason: str = "providers_failed",
+    ) -> WebLookupRun:
         now = utc_now()
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """
                 UPDATE web_lookup_runs
-                SET status = 'failed', error = ?, completed_at = ?,
+                SET stage = 'failed', status = 'failed', error = ?,
+                    research_context = ?, query_attempts = ?,
+                    provider_status = ?, stop_reason = ?, completed_at = ?,
                     updated_at = ?, version = version + 1
                 WHERE id = ? AND status = 'running'
                 """,
-                (error, now, now, run_id),
+                (
+                    error,
+                    _dump(research_context or {}),
+                    _dump(query_attempts or []),
+                    provider_status,
+                    stop_reason,
+                    now,
+                    now,
+                    run_id,
+                ),
             )
         if cursor.rowcount != 1:
             raise ValueError(f"WebLookupRun is not fail-able: {run_id}")
@@ -113,7 +167,15 @@ def _from_row(row) -> WebLookupRun:
     return WebLookupRun(
         id=row["id"],
         query=row["query"],
+        stage=row["stage"],
         status=row["status"],
+        research_context=json.loads(row["research_context"] or "{}"),
+        query_attempts=json.loads(row["query_attempts"] or "[]"),
+        selected_sources=json.loads(row["selected_sources"] or "[]"),
+        rejected_sources=json.loads(row["rejected_sources"] or "[]"),
+        provider_status=row["provider_status"],
+        stop_reason=row["stop_reason"],
+        answer_confidence=row["answer_confidence"],
         items=json.loads(row["items"] or "[]"),
         source_block=row["source_block"],
         warnings=json.loads(row["warnings"] or "[]"),
