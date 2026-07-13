@@ -7,10 +7,19 @@ from typing import Any
 
 from src.domain.runtime_entities import WebLookupRun, utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.web.source_assessment import assess_sources
 
 
 def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _is_assessed_source(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("item"), dict)
+        and isinstance(value.get("assessment"), dict)
+    )
 
 
 class WebLookupRepository:
@@ -191,7 +200,27 @@ class WebLookupRepository:
         return run
 
 
+def _normalized_source_records(row) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    selected = json.loads(row["selected_sources"] or "[]")
+    rejected = json.loads(row["rejected_sources"] or "[]")
+    if all(_is_assessed_source(item) for item in selected) and all(
+        _is_assessed_source(item) for item in rejected
+    ):
+        return selected, rejected
+
+    legacy_items = json.loads(row["items"] or "[]")
+    candidates = legacy_items or [
+        item for item in selected if isinstance(item, dict)
+    ]
+    normalized_selected, normalized_rejected = assess_sources(
+        candidates,
+        canonical_query=row["query"],
+    )
+    return normalized_selected, normalized_rejected
+
+
 def _from_row(row) -> WebLookupRun:
+    selected_sources, rejected_sources = _normalized_source_records(row)
     return WebLookupRun(
         id=row["id"],
         query=row["query"],
@@ -199,8 +228,8 @@ def _from_row(row) -> WebLookupRun:
         status=row["status"],
         research_context=json.loads(row["research_context"] or "{}"),
         query_attempts=json.loads(row["query_attempts"] or "[]"),
-        selected_sources=json.loads(row["selected_sources"] or "[]"),
-        rejected_sources=json.loads(row["rejected_sources"] or "[]"),
+        selected_sources=selected_sources,
+        rejected_sources=rejected_sources,
         provider_status=row["provider_status"],
         stop_reason=row["stop_reason"],
         answer_confidence=row["answer_confidence"],
