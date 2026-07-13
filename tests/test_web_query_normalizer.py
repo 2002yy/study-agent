@@ -12,11 +12,24 @@ def test_gpt56sol_is_normalized_without_claiming_product_existence():
         now=datetime(2026, 7, 13, 4, 0, tzinfo=timezone.utc),
     )
 
-    assert normalized.canonical_query == "联网看看GPT-5.6 Sol"
-    assert normalized.query_variants[0] == "联网看看GPT-5.6 Sol"
+    assert normalized.canonical_query == "GPT-5.6 Sol"
+    assert normalized.query_variants[0] == "GPT-5.6 Sol"
+    assert "gpt5.6sol" in normalized.query_variants
     assert "联网看看gpt5.6sol" in normalized.query_variants
     assert "gpt5.6sol" in normalized.entity_aliases
+    assert normalized.search_directive_removed is True
     assert normalized.as_of_date == "2026-07-13"
+
+
+def test_english_search_directive_is_removed_from_focused_query():
+    normalized = normalize_web_query(
+        "Please search the web for GPT5.6Sol",
+        now=datetime(2026, 7, 13, 4, 0, tzinfo=timezone.utc),
+    )
+
+    assert normalized.canonical_query == "GPT-5.6 Sol"
+    assert normalized.search_directive_removed is True
+    assert normalized.raw_query == "Please search the web for GPT5.6Sol"
 
 
 def test_latest_query_records_freshness_window_and_current_month_variant():
