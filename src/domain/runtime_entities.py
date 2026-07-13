@@ -114,7 +114,15 @@ class NewsRun:
 class WebLookupRun:
     id: str = field(default_factory=lambda: new_id("web_lookup"))
     query: str = ""
+    stage: str = "created"
     status: str = "running"
+    research_context: dict[str, Any] = field(default_factory=dict)
+    query_attempts: list[dict[str, Any]] = field(default_factory=list)
+    selected_sources: list[dict[str, Any]] = field(default_factory=list)
+    rejected_sources: list[dict[str, Any]] = field(default_factory=list)
+    provider_status: str = ""
+    stop_reason: str = ""
+    answer_confidence: str = ""
     items: list[dict[str, Any]] = field(default_factory=list)
     source_block: str = ""
     warnings: list[str] = field(default_factory=list)
