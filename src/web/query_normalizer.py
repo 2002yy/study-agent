@@ -16,6 +16,18 @@ _GPT_MODEL_PATTERN = re.compile(
     r"(?i)\bgpt[\s_-]*(\d+)(?:[.\s_-]+(\d+))?[\s._-]*(sol)?\b"
 )
 _EXPLICIT_YEAR_PATTERN = re.compile(r"\b(?:19|20)\d{2}\b")
+_SEARCH_DIRECTIVE_PATTERNS = (
+    re.compile(
+        r"^(?:请|帮我|麻烦)?\s*(?:联网|上网)?\s*"
+        r"(?:看看|查查|查一下|查询一下|查询|查|搜搜|搜一下|搜索一下|搜索|"
+        r"检索一下|检索|了解一下|了解)\s*[:：]?\s*",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:please\s+)?(?:search(?:\s+the\s+web)?(?:\s+for)?|look\s+up|find\s+out)\s*[:：]?\s*",
+        re.IGNORECASE,
+    ),
+)
 _TODAY_MARKERS = ("today", "今天", "今日", "当天")
 _LATEST_MARKERS = (
     "latest",
@@ -37,6 +49,7 @@ class QueryNormalization:
     freshness_days: int | None
     freshness_requested: bool
     entity_aliases: tuple[str, ...] = ()
+    search_directive_removed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -51,6 +64,15 @@ def _utc_now(value: datetime | None) -> datetime:
 
 def _compact_spaces(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip())
+
+
+def _strip_search_directive(value: str) -> tuple[str, bool]:
+    focused = value
+    for pattern in _SEARCH_DIRECTIVE_PATTERNS:
+        stripped = pattern.sub("", focused, count=1).strip()
+        if stripped != focused and stripped:
+            return stripped, True
+    return focused, False
 
 
 def _canonical_gpt_name(match: re.Match[str]) -> str:
@@ -104,25 +126,28 @@ def _dedupe(values: list[str]) -> tuple[str, ...]:
 def normalize_web_query(query: str, *, now: datetime | None = None) -> QueryNormalization:
     current = _utc_now(now)
     raw = _compact_spaces(query or "")
-    canonical, aliases = canonicalize_entity_names(raw)
+    focused, directive_removed = _strip_search_directive(raw)
+    canonical, aliases = canonicalize_entity_names(focused)
     freshness_days = freshness_window_days(raw)
 
     variants: list[str] = []
-    # A recognized compact model name is searched canonically first; the raw
-    # spelling remains a fallback so normalization never erases user intent.
-    variants.append(canonical or raw)
+    # Search the focused canonical entity first. The focused raw spelling and
+    # complete user request remain fallbacks for uncommon provider tokenization.
+    variants.append(canonical or focused or raw)
+    variants.append(focused)
     variants.append(raw)
     if canonical.startswith("GPT-"):
         variants.append(f"{canonical} OpenAI")
     if freshness_days is not None and not _EXPLICIT_YEAR_PATTERN.search(raw):
-        variants.append(f"{canonical or raw} {current.strftime('%B %Y')}")
+        variants.append(f"{canonical or focused or raw} {current.strftime('%B %Y')}")
 
     return QueryNormalization(
         raw_query=raw,
-        canonical_query=canonical or raw,
+        canonical_query=canonical or focused or raw,
         query_variants=_dedupe(variants),
         as_of_date=current.date().isoformat(),
         freshness_days=freshness_days,
         freshness_requested=freshness_days is not None,
         entity_aliases=aliases,
+        search_directive_removed=directive_removed,
     )
