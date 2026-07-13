@@ -40,3 +40,18 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
                 "local_snapshot": local,
             }
         return local if local.get("ok") is not True else remote
+
+    def github_structure(
+        self,
+        repo_url: str,
+        symbol: str,
+        *,
+        ref: str = "",
+        max_results: int = 20,
+    ) -> dict[str, Any]:
+        return self.snapshot_service.inspect_structure(
+            repo_url,
+            symbol,
+            ref=ref,
+            top_k=max(1, min(max_results, 50)),
+        )
