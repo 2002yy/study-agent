@@ -20,7 +20,7 @@ const RETRYABLE_STATUSES = new Set(["pending", "empty", "failed", "running"]);
 
 export function useWebLookupController(options: WebLookupControllerOptions) {
   const [result, setResult] = useState<ResearchLookupResponse | null>(null);
-  const [useInChat, setUseInChat] = useState(true);
+  const [useInChat, setUseInChat] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
 
   const runOperation = async (
@@ -67,10 +67,12 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
   const lookup = async () => {
     const query = options.query.trim();
     if (!query || isBusy) return;
-    if (result && RETRYABLE_STATUSES.has(result.status)) {
+    const sameQuery = result?.query_text.trim() === query;
+    if (result && sameQuery && RETRYABLE_STATUSES.has(result.status)) {
       await retry();
       return;
     }
+    setUseInChat(false);
     await runOperation(async (signal) => {
       const created = await createResearchRun(query, 8, { signal });
       setResult(created);
