@@ -40,6 +40,27 @@ def _normalized_signature(value: str) -> str:
     return re.sub(r"\s+", "", str(value or "")).casefold()
 
 
+def _correct_module_qualified(item: dict[str, Any]) -> dict[str, Any]:
+    module = item.get("module_identity")
+    if not isinstance(module, dict):
+        return item
+    module_name = str(module.get("module_name") or "")
+    language = str(module.get("language") or "")
+    qualified = str(item.get("qualified_name") or item.get("name") or "")
+    if not module_name or not qualified:
+        return item
+    if language == "java":
+        class_name = module_name.rsplit(".", 1)[-1]
+        package = module_name.rsplit(".", 1)[0] if "." in module_name else ""
+        if qualified == class_name or qualified.startswith(f"{class_name}."):
+            value = f"{package}.{qualified}" if package else qualified
+        else:
+            value = f"{module_name}.{qualified}"
+    else:
+        value = f"{module_name}.{qualified}"
+    return {**item, "module_qualified_name": value}
+
+
 class AdvancedModuleSemanticIndex:
     """Adds module-qualified lookup and explicit overload candidate handling."""
 
@@ -62,9 +83,20 @@ class AdvancedModuleSemanticIndex:
         query_name, requested_signature = _signature_query(symbol)
         result = self.base.inspect(query_name, top_k=max(top_k, 50))
         definitions = [
-            dict(item) for item in result.get("definitions", []) if isinstance(item, dict)
+            _correct_module_qualified(dict(item))
+            for item in result.get("definitions", [])
+            if isinstance(item, dict)
         ]
         resolution = dict(result.get("resolution") or {})
+        if isinstance(resolution.get("selected"), dict):
+            resolution["selected"] = _correct_module_qualified(
+                dict(resolution["selected"])
+            )
+        resolution["candidates"] = [
+            _correct_module_qualified(dict(item))
+            for item in resolution.get("candidates", [])
+            if isinstance(item, dict)
+        ]
 
         module_exact = [
             item
@@ -146,11 +178,20 @@ class AdvancedModuleSemanticIndex:
         }
 
     def impact(self, symbol: str, **kwargs: Any) -> dict[str, Any]:
+        inspected = self.inspect(symbol, top_k=50)
+        resolution = dict(inspected.get("resolution") or {})
+        selected = resolution.get("selected")
         query_name, requested_signature = _signature_query(symbol)
-        result = self.base.impact(query_name, **kwargs)
+        target = (
+            str(selected.get("qualified_name") or selected.get("name") or "")
+            if isinstance(selected, dict)
+            else query_name
+        )
+        result = self.base.impact(target, **kwargs)
         return {
             **result,
             "symbol": symbol,
             "query_name": query_name,
             "query_signature": requested_signature,
+            "resolution": resolution,
         }
