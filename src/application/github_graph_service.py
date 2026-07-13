@@ -6,7 +6,8 @@ from typing import Any
 from weakref import WeakKeyDictionary
 
 from src.application.github_snapshot_service import GitHubSnapshotService
-from src.web.module_identity import ModuleSemanticIndex
+from src.web.advanced_module_semantics import AdvancedModuleSemanticIndex
+from src.web.lsp_adapter import LspAdapter, NullLspAdapter
 from src.web.repository_graph import RepositoryGraphIndex
 
 
@@ -75,10 +76,16 @@ def _ensure_root_file(
 
 
 class GitHubGraphService:
-    def __init__(self, snapshot_service: GitHubSnapshotService) -> None:
+    def __init__(
+        self,
+        snapshot_service: GitHubSnapshotService,
+        *,
+        lsp_adapter: LspAdapter | None = None,
+    ) -> None:
         self.snapshot_service = snapshot_service
+        self.lsp_adapter = lsp_adapter or NullLspAdapter()
         self._indexes: dict[str, RepositoryGraphIndex] = {}
-        self._semantic_indexes: dict[str, ModuleSemanticIndex] = {}
+        self._semantic_indexes: dict[str, AdvancedModuleSemanticIndex] = {}
 
     def _index(self, snapshot: dict[str, Any]) -> RepositoryGraphIndex:
         key = _index_key(snapshot)
@@ -88,11 +95,11 @@ class GitHubGraphService:
             self._indexes[key] = index
         return index
 
-    def _semantic_index(self, snapshot: dict[str, Any]) -> ModuleSemanticIndex:
+    def _semantic_index(self, snapshot: dict[str, Any]) -> AdvancedModuleSemanticIndex:
         key = _index_key(snapshot)
         index = self._semantic_indexes.get(key)
         if index is None:
-            index = ModuleSemanticIndex(self._index(snapshot))
+            index = AdvancedModuleSemanticIndex(self._index(snapshot))
             self._semantic_indexes[key] = index
         return index
 
@@ -104,6 +111,39 @@ class GitHubGraphService:
         ref: str = "",
     ) -> dict[str, Any]:
         return self.snapshot_service.snapshot(repo_url, query=query, ref=ref)
+
+    def _lsp_payload(self, inspected: dict[str, Any]) -> dict[str, Any]:
+        resolution = inspected.get("resolution")
+        if not isinstance(resolution, dict):
+            return {"status": "not_applicable", "provider": self.lsp_adapter.provider}
+        selected = resolution.get("selected")
+        if not isinstance(selected, dict):
+            return {
+                "status": "not_applicable",
+                "provider": self.lsp_adapter.provider,
+                "reason": str(resolution.get("status") or "unresolved"),
+            }
+        evidence = selected.get("evidence")
+        if not isinstance(evidence, dict):
+            return {"status": "not_applicable", "provider": self.lsp_adapter.provider}
+        path = str(evidence.get("path") or "")
+        line = max(0, int(evidence.get("start_line") or 1) - 1)
+        if not path:
+            return {"status": "not_applicable", "provider": self.lsp_adapter.provider}
+        definition = self.lsp_adapter.definition(path, line, 0)
+        references = self.lsp_adapter.references(path, line, 0)
+        type_info = self.lsp_adapter.type_info(path, line, 0)
+        return {
+            "status": (
+                "available"
+                if any(item.status not in {"unavailable", "failed"} for item in (definition, references, type_info))
+                else "unavailable"
+            ),
+            "provider": self.lsp_adapter.provider,
+            "definition": definition.to_dict(),
+            "references": references.to_dict(),
+            "type_info": type_info.to_dict(),
+        }
 
     def inspect(
         self,
@@ -129,6 +169,7 @@ class GitHubGraphService:
         )
         return {
             **inspected,
+            "lsp": self._lsp_payload(inspected),
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
             "cache_hit": bool(snapshot.get("cache_hit")),
             "cache_mode": str(snapshot.get("cache_mode") or ""),
