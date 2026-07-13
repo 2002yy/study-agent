@@ -190,7 +190,7 @@ GITHUB_BLAME_MAX_LINES=500
 
 ## 5. 当前验证
 
-PR #26 GitHub Actions CI #594：
+PR #26 GitHub Actions CI #596：
 
 - pytest：671 passed；
 - Ruff：passed；
