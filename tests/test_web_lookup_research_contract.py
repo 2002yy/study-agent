@@ -6,6 +6,7 @@ import sqlite3
 import pytest
 
 from src.application.web_lookup_service import WebLookupService
+from src.domain.runtime_entities import WebLookupRun
 from src.infrastructure.sqlite.database import (
     MIGRATIONS,
     RuntimeDatabase,
@@ -97,13 +98,13 @@ def test_research_context_preserves_raw_query_and_normalizes_compact_model_name(
     assert len(context.query_variants) <= 3
 
 
-def test_direct_lookup_persists_bounded_attempts_and_selected_sources(tmp_path):
+def test_direct_lookup_persists_bounded_attempts_and_assessed_sources(tmp_path):
     gateway = FakeGateway(
         {
             "GPT-5.6 Sol": [],
             "gpt5.6sol": [
                 {
-                    "title": "Result",
+                    "title": "GPT-5.6 Sol release details",
                     "link": "https://example.com/result",
                     "source": "example.com",
                 }
@@ -122,11 +123,42 @@ def test_direct_lookup_persists_bounded_attempts_and_selected_sources(tmp_path):
     assert [attempt["status"] for attempt in run.query_attempts] == ["empty", "found"]
     assert run.provider_status == "found"
     assert run.stop_reason == "direct_results_found"
-    assert run.answer_confidence == "unassessed"
-    assert run.selected_sources == run.items
+    assert run.answer_confidence == "medium"
+    assert run.selected_sources[0]["item"] == run.items[0]
+    assert run.selected_sources[0]["assessment"]["selected"] is True
+    assert run.selected_sources[0]["assessment"]["directness"] == "direct_title"
     assert run.rejected_sources == []
     assert run.warnings == []
     assert restored == run
+
+
+def test_lookup_rejects_invalid_and_duplicate_sources_before_citation(tmp_path):
+    duplicate = {
+        "title": "GPT-5.6 Sol overview",
+        "link": "https://example.com/model",
+    }
+    gateway = FakeGateway(
+        {
+            "GPT-5.6 Sol": [
+                duplicate,
+                dict(duplicate),
+                {"title": "", "link": ""},
+                {"title": "Bad URL", "link": "javascript:alert(1)"},
+            ]
+        }
+    )
+    service, _ = _service(tmp_path, gateway)
+
+    run = service.lookup("联网看看gpt5.6sol", max_items=8)
+
+    assert len(run.items) == 1
+    assert len(run.selected_sources) == 1
+    reasons = {
+        record["assessment"]["rejection_reason"]
+        for record in run.rejected_sources
+    }
+    assert reasons == {"duplicate", "missing_title_and_url", "invalid_url"}
+    assert run.stop_reason == "direct_results_found"
 
 
 def test_empty_results_remain_empty_evidence_not_confirmed_absence(tmp_path):
@@ -142,6 +174,7 @@ def test_empty_results_remain_empty_evidence_not_confirmed_absence(tmp_path):
     assert run.selected_sources == []
     assert run.provider_status == "empty"
     assert run.stop_reason == "providers_returned_no_results"
+    assert run.answer_confidence == "none"
     assert "confirmed_absence" not in run.stop_reason
     assert restored == run
 
@@ -169,6 +202,26 @@ def test_all_provider_failures_persist_failed_attempts(tmp_path):
         attempt["status"] == "provider_failed" for attempt in runs[0].query_attempts
     )
     assert len(gateway.calls) == len(context.query_variants)
+
+
+def test_repository_stage_transition_is_compare_and_set(tmp_path):
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "stage.db"))
+    run = repository.create(WebLookupRun(query="x", stage="searching"))
+
+    transitioned = repository.transition_stage(
+        run.id,
+        expected_stage="searching",
+        stage="assessing",
+    )
+
+    assert transitioned.stage == "assessing"
+    assert transitioned.version == run.version + 1
+    with pytest.raises(ValueError, match="not transitionable"):
+        repository.transition_stage(
+            run.id,
+            expected_stage="searching",
+            stage="assessing",
+        )
 
 
 def test_schema_15_backfills_legacy_completed_web_lookup(tmp_path):
