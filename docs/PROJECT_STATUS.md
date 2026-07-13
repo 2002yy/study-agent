@@ -1,9 +1,9 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**  
-> 更新：2026-07-13  
-> 当前主线：`f4e33cc29b7f7616521697d42343624b4f5d1760`（PR #27 已合并）  
-> 当前开发：PR #28，G10-C2.3 版本变化的结构影响
+> 更新：2026-07-14  
+> 当前已合并能力基线：PR #28，G10-C2.3 版本变化的结构影响  
+> 当前稳定化：状态真值、mypy 硬门禁、ask 模式显式联网同意；下一功能切片为 G10-C2.4
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
@@ -185,11 +185,13 @@ GITHUB_CHANGE_IMPACT_MAX_SYMBOLS=100
 GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 ```
 
-### CI 诊断
+### CI 与外发策略稳定化
 
 - pytest 失败时上传 `pytest-log`；
 - 前端失败时上传 `frontend-log`；
 - detect-secrets 使用 `continue-on-error -> 上传 JSON 报告 -> enforce`；
+- expanded mypy 不再允许软失败，类型错误会阻止合并；
+- `web_policy=ask` 只接受显式 `web_consent` 或内部一次性 consent marker；普通 `web_context` 文本不会隐式授权联网；
 - 报告文件使用普通可见路径，避免 artifact 忽略隐藏文件；
 - 失败报告保留 7 天。
 
@@ -212,12 +214,20 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 | issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
 | checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
 | 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| TaskContract 单一真值 | 未完成 | 当前 route、evaluation、pedagogy 仍可能重复分类，需要单次判定后全链传递 |
 | PR review context | 未完成 | PR + change impact + checks/reviews 的单一证据包 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
 | 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
 
 ## 4. 下一代码顺序
+
+### 稳定化后续：TaskContract 单次判定
+
+1. 在本轮 preparation 起点只生成一次 TaskContract。
+2. route、pedagogy evaluation、pedagogy plan、RAG、Web 和 closure 只消费该合同，不自行重算。
+3. 增加用户显式 task override，并持久化到 route snapshot。
+4. 回归覆盖 active learning、临时 research、quick answer 和显式 project execution。
 
 ### G10-C2.4：Source-backed PR review context
 
@@ -248,7 +258,7 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 
 ## 5. 当前验证
 
-PR #28 GitHub Actions CI #632，代码 head `7edda832dd191785cde7861ad4ccce3b13a4c424`：
+PR #28 最终 GitHub Actions CI #634，代码 head `68a0eefd2e0ad68b3dda43e77e12235184894a3b`，合并后主线 commit `a343a7f897db92f7f0424af8d46cf94d1559c503`：
 
 - pytest：685 passed；
 - Ruff：passed；
@@ -273,6 +283,8 @@ PR #28 GitHub Actions CI #632，代码 head `7edda832dd191785cde7861ad4ccce3b13a
 - persistent gateway 上限裁剪；
 - 模型工具 schema、dispatch 和 unavailable 语义；
 - ResearchRun、GitHub history/work items、Tree-sitter、模块语义和单符号 impact 不退化。
+
+本稳定化切片新增显式 ask consent 回归，并将 expanded mypy 升级为合并硬门禁；其最终 CI 结果以对应 PR 为准。
 
 CI 失败时上传 `pytest-log`、`frontend-log` 和 `detect-secrets-report` artifacts。
 
