@@ -8,6 +8,7 @@ class FakeSnapshotService:
         self.result_count = result_count
         self.search_calls: list[tuple[str, str, int]] = []
         self.snapshot_calls: list[tuple[str, str, str]] = []
+        self.structure_calls: list[tuple[str, str, str, int]] = []
 
     def search_repository(
         self,
@@ -48,6 +49,22 @@ class FakeSnapshotService:
             "files": [],
         }
 
+    def inspect_structure(
+        self,
+        repo_url: str,
+        symbol: str,
+        *,
+        ref: str = "",
+        top_k: int = 20,
+    ) -> dict:
+        self.structure_calls.append((repo_url, symbol, ref, top_k))
+        return {
+            "ok": True,
+            "repository": "openai/example",
+            "symbol": symbol,
+            "definitions": [{"name": symbol}],
+        }
+
 
 def test_gateway_returns_local_hybrid_results_without_remote_search():
     service = FakeSnapshotService()
@@ -79,4 +96,26 @@ def test_gateway_snapshot_uses_persistent_service():
     assert result["ok"] is True
     assert service.snapshot_calls == [
         ("https://github.com/openai/example", "architecture", "main")
+    ]
+
+
+def test_gateway_structure_uses_persistent_service():
+    service = FakeSnapshotService()
+    gateway = PersistentGeneralWebGateway(service)  # type: ignore[arg-type]
+
+    result = gateway.github_structure(
+        "https://github.com/openai/example",
+        "prepare_chat_turn",
+        ref="main",
+        max_results=9,
+    )
+
+    assert result["definitions"][0]["name"] == "prepare_chat_turn"
+    assert service.structure_calls == [
+        (
+            "https://github.com/openai/example",
+            "prepare_chat_turn",
+            "main",
+            9,
+        )
     ]
