@@ -72,6 +72,11 @@ class NewsLookupRequest(BaseModel):
     max_items: int = Field(default=8, gt=0, le=20)
 
 
+class ResearchRunCreateRequest(BaseModel):
+    query: str = Field(min_length=1)
+    max_items: int = Field(default=8, gt=0, le=20)
+
+
 class NewsStageSearchRequest(BaseModel):
     query: str = Field(default="最新新闻 when:1d", min_length=1)
     max_items: int = Field(default=10, gt=0, le=20)
@@ -133,6 +138,12 @@ class NewsLookupResponse(BaseModel):
     news_items: list[dict]
     source_block: str
     warnings: list[str]
+    status: str = "completed"
+    stage: str = "completed"
+    provider_status: str = ""
+    stop_reason: str = ""
+    query_attempts: list[dict] = Field(default_factory=list)
+    error: str = ""
 
 
 class WebLookupRunResponse(BaseModel):
@@ -151,6 +162,11 @@ class WebLookupRunResponse(BaseModel):
     source_block: str
     warnings: list[str]
     error: str
+    max_items: int = 8
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    stage_started_at: str | None = None
+    cancel_requested_at: str | None = None
     version: int
     created_at: str
     updated_at: str
