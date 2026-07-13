@@ -1,93 +1,180 @@
 # 学习闭环深化计划（复审后续）
 
-> **For agentic workers:** 用 superpowers:executing-plans 逐 Task 推进，checkbox 跟踪。
+> **状态说明（2026-07-13）：** 本文件已从“初始实现清单”更新为当前闭环状态记录。架构与全产品审计分别以 `docs/ARCHITECTURE_STATUS.md` 和 `2026-07-12-study-agent-consolidated-roadmap.md` 为准。
 
-**Goal:** 在 P0（已完成）基础上，补齐"结束学习 -> 自动总结 -> 确认记忆 -> 准确恢复"闭环，收敛次要功能，并加固路由输入校验。
+**Goal:** 补齐“明确任务 -> 教学/研究推进 -> 有效证据 -> 用户验证 -> 结果整理 -> 确认记忆 -> 准确恢复”的完整闭环，并避免临时问答、联网研究和闲聊污染长期学习状态。
 
-**Spec 依据:** 远程复审 P0/P1/P2 列表 + 2026-07-12 学习工作台设计文档。
+**审计基准提交:** `7ab8c3d42495032288d5a1b06df6a03052a91fd0`
 
-**测试命令:** 后端 `$env:PYTHONPATH="."; python -m pytest -q`；前端 `npx vitest run`（在 `frontend/`，用 `node_modules\.bin\vitest.cmd`）；构建 `node_modules\.bin\vite.cmd build`。
-
----
-
-## P0 完成情况（已推送，86fb56c..a4f2b9d）
-
-1. 阶段轨迹实时更新（onDone 追加 pedagogyPhases）
-2. 恢复读取 `pedagogy_snapshot.phase`（原误读顶层 phase）
-3. 恢复 `lastChat.pedagogy`
-4. 后端 session turns 返回逐轮 route_snapshot/rag_snapshot
-5. 前端恢复逐轮 RAG/联网证据
-6. 协议码（socratic_rediscovery/feynman_diagnosis/project_execution/direct_answer）+ 阶段中文标签
-7. "掌握度"->"本轮理解进度"，移除误导百分比
-8. 欢迎语移除"右侧检查"旧三栏措辞
-9. README + USER_GUIDE 重新定位到教学法驱动
-10. 窄屏学习状态条 + 顶栏图标防溢出
+**测试命令:** 后端 `$env:PYTHONPATH="."; python -m pytest -q`；前端在 `frontend/` 运行 `npx vitest run` 和 `npm run build`。
 
 ---
 
-## P0.11: 路由 mode 校验加固（先做，小）
+## 1. 已完成的基础闭环能力
 
-**问题:** `router.py:277` 对"非 auto 但非法"的 selected_mode 原样透传给引擎，静默落 direct（乱码/拼写错误被无声吞掉）。
+- [x] 教学阶段轨迹实时更新与会话恢复。
+- [x] 逐轮 `route_snapshot / rag_snapshot / pedagogy_snapshot` 恢复。
+- [x] 协议、阶段和本轮教学动作可见。
+- [x] `PedagogyEvalRun` 接入真实完成事务，失败不能静默推进阶段。
+- [x] 左侧会话列表 + 顶部可展开学习状态条。
+- [x] 窄屏会话入口和基础防溢出。
+- [x] 路由 `selected_mode` 非法值校验与自动回退（原 P0.11）。
+- [x] after-session preview API 可生成 MemoryRun 候选。
+- [x] “整理学习”按钮可自动生成候选并打开记忆抽屉。
+- [x] MemoryRun 仍保持预览/用户确认/安全写入边界。
 
-**Files:** `src/router.py`、`tests/test_router.py`
-
-- [ ] 写失败测试：`selected_mode="苏格拉底?"`（非法）-> route.mode 回退为有效值（auto 行为）+ reason 含 warning
-- [ ] 实现：在 route_request 内，若 `selected_mode` 既非 auto/自动 也非 `{"普通","苏格拉底","费曼","项目"}`，记 warning 并按 auto 处理（`mode_is_auto=True`）
-- [ ] 测试通过 + 全量回归 + 提交
-
----
-
-## P1: 闭合学习闭环
-
-现状：`src/after_session.py:97 generate_after_session_updates` 已能 LLM 生成候选；`memory_service` 已有 preview/commit；但**无 after-session API 路由**，前端 MemoryPanel 靠手写。
-
-### P1.1: after-session 自动候选端点
-**Files:** `src/api/routes/memory_routes.py`（或 session_routes）、`src/application/memory_service.py`、`frontend/src/api.ts`、`frontend/src/types.ts`
-- [ ] 后端：新增 `POST /sessions/{session_id}/after-session/preview` -> 调 `generate_after_session_updates`（基于 thread.learning_state + 最近 turns）-> 经 `memory_service.create` 生成 MemoryRun 预览 -> 返回 run_id + 候选
-- [ ] 后端测试：端点返回非空调候选（mock LLM）
-- [ ] 前端 api.ts + types：加 `requestAfterSessionPreview(sessionId)`
-- [ ] 提交
-
-### P1.2: "结束本次学习"按钮 + MemoryPanel 自动填充
-**Files:** `frontend/src/features/single-chat/ChatPanel.tsx`（顶栏加"结束学习"按钮）、`frontend/src/features/learning-memory/MemoryPanel.tsx`、`memoryController.ts`
-- [ ] ChatPanel 顶栏加"结束本次学习"主按钮 -> 调 after-session preview -> 把候选灌入 MemoryPanel + 打开记忆抽屉
-- [ ] MemoryPanel：支持"由 after-session 填充"态（候选只读+勾选确认，而非空白手写）
-- [ ] 提交
-
-### P1.3: 恢复卡（替代三段原始 Markdown）
-**Files:** `frontend/src/features/single-chat/ChatPanel.tsx`（home-brief 区）
-- [ ] 老用户：用 lastChat.route.learning_state 渲染结构化恢复卡（目标/已确认点/当前缺口/下一步）+ [继续] [新主题]
-- [ ] 新用户：保留现有快捷提问引导
-- [ ] 提交
-
-### P1.4: 评估决定显示（已验证/待验证）
-**Files:** `frontend/src/features/learning/LearningPanel.tsx`、`types.ts`
-- [ ] learning_state.payload.pedagogy_evaluation / last_response_violations -> 在"已确认点"旁显示"最近评估：通过/待复核/未通过"
-- [ ] 提交
+> 重要：after-session 入口和按钮“可用”不等于正式学习闭环已完成。当前仍是过渡式编排，没有 `LearningClosureRun`、幂等恢复和会话 `summary_status`。
 
 ---
 
-## P2: 收敛聚焦
+## 2. 2026-07-12 至 2026-07-13 新增的正确性基础
 
-### P2.1: 顶栏 dock 收敛为 4 + "更多"菜单
-- [ ] 一级：上传资料 / 会话历史 / 结束学习 / 更多
-- [ ] "更多"抽屉内：来源与知识库 / 设置 / 群聊 / 新闻 / 工具 / 工作流时间线
+### 2.1 任务契约（G11 最小切片）
 
-### P2.2: 设置分基础/高级
-- [ ] 基础：角色、教学模式、模型档位、RAG 开关
-- [ ] 高级（折叠）：top_k、min_score、检索模式、上下文层、氛围
+- [x] 在教学协议推进前识别 `quick_answer / research / learn / explain_back / project_execution / conversation / organize`。
+- [x] `research / quick_answer / conversation` 不推进 confirmed points、阶段或缺口。
+- [x] 活跃学习中的普通追问可继承当前学习目标。
+- [x] 前端对非学习任务显示任务状态，而不是伪学习状态。
+- [x] 当前学习型总结入口只对支持的 closure eligibility 展示。
+- [ ] 用户显式覆盖 TaskIntent。
+- [ ] 明显换题时提供“临时回答 / 切换目标 / 新建会话”。
+- [ ] 学习目标生命周期：proposed / confirmed / modified / suspended / completed / abandoned。
+- [ ] 将稳定任务契约持久化为 ChatThread 级真值，而不只依赖逐轮 route snapshot。
 
-### P2.3: 普通用户不暴露内部
-- [ ] MemoryPanel 高级详情才显示 current_focus.md 等文件名
-- [ ] RAG 高级参数默认隐藏
+### 2.2 会话与状态真值（G15 最小切片）
 
-### P2.4: 角色/氛围降为表达层
-- [ ] 角色与氛围移入"表达"设置区，不再作为主产品卖点文案
+- [x] 新建会话不再自动归档旧会话。
+- [x] 恢复时优先读取 committed learning state。
+- [x] 阶段历史只采纳 completed turn。
+- [x] 会话切换只取消 chat scope，不再默认 `cancelAll()`。
+- [ ] 会话状态完整区分 active / summarized / archived。
+- [ ] partial ResearchRun、MemoryRun preview、未完成上传的离开门禁与恢复。
+- [ ] 总结、归档和新建之间的完整产品选择流。
+
+### 2.3 外发策略与联网正确性（G9/G16 最小切片）
+
+- [x] 联网策略：关闭 / 每次询问 / 自动。
+- [x] 云端上下文：仅当前问题 / 最近对话 / 允许本地资料片段。
+- [x] 策略进入真实 chat preparation 路径，而非只存在设置 UI。
+- [x] 紧凑型号名称的确定性归一化和查询变体。
+- [x] 注入当前 UTC 日期；空结果和 Provider 不可用不等于实体不存在。
+- [x] `gpt5.6sol` 固定日期黄金回归，不硬编码产品存在性结论。
+- [ ] 附件级“禁止联网 / 禁止云端 / 禁止记忆 / 仅本地模型”。
+- [ ] 发起外部请求前的完整外发摘要与 Provider 展示。
+- [ ] 多步来源评估、受控时间窗口扩展和最终答案证据门禁。
+
+### 2.4 证据与交互完整性（G13/G17 最小切片）
+
+- [x] 嵌套 RAG chunk 标题/来源读取。
+- [x] 空标题/空来源/非正分/重复占位不计入本地引用。
+- [x] Assistant 复制只复制正文。
+- [x] 角色头像使用装饰语义，屏幕阅读器不重复角色名。
+- [x] Enter 发送、Shift+Enter 换行、IME composition 防误发。
+- [x] 删除长期知识文档需要确认。
+- [ ] 统一 `EvidenceRef`、selected evidence 计数和 claim-source 对应。
+- [ ] 新用户任务入口与老用户结构化恢复卡。
+- [ ] 抽屉 focus trap、关闭后焦点返回和可操作错误提示。
 
 ---
 
-## 执行顺序
+## 3. 原 P1 状态复核
 
-P0.11（加固）-> P1.1 -> P1.2 -> P1.3 -> P1.4 -> P2.1 -> P2.2 -> P2.3 -> P2.4
+### P1.1 after-session 自动候选端点
 
-每个 Task TDD（能测则测）+ 单独提交。P1.1/P1.2 是闭环核心，优先。
+- [x] `POST /sessions/{session_id}/after-session/preview` 已接入。
+- [x] 可基于会话生成 MemoryRun 候选并返回前端。
+- [x] 相关 API/前端类型和回归已加入。
+- [~] 这是过渡入口；尚未迁移为正式 `LearningClosureService/Run`。
+
+### P1.2 “整理学习”按钮 + MemoryPanel 自动填充
+
+- [x] 顶栏按钮可生成候选、自动打开记忆抽屉。
+- [x] 候选进入现有 MemoryRun 预览/确认机制。
+- [~] 按任务类型的研究笔记/项目收束尚无独立后端 closure 流程。
+
+### P1.3 恢复卡
+
+- [ ] 未完成。当前 `home-brief` 仍展示 current_focus/progress/summary 三段 Markdown。
+- [ ] 新用户仍缺少一屏内的“快速问答 / 系统学习 / 联网研究 / 项目 / 资料”任务入口。
+- [ ] 老用户恢复尚未统一读取 committed learning/research/project state。
+
+### P1.4 最近评估决定显示
+
+- [ ] 未完成。LearningPanel 仍展示启发式 mastery ring。
+- [ ] 应改为 `已验证 / 待验证 / 需重讲 / 待语义复核`，只消费最终 committed evaluation。
+
+---
+
+## 4. 当前闭环主线
+
+### P1-A：正式 LearningClosureRun（G1）
+
+- [ ] 新建 `LearningClosureService` 和 repository。
+- [ ] SQLite 持久化 source thread/version/last completed turn、committed snapshot、生成结果、MemoryRun、状态和错误。
+- [ ] 状态机：created -> collecting -> generating -> preview_ready -> committing -> completed/failed/cancelled。
+- [ ] `closure_source_hash` 幂等；相同线程版本复用 preview。
+- [ ] 失败重试不重复调用已完成步骤。
+- [ ] 按 ClosureEligibility 拒绝不适用的学习总结。
+
+### P1-B：结构化总结输入（G2）
+
+- [ ] 优先使用 committed objective / confirmed points / gap / phase / protocol。
+- [ ] 引用最终 PedagogyEvalRun 决定和 evidence IDs。
+- [ ] 原始聊天设置明确预算，只作为补充。
+- [ ] learner profile 推断默认 pending。
+- [ ] 每条候选记录来源、置信度和对应评估。
+
+### P1-C：真正结束状态（G3）
+
+- [ ] MemoryRun commit 后写入 `summary_status=summarized`。
+- [ ] 线程无新增完成回合时禁止重复生成。
+- [ ] 显示“本次学习已整理”。
+- [ ] 提供继续当前 / 归档并新建；绝不自动归档。
+
+### P1-D：ResearchRun 与准备阶段（G10/G12）
+
+- [ ] 把多步搜索升级为唯一 server-owned ResearchRun。
+- [ ] 保存查询尝试、来源评估、选中/拒绝来源、停止原因和答案置信度。
+- [ ] 首 token 前显示真实 routing/retrieving/searching/reading/composing 阶段。
+- [ ] 取消信号传到研究循环、RAG 和 Provider 能力边界。
+- [ ] 刷新后恢复 partial/failed/cancelled 状态和已有结果。
+
+---
+
+## 5. P2/P3 产品收敛
+
+### 会话与恢复（G4/G6）
+
+- [ ] 会话 title、task intent、last preview、phase/gap、summary status、updated_at。
+- [ ] 自动标题可手动改，后续不覆盖用户标题。
+- [ ] 按状态/时间/任务搜索和分组。
+- [ ] 结构化恢复卡与 interrupted/partial run 操作。
+
+### 学习状态去伪精化（G5）
+
+- [ ] 删除启发式 mastery ring 和 conic-gradient 进度表现。
+- [ ] 折叠态顺序改为目标 -> 阶段 -> 缺口/下一步 -> 最近评估。
+- [ ] attempted/planned 与 committed 分开展示。
+
+### UI 聚焦与窄屏（G7/G8/G17）
+
+- [ ] 一级 dock 收敛为上传 / 会话 / 当前任务收束 / 更多。
+- [ ] 其余功能进入“更多”，但保持全部可达。
+- [ ] 设置分基础 / 高级 / 表达层。
+- [ ] 顶部隐藏 route code、记录 ID、内部参数。
+- [ ] 完成窄屏可见标签、抽屉焦点、错误动作和首次使用入口。
+
+---
+
+## 6. 最新执行顺序
+
+1. 完成 P0 真实旅程回归：新词联网、临时研究不污染、会话切换、外发策略、刷新证据。
+2. G10 ResearchRun。
+3. G1 LearningClosureRun。
+4. G12 阶段事件与取消传播。
+5. G2 + G3 结构化总结和真正结束。
+6. G4 + G6 会话语义和恢复卡。
+7. G5 + G7 + G8 + G17 产品收敛。
+8. G14 临时资料与逐文件导入体验。
+
+每个切片需同步更新本文件、`docs/ARCHITECTURE_STATUS.md`、`docs/NEXT_PHASE_PLAN.md` 和综合路线图。当前连接返回的 audited head 没有远程 workflow run，因此不能把远程 CI 标为已验证；下一次功能提交前后均应运行后端全量、前端全量、生产构建和桌面/窄屏人工旅程。
