@@ -1,9 +1,7 @@
 name: Apply and validate external policy patch
 
 on:
-  push:
-    branches:
-      - feat/p0-external-data-policy
+  pull_request:
 
 permissions:
   contents: write
