@@ -6,6 +6,9 @@ from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.rag_repository import RagRepository
 
 
+COMMIT_SHA = "a" * 40
+
+
 class FakeSnapshotter:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, str]] = []
@@ -17,6 +20,8 @@ class FakeSnapshotter:
             "kind": "github_snapshot",
             "repository": "openai/example",
             "ref": ref or "main",
+            "requested_ref": ref or "main",
+            "commit_sha": COMMIT_SHA,
             "tree_sha": "tree-123",
             "query": query,
             "files": [
@@ -75,6 +80,7 @@ def test_exact_snapshot_is_reused_after_repository_restart(tmp_path):
     assert restored["cache_hit"] is True
     assert restored["cache_mode"] == "exact"
     assert restored["snapshot_run_id"] == created["snapshot_run_id"]
+    assert restored["commit_sha"] == COMMIT_SHA
     assert len(snapshotter.calls) == 1
 
 
@@ -96,6 +102,7 @@ def test_followup_reuses_relevant_files_without_fetching_github_again(tmp_path):
     assert followup["cache_hit"] is True
     assert followup["cache_mode"] == "followup_subset"
     assert followup["reused_snapshot_id"] == original["snapshot_run_id"]
+    assert followup["commit_sha"] == COMMIT_SHA
     assert [item["path"] for item in followup["files"]] == [
         "src/web/github_reader.py"
     ]
@@ -156,4 +163,5 @@ def test_snapshot_runs_are_listable_and_recoverable(tmp_path):
 
     assert restored["status"] == "completed"
     assert restored["result"]["tree_sha"] == "tree-123"
+    assert restored["result"]["commit_sha"] == COMMIT_SHA
     assert created["snapshot_run_id"] in [item["id"] for item in listed]
