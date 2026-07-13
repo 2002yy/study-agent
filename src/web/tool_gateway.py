@@ -21,6 +21,7 @@ from src.news.search_sources.searxng_source import (
     searxng_enabled,
 )
 from src.web.github_reader import GitHubSourceReader
+from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
 
 
@@ -97,8 +98,13 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
-    def __init__(self, github_reader: GitHubSourceReader | None = None) -> None:
+    def __init__(
+        self,
+        github_reader: GitHubSourceReader | None = None,
+        github_snapshotter: GitHubRepositorySnapshotter | None = None,
+    ) -> None:
         self.github_reader = github_reader or GitHubSourceReader()
+        self.github_snapshotter = github_snapshotter or GitHubRepositorySnapshotter()
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, str]]:
         """Compatibility list API used by older callers."""
@@ -278,6 +284,19 @@ class GeneralWebGateway:
             repo_url,
             query,
             max_results=max_results,
+        )
+
+    def github_snapshot(
+        self,
+        repo_url: str,
+        *,
+        query: str = "",
+        ref: str = "",
+    ) -> dict[str, Any]:
+        return self.github_snapshotter.snapshot(
+            repo_url,
+            query=query,
+            ref=ref,
         )
 
     @staticmethod
