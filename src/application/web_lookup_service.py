@@ -81,8 +81,10 @@ class WebLookupService:
         variants = (
             [str(item) for item in plan_variants if str(item).strip()]
             if isinstance(plan_variants, (list, tuple))
-            else [running.query]
+            else []
         )
+        if not variants:
+            variants = [running.query]
         try:
             for query_variant in variants:
                 attempted_queries.append(query_variant)
