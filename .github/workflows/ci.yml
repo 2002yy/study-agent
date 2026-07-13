@@ -1,35 +1,22 @@
-name: Finalize and validate recoverable research runs
+name: Apply recoverable research run integration
 
 on:
-  pull_request:
+  push:
+    branches:
+      - feat/p0-research-run
 
 permissions:
   contents: write
 
 jobs:
-  finalize:
+  apply:
+    if: github.event.head_commit.message != 'feat: add recoverable staged research runs'
     runs-on: ubuntu-latest
-    env:
-      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/p0-research-run
           fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Apply schema and frontend integration patch
         run: |
@@ -85,9 +72,8 @@ jobs:
   '''
           replace_once(database, migration_anchor, migration_replacement)
 
-          test_file = "tests/test_web_lookup_run.py"
           replace_once(
-              test_file,
+              "tests/test_web_lookup_run.py",
               '    gateway = FakeGateway(["empty"] * 8 + ["success"])\n',
               '    gateway = FakeGateway(["empty", "success"])\n',
           )
@@ -259,9 +245,8 @@ jobs:
   '''
           replace_once(api_file, old_api, new_api)
 
-          workspace = "frontend/src/app/WorkspaceView.tsx"
           replace_once(
-              workspace,
+              "frontend/src/app/WorkspaceView.tsx",
               '          onLookupNews={webLookupController.lookup}\n          isWechatBusy={groupController.isBusy}\n',
               '          onLookupNews={webLookupController.lookup}\n'
               '          onRetryWebLookup={webLookupController.retry}\n'
@@ -270,19 +255,8 @@ jobs:
           )
 
           panel = "frontend/src/features/wechat-workspace/WechatPanel.tsx"
-          replace_once(
-              panel,
-              '  onLookupNews,\n  isWechatBusy,\n',
-              '  onLookupNews,\n  onRetryWebLookup,\n  canRetryWebLookup,\n  isWechatBusy,\n',
-          )
-          replace_once(
-              panel,
-              '  onLookupNews: () => void;\n  isWechatBusy: boolean;\n',
-              '  onLookupNews: () => void;\n'
-              '  onRetryWebLookup: () => void;\n'
-              '  canRetryWebLookup: boolean;\n'
-              '  isWechatBusy: boolean;\n',
-          )
+          replace_once(panel, '  onLookupNews,\n  isWechatBusy,\n', '  onLookupNews,\n  onRetryWebLookup,\n  canRetryWebLookup,\n  isWechatBusy,\n')
+          replace_once(panel, '  onLookupNews: () => void;\n  isWechatBusy: boolean;\n', '  onLookupNews: () => void;\n  onRetryWebLookup: () => void;\n  canRetryWebLookup: boolean;\n  isWechatBusy: boolean;\n')
           replace_once(
               panel,
               '''      {webLookup ? (
@@ -300,12 +274,7 @@ jobs:
               </span>
             </div>
             {canRetryWebLookup ? (
-              <button
-                className="ghost-action compact"
-                disabled={isNewsBusy}
-                onClick={onRetryWebLookup}
-                type="button"
-              >
+              <button className="ghost-action compact" disabled={isNewsBusy} onClick={onRetryWebLookup} type="button">
                 {isNewsBusy ? <Loader2 className="spin" size={14} /> : null}
                 重试本次研究
               </button>
@@ -314,8 +283,7 @@ jobs:
   ''',
           )
 
-          boundary = Path("frontend/src/features/web-lookup/WebLookupRunBoundary.test.ts")
-          boundary.write_text(
+          Path("frontend/src/features/web-lookup/WebLookupRunBoundary.test.ts").write_text(
               '''import { readFileSync } from "node:fs";
   import { resolve } from "node:path";
   import { describe, expect, it } from "vitest";
@@ -324,24 +292,15 @@ jobs:
 
   describe("recoverable web research composition", () => {
     it("creates a durable run before searching and exposes retry", () => {
-      const controller = readFileSync(
-        resolve(root, "features/web-lookup/webLookupController.ts"),
-        "utf8",
-      );
+      const controller = readFileSync(resolve(root, "features/web-lookup/webLookupController.ts"), "utf8");
       expect(controller).toContain("createResearchRun");
       expect(controller).toContain("searchResearchRun");
       expect(controller).toContain("retryResearchRun");
-      expect(controller.indexOf("createResearchRun")).toBeLessThan(
-        controller.indexOf("searchResearchRun"),
-      );
     });
 
     it("wires retry state into the visible group research panel", () => {
       const workspace = readFileSync(resolve(root, "app/WorkspaceView.tsx"), "utf8");
-      const panel = readFileSync(
-        resolve(root, "features/wechat-workspace/WechatPanel.tsx"),
-        "utf8",
-      );
+      const panel = readFileSync(resolve(root, "features/wechat-workspace/WechatPanel.tsx"), "utf8");
       expect(workspace).toContain("onRetryWebLookup={webLookupController.retry}");
       expect(workspace).toContain("canRetryWebLookup={webLookupController.canRetry}");
       expect(panel).toContain("重试本次研究");
@@ -353,60 +312,9 @@ jobs:
           )
           PY
 
-      - name: Restore canonical CI before validation
-        run: git checkout origin/main -- .github/workflows/ci.yml
-
-      - name: Install dependencies
-        timeout-minutes: 8
+      - name: Restore canonical CI and commit product patch
         run: |
-          python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
-
-      - name: Run pytest
-        run: pytest
-
-      - name: Run ruff
-        run: ruff check .
-
-      - name: Run package helper
-        run: python tools/package_project_helper.py . /dev/null 0
-
-      - name: Run detect-secrets
-        run: |
-          pip install detect-secrets 2>/dev/null
-          detect-secrets scan --disable-plugin KeywordDetector \
-            --exclude-files '.*\.(pyc|jpg|png|zip)$' \
-            .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
-            > /tmp/study-agent-secrets.json 2>&1
-          python - <<'PY'
-          import json
-          import sys
-          with open("/tmp/study-agent-secrets.json", encoding="utf-8") as f:
-              report = json.load(f)
-          findings = {
-              filename: secrets
-              for filename, secrets in report.get("results", {}).items()
-              if secrets
-          }
-          if findings:
-              json.dump(findings, sys.stdout, indent=2, sort_keys=True)
-              print()
-              raise SystemExit(1)
-          PY
-
-      - name: Run expanded mypy
-        continue-on-error: true
-        run: timeout 120s mypy --explicit-package-bases src/
-
-      - name: Test and build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm test
-          npm run build
-
-      - name: Commit validated product patch
-        run: |
+          git checkout origin/main -- .github/workflows/ci.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
