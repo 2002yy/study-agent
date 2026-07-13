@@ -138,15 +138,15 @@ class NewsLookupResponse(BaseModel):
 class WebLookupRunResponse(BaseModel):
     id: str
     query: str
-    stage: str
+    stage: str = "created"
     status: str
-    research_context: dict
-    query_attempts: list[dict]
-    selected_sources: list[dict]
-    rejected_sources: list[dict]
-    provider_status: str
-    stop_reason: str
-    answer_confidence: str
+    research_context: dict = Field(default_factory=dict)
+    query_attempts: list[dict] = Field(default_factory=list)
+    selected_sources: list[dict] = Field(default_factory=list)
+    rejected_sources: list[dict] = Field(default_factory=list)
+    provider_status: str = ""
+    stop_reason: str = ""
+    answer_confidence: str = ""
     items: list[dict]
     source_block: str
     warnings: list[str]
