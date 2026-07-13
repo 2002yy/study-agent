@@ -112,13 +112,23 @@ class NewsRun:
 
 @dataclass(frozen=True)
 class WebLookupRun:
+    """Durable, resumable public-web research state."""
+
     id: str = field(default_factory=lambda: new_id("web_lookup"))
     query: str = ""
-    status: str = "running"
+    stage: str = "planned"
+    status: str = "pending"
+    query_plan: dict[str, Any] = field(default_factory=dict)
+    attempts: list[dict[str, Any]] = field(default_factory=list)
     items: list[dict[str, Any]] = field(default_factory=list)
     source_block: str = ""
     warnings: list[str] = field(default_factory=list)
+    empty_reason: str = ""
     error: str = ""
+    max_items: int = 8
+    active_operation_id: str | None = None
+    active_operation_started_at: str | None = None
+    stage_started_at: str | None = None
     version: int = 1
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
