@@ -7,6 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
@@ -52,6 +53,11 @@ def get_rag_repository() -> RagRepository:
 
 
 @lru_cache(maxsize=1)
+def get_github_snapshot_repository() -> GitHubSnapshotRepository:
+    return GitHubSnapshotRepository(get_rag_repository())
+
+
+@lru_cache(maxsize=1)
 def get_group_repository() -> GroupRepository:
     return GroupRepository(RuntimeDatabase(runtime_database_path()))
 
@@ -82,6 +88,24 @@ def get_pedagogy_eval_repository() -> PedagogyEvalRepository:
 
 
 @lru_cache(maxsize=1)
+def get_github_snapshot_service():
+    from src.application.github_snapshot_service import GitHubSnapshotService
+
+    return GitHubSnapshotService(get_github_snapshot_repository())
+
+
+@lru_cache(maxsize=1)
+def get_web_tool_agent():
+    from src.tools.web_agent import WebToolAgent
+    from src.web.tool_gateway import GeneralWebGateway
+
+    gateway = GeneralWebGateway(
+        github_snapshotter=get_github_snapshot_service(),  # type: ignore[arg-type]
+    )
+    return WebToolAgent(gateway=gateway)
+
+
+@lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatDependencies
     from src.application.policy_chat_service import ExternalDataPolicyChatService
@@ -91,7 +115,6 @@ def get_chat_service():
         TaskAwarePedagogyEvaluationService,
         route_request_with_task_contract,
     )
-    from src.tools.web_agent import resolve_web_tools
 
     return ExternalDataPolicyChatService(
         get_runtime_repository(),
@@ -101,7 +124,7 @@ def get_chat_service():
             pedagogy_evaluation=TaskAwarePedagogyEvaluationService(
                 LLMSemanticEvaluator()
             ),
-            resolve_web_tools=resolve_web_tools,
+            resolve_web_tools=get_web_tool_agent().resolve,
         ),
     )
 
@@ -128,7 +151,6 @@ def get_session_service():
 def get_group_service():
     from src.application.group_chat_service import GroupChatService
     from src.application.group_chat_service import GroupDependencies
-    from src.tools.web_agent import resolve_web_tools
 
     return GroupChatService(
         get_group_repository(),
@@ -136,7 +158,9 @@ def get_group_service():
         unread_file=DEFAULT_GROUP_UNREAD_FILE,
         state_file=DEFAULT_GROUP_STATE_FILE,
         archive_dir=DEFAULT_GROUP_ARCHIVE_DIR,
-        dependencies=GroupDependencies(resolve_web_tools=resolve_web_tools),
+        dependencies=GroupDependencies(
+            resolve_web_tools=get_web_tool_agent().resolve,
+        ),
     )
 
 
@@ -176,6 +200,9 @@ def get_tool_service():
 
 
 def reset_runtime_repository_cache() -> None:
+    get_web_tool_agent.cache_clear()
+    get_github_snapshot_service.cache_clear()
+    get_github_snapshot_repository.cache_clear()
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()
