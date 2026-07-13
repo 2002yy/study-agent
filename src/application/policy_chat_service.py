@@ -74,9 +74,7 @@ class ExternalDataPolicyChatService(ChatService):
         )
         marker_consent = command.web_context.strip() == WEB_CONSENT_MARKER
         manual_web_context = "" if marker_consent else command.web_context
-        effective_web_consent = command.web_consent or marker_consent or (
-            effective_web_policy == "ask" and bool(manual_web_context.strip())
-        )
+        effective_web_consent = command.web_consent or marker_consent
         settings = {
             **_session_settings(command, context_mode),
             "webPolicy": effective_web_policy,
