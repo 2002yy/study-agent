@@ -10,7 +10,6 @@ from src.web.research_contract import (
     QueryAttempt,
     build_research_context,
     failed_attempt,
-    stop_reason,
     successful_attempt,
 )
 
@@ -42,8 +41,7 @@ class WebLookupService:
                     search_query,
                     max_items=max_items,
                 )
-                attempt = successful_attempt(search_query, len(candidate_items))
-                attempts.append(attempt)
+                attempts.append(successful_attempt(search_query, len(candidate_items)))
                 if candidate_items:
                     items = candidate_items
                     break
@@ -72,13 +70,6 @@ class WebLookupService:
             for item in self.gateway.warnings()
         ]
         warnings.extend(attempt_warnings)
-        warnings.append(
-            "research trace: "
-            f"as_of={context.as_of_date}; "
-            f"canonical={context.canonical_query}; "
-            f"attempts={len(attempts)}; "
-            f"stop_reason={stop_reason(attempts)}"
-        )
 
         return self.repository.complete(
             run.id,
