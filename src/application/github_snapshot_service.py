@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
+from src.web.github_code_index import GitHubCodeIndex
 from src.web.github_reader import parse_github_url
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 
@@ -64,6 +65,17 @@ def _followup_subset(
     return [item for _score, _path, item in ranked[:max_files]]
 
 
+def _index_key(snapshot: dict[str, Any]) -> str:
+    run_id = str(snapshot.get("snapshot_run_id") or "")
+    tree_sha = str(snapshot.get("tree_sha") or "")
+    files = ",".join(
+        f"{item.get('path', '')}:{item.get('sha', '')}"
+        for item in snapshot.get("files", [])
+        if isinstance(item, dict)
+    )
+    return f"{run_id}:{tree_sha}:{files}"
+
+
 class GitHubSnapshotService:
     def __init__(
         self,
@@ -72,6 +84,7 @@ class GitHubSnapshotService:
     ) -> None:
         self.repository = repository
         self.snapshotter = snapshotter or GitHubRepositorySnapshotter()
+        self._indexes: dict[str, GitHubCodeIndex] = {}
 
     def snapshot(
         self,
@@ -167,6 +180,51 @@ class GitHubSnapshotService:
             return dict(completed.result)
         self.repository.fail(run.id, str(result.get("error") or "snapshot_failed"))
         return result
+
+    def search_repository(
+        self,
+        repo_url: str,
+        query: str,
+        *,
+        ref: str = "",
+        top_k: int = 12,
+    ) -> dict[str, Any]:
+        focused_query = _focused(query)
+        if not focused_query:
+            return {
+                "ok": False,
+                "error": "empty_query",
+                "query": focused_query,
+                "results": [],
+            }
+        snapshot = self.snapshot(
+            repo_url,
+            query=focused_query,
+            ref=ref,
+        )
+        if snapshot.get("ok") is not True:
+            return {
+                **snapshot,
+                "query": focused_query,
+                "results": [],
+            }
+        key = _index_key(snapshot)
+        index = self._indexes.get(key)
+        if index is None:
+            index = GitHubCodeIndex.from_snapshot(snapshot)
+            self._indexes[key] = index
+        searched = index.search(focused_query, top_k=top_k)
+        return {
+            "ok": True,
+            "mode": "local_snapshot_hybrid",
+            "repository": str(snapshot.get("repository") or ""),
+            "ref": str(snapshot.get("ref") or ""),
+            "tree_sha": str(snapshot.get("tree_sha") or ""),
+            "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
+            "cache_hit": bool(snapshot.get("cache_hit")),
+            "cache_mode": str(snapshot.get("cache_mode") or ""),
+            **searched,
+        }
 
     def get(self, run_id: str) -> dict[str, Any]:
         run = self.repository.get(run_id)
