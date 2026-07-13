@@ -138,7 +138,15 @@ class NewsLookupResponse(BaseModel):
 class WebLookupRunResponse(BaseModel):
     id: str
     query: str
+    stage: str
     status: str
+    research_context: dict
+    query_attempts: list[dict]
+    selected_sources: list[dict]
+    rejected_sources: list[dict]
+    provider_status: str
+    stop_reason: str
+    answer_confidence: str
     items: list[dict]
     source_block: str
     warnings: list[str]
