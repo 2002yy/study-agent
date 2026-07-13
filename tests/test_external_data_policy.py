@@ -237,3 +237,25 @@ def test_research_task_does_not_query_local_knowledge(tmp_path):
     assert captured["web_calls"] == 1
     assert prepared.route["task_contract"]["source_policy"] == "web_only"
     assert prepared.rag["result_count"] == 0
+
+
+def test_ask_mode_does_not_treat_manual_web_context_as_consent(tmp_path):
+    service, captured = _service(tmp_path)
+
+    prepared = service.start_turn(
+        PolicyChatCommand(
+            user_input="数据库索引是什么？",
+            thread_id="chat-ask-context",
+            web_context="UNTRUSTED MANUAL WEB CONTEXT",
+            web_policy="ask",
+            web_consent=False,
+            cloud_context_policy="recent_chat",
+        )
+    )
+
+    message_args = captured["messages"][0]
+    assert captured["web_calls"] == 0
+    assert "UNTRUSTED MANUAL WEB CONTEXT" not in message_args["rag_context"]
+    assert prepared.route["external_data_policy"]["web_allowed"] is False
+    assert prepared.route["external_data_policy"]["reason"] == "web_consent_required"
+    assert prepared.web_context_used is False
