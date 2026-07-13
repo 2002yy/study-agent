@@ -90,7 +90,7 @@ export function WorkspaceView({
     if (
       uploadController.mode === "rebuild" &&
       !window.confirm(
-        `将用本次 ${files.length} 个文件重建整个知识库索引，旧索引会被替换。继续吗？`
+        `将用本次 ${files.length} 个文件重建整个知识库索引，旧索引会被替换。继续吗？`,
       )
     ) {
       event.target.value = "";
@@ -100,7 +100,7 @@ export function WorkspaceView({
     event.target.value = "";
   };
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(
-    ([key]) => key !== "health"
+    ([key]) => key !== "health",
   );
 
   return (
@@ -212,6 +212,7 @@ export function WorkspaceView({
           onSendWechat={groupController.send}
           onStopWechat={groupController.stop}
           onLookupNews={webLookupController.lookup}
+          onStopLookup={webLookupController.cancel}
           isWechatBusy={groupController.isBusy}
           error={groupController.error}
           isNewsBusy={webLookupController.isBusy}
@@ -225,6 +226,7 @@ export function WorkspaceView({
           setReadArticles={ui.setReadArticles}
           controller={newsController}
           onLookupNews={webLookupController.lookup}
+          onStopLookup={webLookupController.cancel}
           isLookupBusy={webLookupController.isBusy}
         />
       </SlideOver>
