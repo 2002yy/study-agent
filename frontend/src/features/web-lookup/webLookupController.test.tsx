@@ -139,11 +139,14 @@ describe("useWebLookupController", () => {
     let renderer: ReturnType<typeof create>;
 
     function Harness({ query }: { query: string }) {
+      const [activeRunId, setActiveRunId] = React.useState<string | undefined>(
+        "web_lookup_old",
+      );
       controller = useWebLookupController({
         query,
         setOperationError: vi.fn(),
-        activeRunId: "web_lookup_old",
-        setActiveRunId: vi.fn(),
+        activeRunId,
+        setActiveRunId,
       });
       return null;
     }
