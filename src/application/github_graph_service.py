@@ -6,8 +6,8 @@ from typing import Any
 from weakref import WeakKeyDictionary
 
 from src.application.github_snapshot_service import GitHubSnapshotService
+from src.web.module_identity import ModuleSemanticIndex
 from src.web.repository_graph import RepositoryGraphIndex
-from src.web.semantic_impact import SemanticImpactIndex
 
 
 def _focused(value: str) -> str:
@@ -78,7 +78,7 @@ class GitHubGraphService:
     def __init__(self, snapshot_service: GitHubSnapshotService) -> None:
         self.snapshot_service = snapshot_service
         self._indexes: dict[str, RepositoryGraphIndex] = {}
-        self._semantic_indexes: dict[str, SemanticImpactIndex] = {}
+        self._semantic_indexes: dict[str, ModuleSemanticIndex] = {}
 
     def _index(self, snapshot: dict[str, Any]) -> RepositoryGraphIndex:
         key = _index_key(snapshot)
@@ -88,11 +88,11 @@ class GitHubGraphService:
             self._indexes[key] = index
         return index
 
-    def _semantic_index(self, snapshot: dict[str, Any]) -> SemanticImpactIndex:
+    def _semantic_index(self, snapshot: dict[str, Any]) -> ModuleSemanticIndex:
         key = _index_key(snapshot)
         index = self._semantic_indexes.get(key)
         if index is None:
-            index = SemanticImpactIndex(self._index(snapshot))
+            index = ModuleSemanticIndex(self._index(snapshot))
             self._semantic_indexes[key] = index
         return index
 
