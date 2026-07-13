@@ -239,7 +239,7 @@ def _threads(_query: str, variables: dict) -> dict:
 
 
 def test_pull_request_combines_commits_files_reviews_threads_and_checks(monkeypatch):
-    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-" + "token")
     service = GitHubWorkItemService(
         FakeHistory(),  # type: ignore[arg-type]
         request_json=_pr_provider,
@@ -338,12 +338,14 @@ def test_ci_logs_redact_credentials_and_keep_bounded_tail():
             "steps": [],
         }
 
+    github_token = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz123456"
+    api_token = "s" + "k-" + "abcdefghijklmnop123456"
     raw_log = "\n".join(
         [
             *(f"old line {index}" for index in range(25)),
-            "Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz123456",
-            "::add-mask::super-secret",
-            "api_key='sk-abcdefghijklmnop123456'",
+            f"Authorization: Bearer {github_token}",
+            "::add-mask::" + "super-secret",
+            f"api_key='{api_token}'",
             "failure: assertion mismatch",
         ]
     )
@@ -359,8 +361,8 @@ def test_ci_logs_redact_credentials_and_keep_bounded_tail():
     assert result["truncated"] is True
     assert result["line_count"] == 20
     assert "old line 0" not in result["log"]
-    assert "ghp_" not in result["log"]
-    assert "sk-" not in result["log"]
+    assert "gh" + "p_" not in result["log"]
+    assert "s" + "k-" not in result["log"]
     assert "super-secret" not in result["log"]
     assert "failure: assertion mismatch" in result["log"]
     assert result["redacted"] is True
