@@ -340,7 +340,7 @@ def test_ci_logs_redact_credentials_and_keep_bounded_tail():
 
     raw_log = "\n".join(
         [
-            "old line",
+            *(f"old line {index}" for index in range(25)),
             "Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz123456",
             "::add-mask::super-secret",
             "api_key='sk-abcdefghijklmnop123456'",
@@ -353,10 +353,12 @@ def test_ci_logs_redact_credentials_and_keep_bounded_tail():
         request_text=lambda _url, **_kwargs: raw_log,
     )
 
-    result = service.ci_logs(REPO, 41, max_chars=2_000, max_lines=4)
+    result = service.ci_logs(REPO, 41, max_chars=2_000, max_lines=20)
 
     assert result["ok"] is True
     assert result["truncated"] is True
+    assert result["line_count"] == 20
+    assert "old line 0" not in result["log"]
     assert "ghp_" not in result["log"]
     assert "sk-" not in result["log"]
     assert "super-secret" not in result["log"]
