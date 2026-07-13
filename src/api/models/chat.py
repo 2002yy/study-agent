@@ -38,6 +38,9 @@ class ChatRequest(BaseModel):
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = Field(default=0.01, ge=0)
     web_context: str = ""
+    web_policy: str | None = None
+    web_consent: bool = False
+    cloud_context_policy: str | None = None
     continuation_of_turn_id: str | None = None
     retry_of_turn_id: str | None = None
     partial_reply: str = ""

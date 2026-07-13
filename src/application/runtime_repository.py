@@ -83,7 +83,8 @@ def get_pedagogy_eval_repository() -> PedagogyEvalRepository:
 
 @lru_cache(maxsize=1)
 def get_chat_service():
-    from src.application.chat_service import ChatDependencies, ChatService
+    from src.application.chat_service import ChatDependencies
+    from src.application.policy_chat_service import ExternalDataPolicyChatService
     from src.pedagogy.evaluation import LLMSemanticEvaluator
     from src.task_contract import (
         TaskAwarePedagogyEngine,
@@ -92,7 +93,7 @@ def get_chat_service():
     )
     from src.tools.web_agent import resolve_web_tools
 
-    return ChatService(
+    return ExternalDataPolicyChatService(
         get_runtime_repository(),
         ChatDependencies(
             route_request=route_request_with_task_contract,

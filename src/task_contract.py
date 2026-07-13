@@ -137,6 +137,14 @@ def route_request_with_task_contract(**kwargs: Any) -> dict[str, Any]:
     return {**route, "task_contract": contract.to_dict()}
 
 
+def _has_active_learning_state(state: LearningState) -> bool:
+    return bool(state.objective.strip()) or state.protocol in {
+        "socratic_rediscovery",
+        "feynman_diagnosis",
+        "project_execution",
+    }
+
+
 def _not_applicable_evaluation(
     *,
     contract: TaskContract,
@@ -203,7 +211,7 @@ class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
     ) -> PedagogyEvalRun:
         contract = classify_task_contract(
             learner_input,
-            active_learning=bool(state.objective or state.protocol),
+            active_learning=_has_active_learning_state(state),
         )
         if contract.learning_state_enabled:
             return super().evaluate_learner(
@@ -229,7 +237,7 @@ class TaskAwarePedagogyEngine(PedagogyEngine):
     ) -> tuple[PedagogyTurnPlan, LearningState]:
         contract = classify_task_contract(
             user_input,
-            active_learning=bool(state.objective or state.protocol),
+            active_learning=_has_active_learning_state(state),
         )
         if contract.learning_state_enabled:
             return super().plan(user_input=user_input, mode=mode, state=state)

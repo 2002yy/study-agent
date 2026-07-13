@@ -22,6 +22,8 @@ class RuntimeSettingsPatch(BaseModel):
     rag_chat_top_k: int | None = Field(default=None, ge=1, le=20)
     rag_top_k: int | None = Field(default=None, ge=1, le=20)
     rag_min_score: float | None = Field(default=None, ge=0)
+    web_policy: str | None = None
+    cloud_context_policy: str | None = None
 
 
 class RuntimeSettingsResponse(BaseModel):

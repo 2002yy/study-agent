@@ -60,6 +60,8 @@ DEFAULT_FRONTEND_SETTINGS = {
     "rag_chat_top_k": 3,
     "rag_top_k": 3,
     "rag_min_score": 0.01,
+    "web_policy": "auto",
+    "cloud_context_policy": "allow_local_evidence",
 }
 
 ROLE_DESCRIPTIONS = {
@@ -154,6 +156,16 @@ def _normalize_frontend_settings(settings: dict[str, Any]) -> dict[str, Any]:
         normalized["rag_min_score"] = max(0.0, float(settings.get("rag_min_score", normalized["rag_min_score"])))
     except (TypeError, ValueError):
         pass
+    web_policy = settings.get("web_policy")
+    if web_policy in {"off", "ask", "auto"}:
+        normalized["web_policy"] = web_policy
+    cloud_context_policy = settings.get("cloud_context_policy")
+    if cloud_context_policy in {
+        "question_only",
+        "recent_chat",
+        "allow_local_evidence",
+    }:
+        normalized["cloud_context_policy"] = cloud_context_policy
     return normalized
 
 

@@ -5,6 +5,7 @@ import {
 import { RoleAvatar } from "../components/RoleAvatar";
 import { StatusDot } from "../components/StatusDot";
 import { roleLabel, roleOptions } from "../features/roles/roleCatalog";
+import { ExternalDataPolicySettings } from "../features/settings/ExternalDataPolicySettings";
 import { displayValue } from "../utils/format";
 import type {
   ApiSnapshot, ChatResponse, ChatSettings, RagSettings, RoleResponse
@@ -237,6 +238,12 @@ export function Sidebar({
           <strong>{snapshot.ragStatus?.vector_backend.name ?? "未知"}</strong>
         </div>
       </section>
+
+      <ExternalDataPolicySettings
+        runtimeSettings={snapshot.runtimeSettings}
+        disabled={isSending}
+        onSaved={refresh}
+      />
 
       <section className="side-section">
         <div className="section-title">

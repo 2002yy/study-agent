@@ -27,6 +27,8 @@ import {
 import { evidenceFromResponse, evidenceFromSessionTurns, pedagogySummaryFromSnapshot } from "../evidence/evidenceHelpers";
 import { phaseTrail } from "../pedagogy/pedagogyLabels";
 
+const WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__";
+
 type ControllerOptions = {
   chatSettings: ChatSettings;
   chatSettingsDefaults: ChatSettings;
@@ -42,6 +44,7 @@ type ControllerOptions = {
   setConversationInstruction: Dispatch<SetStateAction<string>>;
   webLookupSource: string;
   useWebLookup: boolean;
+  webPolicy?: string;
   setUseWebLookup: Dispatch<SetStateAction<boolean>>;
   setInput: Dispatch<SetStateAction<string>>;
   setOperationError: Dispatch<SetStateAction<string>>;
@@ -154,6 +157,14 @@ export function useChatController(options: ControllerOptions) {
     let activeTurnId = extraOpts.turnId ?? "";
     let activeOperationId = "";
     const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);
+    let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";
+    if (
+      !turnWebContext &&
+      options.webPolicy === "ask" &&
+      window.confirm("允许本轮联网搜索吗？搜索词会发送给外部搜索服务。")
+    ) {
+      turnWebContext = WEB_CONSENT_MARKER;
+    }
 
     try {
       const response = await sendChatStream(
@@ -170,7 +181,7 @@ export function useChatController(options: ControllerOptions) {
               ? String(state.lastChat.route.mode)
               : undefined,
           conversationInstruction: options.conversationInstruction,
-          webContext: shouldConsumeWebLookup ? options.webLookupSource : "",
+          webContext: turnWebContext,
           continuationOfTurnId: extraOpts.continuationOfTurnId,
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",

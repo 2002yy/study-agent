@@ -158,6 +158,8 @@ export type RuntimeSettingsResponse = {
     rag_chat_top_k: number;
     rag_top_k: number;
     rag_min_score: number;
+    web_policy?: "off" | "ask" | "auto";
+    cloud_context_policy?: "question_only" | "recent_chat" | "allow_local_evidence";
   };
   options: {
     roles: RuntimeOption[];
@@ -168,6 +170,8 @@ export type RuntimeSettingsResponse = {
     entry_modes: RuntimeOption[];
     memory_modes: string[];
     retrieval_modes: RagSettings["retrievalMode"][];
+    web_policies?: string[];
+    cloud_context_policies?: string[];
   };
   runtime_profile: Record<string, unknown>;
   warnings: string[];
