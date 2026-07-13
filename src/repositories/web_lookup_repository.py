@@ -72,6 +72,34 @@ class WebLookupRepository:
             ).fetchall()
         return [_from_row(row) for row in rows]
 
+    def transition_stage(
+        self,
+        run_id: str,
+        *,
+        expected_stage: str,
+        stage: str,
+    ) -> WebLookupRun:
+        """Compare-and-set a running research stage."""
+
+        if not expected_stage.strip() or not stage.strip():
+            raise ValueError("Research stages must be non-empty")
+        now = utc_now()
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET stage = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'running' AND stage = ?
+                """,
+                (stage, now, run_id, expected_stage),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError(
+                f"WebLookupRun stage is not transitionable: {run_id} "
+                f"({expected_stage} -> {stage})"
+            )
+        return self._required(run_id)
+
     def complete(
         self,
         run_id: str,
