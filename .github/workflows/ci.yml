@@ -73,9 +73,32 @@ jobs:
         continue-on-error: true
         run: timeout 120s mypy --explicit-package-bases src/
 
-      - name: Test and build frontend
+      - name: Install frontend dependencies
         working-directory: frontend
-        run: |
-          npm ci
-          npm test
-          npm run build
+        run: npm ci
+
+      - name: Run frontend tests
+        id: frontend_tests
+        continue-on-error: true
+        working-directory: frontend
+        run: npm test > ../research-run-frontend-tests.txt 2>&1
+
+      - name: Run frontend build
+        id: frontend_build
+        continue-on-error: true
+        working-directory: frontend
+        run: npm run build > ../research-run-frontend-build.txt 2>&1
+
+      - name: Upload frontend diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-run-frontend
+          path: |
+            research-run-frontend-tests.txt
+            research-run-frontend-build.txt
+          if-no-files-found: error
+
+      - name: Preserve frontend failure status
+        if: steps.frontend_tests.outcome == 'failure' || steps.frontend_build.outcome == 'failure'
+        run: exit 1
