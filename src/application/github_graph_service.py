@@ -25,6 +25,44 @@ def _index_key(snapshot: dict[str, Any]) -> str:
     return f"{run_id}:{tree_sha}:{files}"
 
 
+def _ensure_root_file(result: dict[str, Any]) -> dict[str, Any]:
+    resolution = result.get("resolution")
+    if not isinstance(resolution, dict):
+        return result
+    selected = resolution.get("selected")
+    if not isinstance(selected, dict):
+        return result
+    identity = selected.get("symbol_identity")
+    if not isinstance(identity, dict):
+        return result
+    path = str(identity.get("path") or "")
+    if not path:
+        return result
+    files = [dict(item) for item in result.get("files", []) if isinstance(item, dict)]
+    existing = next((item for item in files if item.get("path") == path), None)
+    if existing is not None:
+        reasons = {str(reason) for reason in existing.get("reasons", [])}
+        reasons.add("root")
+        existing["reasons"] = sorted(reasons)
+    else:
+        files.insert(
+            0,
+            {
+                "path": path,
+                "file_sha": str(identity.get("file_sha") or ""),
+                "reasons": ["root"],
+            },
+        )
+    return {
+        **result,
+        "files": files,
+        "stats": {
+            **dict(result.get("stats") or {}),
+            "file_count": len(files),
+        },
+    }
+
+
 class GitHubGraphService:
     def __init__(self, snapshot_service: GitHubSnapshotService) -> None:
         self.snapshot_service = snapshot_service
@@ -111,6 +149,7 @@ class GitHubGraphService:
             max_files=max(1, min(max_files, 100)),
             max_edges=max(1, min(max_edges, 500)),
         )
+        result = _ensure_root_file(result)
         return {
             **result,
             "snapshot_run_id": str(snapshot.get("snapshot_run_id") or ""),
