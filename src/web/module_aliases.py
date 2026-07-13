@@ -132,6 +132,10 @@ def resolve_snapshot_import(
                     return matched
     if not module.startswith((".", "/")):
         dotted = module.replace(".", "/")
+        for candidate in _candidate_paths(dotted):
+            matched = _unique_match(candidate, paths)
+            if matched:
+                return matched
         for candidate in (f"{dotted}.java", f"src/main/java/{dotted}.java"):
             matched = _unique_match(candidate, paths)
             if matched:
