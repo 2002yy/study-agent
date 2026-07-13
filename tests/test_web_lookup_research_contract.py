@@ -71,7 +71,7 @@ def test_direct_lookup_tries_bounded_variants_until_results_are_found(tmp_path):
     assert run.status == "completed"
     assert len(run.items) == 1
     assert repository.get(run.id) == run
-    assert any("stop_reason=direct_results_found" in warning for warning in run.warnings)
+    assert run.warnings == []
 
 
 def test_empty_results_remain_empty_evidence_not_confirmed_absence(tmp_path):
@@ -82,9 +82,10 @@ def test_empty_results_remain_empty_evidence_not_confirmed_absence(tmp_path):
 
     assert run.status == "completed"
     assert run.items == []
-    trace = next(warning for warning in run.warnings if warning.startswith("research trace:"))
-    assert "stop_reason=providers_returned_no_results" in trace
-    assert "confirmed_absence" not in trace
+    assert run.warnings == []
+    assert stop_reason([successful_attempt("unknown-new-entity", 0)]) == (
+        "providers_returned_no_results"
+    )
 
 
 def test_all_provider_failures_fail_the_run_after_bounded_attempts(tmp_path):
