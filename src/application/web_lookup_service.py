@@ -1,11 +1,12 @@
-"""Application service for direct web lookups."""
+"""Application service for durable general-web research lookups."""
 
 from __future__ import annotations
+
+from typing import Any, Protocol
 
 from src.domain.runtime_entities import WebLookupRun
 from src.news.digest import format_news_source_block
 from src.repositories.web_lookup_repository import WebLookupRepository
-from src.web.gateway import WebSearchGateway
 from src.web.research_contract import (
     QueryAttempt,
     build_research_context,
@@ -13,17 +14,24 @@ from src.web.research_contract import (
     stop_reason,
     successful_attempt,
 )
+from src.web.research_gateway import ResearchWebGateway
 from src.web.source_assessment import assess_sources, evidence_confidence
+
+
+class WebLookupGateway(Protocol):
+    def search(self, query: str, *, max_items: int = 10) -> list[dict[str, Any]]: ...
+
+    def warnings(self) -> list[dict[str, str]]: ...
 
 
 class WebLookupService:
     def __init__(
         self,
         repository: WebLookupRepository,
-        gateway: WebSearchGateway | None = None,
+        gateway: WebLookupGateway | None = None,
     ):
         self.repository = repository
-        self.gateway = gateway or WebSearchGateway()
+        self.gateway = gateway or ResearchWebGateway()
 
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:
         normalized = query.strip()
@@ -39,7 +47,7 @@ class WebLookupService:
             )
         )
         attempts: list[QueryAttempt] = []
-        candidate_items: list[dict] = []
+        candidate_items: list[dict[str, Any]] = []
         attempt_warnings: list[str] = []
         last_error: Exception | None = None
 
