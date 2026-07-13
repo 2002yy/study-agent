@@ -2,8 +2,8 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-14  
-> 当前已合并能力基线：PR #28，G10-C2.3 版本变化的结构影响  
-> 当前稳定化：状态真值、mypy 硬门禁、ask 模式显式联网同意；下一功能切片为 G10-C2.4
+> 当前稳定化基线：PR #29，状态真值、增量 mypy 门禁、ask 模式显式联网同意  
+> 下一代码切片：TaskContract 单次判定，随后进入 G10-C2.4
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
@@ -187,13 +187,12 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 
 ### CI 与外发策略稳定化
 
-- pytest 失败时上传 `pytest-log`；
-- 前端失败时上传 `frontend-log`；
-- detect-secrets 使用 `continue-on-error -> 上传 JSON 报告 -> enforce`；
-- expanded mypy 不再允许软失败，类型错误会阻止合并；
+- pytest、前端、detect-secrets 和 mypy 均先保留诊断 artifact，再执行独立门禁；
+- expanded mypy 采用增量基线门禁：主线已有 127 个错误被显式登记；任何新增或扩大的错误会阻止合并，错误减少不要求提高基线；
+- 本切片修复了 `policy_chat_service.py` 中 3 个既有类型错误；
 - `web_policy=ask` 只接受显式 `web_consent` 或内部一次性 consent marker；普通 `web_context` 文本不会隐式授权联网；
-- 报告文件使用普通可见路径，避免 artifact 忽略隐藏文件；
-- 失败报告保留 7 天。
+- 诊断 artifact 为 `pytest-log`、`frontend-log`、`detect-secrets-report` 和 `mypy-log`；
+- 报告保留 7 天。
 
 ## 3. 还差什么
 
@@ -214,6 +213,7 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 | issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
 | checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
 | 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| 全量 mypy 零错误 | 未完成 | 当前登记 127 个既有错误；增量门禁已阻止新增，后续应按模块逐步归零 |
 | TaskContract 单一真值 | 未完成 | 当前 route、evaluation、pedagogy 仍可能重复分类，需要单次判定后全链传递 |
 | PR review context | 未完成 | PR + change impact + checks/reviews 的单一证据包 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
@@ -264,29 +264,26 @@ PR #28 最终 GitHub Actions CI #634，代码 head `68a0eefd2e0ad68b3dda43e77e12
 - Ruff：passed；
 - package helper：passed；
 - detect-secrets：passed；
-- detect-secrets report artifact：passed；
 - expanded mypy：passed；
-- frontend Vitest：passed；
-- TypeScript project build：passed；
-- Vite production build：passed。
+- frontend Vitest、TypeScript build 和 Vite production build：passed。
 
-新增回归覆盖：
+PR #29 稳定化代码验证使用 GitHub Actions CI #653，代码 head `81298cf6dea886ea7cadb29802d49610c8a0acb0`：
 
-- hunk old/new 行区间映射；
-- modified 与 added symbol 分类；
-- signature change；
-- old/new commit-pinned SymbolIdentity；
-- 上游 affected files 和 related tests；
-- missing-test signal；
-- changed file 未进入 snapshot 时的 partial/uncertainty；
-- API 预算传递；
-- persistent gateway 上限裁剪；
-- 模型工具 schema、dispatch 和 unavailable 语义；
-- ResearchRun、GitHub history/work items、Tree-sitter、模块语义和单符号 impact 不退化。
+- pytest：691 passed；
+- Ruff：passed；
+- package helper：passed；
+- detect-secrets：passed；
+- expanded mypy：127 个已登记错误，0 个新增或扩大，增量门禁 passed；
+- frontend Vitest、TypeScript build 和 Vite production build：passed。
 
-本稳定化切片新增显式 ask consent 回归，并将 expanded mypy 升级为合并硬门禁；其最终 CI 结果以对应 PR 为准。
+本切片新增回归覆盖：
 
-CI 失败时上传 `pytest-log`、`frontend-log` 和 `detect-secrets-report` artifacts。
+- ask 模式中的普通 `web_context` 不构成联网同意；
+- 显式 consent 语义不受影响；
+- mypy 签名忽略不稳定行列号；
+- 已登记错误允许通过、错误减少允许通过；
+- 新增或扩大错误阻止通过；
+- mypy 超时或无可解析错误的执行失败不能伪装成已知技术债。
 
 ## 6. 文档规则
 
