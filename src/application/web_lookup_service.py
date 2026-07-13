@@ -12,7 +12,6 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_contract import (
     build_research_context,
     failed_attempt,
-    stop_reason,
     successful_attempt,
 )
 from src.web.research_gateway import ResearchWebGateway
@@ -234,9 +233,20 @@ def _resume_stage(run: WebLookupRun) -> str:
             for record in run.selected_sources
         )
         return "reading" if needs_read else "synthesizing"
-    if isinstance(context.get("candidate_items"), list):
+    candidate_items = context.get("candidate_items")
+    if isinstance(candidate_items, list) and candidate_items:
         return "assessing"
     return "searching"
+
+
+def stop_reason_from_payloads(attempts: list[dict[str, Any]]) -> str:
+    if any(int(attempt.get("result_count") or 0) > 0 for attempt in attempts):
+        return "direct_results_found"
+    if attempts and all(
+        attempt.get("status") == "provider_failed" for attempt in attempts
+    ):
+        return "providers_failed"
+    return "providers_returned_no_results"
 
 
 class WebLookupService:
@@ -628,13 +638,3 @@ class WebLookupService:
 
     def list(self, *, limit: int = 20) -> list[WebLookupRun]:
         return self.repository.list(limit=limit)
-
-
-def stop_reason_from_payloads(attempts: list[dict[str, Any]]) -> str:
-    if any(int(attempt.get("result_count") or 0) > 0 for attempt in attempts):
-        return "direct_results_found"
-    if attempts and all(
-        attempt.get("status") == "provider_failed" for attempt in attempts
-    ):
-        return "providers_failed"
-    return "providers_returned_no_results"
