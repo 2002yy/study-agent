@@ -1,283 +1,105 @@
-# RAG MVP
+# Study Agent RAG 技术参考
 
-## Index activation and consistency
+> **文档类别：稳定技术参考，不是当前进度入口。**  
+> 当前项目状态、缺口和下一步统一查看 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 
-RAG writes use a versioned activation protocol:
+本文描述 RAG 的技术边界、数据一致性和模块责任。只有检索架构、索引协议或稳定能力发生变化时更新。
 
-1. acquire the SQLite `rag_index_states` lease with the expected active version;
-2. build a staging candidate;
-3. synchronize the configured vector backend;
-4. atomically replace the local active index only after required stages pass;
-5. activate the staging version in SQLite.
+## 1. Index activation and consistency
 
-Chroma synchronization removes IDs that are not present in the replacement
-index, so delete and rebuild cannot leave retrievable stale chunks. A required
-vector-stage failure preserves the previous active index and completes the
-durable RagRun as `partial_success`, with separate local, vector and activation
-stage diagnostics.
+RAG 写入使用版本化激活协议：
 
-## Document revisions and upload validation
+1. 使用 expected active version 获取 SQLite `rag_index_states` 写入租约；
+2. 构建 staging candidate；
+3. 同步配置的 vector backend；
+4. 只有必需阶段通过后才原子替换本地 active index；
+5. 在 SQLite 中激活 staging version。
 
-`document_id` is stable for a source path, while `revision_id` identifies a
-specific normalized-content/parser revision. Appending a changed version of the
-same source replaces its document and chunks instead of leaving both revisions
-active.
+Chroma 同步会删除 replacement index 中不存在的 ID，避免删除或重建后残留可检索旧 chunk。必需 vector stage 失败时保留旧 active index，并将 durable RagRun 记录为 `partial_success`；local、vector、activation 阶段分别保存诊断信息。
 
-Upload validation runs before files are persisted. It enforces per-file and
-aggregate limits, extension/MIME agreement, UTF-8 text, PDF signatures, DOCX
-ZIP structure and an uncompressed archive ceiling.
+## 2. Document revisions and upload validation
 
-## Pedagogy-aware query planning
+`document_id` 对 source path 保持稳定，`revision_id` 标识具体 normalized content/parser revision。同一路径上传变化版本时替换 active revision 和 chunks，而不是让多个版本同时进入 active index。
 
-Single-chat retrieval uses `RetrievalQueryPlan`. The private query combines the
-current learning objective and unresolved gap with meaningful user input. A
-reply such as “不知道” therefore does not erase the retrieval topic. The raw
-input, protocol, knowledge kind and private query remain available in the turn
-RAG snapshot for diagnosis.
+文件持久化前执行上传校验：
 
-`local_hash` remains deterministic for tests and offline fallback, but is
-explicitly reported as non-semantic and is not a production embedding profile.
+- 单文件和批量总大小；
+- extension/MIME 一致性；
+- UTF-8 文本；
+- PDF signature、页数、提取文本和加密状态；
+- DOCX ZIP structure；
+- archive expansion ceiling。
 
-## Status
+## 3. Pedagogy-aware query planning
 
-Current status: **MVP implemented with a local-first retrieval path, configurable embeddings and an optional Chroma adapter**.
+单聊检索使用 `RetrievalQueryPlan`。private query 组合：
 
-Implemented:
+- 当前学习目标；
+- unresolved gap；
+- 有意义的用户输入；
+- protocol；
+- knowledge kind。
 
-- Local document loading for `.md`, `.markdown`, `.txt`, `.docx` and `.pdf`
-- Text normalization and empty-document rejection
-- PDF parsing through `pypdf`, with file-size, page-count, extracted-text and encrypted-file guards
-- Source-traceable chunking with file path, title and line range
-- Local keyword retrieval with BM25 scoring
-- Deterministic local hash-vector retrieval prototype
-- Hybrid retrieval that fuses BM25 and local-vector rankings with reciprocal-rank fusion
-- CJK bigram matching for simple Chinese queries
-- Persisted JSON index under `logs/rag_index.json` by default
-- Citation-first context formatting for later LLM calls
-- Streamlit retrieval panel for uploads, local paths, indexing, querying and citation preview
-- Optional single-chat and WeChat interactive reply injection through the `用于聊天回答` toggle
-- UI source blocks for retrieved file paths, line ranges, scores and matched terms
-- FastAPI endpoints: `GET /health`, `POST /rag`, `POST /rag/index`, `POST /rag/query`, `GET /rag/status`, `POST /rag/upload`, `POST /rag/local-knowledge`, `GET /tools`, `POST /tools/{tool_name}/preview`, `POST /tools/{tool_name}/call`, `GET /workflows/runs`, `GET /workflows/runs/{run_id}`
-- Streamlit knowledge/debug panel with index summary, document rows, chunk preview and score breakdowns
-- Optional vector backend interface with local fallback and Chroma adapter
-- Configurable embedding providers: deterministic `local_hash` by default, OpenAI-compatible embeddings when explicitly configured
-- Controlled local-knowledge retrieval tool with intent gating, deterministic query rewrite and explicit not-found behavior
+因此用户回答“我不知道”不会擦除检索主题。raw input、private query 和教学上下文保存在 turn RAG snapshot 中，用于恢复和诊断。
 
-Not implemented yet:
+`local_hash` 只用于确定性测试和离线 fallback；它在 API 元数据中明确标记为非语义检索，不属于生产 embedding profile。
 
-- FAISS, pgvector or managed vector stores
-- Production-grade embedding evaluation, relevance tuning and re-index migration tooling
-- Automatic injection into every generation path; current injection covers single chat and WeChat interactive replies, but not news discussion or after-session feedback
+## 4. Stable capability boundary
 
-## Module Map
+当前稳定能力包括：
+
+- `.md`、`.markdown`、`.txt`、`.docx`、`.pdf` 加载；
+- 文本标准化和空文档拒绝；
+- 带 source path、title 和 line range 的可追溯 chunk；
+- BM25 lexical retrieval；
+- deterministic local hash-vector fallback；
+- 使用 reciprocal-rank fusion 的 hybrid retrieval；
+- CJK bigram matching；
+- 默认持久化 JSON index；
+- citation-first context formatting；
+- 可选 Chroma adapter；
+- OpenAI-compatible embedding provider；
+- duplicate suppression、source diversity、metadata filters；
+- latency/candidate accounting；
+- optional local reranker；
+- Recall/MRR/nDCG 统一评测；
+- FastAPI RagRun query/upload/rebuild 和文档生命周期接口；
+- React 来源与知识库界面；
+- 受控 local-knowledge tool。
+
+以下属于后续增强，不在本技术参考中维护进度：
+
+- parser/normalizer/structural chunker 的完整领域拆分；
+- heading/list/table/page-aware chunk；
+- Docling/MinerU/OCR profile；
+- parent/child chunks 和 section path；
+- external reranker provider；
+- pgvector、Milvus、FAISS 或 managed vector store；
+- 临时附件与长期知识库完整产品语义。
+
+这些项目的当前状态以 `PROJECT_STATUS.md` 为准。
+
+## 5. Module map
 
 | Module | Responsibility |
 |---|---|
-| `src/rag/loader.py` | Load supported local files into normalized `RagDocument` objects |
-| `src/rag/chunker.py` | Split documents into line-traceable `RagChunk` objects |
-| `src/rag/index.py` | Build, save, load and search a local JSON RAG index |
-| `src/rag/embeddings.py` | Embedding provider contract, local hash provider and OpenAI-compatible provider |
-| `src/rag/backends.py` | Vector backend contract, local backend and environment-driven backend selection |
-| `src/rag/chroma_backend.py` | Optional Chroma persistent backend adapter |
-| `src/rag/vector.py` | Deterministic local vector prototype and hybrid retrieval |
-| `src/rag/eval.py` | LLM-free retrieval quality evaluation over gold query fixtures |
-| `src/rag/service.py` | Application-facing helpers for indexing, querying and context formatting |
-| `src/rag/schema.py` | Dataclasses for documents, chunks, indexes and search results |
-| `src/tools/local_knowledge.py` | Controlled retrieval boundary for agentic local knowledge use |
-| `src/tools/registry.py` | Allowlisted typed tool registry with preview, call and workflow audit support |
-| `src/workflows/store.py` | Local JSONL workflow run/event persistence for tool and frontend timelines |
-| `src/api.py` | FastAPI health, chat, memory, session, RAG, tool and workflow endpoints |
+| `src/rag/loader.py` | 加载并标准化支持的本地文件 |
+| `src/rag/chunker.py` | 生成可追溯 chunks |
+| `src/rag/index.py` | 构建、保存、加载和检索本地 index |
+| `src/rag/embeddings.py` | embedding provider contract 与实现 |
+| `src/rag/backends.py` | vector backend contract 与 adapter |
+| `src/rag/query_plan.py` | pedagogy-aware private query planning |
+| `src/application/rag_service.py` | RagRun application orchestration |
+| `src/repositories/rag_repository.py` | durable RagRun 和 index-state persistence |
+| `src/api/routes/rag_routes.py` | FastAPI adapter |
+| `frontend/src/features/rag/*` | React controller 与展示层 |
 
-## Data Flow
+## 6. Invariants
 
-```text
-local files
-  -> load_document / load_documents
-  -> chunk_document / chunk_documents
-  -> build_rag_index
-  -> save_rag_index
-  -> query_documents
-  -> build_rag_context
-  -> optional controlled local-knowledge tool
-  -> optional single-chat / WeChat interactive prompt injection or FastAPI response
-  -> frontend-facing chat / memory / session API flow
-```
-
-## Retrieval Behavior
-
-The default mode is `hybrid`: BM25 sparse retrieval plus deterministic local hash-vector similarity fused with reciprocal-rank fusion (RRF). This is a retrieval prototype, not a semantic embedding model. English-like tokens are lowercased words with trailing punctuation stripped. Chinese text is indexed as longer CJK spans plus overlapping two-character terms, so a query such as `向量` can match a longer phrase such as `向量检索`.
-
-Supported retrieval modes:
-
-- `lexical`: BM25 sparse term scoring
-- `vector`: deterministic local hash-vector cosine similarity
-- `hybrid`: BM25 and local-vector rankings fused with RRF
-- `backend_vector`: configured vector backend; defaults to local and can use the optional Chroma adapter with configured embeddings
-
-Each result keeps:
-
-- `source_path`
-- `title`
-- `chunk_index`
-- `start_line` / `end_line`
-- `score`
-- `matched_terms`
-
-This keeps the answer path auditable before the project adds model-generated answers on top.
-
-## Example
-
-```python
-from src.rag import build_rag_context, index_documents, query_documents
-
-index_documents(["memory/current_focus.md", "docs/TECH_STACK.md"])
-results = query_documents("model routing and context tiers", top_k=3, retrieval_mode="hybrid")
-context = build_rag_context(results)
-```
-
-The resulting context is formatted as numbered source blocks:
-
-```text
-[1] TECH_STACK (docs/TECH_STACK.md:L86-L106, score=3.250)
-...
-```
-
-## Testing
-
-Regression coverage lives in `tests/test_rag.py` and verifies:
-
-- Markdown loading and metadata
-- `.docx` loading through `python-docx`
-- PDF extraction and safety limits
-- Source line ranges in chunks
-- Build/save/load/query behavior
-- Chinese CJK bigram matching
-- Local hash-vector and hybrid retrieval behavior
-- Citation formatting and context budget behavior
-- Streamlit RAG panel helpers for uploaded filenames and local path parsing
-- FastAPI `/health`, `/rag`, `/rag/index`, `/rag/query`, `/rag/status`, `/rag/upload` and `/rag/local-knowledge`
-- FastAPI `/chat`, `/memory/preview`, `/memory/commit`, `/sessions` and `/sessions/{session_id}/flush`
-- FastAPI `/tools`, `/tools/{tool_name}/preview`, `/tools/{tool_name}/call`, `/workflows/runs` and `/workflows/runs/{run_id}`
-- Prompt injection behavior for cited RAG context
-- Controlled local-knowledge tool behavior for skip / found / not-found / rewrite
-
-`tests/test_rag_eval.py` adds a small gold fixture suite under `tests/fixtures/rag_eval/` and verifies:
-
-- Eval case loading from JSON
-- Source hit rate
-- `recall@k`
-- Mean reciprocal rank
-- `nDCG@K`
-- Empty-result and miss accounting
-- Side-by-side lexical, vector, hybrid and reranked profile comparisons on the
-  same corpus
-- Unknown retrieval mode rejection
-
-`tests/test_eval_quality_gates.py` adds the first broader P8.4 quality-gate fixtures under `tests/fixtures/evals/` and verifies:
-
-- Answer grounding citation and unsupported-claim rules
-- Controlled local-knowledge tool routing decisions
-- Workflow event status transitions and failure metadata
-- Memory write permission safety across runtime modes
-- URL safety and domain-policy regression cases
-
-`tests/test_workflow_tool_registry.py` adds the first P8.5 execution-foundation checks and verifies:
-
-- Workflow JSONL run/event persistence and listing
-- Default allowlisted tool registry metadata
-- Unknown tool arguments are blocked before execution
-- `retrieve_local_knowledge` tool calls write workflow audit events
-
-P4-B adds API/query diagnostics:
-
-- Retrieval mode, `top_k`, `min_score` and tokenized query terms
-- Candidate count and returned result count
-- Per-stage candidate count, scored count and elapsed milliseconds
-- Per-result rank, chunk id, source path, matched terms and score breakdown
-- Retrieval post-processing diagnostics for metadata filters, exact duplicate
-  suppression and per-source diversity limits
-- Optional one-query evaluation when `/rag/query` receives `expected_sources`
-
-P4-C / P6 adds Streamlit inspection controls:
-
-- Current index path, document count and chunk count
-- Indexed document table with file type, size, mtime, hash prefix and chunk count
-- Chunk preview table with line range, character count and source path
-- Retrieval controls for mode, `top_k`, `min_score` and debug visibility
-- Score-breakdown table for retrieved chunks
-
-P5 adds the first vector-backend abstraction:
-
-- `EmbeddingProvider` protocol plus `LocalHashEmbeddingProvider` and `OpenAIEmbeddingProvider`
-- `VectorBackend` protocol plus `LocalVectorBackend`
-- `RAG_VECTOR_BACKEND=local|chroma`
-- `RAG_EMBEDDING_PROFILE=local_hash|openai_multilingual`,
-  `RAG_EMBEDDING_PROVIDER=local_hash|openai`, `RAG_EMBEDDING_MODEL`,
-  `RAG_EMBEDDING_DIMENSIONS`, `RAG_EMBEDDING_API_KEY`,
-  `RAG_EMBEDDING_BASE_URL`
-- `RAG_RERANKER=disabled|lexical_overlap`, `RAG_RERANK_TOP_N`,
-  `RAG_RERANK_LATENCY_BUDGET_MS`, `RAG_RERANK_COST_BUDGET`
-- Optional `ChromaVectorBackend` using lazy `chromadb` import, `PersistentClient`, collection `upsert` and vector query
-- `tests/test_rag_backends.py` verifies local backend behavior, embedding environment config, OpenAI-compatible embedding batching and Chroma fake-client upsert/query behavior
-
-## Next Steps
-
-### P4: Retrieval Quality Loop
-
-Goal: prove retrieval quality before expanding the stack.
-
-- [x] Add a small gold fixture set with queries, expected sources and expected terms.
-- [x] Track `recall@k`, mean reciprocal rank, source hit rate and empty-result rate.
-- [x] Track `nDCG@K` and compare lexical/vector/hybrid/reranked profiles.
-- [x] Surface retrieval debug data in tests and API responses before adding more UI polish.
-- [x] Add a Streamlit source/debug panel for inspecting score breakdowns.
-- [x] Upgrade sparse retrieval from TF-IDF-style scoring to BM25.
-- [x] Replace fixed hybrid cross-score weighting with RRF.
-- [x] Record local retrieval-stage candidate counts and latency in debug output.
-- [x] Add exact duplicate suppression, metadata filters and per-source diversity limits.
-- [x] Record backend-vector query latency when callers use the traced query path.
-- [x] Add explicit local and production multilingual embedding profiles.
-- [x] Add an optional lexical-overlap reranker with latency/cost budget diagnostics.
-- Keep the first evaluation layer LLM-free so CI can catch retrieval regressions deterministically.
-
-### P5: Real Embedding Backend
-
-Goal: replace the local hash-vector prototype with optional real embeddings without breaking local-first defaults.
-
-- [x] Extract an embedding-provider and vector-backend contract.
-- [x] Keep JSON + lexical / hybrid retrieval as the zero-infrastructure fallback.
-- [x] Add an optional Chroma adapter with lazy import and fake-client tests.
-- [x] Make vector backend selection explicit through config.
-- [x] Add a production embedding provider path; current default remains `local_hash`, while OpenAI-compatible embeddings require explicit env/API configuration.
-
-### P6: Knowledge UI
-
-Goal: turn the Streamlit expander into a usable knowledge panel.
-
-- [x] List indexed documents with chunk count, mtime, hash and status.
-- [x] Add query debugging controls for mode, `top_k`, threshold and score preview.
-- [x] Add source preview with title, path, page or line range and matched terms.
-- [ ] Add per-chat RAG scope selection instead of one global toggle only.
-
-### P7: Agentic RAG
-
-Goal: let the model retrieve when it needs evidence instead of always pre-retrieving.
-
-- [x] Add a `retrieve_local_knowledge(query)` tool boundary.
-- [x] Route retrieval only for knowledge-grounded questions through deterministic intent gating.
-- [x] Allow deterministic query rewrite and second-pass retrieval when first-pass evidence is weak.
-- [x] Require explicit "not found in local knowledge" behavior when no source is retrieved.
-- [x] Expose the same boundary through `POST /rag/local-knowledge` for the React frontend.
-- [ ] Add LLM tool-calling / function-calling integration; current implementation is controlled pre-generation retrieval, not free-form tool use.
-
-### P8: Service API Foundation
-
-Goal: expose the current local-first capabilities through stable API boundaries and keep the React frontend aligned with those contracts.
-
-- [x] Add RAG status and upload endpoints for index inspection and rebuilds.
-- [x] Add a non-streaming `/chat` endpoint that reuses model routing, role prompts, memory bundles, local-knowledge retrieval and session logging.
-- [x] Add memory preview / commit endpoints with the same runtime write-mode guard as the Streamlit UI.
-- [x] Add session listing and force-flush endpoints for local session inspection.
-- [x] Add controlled tool preview / call endpoints and workflow run read endpoints.
-- [x] Add optional local API token gate and explicit CORS origin allowlist for local/LAN deployments.
-- [ ] Add streaming chat and frontend-oriented error envelopes before public or broader LAN deployment.
+1. 删除或重建后的旧 chunk 不得从任何 active backend 返回。
+2. 必需阶段失败不得激活新 index version。
+3. 同一 source path 只有一个 active revision。
+4. `local_hash` 不得被描述为生产语义 embedding。
+5. 检索证据默认私有，只有 disclosure policy 允许的完整 evidence unit 进入模型回答。
+6. RAG 候选、采用证据和 UI 引用计数必须保持一致。
+7. 运行状态、错误和部分成功必须进入 durable RagRun，不用普通日志替代产品状态。
