@@ -33,11 +33,18 @@ class ResearchWebGateway:
             raise ValueError("Web lookup query is required")
         if status == "unavailable":
             raise RuntimeError(str(result.get("reason") or "web_search_unavailable"))
-        return [
-            dict(item)
-            for item in result.get("results", [])
-            if isinstance(item, dict)
-        ]
+
+        normalized: list[dict[str, Any]] = []
+        for item in result.get("results", []):
+            if not isinstance(item, dict):
+                continue
+            record = dict(item)
+            if record.get("url") and not record.get("link"):
+                record["link"] = record["url"]
+            if record.get("snippet") and not record.get("search_excerpt"):
+                record["search_excerpt"] = record["snippet"]
+            normalized.append(record)
+        return normalized
 
     def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
         return self.gateway.read(url, max_chars=max_chars)
