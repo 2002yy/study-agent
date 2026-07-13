@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -388,6 +388,23 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
 
         CREATE INDEX idx_web_lookup_runs_stage_updated
             ON web_lookup_runs(stage, updated_at DESC);
+        """,
+    ),
+    (
+        15,
+        """
+        UPDATE web_lookup_runs
+        SET stage = 'failed',
+            status = 'failed',
+            provider_status = 'unknown',
+            stop_reason = 'legacy_run_interrupted',
+            error = CASE
+                WHEN error = '' THEN 'Web lookup was interrupted before staged recovery was available'
+                ELSE error
+            END,
+            completed_at = COALESCE(completed_at, updated_at),
+            version = version + 1
+        WHERE status = 'running';
         """,
     ),
 )
