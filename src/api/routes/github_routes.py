@@ -1,4 +1,4 @@
-"""Persistent GitHub snapshot, structure, history, work-item, and CI endpoints."""
+"""Persistent GitHub source, history, work-item, CI, and change-impact endpoints."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.api.models.github import (
     GitHubBlameQueryRequest,
     GitHubCILogsQueryRequest,
+    GitHubChangeImpactQueryRequest,
     GitHubChecksQueryRequest,
     GitHubCommitQueryRequest,
     GitHubCompareQueryRequest,
@@ -25,6 +26,7 @@ from src.api.models.github import (
 from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.application.runtime_repository import get_github_snapshot_service
+from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
 from src.web.github_work_items import GitHubWorkItemService
 
@@ -75,10 +77,7 @@ def _history_http_error(result: dict) -> HTTPException:
     )
 
 
-@router.post(
-    "/github-repo-snapshots",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-repo-snapshots", response_model=GitHubSnapshotResultResponse)
 def create_github_snapshot(
     request: GitHubSnapshotCreateRequest,
     service: GitHubSnapshotServiceDependency,
@@ -97,10 +96,7 @@ def create_github_snapshot(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-repo-structure",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-repo-structure", response_model=GitHubSnapshotResultResponse)
 def inspect_github_structure(
     request: GitHubStructureQueryRequest,
     service: GitHubSnapshotServiceDependency,
@@ -120,10 +116,7 @@ def inspect_github_structure(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-repo-impact",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-repo-impact", response_model=GitHubSnapshotResultResponse)
 def inspect_github_impact(
     request: GitHubImpactQueryRequest,
     service: GitHubSnapshotServiceDependency,
@@ -145,10 +138,7 @@ def inspect_github_impact(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-ref",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-ref", response_model=GitHubSnapshotResultResponse)
 def resolve_github_ref(
     request: GitHubRefQueryRequest,
     service: GitHubHistoryServiceDependency,
@@ -159,10 +149,7 @@ def resolve_github_ref(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-commit",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-commit", response_model=GitHubSnapshotResultResponse)
 def inspect_github_commit(
     request: GitHubCommitQueryRequest,
     service: GitHubHistoryServiceDependency,
@@ -173,10 +160,7 @@ def inspect_github_commit(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-compare",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-compare", response_model=GitHubSnapshotResultResponse)
 def compare_github_refs(
     request: GitHubCompareQueryRequest,
     service: GitHubHistoryServiceDependency,
@@ -193,10 +177,28 @@ def compare_github_refs(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-blame",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-change-impact", response_model=GitHubSnapshotResultResponse)
+def inspect_github_change_impact(
+    request: GitHubChangeImpactQueryRequest,
+    snapshot_service: GitHubSnapshotServiceDependency,
+    history_service: GitHubHistoryServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = GitHubChangeImpactService(history_service, snapshot_service).analyze(
+        request.repo_url,
+        request.base,
+        request.head,
+        max_files=request.max_files,
+        max_symbols=request.max_symbols,
+        depth=request.depth,
+        max_impact_files=request.max_impact_files,
+        max_edges=request.max_edges,
+    )
+    if result.get("ok") is not True:
+        raise _history_http_error(result)
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post("/github-blame", response_model=GitHubSnapshotResultResponse)
 def inspect_github_blame(
     request: GitHubBlameQueryRequest,
     service: GitHubHistoryServiceDependency,
@@ -213,10 +215,7 @@ def inspect_github_blame(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-pr",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-pr", response_model=GitHubSnapshotResultResponse)
 def inspect_github_pull_request(
     request: GitHubPullRequestQueryRequest,
     service: GitHubWorkItemServiceDependency,
@@ -235,10 +234,7 @@ def inspect_github_pull_request(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-issue",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-issue", response_model=GitHubSnapshotResultResponse)
 def inspect_github_issue(
     request: GitHubIssueQueryRequest,
     service: GitHubWorkItemServiceDependency,
@@ -254,10 +250,7 @@ def inspect_github_issue(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-checks",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-checks", response_model=GitHubSnapshotResultResponse)
 def inspect_github_checks(
     request: GitHubChecksQueryRequest,
     service: GitHubWorkItemServiceDependency,
@@ -275,10 +268,7 @@ def inspect_github_checks(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.post(
-    "/github-ci-logs",
-    response_model=GitHubSnapshotResultResponse,
-)
+@router.post("/github-ci-logs", response_model=GitHubSnapshotResultResponse)
 def inspect_github_ci_logs(
     request: GitHubCILogsQueryRequest,
     service: GitHubWorkItemServiceDependency,
@@ -294,10 +284,7 @@ def inspect_github_ci_logs(
     return GitHubSnapshotResultResponse(result=result)
 
 
-@router.get(
-    "/github-repo-snapshots",
-    response_model=GitHubSnapshotRunListResponse,
-)
+@router.get("/github-repo-snapshots", response_model=GitHubSnapshotRunListResponse)
 def list_github_snapshots(
     service: GitHubSnapshotServiceDependency,
     limit: int = 20,
