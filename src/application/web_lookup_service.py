@@ -13,6 +13,7 @@ from src.web.research_contract import (
     stop_reason,
     successful_attempt,
 )
+from src.web.source_assessment import assess_sources, evidence_confidence
 
 
 class WebLookupService:
@@ -38,19 +39,19 @@ class WebLookupService:
             )
         )
         attempts: list[QueryAttempt] = []
-        items: list[dict] = []
+        candidate_items: list[dict] = []
         attempt_warnings: list[str] = []
         last_error: Exception | None = None
 
         for search_query in context.query_variants:
             try:
-                candidate_items = self.gateway.search(
+                results = self.gateway.search(
                     search_query,
                     max_items=max_items,
                 )
-                attempts.append(successful_attempt(search_query, len(candidate_items)))
-                if candidate_items:
-                    items = candidate_items
+                attempts.append(successful_attempt(search_query, len(results)))
+                if results:
+                    candidate_items = results
                     break
             except Exception as exc:
                 last_error = exc
@@ -73,6 +74,23 @@ class WebLookupService:
             )
             raise error
 
+        self.repository.transition_stage(
+            run.id,
+            expected_stage="searching",
+            stage="assessing",
+        )
+        selected_sources, rejected_sources = assess_sources(
+            candidate_items,
+            canonical_query=context.canonical_query,
+        )
+        selected_items = [
+            dict(record["item"])
+            for record in selected_sources
+            if isinstance(record.get("item"), dict)
+        ]
+        if candidate_items and not selected_items:
+            reason = "insufficient_valid_sources"
+
         warnings = [
             ": ".join(
                 part
@@ -89,22 +107,25 @@ class WebLookupService:
         had_provider_failure = any(
             attempt.status == "provider_failed" for attempt in attempts
         )
-        provider_status = (
-            "partial" if had_provider_failure else "found" if items else "empty"
-        )
+        if selected_items:
+            provider_status = "partial" if had_provider_failure else "found"
+        elif candidate_items:
+            provider_status = "insufficient"
+        else:
+            provider_status = "partial" if had_provider_failure else "empty"
 
         return self.repository.complete(
             run.id,
-            items=items,
-            source_block=format_news_source_block(normalized, items),
+            items=selected_items,
+            source_block=format_news_source_block(normalized, selected_items),
             warnings=warnings,
             research_context=context.to_dict(),
             query_attempts=attempt_payload,
-            selected_sources=items,
-            rejected_sources=[],
+            selected_sources=selected_sources,
+            rejected_sources=rejected_sources,
             provider_status=provider_status,
             stop_reason=reason,
-            answer_confidence="unassessed",
+            answer_confidence=evidence_confidence(selected_sources),
         )
 
     def get(self, run_id: str) -> WebLookupRun:
