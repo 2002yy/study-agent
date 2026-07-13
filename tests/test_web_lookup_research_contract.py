@@ -43,6 +43,46 @@ def _service(tmp_path, gateway: FakeGateway) -> tuple[WebLookupService, WebLooku
     return WebLookupService(repository, gateway), repository
 
 
+def _apply_migrations_before(connection: sqlite3.Connection, target_version: int) -> None:
+    for version, sql in MIGRATIONS:
+        if version >= target_version:
+            break
+        for statement in _migration_statements(sql):
+            connection.execute(statement)
+        connection.execute(
+            "INSERT OR REPLACE INTO runtime_meta(key, value) VALUES('schema_version', ?)",
+            (str(version),),
+        )
+    connection.commit()
+
+
+def _insert_legacy_web_lookup(
+    connection: sqlite3.Connection,
+    *,
+    run_id: str,
+    status: str,
+    items: str = "[]",
+    completed_at: str | None = None,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO web_lookup_runs(
+            id, query, status, items, source_block, warnings, error,
+            version, created_at, updated_at, completed_at
+        ) VALUES (?, 'legacy query', ?, ?, '', '[]', '', 1, ?, ?, ?)
+        """,
+        (
+            run_id,
+            status,
+            items,
+            "2026-07-01T00:00:00+00:00",
+            "2026-07-01T00:00:00+00:00",
+            completed_at,
+        ),
+    )
+    connection.commit()
+
+
 def test_research_context_preserves_raw_query_and_normalizes_compact_model_name():
     context = build_research_context(
         "联网看看gpt5.6sol",
@@ -131,47 +171,53 @@ def test_all_provider_failures_persist_failed_attempts(tmp_path):
     assert len(gateway.calls) == len(context.query_variants)
 
 
-def test_schema_14_backfills_legacy_completed_web_lookup(tmp_path):
-    path = tmp_path / "legacy.db"
-    connection = sqlite3.connect(path)
+def test_schema_15_backfills_legacy_completed_web_lookup(tmp_path):
+    connection = sqlite3.connect(tmp_path / "legacy-completed.db")
     connection.row_factory = sqlite3.Row
-    for version, sql in MIGRATIONS:
-        if version >= 14:
-            break
-        for statement in _migration_statements(sql):
-            connection.execute(statement)
-        connection.execute(
-            "INSERT OR REPLACE INTO runtime_meta(key, value) VALUES('schema_version', ?)",
-            (str(version),),
-        )
-    connection.execute(
-        """
-        INSERT INTO web_lookup_runs(
-            id, query, status, items, source_block, warnings, error,
-            version, created_at, updated_at, completed_at
-        ) VALUES (?, ?, 'completed', ?, '', '[]', '', 1, ?, ?, ?)
-        """,
-        (
-            "web_lookup_legacy",
-            "legacy query",
-            '[{"title": "Legacy"}]',
-            "2026-07-01T00:00:00+00:00",
-            "2026-07-01T00:00:00+00:00",
-            "2026-07-01T00:00:00+00:00",
-        ),
+    _apply_migrations_before(connection, 14)
+    _insert_legacy_web_lookup(
+        connection,
+        run_id="web_lookup_legacy_completed",
+        status="completed",
+        items='[{"title": "Legacy"}]',
+        completed_at="2026-07-01T00:00:00+00:00",
     )
-    connection.commit()
 
     apply_migrations(connection)
     row = connection.execute(
-        "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy'"
+        "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy_completed'"
     ).fetchone()
 
-    assert schema_version(connection) == 14
+    assert schema_version(connection) == 15
     assert row["stage"] == "completed"
     assert row["provider_status"] == "found"
     assert row["stop_reason"] == "direct_results_found"
     assert row["selected_sources"] == row["items"]
+    connection.close()
+
+
+def test_schema_15_marks_legacy_running_lookup_as_interrupted_not_empty(tmp_path):
+    connection = sqlite3.connect(tmp_path / "legacy-running.db")
+    connection.row_factory = sqlite3.Row
+    _apply_migrations_before(connection, 14)
+    _insert_legacy_web_lookup(
+        connection,
+        run_id="web_lookup_legacy_running",
+        status="running",
+    )
+
+    apply_migrations(connection)
+    row = connection.execute(
+        "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy_running'"
+    ).fetchone()
+
+    assert schema_version(connection) == 15
+    assert row["stage"] == "failed"
+    assert row["status"] == "failed"
+    assert row["provider_status"] == "unknown"
+    assert row["stop_reason"] == "legacy_run_interrupted"
+    assert "interrupted" in row["error"].lower()
+    assert row["completed_at"] == row["updated_at"]
     connection.close()
 
 
