@@ -59,17 +59,19 @@ jobs:
         run: python tools/package_project_helper.py . /dev/null 0
 
       - name: Run detect-secrets
+        id: secrets
+        continue-on-error: true
         run: |
           pip install detect-secrets 2>/dev/null
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$' \
             .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
-            > .secrets.out 2>&1
+            > detect-secrets-report.json 2>&1
           python - <<'PY'
           import json
           import sys
 
-          with open(".secrets.out", encoding="utf-8") as f:
+          with open("detect-secrets-report.json", encoding="utf-8") as f:
               report = json.load(f)
 
           findings = {
@@ -85,6 +87,21 @@ jobs:
               sys.exit(1)
           PY
           echo "detect-secrets: no secrets found"
+
+      - name: Upload detect-secrets diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detect-secrets-report
+          path: detect-secrets-report.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce detect-secrets result
+        if: steps.secrets.outcome == 'failure'
+        run: |
+          cat detect-secrets-report.json
+          exit 1
 
       - name: Run expanded mypy
         continue-on-error: true
