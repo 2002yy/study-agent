@@ -86,6 +86,35 @@ function resultSpeaker(result: Record<string, unknown>): string {
   return typeof speaker === "string" ? speaker : "群聊记录";
 }
 
+type ResearchSnapshot = NewsLookupResponse & {
+  status?: "pending" | "running" | "completed" | "empty" | "failed";
+  stage?: "planned" | "searching" | "completed" | "empty" | "failed";
+  empty_reason?: string;
+  attempts?: Array<Record<string, unknown>>;
+  error?: string;
+};
+
+function researchSnapshot(value: NewsLookupResponse): ResearchSnapshot {
+  return value as ResearchSnapshot;
+}
+
+function isRetryableResearch(value: ResearchSnapshot): boolean {
+  return ["pending", "running", "empty", "failed"].includes(value.status ?? "");
+}
+
+function researchStateText(value: ResearchSnapshot): string {
+  if (value.status === "empty") {
+    return value.empty_reason || "当前来源未返回结果；这不代表目标不存在。";
+  }
+  if (value.status === "failed") {
+    return value.error || "搜索服务暂时不可用。";
+  }
+  if (value.status === "pending" || value.status === "running") {
+    return `阶段 ${value.stage ?? value.status} · 已记录 ${value.attempts?.length ?? 0} 次尝试`;
+  }
+  return `已完成 · ${value.news_items.length} 条结果 · ${value.attempts?.length ?? 0} 次尝试`;
+}
+
 export function WechatPanel({
   wechat,
   newsController,
@@ -136,13 +165,13 @@ export function WechatPanel({
   const [isWechatSearching, setIsWechatSearching] = useState(false);
   const [wechatSearchError, setWechatSearchError] = useState("");
 
-  // Clear search results when group content changes (new group / reset)
   useEffect(() => {
     setWechatSearch(null);
     setWechatSearchQuery("");
   }, [wechat?.content]);
 
   const latestLookupItems = webLookup?.news_items.slice(0, 4) ?? [];
+  const currentResearch = webLookup ? researchSnapshot(webLookup) : null;
   const wechatMessages = parseWechatMessages(wechat?.content ?? "");
 
   const handleWechatSearch = async (event: FormEvent) => {
@@ -293,10 +322,30 @@ export function WechatPanel({
         isLookupBusy={isNewsBusy}
       />
 
-      {webLookup ? (
+      {webLookup && currentResearch ? (
         <div className="news-result lookup-result">
+          <div className="memory-preview-meta">
+            <strong>研究状态：{currentResearch.status ?? "completed"}</strong>
+            <span>{researchStateText(currentResearch)}</span>
+          </div>
+          {isRetryableResearch(currentResearch) ? (
+            <button
+              className="ghost-action compact"
+              disabled={isNewsBusy}
+              onClick={onLookupNews}
+              type="button"
+            >
+              {isNewsBusy ? <Loader2 className="spin" size={14} /> : <Search size={14} />}
+              重试本次研究
+            </button>
+          ) : null}
           <label className="toggle-row">
-            <input checked={useWebLookup} onChange={(event) => setUseWebLookup(event.target.checked)} type="checkbox" />
+            <input
+              checked={useWebLookup}
+              disabled={currentResearch.status !== "completed"}
+              onChange={(event) => setUseWebLookup(event.target.checked)}
+              type="checkbox"
+            />
             <span>仅用于下一轮单人聊天</span>
           </label>
           <details open>
