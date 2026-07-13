@@ -54,7 +54,12 @@ class FakeSnapshotService:
                     "path": "src/app.py",
                     "sha": "sha-app",
                     "content": "def prepare_chat_turn(message):\n    return helper(message)\n\ndef helper(message):\n    return message\n",
-                }
+                },
+                {
+                    "path": "tests/test_app.py",
+                    "sha": "sha-test-app",
+                    "content": "from src.app import prepare_chat_turn\n\ndef test_prepare_chat_turn():\n    assert prepare_chat_turn('x') == 'x'\n",
+                },
             ],
         }
 
@@ -92,7 +97,7 @@ def test_gateway_snapshot_uses_persistent_service():
     ]
 
 
-def test_gateway_structure_builds_graph_from_persistent_snapshot():
+def test_gateway_structure_builds_semantic_graph_from_persistent_snapshot():
     service = FakeSnapshotService()
     gateway = PersistentGeneralWebGateway(service)  # type: ignore[arg-type]
 
@@ -105,6 +110,8 @@ def test_gateway_structure_builds_graph_from_persistent_snapshot():
 
     assert result["definitions"][0]["name"] == "prepare_chat_turn"
     assert result["callees"][0]["callee"] == "helper"
+    assert result["resolution"]["status"] == "resolved"
+    assert result["symbol_identities"][0]["id"].startswith("symbol_")
     assert result["stats"]["parser"] == "tree_sitter+legacy_fallback"
     assert service.snapshot_calls == [
         (
@@ -112,4 +119,26 @@ def test_gateway_structure_builds_graph_from_persistent_snapshot():
             "prepare_chat_turn",
             "main",
         )
+    ]
+
+
+def test_gateway_impact_reuses_snapshot_and_maps_tests():
+    service = FakeSnapshotService()
+    gateway = PersistentGeneralWebGateway(service)  # type: ignore[arg-type]
+
+    result = gateway.github_impact(
+        "https://github.com/openai/example",
+        "helper",
+        ref="main",
+        depth=3,
+        max_files=12,
+        max_edges=40,
+    )
+
+    assert result["resolution"]["status"] == "resolved"
+    assert any(edge.get("caller") == "prepare_chat_turn" for edge in result["edges"])
+    assert {item["path"] for item in result["files"]} >= {"src/app.py"}
+    assert {item["path"] for item in result["tests"]} == {"tests/test_app.py"}
+    assert service.snapshot_calls == [
+        ("https://github.com/openai/example", "helper", "main")
     ]

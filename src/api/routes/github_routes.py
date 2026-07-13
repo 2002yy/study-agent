@@ -1,4 +1,4 @@
-"""Persistent GitHub repository snapshot and structure endpoints."""
+"""Persistent GitHub repository snapshot, structure, and impact endpoints."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.models.github import (
+    GitHubImpactQueryRequest,
     GitHubSnapshotCreateRequest,
     GitHubSnapshotResultResponse,
     GitHubSnapshotRunListResponse,
@@ -65,6 +66,31 @@ def inspect_github_structure(
         raise HTTPException(
             status_code=status_code,
             detail=str(result.get("error") or "GitHub structure inspection failed"),
+        )
+    return GitHubSnapshotResultResponse(result=result)
+
+
+@router.post(
+    "/github-repo-impact",
+    response_model=GitHubSnapshotResultResponse,
+)
+def inspect_github_impact(
+    request: GitHubImpactQueryRequest,
+    service: GitHubSnapshotServiceDependency,
+) -> GitHubSnapshotResultResponse:
+    result = graph_service_for(service).impact(
+        request.repo_url,
+        request.symbol,
+        ref=request.ref,
+        depth=request.depth,
+        max_files=request.max_files,
+        max_edges=request.max_edges,
+    )
+    if result.get("ok") is not True:
+        status_code = 422 if result.get("error") == "empty_symbol" else 502
+        raise HTTPException(
+            status_code=status_code,
+            detail=str(result.get("error") or "GitHub impact inspection failed"),
         )
     return GitHubSnapshotResultResponse(result=result)
 

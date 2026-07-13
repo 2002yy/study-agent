@@ -57,3 +57,22 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             ref=ref,
             top_k=max(1, min(max_results, 50)),
         )
+
+    def github_impact(
+        self,
+        repo_url: str,
+        symbol: str,
+        *,
+        ref: str = "",
+        depth: int = 2,
+        max_files: int = 30,
+        max_edges: int = 120,
+    ) -> dict[str, Any]:
+        return self.graph_service.impact(
+            repo_url,
+            symbol,
+            ref=ref,
+            depth=max(1, min(depth, 4)),
+            max_files=max(1, min(max_files, 100)),
+            max_edges=max(1, min(max_edges, 500)),
+        )
