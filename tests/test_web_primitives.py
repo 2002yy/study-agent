@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import time
 
 from src.web.concurrency import BoundedTask, run_bounded
@@ -50,3 +51,16 @@ def test_query_router_separates_news_technical_and_direct_url():
     assert route_query("Godot API 报错") == SearchIntent.TECHNICAL
     assert route_query("https://docs.python.org/3/") == SearchIntent.DIRECT_URL
     assert build_search_plan("Godot API 报错").searxng_categories == "general"
+
+
+def test_search_plan_carries_normalized_query_and_as_of_date():
+    plan = build_search_plan(
+        "gpt5.6sol 最新进展",
+        now=datetime(2026, 7, 13, 4, 0, tzinfo=timezone.utc),
+    )
+
+    assert plan.canonical_query == "GPT-5.6 Sol 最新进展"
+    assert plan.query_variants[0] == "GPT-5.6 Sol 最新进展"
+    assert plan.as_of_date == "2026-07-13"
+    assert plan.freshness_days == 30
+    assert plan.intent == SearchIntent.NEWS
