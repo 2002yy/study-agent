@@ -1,4 +1,4 @@
-"""Production web gateway with persistent GitHub source and history research."""
+"""Production web gateway with persistent GitHub source, history, and work-item research."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.github_history import GitHubHistoryService
+from src.web.github_work_items import GitHubWorkItemService
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -15,10 +16,14 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self,
         snapshot_service: GitHubSnapshotService,
         history_service: GitHubHistoryService | None = None,
+        work_item_service: GitHubWorkItemService | None = None,
     ) -> None:
         self.snapshot_service = snapshot_service
         self.graph_service = graph_service_for(snapshot_service)
         self.history_service = history_service or GitHubHistoryService()
+        self.work_item_service = work_item_service or GitHubWorkItemService(
+            self.history_service
+        )
         super().__init__(
             github_snapshotter=snapshot_service,  # type: ignore[arg-type]
         )
@@ -121,4 +126,74 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             ref=ref,
             start_line=max(1, start_line),
             end_line=max(0, end_line),
+        )
+
+    def github_pr(
+        self,
+        repo_url: str,
+        number: int,
+        *,
+        max_files: int = 50,
+        max_patch_chars: int = 120000,
+        max_comments: int = 100,
+        max_reviews: int = 100,
+        include_checks: bool = True,
+    ) -> dict[str, Any]:
+        return self.work_item_service.pull_request(
+            repo_url,
+            number,
+            max_files=max(1, min(max_files, 100)),
+            max_patch_chars=max(1000, min(max_patch_chars, 1000000)),
+            max_comments=max(1, min(max_comments, 100)),
+            max_reviews=max(1, min(max_reviews, 100)),
+            include_checks=include_checks,
+        )
+
+    def github_issue(
+        self,
+        repo_url: str,
+        number: int,
+        *,
+        max_comments: int = 100,
+        max_events: int = 100,
+    ) -> dict[str, Any]:
+        return self.work_item_service.issue(
+            repo_url,
+            number,
+            max_comments=max(1, min(max_comments, 100)),
+            max_events=max(1, min(max_events, 100)),
+        )
+
+    def github_checks(
+        self,
+        repo_url: str,
+        *,
+        ref: str = "",
+        max_runs: int = 20,
+        max_checks: int = 100,
+        max_jobs: int = 100,
+        include_jobs: bool = True,
+    ) -> dict[str, Any]:
+        return self.work_item_service.checks(
+            repo_url,
+            ref=ref,
+            max_runs=max(1, min(max_runs, 100)),
+            max_checks=max(1, min(max_checks, 100)),
+            max_jobs=max(1, min(max_jobs, 300)),
+            include_jobs=include_jobs,
+        )
+
+    def github_ci_logs(
+        self,
+        repo_url: str,
+        job_id: int,
+        *,
+        max_chars: int = 40000,
+        max_lines: int = 400,
+    ) -> dict[str, Any]:
+        return self.work_item_service.ci_logs(
+            repo_url,
+            job_id,
+            max_chars=max(1000, min(max_chars, 200000)),
+            max_lines=max(20, min(max_lines, 2000)),
         )
