@@ -8,6 +8,7 @@ import os
 from typing import Any, Callable
 
 from src.llm_client import ModelProfile, run_tool_loop
+from src.web.query_normalizer import normalize_web_query
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -16,7 +17,11 @@ WEB_TOOLS = [
         "type": "function",
         "function": {
             "name": "web_search",
-            "description": "Search the public web for current or external information. Returns titles, URLs and snippets.",
+            "description": (
+                "Search the public web for current or external information. "
+                "Returns status, normalized query variants, search date, titles, URLs and snippets. "
+                "An empty result means available providers returned no matches; it does not prove nonexistence."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -47,7 +52,7 @@ WEB_TOOLS = [
 ]
 
 _TOOL_SYSTEM_PROMPT = """You are the web-research planner for a chat response.
-Use tools only when the user needs current, niche, externally verifiable, or explicitly requested web information. Do not search for casual conversation, writing, or stable knowledge. Search first, then read only the most relevant public result when needed. Never use tools for private/local URLs. If no tool is needed, reply exactly NO_TOOL_NEEDED. After receiving tool results, call further tools only if needed; otherwise reply exactly TOOL_RESEARCH_COMPLETE."""
+Use tools only when the user needs current, niche, externally verifiable, or explicitly requested web information. Do not search for casual conversation, writing, or stable knowledge. Search first, then read only the most relevant public result when needed. Never use tools for private/local URLs. Treat status=empty or status=unavailable as incomplete evidence, not proof that the requested entity or event does not exist. If a compact product/model name has canonical query variants, prefer those variants and preserve the user's raw spelling as a fallback. If no tool is needed, reply exactly NO_TOOL_NEEDED. After receiving tool results, call further tools only if needed; otherwise reply exactly TOOL_RESEARCH_COMPLETE."""
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -104,8 +109,15 @@ class WebToolAgent:
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
+        query_context = normalize_web_query(user_input)
+        system_prompt = (
+            f"{_TOOL_SYSTEM_PROMPT}\n"
+            f"Current UTC date: {query_context.as_of_date}.\n"
+            f"Canonical user query: {query_context.canonical_query}.\n"
+            f"Candidate search variants: {json.dumps(query_context.query_variants, ensure_ascii=False)}."
+        )
         messages = [
-            {"role": "system", "content": _TOOL_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": f"Conversation context:\n{conversation_context[-3000:]}\n\nUser request:\n{user_input}",
@@ -130,7 +142,19 @@ class WebToolAgent:
         if name == "web_search":
             query = str(arguments.get("query", ""))
             max_results = int(arguments.get("max_results", 5))
-            return {"results": self.gateway.search(query, max_results=max_results)}
+            detailed = getattr(self.gateway, "search_detailed", None)
+            if callable(detailed):
+                return detailed(query, max_results=max_results)
+            results = self.gateway.search(query, max_results=max_results)
+            normalization = normalize_web_query(query)
+            return {
+                **normalization.to_dict(),
+                "status": "ok" if results else "empty",
+                "reason": "results_found" if results else "providers_returned_no_results",
+                "attempted_queries": [query] if query.strip() else [],
+                "results": results,
+                "provider_errors": [],
+            }
         if name == "web_read":
             return self.gateway.read(
                 str(arguments.get("url", "")),

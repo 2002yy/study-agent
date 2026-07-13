@@ -7,13 +7,20 @@ search and explicit page reads.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
+from typing import Any
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from src.news.article_fetcher import fetch_article_read_result
-from src.news.search_sources.searxng_source import search_searxng
+from src.news.search_sources.searxng_source import (
+    get_last_searxng_error,
+    search_searxng,
+    searxng_enabled,
+)
+from src.web.query_normalizer import normalize_web_query
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -66,16 +73,95 @@ def _unwrap_duckduckgo_url(url: str) -> str:
     return target if parsed_target.scheme in {"http", "https"} else ""
 
 
+def _result_key(item: dict[str, str]) -> str:
+    return (item.get("url") or item.get("title") or "").strip().casefold()
+
+
+def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, str]]:
+    seen: set[str] = set()
+    result: list[dict[str, str]] = []
+    for item in items:
+        key = _result_key(item)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+        if len(result) >= limit:
+            break
+    return result
+
+
 class GeneralWebGateway:
     """Expose bounded search and read operations to a model tool loop."""
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, str]]:
-        normalized = query.strip()
-        if not normalized:
-            return []
+        """Compatibility list API used by older callers."""
+
+        payload = self.search_detailed(query, max_results=max_results)
+        return list(payload["results"])
+
+    def search_detailed(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        normalization = normalize_web_query(query, now=now)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        current = current.astimezone(timezone.utc)
         limit = max(1, min(max_results, 8))
+        if not normalization.raw_query:
+            return {
+                **normalization.to_dict(),
+                "status": "invalid_query",
+                "reason": "empty_query",
+                "attempted_queries": [],
+                "results": [],
+                "provider_errors": [],
+                "searched_at": current.isoformat(),
+            }
+
+        attempted: list[str] = []
+        provider_errors: list[str] = []
+        results: list[dict[str, str]] = []
+        for variant in normalization.query_variants:
+            attempted.append(variant)
+            batch = self._search_single(variant, limit)
+            error = get_last_searxng_error()
+            if error and error not in provider_errors:
+                provider_errors.append(error)
+            results = _dedupe_results([*results, *batch], limit)
+            if results:
+                break
+
+        providers_enabled = searxng_enabled() or _env_flag(
+            "WEB_ENABLE_DUCKDUCKGO", default=True
+        )
+        if results:
+            status = "ok"
+            reason = "results_found"
+        elif not providers_enabled:
+            status = "unavailable"
+            reason = "no_search_provider_enabled"
+        else:
+            status = "empty"
+            reason = "providers_returned_no_results"
+        return {
+            **normalization.to_dict(),
+            "status": status,
+            "reason": reason,
+            "attempted_queries": attempted,
+            "results": results,
+            "provider_errors": provider_errors,
+            "searched_at": current.isoformat(),
+        }
+
+    def _search_single(self, query: str, limit: int) -> list[dict[str, str]]:
         searx_results = search_searxng(
-            normalized,
+            query,
             max_results=limit,
             categories=os.getenv("WEB_SEARXNG_CATEGORIES", "general"),
         )
@@ -86,13 +172,14 @@ class GeneralWebGateway:
                     "url": str(item.get("link") or item.get("resolved_link") or ""),
                     "snippet": str(item.get("search_excerpt") or item.get("summary") or ""),
                     "source": str(item.get("source") or "SearXNG"),
+                    "published_at": str(item.get("published_at") or ""),
                 }
                 for item in searx_results[:limit]
                 if item.get("title") and (item.get("link") or item.get("resolved_link"))
             ]
         if not _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True):
             return []
-        return self._search_duckduckgo(normalized, limit)
+        return self._search_duckduckgo(query, limit)
 
     def read(self, url: str, *, max_chars: int = 6000) -> dict[str, str]:
         result = fetch_article_read_result(
@@ -127,6 +214,6 @@ class GeneralWebGateway:
         parser = _DuckDuckGoResultsParser()
         parser.feed(payload)
         return [
-            {**item, "snippet": "", "source": "DuckDuckGo"}
+            {**item, "snippet": "", "source": "DuckDuckGo", "published_at": ""}
             for item in parser.results[:limit]
         ]
