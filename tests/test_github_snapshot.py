@@ -150,7 +150,7 @@ def test_snapshot_enforces_total_character_budget(monkeypatch):
 
 def test_general_gateway_and_agent_dispatch_github_snapshot():
     class FakeSnapshotter:
-        def snapshot(self, repo_url: str, *, query: str, ref: str):
+        def snapshot(self, repo_url: str, *, query: str, ref: str = ""):
             return {
                 "ok": True,
                 "repository": repo_url,
@@ -180,3 +180,48 @@ def test_general_gateway_and_agent_dispatch_github_snapshot():
     assert direct["files"][0]["path"] == "src/app.py"
     assert via_tool["query"] == "routing"
     assert via_tool["ref"] == "main"
+
+
+def test_github_search_falls_back_to_snapshot_when_primary_search_fails():
+    class FailingReader:
+        def search_repository(self, repo_url: str, query: str, *, max_results: int):
+            return {
+                "ok": False,
+                "repository": "openai/example",
+                "query": query,
+                "error": "github_http_403",
+                "results": [],
+            }
+
+    class Snapshotter:
+        def snapshot(self, repo_url: str, *, query: str, ref: str = ""):
+            return {
+                "ok": True,
+                "repository": "openai/example",
+                "default_branch": "main",
+                "tree_truncated": False,
+                "files": [
+                    {
+                        "path": "src/router.py",
+                        "sha": "sha-router",
+                        "url": "https://github.com/openai/example/blob/main/src/router.py",
+                        "score": 80,
+                    }
+                ],
+            }
+
+    gateway = GeneralWebGateway(
+        github_reader=FailingReader(),  # type: ignore[arg-type]
+        github_snapshotter=Snapshotter(),  # type: ignore[arg-type]
+    )
+
+    result = gateway.github_search(
+        "https://github.com/openai/example",
+        "router",
+        max_results=5,
+    )
+
+    assert result["ok"] is True
+    assert result["mode"] == "snapshot_fallback"
+    assert result["results"][0]["path"] == "src/router.py"
+    assert "github_http_403" in result["warning"]
