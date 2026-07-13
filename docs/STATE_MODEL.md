@@ -1,321 +1,251 @@
-# 状态模型
+# Study Agent 状态与数据模型
 
-> 本文档定义 Study Agent 中**每个文件**的角色归属：哪些是源码、哪些是用户数据、哪些是缓存、哪些可以删除、哪些换电脑要迁移。
+> **文档类别：稳定数据参考，不是当前进度入口。**  
+> 当前项目状态统一查看 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
 
----
+本文定义当前 React + FastAPI + SQLite 架构下，各类状态的 authoritative owner、持久化位置、恢复语义、迁移要求和可删除边界。
 
-## 1. 总览
+## 1. 真值层级
 
-```
-项目根目录
-├── 源码（进 Git，只读不改）
-│   ├── app.py, src/*.py, tests/*.py
-│   ├── config/routing_rules.yaml
-│   ├── .env.example, requirements*.txt
-│   ├── README.md, CHANGELOG.md, USER_GUIDE.md
-│   ├── roles/*.md, templates/*.md
-│   └── tools/*.ps1, tools/*.py
-│
-├── 配置模板（进 Git，运行后由用户派生）
-│   └── .env.example → 用户复制为 .env
-│
-├── 真源（运行生成，不进 Git/包）
-│   ├── config/runtime_state.yaml
-│   └── memory/pending_updates/*.json
-│
-├── 视图（由真源同步，可改但会被覆盖）
-│   ├── memory/internal_state.md
-│   ├── memory/interaction_settings.md
-│   └── chat/wechat_state.md
-│
-├── 用户数据（不进 Git，默认不进包）
-│   ├── .env
-│   ├── config/runtime_state.yaml
-│   ├── memory/*.md（不含 pending_updates/）
-│   ├── chat/*.md（不含 archive/）
-│   └── assets/*（头像/背景/横幅）
-│
-├── 缓存/临时（可安全删除）
-│   ├── logs/
-│   ├── backups/
-│   ├── memory/pending_updates/
-│   └── *.bak, *.tmp
-│
-└── 打包产物（进 .gitignore）
-    └── release/
+Study Agent 不再以单个 YAML 或前端内存作为全局真源。不同状态由不同 owner 管理：
+
+```text
+用户输入 / UI 操作
+        │
+        ├─ 前端临时 UI 状态
+        │    reducer / controller / localStorage cache
+        │
+        ├─ 服务端运行真值
+        │    SQLite ChatThread / Runs / Evaluation / IndexState
+        │
+        ├─ 长期学习记忆
+        │    用户确认后的 Markdown memory
+        │
+        ├─ 本地知识库
+        │    document revisions / chunks / active index
+        │
+        └─ 配置与密钥
+             .env + checked-in templates/rules
 ```
 
----
+核心原则：
 
-## 2. 逐文件分类
+1. 前端状态是展示和恢复缓存，不是服务端业务真值；
+2. SQLite 是会话、运行流程、评估和索引状态的 authoritative runtime store；
+3. Markdown memory 是用户确认后的长期学习记忆；
+4. RAG 文档、revision、chunk 和 active index 有独立生命周期；
+5. `.env` 是用户密钥和 Provider 配置，不进入 Git；
+6. legacy YAML/Markdown 状态只用于兼容迁移，不承接新功能。
 
-### 2.1 源码（Source Code）
+## 2. 源码与仓库内容
 
-| 文件 | 说明 | 进 Git | 进包 |
-|------|------|--------|------|
-| `app.py` | Streamlit 入口 | 是 | 是 |
-| `src/*.py` | 全部 Python 模块 | 是 | 是 |
-| `tests/*.py` | 测试套件 | 是 | 可选 |
-| `config/routing_rules.yaml` | 路由规则配置 | 是 | 是 |
-| `.env.example` | 环境变量模板 | 是 | 是 |
-| `requirements*.txt` | 依赖声明 | 是 | 是 |
-| `roles/*.md`, `templates/*.md` | 角色人设和 Prompt 模板 | 是 | 是 |
-| `tools/*.ps1`, `tools/*.py` | 打包/辅助工具 | 是 | 是 |
-| `docs/*.md` | 设计文档 | 是 | 是 |
-| `README.md`, `CHANGELOG.md`, `USER_GUIDE.md` | 项目文档 | 是 | 是 |
+| 类别 | 示例 | Git | 分发包 |
+|---|---|---|---|
+| Python 源码 | `src/**/*.py` | 是 | 是 |
+| React/TS 源码 | `frontend/src/**/*` | 是 | 是 |
+| 后端测试 | `tests/**/*.py` | 是 | 可选但推荐 |
+| 前端测试 | `frontend/src/**/*.test.*` | 是 | 可选但推荐 |
+| API/角色/模板 | `roles/`, `templates/`, checked-in config | 是 | 是 |
+| 依赖声明 | `requirements*.in/txt`, frontend lockfile | 是 | 是 |
+| 文档 | `README.md`, `USER_GUIDE.md`, `docs/` | 是 | 是 |
+| CI/工具 | `.github/workflows/`, `tools/` | 是 | 是 |
 
-源码的特征：**提交后不改，不依赖运行时状态**。
+源码文件不应被运行时流程改写。
 
-### 2.2 配置模板 vs 用户配置
+## 3. 配置与密钥
 
-| 文件 | 真源 | 进 Git | 进包 | 可删除 |
-|------|------|--------|------|--------|
-| `.env.example` | 手动维护 | **是** | 是 | 否 |
-| `.env` | 用户复制自 `.env.example` | **否** (.gitignore) | 否 (显式排除) | 是（需重新配） |
+| 数据 | Owner | Git | 迁移到新电脑 |
+|---|---|---|---|
+| `.env.example` | 仓库模板 | 是 | 随仓库 |
+| `.env` | 用户 | 否 | 需要重新配置或安全迁移 |
+| Provider profile | runtime settings/config loader | 模板可进，真实值不进 | 需要 |
+| routing rules | checked-in config | 是 | 随仓库 |
+| frontend display settings | server settings + local UI cache | 用户数据 | 可选 |
 
-`.env` 是唯一承载 API Key、Base URL 等敏感信息的文件。
-换电脑迁移时必须复制。
+`.env` 可包含 API Key、Base URL、模型名和本地服务地址。密钥不得进入日志、SQLite evidence、Markdown memory 或前端持久化快照。
 
-### 2.3 运行时状态（真源）
+## 4. SQLite runtime truth
 
-| 文件 | 真源角色 | 写入方 | 进 Git | 进包 |
-|------|---------|--------|--------|------|
-| `config/runtime_state.yaml` | **维一的运行时真源** | `mode_manager._write_runtime_state()` | **不应进** | 不推荐 |
-| `memory/pending_updates/*.json` | 群聊记忆候选真源 | `wechat_memory.save_candidates()` | **否** (.gitignore) | 否 |
+数据库路径由 `runtime_database_path()` 和 `RuntimeDatabase` 统一解析，不在业务模块中硬编码。
 
-#### 真源层级说明
+### 4.1 Durable entities
 
-`config/runtime_state.yaml` 包含版本、运行模式、交互设置、微信群状态。
-它的写入路径是：
+| Entity | 责任 |
+|---|---|
+| `ChatThread` | 会话状态、settings snapshot、committed learning state |
+| `ChatTurn` | 用户/助手消息、完成状态、route/RAG/pedagogy snapshot |
+| `GroupThread/Message` | 群聊生命周期、消息、未读和归档 |
+| `NewsRun` | 新闻搜索、正文、摘要和讨论阶段 |
+| `ToolRun` | 工具参数、预览、确认和结果 |
+| `MemoryRun` | 记忆候选、hash、预览、commit 结果 |
+| `RagRun` | query/upload/rebuild 的 durable 状态 |
+| `WebLookupRun` | 查询上下文、尝试、来源评估、阶段和停止原因 |
+| `PedagogyEvalRun` | 学习者主张评估、证据、版本和 final decision |
+| `rag_index_states` | active/staging index version 和写入租约 |
+| `operations` | 异步 operation scope 和 owner |
 
-```
-mode_manager.update_*()
-  → _apply_state_updates()
-    → _write_runtime_state()     # 先写 YAML（真源）
-      → _sync_runtime_state_markdown_views()  # 再同步到以下视图
-```
+### 4.2 事务不变量
 
-**为什么 YAML 是真源？** 因为 YAML 结构化、可程序化读写；MD 视图仅供人工阅读和 Streamlit 展示。
-**为什么不进 Git？** 因为 performance_mode、memory_mode、wechat_mode 等字段随每次使用变化，提交会产生噪音。
+- completed ChatTurn、committed learning state 和对应 PedagogyEvalRun 保持一致；
+- interrupted/failed turn 不得覆盖 committed objective、phase 或 gap；
+- MemoryRun commit 必须校验 preview/hash；
+- RAG 新版本只有必需阶段通过才激活；
+- run 的 stage transition 使用 expected state/version；
+- completed、partial、failed、cancelled 和 empty evidence 不能混用；
+- 新建会话不自动归档旧会话。
 
-> **当前问题**：`.gitignore` 未排除 `config/runtime_state.yaml`，有意外提交风险。建议添加。
+## 5. Ordered migrations
 
-### 2.4 视图（View Only，由真源同步）
+SQLite 使用 `SCHEMA_VERSION`、`MIGRATIONS` 和 `runtime_migrations` ledger。
 
-| 文件 | 真源来源 | 被谁读取 | 可手动编辑 |
-|------|---------|---------|-----------|
-| `memory/internal_state.md` | `config/runtime_state.yaml` → synced | `mode_manager._read_md_state_migration()` | 可改，但会被 YAML 覆盖 |
-| `memory/interaction_settings.md` | 同上 | `mode_manager._read_md_state_migration()` | 同上 |
-| `chat/wechat_state.md` | 同上 | `wechat_state.py` | 同上 |
-| `memory/pending_updates/wechat_memory_candidates.md` | `.../*.json` | 人工预览 | 改也没用，JSON 是真源 |
+每个 migration 必须：
 
-这些视图的存在意义：**让人眼可读、让 Streamlit cache 可缓存**。修改视图不会影响真源，下次同步会覆盖。
+1. 使用新的连续版本号；
+2. 在 `BEGIN IMMEDIATE` 事务内执行；
+3. 兼容已有数据库；
+4. 为新增非空字段提供默认值；
+5. 对历史状态做诚实回填；
+6. 失败时记录 failed migration，不伪装完成；
+7. 有针对 completed、failed、running/interrupted 历史数据的回归测试。
 
-### 2.5 用户数据（User Data）
+示例：研究字段在 schema 14 加入；schema 15 将旧版残留 `running` WebLookupRun 标记为 `legacy_run_interrupted`，避免误记成空结果。
 
-| 文件 | 内容 | 进 Git | 进包 | 可恢复 | 迁移要求 |
-|------|------|--------|------|--------|---------|
-| `memory/index.md` | 记忆索引 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/current_focus.md` | 当前学习焦点 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/summary.md` | 学习摘要 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/learner_profile.md` | 学习者画像 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/progress.md` | 学习进度 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/project_context.md` | 项目上下文 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/task_board.md` | 任务看板 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/agent.md` | Agent 配置 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/system_detail.md` | 系统详情 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `memory/archive_summary.md` | 归档摘要 | 示例可进 | 默认排除 | 有备份 | 需迁移 |
-| `chat/wechat_group.md` | 群聊记录 | **否** (.gitignore) | 否 | 可恢复（有 archive） | 可选 |
-| `chat/wechat_unread.md` | 未读消息 | **否** (.gitignore) | 否 | 丢 | 不迁 |
-| `chat/archive/*.md` | 历史群聊归档 | **否** (.gitignore) | 否 (显式排除) | 是 | 可选 |
-| `assets/*` | 头像/背景/横幅 | 建议不进（版权） | 否 (无扩展名排除) | 可重下 | 可选 |
+## 6. 前端状态
 
-**关于 memory 进 Git 的约定**：`memory/*.md` 未被 `.gitignore` 排除。项目的预期行为是：
-- 示例/初始内容可提交一次进 Git
-- 真实学习数据**不进 Git**（用户自行维护 `.gitignore` 或在 `git add` 时留意）
-- 当前 `.gitignore` 只排除了 `memory/pending_updates/`
+### 6.1 React reducer/controller
 
-#### 写入链路
+前端可维护：
 
-```
-app.py (用户操作)
-  → after_session / wechat_memory
-    → memory_writer.append_memory() / .write_current_focus()
-      → is_memory_write_allowed() 权限检查
-        → safe_writer.safe_write_text()  # 先备份旧文件到 backups/，再原子写入
-```
+- active thread/run ID；
+- 当前 drawer；
+- input、展开状态、选择项；
+- controller busy/error；
+- streaming partial reply；
+- compact API snapshot。
 
-#### 恢复方式
+这些状态用于交互，不得独立决定服务端 run 已完成或学习状态已推进。
 
-1. **从 backups 恢复** — 每次 `safe_write_text` 写入前自动备份旧文件到 `backups/memory_backups/`
-   ```bash
-   python -m src.backup_manager             # 查看备份列表
-   python -m src.backup_manager restore <name>  # 恢复
-   ```
-2. **从 chat/archive 重建** — 群聊历史在 `chat/archive/*.md`，可通过 LLM 重新提取记忆
+### 6.2 localStorage
 
-### 2.6 会话/日志（可丢）
+localStorage 只允许保存可重建的 UI 恢复信息，例如 active run ID、display settings 和草稿。刷新后必须从 FastAPI/SQLite 重新读取 durable truth。
 
-| 文件 | 内容 | 进 Git | 进包 | 可删除 |
-|------|------|--------|------|--------|
-| `logs/current/*.md` | 当前会话日志（实时写入） | **否** (.gitignore) | 否 | 安全删除 |
-| `logs/sessions/*.md` | 已归档会话日志 | **否** (.gitignore) | 否 | 安全删除 |
-| `logs/revision_notes.md` | 修订笔记 | **否** (.gitignore) | 否 | 安全删除 |
-| `logs/session_archive.md` | 会话归档 | **否** (.gitignore) | 否 | 安全删除 |
-| `st.session_state` (内存) | Streamlit 会话状态 | — | — | 页面刷新即丢 |
+禁止保存：
 
-会话日志的写入链路：
+- API Key；
+- 完整敏感本地文档；
+- 被当作 authoritative 的 learning mastery；
+- 无法与服务端版本校验的 commit 状态。
 
-```
-app.py (对话)
-  → session_logger.log()       # 追加到内存 _state
-  → session_logger.flush_current_session()  # 按间隔刷到 logs/current/
-  → session_logger.save()      # 归档到 logs/sessions/ + 清理 current/
-```
+## 7. 长期 Markdown memory
 
-**换电脑可以不迁 logs**。它们不是系统运行的必要状态。
+Markdown memory 的价值是可读、可编辑、可备份。它不是运行中间状态数据库。
 
-### 2.7 备份（Cache）
+典型文件：
 
-| 文件 | 内容 | 进 Git | 进包 | 可删除 |
-|------|------|--------|------|--------|
-| `backups/memory_backups/*.bak` | 写入前自动备份 | **否** (.gitignore) | 否 | 安全删除 |
-| `*.bak`, `*.tmp` | 残留临时文件 | **否** (.gitignore) | 否 | 安全删除 |
-| `__pycache__/`, `.ruff_cache/` | Python/pyc 缓存 | **否** | 否 | 安全删除 |
+- `index.md`；
+- `current_focus.md`；
+- `summary.md`；
+- `learner_profile.md`；
+- `progress.md`；
+- `project_context.md`；
+- `task_board.md`；
+- `archive_summary.md`。
 
-备份是安全网，不是真源。删除不会丢数据，但会失去最近一次写入前的回滚点。
+写入链路：
 
-### 2.8 打包产物
-
-| 路径 | 进 Git | 进包 |
-|------|--------|------|
-| `release/` | **否** (.gitignore) | — |
-
----
-
-## 3. 真源层级汇总
-
-```
-                                   用户操作
-                                       │
-                                       ▼
-                              st.session_state
-                              (内存，页面刷新即丢)
-                                       │
-                          ┌────────────┴────────────┐
-                          │                         │
-                    config/                    memory/
-               runtime_state.yaml        pending_updates/*.json
-               ┌────┼────┐                     │
-               │    │    │                     ▼
-               ▼    ▼    ▼          pending_updates/*.md
-          memory/  memory/  chat/       (视图)
-        internal  interaction  wechat_
-        _state.md _settings.md state.md
-          (视图)    (视图)     (视图)
-
-   memory/*.md ←─── after_session.py / memory_writer ←─── 权限检查
-   chat/*.md  ←─── wechat_state.py / wechat_generator.py
-   logs/*     ←─── session_logger.py
-
-   backups/* ←─── safe_writer.py（自动备份旧文件）
+```text
+LearningClosure / explicit memory request
+-> MemoryRun preview
+-> user confirm
+-> hash/version check
+-> safe writer backup + atomic replace
+-> commit result persisted
 ```
 
-### 读取优先级
+规则：
 
-各模块读取状态的顺序（以 `mode_manager` 为例）：
+- 未经用户确认不写；
+- learner profile 推断默认 pending；
+- 运行失败、中断或低置信度评估不写成已掌握；
+- 示例 memory 可进仓库，真实用户 memory 默认不进 Git；
+- backups 是恢复安全网，不是当前真源。
 
-1. `st.cache_data(ttl=30)` → `load_runtime_modes()` 缓存结果
-2. `_runtime_state_from_yaml()` → 读 `config/runtime_state.yaml`（真源）
-3. 如果 YAML 不存在 → 回退 `_read_md_state_migration()` 从 `memory/internal_state.md` + `memory/interaction_settings.md` + `chat/wechat_state.md` 读取（迁移兼容）
-4. 取默认值 `RuntimeModes()` 兜底
+## 8. RAG 用户数据
 
----
+RAG 数据分为：
 
-## 4. 运维操作指南
+1. 原始上传或本地文件；
+2. stable document identity；
+3. content/parser revision；
+4. normalized chunks；
+5. embedding/vector backend 数据；
+6. active/staging index state；
+7. RagRun 运行记录。
 
-### 4.1 换电脑迁移
+删除文档必须同时处理 local index 和配置的 vector backend。失败重建不得替换 active index。
 
-必须迁移的状态（丢则系统不完整）：
+临时附件和长期知识库的完整生命周期仍需保持独立：临时附件不能因会话结束误删长期资料，也不能默认进入长期记忆或云端模型上下文。
 
-| 必须迁移 | 路径 | 原因 |
-|---------|------|------|
-| API 密钥 | `.env` | 无法连接 LLM |
-| 长期记忆 | `memory/*.md`（不含 `pending_updates/`） | 学习历史丢失 |
-| 运行时状态 | `config/runtime_state.yaml` | 可选，丢了可从默认重建 |
+## 9. 会话、日志和审计
 
-建议迁移：
+| 数据 | 是否真源 | 是否可删除 |
+|---|---|---|
+| SQLite durable runs/threads | 是 | 否，除非明确清空用户数据 |
+| Markdown long-term memory | 是，针对长期记忆 | 否，除非用户明确删除 |
+| RAG active index | 可重建但影响运行 | 可删除后重建 |
+| application logs | 否 | 通常可删除 |
+| debug traces | 否 | 可删除 |
+| generated audit reports | 历史证据 | 可归档 |
+| backups | 恢复安全网 | 可删除，但失去回滚点 |
+| frontend cache | 否 | 可安全删除 |
+| `__pycache__`, `.ruff_cache`, build output | 否 | 可安全删除 |
 
-| 建议迁移 | 路径 | 原因 |
-|---------|------|------|
-| 群聊历史 | `chat/`（含 `archive/`） | 学习讨论记录 |
-| 视觉资源 | `assets/` | 头像/背景 |
-| 角色印象 | `roles/*.md`（`### 对用户当前印象` 段） | 角色观察记录 |
+日志不得成为产品状态的唯一记录。用户需要恢复的流程必须持久化为对应 Run。
 
-不需要迁移：
+## 10. Legacy compatibility
 
-| 不迁 | 原因 |
-|------|------|
-| `logs/` | 运行日志，对系统运行无用 |
-| `backups/` | 安全网，到新机器重新生成 |
-| `__pycache__/` | Python 会重建 |
-| `release/` | 打包产物 |
+以下状态模型只用于旧入口兼容：
 
-### 4.2 安全删除（空间清理）
+- Streamlit `st.session_state`；
+- `config/runtime_state.yaml`；
+- `memory/internal_state.md`；
+- `memory/interaction_settings.md`；
+- `chat/wechat_state.md`；
+- 旧 Markdown 会话归档。
 
-```bash
-# 清空会话日志（最占空间）
-rm -rf logs/current/*.md logs/sessions/*.md
+兼容读取可以存在，但新功能不得写入这些文件作为唯一真源。迁移完成后删除 legacy 前，必须提供：
 
-# 清空备份
-rm -rf backups/memory_backups/*.bak
+- 新 owner；
+- 数据迁移或安全默认值；
+- replacement tests；
+- 用户备份说明。
 
-# 清空临时文件
-find . -name "*.bak" -delete
-find . -name "*.tmp" -delete
+## 11. 换电脑/备份建议
 
-# 清空未读消息（重启后重建）
-echo "" > chat/wechat_unread.md
-```
+必须迁移：
 
-### 4.3 打包排除清单
+- `.env` 中仍需使用的 Provider 配置；
+- SQLite runtime database；
+- 真实 Markdown memory；
+- 用户上传的知识文件；
+- 无法重建或成本较高的 vector index；
+- 自定义角色、模板和用户资源。
 
-`tools/package_project_helper.py` 的 `EXCLUDE_DIRS`：
+通常不必迁移：
 
-```
-__pycache__, .pytest_cache, .ruff_cache, .git, .github,
-.vscode, .idea, venv, .venv, env, node_modules,
-logs, backups, exports, release, dist, build, 图片资料
-```
+- Python/Node cache；
+- frontend build output；
+-临时日志；
+- 可重新生成的测试和打包产物。
 
-额外排除规则：
-- `chat/archive/` — 历史群聊归档
-- `*.pyc, *.pyo, *.bak, *.tmp` — 临时文件
-- `.env, .env.*`（除非 `.env.example`）— 用户密钥
-- `tools/package_project_v*.ps1` — 旧版打包脚本
-- 含 `visual_assets_pack` 的路径
+迁移前应停止应用，保证 SQLite 和 safe writer 没有正在进行的写操作。
 
-打包前还会扫描密钥模式（sk-*, ghp_*, sk-or-v1-*, api_key/token/secret 赋值）。
+## 12. 数据安全规则
 
----
-
-## 5. 当前已知问题
-
-1. **`config/runtime_state.yaml` 未进 `.gitignore`** — 虽无敏感信息，但频繁变动不应提交。
-2. **memory/*.md 示例/真实数据混用** — `.gitignore` 应增加 `memory/` 排除，或只留示例文件。
-3. **chat/ 被 .gitignore 排除但 runtime_state.yaml 未排除** — 不一致。
-4. **`memory/pending_updates/` 缓存的 JSON 与 MD 之间没有版本对应** — JSON 是真源，MD 是视图，但二者无显式关联约束。
-5. **`memory/pending_updates/` 不自动清理** — 确认写入后，候选文件应删除或标记已处理，当前无此逻辑。
-
----
-
-## 6. 推荐改进
-
-```gitignore
-# 在 .gitignore 中补充：
-config/runtime_state.yaml
-memory/
-!memory/.gitkeep
-```
-
-同时为 `memory/` 添加一个 `.gitkeep` 保持目录结构，初始 memory 文件可作为示例通过 `git add --force` 选择性提交。
+1. 用户数据、密钥和运行数据库默认不进 Git。
+2. public repository 提交前运行 detect-secrets。
+3. 对外导出包排除 `.env`、SQLite 用户库、memory、uploads、logs 和 backups。
+4. 外发模型上下文遵守 web/cloud context policy。
+5. 标记为禁止云端的资料不得进入远程 Prompt。
+6. EvidenceTrail 可记录来源类型和 Provider，但不保存完整敏感正文。
+7. 删除、reset、rebuild 和 archive 等破坏性动作需要明确确认。
