@@ -66,12 +66,12 @@ jobs:
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$' \
             .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
-            > .secrets.out 2>&1
+            > detect-secrets-report.json 2>&1
           python - <<'PY'
           import json
           import sys
 
-          with open(".secrets.out", encoding="utf-8") as f:
+          with open("detect-secrets-report.json", encoding="utf-8") as f:
               report = json.load(f)
 
           findings = {
@@ -93,14 +93,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: detect-secrets-report
-          path: .secrets.out
+          path: detect-secrets-report.json
           if-no-files-found: error
           retention-days: 7
 
       - name: Enforce detect-secrets result
         if: steps.secrets.outcome == 'failure'
         run: |
-          cat .secrets.out
+          cat detect-secrets-report.json
           exit 1
 
       - name: Run expanded mypy
