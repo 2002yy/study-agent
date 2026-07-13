@@ -13,6 +13,7 @@ from src.api.models.github import (
     GitHubSnapshotRunResponse,
     GitHubStructureQueryRequest,
 )
+from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.application.runtime_repository import get_github_snapshot_service
 
@@ -53,7 +54,7 @@ def inspect_github_structure(
     request: GitHubStructureQueryRequest,
     service: GitHubSnapshotServiceDependency,
 ) -> GitHubSnapshotResultResponse:
-    result = service.inspect_structure(
+    result = graph_service_for(service).inspect(
         request.repo_url,
         request.symbol,
         ref=request.ref,
