@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.repository_graph import RepositoryGraphIndex
@@ -68,3 +69,16 @@ class GitHubGraphService:
             "cache_hit": bool(snapshot.get("cache_hit")),
             "cache_mode": str(snapshot.get("cache_mode") or ""),
         }
+
+
+_services: WeakKeyDictionary[GitHubSnapshotService, GitHubGraphService] = (
+    WeakKeyDictionary()
+)
+
+
+def graph_service_for(snapshot_service: GitHubSnapshotService) -> GitHubGraphService:
+    service = _services.get(snapshot_service)
+    if service is None:
+        service = GitHubGraphService(snapshot_service)
+        _services[snapshot_service] = service
+    return service
