@@ -144,6 +144,8 @@ export function useWorkspaceControllers(options: {
       options.setRunId.tool,
     ]
   );
+  const runtimeSettings = (options.snapshot.runtimeSettings?.settings ?? {}) as Record<string, unknown>;
+  const webPolicy = String(runtimeSettings.web_policy ?? "auto");
   const chatController = useChatController({
     chatSettings: options.chatSettings,
     chatSettingsDefaults: CHAT_SETTINGS_DEFAULTS,
@@ -159,6 +161,7 @@ export function useWorkspaceControllers(options: {
     setConversationInstruction: options.setConversationInstruction,
     webLookupSource: webLookupController.result?.source_block ?? "",
     useWebLookup: webLookupController.useInChat,
+    webPolicy,
     setUseWebLookup: webLookupController.setUseInChat,
     setInput: options.setInput,
     setOperationError: options.operationError,

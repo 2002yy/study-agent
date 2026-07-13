@@ -241,3 +241,13 @@ def test_route_snapshot_inherits_non_direct_learning_mode():
     task_contract = route["task_contract"]
     assert task_contract["task_intent"] == "learn"
     assert task_contract["reason"] == "continue_active_learning"
+
+
+def test_default_direct_answer_state_is_not_active_learning():
+    state = LearningState(protocol="direct_answer")
+    evaluator = TaskAwarePedagogyEvaluationService()
+    result = evaluator.evaluate_learner(
+        learner_input="数据库索引是什么？",
+        state=state,
+    )
+    assert result.final_decision == "not_applicable"

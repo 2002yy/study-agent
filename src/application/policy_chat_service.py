@@ -6,7 +6,7 @@ interruption, retry and atomic completion reuse the established lifecycle.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from src.application.chat_service import (
@@ -222,6 +222,25 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.context)
             if continuation_instruction:
                 context_blocks.append(continuation_instruction)
+            model_learning_state = (
+                learning_state
+                if decision.memory_allowed
+                else LearningState(
+                    protocol=learning_state.protocol,
+                    protocol_version=learning_state.protocol_version,
+                )
+            )
+            model_pedagogy_plan = (
+                pedagogy_plan
+                if decision.memory_allowed
+                else replace(
+                    pedagogy_plan,
+                    learner_claim="",
+                    unresolved_gap="",
+                    target_understanding=command.user_input,
+                    evidence_ids=(),
+                )
+            )
             messages = self.dependencies.build_messages(
                 user_input=command.user_input,
                 role_prompt=role_prompt,
@@ -234,8 +253,8 @@ class ExternalDataPolicyChatService(ChatService):
                 rag_context="\n\n".join(context_blocks),
                 scene=command.scene,
                 conversation_instruction=command.conversation_instruction,
-                pedagogy_plan=pedagogy_plan,
-                learning_state=learning_state,
+                pedagogy_plan=model_pedagogy_plan,
+                learning_state=model_learning_state,
             )
             base_reply = ""
             if is_continuation:
