@@ -97,12 +97,11 @@ def get_github_snapshot_service():
 @lru_cache(maxsize=1)
 def get_web_tool_agent():
     from src.tools.web_agent import WebToolAgent
-    from src.web.tool_gateway import GeneralWebGateway
+    from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
 
-    gateway = GeneralWebGateway(
-        github_snapshotter=get_github_snapshot_service(),  # type: ignore[arg-type]
+    return WebToolAgent(
+        gateway=PersistentGeneralWebGateway(get_github_snapshot_service())
     )
-    return WebToolAgent(gateway=gateway)
 
 
 @lru_cache(maxsize=1)
