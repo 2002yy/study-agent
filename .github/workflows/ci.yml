@@ -117,11 +117,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Enforce mypy result
-        if: steps.mypy.outcome == 'failure'
+      - name: Enforce mypy baseline
+        env:
+          MYPY_OUTCOME: ${{ steps.mypy.outcome }}
         run: |
-          tail -240 mypy.log
-          exit 1
+          python tools/check_mypy_baseline.py \
+            --log mypy.log \
+            --baseline config/mypy_baseline.json \
+            --outcome "$MYPY_OUTCOME"
 
       - name: Test and build frontend
         id: frontend
