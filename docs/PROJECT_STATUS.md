@@ -2,14 +2,14 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-13  
-> 当前主线：`b9504efd0b6cd4599406cb4ac63a21d00cb2b54d`（PR #26 已合并）  
-> 当前开发：PR #27，G10-C2.2 PR / issue / CI 联合研究
+> 当前主线：`f4e33cc29b7f7616521697d42343624b4f5d1760`（PR #27 已合并）  
+> 当前开发：PR #28，G10-C2.3 版本变化的结构影响
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复的广域 ResearchRun、commit-pinned GitHub 快照、混合代码搜索、四语言 Tree-sitter 图、模块/re-export/overload 语义、影响分析、Git 历史对象，以及初版 PR、issue、checks、workflow jobs 和脱敏 CI 日志研究。**
+> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究，以及初版跨版本 hunk-to-symbol 影响分析。**
 
 ## 2. 已完成
 
@@ -37,8 +37,7 @@ planned
 
 - 支持 repository、README、tree、blob、raw 和 Contents API URL。
 - 保存 requested ref、resolved commit SHA、tree SHA、file SHA、源码、失败和预算。
-- tree 与 blob 均按 immutable commit SHA 读取。
-- 源码 URL 固定到 commit SHA，不使用可移动 branch URL。
+- tree、blob 和源码 URL 均固定到 immutable commit SHA。
 - exact query 在 TTL 内复用；后续问题优先复用已有快照。
 - 旧版无 commit SHA 的缓存自动失效并重新生成。
 - 服务重启后从 SQLite 恢复代码、结构和语义索引。
@@ -51,11 +50,10 @@ GITHUB_SNAPSHOT_MAX_FILE_CHARS=12000
 GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 ```
 
-### 本地代码搜索、结构理解与影响分析
+### 本地代码搜索、结构理解与单符号影响
 
 - path / symbol / snake_case / CamelCase。
 - BM25 风格词法检索和 exact phrase。
-- SHA、URL、语言、行区间和 score breakdown。
 - Python、JavaScript、TypeScript/TSX、Java 固定 Tree-sitter grammar。
 - definitions / imports / calls / constructors / inheritance。
 - callers / callees / hierarchy / implementations / related files。
@@ -71,15 +69,7 @@ GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 
 ### 结构化证据和身份
 
-`EvidenceRef` 包含：
-
-- repository；
-- requested ref；
-- resolved commit SHA；
-- tree SHA；
-- path / file SHA；
-- symbol / kind；
-- start/end line。
+`EvidenceRef` 包含 repository、requested ref、resolved commit SHA、tree SHA、path、file SHA、symbol、kind 和行区间。
 
 `SymbolIdentity` 进一步加入 language、kind、qualified name、signature 和稳定 ID。相同 commit/tree snapshot 内身份稳定；版本变化时身份变化。
 
@@ -93,11 +83,10 @@ GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 - Java package + class identity；
 - 显式 import/re-export 链优先于全局同名猜测；
 - 无上下文的同名符号保持 ambiguous；
-- `OverloadGroup`；
-- 模块限定查询和参数数量消歧；
+- `OverloadGroup` 和模块限定查询；
 - `LspAdapter` / `NullLspAdapter` / callback adapter；
 - 请求路径不会自行启动语言服务器或 shell 子进程；
-- deterministic golden set：resolution、impact 和 test mapping 指标。
+- deterministic resolution / impact / test-mapping golden set。
 
 ### Git ref、commit、compare、diff 与 blame
 
@@ -105,15 +94,14 @@ GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 
 - 默认 branch、branch、tag、annotated tag、完整 SHA 和短 SHA；
 - `resolved / ambiguous / not_found / unavailable`；
-- branch 与 tag 同名但指向不同 commit 时返回 ambiguous；
+- branch 与 tag 同名冲突时不猜；
 - annotated tag 有界 peel；
-- resolved type/name、aliases、commit SHA、tree SHA；
-- commit message、parents、author、committer、stats 和 verification；
-- compare 前分别解析 base/head 到 commit SHA；
-- ahead/behind、merge base、bounded commit 列表；
-- changed files、previous filename、bounded patch 和 unified diff hunks；
-- GraphQL blame 行区间裁剪；
-- 无 GitHub Token 时明确返回 `github_blame_requires_token`。
+- commit tree、parents、author、committer、stats 和 verification；
+- compare 前固定 base/head commit SHA；
+- ahead/behind、merge base、bounded commits/files/patch；
+- unified diff old/new hunk 行区间；
+- Token-gated GraphQL blame；
+- 无 Token 时明确返回 unavailable。
 
 模型工具/API：
 
@@ -122,62 +110,23 @@ GITHUB_SNAPSHOT_MAX_TOTAL_CHARS=120000
 - `github_compare` / `POST /github-compare`
 - `github_blame` / `POST /github-blame`
 
-```env
-GITHUB_HISTORY_CACHE_TTL_SECONDS=300
-GITHUB_COMPARE_MAX_FILES=100
-GITHUB_COMPARE_MAX_PATCH_CHARS=120000
-GITHUB_BLAME_MAX_LINES=500
-```
+### PR、issue、checks 与 CI 日志
 
-### Pull request 联合研究
+已合并 PR #27：
 
-PR #27 已实现：
-
-- PR title、body、state、draft、mergeability、labels 和 reviewer；
-- base/head ref、repository 和 immutable commit SHA；
-- base/head commit metadata；
-- changed files、rename、additions/deletions、bounded patch 和 diff hunks；
-- review submissions；
-- inline review comments 与普通 issue comments；
-- Token 可用时读取 GraphQL review threads；
-- 保留 thread 的 resolved、outdated、path、line 和 comment；
-- 可选联接 head commit 的 checks、workflow runs、jobs 和 steps；
-- 任一非核心 Provider 失败时保留主体结果并返回 `provider_status=partial`。
+- PR metadata、immutable base/head commit、changed files、patch 和 hunks；
+- review submissions、inline comments、普通 comments；
+- Token 可用时读取 review threads 的 resolved/outdated 状态；
+- issue metadata、comments、events 和 linked commit SHA；
+- check-runs、workflow runs、jobs、runner、steps 和 conclusion；
+- CI 日志只接受具体 job ID，返回有界尾部；
+- 去除 ANSI，并对常见 token/key/secret 形态和 `add-mask` 脱敏；
+- 部分 Provider 失败时保留主体结果并返回 `provider_status=partial`。
 
 模型工具/API：
 
-- `github_pr`
-- `POST /github-pr`
-
-### Issue 联合研究
-
-- issue / pull-request-shaped issue 类型区分；
-- title、body、state、state reason、labels、assignees 和 milestone；
-- bounded comments；
-- bounded timeline events；
-- referenced commit、rename 和 label 事件；
-- 聚合 `linked_commit_shas`，不根据文本猜测关联关系。
-
-模型工具/API：
-
-- `github_issue`
-- `POST /github-issue`
-
-### Checks、workflow jobs 与 CI 日志
-
-- 先将 branch/tag 固定到 immutable commit SHA；
-- check-runs、GitHub App、output summary 和 annotation count；
-- workflow runs、event、attempt、head branch/head SHA；
-- jobs、runner、labels、step status 和 conclusion；
-- 多来源不可用与“没有结果”分开表达；
-- CI 日志只接受具体 job ID；
-- 只返回有界日志尾部；
-- 去除 ANSI 控制序列；
-- 对 Bearer/token、GitHub token、OpenAI 风格 key、常见 secret 赋值和 `add-mask` 做脱敏；
-- 日志始终作为不可信外部证据，不作为指令。
-
-模型工具/API：
-
+- `github_pr` / `POST /github-pr`
+- `github_issue` / `POST /github-issue`
 - `github_checks` / `POST /github-checks`
 - `github_ci_logs` / `POST /github-ci-logs`
 
@@ -195,12 +144,53 @@ GITHUB_CI_LOG_MAX_CHARS=40000
 GITHUB_CI_LOG_MAX_LINES=400
 ```
 
-### CI 诊断改进
+### 跨版本 hunk-to-symbol 影响
+
+PR #28 已实现：
+
+1. 通过现有 history service 固定 base/head commit SHA。
+2. 对两侧建立 bounded commit-pinned snapshot。
+3. 将 compare hunk 的 old/new 行区间映射到 Tree-sitter symbols。
+4. 为两侧符号生成稳定 old/new `SymbolIdentity`。
+5. 按 language + kind + qualified name 保守配对。
+6. 输出：
+   - `added`：只存在于新版本；
+   - `removed`：只存在于旧版本；
+   - `modified`：同路径唯一配对且 hunk 相交；
+   - `moved`：唯一配对但路径变化；
+   - `ambiguous`：任一侧存在多个候选，不猜。
+7. 比较 signature，单独返回 `signature_changed`。
+8. removed symbol 在旧图执行 impact；added/modified/moved 在新图执行 impact。
+9. 聚合 affected files、related tests 和 missing-test symbols。
+10. missing-test 仅是静态映射信号，不代表测试一定缺失或无覆盖。
+
+明确 uncertainty：
+
+- bounded snapshot 未包含 changed file；
+- patch 缺失或被截断，退化为 whole-file symbol fallback；
+- old/new symbol 无法唯一配对；
+- symbol budget 耗尽；
+- parser/index 不可用。
+
+存在上述情况时返回 `provider_status=partial`，不把不完整分析伪装成完整结果。
+
+模型工具/API：
+
+- `github_change_impact`
+- `POST /github-change-impact`
+
+```env
+GITHUB_CHANGE_IMPACT_MAX_FILES=20
+GITHUB_CHANGE_IMPACT_MAX_SYMBOLS=100
+GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
+```
+
+### CI 诊断
 
 - pytest 失败时上传 `pytest-log`；
 - 前端失败时上传 `frontend-log`；
-- detect-secrets 使用 `continue-on-error -> 上传报告 -> enforce`；
-- secrets 报告以 `detect-secrets-report.json` 保存，避免隐藏文件被 artifact 上传忽略；
+- detect-secrets 使用 `continue-on-error -> 上传 JSON 报告 -> enforce`；
+- 报告文件使用普通可见路径，避免 artifact 忽略隐藏文件；
 - 失败报告保留 7 天。
 
 ## 3. 还差什么
@@ -215,35 +205,37 @@ GITHUB_CI_LOG_MAX_LINES=400
 | 本地代码搜索 | 初版完成 | embedding 融合与真实仓库评测集 |
 | Tree-sitter / 模块语义 | 初版完成 | 更多语言、package-manager exports、动态派发 |
 | LSP | 适配边界完成 | 实际服务器生命周期、workspace trust、超时和缓存 |
-| 影响范围分析 | 初版完成 | diff hunk 到 SymbolIdentity、数据流、配置影响、风险分层 |
+| 单符号影响 | 初版完成 | 数据流、配置影响、风险分层 |
 | Git ref/commit/compare | 基础完成 | 多页 commit/files、超大 compare、持久化缓存 |
 | blame | 基础完成 | Token 授权体验、超大文件和 Provider 替代方案 |
-| PR / review | 初版完成 | 全分页、cross-fork 细节、review pagination、持久化缓存 |
+| PR / review | 初版完成 | 全分页、cross-fork、review pagination、持久化缓存 |
 | issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
 | checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
-| 版本变化结构影响 | 未完成 | hunk -> old/new SymbolIdentity、变更符号和测试缺口 |
+| 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| PR review context | 未完成 | PR + change impact + checks/reviews 的单一证据包 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
 | 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
 
 ## 4. 下一代码顺序
 
-### G10-C2.3：版本变化的结构影响
+### G10-C2.4：Source-backed PR review context
 
-1. 将 compare/PR hunk 映射到旧 commit 和新 commit 的源码行区间。
-2. 解析两侧快照，生成 old/new `SymbolIdentity`。
-3. 输出 added / removed / modified / moved symbols。
-4. 对变更符号执行 bounded impact slice。
-5. 聚合相关测试、缺失测试和不确定性。
-6. 生成 source-backed PR review context，不自动判定代码正确。
-7. 模型工具：`github_change_impact`。
+1. 输入 PR number，读取 immutable base/head、reviews、checks 和 jobs。
+2. 以 PR base/head 调用 `github_change_impact`。
+3. 将 inline review thread 映射到 file/hunk/symbol。
+4. 将失败 job/step 与 changed files、tests 和 symbols 做保守关联。
+5. 输出证据覆盖率、unresolved threads、affected tests 和 uncertainty。
+6. 不自动给出“正确/错误” verdict；只生成可审查的 review context。
+7. 增加真实仓库 golden set 与 precision/recall 指标。
+8. 模型工具：`github_pr_review_context`。
 
-### G10-C2.2 后续补齐
+### G10-C2 后续补齐
 
 1. REST/GraphQL 多页游标和全局总预算。
 2. release、artifact metadata 和按需下载。
-3. cross-fork PR 的 head repository/ref 解析。
-4. work-item/checks/logs 持久化缓存与过期清理。
+3. cross-fork PR head repository/ref 解析。
+4. work-item/checks/logs/change-impact 持久化缓存与过期清理。
 5. 日志按时间/步骤定位，而不只读取有界尾部。
 
 ### G10-D：可执行仓库代理
@@ -256,9 +248,9 @@ GITHUB_CI_LOG_MAX_LINES=400
 
 ## 5. 当前验证
 
-PR #27 GitHub Actions CI #618，代码 head `f92fbd17731472974dc25ee61b4835b96c75b49c`：
+PR #28 GitHub Actions CI #632，代码 head `7edda832dd191785cde7861ad4ccce3b13a4c424`：
 
-- pytest：679 passed；
+- pytest：685 passed；
 - Ruff：passed；
 - package helper：passed；
 - detect-secrets：passed；
@@ -270,15 +262,17 @@ PR #27 GitHub Actions CI #618，代码 head `f92fbd17731472974dc25ee61b4835b96c7
 
 新增回归覆盖：
 
-- PR base/head commit identity、files、patch、hunks 和预算；
-- review submission、inline comment、普通 comment 和 unresolved thread；
-- issue comments、events 和 linked commit SHA；
-- checks/workflow runs/jobs/steps 聚合；
-- 两个 Provider 同时失败时的 unavailable 语义；
-- CI 日志最小窗口、尾部裁剪、ANSI 清理和凭据脱敏；
-- FastAPI 预算传递和 404 状态映射；
-- persistent gateway 与四个模型工具；
-- ResearchRun、快照、Git 历史、Tree-sitter、模块语义和影响分析不退化。
+- hunk old/new 行区间映射；
+- modified 与 added symbol 分类；
+- signature change；
+- old/new commit-pinned SymbolIdentity；
+- 上游 affected files 和 related tests；
+- missing-test signal；
+- changed file 未进入 snapshot 时的 partial/uncertainty；
+- API 预算传递；
+- persistent gateway 上限裁剪；
+- 模型工具 schema、dispatch 和 unavailable 语义；
+- ResearchRun、GitHub history/work items、Tree-sitter、模块语义和单符号 impact 不退化。
 
 CI 失败时上传 `pytest-log`、`frontend-log` 和 `detect-secrets-report` artifacts。
 

@@ -1,4 +1,4 @@
-"""API models for persistent GitHub repository, history, and work-item research."""
+"""API models for persistent GitHub repository, history, work-item, and change research."""
 
 from __future__ import annotations
 
@@ -85,6 +85,17 @@ class GitHubCILogsQueryRequest(BaseModel):
     job_id: int = Field(gt=0)
     max_chars: int = Field(default=40000, ge=1000, le=200000)
     max_lines: int = Field(default=400, ge=20, le=2000)
+
+
+class GitHubChangeImpactQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    base: str = Field(min_length=1)
+    head: str = Field(min_length=1)
+    max_files: int = Field(default=20, ge=1, le=50)
+    max_symbols: int = Field(default=100, ge=1, le=300)
+    depth: int = Field(default=2, ge=1, le=4)
+    max_impact_files: int = Field(default=40, ge=1, le=100)
+    max_edges: int = Field(default=160, ge=1, le=500)
 
 
 class GitHubSnapshotResultResponse(BaseModel):
