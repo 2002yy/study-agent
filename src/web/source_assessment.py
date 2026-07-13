@@ -106,7 +106,10 @@ def _relevance(
 def _dedupe_key(title: str, url: str) -> str:
     if url:
         parsed = urlparse(url)
-        return f"url:{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
+        return (
+            f"url:{parsed.scheme.lower()}://"
+            f"{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
+        )
     return f"title:{title.casefold()}"
 
 
@@ -124,7 +127,11 @@ def assess_sources(
     for index, item in enumerate(items):
         title = _text(item.get("title"))
         url = _url(item)
-        snippet = _text(item.get("snippet") or item.get("summary") or item.get("description"))
+        snippet = _text(
+            item.get("snippet")
+            or item.get("summary")
+            or item.get("description")
+        )
         domain = _domain(url, item)
         source_id = _text(item.get("id")) or f"web_source_{index + 1}"
         relevance, directness = _relevance(
@@ -137,6 +144,8 @@ def assess_sources(
         duplicate_of = ""
         if not title and not url:
             reason = "missing_title_and_url"
+        elif not url and not domain:
+            reason = "missing_source_identifier"
         elif url and urlparse(url).scheme not in {"http", "https"}:
             reason = "invalid_url"
         else:
@@ -168,7 +177,7 @@ def assess_sources(
 
 
 def evidence_confidence(selected_sources: list[dict[str, Any]]) -> str:
-    """Estimate evidence coverage without claiming that the underlying facts are true."""
+    """Estimate evidence coverage without claiming that the facts are true."""
 
     if not selected_sources:
         return "none"
