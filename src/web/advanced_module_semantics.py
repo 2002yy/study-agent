@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 import re
 from typing import Any
 
 from src.web.module_identity import ModuleSemanticIndex
 from src.web.repository_graph import RepositoryGraphIndex
+from src.web.semantic_impact import SymbolIdentity
+
+
+def _terminal(value: str) -> str:
+    return str(value or "").strip().rsplit(".", 1)[-1]
 
 
 def _signature_query(value: str) -> tuple[str, str]:
@@ -67,6 +73,82 @@ class AdvancedModuleSemanticIndex:
     def __init__(self, graph: RepositoryGraphIndex) -> None:
         self.graph = graph
         self.base = ModuleSemanticIndex(graph)
+        self._prefer_reexport_calls()
+
+    def _prefer_reexport_calls(self) -> None:
+        imports_by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for imported in self.graph.imports:
+            source = str(imported.get("evidence", {}).get("path") or "")
+            imports_by_source[source].append(imported)
+        repaired: list[dict[str, Any]] = []
+        for edge in self.base.base.calls:
+            source_path = str(edge.get("source_path") or "")
+            callee_name = _terminal(str(edge.get("callee") or ""))
+            candidates: list[dict[str, Any]] = []
+            for imported in imports_by_source.get(source_path, []):
+                names = {str(name) for name in imported.get("names", [])}
+                if names and callee_name not in names and "*" not in names:
+                    continue
+                barrel = str(imported.get("resolved_path") or "")
+                if not barrel:
+                    continue
+                resolution = self.base.modules.resolve_export(barrel, callee_name)
+                candidates.extend(
+                    item
+                    for item in resolution.get("candidates", [])
+                    if isinstance(item, dict)
+                )
+            unique: dict[tuple[str, int, str], dict[str, Any]] = {}
+            for item in candidates:
+                symbol = item.get("symbol")
+                if not isinstance(symbol, dict):
+                    continue
+                evidence = symbol.get("evidence", {})
+                key = (
+                    str(evidence.get("path") or ""),
+                    int(evidence.get("start_line") or 0),
+                    str(symbol.get("qualified_name") or symbol.get("name") or ""),
+                )
+                unique[key] = item
+            candidates = list(unique.values())
+            if len(candidates) == 1:
+                item = candidates[0]
+                symbol = item["symbol"]
+                identity = SymbolIdentity.from_symbol(self.graph.snapshot, symbol)
+                repaired.append(
+                    {
+                        **edge,
+                        "resolved_symbol": str(
+                            symbol.get("qualified_name") or symbol.get("name") or ""
+                        ),
+                        "resolved_path": identity.path,
+                        "target_evidence": symbol.get("evidence"),
+                        "target_symbol_id": identity.id,
+                        "resolution_status": "resolved",
+                        "module_resolution": {
+                            "status": "resolved",
+                            "export_chain": item.get("export_chain", []),
+                        },
+                    }
+                )
+            elif candidates:
+                repaired.append(
+                    {
+                        **edge,
+                        "resolved_symbol": "",
+                        "resolved_path": "",
+                        "target_evidence": None,
+                        "target_symbol_id": "",
+                        "resolution_status": "ambiguous",
+                        "module_resolution": {
+                            "status": "ambiguous",
+                            "candidates": candidates,
+                        },
+                    }
+                )
+            else:
+                repaired.append(edge)
+        self.base.base.calls = repaired
 
     def _overload_candidates(
         self,
@@ -120,6 +202,22 @@ class AdvancedModuleSemanticIndex:
                 "candidates": module_exact,
                 "module_qualified_match": True,
             }
+        else:
+            exact_simple = [
+                item
+                for item in definitions
+                if str(item.get("name") or "").casefold() == query_name.casefold()
+                or str(item.get("qualified_name") or "").casefold()
+                == query_name.casefold()
+            ]
+            if len(exact_simple) > 1:
+                resolution = {
+                    **resolution,
+                    "status": "ambiguous",
+                    "selected": None,
+                    "candidates": exact_simple,
+                    "duplicate_symbol_name": True,
+                }
 
         selected = resolution.get("selected")
         selected = selected if isinstance(selected, dict) else None
