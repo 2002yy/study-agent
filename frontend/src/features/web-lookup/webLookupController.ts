@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
+import { operationRegistry } from "../../app/operationRegistry";
 import {
   createResearchRun,
-  loadWebLookupRun,
+  loadResearchRun,
   retryResearchRun,
   searchResearchRun,
-} from "../../api";
-import { operationRegistry } from "../../app/operationRegistry";
-import type { NewsLookupResponse } from "../../types";
+  type ResearchLookupResponse,
+} from "./researchApi";
 
 type WebLookupControllerOptions = {
   query: string;
@@ -19,12 +19,12 @@ type WebLookupControllerOptions = {
 const RETRYABLE_STATUSES = new Set(["pending", "empty", "failed", "running"]);
 
 export function useWebLookupController(options: WebLookupControllerOptions) {
-  const [result, setResult] = useState<NewsLookupResponse | null>(null);
+  const [result, setResult] = useState<ResearchLookupResponse | null>(null);
   const [useInChat, setUseInChat] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
 
   const runOperation = async (
-    task: (signal: AbortSignal) => Promise<NewsLookupResponse>,
+    task: (signal: AbortSignal) => Promise<ResearchLookupResponse>,
     errorPrefix: string,
   ) => {
     const operation = operationRegistry.start("web_lookup");
@@ -55,17 +55,6 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     }
   };
 
-  const lookup = async () => {
-    const query = options.query.trim();
-    if (!query || isBusy) return;
-    await runOperation(async (signal) => {
-      const created = await createResearchRun(query, 8, { signal });
-      setResult(created);
-      options.setActiveRunId(created.run_id);
-      return searchResearchRun(created.run_id, { signal });
-    }, "联网搜索失败");
-  };
-
   const retry = async () => {
     const runId = result?.run_id ?? options.activeRunId;
     if (!runId || isBusy) return;
@@ -75,10 +64,25 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     );
   };
 
+  const lookup = async () => {
+    const query = options.query.trim();
+    if (!query || isBusy) return;
+    if (result && RETRYABLE_STATUSES.has(result.status)) {
+      await retry();
+      return;
+    }
+    await runOperation(async (signal) => {
+      const created = await createResearchRun(query, 8, { signal });
+      setResult(created);
+      options.setActiveRunId(created.run_id);
+      return searchResearchRun(created.run_id, { signal });
+    }, "联网搜索失败");
+  };
+
   useEffect(() => {
     if (!options.activeRunId || options.activeRunId === result?.run_id) return;
     let active = true;
-    void loadWebLookupRun(options.activeRunId)
+    void loadResearchRun(options.activeRunId)
       .then((response) => {
         if (active) {
           setResult(response);
@@ -108,7 +112,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     useInChat,
     setUseInChat,
     isBusy,
-    canRetry: Boolean(result && RETRYABLE_STATUSES.has(result.status ?? "")),
+    canRetry: Boolean(result && RETRYABLE_STATUSES.has(result.status)),
     lookup,
     retry,
     cancel,
