@@ -121,7 +121,7 @@ class BaseCollector:
         self.calls.append(
             ParsedCall(
                 callee=focused[:300],
-                caller=nearest_callable(scope),
+                caller=nearest_callable(scope) or scope_name(scope),
                 kind=kind,
                 start_line=start,
                 end_line=end,
