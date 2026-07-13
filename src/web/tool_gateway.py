@@ -95,6 +95,28 @@ def _dedupe_results(items: list[dict[str, str]], limit: int) -> list[dict[str, s
     return result
 
 
+def _snapshot_search_results(
+    snapshot: dict[str, Any],
+    *,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for item in snapshot.get("files", [])[:max_results]:
+        if not isinstance(item, dict):
+            continue
+        results.append(
+            {
+                "name": str(item.get("path") or "").rsplit("/", 1)[-1],
+                "path": str(item.get("path") or ""),
+                "sha": str(item.get("sha") or ""),
+                "url": str(item.get("url") or ""),
+                "repository": str(snapshot.get("repository") or ""),
+                "score": int(item.get("score") or 0),
+            }
+        )
+    return results
+
+
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
@@ -280,11 +302,36 @@ class GeneralWebGateway:
         *,
         max_results: int = 8,
     ) -> dict[str, Any]:
-        return self.github_reader.search_repository(
+        result = self.github_reader.search_repository(
             repo_url,
             query,
             max_results=max_results,
         )
+        if result.get("ok") is not False:
+            return result
+
+        snapshot = self.github_snapshotter.snapshot(
+            repo_url,
+            query=query,
+        )
+        if snapshot.get("ok") is not True:
+            return result
+        return {
+            "ok": True,
+            "repository": str(snapshot.get("repository") or ""),
+            "query": " ".join(str(query or "").split()),
+            "mode": "snapshot_fallback",
+            "default_branch": str(snapshot.get("default_branch") or ""),
+            "results": _snapshot_search_results(
+                snapshot,
+                max_results=max(1, min(max_results, 20)),
+            ),
+            "truncated": bool(snapshot.get("tree_truncated")),
+            "warning": (
+                "github_search_failed; used bounded snapshot fallback: "
+                f"{result.get('error', 'unknown_error')}"
+            ),
+        }
 
     def github_snapshot(
         self,
