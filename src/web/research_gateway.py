@@ -18,6 +18,9 @@ class ResearchWebGateway:
         self.gateway = gateway or GeneralWebGateway()
         self._warnings: list[dict[str, str]] = []
 
+    def reset(self) -> None:
+        self._warnings.clear()
+
     def search(self, query: str, *, max_items: int = 10) -> list[dict[str, Any]]:
         result = self.gateway.search_exact(query, max_results=max_items)
         for error in result.get("provider_errors", []):
