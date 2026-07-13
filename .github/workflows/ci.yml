@@ -33,7 +33,24 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
       - name: Run pytest
-        run: pytest
+        id: pytest
+        continue-on-error: true
+        run: pytest -q --tb=short > pytest.log 2>&1
+
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: pytest.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce pytest result
+        if: steps.pytest.outcome == 'failure'
+        run: |
+          tail -200 pytest.log
+          exit 1
 
       - name: Run ruff
         run: ruff check .
