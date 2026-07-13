@@ -3,10 +3,11 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { searchWechat } from "../../api";
 import { RoleAvatar } from "../../components/RoleAvatar";
-import type { NewsLookupResponse, WechatSearchResponse, WechatStateResponse } from "../../types";
+import type { WechatSearchResponse, WechatStateResponse } from "../../types";
 import { displayValue } from "../../utils/format";
 import { NewsWorkspace } from "../news-workspace/NewsWorkspace";
 import type { NewsController } from "../news-workspace/newsController";
+import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { speakerToRole } from "../roles/roleCatalog";
 
 export function parseWechatMessages(content: string): Array<{ speaker: string; roleId: string; text: string }> {
@@ -29,7 +30,7 @@ export function parseWechatMessages(content: string): Array<{ speaker: string; r
 }
 
 function newsItemUrl(item: Record<string, unknown>): string {
-  const value = item.article_url || item.canonical_url || item.resolved_link || item.link;
+  const value = item.article_url || item.canonical_url || item.resolved_link || item.link || item.url;
   return typeof value === "string" ? value : "";
 }
 
@@ -50,8 +51,8 @@ function isLikelyArticlePageUrl(value: string): boolean {
 }
 
 function newsItemStatus(item: Record<string, unknown>): string {
-  const status = typeof item.article_status === "string" ? item.article_status : "仅标题";
-  const included = item.article_excerpt || String(status).startsWith("正文已读") ? "已进入摘要" : "标题级线索";
+  const status = typeof item.article_status === "string" ? item.article_status : "研究来源";
+  const included = item.article_excerpt || item.article_text ? "正文已读取" : "来源已筛选";
   return `${status} · ${included}`;
 }
 
@@ -86,6 +87,35 @@ function resultSpeaker(result: Record<string, unknown>): string {
   return typeof speaker === "string" ? speaker : "群聊记录";
 }
 
+const stageLabels: Record<string, string> = {
+  planned: "等待开始",
+  searching: "正在广域搜索",
+  assessing: "正在筛选来源",
+  reading: "正在读取网页或源码",
+  synthesizing: "正在整理证据",
+  completed: "研究完成",
+  failed: "研究失败",
+  cancelled: "研究已停止"
+};
+
+function researchStateText(value: ResearchLookupResponse): string {
+  const attempts = value.query_attempts.length;
+  const selected = value.selected_sources.length;
+  if (value.status === "cancelled") {
+    return `已保留 ${selected} 个来源和 ${attempts} 次查询，可继续研究。`;
+  }
+  if (value.status === "failed") {
+    return value.error || "研究服务暂时不可用，可重试。";
+  }
+  if (value.provider_status === "empty") {
+    return `当前来源未返回结果；这不代表目标不存在。已记录 ${attempts} 次查询。`;
+  }
+  if (value.status === "running" || value.status === "pending") {
+    return `${stageLabels[value.stage] ?? value.stage} · 已记录 ${attempts} 次查询 · 采用 ${selected} 个来源`;
+  }
+  return `${stageLabels[value.stage] ?? value.stage} · ${value.news_items.length} 条结果 · 采用 ${selected} 个来源`;
+}
+
 export function WechatPanel({
   wechat,
   newsController,
@@ -105,13 +135,14 @@ export function WechatPanel({
   onSendWechat,
   onStopWechat,
   onLookupNews,
+  onStopLookup,
   isWechatBusy,
   error,
   isNewsBusy
 }: {
   wechat: WechatStateResponse | null;
   newsController: NewsController;
-  webLookup: NewsLookupResponse | null;
+  webLookup: ResearchLookupResponse | null;
   useWebLookup: boolean;
   setUseWebLookup: (value: boolean) => void;
   wechatInput: string;
@@ -127,6 +158,7 @@ export function WechatPanel({
   onSendWechat: (event: FormEvent) => void;
   onStopWechat?: () => void;
   onLookupNews: () => void;
+  onStopLookup?: () => void;
   isWechatBusy: boolean;
   error: string;
   isNewsBusy: boolean;
@@ -136,7 +168,6 @@ export function WechatPanel({
   const [isWechatSearching, setIsWechatSearching] = useState(false);
   const [wechatSearchError, setWechatSearchError] = useState("");
 
-  // Clear search results when group content changes (new group / reset)
   useEffect(() => {
     setWechatSearch(null);
     setWechatSearchQuery("");
@@ -290,17 +321,27 @@ export function WechatPanel({
         setReadArticles={setReadArticles}
         controller={newsController}
         onLookupNews={onLookupNews}
+        onStopLookup={onStopLookup}
         isLookupBusy={isNewsBusy}
       />
 
       {webLookup ? (
         <div className="news-result lookup-result">
+          <div className="memory-preview-meta">
+            <strong>{stageLabels[webLookup.stage] ?? webLookup.stage}</strong>
+            <span>{researchStateText(webLookup)}</span>
+          </div>
           <label className="toggle-row">
-            <input checked={useWebLookup} onChange={(event) => setUseWebLookup(event.target.checked)} type="checkbox" />
+            <input
+              checked={useWebLookup}
+              disabled={!(["completed", "partial"].includes(webLookup.status) && webLookup.news_items.length > 0)}
+              onChange={(event) => setUseWebLookup(event.target.checked)}
+              type="checkbox"
+            />
             <span>仅用于下一轮单人聊天</span>
           </label>
           <details open>
-            <summary>单独联网结果 {webLookup.news_items.length} 条</summary>
+            <summary>采用来源 {webLookup.selected_sources.length} 个</summary>
             <div className="news-list">
               {latestLookupItems.map((item, index) => (
                 <NewsItemCard item={item} index={index} key={`${displayValue(item.title)}-${index}`} />
@@ -309,7 +350,6 @@ export function WechatPanel({
           </details>
         </div>
       ) : null}
-
     </section>
   );
 }
