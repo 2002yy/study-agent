@@ -15,8 +15,21 @@ const CONTEXT_OPTIONS = [
   ["allow_local_evidence", "允许本地资料片段"],
 ] as const;
 
+type WebPolicy = (typeof WEB_OPTIONS)[number][0];
+type CloudContextPolicy = (typeof CONTEXT_OPTIONS)[number][0];
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function normalizeWebPolicy(value: unknown): WebPolicy {
+  return WEB_OPTIONS.some(([option]) => option === value) ? (value as WebPolicy) : "auto";
+}
+
+function normalizeCloudContextPolicy(value: unknown): CloudContextPolicy {
+  return CONTEXT_OPTIONS.some(([option]) => option === value)
+    ? (value as CloudContextPolicy)
+    : "allow_local_evidence";
 }
 
 export function ExternalDataPolicySettings({
@@ -29,16 +42,15 @@ export function ExternalDataPolicySettings({
   onSaved: () => Promise<void> | void;
 }) {
   const settings = asRecord(asRecord(runtimeSettings).settings);
-  const [webPolicy, setWebPolicy] = useState("auto");
-  const [cloudContextPolicy, setCloudContextPolicy] = useState("allow_local_evidence");
+  const [webPolicy, setWebPolicy] = useState<WebPolicy>("auto");
+  const [cloudContextPolicy, setCloudContextPolicy] =
+    useState<CloudContextPolicy>("allow_local_evidence");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    setWebPolicy(String(settings.web_policy ?? "auto"));
-    setCloudContextPolicy(
-      String(settings.cloud_context_policy ?? "allow_local_evidence")
-    );
+    setWebPolicy(normalizeWebPolicy(settings.web_policy));
+    setCloudContextPolicy(normalizeCloudContextPolicy(settings.cloud_context_policy));
   }, [settings.web_policy, settings.cloud_context_policy]);
 
   const save = async () => {
@@ -68,7 +80,7 @@ export function ExternalDataPolicySettings({
         <span>联网策略</span>
         <select
           disabled={disabled || isSaving}
-          onChange={(event) => setWebPolicy(event.target.value)}
+          onChange={(event) => setWebPolicy(normalizeWebPolicy(event.target.value))}
           value={webPolicy}
         >
           {WEB_OPTIONS.map(([value, label]) => (
@@ -83,7 +95,9 @@ export function ExternalDataPolicySettings({
         <span>模型上下文</span>
         <select
           disabled={disabled || isSaving}
-          onChange={(event) => setCloudContextPolicy(event.target.value)}
+          onChange={(event) =>
+            setCloudContextPolicy(normalizeCloudContextPolicy(event.target.value))
+          }
           value={cloudContextPolicy}
         >
           {CONTEXT_OPTIONS.map(([value, label]) => (
