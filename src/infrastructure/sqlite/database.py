@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -339,6 +339,32 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             ON pedagogy_eval_runs(thread_id, created_at DESC);
         CREATE INDEX idx_pedagogy_eval_runs_decision
             ON pedagogy_eval_runs(final_decision, created_at DESC);
+        """,
+    ),
+    (
+        14,
+        """
+        ALTER TABLE web_lookup_runs ADD COLUMN stage TEXT NOT NULL DEFAULT 'planned';
+        ALTER TABLE web_lookup_runs ADD COLUMN query_plan TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE web_lookup_runs ADD COLUMN attempts TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE web_lookup_runs ADD COLUMN empty_reason TEXT NOT NULL DEFAULT '';
+        ALTER TABLE web_lookup_runs ADD COLUMN max_items INTEGER NOT NULL DEFAULT 8;
+        ALTER TABLE web_lookup_runs ADD COLUMN active_operation_id TEXT;
+        ALTER TABLE web_lookup_runs ADD COLUMN active_operation_started_at TEXT;
+        ALTER TABLE web_lookup_runs ADD COLUMN stage_started_at TEXT;
+
+        UPDATE web_lookup_runs
+        SET stage = CASE
+            WHEN status = 'completed' THEN 'completed'
+            WHEN status = 'failed' THEN 'failed'
+            WHEN status = 'running' THEN 'searching'
+            ELSE 'planned'
+        END;
+
+        CREATE INDEX idx_web_lookup_runs_stage_updated
+            ON web_lookup_runs(stage, updated_at DESC);
+        CREATE INDEX idx_web_lookup_runs_active_operation
+            ON web_lookup_runs(active_operation_id);
         """,
     ),
 )
