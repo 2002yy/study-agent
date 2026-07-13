@@ -32,6 +32,16 @@ def test_english_search_directive_is_removed_from_focused_query():
     assert normalized.raw_query == "Please search the web for GPT5.6Sol"
 
 
+def test_compact_model_pattern_does_not_partially_rewrite_larger_words():
+    normalized = normalize_web_query(
+        "gpt5.6solution design",
+        now=datetime(2026, 7, 13, 4, 0, tzinfo=timezone.utc),
+    )
+
+    assert normalized.canonical_query == "gpt5.6solution design"
+    assert normalized.entity_aliases == ()
+
+
 def test_latest_query_records_freshness_window_and_current_month_variant():
     normalized = normalize_web_query(
         "GPT5.6Sol 最新进展",
