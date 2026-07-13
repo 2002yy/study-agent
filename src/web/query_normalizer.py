@@ -13,7 +13,7 @@ import re
 from typing import Any
 
 _GPT_MODEL_PATTERN = re.compile(
-    r"(?i)\bgpt[\s_-]*(\d+)(?:[.\s_-]+(\d+))?[\s._-]*(sol)?\b"
+    r"(?i)(?<![a-z0-9])gpt[\s_-]*(\d+)(?:[.\s_-]+(\d+))?[\s._-]*(sol)?(?![a-z0-9])"
 )
 _EXPLICIT_YEAR_PATTERN = re.compile(r"\b(?:19|20)\d{2}\b")
 _SEARCH_DIRECTIVE_PATTERNS = (
