@@ -338,8 +338,8 @@ def test_ci_logs_redact_credentials_and_keep_bounded_tail():
             "steps": [],
         }
 
-    github_token = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz123456"
-    api_token = "s" + "k-" + "abcdefghijklmnop123456"
+    github_token = "gh" + "p_" + ("a1" * 16)
+    api_token = "s" + "k-" + ("b2" * 12)
     raw_log = "\n".join(
         [
             *(f"old line {index}" for index in range(25)),
