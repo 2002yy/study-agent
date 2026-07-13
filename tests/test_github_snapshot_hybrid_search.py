@@ -6,6 +6,9 @@ from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.rag_repository import RagRepository
 
 
+COMMIT_SHA = "a" * 40
+
+
 class FakeSnapshotter:
     def __init__(self) -> None:
         self.calls = 0
@@ -16,18 +19,20 @@ class FakeSnapshotter:
             "ok": True,
             "repository": "openai/example",
             "ref": ref or "main",
+            "requested_ref": ref or "main",
+            "commit_sha": COMMIT_SHA,
             "tree_sha": "tree-123",
             "files": [
                 {
                     "path": "src/application/chat_service.py",
                     "sha": "sha-chat",
-                    "url": "https://github.com/openai/example/blob/main/src/application/chat_service.py",
+                    "url": f"https://github.com/openai/example/blob/{COMMIT_SHA}/src/application/chat_service.py",
                     "content": "def prepare_chat_turn(message):\n    return message\n",
                 },
                 {
                     "path": "src/web/github_reader.py",
                     "sha": "sha-reader",
-                    "url": "https://github.com/openai/example/blob/main/src/web/github_reader.py",
+                    "url": f"https://github.com/openai/example/blob/{COMMIT_SHA}/src/web/github_reader.py",
                     "content": "class GitHubSourceReader:\n    pass\n",
                 },
             ],
@@ -56,6 +61,7 @@ def test_search_repository_returns_structured_line_level_results(tmp_path):
 
     assert result["ok"] is True
     assert result["mode"] == "local_snapshot_hybrid_structured"
+    assert result["commit_sha"] == COMMIT_SHA
     first = result["results"][0]
     assert first["path"] == "src/application/chat_service.py"
     assert first["line_range"] == "L1-L2"
@@ -63,6 +69,8 @@ def test_search_repository_returns_structured_line_level_results(tmp_path):
     assert first["definitions"][0]["name"] == "prepare_chat_turn"
     assert first["evidence_ref"]["tree_sha"] == "tree-123"
     assert first["evidence_ref"]["file_sha"] == "sha-chat"
+    assert first["evidence_ref"]["requested_ref"] == "main"
+    assert first["evidence_ref"]["commit_sha"] == COMMIT_SHA
     assert result["structure"]["symbol_count"] == 2
     assert result["snapshot_run_id"]
 
@@ -89,6 +97,7 @@ def test_search_rebuilds_indexes_from_persisted_snapshot_after_restart(tmp_path)
     assert restored["results"][0]["path"] == "src/web/github_reader.py"
     assert restored["results"][0]["definitions"][0]["kind"] == "class"
     assert restored["cache_hit"] is True
+    assert restored["commit_sha"] == COMMIT_SHA
     assert restored["snapshot_run_id"] == first_result["snapshot_run_id"]
     assert snapshotter.calls == 1
 
@@ -114,6 +123,10 @@ def test_structure_inspection_reuses_persisted_snapshot(tmp_path):
 
     assert inspected["ok"] is True
     assert inspected["definitions"][0]["name"] == "GitHubSourceReader"
-    assert inspected["definitions"][0]["evidence"]["path"] == "src/web/github_reader.py"
+    evidence = inspected["definitions"][0]["evidence"]
+    assert evidence["path"] == "src/web/github_reader.py"
+    assert evidence["requested_ref"] == "main"
+    assert evidence["commit_sha"] == COMMIT_SHA
     assert inspected["cache_hit"] is True
+    assert inspected["commit_sha"] == COMMIT_SHA
     assert snapshotter.calls == 1
