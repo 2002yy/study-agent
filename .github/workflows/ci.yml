@@ -106,7 +106,7 @@ jobs:
               '    useWebLookup: webLookupController.useInChat,\n    webPolicy,\n',
           )
 
-          frontend_types = "frontend/src/types/settings.ts"
+          frontend_types = "frontend/src/types.ts"
           replace_once(
               frontend_types,
               '    rag_min_score: number;\n',
