@@ -129,16 +129,19 @@ def normalize_structured_closure_result(
             final_decision=final_decision,
         ):
             continue
-        evaluation_refs = _evaluation_refs(
-            raw.get("evaluation_refs"),
-            final_evaluation_id=final_evaluation_id,
+        evaluation_source_ref = (
+            f"pedagogy_eval:{final_evaluation_id}"
+            if final_evaluation_id
+            else ""
         )
-        if (
-            final_evaluation_id
-            and f"pedagogy_eval:{final_evaluation_id}" in source_refs
-            and final_evaluation_id not in evaluation_refs
-        ):
-            evaluation_refs.append(final_evaluation_id)
+        evaluation_refs: list[str] = []
+        if evaluation_source_ref and evaluation_source_ref in source_refs:
+            evaluation_refs = _evaluation_refs(
+                raw.get("evaluation_refs"),
+                final_evaluation_id=final_evaluation_id,
+            )
+            if final_evaluation_id not in evaluation_refs:
+                evaluation_refs.append(final_evaluation_id)
         confidence = str(raw.get("confidence") or "low").strip().lower()
         if confidence not in _ALLOWED_CONFIDENCE:
             confidence = "low"
