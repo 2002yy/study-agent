@@ -7,6 +7,10 @@ import hashlib
 from typing import Any
 
 
+def as_dict(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def dict_items(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -32,11 +36,7 @@ def symbol_records(impact: dict[str, Any]) -> list[dict[str, Any]]:
     for change in dict_items(impact.get("changes")):
         for bucket, review_side in (("old", "LEFT"), ("new", "RIGHT")):
             for symbol in dict_items(change.get(bucket)):
-                evidence = (
-                    dict(symbol.get("evidence"))
-                    if isinstance(symbol.get("evidence"), dict)
-                    else {}
-                )
+                evidence = as_dict(symbol.get("evidence"))
                 start = max(1, safe_int(evidence.get("start_line"), 1))
                 end = max(start, safe_int(evidence.get("end_line"), start))
                 result.append(
@@ -54,7 +54,7 @@ def symbol_records(impact: dict[str, Any]) -> list[dict[str, Any]]:
                         ),
                         "kind": str(symbol.get("kind") or ""),
                         "language": str(symbol.get("language") or ""),
-                        "identity": dict(symbol.get("identity") or {}),
+                        "identity": as_dict(symbol.get("identity")),
                         "evidence": evidence,
                     }
                 )
@@ -85,11 +85,7 @@ def changed_paths(impact: dict[str, Any]) -> set[str]:
 
 
 def review_items(pull: dict[str, Any]) -> list[dict[str, Any]]:
-    review_threads = (
-        dict(pull.get("review_threads"))
-        if isinstance(pull.get("review_threads"), dict)
-        else {}
-    )
+    review_threads = as_dict(pull.get("review_threads"))
     threads = dict_items(review_threads.get("threads"))
     result: list[dict[str, Any]] = []
     covered_comment_ids: set[int] = set()
