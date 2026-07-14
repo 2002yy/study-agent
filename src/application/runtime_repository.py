@@ -9,6 +9,7 @@ from pathlib import Path
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.group_repository import GroupRepository
+from src.repositories.learning_closure_repository import LearningClosureRepository
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
@@ -70,6 +71,11 @@ def get_news_repository() -> NewsRepository:
 @lru_cache(maxsize=1)
 def get_memory_repository() -> MemoryRepository:
     return MemoryRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_learning_closure_repository() -> LearningClosureRepository:
+    return LearningClosureRepository(RuntimeDatabase(runtime_database_path()))
 
 
 @lru_cache(maxsize=1)
@@ -178,6 +184,17 @@ def get_memory_service():
 
 
 @lru_cache(maxsize=1)
+def get_learning_closure_service():
+    from src.application.learning_closure_service import LearningClosureService
+
+    return LearningClosureService(
+        get_learning_closure_repository(),
+        get_session_service(),
+        get_memory_service(),
+    )
+
+
+@lru_cache(maxsize=1)
 def get_web_lookup_service():
     from src.application.web_lookup_service import WebLookupService
 
@@ -202,6 +219,8 @@ def reset_runtime_repository_cache() -> None:
     get_web_tool_agent.cache_clear()
     get_github_snapshot_service.cache_clear()
     get_github_snapshot_repository.cache_clear()
+    get_learning_closure_service.cache_clear()
+    get_learning_closure_repository.cache_clear()
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()
