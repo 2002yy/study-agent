@@ -109,21 +109,33 @@ export function workspaceReducer(
       };
     case "SET_STREAM_RECOVERY":
       return { ...state, streamRecovery: action.value };
-    case "TRANSITION_CHAT_SESSION":
+    case "TRANSITION_CHAT_SESSION": {
+      const changedThread = state.activeChatThreadId !== action.threadId;
       return {
         ...state,
         activeChatThreadId: action.threadId,
         chatMessages: action.messages,
         lastChat: action.lastChat,
         streamRecovery: action.streamRecovery ?? null,
+        activeMemoryRunId: changedThread ? undefined : state.activeMemoryRunId,
+        activeLearningClosureRunId: changedThread
+          ? undefined
+          : state.activeLearningClosureRunId,
         transitionVersion: state.transitionVersion + 1
       };
-    case "RESTORE_CHAT_SESSION":
+    }
+    case "RESTORE_CHAT_SESSION": {
+      const changedThread = state.activeChatThreadId !== action.threadId;
       return {
         ...state,
         activeChatThreadId: action.threadId,
+        activeMemoryRunId: changedThread ? undefined : state.activeMemoryRunId,
+        activeLearningClosureRunId: changedThread
+          ? undefined
+          : state.activeLearningClosureRunId,
         transitionVersion: state.transitionVersion + 1
       };
+    }
     case "START_NEW_CHAT_SESSION":
       return {
         ...state,
