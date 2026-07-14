@@ -125,6 +125,9 @@ def test_structured_input_uses_committed_truth_and_final_evaluation_only():
     assert "完全掌握" not in serialized_recent
     assert "pedagogy_eval:ped-eval-final" in structured["allowed_source_refs"]
     assert "evidence:chunk-8" in structured["allowed_source_refs"]
+    assert not any(
+        ref.startswith("memory:") for ref in structured["allowed_source_refs"]
+    )
 
 
 def test_structured_input_applies_character_budget_to_long_sessions():
@@ -198,13 +201,13 @@ def test_candidate_normalization_requires_allowed_provenance_and_pending_profile
 
     assert normalized["candidate_count"] == 2
     progress, profile = normalized["candidates"]
-    assert progress["confidence"] == "medium"
+    assert progress["confidence"] == "high"
     assert progress["source_refs"] == ["learning_state.confirmed_points"]
     assert progress["evaluation_refs"] == ["ped-eval-final"]
     assert profile["learner_pending"] is True
 
     updates = structured_candidates_to_memory_updates(normalized)
-    assert updates[0]["confidence"] == "medium"
+    assert updates[0]["confidence"] == "high"
     assert updates[0]["source_refs"] == ["learning_state.confirmed_points"]
     assert updates[1]["target"] == "learner_profile"
     assert updates[1]["learner_pending"] is True
