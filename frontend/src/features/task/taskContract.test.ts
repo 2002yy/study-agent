@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
+  TURN_TASK_INTENT_OPTIONS,
+  clearPendingTaskIntentOverride,
   closureActionLabel,
+  consumePendingTaskIntentOverride,
+  setPendingTaskIntentOverride,
   taskContractFromRoute,
   taskIntentLabel,
 } from "./taskContract";
 
 describe("taskContract", () => {
+  afterEach(() => clearPendingTaskIntentOverride());
+
   it("parses a persisted route task contract", () => {
     const contract = taskContractFromRoute({
       task_contract: {
@@ -84,6 +90,23 @@ describe("taskContract", () => {
     expect(taskIntentLabel("research")).toBe("临时研究");
     expect(taskIntentLabel("quick_answer")).toBe("快速问答");
     expect(taskIntentLabel("learn")).toBe("系统学习");
+  });
+
+  it("offers only supported next-turn choices plus automatic classification", () => {
+    expect(TURN_TASK_INTENT_OPTIONS.map((option) => option.value)).toEqual([
+      "",
+      "learn",
+      "quick_answer",
+      "research",
+      "project_execution",
+    ]);
+  });
+
+  it("consumes an explicit override exactly once", () => {
+    setPendingTaskIntentOverride("quick_answer");
+
+    expect(consumePendingTaskIntentOverride()).toBe("quick_answer");
+    expect(consumePendingTaskIntentOverride()).toBeUndefined();
   });
 
   it("does not expose research closure through the learning summary endpoint", () => {

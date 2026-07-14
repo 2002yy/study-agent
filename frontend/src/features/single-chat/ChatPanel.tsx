@@ -4,7 +4,15 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
-import { closureActionLabel, taskContractFromRoute, taskIntentLabel } from "../task/taskContract";
+import {
+  TURN_TASK_INTENT_OPTIONS,
+  clearPendingTaskIntentOverride,
+  closureActionLabel,
+  setPendingTaskIntentOverride,
+  taskContractFromRoute,
+  taskIntentLabel,
+  type TaskIntent,
+} from "../task/taskContract";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
@@ -55,7 +63,7 @@ export function ChatPanel({
   input: string;
   setInput: (value: string) => void;
   isSending: boolean;
-  onSubmit: (event: FormEvent) => void;
+  onSubmit: (event: FormEvent) => void | Promise<void>;
   onStop: () => void;
   streamRecovery: { question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null;
   onContinueInterruptedReply: () => void;
@@ -77,6 +85,7 @@ export function ChatPanel({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+  const [taskIntentOverride, setTaskIntentOverride] = useState<"" | TaskIntent>("");
   const currentFocus = memoryStatus?.latest_section || latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
   const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
   const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
@@ -88,6 +97,9 @@ export function ChatPanel({
   const taskLabel = taskContract
     ? `${taskIntentLabel(taskContract.task_intent)}${taskContract.explicit_override ? " · 手动" : ""}`
     : "等待提问";
+  const selectedTaskIntent = TURN_TASK_INTENT_OPTIONS.find(
+    (option) => option.value === taskIntentOverride
+  ) ?? TURN_TASK_INTENT_OPTIONS[0];
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -123,6 +135,18 @@ export function ChatPanel({
     }
   };
 
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (isSending || !input.trim()) return;
+    setPendingTaskIntentOverride(taskIntentOverride || undefined);
+    try {
+      await onSubmit(event);
+    } finally {
+      clearPendingTaskIntentOverride();
+      setTaskIntentOverride("");
+    }
+  };
+
   const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
     target.closest("details")?.removeAttribute("open");
     onOpenDrawer(drawer);
@@ -133,6 +157,12 @@ export function ChatPanel({
       bottomRef.current?.scrollIntoView({ block: "end" });
     }
   }, [messages, streamRecovery, isAtBottom]);
+
+  useEffect(() => {
+    clearPendingTaskIntentOverride();
+    setTaskIntentOverride("");
+    return clearPendingTaskIntentOverride;
+  }, [sessionId]);
 
   return (
     <main className="chat-panel" id="chat">
@@ -309,14 +339,32 @@ export function ChatPanel({
         </div>
       ) : null}
 
-      <form className="composer" onSubmit={onSubmit}>
-        <textarea
-          aria-label="输入学习问题"
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
-          value={input}
-        />
+      <form className="composer" onSubmit={handleSubmit}>
+        <div className="composer-main">
+          <label className="turn-intent-control">
+            <span>下一条按</span>
+            <select
+              aria-label="下一条消息的任务类型"
+              disabled={isSending}
+              onChange={(event) => setTaskIntentOverride(event.target.value as "" | TaskIntent)}
+              value={taskIntentOverride}
+            >
+              {TURN_TASK_INTENT_OPTIONS.map((option) => (
+                <option key={option.value || "auto"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small>{selectedTaskIntent.description}；仅影响下一条新消息</small>
+          </label>
+          <textarea
+            aria-label="输入学习问题"
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
+            value={input}
+          />
+        </div>
         {isSending ? (
           <button className="send-button stop-button" onClick={onStop} type="button">
             <Square size={16} />

@@ -1,0 +1,78 @@
+.composer-main {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.turn-intent-control {
+  display: grid;
+  grid-template-columns: auto minmax(132px, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.turn-intent-control > span {
+  color: var(--text);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.turn-intent-control select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 28px 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.turn-intent-control select:focus-visible {
+  outline: 3px solid rgba(19, 124, 118, 0.18);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.turn-intent-control select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.turn-intent-control small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .turn-intent-control {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .turn-intent-control small {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 430px) {
+  .turn-intent-control {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .turn-intent-control > span {
+    font-size: 11px;
+  }
+
+  .turn-intent-control small {
+    grid-column: auto;
+  }
+}

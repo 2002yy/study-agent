@@ -1,3 +1,12 @@
+export type TaskIntent =
+  | "quick_answer"
+  | "research"
+  | "learn"
+  | "explain_back"
+  | "project_execution"
+  | "conversation"
+  | "organize";
+
 export type TaskContract = {
   task_intent: string;
   source_policy: string;
@@ -7,6 +16,34 @@ export type TaskContract = {
   reason?: string;
   explicit_override?: boolean;
 };
+
+export const TURN_TASK_INTENT_OPTIONS: Array<{
+  value: "" | TaskIntent;
+  label: string;
+  description: string;
+}> = [
+  { value: "", label: "自动判断", description: "根据下一条消息和当前学习状态判断" },
+  { value: "learn", label: "系统学习", description: "持续推进目标、阶段和理解验证" },
+  { value: "quick_answer", label: "快速问答", description: "只回答当前问题，不推进长期学习状态" },
+  { value: "research", label: "临时研究", description: "侧重公开资料、最新信息和来源" },
+  { value: "project_execution", label: "项目推进", description: "围绕实现、验证和交付推进" },
+];
+
+let pendingTaskIntentOverride: TaskIntent | undefined;
+
+export function setPendingTaskIntentOverride(intent: TaskIntent | undefined): void {
+  pendingTaskIntentOverride = intent;
+}
+
+export function consumePendingTaskIntentOverride(): TaskIntent | undefined {
+  const current = pendingTaskIntentOverride;
+  pendingTaskIntentOverride = undefined;
+  return current;
+}
+
+export function clearPendingTaskIntentOverride(): void {
+  pendingTaskIntentOverride = undefined;
+}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;

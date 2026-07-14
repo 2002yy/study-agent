@@ -32,6 +32,7 @@ import type {
   WorkflowRunSummary,
   RuntimeSettingsResponse
 } from "./types";
+import { consumePendingTaskIntentOverride } from "./features/task/taskContract";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
@@ -134,6 +135,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
+    task_intent: consumePendingTaskIntentOverride() ?? null,
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
     retry_of_turn_id: options.retryOfTurnId ?? null,
     partial_reply: options.partialReply ?? "",
@@ -691,9 +693,10 @@ export async function sendChat(
   history: ChatMessage[],
   options: ChatRequestOptions
 ): Promise<ChatResponse> {
+  const payload = buildChatPayload(userInput, history, options);
   return requestJson<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify(buildChatPayload(userInput, history, options))
+    body: JSON.stringify(payload)
   });
 }
 
@@ -704,6 +707,7 @@ export async function sendChatStream(
   handlers: ChatStreamHandlers = {},
   requestOptions: { signal?: AbortSignal } = {}
 ): Promise<ChatResponse> {
+  const payload = buildChatPayload(userInput, history, options);
   const response = await fetch(`${API_BASE_URL}/chat/stream`, {
     method: "POST",
     signal: requestOptions.signal,
@@ -711,7 +715,7 @@ export async function sendChatStream(
       "Content-Type": "application/json",
       ...authHeaders()
     },
-    body: JSON.stringify(buildChatPayload(userInput, history, options))
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -719,7 +723,11 @@ export async function sendChatStream(
     throw new Error(`${response.status} ${response.statusText}${body ? `: ${body}` : ""}`);
   }
   if (!response.body) {
-    return sendChat(userInput, history, options);
+    return requestJson<ChatResponse>("/chat", {
+      method: "POST",
+      signal: requestOptions.signal,
+      body: JSON.stringify(payload)
+    });
   }
 
   const reader = response.body.getReader();
