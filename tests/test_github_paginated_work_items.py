@@ -15,30 +15,18 @@ HEAD_SHA = "b" * 40
 class FakeHistory:
     request_graphql = None
 
-    def __init__(self) -> None:
-        self.commit_calls: list[tuple[str, str]] = []
-
     def resolve_ref(self, repo_url: str, ref: str = "") -> dict:
         return {
             "ok": True,
             "status": "resolved",
-            "repository": repo_url.rsplit("/", 2)[-2] + "/" + repo_url.rsplit("/", 1)[-1],
+            "repository": repo_url.rsplit("/", 2)[-2]
+            + "/"
+            + repo_url.rsplit("/", 1)[-1],
             "requested_ref": ref or "main",
             "resolved_type": "commit",
             "resolved_name": ref or "main",
             "commit_sha": ref or HEAD_SHA,
             "tree_sha": "tree-" + (ref or HEAD_SHA)[:8],
-        }
-
-    def commit(self, repo_url: str, ref: str = "") -> dict:
-        self.commit_calls.append((repo_url, ref))
-        return {
-            "ok": True,
-            "status": "resolved",
-            "repository": repo_url,
-            "requested_ref": ref,
-            "commit_sha": ref,
-            "tree_sha": "tree-" + ref[:8],
         }
 
     @staticmethod
@@ -52,6 +40,32 @@ def _page(url: str) -> int:
 
 def _http_404(url: str) -> HTTPError:
     return HTTPError(url, 404, "not found", None, None)
+
+
+def _commit_payload(sha: str) -> dict:
+    return {
+        "sha": sha,
+        "html_url": f"https://github.com/example/commit/{sha}",
+        "commit": {
+            "message": "commit",
+            "tree": {"sha": "tree-" + sha[:8]},
+            "author": {
+                "name": "Author",
+                "email": "author@example.com",
+                "date": "2026-07-14T00:00:00Z",
+            },
+            "committer": {
+                "name": "Committer",
+                "email": "committer@example.com",
+                "date": "2026-07-14T00:00:00Z",
+            },
+            "verification": {"verified": True, "reason": "valid"},
+        },
+        "parents": [],
+        "stats": {"additions": 1, "deletions": 0, "total": 1},
+        "author": {"login": "author"},
+        "committer": {"login": "committer"},
+    }
 
 
 def _pr_payload(*, cross_fork: bool = False) -> dict:
@@ -121,6 +135,10 @@ def test_pull_request_paginates_rest_and_graphql_collections(monkeypatch):
             )
         ):
             return []
+        if url.endswith(f"/repos/openai/example/commits/{BASE_SHA}"):
+            return _commit_payload(BASE_SHA)
+        if url.endswith(f"/repos/openai/example/commits/{HEAD_SHA}"):
+            return _commit_payload(HEAD_SHA)
         raise AssertionError(f"unexpected URL: {url}")
 
     graphql_calls: list[dict] = []
@@ -168,9 +186,8 @@ def test_pull_request_paginates_rest_and_graphql_collections(monkeypatch):
             }
         }
 
-    history = FakeHistory()
     result = PaginatedGitHubWorkItemService(
-        history,  # type: ignore[arg-type]
+        FakeHistory(),  # type: ignore[arg-type]
         request_json=provider,
         request_graphql=graphql,
     ).pull_request(
@@ -195,8 +212,13 @@ def test_pull_request_paginates_rest_and_graphql_collections(monkeypatch):
     assert result["review_threads"]["thread_count"] == 2
     assert result["review_threads"]["pagination"]["pages_fetched"] == 2
     assert graphql_calls[1]["after"] == "cursor-1"
-    assert result["provider_request_budget"]["used_requests"] == 8
-    assert len(provider_calls) == 6
+    assert result["base"]["commit"]["commit_sha"] == BASE_SHA
+    assert result["head"]["commit"]["commit_sha"] == HEAD_SHA
+    assert result["provider_request_budget"]["used_requests"] == 10
+    assert result["provider_request_budget"]["scope"] == (
+        "pull_request_rest_graphql_calls"
+    )
+    assert len(provider_calls) == 8
     assert result["truncated"] is True
 
 
@@ -232,6 +254,8 @@ def test_pull_request_budget_exhaustion_keeps_partial_evidence(monkeypatch):
         "pull_request_reviews",
         "pull_request_review_comments",
         "pull_request_issue_comments",
+        "pull_request_base_commit:openai/example",
+        "pull_request_head_commit:openai/example",
     ]
     assert result["pagination"]["reviews"]["stop_reason"] == (
         "request_budget_exhausted"
@@ -273,11 +297,16 @@ def test_cross_fork_pr_uses_source_repo_for_head_commit_and_check_fallback(monke
             }
         if "/repos/contributor/example-fork/actions/runs?" in url:
             return {"total_count": 0, "workflow_runs": []}
+        if url.endswith(f"/repos/openai/example/commits/{BASE_SHA}"):
+            return _commit_payload(BASE_SHA)
+        if url.endswith(
+            f"/repos/contributor/example-fork/commits/{HEAD_SHA}"
+        ):
+            return _commit_payload(HEAD_SHA)
         raise AssertionError(f"unexpected URL: {url}")
 
-    history = FakeHistory()
     result = PaginatedGitHubWorkItemService(
-        history,  # type: ignore[arg-type]
+        FakeHistory(),  # type: ignore[arg-type]
         request_json=provider,
     ).pull_request(
         REPO,
@@ -291,7 +320,10 @@ def test_cross_fork_pr_uses_source_repo_for_head_commit_and_check_fallback(monke
     assert result["head"]["repository"] == "contributor/example-fork"
     assert result["head"]["repository_url"] == FORK_REPO
     assert result["head"]["is_cross_repository"] is True
-    assert (FORK_REPO, HEAD_SHA) in history.commit_calls
+    assert result["head"]["commit"]["repository"] == (
+        "contributor/example-fork"
+    )
+    assert result["head"]["commit"]["commit_sha"] == HEAD_SHA
     assert result["checks"]["ok"] is True
     assert result["checks_repository"] == "contributor/example-fork"
     assert result["checks"]["fallback_from_repository"] == "openai/example"
