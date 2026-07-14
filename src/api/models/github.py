@@ -64,6 +64,18 @@ class GitHubPullRequestQueryRequest(BaseModel):
     include_checks: bool = True
 
 
+class GitHubPRReviewContextQueryRequest(BaseModel):
+    repo_url: str = Field(min_length=1)
+    number: int = Field(gt=0)
+    max_files: int = Field(default=20, ge=1, le=50)
+    max_symbols: int = Field(default=100, ge=1, le=300)
+    max_comments: int = Field(default=100, ge=1, le=100)
+    max_reviews: int = Field(default=100, ge=1, le=100)
+    depth: int = Field(default=2, ge=1, le=4)
+    max_impact_files: int = Field(default=40, ge=1, le=100)
+    max_edges: int = Field(default=160, ge=1, le=500)
+
+
 class GitHubIssueQueryRequest(BaseModel):
     repo_url: str = Field(min_length=1)
     number: int = Field(gt=0)
