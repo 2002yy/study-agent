@@ -142,12 +142,20 @@ class LearningClosureService:
                 updates,
                 run_id=f"memory_{run.id}",
             )
+            if memory_run.status not in {"previewed", "succeeded"}:
+                raise ValueError(
+                    "Linked MemoryRun is not retryable: "
+                    f"{memory_run.id} ({memory_run.status})"
+                )
             self._ensure_active(run.id, operation_id)
-            return self.repository.set_preview_ready(
+            preview = self.repository.set_preview_ready(
                 run.id,
                 operation_id=operation_id,
                 memory_run_id=memory_run.id,
             )
+            if memory_run.status == "succeeded":
+                return self.commit(preview.id)
+            return preview
         except LearningClosureCancelled:
             return self.repository.finish_cancel(
                 run.id,
