@@ -1,10 +1,10 @@
-import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, MoreHorizontal, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
-import { closureActionLabel, taskContractFromRoute } from "../task/taskContract";
+import { closureActionLabel, taskContractFromRoute, taskIntentLabel } from "../task/taskContract";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 
@@ -85,6 +85,9 @@ export function ChatPanel({
   );
   const taskContract = taskContractFromRoute(lastChat?.route);
   const closureLabel = closureActionLabel(taskContract);
+  const taskLabel = taskContract
+    ? `${taskIntentLabel(taskContract.task_intent)}${taskContract.explicit_override ? " · 手动" : ""}`
+    : "等待提问";
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -120,6 +123,11 @@ export function ChatPanel({
     }
   };
 
+  const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
+    target.closest("details")?.removeAttribute("open");
+    onOpenDrawer(drawer);
+  };
+
   useEffect(() => {
     if (isAtBottom) {
       bottomRef.current?.scrollIntoView({ block: "end" });
@@ -129,18 +137,19 @@ export function ChatPanel({
   return (
     <main className="chat-panel" id="chat">
       <header className="topbar">
-        <div>
+        <div className="topbar-copy">
           <h1>学习工作台</h1>
-          <p>围绕目标提问；需要时调用本地资料和联网证据，学习结果由你确认后再写入记忆。</p>
-          <div className="topbar-meta">
-            <span>RAG {ragEnabled ? "已启用" : "未启用"}</span>
-            <span>路由 {lastChat?.route?.mode ? `${lastChat.route.mode} · ${lastChat.route.role ?? "auto"}` : "等待提问"}</span>
-            <span>记录 ID {sessionId ?? "未开始"}</span>
+          <p>围绕目标提问；需要资料时再调用本地检索或联网证据，结果由你确认后写入记忆。</p>
+          <div className="topbar-meta" aria-label="当前学习状态">
+            <span>任务 {taskLabel}</span>
+            <span>资料 {ragEnabled ? "按需检索" : "未启用"}</span>
+            <span>会话 {sessionId ? "进行中" : "未开始"}</span>
           </div>
         </div>
-        <div className="topbar-actions">
+        <div className="topbar-actions" aria-label="学习工作台操作">
           {closureLabel ? (
             <button
+              aria-label={closureLabel}
               className="end-session-button"
               disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
               onClick={onEndSession}
@@ -151,25 +160,50 @@ export function ChatPanel({
               {closureLabel}
             </button>
           ) : null}
-          <button className="icon-button" onClick={onUploadClick} type="button" title="上传资料">
+          <button aria-label="上传学习资料" className="icon-button" onClick={onUploadClick} type="button" title="上传学习资料">
             <Upload size={17} />
           </button>
-          <button className="icon-button" disabled={!hasSearchQuery} onClick={onSearchSources} type="button" title={hasSearchQuery ? "检索来源" : "输入关键词或通过 RAG 提问后可检索"}>
-            {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
+          <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史">
+            <BookOpen size={16} />
           </button>
-          <span className="dock-divider" />
-          <button className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史"><BookOpen size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("group")} type="button" title="群聊"><MessageSquare size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("news")} type="button" title="新闻"><Database size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("tools")} type="button" title="工具"><Wrench size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("memory")} type="button" title="记忆"><MemoryStick size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("sources")} type="button" title="引用来源与知识库"><Library size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("timeline")} type="button" title="工作流时间线"><Activity size={16} /></button>
-          <button className="icon-button" onClick={() => onOpenDrawer("settings")} type="button" title="设置"><Settings size={16} /></button>
+          <button aria-label="打开引用来源与知识库" className="icon-button" onClick={() => onOpenDrawer("sources")} type="button" title="引用来源与知识库">
+            <Library size={16} />
+          </button>
+          <button aria-label="打开设置" className="icon-button" onClick={() => onOpenDrawer("settings")} type="button" title="设置">
+            <Settings size={16} />
+          </button>
+          <details className="workspace-menu">
+            <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多学习工具">
+              <MoreHorizontal size={18} />
+              <span>更多</span>
+            </summary>
+            <div className="workspace-menu-popover" role="menu">
+              <button onClick={(event) => openFromMenu("group", event.currentTarget)} role="menuitem" type="button">
+                <MessageSquare size={16} />
+                <span><strong>群聊讨论</strong><small>让多位角色从不同角度讨论</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("news", event.currentTarget)} role="menuitem" type="button">
+                <Database size={16} />
+                <span><strong>新闻研究</strong><small>检索公开信息并保留来源</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("tools", event.currentTarget)} role="menuitem" type="button">
+                <Wrench size={16} />
+                <span><strong>受控工具</strong><small>预览并运行本地知识工具</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("memory", event.currentTarget)} role="menuitem" type="button">
+                <MemoryStick size={16} />
+                <span><strong>学习记忆</strong><small>预览和确认长期记忆写入</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("timeline", event.currentTarget)} role="menuitem" type="button">
+                <Activity size={16} />
+                <span><strong>工作流记录</strong><small>查看任务执行阶段与失败原因</small></span>
+              </button>
+            </div>
+          </details>
         </div>
       </header>
 
-      <section className="conversation" aria-label="Conversation" onScroll={updateScrollState} ref={conversationRef}>
+      <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
         <details className="home-brief" key={hasConversationMessages ? "collapsed-home-brief" : "expanded-home-brief"} open={!hasConversationMessages}>
           <summary>
             <span>继续学习</span>
@@ -267,7 +301,7 @@ export function ChatPanel({
 
       <form className="composer" onSubmit={onSubmit}>
         <textarea
-          aria-label="Message"
+          aria-label="输入学习问题"
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleComposerKeyDown}
           placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
