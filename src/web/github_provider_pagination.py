@@ -165,16 +165,17 @@ def collect_rest_pages(
 
     visible = collected[:item_limit]
     provider_count = max(provider_count, len(collected))
+    incomplete_stop = stop_reason in {
+        "page_budget_exhausted",
+        "request_budget_exhausted",
+        "provider_error",
+    }
     truncated = (
         len(collected) > item_limit
         or provider_count > len(visible)
-        or stop_reason in {
-            "item_budget_reached",
-            "page_budget_exhausted",
-            "request_budget_exhausted",
-            "provider_error",
-        }
-        and provider_has_more
+        or stop_reason == "item_budget_reached"
+        or incomplete_stop
+        or provider_has_more and len(visible) >= item_limit
     )
     return {
         "items": visible,
