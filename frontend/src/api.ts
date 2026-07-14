@@ -214,6 +214,7 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
   const wechat = read<WechatStateResponse>(7, "wechat");
 
   if (generation !== _refreshGeneration) {
+    // A newer refresh started while this one was in-flight — discard
     return _lastSnapshot ?? {
       health: null, ragStatus: null, tools: [], workflowRuns: [],
       sessions: [], runtimeSettings: null, memoryStatus: null, wechat: null,
@@ -234,6 +235,7 @@ export async function loadApiSnapshot(): Promise<ApiSnapshot> {
     errors
   };
 
+  // Preserve last-good data for failed modules
   if (_lastSnapshot) {
     const nameMap: Array<[keyof ApiSnapshot, string]> = [
       ["ragStatus", "rag"], ["tools", "tools"],
