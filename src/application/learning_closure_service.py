@@ -8,16 +8,19 @@ import hashlib
 import json
 from typing import Any
 
-from src.after_session import (
-    after_session_to_memory_updates,
-    generate_after_session_updates,
-)
+from src.after_session import after_session_to_memory_updates
+from src.application.closure_input_builder import build_structured_closure_input
 from src.application.memory_service import MemoryService
 from src.application.session_service import SessionService
 from src.domain.learning_closure import LearningClosureRun
 from src.domain.runtime_entities import new_id
 from src.memory import read_memory_bundle
 from src.repositories.learning_closure_repository import LearningClosureRepository
+from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.structured_closure import (
+    generate_structured_closure_candidates,
+    structured_candidates_to_memory_updates,
+)
 from src.task_contract import task_contract_from_snapshot
 
 _ALLOWED_CLOSURES = {"learning_summary", "project_summary"}
@@ -36,7 +39,7 @@ class LearningClosureCancelled(RuntimeError):
     pass
 
 
-Generator = Callable[..., dict[str, str]]
+Generator = Callable[..., dict[str, Any]]
 MemoryBundleLoader = Callable[[str], dict[str, str]]
 
 
@@ -59,12 +62,14 @@ class LearningClosureService:
         session_service: SessionService,
         memory_service: MemoryService,
         *,
-        generator: Generator = generate_after_session_updates,
+        evaluation_repository: PedagogyEvalRepository | None = None,
+        generator: Generator = generate_structured_closure_candidates,
         memory_bundle_loader: MemoryBundleLoader = read_memory_bundle,
     ):
         self.repository = repository
         self.session_service = session_service
         self.memory_service = memory_service
+        self.evaluation_repository = evaluation_repository
         self.generator = generator
         self.memory_bundle_loader = memory_bundle_loader
 
@@ -122,7 +127,7 @@ class LearningClosureService:
                 snapshot = run.committed_snapshot
                 last_turn = dict(snapshot.get("last_turn") or {})
                 generated = self.generator(
-                    list(snapshot.get("messages") or []),
+                    dict(snapshot.get("structured_input") or {}),
                     self.memory_bundle_loader("light"),
                     str(last_turn.get("role") or "auto"),
                     str(last_turn.get("mode") or "auto"),
@@ -135,9 +140,9 @@ class LearningClosureService:
                 )
 
             self._ensure_active(run.id, operation_id)
-            updates = after_session_to_memory_updates(generated)
+            updates = self._memory_updates(generated)
             if not updates:
-                raise ValueError("无可生成的记忆候选")
+                raise ValueError("无可靠且有来源的记忆候选")
             memory_run = self.memory_service.create(
                 updates,
                 run_id=f"memory_{run.id}",
@@ -238,11 +243,8 @@ class LearningClosureService:
         thread = self.session_service.repository.get_chat_thread(thread_id)
         if thread is None:
             raise ValueError("Session not found")
-        completed_turns = [
-            turn
-            for turn in self.session_service.repository.list_chat_turns(thread_id)
-            if turn.status == "completed"
-        ]
+        all_turns = self.session_service.repository.list_chat_turns(thread_id)
+        completed_turns = [turn for turn in all_turns if turn.status == "completed"]
         if not completed_turns:
             raise LearningClosureNotEligible("Session has no completed turns")
         last_turn = completed_turns[-1]
@@ -258,6 +260,15 @@ class LearningClosureService:
                 messages.append(
                     {"role": "assistant", "content": turn.assistant_message}
                 )
+        structured_input = build_structured_closure_input(
+            thread_id=thread.id,
+            closure_eligibility=eligibility,
+            task_contract=task_contract,
+            learning_state=dict(thread.learning_state),
+            all_turns=all_turns,
+            completed_turns=completed_turns,
+            evaluation_repository=self.evaluation_repository,
+        )
         snapshot: dict[str, Any] = {
             "thread_id": thread.id,
             "source_thread_version": thread.version,
@@ -265,12 +276,14 @@ class LearningClosureService:
             "completed_turn_ids": [turn.id for turn in completed_turns],
             "learning_state": dict(thread.learning_state),
             "task_contract": task_contract,
+            "structured_input": structured_input,
             "last_turn": {
                 "role": last_turn.role,
                 "mode": last_turn.mode,
                 "model": last_turn.model,
                 "pedagogy_snapshot": dict(last_turn.pedagogy_snapshot),
             },
+            # Full committed messages remain audit/source-hash input but are not sent to the model.
             "messages": messages,
         }
         return snapshot, eligibility, _canonical_hash(snapshot)
@@ -309,6 +322,14 @@ class LearningClosureService:
     def _ensure_active(self, run_id: str, operation_id: str) -> None:
         if self.repository.cancel_requested(run_id, operation_id=operation_id):
             raise LearningClosureCancelled("Learning closure cancelled by user")
+
+    @staticmethod
+    def _memory_updates(generated: dict[str, Any]) -> list[dict[str, Any]]:
+        if isinstance(generated.get("candidates"), list):
+            return structured_candidates_to_memory_updates(generated)
+        return after_session_to_memory_updates(
+            {key: str(value) for key, value in generated.items()}
+        )
 
     @staticmethod
     def _memory_failure_text(memory_run) -> str:
