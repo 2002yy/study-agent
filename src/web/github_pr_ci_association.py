@@ -6,7 +6,12 @@ from pathlib import PurePosixPath
 import re
 from typing import Any, Iterable
 
-from src.web.github_pr_review_mapping import dict_items, safe_int, symbol_records
+from src.web.github_pr_review_mapping import (
+    as_dict,
+    dict_items,
+    safe_int,
+    symbol_records,
+)
 
 _FAILED_CONCLUSIONS = {
     "action_required",
@@ -85,7 +90,7 @@ def _specific_matches(text: str, paths: Iterable[str]) -> list[str]:
 def associate_failed_ci(
     pull: dict[str, Any], impact: dict[str, Any]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    checks = dict(pull.get("checks")) if isinstance(pull.get("checks"), dict) else {}
+    checks = as_dict(pull.get("checks"))
     failed_checks = [
         {
             "id": safe_int(item.get("id")),
@@ -98,7 +103,9 @@ def associate_failed_ci(
         if _failed(item.get("conclusion"))
     ]
     failed_jobs = [
-        item for item in dict_items(checks.get("jobs")) if _failed(item.get("conclusion"))
+        item
+        for item in dict_items(checks.get("jobs"))
+        if _failed(item.get("conclusion"))
     ]
     test_paths = [
         str(item.get("path") or "") for item in dict_items(impact.get("tests"))
