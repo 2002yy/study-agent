@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, Loader2, Plus, RotateCcw, ShieldCheck, Tra
 import { StatusDot } from "../../components/StatusDot";
 import type { MemoryStatusResponse } from "../../types";
 import { basename } from "../../utils/format";
-import type { LearningClosureStatus } from "./closureTypes";
+import type { LearningClosureRunResponse, LearningClosureStatus } from "./closureTypes";
 import type { useMemoryController } from "./memoryController";
 export {
   buildMemoryUpdatePayload,
@@ -14,6 +14,15 @@ type MemoryController = ReturnType<typeof useMemoryController>;
 type MemoryPanelProps = {
   memoryStatus: MemoryStatusResponse | null;
   controller: MemoryController;
+};
+
+type ClosureCandidate = {
+  target: string;
+  content: string;
+  confidence?: string;
+  source_refs?: string[];
+  evaluation_refs?: string[];
+  learner_pending?: boolean;
 };
 
 const TARGET_OPTIONS = [
@@ -39,6 +48,17 @@ const CLOSURE_STATUS: Record<LearningClosureStatus, { label: string; tone: "good
 
 function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {
   return memoryStatus?.files.find((file) => file.name === name);
+}
+
+function closureCandidateAt(
+  closureRun: LearningClosureRunResponse | null,
+  index: number
+): ClosureCandidate | null {
+  const raw = closureRun?.generated_result.candidates;
+  if (!Array.isArray(raw)) return null;
+  const candidate = raw[index];
+  if (!candidate || typeof candidate !== "object") return null;
+  return candidate as ClosureCandidate;
 }
 
 export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
@@ -133,6 +153,7 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
               {drafts.map((draft, index) => {
                 const selectedTarget = TARGET_OPTIONS.find((target) => target.value === draft.target);
                 const canReplaceFocus = draft.target === "current_focus";
+                const provenance = isClosurePreview ? closureCandidateAt(closureRun, index) : null;
                 return (
                   <article className={`memory-draft ${draft.enabled === false ? "disabled" : ""}`} key={draft.id}>
                     <div className="memory-draft-header">
@@ -205,6 +226,32 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                       rows={4}
                       value={draft.content}
                     />
+                    {provenance ? (
+                      <details className="candidate-provenance">
+                        <summary>
+                          来源与置信度 · {provenance.confidence || "low"}
+                          {provenance.learner_pending ? " · 待确认观察" : ""}
+                        </summary>
+                        <div>
+                          <span>来源</span>
+                          <ul>
+                            {(provenance.source_refs ?? []).map((source) => (
+                              <li key={source}>{source}</li>
+                            ))}
+                          </ul>
+                          {provenance.evaluation_refs?.length ? (
+                            <>
+                              <span>评估</span>
+                              <ul>
+                                {provenance.evaluation_refs.map((evaluation) => (
+                                  <li key={evaluation}>{evaluation}</li>
+                                ))}
+                              </ul>
+                            </>
+                          ) : null}
+                        </div>
+                      </details>
+                    ) : null}
                   </article>
                 );
               })}
