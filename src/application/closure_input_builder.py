@@ -228,13 +228,6 @@ def _allowed_source_refs(
         refs.add(f"pedagogy_eval:{final_evaluation['id']}")
     refs.update(f"evidence:{item}" for item in evidence_ids)
     refs.update(f"turn:{item['turn_id']}" for item in recent_dialogue)
-    refs.update(
-        {
-            "memory:progress.md",
-            "memory:learner_profile.md",
-            "memory:current_focus.md",
-        }
-    )
     return sorted(refs)
 
 
