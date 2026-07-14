@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.web.github_change_impact import GitHubChangeImpactService
+from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 from src.web.github_pr_ci_association import associate_failed_ci
 from src.web.github_pr_review_mapping import (
     as_dict,
@@ -18,7 +19,6 @@ from src.web.github_pr_review_mapping import (
     safe_int,
     symbol_records,
 )
-from src.web.github_work_items import GitHubWorkItemService
 
 
 class GitHubPRReviewContextService:
@@ -26,7 +26,7 @@ class GitHubPRReviewContextService:
 
     def __init__(
         self,
-        work_item_service: GitHubWorkItemService,
+        work_item_service: PaginatedGitHubWorkItemService,
         change_impact_service: GitHubChangeImpactService,
     ) -> None:
         self.work_item_service = work_item_service
@@ -44,6 +44,8 @@ class GitHubPRReviewContextService:
         depth: int = 2,
         max_impact_files: int = 40,
         max_edges: int = 160,
+        max_provider_requests: int = 24,
+        max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
         pull = self.work_item_service.pull_request(
             repo_url,
@@ -52,6 +54,8 @@ class GitHubPRReviewContextService:
             max_comments=max_comments,
             max_reviews=max_reviews,
             include_checks=True,
+            max_provider_requests=max_provider_requests,
+            max_pages_per_collection=max_pages_per_collection,
         )
         if pull.get("ok") is not True:
             return pull
@@ -69,28 +73,12 @@ class GitHubPRReviewContextService:
                 "pull_request": pull,
             }
 
-        impact = self.change_impact_service.analyze(
-            repo_url,
-            base_sha,
-            head_sha,
-            max_files=max_files,
-            max_symbols=max_symbols,
-            depth=depth,
-            max_impact_files=max_impact_files,
-            max_edges=max_edges,
-        )
         uncertainties: list[dict[str, Any]] = []
-        if impact.get("ok") is not True:
-            uncertainties.append(
-                {
-                    "kind": "change_impact_unavailable",
-                    "status": str(impact.get("status") or ""),
-                    "error": str(impact.get("error") or ""),
-                }
-            )
-            impact = {
+        cross_repository = bool(pull.get("cross_repository"))
+        if cross_repository:
+            impact: dict[str, Any] = {
                 "ok": False,
-                "status": str(impact.get("status") or "unavailable"),
+                "status": "unsupported",
                 "provider_status": "partial",
                 "file_changes": [],
                 "changes": [],
@@ -99,6 +87,46 @@ class GitHubPRReviewContextService:
                 "uncertainties": [],
                 "summary": {},
             }
+            uncertainties.append(
+                {
+                    "kind": "cross_repository_change_impact_not_supported",
+                    "base_repository": str(base.get("repository") or ""),
+                    "head_repository": str(head.get("repository") or ""),
+                    "reason": (
+                        "same-repository change impact cannot safely pin a fork head"
+                    ),
+                }
+            )
+        else:
+            impact = self.change_impact_service.analyze(
+                repo_url,
+                base_sha,
+                head_sha,
+                max_files=max_files,
+                max_symbols=max_symbols,
+                depth=depth,
+                max_impact_files=max_impact_files,
+                max_edges=max_edges,
+            )
+            if impact.get("ok") is not True:
+                uncertainties.append(
+                    {
+                        "kind": "change_impact_unavailable",
+                        "status": str(impact.get("status") or ""),
+                        "error": str(impact.get("error") or ""),
+                    }
+                )
+                impact = {
+                    "ok": False,
+                    "status": str(impact.get("status") or "unavailable"),
+                    "provider_status": "partial",
+                    "file_changes": [],
+                    "changes": [],
+                    "tests": [],
+                    "affected_files": [],
+                    "uncertainties": [],
+                    "summary": {},
+                }
         uncertainties.extend(
             {"kind": "change_impact_uncertainty", "detail": item}
             for item in dict_items(impact.get("uncertainties"))
@@ -223,6 +251,7 @@ class GitHubPRReviewContextService:
             "url": str(pull.get("url") or ""),
             "base": base,
             "head": head,
+            "cross_repository": cross_repository,
             "review_items": mapped_reviews,
             "unresolved_review_items": unresolved,
             "review_submissions": dict_items(pull.get("reviews")),
@@ -279,5 +308,10 @@ class GitHubPRReviewContextService:
                 "depth": depth,
                 "max_impact_files": max_impact_files,
                 "max_edges": max_edges,
+                "max_provider_requests": max_provider_requests,
+                "max_pages_per_collection": max_pages_per_collection,
             },
+            "provider_request_budget": as_dict(
+                pull.get("provider_request_budget")
+            ),
         }
