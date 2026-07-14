@@ -1,7 +1,8 @@
-import { AlertTriangle, CheckCircle2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { StatusDot } from "../../components/StatusDot";
 import type { MemoryStatusResponse } from "../../types";
 import { basename } from "../../utils/format";
+import type { LearningClosureStatus } from "./closureTypes";
 import type { useMemoryController } from "./memoryController";
 export {
   buildMemoryUpdatePayload,
@@ -25,6 +26,17 @@ const TARGET_OPTIONS = [
   { value: "session_archive", label: "session_archive.md", hint: "本次学习归档" }
 ] as const;
 
+const CLOSURE_STATUS: Record<LearningClosureStatus, { label: string; tone: "good" | "warn" | "bad" | "neutral" }> = {
+  created: { label: "已创建", tone: "neutral" },
+  collecting: { label: "收集已提交学习状态", tone: "warn" },
+  generating: { label: "生成整理候选", tone: "warn" },
+  preview_ready: { label: "候选待确认", tone: "good" },
+  committing: { label: "写入长期记忆", tone: "warn" },
+  completed: { label: "本次整理已写入", tone: "good" },
+  failed: { label: "整理失败", tone: "bad" },
+  cancelled: { label: "整理已取消", tone: "neutral" },
+};
+
 function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {
   return memoryStatus?.files.find((file) => file.name === name);
 }
@@ -34,6 +46,8 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
     drafts,
     preview,
     commitResult,
+    closureRun,
+    isClosurePreview,
     isPreviewing,
     isCommitting,
     error,
@@ -42,12 +56,20 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
     addDraft,
     removeDraft,
     previewUpdates,
-    commitRun
+    commitRun,
+    retryClosure,
+    cancelClosure,
   } = controller;
   const focus = previewFile(memoryStatus, "current_focus.md");
   const progress = previewFile(memoryStatus, "progress.md");
   const summary = previewFile(memoryStatus, "summary.md");
   const activeDraftCount = drafts.filter((draft) => draft.enabled !== false && draft.content.trim()).length;
+  const closureStatus = closureRun ? CLOSURE_STATUS[closureRun.status] : null;
+  const closureBusy = closureRun?.status === "collecting" || closureRun?.status === "generating" || closureRun?.status === "committing";
+  const closureRetryable = closureRun?.status === "failed" || closureRun?.status === "cancelled";
+  const closureCancellable = Boolean(
+    closureRun && ["created", "collecting", "generating", "preview_ready", "failed"].includes(closureRun.status)
+  );
 
   return (
     <section className="panel compact" id="memory">
@@ -66,6 +88,32 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
               memory_mode={memoryStatus.memory_mode} · safe_mode={String(memoryStatus.safe_mode)} · reason={memoryStatus.reason}
             </span>
           </div>
+          {closureRun && closureStatus ? (
+            <div className={`memory-note closure-status ${closureRun.status}`}>
+              {closureBusy ? <Loader2 className="spin" size={16} /> : <StatusDot tone={closureStatus.tone} />}
+              <div>
+                <strong>{closureStatus.label}</strong>
+                <span>
+                  {closureRun.closure_eligibility === "project_summary" ? "项目收束" : "学习整理"}
+                  {closureRun.reason ? ` · ${closureRun.reason}` : ""}
+                </span>
+              </div>
+              <div className="closure-actions">
+                {closureRetryable ? (
+                  <button className="ghost-action compact" disabled={isPreviewing} onClick={() => void retryClosure()} type="button">
+                    <RotateCcw size={14} />
+                    重试
+                  </button>
+                ) : null}
+                {closureCancellable ? (
+                  <button className="ghost-action compact" disabled={isPreviewing || isCommitting} onClick={() => void cancelClosure()} type="button">
+                    <XCircle size={14} />
+                    取消整理
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <div className="memory-grid">
             {[focus, progress, summary].map((file) =>
               file ? (
@@ -78,8 +126,8 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
           </div>
           <form className="memory-workbench" onSubmit={(event) => { event.preventDefault(); void previewUpdates(); }}>
             <div className="memory-workbench-heading">
-              <strong>写入候选</strong>
-              <span>{activeDraftCount} 条将进入预览</span>
+              <strong>{isClosurePreview ? "学习整理候选" : "写入候选"}</strong>
+              <span>{isClosurePreview ? "来源已冻结，确认后写入" : `${activeDraftCount} 条将进入预览`}</span>
             </div>
             <div className="memory-draft-list">
               {drafts.map((draft, index) => {
@@ -91,6 +139,7 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                       <label className="memory-check">
                         <input
                           checked={draft.enabled !== false}
+                          disabled={isClosurePreview}
                           onChange={(event) => updateDraft(draft.id, "enabled", event.target.checked)}
                           type="checkbox"
                         />
@@ -99,7 +148,7 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                       <button
                         aria-label="删除候选"
                         className="icon-button small"
-                        disabled={drafts.length === 1}
+                        disabled={isClosurePreview || drafts.length === 1}
                         onClick={() => removeDraft(draft.id)}
                         type="button"
                       >
@@ -108,7 +157,7 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                     </div>
                     <label className="field-row">
                       <span>目标文件</span>
-                      <select value={draft.target} onChange={(event) => updateDraft(draft.id, "target", event.target.value)}>
+                      <select disabled={isClosurePreview} value={draft.target} onChange={(event) => updateDraft(draft.id, "target", event.target.value)}>
                         {TARGET_OPTIONS.map((target) => (
                           <option key={target.value} value={target.value}>
                             {target.label}
@@ -133,6 +182,7 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                       <label className="memory-check">
                         <input
                           checked={draft.replaceCurrentFocus}
+                          disabled={isClosurePreview}
                           onChange={(event) => updateDraft(draft.id, "replaceCurrentFocus", event.target.checked)}
                           type="checkbox"
                         />
@@ -142,12 +192,14 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                     <label className="memory-check">
                       <input
                         checked={draft.learnerPending}
+                        disabled={isClosurePreview}
                         onChange={(event) => updateDraft(draft.id, "learnerPending", event.target.checked)}
                         type="checkbox"
                       />
                       标记为“待确认观察”
                     </label>
                     <textarea
+                      disabled={isClosurePreview}
                       onChange={(event) => updateDraft(draft.id, "content", event.target.value)}
                       placeholder="写入一条课后更新、当前关注点或待确认观察..."
                       rows={4}
@@ -157,21 +209,21 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
                 );
               })}
             </div>
-            <button className="ghost-action compact" onClick={addDraft} type="button">
+            <button className="ghost-action compact" disabled={isClosurePreview} onClick={addDraft} type="button">
               <Plus size={14} />
               添加候选
             </button>
             <div className="memory-actions">
-              <button disabled={isPreviewing || !canPreview} type="submit">
+              <button disabled={isClosurePreview || isPreviewing || !canPreview} type="submit">
                 {isPreviewing ? "预览中..." : "生成预览"}
               </button>
               <button
                 className="secondary"
-                disabled={isCommitting || !preview || !preview.writable}
+                disabled={isCommitting || !preview || !preview.writable || closureRun?.status === "completed"}
                 onClick={() => void commitRun()}
                 type="button"
               >
-                {isCommitting ? "提交中..." : "确认写入选中候选"}
+                {isCommitting ? "提交中..." : isClosurePreview ? "确认并完成本次整理" : "确认写入选中候选"}
               </button>
             </div>
           </form>
