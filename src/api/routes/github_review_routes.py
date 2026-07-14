@@ -10,29 +10,13 @@ from src.api.models.github import (
     GitHubPRReviewContextQueryRequest,
     GitHubSnapshotResultResponse,
 )
-from src.api.routes.github_routes import (
-    get_github_history_service,
-    get_github_work_item_service,
-)
-from src.application.github_snapshot_service import GitHubSnapshotService
-from src.application.runtime_repository import get_github_snapshot_service
-from src.web.github_change_impact import GitHubChangeImpactService
-from src.web.github_history import GitHubHistoryService
-from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
-from src.web.github_pr_review_context import GitHubPRReviewContextService
+from src.application.runtime_repository import get_github_pr_review_context_service
+from src.web.github_cached_analysis import CachedGitHubPRReviewContextService
 
 router = APIRouter(tags=["github-research"])
-GitHubSnapshotServiceDependency = Annotated[
-    GitHubSnapshotService,
-    Depends(get_github_snapshot_service),
-]
-GitHubHistoryServiceDependency = Annotated[
-    GitHubHistoryService,
-    Depends(get_github_history_service),
-]
-GitHubWorkItemServiceDependency = Annotated[
-    PaginatedGitHubWorkItemService,
-    Depends(get_github_work_item_service),
+GitHubPRReviewContextServiceDependency = Annotated[
+    CachedGitHubPRReviewContextService,
+    Depends(get_github_pr_review_context_service),
 ]
 
 
@@ -62,14 +46,9 @@ def _http_error(result: dict) -> HTTPException:
 )
 def inspect_github_pr_review_context(
     request: GitHubPRReviewContextQueryRequest,
-    snapshot_service: GitHubSnapshotServiceDependency,
-    history_service: GitHubHistoryServiceDependency,
-    work_item_service: GitHubWorkItemServiceDependency,
+    service: GitHubPRReviewContextServiceDependency,
 ) -> GitHubSnapshotResultResponse:
-    result = GitHubPRReviewContextService(
-        work_item_service,
-        GitHubChangeImpactService(history_service, snapshot_service),
-    ).build(
+    result = service.build(
         request.repo_url,
         request.number,
         max_files=request.max_files,
