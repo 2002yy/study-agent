@@ -307,7 +307,16 @@ def clear_github_research_cache(
     repository: str = "",
     cache_kind: str = "",
     expired_only: bool = False,
+    clear_all: bool = False,
 ) -> GitHubSnapshotResultResponse:
+    if not expired_only and not clear_all and not repository and not cache_kind:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Specify expired_only=true, repository/cache_kind, "
+                "or clear_all=true"
+            ),
+        )
     deleted = (
         service.delete_expired()
         if expired_only
@@ -318,6 +327,7 @@ def clear_github_research_cache(
             "ok": True,
             "deleted": deleted,
             "expired_only": expired_only,
+            "clear_all": clear_all,
             "repository": repository,
             "cache_kind": cache_kind,
             "manifest": service.manifest(),
