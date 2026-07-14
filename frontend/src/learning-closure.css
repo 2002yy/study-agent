@@ -1,0 +1,49 @@
+.closure-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.closure-status > div:not(.closure-actions) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.closure-status strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.closure-status span {
+  overflow-wrap: anywhere;
+}
+
+.closure-status.failed {
+  border-color: rgba(184, 59, 59, 0.28);
+}
+
+.closure-status.preview_ready,
+.closure-status.completed {
+  border-color: rgba(19, 124, 118, 0.28);
+}
+
+.closure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 620px) {
+  .closure-status {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .closure-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-left: 26px;
+  }
+}
