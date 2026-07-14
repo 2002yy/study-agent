@@ -3,23 +3,10 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.api.routes import github_review_routes
-from src.api.routes.github_routes import (
-    get_github_history_service,
-    get_github_work_item_service,
-)
-from src.application.runtime_repository import get_github_snapshot_service
-
-
-class _FakeDependency:
-    pass
+from src.application.runtime_repository import get_github_pr_review_context_service
 
 
 class _FakeReviewContextService:
-    def __init__(self, work_item_service, change_impact_service) -> None:
-        assert isinstance(work_item_service, _FakeDependency)
-        assert change_impact_service is not None
-
     def build(self, repo_url: str, number: int, **kwargs) -> dict:
         return {
             "ok": True,
@@ -35,15 +22,9 @@ class _FakeReviewContextService:
         }
 
 
-def test_pr_review_context_endpoint_forwards_bounded_request(monkeypatch):
-    dependency = _FakeDependency()
-    app.dependency_overrides[get_github_snapshot_service] = lambda: dependency
-    app.dependency_overrides[get_github_history_service] = lambda: dependency
-    app.dependency_overrides[get_github_work_item_service] = lambda: dependency
-    monkeypatch.setattr(
-        github_review_routes,
-        "GitHubPRReviewContextService",
-        _FakeReviewContextService,
+def test_pr_review_context_endpoint_forwards_bounded_request():
+    app.dependency_overrides[get_github_pr_review_context_service] = (
+        lambda: _FakeReviewContextService()
     )
     client = TestClient(app)
 
@@ -65,9 +46,7 @@ def test_pr_review_context_endpoint_forwards_bounded_request(monkeypatch):
             },
         )
     finally:
-        app.dependency_overrides.pop(get_github_snapshot_service, None)
-        app.dependency_overrides.pop(get_github_history_service, None)
-        app.dependency_overrides.pop(get_github_work_item_service, None)
+        app.dependency_overrides.pop(get_github_pr_review_context_service, None)
 
     assert response.status_code == 200
     result = response.json()["result"]
