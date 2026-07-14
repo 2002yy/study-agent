@@ -59,7 +59,14 @@ def generate_structured_closure_candidates(
     """Call the model with bounded structured evidence, never the full transcript."""
 
     payload = dict(structured_input)
-    memory_context = _bounded_memory_context(memory_bundle)
+    frozen_memory = structured_input.get("memory_context")
+    memory_context = (
+        bounded_memory_context(
+            {str(key): str(value) for key, value in frozen_memory.items()}
+        )
+        if isinstance(frozen_memory, dict)
+        else bounded_memory_context(memory_bundle)
+    )
     allowed_refs = {
         str(item)
         for item in structured_input.get("allowed_source_refs", [])
@@ -221,7 +228,7 @@ def _parse_object(raw: str) -> dict[str, Any]:
     return parsed
 
 
-def _bounded_memory_context(memory_bundle: dict[str, str]) -> dict[str, str]:
+def bounded_memory_context(memory_bundle: dict[str, str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for filename in ("progress.md", "learner_profile.md", "current_focus.md"):
         content = str(memory_bundle.get(filename) or "").strip()
