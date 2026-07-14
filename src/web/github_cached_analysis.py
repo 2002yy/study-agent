@@ -104,7 +104,7 @@ class CachedGitHubChangeImpactService:
             minimum=1,
             maximum=300,
         )
-        identity = {
+        identity: dict[str, Any] = {
             "repository": _repository(repo_url),
             "base_sha": str(base_ref.get("commit_sha") or ""),
             "head_sha": str(head_ref.get("commit_sha") or ""),
@@ -185,7 +185,7 @@ class CachedGitHubPRReviewContextService:
         max_provider_requests: int = 24,
         max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
-        identity = {
+        identity: dict[str, Any] = {
             "repository": _repository(repo_url),
             "number": int(number),
             "max_files": max(1, min(int(max_files), 50)),
