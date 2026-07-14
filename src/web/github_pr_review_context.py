@@ -10,6 +10,7 @@ from src.web.github_pr_review_mapping import (
     as_dict,
     changed_paths,
     dict_items,
+    hunk_records,
     map_review_item,
     path_aliases,
     review_context_id,
@@ -104,12 +105,14 @@ class GitHubPRReviewContextService:
         )
 
         symbols = symbol_records(impact)
+        hunks = hunk_records(pull)
         aliases = path_aliases(impact)
         paths = changed_paths(impact)
         mapped_reviews = [
             map_review_item(
                 item,
                 symbols=symbols,
+                hunks=hunks,
                 aliases=aliases,
                 paths=paths,
             )
@@ -125,6 +128,17 @@ class GitHubPRReviewContextService:
                         "review_id": str(item.get("id") or ""),
                         "path": str(item.get("path") or ""),
                         "reason": str(mapping.get("reason") or ""),
+                    }
+                )
+            hunk_mapping = as_dict(item.get("hunk_mapping"))
+            if hunk_mapping.get("status") in {"ambiguous", "unmapped"}:
+                uncertainties.append(
+                    {
+                        "kind": "review_hunk_" + str(hunk_mapping.get("status")),
+                        "review_kind": str(item.get("kind") or ""),
+                        "review_id": str(item.get("id") or ""),
+                        "path": str(item.get("path") or ""),
+                        "reason": str(hunk_mapping.get("reason") or ""),
                     }
                 )
 
@@ -151,6 +165,10 @@ class GitHubPRReviewContextService:
             as_dict(item.get("mapping")).get("status") == "mapped"
             for item in mapped_reviews
         )
+        mapped_hunk_count = sum(
+            as_dict(item.get("hunk_mapping")).get("status") == "mapped"
+            for item in mapped_reviews
+        )
         unresolved = [
             item
             for item in mapped_reviews
@@ -173,10 +191,11 @@ class GitHubPRReviewContextService:
             else (1.0 if impact.get("ok") is True else 0.0)
         )
         review_ratio = mapped_review_count / review_total if review_total else 1.0
+        hunk_ratio = mapped_hunk_count / review_total if review_total else 1.0
         ci_ratio = associated_failed_jobs / failed_job_count if failed_job_count else 1.0
         immutable_ratio = 1.0
         coverage_score = round(
-            (impact_ratio + review_ratio + ci_ratio + immutable_ratio) / 4,
+            (impact_ratio + review_ratio + hunk_ratio + ci_ratio + immutable_ratio) / 5,
             3,
         )
         provider_partial = (
@@ -206,6 +225,7 @@ class GitHubPRReviewContextService:
             "head": head,
             "review_items": mapped_reviews,
             "unresolved_review_items": unresolved,
+            "review_submissions": dict_items(pull.get("reviews")),
             "failed_checks": failed_checks,
             "ci_associations": ci_associations,
             "affected_tests": dict_items(impact.get("tests")),
@@ -215,6 +235,7 @@ class GitHubPRReviewContextService:
                 "score": coverage_score,
                 "immutable_ref_coverage": immutable_ratio,
                 "changed_file_impact_coverage": round(impact_ratio, 3),
+                "review_location_hunk_coverage": round(hunk_ratio, 3),
                 "review_location_symbol_coverage": round(review_ratio, 3),
                 "failed_job_association_coverage": round(ci_ratio, 3),
                 "unresolved_thread_symbol_coverage": round(
@@ -228,7 +249,9 @@ class GitHubPRReviewContextService:
                 "symbol_change_count": safe_int(
                     as_dict(impact.get("summary")).get("symbol_change_count")
                 ),
+                "review_submission_count": len(dict_items(pull.get("reviews"))),
                 "review_item_count": review_total,
+                "mapped_review_hunk_count": mapped_hunk_count,
                 "mapped_review_item_count": mapped_review_count,
                 "unresolved_review_thread_count": len(unresolved),
                 "mapped_unresolved_review_thread_count": unresolved_mapped,
