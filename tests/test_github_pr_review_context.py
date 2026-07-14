@@ -27,6 +27,29 @@ class FakeWorkItems:
             "file_count": 1,
             "base": {"ref": "main", "commit_sha": BASE_SHA},
             "head": {"ref": "feature", "commit_sha": HEAD_SHA},
+            "files": [
+                {
+                    "filename": "src/service.py",
+                    "previous_filename": "",
+                    "status": "modified",
+                    "patch_truncated": False,
+                    "hunks": [
+                        {
+                            "old_start": 4,
+                            "old_end": 8,
+                            "new_start": 4,
+                            "new_end": 8,
+                        }
+                    ],
+                }
+            ],
+            "reviews": [
+                {
+                    "id": 11,
+                    "state": "COMMENTED",
+                    "body": "Review body",
+                }
+            ],
             "review_threads": {
                 "status": "resolved",
                 "threads": [
@@ -169,11 +192,13 @@ def test_review_context_maps_unresolved_thread_and_failed_ci_to_evidence():
     assert result["provider_status"] == "complete"
     assert result["base"]["commit_sha"] == BASE_SHA
     assert result["head"]["commit_sha"] == HEAD_SHA
-    assert result["review_items"][0]["mapping"]["status"] == "mapped"
-    assert (
-        result["review_items"][0]["mapping"]["symbol"]["qualified_name"]
-        == "normalize"
-    )
+    review_item = result["review_items"][0]
+    assert review_item["hunk_mapping"]["status"] == "mapped"
+    assert review_item["hunk_mapping"]["hunk"]["hunk_id"] == "src/service.py#hunk-1"
+    assert review_item["mapping"]["status"] == "mapped"
+    assert review_item["mapping"]["symbol"]["qualified_name"] == "normalize"
+    assert result["summary"]["review_submission_count"] == 1
+    assert result["summary"]["mapped_review_hunk_count"] == 1
     assert result["summary"]["unresolved_review_thread_count"] == 1
     assert result["summary"]["mapped_unresolved_review_thread_count"] == 1
     assert result["ci_associations"][0]["association"]["status"] == "associated"
@@ -182,6 +207,7 @@ def test_review_context_maps_unresolved_thread_and_failed_ci_to_evidence():
     ]
     assert result["evidence_coverage"]["status"] == "complete"
     assert result["evidence_coverage"]["score"] == 1.0
+    assert result["evidence_coverage"]["review_location_hunk_coverage"] == 1.0
     assert result["verdict"] == {
         "status": "not_generated",
         "reason": "review_context_is_evidence_not_a_correctness_verdict",
@@ -196,12 +222,15 @@ def test_review_context_keeps_ambiguous_symbol_mapping_explicit():
         FakeImpact(ambiguous=True),  # type: ignore[arg-type]
     ).build(REPO, 7)
 
-    mapping = result["review_items"][0]["mapping"]
+    review_item = result["review_items"][0]
+    mapping = review_item["mapping"]
     assert result["ok"] is True
     assert result["provider_status"] == "partial"
+    assert review_item["hunk_mapping"]["status"] == "mapped"
     assert mapping["status"] == "ambiguous"
     assert mapping["candidate_count"] == 2
     assert result["evidence_coverage"]["review_location_symbol_coverage"] == 0.0
+    assert result["evidence_coverage"]["review_location_hunk_coverage"] == 1.0
     assert {item["kind"] for item in result["uncertainties"]} >= {
         "review_location_ambiguous"
     }
