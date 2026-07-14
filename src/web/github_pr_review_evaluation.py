@@ -9,11 +9,25 @@ def _strings(values: Iterable[Any]) -> set[str]:
     return {str(value).strip() for value in values if str(value).strip()}
 
 
+def _dict_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _metrics(predicted: set[str], expected: set[str]) -> dict[str, Any]:
     true_positive = len(predicted & expected)
     false_positive = len(predicted - expected)
     false_negative = len(expected - predicted)
-    precision = true_positive / len(predicted) if predicted else (1.0 if not expected else 0.0)
+    precision = (
+        true_positive / len(predicted)
+        if predicted
+        else (1.0 if not expected else 0.0)
+    )
     recall = true_positive / len(expected) if expected else 1.0
     f1 = (
         2 * precision * recall / (precision + recall)
@@ -34,15 +48,15 @@ def _metrics(predicted: set[str], expected: set[str]) -> dict[str, Any]:
 
 def review_symbol_predictions(context: dict[str, Any]) -> set[str]:
     predictions: set[str] = set()
-    for item in context.get("review_items", []):
-        if not isinstance(item, dict):
-            continue
-        mapping = item.get("mapping") if isinstance(item.get("mapping"), dict) else {}
+    for item in _dict_items(context.get("review_items")):
+        mapping = _as_dict(item.get("mapping"))
         if mapping.get("status") != "mapped":
             continue
-        symbol = mapping.get("symbol") if isinstance(mapping.get("symbol"), dict) else {}
-        identity = symbol.get("identity") if isinstance(symbol.get("identity"), dict) else {}
-        value = str(identity.get("id") or symbol.get("qualified_name") or "").strip()
+        symbol = _as_dict(mapping.get("symbol"))
+        identity = _as_dict(symbol.get("identity"))
+        value = str(
+            identity.get("id") or symbol.get("qualified_name") or ""
+        ).strip()
         if value:
             predictions.add(value)
     return predictions
@@ -50,15 +64,11 @@ def review_symbol_predictions(context: dict[str, Any]) -> set[str]:
 
 def ci_test_predictions(context: dict[str, Any]) -> set[str]:
     predictions: set[str] = set()
-    for item in context.get("ci_associations", []):
-        if not isinstance(item, dict):
-            continue
-        association = (
-            item.get("association")
-            if isinstance(item.get("association"), dict)
-            else {}
-        )
-        predictions.update(_strings(association.get("tests", [])))
+    for item in _dict_items(context.get("ci_associations")):
+        association = _as_dict(item.get("association"))
+        tests = association.get("tests")
+        if isinstance(tests, list):
+            predictions.update(_strings(tests))
     return predictions
 
 
@@ -68,13 +78,15 @@ def evaluate_pr_review_context(
 ) -> dict[str, Any]:
     """Evaluate one replay result without invoking providers or an LLM."""
 
+    expected_symbols = expected.get("review_symbol_ids")
+    expected_tests = expected.get("ci_test_paths")
     review_metrics = _metrics(
         review_symbol_predictions(context),
-        _strings(expected.get("review_symbol_ids", [])),
+        _strings(expected_symbols if isinstance(expected_symbols, list) else []),
     )
     ci_metrics = _metrics(
         ci_test_predictions(context),
-        _strings(expected.get("ci_test_paths", [])),
+        _strings(expected_tests if isinstance(expected_tests, list) else []),
     )
     macro_precision = round(
         (review_metrics["precision"] + ci_metrics["precision"]) / 2,
