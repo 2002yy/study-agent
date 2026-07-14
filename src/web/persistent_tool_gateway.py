@@ -10,7 +10,6 @@ from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
 from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 from src.web.github_pr_review_context import GitHubPRReviewContextService
-from src.web.github_work_items import GitHubWorkItemService
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -19,7 +18,7 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self,
         snapshot_service: GitHubSnapshotService,
         history_service: GitHubHistoryService | None = None,
-        work_item_service: GitHubWorkItemService | None = None,
+        work_item_service: PaginatedGitHubWorkItemService | None = None,
     ) -> None:
         self.snapshot_service = snapshot_service
         self.graph_service = graph_service_for(snapshot_service)
