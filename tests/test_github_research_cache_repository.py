@@ -126,17 +126,25 @@ def test_expired_cleanup_manifest_and_scoped_clear(tmp_path):
     )
 
     with database.connect() as connection:
-        row = connection.execute(
-            "SELECT id, request FROM rag_runs WHERE kind = ? ORDER BY id LIMIT 1",
+        rows = connection.execute(
+            "SELECT id, request FROM rag_runs WHERE kind = ?",
             (CACHE_RUN_KIND,),
-        ).fetchone()
-        request = json.loads(row["request"])
+        ).fetchall()
+        pull_row = next(
+            row
+            for row in rows
+            if json.loads(row["request"])["cache_kind"] == "pull_request"
+        )
+        request = json.loads(pull_row["request"])
         request["expires_at"] = (
             datetime.now(timezone.utc) - timedelta(seconds=1)
         ).isoformat()
         connection.execute(
             "UPDATE rag_runs SET request = ? WHERE id = ?",
-            (json.dumps(request, ensure_ascii=False, sort_keys=True), row["id"]),
+            (
+                json.dumps(request, ensure_ascii=False, sort_keys=True),
+                pull_row["id"],
+            ),
         )
 
     before = repository.manifest()
@@ -147,7 +155,7 @@ def test_expired_cleanup_manifest_and_scoped_clear(tmp_path):
     assert before["total_bytes"] > 0
 
     assert repository.delete_expired() == 1
-    assert repository.clear(repository="openai/example", cache_kind="issue") in {0, 1}
+    assert repository.clear(repository="openai/example", cache_kind="issue") == 1
     after = repository.manifest()
     assert after["expired_entries"] == 0
     assert after["entries"] == 1
