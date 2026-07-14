@@ -7,6 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.repositories.github_research_cache_repository import (
+    GitHubResearchCacheRepository,
+)
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.repositories.group_repository import GroupRepository
 from src.repositories.news_repository import NewsRepository
@@ -58,6 +61,11 @@ def get_github_snapshot_repository() -> GitHubSnapshotRepository:
 
 
 @lru_cache(maxsize=1)
+def get_github_research_cache_repository() -> GitHubResearchCacheRepository:
+    return GitHubResearchCacheRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_group_repository() -> GroupRepository:
     return GroupRepository(RuntimeDatabase(runtime_database_path()))
 
@@ -95,12 +103,63 @@ def get_github_snapshot_service():
 
 
 @lru_cache(maxsize=1)
+def get_github_history_service():
+    from src.web.github_history import GitHubHistoryService
+
+    return GitHubHistoryService()
+
+
+@lru_cache(maxsize=1)
+def get_github_work_item_service():
+    from src.web.github_cached_work_items import PersistentGitHubWorkItemService
+
+    return PersistentGitHubWorkItemService(
+        get_github_history_service(),
+        cache_repository=get_github_research_cache_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_github_change_impact_service():
+    from src.web.github_cached_analysis import CachedGitHubChangeImpactService
+    from src.web.github_change_impact import GitHubChangeImpactService
+
+    history_service = get_github_history_service()
+    return CachedGitHubChangeImpactService(
+        GitHubChangeImpactService(history_service, get_github_snapshot_service()),
+        history_service,
+        get_github_research_cache_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_github_pr_review_context_service():
+    from src.web.github_cached_analysis import CachedGitHubPRReviewContextService
+    from src.web.github_pr_review_context import GitHubPRReviewContextService
+
+    delegate = GitHubPRReviewContextService(
+        get_github_work_item_service(),
+        get_github_change_impact_service(),  # type: ignore[arg-type]
+    )
+    return CachedGitHubPRReviewContextService(
+        delegate,
+        get_github_research_cache_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
 def get_web_tool_agent():
     from src.tools.persistent_web_agent import PersistentWebToolAgent
     from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
 
     return PersistentWebToolAgent(
-        gateway=PersistentGeneralWebGateway(get_github_snapshot_service())
+        gateway=PersistentGeneralWebGateway(
+            get_github_snapshot_service(),
+            history_service=get_github_history_service(),
+            work_item_service=get_github_work_item_service(),
+            change_impact_service=get_github_change_impact_service(),
+            pr_review_context_service=get_github_pr_review_context_service(),
+        )
     )
 
 
@@ -200,7 +259,12 @@ def get_tool_service():
 
 def reset_runtime_repository_cache() -> None:
     get_web_tool_agent.cache_clear()
+    get_github_pr_review_context_service.cache_clear()
+    get_github_change_impact_service.cache_clear()
+    get_github_work_item_service.cache_clear()
+    get_github_history_service.cache_clear()
     get_github_snapshot_service.cache_clear()
+    get_github_research_cache_repository.cache_clear()
     get_github_snapshot_repository.cache_clear()
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
