@@ -7,6 +7,7 @@ from typing import Any
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_pr_ci_association import associate_failed_ci
 from src.web.github_pr_review_mapping import (
+    as_dict,
     changed_paths,
     dict_items,
     map_review_item,
@@ -53,8 +54,8 @@ class GitHubPRReviewContextService:
         )
         if pull.get("ok") is not True:
             return pull
-        base = dict(pull.get("base")) if isinstance(pull.get("base"), dict) else {}
-        head = dict(pull.get("head")) if isinstance(pull.get("head"), dict) else {}
+        base = as_dict(pull.get("base"))
+        head = as_dict(pull.get("head"))
         base_sha = str(base.get("commit_sha") or "")
         head_sha = str(head.get("commit_sha") or "")
         if not base_sha or not head_sha:
@@ -102,17 +103,20 @@ class GitHubPRReviewContextService:
             for item in dict_items(impact.get("uncertainties"))
         )
 
+        symbols = symbol_records(impact)
+        aliases = path_aliases(impact)
+        paths = changed_paths(impact)
         mapped_reviews = [
             map_review_item(
                 item,
-                symbols=symbol_records(impact),
-                aliases=path_aliases(impact),
-                paths=changed_paths(impact),
+                symbols=symbols,
+                aliases=aliases,
+                paths=paths,
             )
             for item in review_items(pull)
         ]
         for item in mapped_reviews:
-            mapping = dict(item.get("mapping") or {})
+            mapping = as_dict(item.get("mapping"))
             if mapping.get("status") in {"ambiguous", "unmapped"}:
                 uncertainties.append(
                     {
@@ -124,11 +128,7 @@ class GitHubPRReviewContextService:
                     }
                 )
 
-        review_threads = (
-            dict(pull.get("review_threads"))
-            if isinstance(pull.get("review_threads"), dict)
-            else {}
-        )
+        review_threads = as_dict(pull.get("review_threads"))
         if review_threads.get("status") not in {"resolved", "not_requested"}:
             uncertainties.append(
                 {
@@ -148,7 +148,7 @@ class GitHubPRReviewContextService:
 
         review_total = len(mapped_reviews)
         mapped_review_count = sum(
-            dict(item.get("mapping") or {}).get("status") == "mapped"
+            as_dict(item.get("mapping")).get("status") == "mapped"
             for item in mapped_reviews
         )
         unresolved = [
@@ -157,12 +157,12 @@ class GitHubPRReviewContextService:
             if item.get("kind") == "review_thread" and item.get("is_resolved") is False
         ]
         unresolved_mapped = sum(
-            dict(item.get("mapping") or {}).get("status") == "mapped"
+            as_dict(item.get("mapping")).get("status") == "mapped"
             for item in unresolved
         )
         failed_job_count = len(ci_associations)
         associated_failed_jobs = sum(
-            dict(item.get("association") or {}).get("status") == "associated"
+            as_dict(item.get("association")).get("status") == "associated"
             for item in ci_associations
         )
         changed_file_count = max(0, safe_int(pull.get("changed_files")))
@@ -226,7 +226,7 @@ class GitHubPRReviewContextService:
                 "changed_file_count": changed_file_count,
                 "impact_file_count": impact_file_count,
                 "symbol_change_count": safe_int(
-                    dict(impact.get("summary") or {}).get("symbol_change_count")
+                    as_dict(impact.get("summary")).get("symbol_change_count")
                 ),
                 "review_item_count": review_total,
                 "mapped_review_item_count": mapped_review_count,
