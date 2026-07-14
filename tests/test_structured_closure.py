@@ -178,6 +178,7 @@ def test_candidate_normalization_requires_allowed_provenance_and_pending_profile
                     "confidence": "high",
                     "source_refs": [
                         "learning_state.confirmed_points",
+                        "pedagogy_eval:ped-eval-final",
                         "unknown-source",
                     ],
                     "evaluation_refs": ["ped-eval-final", "other-eval"],
@@ -202,13 +203,19 @@ def test_candidate_normalization_requires_allowed_provenance_and_pending_profile
     assert normalized["candidate_count"] == 2
     progress, profile = normalized["candidates"]
     assert progress["confidence"] == "high"
-    assert progress["source_refs"] == ["learning_state.confirmed_points"]
+    assert progress["source_refs"] == [
+        "learning_state.confirmed_points",
+        "pedagogy_eval:ped-eval-final",
+    ]
     assert progress["evaluation_refs"] == ["ped-eval-final"]
     assert profile["learner_pending"] is True
 
     updates = structured_candidates_to_memory_updates(normalized)
     assert updates[0]["confidence"] == "high"
-    assert updates[0]["source_refs"] == ["learning_state.confirmed_points"]
+    assert updates[0]["source_refs"] == [
+        "learning_state.confirmed_points",
+        "pedagogy_eval:ped-eval-final",
+    ]
     assert updates[1]["target"] == "learner_profile"
     assert updates[1]["learner_pending"] is True
 
