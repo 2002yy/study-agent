@@ -36,6 +36,45 @@
   gap: 6px;
 }
 
+.candidate-provenance {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  overflow: hidden;
+}
+
+.candidate-provenance summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.candidate-provenance > div {
+  display: grid;
+  gap: 5px;
+  padding: 0 10px 10px;
+  font-size: 11px;
+}
+
+.candidate-provenance span {
+  color: var(--text);
+  font-weight: 750;
+}
+
+.candidate-provenance ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.candidate-provenance li {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
 @media (max-width: 620px) {
   .closure-status {
     grid-template-columns: auto minmax(0, 1fr);
