@@ -198,32 +198,39 @@
   }
 
   .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(6, 38px);
     justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding: 2px 2px 4px;
-    scrollbar-width: none;
+    gap: 8px;
+    overflow: visible;
+    padding: 2px 0 4px;
   }
 
-  .topbar-actions::-webkit-scrollbar {
-    display: none;
-  }
-
-  .topbar-actions > * {
-    flex: 0 0 auto;
+  .topbar-actions .end-session-button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .workspace-menu {
-    position: static;
+    position: relative;
+  }
+
+  .workspace-menu-trigger {
+    width: 38px;
+    padding: 0;
+  }
+
+  .workspace-menu-trigger span {
+    display: none;
   }
 
   .workspace-menu-popover {
-    position: fixed;
-    top: auto;
-    right: 16px;
-    bottom: calc(104px + env(safe-area-inset-bottom));
-    left: 16px;
-    width: auto;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    width: min(300px, calc(100vw - 32px));
     max-height: min(62vh, 440px);
     overflow-y: auto;
   }
@@ -262,15 +269,6 @@
 @media (max-width: 430px) {
   .end-session-button {
     padding-inline: 9px;
-  }
-
-  .workspace-menu-trigger span {
-    display: none;
-  }
-
-  .workspace-menu-trigger {
-    width: 38px;
-    padding: 0;
   }
 
   .learning-evidence-grid {
