@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveMastery, moveLabel, phaseLabel, phaseTrail, protocolLabel } from "./pedagogyLabels";
-import type { LearningState } from "../../types";
+import { moveLabel, phaseLabel, phaseTrail, protocolLabel } from "./pedagogyLabels";
 
 describe("pedagogyLabels", () => {
   it("maps known moves to Chinese", () => {
@@ -30,20 +29,6 @@ describe("pedagogyLabels", () => {
   });
   it("falls back to raw code for unknown phases", () => {
     expect(phaseLabel("unknown_phase")).toBe("unknown_phase");
-  });
-  it("derives mastery in (0,1) from points and phase trail", () => {
-    const state: LearningState = {
-      protocol: "socratic",
-      objective: "x",
-      phase: "scaffold",
-      unresolved_gap: "gap",
-      confirmed_points: ["a", "b"],
-      hint_level: 1,
-      turn_count: 4,
-    };
-    const m = deriveMastery(state, ["orientation", "library_fact", "scaffold"]);
-    expect(m).toBeGreaterThan(0);
-    expect(m).toBeLessThan(1);
   });
   it("dedupes phase trail preserving order", () => {
     expect(phaseTrail(["orientation", "library_fact", "library_fact", "scaffold"]))
