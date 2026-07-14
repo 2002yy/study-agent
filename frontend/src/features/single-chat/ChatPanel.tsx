@@ -163,6 +163,16 @@ export function ChatPanel({
           <button aria-label="上传学习资料" className="icon-button" onClick={onUploadClick} type="button" title="上传学习资料">
             <Upload size={17} />
           </button>
+          <button
+            aria-label="检索当前问题的资料来源"
+            className="icon-button"
+            disabled={!hasSearchQuery}
+            onClick={onSearchSources}
+            type="button"
+            title={hasSearchQuery ? "检索当前问题的资料来源" : "输入关键词或通过 RAG 提问后可检索"}
+          >
+            {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
+          </button>
           <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史">
             <BookOpen size={16} />
           </button>
