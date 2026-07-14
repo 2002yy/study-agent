@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from src.task_intent import TaskIntent
+
 
 class ChatMessage(BaseModel):
     role: str
@@ -41,6 +43,7 @@ class ChatRequest(BaseModel):
     web_policy: str | None = None
     web_consent: bool = False
     cloud_context_policy: str | None = None
+    task_intent: TaskIntent | None = None
     continuation_of_turn_id: str | None = None
     retry_of_turn_id: str | None = None
     partial_reply: str = ""
