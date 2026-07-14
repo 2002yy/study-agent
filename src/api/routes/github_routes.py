@@ -29,7 +29,6 @@ from src.application.runtime_repository import get_github_snapshot_service
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
 from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
-from src.web.github_work_items import GitHubWorkItemService
 
 router = APIRouter(tags=["github-research"])
 GitHubSnapshotServiceDependency = Annotated[
@@ -44,7 +43,7 @@ def get_github_history_service() -> GitHubHistoryService:
     return _history_service
 
 
-def get_github_work_item_service() -> GitHubWorkItemService:
+def get_github_work_item_service() -> PaginatedGitHubWorkItemService:
     return _work_item_service
 
 
@@ -53,7 +52,7 @@ GitHubHistoryServiceDependency = Annotated[
     Depends(get_github_history_service),
 ]
 GitHubWorkItemServiceDependency = Annotated[
-    GitHubWorkItemService,
+    PaginatedGitHubWorkItemService,
     Depends(get_github_work_item_service),
 ]
 
