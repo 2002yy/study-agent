@@ -1,0 +1,25 @@
+[
+  {
+    "case_id": "study-agent-pr30-task-contract",
+    "repository": "2002yy/study-agent",
+    "pull_request": 30,
+    "review_symbol_ids": [
+      "symbol-resolve-turn-task-contract"
+    ],
+    "ci_test_paths": [
+      "tests/test_task_contract.py",
+      "tests/test_external_data_policy.py"
+    ],
+    "notes": "Curated replay labels for the TaskContract propagation slice. Provider calls are not part of the unit test."
+  },
+  {
+    "case_id": "study-agent-pr28-change-impact",
+    "repository": "2002yy/study-agent",
+    "pull_request": 28,
+    "review_symbol_ids": [],
+    "ci_test_paths": [
+      "tests/test_github_change_impact.py"
+    ],
+    "notes": "Curated replay labels for version-aware GitHub change impact. Empty review labels verify no fabricated mapping."
+  }
+]
