@@ -1,4 +1,4 @@
-"""Conservative pull-request review-location to symbol mapping helpers."""
+"""Conservative pull-request review-location to hunk and symbol mapping helpers."""
 
 from __future__ import annotations
 
@@ -59,6 +59,28 @@ def symbol_records(impact: dict[str, Any]) -> list[dict[str, Any]]:
                     }
                 )
     return result
+
+
+def hunk_records(pull: dict[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for file_item in dict_items(pull.get("files")):
+        new_path = str(file_item.get("filename") or "")
+        old_path = str(file_item.get("previous_filename") or new_path)
+        for index, hunk in enumerate(dict_items(file_item.get("hunks")), start=1):
+            records.append(
+                {
+                    "hunk_id": f"{new_path or old_path}#hunk-{index}",
+                    "file_status": str(file_item.get("status") or ""),
+                    "old_path": old_path,
+                    "new_path": new_path,
+                    "old_start": safe_int(hunk.get("old_start")),
+                    "old_end": safe_int(hunk.get("old_end")),
+                    "new_start": safe_int(hunk.get("new_start")),
+                    "new_end": safe_int(hunk.get("new_end")),
+                    "patch_truncated": bool(file_item.get("patch_truncated")),
+                }
+            )
+    return records
 
 
 def path_aliases(impact: dict[str, Any]) -> dict[str, set[str]]:
@@ -150,10 +172,66 @@ def _overlaps(start: int, end: int, target_start: int, target_end: int) -> bool:
     return start <= target_end and end >= target_start
 
 
+def _map_hunk(
+    item: dict[str, Any], hunks: list[dict[str, Any]]
+) -> dict[str, Any]:
+    path = str(item.get("path") or "")
+    side = str(item.get("side") or "").upper()
+    start, end = _line_range(item)
+    if not path or start <= 0:
+        return {
+            "status": "unmapped",
+            "confidence": "low",
+            "reason": "review_path_or_line_missing",
+        }
+    candidates: list[dict[str, Any]] = []
+    for hunk in hunks:
+        if side == "LEFT":
+            hunk_path = str(hunk.get("old_path") or "")
+            hunk_start = safe_int(hunk.get("old_start"))
+            hunk_end = safe_int(hunk.get("old_end"))
+        else:
+            hunk_path = str(hunk.get("new_path") or "")
+            hunk_start = safe_int(hunk.get("new_start"))
+            hunk_end = safe_int(hunk.get("new_end"))
+        if hunk_path == path and _overlaps(start, end, hunk_start, hunk_end):
+            candidates.append(hunk)
+    if len(candidates) == 1:
+        return {
+            "status": "mapped",
+            "confidence": "high",
+            "reason": "single_containing_diff_hunk",
+            "hunk": candidates[0],
+        }
+    if len(candidates) > 1:
+        return {
+            "status": "ambiguous",
+            "confidence": "low",
+            "reason": "multiple_hunks_share_review_location",
+            "candidate_count": len(candidates),
+            "candidates": candidates[:10],
+        }
+    file_has_hunks = any(
+        path in {str(hunk.get("old_path") or ""), str(hunk.get("new_path") or "")}
+        for hunk in hunks
+    )
+    return {
+        "status": "unmapped",
+        "confidence": "low",
+        "reason": (
+            "review_line_not_in_available_hunks"
+            if file_has_hunks
+            else "patch_hunks_unavailable_for_file"
+        ),
+        "path": path,
+    }
+
+
 def map_review_item(
     item: dict[str, Any],
     *,
     symbols: list[dict[str, Any]],
+    hunks: list[dict[str, Any]],
     aliases: dict[str, set[str]],
     paths: set[str],
 ) -> dict[str, Any]:
@@ -240,5 +318,6 @@ def map_review_item(
     return {
         **item,
         "line_range": {"start_line": start, "end_line": end},
+        "hunk_mapping": _map_hunk(item, hunks),
         "mapping": mapping,
     }
