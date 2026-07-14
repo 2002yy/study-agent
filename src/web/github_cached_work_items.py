@@ -28,6 +28,20 @@ class PersistentGitHubWorkItemService(PaginatedGitHubWorkItemService):
         self.cache_repository = cache_repository
         self.cache_policy = cache_policy or GitHubResearchCachePolicy.from_env()
 
+    def _cache_get(self, key: str) -> dict[str, Any] | None:
+        """Disable the parent process-local cache.
+
+        The durable repository is the only cache owner so partial-result reuse
+        rules remain identical before and after a process restart.
+        """
+
+        del key
+        return None
+
+    def _cache_put(self, key: str, value: dict[str, Any]) -> dict[str, Any]:
+        del key
+        return {**value, "cache_hit": False}
+
     def _persistent_get(
         self,
         cache_kind: str,
@@ -90,7 +104,7 @@ class PersistentGitHubWorkItemService(PaginatedGitHubWorkItemService):
             max_requests=max_provider_requests,
             max_pages_per_collection=max_pages_per_collection,
         )
-        identity = {
+        identity: dict[str, Any] = {
             "repository": self._repository(repo_url),
             "number": int(number),
             "max_files": max(1, min(int(max_files or item_budget.max_files), 100)),
@@ -149,7 +163,7 @@ class PersistentGitHubWorkItemService(PaginatedGitHubWorkItemService):
             max_requests=max_provider_requests,
             max_pages_per_collection=max_pages_per_collection,
         )
-        identity = {
+        identity: dict[str, Any] = {
             "repository": self._repository(repo_url),
             "number": int(number),
             "max_comments": max(
@@ -202,7 +216,7 @@ class PersistentGitHubWorkItemService(PaginatedGitHubWorkItemService):
             max_pages_per_collection=max_pages_per_collection,
         )
         commit_sha = str(resolved.get("commit_sha") or "")
-        identity = {
+        identity: dict[str, Any] = {
             "repository": self._repository(repo_url),
             "commit_sha": commit_sha,
             "max_runs": max(1, min(int(max_runs or item_budget.max_runs), 100)),
@@ -252,7 +266,7 @@ class PersistentGitHubWorkItemService(PaginatedGitHubWorkItemService):
         max_lines: int | None = None,
     ) -> dict[str, Any]:
         item_budget = GitHubWorkItemBudget.from_env()
-        identity = {
+        identity: dict[str, Any] = {
             "repository": self._repository(repo_url),
             "job_id": int(job_id),
             "max_chars": max(
