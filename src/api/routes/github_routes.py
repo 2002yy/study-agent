@@ -25,35 +25,40 @@ from src.api.models.github import (
 )
 from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
-from src.application.runtime_repository import get_github_snapshot_service
-from src.web.github_change_impact import GitHubChangeImpactService
+from src.application.runtime_repository import (
+    get_github_change_impact_service,
+    get_github_history_service,
+    get_github_research_cache_repository,
+    get_github_snapshot_service,
+    get_github_work_item_service,
+)
+from src.repositories.github_research_cache_repository import (
+    GitHubResearchCacheRepository,
+)
+from src.web.github_cached_analysis import CachedGitHubChangeImpactService
+from src.web.github_cached_work_items import PersistentGitHubWorkItemService
 from src.web.github_history import GitHubHistoryService
-from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 
 router = APIRouter(tags=["github-research"])
 GitHubSnapshotServiceDependency = Annotated[
     GitHubSnapshotService,
     Depends(get_github_snapshot_service),
 ]
-_history_service = GitHubHistoryService()
-_work_item_service = PaginatedGitHubWorkItemService(_history_service)
-
-
-def get_github_history_service() -> GitHubHistoryService:
-    return _history_service
-
-
-def get_github_work_item_service() -> PaginatedGitHubWorkItemService:
-    return _work_item_service
-
-
 GitHubHistoryServiceDependency = Annotated[
     GitHubHistoryService,
     Depends(get_github_history_service),
 ]
 GitHubWorkItemServiceDependency = Annotated[
-    PaginatedGitHubWorkItemService,
+    PersistentGitHubWorkItemService,
     Depends(get_github_work_item_service),
+]
+GitHubChangeImpactServiceDependency = Annotated[
+    CachedGitHubChangeImpactService,
+    Depends(get_github_change_impact_service),
+]
+GitHubResearchCacheDependency = Annotated[
+    GitHubResearchCacheRepository,
+    Depends(get_github_research_cache_repository),
 ]
 
 
@@ -180,10 +185,9 @@ def compare_github_refs(
 @router.post("/github-change-impact", response_model=GitHubSnapshotResultResponse)
 def inspect_github_change_impact(
     request: GitHubChangeImpactQueryRequest,
-    snapshot_service: GitHubSnapshotServiceDependency,
-    history_service: GitHubHistoryServiceDependency,
+    service: GitHubChangeImpactServiceDependency,
 ) -> GitHubSnapshotResultResponse:
-    result = GitHubChangeImpactService(history_service, snapshot_service).analyze(
+    result = service.analyze(
         request.repo_url,
         request.base,
         request.head,
@@ -288,6 +292,37 @@ def inspect_github_ci_logs(
     if result.get("ok") is not True:
         raise _history_http_error(result)
     return GitHubSnapshotResultResponse(result=result)
+
+
+@router.get("/github-research-cache", response_model=GitHubSnapshotResultResponse)
+def inspect_github_research_cache(
+    service: GitHubResearchCacheDependency,
+) -> GitHubSnapshotResultResponse:
+    return GitHubSnapshotResultResponse(result=service.manifest())
+
+
+@router.delete("/github-research-cache", response_model=GitHubSnapshotResultResponse)
+def clear_github_research_cache(
+    service: GitHubResearchCacheDependency,
+    repository: str = "",
+    cache_kind: str = "",
+    expired_only: bool = False,
+) -> GitHubSnapshotResultResponse:
+    deleted = (
+        service.delete_expired()
+        if expired_only
+        else service.clear(repository=repository, cache_kind=cache_kind)
+    )
+    return GitHubSnapshotResultResponse(
+        result={
+            "ok": True,
+            "deleted": deleted,
+            "expired_only": expired_only,
+            "repository": repository,
+            "cache_kind": cache_kind,
+            "manifest": service.manifest(),
+        }
+    )
 
 
 @router.get("/github-repo-snapshots", response_model=GitHubSnapshotRunListResponse)
