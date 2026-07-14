@@ -269,24 +269,26 @@ class LearningClosureService:
             completed_turns=completed_turns,
             evaluation_repository=self.evaluation_repository,
         )
-        snapshot: dict[str, Any] = {
+        source_identity: dict[str, Any] = {
             "thread_id": thread.id,
             "source_thread_version": thread.version,
             "last_completed_turn_id": last_turn.id,
             "completed_turn_ids": [turn.id for turn in completed_turns],
             "learning_state": dict(thread.learning_state),
             "task_contract": task_contract,
-            "structured_input": structured_input,
             "last_turn": {
                 "role": last_turn.role,
                 "mode": last_turn.mode,
                 "model": last_turn.model,
                 "pedagogy_snapshot": dict(last_turn.pedagogy_snapshot),
             },
-            # Full committed messages remain audit/source-hash input but are not sent to the model.
             "messages": messages,
         }
-        return snapshot, eligibility, _canonical_hash(snapshot)
+        snapshot = {
+            **source_identity,
+            "structured_input": structured_input,
+        }
+        return snapshot, eligibility, _canonical_hash(source_identity)
 
     @staticmethod
     def _closure_contract(
