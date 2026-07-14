@@ -54,7 +54,7 @@ describe("LearningPanel evidence summary", () => {
     const serialized = JSON.stringify(renderer.toJSON());
     expect(serialized).toContain("本轮学习证据");
     expect(serialized).toContain("已确认知识点");
-    expect(serialized).toContain("使用了轻提示");
+    expect(serialized).toContain("已使用第 1 级提示");
     expect(serialized).toContain("不推算掌握百分比");
     expect(serialized).not.toContain("mastery-ring");
 
