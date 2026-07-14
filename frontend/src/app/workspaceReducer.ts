@@ -17,6 +17,7 @@ export type WorkspaceRuntimeState = {
   activeWebLookupRunId?: string;
   activeToolRunId?: string;
   activeMemoryRunId?: string;
+  activeLearningClosureRunId?: string;
   activeRagQueryRunId?: string;
   activeRagWriteRunId?: string;
   chatMessages: ChatMessage[];
@@ -35,6 +36,7 @@ export type WorkspaceAction =
   | { type: "SET_ACTIVE_WEB_LOOKUP_RUN"; runId?: string }
   | { type: "SET_ACTIVE_TOOL_RUN"; runId?: string }
   | { type: "SET_ACTIVE_MEMORY_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_LEARNING_CLOSURE_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_QUERY_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_WRITE_RUN"; runId?: string }
   | { type: "SET_CHAT_MESSAGES"; value: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]) }
@@ -87,6 +89,8 @@ export function workspaceReducer(
       return { ...state, activeToolRunId: action.runId };
     case "SET_ACTIVE_MEMORY_RUN":
       return { ...state, activeMemoryRunId: action.runId };
+    case "SET_ACTIVE_LEARNING_CLOSURE_RUN":
+      return { ...state, activeLearningClosureRunId: action.runId };
     case "SET_ACTIVE_RAG_QUERY_RUN":
       return { ...state, activeRagQueryRunId: action.runId };
     case "SET_ACTIVE_RAG_WRITE_RUN":
@@ -105,21 +109,33 @@ export function workspaceReducer(
       };
     case "SET_STREAM_RECOVERY":
       return { ...state, streamRecovery: action.value };
-    case "TRANSITION_CHAT_SESSION":
+    case "TRANSITION_CHAT_SESSION": {
+      const changedThread = state.activeChatThreadId !== action.threadId;
       return {
         ...state,
         activeChatThreadId: action.threadId,
         chatMessages: action.messages,
         lastChat: action.lastChat,
         streamRecovery: action.streamRecovery ?? null,
+        activeMemoryRunId: changedThread ? undefined : state.activeMemoryRunId,
+        activeLearningClosureRunId: changedThread
+          ? undefined
+          : state.activeLearningClosureRunId,
         transitionVersion: state.transitionVersion + 1
       };
-    case "RESTORE_CHAT_SESSION":
+    }
+    case "RESTORE_CHAT_SESSION": {
+      const changedThread = state.activeChatThreadId !== action.threadId;
       return {
         ...state,
         activeChatThreadId: action.threadId,
+        activeMemoryRunId: changedThread ? undefined : state.activeMemoryRunId,
+        activeLearningClosureRunId: changedThread
+          ? undefined
+          : state.activeLearningClosureRunId,
         transitionVersion: state.transitionVersion + 1
       };
+    }
     case "START_NEW_CHAT_SESSION":
       return {
         ...state,
@@ -132,6 +148,7 @@ export function workspaceReducer(
         activeWebLookupRunId: undefined,
         activeToolRunId: undefined,
         activeMemoryRunId: undefined,
+        activeLearningClosureRunId: undefined,
         activeRagQueryRunId: undefined,
         activeRagWriteRunId: undefined,
         transitionVersion: state.transitionVersion + 1

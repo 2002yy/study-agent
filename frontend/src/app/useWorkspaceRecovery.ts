@@ -25,6 +25,7 @@ export function useWorkspaceRecovery(options: {
     news?: string;
     tool?: string;
     memory?: string;
+    learningClosure?: string;
     ragQuery?: string;
     ragWrite?: string;
     webLookup?: string;
@@ -34,6 +35,7 @@ export function useWorkspaceRecovery(options: {
     news: DirectSetter;
     tool: DirectSetter;
     memory: DirectSetter;
+    learningClosure: DirectSetter;
     ragQuery: DirectSetter;
     ragWrite: DirectSetter;
     webLookup: DirectSetter;
@@ -70,6 +72,9 @@ export function useWorkspaceRecovery(options: {
     if (parsed.newsRunId) options.setIds.news(parsed.newsRunId);
     if (parsed.toolRunId) options.setIds.tool(parsed.toolRunId);
     if (parsed.memoryRunId) options.setIds.memory(parsed.memoryRunId);
+    if (parsed.learningClosureRunId) {
+      options.setIds.learningClosure(parsed.learningClosureRunId);
+    }
     if (parsed.ragQueryRunId) options.setIds.ragQuery(parsed.ragQueryRunId);
     if (parsed.ragWriteRunId) options.setIds.ragWrite(parsed.ragWriteRunId);
     if (parsed.webLookupRunId) options.setIds.webLookup(parsed.webLookupRunId);
@@ -145,6 +150,7 @@ export function useWorkspaceRecovery(options: {
       newsRunId: options.ids.news,
       toolRunId: options.ids.tool,
       memoryRunId: options.ids.memory,
+      learningClosureRunId: options.ids.learningClosure,
       ragQueryRunId: options.ids.ragQuery,
       ragWriteRunId: options.ids.ragWrite,
       webLookupRunId: options.ids.webLookup,

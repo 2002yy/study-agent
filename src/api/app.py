@@ -42,6 +42,7 @@ TOOL_REGISTRY = create_default_tool_registry()
 from .routes.health_routes import router as _health_router
 from .routes.settings_routes import router as _settings_router
 from .routes.memory_routes import router as _memory_router
+from .routes.learning_closure_routes import router as _learning_closure_router
 from .routes.tool_routes import router as _tool_router
 from .routes.session_routes import router as _session_router
 from .routes.wechat_routes import router as _wechat_router
@@ -55,6 +56,7 @@ from .routes.github_review_routes import router as _github_review_router
 app.include_router(_health_router)
 app.include_router(_settings_router)
 app.include_router(_memory_router)
+app.include_router(_learning_closure_router)
 app.include_router(_tool_router)
 app.include_router(_session_router)
 app.include_router(_wechat_router)

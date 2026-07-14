@@ -6,6 +6,7 @@ import { seedMessages } from "./features/single-chat/chatHistory";
 import "./styles.css";
 import "./practical-experience.css";
 import "./task-intent-selector.css";
+import "./learning-closure.css";
 
 type AppErrorBoundaryState = {
   error: Error | null;

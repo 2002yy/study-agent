@@ -64,8 +64,16 @@ class MemoryService:
         updates: list[dict[str, Any]],
         *,
         runtime_modes=None,
+        run_id: str | None = None,
     ) -> MemoryRun:
         frozen = normalize_updates(updates)
+        frozen_hash = updates_hash(frozen)
+        if run_id:
+            existing = self.repository.get(run_id)
+            if existing is not None:
+                if existing.updates_hash != frozen_hash:
+                    raise ValueError(f"MemoryRun idempotency conflict: {run_id}")
+                return existing
         modes = runtime_modes or load_runtime_modes()
         writable = is_memory_write_allowed(modes)
         preview_items = []
@@ -85,8 +93,9 @@ class MemoryService:
         now = utc_now()
         return self.repository.create(
             MemoryRun(
+                id=run_id or new_id("memory"),
                 updates=frozen,
-                updates_hash=updates_hash(frozen),
+                updates_hash=frozen_hash,
                 preview={
                     "writable": writable,
                     "memory_mode": modes.memory_mode,
@@ -100,6 +109,11 @@ class MemoryService:
         )
 
     def commit(self, run_id: str, *, runtime_modes=None) -> MemoryRun:
+        existing = self.repository.get(run_id)
+        if existing is None:
+            raise ValueError(f"MemoryRun not found: {run_id}")
+        if existing.status in {"succeeded", "partial", "failed", "blocked"}:
+            return existing
         operation_id = new_id("memory_commit")
         run = self.repository.acquire_commit(run_id, operation_id)
         if updates_hash(normalize_updates(run.updates)) != run.updates_hash:

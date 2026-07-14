@@ -48,6 +48,7 @@ export function useWorkspaceControllers(options: {
     news?: string;
     tool?: string;
     memory?: string;
+    learningClosure?: string;
     ragQuery?: string;
     ragWrite?: string;
     webLookup?: string;
@@ -57,6 +58,7 @@ export function useWorkspaceControllers(options: {
     news: DirectSetter<string | undefined>;
     tool: DirectSetter<string | undefined>;
     memory: DirectSetter<string | undefined>;
+    learningClosure: DirectSetter<string | undefined>;
     ragQuery: DirectSetter<string | undefined>;
     ragWrite: DirectSetter<string | undefined>;
     webLookup: DirectSetter<string | undefined>;
@@ -105,6 +107,8 @@ export function useWorkspaceControllers(options: {
   const memoryController = useMemoryController({
     activeRunId: options.runIds.memory,
     setActiveRunId: options.setRunId.memory,
+    activeClosureRunId: options.runIds.learningClosure,
+    setActiveClosureRunId: options.setRunId.learningClosure,
     onMemoryChanged: options.refresh,
   });
   const ragController = useRagController({
