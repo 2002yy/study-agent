@@ -18,10 +18,8 @@ function asLearningState(raw: unknown): LearningState | null {
 }
 
 function supportLabel(hintLevel: number): string {
-  if (hintLevel <= 0) return "尚未使用提示";
-  if (hintLevel === 1) return "使用了轻提示";
-  if (hintLevel === 2) return "使用了分步提示";
-  return "使用了直接讲解";
+  const normalized = Number.isFinite(hintLevel) ? Math.max(0, Math.min(5, Math.trunc(hintLevel))) : 0;
+  return normalized === 0 ? "未使用提示" : `已使用第 ${normalized} 级提示`;
 }
 
 export function LearningPanel({
