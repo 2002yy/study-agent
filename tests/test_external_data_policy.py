@@ -239,6 +239,86 @@ def test_research_task_does_not_query_local_knowledge(tmp_path):
     assert prepared.rag["result_count"] == 0
 
 
+def test_explicit_quick_answer_override_controls_the_whole_turn(tmp_path):
+    service, captured = _service(tmp_path)
+
+    prepared = service.start_turn(
+        PolicyChatCommand(
+            user_input="联网看看最新数据库消息",
+            thread_id="chat-explicit-quick",
+            task_intent="quick_answer",
+            rag_enabled=True,
+            web_policy="off",
+            cloud_context_policy="allow_local_evidence",
+        )
+    )
+
+    contract = prepared.route["task_contract"]
+    assert contract["task_intent"] == "quick_answer"
+    assert contract["explicit_override"] is True
+    assert contract["reason"] == "explicit_task_override"
+    assert captured["rag_enabled"] == [True]
+    assert captured["web_calls"] == 0
+    assert prepared.learner_evaluation.final_decision == "not_applicable"
+    assert "task_intent:quick_answer" in prepared.pedagogy_plan.constraints
+    assert prepared.turn.pedagogy_snapshot["task_contract"] == contract
+
+
+def test_continuation_reuses_original_task_contract(tmp_path):
+    service, _ = _service(tmp_path)
+    first = service.start_turn(
+        PolicyChatCommand(
+            user_input="联网看看最新数据库消息",
+            thread_id="chat-contract-continuation",
+            task_intent="research",
+            web_policy="off",
+        )
+    )
+    service.interrupt_turn(first, "partial")
+
+    continuation = service.start_turn(
+        PolicyChatCommand(
+            user_input="带我系统学习数据库索引",
+            thread_id="chat-contract-continuation",
+            task_intent="learn",
+            continuation_of_turn_id=first.turn.id,
+            turn_id=first.turn.id,
+            partial_reply="partial",
+            web_policy="off",
+        )
+    )
+
+    assert continuation.route["task_contract"] == first.route["task_contract"]
+    assert continuation.route["task_contract"]["task_intent"] == "research"
+
+
+def test_retry_reuses_parent_task_contract(tmp_path):
+    service, _ = _service(tmp_path)
+    first = service.start_turn(
+        PolicyChatCommand(
+            user_input="联网看看最新数据库消息",
+            thread_id="chat-contract-retry",
+            task_intent="quick_answer",
+            web_policy="off",
+        )
+    )
+    service.fail_turn(first)
+
+    retried = service.start_turn(
+        PolicyChatCommand(
+            user_input="带我系统学习数据库索引",
+            thread_id="chat-contract-retry",
+            task_intent="learn",
+            retry_of_turn_id=first.turn.id,
+            web_policy="off",
+        )
+    )
+
+    assert retried.turn.id != first.turn.id
+    assert retried.route["task_contract"] == first.route["task_contract"]
+    assert retried.route["task_contract"]["task_intent"] == "quick_answer"
+
+
 def test_ask_mode_does_not_treat_manual_web_context_as_consent(tmp_path):
     service, captured = _service(tmp_path)
 
