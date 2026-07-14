@@ -127,7 +127,7 @@ class LearningClosureService:
                 snapshot = run.committed_snapshot
                 last_turn = dict(snapshot.get("last_turn") or {})
                 generated = self.generator(
-                    dict(snapshot.get("structured_input") or {}),
+                    self._structured_input_for_run(run),
                     self.memory_bundle_loader("light"),
                     str(last_turn.get("role") or "auto"),
                     str(last_turn.get("mode") or "auto"),
@@ -289,6 +289,24 @@ class LearningClosureService:
             "structured_input": structured_input,
         }
         return snapshot, eligibility, _canonical_hash(source_identity)
+
+    def _structured_input_for_run(
+        self, run: LearningClosureRun
+    ) -> dict[str, Any]:
+        existing = run.committed_snapshot.get("structured_input")
+        if isinstance(existing, dict) and existing:
+            return dict(existing)
+        rebuilt_snapshot, _eligibility, rebuilt_hash = self._collect_source(
+            run.thread_id
+        )
+        if rebuilt_hash != run.source_hash:
+            raise ValueError(
+                "LearningClosureRun source changed; create a new closure run instead"
+            )
+        rebuilt = rebuilt_snapshot.get("structured_input")
+        if not isinstance(rebuilt, dict) or not rebuilt:
+            raise ValueError("Structured closure input could not be rebuilt")
+        return dict(rebuilt)
 
     @staticmethod
     def _closure_contract(
