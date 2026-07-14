@@ -59,7 +59,15 @@ def generate_structured_closure_candidates(
     """Call the model with bounded structured evidence, never the full transcript."""
 
     payload = dict(structured_input)
-    payload["memory_context"] = _bounded_memory_context(memory_bundle)
+    memory_context = _bounded_memory_context(memory_bundle)
+    allowed_refs = {
+        str(item)
+        for item in structured_input.get("allowed_source_refs", [])
+        if str(item).strip()
+    }
+    allowed_refs.update(f"memory:{filename}" for filename in memory_context)
+    payload["allowed_source_refs"] = sorted(allowed_refs)
+    payload["memory_context"] = memory_context
     payload["voice_context"] = {"role": role, "mode": mode}
     raw = chat(
         [
@@ -75,7 +83,7 @@ def generate_structured_closure_candidates(
         task_name="structured_learning_closure",
     )
     data = _parse_object(raw)
-    return normalize_structured_closure_result(data, structured_input=structured_input)
+    return normalize_structured_closure_result(data, structured_input=payload)
 
 
 def normalize_structured_closure_result(
@@ -114,16 +122,37 @@ def normalize_structured_closure_result(
         if target in seen_targets:
             continue
         source_refs = _valid_refs(raw.get("source_refs"), allowed_refs)
-        if not source_refs:
+        if not source_refs or not _target_is_grounded(
+            target,
+            source_refs,
+            final_evaluation_id=final_evaluation_id,
+            final_decision=final_decision,
+        ):
             continue
         evaluation_refs = _evaluation_refs(
             raw.get("evaluation_refs"),
             final_evaluation_id=final_evaluation_id,
         )
+        if (
+            final_evaluation_id
+            and f"pedagogy_eval:{final_evaluation_id}" in source_refs
+            and final_evaluation_id not in evaluation_refs
+        ):
+            evaluation_refs.append(final_evaluation_id)
         confidence = str(raw.get("confidence") or "low").strip().lower()
         if confidence not in _ALLOWED_CONFIDENCE:
             confidence = "low"
-        if confidence == "high" and final_decision != "accept":
+        has_committed_source = any(
+            ref.startswith("learning_state.") or ref.startswith("memory:")
+            for ref in source_refs
+        )
+        has_accepted_evaluation = (
+            final_decision == "accept"
+            and final_evaluation_id in evaluation_refs
+        )
+        if confidence == "high" and not (
+            has_committed_source or has_accepted_evaluation
+        ):
             confidence = "medium"
         learner_pending = target == "learner_profile" or raw.get("learner_pending") is True
         candidates.append(
@@ -132,7 +161,7 @@ def normalize_structured_closure_result(
                 "content": content,
                 "confidence": confidence,
                 "source_refs": source_refs,
-                "evaluation_refs": evaluation_refs,
+                "evaluation_refs": sorted(evaluation_refs),
                 "learner_pending": learner_pending,
             }
         )
@@ -219,3 +248,41 @@ def _evaluation_refs(value: Any, *, final_evaluation_id: str) -> list[str]:
     if not final_evaluation_id or not isinstance(value, list):
         return []
     return [final_evaluation_id] if final_evaluation_id in {str(item) for item in value} else []
+
+
+def _target_is_grounded(
+    target: str,
+    source_refs: list[str],
+    *,
+    final_evaluation_id: str,
+    final_decision: str,
+) -> bool:
+    refs = set(source_refs)
+    accepted_eval_ref = bool(
+        final_evaluation_id
+        and final_decision == "accept"
+        and f"pedagogy_eval:{final_evaluation_id}" in refs
+    )
+    if target == "progress":
+        return accepted_eval_ref or bool(
+            refs
+            & {
+                "learning_state.objective",
+                "learning_state.confirmed_points",
+                "learning_state.unresolved_gap",
+                "learning_state.phase",
+                "memory:progress.md",
+            }
+        )
+    if target == "current_focus":
+        return accepted_eval_ref or bool(
+            refs
+            & {
+                "learning_state.objective",
+                "learning_state.unresolved_gap",
+                "learning_state.phase",
+                "memory:current_focus.md",
+                "memory:progress.md",
+            }
+        )
+    return True
