@@ -4,6 +4,7 @@ import App from "./App";
 import { WorkspaceProvider } from "./app/WorkspaceProvider";
 import { seedMessages } from "./features/single-chat/chatHistory";
 import "./styles.css";
+import "./practical-experience.css";
 
 type AppErrorBoundaryState = {
   error: Error | null;
