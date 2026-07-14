@@ -67,13 +67,18 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
   return renderer;
 }
 
+function directText(node: { children: Array<string | object> }): string {
+  return node.children.filter((child): child is string => typeof child === "string").join("");
+}
+
 describe("ChatPanel practical workspace navigation", () => {
   it("shows user-facing task state without leaking the raw session id", () => {
     const renderer = renderPanel();
+    const statusTexts = renderer.root.findAllByType("span").map(directText);
     const serialized = JSON.stringify(renderer.toJSON());
 
-    expect(serialized).toContain("任务 临时研究 · 手动");
-    expect(serialized).toContain("会话 进行中");
+    expect(statusTexts).toContain("任务 临时研究 · 手动");
+    expect(statusTexts).toContain("会话 进行中");
     expect(serialized).not.toContain("session-secret-raw-id");
 
     act(() => renderer.unmount());
