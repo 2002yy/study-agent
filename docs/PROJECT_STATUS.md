@@ -2,14 +2,14 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-14  
-> 当前能力基线：PR #31，Source-backed PR review context  
-> 下一代码切片：G10-C2 Provider 分页、cross-fork 与持久化缓存硬化
+> 当前能力基线：PR #32，GitHub Provider 分页、共享请求预算与 cross-fork 取证  
+> 下一代码切片：G10-C2 持久化 work-item / checks / change-impact 缓存
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析，以及初版 source-backed PR review context。聊天主链已具备单一、可持久化、可显式覆盖的 TaskContract。**
+> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。聊天主链已具备单一、可持久化、可显式覆盖的 TaskContract。**
 
 ## 2. 已完成
 
@@ -190,6 +190,29 @@ PR #31 已完成 G10-C2.4 初版：
 - `github_pr_review_context`
 - `POST /github-pr-review-context`
 
+### GitHub Provider 分页、共享预算与 cross-fork 取证
+
+PR #32 已完成 G10-C2 第一轮 Provider 硬化：
+
+1. REST 多页读取已覆盖 PR files、reviews、inline comments、issue comments、issue events、check-runs、workflow runs 和 workflow jobs。
+2. GraphQL review threads 使用 `pageInfo.hasNextPage/endCursor` 逐页读取。
+3. 每个集合同时受 item budget 与 page budget 限制；组合 PR 请求另有共享 REST/GraphQL request budget。
+4. PR metadata、各集合、review threads、checks/jobs，以及实际 base/head 仓库的 immutable commit detail 均计入同一个 PR request budget。
+5. 达到 item/page/request budget 或后续 Provider 失败时保留已取得证据，并输出 `stop_reason`、`truncated`、`provider_count` 和 `provider_status=partial`。
+6. API 与 `github_pr_review_context` 模型工具可显式设置 `max_provider_requests` 和 `max_pages_per_collection`。
+7. cross-fork PR 明确保存 base/head repository、repository URL 与 immutable SHA；head commit detail 从 fork 仓库读取。
+8. checks 首先按目标 PR 仓库取证；不可用时可回退到实际 head/fork 仓库，并记录 `checks_repository`。
+9. 当前同仓库 change-impact owner 不能安全组合两个仓库的源码图，因此 cross-fork PR review context 不伪造语义影响，而是返回 `cross_repository_change_impact_not_supported` uncertainty。
+10. review thread 内的 comments 当前每个 thread 最多读取 100 条；若 Provider 仍有后续页则显式标记 `comments_truncated`，尚未实现嵌套 comment cursor。
+11. 独立 `github_checks` 的 ref 解析仍由 Git history owner 在集合预算前完成；集合预算覆盖 check-runs、workflow runs 和 jobs，不应解释为跨 owner 的绝对全局预算。
+12. 分页实现已拆为 provider pagination、base/GraphQL、checks/jobs、PR/fork 和 issue facade 五个模块；最大新增生产模块 485 行，未保留首稿 1086 行巨型服务。
+
+```env
+GITHUB_PROVIDER_MAX_REQUESTS=24
+GITHUB_PROVIDER_MAX_PAGES_PER_COLLECTION=10
+GITHUB_PROVIDER_PAGE_SIZE=100
+```
+
 ### CI 与外发策略稳定化
 
 - pytest、前端、detect-secrets 和 mypy 均先保留诊断 artifact，再执行独立门禁；
@@ -225,11 +248,11 @@ PR #30 已完成主链收口：
 | 单符号影响 | 初版完成 | 数据流、配置影响、风险分层 |
 | Git ref/commit/compare | 基础完成 | 多页 commit/files、超大 compare、持久化缓存 |
 | blame | 基础完成 | Token 授权体验、超大文件和 Provider 替代方案 |
-| PR / review | 初版完成 | 全分页、cross-fork、review pagination、持久化缓存 |
-| issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
-| checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
-| 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
-| PR review context | 初版完成 | 全分页、cross-fork、持久化缓存、多仓库真实 replay corpus |
+| PR / review | 分页基础完成 | nested review comment cursor、持久化缓存、cross-fork 语义影响 |
+| issue | 分页基础完成 | release、linked PR、完整 timeline、项目字段、持久化缓存 |
+| checks / jobs / logs | 分页基础完成 | ref-resolution 预算统一、artifacts、rerun attempt、日志分段、持久化缓存 |
+| 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、cross-repository 图、真实仓库评测 |
+| PR review context | 初版完成 | cross-fork 语义影响、持久化缓存、多仓库真实 replay corpus |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
 | TaskContract UI override | 未完成 | API 已支持，主界面缺少按 Turn 选择并显示 override 的控件 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
@@ -238,16 +261,23 @@ PR #30 已完成主链收口：
 
 ## 4. 下一代码顺序
 
-### G10-C2 Provider 与缓存硬化
+### G10-C2 持久化缓存
 
-1. REST/GraphQL 多页游标和跨端全局预算。
-2. cross-fork PR head repository/ref 解析。
-3. review/thread/check/job 的分页和局部失败恢复。
-4. work-item、checks、logs、change-impact 和 review-context 持久化缓存。
-5. TTL、过期清理、磁盘统计和 cache manifest。
-6. release、artifact metadata 和按需下载。
-7. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
-8. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
+1. 为 work-item、checks、change-impact 和 review-context 定义稳定 cache key 与 schema version。
+2. 使用 SQLite 保存 payload、immutable refs、provider status、预算、创建时间和过期时间。
+3. 区分 complete / partial / failed cache 的复用规则，失败或超预算结果不得长期污染。
+4. 增加 TTL、按 repository/kind 清理、磁盘统计和 cache manifest。
+5. 服务重启后复用 immutable 证据；移动 ref 必须重新解析后再决定是否命中。
+6. 增加 migration、兼容恢复、过期清理和并发写入回归。
+
+### G10-C2 后续 Provider 补齐
+
+1. review thread 内 comments 的嵌套 cursor。
+2. checks ref resolution 与集合请求的跨 owner 预算合同。
+3. cross-fork base/head 双仓库 snapshot 与 change-impact 图。
+4. release、artifact metadata 和按需下载。
+5. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
+6. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
 
 ### G10-D：可执行仓库代理
 
@@ -270,15 +300,15 @@ PR #30 已完成主链收口：
 
 ## 5. 当前验证
 
-PR #30 代码验证：
+PR #31 功能代码验证：
 
-- pytest：702 passed；
+- pytest：711 passed；
 - Ruff、package helper、detect-secrets、expanded mypy 增量门禁：passed；
 - frontend Vitest、TypeScript build 和 Vite production build：passed。
 
-PR #31 功能代码验证使用 GitHub Actions CI #709，代码 head `62575422bec3ede9475c53f6b8103d6d95b95234`：
+PR #32 功能代码验证使用 GitHub Actions CI #742，代码 head `d28bb4461716340738ae3d629a90da72b9b630de`：
 
-- pytest：711 passed；
+- pytest：719 passed；
 - Ruff：passed；
 - package helper：passed；
 - detect-secrets：passed；
@@ -287,16 +317,17 @@ PR #31 功能代码验证使用 GitHub Actions CI #709，代码 head `62575422be
 
 本切片新增回归覆盖：
 
-- immutable PR base/head 传入 change-impact；
-- unresolved review thread 映射到唯一 diff hunk 和 symbol；
-- 同跨度多个 symbol 保持 ambiguous；
-- 失败 CI 与 affected test 的有证据关联；
-- 无法关联的 review/CI 转为 uncertainty；
-- coverage 与 provider status 联动；
-- API budget 边界和非法范围拒绝；
-- 模型工具注册和 dispatch；
-- precision/recall/F1 计算与 fabricated mapping 惩罚；
-- 固定禁止自动 verdict。
+- REST 多页合并和额外一条 truncation 探测；
+- Provider 后续页失败仍保留已取得 evidence；
+- page budget 与 request budget 耗尽不伪装成 complete；
+- GraphQL review-thread cursor 传递；
+- workflow jobs 跨页合并；
+- cross-fork head commit 从实际 fork 仓库读取；
+- checks 从目标仓库失败后回退到 fork 仓库；
+- PR base/head immutable commit detail 计入共享请求预算；
+- API 和模型工具预算范围校验；
+- cross-fork change-impact 限制转为显式 uncertainty；
+- 旧 API、工具 dispatch、mypy 和前端回归保持通过。
 
 ## 6. 文档规则
 
