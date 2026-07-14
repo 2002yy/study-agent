@@ -26,6 +26,23 @@ _COMMITTED_STATE_KEYS = (
     "library_facts_given",
     "turn_count",
 )
+_PROJECT_STATE_KEYS = (
+    "current_stage",
+    "next_action",
+    "objective",
+    "known_facts",
+    "acceptance_criteria",
+    "completed_deliverables",
+    "failed_tests",
+    "blockers",
+    "milestones",
+    "artifacts",
+    "project_validation_passed",
+    "validation_required",
+    "last_response_violations",
+)
+_PROJECT_STRING_LIMIT = 1200
+_PROJECT_COLLECTION_LIMIT = 20
 
 
 class EvaluationRepository(Protocol):
@@ -55,6 +72,7 @@ def build_structured_closure_input(
         for key in _COMMITTED_STATE_KEYS
         if key in learning_state
     }
+    committed_project_state = _committed_project_state(learning_state)
     final_evaluation = _final_evaluation(
         completed_turns,
         evaluation_repository=evaluation_repository,
@@ -81,6 +99,7 @@ def build_structured_closure_input(
     )
     allowed_source_refs = _allowed_source_refs(
         committed_state=committed_state,
+        committed_project_state=committed_project_state,
         final_evaluation=final_evaluation,
         evidence_ids=evidence_ids,
         recent_dialogue=recent_dialogue,
@@ -97,6 +116,7 @@ def build_structured_closure_input(
         "closure_eligibility": closure_eligibility,
         "task_contract": dict(task_contract),
         "committed_learning_state": committed_state,
+        "committed_project_state": committed_project_state,
         "final_pedagogy_evaluation": final_evaluation,
         "evidence_ids": evidence_ids,
         "recent_dialogue": recent_dialogue,
@@ -116,7 +136,9 @@ def build_structured_closure_input(
         "candidate_policy": {
             "learner_profile_default_pending": True,
             "confirmed_points_source": "committed_learning_state_only",
+            "project_facts_source": "committed_project_state_only",
             "failed_or_uncommitted_turns_are_not_mastery_evidence": True,
+            "project_validation_passed_must_be_true_to_claim_validation": True,
         },
     }
 
@@ -215,6 +237,7 @@ def _evaluation_evidence_ids(final_evaluation: dict[str, Any] | None) -> list[st
 def _allowed_source_refs(
     *,
     committed_state: dict[str, Any],
+    committed_project_state: dict[str, Any],
     final_evaluation: dict[str, Any] | None,
     evidence_ids: list[str],
     recent_dialogue: list[dict[str, Any]],
@@ -224,11 +247,54 @@ def _allowed_source_refs(
         for key, value in committed_state.items()
         if value not in (None, "", [], {})
     }
+    refs.update(
+        f"project_state.{key}"
+        for key, value in committed_project_state.items()
+        if value not in (None, "", [], {})
+    )
     if final_evaluation:
         refs.add(f"pedagogy_eval:{final_evaluation['id']}")
     refs.update(f"evidence:{item}" for item in evidence_ids)
     refs.update(f"turn:{item['turn_id']}" for item in recent_dialogue)
     return sorted(refs)
+
+
+def _committed_project_state(learning_state: dict[str, Any]) -> dict[str, Any]:
+    payload = learning_state.get("payload")
+    if not isinstance(payload, dict):
+        return {}
+    result: dict[str, Any] = {}
+    for key in _PROJECT_STATE_KEYS:
+        if key not in payload:
+            continue
+        normalized = _bounded_project_value(payload[key])
+        if normalized not in (None, "", [], {}):
+            result[key] = normalized
+    return result
+
+
+def _bounded_project_value(value: Any, *, depth: int = 0) -> Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        return _truncate(value, _PROJECT_STRING_LIMIT)
+    if isinstance(value, (list, tuple)):
+        return [
+            normalized
+            for item in list(value)[:_PROJECT_COLLECTION_LIMIT]
+            if (normalized := _bounded_project_value(item, depth=depth + 1))
+            not in (None, "", [], {})
+        ]
+    if isinstance(value, dict) and depth < 2:
+        result: dict[str, Any] = {}
+        for raw_key, raw_value in list(value.items())[:_PROJECT_COLLECTION_LIMIT]:
+            normalized = _bounded_project_value(raw_value, depth=depth + 1)
+            if normalized not in (None, "", [], {}):
+                result[_truncate(str(raw_key), 120)] = normalized
+        return result
+    return _truncate(str(value), _PROJECT_STRING_LIMIT)
 
 
 def _truncate(text: str, limit: int) -> str:
