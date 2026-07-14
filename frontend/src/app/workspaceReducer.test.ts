@@ -18,12 +18,14 @@ describe("workspaceReducer", () => {
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
   });
 
-  it("starts a new chat session and clears stale news run state", () => {
+  it("starts a new chat session and clears chat-scoped run state", () => {
     const state = createWorkspaceRuntimeState({
       activeChatThreadId: "chat-old",
       activeGroupThreadId: "group-1",
       activeNewsRunId: "news-1",
-      activeToolRunId: "tool-1"
+      activeToolRunId: "tool-1",
+      activeMemoryRunId: "memory-1",
+      activeLearningClosureRunId: "closure-1"
     });
 
     const next = workspaceReducer(state, { type: "START_NEW_CHAT_SESSION", threadId: "chat-new" });
@@ -32,6 +34,22 @@ describe("workspaceReducer", () => {
     expect(next.activeGroupThreadId).toBe("group-1");
     expect(next.activeNewsRunId).toBeUndefined();
     expect(next.activeToolRunId).toBeUndefined();
+    expect(next.activeMemoryRunId).toBeUndefined();
+    expect(next.activeLearningClosureRunId).toBeUndefined();
+  });
+
+  it("tracks a learning closure run independently from its MemoryRun", () => {
+    const closure = workspaceReducer(createWorkspaceRuntimeState(), {
+      type: "SET_ACTIVE_LEARNING_CLOSURE_RUN",
+      runId: "closure-1"
+    });
+    const memory = workspaceReducer(closure, {
+      type: "SET_ACTIVE_MEMORY_RUN",
+      runId: "memory-1"
+    });
+
+    expect(memory.activeLearningClosureRunId).toBe("closure-1");
+    expect(memory.activeMemoryRunId).toBe("memory-1");
   });
 
   it("resets group thread and clears the associated news run", () => {
