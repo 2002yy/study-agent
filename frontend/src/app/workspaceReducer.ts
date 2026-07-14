@@ -17,6 +17,7 @@ export type WorkspaceRuntimeState = {
   activeWebLookupRunId?: string;
   activeToolRunId?: string;
   activeMemoryRunId?: string;
+  activeLearningClosureRunId?: string;
   activeRagQueryRunId?: string;
   activeRagWriteRunId?: string;
   chatMessages: ChatMessage[];
@@ -35,6 +36,7 @@ export type WorkspaceAction =
   | { type: "SET_ACTIVE_WEB_LOOKUP_RUN"; runId?: string }
   | { type: "SET_ACTIVE_TOOL_RUN"; runId?: string }
   | { type: "SET_ACTIVE_MEMORY_RUN"; runId?: string }
+  | { type: "SET_ACTIVE_LEARNING_CLOSURE_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_QUERY_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_WRITE_RUN"; runId?: string }
   | { type: "SET_CHAT_MESSAGES"; value: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]) }
@@ -87,6 +89,8 @@ export function workspaceReducer(
       return { ...state, activeToolRunId: action.runId };
     case "SET_ACTIVE_MEMORY_RUN":
       return { ...state, activeMemoryRunId: action.runId };
+    case "SET_ACTIVE_LEARNING_CLOSURE_RUN":
+      return { ...state, activeLearningClosureRunId: action.runId };
     case "SET_ACTIVE_RAG_QUERY_RUN":
       return { ...state, activeRagQueryRunId: action.runId };
     case "SET_ACTIVE_RAG_WRITE_RUN":
@@ -132,6 +136,7 @@ export function workspaceReducer(
         activeWebLookupRunId: undefined,
         activeToolRunId: undefined,
         activeMemoryRunId: undefined,
+        activeLearningClosureRunId: undefined,
         activeRagQueryRunId: undefined,
         activeRagWriteRunId: undefined,
         transitionVersion: state.transitionVersion + 1
