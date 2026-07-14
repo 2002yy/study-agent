@@ -18,6 +18,7 @@ from src.memory import read_memory_bundle
 from src.repositories.learning_closure_repository import LearningClosureRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
 from src.structured_closure import (
+    bounded_memory_context,
     generate_structured_closure_candidates,
     structured_candidates_to_memory_updates,
 )
@@ -126,9 +127,16 @@ class LearningClosureService:
             if not generated:
                 snapshot = run.committed_snapshot
                 last_turn = dict(snapshot.get("last_turn") or {})
+                structured_input = self._structured_input_for_run(run)
+                frozen_memory = structured_input.get("memory_context")
                 generated = self.generator(
-                    self._structured_input_for_run(run),
-                    self.memory_bundle_loader("light"),
+                    structured_input,
+                    {
+                        str(key): str(value)
+                        for key, value in frozen_memory.items()
+                    }
+                    if isinstance(frozen_memory, dict)
+                    else {},
                     str(last_turn.get("role") or "auto"),
                     str(last_turn.get("mode") or "auto"),
                     model_profile="pro",
@@ -268,6 +276,16 @@ class LearningClosureService:
             all_turns=all_turns,
             completed_turns=completed_turns,
             evaluation_repository=self.evaluation_repository,
+        )
+        memory_context = bounded_memory_context(self.memory_bundle_loader("light"))
+        structured_input["memory_context"] = memory_context
+        structured_input["allowed_source_refs"] = sorted(
+            {
+                str(item)
+                for item in structured_input.get("allowed_source_refs", [])
+                if str(item).strip()
+            }
+            | {f"memory:{filename}" for filename in memory_context}
         )
         source_identity: dict[str, Any] = {
             "thread_id": thread.id,
