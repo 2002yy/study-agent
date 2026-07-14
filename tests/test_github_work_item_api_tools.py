@@ -71,6 +71,8 @@ def test_work_item_routes_preserve_budgets_and_options():
             max_comments=9,
             max_reviews=10,
             include_checks=False,
+            max_provider_requests=21,
+            max_pages_per_collection=4,
         ),
         service,  # type: ignore[arg-type]
     )
@@ -80,6 +82,8 @@ def test_work_item_routes_preserve_budgets_and_options():
             number=9,
             max_comments=11,
             max_events=12,
+            max_provider_requests=9,
+            max_pages_per_collection=3,
         ),
         service,  # type: ignore[arg-type]
     )
@@ -91,6 +95,8 @@ def test_work_item_routes_preserve_budgets_and_options():
             max_checks=14,
             max_jobs=15,
             include_jobs=False,
+            max_provider_requests=10,
+            max_pages_per_collection=2,
         ),
         service,  # type: ignore[arg-type]
     )
@@ -118,9 +124,20 @@ def test_work_item_routes_preserve_budgets_and_options():
                 "max_comments": 9,
                 "max_reviews": 10,
                 "include_checks": False,
+                "max_provider_requests": 21,
+                "max_pages_per_collection": 4,
             },
         ),
-        ("issue", (REPO, 9), {"max_comments": 11, "max_events": 12}),
+        (
+            "issue",
+            (REPO, 9),
+            {
+                "max_comments": 11,
+                "max_events": 12,
+                "max_provider_requests": 9,
+                "max_pages_per_collection": 3,
+            },
+        ),
         (
             "checks",
             (REPO,),
@@ -130,6 +147,8 @@ def test_work_item_routes_preserve_budgets_and_options():
                 "max_checks": 14,
                 "max_jobs": 15,
                 "include_jobs": False,
+                "max_provider_requests": 10,
+                "max_pages_per_collection": 2,
             },
         ),
         ("logs", (REPO, 41), {"max_chars": 16000, "max_lines": 160}),
