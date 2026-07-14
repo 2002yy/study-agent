@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Protocol
 
 from src.domain.runtime_entities import ChatTurn
-from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.pedagogy.evaluation import PedagogyEvalRun
 
 CLOSURE_INPUT_SCHEMA_VERSION = "learning-closure-input-v1"
 DEFAULT_RECENT_TURN_LIMIT = 6
@@ -28,6 +28,10 @@ _COMMITTED_STATE_KEYS = (
 )
 
 
+class EvaluationRepository(Protocol):
+    def get_for_turn(self, turn_id: str) -> PedagogyEvalRun | None: ...
+
+
 def build_structured_closure_input(
     *,
     thread_id: str,
@@ -36,7 +40,7 @@ def build_structured_closure_input(
     learning_state: dict[str, Any],
     all_turns: list[ChatTurn],
     completed_turns: list[ChatTurn],
-    evaluation_repository: PedagogyEvalRepository | None = None,
+    evaluation_repository: EvaluationRepository | None = None,
     recent_turn_limit: int = DEFAULT_RECENT_TURN_LIMIT,
     dialogue_char_budget: int = DEFAULT_DIALOGUE_CHAR_BUDGET,
     message_char_limit: int = DEFAULT_MESSAGE_CHAR_LIMIT,
@@ -155,7 +159,7 @@ def _recent_dialogue(
 def _final_evaluation(
     completed_turns: list[ChatTurn],
     *,
-    evaluation_repository: PedagogyEvalRepository | None,
+    evaluation_repository: EvaluationRepository | None,
 ) -> dict[str, Any] | None:
     if evaluation_repository is None:
         return None
