@@ -5,6 +5,7 @@ export type TaskContract = {
   learning_state_enabled: boolean;
   confidence?: string;
   reason?: string;
+  explicit_override?: boolean;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -16,34 +17,16 @@ export function taskContractFromRoute(
 ): TaskContract | undefined {
   const raw = asRecord(route?.task_contract);
   if (!raw || typeof raw.task_intent !== "string") return undefined;
-  const contract: TaskContract = {
+  return {
     task_intent: raw.task_intent,
     source_policy: String(raw.source_policy ?? "model_only"),
     closure_eligibility: String(raw.closure_eligibility ?? "not_applicable"),
     learning_state_enabled: raw.learning_state_enabled === true,
     confidence: typeof raw.confidence === "string" ? raw.confidence : undefined,
     reason: typeof raw.reason === "string" ? raw.reason : undefined,
+    explicit_override:
+      typeof raw.explicit_override === "boolean" ? raw.explicit_override : undefined,
   };
-  const learningState = asRecord(route?.learning_state);
-  const hasActiveLearning = Boolean(
-    String(learningState?.objective ?? "").trim() ||
-    String(learningState?.protocol ?? "").trim()
-  );
-  if (
-    hasActiveLearning &&
-    contract.task_intent === "quick_answer" &&
-    contract.confidence === "low"
-  ) {
-    return {
-      ...contract,
-      task_intent: "learn",
-      closure_eligibility: "learning_summary",
-      learning_state_enabled: true,
-      confidence: "medium",
-      reason: "continue_active_learning",
-    };
-  }
-  return contract;
 }
 
 export function taskIntentLabel(intent: string): string {
