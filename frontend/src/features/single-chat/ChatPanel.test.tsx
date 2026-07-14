@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChatResponse } from "../../types";
 import { ChatPanel } from "./ChatPanel";
 
-function renderPanel(): ReactTestRenderer {
+type RenderOptions = {
+  hasSearchQuery?: boolean;
+  onOpenDrawer?: ReturnType<typeof vi.fn>;
+  onSearchSources?: ReturnType<typeof vi.fn>;
+};
+
+function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
@@ -21,9 +27,9 @@ function renderPanel(): ReactTestRenderer {
         onRetry={vi.fn()}
         onCopyInterruptedReply={vi.fn()}
         onUploadClick={vi.fn()}
-        onSearchSources={vi.fn()}
+        onSearchSources={options.onSearchSources ?? vi.fn()}
         isSearching={false}
-        hasSearchQuery={false}
+        hasSearchQuery={options.hasSearchQuery ?? false}
         onQuickPrompt={vi.fn()}
         lastChat={{
           reply: "",
@@ -53,7 +59,7 @@ function renderPanel(): ReactTestRenderer {
         } as ChatResponse}
         ragEnabled
         memoryStatus={null}
-        onOpenDrawer={vi.fn()}
+        onOpenDrawer={options.onOpenDrawer ?? vi.fn()}
         onEndSession={vi.fn()}
       />
     );
@@ -82,6 +88,39 @@ describe("ChatPanel practical workspace navigation", () => {
     expect(serialized).toContain("受控工具");
     expect(serialized).toContain("学习记忆");
     expect(serialized).toContain("工作流记录");
+
+    act(() => renderer.unmount());
+  });
+
+  it("opens a selected low-frequency workspace and closes the menu", () => {
+    const onOpenDrawer = vi.fn();
+    const removeAttribute = vi.fn();
+    const renderer = renderPanel({ onOpenDrawer });
+    const groupAction = renderer.root.findAllByProps({ role: "menuitem" })[0];
+
+    act(() => {
+      groupAction.props.onClick({
+        currentTarget: {
+          closest: () => ({ removeAttribute }),
+        },
+      });
+    });
+
+    expect(onOpenDrawer).toHaveBeenCalledWith("group");
+    expect(removeAttribute).toHaveBeenCalledWith("open");
+
+    act(() => renderer.unmount());
+  });
+
+  it("keeps direct source search available in the primary workspace", () => {
+    const onSearchSources = vi.fn();
+    const renderer = renderPanel({ hasSearchQuery: true, onSearchSources });
+    const searchButton = renderer.root.findByProps({
+      "aria-label": "检索当前问题的资料来源",
+    });
+
+    act(() => searchButton.props.onClick());
+    expect(onSearchSources).toHaveBeenCalledTimes(1);
 
     act(() => renderer.unmount());
   });
