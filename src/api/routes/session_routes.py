@@ -7,7 +7,6 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.after_session import after_session_to_memory_updates, generate_after_session_updates
 from src.api.models.common import (
     SessionArchiveResponse,
     SessionDetailResponse,
@@ -16,7 +15,11 @@ from src.api.models.common import (
 )
 from src.api.models.memory import MemoryRunResponse
 from src.application.helpers import runtime_settings_payload
-from src.application.runtime_repository import get_memory_service, get_session_service
+from src.application.learning_closure_service import LearningClosureNotEligible
+from src.application.runtime_repository import (
+    get_learning_closure_service,
+    get_session_service,
+)
 from src.application.session_service import SessionService
 
 router = APIRouter(tags=["sessions"])
@@ -93,30 +96,23 @@ def flush_session(
 @router.post(
     "/sessions/{session_id}/after-session/preview",
     response_model=MemoryRunResponse,
+    deprecated=True,
 )
 def after_session_preview(
     session_id: str,
-    service: SessionServiceDependency,
 ) -> MemoryRunResponse:
-    """Auto-generate memory candidates from a learning session (P1.1)."""
-    from src.memory import read_memory_bundle
+    """Compatibility adapter; LearningClosureService owns the workflow."""
 
-    detail = service.get_session(session_id)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    messages = [
-        {"role": m["role"], "content": m["content"]}
-        for m in detail.get("messages", [])
-        if m.get("role") in {"user", "assistant"} and m.get("content")
-    ]
-    turns = detail.get("turns") or []
-    last_turn = turns[-1] if turns else {}
-    role = str(last_turn.get("role") or "auto")
-    mode = str(last_turn.get("mode") or "auto")
-    bundle = read_memory_bundle("light")
-    generated = generate_after_session_updates(messages, bundle, role, mode)
-    updates = after_session_to_memory_updates(generated)
-    if not updates:
-        raise HTTPException(status_code=409, detail="无可生成的记忆候选")
-    run = get_memory_service().create(updates)
-    return MemoryRunResponse(**asdict(run))
+    closure_service = get_learning_closure_service()
+    try:
+        closure = closure_service.create_and_execute(session_id)
+    except LearningClosureNotEligible as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        status = 404 if "not found" in str(exc).lower() else 409
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    memory_run = closure_service.linked_memory_run(closure)
+    if memory_run is None:
+        detail = closure.error or closure.reason or "Closure preview is not ready"
+        raise HTTPException(status_code=409, detail=detail)
+    return MemoryRunResponse(**asdict(memory_run))
