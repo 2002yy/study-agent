@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { SESSION_STORAGE_KEY } from "../features/single-chat/chatHistory";
 import type { ChatMessage, ChatResponse, ChatSettings, RagSettings } from "../types";
 
-export const WORKSPACE_STORAGE_SCHEMA_VERSION = 2;
+export const WORKSPACE_STORAGE_SCHEMA_VERSION = 3;
 
 export type WorkspaceRecovery = {
   sessionId?: string;
@@ -12,6 +12,7 @@ export type WorkspaceRecovery = {
   newsRunId?: string;
   toolRunId?: string;
   memoryRunId?: string;
+  learningClosureRunId?: string;
   ragQueryRunId?: string;
   ragWriteRunId?: string;
   webLookupRunId?: string;
@@ -39,13 +40,11 @@ type StoredWorkspaceEnvelope = {
 export function parseWorkspaceRecovery(raw: string): WorkspaceRecovery | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (parsed.schemaVersion === WORKSPACE_STORAGE_SCHEMA_VERSION) {
-      const workspace = parsed.workspace;
-      return workspace && typeof workspace === "object"
-        ? (workspace as WorkspaceRecovery)
-        : null;
+    const workspace = parsed.workspace;
+    if (workspace && typeof workspace === "object") {
+      return workspace as WorkspaceRecovery;
     }
-    // Version 1 stored workspace fields at the root. Read once and rewrite as v2.
+    // Version 1 stored workspace fields at the root.
     return parsed as WorkspaceRecovery;
   } catch {
     return null;
