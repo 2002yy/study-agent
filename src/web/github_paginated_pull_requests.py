@@ -13,7 +13,7 @@ from src.web.github_paginated_base import (
 )
 from src.web.github_paginated_checks import PaginatedGitHubChecksService
 from src.web.github_provider_pagination import GitHubProviderRequestBudget
-from src.web.github_reader import _api
+from src.web.github_reader import _api, parse_github_url
 from src.web.github_work_items import (
     GitHubWorkItemBudget,
     _actor,
@@ -24,6 +24,90 @@ from src.web.github_work_items import (
 
 class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
     """Add paginated PR collections and cross-repository evidence ownership."""
+
+    def _commit_evidence(
+        self,
+        repo_url: str,
+        commit_sha: str,
+        request_budget: GitHubProviderRequestBudget,
+        *,
+        operation: str,
+    ) -> dict[str, Any]:
+        target = parse_github_url(repo_url)
+        if target is None or not commit_sha:
+            return {
+                "ok": False,
+                "status": "invalid",
+                "repository": str(repo_url or ""),
+                "commit_sha": str(commit_sha or ""),
+                "error": "invalid_commit_evidence_target",
+            }
+        payload, error = self._budgeted_json(
+            operation,
+            _api(
+                f"/repos/{quote(target.owner)}/{quote(target.repo)}"
+                f"/commits/{quote(commit_sha, safe='')}"
+            ),
+            request_budget,
+        )
+        if not isinstance(payload, dict):
+            return {
+                "ok": False,
+                "status": (
+                    "unavailable"
+                    if error and error.get("error") != "not_found"
+                    else "not_found"
+                ),
+                "repository": target.repository,
+                "requested_ref": commit_sha,
+                "commit_sha": commit_sha,
+                "error": str(
+                    error.get("error") if error else "github_commit_unavailable"
+                ),
+            }
+        commit_data = as_dict(payload.get("commit"))
+        tree = as_dict(commit_data.get("tree"))
+        author = as_dict(commit_data.get("author"))
+        committer = as_dict(commit_data.get("committer"))
+        verification = as_dict(commit_data.get("verification"))
+        payload_author = as_dict(payload.get("author"))
+        payload_committer = as_dict(payload.get("committer"))
+        return {
+            "ok": True,
+            "status": "resolved",
+            "repository": target.repository,
+            "requested_ref": commit_sha,
+            "resolved_type": "commit",
+            "resolved_name": commit_sha,
+            "commit_sha": str(payload.get("sha") or commit_sha),
+            "tree_sha": str(tree.get("sha") or ""),
+            "message": str(commit_data.get("message") or ""),
+            "parents": [
+                str(item.get("sha") or "")
+                for item in payload.get("parents", [])
+                if isinstance(item, dict)
+            ],
+            "author": {
+                "name": str(author.get("name") or ""),
+                "email": str(author.get("email") or ""),
+                "date": str(author.get("date") or ""),
+                "login": str(payload_author.get("login") or ""),
+            },
+            "committer": {
+                "name": str(committer.get("name") or ""),
+                "email": str(committer.get("email") or ""),
+                "date": str(committer.get("date") or ""),
+                "login": str(payload_committer.get("login") or ""),
+            },
+            "verification": {
+                "verified": bool(verification.get("verified")),
+                "reason": str(verification.get("reason") or ""),
+                "signature": str(verification.get("signature") or ""),
+                "payload": str(verification.get("payload") or ""),
+            },
+            "stats": as_dict(payload.get("stats")),
+            "html_url": str(payload.get("html_url") or ""),
+        }
 
     def pull_request(
         self,
@@ -234,12 +318,22 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
                 )
 
         base_commit = (
-            self.history_service.commit(base_repo_url, base_sha)
+            self._commit_evidence(
+                base_repo_url,
+                base_sha,
+                request_budget,
+                operation=f"pull_request_base_commit:{base_repository}",
+            )
             if base_sha
             else {}
         )
         head_commit = (
-            self.history_service.commit(head_repo_url, head_sha)
+            self._commit_evidence(
+                head_repo_url,
+                head_sha,
+                request_budget,
+                operation=f"pull_request_head_commit:{head_repository}",
+            )
             if head_sha
             else {}
         )
@@ -386,6 +480,6 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
                 "include_checks": include_checks,
             },
             "provider_request_budget": request_budget.to_dict()
-            | {"scope": "work_item_rest_graphql_collections"},
+            | {"scope": "pull_request_rest_graphql_calls"},
         }
         return self._cache_put(cache_key, result)
