@@ -62,6 +62,8 @@ class GitHubPullRequestQueryRequest(BaseModel):
     max_comments: int = Field(default=100, ge=1, le=100)
     max_reviews: int = Field(default=100, ge=1, le=100)
     include_checks: bool = True
+    max_provider_requests: int = Field(default=24, ge=1, le=128)
+    max_pages_per_collection: int = Field(default=10, ge=1, le=50)
 
 
 class GitHubPRReviewContextQueryRequest(BaseModel):
@@ -74,6 +76,8 @@ class GitHubPRReviewContextQueryRequest(BaseModel):
     depth: int = Field(default=2, ge=1, le=4)
     max_impact_files: int = Field(default=40, ge=1, le=100)
     max_edges: int = Field(default=160, ge=1, le=500)
+    max_provider_requests: int = Field(default=24, ge=1, le=128)
+    max_pages_per_collection: int = Field(default=10, ge=1, le=50)
 
 
 class GitHubIssueQueryRequest(BaseModel):
@@ -81,6 +85,8 @@ class GitHubIssueQueryRequest(BaseModel):
     number: int = Field(gt=0)
     max_comments: int = Field(default=100, ge=1, le=100)
     max_events: int = Field(default=100, ge=1, le=100)
+    max_provider_requests: int = Field(default=12, ge=1, le=128)
+    max_pages_per_collection: int = Field(default=10, ge=1, le=50)
 
 
 class GitHubChecksQueryRequest(BaseModel):
@@ -90,6 +96,8 @@ class GitHubChecksQueryRequest(BaseModel):
     max_checks: int = Field(default=100, ge=1, le=100)
     max_jobs: int = Field(default=100, ge=1, le=300)
     include_jobs: bool = True
+    max_provider_requests: int = Field(default=16, ge=1, le=128)
+    max_pages_per_collection: int = Field(default=10, ge=1, le=50)
 
 
 class GitHubCILogsQueryRequest(BaseModel):
