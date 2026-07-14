@@ -3,11 +3,13 @@ import { createWorkspaceRuntimeState, workspaceReducer } from "./workspaceReduce
 
 
 describe("workspaceReducer", () => {
-  it("restores a chat session without clearing group or news scopes", () => {
+  it("restores another chat without clearing group/news but clears chat closure scope", () => {
     const state = createWorkspaceRuntimeState({
       activeChatThreadId: "chat-old",
       activeGroupThreadId: "group-1",
-      activeNewsRunId: "news-1"
+      activeNewsRunId: "news-1",
+      activeMemoryRunId: "memory-old",
+      activeLearningClosureRunId: "closure-old"
     });
 
     const next = workspaceReducer(state, { type: "RESTORE_CHAT_SESSION", threadId: "chat-new" });
@@ -15,7 +17,22 @@ describe("workspaceReducer", () => {
     expect(next.activeChatThreadId).toBe("chat-new");
     expect(next.activeGroupThreadId).toBe("group-1");
     expect(next.activeNewsRunId).toBe("news-1");
+    expect(next.activeMemoryRunId).toBeUndefined();
+    expect(next.activeLearningClosureRunId).toBeUndefined();
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
+  });
+
+  it("keeps closure scope when restoring the same chat thread", () => {
+    const state = createWorkspaceRuntimeState({
+      activeChatThreadId: "chat-1",
+      activeMemoryRunId: "memory-1",
+      activeLearningClosureRunId: "closure-1"
+    });
+
+    const next = workspaceReducer(state, { type: "RESTORE_CHAT_SESSION", threadId: "chat-1" });
+
+    expect(next.activeMemoryRunId).toBe("memory-1");
+    expect(next.activeLearningClosureRunId).toBe("closure-1");
   });
 
   it("starts a new chat session and clears chat-scoped run state", () => {
@@ -69,6 +86,8 @@ describe("workspaceReducer", () => {
   it("transitions the complete chat workspace atomically", () => {
     const state = createWorkspaceRuntimeState({
       activeChatThreadId: "chat-old",
+      activeMemoryRunId: "memory-old",
+      activeLearningClosureRunId: "closure-old",
       chatMessages: [{ role: "user", content: "old" }],
       streamRecovery: {
         question: "old",
@@ -114,6 +133,8 @@ describe("workspaceReducer", () => {
     expect(next.chatMessages[0].content).toBe("restored partial");
     expect(next.lastChat?.turn_id).toBe("turn-new");
     expect(next.streamRecovery?.turnId).toBe("turn-new");
+    expect(next.activeMemoryRunId).toBeUndefined();
+    expect(next.activeLearningClosureRunId).toBeUndefined();
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
   });
 
