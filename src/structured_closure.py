@@ -152,16 +152,14 @@ def normalize_structured_closure_result(
         confidence = str(raw.get("confidence") or "low").strip().lower()
         if confidence not in _ALLOWED_CONFIDENCE:
             confidence = "low"
-        has_committed_source = any(
-            ref.startswith("learning_state.") or ref.startswith("memory:")
-            for ref in source_refs
-        )
         has_accepted_evaluation = (
             final_decision == "accept"
             and final_evaluation_id in evaluation_refs
         )
-        if confidence == "high" and not (
-            has_committed_source or has_accepted_evaluation
+        if confidence == "high" and not _allows_high_confidence(
+            target,
+            source_refs,
+            has_accepted_evaluation=has_accepted_evaluation,
         ):
             confidence = "medium"
         learner_pending = target == "learner_profile" or raw.get("learner_pending") is True
@@ -296,3 +294,26 @@ def _target_is_grounded(
             }
         )
     return True
+
+
+def _allows_high_confidence(
+    target: str,
+    source_refs: list[str],
+    *,
+    has_accepted_evaluation: bool,
+) -> bool:
+    refs = set(source_refs)
+    if has_accepted_evaluation:
+        return True
+    if target == "progress":
+        return bool(
+            refs
+            & {
+                "learning_state.confirmed_points",
+                "memory:progress.md",
+            }
+        )
+    return any(
+        ref.startswith("learning_state.") or ref.startswith("memory:")
+        for ref in refs
+    )
