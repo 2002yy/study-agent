@@ -48,6 +48,18 @@ _PR_REVIEW_CONTEXT_TOOL = {
                     "maximum": 100,
                 },
                 "max_edges": {"type": "integer", "minimum": 1, "maximum": 500},
+                "max_provider_requests": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128,
+                    "description": "Global REST/GraphQL request budget for the composed PR read.",
+                },
+                "max_pages_per_collection": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "Maximum pages for each reviews/files/checks/jobs collection.",
+                },
             },
             "required": ["repo_url", "number"],
             "additionalProperties": False,
@@ -124,4 +136,8 @@ class PersistentWebToolAgent(WebToolAgent):
             depth=int(arguments.get("depth", 2)),
             max_impact_files=int(arguments.get("max_impact_files", 40)),
             max_edges=int(arguments.get("max_edges", 160)),
+            max_provider_requests=int(arguments.get("max_provider_requests", 24)),
+            max_pages_per_collection=int(
+                arguments.get("max_pages_per_collection", 10)
+            ),
         )
