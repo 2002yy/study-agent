@@ -1,5 +1,3 @@
-import type { LearningState } from "../../types";
-
 const MOVE_LABELS: Record<string, string> = {
   elicit_claim: "引出主张",
   clarify_definition: "澄清定义",
@@ -84,15 +82,4 @@ export function phaseTrail(phases: string[]): string[] {
     }
   }
   return out;
-}
-
-export function deriveMastery(state: LearningState, visitedPhases: string[]): number {
-  const confirmed = state.confirmed_points?.length ?? 0;
-  const gap = state.unresolved_gap ? 1 : 0;
-  const pointRatio = confirmed / Math.max(1, confirmed + gap);
-  const totalPhases = Math.max(1, visitedPhases.length);
-  const phaseRatio = visitedPhases.includes(state.phase)
-    ? (visitedPhases.indexOf(state.phase) + 1) / totalPhases
-    : 0;
-  return Math.max(0, Math.min(1, 0.5 * pointRatio + 0.5 * phaseRatio));
 }
