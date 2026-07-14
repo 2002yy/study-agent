@@ -6,7 +6,9 @@ from src.task_contract import (
     TaskAwarePedagogyEngine,
     TaskAwarePedagogyEvaluationService,
     classify_task_contract,
+    resolve_turn_task_contract,
     route_request_with_task_contract,
+    task_contract_from_snapshot,
 )
 from src.task_intent import default_contract
 
@@ -79,6 +81,53 @@ def test_explicit_research_overrides_active_learning_temporarily():
     assert contract.learning_state_enabled is False
 
 
+def test_user_task_override_wins_over_text_and_active_learning():
+    contract = classify_task_contract(
+        "联网看看最新消息",
+        active_learning=True,
+        explicit_override="quick_answer",
+    )
+
+    assert contract.task_intent == "quick_answer"
+    assert contract.source_policy == "local_and_web"
+    assert contract.learning_state_enabled is False
+    assert contract.confidence == "high"
+    assert contract.reason == "explicit_task_override"
+    assert contract.explicit_override is True
+
+
+def test_persisted_contract_round_trips_without_reclassification():
+    original = classify_task_contract(
+        "联网看看最新消息",
+        explicit_override="quick_answer",
+    )
+
+    restored = task_contract_from_snapshot(original.to_dict())
+
+    assert restored == original
+
+
+def test_continuation_reuses_persisted_contract_before_new_override():
+    persisted = classify_task_contract(
+        "联网看看最新消息",
+        explicit_override="research",
+    )
+    state = LearningState(
+        protocol="socratic_rediscovery",
+        objective="理解二分查找复杂度",
+    )
+
+    resolved = resolve_turn_task_contract(
+        user_input="带我系统学习数据库索引",
+        state=state,
+        explicit_override="learn",
+        persisted_route={"task_contract": persisted.to_dict()},
+    )
+
+    assert resolved == persisted
+    assert resolved.task_intent == "research"
+
+
 def test_research_skips_semantic_mastery_evaluation():
     class FailingSemanticEvaluator:
         def evaluate(self, **kwargs):
@@ -109,6 +158,31 @@ def test_research_skips_semantic_mastery_evaluation():
     assert result.reasons == ("task_intent:research",)
 
 
+def test_evaluation_consumes_supplied_contract_without_reclassifying_text():
+    class FailingSemanticEvaluator:
+        def evaluate(self, **kwargs):
+            raise AssertionError("semantic evaluator must not run for supplied quick answer")
+
+    service = TaskAwarePedagogyEvaluationService(FailingSemanticEvaluator())
+    state = LearningState(
+        protocol="socratic_rediscovery",
+        objective="理解二分查找复杂度",
+    )
+    contract = classify_task_contract(
+        "带我系统学习数据库索引",
+        explicit_override="quick_answer",
+    )
+
+    result = service.evaluate_learner(
+        learner_input="带我系统学习数据库索引",
+        state=state,
+        task_contract=contract,
+    )
+
+    assert result.final_decision == "not_applicable"
+    assert result.reasons == ("task_intent:quick_answer",)
+
+
 def test_research_plan_preserves_existing_learning_state():
     engine = TaskAwarePedagogyEngine()
     state = LearningState(
@@ -131,6 +205,31 @@ def test_research_plan_preserves_existing_learning_state():
     assert plan.phase == "answer"
     assert "do_not_update_learning_state" in plan.constraints
     assert "task_intent:research" in plan.constraints
+
+
+def test_plan_consumes_supplied_contract_without_reclassifying_text():
+    engine = TaskAwarePedagogyEngine()
+    state = LearningState(
+        protocol="socratic_rediscovery",
+        objective="理解二分查找复杂度",
+        phase="scaffold",
+        turn_count=3,
+    )
+    contract = classify_task_contract(
+        "带我系统学习数据库索引",
+        explicit_override="quick_answer",
+    )
+
+    plan, next_state = engine.plan(
+        user_input="带我系统学习数据库索引",
+        mode="苏格拉底",
+        state=state,
+        task_contract=contract,
+    )
+
+    assert next_state == state
+    assert plan.mode == "direct_answer"
+    assert "task_intent:quick_answer" in plan.constraints
 
 
 def test_research_commit_removes_the_transient_evaluation_payload():
@@ -224,6 +323,28 @@ def test_route_snapshot_contains_task_contract():
     assert task_contract["task_intent"] == "research"
     assert task_contract["source_policy"] == "web_only"
     assert task_contract["learning_state_enabled"] is False
+
+
+def test_route_uses_precomputed_contract_instead_of_reclassifying():
+    contract = classify_task_contract(
+        "联网看看gpt5.6sol",
+        explicit_override="quick_answer",
+    )
+
+    route = route_request_with_task_contract(
+        user_input="联网看看gpt5.6sol",
+        selected_role="auto",
+        selected_mode="auto",
+        selected_model="auto",
+        runtime_modes=RuntimeModes(performance_mode="fast"),
+        previous_role=None,
+        previous_mode="苏格拉底",
+        keep_current_role=False,
+        task_contract=contract,
+    )
+
+    assert route["task_contract"] == contract.to_dict()
+    assert route["task_contract"]["task_intent"] == "quick_answer"
 
 
 def test_route_snapshot_inherits_non_direct_learning_mode():

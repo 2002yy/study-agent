@@ -216,6 +216,7 @@ def _chat_command(request: ChatRequest) -> PolicyChatCommand:
         web_policy=request.web_policy,
         web_consent=request.web_consent,
         cloud_context_policy=request.cloud_context_policy,
+        task_intent=request.task_intent,
         continuation_of_turn_id=request.continuation_of_turn_id,
         retry_of_turn_id=request.retry_of_turn_id,
         partial_reply=request.partial_reply,

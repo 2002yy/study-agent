@@ -2,14 +2,14 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-14  
-> 当前稳定化基线：PR #29，状态真值、增量 mypy 门禁、ask 模式显式联网同意  
-> 下一代码切片：TaskContract 单次判定，随后进入 G10-C2.4
+> 当前能力基线：PR #30，TaskContract 单次判定、全链复用与 API 显式 override  
+> 下一代码切片：G10-C2.4 Source-backed PR review context
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究，以及初版跨版本 hunk-to-symbol 影响分析。**
+> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究，以及初版跨版本 hunk-to-symbol 影响分析。聊天主链已具备单一、可持久化、可显式覆盖的 TaskContract。**
 
 ## 2. 已完成
 
@@ -188,11 +188,24 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 ### CI 与外发策略稳定化
 
 - pytest、前端、detect-secrets 和 mypy 均先保留诊断 artifact，再执行独立门禁；
-- expanded mypy 采用增量基线门禁：主线已有 127 个错误被显式登记；任何新增或扩大的错误会阻止合并，错误减少不要求提高基线；
-- 本切片修复了 `policy_chat_service.py` 中 3 个既有类型错误；
+- expanded mypy 采用增量基线门禁：主线已有错误被显式登记；任何新增或扩大的错误会阻止合并，错误减少不要求提高基线；
 - `web_policy=ask` 只接受显式 `web_consent` 或内部一次性 consent marker；普通 `web_context` 文本不会隐式授权联网；
 - 诊断 artifact 为 `pytest-log`、`frontend-log`、`detect-secrets-report` 和 `mypy-log`；
 - 报告保留 7 天。
+
+### TaskContract 单一真值
+
+PR #30 已完成主链收口：
+
+1. 新 Turn 在读取线程学习状态后只判定一次 TaskContract。
+2. 优先级固定为：显式 override > 明确文本意图 > active learning 继承 > quick-answer 安全默认。
+3. 路由快照、外发策略、教学评估、教学计划、RAG/Web 选择与 pedagogy snapshot 使用同一合同。
+4. continuation 与 retry 优先恢复原 Turn/父 Turn 的持久化合同，不因新文本或新 override 改写语义。
+5. `POST /chat` 与 `POST /chat/stream` 接受受限枚举 `task_intent`；非法值在 API 边界拒绝。
+6. 前端 `taskContractFromRoute()` 只展示服务端持久化结果，不再根据 `learning_state` 二次推断。
+7. 旧调用路径仍保留兼容 fallback，但生产聊天 preparation 不依赖重复分类结果。
+
+当前显式 override 已具备 API 能力，主界面尚未提供可视化任务选择器。
 
 ## 3. 还差什么
 
@@ -213,21 +226,14 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 | issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
 | checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
 | 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
-| 全量 mypy 零错误 | 未完成 | 当前登记 127 个既有错误；增量门禁已阻止新增，后续应按模块逐步归零 |
-| TaskContract 单一真值 | 未完成 | 当前 route、evaluation、pedagogy 仍可能重复分类，需要单次判定后全链传递 |
+| 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
+| TaskContract UI override | 未完成 | API 已支持，主界面缺少按 Turn 选择并清晰显示 override 的控件 |
 | PR review context | 未完成 | PR + change impact + checks/reviews 的单一证据包 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
 | 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
 
 ## 4. 下一代码顺序
-
-### 稳定化后续：TaskContract 单次判定
-
-1. 在本轮 preparation 起点只生成一次 TaskContract。
-2. route、pedagogy evaluation、pedagogy plan、RAG、Web 和 closure 只消费该合同，不自行重算。
-3. 增加用户显式 task override，并持久化到 route snapshot。
-4. 回归覆盖 active learning、临时 research、quick answer 和显式 project execution。
 
 ### G10-C2.4：Source-backed PR review context
 
@@ -258,32 +264,32 @@ GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
 
 ## 5. 当前验证
 
-PR #28 最终 GitHub Actions CI #634，代码 head `68a0eefd2e0ad68b3dda43e77e12235184894a3b`，合并后主线 commit `a343a7f897db92f7f0424af8d46cf94d1559c503`：
-
-- pytest：685 passed；
-- Ruff：passed；
-- package helper：passed；
-- detect-secrets：passed；
-- expanded mypy：passed；
-- frontend Vitest、TypeScript build 和 Vite production build：passed。
-
-PR #29 稳定化代码验证使用 GitHub Actions CI #653，代码 head `81298cf6dea886ea7cadb29802d49610c8a0acb0`：
+PR #29 稳定化验证：
 
 - pytest：691 passed；
+- Ruff、package helper、detect-secrets：passed；
+- expanded mypy：127 个已登记错误，0 个新增或扩大，增量门禁 passed；
+- frontend Vitest、TypeScript build 和 Vite production build：passed。
+
+PR #30 代码验证使用 GitHub Actions CI #668，代码 head `29f925b280baf5736b4b01cce8746cb51a375e17`：
+
+- pytest：702 passed；
 - Ruff：passed；
 - package helper：passed；
 - detect-secrets：passed；
-- expanded mypy：127 个已登记错误，0 个新增或扩大，增量门禁 passed；
+- expanded mypy 增量门禁：passed；
 - frontend Vitest、TypeScript build 和 Vite production build：passed。
 
 本切片新增回归覆盖：
 
-- ask 模式中的普通 `web_context` 不构成联网同意；
-- 显式 consent 语义不受影响；
-- mypy 签名忽略不稳定行列号；
-- 已登记错误允许通过、错误减少允许通过；
-- 新增或扩大错误阻止通过；
-- mypy 超时或无可解析错误的执行失败不能伪装成已知技术债。
+- 用户 override 在文本意图和 active learning 之上生效；
+- 持久化合同无损恢复；
+- continuation 与 retry 复用父合同；
+- evaluation 与 plan 消费供应合同而非重新分类；
+- route adapter 使用预计算合同；
+- 外发策略、RAG 和教学约束共享合同；
+- 前端不再根据 learning state 改写合同；
+- API 接受合法 `task_intent` 并拒绝未知值。
 
 ## 6. 文档规则
 

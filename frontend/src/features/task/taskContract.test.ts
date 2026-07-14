@@ -14,6 +14,7 @@ describe("taskContract", () => {
         closure_eligibility: "research_summary",
         learning_state_enabled: false,
         confidence: "high",
+        explicit_override: true,
       },
     });
 
@@ -24,10 +25,11 @@ describe("taskContract", () => {
       learning_state_enabled: false,
       confidence: "high",
       reason: undefined,
+      explicit_override: true,
     });
   });
 
-  it("inherits active learning for a low-confidence follow-up", () => {
+  it("does not reinterpret a persisted contract from learning state", () => {
     const contract = taskContractFromRoute({
       task_contract: {
         task_intent: "quick_answer",
@@ -35,6 +37,7 @@ describe("taskContract", () => {
         closure_eligibility: "optional_note",
         learning_state_enabled: false,
         confidence: "low",
+        reason: "safe_default_quick_answer",
       },
       learning_state: {
         protocol: "socratic_rediscovery",
@@ -42,16 +45,18 @@ describe("taskContract", () => {
       },
     });
 
-    expect(contract).toMatchObject({
-      task_intent: "learn",
-      closure_eligibility: "learning_summary",
-      learning_state_enabled: true,
-      confidence: "medium",
-      reason: "continue_active_learning",
+    expect(contract).toEqual({
+      task_intent: "quick_answer",
+      source_policy: "local_and_web",
+      closure_eligibility: "optional_note",
+      learning_state_enabled: false,
+      confidence: "low",
+      reason: "safe_default_quick_answer",
+      explicit_override: undefined,
     });
   });
 
-  it("does not override explicit research inside a learning thread", () => {
+  it("preserves explicit research inside a learning thread", () => {
     const contract = taskContractFromRoute({
       task_contract: {
         task_intent: "research",

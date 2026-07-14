@@ -25,7 +25,8 @@ from src.external_data_policy import decide_external_data
 from src.pedagogy.evidence import build_evidence_units
 from src.pedagogy.types import LearningState
 from src.rag.query_plan import build_retrieval_query_plan
-from src.task_intent import SourcePolicy
+from src.task_contract import resolve_turn_task_contract
+from src.task_intent import SourcePolicy, TaskIntent
 from src.tools.web_agent import WebToolTrace
 
 WEB_CONSENT_MARKER = "__STUDY_AGENT_WEB_CONSENT__"
@@ -44,6 +45,7 @@ class PolicyChatCommand(ChatCommand):
     web_policy: str | None = None
     web_consent: bool = False
     cloud_context_policy: str | None = None
+    task_intent: TaskIntent | None = None
 
 
 def _source_policy(route: dict[str, Any]) -> SourcePolicy:
@@ -94,6 +96,14 @@ class ExternalDataPolicyChatService(ChatService):
         if existing is not None and not is_continuation:
             raise ValueError(f"Chat turn already exists: {turn_id}")
         thread = self.repository.ensure_chat_thread(thread_id)
+        learning_state = LearningState.from_dict(thread.learning_state)
+        persisted_turn = existing if is_continuation else retry_parent
+        task_contract = resolve_turn_task_contract(
+            user_input=command.user_input,
+            state=learning_state,
+            explicit_override=command.task_intent,
+            persisted_route=(persisted_turn.route_snapshot if persisted_turn else None),
+        )
         operation_id = new_id("op")
         thread = self.repository.acquire_chat_operation(
             thread.id,
@@ -101,6 +111,7 @@ class ExternalDataPolicyChatService(ChatService):
             settings_snapshot={
                 **settings,
                 "conversationInstruction": command.conversation_instruction,
+                "taskIntent": task_contract.task_intent,
             },
         )
         try:
@@ -113,7 +124,9 @@ class ExternalDataPolicyChatService(ChatService):
                 previous_role=_previous_assistant_role(command.chat_history),
                 previous_mode=command.previous_mode or self._previous_persisted_mode(thread.id),
                 keep_current_role=command.keep_current_role,
+                task_contract=task_contract,
             )
+            route = {**route, "task_contract": task_contract.to_dict()}
             decision = decide_external_data(
                 web_policy=effective_web_policy,
                 web_consent=effective_web_consent,
@@ -121,7 +134,6 @@ class ExternalDataPolicyChatService(ChatService):
                 task_source_policy=_source_policy(route),
             )
             route = {**route, "external_data_policy": decision.to_dict()}
-            learning_state = LearningState.from_dict(thread.learning_state)
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
@@ -129,11 +141,14 @@ class ExternalDataPolicyChatService(ChatService):
                 )
             )
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
-            learner_evaluation = self.dependencies.pedagogy_evaluation.evaluate_learner(
+            learner_evaluation = cast(
+                Any, self.dependencies.pedagogy_evaluation
+            ).evaluate_learner(
                 learner_input=command.user_input,
                 state=learning_state,
                 expected_concepts=expected_concepts,
                 evidence=evidence_ids,
+                task_contract=task_contract,
             )
             learning_state = LearningState.from_dict(
                 {
@@ -144,10 +159,13 @@ class ExternalDataPolicyChatService(ChatService):
                     },
                 }
             )
-            pedagogy_plan, next_learning_state = self.dependencies.pedagogy_engine.plan(
+            pedagogy_plan, next_learning_state = cast(
+                Any, self.dependencies.pedagogy_engine
+            ).plan(
                 user_input=command.user_input,
                 mode=route["mode"],
                 state=learning_state,
+                task_contract=task_contract,
             )
             route = {
                 **route,
@@ -274,6 +292,7 @@ class ExternalDataPolicyChatService(ChatService):
                 "evidence_disclosure": disclosed.policy,
                 "evidence_units": list(disclosed.units),
                 "external_data_policy": decision.to_dict(),
+                "task_contract": task_contract.to_dict(),
             }
             if existing is None:
                 pending = ChatTurn(

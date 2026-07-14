@@ -1,10 +1,10 @@
-"""Task classification and minimal runtime enforcement for G11."""
+"""Task classification and single-source runtime enforcement for G11."""
 
 from __future__ import annotations
 
 import re
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from src.pedagogy.classifier import classify_knowledge
@@ -15,7 +15,14 @@ from src.pedagogy.types import (
     LearningState,
     PedagogyTurnPlan,
 )
-from src.task_intent import TaskContract, TaskIntent, default_contract
+from src.task_intent import (
+    ClosureEligibility,
+    ContractConfidence,
+    SourcePolicy,
+    TaskContract,
+    TaskIntent,
+    default_contract,
+)
 
 _EXPLAIN_BACK_MARKERS = (
     "我来讲",
@@ -73,8 +80,35 @@ _CONVERSATION_MARKERS = (
     "我很难受",
 )
 
+_TASK_INTENTS: set[str] = {
+    "quick_answer",
+    "research",
+    "learn",
+    "explain_back",
+    "project_execution",
+    "conversation",
+    "organize",
+}
+_CLOSURE_ELIGIBILITIES: set[str] = {
+    "not_applicable",
+    "optional_note",
+    "learning_summary",
+    "research_summary",
+    "project_summary",
+}
+_SOURCE_POLICIES: set[str] = {
+    "model_only",
+    "local_only",
+    "web_only",
+    "local_and_web",
+    "ask_before_external",
+}
+_CONTRACT_CONFIDENCES: set[str] = {"low", "medium", "high"}
 
-def _classified(intent: TaskIntent, *, confidence: str, reason: str) -> TaskContract:
+
+def _classified(
+    intent: TaskIntent, *, confidence: ContractConfidence, reason: str
+) -> TaskContract:
     return replace(
         default_contract(intent),
         confidence=confidence,
@@ -83,9 +117,20 @@ def _classified(intent: TaskIntent, *, confidence: str, reason: str) -> TaskCont
 
 
 def classify_task_contract(
-    user_input: str, *, active_learning: bool = False
+    user_input: str,
+    *,
+    active_learning: bool = False,
+    explicit_override: TaskIntent | None = None,
 ) -> TaskContract:
-    """Classify explicit task changes before inheriting an active objective."""
+    """Classify one new turn, with an explicit user override taking precedence."""
+
+    if explicit_override is not None:
+        return replace(
+            default_contract(explicit_override),
+            confidence="high",
+            reason="explicit_task_override",
+            explicit_override=True,
+        )
 
     text = " ".join(user_input.strip().lower().split())
     if any(marker in text for marker in _EXPLAIN_BACK_MARKERS):
@@ -123,26 +168,103 @@ def classify_task_contract(
     )
 
 
-def route_request_with_task_contract(**kwargs: Any) -> dict[str, Any]:
-    """Attach task semantics without coupling them to role selection."""
+def task_contract_from_snapshot(value: object) -> TaskContract | None:
+    """Restore a persisted contract without reclassifying the original text."""
 
-    from src.router import route_request
+    if not isinstance(value, dict):
+        return None
+    raw_intent = str(value.get("task_intent", ""))
+    if raw_intent not in _TASK_INTENTS:
+        return None
+    intent = cast(TaskIntent, raw_intent)
+    base = default_contract(intent)
 
-    route = route_request(**kwargs)
-    previous_mode = str(kwargs.get("previous_mode") or "")
-    contract = classify_task_contract(
-        str(kwargs.get("user_input", "")),
-        active_learning=previous_mode in {"苏格拉底", "费曼", "项目"},
+    raw_closure = str(value.get("closure_eligibility", base.closure_eligibility))
+    closure = (
+        cast(ClosureEligibility, raw_closure)
+        if raw_closure in _CLOSURE_ELIGIBILITIES
+        else base.closure_eligibility
     )
-    return {**route, "task_contract": contract.to_dict()}
+    raw_source = str(value.get("source_policy", base.source_policy))
+    source = (
+        cast(SourcePolicy, raw_source)
+        if raw_source in _SOURCE_POLICIES
+        else base.source_policy
+    )
+    raw_confidence = str(value.get("confidence", base.confidence))
+    confidence = (
+        cast(ContractConfidence, raw_confidence)
+        if raw_confidence in _CONTRACT_CONFIDENCES
+        else base.confidence
+    )
+    return TaskContract(
+        task_intent=intent,
+        closure_eligibility=closure,
+        source_policy=source,
+        learning_state_enabled=bool(
+            value.get("learning_state_enabled", base.learning_state_enabled)
+        ),
+        confidence=confidence,
+        reason=str(value.get("reason", base.reason)),
+        explicit_override=bool(value.get("explicit_override", False)),
+    )
 
 
-def _has_active_learning_state(state: LearningState) -> bool:
+def has_active_learning_state(state: LearningState) -> bool:
     return bool(state.objective.strip()) or state.protocol in {
         "socratic_rediscovery",
         "feynman_diagnosis",
         "project_execution",
     }
+
+
+# Backward-compatible private alias for older imports and direct tests.
+_has_active_learning_state = has_active_learning_state
+
+
+def resolve_turn_task_contract(
+    *,
+    user_input: str,
+    state: LearningState,
+    explicit_override: TaskIntent | None = None,
+    persisted_route: dict[str, Any] | None = None,
+) -> TaskContract:
+    """Resolve exactly one immutable contract for a preparation attempt.
+
+    Continuations and retries reuse the original persisted contract. A new turn
+    is classified once, with an explicit override winning over heuristics.
+    """
+
+    if persisted_route:
+        persisted = task_contract_from_snapshot(persisted_route.get("task_contract"))
+        if persisted is not None:
+            return persisted
+    return classify_task_contract(
+        user_input,
+        active_learning=has_active_learning_state(state),
+        explicit_override=explicit_override,
+    )
+
+
+def route_request_with_task_contract(**kwargs: Any) -> dict[str, Any]:
+    """Attach the already-resolved task contract without coupling it to role selection."""
+
+    from src.router import route_request
+
+    supplied = kwargs.pop("task_contract", None)
+    route = route_request(**kwargs)
+    contract = (
+        supplied
+        if isinstance(supplied, TaskContract)
+        else task_contract_from_snapshot(supplied)
+    )
+    if contract is None:
+        previous_mode = str(kwargs.get("previous_mode") or "")
+        contract = classify_task_contract(
+            str(kwargs.get("user_input", "")),
+            active_learning=previous_mode in {"苏格拉底", "费曼", "项目"},
+        )
+    return {**route, "task_contract": contract.to_dict()}
 
 
 def _not_applicable_evaluation(
@@ -199,7 +321,7 @@ def _without_non_learning_evaluation(state: LearningState) -> LearningState:
 
 
 class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
-    """Skip mastery evaluation for temporary or conversational tasks."""
+    """Consume the turn contract and skip mastery evaluation when ineligible."""
 
     def evaluate_learner(
         self,
@@ -208,10 +330,11 @@ class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
         state: LearningState,
         expected_concepts: tuple[str, ...] = (),
         evidence: tuple[str, ...] = (),
+        task_contract: TaskContract | None = None,
     ) -> PedagogyEvalRun:
-        contract = classify_task_contract(
+        contract = task_contract or classify_task_contract(
             learner_input,
-            active_learning=_has_active_learning_state(state),
+            active_learning=has_active_learning_state(state),
         )
         if contract.learning_state_enabled:
             return super().evaluate_learner(
@@ -230,14 +353,19 @@ class TaskAwarePedagogyEvaluationService(PedagogyEvaluationService):
 
 
 class TaskAwarePedagogyEngine(PedagogyEngine):
-    """Use a direct response plan while preserving persisted learning state."""
+    """Consume the turn contract while preserving non-learning state."""
 
     def plan(
-        self, *, user_input: str, mode: str, state: LearningState
+        self,
+        *,
+        user_input: str,
+        mode: str,
+        state: LearningState,
+        task_contract: TaskContract | None = None,
     ) -> tuple[PedagogyTurnPlan, LearningState]:
-        contract = classify_task_contract(
+        contract = task_contract or classify_task_contract(
             user_input,
-            active_learning=_has_active_learning_state(state),
+            active_learning=has_active_learning_state(state),
         )
         if contract.learning_state_enabled:
             return super().plan(user_input=user_input, mode=mode, state=state)
