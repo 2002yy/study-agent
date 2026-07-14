@@ -24,6 +24,7 @@ export default function WorkspaceRuntime() {
   const newsRunId = workspaceRuntime.activeNewsRunId;
   const toolRunId = workspaceRuntime.activeToolRunId;
   const memoryRunId = workspaceRuntime.activeMemoryRunId;
+  const learningClosureRunId = workspaceRuntime.activeLearningClosureRunId;
   const ragQueryRunId = workspaceRuntime.activeRagQueryRunId;
   const ragWriteRunId = workspaceRuntime.activeRagWriteRunId;
   const webLookupRunId = workspaceRuntime.activeWebLookupRunId;
@@ -31,6 +32,7 @@ export default function WorkspaceRuntime() {
   const setNewsRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_NEWS_RUN", runId });
   const setToolRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_TOOL_RUN", runId });
   const setMemoryRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_MEMORY_RUN", runId });
+  const setLearningClosureRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_LEARNING_CLOSURE_RUN", runId });
   const setRagQueryRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_RAG_QUERY_RUN", runId });
   const setRagWriteRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_RAG_WRITE_RUN", runId });
   const setWebLookupRunId = (runId?: string) => dispatchWorkspace({ type: "SET_ACTIVE_WEB_LOOKUP_RUN", runId });
@@ -60,12 +62,14 @@ export default function WorkspaceRuntime() {
     activeGroupThreadId: workspaceRuntime.activeGroupThreadId,
     runIds: {
       news: newsRunId, tool: toolRunId, memory: memoryRunId,
+      learningClosure: learningClosureRunId,
       ragQuery: ragQueryRunId, ragWrite: ragWriteRunId,
       webLookup: webLookupRunId,
     },
     setGroupThreadId: setWechatThreadId,
     setRunId: {
       news: setNewsRunId, tool: setToolRunId, memory: setMemoryRunId,
+      learningClosure: setLearningClosureRunId,
       ragQuery: setRagQueryRunId, ragWrite: setRagWriteRunId,
       webLookup: setWebLookupRunId,
     },
@@ -81,6 +85,7 @@ export default function WorkspaceRuntime() {
       news: newsRunId,
       tool: toolRunId,
       memory: memoryRunId,
+      learningClosure: learningClosureRunId,
       ragQuery: ragQueryRunId,
       ragWrite: ragWriteRunId,
       webLookup: webLookupRunId,
@@ -90,6 +95,7 @@ export default function WorkspaceRuntime() {
       news: setNewsRunId,
       tool: setToolRunId,
       memory: setMemoryRunId,
+      learningClosure: setLearningClosureRunId,
       ragQuery: setRagQueryRunId,
       ragWrite: setRagWriteRunId,
       webLookup: setWebLookupRunId,
