@@ -35,11 +35,12 @@ describe("learning closure API", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("uses the durable create/get/retry/cancel/commit endpoints", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify(closure), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify(closure), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -49,15 +50,19 @@ describe("learning closure API", () => {
     await cancelLearningClosure("closure / 1");
     await commitLearningClosure("closure / 1");
 
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+    const calls = fetchMock.mock.calls as Array<[
+      RequestInfo | URL,
+      RequestInit | undefined,
+    ]>;
+    expect(calls.map(([url]) => String(url))).toEqual([
       "/sessions/chat%20%2F%201/learning-closure-runs",
       "/learning-closure-runs/closure%20%2F%201",
       "/learning-closure-runs/closure%20%2F%201/retry",
       "/learning-closure-runs/closure%20%2F%201/cancel",
       "/learning-closure-runs/closure%20%2F%201/commit",
     ]);
-    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe("POST");
-    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBeUndefined();
+    expect(calls[0][1]?.method).toBe("POST");
+    expect(calls[1][1]?.method).toBeUndefined();
   });
 
   it("surfaces server eligibility errors", async () => {
