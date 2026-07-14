@@ -8,6 +8,7 @@ from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
+from src.web.github_pr_review_context import GitHubPRReviewContextService
 from src.web.github_work_items import GitHubWorkItemService
 from src.web.tool_gateway import GeneralWebGateway
 
@@ -28,6 +29,10 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self.change_impact_service = GitHubChangeImpactService(
             self.history_service,
             self.snapshot_service,
+        )
+        self.pr_review_context_service = GitHubPRReviewContextService(
+            self.work_item_service,
+            self.change_impact_service,
         )
         super().__init__(github_snapshotter=snapshot_service)  # type: ignore[arg-type]
 
@@ -125,6 +130,31 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             head,
             max_files=max(1, min(max_files, 50)),
             max_symbols=max(1, min(max_symbols, 300)),
+            depth=max(1, min(depth, 4)),
+            max_impact_files=max(1, min(max_impact_files, 100)),
+            max_edges=max(1, min(max_edges, 500)),
+        )
+
+    def github_pr_review_context(
+        self,
+        repo_url: str,
+        number: int,
+        *,
+        max_files: int = 20,
+        max_symbols: int = 100,
+        max_comments: int = 100,
+        max_reviews: int = 100,
+        depth: int = 2,
+        max_impact_files: int = 40,
+        max_edges: int = 160,
+    ) -> dict[str, Any]:
+        return self.pr_review_context_service.build(
+            repo_url,
+            number,
+            max_files=max(1, min(max_files, 50)),
+            max_symbols=max(1, min(max_symbols, 300)),
+            max_comments=max(1, min(max_comments, 100)),
+            max_reviews=max(1, min(max_reviews, 100)),
             depth=max(1, min(depth, 4)),
             max_impact_files=max(1, min(max_impact_files, 100)),
             max_edges=max(1, min(max_edges, 500)),

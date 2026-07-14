@@ -1,0 +1,111 @@
+"""Deterministic precision/recall metrics for PR review-context replay cases."""
+
+from __future__ import annotations
+
+from typing import Any, Iterable
+
+
+def _strings(values: Iterable[Any]) -> set[str]:
+    return {str(value).strip() for value in values if str(value).strip()}
+
+
+def _dict_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _metrics(predicted: set[str], expected: set[str]) -> dict[str, Any]:
+    true_positive = len(predicted & expected)
+    false_positive = len(predicted - expected)
+    false_negative = len(expected - predicted)
+    precision = (
+        true_positive / len(predicted)
+        if predicted
+        else (1.0 if not expected else 0.0)
+    )
+    recall = true_positive / len(expected) if expected else 1.0
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision + recall > 0
+        else 0.0
+    )
+    return {
+        "true_positive": true_positive,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "predicted": sorted(predicted),
+        "expected": sorted(expected),
+    }
+
+
+def review_symbol_predictions(context: dict[str, Any]) -> set[str]:
+    predictions: set[str] = set()
+    for item in _dict_items(context.get("review_items")):
+        mapping = _as_dict(item.get("mapping"))
+        if mapping.get("status") != "mapped":
+            continue
+        symbol = _as_dict(mapping.get("symbol"))
+        identity = _as_dict(symbol.get("identity"))
+        value = str(
+            identity.get("id") or symbol.get("qualified_name") or ""
+        ).strip()
+        if value:
+            predictions.add(value)
+    return predictions
+
+
+def ci_test_predictions(context: dict[str, Any]) -> set[str]:
+    predictions: set[str] = set()
+    for item in _dict_items(context.get("ci_associations")):
+        association = _as_dict(item.get("association"))
+        tests = association.get("tests")
+        if isinstance(tests, list):
+            predictions.update(_strings(tests))
+    return predictions
+
+
+def evaluate_pr_review_context(
+    context: dict[str, Any],
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluate one replay result without invoking providers or an LLM."""
+
+    expected_symbols = expected.get("review_symbol_ids")
+    expected_tests = expected.get("ci_test_paths")
+    review_metrics = _metrics(
+        review_symbol_predictions(context),
+        _strings(expected_symbols if isinstance(expected_symbols, list) else []),
+    )
+    ci_metrics = _metrics(
+        ci_test_predictions(context),
+        _strings(expected_tests if isinstance(expected_tests, list) else []),
+    )
+    macro_precision = round(
+        (review_metrics["precision"] + ci_metrics["precision"]) / 2,
+        4,
+    )
+    macro_recall = round(
+        (review_metrics["recall"] + ci_metrics["recall"]) / 2,
+        4,
+    )
+    macro_f1 = round((review_metrics["f1"] + ci_metrics["f1"]) / 2, 4)
+    return {
+        "case_id": str(expected.get("case_id") or ""),
+        "repository": str(expected.get("repository") or ""),
+        "pull_request": int(expected.get("pull_request") or 0),
+        "review_symbol_mapping": review_metrics,
+        "failed_ci_test_association": ci_metrics,
+        "macro": {
+            "precision": macro_precision,
+            "recall": macro_recall,
+            "f1": macro_f1,
+        },
+    }

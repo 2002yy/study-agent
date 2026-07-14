@@ -2,14 +2,14 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-14  
-> 当前能力基线：PR #30，TaskContract 单次判定、全链复用与 API 显式 override  
-> 下一代码切片：G10-C2.4 Source-backed PR review context
+> 当前能力基线：PR #31，Source-backed PR review context  
+> 下一代码切片：G10-C2 Provider 分页、cross-fork 与持久化缓存硬化
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究，以及初版跨版本 hunk-to-symbol 影响分析。聊天主链已具备单一、可持久化、可显式覆盖的 TaskContract。**
+> **React + FastAPI + SQLite 主架构已完成。G10 已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析，以及初版 source-backed PR review context。聊天主链已具备单一、可持久化、可显式覆盖的 TaskContract。**
 
 ## 2. 已完成
 
@@ -153,44 +153,48 @@ PR #28 已实现：
 3. 将 compare hunk 的 old/new 行区间映射到 Tree-sitter symbols。
 4. 为两侧符号生成稳定 old/new `SymbolIdentity`。
 5. 按 language + kind + qualified name 保守配对。
-6. 输出：
-   - `added`：只存在于新版本；
-   - `removed`：只存在于旧版本；
-   - `modified`：同路径唯一配对且 hunk 相交；
-   - `moved`：唯一配对但路径变化；
-   - `ambiguous`：任一侧存在多个候选，不猜。
+6. 输出 added / removed / modified / moved / ambiguous。
 7. 比较 signature，单独返回 `signature_changed`。
-8. removed symbol 在旧图执行 impact；added/modified/moved 在新图执行 impact。
+8. removed symbol 在旧图执行 impact；其他变化在新图执行 impact。
 9. 聚合 affected files、related tests 和 missing-test symbols。
 10. missing-test 仅是静态映射信号，不代表测试一定缺失或无覆盖。
 
-明确 uncertainty：
-
-- bounded snapshot 未包含 changed file；
-- patch 缺失或被截断，退化为 whole-file symbol fallback；
-- old/new symbol 无法唯一配对；
-- symbol budget 耗尽；
-- parser/index 不可用。
-
-存在上述情况时返回 `provider_status=partial`，不把不完整分析伪装成完整结果。
+存在 bounded snapshot、patch、symbol 配对、预算或 parser/index 不完整时返回 `provider_status=partial`，不把不完整分析伪装成完整结果。
 
 模型工具/API：
 
 - `github_change_impact`
 - `POST /github-change-impact`
 
-```env
-GITHUB_CHANGE_IMPACT_MAX_FILES=20
-GITHUB_CHANGE_IMPACT_MAX_SYMBOLS=100
-GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS=160000
-```
+### Source-backed PR review context
+
+PR #31 已完成 G10-C2.4 初版：
+
+1. 读取 PR metadata、immutable base/head SHA、files/hunks、review submissions、inline comments、review threads、checks 和 jobs。
+2. 使用固定后的 base/head SHA 调用现有 `github_change_impact`，不按移动分支名分析。
+3. 将每条 review location 分别映射到 changed file、diff hunk 和 changed symbol。
+4. 唯一包含符号返回 mapped；多个同跨度候选返回 ambiguous，不猜测。
+5. unresolved review threads 单独聚合，并统计 hunk/symbol 覆盖率。
+6. 失败 check/job/step 只在名称、路径或 token 有证据时关联 affected tests、files 和 symbols。
+7. 泛化 test job 最多以 low confidence 关联已有 affected tests；无法关联时保留 uncertainty。
+8. 输出 immutable ref、changed-file impact、review-hunk、review-symbol、failed-job association 五类 evidence coverage。
+9. Provider partial、patch 截断、review thread 不可用、位置不明确和 CI 无法关联均显式降低完整度。
+10. 固定返回 `verdict.status=not_generated`，不自动给出 approve/reject、正确/错误或是否存在 bug 的结论。
+11. 组合层已拆为 orchestration、review mapping、CI association 和 evaluation，避免继续扩大单个 GitHub 巨型服务。
+12. 已加入 deterministic precision/recall/F1 evaluator 和首批 checked-in curated replay labels。
+
+当前 evaluator 和 labels 是初始评测基础，不等同于已经完成跨仓库、真实 Provider 重放的代表性评测。
+
+模型工具/API：
+
+- `github_pr_review_context`
+- `POST /github-pr-review-context`
 
 ### CI 与外发策略稳定化
 
 - pytest、前端、detect-secrets 和 mypy 均先保留诊断 artifact，再执行独立门禁；
-- expanded mypy 采用增量基线门禁：主线已有错误被显式登记；任何新增或扩大的错误会阻止合并，错误减少不要求提高基线；
+- expanded mypy 采用增量基线门禁；任何新增或扩大的错误会阻止合并；
 - `web_policy=ask` 只接受显式 `web_consent` 或内部一次性 consent marker；普通 `web_context` 文本不会隐式授权联网；
-- 诊断 artifact 为 `pytest-log`、`frontend-log`、`detect-secrets-report` 和 `mypy-log`；
 - 报告保留 7 天。
 
 ### TaskContract 单一真值
@@ -200,10 +204,9 @@ PR #30 已完成主链收口：
 1. 新 Turn 在读取线程学习状态后只判定一次 TaskContract。
 2. 优先级固定为：显式 override > 明确文本意图 > active learning 继承 > quick-answer 安全默认。
 3. 路由快照、外发策略、教学评估、教学计划、RAG/Web 选择与 pedagogy snapshot 使用同一合同。
-4. continuation 与 retry 优先恢复原 Turn/父 Turn 的持久化合同，不因新文本或新 override 改写语义。
-5. `POST /chat` 与 `POST /chat/stream` 接受受限枚举 `task_intent`；非法值在 API 边界拒绝。
-6. 前端 `taskContractFromRoute()` 只展示服务端持久化结果，不再根据 `learning_state` 二次推断。
-7. 旧调用路径仍保留兼容 fallback，但生产聊天 preparation 不依赖重复分类结果。
+4. continuation 与 retry 优先恢复原 Turn/父 Turn 的持久化合同。
+5. `POST /chat` 与 `POST /chat/stream` 接受受限枚举 `task_intent`。
+6. 前端只展示服务端持久化合同，不再根据 `learning_state` 二次推断。
 
 当前显式 override 已具备 API 能力，主界面尚未提供可视化任务选择器。
 
@@ -226,33 +229,25 @@ PR #30 已完成主链收口：
 | issue | 初版完成 | release、linked PR、全 timeline、项目字段 |
 | checks / jobs / logs | 初版完成 | artifacts、rerun attempt、超大日志分段、持久化缓存 |
 | 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| PR review context | 初版完成 | 全分页、cross-fork、持久化缓存、多仓库真实 replay corpus |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
-| TaskContract UI override | 未完成 | API 已支持，主界面缺少按 Turn 选择并清晰显示 override 的控件 |
-| PR review context | 未完成 | PR + change impact + checks/reviews 的单一证据包 |
+| TaskContract UI override | 未完成 | API 已支持，主界面缺少按 Turn 选择并显示 override 的控件 |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
 | 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
 
 ## 4. 下一代码顺序
 
-### G10-C2.4：Source-backed PR review context
+### G10-C2 Provider 与缓存硬化
 
-1. 输入 PR number，读取 immutable base/head、reviews、checks 和 jobs。
-2. 以 PR base/head 调用 `github_change_impact`。
-3. 将 inline review thread 映射到 file/hunk/symbol。
-4. 将失败 job/step 与 changed files、tests 和 symbols 做保守关联。
-5. 输出证据覆盖率、unresolved threads、affected tests 和 uncertainty。
-6. 不自动给出“正确/错误” verdict；只生成可审查的 review context。
-7. 增加真实仓库 golden set 与 precision/recall 指标。
-8. 模型工具：`github_pr_review_context`。
-
-### G10-C2 后续补齐
-
-1. REST/GraphQL 多页游标和全局总预算。
-2. release、artifact metadata 和按需下载。
-3. cross-fork PR head repository/ref 解析。
-4. work-item/checks/logs/change-impact 持久化缓存与过期清理。
-5. 日志按时间/步骤定位，而不只读取有界尾部。
+1. REST/GraphQL 多页游标和跨端全局预算。
+2. cross-fork PR head repository/ref 解析。
+3. review/thread/check/job 的分页和局部失败恢复。
+4. work-item、checks、logs、change-impact 和 review-context 持久化缓存。
+5. TTL、过期清理、磁盘统计和 cache manifest。
+6. release、artifact metadata 和按需下载。
+7. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
+8. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
 
 ### G10-D：可执行仓库代理
 
@@ -262,18 +257,28 @@ PR #30 已完成主链收口：
 4. 可写 worktree、diff、回归和回滚。
 5. 增量更新、缓存清理和磁盘预算。
 
+### 核心学习产品回补
+
+在进入大规模可执行仓库代理前，应完成：
+
+1. 聊天工具循环统一关联 durable ResearchRun。
+2. LearningClosureRun 正式状态机。
+3. 结构化总结输入和 summary status。
+4. 会话 title/objective/task/phase/gap/summary status 语义化。
+5. 移除 heuristic mastery ring。
+6. UI 一级动作、窄屏和可访问性收敛。
+
 ## 5. 当前验证
 
-PR #29 稳定化验证：
-
-- pytest：691 passed；
-- Ruff、package helper、detect-secrets：passed；
-- expanded mypy：127 个已登记错误，0 个新增或扩大，增量门禁 passed；
-- frontend Vitest、TypeScript build 和 Vite production build：passed。
-
-PR #30 代码验证使用 GitHub Actions CI #668，代码 head `29f925b280baf5736b4b01cce8746cb51a375e17`：
+PR #30 代码验证：
 
 - pytest：702 passed；
+- Ruff、package helper、detect-secrets、expanded mypy 增量门禁：passed；
+- frontend Vitest、TypeScript build 和 Vite production build：passed。
+
+PR #31 功能代码验证使用 GitHub Actions CI #709，代码 head `62575422bec3ede9475c53f6b8103d6d95b95234`：
+
+- pytest：711 passed；
 - Ruff：passed；
 - package helper：passed；
 - detect-secrets：passed；
@@ -282,14 +287,16 @@ PR #30 代码验证使用 GitHub Actions CI #668，代码 head `29f925b280baf573
 
 本切片新增回归覆盖：
 
-- 用户 override 在文本意图和 active learning 之上生效；
-- 持久化合同无损恢复；
-- continuation 与 retry 复用父合同；
-- evaluation 与 plan 消费供应合同而非重新分类；
-- route adapter 使用预计算合同；
-- 外发策略、RAG 和教学约束共享合同；
-- 前端不再根据 learning state 改写合同；
-- API 接受合法 `task_intent` 并拒绝未知值。
+- immutable PR base/head 传入 change-impact；
+- unresolved review thread 映射到唯一 diff hunk 和 symbol；
+- 同跨度多个 symbol 保持 ambiguous；
+- 失败 CI 与 affected test 的有证据关联；
+- 无法关联的 review/CI 转为 uncertainty；
+- coverage 与 provider status 联动；
+- API budget 边界和非法范围拒绝；
+- 模型工具注册和 dispatch；
+- precision/recall/F1 计算与 fabricated mapping 惩罚；
+- 固定禁止自动 verdict。
 
 ## 6. 文档规则
 
