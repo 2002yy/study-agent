@@ -18,8 +18,8 @@ from src.application.github_snapshot_service import GitHubSnapshotService
 from src.application.runtime_repository import get_github_snapshot_service
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
+from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 from src.web.github_pr_review_context import GitHubPRReviewContextService
-from src.web.github_work_items import GitHubWorkItemService
 
 router = APIRouter(tags=["github-research"])
 GitHubSnapshotServiceDependency = Annotated[
@@ -31,7 +31,7 @@ GitHubHistoryServiceDependency = Annotated[
     Depends(get_github_history_service),
 ]
 GitHubWorkItemServiceDependency = Annotated[
-    GitHubWorkItemService,
+    PaginatedGitHubWorkItemService,
     Depends(get_github_work_item_service),
 ]
 
@@ -79,6 +79,8 @@ def inspect_github_pr_review_context(
         depth=request.depth,
         max_impact_files=request.max_impact_files,
         max_edges=request.max_edges,
+        max_provider_requests=request.max_provider_requests,
+        max_pages_per_collection=request.max_pages_per_collection,
     )
     if result.get("ok") is not True:
         raise _http_error(result)

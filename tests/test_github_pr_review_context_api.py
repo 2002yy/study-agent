@@ -60,6 +60,8 @@ def test_pr_review_context_endpoint_forwards_bounded_request(monkeypatch):
                 "depth": 3,
                 "max_impact_files": 50,
                 "max_edges": 200,
+                "max_provider_requests": 18,
+                "max_pages_per_collection": 4,
             },
         )
     finally:
@@ -79,6 +81,8 @@ def test_pr_review_context_endpoint_forwards_bounded_request(monkeypatch):
         "depth": 3,
         "max_impact_files": 50,
         "max_edges": 200,
+        "max_provider_requests": 18,
+        "max_pages_per_collection": 4,
     }
     assert result["verdict"]["status"] == "not_generated"
 
@@ -91,7 +95,7 @@ def test_pr_review_context_endpoint_rejects_out_of_range_budget():
         json={
             "repo_url": "https://github.com/openai/example",
             "number": 7,
-            "max_files": 51,
+            "max_provider_requests": 129,
         },
     )
 

@@ -28,7 +28,7 @@ from src.application.github_snapshot_service import GitHubSnapshotService
 from src.application.runtime_repository import get_github_snapshot_service
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
-from src.web.github_work_items import GitHubWorkItemService
+from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 
 router = APIRouter(tags=["github-research"])
 GitHubSnapshotServiceDependency = Annotated[
@@ -36,14 +36,14 @@ GitHubSnapshotServiceDependency = Annotated[
     Depends(get_github_snapshot_service),
 ]
 _history_service = GitHubHistoryService()
-_work_item_service = GitHubWorkItemService(_history_service)
+_work_item_service = PaginatedGitHubWorkItemService(_history_service)
 
 
 def get_github_history_service() -> GitHubHistoryService:
     return _history_service
 
 
-def get_github_work_item_service() -> GitHubWorkItemService:
+def get_github_work_item_service() -> PaginatedGitHubWorkItemService:
     return _work_item_service
 
 
@@ -52,7 +52,7 @@ GitHubHistoryServiceDependency = Annotated[
     Depends(get_github_history_service),
 ]
 GitHubWorkItemServiceDependency = Annotated[
-    GitHubWorkItemService,
+    PaginatedGitHubWorkItemService,
     Depends(get_github_work_item_service),
 ]
 
@@ -228,6 +228,8 @@ def inspect_github_pull_request(
         max_comments=request.max_comments,
         max_reviews=request.max_reviews,
         include_checks=request.include_checks,
+        max_provider_requests=request.max_provider_requests,
+        max_pages_per_collection=request.max_pages_per_collection,
     )
     if result.get("ok") is not True:
         raise _history_http_error(result)
@@ -244,6 +246,8 @@ def inspect_github_issue(
         request.number,
         max_comments=request.max_comments,
         max_events=request.max_events,
+        max_provider_requests=request.max_provider_requests,
+        max_pages_per_collection=request.max_pages_per_collection,
     )
     if result.get("ok") is not True:
         raise _history_http_error(result)
@@ -262,6 +266,8 @@ def inspect_github_checks(
         max_checks=request.max_checks,
         max_jobs=request.max_jobs,
         include_jobs=request.include_jobs,
+        max_provider_requests=request.max_provider_requests,
+        max_pages_per_collection=request.max_pages_per_collection,
     )
     if result.get("ok") is not True:
         raise _history_http_error(result)

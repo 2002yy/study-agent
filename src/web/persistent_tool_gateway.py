@@ -8,8 +8,8 @@ from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
+from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 from src.web.github_pr_review_context import GitHubPRReviewContextService
-from src.web.github_work_items import GitHubWorkItemService
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -18,12 +18,12 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self,
         snapshot_service: GitHubSnapshotService,
         history_service: GitHubHistoryService | None = None,
-        work_item_service: GitHubWorkItemService | None = None,
+        work_item_service: PaginatedGitHubWorkItemService | None = None,
     ) -> None:
         self.snapshot_service = snapshot_service
         self.graph_service = graph_service_for(snapshot_service)
         self.history_service = history_service or GitHubHistoryService()
-        self.work_item_service = work_item_service or GitHubWorkItemService(
+        self.work_item_service = work_item_service or PaginatedGitHubWorkItemService(
             self.history_service
         )
         self.change_impact_service = GitHubChangeImpactService(
@@ -147,6 +147,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         depth: int = 2,
         max_impact_files: int = 40,
         max_edges: int = 160,
+        max_provider_requests: int = 24,
+        max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
         return self.pr_review_context_service.build(
             repo_url,
@@ -158,6 +160,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             depth=max(1, min(depth, 4)),
             max_impact_files=max(1, min(max_impact_files, 100)),
             max_edges=max(1, min(max_edges, 500)),
+            max_provider_requests=max(1, min(max_provider_requests, 128)),
+            max_pages_per_collection=max(1, min(max_pages_per_collection, 50)),
         )
 
     def github_blame(
@@ -187,6 +191,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         max_comments: int = 100,
         max_reviews: int = 100,
         include_checks: bool = True,
+        max_provider_requests: int = 24,
+        max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
         return self.work_item_service.pull_request(
             repo_url,
@@ -196,6 +202,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             max_comments=max(1, min(max_comments, 100)),
             max_reviews=max(1, min(max_reviews, 100)),
             include_checks=include_checks,
+            max_provider_requests=max(1, min(max_provider_requests, 128)),
+            max_pages_per_collection=max(1, min(max_pages_per_collection, 50)),
         )
 
     def github_issue(
@@ -205,12 +213,16 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         *,
         max_comments: int = 100,
         max_events: int = 100,
+        max_provider_requests: int = 12,
+        max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
         return self.work_item_service.issue(
             repo_url,
             number,
             max_comments=max(1, min(max_comments, 100)),
             max_events=max(1, min(max_events, 100)),
+            max_provider_requests=max(1, min(max_provider_requests, 128)),
+            max_pages_per_collection=max(1, min(max_pages_per_collection, 50)),
         )
 
     def github_checks(
@@ -222,6 +234,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         max_checks: int = 100,
         max_jobs: int = 100,
         include_jobs: bool = True,
+        max_provider_requests: int = 16,
+        max_pages_per_collection: int = 10,
     ) -> dict[str, Any]:
         return self.work_item_service.checks(
             repo_url,
@@ -230,6 +244,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
             max_checks=max(1, min(max_checks, 100)),
             max_jobs=max(1, min(max_jobs, 300)),
             include_jobs=include_jobs,
+            max_provider_requests=max(1, min(max_provider_requests, 128)),
+            max_pages_per_collection=max(1, min(max_pages_per_collection, 50)),
         )
 
     def github_ci_logs(
