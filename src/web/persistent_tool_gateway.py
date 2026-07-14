@@ -19,6 +19,8 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         snapshot_service: GitHubSnapshotService,
         history_service: GitHubHistoryService | None = None,
         work_item_service: PaginatedGitHubWorkItemService | None = None,
+        change_impact_service: Any | None = None,
+        pr_review_context_service: Any | None = None,
     ) -> None:
         self.snapshot_service = snapshot_service
         self.graph_service = graph_service_for(snapshot_service)
@@ -26,13 +28,16 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self.work_item_service = work_item_service or PaginatedGitHubWorkItemService(
             self.history_service
         )
-        self.change_impact_service = GitHubChangeImpactService(
+        self.change_impact_service = change_impact_service or GitHubChangeImpactService(
             self.history_service,
             self.snapshot_service,
         )
-        self.pr_review_context_service = GitHubPRReviewContextService(
-            self.work_item_service,
-            self.change_impact_service,
+        self.pr_review_context_service = (
+            pr_review_context_service
+            or GitHubPRReviewContextService(
+                self.work_item_service,
+                self.change_impact_service,
+            )
         )
         super().__init__(github_snapshotter=snapshot_service)  # type: ignore[arg-type]
 
