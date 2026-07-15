@@ -8,9 +8,10 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
+import type { TaskIntent } from "../task/taskContract";
 import { RestoreCard } from "./RestoreCard";
 
-function renderCard(options: {
+type RenderOptions = {
   session?: SemanticSessionRow | null;
   streamRecovery?: {
     question: string;
@@ -19,25 +20,27 @@ function renderCard(options: {
     sessionId?: string;
     turnId?: string | null;
   } | null;
-  onSelectEntry?: ReturnType<typeof vi.fn>;
-  onContinueHere?: ReturnType<typeof vi.fn>;
-  onContinueInterrupted?: ReturnType<typeof vi.fn>;
-  onRetryInterrupted?: ReturnType<typeof vi.fn>;
-  onAbandonInterrupted?: ReturnType<typeof vi.fn>;
-} = {}): ReactTestRenderer {
+  onSelectEntry?: (intent: TaskIntent, prompt: string) => void;
+  onContinueHere?: (prompt: string) => void;
+  onContinueInterrupted?: () => void;
+  onRetryInterrupted?: () => void;
+  onAbandonInterrupted?: () => Promise<void> | void;
+};
+
+function renderCard(options: RenderOptions = {}): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
       <RestoreCard
         session={options.session ?? null}
         streamRecovery={options.streamRecovery ?? null}
-        onSelectEntry={options.onSelectEntry ?? vi.fn()}
-        onUpload={vi.fn()}
-        onContinueHere={options.onContinueHere ?? vi.fn()}
-        onStartNewTopic={vi.fn()}
-        onContinueInterrupted={options.onContinueInterrupted ?? vi.fn()}
-        onRetryInterrupted={options.onRetryInterrupted ?? vi.fn()}
-        onAbandonInterrupted={options.onAbandonInterrupted ?? vi.fn()}
+        onSelectEntry={options.onSelectEntry ?? (() => undefined)}
+        onUpload={() => undefined}
+        onContinueHere={options.onContinueHere ?? (() => undefined)}
+        onStartNewTopic={() => undefined}
+        onContinueInterrupted={options.onContinueInterrupted ?? (() => undefined)}
+        onRetryInterrupted={options.onRetryInterrupted ?? (() => undefined)}
+        onAbandonInterrupted={options.onAbandonInterrupted ?? (() => undefined)}
       />
     );
   });
@@ -52,7 +55,7 @@ function textContent(node: ReactTestInstance): string {
 
 describe("RestoreCard", () => {
   it("shows five explicit entry points for a new session", () => {
-    const onSelectEntry = vi.fn();
+    const onSelectEntry = vi.fn<(intent: TaskIntent, prompt: string) => void>();
     const renderer = renderCard({ onSelectEntry });
     const serialized = JSON.stringify(renderer.toJSON());
 
@@ -70,7 +73,7 @@ describe("RestoreCard", () => {
   });
 
   it("shows committed learning restore facts for returning users", () => {
-    const onContinueHere = vi.fn();
+    const onContinueHere = vi.fn<(prompt: string) => void>();
     const session: SemanticSessionRow = {
       session_id: "session-learning",
       kind: "current",
@@ -133,9 +136,9 @@ describe("RestoreCard", () => {
   });
 
   it("prioritizes interrupted recovery actions over normal session restore", () => {
-    const onContinueInterrupted = vi.fn();
-    const onRetryInterrupted = vi.fn();
-    const onAbandonInterrupted = vi.fn();
+    const onContinueInterrupted = vi.fn<() => void>();
+    const onRetryInterrupted = vi.fn<() => void>();
+    const onAbandonInterrupted = vi.fn<() => void>();
     const renderer = renderCard({
       session: {
         session_id: "session-1",
