@@ -11,4 +11,8 @@ describe("ToolRun development proxy", () => {
   it("forwards the server-owned ToolRun API to FastAPI", () => {
     expect(viteConfig).toContain('"/tool-runs": API_TARGET');
   });
+
+  it("forwards knowledge-base document requests to FastAPI", () => {
+    expect(viteConfig).toContain('"/knowledge-base": API_TARGET');
+  });
 });

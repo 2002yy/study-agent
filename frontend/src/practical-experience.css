@@ -105,6 +105,12 @@
   line-height: 1.35;
 }
 
+.slide-over-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
 .learning-evidence-card {
   display: grid;
   gap: 9px;
@@ -198,25 +204,33 @@
   }
 
   .topbar-actions {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(6, 38px);
+    width: 100%;
+    grid-template-columns: repeat(3, 44px);
     justify-content: flex-start;
     gap: 8px;
     overflow: visible;
     padding: 2px 0 4px;
   }
 
+  .topbar-actions .icon-button,
+  .workspace-menu-trigger {
+    width: 44px;
+    min-height: 44px;
+  }
+
   .topbar-actions .end-session-button {
     grid-column: 1 / -1;
     justify-self: start;
+    min-height: 44px;
   }
 
   .workspace-menu {
-    position: relative;
+    position: static;
   }
 
   .workspace-menu-trigger {
-    width: 38px;
     padding: 0;
   }
 
@@ -227,12 +241,17 @@
   .workspace-menu-popover {
     position: absolute;
     top: calc(100% + 8px);
-    right: 0;
+    right: auto;
     bottom: auto;
-    left: auto;
+    left: 0;
     width: min(300px, calc(100vw - 32px));
     max-height: min(62vh, 440px);
     overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .workspace-menu-popover button {
+    min-height: 48px;
   }
 
   .conversation {
@@ -263,6 +282,27 @@
   .back-to-latest {
     position: fixed;
     bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+
+  .slide-over {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+  }
+
+  .slide-over-header {
+    flex: 0 0 auto;
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+
+  .slide-over-header .icon-button {
+    width: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .slide-over-body {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
 }
 

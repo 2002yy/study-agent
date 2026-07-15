@@ -11,6 +11,7 @@ export default defineConfig({
       "/health": API_TARGET,
       "/chat": API_TARGET,
       "/rag": API_TARGET,
+      "/knowledge-base": API_TARGET,
       "/tools": API_TARGET,
       "/tool-runs": API_TARGET,
       "/workflows": API_TARGET,

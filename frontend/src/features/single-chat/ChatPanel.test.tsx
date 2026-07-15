@@ -160,6 +160,7 @@ describe("ChatPanel practical workspace navigation", () => {
   it("opens a selected low-frequency workspace and closes the menu", () => {
     const onOpenDrawer = vi.fn();
     const removeAttribute = vi.fn();
+    const focus = vi.fn();
     const renderer = renderPanel({ onOpenDrawer });
     const groupAction = renderer.root.findAllByProps({ role: "menuitem" }).find(
       (button) => textContent(button).includes("群聊讨论")
@@ -169,13 +170,17 @@ describe("ChatPanel practical workspace navigation", () => {
     act(() => {
       groupAction?.props.onClick({
         currentTarget: {
-          closest: () => ({ removeAttribute }),
+          closest: () => ({
+            removeAttribute,
+            querySelector: () => ({ focus }),
+          }),
         },
       });
     });
 
     expect(onOpenDrawer).toHaveBeenCalledWith("group");
     expect(removeAttribute).toHaveBeenCalledWith("open");
+    expect(focus).toHaveBeenCalledTimes(1);
 
     act(() => renderer.unmount());
   });
@@ -183,6 +188,7 @@ describe("ChatPanel practical workspace navigation", () => {
   it("keeps source search reachable from More and closes the menu after use", () => {
     const onSearchSources = vi.fn();
     const removeAttribute = vi.fn();
+    const focus = vi.fn();
     const renderer = renderPanel({ hasSearchQuery: true, onSearchSources });
     const searchButton = renderer.root.findByProps({
       "aria-label": "检索当前问题的资料来源",
@@ -190,11 +196,15 @@ describe("ChatPanel practical workspace navigation", () => {
 
     act(() => searchButton.props.onClick({
       currentTarget: {
-        closest: () => ({ removeAttribute }),
+        closest: () => ({
+          removeAttribute,
+          querySelector: () => ({ focus }),
+        }),
       },
     }));
     expect(onSearchSources).toHaveBeenCalledTimes(1);
     expect(removeAttribute).toHaveBeenCalledWith("open");
+    expect(focus).toHaveBeenCalledTimes(1);
 
     act(() => renderer.unmount());
   });

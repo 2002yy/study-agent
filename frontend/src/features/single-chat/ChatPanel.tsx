@@ -159,7 +159,9 @@ export function ChatPanel({
   };
 
   const closeWorkspaceMenu = (target: HTMLButtonElement) => {
-    target.closest("details")?.removeAttribute("open");
+    const menu = target.closest("details");
+    menu?.removeAttribute("open");
+    menu?.querySelector<HTMLElement>("summary")?.focus();
   };
 
   const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
