@@ -24,7 +24,9 @@ def test_completed_g2_closure_repairs_summary_after_settings_change(tmp_path: Pa
             assistant_message="answer",
         )
     )
-    source_version = runtime.get_chat_thread("thread-upgrade-summary").version
+    thread = runtime.get_chat_thread("thread-upgrade-summary")
+    assert thread is not None
+    source_version = thread.version
     closure_repository = LearningClosureRepository(database)
     closure_repository.create(
         LearningClosureRun(
@@ -52,6 +54,41 @@ def test_completed_g2_closure_repairs_summary_after_settings_change(tmp_path: Pa
     assert summary.closure_run_id == "closure-g2-completed"
     assert summary.source_thread_version == source_version
     assert summary.can_summarize is False
+
+
+def test_repeated_summary_completion_keeps_version_and_timestamp(tmp_path: Path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    runtime = RuntimeRepository(database)
+    runtime.create_chat_thread(ChatThread(id="thread-idempotent-summary"))
+    runtime.add_chat_turn(
+        ChatTurn(
+            id="turn-idempotent-summary",
+            thread_id="thread-idempotent-summary",
+            status="completed",
+            user_message="question",
+            assistant_message="answer",
+        )
+    )
+    thread = runtime.get_chat_thread("thread-idempotent-summary")
+    assert thread is not None
+    repository = ThreadSummaryRepository(database)
+
+    first = repository.mark_summarized(
+        "thread-idempotent-summary",
+        source_thread_version=thread.version,
+        last_completed_turn_id="turn-idempotent-summary",
+        closure_run_id="closure-idempotent-summary",
+    )
+    repeated = repository.mark_summarized(
+        "thread-idempotent-summary",
+        source_thread_version=thread.version,
+        last_completed_turn_id="turn-idempotent-summary",
+        closure_run_id="closure-idempotent-summary",
+    )
+
+    assert repeated.version == first.version
+    assert repeated.summarized_at == first.summarized_at
+    assert repeated.updated_at == first.updated_at
 
 
 def test_thread_summary_component_initialization_is_concurrency_safe(tmp_path: Path):
