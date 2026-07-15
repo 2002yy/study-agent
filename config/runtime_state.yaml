@@ -12,7 +12,7 @@ runtime:
 interaction:
   relationship_mode: close
 wechat:
-  mode: unread_feedback
+  mode: interactive_group
   user_has_joined_group: false
   first_join_reaction_done: false
   memory_capture_enabled: true
