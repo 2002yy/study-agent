@@ -1,4 +1,9 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatResponse } from "../../types";
@@ -11,6 +16,8 @@ import { ChatPanel } from "./ChatPanel";
 type RenderOptions = {
   input?: string;
   hasSearchQuery?: boolean;
+  taskIntent?: string;
+  closureEligibility?: string;
   onOpenDrawer?: ReturnType<typeof vi.fn>;
   onSearchSources?: ReturnType<typeof vi.fn>;
   onSubmit?: ReturnType<typeof vi.fn>;
@@ -54,10 +61,10 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
           session_id: "session-secret-raw-id",
           route: {
             task_contract: {
-              task_intent: "research",
+              task_intent: options.taskIntent ?? "research",
               source_policy: "web_only",
-              closure_eligibility: "research_summary",
-              learning_state_enabled: false,
+              closure_eligibility: options.closureEligibility ?? "research_summary",
+              learning_state_enabled: options.taskIntent === "learn",
               explicit_override: true,
             },
           },
@@ -89,6 +96,12 @@ function directText(node: { children: Array<string | object> }): string {
   return node.children.filter((child): child is string => typeof child === "string").join("");
 }
 
+function textContent(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === "string" ? child : textContent(child)))
+    .join("");
+}
+
 describe("ChatPanel practical workspace navigation", () => {
   it("shows user-facing task state without leaking the raw session id", () => {
     const renderer = renderPanel();
@@ -102,10 +115,39 @@ describe("ChatPanel practical workspace navigation", () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps low-frequency workspaces in a labelled menu", () => {
+  it("keeps the primary dock focused on task closure, upload, sessions, and More", () => {
+    const renderer = renderPanel({
+      taskIntent: "learn",
+      closureEligibility: "learning_summary",
+    });
+    const actions = renderer.root.findByProps({ className: "topbar-actions" });
+    const directButtonLabels = actions.children
+      .filter(
+        (child): child is ReactTestInstance =>
+          typeof child !== "string" && child.type === "button"
+      )
+      .map((button) => button.props["aria-label"]);
+
+    expect(directButtonLabels).toEqual([
+      "整理学习",
+      "上传学习资料",
+      "打开会话历史",
+    ]);
+    expect(actions.findByType("summary").props["aria-label"]).toBe("打开更多学习工具");
+    expect(directButtonLabels).not.toContain("检索当前问题的资料来源");
+    expect(directButtonLabels).not.toContain("打开引用来源与知识库");
+    expect(directButtonLabels).not.toContain("打开设置");
+
+    act(() => renderer.unmount());
+  });
+
+  it("keeps secondary and low-frequency workspaces in a labelled menu", () => {
     const renderer = renderPanel();
     const serialized = JSON.stringify(renderer.toJSON());
 
+    expect(serialized).toContain("检索当前问题");
+    expect(serialized).toContain("引用来源");
+    expect(serialized).toContain("设置");
     expect(serialized).toContain("群聊讨论");
     expect(serialized).toContain("新闻研究");
     expect(serialized).toContain("受控工具");
@@ -119,10 +161,13 @@ describe("ChatPanel practical workspace navigation", () => {
     const onOpenDrawer = vi.fn();
     const removeAttribute = vi.fn();
     const renderer = renderPanel({ onOpenDrawer });
-    const groupAction = renderer.root.findAllByProps({ role: "menuitem" })[0];
+    const groupAction = renderer.root.findAllByProps({ role: "menuitem" }).find(
+      (button) => textContent(button).includes("群聊讨论")
+    );
 
+    expect(groupAction).toBeTruthy();
     act(() => {
-      groupAction.props.onClick({
+      groupAction?.props.onClick({
         currentTarget: {
           closest: () => ({ removeAttribute }),
         },
@@ -135,15 +180,21 @@ describe("ChatPanel practical workspace navigation", () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps direct source search available in the primary workspace", () => {
+  it("keeps source search reachable from More and closes the menu after use", () => {
     const onSearchSources = vi.fn();
+    const removeAttribute = vi.fn();
     const renderer = renderPanel({ hasSearchQuery: true, onSearchSources });
     const searchButton = renderer.root.findByProps({
       "aria-label": "检索当前问题的资料来源",
     });
 
-    act(() => searchButton.props.onClick());
+    act(() => searchButton.props.onClick({
+      currentTarget: {
+        closest: () => ({ removeAttribute }),
+      },
+    }));
     expect(onSearchSources).toHaveBeenCalledTimes(1);
+    expect(removeAttribute).toHaveBeenCalledWith("open");
 
     act(() => renderer.unmount());
   });
