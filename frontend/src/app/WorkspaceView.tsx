@@ -2,6 +2,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import AppShell from "../AppShell";
 import { SlideOver } from "../components/SlideOver";
+import { abandonInterruptedTurn } from "../features/chat/recoveryApi";
 import { LearningStrip } from "../features/learning/LearningStrip";
 import { MemoryPanel } from "../features/learning-memory/MemoryPanel";
 import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
@@ -9,6 +10,7 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
+import type { SemanticSessionRow } from "../features/sessions/sessionNavigation";
 import type { SessionSummary } from "../features/sessions/sessionSummary";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
@@ -72,11 +74,10 @@ export function WorkspaceView({
   const { state, dispatch } = useWorkspace();
   const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
   const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
-  const serverSummary = (
-    snapshot.sessions.find(
-      (session) => session.session_id === chatController.threadId
-    ) as SessionRowWithSummary | undefined
-  )?.summary;
+  const activeSession = snapshot.sessions.find(
+    (session) => session.session_id === chatController.threadId
+  ) as SemanticSessionRow | undefined;
+  const serverSummary = (activeSession as SessionRowWithSummary | undefined)?.summary;
   const localSummary =
     state.sessionSummary?.thread_id === chatController.threadId
       ? state.sessionSummary
@@ -104,6 +105,23 @@ export function WorkspaceView({
       return;
     }
     void chatController.startNewSession();
+  };
+  const abandonRecovery = async () => {
+    const recovery = chatController.streamRecovery;
+    if (!recovery) return;
+    if (!recovery.sessionId || !recovery.turnId) {
+      chatController.setStreamRecovery(null);
+      return;
+    }
+    try {
+      await abandonInterruptedTurn(recovery.sessionId, recovery.turnId);
+      chatController.setStreamRecovery(null);
+      await refresh();
+    } catch (error) {
+      ui.setOperationError(
+        `放弃恢复失败：${error instanceof Error ? error.message : "未知错误"}`
+      );
+    }
   };
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -151,6 +169,7 @@ export function WorkspaceView({
         />
         <ChatPanel
           sessionId={chatController.threadId}
+          sessionNavigation={activeSession ?? null}
           messages={chatController.messages}
           input={ui.input}
           setInput={ui.setInput}
@@ -160,12 +179,14 @@ export function WorkspaceView({
           streamRecovery={chatController.streamRecovery}
           onContinueInterruptedReply={chatController.continueInterrupted}
           onRetry={chatController.retry}
+          onAbandonInterruptedReply={abandonRecovery}
           onCopyInterruptedReply={chatController.copyInterrupted}
           onUploadClick={() => fileInputRef.current?.click()}
           onSearchSources={() => ragController.search(activeQuery)}
           isSearching={ragController.isSearching}
           hasSearchQuery={Boolean(activeQuery)}
           onQuickPrompt={ui.setInput}
+          onStartNewTopic={requestNewSession}
           lastChat={chatController.lastChat}
           ragEnabled={ui.ragEnabled}
           memoryStatus={snapshot.memoryStatus}

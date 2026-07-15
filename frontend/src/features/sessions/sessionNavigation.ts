@@ -3,6 +3,12 @@ import type { SessionSummary } from "./sessionSummary";
 
 export type SessionGroupMode = "time" | "status" | "task";
 
+export type DisclosedSessionSource = {
+  source_id?: string;
+  type?: string;
+  citation: string;
+};
+
 export type SemanticSessionRow = SessionRow & {
   status?: string;
   version?: number;
@@ -17,6 +23,9 @@ export type SemanticSessionRow = SessionRow & {
   task_intent?: string;
   phase?: string;
   unresolved_gap?: string;
+  confirmed_points?: string[];
+  next_action?: string;
+  disclosed_sources?: DisclosedSessionSource[];
   last_completed_turn_id?: string | null;
   has_completed_turns?: boolean;
   summary?: SessionSummary;
@@ -71,6 +80,8 @@ export function matchesSessionSearch(
     session.preview,
     session.unresolved_gap,
     session.phase,
+    ...(session.confirmed_points ?? []),
+    ...(session.disclosed_sources ?? []).map((source) => source.citation),
     taskLabel(session.task_intent),
     summaryLabel(session),
   ]

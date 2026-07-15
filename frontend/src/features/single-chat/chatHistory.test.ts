@@ -119,6 +119,15 @@ describe("tailInterruptedTurn", () => {
 
     expect(tailInterruptedTurn(turns)?.turn_id).toBe("retry");
   });
+
+  it("does not revive a durably abandoned interruption", () => {
+    const turns = [
+      { turn_id: "old", status: "completed" },
+      { turn_id: "abandoned", status: "abandoned" },
+    ];
+
+    expect(tailInterruptedTurn(turns)).toBeUndefined();
+  });
 });
 
 describe("buildRetryHistory", () => {

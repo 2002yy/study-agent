@@ -1,9 +1,10 @@
-import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, MoreHorizontal, Play, RotateCcw, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, MoreHorizontal, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
+import type { SemanticSessionRow } from "../sessions/sessionNavigation";
 import {
   TURN_TASK_INTENT_OPTIONS,
   clearPendingTaskIntentOverride,
@@ -15,12 +16,7 @@ import {
 } from "../task/taskContract";
 import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
-
-const quickPrompts = [
-  "继续上次学习，先给我一个下一步建议",
-  "根据当前学习重点，帮我安排今天 25 分钟",
-  "我想开始一个新主题，先帮我拆学习路径"
-];
+import { RestoreCard } from "./RestoreCard";
 
 export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, name: string, fallback: string): string {
   const preview = memoryStatus?.files.find((file) => file.name === name)?.preview.trim();
@@ -37,6 +33,7 @@ export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, n
 export function ChatPanel({
   messages,
   sessionId,
+  sessionNavigation,
   input,
   setInput,
   isSending,
@@ -45,12 +42,14 @@ export function ChatPanel({
   streamRecovery,
   onContinueInterruptedReply,
   onRetry,
+  onAbandonInterruptedReply,
   onCopyInterruptedReply,
   onUploadClick,
   onSearchSources,
   isSearching,
   hasSearchQuery,
   onQuickPrompt,
+  onStartNewTopic,
   lastChat,
   ragEnabled,
   memoryStatus,
@@ -60,6 +59,7 @@ export function ChatPanel({
 }: {
   messages: ChatMessage[];
   sessionId?: string;
+  sessionNavigation: SemanticSessionRow | null;
   input: string;
   setInput: (value: string) => void;
   isSending: boolean;
@@ -68,12 +68,14 @@ export function ChatPanel({
   streamRecovery: { question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null;
   onContinueInterruptedReply: () => void;
   onRetry: () => void;
+  onAbandonInterruptedReply: () => Promise<void> | void;
   onCopyInterruptedReply: () => void;
   onUploadClick: () => void;
   onSearchSources: () => void;
   isSearching: boolean;
   hasSearchQuery: boolean;
   onQuickPrompt: (value: string) => void;
+  onStartNewTopic: () => void;
   lastChat: ChatResponse | null;
   ragEnabled: boolean;
   memoryStatus: MemoryStatusResponse | null;
@@ -86,12 +88,6 @@ export function ChatPanel({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [taskIntentOverride, setTaskIntentOverride] = useState<"" | TaskIntent>("");
-  const currentFocus = memoryStatus?.latest_section || latestMemorySection(memoryStatus, "current_focus.md", "还没有记录当前学习重点。");
-  const progress = latestMemorySection(memoryStatus, "progress.md", "还没有可恢复的最近进度。");
-  const summary = latestMemorySection(memoryStatus, "summary.md", "完成几轮学习后，这里会显示长期摘要。");
-  const hasConversationMessages = messages.some(
-    (message) => message.role === "user" || (message.role === "assistant" && !message.transient)
-  );
   const taskContract = taskContractFromRoute(lastChat?.route);
   const closureLabel = closureActionLabel(taskContract);
   const taskLabel = taskContract
@@ -100,6 +96,16 @@ export function ChatPanel({
   const selectedTaskIntent = TURN_TASK_INTENT_OPTIONS.find(
     (option) => option.value === taskIntentOverride
   ) ?? TURN_TASK_INTENT_OPTIONS[0];
+  const displayMessages = sessionNavigation?.has_completed_turns
+    ? messages
+    : messages.filter(
+        (message) =>
+          !(
+            message.role === "assistant" &&
+            message.transient &&
+            !message.turnId
+          )
+      );
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -145,6 +151,11 @@ export function ChatPanel({
       clearPendingTaskIntentOverride();
       setTaskIntentOverride("");
     }
+  };
+
+  const handleRestoreEntry = (intent: TaskIntent, prompt: string) => {
+    setTaskIntentOverride(intent);
+    onQuickPrompt(prompt);
   };
 
   const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
@@ -244,37 +255,18 @@ export function ChatPanel({
       </header>
 
       <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
-        <details className="home-brief" key={hasConversationMessages ? "collapsed-home-brief" : "expanded-home-brief"} open={!hasConversationMessages}>
-          <summary>
-            <span>继续学习</span>
-            {hasConversationMessages ? <small>已折叠</small> : null}
-          </summary>
-          <div>
-            <p>先从你的记忆和最近进度恢复上下文；需要资料时再打开本地检索或联网来源。</p>
-            <div className="learning-snapshot">
-              <div>
-                <span>当前学习重点</span>
-                <strong>{currentFocus}</strong>
-              </div>
-              <div>
-                <span>上次停在哪里</span>
-                <strong>{progress}</strong>
-              </div>
-              <div>
-                <span>长期摘要</span>
-                <strong>{summary}</strong>
-              </div>
-            </div>
-          </div>
-          <div className="quick-grid">
-            {quickPrompts.map((prompt) => (
-              <button key={prompt} onClick={() => onQuickPrompt(prompt)} type="button">
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </details>
-        {messages.map((message, index) => {
+        <RestoreCard
+          session={sessionNavigation}
+          streamRecovery={streamRecovery}
+          onSelectEntry={handleRestoreEntry}
+          onUpload={onUploadClick}
+          onContinueHere={onQuickPrompt}
+          onStartNewTopic={onStartNewTopic}
+          onContinueInterrupted={onContinueInterruptedReply}
+          onRetryInterrupted={onRetry}
+          onAbandonInterrupted={onAbandonInterruptedReply}
+        />
+        {displayMessages.map((message, index) => {
           const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
           const label = message.role === "user" ? "你" : roleLabel(avatarRole);
           return (
@@ -308,28 +300,12 @@ export function ChatPanel({
         </button>
       ) : null}
 
-      {streamRecovery ? (
-        <div className="stream-recovery">
-          <div>
-            <strong>生成已中断</strong>
-            <span>{streamRecovery.reason}</span>
-          </div>
+      {streamRecovery?.reply ? (
+        <div className="interrupted-copy-shortcut">
+          <span>部分回答已保留；恢复、重试或放弃请使用上方恢复卡。</span>
           <button
             className="ghost-action compact"
-            disabled={isSending || !streamRecovery.reply}
-            onClick={onContinueInterruptedReply}
-            type="button"
-          >
-            <Play size={14} />
-            继续生成
-          </button>
-          <button className="ghost-action compact" disabled={isSending} onClick={onRetry} type="button">
-            <RotateCcw size={14} />
-            重试
-          </button>
-          <button
-            className="ghost-action compact"
-            disabled={!streamRecovery.reply}
+            disabled={isSending}
             onClick={onCopyInterruptedReply}
             type="button"
           >

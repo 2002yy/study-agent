@@ -35,6 +35,10 @@ def test_session_projection_uses_committed_learning_truth_and_latest_contract(tm
                 "phase": "guided_practice",
                 "confirmed_points": ["区间每轮减半"],
                 "unresolved_gap": "边界条件",
+                "payload": {
+                    "next_action": "完成一次边界条件迁移练习",
+                    "planned_next_action": "不得作为恢复真值",
+                },
             },
         )
     )
@@ -69,6 +73,10 @@ def test_session_projection_uses_committed_learning_truth_and_latest_contract(tm
     assert row["task_intent"] == "learn"
     assert row["phase"] == "guided_practice"
     assert row["unresolved_gap"] == "边界条件"
+    assert row["confirmed_points"] == ["区间每轮减半"]
+    assert row["next_action"] == "完成一次边界条件迁移练习"
+    assert "planned_next_action" not in str(row)
+    assert row["disclosed_sources"] == []
     assert row["preview"] == "因为每一轮都会把搜索区间缩小一半。"
     assert row["research_summary"] == ""
     assert row["last_completed_turn_id"] == "turn-learning-1"
@@ -76,6 +84,7 @@ def test_session_projection_uses_committed_learning_truth_and_latest_contract(tm
     assert detail is not None
     assert detail["navigation"]["title"] == row["title"]
     assert detail["navigation"]["summary"] == row["summary"]
+    assert detail["navigation"]["confirmed_points"] == row["confirmed_points"]
 
 
 def test_manual_title_is_independent_and_clearable(tmp_path: Path):
@@ -130,7 +139,7 @@ def test_manual_title_is_independent_and_clearable(tmp_path: Path):
     assert cleared["version"] == thread_after.version
 
 
-def test_research_session_exposes_latest_research_summary(tmp_path: Path):
+def test_research_session_exposes_latest_research_summary_and_disclosed_sources(tmp_path: Path):
     runtime, service, _database = _service(tmp_path)
     runtime.create_chat_thread(ChatThread(id="thread-research-nav"))
     runtime.add_chat_turn(
@@ -167,6 +176,20 @@ def test_research_session_exposes_latest_research_summary(tmp_path: Path):
                     "confidence": "high",
                 }
             },
+            pedagogy_snapshot={
+                "evidence_units": [
+                    {
+                        "source_id": "source-1",
+                        "type": "web",
+                        "citation": "Python 官方发布说明",
+                    },
+                    {
+                        "source_id": "source-2",
+                        "type": "web",
+                        "citation": "Python 开发者指南",
+                    },
+                ]
+            },
         )
     )
 
@@ -177,6 +200,18 @@ def test_research_session_exposes_latest_research_summary(tmp_path: Path):
     assert row["research_summary"] == "最新核对结果显示发布时间仍需等待官方确认。"
     assert row["preview"] == row["research_summary"]
     assert row["last_completed_turn_id"] == "turn-research-2"
+    assert row["disclosed_sources"] == [
+        {
+            "source_id": "source-1",
+            "type": "web",
+            "citation": "Python 官方发布说明",
+        },
+        {
+            "source_id": "source-2",
+            "type": "web",
+            "citation": "Python 开发者指南",
+        },
+    ]
 
 
 def test_empty_legacy_session_has_compatible_fallback_navigation(tmp_path: Path):
@@ -188,5 +223,8 @@ def test_empty_legacy_session_has_compatible_fallback_navigation(tmp_path: Path)
     assert row["title"].startswith("快速问答 · ")
     assert row["task_intent"] == "quick_answer"
     assert row["preview"] == ""
+    assert row["confirmed_points"] == []
+    assert row["next_action"] == ""
+    assert row["disclosed_sources"] == []
     assert row["has_completed_turns"] is False
     assert row["summary"]["status"] == "not_summarized"
