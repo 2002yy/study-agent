@@ -20,6 +20,12 @@ const closure = {
   generated_result: {},
   memory_run_id: "memory-1",
   memory_run: null,
+  thread_summary: {
+    thread_id: "chat-1",
+    status: "not_summarized",
+    current_last_completed_turn_id: "turn-1",
+    can_summarize: true,
+  },
   error: "",
   reason: "",
   active_operation_id: null,
