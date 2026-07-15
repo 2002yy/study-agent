@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from src.infrastructure.markdown.session_archive import (
     SessionMarkdownExporter,
 )
 from src.repositories.runtime_repository import RuntimeRepository
+from src.repositories.thread_summary_repository import ThreadSummaryRepository
 
 
 class SessionService:
@@ -22,15 +24,22 @@ class SessionService:
         *,
         current_dir: Path,
         archive_dir: Path,
+        summary_repository: ThreadSummaryRepository | None = None,
     ):
         self.repository = repository
+        self.summary_repository = summary_repository or ThreadSummaryRepository(
+            repository.database
+        )
         self.importer = LegacySessionImporter(current_dir, archive_dir)
         self.exporter = SessionMarkdownExporter(current_dir, archive_dir)
         self._legacy_imported = False
 
     def list_sessions(self, *, limit: int = 20) -> list[dict[str, Any]]:
         self._import_legacy_once()
-        return [self._thread_row(thread) for thread in self.repository.list_chat_threads(limit=limit)]
+        return [
+            self._thread_row(thread)
+            for thread in self.repository.list_chat_threads(limit=limit)
+        ]
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         self._import_legacy_once()
@@ -80,6 +89,7 @@ class SessionService:
             "route": latest.route_snapshot if latest else {},
             "rag": latest.rag_snapshot if latest else {},
             "learning_state": thread.learning_state,
+            "summary": self.summary_payload(thread.id),
             "pedagogy": latest_completed.pedagogy_snapshot if latest_completed else {},
             "latest_attempted_pedagogy": latest.pedagogy_snapshot if latest else {},
             "conversation_instruction": latest.conversation_instruction if latest else "",
@@ -176,6 +186,41 @@ class SessionService:
             return None
         return self.exporter.export_current(thread, turns)
 
+    def summary_payload(self, session_id: str) -> dict[str, Any]:
+        state = self.summary_repository.get_effective(session_id)
+        payload = asdict(state)
+        payload["can_summarize"] = state.can_summarize
+        return payload
+
+    def assert_summary_source_current(
+        self,
+        session_id: str,
+        *,
+        last_completed_turn_id: str,
+    ) -> None:
+        self.summary_repository.assert_source_current(
+            session_id,
+            last_completed_turn_id=last_completed_turn_id,
+        )
+
+    def mark_summary_completed(
+        self,
+        session_id: str,
+        *,
+        source_thread_version: int,
+        last_completed_turn_id: str,
+        closure_run_id: str,
+    ) -> dict[str, Any]:
+        state = self.summary_repository.mark_summarized(
+            session_id,
+            source_thread_version=source_thread_version,
+            last_completed_turn_id=last_completed_turn_id,
+            closure_run_id=closure_run_id,
+        )
+        payload = asdict(state)
+        payload["can_summarize"] = state.can_summarize
+        return payload
+
     def _import_legacy_once(self) -> None:
         if self._legacy_imported:
             return
@@ -194,6 +239,7 @@ class SessionService:
             "mtime_ns": stat.st_mtime_ns if stat else _iso_to_ns(thread.updated_at),
             "status": thread.status,
             "version": thread.version,
+            "summary": self.summary_payload(thread.id),
         }
 
     def _thread_path(self, thread: ChatThread) -> Path | None:
