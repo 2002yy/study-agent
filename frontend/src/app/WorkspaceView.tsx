@@ -141,6 +141,7 @@ export function WorkspaceView({
         onRestore={chatController.restoreSession}
         onArchive={chatController.archiveCurrentSession}
         onNewSession={requestNewSession}
+        onSessionChanged={refresh}
       />
       <div className="chat-column">
         <LearningStrip
@@ -184,6 +185,7 @@ export function WorkspaceView({
           isSending={chatController.isSending}
           onRestore={chatController.restoreSession}
           onArchive={chatController.archiveCurrentSession}
+          onSessionChanged={refresh}
         />
       </SlideOver>
       <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
