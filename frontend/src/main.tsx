@@ -9,6 +9,7 @@ import "./task-intent-selector.css";
 import "./learning-closure.css";
 import "./session-navigation.css";
 import "./trustworthy-learning-status.css";
+import "./restore-card.css";
 
 type AppErrorBoundaryState = {
   error: Error | null;
