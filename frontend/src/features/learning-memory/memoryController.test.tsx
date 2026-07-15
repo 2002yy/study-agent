@@ -38,6 +38,17 @@ const previewedRun = {
   updated_at: "now"
 };
 
+const previewSummary = {
+  thread_id: "chat_1",
+  status: "not_summarized" as const,
+  source_thread_version: null,
+  last_completed_turn_id: null,
+  current_last_completed_turn_id: "turn_1",
+  closure_run_id: null,
+  summarized_at: null,
+  can_summarize: true,
+};
+
 const closureRun = {
   id: "closure_1",
   thread_id: "chat_1",
@@ -50,6 +61,7 @@ const closureRun = {
   generated_result: {},
   memory_run_id: previewedRun.id,
   memory_run: previewedRun,
+  thread_summary: previewSummary,
   error: "",
   reason: "",
   active_operation_id: null,
@@ -128,9 +140,19 @@ describe("useMemoryController", () => {
 
   it("restores and commits a closure through the closure owner", async () => {
     closureMocks.loadLearningClosure.mockResolvedValue(closureRun);
+    const completedSummary = {
+      ...previewSummary,
+      status: "summarized" as const,
+      source_thread_version: 2,
+      last_completed_turn_id: "turn_1",
+      closure_run_id: "closure_1",
+      summarized_at: "now",
+      can_summarize: false,
+    };
     closureMocks.commitLearningClosure.mockResolvedValue({
       ...closureRun,
       status: "completed",
+      thread_summary: completedSummary,
       memory_run: {
         ...previewedRun,
         status: "succeeded",
@@ -142,6 +164,7 @@ describe("useMemoryController", () => {
     });
     const setActiveRunId = vi.fn();
     const onMemoryChanged = vi.fn();
+    const onSummaryChanged = vi.fn();
     let controller: ReturnType<typeof useMemoryController> | undefined;
 
     function Harness() {
@@ -150,6 +173,7 @@ describe("useMemoryController", () => {
         setActiveClosureRunId: vi.fn(),
         setActiveRunId,
         onMemoryChanged,
+        onSummaryChanged,
       });
       return null;
     }
@@ -160,6 +184,7 @@ describe("useMemoryController", () => {
     });
     expect(controller?.isClosurePreview).toBe(true);
     expect(controller?.drafts[0].content).toBe("remember");
+    expect(onSummaryChanged).toHaveBeenCalledWith(previewSummary);
 
     await act(async () => {
       await controller?.commitRun();
@@ -167,6 +192,7 @@ describe("useMemoryController", () => {
 
     expect(closureMocks.commitLearningClosure).toHaveBeenCalledWith("closure_1");
     expect(apiMocks.commitMemoryRun).not.toHaveBeenCalled();
+    expect(onSummaryChanged).toHaveBeenLastCalledWith(completedSummary);
     expect(onMemoryChanged).toHaveBeenCalledTimes(1);
   });
 });
