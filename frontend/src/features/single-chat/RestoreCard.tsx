@@ -13,13 +13,13 @@ import {
 } from "lucide-react";
 
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
-import type { TaskIntent } from "../../types";
+import type { SemanticSessionRow } from "../sessions/sessionNavigation";
 import {
   sessionTitle,
   summaryLabel,
   taskLabel,
-  type SemanticSessionRow,
 } from "../sessions/sessionNavigation";
+import type { TaskIntent } from "../task/taskContract";
 
 const ENTRY_POINTS: Array<{
   intent: TaskIntent;
