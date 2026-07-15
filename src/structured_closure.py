@@ -88,7 +88,7 @@ def generate_structured_closure_candidates(
         ],
         temperature=0.0,
         model_profile=model_profile,
-        response_format={"type": "json_object"},
+        response_format="json_object",
         task_name="structured_learning_closure",
     )
     data = _parse_object(raw)
