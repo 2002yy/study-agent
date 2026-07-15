@@ -275,16 +275,9 @@ class SessionService:
         completed_turns = [turn for turn in turns if turn.status == "completed"]
         latest_completed = completed_turns[-1] if completed_turns else None
         first_completed = completed_turns[0] if completed_turns else None
-        persisted_intent = ""
-        if latest_completed is not None:
-            contract = task_contract_from_snapshot(
-                latest_completed.route_snapshot.get("task_contract")
-            )
-            if contract is not None:
-                persisted_intent = contract.task_intent
         task_intent = _session_task_intent(
             thread.learning_state,
-            persisted_intent=persisted_intent,
+            completed_turns=completed_turns,
         )
         objective = _normalized_text(thread.learning_state.get("objective"))
         phase = _normalized_text(thread.learning_state.get("phase"))
@@ -364,7 +357,7 @@ def _auto_title(
 def _session_task_intent(
     learning_state: dict[str, Any],
     *,
-    persisted_intent: str,
+    completed_turns: list[ChatTurn],
 ) -> str:
     protocol = str(learning_state.get("protocol") or "")
     objective = _normalized_text(learning_state.get("objective"))
@@ -372,7 +365,21 @@ def _session_task_intent(
         return "project_execution"
     if objective or protocol in {"socratic_rediscovery", "feynman_diagnosis"}:
         return "learn"
-    return persisted_intent or "quick_answer"
+
+    latest_intent = ""
+    for turn in reversed(completed_turns):
+        contract = task_contract_from_snapshot(
+            turn.route_snapshot.get("task_contract")
+        )
+        if contract is None:
+            continue
+        if not latest_intent:
+            latest_intent = contract.task_intent
+        if contract.task_intent in {"organize", "explain_back"}:
+            continue
+        if contract.confidence in {"high", "medium"} or contract.explicit_override:
+            return contract.task_intent
+    return latest_intent or "quick_answer"
 
 
 def _normalized_text(value: Any) -> str:
