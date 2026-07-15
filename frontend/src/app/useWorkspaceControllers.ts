@@ -20,6 +20,7 @@ import {
 import type { ApiSnapshot, ChatSettings, RagSettings } from "../types";
 import { operationRegistry } from "./operationRegistry";
 import { WorkspaceCoordinator } from "./WorkspaceCoordinator";
+import { useWorkspace } from "./WorkspaceProvider";
 
 type ValueSetter<T> = Dispatch<SetStateAction<T>>;
 type DirectSetter<T> = (value: T) => void;
@@ -64,6 +65,7 @@ export function useWorkspaceControllers(options: {
     webLookup: DirectSetter<string | undefined>;
   };
 }) {
+  const { dispatch } = useWorkspace();
   const roleController = useRoleController(options.chatSettings.selectedRole);
   const workflowController = useWorkflowController();
   const settingsController = useSettingsController({
@@ -110,6 +112,8 @@ export function useWorkspaceControllers(options: {
     activeClosureRunId: options.runIds.learningClosure,
     setActiveClosureRunId: options.setRunId.learningClosure,
     onMemoryChanged: options.refresh,
+    onSummaryChanged: (summary) =>
+      dispatch({ type: "SET_SESSION_SUMMARY", summary }),
   });
   const ragController = useRagController({
     settings: options.ragSettings,
