@@ -17,11 +17,12 @@ describe("session title API", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("patches the encoded session title endpoint", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ session }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ session }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -29,9 +30,13 @@ describe("session title API", () => {
 
     expect(result.title).toBe("手动标题");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/sessions/chat%20%2F%201/title");
-    expect(options.method).toBe("PATCH");
-    expect(JSON.parse(String(options.body))).toEqual({ title: "手动标题" });
+    const calls = fetchMock.mock.calls as Array<[
+      RequestInfo | URL,
+      RequestInit | undefined,
+    ]>;
+    const [url, options] = calls[0];
+    expect(String(url)).toBe("/sessions/chat%20%2F%201/title");
+    expect(options?.method).toBe("PATCH");
+    expect(JSON.parse(String(options?.body))).toEqual({ title: "手动标题" });
   });
 });
