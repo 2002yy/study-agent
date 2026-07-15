@@ -15,6 +15,7 @@ type RenderOptions = {
   onSearchSources?: ReturnType<typeof vi.fn>;
   onSubmit?: ReturnType<typeof vi.fn>;
   onRetry?: ReturnType<typeof vi.fn>;
+  onAbandonInterruptedReply?: ReturnType<typeof vi.fn>;
   streamRecovery?: {
     question: string;
     reply: string;
@@ -31,6 +32,7 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
       <ChatPanel
         messages={[]}
         sessionId="session-secret-raw-id"
+        sessionNavigation={null}
         input={options.input ?? ""}
         setInput={vi.fn()}
         isSending={false}
@@ -39,12 +41,14 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
         streamRecovery={options.streamRecovery ?? null}
         onContinueInterruptedReply={vi.fn()}
         onRetry={options.onRetry ?? vi.fn()}
+        onAbandonInterruptedReply={options.onAbandonInterruptedReply ?? vi.fn()}
         onCopyInterruptedReply={vi.fn()}
         onUploadClick={vi.fn()}
         onSearchSources={options.onSearchSources ?? vi.fn()}
         isSearching={false}
         hasSearchQuery={options.hasSearchQuery ?? false}
         onQuickPrompt={vi.fn()}
+        onStartNewTopic={vi.fn()}
         lastChat={{
           reply: "",
           session_id: "session-secret-raw-id",
@@ -191,7 +195,7 @@ describe("ChatPanel practical workspace navigation", () => {
     });
     act(() => selector.props.onChange({ target: { value: "quick_answer" } }));
     const retryButton = renderer.root.findAllByType("button").find(
-      (button) => directText(button) === "重试"
+      (button) => JSON.stringify(button.props.children).includes("重新生成")
     );
 
     act(() => retryButton?.props.onClick());
