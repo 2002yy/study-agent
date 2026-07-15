@@ -333,7 +333,7 @@ PR #30 已完成主链收口：
 - PR #40（G5）：已合并，可信四态与 committed/attempted 边界进入主线。
 - PR #41（G6）：最终 head `f04dc4c16cf8a936d4871e45b027bdff7de4af78`，CI Run #994 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、153 个前端测试、TypeScript build 和 Vite production build 全部通过。
 - PR #42（G7）：最终 head `eb61f0cbd27ee9fe51a65fadabf358470f43d094`，CI Run #1015 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、159 个前端测试、TypeScript build 和 Vite production build 全部通过。
-- PR #43（G8）：Draft，等待最终 head 的完整 CI 与浏览器级窄屏验收；未完成验收前不合并。
+- PR #43（G8）：Draft；本地已完成 1440 / 760 / 430 px 浏览器验收，覆盖 More 菜单、设置抽屉、滚动锁、关闭后焦点恢复与知识库开发代理；等待最终 head 的完整 CI，门禁未绿前不合并。
 
 PR #31 功能代码验证：
 
