@@ -1,25 +1,39 @@
-import { AlertTriangle, BookOpen, CheckCircle2, Target } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  CheckCircle2,
+  CircleHelp,
+  RotateCcw,
+  ShieldQuestion,
+  Target,
+} from "lucide-react";
 import { latestMemorySection } from "../single-chat/ChatPanel";
 import { moveLabel, phaseLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
-import type { ChatResponse, LearningState, MemoryStatusResponse } from "../../types";
+import type { ChatResponse, MemoryStatusResponse } from "../../types";
+import {
+  projectTrustworthyLearningStatus,
+  type LearningVerificationStatus,
+} from "./trustworthyLearningStatus";
 
-function asLearningState(raw: unknown): LearningState | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  return {
-    protocol: String(o.protocol ?? ""),
-    objective: String(o.objective ?? ""),
-    phase: String(o.phase ?? ""),
-    unresolved_gap: String(o.unresolved_gap ?? ""),
-    confirmed_points: Array.isArray(o.confirmed_points) ? (o.confirmed_points as string[]) : [],
-    hint_level: Number(o.hint_level ?? 0),
-    turn_count: Number(o.turn_count ?? 0),
-  };
-}
+const VERIFICATION_ICON = {
+  verified: CheckCircle2,
+  pending_validation: CircleHelp,
+  needs_reteach: RotateCcw,
+  pending_semantic_review: ShieldQuestion,
+} satisfies Record<LearningVerificationStatus, typeof CheckCircle2>;
 
 function supportLabel(hintLevel: number): string {
-  const normalized = Number.isFinite(hintLevel) ? Math.max(0, Math.min(5, Math.trunc(hintLevel))) : 0;
+  const normalized = Number.isFinite(hintLevel)
+    ? Math.max(0, Math.min(5, Math.trunc(hintLevel)))
+    : 0;
   return normalized === 0 ? "未使用提示" : `已使用第 ${normalized} 级提示`;
+}
+
+function confidenceLabel(confidence: number | null): string | null {
+  if (confidence === null) return null;
+  if (confidence >= 0.8) return "高";
+  if (confidence >= 0.5) return "中";
+  return "低";
 }
 
 export function LearningPanel({
@@ -31,12 +45,21 @@ export function LearningPanel({
   visitedPhases: string[];
   memoryStatus: MemoryStatusResponse | null;
 }) {
-  const state = asLearningState(lastChat?.route?.learning_state);
+  const learning = projectTrustworthyLearningStatus(
+    lastChat?.route?.learning_state
+  );
+  const state = learning.state;
   const pedagogy = lastChat?.pedagogy;
   const confirmed = state?.confirmed_points ?? [];
   const focus =
     memoryStatus?.latest_section ||
-    latestMemorySection(memoryStatus, "current_focus.md", "尚无当前学习重点。");
+    latestMemorySection(
+      memoryStatus,
+      "current_focus.md",
+      "尚无当前学习重点。"
+    );
+  const VerificationIcon = VERIFICATION_ICON[learning.verification.status];
+  const confidence = confidenceLabel(learning.verification.confidence);
 
   return (
     <aside className="learning-panel">
@@ -48,7 +71,7 @@ export function LearningPanel({
         <div className="card-label">
           <Target size={13} /> 学习目标
         </div>
-        <p>{state?.objective || "发一条学习请求以建立目标"}</p>
+        <p>{learning.objective || "发一条学习请求以建立目标"}</p>
       </section>
 
       <section className="learning-card phase-card">
@@ -56,13 +79,16 @@ export function LearningPanel({
         {state ? (
           <div className="phase-indicator">
             <span className="phase-current">
-              {protocolLabel(state.protocol)} · {state.phase ? phaseLabel(state.phase) : "未开始"}
+              {protocolLabel(state.protocol)} · {learning.phase ? phaseLabel(learning.phase) : "未开始"}
             </span>
             {visitedPhases.length ? (
               <ol className="phase-trail">
-                {visitedPhases.map((p) => (
-                  <li key={p} className={p === state.phase ? "is-current" : ""}>
-                    {phaseLabel(p)}
+                {visitedPhases.map((phase) => (
+                  <li
+                    key={phase}
+                    className={phase === learning.phase ? "is-current" : ""}
+                  >
+                    {phaseLabel(phase)}
                   </li>
                 ))}
               </ol>
@@ -73,8 +99,33 @@ export function LearningPanel({
         )}
       </section>
 
+      <section className={`learning-card verification-card ${learning.verification.status}`}>
+        <div className="card-label">
+          <VerificationIcon size={13} /> 最近评估
+        </div>
+        <div className="verification-summary-row">
+          <strong>{learning.verification.label}</strong>
+          {confidence ? <span>判定置信度：{confidence}</span> : null}
+        </div>
+        <p>{learning.verification.detail}</p>
+        <small>此状态来自已提交的 PedagogyEvalRun，不代表掌握百分比。</small>
+      </section>
+
+      <section className={`learning-card gap-card${learning.unresolvedGap ? " has-gap" : ""}`}>
+        <div className="card-label">
+          <AlertTriangle size={13} /> 缺口 / 下一步
+        </div>
+        {learning.unresolvedGap ? (
+          <p>当前缺口：{learning.unresolvedGap}</p>
+        ) : learning.nextAction ? (
+          <p>下一步：{learning.nextAction}</p>
+        ) : (
+          <p className="muted">当前没有记录未解决缺口或下一步。</p>
+        )}
+      </section>
+
       <section className="learning-card learning-evidence-card">
-        <div className="card-label">本轮学习证据</div>
+        <div className="card-label">已记录的学习证据</div>
         <dl className="learning-evidence-grid">
           <div>
             <dt>已确认知识点</dt>
@@ -82,7 +133,7 @@ export function LearningPanel({
           </div>
           <div>
             <dt>当前缺口</dt>
-            <dd>{state?.unresolved_gap ? "待解决" : "暂无"}</dd>
+            <dd>{learning.unresolvedGap ? "待解决" : "暂无"}</dd>
           </div>
           <div>
             <dt>学习轮次</dt>
@@ -93,14 +144,9 @@ export function LearningPanel({
             <dd>{supportLabel(state?.hint_level ?? 0)}</dd>
           </div>
         </dl>
-        <p className="learning-evidence-note">这里只展示已记录的学习证据，不推算掌握百分比。</p>
-      </section>
-
-      <section className={`learning-card gap-card${state?.unresolved_gap ? " has-gap" : ""}`}>
-        <div className="card-label">
-          <AlertTriangle size={13} /> 当前缺口
-        </div>
-        <p>{state?.unresolved_gap || "无未解决缺口"}</p>
+        <p className="learning-evidence-note">
+          数量只表示已持久化证据，不换算为掌握度，也不使用 planned / attempted 状态冒充已完成。
+        </p>
       </section>
 
       <section className="learning-card confirmed-card">
@@ -109,8 +155,8 @@ export function LearningPanel({
         </div>
         {confirmed.length ? (
           <ul className="confirmed-list">
-            {confirmed.map((c, i) => (
-              <li key={i}>{c}</li>
+            {confirmed.map((point, index) => (
+              <li key={`${point}-${index}`}>{point}</li>
             ))}
           </ul>
         ) : (

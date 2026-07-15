@@ -35,6 +35,35 @@ function setter<T>(): Dispatch<SetStateAction<T>> {
   return vi.fn<(value: SetStateAction<T>) => void>();
 }
 
+function controllerHarness() {
+  let controller: ReturnType<typeof useChatController> | undefined;
+  function Harness() {
+    controller = useChatController({
+      chatSettings,
+      chatSettingsDefaults: chatSettings,
+      setChatSettings: setter<ChatSettings>(),
+      ragSettings,
+      ragSettingsDefaults: ragSettings,
+      setRagSettings: setter<RagSettings>(),
+      ragEnabled: false,
+      setRagEnabled: setter<boolean>(),
+      keepCurrentRole: false,
+      setKeepCurrentRole: setter<boolean>(),
+      conversationInstruction: "",
+      setConversationInstruction: setter<string>(),
+      webLookupSource: "",
+      useWebLookup: false,
+      setUseWebLookup: setter<boolean>(),
+      setInput: setter<string>(),
+      setOperationError: setter<string>(),
+      clearChatArtifacts: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+    });
+    return null;
+  }
+  return { Harness, getController: () => controller };
+}
+
 describe("useChatController stop behavior", () => {
   beforeEach(() => {
     operationRegistry.cancelAll();
@@ -58,32 +87,7 @@ describe("useChatController stop behavior", () => {
         })
     );
 
-    let controller: ReturnType<typeof useChatController> | undefined;
-    function Harness() {
-      controller = useChatController({
-        chatSettings,
-        chatSettingsDefaults: chatSettings,
-        setChatSettings: setter<ChatSettings>(),
-        ragSettings,
-        ragSettingsDefaults: ragSettings,
-        setRagSettings: setter<RagSettings>(),
-        ragEnabled: false,
-        setRagEnabled: setter<boolean>(),
-        keepCurrentRole: false,
-        setKeepCurrentRole: setter<boolean>(),
-        conversationInstruction: "",
-        setConversationInstruction: setter<string>(),
-        webLookupSource: "",
-        useWebLookup: false,
-        setUseWebLookup: setter<boolean>(),
-        setInput: setter<string>(),
-        setOperationError: setter<string>(),
-        clearChatArtifacts: vi.fn(),
-        refresh: vi.fn().mockResolvedValue(undefined),
-      });
-      return null;
-    }
-
+    const { Harness, getController } = controllerHarness();
     await act(async () => {
       create(
         <WorkspaceProvider initialState={{ activeChatThreadId: "chat-stop" }}>
@@ -94,25 +98,25 @@ describe("useChatController stop behavior", () => {
 
     let sendPromise: Promise<void> | undefined;
     await act(async () => {
-      sendPromise = controller!.send("question");
+      sendPromise = getController()!.send("question");
       await Promise.resolve();
     });
-    expect(controller!.isSending).toBe(true);
+    expect(getController()!.isSending).toBe(true);
 
     await act(async () => {
-      controller!.stop();
+      getController()!.stop();
       await sendPromise;
     });
 
-    expect(controller!.isSending).toBe(false);
-    expect(controller!.streamRecovery).toEqual({
+    expect(getController()!.isSending).toBe(false);
+    expect(getController()!.streamRecovery).toEqual({
       question: "question",
       reply: "partial token",
       reason: "已停止生成",
       sessionId: "chat-stop",
       turnId: "turn-stop",
     });
-    const lastMessage = controller!.messages[controller!.messages.length - 1];
+    const lastMessage = getController()!.messages[getController()!.messages.length - 1];
     expect(lastMessage).toMatchObject({
       role: "assistant",
       transient: true,
@@ -130,5 +134,98 @@ describe("useChatController stop behavior", () => {
       })
     );
     expect(operationRegistry.size).toBe(0);
+  });
+
+  it("restores committed learning state instead of interrupted attempted state", async () => {
+    apiMocks.loadSessionDetail.mockResolvedValue({
+      session_id: "chat-restore",
+      kind: "active",
+      path: "",
+      messages: [
+        {
+          role: "user",
+          content: "继续",
+          turnId: "turn-interrupted",
+          turnStatus: "interrupted",
+        },
+        {
+          role: "assistant",
+          content: "partial",
+          avatarRole: "nahida",
+          turnId: "turn-interrupted",
+          turnStatus: "interrupted",
+        },
+      ],
+      settings: {},
+      route: {
+        learning_state: {
+          protocol: "socratic_rediscovery",
+          objective: "planned objective must not win",
+          phase: "complete",
+          unresolved_gap: "planned gap",
+        },
+      },
+      rag: {},
+      learning_state: {
+        protocol: "socratic_rediscovery",
+        objective: "committed objective",
+        phase: "repair",
+        unresolved_gap: "committed gap",
+        hint_level: 0,
+        turn_count: 2,
+        payload: {
+          pedagogy_evaluation: {
+            final_decision: "reject",
+            reasons: ["reasoning_incomplete"],
+          },
+        },
+      },
+      summary: {},
+      navigation: {},
+      pedagogy: { mode: "socratic_rediscovery", phase: "repair", move: "minimal_repair" },
+      latest_attempted_pedagogy: { phase: "complete" },
+      conversation_instruction: "",
+      turns: [
+        {
+          turn_id: "turn-completed",
+          status: "completed",
+          user_message: "explain",
+          assistant_message: "answer",
+          pedagogy_snapshot: {
+            committed_learning_state: { phase: "repair" },
+          },
+        },
+        {
+          turn_id: "turn-interrupted",
+          status: "interrupted",
+          user_message: "继续",
+          assistant_message: "partial",
+          pedagogy_snapshot: {
+            learning_state_after: { phase: "complete" },
+          },
+        },
+      ],
+      raw: "",
+    });
+
+    const { Harness, getController } = controllerHarness();
+    await act(async () => {
+      create(
+        <WorkspaceProvider>
+          <Harness />
+        </WorkspaceProvider>
+      );
+    });
+    await act(async () => {
+      await getController()!.restoreSession("chat-restore");
+    });
+
+    const restoredLearningState = getController()!.lastChat?.route?.learning_state as
+      | Record<string, unknown>
+      | undefined;
+    expect(restoredLearningState?.objective).toBe("committed objective");
+    expect(restoredLearningState?.phase).toBe("repair");
+    expect(restoredLearningState?.unresolved_gap).toBe("committed gap");
+    expect(restoredLearningState?.objective).not.toBe("planned objective must not win");
   });
 });
