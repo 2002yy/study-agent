@@ -29,6 +29,13 @@ function supportLabel(hintLevel: number): string {
   return normalized === 0 ? "未使用提示" : `已使用第 ${normalized} 级提示`;
 }
 
+function confidenceLabel(confidence: number | null): string | null {
+  if (confidence === null) return null;
+  if (confidence >= 0.8) return "高";
+  if (confidence >= 0.5) return "中";
+  return "低";
+}
+
 export function LearningPanel({
   lastChat,
   visitedPhases,
@@ -52,6 +59,7 @@ export function LearningPanel({
       "尚无当前学习重点。"
     );
   const VerificationIcon = VERIFICATION_ICON[learning.verification.status];
+  const confidence = confidenceLabel(learning.verification.confidence);
 
   return (
     <aside className="learning-panel">
@@ -97,12 +105,10 @@ export function LearningPanel({
         </div>
         <div className="verification-summary-row">
           <strong>{learning.verification.label}</strong>
-          {learning.verification.confidence !== null ? (
-            <span>评估置信度 {Math.round(learning.verification.confidence * 100)}%</span>
-          ) : null}
+          {confidence ? <span>判定置信度：{confidence}</span> : null}
         </div>
         <p>{learning.verification.detail}</p>
-        <small>此状态来自已提交的 PedagogyEvalRun，不代表启发式掌握百分比。</small>
+        <small>此状态来自已提交的 PedagogyEvalRun，不代表掌握百分比。</small>
       </section>
 
       <section className={`learning-card gap-card${learning.unresolvedGap ? " has-gap" : ""}`}>
