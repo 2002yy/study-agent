@@ -191,6 +191,45 @@ def commit_turn_endpoint(
     )
 
 
+@router.post("/sessions/{session_id}/turns/{turn_id}/abandon")
+def abandon_interrupted_turn_endpoint(
+    session_id: str,
+    turn_id: str,
+    service: ChatServiceDependency,
+) -> dict[str, Any]:
+    thread = service.repository.get_chat_thread(session_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    turn = service.repository.get_chat_turn(turn_id)
+    if turn is None or turn.thread_id != session_id:
+        raise HTTPException(status_code=404, detail="Chat turn not found")
+    if turn.status == "abandoned":
+        return {
+            "session_id": session_id,
+            "turn_id": turn_id,
+            "status": "abandoned",
+            "changed": False,
+        }
+    if turn.status not in {"interrupted", "failed"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Chat turn cannot be abandoned from status {turn.status}",
+        )
+    updated = service.repository.update_chat_turn(
+        turn_id,
+        status="abandoned",
+        expected_status=turn.status,
+    )
+    if updated is None:
+        raise HTTPException(status_code=409, detail="Chat turn state changed")
+    return {
+        "session_id": session_id,
+        "turn_id": turn_id,
+        "status": updated.status,
+        "changed": True,
+    }
+
+
 def _chat_command(request: ChatRequest) -> PolicyChatCommand:
     return PolicyChatCommand(
         user_input=request.user_input,
