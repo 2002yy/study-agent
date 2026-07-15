@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from src.application.session_service import SessionService
-from src.domain.runtime_entities import ChatThread, ChatTurn
+from src.domain.runtime_entities import ChatThread, ChatTurn, utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.session_navigation_repository import SessionNavigationRepository
@@ -78,7 +79,7 @@ def test_session_projection_uses_committed_learning_truth_and_latest_contract(tm
 
 
 def test_manual_title_is_independent_and_clearable(tmp_path: Path):
-    runtime, service, _database = _service(tmp_path)
+    runtime, service, database = _service(tmp_path)
     runtime.create_chat_thread(
         ChatThread(
             id="thread-manual-title",
@@ -94,13 +95,24 @@ def test_manual_title_is_independent_and_clearable(tmp_path: Path):
             assistant_message="原始回答",
         )
     )
-    version_before = runtime.get_chat_thread("thread-manual-title").version
+    thread_before = runtime.get_chat_thread("thread-manual-title")
+    assert thread_before is not None
+    version_before = thread_before.version
 
     renamed = service.rename_session("thread-manual-title", "  我的二分查找复习  ")
-    runtime.update_chat_thread_learning_state(
-        "thread-manual-title",
-        {"objective": "后来变化的自动标题"},
-    )
+    with database.connect() as connection:
+        connection.execute(
+            """
+            UPDATE chat_threads
+            SET learning_state = ?, updated_at = ?, version = version + 1
+            WHERE id = ?
+            """,
+            (
+                json.dumps({"objective": "后来变化的自动标题"}, ensure_ascii=False),
+                utc_now(),
+                "thread-manual-title",
+            ),
+        )
     after_state_change = service.list_sessions()[0]
     cleared = service.rename_session("thread-manual-title", "")
 
@@ -111,9 +123,11 @@ def test_manual_title_is_independent_and_clearable(tmp_path: Path):
     assert after_state_change["auto_title"] == "后来变化的自动标题"
     assert cleared["title"] == "后来变化的自动标题"
     assert cleared["title_source"] == "auto"
-    assert runtime.get_chat_thread("thread-manual-title").version > version_before
-    # Only the learning-state change bumps ChatThread version; title metadata is separate.
-    assert cleared["version"] == runtime.get_chat_thread("thread-manual-title").version
+    thread_after = runtime.get_chat_thread("thread-manual-title")
+    assert thread_after is not None
+    assert thread_after.version == version_before + 1
+    # Title metadata is separate and never increments ChatThread content version.
+    assert cleared["version"] == thread_after.version
 
 
 def test_research_session_exposes_latest_research_summary(tmp_path: Path):
