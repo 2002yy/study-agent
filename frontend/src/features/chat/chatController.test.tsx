@@ -9,6 +9,7 @@ import { useChatController } from "./chatController";
 
 const apiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
+  cancelChatResearchRuns: vi.fn(),
   commitTurn: vi.fn(),
   createNewSession: vi.fn(),
   loadSessionDetail: vi.fn(),
@@ -68,6 +69,7 @@ describe("useChatController stop behavior", () => {
   beforeEach(() => {
     operationRegistry.cancelAll();
     vi.clearAllMocks();
+    apiMocks.cancelChatResearchRuns.mockResolvedValue([]);
   });
 
   it("preserves partial output, commits it, exposes recovery, and clears busy", async () => {
@@ -133,6 +135,7 @@ describe("useChatController stop behavior", () => {
         operationId: "op-stop",
       })
     );
+    expect(apiMocks.cancelChatResearchRuns).toHaveBeenCalledWith("turn-stop");
     expect(operationRegistry.size).toBe(0);
   });
 

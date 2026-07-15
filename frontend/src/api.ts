@@ -700,6 +700,14 @@ export async function sendChat(
   });
 }
 
+export async function cancelChatResearchRuns(turnId: string): Promise<WebLookupRunResponse[]> {
+  const response = await requestJson<{ runs: WebLookupRunResponse[] }>(
+    `/research-runs/owners/turns/${encodeURIComponent(turnId)}/cancel`,
+    { method: "POST" }
+  );
+  return response.runs;
+}
+
 export async function sendChatStream(
   userInput: string,
   history: ChatMessage[],

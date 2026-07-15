@@ -123,6 +123,19 @@ class WebLookupRepository:
             ).fetchall()
         return [_from_row(row) for row in rows]
 
+    def list_by_owner_turn(self, turn_id: str, *, limit: int = 20) -> list[WebLookupRun]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM web_lookup_runs
+                WHERE json_extract(research_context, '$.owner.turn_id') = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (turn_id, max(1, min(int(limit), 100))),
+            ).fetchall()
+        return [_from_row(row) for row in rows]
+
     def begin_operation(
         self,
         run_id: str,

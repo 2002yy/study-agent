@@ -62,7 +62,7 @@ async def chat_stream_endpoint(
     service: ChatServiceDependency,
 ) -> StreamingResponse:
     try:
-        prepared = service.start_turn(_chat_command(chat_request))
+        prepared = await asyncio.to_thread(service.start_turn, _chat_command(chat_request))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

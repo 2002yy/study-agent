@@ -2,8 +2,8 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-15  
-> 当前能力基线：PR #43 已合并，核心学习产品 G1–G8 已形成可信状态、结构化恢复、可整理、准确导航、聚焦主界面与窄屏完整可用闭环
-> 当前代码切片：将聊天工具循环统一关联 durable ResearchRun，并继续补齐请求级取消与恢复
+> 当前能力基线：PR #44 已合并，核心学习产品 G1–G8 已闭环，聊天联网工具循环已统一关联 durable ResearchRun
+> 当前代码切片：补齐聊天 ResearchRun 的请求级取消、统一规划器超时与失败恢复
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
@@ -57,6 +57,10 @@ planned
 - `status` 表示流程状态；`provider_status` 表示证据完整度。
 
 当前取消属于协作式取消。同步网络请求需要返回或超时后才能进入取消分支，但取消后不会提交 completed 结果。
+
+```env
+WEB_TOOL_REQUEST_TIMEOUT_SECONDS=45
+```
 
 ### Commit-pinned GitHubRepoSnapshot
 
@@ -269,8 +273,8 @@ PR #30 已完成主链收口：
 | 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
 | UI 聚焦收敛 | 已完成 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪已合并 |
 | 窄屏完整可用 | 已完成 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区验收已合并 |
-| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；还需请求级取消和恢复 |
-| cancel/retry/resume | 基础完成 | 聊天工具 ResearchRun 的异步请求级取消、统一超时、实时阶段事件与恢复 |
+| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；正在补齐请求级取消和恢复 |
+| cancel/retry/resume | 本切片推进 | 浏览器预分配 Turn owner，停止时请求 durable ResearchRun 取消；工具循环在模型轮次/工具边界协作退出，规划器请求使用统一超时；还需实时阶段事件与恢复入口 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
 | GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件 |
 | 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理、磁盘统计 |
@@ -295,7 +299,7 @@ PR #30 已完成主链收口：
 
 ### 核心学习产品优先
 
-1. **聊天工具 ResearchRun 请求级控制**：在 thread/turn owner 与工具 trace 持久化基础上，补齐异步请求级取消、统一超时和失败恢复。
+1. **聊天工具 ResearchRun 请求级控制**：完成当前取消/超时切片的全量回归，补齐失败后的正式恢复入口。
 2. **聊天研究阶段事件**：让前端通过正式 `run_id` 读取实时阶段、失败原因与可恢复操作，而不是依赖一次性响应 trace。
 
 ### G10-C2 持久化缓存
@@ -336,6 +340,7 @@ PR #30 已完成主链收口：
 - PR #42（G7）：最终 head `eb61f0cbd27ee9fe51a65fadabf358470f43d094`，CI Run #1015 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、159 个前端测试、TypeScript build 和 Vite production build 全部通过。
 - PR #43（G8）：最终 head `f78b9b1` 的两条 CI 均通过后合并，merge commit `6e1d107`；本地 1440 / 760 / 430 px 浏览器验收覆盖 More 菜单、设置抽屉、滚动锁、关闭后焦点恢复与知识库开发代理。
 - PR #44（聊天 ResearchRun owner）：目标测试 17 passed，完整 pytest 756 passed，Ruff 全量通过，前端 47 个测试文件 / 164 个测试及 TypeScript/Vite build 通过；head `256dac4` 的 push 与 pull_request CI 均通过。
+- 当前请求级取消/超时工作树：Chat/API/Policy/Persistent/WebTool 相关后端 68 passed，Ruff 全量通过，前端 47 个测试文件 / 165 个测试通过，TypeScript 与 Vite production build 通过；完整 pytest 在本地 10 分钟门限内未结束，因此尚未记为全量通过。
 
 PR #31 功能代码验证：
 

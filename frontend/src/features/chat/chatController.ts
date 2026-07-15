@@ -1,6 +1,7 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   archiveSession,
+  cancelChatResearchRuns,
   commitTurn,
   createNewSession,
   loadSessionDetail,
@@ -78,6 +79,7 @@ export function createEmptyRag(): ChatResponse["rag"] {
 export function useChatController(options: ControllerOptions) {
   const { state, dispatch } = useWorkspace();
   const [isSending, setIsSending] = useState(false);
+  const activeTurnIdRef = useRef<string | null>(null);
 
   const setMessages: Dispatch<SetStateAction<ChatMessage[]>> = useCallback(
     (value) => dispatch({ type: "SET_CHAT_MESSAGES", value }),
@@ -113,6 +115,10 @@ export function useChatController(options: ControllerOptions) {
   );
 
   const cancelWorkspaceRuns = useCallback(() => {
+    const activeTurnId = activeTurnIdRef.current;
+    if (activeTurnId) {
+      void cancelChatResearchRuns(activeTurnId).catch(() => undefined);
+    }
     operationRegistry.invalidate("chat");
     setIsSending(false);
   }, []);
@@ -154,7 +160,9 @@ export function useChatController(options: ControllerOptions) {
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
     let activeSessionId = state.activeChatThreadId ?? "";
-    let activeTurnId = extraOpts.turnId ?? "";
+    let activeTurnId =
+      extraOpts.turnId ?? `turn_${globalThis.crypto.randomUUID()}`;
+    activeTurnIdRef.current = activeTurnId;
     let activeOperationId = "";
     const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);
     let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";
@@ -185,13 +193,14 @@ export function useChatController(options: ControllerOptions) {
           continuationOfTurnId: extraOpts.continuationOfTurnId,
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",
-          turnId: extraOpts.turnId,
+          turnId: activeTurnId,
         },
         {
           onSession: (sessionId, meta) => {
             if (!isCurrent()) return;
             activeSessionId = sessionId;
             activeTurnId = meta?.turnId ?? activeTurnId;
+            activeTurnIdRef.current = activeTurnId;
             activeOperationId = meta?.operationId ?? activeOperationId;
             setThreadId(sessionId);
             if (activeTurnId) {
@@ -380,6 +389,9 @@ export function useChatController(options: ControllerOptions) {
         )
       );
     } finally {
+      if (activeTurnIdRef.current === activeTurnId) {
+        activeTurnIdRef.current = null;
+      }
       const ownsSettlement = isOwned();
       operationRegistry.complete(operationId);
       if (ownsSettlement) setIsSending(false);
@@ -647,7 +659,13 @@ export function useChatController(options: ControllerOptions) {
     transitionSession,
     applySessionDetail,
     send,
-    stop: () => operationRegistry.abort("chat"),
+    stop: () => {
+      const activeTurnId = activeTurnIdRef.current;
+      if (activeTurnId) {
+        void cancelChatResearchRuns(activeTurnId).catch(() => undefined);
+      }
+      operationRegistry.abort("chat");
+    },
     retry,
     continueInterrupted,
     copyInterrupted,

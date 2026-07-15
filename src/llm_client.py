@@ -559,6 +559,8 @@ def run_tool_loop(
     provider_profile: str | None = None,
     task_name: str | None = None,
     max_rounds: int = 3,
+    should_cancel: Callable[[], bool] | None = None,
+    timeout: float | None = None,
 ) -> list[dict[str, Any]]:
     """Run an OpenAI-compatible function-call loop and return tool evidence.
 
@@ -568,10 +570,14 @@ def run_tool_loop(
     """
     if not messages or not tools:
         return []
+    if should_cancel is not None and should_cancel():
+        raise RuntimeError("tool_loop_cancelled")
     client = get_client(provider_profile=provider_profile)
     transcript = list(messages)
     evidence: list[dict[str, Any]] = []
     for _ in range(max(1, max_rounds)):
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("tool_loop_cancelled")
         request_kwargs = _build_request_kwargs(
             messages=transcript,
             temperature=0.0,
@@ -579,7 +585,7 @@ def run_tool_loop(
             provider_profile=provider_profile,
             task_name=task_name,
             max_tokens=600,
-            timeout=None,
+            timeout=timeout,
             response_format=None,
             stream=False,
         )
@@ -595,6 +601,8 @@ def run_tool_loop(
             return evidence
         assistant_calls: list[dict[str, Any]] = []
         for index, call in enumerate(raw_calls):
+            if should_cancel is not None and should_cancel():
+                raise RuntimeError("tool_loop_cancelled")
             function = getattr(call, "function", None)
             name = str(getattr(function, "name", "") or "")
             raw_arguments = str(getattr(function, "arguments", "") or "{}")
@@ -610,6 +618,8 @@ def run_tool_loop(
                     result = execute_tool(name, arguments)
                 except Exception as exc:  # Individual tools fail soft for the model.
                     result = {"error": f"{type(exc).__name__}: {exc}"}
+            if should_cancel is not None and should_cancel():
+                raise RuntimeError("tool_loop_cancelled")
             call_id = str(getattr(call, "id", "") or f"tool_call_{index}")
             evidence.append({"name": name, "arguments": arguments, "result": result})
             assistant_calls.append(

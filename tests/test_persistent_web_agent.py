@@ -66,6 +66,13 @@ def test_persistent_agent_owns_and_records_chat_research_run():
         def record_tool_trace(self, run_id: str, **kwargs):
             captured["record"] = {"run_id": run_id, **kwargs}
 
+        def begin_tool_trace(self, run_id: str):
+            captured["begin"] = run_id
+            return "operation-1"
+
+        def tool_trace_cancel_requested(self, _run_id: str, _operation_id: str):
+            return False
+
     def run_loop(_messages, **_kwargs):
         return [
             {
@@ -96,3 +103,4 @@ def test_persistent_agent_owns_and_records_chat_research_run():
     }
     assert captured["record"]["run_id"] == "web_lookup_chat_1"
     assert captured["record"]["calls"] == list(trace.calls)
+    assert captured["record"]["operation_id"] == "operation-1"

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   callToolRun,
   archiveSession,
+  cancelChatResearchRuns,
   createNewsRun,
   digestNewsRun,
   discussNewsRun,
@@ -176,6 +177,29 @@ describe("sendChatStream", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.signal).toBe(controller.signal);
+  });
+});
+
+describe("cancelChatResearchRuns", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels durable research runs by the preallocated turn owner", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ runs: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(cancelChatResearchRuns("turn / 1")).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/research-runs/owners/turns/turn%20%2F%201/cancel",
+      expect.objectContaining({ method: "POST" })
+    );
   });
 });
 
