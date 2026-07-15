@@ -96,6 +96,16 @@ export function ChatPanel({
   const selectedTaskIntent = TURN_TASK_INTENT_OPTIONS.find(
     (option) => option.value === taskIntentOverride
   ) ?? TURN_TASK_INTENT_OPTIONS[0];
+  const displayMessages = sessionNavigation?.has_completed_turns
+    ? messages
+    : messages.filter(
+        (message) =>
+          !(
+            message.role === "assistant" &&
+            message.transient &&
+            !message.turnId
+          )
+      );
 
   const updateScrollState = () => {
     const element = conversationRef.current;
@@ -256,7 +266,7 @@ export function ChatPanel({
           onRetryInterrupted={onRetry}
           onAbandonInterrupted={onAbandonInterruptedReply}
         />
-        {messages.map((message, index) => {
+        {displayMessages.map((message, index) => {
           const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
           const label = message.role === "user" ? "你" : roleLabel(avatarRole);
           return (
