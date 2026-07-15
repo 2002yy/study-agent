@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
@@ -123,7 +124,12 @@ class WebLookupRepository:
             ).fetchall()
         return [_from_row(row) for row in rows]
 
-    def list_by_owner_turn(self, turn_id: str, *, limit: int = 20) -> list[WebLookupRun]:
+    def list_by_owner_turn(
+        self,
+        turn_id: str,
+        *,
+        limit: int = 20,
+    ) -> builtins.list[WebLookupRun]:
         with self.database.connect() as connection:
             rows = connection.execute(
                 """
