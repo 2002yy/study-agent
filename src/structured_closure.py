@@ -13,6 +13,7 @@ _ALLOWED_TARGETS: dict[str, bool] = {
     "progress": True,
     "learner_profile": True,
     "current_focus": False,
+    "project_context": True,
     "revision_notes": True,
     "session_archive": True,
 }
@@ -26,9 +27,10 @@ _NO_UPDATE_MARKERS = {
 _MEMORY_CHAR_LIMIT = 2400
 
 _SYSTEM_PROMPT = """你是学习系统的结构化整理生成器。
-只允许根据输入 JSON 中的 committed_learning_state、final_pedagogy_evaluation、evidence_ids、recent_dialogue 和 memory_context 生成候选。
+只允许根据输入 JSON 中的 committed_learning_state、committed_project_state、final_pedagogy_evaluation、evidence_ids、recent_dialogue 和 memory_context 生成候选。
 不得把 excluded_uncommitted_turns、失败回合、planned state、用户仅口头声称“懂了”当作掌握证据。
-confirmed_points 只能来自 committed_learning_state.confirmed_points；最终评估不是 accept 时，不得把其内容写成已掌握。
+confirmed_points 只能来自 committed_learning_state.confirmed_points；项目里程碑、交付物、测试结果和阻塞项只能来自 committed_project_state。
+最终评估不是 accept 时，不得把其内容写成已掌握；project_validation_passed 不为 true 时，不得声称项目验证通过。
 learner_profile 候选必须 learner_pending=true，不得诊断心理、健康或敏感属性。
 每个候选必须给出 allowed_source_refs 中的 source_refs；没有来源就不要生成该候选。
 严格输出一个 JSON 对象，不要 markdown：
@@ -37,7 +39,7 @@ learner_profile 候选必须 learner_pending=true，不得诊断心理、健康�
   "summary_kind": "learning_summary 或 project_closure",
   "candidates": [
     {
-      "target": "progress|learner_profile|current_focus|revision_notes|session_archive",
+      "target": "progress|learner_profile|current_focus|project_context|revision_notes|session_archive",
       "content": "简洁、可确认的候选内容",
       "confidence": "low|medium|high",
       "source_refs": ["allowed_source_refs 中的值"],
@@ -114,6 +116,11 @@ def normalize_structured_closure_result(
         if isinstance(final_evaluation, dict)
         else ""
     )
+    project_state = structured_input.get("committed_project_state")
+    project_validation_passed = bool(
+        isinstance(project_state, dict)
+        and project_state.get("project_validation_passed") is True
+    )
     candidates: list[dict[str, Any]] = []
     raw_candidates = value.get("candidates")
     if not isinstance(raw_candidates, list):
@@ -160,6 +167,7 @@ def normalize_structured_closure_result(
             target,
             source_refs,
             has_accepted_evaluation=has_accepted_evaluation,
+            project_validation_passed=project_validation_passed,
         ):
             confidence = "medium"
         learner_pending = target == "learner_profile" or raw.get("learner_pending") is True
@@ -228,7 +236,12 @@ def _parse_object(raw: str) -> dict[str, Any]:
 
 def bounded_memory_context(memory_bundle: dict[str, str]) -> dict[str, str]:
     result: dict[str, str] = {}
-    for filename in ("progress.md", "learner_profile.md", "current_focus.md"):
+    for filename in (
+        "progress.md",
+        "learner_profile.md",
+        "current_focus.md",
+        "project_context.md",
+    ):
         content = str(memory_bundle.get(filename) or "").strip()
         if not content or content.startswith("[文件不存在"):
             continue
@@ -279,6 +292,12 @@ def _target_is_grounded(
                 "learning_state.confirmed_points",
                 "learning_state.unresolved_gap",
                 "learning_state.phase",
+                "project_state.current_stage",
+                "project_state.completed_deliverables",
+                "project_state.failed_tests",
+                "project_state.blockers",
+                "project_state.milestones",
+                "project_state.project_validation_passed",
                 "memory:progress.md",
             }
         )
@@ -289,9 +308,19 @@ def _target_is_grounded(
                 "learning_state.objective",
                 "learning_state.unresolved_gap",
                 "learning_state.phase",
+                "project_state.objective",
+                "project_state.current_stage",
+                "project_state.next_action",
+                "project_state.failed_tests",
+                "project_state.blockers",
+                "project_state.validation_required",
                 "memory:current_focus.md",
                 "memory:progress.md",
             }
+        )
+    if target == "project_context":
+        return any(ref.startswith("project_state.") for ref in refs) or bool(
+            refs & {"memory:project_context.md"}
         )
     return True
 
@@ -301,19 +330,30 @@ def _allows_high_confidence(
     source_refs: list[str],
     *,
     has_accepted_evaluation: bool,
+    project_validation_passed: bool,
 ) -> bool:
     refs = set(source_refs)
     if has_accepted_evaluation:
         return True
     if target == "progress":
+        if refs & {
+            "learning_state.confirmed_points",
+            "memory:progress.md",
+            "project_state.completed_deliverables",
+            "project_state.milestones",
+        }:
+            return True
         return bool(
-            refs
-            & {
-                "learning_state.confirmed_points",
-                "memory:progress.md",
-            }
+            project_validation_passed
+            and "project_state.project_validation_passed" in refs
+        )
+    if target == "project_context":
+        return any(ref.startswith("project_state.") for ref in refs) or bool(
+            refs & {"memory:project_context.md"}
         )
     return any(
-        ref.startswith("learning_state.") or ref.startswith("memory:")
+        ref.startswith("learning_state.")
+        or ref.startswith("project_state.")
+        or ref.startswith("memory:")
         for ref in refs
     )
