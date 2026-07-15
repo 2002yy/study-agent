@@ -27,7 +27,7 @@ describe("Sidebar user-facing settings", () => {
       runtimeSettings: {
         settings: {},
       },
-    } as ApiSnapshot;
+    } as unknown as ApiSnapshot;
     const lastChat = {
       session_id: "session-secret-id",
       route: {
@@ -40,7 +40,7 @@ describe("Sidebar user-facing settings", () => {
           move: "move-secret-code",
         },
       },
-    } as ChatResponse;
+    } as unknown as ChatResponse;
 
     let renderer!: ReturnType<typeof create>;
     act(() => {
