@@ -38,6 +38,7 @@ function setter<T>(): Dispatch<SetStateAction<T>> {
 
 function controllerHarness() {
   let controller: ReturnType<typeof useChatController> | undefined;
+  const onResearchRunDiscovered = vi.fn();
   function Harness() {
     controller = useChatController({
       chatSettings,
@@ -59,10 +60,11 @@ function controllerHarness() {
       setOperationError: setter<string>(),
       clearChatArtifacts: vi.fn(),
       refresh: vi.fn().mockResolvedValue(undefined),
+      onResearchRunDiscovered,
     });
     return null;
   }
-  return { Harness, getController: () => controller };
+  return { Harness, getController: () => controller, onResearchRunDiscovered };
 }
 
 describe("useChatController stop behavior", () => {
@@ -74,6 +76,7 @@ describe("useChatController stop behavior", () => {
 
   it("preserves partial output, commits it, exposes recovery, and clears busy", async () => {
     apiMocks.commitTurn.mockResolvedValue({ committed: true });
+    apiMocks.cancelChatResearchRuns.mockResolvedValue([{ id: "research-stop" }]);
     apiMocks.sendChatStream.mockImplementation(
       async (_question, _history, _options, callbacks, requestOptions) =>
         new Promise((_resolve, reject) => {
@@ -82,6 +85,7 @@ describe("useChatController stop behavior", () => {
             operationId: "op-stop",
           });
           callbacks.onRoute({ role: "nahida", mode: "normal", model_profile: "flash" });
+          callbacks.onRag({ web_tools: { run_id: "research-rag" } });
           callbacks.onToken("partial token");
           requestOptions.signal.addEventListener("abort", () => {
             reject(new DOMException("stopped", "AbortError"));
@@ -89,7 +93,7 @@ describe("useChatController stop behavior", () => {
         })
     );
 
-    const { Harness, getController } = controllerHarness();
+    const { Harness, getController, onResearchRunDiscovered } = controllerHarness();
     await act(async () => {
       create(
         <WorkspaceProvider initialState={{ activeChatThreadId: "chat-stop" }}>
@@ -136,6 +140,10 @@ describe("useChatController stop behavior", () => {
       })
     );
     expect(apiMocks.cancelChatResearchRuns).toHaveBeenCalledWith("turn-stop");
+    await vi.waitFor(() => {
+      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-rag");
+      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop");
+    });
     expect(operationRegistry.size).toBe(0);
   });
 

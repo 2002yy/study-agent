@@ -4,6 +4,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
+import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
+import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
 import {
   TURN_TASK_INTENT_OPTIONS,
@@ -55,7 +57,14 @@ export function ChatPanel({
   memoryStatus,
   onOpenDrawer,
   onEndSession,
-  isEndingSession
+  isEndingSession,
+  researchRun,
+  isResearchBusy,
+  canRetryResearch,
+  canResumeResearch,
+  useResearchInChat,
+  onRetryResearch,
+  onResumeResearch,
 }: {
   messages: ChatMessage[];
   sessionId?: string;
@@ -82,6 +91,13 @@ export function ChatPanel({
   onOpenDrawer: (drawer: DrawerId) => void;
   onEndSession: () => void;
   isEndingSession?: boolean;
+  researchRun: ResearchLookupResponse | null;
+  isResearchBusy: boolean;
+  canRetryResearch: boolean;
+  canResumeResearch: boolean;
+  useResearchInChat: boolean;
+  onRetryResearch: () => void;
+  onResumeResearch: () => void;
 }) {
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -330,6 +346,16 @@ export function ChatPanel({
           </button>
         </div>
       ) : null}
+
+      <ChatResearchRecovery
+        run={researchRun}
+        isBusy={isResearchBusy}
+        canRetry={canRetryResearch}
+        canResume={canResumeResearch}
+        useInChat={useResearchInChat}
+        onRetry={onRetryResearch}
+        onResume={onResumeResearch}
+      />
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">

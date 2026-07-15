@@ -176,6 +176,7 @@ export function useWorkspaceControllers(options: {
     clearChatArtifacts:
       workspaceCoordinator.clearChatArtifacts.bind(workspaceCoordinator),
     refresh: options.refresh,
+    onResearchRunDiscovered: options.setRunId.webLookup,
   });
   const activeQuery =
     options.input.trim() || chatController.lastChat?.rag?.query || "";

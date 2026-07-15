@@ -86,6 +86,13 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
         memoryStatus={null}
         onOpenDrawer={options.onOpenDrawer ?? vi.fn()}
         onEndSession={vi.fn()}
+        researchRun={null}
+        isResearchBusy={false}
+        canRetryResearch={false}
+        canResumeResearch={false}
+        useResearchInChat={false}
+        onRetryResearch={vi.fn()}
+        onResumeResearch={vi.fn()}
       />
     );
   });
