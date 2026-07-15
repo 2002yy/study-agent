@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Callable
 from dataclasses import asdict
 import hashlib
@@ -362,7 +363,9 @@ class LearningClosureService:
             raise LearningClosureCancelled("Learning closure cancelled by user")
 
     @staticmethod
-    def _memory_updates(generated: dict[str, Any]) -> list[dict[str, Any]]:
+    def _memory_updates(
+        generated: dict[str, Any],
+    ) -> builtins.list[dict[str, Any]]:
         if isinstance(generated.get("candidates"), list):
             return structured_candidates_to_memory_updates(generated)
         return after_session_to_memory_updates(
