@@ -39,7 +39,7 @@ function learningResponse(): ChatResponse {
 }
 
 describe("LearningPanel evidence summary", () => {
-  it("shows observable learning evidence without a mastery estimate", () => {
+  it("shows committed evidence and trustworthy evaluation without a mastery estimate", () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
@@ -52,10 +52,12 @@ describe("LearningPanel evidence summary", () => {
     });
 
     const serialized = JSON.stringify(renderer.toJSON());
-    expect(serialized).toContain("本轮学习证据");
+    expect(serialized).toContain("最近评估");
+    expect(serialized).toContain("待验证");
+    expect(serialized).toContain("已记录的学习证据");
     expect(serialized).toContain("已确认知识点");
     expect(serialized).toContain("已使用第 1 级提示");
-    expect(serialized).toContain("不推算掌握百分比");
+    expect(serialized).toContain("不换算为掌握度");
     expect(serialized).not.toContain("mastery-ring");
 
     act(() => renderer.unmount());
