@@ -146,6 +146,13 @@ class ThreadSummaryRepository:
         last_completed_turn_id: str,
         closure_run_id: str,
     ) -> ThreadSummaryState:
+        current = self.get_effective(thread_id)
+        if (
+            current.source_thread_version == source_thread_version
+            and current.last_completed_turn_id == last_completed_turn_id
+            and current.closure_run_id == closure_run_id
+        ):
+            return current
         return self._store_summary(
             thread_id,
             source_thread_version=source_thread_version,
