@@ -1,22 +1,26 @@
-.closure-status {
+.closure-status,
+.session-summary-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
 }
 
-.closure-status > div:not(.closure-actions) {
+.closure-status > div:not(.closure-actions),
+.session-summary-card > div:not(.closure-actions) {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.closure-status strong {
+.closure-status strong,
+.session-summary-card strong {
   color: var(--text);
   font-size: 13px;
 }
 
-.closure-status span {
+.closure-status span,
+.session-summary-card span {
   overflow-wrap: anywhere;
 }
 
@@ -25,8 +29,13 @@
 }
 
 .closure-status.preview_ready,
-.closure-status.completed {
+.closure-status.completed,
+.session-summary-card.summarized {
   border-color: rgba(19, 124, 118, 0.28);
+}
+
+.session-summary-card.needs-update {
+  border-color: rgba(190, 126, 24, 0.32);
 }
 
 .closure-actions {
@@ -76,7 +85,8 @@
 }
 
 @media (max-width: 620px) {
-  .closure-status {
+  .closure-status,
+  .session-summary-card {
     grid-template-columns: auto minmax(0, 1fr);
   }
 

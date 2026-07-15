@@ -20,6 +20,7 @@ class SessionDetailResponse(BaseModel):
     route: dict = Field(default_factory=dict)
     rag: dict = Field(default_factory=dict)
     learning_state: dict = Field(default_factory=dict)
+    summary: dict = Field(default_factory=dict)
     pedagogy: dict = Field(default_factory=dict)
     latest_attempted_pedagogy: dict = Field(default_factory=dict)
     conversation_instruction: str = ""

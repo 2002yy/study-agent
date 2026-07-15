@@ -1,4 +1,6 @@
 import type { ChatMessage, ChatResponse, DrawerId } from "../types";
+import type { SessionSummary } from "../features/sessions/sessionSummary";
+import { emptySessionSummary } from "../features/sessions/sessionSummary";
 
 export type WorkspacePanel = "chat" | "sources" | "group" | "news" | "tools" | "memory";
 
@@ -20,6 +22,7 @@ export type WorkspaceRuntimeState = {
   activeLearningClosureRunId?: string;
   activeRagQueryRunId?: string;
   activeRagWriteRunId?: string;
+  sessionSummary: SessionSummary | null;
   chatMessages: ChatMessage[];
   lastChat: ChatResponse | null;
   streamRecovery: StreamRecoveryState | null;
@@ -39,6 +42,8 @@ export type WorkspaceAction =
   | { type: "SET_ACTIVE_LEARNING_CLOSURE_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_QUERY_RUN"; runId?: string }
   | { type: "SET_ACTIVE_RAG_WRITE_RUN"; runId?: string }
+  | { type: "SET_SESSION_SUMMARY"; summary: SessionSummary | null }
+  | { type: "MARK_COMPLETED_TURN"; turnId: string }
   | { type: "SET_CHAT_MESSAGES"; value: ChatMessage[] | ((current: ChatMessage[]) => ChatMessage[]) }
   | { type: "SET_LAST_CHAT"; value: ChatResponse | null | ((current: ChatResponse | null) => ChatResponse | null) }
   | { type: "SET_STREAM_RECOVERY"; value: StreamRecoveryState | null }
@@ -47,6 +52,7 @@ export type WorkspaceAction =
       threadId: string;
       messages: ChatMessage[];
       lastChat: ChatResponse | null;
+      summary?: SessionSummary | null;
       streamRecovery?: StreamRecoveryState | null;
     }
   | { type: "RESTORE_CHAT_SESSION"; threadId: string }
@@ -65,6 +71,7 @@ export function createWorkspaceRuntimeState(
     activeDrawer: null,
     pedagogyPhases: [],
     transitionVersion: 0,
+    sessionSummary: null,
     chatMessages: [],
     lastChat: null,
     streamRecovery: null,
@@ -95,6 +102,34 @@ export function workspaceReducer(
       return { ...state, activeRagQueryRunId: action.runId };
     case "SET_ACTIVE_RAG_WRITE_RUN":
       return { ...state, activeRagWriteRunId: action.runId };
+    case "SET_SESSION_SUMMARY":
+      return { ...state, sessionSummary: action.summary };
+    case "MARK_COMPLETED_TURN": {
+      const current = state.sessionSummary;
+      if (!current) return state;
+      if (
+        current.status === "summarized" &&
+        current.last_completed_turn_id !== action.turnId
+      ) {
+        return {
+          ...state,
+          sessionSummary: {
+            ...current,
+            status: "needs_update",
+            current_last_completed_turn_id: action.turnId,
+            can_summarize: true,
+          },
+        };
+      }
+      return {
+        ...state,
+        sessionSummary: {
+          ...current,
+          current_last_completed_turn_id: action.turnId,
+          can_summarize: current.status !== "summarized",
+        },
+      };
+    }
     case "SET_CHAT_MESSAGES":
       return {
         ...state,
@@ -114,6 +149,9 @@ export function workspaceReducer(
       return {
         ...state,
         activeChatThreadId: action.threadId,
+        sessionSummary:
+          action.summary ??
+          (changedThread ? emptySessionSummary(action.threadId) : state.sessionSummary),
         chatMessages: action.messages,
         lastChat: action.lastChat,
         streamRecovery: action.streamRecovery ?? null,
@@ -129,6 +167,9 @@ export function workspaceReducer(
       return {
         ...state,
         activeChatThreadId: action.threadId,
+        sessionSummary: changedThread
+          ? emptySessionSummary(action.threadId)
+          : state.sessionSummary,
         activeMemoryRunId: changedThread ? undefined : state.activeMemoryRunId,
         activeLearningClosureRunId: changedThread
           ? undefined
@@ -140,6 +181,7 @@ export function workspaceReducer(
       return {
         ...state,
         activeChatThreadId: action.threadId,
+        sessionSummary: emptySessionSummary(action.threadId),
         chatMessages: [],
         lastChat: null,
         streamRecovery: null,

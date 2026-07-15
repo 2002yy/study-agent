@@ -1,4 +1,5 @@
 import type { MemoryRunResponse } from "../../types";
+import type { SessionSummary } from "../sessions/sessionSummary";
 
 export type LearningClosureStatus =
   | "created"
@@ -22,6 +23,7 @@ export type LearningClosureRunResponse = {
   generated_result: Record<string, unknown>;
   memory_run_id?: string | null;
   memory_run?: MemoryRunResponse | null;
+  thread_summary: SessionSummary;
   error: string;
   reason: string;
   active_operation_id?: string | null;

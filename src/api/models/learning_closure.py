@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.api.models.memory import MemoryRunResponse
 
@@ -19,6 +19,7 @@ class LearningClosureRunResponse(BaseModel):
     generated_result: dict
     memory_run_id: str | None
     memory_run: MemoryRunResponse | None = None
+    thread_summary: dict = Field(default_factory=dict)
     error: str
     reason: str
     active_operation_id: str | None

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 import hashlib
 import json
+import logging
 from typing import Any
 
 from src.after_session import after_session_to_memory_updates
@@ -76,15 +77,26 @@ class LearningClosureService:
         self.memory_bundle_loader = memory_bundle_loader
 
     def create_and_execute(self, thread_id: str) -> LearningClosureRun:
+        summary = self.session_service.summary_payload(thread_id)
+        if summary.get("status") == "summarized":
+            closure_run_id = str(summary.get("closure_run_id") or "")
+            if closure_run_id:
+                existing_summary_run = self.repository.get(closure_run_id)
+                if existing_summary_run is not None:
+                    return existing_summary_run
+            raise ValueError("Session is already summarized for its latest completed turn")
+
         snapshot, eligibility, source_hash = self._collect_source(thread_id)
         existing = self.repository.find_by_source_hash(source_hash)
         if existing is not None:
+            if existing.status == "completed":
+                self._mark_completed_summary(existing)
+                return existing
             if existing.status in {
                 "collecting",
                 "generating",
                 "preview_ready",
                 "committing",
-                "completed",
             }:
                 return existing
             return self.execute(existing.id)
@@ -105,7 +117,10 @@ class LearningClosureService:
 
     def execute(self, run_id: str) -> LearningClosureRun:
         existing = self.get(run_id)
-        if existing.status in {"preview_ready", "completed"}:
+        if existing.status == "completed":
+            self._mark_completed_summary(existing)
+            return existing
+        if existing.status == "preview_ready":
             return existing
         if existing.status in {"collecting", "generating", "committing"}:
             return existing
@@ -192,6 +207,8 @@ class LearningClosureService:
     def retry(self, run_id: str) -> LearningClosureRun:
         run = self.get(run_id)
         if run.status in {"preview_ready", "completed"}:
+            if run.status == "completed":
+                self._mark_completed_summary(run)
             return run
         return self.execute(run_id)
 
@@ -201,32 +218,55 @@ class LearningClosureService:
     def commit(self, run_id: str) -> LearningClosureRun:
         existing = self.get(run_id)
         if existing.status == "completed":
+            self._mark_completed_summary(existing)
             return existing
         operation_id = new_id("closure_commit")
         run = self.repository.begin_commit(run_id, operation_id=operation_id)
         if run.status == "completed":
+            self._mark_completed_summary(run)
             return run
         assert run.memory_run_id is not None
         try:
-            memory_run = self.memory_service.commit(run.memory_run_id)
-            completed = memory_run.status == "succeeded"
-            error = "" if completed else self._memory_failure_text(memory_run)
-            reason = "" if completed else f"memory_{memory_run.status}"
-            return self.repository.complete_commit(
-                run.id,
-                operation_id=operation_id,
-                completed=completed,
-                error=error,
-                reason=reason,
+            self.session_service.assert_summary_source_current(
+                run.thread_id,
+                last_completed_turn_id=run.last_completed_turn_id,
             )
+            memory_run = self.memory_service.commit(run.memory_run_id)
         except Exception as exc:
+            detail = str(exc)
+            reason = (
+                "thread_source_changed"
+                if "source changed" in detail.lower()
+                else "memory_commit_failed"
+            )
             return self.repository.complete_commit(
                 run.id,
                 operation_id=operation_id,
                 completed=False,
-                error=str(exc),
-                reason="memory_commit_failed",
+                error=detail,
+                reason=reason,
             )
+
+        completed = memory_run.status == "succeeded"
+        error = "" if completed else self._memory_failure_text(memory_run)
+        reason = "" if completed else f"memory_{memory_run.status}"
+        final_run = self.repository.complete_commit(
+            run.id,
+            operation_id=operation_id,
+            completed=completed,
+            error=error,
+            reason=reason,
+        )
+        if final_run.status == "completed":
+            try:
+                self._mark_completed_summary(final_run)
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Closure %s completed but summary metadata repair was deferred: %s",
+                    final_run.id,
+                    exc,
+                )
+        return final_run
 
     def get(self, run_id: str) -> LearningClosureRun:
         run = self.repository.get(run_id)
@@ -244,6 +284,7 @@ class LearningClosureService:
         payload = asdict(run)
         memory_run = self.linked_memory_run(run)
         payload["memory_run"] = asdict(memory_run) if memory_run is not None else None
+        payload["thread_summary"] = self.session_service.summary_payload(run.thread_id)
         return payload
 
     def _collect_source(
@@ -326,6 +367,14 @@ class LearningClosureService:
         if not isinstance(rebuilt, dict) or not rebuilt:
             raise ValueError("Structured closure input could not be rebuilt")
         return dict(rebuilt)
+
+    def _mark_completed_summary(self, run: LearningClosureRun) -> dict[str, Any]:
+        return self.session_service.mark_summary_completed(
+            run.thread_id,
+            source_thread_version=run.source_thread_version,
+            last_completed_turn_id=run.last_completed_turn_id,
+            closure_run_id=run.id,
+        )
 
     @staticmethod
     def _closure_contract(

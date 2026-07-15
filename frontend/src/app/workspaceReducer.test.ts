@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createWorkspaceRuntimeState, workspaceReducer } from "./workspaceReducer";
 
+const summarized = {
+  thread_id: "chat-1",
+  status: "summarized" as const,
+  source_thread_version: 4,
+  last_completed_turn_id: "turn-1",
+  current_last_completed_turn_id: "turn-1",
+  closure_run_id: "closure-1",
+  summarized_at: "now",
+  can_summarize: false,
+};
 
 describe("workspaceReducer", () => {
   it("restores another chat without clearing group/news but clears chat closure scope", () => {
@@ -9,7 +19,8 @@ describe("workspaceReducer", () => {
       activeGroupThreadId: "group-1",
       activeNewsRunId: "news-1",
       activeMemoryRunId: "memory-old",
-      activeLearningClosureRunId: "closure-old"
+      activeLearningClosureRunId: "closure-old",
+      sessionSummary: summarized,
     });
 
     const next = workspaceReducer(state, { type: "RESTORE_CHAT_SESSION", threadId: "chat-new" });
@@ -19,20 +30,49 @@ describe("workspaceReducer", () => {
     expect(next.activeNewsRunId).toBe("news-1");
     expect(next.activeMemoryRunId).toBeUndefined();
     expect(next.activeLearningClosureRunId).toBeUndefined();
+    expect(next.sessionSummary?.thread_id).toBe("chat-new");
+    expect(next.sessionSummary?.status).toBe("not_summarized");
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
   });
 
-  it("keeps closure scope when restoring the same chat thread", () => {
+  it("keeps closure and summary scope when restoring the same chat thread", () => {
     const state = createWorkspaceRuntimeState({
       activeChatThreadId: "chat-1",
       activeMemoryRunId: "memory-1",
-      activeLearningClosureRunId: "closure-1"
+      activeLearningClosureRunId: "closure-1",
+      sessionSummary: summarized,
     });
 
     const next = workspaceReducer(state, { type: "RESTORE_CHAT_SESSION", threadId: "chat-1" });
 
     expect(next.activeMemoryRunId).toBe("memory-1");
     expect(next.activeLearningClosureRunId).toBe("closure-1");
+    expect(next.sessionSummary).toEqual(summarized);
+  });
+
+  it("marks a summarized session as needing update after a new completed turn", () => {
+    const next = workspaceReducer(
+      createWorkspaceRuntimeState({
+        activeChatThreadId: "chat-1",
+        sessionSummary: summarized,
+      }),
+      { type: "MARK_COMPLETED_TURN", turnId: "turn-2" }
+    );
+
+    expect(next.sessionSummary?.status).toBe("needs_update");
+    expect(next.sessionSummary?.last_completed_turn_id).toBe("turn-1");
+    expect(next.sessionSummary?.current_last_completed_turn_id).toBe("turn-2");
+    expect(next.sessionSummary?.can_summarize).toBe(true);
+  });
+
+  it("does not reopen a summary for the already covered completed turn", () => {
+    const next = workspaceReducer(
+      createWorkspaceRuntimeState({ sessionSummary: summarized }),
+      { type: "MARK_COMPLETED_TURN", turnId: "turn-1" }
+    );
+
+    expect(next.sessionSummary?.status).toBe("summarized");
+    expect(next.sessionSummary?.can_summarize).toBe(false);
   });
 
   it("starts a new chat session and clears chat-scoped run state", () => {
@@ -42,7 +82,8 @@ describe("workspaceReducer", () => {
       activeNewsRunId: "news-1",
       activeToolRunId: "tool-1",
       activeMemoryRunId: "memory-1",
-      activeLearningClosureRunId: "closure-1"
+      activeLearningClosureRunId: "closure-1",
+      sessionSummary: summarized,
     });
 
     const next = workspaceReducer(state, { type: "START_NEW_CHAT_SESSION", threadId: "chat-new" });
@@ -53,6 +94,8 @@ describe("workspaceReducer", () => {
     expect(next.activeToolRunId).toBeUndefined();
     expect(next.activeMemoryRunId).toBeUndefined();
     expect(next.activeLearningClosureRunId).toBeUndefined();
+    expect(next.sessionSummary?.thread_id).toBe("chat-new");
+    expect(next.sessionSummary?.status).toBe("not_summarized");
   });
 
   it("tracks a learning closure run independently from its MemoryRun", () => {
@@ -88,6 +131,7 @@ describe("workspaceReducer", () => {
       activeChatThreadId: "chat-old",
       activeMemoryRunId: "memory-old",
       activeLearningClosureRunId: "closure-old",
+      sessionSummary: summarized,
       chatMessages: [{ role: "user", content: "old" }],
       streamRecovery: {
         question: "old",
@@ -115,12 +159,18 @@ describe("workspaceReducer", () => {
         rewritten_query: ""
       }
     };
+    const restoredSummary = {
+      ...summarized,
+      thread_id: "chat-new",
+      closure_run_id: "closure-new",
+    };
 
     const next = workspaceReducer(state, {
       type: "TRANSITION_CHAT_SESSION",
       threadId: "chat-new",
       messages: [{ role: "assistant", content: "restored partial", avatarRole: "nahida" }],
       lastChat,
+      summary: restoredSummary,
       streamRecovery: {
         question: "question",
         reply: "restored partial",
@@ -135,6 +185,7 @@ describe("workspaceReducer", () => {
     expect(next.streamRecovery?.turnId).toBe("turn-new");
     expect(next.activeMemoryRunId).toBeUndefined();
     expect(next.activeLearningClosureRunId).toBeUndefined();
+    expect(next.sessionSummary).toEqual(restoredSummary);
     expect(next.transitionVersion).toBe(state.transitionVersion + 1);
   });
 

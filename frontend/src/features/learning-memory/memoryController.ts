@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { commitMemoryRun, createMemoryRun, loadMemoryRun } from "../../api";
 import type { MemoryCommitResponse, MemoryRunResponse, MemoryUpdate } from "../../types";
+import type { SessionSummary } from "../sessions/sessionSummary";
 import {
   cancelLearningClosure,
   commitLearningClosure,
@@ -65,6 +66,7 @@ type MemoryControllerOptions = {
   activeClosureRunId?: string;
   setActiveClosureRunId: (runId?: string) => void;
   onMemoryChanged?: () => Promise<void> | void;
+  onSummaryChanged?: (summary: SessionSummary) => void;
 };
 
 export function useMemoryController(options: MemoryControllerOptions) {
@@ -84,6 +86,9 @@ export function useMemoryController(options: MemoryControllerOptions) {
   const applyClosure = (closure: LearningClosureRunResponse) => {
     setClosureRun(closure);
     options.setActiveClosureRunId(closure.id);
+    if (closure.thread_summary) {
+      options.onSummaryChanged?.(closure.thread_summary);
+    }
     if (closure.memory_run) {
       setRun(closure.memory_run);
       options.setActiveRunId(closure.memory_run.id);

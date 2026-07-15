@@ -1,7 +1,8 @@
-import { AlertTriangle, CheckCircle2, Loader2, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, Loader2, MessageCircle, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { StatusDot } from "../../components/StatusDot";
 import type { MemoryStatusResponse } from "../../types";
 import { basename } from "../../utils/format";
+import type { SessionSummary } from "../sessions/sessionSummary";
 import type { LearningClosureRunResponse, LearningClosureStatus } from "./closureTypes";
 import type { useMemoryController } from "./memoryController";
 export {
@@ -14,6 +15,9 @@ type MemoryController = ReturnType<typeof useMemoryController>;
 type MemoryPanelProps = {
   memoryStatus: MemoryStatusResponse | null;
   controller: MemoryController;
+  sessionSummary: SessionSummary | null;
+  onContinueCurrent: () => void;
+  onArchiveAndNew: () => Promise<void> | void;
 };
 
 type ClosureCandidate = {
@@ -41,7 +45,7 @@ const CLOSURE_STATUS: Record<LearningClosureStatus, { label: string; tone: "good
   generating: { label: "生成整理候选", tone: "warn" },
   preview_ready: { label: "候选待确认", tone: "good" },
   committing: { label: "写入长期记忆", tone: "warn" },
-  completed: { label: "本次整理已写入", tone: "good" },
+  completed: { label: "本次已整理", tone: "good" },
   failed: { label: "整理失败", tone: "bad" },
   cancelled: { label: "整理已取消", tone: "neutral" },
 };
@@ -61,7 +65,13 @@ function closureCandidateAt(
   return candidate as ClosureCandidate;
 }
 
-export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
+export function MemoryPanel({
+  memoryStatus,
+  controller,
+  sessionSummary,
+  onContinueCurrent,
+  onArchiveAndNew,
+}: MemoryPanelProps) {
   const {
     drafts,
     preview,
@@ -90,6 +100,8 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
   const closureCancellable = Boolean(
     closureRun && ["created", "collecting", "generating", "preview_ready", "failed"].includes(closureRun.status)
   );
+  const hasCompletedSummary = sessionSummary?.status === "summarized";
+  const summaryNeedsUpdate = sessionSummary?.status === "needs_update";
 
   return (
     <section className="panel compact" id="memory">
@@ -108,6 +120,38 @@ export function MemoryPanel({ memoryStatus, controller }: MemoryPanelProps) {
               memory_mode={memoryStatus.memory_mode} · safe_mode={String(memoryStatus.safe_mode)} · reason={memoryStatus.reason}
             </span>
           </div>
+          {hasCompletedSummary ? (
+            <div className="memory-note session-summary-card summarized">
+              <CheckCircle2 size={17} />
+              <div>
+                <strong>本次已整理</strong>
+                <span>已覆盖当前最后一个完成回合。会话仍保持开启，不会自动归档。</span>
+              </div>
+              <div className="closure-actions">
+                <button className="ghost-action compact" onClick={onContinueCurrent} type="button">
+                  <MessageCircle size={14} />
+                  继续当前
+                </button>
+                <button
+                  className="secondary compact"
+                  disabled={isPreviewing || isCommitting}
+                  onClick={() => void onArchiveAndNew()}
+                  type="button"
+                >
+                  <Archive size={14} />
+                  归档并新建
+                </button>
+              </div>
+            </div>
+          ) : summaryNeedsUpdate ? (
+            <div className="memory-note session-summary-card needs-update">
+              <AlertTriangle size={17} />
+              <div>
+                <strong>新增内容待重新整理</strong>
+                <span>上次整理仍保留，但当前会话已有新的完成回合。</span>
+              </div>
+            </div>
+          ) : null}
           {closureRun && closureStatus ? (
             <div className={`memory-note closure-status ${closureRun.status}`}>
               {closureBusy ? <Loader2 className="spin" size={16} /> : <StatusDot tone={closureStatus.tone} />}
