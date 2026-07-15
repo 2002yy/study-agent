@@ -70,7 +70,7 @@ class ThreadSummaryRepository:
         legacy_completion: tuple[int, str] | None = None
         with self.database.connect() as connection:
             thread = connection.execute(
-                "SELECT id FROM chat_threads WHERE id = ?", (thread_id,)
+                "SELECT id, updated_at FROM chat_threads WHERE id = ?", (thread_id,)
             ).fetchone()
             if thread is None:
                 raise ValueError(f"Chat thread not found: {thread_id}")
@@ -98,6 +98,7 @@ class ThreadSummaryRepository:
             return ThreadSummaryState(
                 thread_id=thread_id,
                 current_last_completed_turn_id=latest_turn_id,
+                updated_at=str(thread["updated_at"]),
             )
         stored_status = str(row["status"])
         effective_status = stored_status
