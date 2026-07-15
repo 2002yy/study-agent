@@ -25,6 +25,13 @@ const VERIFICATION_ICON = {
   pending_semantic_review: ShieldQuestion,
 } satisfies Record<LearningVerificationStatus, typeof CheckCircle2>;
 
+function nonLearningResultLabel(taskIntent: string): string {
+  if (taskIntent === "research") return "研究结果已返回";
+  if (taskIntent === "quick_answer") return "回答已完成";
+  if (taskIntent === "conversation") return "本轮对话已完成";
+  return "本轮任务已完成";
+}
+
 export function LearningStrip({
   lastChat,
   visitedPhases,
@@ -49,7 +56,7 @@ export function LearningStrip({
             {taskIntentLabel(contract.task_intent)}
           </span>
           <span className="learning-strip-gap">
-            临时任务 · 本轮不推进长期学习状态
+            {nonLearningResultLabel(contract.task_intent)} · 不推进长期学习状态
           </span>
         </div>
       </div>
