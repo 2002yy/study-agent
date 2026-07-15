@@ -9,6 +9,7 @@ import type { NewsController } from "../features/news-workspace/newsController";
 import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { useUploadController } from "../features/rag/uploadController";
 import { RoutePanel } from "../features/route/RoutePanel";
+import type { SessionSummary } from "../features/sessions/sessionSummary";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import type { ToolController } from "../features/tools/toolController";
@@ -17,8 +18,10 @@ import type { ResearchLookupResponse } from "../features/web-lookup/researchApi"
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { displayValue } from "../utils/format";
 import type {
-  ApiSnapshot, ChatResponse, RagQueryResponse, WorkflowRunDetail
+  ApiSnapshot, ChatResponse, RagQueryResponse, SessionRow, WorkflowRunDetail
 } from "../types";
+
+type SessionRowWithSummary = SessionRow & { summary?: SessionSummary };
 
 export function Inspector({
   snapshot,
@@ -91,6 +94,12 @@ export function Inspector({
   memoryController: ReturnType<typeof useMemoryController>;
   uploadController: ReturnType<typeof useUploadController>;
 }) {
+  const sessionSummary = (
+    snapshot.sessions.find(
+      (session) => session.session_id === singleChatSessionId
+    ) as SessionRowWithSummary | undefined
+  )?.summary ?? null;
+
   return (
     <aside className="inspector">
       <RoutePanel lastChat={lastChat} />
@@ -144,7 +153,20 @@ export function Inspector({
       />
       <SessionsPanel sessions={snapshot.sessions} activeSessionId={singleChatSessionId} isSending={isSending} onRestore={onRestoreSession} onArchive={onArchiveSession} />
       <RoadmapPanel />
-      <MemoryPanel memoryStatus={snapshot.memoryStatus} controller={memoryController} />
+      <MemoryPanel
+        memoryStatus={snapshot.memoryStatus}
+        controller={memoryController}
+        sessionSummary={sessionSummary}
+        onContinueCurrent={() =>
+          document.querySelector(".chat-column")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+        }
+        onArchiveAndNew={() => {
+          if (singleChatSessionId) onArchiveSession(singleChatSessionId);
+        }}
+      />
     </aside>
   );
 }
