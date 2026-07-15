@@ -203,8 +203,15 @@ export function SessionSidebar({
                         <span className="session-sidebar-subtitle">
                           {sessionSubtitle(session)}
                         </span>
+                        {session.unresolved_gap ? (
+                          <span className="session-sidebar-gap">
+                            待解决：{session.unresolved_gap}
+                          </span>
+                        ) : null}
                         <span className="session-sidebar-meta">
-                          {taskLabel(session.task_intent)} · {summaryLabel(session)} · {formatSessionTime(session)}
+                          {taskLabel(session.task_intent)}
+                          {session.phase ? ` · ${session.phase}` : ""}
+                          {` · ${summaryLabel(session)} · ${formatSessionTime(session)}`}
                         </span>
                       </button>
                     )}
