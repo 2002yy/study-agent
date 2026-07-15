@@ -9,16 +9,18 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
+import type { SessionSummary } from "../features/sessions/sessionSummary";
 import { ToolPanel } from "../features/tools/ToolPanel";
 import { WechatPanel } from "../features/wechat-workspace/WechatPanel";
 import { TimelinePanel } from "../features/workflows/TimelinePanel";
 import { GlobalNotices } from "../layout/GlobalNotices";
 import { Sidebar } from "../layout/Sidebar";
-import type { ApiSnapshot, ChatSettings, DrawerId, RagSettings } from "../types";
+import type { ApiSnapshot, ChatSettings, DrawerId, RagSettings, SessionRow } from "../types";
 import { useWorkspace } from "./WorkspaceProvider";
 import type { useWorkspaceControllers } from "./useWorkspaceControllers";
 
 type Controllers = ReturnType<typeof useWorkspaceControllers>;
+type SessionRowWithSummary = SessionRow & { summary?: SessionSummary };
 
 export function WorkspaceView({
   snapshot,
@@ -70,6 +72,21 @@ export function WorkspaceView({
   const { state, dispatch } = useWorkspace();
   const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
   const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
+  const serverSummary = (
+    snapshot.sessions.find(
+      (session) => session.session_id === chatController.threadId
+    ) as SessionRowWithSummary | undefined
+  )?.summary;
+  const localSummary =
+    state.sessionSummary?.thread_id === chatController.threadId
+      ? state.sessionSummary
+      : null;
+  const sessionSummary =
+    serverSummary?.status === "not_summarized" &&
+    localSummary &&
+    localSummary.status !== "not_summarized"
+      ? localSummary
+      : serverSummary ?? localSummary;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     await chatController.send(ui.input.trim());
@@ -78,7 +95,11 @@ export function WorkspaceView({
     const hasMessages = chatController.messages.some((message) => message.role === "user");
     if (
       hasMessages &&
-      !window.confirm("当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。")
+      !window.confirm(
+        sessionSummary?.status === "summarized"
+          ? "当前会话已整理但尚未归档。直接开始新会话时，旧会话会保留在历史中。继续吗？"
+          : "当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。"
+      )
     ) {
       return;
     }
@@ -245,7 +266,17 @@ export function WorkspaceView({
         />
       </SlideOver>
       <SlideOver open={state.activeDrawer === "memory"} title="学习记忆" onClose={closeDrawer}>
-        <MemoryPanel memoryStatus={snapshot.memoryStatus} controller={memoryController} />
+        <MemoryPanel
+          memoryStatus={snapshot.memoryStatus}
+          controller={memoryController}
+          sessionSummary={sessionSummary}
+          onContinueCurrent={closeDrawer}
+          onArchiveAndNew={async () => {
+            if (!chatController.threadId) return;
+            await chatController.archiveCurrentSession(chatController.threadId);
+            closeDrawer();
+          }}
+        />
       </SlideOver>
       <SlideOver open={state.activeDrawer === "sources"} title="引用来源与知识库" onClose={closeDrawer}>
         <SourcesPanel
