@@ -195,7 +195,7 @@ describe("ChatPanel practical workspace navigation", () => {
     });
     act(() => selector.props.onChange({ target: { value: "quick_answer" } }));
     const retryButton = renderer.root.findAllByType("button").find(
-      (button) => JSON.stringify(button.props.children).includes("重新生成")
+      (button) => directText(button).includes("重新生成")
     );
 
     act(() => retryButton?.props.onClick());
