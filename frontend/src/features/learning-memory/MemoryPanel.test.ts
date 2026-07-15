@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildMemoryUpdatePayload, buildMemoryUpdatePayloads } from "./MemoryPanel";
+import {
+  buildMemoryUpdatePayload,
+  buildMemoryUpdatePayloads,
+  memoryActionLabel,
+  memoryConfidenceLabel,
+  memoryTargetLabel,
+} from "./MemoryPanel";
 
 describe("memory update payload builders", () => {
   it("builds append updates for normal memory targets", () => {
@@ -93,5 +99,25 @@ describe("memory update payload builders", () => {
         learner_pending: true
       }
     ]);
+  });
+});
+
+describe("memory presentation labels", () => {
+  it("uses user-facing labels instead of storage target identifiers", () => {
+    expect(memoryTargetLabel("current_focus")).toBe("当前重点");
+    expect(memoryTargetLabel("learner_profile")).toBe("学习偏好");
+    expect(memoryTargetLabel("session_archive")).toBe("本次学习归档");
+    expect(memoryTargetLabel("unknown_target")).toBe("长期记忆");
+  });
+
+  it("translates low-level write actions and confidence values", () => {
+    expect(memoryActionLabel("append")).toBe("追加");
+    expect(memoryActionLabel("replace")).toBe("替换");
+    expect(memoryActionLabel("created")).toBe("新建");
+    expect(memoryActionLabel("upsert")).toBe("更新");
+    expect(memoryConfidenceLabel("high")).toBe("高");
+    expect(memoryConfidenceLabel("medium")).toBe("中");
+    expect(memoryConfidenceLabel("low")).toBe("低");
+    expect(memoryConfidenceLabel("internal_code")).toBe("未标注");
   });
 });
