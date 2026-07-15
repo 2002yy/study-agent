@@ -87,11 +87,12 @@ class ThreadSummaryRepository:
                 )
         if row is None and legacy_completion is not None and latest_turn_id:
             source_version, closure_run_id = legacy_completion
-            return self.mark_summarized(
+            return self._store_summary(
                 thread_id,
                 source_thread_version=source_version,
                 last_completed_turn_id=latest_turn_id,
                 closure_run_id=closure_run_id,
+                require_active=False,
             )
         if row is None:
             return ThreadSummaryState(
@@ -145,6 +146,23 @@ class ThreadSummaryRepository:
         last_completed_turn_id: str,
         closure_run_id: str,
     ) -> ThreadSummaryState:
+        return self._store_summary(
+            thread_id,
+            source_thread_version=source_thread_version,
+            last_completed_turn_id=last_completed_turn_id,
+            closure_run_id=closure_run_id,
+            require_active=True,
+        )
+
+    def _store_summary(
+        self,
+        thread_id: str,
+        *,
+        source_thread_version: int,
+        last_completed_turn_id: str,
+        closure_run_id: str,
+        require_active: bool,
+    ) -> ThreadSummaryState:
         now = utc_now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -154,7 +172,7 @@ class ThreadSummaryRepository:
             if thread is None:
                 connection.rollback()
                 raise ValueError(f"Chat thread not found: {thread_id}")
-            if thread["status"] != "active":
+            if require_active and thread["status"] != "active":
                 connection.rollback()
                 raise ValueError(f"Chat thread is not active: {thread_id}")
             latest = self._latest_completed_turn_id(connection, thread_id)
