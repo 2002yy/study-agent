@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 import hashlib
 import json
+import logging
 from typing import Any
 
 from src.after_session import after_session_to_memory_updates
@@ -231,18 +232,6 @@ class LearningClosureService:
                 last_completed_turn_id=run.last_completed_turn_id,
             )
             memory_run = self.memory_service.commit(run.memory_run_id)
-            completed = memory_run.status == "succeeded"
-            error = "" if completed else self._memory_failure_text(memory_run)
-            reason = "" if completed else f"memory_{memory_run.status}"
-            if completed:
-                self._mark_completed_summary(run)
-            return self.repository.complete_commit(
-                run.id,
-                operation_id=operation_id,
-                completed=completed,
-                error=error,
-                reason=reason,
-            )
         except Exception as exc:
             detail = str(exc)
             reason = (
@@ -257,6 +246,27 @@ class LearningClosureService:
                 error=detail,
                 reason=reason,
             )
+
+        completed = memory_run.status == "succeeded"
+        error = "" if completed else self._memory_failure_text(memory_run)
+        reason = "" if completed else f"memory_{memory_run.status}"
+        final_run = self.repository.complete_commit(
+            run.id,
+            operation_id=operation_id,
+            completed=completed,
+            error=error,
+            reason=reason,
+        )
+        if final_run.status == "completed":
+            try:
+                self._mark_completed_summary(final_run)
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Closure %s completed but summary metadata repair was deferred: %s",
+                    final_run.id,
+                    exc,
+                )
+        return final_run
 
     def get(self, run_id: str) -> LearningClosureRun:
         run = self.repository.get(run_id)
