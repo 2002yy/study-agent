@@ -21,6 +21,7 @@ from src.task_contract import task_contract_from_snapshot
 _NAVIGATION_SCHEMA_VERSION = "session-navigation-v1"
 _TITLE_LIMIT = 48
 _PREVIEW_LIMIT = 180
+_RESTORE_ITEM_LIMIT = 6
 
 
 class SessionService:
@@ -284,6 +285,16 @@ class SessionService:
         if not phase and latest_completed is not None:
             phase = _normalized_text(latest_completed.pedagogy_snapshot.get("phase"))
         unresolved_gap = _normalized_text(thread.learning_state.get("unresolved_gap"))
+        confirmed_points = _bounded_string_list(
+            thread.learning_state.get("confirmed_points")
+        )
+        payload = thread.learning_state.get("payload")
+        next_action = (
+            _normalized_text(payload.get("next_action"))
+            if isinstance(payload, dict)
+            else ""
+        )
+        disclosed_sources = _disclosed_sources(latest_completed)
         auto_title = _auto_title(
             objective=objective,
             task_intent=task_intent,
@@ -318,6 +329,9 @@ class SessionService:
             "task_intent": task_intent,
             "phase": phase,
             "unresolved_gap": unresolved_gap,
+            "confirmed_points": confirmed_points,
+            "next_action": next_action,
+            "disclosed_sources": disclosed_sources,
             "last_completed_turn_id": latest_completed.id if latest_completed else None,
             "has_completed_turns": bool(completed_turns),
             "summary": self.summary_payload(thread.id),
@@ -380,6 +394,49 @@ def _session_task_intent(
         if contract.confidence in {"high", "medium"} or contract.explicit_override:
             return contract.task_intent
     return latest_intent or "quick_answer"
+
+
+def _disclosed_sources(turn: ChatTurn | None) -> list[dict[str, str]]:
+    if turn is None:
+        return []
+    raw_units = turn.pedagogy_snapshot.get("evidence_units")
+    if not isinstance(raw_units, list):
+        return []
+    sources: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in raw_units:
+        if not isinstance(raw, dict):
+            continue
+        citation = _normalized_text(raw.get("citation"))
+        source_type = _normalized_text(raw.get("type"))
+        source_id = _normalized_text(raw.get("source_id"))
+        key = (citation, source_id)
+        if not citation or key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {
+                "source_id": source_id,
+                "type": source_type,
+                "citation": _truncate(citation, 160),
+            }
+        )
+        if len(sources) >= _RESTORE_ITEM_LIMIT:
+            break
+    return sources
+
+
+def _bounded_string_list(value: Any) -> list[str]:
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    result: list[str] = []
+    for raw in value:
+        text = _normalized_text(raw)
+        if text:
+            result.append(_truncate(text, 180))
+        if len(result) >= _RESTORE_ITEM_LIMIT:
+            break
+    return result
 
 
 def _normalized_text(value: Any) -> str:
