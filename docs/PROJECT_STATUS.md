@@ -2,18 +2,18 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-15  
-> 当前能力基线：PR #42 已合并，核心学习产品 G1–G7 已形成可信状态、结构化恢复、可整理、准确导航与聚焦主界面闭环；本切片推进 G8 窄屏完整可用  
-> 下一代码切片：完成 G8 后，将聊天工具循环统一关联 durable ResearchRun
+> 当前能力基线：PR #43 已合并，核心学习产品 G1–G8 已形成可信状态、结构化恢复、可整理、准确导航、聚焦主界面与窄屏完整可用闭环
+> 当前代码切片：将聊天工具循环统一关联 durable ResearchRun，并继续补齐请求级取消与恢复
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡与聚焦后的一级操作；G8 正在确保任务状态、收束、上传、会话、More、输入与各类抽屉在窄屏、触控和非 hover 环境完整可达。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环正在接入带 thread/turn owner 的 durable ResearchRun。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
 
 ## 2. 已完成
 
-### 核心学习产品 G1–G7
+### 核心学习产品 G1–G8
 
 1. **G1 LearningClosureRun**：学习整理拥有 durable owner、正式状态机、source hash 幂等、retry/cancel/resume 和 MemoryRun 关联；刷新后可恢复，research 不会被错误写成学习总结。
 2. **G2 结构化总结输入**：只使用 committed LearningState、最终 PedagogyEvalRun、证据引用、受预算限制的最近对话和冻结记忆上下文；失败/中断回合不能伪装成已掌握，候选保存来源、置信度和评估引用。
@@ -22,6 +22,7 @@
 5. **G5 学习状态去伪精化**：主 UI 只读取 committed truth 与正式 PedagogyEvalRun 四态；committed/attempted 分离，非学习任务不再伪装成长期掌握进度，也不再用启发式百分比制造虚假精度。
 6. **G6 结构化恢复卡**：新用户提供快速问答、系统学习、联网研究、项目推进和上传资料五类入口；返回用户按 committed task/goal、确认点或已披露来源、缺口和下一步恢复；interrupted turn 支持继续、重试和 durable abandon，放弃后刷新不会再次复活。
 7. **G7 UI 聚焦收敛**：一级操作收敛到当前任务收束、上传、会话和 More；检索、来源、设置与低频工作区下沉但保持可达；普通态不再暴露 memory 文件名、run/step/session ID、route code 和低层 Provider 参数。
+8. **G8 窄屏完整可用**：顶部操作、More、输入、会话与抽屉在窄屏、触控和非 hover 环境完整可达；知识库开发代理与关闭后焦点恢复已通过浏览器验收。
 
 正式学习闭环当前已经可以走通：
 
@@ -267,9 +268,9 @@ PR #30 已完成主链收口：
 | 学习状态去伪精化 | 已完成 | G5：可信四态、committed/attempted 分离、非学习结果状态已合并 |
 | 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
 | UI 聚焦收敛 | 已完成 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪已合并 |
-| 窄屏完整可用 | 本切片推进 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区完整验收 |
-| 广域网页搜索 | 基础完成 | 聊天工具循环整体关联 durable ResearchRun |
-| cancel/retry/resume | 基础完成 | 异步请求级取消、统一超时、实时阶段事件 |
+| 窄屏完整可用 | 已完成 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区验收已合并 |
+| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；还需请求级取消和恢复 |
+| cancel/retry/resume | 基础完成 | 聊天工具 ResearchRun 的异步请求级取消、统一超时、实时阶段事件与恢复 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
 | GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件 |
 | 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理、磁盘统计 |
@@ -294,8 +295,8 @@ PR #30 已完成主链收口：
 
 ### 核心学习产品优先
 
-1. **G8 窄屏完整可用**：确保任务状态、当前任务收束、上传、会话、More、输入、来源和抽屉在窄屏、触控与非 hover 环境完整可达，并完成浏览器级视觉/交互验收。
-2. **聊天工具循环统一关联 durable ResearchRun**：完成核心学习产品 UI 后，将多步联网研究纳入聊天 owner 的正式 durable run。
+1. **聊天工具 ResearchRun 请求级控制**：在 thread/turn owner 与工具 trace 持久化基础上，补齐异步请求级取消、统一超时和失败恢复。
+2. **聊天研究阶段事件**：让前端通过正式 `run_id` 读取实时阶段、失败原因与可恢复操作，而不是依赖一次性响应 trace。
 
 ### G10-C2 持久化缓存
 
@@ -333,7 +334,8 @@ PR #30 已完成主链收口：
 - PR #40（G5）：已合并，可信四态与 committed/attempted 边界进入主线。
 - PR #41（G6）：最终 head `f04dc4c16cf8a936d4871e45b027bdff7de4af78`，CI Run #994 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、153 个前端测试、TypeScript build 和 Vite production build 全部通过。
 - PR #42（G7）：最终 head `eb61f0cbd27ee9fe51a65fadabf358470f43d094`，CI Run #1015 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、159 个前端测试、TypeScript build 和 Vite production build 全部通过。
-- PR #43（G8）：Draft；本地已完成 1440 / 760 / 430 px 浏览器验收，覆盖 More 菜单、设置抽屉、滚动锁、关闭后焦点恢复与知识库开发代理；等待最终 head 的完整 CI，门禁未绿前不合并。
+- PR #43（G8）：最终 head `f78b9b1` 的两条 CI 均通过后合并，merge commit `6e1d107`；本地 1440 / 760 / 430 px 浏览器验收覆盖 More 菜单、设置抽屉、滚动锁、关闭后焦点恢复与知识库开发代理。
+- PR #44（聊天 ResearchRun owner）：目标测试 17 passed，完整 pytest 756 passed，Ruff 全量通过，前端 47 个测试文件 / 164 个测试及 TypeScript/Vite build 通过；head `256dac4` 的 push 与 pull_request CI 均通过。
 
 PR #31 功能代码验证：
 

@@ -85,6 +85,8 @@ def _service(tmp_path: Path):
     def resolve_web(_query: str, **kwargs):
         captured["web_calls"] += 1
         captured["web_context"] = kwargs["conversation_context"]
+        captured["owner_thread_id"] = kwargs["owner_thread_id"]
+        captured["owner_turn_id"] = kwargs["owner_turn_id"]
         return WebToolTrace(
             calls=(
                 {
@@ -210,6 +212,8 @@ def test_auto_with_local_evidence_allows_full_context(tmp_path):
     message_args = captured["messages"][0]
     assert captured["web_calls"] == 1
     assert captured["web_context"] == "user: RECENT HISTORY"
+    assert captured["owner_thread_id"] == "chat-full"
+    assert captured["owner_turn_id"] == prepared.turn.id
     assert message_args["chat_history"] == [
         {"role": "user", "content": "RECENT HISTORY"}
     ]

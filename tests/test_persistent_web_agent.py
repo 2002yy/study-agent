@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from src.tools.persistent_web_agent import PersistentWebToolAgent
 
 
@@ -51,3 +53,46 @@ def test_persistent_agent_exposes_and_executes_pr_review_context_tool():
     assert result["kwargs"]["max_files"] == 10
     assert result["kwargs"]["max_symbols"] == 20
     assert result["verdict"]["status"] == "not_generated"
+
+
+def test_persistent_agent_owns_and_records_chat_research_run():
+    captured: dict = {}
+
+    class FakeResearchService:
+        def create(self, query: str, **kwargs):
+            captured["create"] = {"query": query, **kwargs}
+            return SimpleNamespace(id="web_lookup_chat_1")
+
+        def record_tool_trace(self, run_id: str, **kwargs):
+            captured["record"] = {"run_id": run_id, **kwargs}
+
+    def run_loop(_messages, **_kwargs):
+        return [
+            {
+                "name": "web_search",
+                "arguments": {"query": "durable research"},
+                "result": {"status": "ok"},
+            }
+        ]
+
+    agent = PersistentWebToolAgent(
+        gateway=FakeGateway(),  # type: ignore[arg-type]
+        run_loop=run_loop,
+        research_service=FakeResearchService(),  # type: ignore[arg-type]
+    )
+    trace = agent.resolve(
+        "Research durable runs",
+        owner_thread_id="thread-1",
+        owner_turn_id="turn-1",
+    )
+
+    assert trace.run_id == "web_lookup_chat_1"
+    assert trace.to_dict()["run_id"] == "web_lookup_chat_1"
+    assert captured["create"] == {
+        "query": "Research durable runs",
+        "owner_thread_id": "thread-1",
+        "owner_turn_id": "turn-1",
+        "run_kind": "chat_tool_loop",
+    }
+    assert captured["record"]["run_id"] == "web_lookup_chat_1"
+    assert captured["record"]["calls"] == list(trace.calls)

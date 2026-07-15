@@ -231,6 +231,7 @@ class WebToolTrace:
     calls: tuple[dict[str, Any], ...] = ()
     error: str = ""
     enabled: bool = True
+    run_id: str = ""
 
     @property
     def used(self) -> bool:
@@ -261,6 +262,7 @@ class WebToolTrace:
             "used": self.used,
             "calls": list(self.calls),
             "error": self.error,
+            "run_id": self.run_id,
         }
 
 

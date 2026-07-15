@@ -258,7 +258,15 @@ class WebLookupService:
         self.repository = repository
         self.gateway = gateway or ResearchWebGateway()
 
-    def create(self, query: str, *, max_items: int = 8) -> WebLookupRun:
+    def create(
+        self,
+        query: str,
+        *,
+        max_items: int = 8,
+        owner_thread_id: str | None = None,
+        owner_turn_id: str | None = None,
+        run_kind: str = "standalone",
+    ) -> WebLookupRun:
         normalized = query.strip()
         if not normalized:
             raise ValueError("Web lookup query is required")
@@ -275,8 +283,14 @@ class WebLookupService:
                     "budget": ResearchReadBudget.from_env().to_dict(),
                 },
                 "run_attempt": 0,
+                "run_kind": run_kind,
             }
         )
+        if owner_thread_id or owner_turn_id:
+            context["owner"] = {
+                "thread_id": owner_thread_id or "",
+                "turn_id": owner_turn_id or "",
+            }
         return self.repository.create(
             WebLookupRun(
                 query=normalized,
@@ -285,6 +299,58 @@ class WebLookupService:
                 research_context=context,
                 max_items=max(1, min(int(max_items), 20)),
             )
+        )
+
+    def record_tool_trace(
+        self,
+        run_id: str,
+        *,
+        calls: list[dict[str, Any]],
+        source_block: str,
+        error: str = "",
+    ) -> WebLookupRun:
+        operation_id = new_id("web_tool")
+        run = self.repository.begin_operation(
+            run_id,
+            operation_id=operation_id,
+            stage="searching",
+        )
+        context = {
+            **run.research_context,
+            "tool_trace": {"calls": calls},
+            "run_attempt": int(run.research_context.get("run_attempt") or 0) + 1,
+        }
+        attempts = [
+            *run.query_attempts,
+            {
+                "query": run.query,
+                "status": "provider_failed" if error else "completed",
+                "kind": "chat_tool_loop",
+                "run_attempt": context["run_attempt"],
+            },
+        ]
+        if error:
+            return self.repository.fail(
+                run_id,
+                error,
+                research_context=context,
+                query_attempts=attempts,
+                provider_status="provider_failed",
+                stop_reason="chat_tool_loop_failed",
+                operation_id=operation_id,
+            )
+        return self.repository.complete(
+            run_id,
+            items=[],
+            source_block=source_block,
+            warnings=[],
+            research_context=context,
+            query_attempts=attempts,
+            selected_sources=[],
+            rejected_sources=[],
+            provider_status="found" if calls else "empty",
+            stop_reason="tool_calls_completed" if calls else "no_tool_calls",
+            operation_id=operation_id,
         )
 
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:

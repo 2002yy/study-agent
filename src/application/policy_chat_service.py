@@ -206,6 +206,8 @@ class ExternalDataPolicyChatService(ChatService):
                         if decision.history_allowed
                         else ""
                     ),
+                    owner_thread_id=thread.id,
+                    owner_turn_id=turn_id,
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)
