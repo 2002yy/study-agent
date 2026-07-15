@@ -12,6 +12,8 @@ from src.api.models.common import (
     SessionDetailResponse,
     SessionListResponse,
     SessionNewResponse,
+    SessionTitleUpdateRequest,
+    SessionTitleUpdateResponse,
 )
 from src.api.models.memory import MemoryRunResponse
 from src.application.helpers import runtime_settings_payload
@@ -56,6 +58,22 @@ def create_new_session(service: SessionServiceDependency) -> SessionNewResponse:
     settings = runtime_settings_payload().settings
     thread = service.create_session(dict(settings))
     return SessionNewResponse(session_id=thread.id, settings=settings)
+
+
+@router.patch(
+    "/sessions/{session_id}/title",
+    response_model=SessionTitleUpdateResponse,
+)
+def update_session_title(
+    session_id: str,
+    request: SessionTitleUpdateRequest,
+    service: SessionServiceDependency,
+) -> SessionTitleUpdateResponse:
+    try:
+        session = service.rename_session(session_id, request.title)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return SessionTitleUpdateResponse(session=session)
 
 
 @router.post(

@@ -13,6 +13,7 @@ from src.repositories.learning_closure_repository import LearningClosureReposito
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.repositories.session_navigation_repository import SessionNavigationRepository
 from src.repositories.thread_summary_repository import ThreadSummaryRepository
 from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -85,6 +86,11 @@ def get_thread_summary_repository() -> ThreadSummaryRepository:
 
 
 @lru_cache(maxsize=1)
+def get_session_navigation_repository() -> SessionNavigationRepository:
+    return SessionNavigationRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
 def get_tool_repository() -> ToolRepository:
     return ToolRepository(RuntimeDatabase(runtime_database_path()))
 
@@ -154,6 +160,7 @@ def get_session_service():
     return SessionService(
         get_runtime_repository(),
         summary_repository=get_thread_summary_repository(),
+        navigation_repository=get_session_navigation_repository(),
         current_dir=runtime_current_dir(),
         archive_dir=runtime_archive_dir(),
     )
@@ -230,6 +237,7 @@ def reset_runtime_repository_cache() -> None:
     get_learning_closure_service.cache_clear()
     get_learning_closure_repository.cache_clear()
     get_thread_summary_repository.cache_clear()
+    get_session_navigation_repository.cache_clear()
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()

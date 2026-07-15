@@ -8,13 +8,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.domain.runtime_entities import ChatThread, new_id
+from src.domain.runtime_entities import ChatThread, ChatTurn, new_id
 from src.infrastructure.markdown.session_archive import (
     LegacySessionImporter,
     SessionMarkdownExporter,
 )
 from src.repositories.runtime_repository import RuntimeRepository
+from src.repositories.session_navigation_repository import SessionNavigationRepository
 from src.repositories.thread_summary_repository import ThreadSummaryRepository
+from src.task_contract import task_contract_from_snapshot
+
+_NAVIGATION_SCHEMA_VERSION = "session-navigation-v1"
+_TITLE_LIMIT = 48
+_PREVIEW_LIMIT = 180
 
 
 class SessionService:
@@ -25,10 +31,15 @@ class SessionService:
         current_dir: Path,
         archive_dir: Path,
         summary_repository: ThreadSummaryRepository | None = None,
+        navigation_repository: SessionNavigationRepository | None = None,
     ):
         self.repository = repository
         self.summary_repository = summary_repository or ThreadSummaryRepository(
             repository.database
+        )
+        self.navigation_repository = (
+            navigation_repository
+            or SessionNavigationRepository(repository.database)
         )
         self.importer = LegacySessionImporter(current_dir, archive_dir)
         self.exporter = SessionMarkdownExporter(current_dir, archive_dir)
@@ -80,6 +91,7 @@ class SessionService:
         )
         path = self._thread_path(thread)
         raw = path.read_text(encoding="utf-8")[:4000] if path and path.is_file() else ""
+        navigation = self._navigation_projection(thread, turns)
         return {
             "session_id": thread.id,
             "kind": "archived" if thread.status == "archived" else "active",
@@ -89,7 +101,8 @@ class SessionService:
             "route": latest.route_snapshot if latest else {},
             "rag": latest.rag_snapshot if latest else {},
             "learning_state": thread.learning_state,
-            "summary": self.summary_payload(thread.id),
+            "summary": navigation["summary"],
+            "navigation": navigation,
             "pedagogy": latest_completed.pedagogy_snapshot if latest_completed else {},
             "latest_attempted_pedagogy": latest.pedagogy_snapshot if latest else {},
             "conversation_instruction": latest.conversation_instruction if latest else "",
@@ -115,6 +128,14 @@ class SessionService:
 
     def create_session(self, settings: dict[str, Any]) -> ChatThread:
         return self.repository.create_chat_thread(ChatThread(settings_snapshot=settings))
+
+    def rename_session(self, session_id: str, title: str) -> dict[str, Any]:
+        self._import_legacy_once()
+        self.navigation_repository.set_manual_title(session_id, title)
+        thread = self.repository.get_chat_thread(session_id)
+        if thread is None:
+            raise ValueError(f"Chat thread not found: {session_id}")
+        return self._thread_row(thread)
 
     def archive_session(self, session_id: str) -> ChatThread | None:
         self._import_legacy_once()
@@ -230,16 +251,77 @@ class SessionService:
     def _thread_row(self, thread: ChatThread) -> dict[str, Any]:
         path = self._thread_path(thread)
         stat = path.stat() if path and path.is_file() else None
+        navigation = self._navigation_projection(
+            thread,
+            self.repository.list_chat_turns(thread.id),
+        )
         return {
             "session_id": thread.id,
             "kind": "archived" if thread.status == "archived" else "current",
             "name": path.name if path else f"{thread.id}.md",
             "path": str(path) if path else "",
             "size_bytes": stat.st_size if stat else 0,
-            "mtime_ns": stat.st_mtime_ns if stat else _iso_to_ns(thread.updated_at),
+            "mtime_ns": _iso_to_ns(thread.updated_at),
             "status": thread.status,
             "version": thread.version,
+            **navigation,
+        }
+
+    def _navigation_projection(
+        self,
+        thread: ChatThread,
+        turns: list[ChatTurn],
+    ) -> dict[str, Any]:
+        completed_turns = [turn for turn in turns if turn.status == "completed"]
+        latest_completed = completed_turns[-1] if completed_turns else None
+        first_completed = completed_turns[0] if completed_turns else None
+        task_intent = _session_task_intent(
+            thread.learning_state,
+            completed_turns=completed_turns,
+        )
+        objective = _normalized_text(thread.learning_state.get("objective"))
+        phase = _normalized_text(thread.learning_state.get("phase"))
+        if not phase and latest_completed is not None:
+            phase = _normalized_text(latest_completed.pedagogy_snapshot.get("phase"))
+        unresolved_gap = _normalized_text(thread.learning_state.get("unresolved_gap"))
+        auto_title = _auto_title(
+            objective=objective,
+            task_intent=task_intent,
+            first_completed=first_completed,
+            thread_id=thread.id,
+        )
+        title_meta = self.navigation_repository.get_title(thread.id)
+        manual_title = title_meta.manual_title
+        title = manual_title or auto_title
+        preview = ""
+        research_summary = ""
+        if latest_completed is not None:
+            preview = _truncate(
+                latest_completed.assistant_message
+                or latest_completed.user_message,
+                _PREVIEW_LIMIT,
+            )
+            if task_intent == "research":
+                research_summary = _truncate(
+                    latest_completed.assistant_message,
+                    _PREVIEW_LIMIT,
+                )
+        return {
+            "navigation_schema_version": _NAVIGATION_SCHEMA_VERSION,
+            "title": title,
+            "title_source": "manual" if manual_title else "auto",
+            "manual_title": manual_title,
+            "auto_title": auto_title,
+            "objective": objective,
+            "research_summary": research_summary,
+            "preview": preview,
+            "task_intent": task_intent,
+            "phase": phase,
+            "unresolved_gap": unresolved_gap,
+            "last_completed_turn_id": latest_completed.id if latest_completed else None,
+            "has_completed_turns": bool(completed_turns),
             "summary": self.summary_payload(thread.id),
+            "updated_at": thread.updated_at,
         }
 
     def _thread_path(self, thread: ChatThread) -> Path | None:
@@ -247,6 +329,84 @@ class SessionService:
             return Path(thread.export_path)
         current = self.exporter.current_dir / f"{thread.id}.md"
         return current if current.is_file() else None
+
+
+def _auto_title(
+    *,
+    objective: str,
+    task_intent: str,
+    first_completed: ChatTurn | None,
+    thread_id: str,
+) -> str:
+    if objective:
+        return _truncate(objective, _TITLE_LIMIT)
+    if first_completed is not None and first_completed.user_message.strip():
+        return _truncate(first_completed.user_message, _TITLE_LIMIT)
+    labels = {
+        "research": "研究会话",
+        "project_execution": "项目推进",
+        "learn": "学习会话",
+        "explain_back": "理解检验",
+        "conversation": "对话",
+        "organize": "整理会话",
+        "quick_answer": "快速问答",
+    }
+    return f"{labels.get(task_intent, '新会话')} · {thread_id[-6:]}"
+
+
+def _session_task_intent(
+    learning_state: dict[str, Any],
+    *,
+    completed_turns: list[ChatTurn],
+) -> str:
+    protocol = str(learning_state.get("protocol") or "")
+    objective = _normalized_text(learning_state.get("objective"))
+    if protocol == "project_execution":
+        return "project_execution"
+    if objective or protocol in {"socratic_rediscovery", "feynman_diagnosis"}:
+        return "learn"
+
+    latest_intent = ""
+    for turn in reversed(completed_turns):
+        contract = task_contract_from_snapshot(
+            turn.route_snapshot.get("task_contract")
+        )
+        if contract is None:
+            continue
+        if not latest_intent:
+            latest_intent = contract.task_intent
+        if contract.task_intent in {"organize", "explain_back"}:
+            continue
+        if contract.confidence in {"high", "medium"} or contract.explicit_override:
+            return contract.task_intent
+    return latest_intent or "quick_answer"
+
+
+def _normalized_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return " ".join(value.strip().split())
+    if isinstance(value, (list, tuple, set)):
+        return "；".join(
+            item
+            for raw in value
+            if (item := _normalized_text(raw))
+        )
+    if isinstance(value, dict):
+        return "；".join(
+            f"{key}: {text}"
+            for key, raw in value.items()
+            if (text := _normalized_text(raw))
+        )
+    return str(value)
+
+
+def _truncate(text: str, limit: int) -> str:
+    normalized = " ".join(str(text or "").strip().split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(1, limit - 1)].rstrip() + "…"
 
 
 def _iso_to_ns(value: str) -> int:

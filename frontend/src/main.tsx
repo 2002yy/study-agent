@@ -7,6 +7,7 @@ import "./styles.css";
 import "./practical-experience.css";
 import "./task-intent-selector.css";
 import "./learning-closure.css";
+import "./session-navigation.css";
 
 type AppErrorBoundaryState = {
   error: Error | null;

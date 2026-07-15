@@ -1,0 +1,228 @@
+.session-navigation-controls {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.session-navigation-controls.wide {
+  grid-template-columns: minmax(0, 1fr) minmax(140px, auto);
+  padding: 0 0 12px;
+}
+
+.session-search-box {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 9px;
+}
+
+.session-search-box input,
+.session-navigation-controls select,
+.session-title-editor input {
+  min-width: 0;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.session-navigation-controls select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 8px;
+  background: var(--surface);
+}
+
+.session-navigation-error {
+  margin: 0 10px 8px;
+  color: var(--danger);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.session-nav-group,
+.session-history-group {
+  display: grid;
+  gap: 6px;
+}
+
+.session-nav-group + .session-nav-group,
+.session-history-group + .session-history-group {
+  margin-top: 12px;
+}
+
+.session-nav-group-title {
+  padding: 0 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.session-sidebar-row {
+  position: relative;
+}
+
+.session-sidebar-row-main {
+  padding-right: 58px;
+}
+
+.session-sidebar-row-main strong,
+.session-sidebar-subtitle,
+.session-sidebar-gap,
+.session-sidebar-meta {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-sidebar-row-main strong {
+  white-space: nowrap;
+}
+
+.session-sidebar-subtitle {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
+.session-sidebar-gap {
+  margin-top: 5px;
+  color: var(--amber);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.session-sidebar-meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.session-sidebar-row-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-sidebar-row-actions .icon-button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.session-title-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 6px;
+}
+
+.session-title-editor input {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: var(--surface);
+}
+
+.session-title-editor button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.semantic-session-list {
+  gap: 14px;
+}
+
+.semantic-session-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.session-row-copy {
+  min-width: 0;
+}
+
+.session-semantic-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-semantic-heading strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row-copy p {
+  margin: 5px 0 0;
+  color: #314047;
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.session-row-copy .session-gap {
+  margin-top: 6px;
+  color: var(--amber);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .session-navigation-controls.wide,
+  .semantic-session-row {
+    grid-template-columns: 1fr;
+  }
+
+  .semantic-session-row .session-actions {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .session-sidebar-row-main {
+    padding-right: 52px;
+  }
+
+  .session-sidebar-gap,
+  .session-sidebar-meta {
+    white-space: normal;
+    line-height: 1.35;
+  }
+}
