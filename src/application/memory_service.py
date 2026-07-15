@@ -15,6 +15,8 @@ from src.domain.runtime_entities import MemoryRun, new_id, utc_now
 from src.mode_manager import is_memory_write_allowed, load_runtime_modes
 from src.repositories.memory_repository import MemoryRepository
 
+_ALLOWED_CONFIDENCE = {"low", "medium", "high"}
+
 
 def normalize_updates(updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
@@ -26,21 +28,38 @@ def normalize_updates(updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
             raise ValueError("Memory update content is required")
         memory_target_path(target)
         append = bool(raw.get("append", True))
+        source_refs = _string_list(raw.get("source_refs"))
+        evaluation_refs = _string_list(raw.get("evaluation_refs"))
         learner_pending = bool(raw.get("learner_pending", False))
+        if target == "learner_profile" and source_refs:
+            learner_pending = True
         if target != "current_focus" and not append:
             raise ValueError(
                 "append=false is only supported for target current_focus"
             )
         if target == "current_focus" and not append:
             focus_replaces += 1
-        normalized.append(
-            {
-                "target": target,
-                "content": content,
-                "append": append,
-                "learner_pending": learner_pending,
-            }
-        )
+        item: dict[str, Any] = {
+            "target": target,
+            "content": content,
+            "append": append,
+            "learner_pending": learner_pending,
+        }
+        confidence = str(raw.get("confidence", "")).strip().lower()
+        if confidence:
+            item["confidence"] = (
+                confidence if confidence in _ALLOWED_CONFIDENCE else "low"
+            )
+        if source_refs:
+            item["source_refs"] = source_refs
+        if evaluation_refs:
+            item["evaluation_refs"] = evaluation_refs
+        provenance_schema = str(
+            raw.get("provenance_schema_version", "")
+        ).strip()
+        if provenance_schema:
+            item["provenance_schema_version"] = provenance_schema
+        normalized.append(item)
     if not normalized:
         raise ValueError("At least one memory update is required")
     if focus_replaces > 1:
@@ -79,17 +98,24 @@ class MemoryService:
         preview_items = []
         for update in frozen:
             action = self._action(update)
-            preview_items.append(
-                {
-                    "target": update["target"],
-                    "path": str(memory_target_path(update["target"])),
-                    "action": action,
-                    "allowed": writable,
-                    "preview": memory_update_preview_text(
-                        SimpleNamespace(**update), action
-                    ),
-                }
-            )
+            preview_item: dict[str, Any] = {
+                "target": update["target"],
+                "path": str(memory_target_path(update["target"])),
+                "action": action,
+                "allowed": writable,
+                "preview": memory_update_preview_text(
+                    SimpleNamespace(**update), action
+                ),
+            }
+            for key in (
+                "confidence",
+                "source_refs",
+                "evaluation_refs",
+                "provenance_schema_version",
+            ):
+                if key in update:
+                    preview_item[key] = update[key]
+            preview_items.append(preview_item)
         now = utc_now()
         return self.repository.create(
             MemoryRun(
@@ -189,3 +215,9 @@ class MemoryService:
             if update["target"] == "current_focus" and not update["append"]
             else "append"
         )
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return sorted({str(item).strip() for item in value if str(item).strip()})

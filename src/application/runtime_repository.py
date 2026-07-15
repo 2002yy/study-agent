@@ -191,6 +191,7 @@ def get_learning_closure_service():
         get_learning_closure_repository(),
         get_session_service(),
         get_memory_service(),
+        evaluation_repository=get_pedagogy_eval_repository(),
     )
 
 

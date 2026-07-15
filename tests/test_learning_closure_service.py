@@ -85,10 +85,11 @@ def _build_service(
     monkeypatch.setattr(
         "src.application.memory_service.is_memory_write_allowed", lambda _modes: True
     )
-    calls = {"count": 0}
+    calls = {"count": 0, "structured_inputs": []}
 
     def default_generator(*args, **kwargs):
         calls["count"] += 1
+        calls["structured_inputs"].append(args[0])
         return {
             "progress_update": "已确认区间每轮减半；下一步练习边界条件",
             "learner_profile_update": "本轮无需更新",
@@ -123,6 +124,13 @@ def test_closure_generates_preview_and_reuses_same_source(
     assert second.id == first.id
     assert second.source_hash == first.source_hash
     assert calls["count"] == 1
+    structured = first.committed_snapshot["structured_input"]
+    assert calls["structured_inputs"] == [structured]
+    assert structured["committed_learning_state"]["confirmed_points"] == [
+        "区间每轮减半"
+    ]
+    assert structured["recent_dialogue"][0]["turn_id"] == "turn-1"
+    assert "messages" not in structured
     linked = service.linked_memory_run(first)
     assert linked is not None
     assert linked.status == "previewed"
