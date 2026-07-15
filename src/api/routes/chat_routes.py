@@ -217,6 +217,7 @@ def abandon_interrupted_turn_endpoint(
         )
     updated = service.repository.update_chat_turn(
         turn_id,
+        assistant_message=turn.assistant_message,
         status="abandoned",
         expected_status=turn.status,
     )
