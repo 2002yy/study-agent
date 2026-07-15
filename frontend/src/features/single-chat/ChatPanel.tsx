@@ -158,9 +158,18 @@ export function ChatPanel({
     onQuickPrompt(prompt);
   };
 
-  const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
+  const closeWorkspaceMenu = (target: HTMLButtonElement) => {
     target.closest("details")?.removeAttribute("open");
+  };
+
+  const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
+    closeWorkspaceMenu(target);
     onOpenDrawer(drawer);
+  };
+
+  const searchFromMenu = (target: HTMLButtonElement) => {
+    closeWorkspaceMenu(target);
+    onSearchSources();
   };
 
   useEffect(() => {
@@ -204,24 +213,8 @@ export function ChatPanel({
           <button aria-label="上传学习资料" className="icon-button" onClick={onUploadClick} type="button" title="上传学习资料">
             <Upload size={17} />
           </button>
-          <button
-            aria-label="检索当前问题的资料来源"
-            className="icon-button"
-            disabled={!hasSearchQuery}
-            onClick={onSearchSources}
-            type="button"
-            title={hasSearchQuery ? "检索当前问题的资料来源" : "输入关键词或通过 RAG 提问后可检索"}
-          >
-            {isSearching ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
-          </button>
           <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史">
             <BookOpen size={16} />
-          </button>
-          <button aria-label="打开引用来源与知识库" className="icon-button" onClick={() => onOpenDrawer("sources")} type="button" title="引用来源与知识库">
-            <Library size={16} />
-          </button>
-          <button aria-label="打开设置" className="icon-button" onClick={() => onOpenDrawer("settings")} type="button" title="设置">
-            <Settings size={16} />
           </button>
           <details className="workspace-menu">
             <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多学习工具">
@@ -229,6 +222,27 @@ export function ChatPanel({
               <span>更多</span>
             </summary>
             <div className="workspace-menu-popover" role="menu">
+              <button
+                aria-label="检索当前问题的资料来源"
+                disabled={!hasSearchQuery}
+                onClick={(event) => searchFromMenu(event.currentTarget)}
+                role="menuitem"
+                type="button"
+              >
+                {isSearching ? <Loader2 className="spin" size={16} /> : <Search size={16} />}
+                <span>
+                  <strong>检索当前问题</strong>
+                  <small>{hasSearchQuery ? "查找本地资料与可用来源" : "输入问题后即可检索资料来源"}</small>
+                </span>
+              </button>
+              <button onClick={(event) => openFromMenu("sources", event.currentTarget)} role="menuitem" type="button">
+                <Library size={16} />
+                <span><strong>引用来源</strong><small>查看本次引用与长期知识库</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("settings", event.currentTarget)} role="menuitem" type="button">
+                <Settings size={16} />
+                <span><strong>设置</strong><small>调整角色、模型与检索策略</small></span>
+              </button>
               <button onClick={(event) => openFromMenu("group", event.currentTarget)} role="menuitem" type="button">
                 <MessageSquare size={16} />
                 <span><strong>群聊讨论</strong><small>让多位角色从不同角度讨论</small></span>

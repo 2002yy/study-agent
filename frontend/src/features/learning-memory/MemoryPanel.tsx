@@ -1,7 +1,6 @@
 import { AlertTriangle, Archive, CheckCircle2, Loader2, MessageCircle, Plus, RotateCcw, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { StatusDot } from "../../components/StatusDot";
 import type { MemoryStatusResponse } from "../../types";
-import { basename } from "../../utils/format";
 import type { SessionSummary } from "../sessions/sessionSummary";
 import type { LearningClosureRunResponse, LearningClosureStatus } from "./closureTypes";
 import type { useMemoryController } from "./memoryController";
@@ -30,14 +29,24 @@ type ClosureCandidate = {
 };
 
 const TARGET_OPTIONS = [
-  { value: "current_focus", label: "current_focus.md", hint: "当前优先任务和边界" },
-  { value: "progress", label: "progress.md", hint: "学习进展和阶段记录" },
-  { value: "summary", label: "summary.md", hint: "长期摘要和关键结论" },
-  { value: "learner_profile", label: "learner_profile.md", hint: "稳定偏好和学习画像" },
-  { value: "project_context", label: "project_context.md", hint: "项目背景和长期约束" },
-  { value: "revision_notes", label: "revision_notes.md", hint: "后续需要补强的内容" },
-  { value: "session_archive", label: "session_archive.md", hint: "本次学习归档" }
+  { value: "current_focus", label: "当前重点", hint: "当前优先任务和边界" },
+  { value: "progress", label: "学习进展", hint: "学习进展和阶段记录" },
+  { value: "summary", label: "长期摘要", hint: "长期摘要和关键结论" },
+  { value: "learner_profile", label: "学习偏好", hint: "稳定偏好和学习画像" },
+  { value: "project_context", label: "项目背景", hint: "项目背景和长期约束" },
+  { value: "revision_notes", label: "待补强内容", hint: "后续需要补强的内容" },
+  { value: "session_archive", label: "本次学习归档", hint: "本次学习归档" }
 ] as const;
+
+const MEMORY_FILE_LABELS: Record<string, string> = {
+  "current_focus.md": "当前重点",
+  "progress.md": "学习进展",
+  "summary.md": "长期摘要",
+  "learner_profile.md": "学习偏好",
+  "project_context.md": "项目背景",
+  "revision_notes.md": "待补强内容",
+  "session_archive.md": "本次学习归档",
+};
 
 const CLOSURE_STATUS: Record<LearningClosureStatus, { label: string; tone: "good" | "warn" | "bad" | "neutral" }> = {
   created: { label: "已创建", tone: "neutral" },
@@ -49,6 +58,32 @@ const CLOSURE_STATUS: Record<LearningClosureStatus, { label: string; tone: "good
   failed: { label: "整理失败", tone: "bad" },
   cancelled: { label: "整理已取消", tone: "neutral" },
 };
+
+export function memoryTargetLabel(target: string): string {
+  return TARGET_OPTIONS.find((option) => option.value === target)?.label ?? "长期记忆";
+}
+
+export function memoryActionLabel(action: string): string {
+  const normalized = action.trim().toLowerCase();
+  if (normalized.includes("replace")) return "替换";
+  if (normalized.includes("append")) return "追加";
+  if (normalized.includes("create")) return "新建";
+  return "更新";
+}
+
+export function memoryConfidenceLabel(confidence?: string): string {
+  return (
+    {
+      high: "高",
+      medium: "中",
+      low: "低",
+    }[confidence ?? ""] ?? "未标注"
+  );
+}
+
+function memoryFileLabel(name: string): string {
+  return MEMORY_FILE_LABELS[name] ?? "长期记忆";
+}
 
 function previewFile(memoryStatus: MemoryStatusResponse | null, name: string) {
   return memoryStatus?.files.find((file) => file.name === name);
@@ -108,16 +143,20 @@ export function MemoryPanel({
       <div className="panel-header">
         <div>
           <h2>学习记忆</h2>
-          <span>{memoryStatus ? `${memoryStatus.context_mode} · ${memoryStatus.writable ? "可写" : "只读"}` : "等待 API"}</span>
+          <span>{memoryStatus ? `长期记忆 · ${memoryStatus.writable ? "可确认写入" : "当前只读"}` : "等待服务"}</span>
         </div>
         <ShieldCheck size={18} />
       </div>
       {memoryStatus ? (
         <>
           <div className="memory-note">
-            <StatusDot tone={memoryStatus.writable ? "good" : memoryStatus.safe_mode ? "bad" : "warn"} />
+            <StatusDot tone={memoryStatus.writable ? "good" : "neutral"} />
             <span>
-              memory_mode={memoryStatus.memory_mode} · safe_mode={String(memoryStatus.safe_mode)} · reason={memoryStatus.reason}
+              {memoryStatus.writable
+                ? "只有你确认的候选才会写入长期记忆。"
+                : memoryStatus.safe_mode
+                  ? "当前为安全只读状态，不会修改长期记忆。"
+                  : "当前长期记忆只读，你仍可查看已有内容。"}
             </span>
           </div>
           {hasCompletedSummary ? (
@@ -182,7 +221,7 @@ export function MemoryPanel({
             {[focus, progress, summary].map((file) =>
               file ? (
                 <details className="memory-file" key={file.name}>
-                  <summary>{file.name}</summary>
+                  <summary>{memoryFileLabel(file.name)}</summary>
                   <p>{file.preview || "暂无内容"}</p>
                 </details>
               ) : null
@@ -221,7 +260,7 @@ export function MemoryPanel({
                       </button>
                     </div>
                     <label className="field-row">
-                      <span>目标文件</span>
+                      <span>写入位置</span>
                       <select disabled={isClosurePreview} value={draft.target} onChange={(event) => updateDraft(draft.id, "target", event.target.value)}>
                         {TARGET_OPTIONS.map((target) => (
                           <option key={target.value} value={target.value}>
@@ -234,8 +273,8 @@ export function MemoryPanel({
                     {canReplaceFocus ? (
                       <div className="focus-diff">
                         <div>
-                          <span>当前 current_focus</span>
-                          <p>{focus?.preview || "暂无 current_focus 内容。"}</p>
+                          <span>当前重点</span>
+                          <p>{focus?.preview || "暂无当前重点内容。"}</p>
                         </div>
                         <div>
                           <span>{draft.replaceCurrentFocus ? "将替换为" : "将追加"}</span>
@@ -251,7 +290,7 @@ export function MemoryPanel({
                           onChange={(event) => updateDraft(draft.id, "replaceCurrentFocus", event.target.checked)}
                           type="checkbox"
                         />
-                        替换 current_focus，而不是追加
+                        替换当前重点，而不是追加
                       </label>
                     ) : null}
                     <label className="memory-check">
@@ -273,25 +312,18 @@ export function MemoryPanel({
                     {provenance ? (
                       <details className="candidate-provenance">
                         <summary>
-                          来源与置信度 · {provenance.confidence || "low"}
+                          依据与置信度 · {memoryConfidenceLabel(provenance.confidence)}
                           {provenance.learner_pending ? " · 待确认观察" : ""}
                         </summary>
                         <div>
-                          <span>来源</span>
-                          <ul>
-                            {(provenance.source_refs ?? []).map((source) => (
-                              <li key={source}>{source}</li>
-                            ))}
-                          </ul>
+                          <span>依据</span>
+                          <p>
+                            {(provenance.source_refs ?? []).length
+                              ? `已关联 ${(provenance.source_refs ?? []).length} 条来源或对话证据。`
+                              : "未记录来源证据。"}
+                          </p>
                           {provenance.evaluation_refs?.length ? (
-                            <>
-                              <span>评估</span>
-                              <ul>
-                                {provenance.evaluation_refs.map((evaluation) => (
-                                  <li key={evaluation}>{evaluation}</li>
-                                ))}
-                              </ul>
-                            </>
+                            <p>已关联 {provenance.evaluation_refs.length} 次理解评估。</p>
                           ) : null}
                         </div>
                       </details>
@@ -322,14 +354,12 @@ export function MemoryPanel({
             <div className={`memory-preview ${preview.writable ? "" : "blocked"}`}>
               <div className="memory-preview-meta">
                 <strong>{preview.writable ? "可写预览" : "仅预览，当前不可写"}</strong>
-                <span>
-                  mode={preview.memory_mode} · safe_mode={String(preview.safe_mode)}
-                </span>
+                <span>{preview.writable ? "确认后才会写入长期记忆" : "当前不会写入长期记忆"}</span>
               </div>
               {preview.updates.map((item, index) => (
                 <div className="memory-preview-item" key={`${item.target}-${item.path}-${index}`}>
                   <span>
-                    {item.action} · {item.target} · {basename(item.path)}
+                    {memoryTargetLabel(item.target)} · {memoryActionLabel(item.action)}
                   </span>
                   <pre>{item.preview}</pre>
                 </div>
@@ -340,7 +370,7 @@ export function MemoryPanel({
             <div className="memory-result">
               <CheckCircle2 size={16} />
               <span>
-                已写入 {commitResult.results.map((result) => `${result.target}(${result.action})`).join(", ")}
+                已更新 {commitResult.results.map((result) => memoryTargetLabel(result.target)).join("、")}
               </span>
               {commitResult.errors?.length ? (
                 <details style={{ marginTop: 8 }}>
@@ -348,7 +378,7 @@ export function MemoryPanel({
                   <ul>
                     {commitResult.errors.map((err, idx) => (
                       <li key={idx}>
-                        <strong>{err.target}</strong> ({err.action}): {err.error}
+                        <strong>{memoryTargetLabel(err.target)}</strong>：{err.error}
                       </li>
                     ))}
                   </ul>
