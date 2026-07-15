@@ -6,7 +6,6 @@ import { RoleAvatar } from "../components/RoleAvatar";
 import { StatusDot } from "../components/StatusDot";
 import { roleLabel, roleOptions } from "../features/roles/roleCatalog";
 import { ExternalDataPolicySettings } from "../features/settings/ExternalDataPolicySettings";
-import { displayValue } from "../utils/format";
 import type {
   ApiSnapshot, ChatResponse, ChatSettings, RagSettings, RoleResponse
 } from "../types";
@@ -91,15 +90,15 @@ const relationshipDescriptions: Record<string, string> = {
 const retrievalOptions = [
   ["lexical", "关键词"],
   ["hybrid", "混合"],
-  ["vector", "本地向量"],
-  ["backend_vector", "向量后端"]
+  ["vector", "本地语义"],
+  ["backend_vector", "增强语义"]
 ] as const;
 
 const retrievalDescriptions: Record<string, string> = {
   lexical: "按关键词命中，稳定、可解释。",
-  hybrid: "关键词和向量结合，通常最稳妥。",
-  vector: "使用本地向量语义检索。",
-  backend_vector: "调用外部向量后端，取决于后端配置。"
+  hybrid: "关键词和语义检索结合，通常最稳妥。",
+  vector: "使用本地语义检索。",
+  backend_vector: "使用当前可用的增强语义检索能力，具体实现由系统配置。"
 };
 
 export function Sidebar({
@@ -234,8 +233,8 @@ export function Sidebar({
           <strong>{snapshot.ragStatus?.chunks ?? "?"}</strong>
         </div>
         <div className="metric-row">
-          <span>向量后端</span>
-          <strong>{snapshot.ragStatus?.vector_backend.name ?? "未知"}</strong>
+          <span>语义检索</span>
+          <strong>{snapshot.ragStatus?.vector_backend.available ? "可用" : "不可用"}</strong>
         </div>
       </section>
 
@@ -377,7 +376,7 @@ export function Sidebar({
         <small className="field-hint">{retrievalDescriptions[ragSettings.retrievalMode]}</small>
         <div className="number-grid">
           <label className="field-row compact">
-            <span>检索 top_k</span>
+            <span>来源候选数</span>
             <input
               min={1}
               max={20}
@@ -388,7 +387,7 @@ export function Sidebar({
             />
           </label>
           <label className="field-row compact">
-            <span>聊天引用</span>
+            <span>聊天引用数</span>
             <input
               disabled={isSending}
               min={1}
@@ -399,9 +398,9 @@ export function Sidebar({
             />
           </label>
         </div>
-        <small className="field-hint">检索 top_k 是单独查来源时最多拿几条；聊天引用是回答时最多塞进上下文的资料条数。</small>
+        <small className="field-hint">来源候选数控制单独查资料时最多返回几条；聊天引用数控制回答时最多使用几条资料。</small>
         <label className="field-row">
-          <span>最低分</span>
+          <span>最低相关度</span>
           <input
             min={0}
             disabled={isSending}
@@ -411,51 +410,19 @@ export function Sidebar({
             value={ragSettings.minScore}
           />
         </label>
-        <small className="field-hint">最低分越高越严格，来源更少但更稳；不确定时保持默认即可。</small>
+        <small className="field-hint">数值越高越严格，来源更少但更稳；不确定时保持默认即可。</small>
         <div className="status-line">
           <StatusDot tone={apiTone} />
-          <span>{snapshot.health?.service ?? "API 未连接"}</span>
+          <span>
+            {snapshot.health?.status === "ok" ? "服务已连接" : "服务未连接"}
+            {lastChat ? " · 已有回答记录" : " · 尚未开始对话"}
+          </span>
         </div>
         <button className="primary-action secondary" disabled={isSending || isSavingSettings} onClick={onSaveSettings} type="button">
           {isSavingSettings ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
           设为全局默认
         </button>
         <small className="field-hint">上方设置会立即影响当前会话；这里仅保存为新会话的默认值。</small>
-      </section>
-
-      <section className="side-section">
-        <div className="section-title">
-          <Activity size={15} />
-          最近一次回答实际配置
-        </div>
-        <div className="metric-row">
-          <span>实际角色</span>
-          <strong>{displayValue(lastChat?.route.role)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>实际模式</span>
-          <strong>{displayValue(lastChat?.route.mode)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>实际模型</span>
-          <strong>{displayValue(lastChat?.route.model_profile)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>教学阶段</span>
-          <strong>{displayValue((lastChat?.route.pedagogy as Record<string, unknown> | undefined)?.phase)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>本轮动作</span>
-          <strong>{displayValue((lastChat?.route.pedagogy as Record<string, unknown> | undefined)?.move)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>知识披露</span>
-          <strong>{displayValue(lastChat?.route.evidence_disclosure)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>Session</span>
-          <strong>{lastChat?.session_id ?? "未开始"}</strong>
-        </div>
       </section>
 
       <button className="ghost-action" onClick={refresh} type="button">
