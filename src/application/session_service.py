@@ -275,15 +275,16 @@ class SessionService:
         completed_turns = [turn for turn in turns if turn.status == "completed"]
         latest_completed = completed_turns[-1] if completed_turns else None
         first_completed = completed_turns[0] if completed_turns else None
-        contract = None
+        persisted_intent = ""
         if latest_completed is not None:
             contract = task_contract_from_snapshot(
                 latest_completed.route_snapshot.get("task_contract")
             )
-        task_intent = (
-            contract.task_intent
-            if contract is not None
-            else _legacy_task_intent(thread.learning_state)
+            if contract is not None:
+                persisted_intent = contract.task_intent
+        task_intent = _session_task_intent(
+            thread.learning_state,
+            persisted_intent=persisted_intent,
         )
         objective = _normalized_text(thread.learning_state.get("objective"))
         phase = _normalized_text(thread.learning_state.get("phase"))
@@ -360,13 +361,18 @@ def _auto_title(
     return f"{labels.get(task_intent, '新会话')} · {thread_id[-6:]}"
 
 
-def _legacy_task_intent(learning_state: dict[str, Any]) -> str:
+def _session_task_intent(
+    learning_state: dict[str, Any],
+    *,
+    persisted_intent: str,
+) -> str:
     protocol = str(learning_state.get("protocol") or "")
+    objective = _normalized_text(learning_state.get("objective"))
     if protocol == "project_execution":
         return "project_execution"
-    if protocol in {"socratic_rediscovery", "feynman_diagnosis"}:
+    if objective or protocol in {"socratic_rediscovery", "feynman_diagnosis"}:
         return "learn"
-    return "quick_answer"
+    return persisted_intent or "quick_answer"
 
 
 def _normalized_text(value: Any) -> str:
