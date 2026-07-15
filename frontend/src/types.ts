@@ -332,6 +332,7 @@ export type ChatResponse = {
       used: boolean;
       calls: Array<Record<string, unknown>>;
       error?: string;
+      run_id?: string;
     };
   };
   pedagogy?: PedagogySummary;

@@ -118,7 +118,8 @@ def get_web_tool_agent():
     from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
 
     return PersistentWebToolAgent(
-        gateway=PersistentGeneralWebGateway(get_github_snapshot_service())
+        gateway=PersistentGeneralWebGateway(get_github_snapshot_service()),
+        research_service=get_web_lookup_service(),
     )
 
 
