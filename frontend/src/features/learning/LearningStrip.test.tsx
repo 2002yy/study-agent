@@ -62,7 +62,8 @@ describe("LearningStrip trustworthy status", () => {
 
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("临时研究");
-    expect(text).toContain("本轮不推进长期学习状态");
+    expect(text).toContain("研究结果已返回");
+    expect(text).toContain("不推进长期学习状态");
     expect(text).not.toContain("old gap");
     expect(text).not.toContain("已验证");
     expect(text).not.toContain("待验证");
