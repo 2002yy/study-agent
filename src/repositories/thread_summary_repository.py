@@ -38,7 +38,7 @@ class ThreadSummaryRepository:
             if current < 1:
                 connection.execute(
                     """
-                    CREATE TABLE thread_summary_states (
+                    CREATE TABLE IF NOT EXISTS thread_summary_states (
                         thread_id TEXT PRIMARY KEY REFERENCES chat_threads(id),
                         status TEXT NOT NULL DEFAULT 'not_summarized',
                         source_thread_version INTEGER,
@@ -52,7 +52,7 @@ class ThreadSummaryRepository:
                 )
                 connection.execute(
                     """
-                    CREATE INDEX idx_thread_summary_status_updated
+                    CREATE INDEX IF NOT EXISTS idx_thread_summary_status_updated
                     ON thread_summary_states(status, updated_at DESC)
                     """
                 )
@@ -67,6 +67,7 @@ class ThreadSummaryRepository:
             connection.commit()
 
     def get_effective(self, thread_id: str) -> ThreadSummaryState:
+        legacy_completion: tuple[int, str] | None = None
         with self.database.connect() as connection:
             thread = connection.execute(
                 "SELECT id FROM chat_threads WHERE id = ?", (thread_id,)
@@ -78,6 +79,20 @@ class ThreadSummaryRepository:
                 (thread_id,),
             ).fetchone()
             latest_turn_id = self._latest_completed_turn_id(connection, thread_id)
+            if row is None and latest_turn_id:
+                legacy_completion = self._completed_closure_for_turn(
+                    connection,
+                    thread_id=thread_id,
+                    last_completed_turn_id=latest_turn_id,
+                )
+        if row is None and legacy_completion is not None and latest_turn_id:
+            source_version, closure_run_id = legacy_completion
+            return self.mark_summarized(
+                thread_id,
+                source_thread_version=source_version,
+                last_completed_turn_id=latest_turn_id,
+                closure_run_id=closure_run_id,
+            )
         if row is None:
             return ThreadSummaryState(
                 thread_id=thread_id,
@@ -197,3 +212,33 @@ class ThreadSummaryRepository:
             (thread_id,),
         ).fetchone()
         return str(row["id"]) if row is not None else None
+
+    @staticmethod
+    def _completed_closure_for_turn(
+        connection: sqlite3.Connection,
+        *,
+        thread_id: str,
+        last_completed_turn_id: str,
+    ) -> tuple[int, str] | None:
+        table = connection.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'learning_closure_runs'
+            """
+        ).fetchone()
+        if table is None:
+            return None
+        row = connection.execute(
+            """
+            SELECT source_thread_version, id
+            FROM learning_closure_runs
+            WHERE thread_id = ? AND last_completed_turn_id = ?
+              AND status = 'completed'
+            ORDER BY completed_at DESC, updated_at DESC, id DESC
+            LIMIT 1
+            """,
+            (thread_id, last_completed_turn_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return int(row["source_thread_version"]), str(row["id"])
