@@ -1,5 +1,10 @@
 import React from "react";
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
@@ -39,6 +44,12 @@ function renderCard(options: {
   return renderer;
 }
 
+function textContent(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === "string" ? child : textContent(child)))
+    .join("");
+}
+
 describe("RestoreCard", () => {
   it("shows five explicit entry points for a new session", () => {
     const onSelectEntry = vi.fn();
@@ -52,7 +63,7 @@ describe("RestoreCard", () => {
     expect(serialized).toContain("上传资料");
 
     const learningButton = renderer.root.findAllByType("button").find((button) =>
-      JSON.stringify(button.props.children).includes("系统学习")
+      textContent(button).includes("系统学习")
     );
     act(() => learningButton?.props.onClick());
     expect(onSelectEntry).toHaveBeenCalledWith("learn", "我想系统学习：");
@@ -90,7 +101,7 @@ describe("RestoreCard", () => {
     expect(serialized).toContain("有新增内容");
 
     const continueButton = renderer.root.findAllByType("button").find((button) =>
-      JSON.stringify(button.props.children).includes("继续这里")
+      textContent(button).includes("继续这里")
     );
     act(() => continueButton?.props.onClick());
     expect(onContinueHere).toHaveBeenCalledWith(
@@ -149,9 +160,9 @@ describe("RestoreCard", () => {
     });
     const buttons = renderer.root.findAllByType("button");
 
-    act(() => buttons.find((button) => JSON.stringify(button.props.children).includes("从断点继续"))?.props.onClick());
-    act(() => buttons.find((button) => JSON.stringify(button.props.children).includes("重新生成"))?.props.onClick());
-    act(() => buttons.find((button) => JSON.stringify(button.props.children).includes("放弃恢复"))?.props.onClick());
+    act(() => buttons.find((button) => textContent(button).includes("从断点继续"))?.props.onClick());
+    act(() => buttons.find((button) => textContent(button).includes("重新生成"))?.props.onClick());
+    act(() => buttons.find((button) => textContent(button).includes("放弃恢复"))?.props.onClick());
 
     expect(onContinueInterrupted).toHaveBeenCalledTimes(1);
     expect(onRetryInterrupted).toHaveBeenCalledTimes(1);
