@@ -13,6 +13,7 @@ from src.repositories.learning_closure_repository import LearningClosureReposito
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.repositories.thread_summary_repository import ThreadSummaryRepository
 from src.repositories.tool_repository import ToolRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.repositories.runtime_repository import RuntimeRepository
@@ -76,6 +77,11 @@ def get_memory_repository() -> MemoryRepository:
 @lru_cache(maxsize=1)
 def get_learning_closure_repository() -> LearningClosureRepository:
     return LearningClosureRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_thread_summary_repository() -> ThreadSummaryRepository:
+    return ThreadSummaryRepository(RuntimeDatabase(runtime_database_path()))
 
 
 @lru_cache(maxsize=1)
@@ -147,6 +153,7 @@ def get_session_service():
 
     return SessionService(
         get_runtime_repository(),
+        summary_repository=get_thread_summary_repository(),
         current_dir=runtime_current_dir(),
         archive_dir=runtime_archive_dir(),
     )
@@ -222,6 +229,7 @@ def reset_runtime_repository_cache() -> None:
     get_github_snapshot_repository.cache_clear()
     get_learning_closure_service.cache_clear()
     get_learning_closure_repository.cache_clear()
+    get_thread_summary_repository.cache_clear()
     get_web_lookup_service.cache_clear()
     get_tool_service.cache_clear()
     get_news_service.cache_clear()
