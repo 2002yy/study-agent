@@ -2,23 +2,25 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-15  
-> 当前能力基线：PR #39 已合并，核心学习产品 G1–G4 已形成可恢复、可整理、可准确导航的闭环；本切片推进 G5 学习状态去伪精化  
-> 下一代码切片：G6 结构化恢复卡，其后依次收敛 G7 UI 聚焦与 G8 窄屏完整可用
+> 当前能力基线：PR #41 已合并，核心学习产品 G1–G6 已形成可信学习状态、结构化恢复、可整理与准确导航闭环；本切片推进 G7 UI 聚焦收敛  
+> 下一代码切片：G8 窄屏完整可用，其后将聊天工具循环统一关联 durable ResearchRun
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status 和语义化会话导航；G5 正在将学习状态统一为 committed truth + PedagogyEvalRun 四态，不再用启发式百分比冒充掌握度。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航和结构化恢复卡；G7 正在把一级操作收敛为当前任务收束 / 上传 / 会话 / 更多，并从普通界面移除 memory 文件名、run/step/session ID、route code 和低层 Provider 细节。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
 
 ## 2. 已完成
 
-### 核心学习产品 G1–G4
+### 核心学习产品 G1–G6
 
 1. **G1 LearningClosureRun**：学习整理拥有 durable owner、正式状态机、source hash 幂等、retry/cancel/resume 和 MemoryRun 关联；刷新后可恢复，research 不会被错误写成学习总结。
 2. **G2 结构化总结输入**：只使用 committed LearningState、最终 PedagogyEvalRun、证据引用、受预算限制的最近对话和冻结记忆上下文；失败/中断回合不能伪装成已掌握，候选保存来源、置信度和评估引用。
 3. **G3 summary status**：确认写入后形成 `summarized / needs_update / not_summarized` 真值；新完成回合才重新开放整理；设置变化和失败回合不会误触发；提供“继续当前 / 归档并新建”，从不自动归档。
 4. **G4 会话导航语义化**：会话列表统一展示 title、objective/research summary、recent preview、task intent、phase/gap、summary status 和 updated_at；自动标题与手动标题分离；支持搜索和按时间/状态/任务分组；旧会话兼容。
+5. **G5 学习状态去伪精化**：主 UI 只读取 committed truth 与正式 PedagogyEvalRun 四态；committed/attempted 分离，非学习任务不再伪装成长期掌握进度，也不再用启发式百分比制造虚假精度。
+6. **G6 结构化恢复卡**：新用户提供快速问答、系统学习、联网研究、项目推进和上传资料五类入口；返回用户按 committed task/goal、确认点或已披露来源、缺口和下一步恢复；interrupted turn 支持继续、重试和 durable abandon，放弃后刷新不会再次复活。
 
 正式学习闭环当前已经可以走通：
 
@@ -252,7 +254,7 @@ PR #30 已完成主链收口：
 5. `POST /chat` 与 `POST /chat/stream` 接受受限枚举 `task_intent`。
 6. 前端只展示服务端持久化合同，不再根据 `learning_state` 二次推断。
 
-当前显式 override 已具备 API 能力，主界面尚未提供可视化任务选择器。
+当前显式 override 已接入主界面按 Turn 一次性选择；发送后自动清空，retry/continuation 不继承新的 override。
 
 ## 3. 还差什么
 
@@ -261,9 +263,10 @@ PR #30 已完成主链收口：
 | LearningClosureRun | 已完成 | G1 durable 状态机、幂等、恢复、retry/cancel 已合并 |
 | 结构化总结与 summary status | 已完成 | G2–G3 已合并，后续只需随产品验证继续收敛 |
 | 会话语义导航 | 已完成 | G4 已合并，已支持标题、目标/研究摘要、阶段/缺口、状态、搜索和分组 |
-| 学习状态去伪精化 | 本切片推进 | G5：可信四态、折叠态顺序、committed/attempted 分离、非学习结果状态 |
-| 结构化恢复卡 | 未完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复动作 |
-| UI 聚焦与窄屏 | 未完成 | G7–G8：一级动作收敛、内部信息降噪、窄屏与可访问性完整验收 |
+| 学习状态去伪精化 | 已完成 | G5：可信四态、committed/attempted 分离、非学习结果状态已合并 |
+| 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
+| UI 聚焦收敛 | 本切片推进 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪 |
+| 窄屏完整可用 | 未完成 | G8：窄屏、触控与非 hover 环境完整可达和可访问性验收 |
 | 广域网页搜索 | 基础完成 | 聊天工具循环整体关联 durable ResearchRun |
 | cancel/retry/resume | 基础完成 | 异步请求级取消、统一超时、实时阶段事件 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
@@ -281,7 +284,7 @@ PR #30 已完成主链收口：
 | 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、cross-repository 图、真实仓库评测 |
 | PR review context | 初版完成 | cross-fork 语义影响、持久化缓存、多仓库真实 replay corpus |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
-| TaskContract UI override | 未完成 | API 已支持，主界面缺少按 Turn 选择并显示 override 的控件 |
+| TaskContract UI override | 已完成 | 按 Turn 一次性选择已接入；发送后清空，retry/continuation 不继承新 Turn override |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
 | 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
@@ -290,11 +293,9 @@ PR #30 已完成主链收口：
 
 ### 核心学习产品优先
 
-1. **G5 学习状态去伪精化**：完成可信四态与折叠态信息顺序，确保主 UI 只读取 committed truth。
-2. **G6 结构化恢复卡**：新用户展示快速问答/系统学习/联网研究/项目/资料入口；老用户展示任务/目标、确认点或采用来源、缺口、下一步，并提供继续这里/开始新主题。
-3. **G7 UI 聚焦收敛**：一级 dock 收敛到上传 / 会话 / 当前任务收束 / 更多；普通态隐藏内部 memory 文件名、record ID、route code 和低层 Provider 参数。
-4. **G8 窄屏完整可用**：确保任务状态、四个一级动作、会话、输入、收束、来源和抽屉在窄屏与非 hover 环境完整可达。
-5. **聊天工具循环统一关联 durable ResearchRun**：完成核心学习产品 UI 后，将多步联网研究纳入聊天 owner 的正式 durable run。
+1. **G7 UI 聚焦收敛**：一级 dock 收敛到当前任务收束 / 上传 / 会话 / 更多；普通态隐藏内部 memory 文件名、run/step/session ID、route code 和低层 Provider 参数。
+2. **G8 窄屏完整可用**：确保任务状态、四个一级动作、会话、输入、收束、来源和抽屉在窄屏、触控与非 hover 环境完整可达。
+3. **聊天工具循环统一关联 durable ResearchRun**：完成核心学习产品 UI 后，将多步联网研究纳入聊天 owner 的正式 durable run。
 
 ### G10-C2 持久化缓存
 
@@ -329,6 +330,9 @@ PR #30 已完成主链收口：
 - PR #37（G2）：最新 head 完整 pytest、Ruff、package helper、detect-secrets、expanded mypy、frontend Vitest、TypeScript build、Vite production build 全部通过后合并。
 - PR #38（G3）：最新 head CI Run #915 完整通过后合并。
 - PR #39（G4）：最新 head `9896272b678723677aabba6f9d1b523d244e5c17`，CI Run #947 完整通过后合并；前端 139 个测试、TypeScript build 和 Vite production build 均通过。
+- PR #40（G5）：已合并，可信四态与 committed/attempted 边界进入主线。
+- PR #41（G6）：最终 head `f04dc4c16cf8a936d4871e45b027bdff7de4af78`，CI Run #994 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、153 个前端测试、TypeScript build 和 Vite production build 全部通过。
+- PR #42（G7）：Draft，等待最终 head 的完整 CI 门禁；门禁未绿前不合并。
 
 PR #31 功能代码验证：
 
