@@ -477,6 +477,18 @@ export type WebLookupRunResponse = {
   completed_at?: string | null;
 };
 
+export type ChatResearchProgress = {
+  run_id: string;
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "cancelled";
+  stage: "planned" | "searching" | "assessing" | "reading" | "synthesizing" | "completed" | "failed" | "cancelled";
+  provider_status: string;
+  stop_reason: string;
+  error: string;
+  query_attempt_count: number;
+  selected_source_count: number;
+  version: number;
+};
+
 export type ToolRunResponse = {
   id: string;
   tool_name: string;

@@ -123,6 +123,31 @@ describe("sendChatStream", () => {
     ]);
   });
 
+  it("delivers formal research progress before the chat session is ready", async () => {
+    const progress: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sseResponse([
+          'event: research\ndata: {"run_id":"research-1","status":"running","stage":"searching","provider_status":"","stop_reason":"","error":"","query_attempt_count":0,"selected_source_count":0,"version":1}\n\n',
+          'event: session\ndata: {"session_id":"session-research","turn_id":"turn-research"}\n\n',
+          'event: done\ndata: {"session_id":"session-research","turn_id":"turn-research","reply":"done"}\n\n'
+        ])
+      )
+    );
+
+    await sendChatStream(
+      "research",
+      [],
+      { ragEnabled: false, chatSettings, ragSettings, turnId: "turn-research" },
+      { onResearch: (value) => progress.push(value) }
+    );
+
+    expect(progress).toEqual([
+      expect.objectContaining({ run_id: "research-1", stage: "searching", version: 1 })
+    ]);
+  });
+
   it("sends scene and conversation instruction in the chat payload", async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       sseResponse([

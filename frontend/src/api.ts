@@ -2,6 +2,7 @@ import type {
   ApiSnapshot,
   ChatMessage,
   ChatResponse,
+  ChatResearchProgress,
   ChatSettings,
   HealthResponse,
   MemoryCommitResponse,
@@ -90,6 +91,7 @@ type ChatStreamHandlers = {
   onSession?: (sessionId: string, meta?: { turnId?: string; operationId?: string }) => void;
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
+  onResearch?: (progress: ChatResearchProgress) => void;
   onToken?: (token: string) => void;
   onUsage?: (usage: Record<string, unknown>) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -774,6 +776,10 @@ export async function sendChatStream(
     if (message.event === "rag") {
       rag = (message.data.rag && typeof message.data.rag === "object" ? message.data.rag : message.data) as ChatResponse["rag"];
       handlers.onRag?.(rag);
+      return;
+    }
+    if (message.event === "research") {
+      handlers.onResearch?.(message.data as ChatResearchProgress);
       return;
     }
     if (message.event === "token") {

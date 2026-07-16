@@ -396,6 +396,13 @@ class WebLookupService:
                 return []
             time.sleep(0.05)
 
+    def latest_owned_by_turn(self, turn_id: str) -> WebLookupRun | None:
+        normalized = turn_id.strip()
+        if not normalized:
+            raise ValueError("Owner turn ID is required")
+        runs = self.repository.list_by_owner_turn(normalized, limit=1)
+        return runs[0] if runs else None
+
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:
         run = self.create(query, max_items=max_items)
         return self.execute(run.id, raise_on_error=True)

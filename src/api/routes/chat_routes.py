@@ -18,10 +18,15 @@ from src.api.models.chat import (
 from src.application.chat_service import ChatService
 from src.application.helpers import sse_event, stream_usage_payload
 from src.application.policy_chat_service import PolicyChatCommand
-from src.application.runtime_repository import get_chat_service
+from src.application.runtime_repository import get_chat_service, get_web_lookup_service
+from src.application.web_lookup_service import WebLookupService
 
 router = APIRouter(tags=["chat"])
 ChatServiceDependency = Annotated[ChatService, Depends(get_chat_service)]
+WebLookupServiceDependency = Annotated[
+    WebLookupService,
+    Depends(get_web_lookup_service),
+]
 
 
 class _ClientDisconnected(Exception):
@@ -60,13 +65,53 @@ async def chat_stream_endpoint(
     chat_request: ChatRequest,
     http_request: Request,
     service: ChatServiceDependency,
+    research_service: WebLookupServiceDependency,
 ) -> StreamingResponse:
-    try:
-        prepared = await asyncio.to_thread(service.start_turn, _chat_command(chat_request))
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
     async def events() -> AsyncIterator[str]:
+        prepared = None
+        prepare_task = asyncio.create_task(
+            asyncio.to_thread(service.start_turn, _chat_command(chat_request))
+        )
+        observed_research_version: tuple[str, int] | None = None
+
+        while not prepare_task.done():
+            if chat_request.turn_id and await http_request.is_disconnected():
+                await asyncio.to_thread(
+                    research_service.cancel_owned_by_turn,
+                    chat_request.turn_id,
+                    wait_seconds=0.0,
+                )
+                _settle_disconnected_preparation(prepare_task, service)
+                return
+            run = (
+                await asyncio.to_thread(
+                    research_service.latest_owned_by_turn,
+                    chat_request.turn_id,
+                )
+                if chat_request.turn_id
+                else None
+            )
+            if run is not None and observed_research_version != (run.id, run.version):
+                observed_research_version = (run.id, run.version)
+                yield sse_event("research", _research_progress(run))
+            await asyncio.wait({prepare_task}, timeout=0.05)
+
+        try:
+            prepared = prepare_task.result()
+        except Exception as exc:
+            yield sse_event(
+                "error",
+                {"message": str(exc), "error_type": type(exc).__name__},
+            )
+            return
+
+        run = await asyncio.to_thread(
+            research_service.latest_owned_by_turn,
+            prepared.turn.id,
+        )
+        if run is not None and observed_research_version != (run.id, run.version):
+            yield sse_event("research", _research_progress(run))
+
         reply_parts: list[str] = []
         stream = service.stream_async(prepared)
 
@@ -124,6 +169,35 @@ async def chat_stream_endpoint(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _research_progress(run: Any) -> dict[str, Any]:
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "stage": run.stage,
+        "provider_status": run.provider_status,
+        "stop_reason": run.stop_reason,
+        "error": run.error,
+        "query_attempt_count": len(run.query_attempts),
+        "selected_source_count": len(run.selected_sources),
+        "version": run.version,
+    }
+
+
+def _settle_disconnected_preparation(
+    prepare_task: asyncio.Task[Any],
+    service: ChatService,
+) -> None:
+    async def settle() -> None:
+        try:
+            prepared = await prepare_task
+        except Exception:
+            return
+        with suppress(ValueError):
+            service.interrupt_turn(prepared, "")
+
+    asyncio.create_task(settle())
 
 
 async def _tokens_until_disconnected(

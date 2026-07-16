@@ -16,7 +16,7 @@ import {
   taskIntentLabel,
   type TaskIntent,
 } from "../task/taskContract";
-import type { ChatMessage, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
+import type { ChatMessage, ChatResearchProgress, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
 import { roleLabel } from "../roles/roleCatalog";
 import { RestoreCard } from "./RestoreCard";
 
@@ -59,6 +59,7 @@ export function ChatPanel({
   onEndSession,
   isEndingSession,
   researchRun,
+  researchProgress = null,
   isResearchBusy,
   canRetryResearch,
   canResumeResearch,
@@ -92,6 +93,7 @@ export function ChatPanel({
   onEndSession: () => void;
   isEndingSession?: boolean;
   researchRun: ResearchLookupResponse | null;
+  researchProgress?: ChatResearchProgress | null;
   isResearchBusy: boolean;
   canRetryResearch: boolean;
   canResumeResearch: boolean;
@@ -349,6 +351,7 @@ export function ChatPanel({
 
       <ChatResearchRecovery
         run={researchRun}
+        progress={researchProgress}
         isBusy={isResearchBusy}
         canRetry={canRetryResearch}
         canResume={canResumeResearch}

@@ -198,6 +198,7 @@ export function WorkspaceView({
           }}
           isEndingSession={memoryController.isPreviewing}
           researchRun={webLookupController.result}
+          researchProgress={chatController.researchProgress}
           isResearchBusy={webLookupController.isBusy}
           canRetryResearch={webLookupController.canRetry}
           canResumeResearch={webLookupController.canResume}

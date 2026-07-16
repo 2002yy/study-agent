@@ -28,6 +28,39 @@ function run(status: ResearchLookupResponse["status"]): ResearchLookupResponse {
 }
 
 describe("ChatResearchRecovery", () => {
+  it("shows live progress from the chat preparation stream", () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <ChatResearchRecovery
+          run={null}
+          progress={{
+            run_id: "research-chat-live",
+            status: "running",
+            stage: "reading",
+            provider_status: "",
+            stop_reason: "",
+            error: "",
+            query_attempt_count: 2,
+            selected_source_count: 1,
+            version: 3,
+          }}
+          isBusy={false}
+          canRetry={false}
+          canResume
+          useInChat={false}
+          onRetry={vi.fn()}
+          onResume={vi.fn()}
+        />
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(renderer.root.findByProps({ role: "status" })).toBeTruthy();
+    expect(renderer.root.findByProps({ className: "spin" })).toBeTruthy();
+    expect(rendered).toContain("2");
+  });
+
   it("offers a formal retry for a failed chat-owned ResearchRun", () => {
     const onRetry = vi.fn();
     let renderer!: ReactTestRenderer;

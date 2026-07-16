@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from src.api.models.chat import ChatRequest
 from src.api.routes.chat_routes import chat_stream_endpoint
@@ -27,6 +28,11 @@ class DisconnectRequest:
         return True
 
 
+class ConnectedRequest:
+    async def is_disconnected(self) -> bool:
+        return False
+
+
 def _service(runtime_test_context, async_stream_chat) -> ChatService:
     return runtime_test_context.override_chat(
         ChatDependencies(
@@ -44,16 +50,67 @@ def _service(runtime_test_context, async_stream_chat) -> ChatService:
     )
 
 
-async def _consume_stream(service, request, session_id: str) -> str:
+async def _consume_stream(
+    service,
+    research_service,
+    request,
+    session_id: str,
+    *,
+    turn_id: str | None = None,
+) -> str:
     response = await chat_stream_endpoint(
-        ChatRequest(user_input="question", session_id=session_id),
+        ChatRequest(user_input="question", session_id=session_id, turn_id=turn_id),
         request,
         service,
+        research_service,
     )
     chunks: list[str] = []
     async for chunk in response.body_iterator:
         chunks.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
     return "".join(chunks)
+
+
+def test_preparation_streams_owned_research_progress_before_session(
+    runtime_test_context,
+):
+    async def tokens(*args, **kwargs):
+        yield "done"
+
+    service = _service(runtime_test_context, tokens)
+    original_start_turn = service.start_turn
+
+    def delayed_start_turn(command):
+        run = runtime_test_context.web_lookup_service.create(
+            command.user_input,
+            owner_thread_id=command.thread_id,
+            owner_turn_id=command.turn_id,
+            run_kind="chat_tool_loop",
+        )
+        operation_id = runtime_test_context.web_lookup_service.begin_tool_trace(run.id)
+        time.sleep(0.12)
+        runtime_test_context.web_lookup_service.record_tool_trace(
+            run.id,
+            calls=[],
+            source_block="",
+            operation_id=operation_id,
+        )
+        return original_start_turn(command)
+
+    service.start_turn = delayed_start_turn
+
+    body = asyncio.run(
+        _consume_stream(
+            service,
+            runtime_test_context.web_lookup_service,
+            ConnectedRequest(),
+            "research-progress-session",
+            turn_id="research-progress-turn",
+        )
+    )
+
+    assert "event: research" in body
+    assert '"stage": "searching"' in body
+    assert body.index("event: research") < body.index("event: session")
 
 
 def test_disconnect_before_first_token_interrupts_turn(runtime_test_context):
@@ -69,7 +126,12 @@ def test_disconnect_before_first_token_interrupts_turn(runtime_test_context):
     async def scenario():
         service = _service(runtime_test_context, blocked_stream)
         body = await asyncio.wait_for(
-            _consume_stream(service, DisconnectRequest(), "disconnect-before-token"),
+            _consume_stream(
+                service,
+                runtime_test_context.web_lookup_service,
+                DisconnectRequest(),
+                "disconnect-before-token",
+            ),
             timeout=1,
         )
         assert cancelled.is_set()
@@ -97,7 +159,12 @@ def test_disconnect_after_partial_token_preserves_full_partial(runtime_test_cont
     async def scenario():
         service = _service(runtime_test_context, partial_then_block)
         body = await asyncio.wait_for(
-            _consume_stream(service, DisconnectRequest(), "disconnect-after-token"),
+            _consume_stream(
+                service,
+                runtime_test_context.web_lookup_service,
+                DisconnectRequest(),
+                "disconnect-after-token",
+            ),
             timeout=1,
         )
         assert cancelled.is_set()

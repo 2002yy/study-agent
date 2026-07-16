@@ -12,6 +12,7 @@ import { useWorkspace } from "../../app/WorkspaceProvider";
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
 import type {
   ChatMessage,
+  ChatResearchProgress,
   ChatResponse,
   ChatSettings,
   RagSettings,
@@ -51,7 +52,7 @@ type ControllerOptions = {
   setOperationError: Dispatch<SetStateAction<string>>;
   clearChatArtifacts: () => void;
   refresh: () => Promise<void>;
-  onResearchRunDiscovered: (runId: string) => void;
+  onResearchRunDiscovered: (runId: string, refresh?: boolean) => void;
 };
 
 type SendOptions = {
@@ -80,6 +81,7 @@ export function createEmptyRag(): ChatResponse["rag"] {
 export function useChatController(options: ControllerOptions) {
   const { state, dispatch } = useWorkspace();
   const [isSending, setIsSending] = useState(false);
+  const [researchProgress, setResearchProgress] = useState<ChatResearchProgress | null>(null);
   const activeTurnIdRef = useRef<string | null>(null);
 
   const cancelActiveResearch = useCallback((turnId: string) => {
@@ -163,6 +165,7 @@ export function useChatController(options: ControllerOptions) {
     );
     options.setInput("");
     setStreamRecovery(null);
+    setResearchProgress(null);
     options.setOperationError("");
     setIsSending(true);
     let streamedReply = "";
@@ -251,6 +254,14 @@ export function useChatController(options: ControllerOptions) {
               route: current?.route ?? {},
               rag,
             }));
+          },
+          onResearch: (progress) => {
+            if (!isCurrent()) return;
+            setResearchProgress(progress);
+            options.onResearchRunDiscovered(
+              progress.run_id,
+              ["completed", "partial", "failed", "cancelled"].includes(progress.status),
+            );
           },
           onToken: (token) => {
             if (!isCurrent()) return;
@@ -666,6 +677,7 @@ export function useChatController(options: ControllerOptions) {
     lastChat: state.lastChat,
     streamRecovery: state.streamRecovery,
     isSending,
+    researchProgress,
     setMessages,
     setLastChat,
     setStreamRecovery,

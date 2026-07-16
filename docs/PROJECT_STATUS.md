@@ -1,15 +1,15 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**  
-> 更新：2026-07-15  
+> 更新：2026-07-16
 > 当前能力基线：PR #44 已合并，核心学习产品 G1–G8 已闭环，聊天联网工具循环已统一关联 durable ResearchRun
-> 当前代码切片：聊天 ResearchRun 请求级取消与失败恢复入口已落地，下一步补实时阶段事件
+> 当前代码切片：聊天 ResearchRun 准备阶段实时事件已落地，下一步验证恢复来源进入下一轮回答与 EvidenceTrail 的闭环
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环正在接入带 thread/turn owner 的 durable ResearchRun。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口和准备阶段实时事件。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
 
 ## 2. 已完成
 
@@ -273,8 +273,8 @@ PR #30 已完成主链收口：
 | 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
 | UI 聚焦收敛 | 已完成 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪已合并 |
 | 窄屏完整可用 | 已完成 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区验收已合并 |
-| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；失败/取消 Run 已接入正式恢复入口 |
-| cancel/retry/resume | 本切片推进 | 浏览器预分配 Turn owner，停止时请求 durable ResearchRun 取消；工具循环在模型轮次/工具边界协作退出，规划器请求使用统一超时；失败/取消可重试或继续并将结果用于下一轮；还需实时阶段事件 |
+| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；准备阶段通过同一 `run_id` 推送版本化阶段/失败事件，失败/取消 Run 已接入正式恢复入口 |
+| cancel/retry/resume | 本切片推进 | 浏览器预分配 Turn owner，停止时请求 durable ResearchRun 取消；工具循环在模型轮次/工具边界协作退出，规划器请求使用统一超时；失败/取消可重试或继续；还需验证恢复来源确实进入下一轮回答且旧恢复卡退出 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
 | GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件 |
 | 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理、磁盘统计 |
@@ -299,8 +299,8 @@ PR #30 已完成主链收口：
 
 ### 核心学习产品优先
 
-1. **聊天研究阶段事件**：让前端在准备阶段通过正式 `run_id` 读取实时阶段和失败原因，而不是等一次性响应 trace。
-2. **恢复后的回答闭环**：验证恢复来源被下一轮采用后，旧恢复卡退出且 EvidenceTrail 使用同一 run 证据。
+1. **恢复后的回答闭环**：验证恢复来源被下一轮采用后，旧恢复卡退出且 EvidenceTrail 使用同一 run 证据。
+2. **聊天研究浏览器验收**：用真实慢查询覆盖准备阶段的 planned/running/terminal 展示、停止取消、失败后重试和刷新恢复。
 
 ### G10-C2 持久化缓存
 
@@ -342,6 +342,7 @@ PR #30 已完成主链收口：
 - PR #44（聊天 ResearchRun owner）：目标测试 17 passed，完整 pytest 756 passed，Ruff 全量通过，前端 47 个测试文件 / 164 个测试及 TypeScript/Vite build 通过；head `256dac4` 的 push 与 pull_request CI 均通过。
 - 当前请求级取消/超时工作树：Chat/API/Policy/Persistent/WebTool 相关后端 68 passed，Ruff 全量通过，前端 47 个测试文件 / 165 个测试通过，TypeScript 与 Vite production build 通过；完整 pytest 在本地 10 分钟门限内未结束，因此尚未记为全量通过。
 - 当前失败恢复入口工作树：前端 48 个测试文件 / 167 个测试通过，TypeScript 与 Vite production build 通过；failed/cancelled chat-owned ResearchRun、停止前 Run 创建竞态和独立 standalone run 隔离均有回归覆盖。
+- 当前实时阶段事件工作树：ResearchRun/Chat/API 相关后端 67 passed，Ruff 增量通过；前端 48 个测试文件 / 169 个测试通过，TypeScript 与 Vite production build 通过；准备阶段正式 `run_id` 事件早于 session 事件、终态完整 Run 刷新和实时进度卡均有回归覆盖。
 
 PR #31 功能代码验证：
 
