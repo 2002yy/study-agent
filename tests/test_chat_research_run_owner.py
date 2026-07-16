@@ -3,6 +3,10 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
+
+from src.api.models.chat import ChatRequest
+from src.api.routes.chat_routes import _chat_command
 from src.application.web_lookup_service import WebLookupService
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -40,6 +44,40 @@ def test_chat_tool_trace_is_owned_by_thread_and_turn(tmp_path):
     }
     assert completed.research_context["tool_trace"]["calls"][0]["name"] == "web_search"
     assert completed.source_block == "bounded tool evidence"
+
+
+def test_chat_command_accepts_only_matching_completed_research_evidence(tmp_path):
+    service = WebLookupService(
+        WebLookupRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    )
+    created = service.create("Recovered evidence", run_kind="chat_tool_loop")
+    completed = service.record_tool_trace(
+        created.id,
+        calls=[{"name": "web_search", "result": {"status": "ok"}}],
+        source_block="server-owned evidence",
+    )
+
+    command = _chat_command(
+        ChatRequest(
+            user_input="Use it",
+            web_context="server-owned evidence",
+            web_context_run_id=completed.id,
+        ),
+        service,
+    )
+
+    assert command.web_context == "server-owned evidence"
+    assert command.web_context_run_id == completed.id
+
+    with pytest.raises(ValueError, match="source block does not match"):
+        _chat_command(
+            ChatRequest(
+                user_input="Use a fake copy",
+                web_context="client-substituted evidence",
+                web_context_run_id=completed.id,
+            ),
+            service,
+        )
 
 
 def test_chat_tool_trace_cancelled_by_owner_turn_cannot_complete(tmp_path):

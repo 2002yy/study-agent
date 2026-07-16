@@ -36,9 +36,16 @@ function setter<T>(): Dispatch<SetStateAction<T>> {
   return vi.fn<(value: SetStateAction<T>) => void>();
 }
 
-function controllerHarness() {
+function controllerHarness(
+  recoveredResearch: { source: string; runId: string; use: boolean } = {
+    source: "",
+    runId: "",
+    use: false,
+  },
+) {
   let controller: ReturnType<typeof useChatController> | undefined;
   const onResearchRunDiscovered = vi.fn();
+  const setUseWebLookup = setter<boolean>();
   function Harness() {
     controller = useChatController({
       chatSettings,
@@ -53,9 +60,10 @@ function controllerHarness() {
       setKeepCurrentRole: setter<boolean>(),
       conversationInstruction: "",
       setConversationInstruction: setter<string>(),
-      webLookupSource: "",
-      useWebLookup: false,
-      setUseWebLookup: setter<boolean>(),
+      webLookupSource: recoveredResearch.source,
+      webLookupRunId: recoveredResearch.runId || undefined,
+      useWebLookup: recoveredResearch.use,
+      setUseWebLookup,
       setInput: setter<string>(),
       setOperationError: setter<string>(),
       clearChatArtifacts: vi.fn(),
@@ -64,7 +72,12 @@ function controllerHarness() {
     });
     return null;
   }
-  return { Harness, getController: () => controller, onResearchRunDiscovered };
+  return {
+    Harness,
+    getController: () => controller,
+    onResearchRunDiscovered,
+    setUseWebLookup,
+  };
 }
 
 describe("useChatController stop behavior", () => {
@@ -145,6 +158,76 @@ describe("useChatController stop behavior", () => {
       expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop");
     });
     expect(operationRegistry.size).toBe(0);
+  });
+
+  it("consumes one recovered ResearchRun and keeps its id in turn evidence", async () => {
+    const recoveredRag = {
+      status: "found",
+      query: "recovered",
+      retrieval_mode: "hybrid",
+      reason: "",
+      context: "",
+      sources: "",
+      result_count: 0,
+      results: [],
+      debug: {},
+      attempts: [],
+      rewritten_query: "",
+      web_context: {
+        used: true,
+        run_id: "research-recovered-1",
+        source: "research_run",
+      },
+    };
+    apiMocks.sendChatStream.mockImplementation(
+      async (_question, _history, _options, callbacks) => {
+        callbacks.onSession("chat-recovered", { turnId: "turn-recovered" });
+        callbacks.onRoute({ role: "nahida" });
+        callbacks.onRag(recoveredRag);
+        callbacks.onDone({
+          session_id: "chat-recovered",
+          turn_id: "turn-recovered",
+          reply: "answer from recovered sources",
+        });
+        return {
+          reply: "answer from recovered sources",
+          session_id: "chat-recovered",
+          turn_id: "turn-recovered",
+          route: { role: "nahida" },
+          rag: recoveredRag,
+        };
+      },
+    );
+
+    const { Harness, getController, setUseWebLookup } = controllerHarness({
+      source: "RECOVERED SOURCE BLOCK",
+      runId: "research-recovered-1",
+      use: true,
+    });
+    await act(async () => {
+      create(
+        <WorkspaceProvider initialState={{ activeChatThreadId: "chat-recovered" }}>
+          <Harness />
+        </WorkspaceProvider>,
+      );
+    });
+
+    await act(async () => {
+      await getController()!.send("use the recovered evidence");
+    });
+
+    expect(apiMocks.sendChatStream.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        webContext: "RECOVERED SOURCE BLOCK",
+        webContextRunId: "research-recovered-1",
+      }),
+    );
+    expect(setUseWebLookup).toHaveBeenCalledWith(false);
+    const messages = getController()!.messages;
+    const assistant = messages[messages.length - 1];
+    expect(assistant?.evidence?.rag?.web_context?.run_id).toBe(
+      "research-recovered-1",
+    );
   });
 
   it("restores committed learning state instead of interrupted attempted state", async () => {

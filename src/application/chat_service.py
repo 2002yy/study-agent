@@ -47,6 +47,7 @@ class ChatCommand:
     rag_retrieval_mode: str = "hybrid"
     rag_min_score: float = 0.01
     web_context: str = ""
+    web_context_run_id: str | None = None
     continuation_of_turn_id: str | None = None
     retry_of_turn_id: str | None = None
     partial_reply: str = ""
@@ -197,6 +198,10 @@ class ChatService:
                 conversation_context=_tool_context(command.chat_history),
             )
             rag["web_tools"] = web_tools.to_dict()
+            rag["web_context"] = _web_context_provenance(
+                command.web_context,
+                command.web_context_run_id,
+            )
             continuation_instruction = _continuation_instruction(command)
             context_blocks: list[str] = []
             evidence_units = build_evidence_units(
@@ -585,6 +590,19 @@ def _previous_assistant_role(history: list[dict[str, Any]]) -> str | None:
         if avatar_role in valid_roles:
             return str(avatar_role)
     return None
+
+
+def _web_context_provenance(
+    web_context: str,
+    run_id: str | None,
+) -> dict[str, Any]:
+    used = bool(web_context.strip())
+    normalized_run_id = str(run_id or "").strip()
+    return {
+        "used": used,
+        "run_id": normalized_run_id if used and normalized_run_id else "",
+        "source": "research_run" if used and normalized_run_id else "manual",
+    }
 
 
 def _tool_context(history: list[dict[str, Any]]) -> str:

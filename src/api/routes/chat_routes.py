@@ -44,9 +44,13 @@ def pedagogy_summary_from_plan(plan: Any) -> dict[str, Any]:
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat_endpoint(request: ChatRequest, service: ChatServiceDependency) -> ChatResponse:
+def chat_endpoint(
+    request: ChatRequest,
+    service: ChatServiceDependency,
+    research_service: WebLookupServiceDependency,
+) -> ChatResponse:
     try:
-        prepared = service.start_turn(_chat_command(request))
+        prepared = service.start_turn(_chat_command(request, research_service))
         reply = service.generate(prepared)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -67,10 +71,15 @@ async def chat_stream_endpoint(
     service: ChatServiceDependency,
     research_service: WebLookupServiceDependency,
 ) -> StreamingResponse:
+    try:
+        command = _chat_command(chat_request, research_service)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     async def events() -> AsyncIterator[str]:
         prepared = None
         prepare_task = asyncio.create_task(
-            asyncio.to_thread(service.start_turn, _chat_command(chat_request))
+            asyncio.to_thread(service.start_turn, command)
         )
         observed_research_version: tuple[str, int] | None = None
 
@@ -305,7 +314,22 @@ def abandon_interrupted_turn_endpoint(
     }
 
 
-def _chat_command(request: ChatRequest) -> PolicyChatCommand:
+def _chat_command(
+    request: ChatRequest,
+    research_service: WebLookupService | None = None,
+) -> PolicyChatCommand:
+    web_context = request.web_context
+    web_context_run_id = request.web_context_run_id
+    if web_context_run_id:
+        if research_service is None:
+            raise ValueError("ResearchRun validation service is required")
+        run = research_service.get(web_context_run_id)
+        if run.status not in {"completed", "partial"} or not run.source_block.strip():
+            raise ValueError(f"ResearchRun is not usable as chat evidence: {run.id}")
+        if web_context.strip() != run.source_block.strip():
+            raise ValueError(f"ResearchRun source block does not match: {run.id}")
+        web_context = run.source_block
+        web_context_run_id = run.id
     return PolicyChatCommand(
         user_input=request.user_input,
         selected_role=request.selected_role,
@@ -326,7 +350,8 @@ def _chat_command(request: ChatRequest) -> PolicyChatCommand:
         rag_chat_top_k=request.rag_chat_top_k,
         rag_retrieval_mode=request.rag_retrieval_mode,
         rag_min_score=request.rag_min_score,
-        web_context=request.web_context,
+        web_context=web_context,
+        web_context_run_id=web_context_run_id,
         web_policy=request.web_policy,
         web_consent=request.web_consent,
         cloud_context_policy=request.cloud_context_policy,

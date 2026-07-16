@@ -45,6 +45,7 @@ type ControllerOptions = {
   conversationInstruction: string;
   setConversationInstruction: Dispatch<SetStateAction<string>>;
   webLookupSource: string;
+  webLookupRunId?: string;
   useWebLookup: boolean;
   webPolicy?: string;
   setUseWebLookup: Dispatch<SetStateAction<boolean>>;
@@ -203,6 +204,7 @@ export function useChatController(options: ControllerOptions) {
               : undefined,
           conversationInstruction: options.conversationInstruction,
           webContext: turnWebContext,
+          webContextRunId: shouldConsumeWebLookup ? options.webLookupRunId : undefined,
           continuationOfTurnId: extraOpts.continuationOfTurnId,
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",

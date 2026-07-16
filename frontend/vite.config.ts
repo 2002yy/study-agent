@@ -21,6 +21,7 @@ export default defineConfig({
       "/assets": API_TARGET,
       "/wechat": API_TARGET,
       "/news": API_TARGET,
+      "/research-runs": API_TARGET,
       "/sessions": API_TARGET
     }
   }

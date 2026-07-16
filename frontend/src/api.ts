@@ -78,6 +78,7 @@ type ChatRequestOptions = {
   ragSettings: RagSettings;
   keepCurrentRole?: boolean;
   webContext?: string;
+  webContextRunId?: string;
   conversationInstruction?: string;
   previousMode?: string;
   scene?: "single" | "group";
@@ -137,6 +138,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
+    web_context_run_id: options.webContextRunId ?? null,
     task_intent: consumePendingTaskIntentOverride() ?? null,
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
     retry_of_turn_id: options.retryOfTurnId ?? null,

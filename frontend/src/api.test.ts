@@ -166,6 +166,8 @@ describe("sendChatStream", () => {
         keepCurrentRole: true,
         previousMode: "苏格拉底",
         conversationInstruction: "不要转交给其他角色。",
+        webContext: "recovered sources",
+        webContextRunId: "research-recovered-1",
         scene: "single"
       }
     );
@@ -174,6 +176,8 @@ describe("sendChatStream", () => {
     const body = JSON.parse(String(init.body));
     expect(body.scene).toBe("single");
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
+    expect(body.web_context).toBe("recovered sources");
+    expect(body.web_context_run_id).toBe("research-recovered-1");
     expect(body.performance_mode).toBe("deep");
     expect(body.previous_mode).toBe("苏格拉底");
     expect(body.rag_min_score).toBe(0.42);

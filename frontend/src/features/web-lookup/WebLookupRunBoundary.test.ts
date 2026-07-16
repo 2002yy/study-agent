@@ -32,6 +32,12 @@ describe("recoverable web research composition", () => {
     expect(researchApi).toContain("/cancel");
   });
 
+  it("proxies recoverable research routes to FastAPI in development", () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), "vite.config.ts"), "utf8");
+
+    expect(viteConfig).toContain('"/research-runs": API_TARGET');
+  });
+
   it("shows durable stages and exposes a server-side stop action", () => {
     const panel = read("features/wechat-workspace/WechatPanel.tsx");
     const workspace = read("features/news-workspace/NewsWorkspace.tsx");

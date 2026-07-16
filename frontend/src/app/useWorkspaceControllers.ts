@@ -168,6 +168,7 @@ export function useWorkspaceControllers(options: {
     conversationInstruction: options.conversationInstruction,
     setConversationInstruction: options.setConversationInstruction,
     webLookupSource: webLookupController.result?.source_block ?? "",
+    webLookupRunId: webLookupController.result?.run_id,
     useWebLookup: webLookupController.useInChat,
     webPolicy,
     setUseWebLookup: webLookupController.setUseInChat,

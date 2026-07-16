@@ -334,6 +334,11 @@ export type ChatResponse = {
       error?: string;
       run_id?: string;
     };
+    web_context?: {
+      used: boolean;
+      run_id?: string;
+      source: "research_run" | "manual";
+    };
   };
   pedagogy?: PedagogySummary;
 };

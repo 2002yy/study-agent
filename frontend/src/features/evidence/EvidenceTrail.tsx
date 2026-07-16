@@ -15,7 +15,8 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
   const successfulReads = web.reads.filter((read) => read.ok).length;
   const webUsed = web.searches.length > 0 || web.reads.length > 0;
   const webError = rag?.web_tools?.error;
-  if (!pedagogy && citations.length === 0 && !webUsed && !webError) return null;
+  const recoveredResearchUsed = Boolean(rag?.web_context?.used && rag.web_context.run_id);
+  if (!pedagogy && citations.length === 0 && !webUsed && !webError && !recoveredResearchUsed) return null;
   return (
     <div className="evidence-trail">
       <button className="evidence-toggle" onClick={() => setOpen((v) => !v)} type="button">
@@ -28,11 +29,17 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
         ) : null}
         {web.searches.length ? <span className="web-flag">查询 {web.searches.length}</span> : null}
         {successfulReads ? <span className="web-flag">阅读 {successfulReads}</span> : null}
+        {recoveredResearchUsed ? <span className="web-flag">恢复研究来源</span> : null}
         {citations.length ? <span className="cite-flag">本地引用 {citations.length}</span> : null}
       </button>
       {open ? (
         <div className="evidence-detail">
           {webError ? <div className="evidence-error">联网工具错误：{webError}</div> : null}
+          {recoveredResearchUsed ? (
+            <div className="web-call-card" data-research-run-id={rag?.web_context?.run_id}>
+              本轮回答采用了已恢复的联网研究证据。
+            </div>
+          ) : null}
           {web.searches.map((s, i) => (
             <div key={`s${i}`} className="web-call-card">
               <div className="web-call-head">

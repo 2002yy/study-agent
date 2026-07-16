@@ -18,6 +18,7 @@ from src.application.chat_service import (
     _previous_assistant_role,
     _session_settings,
     _tool_context,
+    _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
@@ -225,6 +226,10 @@ class ExternalDataPolicyChatService(ChatService):
                     web_tools.context_block(),
                 )
                 if part.strip()
+            )
+            rag["web_context"] = _web_context_provenance(
+                manual_web_context if decision.web_allowed else "",
+                command.web_context_run_id,
             )
             evidence_rag = (
                 rag
