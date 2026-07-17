@@ -1,0 +1,30 @@
+{
+  "provider_status": "curated",
+  "replay_metadata": {
+    "provider_requests": 0,
+    "elapsed_ms": 0,
+    "cache_hit": false
+  },
+  "review_items": [
+    {
+      "mapping": {
+        "status": "mapped",
+        "symbol": {
+          "identity": {"id": "symbol-resolve-turn-task-contract"},
+          "qualified_name": "resolve_turn_task_contract"
+        }
+      }
+    }
+  ],
+  "ci_associations": [
+    {
+      "association": {
+        "status": "associated",
+        "tests": [
+          "tests/test_task_contract.py",
+          "tests/test_external_data_policy.py"
+        ]
+      }
+    }
+  ]
+}

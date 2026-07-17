@@ -1,0 +1,41 @@
+{
+  "corpus_id": "study-agent-g10-c3a-seed-v1",
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "study-agent-pr30-task-contract",
+      "repository": "2002yy/study-agent",
+      "pull_request": 30,
+      "base_sha": "c94263e48d7f675bd328b8eb42ca2e2f83d2f4ba",
+      "head_sha": "84c7c97798786b57cbc570e57daf74816f2af475",
+      "language": "python",
+      "scenarios": ["review-symbol", "failed-ci-test"],
+      "context_path": "contexts/study-agent-pr30.json",
+      "provenance": "curated_unit_seed",
+      "provider_replay": false,
+      "labels": {
+        "review_symbol_ids": ["symbol-resolve-turn-task-contract"],
+        "ci_test_paths": [
+          "tests/test_task_contract.py",
+          "tests/test_external_data_policy.py"
+        ]
+      }
+    },
+    {
+      "case_id": "study-agent-pr28-change-impact",
+      "repository": "2002yy/study-agent",
+      "pull_request": 28,
+      "base_sha": "f4e33cc29b7f7616521697d42343624b4f5d1760",
+      "head_sha": "68a0eefd2e0ad68b3dda43e77e12235184894a3b",
+      "language": "python",
+      "scenarios": ["empty-review-label", "change-impact-test"],
+      "context_path": "contexts/study-agent-pr28.json",
+      "provenance": "curated_unit_seed",
+      "provider_replay": false,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": ["tests/test_github_change_impact.py"]
+      }
+    }
+  ]
+}

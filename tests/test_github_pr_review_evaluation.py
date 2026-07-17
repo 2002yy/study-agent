@@ -5,11 +5,21 @@ from pathlib import Path
 
 from src.web.github_pr_review_evaluation import evaluate_pr_review_context
 
-_FIXTURE = Path(__file__).parent / "fixtures" / "github_pr_review_context_golden.json"
+_FIXTURE = Path(__file__).parent / "fixtures" / "github_replay" / "manifest.json"
 
 
 def _cases() -> list[dict]:
-    return json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    payload = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    return [
+        {
+            "case_id": case["case_id"],
+            "repository": case["repository"],
+            "pull_request": case["pull_request"],
+            "review_symbol_ids": case["labels"]["review_symbol_ids"],
+            "ci_test_paths": case["labels"]["ci_test_paths"],
+        }
+        for case in payload["cases"]
+    ]
 
 
 def test_review_context_metrics_report_exact_precision_and_recall():

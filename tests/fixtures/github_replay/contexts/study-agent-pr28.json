@@ -1,0 +1,17 @@
+{
+  "provider_status": "curated",
+  "replay_metadata": {
+    "provider_requests": 0,
+    "elapsed_ms": 0,
+    "cache_hit": false
+  },
+  "review_items": [],
+  "ci_associations": [
+    {
+      "association": {
+        "status": "associated",
+        "tests": ["tests/test_github_change_impact.py"]
+      }
+    }
+  ]
+}
