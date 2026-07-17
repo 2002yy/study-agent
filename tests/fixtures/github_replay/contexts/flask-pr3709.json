@@ -1,0 +1,786 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 0.8,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 0.0,
+    "review_location_symbol_coverage": 1.0,
+    "score": 0.76,
+    "status": "partial",
+    "unresolved_thread_symbol_coverage": 1.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "modified",
+      "end_line": 303,
+      "id": "symbol_27636b7e9521e5bc32ed52bb",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint",
+      "side": "old",
+      "start_line": 79
+    },
+    {
+      "change_type": "modified",
+      "end_line": 296,
+      "id": "symbol_12e7796f919c3d7fd603f7f7",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint",
+      "side": "new",
+      "start_line": 77
+    },
+    {
+      "change_type": "modified",
+      "end_line": 76,
+      "id": "symbol_449a4e1b5a7b931770afad49",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "BlueprintSetupState",
+      "side": "old",
+      "start_line": 10
+    },
+    {
+      "change_type": "modified",
+      "end_line": 74,
+      "id": "symbol_0762ee290e1b37648ea6c81b",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "BlueprintSetupState",
+      "side": "new",
+      "start_line": 8
+    },
+    {
+      "change_type": "modified",
+      "end_line": 280,
+      "id": "symbol_625fdcf30f70d5cd493182bf",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "Flask",
+      "side": "old",
+      "start_line": 87
+    },
+    {
+      "change_type": "modified",
+      "end_line": 285,
+      "id": "symbol_8086bcecdc259087a43e7628",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "Flask",
+      "side": "new",
+      "start_line": 62
+    },
+    {
+      "change_type": "added",
+      "end_line": 297,
+      "id": "symbol_d7d9771189392411d866e6ca",
+      "kind": "class",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold",
+      "side": "new",
+      "start_line": 34
+    },
+    {
+      "change_type": "removed",
+      "end_line": 84,
+      "id": "symbol_df98aec0f7ceaf88b588b792",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/helpers.py",
+      "qualified_name": "_endpoint_from_view_func",
+      "side": "old",
+      "start_line": 79
+    },
+    {
+      "change_type": "modified",
+      "end_line": 63,
+      "id": "symbol_3c2872c4efc8a190630c6c7a",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "_make_timedelta",
+      "side": "old",
+      "start_line": 60
+    },
+    {
+      "change_type": "modified",
+      "end_line": 59,
+      "id": "symbol_9c59f664a1f6bd2c1c17a8e9",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "_make_timedelta",
+      "side": "new",
+      "start_line": 56
+    },
+    {
+      "change_type": "removed",
+      "end_line": 298,
+      "id": "symbol_06137ab688ba0dde4ff95e7e",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.endpoint.decorator",
+      "side": "old",
+      "start_line": 293
+    },
+    {
+      "change_type": "removed",
+      "end_line": 295,
+      "id": "symbol_401d20ea91d9f695a394927b",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.endpoint.decorator.register_endpoint",
+      "side": "old",
+      "start_line": 294
+    },
+    {
+      "change_type": "added",
+      "end_line": 254,
+      "id": "symbol_16914166dd6de904ab6d0c44",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.register.merge_dict_lists",
+      "side": "new",
+      "start_line": 248
+    },
+    {
+      "change_type": "added",
+      "end_line": 262,
+      "id": "symbol_5ed075cb161d97004def3019",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.register.merge_dict_nested",
+      "side": "new",
+      "start_line": 256
+    },
+    {
+      "change_type": "removed",
+      "end_line": 269,
+      "id": "symbol_68f23b98276fee030da19031",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.route.decorator",
+      "side": "old",
+      "start_line": 266
+    },
+    {
+      "change_type": "modified",
+      "end_line": 76,
+      "id": "symbol_52ba664cc3f5f5d2a5766b92",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/helpers.py",
+      "qualified_name": "get_load_dotenv",
+      "side": "old",
+      "start_line": 64
+    },
+    {
+      "change_type": "modified",
+      "end_line": 76,
+      "id": "symbol_86f36944852416438044bab1",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/helpers.py",
+      "qualified_name": "get_load_dotenv",
+      "side": "new",
+      "start_line": 64
+    },
+    {
+      "change_type": "added",
+      "end_line": 206,
+      "id": "symbol_653748f2575973e9299772cf",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.endpoint.decorator",
+      "side": "new",
+      "start_line": 204
+    },
+    {
+      "change_type": "added",
+      "end_line": 178,
+      "id": "symbol_fee0dca1bf4fa15bb21a3a3a",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.route.decorator",
+      "side": "new",
+      "start_line": 175
+    },
+    {
+      "change_type": "moved",
+      "end_line": 84,
+      "id": "symbol_06d0d4801195c7022b34913b",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "setupmethod",
+      "side": "old",
+      "start_line": 66
+    },
+    {
+      "change_type": "moved",
+      "end_line": 31,
+      "id": "symbol_59e6781ad6ac2de94dcc4cf1",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "setupmethod",
+      "side": "new",
+      "start_line": 13
+    },
+    {
+      "change_type": "moved",
+      "end_line": 82,
+      "id": "symbol_9f04267ed11a021b2ce25cee",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/app.py",
+      "qualified_name": "setupmethod.wrapper_func",
+      "side": "old",
+      "start_line": 71
+    },
+    {
+      "change_type": "moved",
+      "end_line": 29,
+      "id": "symbol_86de80c6e0d79f632993e9eb",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "setupmethod.wrapper_func",
+      "side": "new",
+      "start_line": 18
+    },
+    {
+      "change_type": "modified",
+      "end_line": 159,
+      "id": "symbol_6e6497804350314df705e2b8",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/helpers.py",
+      "qualified_name": "stream_with_context",
+      "side": "old",
+      "start_line": 87
+    },
+    {
+      "change_type": "modified",
+      "end_line": 151,
+      "id": "symbol_fdfa71a566e6792aefca2061",
+      "kind": "function",
+      "language": "python",
+      "path": "src/flask/helpers.py",
+      "qualified_name": "stream_with_context",
+      "side": "new",
+      "start_line": 79
+    },
+    {
+      "change_type": "modified",
+      "end_line": 182,
+      "id": "symbol_a4b9b214a7d93f34079718d9",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.__init__",
+      "side": "old",
+      "start_line": 157
+    },
+    {
+      "change_type": "modified",
+      "end_line": 182,
+      "id": "symbol_be9c2e87daf195760bad49ec",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.__init__",
+      "side": "new",
+      "start_line": 155
+    },
+    {
+      "change_type": "added",
+      "end_line": 185,
+      "id": "symbol_7d71407a5c8cf7990718f6b3",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint._is_setup_finished",
+      "side": "new",
+      "start_line": 184
+    },
+    {
+      "change_type": "modified",
+      "end_line": 283,
+      "id": "symbol_91da6583ce3b6e8816db6415",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.add_url_rule",
+      "side": "old",
+      "start_line": 273
+    },
+    {
+      "change_type": "modified",
+      "end_line": 296,
+      "id": "symbol_693db363789a760156fba4c0",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.add_url_rule",
+      "side": "new",
+      "start_line": 294
+    },
+    {
+      "change_type": "removed",
+      "end_line": 303,
+      "id": "symbol_9a389137b9fcab7c717c36a5",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.app_template_filter",
+      "side": "old",
+      "start_line": 302
+    },
+    {
+      "change_type": "removed",
+      "end_line": 300,
+      "id": "symbol_65b0626b8813e3016cd3f2b3",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.endpoint",
+      "side": "old",
+      "start_line": 285
+    },
+    {
+      "change_type": "modified",
+      "end_line": 200,
+      "id": "symbol_ae2dd77d296eeea6c568508c",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.record",
+      "side": "old",
+      "start_line": 184
+    },
+    {
+      "change_type": "modified",
+      "end_line": 203,
+      "id": "symbol_898787ba3d0a8ee0f6b4afde",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.record",
+      "side": "new",
+      "start_line": 187
+    },
+    {
+      "change_type": "modified",
+      "end_line": 259,
+      "id": "symbol_ad9a14cd116f56c4132b1d7f",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.register",
+      "side": "old",
+      "start_line": 222
+    },
+    {
+      "change_type": "modified",
+      "end_line": 292,
+      "id": "symbol_dee65d4a469e240032e1b5d4",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.register",
+      "side": "new",
+      "start_line": 225
+    },
+    {
+      "change_type": "removed",
+      "end_line": 271,
+      "id": "symbol_6262db14ef4eba3c2bc9b073",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "Blueprint.route",
+      "side": "old",
+      "start_line": 261
+    },
+    {
+      "change_type": "modified",
+      "end_line": 76,
+      "id": "symbol_812fabedb003d1d9b6449b81",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "BlueprintSetupState.add_url_rule",
+      "side": "old",
+      "start_line": 54
+    },
+    {
+      "change_type": "modified",
+      "end_line": 74,
+      "id": "symbol_d2a4511b5ea84a5bb292f1f2",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/blueprints.py",
+      "qualified_name": "BlueprintSetupState.add_url_rule",
+      "side": "new",
+      "start_line": 52
+    },
+    {
+      "change_type": "added",
+      "end_line": 145,
+      "id": "symbol_6e4678527b0447a12133e5f2",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.__init__",
+      "side": "new",
+      "start_line": 58
+    },
+    {
+      "change_type": "added",
+      "end_line": 148,
+      "id": "symbol_27410495762552e364dd69c9",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold._is_setup_finished",
+      "side": "new",
+      "start_line": 147
+    },
+    {
+      "change_type": "added",
+      "end_line": 191,
+      "id": "symbol_7e2bf0860a49d758b68da08b",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.add_url_rule",
+      "side": "new",
+      "start_line": 183
+    },
+    {
+      "change_type": "added",
+      "end_line": 236,
+      "id": "symbol_f4105f9f7f88fb9f04b2930a",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.after_request",
+      "side": "new",
+      "start_line": 225
+    },
+    {
+      "change_type": "added",
+      "end_line": 222,
+      "id": "symbol_716aa98a683497af2087e9ae",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.before_request",
+      "side": "new",
+      "start_line": 211
+    },
+    {
+      "change_type": "added",
+      "end_line": 281,
+      "id": "symbol_3404f4f60ef1d09384ff5ad3",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.context_processor",
+      "side": "new",
+      "start_line": 278
+    },
+    {
+      "change_type": "added",
+      "end_line": 208,
+      "id": "symbol_2629def86888d86842173937",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.endpoint",
+      "side": "new",
+      "start_line": 193
+    },
+    {
+      "change_type": "added",
+      "end_line": 180,
+      "id": "symbol_0ca89847d70f743f202811bb",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.route",
+      "side": "new",
+      "start_line": 150
+    },
+    {
+      "change_type": "added",
+      "end_line": 275,
+      "id": "symbol_139ea0f69bdfc1d0a5646143",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.teardown_request",
+      "side": "new",
+      "start_line": 239
+    },
+    {
+      "change_type": "added",
+      "end_line": 297,
+      "id": "symbol_6c3b76825ff1c187622086cd",
+      "kind": "method",
+      "language": "python",
+      "path": "src/flask/scaffold.py",
+      "qualified_name": "Scaffold.url_value_preprocessor",
+      "side": "new",
+      "start_line": 284
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 40,
+    "operations": {
+      "check_runs:MLH-Fellowship/flask": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:pallets/flask": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:MLH-Fellowship/flask": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_runs:MLH-Fellowship/flask": 1
+    },
+    "remaining_requests": 30,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 10
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 57440.343,
+    "provider_requests": 10,
+    "recorded_at": "2026-07-17T16:15:58+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5MjU3MDY1OnYy",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "change_id": "change_71315cdac98ffa515d724843",
+        "change_type": "modified",
+        "confidence": "medium",
+        "reason": "unique_narrowest_containing_symbol",
+        "signature_changed": false,
+        "status": "mapped",
+        "symbol": {
+          "evidence": {
+            "end_line": 59,
+            "file_sha": "f4d35658095243974aaaff9e43f971ff5640f158",
+            "kind": "definition",
+            "path": "src/flask/app.py",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "start_line": 56,
+            "symbol": "_make_timedelta",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "identity": {
+            "commit_sha": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "file_sha": "f4d35658095243974aaaff9e43f971ff5640f158",
+            "id": "symbol_9c59f664a1f6bd2c1c17a8e9",
+            "kind": "function",
+            "language": "python",
+            "path": "src/flask/app.py",
+            "qualified_name": "_make_timedelta",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "requested_ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "signature": "def _make_timedelta(value): if not isinstance(value, timedelta): return timedelta(seconds=value) return value",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "kind": "function",
+          "language": "python",
+          "name": "_make_timedelta",
+          "qualified_name": "_make_timedelta"
+        }
+      },
+      "path": "src/flask/app.py"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5MjU3MDk2OnYy",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "change_id": "change_766347865dc7ad8961d1a2b8",
+        "change_type": "added",
+        "confidence": "medium",
+        "reason": "unique_narrowest_containing_symbol",
+        "signature_changed": false,
+        "status": "mapped",
+        "symbol": {
+          "evidence": {
+            "end_line": 185,
+            "file_sha": "2e030861a1ce73b3662051a91b0d6b56b17a7635",
+            "kind": "definition",
+            "path": "src/flask/blueprints.py",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "start_line": 184,
+            "symbol": "Blueprint._is_setup_finished",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "identity": {
+            "commit_sha": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "file_sha": "2e030861a1ce73b3662051a91b0d6b56b17a7635",
+            "id": "symbol_7d71407a5c8cf7990718f6b3",
+            "kind": "method",
+            "language": "python",
+            "path": "src/flask/blueprints.py",
+            "qualified_name": "Blueprint._is_setup_finished",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "requested_ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "signature": "def _is_setup_finished(self): return self.warn_on_modifications and self._got_registered_once",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "kind": "method",
+          "language": "python",
+          "name": "_is_setup_finished",
+          "qualified_name": "Blueprint._is_setup_finished"
+        }
+      },
+      "path": "src/flask/blueprints.py"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5NTMwNDU2OnYy",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "change_id": "change_766347865dc7ad8961d1a2b8",
+        "change_type": "added",
+        "confidence": "medium",
+        "reason": "unique_narrowest_containing_symbol",
+        "signature_changed": false,
+        "status": "mapped",
+        "symbol": {
+          "evidence": {
+            "end_line": 185,
+            "file_sha": "2e030861a1ce73b3662051a91b0d6b56b17a7635",
+            "kind": "definition",
+            "path": "src/flask/blueprints.py",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "start_line": 184,
+            "symbol": "Blueprint._is_setup_finished",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "identity": {
+            "commit_sha": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "file_sha": "2e030861a1ce73b3662051a91b0d6b56b17a7635",
+            "id": "symbol_7d71407a5c8cf7990718f6b3",
+            "kind": "method",
+            "language": "python",
+            "path": "src/flask/blueprints.py",
+            "qualified_name": "Blueprint._is_setup_finished",
+            "ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "repository": "MLH-Fellowship/flask",
+            "requested_ref": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+            "signature": "def _is_setup_finished(self): return self.warn_on_modifications and self._got_registered_once",
+            "tree_sha": "90d8639ffd2e26409a034b8d59bd9393d889c376"
+          },
+          "kind": "method",
+          "language": "python",
+          "name": "_is_setup_finished",
+          "qualified_name": "Blueprint._is_setup_finished"
+        }
+      },
+      "path": "src/flask/blueprints.py"
+    }
+  ],
+  "source": {
+    "base_sha": "216d97c21abe9674fe1dd6364b64051b0d09d0b0",
+    "cross_repository": true,
+    "head_sha": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+    "kind": "github_provider",
+    "pull_request": 3709,
+    "repository": "pallets/flask",
+    "url": "https://github.com/pallets/flask/pull/3709"
+  },
+  "summary": {
+    "affected_test_count": 6,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 5,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 4,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 3,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 3,
+    "review_submission_count": 3,
+    "symbol_change_count": 36,
+    "uncertainty_count": 3,
+    "unresolved_review_thread_count": 0
+  },
+  "truncated": false,
+  "uncertainties": [
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "src/flask/app.py",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5MjU3MDY1OnYy",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "src/flask/blueprints.py",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5MjU3MDk2OnYy",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "src/flask/blueprints.py",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg5NTMwNDU2OnYy",
+      "review_kind": "review_thread"
+    }
+  ]
+}

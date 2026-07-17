@@ -1,0 +1,392 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 1.0,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 0.0,
+    "review_location_symbol_coverage": 0.0,
+    "score": 0.6,
+    "status": "partial",
+    "unresolved_thread_symbol_coverage": 0.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "modified",
+      "end_line": 78,
+      "id": "symbol_f27f1dbdb88beaf4312a12ad",
+      "kind": "class",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber",
+      "side": "old",
+      "start_line": 26
+    },
+    {
+      "change_type": "modified",
+      "end_line": 96,
+      "id": "symbol_12feb965d5a32cbf0362b60b",
+      "kind": "class",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber",
+      "side": "new",
+      "start_line": 26
+    },
+    {
+      "change_type": "added",
+      "end_line": 32,
+      "id": "symbol_6dd53d869f67ad8f199c26cf",
+      "kind": "class",
+      "language": "java",
+      "path": "gson/src/test/java/com/google/gson/internal/LazilyParsedNumberTest.java",
+      "qualified_name": "LazilyParsedNumberTest",
+      "side": "new",
+      "start_line": 20
+    },
+    {
+      "change_type": "modified",
+      "end_line": 31,
+      "id": "symbol_50652d31dd80179af19131a2",
+      "kind": "constructor",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.LazilyParsedNumber",
+      "side": "old",
+      "start_line": 29
+    },
+    {
+      "change_type": "modified",
+      "end_line": 32,
+      "id": "symbol_d68cebb87b0d2eb348d742a4",
+      "kind": "constructor",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.LazilyParsedNumber",
+      "side": "new",
+      "start_line": 30
+    },
+    {
+      "change_type": "added",
+      "end_line": 95,
+      "id": "symbol_dcad3f835941a141a13f93a8",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.equals",
+      "side": "new",
+      "start_line": 85
+    },
+    {
+      "change_type": "added",
+      "end_line": 83,
+      "id": "symbol_ad0654760139046a71227cf9",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.hashCode",
+      "side": "new",
+      "start_line": 80
+    },
+    {
+      "change_type": "modified",
+      "end_line": 77,
+      "id": "symbol_de8a99491d0bf88ef3f29480",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.writeReplace",
+      "side": "old",
+      "start_line": 75
+    },
+    {
+      "change_type": "modified",
+      "end_line": 78,
+      "id": "symbol_84a03756b35009f16fc1b678",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "qualified_name": "LazilyParsedNumber.writeReplace",
+      "side": "new",
+      "start_line": 76
+    },
+    {
+      "change_type": "added",
+      "end_line": 31,
+      "id": "symbol_015d58a1a7b76c50bdad69e0",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/test/java/com/google/gson/internal/LazilyParsedNumberTest.java",
+      "qualified_name": "LazilyParsedNumberTest.testEquals",
+      "side": "new",
+      "start_line": 27
+    },
+    {
+      "change_type": "added",
+      "end_line": 25,
+      "id": "symbol_c5b243b01f95e24599ee7bfd",
+      "kind": "method",
+      "language": "java",
+      "path": "gson/src/test/java/com/google/gson/internal/LazilyParsedNumberTest.java",
+      "qualified_name": "LazilyParsedNumberTest.testHashCode",
+      "side": "new",
+      "start_line": 21
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 40,
+    "operations": {
+      "check_runs:google/gson": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:google/gson": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:google/gson": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_runs:google/gson": 1
+    },
+    "remaining_requests": 30,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 10
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 257453.389,
+    "provider_requests": 10,
+    "recorded_at": "2026-07-17T16:24:56+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDA6djI=",
+      "is_resolved": false,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "candidate_count": 2,
+        "candidates": [
+          {
+            "change_id": "change_c498af2a306ae880245c26ba",
+            "evidence": {
+              "end_line": 32,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 30,
+              "symbol": "LazilyParsedNumber.LazilyParsedNumber",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "constructor",
+            "qualified_name": "LazilyParsedNumber.LazilyParsedNumber"
+          },
+          {
+            "change_id": "change_b554faffef1e1847374a115b",
+            "evidence": {
+              "end_line": 78,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 76,
+              "symbol": "LazilyParsedNumber.writeReplace",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "method",
+            "qualified_name": "LazilyParsedNumber.writeReplace"
+          }
+        ],
+        "confidence": "low",
+        "reason": "multiple_symbols_share_review_location",
+        "status": "ambiguous"
+      },
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDI6djI=",
+      "is_resolved": false,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "candidate_count": 2,
+        "candidates": [
+          {
+            "change_id": "change_c498af2a306ae880245c26ba",
+            "evidence": {
+              "end_line": 32,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 30,
+              "symbol": "LazilyParsedNumber.LazilyParsedNumber",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "constructor",
+            "qualified_name": "LazilyParsedNumber.LazilyParsedNumber"
+          },
+          {
+            "change_id": "change_b554faffef1e1847374a115b",
+            "evidence": {
+              "end_line": 78,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 76,
+              "symbol": "LazilyParsedNumber.writeReplace",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "method",
+            "qualified_name": "LazilyParsedNumber.writeReplace"
+          }
+        ],
+        "confidence": "low",
+        "reason": "multiple_symbols_share_review_location",
+        "status": "ambiguous"
+      },
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDQ6djI=",
+      "is_resolved": false,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "candidate_count": 2,
+        "candidates": [
+          {
+            "change_id": "change_c498af2a306ae880245c26ba",
+            "evidence": {
+              "end_line": 32,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 30,
+              "symbol": "LazilyParsedNumber.LazilyParsedNumber",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "constructor",
+            "qualified_name": "LazilyParsedNumber.LazilyParsedNumber"
+          },
+          {
+            "change_id": "change_b554faffef1e1847374a115b",
+            "evidence": {
+              "end_line": 78,
+              "file_sha": "3669af7b58dc466e91ebd8f8845fc267ee3d4004",
+              "kind": "definition",
+              "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+              "ref": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+              "repository": "google/gson",
+              "start_line": 76,
+              "symbol": "LazilyParsedNumber.writeReplace",
+              "tree_sha": "d2ac677cf04bd129576231d155a07a90a41f5edd"
+            },
+            "kind": "method",
+            "qualified_name": "LazilyParsedNumber.writeReplace"
+          }
+        ],
+        "confidence": "low",
+        "reason": "multiple_symbols_share_review_location",
+        "status": "ambiguous"
+      },
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java"
+    }
+  ],
+  "source": {
+    "base_sha": "93605e7145c989d4f38ae347c9f31d605efcf434",
+    "cross_repository": false,
+    "head_sha": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+    "kind": "github_provider",
+    "pull_request": 705,
+    "repository": "google/gson",
+    "url": "https://github.com/google/gson/pull/705"
+  },
+  "summary": {
+    "affected_test_count": 17,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 2,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 2,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 3,
+    "review_submission_count": 0,
+    "symbol_change_count": 8,
+    "uncertainty_count": 6,
+    "unresolved_review_thread_count": 3
+  },
+  "truncated": false,
+  "uncertainties": [
+    {
+      "kind": "review_location_ambiguous",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "multiple_symbols_share_review_location",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDA6djI=",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDA6djI=",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_ambiguous",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "multiple_symbols_share_review_location",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDI6djI=",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDI6djI=",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_ambiguous",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "multiple_symbols_share_review_location",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDQ6djI=",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjg2MDI0MDQ6djI=",
+      "review_kind": "review_thread"
+    }
+  ]
+}
