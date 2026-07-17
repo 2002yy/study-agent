@@ -302,6 +302,26 @@ class PaginatedGitHubBase(GitHubWorkItemService):
         request_budget: GitHubProviderRequestBudget,
     ) -> dict[str, Any]:
         bounded = max(1, min(int(limit), 100))
+        request_graphql = self.request_graphql
+        if not callable(request_graphql):
+            return {
+                "comments": [],
+                "provider_comment_count": int(initial.get("totalCount") or 0),
+                "provider_errors": [
+                    _provider_error(
+                        "pull_request_review_thread_comments",
+                        "github_graphql_adapter_unavailable",
+                    )
+                ],
+                "truncated": True,
+                "pagination": {
+                    "pages_fetched": 1,
+                    "nested_requests": 0,
+                    "stop_reason": "adapter_unavailable",
+                    "max_pages": request_budget.max_pages_per_collection,
+                    "end_cursor": "",
+                },
+            }
         target_count = bounded + 1
         nodes = initial.get("nodes")
         collected = (
@@ -353,7 +373,7 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                 stop_reason = "request_budget_exhausted"
                 break
             try:
-                payload = self.request_graphql(
+                payload = request_graphql(
                     query,
                     {
                         "threadId": thread_id,
