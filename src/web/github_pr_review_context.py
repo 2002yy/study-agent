@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from src.repositories.provider_cache_repository import (
+    PROVIDER_CACHE_SCHEMA_VERSION,
+    ProviderCacheRepository,
+    provider_cache_key,
+)
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
 from src.web.github_pr_ci_association import associate_failed_ci
@@ -28,9 +34,13 @@ class GitHubPRReviewContextService:
         self,
         work_item_service: PaginatedGitHubWorkItemService,
         change_impact_service: GitHubChangeImpactService,
+        cache_repository: ProviderCacheRepository | None = None,
     ) -> None:
         self.work_item_service = work_item_service
         self.change_impact_service = change_impact_service
+        self.cache_repository = cache_repository or getattr(
+            work_item_service, "cache_repository", None
+        )
 
     def build(
         self,
@@ -72,6 +82,45 @@ class GitHubPRReviewContextService:
                 "error": "pull_request_missing_immutable_refs",
                 "pull_request": pull,
             }
+
+        repository = str(pull.get("repository") or "")
+        budget = {
+            "max_files": max_files,
+            "max_symbols": max_symbols,
+            "max_comments": max_comments,
+            "max_reviews": max_reviews,
+            "depth": depth,
+            "max_impact_files": max_impact_files,
+            "max_edges": max_edges,
+            "max_provider_requests": max_provider_requests,
+            "max_pages_per_collection": max_pages_per_collection,
+        }
+        cache_key = provider_cache_key(
+            kind="review-context",
+            repository=repository,
+            request={
+                "number": int(number),
+                "budget": budget,
+                "pull_evidence": {
+                    "files": pull.get("files") or [],
+                    "reviews": pull.get("reviews") or [],
+                    "review_threads": pull.get("review_threads") or {},
+                    "checks": pull.get("checks") or {},
+                    "provider_status": str(pull.get("provider_status") or ""),
+                    "truncated": bool(pull.get("truncated")),
+                },
+            },
+            immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+        )
+        if self.cache_repository is not None:
+            cached = self.cache_repository.get(cache_key)
+            if cached is not None:
+                return {
+                    **cached.payload,
+                    "cache_hit": True,
+                    "cache_mode": "persistent",
+                    "cache_schema_version": cached.schema_version,
+                }
 
         uncertainties: list[dict[str, Any]] = []
         cross_repository = bool(pull.get("cross_repository"))
@@ -236,8 +285,7 @@ class GitHubPRReviewContextService:
             if coverage_score == 1.0 and not provider_partial
             else ("partial" if coverage_score >= 0.5 else "limited")
         )
-        repository = str(pull.get("repository") or "")
-        return {
+        result = {
             "ok": True,
             "status": "resolved",
             "provider_status": "partial" if provider_partial else "complete",
@@ -300,18 +348,34 @@ class GitHubPRReviewContextService:
                 "change_impact": impact,
             },
             "truncated": bool(pull.get("truncated")) or bool(impact.get("truncated")),
-            "budget": {
-                "max_files": max_files,
-                "max_symbols": max_symbols,
-                "max_comments": max_comments,
-                "max_reviews": max_reviews,
-                "depth": depth,
-                "max_impact_files": max_impact_files,
-                "max_edges": max_edges,
-                "max_provider_requests": max_provider_requests,
-                "max_pages_per_collection": max_pages_per_collection,
-            },
+            "budget": budget,
             "provider_request_budget": as_dict(
                 pull.get("provider_request_budget")
             ),
         }
+        provider_status = str(result["provider_status"])
+        if self.cache_repository is not None:
+            self.cache_repository.put(
+                cache_key=cache_key,
+                kind="review-context",
+                repository=repository,
+                payload=result,
+                immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+                provider_status=provider_status,
+                budget=budget,
+                reuse_class="partial" if provider_status == "partial" else "complete",
+                ttl_seconds=_cache_ttl_seconds(),
+            )
+        return {
+            **result,
+            "cache_hit": False,
+            "cache_schema_version": PROVIDER_CACHE_SCHEMA_VERSION,
+        }
+
+
+def _cache_ttl_seconds() -> int:
+    try:
+        value = int(os.getenv("GITHUB_PROVIDER_CACHE_TTL_SECONDS", "300"))
+    except (TypeError, ValueError):
+        value = 300
+    return max(0, min(value, 86_400))

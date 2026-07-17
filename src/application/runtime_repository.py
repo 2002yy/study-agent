@@ -78,6 +78,18 @@ def get_github_work_item_service():
 
 
 @lru_cache(maxsize=1)
+def get_github_change_impact_service():
+    from src.web.github_change_impact import GitHubChangeImpactService
+    from src.web.github_history import GitHubHistoryService
+
+    return GitHubChangeImpactService(
+        GitHubHistoryService(),
+        get_github_snapshot_service(),
+        get_provider_cache_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
 def get_group_repository() -> GroupRepository:
     return GroupRepository(RuntimeDatabase(runtime_database_path()))
 
@@ -254,6 +266,7 @@ def get_tool_service():
 def reset_runtime_repository_cache() -> None:
     get_web_tool_agent.cache_clear()
     get_github_work_item_service.cache_clear()
+    get_github_change_impact_service.cache_clear()
     get_provider_cache_repository.cache_clear()
     get_github_snapshot_service.cache_clear()
     get_github_snapshot_repository.cache_clear()

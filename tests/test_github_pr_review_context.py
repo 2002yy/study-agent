@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.repositories.provider_cache_repository import ProviderCacheRepository
 from src.web.github_pr_review_context import GitHubPRReviewContextService
 
 REPO = "https://github.com/openai/example"
@@ -252,3 +254,44 @@ def test_review_context_returns_pr_failure_without_running_change_impact():
     ).build(REPO, 404)
 
     assert result == {"ok": False, "status": "not_found", "error": "missing"}
+
+
+def test_review_context_reuses_exact_review_evidence_after_restart(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    work_items = FakeWorkItems()
+    impact = FakeImpact()
+    first = GitHubPRReviewContextService(
+        work_items,  # type: ignore[arg-type]
+        impact,  # type: ignore[arg-type]
+        ProviderCacheRepository(database),
+    ).build(REPO, 7)
+
+    restarted = GitHubPRReviewContextService(
+        work_items,  # type: ignore[arg-type]
+        impact,  # type: ignore[arg-type]
+        ProviderCacheRepository(database),
+    ).build(REPO, 7)
+
+    assert first["cache_hit"] is False
+    assert restarted["cache_hit"] is True
+    assert restarted["cache_mode"] == "persistent"
+    assert len(work_items.calls) == 2
+    assert len(impact.calls) == 1
+
+
+def test_review_context_invalidates_when_review_evidence_changes(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    work_items = FakeWorkItems()
+    impact = FakeImpact()
+    service = GitHubPRReviewContextService(
+        work_items,  # type: ignore[arg-type]
+        impact,  # type: ignore[arg-type]
+        ProviderCacheRepository(database),
+    )
+    service.build(REPO, 7)
+    work_items.ambiguous = True
+
+    refreshed = service.build(REPO, 7)
+
+    assert refreshed["cache_hit"] is False
+    assert len(impact.calls) == 2

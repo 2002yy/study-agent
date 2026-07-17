@@ -29,6 +29,7 @@ class PersistentGeneralWebGateway(GeneralWebGateway):
         self.change_impact_service = GitHubChangeImpactService(
             self.history_service,
             self.snapshot_service,
+            getattr(self.work_item_service, "cache_repository", None),
         )
         self.pr_review_context_service = GitHubPRReviewContextService(
             self.work_item_service,

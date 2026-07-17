@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.repositories.provider_cache_repository import ProviderCacheRepository
 from src.web.github_change_impact import GitHubChangeImpactService
 
 
@@ -92,7 +94,11 @@ def handle(value):
 
 
 class FakeHistory:
+    def __init__(self) -> None:
+        self.calls = 0
+
     def compare(self, _repo_url: str, base: str, head: str, **_kwargs) -> dict:
+        self.calls += 1
         assert base == "main"
         assert head == "feature"
         return {
@@ -186,3 +192,40 @@ def test_change_impact_reports_missing_changed_file_in_snapshot():
     assert result["snapshots"]["head"]["missing_changed_paths"] == ["src/service.py"]
     assert {item["kind"] for item in result["uncertainties"]} >= {"missing_head_file"}
     assert result["summary"]["removed"] == 1
+
+
+def test_change_impact_reuses_commit_pinned_result_after_restart(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    cache = ProviderCacheRepository(database)
+    history = FakeHistory()
+    snapshots = FakeSnapshotService()
+    first = GitHubChangeImpactService(history, snapshots, cache).analyze(
+        REPO,
+        "main",
+        "feature",
+        max_files=10,
+        max_symbols=20,
+        depth=3,
+    )
+
+    restarted = GitHubChangeImpactService(
+        history,
+        snapshots,
+        ProviderCacheRepository(database),
+    ).analyze(
+        REPO,
+        "main",
+        "feature",
+        max_files=10,
+        max_symbols=20,
+        depth=3,
+    )
+
+    assert first["cache_hit"] is False
+    assert restarted["cache_hit"] is True
+    assert restarted["cache_mode"] == "persistent"
+    assert history.calls == 2
+    assert snapshots.calls == [
+        ("src/service.py", BASE_SHA),
+        ("src/service.py", HEAD_SHA),
+    ]

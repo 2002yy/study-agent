@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.api.models.github import GitHubChangeImpactQueryRequest
 from src.api.routes.github_routes import inspect_github_change_impact
 from src.tools.web_agent import WEB_TOOLS, WebToolAgent
+from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
 
 
@@ -70,8 +71,10 @@ def test_change_impact_route_preserves_requested_budgets():
             max_impact_files=9,
             max_edges=10,
         ),
-        EmptySnapshotService(),  # type: ignore[arg-type]
-        history,  # type: ignore[arg-type]
+        GitHubChangeImpactService(
+            history,  # type: ignore[arg-type]
+            EmptySnapshotService(),  # type: ignore[arg-type]
+        ),
     )
 
     assert response.result["ok"] is True
@@ -81,6 +84,7 @@ def test_change_impact_route_preserves_requested_budgets():
         "depth": 3,
         "max_impact_files": 9,
         "max_edges": 10,
+        "max_patch_chars": 160_000,
     }
     assert history.calls[0]["max_files"] == 7
 
@@ -109,6 +113,7 @@ def test_persistent_gateway_bounds_change_impact_arguments():
         "depth": 4,
         "max_impact_files": 100,
         "max_edges": 500,
+        "max_patch_chars": 160_000,
     }
     assert history.calls[0]["max_files"] == 50
 

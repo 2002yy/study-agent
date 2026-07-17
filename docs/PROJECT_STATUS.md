@@ -307,7 +307,7 @@ PR #30 已完成主链收口：
 2. **已完成 SQLite repository**：保存 payload、immutable refs、provider status、预算、创建时间和过期时间。
 3. **已完成复用规则**：complete 使用配置 TTL，partial 最长 60 秒，failed 不写入持久缓存。
 4. **已完成运维原语**：TTL、按 repository/kind 过期清理、磁盘统计和 cache manifest。
-5. **已完成首个生产接入**：checks 在移动 ref 先解析为 commit SHA 后支持跨服务重启复用；PR/issue 等移动 work-item 仍保持内存缓存，下一步接入时必须先重解析 immutable refs。
+5. **已完成三类生产接入**：checks 与 change-impact 在移动 ref 先解析为 commit SHA 后支持跨服务重启复用；review-context 还将当前 files/reviews/review threads/checks 证据指纹纳入 key，base/head 不变但评论或 CI 变化时也不会误命中。PR/issue 原始 work-item 仍保持内存缓存。
 6. **已完成首轮回归**：schema v16 migration、跨重启恢复、过期、partial/failed、并发 upsert、manifest/stats 与移动 work-item 不持久化均有测试。
 
 ### G10-C2 后续 Provider 补齐
@@ -346,6 +346,7 @@ PR #30 已完成主链收口：
 - 当前浏览器恢复路径：Playwright 验证 `/research-runs` 开发代理 200、恢复卡可见、请求携带服务端匹配的 `web_context_run_id`、回答后旧卡退出、EvidenceTrail 显示并展开“恢复研究来源”；headed 会话首次启动失败后使用无界面 Chromium 完成 DOM/请求验收。
 - 当前聊天研究浏览器补充验收：真实浏览器按时间检查 planned/searching/reading/synthesizing/completed；停止生成确认 owner cancel 请求、`已停止生成` 与 cancelled 终态，失败卡确认 `重试研究` 后进入恢复态。恢复后的 Playwright daemon 再启动超时，但刷新恢复路径已有前序 DOM/请求验收和专项回归覆盖。
 - 当前 G10-C2 持久化缓存切片：Provider cache schema v1 / SQLite schema v16 已落地；缓存与 migration 专项 21 passed，Ruff 增量通过；checks 只在解析到 immutable commit SHA 后跨重启复用，移动 work-item 不会直接命中持久缓存。
+- 当前 G10-C2 第二切片：change-impact 每次先 compare 重解析 base/head，再按双 SHA 与完整预算复用；review-context 每次先取得 PR 证据，再按双 SHA、review/CI 证据指纹与预算复用。缓存/API/Provider 专项 32 passed，评论证据变化失效与跨重启命中均有回归。
 
 PR #31 功能代码验证：
 

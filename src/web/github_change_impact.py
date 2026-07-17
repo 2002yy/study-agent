@@ -8,6 +8,11 @@ import os
 from pathlib import PurePosixPath
 from typing import Any
 
+from src.repositories.provider_cache_repository import (
+    PROVIDER_CACHE_SCHEMA_VERSION,
+    ProviderCacheRepository,
+    provider_cache_key,
+)
 from src.web.advanced_module_semantics import AdvancedModuleSemanticIndex
 from src.web.github_history import GitHubHistoryService
 from src.web.repository_graph import RepositoryGraphIndex
@@ -138,9 +143,15 @@ def _change_id(
 class GitHubChangeImpactService:
     """Map compare hunks to old/new symbols and bounded semantic impact."""
 
-    def __init__(self, history_service: GitHubHistoryService, snapshot_service: Any) -> None:
+    def __init__(
+        self,
+        history_service: GitHubHistoryService,
+        snapshot_service: Any,
+        cache_repository: ProviderCacheRepository | None = None,
+    ) -> None:
         self.history_service = history_service
         self.snapshot_service = snapshot_service
+        self.cache_repository = cache_repository
 
     def _snapshot(
         self,
@@ -228,18 +239,19 @@ class GitHubChangeImpactService:
         bounded_depth = max(1, min(int(depth), 4))
         bounded_impact_files = max(1, min(int(max_impact_files), 100))
         bounded_edges = max(1, min(int(max_edges), 500))
+        patch_limit = _env_int(
+            "GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS",
+            160_000,
+            minimum=1_000,
+            maximum=1_000_000,
+        )
 
         compared = self.history_service.compare(
             repo_url,
             base,
             head,
             max_files=file_limit,
-            max_patch_chars=_env_int(
-                "GITHUB_CHANGE_IMPACT_MAX_PATCH_CHARS",
-                160_000,
-                minimum=1_000,
-                maximum=1_000_000,
-            ),
+            max_patch_chars=patch_limit,
         )
         if compared.get("ok") is not True:
             return compared
@@ -247,6 +259,30 @@ class GitHubChangeImpactService:
         head_ref = dict(compared.get("head") or {})
         base_sha = str(base_ref.get("commit_sha") or "")
         head_sha = str(head_ref.get("commit_sha") or "")
+        repository = str(compared.get("repository") or "")
+        budget = {
+            "max_files": file_limit,
+            "max_symbols": symbol_limit,
+            "depth": bounded_depth,
+            "max_impact_files": bounded_impact_files,
+            "max_edges": bounded_edges,
+            "max_patch_chars": patch_limit,
+        }
+        cache_key = provider_cache_key(
+            kind="change-impact",
+            repository=repository,
+            request=budget,
+            immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+        )
+        if self.cache_repository is not None and base_sha and head_sha:
+            cached = self.cache_repository.get(cache_key)
+            if cached is not None:
+                return {
+                    **cached.payload,
+                    "cache_hit": True,
+                    "cache_mode": "persistent",
+                    "cache_schema_version": cached.schema_version,
+                }
         files = [
             dict(item)
             for item in compared.get("files", [])
@@ -451,11 +487,11 @@ class GitHubChangeImpactService:
         provider_status = "complete"
         if base_snapshot.get("ok") is not True or head_snapshot.get("ok") is not True or uncertainties:
             provider_status = "partial"
-        return {
+        result = {
             "ok": True,
             "status": "resolved",
             "provider_status": provider_status,
-            "repository": str(compared.get("repository") or ""),
+            "repository": repository,
             "base": base_ref,
             "head": head_ref,
             "compare": {
@@ -503,11 +539,27 @@ class GitHubChangeImpactService:
             "missing_test_symbols": sorted(set(missing_test_symbols)),
             "uncertainties": uncertainties,
             "truncated": bool(compared.get("truncated")) or len(changes) >= symbol_limit,
-            "budget": {
-                "max_files": file_limit,
-                "max_symbols": symbol_limit,
-                "depth": bounded_depth,
-                "max_impact_files": bounded_impact_files,
-                "max_edges": bounded_edges,
-            },
+            "budget": budget,
+        }
+        if self.cache_repository is not None and base_sha and head_sha:
+            self.cache_repository.put(
+                cache_key=cache_key,
+                kind="change-impact",
+                repository=repository,
+                payload=result,
+                immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+                provider_status=provider_status,
+                budget=budget,
+                reuse_class="partial" if provider_status == "partial" else "complete",
+                ttl_seconds=_env_int(
+                    "GITHUB_PROVIDER_CACHE_TTL_SECONDS",
+                    300,
+                    minimum=0,
+                    maximum=86_400,
+                ),
+            )
+        return {
+            **result,
+            "cache_hit": False,
+            "cache_schema_version": PROVIDER_CACHE_SCHEMA_VERSION,
         }
