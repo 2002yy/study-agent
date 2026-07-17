@@ -2,8 +2,8 @@
 
 > **唯一进度入口**  
 > 更新：2026-07-17
-> 当前能力基线：PR #44 已合并，核心学习产品 G1–G8 已闭环，聊天联网工具循环已统一关联 durable ResearchRun
-> 当前代码切片：恢复后的回答与 EvidenceTrail 同 Run 闭环及浏览器恢复路径已落地，下一步补慢查询阶段/停止取消/失败重试浏览器验收
+> 当前能力基线：PR #45 已合并，核心学习产品 G1–G8、聊天 ResearchRun 恢复/取消/EvidenceTrail 闭环及 G10-C2 cross-fork Provider 取证已进入 `main`
+> 当前代码切片：G10-C3a replay harness 第一小批已落地 immutable manifest、确定性 CLI/汇总和 curated seed 来源隔离；下一步扩充真实 Provider 多仓库 corpus
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
@@ -289,6 +289,11 @@ PR #30 已完成主链收口：
 | checks / jobs / logs | 分页基础完成 | ref-resolution 预算统一、artifacts、rerun attempt、日志分段、持久化缓存 |
 | 跨版本结构影响 | 双仓库图完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
 | PR review context | 双仓库取证完成 | 多仓库真实 replay corpus、symbol/CI association 质量指标 |
+| RAG 索引一致性 | 基础完成 | server-owned RagRun、staging/active version、CAS 写租约、失败不激活、Chroma stale 清理已完成；还缺可恢复的逐文档摄取队列和 parser/chunker manifest |
+| RAG 检索质量 | 初版完成 | BM25、向量、RRF hybrid、metadata filter、来源限额、可选 reranker 与 explainable debug 已完成；当前仅 6 条干净 fixture，缺真实学习语料与困难负例 |
+| RAG 文档理解 | 基础完成 | Markdown/TXT/DOCX/PDF 纯文本摄取可用；缺标题/章节/表格/页区块等结构化解析、切块预览和扫描件/OCR 降级说明 |
+| RAG 回答可信度 | 未完成 | 已有 citation-first context 和来源行号；缺回答级 citation precision/recall、groundedness、answerability/refusal 与 stale revision 评测 |
+| KnowledgeBase 治理 | 初版完成 | 文档列表、稳定 document/revision identity、删除与索引版本已完成；缺 collection/scope、active revision、完整文档/聚焦检索策略和增量同步 |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
 | TaskContract UI override | 已完成 | 按 Turn 一次性选择已接入；发送后清空，retry/continuation 不继承新 Turn override |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
@@ -327,6 +332,59 @@ PR #30 已完成主链收口：
 4. 可写 worktree、diff、回归和回滚。
 5. 增量更新、缓存清理和磁盘预算。
 
+### 2026-07-17 开源对照审计：GitHub 仓库代理
+
+对照 [OpenHands](https://github.com/OpenHands/OpenHands)、[SWE-agent](https://github.com/SWE-agent/SWE-agent)、[aider](https://github.com/Aider-AI/aider) 和 [Continue](https://github.com/continuedev/continue) 后，当前判断如下：
+
+1. **现有优势应保留**：immutable commit、cross-fork repository 归属、Provider 分页/共享预算、partial/uncertainty 降级和 EvidenceTrail，比通用代码代理更接近审计级只读取证。
+2. **最高优先级缺口是真实评测，不是更多接口**：当前 curated review-context label 很小，尚不能证明 symbol mapping、CI association 和 change-impact 在真实多仓库上的代表性质量。SWE-agent 的 benchmark/replay 与 aider 的长期代码编辑评测说明，执行能力扩张前必须先有不可回退的质量基线。
+3. **执行边界尚未建立**：当前 snapshot 明确不是 checkout；尚无受控工作目录、sandbox adapter、命令 schema、输出预算、进程/网络/磁盘限制和重启清理。OpenHands 将命令/文件动作放进独立 sandbox 并返回结构化 observation；该边界应先于任何可写代理。
+4. **任务意图不能替代执行授权**：TaskContract 继续负责学习/研究/项目目标；另建 `ExecutionPolicy` 负责 `allow / ask / exclude`。参考 Continue，读取默认允许，写入、安装依赖、联网命令和 shell 默认询问；headless 中无法确认的动作拒绝执行。
+5. **模式需要明确分层**：只读取证、只读 checkout、受控 test/lint/build、可写 worktree 是四个不同能力层，不应通过一个“项目模式”一次性全部开放。
+
+#### G10 推荐门禁与顺序
+
+1. **G10-C3a 真实 replay harness**：至少 6 个公开仓库、24–30 个 immutable case，覆盖 Python/TypeScript/Java、普通 PR、cross-fork、rename/delete、CI 失败和 Provider 截断；分别报告 symbol mapping 与 CI association precision/recall/F1、coverage、partial rate、请求数、延迟和缓存命中率。
+   - **第一小批已完成**：新增 schema v1 manifest、immutable base/head SHA 校验、context 路径边界、唯一 case ID、语言/场景/provenance 元数据、确定性 CLI，以及 symbol/CI 微观与宏观指标、Provider status/partial/request/latency/cache 汇总。
+   - PR #28/#30 已迁移为 2 个 `curated_unit_seed`；报告固定显示 `provider_replay_cases=0`，不会把人工单元样例伪装成真实 Provider replay。下一批仍需采集跨仓库、跨语言真实 context，达到代表性目标前不启用质量门禁。
+2. **G10-C3b Provider 证据补齐**：release、artifact metadata/按需下载，以及按 run attempt -> job -> step -> 时间窗口读取日志；所有新结果继续携带 repository、commit SHA、provider status 和 stop reason。
+3. **G10-D0 只读 RepositoryWorkspaceRun**：受控临时目录、immutable checkout、Docker sandbox 优先、显式不安全的 process fallback、取消/恢复/过期清理和资源预算；只允许 list/read/search/diff。
+4. **G10-D1 确定性命令执行**：仓库配置映射为结构化 `CommandSpec`，只开放声明过的 test/lint/build；保存 stdout/stderr、exit code、timeout、耗时和 artifact，不接受模型拼接任意 shell。
+5. **G10-D2 可写 worktree**：独立 worktree、写前基线、写后 diff/回归、一键回滚，禁止直接修改主 checkout；完成前不开放私有仓库自动执行。
+
+### 2026-07-17 开源对照审计：RAG / 知识学习
+
+对照 [RAGFlow](https://github.com/infiniflow/ragflow)、[Khoj](https://github.com/khoj-ai/khoj)、[AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) 和 [Open WebUI](https://github.com/open-webui/open-webui) 后，当前实现不是“缺 RAG”，而是已经具备可信运行骨架、尚未形成可信质量闭环。
+
+#### 已有能力与差距
+
+1. **索引一致性是现有强项**：server-owned RagRun、稳定 document/revision ID、staging/active version、CAS 写租约、vector stage 失败不激活、append 替换旧 revision、删除与 Chroma stale 清理已经落地；不应重做旧路线图中的这些项目。
+2. **检索链路已过 MVP**：已有 BM25、local/backend vector、RRF hybrid、metadata filter、单来源 chunk 上限、重复文本抑制、可选 reranker、分阶段耗时和 score breakdown。短期不应以“再接一个 vector DB”作为质量工作替代品。
+3. **评测规模不足**：当前 checked-in corpus 只有 6 条干净查询，且预期全部命中；没有长文档、噪声 PDF/DOCX、中英混合、同名主题、多来源拼接、矛盾/过期资料、不可回答问题和 stale revision case，也没有 production embedding 的可选 replay。
+4. **只评检索，不评最终回答**：现有指标覆盖 source hit、Recall@K、MRR、nDCG 和 empty rate，但没有 citation precision/recall、引用片段是否支持具体 claim、groundedness、answerability/refusal、遗漏关键来源和旧 revision 泄漏。
+5. **摄取仍是纯文本级**：DOCX 只读 paragraph，PDF 依赖 pypdf 文本抽取并以页标记拼接；切块主要按空行和字符预算，未保留 heading/table/list/page block 等结构。RAGFlow 的结构化文档理解、模板化切块和 chunk 可视化说明，应先提升“输入质量”，再考虑 GraphRAG。
+6. **切块缺少产品化可见性**：没有 parser/chunker profile、最小 chunk 合并策略、chunk preview、解析警告与人工排除。Open WebUI 对过小 chunk 合并、完整文档与聚焦检索的分离说明，这些能力比继续增加固定 `max_chars` 参数更有产品价值。
+7. **知识作用域仍偏单索引**：已有 metadata filter 和文档列表，但缺显式 collection/workspace scope、active revision、按学习目标选择知识集合，以及“完整文档 / focused retrieval / tools-only”策略。AnythingLLM 的 workspace/thread 文档作用域与整文上下文回退、Khoj 的自定义知识代理提供了可参考的产品边界。
+8. **摄取运行缺少逐文档恢复体验**：请求内有 RagRun 和 stage，但上传仍是同步完成后返回；缺逐文档 queue/status、失败单项重试、跨页面继续观察与后台恢复。AnythingLLM 的逐文档 embedding 进度和可离开页面队列是更成熟的交互基线。
+9. **学习产品的差异化仍成立**：`RetrievalQueryPlan` 已能结合 objective、gap 和 pedagogy protocol 构造私有检索 query，回答上下文也保留引用；下一步应把检索证据用于“验证理解和暴露缺口”，而不是复制通用知识库聊天界面。
+
+#### RAG 推荐门禁与顺序
+
+1. **RAG-K1 真实学习语料质量基线，作为 PR #45 后的核心产品第一优先级**：至少 12 份真实文档、30–40 个查询，覆盖 Markdown/PDF/DOCX、中英混合、长文、重复/矛盾/过时版本、多来源问题和不可回答问题。保留 deterministic local 子集，并提供显式联网/付费的 production embedding replay。
+2. **RAG-K1 同时补回答级评测**：除 Recall/MRR/nDCG 外，新增 citation precision/recall、claim support、groundedness、answerability/refusal、source diversity、stale revision leakage、端到端延迟和 embedding/rerank 成本；第一轮只记录基线，之后才设置不可回退门禁。
+3. **RAG-K2 结构化摄取与切块**：引入 `ParserResult -> DocumentBlock -> Chunk`，保留 page/heading/paragraph/table/list identity、parser/chunker version 和 warnings；提供 Markdown heading、prose、PDF page/layout 等策略 profile、最小 chunk 合并与 chunk preview。扫描件/OCR 和多模态解析作为可选 adapter，失败必须显式降级，不能伪装为完整解析。
+4. **RAG-K3 KnowledgeBase domain**：增加 collection/scope、active revision、逐文档状态与重试、索引 manifest/磁盘统计；明确 `full_document / focused_retrieval / tools_only` 三种上下文策略，并由 TaskContract、文档长度、模型 context budget 与用户选择共同决定。
+5. **RAG-K4 教学可信闭环**：把 citation validation、已掌握点/当前缺口、证据披露级别和 follow-up query rewrite 接入 PedagogyTurnPlan；验证“不知道”等弱输入、跨轮指代和多跳学习问题是否检索到正确证据且不过度泄露答案。
+6. **RAG-K5 增量同步与外部连接器后置**：先完成本地文件 refresh/watch、content hash 去重和删除传播，再考虑 Notion/Drive/网页同步。GraphRAG、重型分布式检索、全量 OCR/多模态和更多 vector DB 均后置，除非 K1 评测证明它们解决了真实失败。
+
+### 统一下一阶段顺序
+
+1. **已完成**：PR #45 已以 merge commit `972e94e` 合并，当前工作分支从该 `main` 基线创建。
+2. **本切片推进**：G10-C3a replay harness 基础设施和 curated seed 已完成；继续以小批次补真实多仓库 Provider replay，达到 6 仓库/24–30 case 前只记录基线、不宣称代表性质量。
+3. G10-C3a 达到最低 corpus 覆盖后，回到核心学习产品，连续完成 RAG-K1 retrieval + answer faithfulness 基线和 RAG-K2 结构化摄取。
+4. 根据 K1 数据决定是否先做 RAG-K3，或补 G10-C3b release/artifact/日志定位。
+5. 只有上述只读质量门禁稳定后，才进入 G10-D0；G10-D2 可写代理、私有仓库自动执行、GraphRAG 和重型连接器继续后置。
+
 ## 5. 当前验证
 
 核心学习产品最近完整门禁：
@@ -349,6 +407,7 @@ PR #30 已完成主链收口：
 - 当前 G10-C2 第二切片：change-impact 每次先 compare 重解析 base/head，再按双 SHA 与完整预算复用；review-context 每次先取得 PR 证据，再按双 SHA、review/CI 证据指纹与预算复用。缓存/API/Provider 专项 32 passed，评论证据变化失效与跨重启命中均有回归。
 - 当前 Provider 分页/跨 owner 切片：review thread comments 嵌套 cursor、共享预算耗尽、fork head checks 优先与 base fallback 均有回归；相关 review/provider 专项 15 passed，Ruff 增量通过。
 - 当前 cross-fork change-impact 切片：PR review context 不再返回 unsupported，而是复用 commit-pinned PR comparison 生成 base/head 双仓库源码图；双仓库 snapshot 路由、repository 归属、同 SHA 不同 fork 缓存隔离与 review-context 接线均有回归。聚焦测试 11 passed，GitHub 专项 94 passed，全量 pytest 777 passed，Ruff 全量通过；expanded mypy 当前 126 个既有错误，低于 127 基线且无新增。
+- 当前 G10-C3a replay harness 第一小批：PR #28/#30 的 immutable SHA 与 curated context 已进入 schema v1 manifest；CLI 两次输出字节级一致，明确报告 1 个仓库、2 个 seed、0 个 Provider replay。原有独立 golden JSON 已删除，manifest 成为唯一 label 真值；评测/replay 聚焦 7 passed，GitHub 专项 97 passed，全量 pytest 781 passed，Ruff 全量通过，新增模块目标 mypy 通过。因 C 盘空间不足，全量 pytest 的临时目录改到 D 盘后通过。
 
 PR #31 功能代码验证：
 
