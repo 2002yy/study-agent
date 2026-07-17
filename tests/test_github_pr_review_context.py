@@ -10,8 +10,9 @@ HEAD_SHA = "b" * 40
 
 
 class FakeWorkItems:
-    def __init__(self, *, ambiguous: bool = False) -> None:
+    def __init__(self, *, ambiguous: bool = False, cross_repository: bool = False) -> None:
         self.ambiguous = ambiguous
+        self.cross_repository = cross_repository
         self.calls: list[tuple[str, int, dict]] = []
 
     def pull_request(self, repo_url: str, number: int, **kwargs) -> dict:
@@ -27,8 +28,25 @@ class FakeWorkItems:
             "url": "https://github.com/openai/example/pull/7",
             "changed_files": 1,
             "file_count": 1,
-            "base": {"ref": "main", "commit_sha": BASE_SHA},
-            "head": {"ref": "feature", "commit_sha": HEAD_SHA},
+            "base": {
+                "ref": "main",
+                "commit_sha": BASE_SHA,
+                "repository": "openai/example",
+                "repository_url": REPO,
+            },
+            "head": {
+                "ref": "feature",
+                "commit_sha": HEAD_SHA,
+                "repository": (
+                    "contributor/example" if self.cross_repository else "openai/example"
+                ),
+                "repository_url": (
+                    "https://github.com/contributor/example"
+                    if self.cross_repository
+                    else REPO
+                ),
+            },
+            "cross_repository": self.cross_repository,
             "files": [
                 {
                     "filename": "src/service.py",
@@ -237,6 +255,23 @@ def test_review_context_keeps_ambiguous_symbol_mapping_explicit():
         "review_location_ambiguous"
     }
     assert result["verdict"]["status"] == "not_generated"
+
+
+def test_review_context_uses_pinned_pull_evidence_for_cross_fork_impact():
+    impact = FakeImpact()
+    result = GitHubPRReviewContextService(
+        FakeWorkItems(cross_repository=True),  # type: ignore[arg-type]
+        impact,  # type: ignore[arg-type]
+    ).build(REPO, 7)
+
+    assert result["ok"] is True
+    assert result["cross_repository"] is True
+    kwargs = impact.calls[0][3]
+    assert kwargs["base_repo_url"] == REPO
+    assert kwargs["head_repo_url"] == "https://github.com/contributor/example"
+    assert kwargs["comparison"]["base"]["commit_sha"] == BASE_SHA
+    assert kwargs["comparison"]["head"]["commit_sha"] == HEAD_SHA
+    assert kwargs["comparison"]["files"][0]["filename"] == "src/service.py"
 
 
 def test_review_context_returns_pr_failure_without_running_change_impact():

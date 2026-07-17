@@ -125,26 +125,30 @@ class GitHubPRReviewContextService:
         uncertainties: list[dict[str, Any]] = []
         cross_repository = bool(pull.get("cross_repository"))
         if cross_repository:
-            impact: dict[str, Any] = {
-                "ok": False,
-                "status": "unsupported",
-                "provider_status": "partial",
-                "file_changes": [],
-                "changes": [],
-                "tests": [],
-                "affected_files": [],
-                "uncertainties": [],
-                "summary": {},
+            comparison = {
+                "ok": True,
+                "status": "cross_repository",
+                "repository": repository,
+                "base": base,
+                "head": head,
+                "ahead_by": 0,
+                "behind_by": 0,
+                "total_commits": int(pull.get("commits") or 0),
+                "truncated": bool(pull.get("truncated")),
+                "files": pull.get("files") or [],
             }
-            uncertainties.append(
-                {
-                    "kind": "cross_repository_change_impact_not_supported",
-                    "base_repository": str(base.get("repository") or ""),
-                    "head_repository": str(head.get("repository") or ""),
-                    "reason": (
-                        "same-repository change impact cannot safely pin a fork head"
-                    ),
-                }
+            impact: dict[str, Any] = self.change_impact_service.analyze(
+                repo_url,
+                base_sha,
+                head_sha,
+                comparison=comparison,
+                base_repo_url=str(base.get("repository_url") or repo_url),
+                head_repo_url=str(head.get("repository_url") or repo_url),
+                max_files=max_files,
+                max_symbols=max_symbols,
+                depth=depth,
+                max_impact_files=max_impact_files,
+                max_edges=max_edges,
             )
         else:
             impact = self.change_impact_service.analyze(
@@ -157,25 +161,25 @@ class GitHubPRReviewContextService:
                 max_impact_files=max_impact_files,
                 max_edges=max_edges,
             )
-            if impact.get("ok") is not True:
-                uncertainties.append(
-                    {
-                        "kind": "change_impact_unavailable",
-                        "status": str(impact.get("status") or ""),
-                        "error": str(impact.get("error") or ""),
-                    }
-                )
-                impact = {
-                    "ok": False,
-                    "status": str(impact.get("status") or "unavailable"),
-                    "provider_status": "partial",
-                    "file_changes": [],
-                    "changes": [],
-                    "tests": [],
-                    "affected_files": [],
-                    "uncertainties": [],
-                    "summary": {},
+        if impact.get("ok") is not True:
+            uncertainties.append(
+                {
+                    "kind": "change_impact_unavailable",
+                    "status": str(impact.get("status") or ""),
+                    "error": str(impact.get("error") or ""),
                 }
+            )
+            impact = {
+                "ok": False,
+                "status": str(impact.get("status") or "unavailable"),
+                "provider_status": "partial",
+                "file_changes": [],
+                "changes": [],
+                "tests": [],
+                "affected_files": [],
+                "uncertainties": [],
+                "summary": {},
+            }
         uncertainties.extend(
             {"kind": "change_impact_uncertainty", "detail": item}
             for item in dict_items(impact.get("uncertainties"))

@@ -9,7 +9,7 @@
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口、准备阶段实时事件，以及恢复来源与 EvidenceTrail 的同 Run 可信归属。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口、准备阶段实时事件，以及恢复来源与 EvidenceTrail 的同 Run 可信归属。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及 REST/GraphQL 分页、共享请求预算、cross-fork PR 证据归属和 base/head 双仓库 change-impact。**
 
 ## 2. 已完成
 
@@ -231,8 +231,8 @@ PR #32 已完成 G10-C2 第一轮 Provider 硬化：
 6. API 与 `github_pr_review_context` 模型工具可显式设置 `max_provider_requests` 和 `max_pages_per_collection`。
 7. cross-fork PR 明确保存 base/head repository、repository URL 与 immutable SHA；head commit detail 从 fork 仓库读取。
 8. checks 首先按目标 PR 仓库取证；不可用时可回退到实际 head/fork 仓库，并记录 `checks_repository`。
-9. 当前同仓库 change-impact owner 不能安全组合两个仓库的源码图，因此 cross-fork PR review context 不伪造语义影响，而是返回 `cross_repository_change_impact_not_supported` uncertainty。
-10. review thread 内的 comments 当前每个 thread 最多读取 100 条；若 Provider 仍有后续页则显式标记 `comments_truncated`，尚未实现嵌套 comment cursor。
+9. cross-fork PR review context 复用 PR 已取得的 immutable comparison：base/head 分别从实际目标仓库与 fork 仓库按 SHA 建 snapshot，再组合 change-impact；结果、symbol identity、snapshot evidence 与缓存身份均保留两侧 repository 归属。
+10. review thread 内 comments 已实现每线程独立 cursor，并保留逐线程 provider count、截断与 stop reason；外层与嵌套 GraphQL 请求共用同一请求预算。
 11. 独立 `github_checks` 的 ref 解析仍由 Git history owner 在集合预算前完成；集合预算覆盖 check-runs、workflow runs 和 jobs，不应解释为跨 owner 的绝对全局预算。
 12. 分页实现已拆为 provider pagination、base/GraphQL、checks/jobs、PR/fork 和 issue facade 五个模块；最大新增生产模块 485 行，未保留首稿 1086 行巨型服务。
 
@@ -284,11 +284,11 @@ PR #30 已完成主链收口：
 | 单符号影响 | 初版完成 | 数据流、配置影响、风险分层 |
 | Git ref/commit/compare | 基础完成 | 多页 commit/files、超大 compare、持久化缓存 |
 | blame | 基础完成 | Token 授权体验、超大文件和 Provider 替代方案 |
-| PR / review | 分页基础完成 | nested review comment cursor、持久化缓存、cross-fork 语义影响 |
+| PR / review | 分页增强完成 | 原始 work-item 持久化、真实多仓库 replay corpus |
 | issue | 分页基础完成 | release、linked PR、完整 timeline、项目字段、持久化缓存 |
 | checks / jobs / logs | 分页基础完成 | ref-resolution 预算统一、artifacts、rerun attempt、日志分段、持久化缓存 |
-| 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、cross-repository 图、真实仓库评测 |
-| PR review context | 初版完成 | cross-fork 语义影响、持久化缓存、多仓库真实 replay corpus |
+| 跨版本结构影响 | 双仓库图完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| PR review context | 双仓库取证完成 | 多仓库真实 replay corpus、symbol/CI association 质量指标 |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
 | TaskContract UI override | 已完成 | 按 Turn 一次性选择已接入；发送后清空，retry/continuation 不继承新 Turn override |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
@@ -314,7 +314,7 @@ PR #30 已完成主链收口：
 
 1. **已完成 review thread 嵌套分页**：thread comments 跟随独立 cursor，保留每线程分页、provider count、截断与 stop reason，并与外层 REST/GraphQL 共用总请求预算。
 2. **已完成 checks 跨 owner 合同**：fork PR 的 head SHA 优先在 head repository 查询，按剩余共享预算回退 base repository；结果记录候选仓库、尝试顺序、请求消耗与最终证据仓库。
-3. cross-fork base/head 双仓库 snapshot 与 change-impact 图。
+3. **已完成 cross-fork 双仓库 change-impact**：直接消费 PR 的 immutable files/hunks，base/head 分别按实际 repository URL 与 commit SHA 建 snapshot；缓存 key 同时绑定两侧 repository 与 SHA，同 SHA 不同 fork 不会串用结果，snapshot 失败继续以 repository-aware uncertainty 降级。
 4. release、artifact metadata 和按需下载。
 5. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
 6. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
@@ -348,6 +348,7 @@ PR #30 已完成主链收口：
 - 当前 G10-C2 持久化缓存切片：Provider cache schema v1 / SQLite schema v16 已落地；缓存与 migration 专项 21 passed，Ruff 增量通过；checks 只在解析到 immutable commit SHA 后跨重启复用，移动 work-item 不会直接命中持久缓存。
 - 当前 G10-C2 第二切片：change-impact 每次先 compare 重解析 base/head，再按双 SHA 与完整预算复用；review-context 每次先取得 PR 证据，再按双 SHA、review/CI 证据指纹与预算复用。缓存/API/Provider 专项 32 passed，评论证据变化失效与跨重启命中均有回归。
 - 当前 Provider 分页/跨 owner 切片：review thread comments 嵌套 cursor、共享预算耗尽、fork head checks 优先与 base fallback 均有回归；相关 review/provider 专项 15 passed，Ruff 增量通过。
+- 当前 cross-fork change-impact 切片：PR review context 不再返回 unsupported，而是复用 commit-pinned PR comparison 生成 base/head 双仓库源码图；双仓库 snapshot 路由、repository 归属、同 SHA 不同 fork 缓存隔离与 review-context 接线均有回归。聚焦测试 11 passed，GitHub 专项 94 passed，全量 pytest 777 passed，Ruff 全量通过；expanded mypy 当前 126 个既有错误，低于 127 基线且无新增。
 
 PR #31 功能代码验证：
 
@@ -375,7 +376,7 @@ GitHub Provider 分页切片回归覆盖：
 - checks 从目标仓库失败后回退到 fork 仓库；
 - PR base/head immutable commit detail 计入共享请求预算；
 - API 和模型工具预算范围校验；
-- cross-fork change-impact 限制转为显式 uncertainty；
+- cross-fork base/head 从各自仓库按 immutable SHA 建 snapshot，并组合 repository-aware change-impact；
 - 旧 API、工具 dispatch、mypy 和前端回归保持通过。
 
 ## 6. 文档规则

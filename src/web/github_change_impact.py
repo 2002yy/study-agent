@@ -222,6 +222,9 @@ class GitHubChangeImpactService:
         base: str,
         head: str,
         *,
+        comparison: dict[str, Any] | None = None,
+        base_repo_url: str = "",
+        head_repo_url: str = "",
         max_files: int | None = None,
         max_symbols: int | None = None,
         depth: int = 2,
@@ -246,7 +249,7 @@ class GitHubChangeImpactService:
             maximum=1_000_000,
         )
 
-        compared = self.history_service.compare(
+        compared = comparison or self.history_service.compare(
             repo_url,
             base,
             head,
@@ -260,6 +263,19 @@ class GitHubChangeImpactService:
         base_sha = str(base_ref.get("commit_sha") or "")
         head_sha = str(head_ref.get("commit_sha") or "")
         repository = str(compared.get("repository") or "")
+        base_repository = str(base_ref.get("repository") or repository)
+        head_repository = str(head_ref.get("repository") or repository)
+        base_snapshot_repo_url = str(
+            base_repo_url or base_ref.get("repository_url") or repo_url
+        )
+        head_snapshot_repo_url = str(
+            head_repo_url or head_ref.get("repository_url") or repo_url
+        )
+        cross_repository = bool(
+            base_repository
+            and head_repository
+            and base_repository.casefold() != head_repository.casefold()
+        )
         budget = {
             "max_files": file_limit,
             "max_symbols": symbol_limit,
@@ -272,7 +288,12 @@ class GitHubChangeImpactService:
             kind="change-impact",
             repository=repository,
             request=budget,
-            immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+            immutable_refs={
+                "base_repository": base_repository,
+                "base_sha": base_sha,
+                "head_repository": head_repository,
+                "head_sha": head_sha,
+            },
         )
         if self.cache_repository is not None and base_sha and head_sha:
             cached = self.cache_repository.get(cache_key)
@@ -287,7 +308,7 @@ class GitHubChangeImpactService:
             dict(item)
             for item in compared.get("files", [])
             if isinstance(item, dict) and _source_path(str(item.get("filename") or item.get("previous_filename") or ""))
-        ]
+        ][:file_limit]
         old_paths = sorted(
             {
                 str(item.get("previous_filename") or item.get("filename") or "")
@@ -302,8 +323,12 @@ class GitHubChangeImpactService:
                 if str(item.get("status") or "") != "removed"
             }
         )
-        base_snapshot = self._snapshot(repo_url, commit_sha=base_sha, paths=old_paths)
-        head_snapshot = self._snapshot(repo_url, commit_sha=head_sha, paths=new_paths)
+        base_snapshot = self._snapshot(
+            base_snapshot_repo_url, commit_sha=base_sha, paths=old_paths
+        )
+        head_snapshot = self._snapshot(
+            head_snapshot_repo_url, commit_sha=head_sha, paths=new_paths
+        )
         base_graph = self._graph(base_snapshot)
         head_graph = self._graph(head_snapshot)
         base_index = self._semantic(base_graph)
@@ -320,6 +345,19 @@ class GitHubChangeImpactService:
         }
 
         uncertainties: list[dict[str, Any]] = []
+        for side, snapshot, snapshot_repository in (
+            ("base", base_snapshot, base_repository),
+            ("head", head_snapshot, head_repository),
+        ):
+            if snapshot.get("ok") is not True:
+                uncertainties.append(
+                    {
+                        "kind": f"{side}_snapshot_unavailable",
+                        "repository": snapshot_repository,
+                        "commit_sha": base_sha if side == "base" else head_sha,
+                        "error": str(snapshot.get("error") or "snapshot_unavailable"),
+                    }
+                )
         old_symbols: list[dict[str, Any]] = []
         new_symbols: list[dict[str, Any]] = []
         file_changes: list[dict[str, Any]] = []
@@ -492,6 +530,9 @@ class GitHubChangeImpactService:
             "status": "resolved",
             "provider_status": provider_status,
             "repository": repository,
+            "base_repository": base_repository,
+            "head_repository": head_repository,
+            "cross_repository": cross_repository,
             "base": base_ref,
             "head": head_ref,
             "compare": {
@@ -504,6 +545,7 @@ class GitHubChangeImpactService:
             "snapshots": {
                 "base": {
                     "ok": bool(base_snapshot.get("ok")),
+                    "repository": base_repository,
                     "commit_sha": base_sha,
                     "tree_sha": str(base_snapshot.get("tree_sha") or ""),
                     "file_count": int(base_snapshot.get("file_count") or 0),
@@ -511,6 +553,7 @@ class GitHubChangeImpactService:
                 },
                 "head": {
                     "ok": bool(head_snapshot.get("ok")),
+                    "repository": head_repository,
                     "commit_sha": head_sha,
                     "tree_sha": str(head_snapshot.get("tree_sha") or ""),
                     "file_count": int(head_snapshot.get("file_count") or 0),
@@ -547,7 +590,12 @@ class GitHubChangeImpactService:
                 kind="change-impact",
                 repository=repository,
                 payload=result,
-                immutable_refs={"base_sha": base_sha, "head_sha": head_sha},
+                immutable_refs={
+                    "base_repository": base_repository,
+                    "base_sha": base_sha,
+                    "head_repository": head_repository,
+                    "head_sha": head_sha,
+                },
                 provider_status=provider_status,
                 budget=budget,
                 reuse_class="partial" if provider_status == "partial" else "complete",
