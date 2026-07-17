@@ -165,6 +165,28 @@ def _mean(values: list[float]) -> float:
     return round(sum(values) / len(values), 3) if values else 0.0
 
 
+def _validate_recording_source(case: GitHubReplayCase, context: dict[str, Any]) -> None:
+    if not case.provider_replay:
+        return
+    source = context.get("source")
+    if not isinstance(source, dict) or source.get("kind") != "github_provider":
+        raise ValueError(f"Provider replay requires recorded GitHub source: {case.case_id}")
+    expected = {
+        "repository": case.repository,
+        "pull_request": case.pull_request,
+        "base_sha": case.base_sha,
+        "head_sha": case.head_sha,
+    }
+    mismatches = [field for field, value in expected.items() if source.get(field) != value]
+    if mismatches:
+        raise ValueError(
+            f"Provider replay source mismatch for {case.case_id}: {', '.join(mismatches)}"
+        )
+    metadata = context.get("replay_metadata")
+    if not isinstance(metadata, dict) or not str(metadata.get("recorded_at") or ""):
+        raise ValueError(f"Provider replay requires recorded_at: {case.case_id}")
+
+
 def evaluate_github_replay_manifest(path: str | Path) -> dict[str, Any]:
     manifest = load_github_replay_manifest(path)
     case_results: list[dict[str, Any]] = []
@@ -177,6 +199,7 @@ def evaluate_github_replay_manifest(path: str | Path) -> dict[str, Any]:
         context = _load_json(case.context_path)
         if not isinstance(context, dict):
             raise ValueError(f"GitHub replay context must be an object: {case.case_id}")
+        _validate_recording_source(case, context)
         metrics = evaluate_pr_review_context(context, case.expected)
         replay_metadata = context.get("replay_metadata")
         metadata = dict(replay_metadata) if isinstance(replay_metadata, dict) else {}

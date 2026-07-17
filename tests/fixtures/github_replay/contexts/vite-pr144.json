@@ -1,0 +1,203 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 1.0,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 0.0,
+    "review_location_symbol_coverage": 1.0,
+    "score": 0.8,
+    "status": "partial",
+    "unresolved_thread_symbol_coverage": 1.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "modified",
+      "end_line": 156,
+      "id": "symbol_f2fbc6fa23d33b00baabb56d",
+      "kind": "interface",
+      "language": "typescript",
+      "path": "src/node/config.ts",
+      "qualified_name": "BuildConfig",
+      "side": "old",
+      "start_line": 79
+    },
+    {
+      "change_type": "modified",
+      "end_line": 162,
+      "id": "symbol_07361df5d1e77802af3c203d",
+      "kind": "interface",
+      "language": "typescript",
+      "path": "src/node/config.ts",
+      "qualified_name": "BuildConfig",
+      "side": "new",
+      "start_line": 80
+    },
+    {
+      "change_type": "modified",
+      "end_line": 163,
+      "id": "symbol_acd3ff5ffab3ba45572d1df8",
+      "kind": "interface",
+      "language": "typescript",
+      "path": "src/node/config.ts",
+      "qualified_name": "UserConfig",
+      "side": "old",
+      "start_line": 158
+    },
+    {
+      "change_type": "modified",
+      "end_line": 169,
+      "id": "symbol_492e8a46c3a791af94ce5719",
+      "kind": "interface",
+      "language": "typescript",
+      "path": "src/node/config.ts",
+      "qualified_name": "UserConfig",
+      "side": "new",
+      "start_line": 164
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 40,
+    "operations": {
+      "check_runs:sventschui/vite": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:vitejs/vite": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:sventschui/vite": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_runs:sventschui/vite": 1
+    },
+    "remaining_requests": 30,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 10
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 262120.711,
+    "provider_requests": 10,
+    "recorded_at": "2026-07-17T16:25:01+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjY0ODI3NDEzOnYy",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "change_id": "change_88a098da93e65f2f93d003e8",
+        "change_type": "modified",
+        "confidence": "medium",
+        "reason": "unique_narrowest_containing_symbol",
+        "signature_changed": false,
+        "status": "mapped",
+        "symbol": {
+          "evidence": {
+            "end_line": 169,
+            "file_sha": "648ccea3d2776b557ef6b57364cfb0ff0ab4967b",
+            "kind": "definition",
+            "path": "src/node/config.ts",
+            "ref": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+            "repository": "sventschui/vite",
+            "start_line": 164,
+            "symbol": "UserConfig",
+            "tree_sha": "b3c17181790d389707c2c6151d55e1671b32fa6b"
+          },
+          "identity": {
+            "commit_sha": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+            "file_sha": "648ccea3d2776b557ef6b57364cfb0ff0ab4967b",
+            "id": "symbol_492e8a46c3a791af94ce5719",
+            "kind": "interface",
+            "language": "typescript",
+            "path": "src/node/config.ts",
+            "qualified_name": "UserConfig",
+            "ref": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+            "repository": "sventschui/vite",
+            "requested_ref": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+            "signature": "interface UserConfig extends BuildConfig, Pick<ServerConfig, 'serviceWorker'>",
+            "tree_sha": "b3c17181790d389707c2c6151d55e1671b32fa6b"
+          },
+          "kind": "interface",
+          "language": "typescript",
+          "name": "UserConfig",
+          "qualified_name": "UserConfig"
+        }
+      },
+      "path": "src/node/config.ts"
+    }
+  ],
+  "source": {
+    "base_sha": "57697491f3c528941b9746bd4f43563e195d95a4",
+    "cross_repository": true,
+    "head_sha": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+    "kind": "github_provider",
+    "pull_request": 144,
+    "repository": "vitejs/vite",
+    "url": "https://github.com/vitejs/vite/pull/144"
+  },
+  "summary": {
+    "affected_test_count": 0,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 3,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 3,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 1,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 1,
+    "review_submission_count": 1,
+    "symbol_change_count": 2,
+    "uncertainty_count": 5,
+    "unresolved_review_thread_count": 0
+  },
+  "truncated": false,
+  "uncertainties": [
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "src/node/build/buildPluginHtml.ts"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "src/node/build/buildPluginHtml.ts"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "src/node/build/index.ts"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "src/node/build/index.ts"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "src/node/config.ts",
+      "reason": "review_path_or_line_missing",
+      "review_id": "MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMjY0ODI3NDEzOnYy",
+      "review_kind": "review_thread"
+    }
+  ]
+}

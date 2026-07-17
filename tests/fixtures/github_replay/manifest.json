@@ -1,5 +1,5 @@
 {
-  "corpus_id": "study-agent-g10-c3a-seed-v1",
+  "corpus_id": "study-agent-g10-c3a-replay-v2",
   "schema_version": 1,
   "cases": [
     {
@@ -35,6 +35,75 @@
       "labels": {
         "review_symbol_ids": [],
         "ci_test_paths": ["tests/test_github_change_impact.py"]
+      }
+    },
+    {
+      "case_id": "pallets-flask_pr3709-historical-review-lines",
+      "repository": "pallets/flask",
+      "pull_request": 3709,
+      "base_sha": "216d97c21abe9674fe1dd6364b64051b0d09d0b0",
+      "head_sha": "b146a13f633b0e2e26e3b8383b3db0feb563bc83",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "historical-review-line-missing",
+        "mapping-false-positive"
+      ],
+      "context_path": "contexts/flask-pr3709.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [
+          "symbol_8f40a3b30bfb7a567e8bd92c",
+          "symbol_be9c2e87daf195760bad49ec"
+        ],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "vite-pr144-build-config-review",
+      "repository": "vitejs/vite",
+      "pull_request": 144,
+      "base_sha": "57697491f3c528941b9746bd4f43563e195d95a4",
+      "head_sha": "90c22918b5b00fc27779d8d844d78935fe0fa836",
+      "language": "typescript",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "historical-review-line-missing",
+        "mapping-false-positive"
+      ],
+      "context_path": "contexts/vite-pr144.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": ["symbol_07361df5d1e77802af3c203d"],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "gson-pr705-removed-review-target",
+      "repository": "google/gson",
+      "pull_request": 705,
+      "base_sha": "93605e7145c989d4f38ae347c9f31d605efcf434",
+      "head_sha": "96b2ada79aeaa44e4c572b345563d0ee90dde5b1",
+      "language": "java",
+      "scenarios": [
+        "provider-replay",
+        "unresolved-review-thread",
+        "removed-review-target",
+        "ambiguous-mapping"
+      ],
+      "context_path": "contexts/gson-pr705.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [
+          "symbol_ad0654760139046a71227cf9",
+          "symbol_dcad3f835941a141a13f93a8"
+        ],
+        "ci_test_paths": []
       }
     }
   ]
