@@ -99,6 +99,17 @@ describe("useChatController stop behavior", () => {
           });
           callbacks.onRoute({ role: "nahida", mode: "normal", model_profile: "flash" });
           callbacks.onRag({ web_tools: { run_id: "research-rag" } });
+          callbacks.onResearch({
+            run_id: "research-stop",
+            status: "running",
+            stage: "searching",
+            provider_status: "",
+            stop_reason: "",
+            error: "",
+            query_attempt_count: 0,
+            selected_source_count: 0,
+            version: 1,
+          });
           callbacks.onToken("partial token");
           requestOptions.signal.addEventListener("abort", () => {
             reject(new DOMException("stopped", "AbortError"));
@@ -155,7 +166,8 @@ describe("useChatController stop behavior", () => {
     expect(apiMocks.cancelChatResearchRuns).toHaveBeenCalledWith("turn-stop");
     await vi.waitFor(() => {
       expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-rag");
-      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop");
+      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop", true);
+      expect(getController()!.researchProgress).toBeNull();
     });
     expect(operationRegistry.size).toBe(0);
   });

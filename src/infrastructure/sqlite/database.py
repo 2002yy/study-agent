@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -405,6 +405,30 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             completed_at = COALESCE(completed_at, updated_at),
             version = version + 1
         WHERE status = 'running';
+        """,
+    ),
+    (
+        16,
+        """
+        CREATE TABLE provider_cache_entries (
+            cache_key TEXT PRIMARY KEY,
+            schema_version INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            repository TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            immutable_refs TEXT NOT NULL DEFAULT '{}',
+            provider_status TEXT NOT NULL DEFAULT '',
+            budget TEXT NOT NULL DEFAULT '{}',
+            reuse_class TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_provider_cache_repository_kind_expiry
+            ON provider_cache_entries(repository, kind, expires_at);
+        CREATE INDEX idx_provider_cache_expiry
+            ON provider_cache_entries(expires_at);
         """,
     ),
 )

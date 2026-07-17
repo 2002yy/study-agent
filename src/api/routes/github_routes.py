@@ -25,7 +25,10 @@ from src.api.models.github import (
 )
 from src.application.github_graph_service import graph_service_for
 from src.application.github_snapshot_service import GitHubSnapshotService
-from src.application.runtime_repository import get_github_snapshot_service
+from src.application.runtime_repository import (
+    get_github_snapshot_service,
+    get_github_work_item_service as get_runtime_github_work_item_service,
+)
 from src.web.github_change_impact import GitHubChangeImpactService
 from src.web.github_history import GitHubHistoryService
 from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
@@ -36,7 +39,6 @@ GitHubSnapshotServiceDependency = Annotated[
     Depends(get_github_snapshot_service),
 ]
 _history_service = GitHubHistoryService()
-_work_item_service = PaginatedGitHubWorkItemService(_history_service)
 
 
 def get_github_history_service() -> GitHubHistoryService:
@@ -44,7 +46,7 @@ def get_github_history_service() -> GitHubHistoryService:
 
 
 def get_github_work_item_service() -> PaginatedGitHubWorkItemService:
-    return _work_item_service
+    return get_runtime_github_work_item_service()
 
 
 GitHubHistoryServiceDependency = Annotated[

@@ -89,7 +89,10 @@ export function useChatController(options: ControllerOptions) {
     void cancelChatResearchRuns(turnId)
       .then((runs) => {
         const runId = runs[0]?.id;
-        if (runId) options.onResearchRunDiscovered(runId);
+        if (runId) {
+          setResearchProgress(null);
+          options.onResearchRunDiscovered(runId, true);
+        }
       })
       .catch(() => undefined);
   }, [options.onResearchRunDiscovered]);
