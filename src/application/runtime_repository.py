@@ -13,6 +13,7 @@ from src.repositories.learning_closure_repository import LearningClosureReposito
 from src.repositories.news_repository import NewsRepository
 from src.repositories.memory_repository import MemoryRepository
 from src.repositories.pedagogy_eval_repository import PedagogyEvalRepository
+from src.repositories.provider_cache_repository import ProviderCacheRepository
 from src.repositories.session_navigation_repository import SessionNavigationRepository
 from src.repositories.thread_summary_repository import ThreadSummaryRepository
 from src.repositories.tool_repository import ToolRepository
@@ -58,6 +59,34 @@ def get_rag_repository() -> RagRepository:
 @lru_cache(maxsize=1)
 def get_github_snapshot_repository() -> GitHubSnapshotRepository:
     return GitHubSnapshotRepository(get_rag_repository())
+
+
+@lru_cache(maxsize=1)
+def get_provider_cache_repository() -> ProviderCacheRepository:
+    return ProviderCacheRepository(RuntimeDatabase(runtime_database_path()))
+
+
+@lru_cache(maxsize=1)
+def get_github_work_item_service():
+    from src.web.github_history import GitHubHistoryService
+    from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
+
+    return PaginatedGitHubWorkItemService(
+        GitHubHistoryService(),
+        cache_repository=get_provider_cache_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_github_change_impact_service():
+    from src.web.github_change_impact import GitHubChangeImpactService
+    from src.web.github_history import GitHubHistoryService
+
+    return GitHubChangeImpactService(
+        GitHubHistoryService(),
+        get_github_snapshot_service(),
+        get_provider_cache_repository(),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -118,7 +147,10 @@ def get_web_tool_agent():
     from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
 
     return PersistentWebToolAgent(
-        gateway=PersistentGeneralWebGateway(get_github_snapshot_service()),
+        gateway=PersistentGeneralWebGateway(
+            get_github_snapshot_service(),
+            work_item_service=get_github_work_item_service(),
+        ),
         research_service=get_web_lookup_service(),
     )
 
@@ -233,6 +265,9 @@ def get_tool_service():
 
 def reset_runtime_repository_cache() -> None:
     get_web_tool_agent.cache_clear()
+    get_github_work_item_service.cache_clear()
+    get_github_change_impact_service.cache_clear()
+    get_provider_cache_repository.cache_clear()
     get_github_snapshot_service.cache_clear()
     get_github_snapshot_repository.cache_clear()
     get_learning_closure_service.cache_clear()

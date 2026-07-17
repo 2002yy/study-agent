@@ -1,15 +1,15 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**  
-> 更新：2026-07-15  
-> 当前能力基线：PR #43 已合并，核心学习产品 G1–G8 已形成可信状态、结构化恢复、可整理、准确导航、聚焦主界面与窄屏完整可用闭环
-> 当前代码切片：将聊天工具循环统一关联 durable ResearchRun，并继续补齐请求级取消与恢复
+> 更新：2026-07-17
+> 当前能力基线：PR #44 已合并，核心学习产品 G1–G8 已闭环，聊天联网工具循环已统一关联 durable ResearchRun
+> 当前代码切片：恢复后的回答与 EvidenceTrail 同 Run 闭环及浏览器恢复路径已落地，下一步补慢查询阶段/停止取消/失败重试浏览器验收
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环正在接入带 thread/turn owner 的 durable ResearchRun。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及初版 REST/GraphQL 分页、共享请求预算和 cross-fork PR 证据归属。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口、准备阶段实时事件，以及恢复来源与 EvidenceTrail 的同 Run 可信归属。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及 REST/GraphQL 分页、共享请求预算、cross-fork PR 证据归属和 base/head 双仓库 change-impact。**
 
 ## 2. 已完成
 
@@ -57,6 +57,10 @@ planned
 - `status` 表示流程状态；`provider_status` 表示证据完整度。
 
 当前取消属于协作式取消。同步网络请求需要返回或超时后才能进入取消分支，但取消后不会提交 completed 结果。
+
+```env
+WEB_TOOL_REQUEST_TIMEOUT_SECONDS=45
+```
 
 ### Commit-pinned GitHubRepoSnapshot
 
@@ -227,8 +231,8 @@ PR #32 已完成 G10-C2 第一轮 Provider 硬化：
 6. API 与 `github_pr_review_context` 模型工具可显式设置 `max_provider_requests` 和 `max_pages_per_collection`。
 7. cross-fork PR 明确保存 base/head repository、repository URL 与 immutable SHA；head commit detail 从 fork 仓库读取。
 8. checks 首先按目标 PR 仓库取证；不可用时可回退到实际 head/fork 仓库，并记录 `checks_repository`。
-9. 当前同仓库 change-impact owner 不能安全组合两个仓库的源码图，因此 cross-fork PR review context 不伪造语义影响，而是返回 `cross_repository_change_impact_not_supported` uncertainty。
-10. review thread 内的 comments 当前每个 thread 最多读取 100 条；若 Provider 仍有后续页则显式标记 `comments_truncated`，尚未实现嵌套 comment cursor。
+9. cross-fork PR review context 复用 PR 已取得的 immutable comparison：base/head 分别从实际目标仓库与 fork 仓库按 SHA 建 snapshot，再组合 change-impact；结果、symbol identity、snapshot evidence 与缓存身份均保留两侧 repository 归属。
+10. review thread 内 comments 已实现每线程独立 cursor，并保留逐线程 provider count、截断与 stop reason；外层与嵌套 GraphQL 请求共用同一请求预算。
 11. 独立 `github_checks` 的 ref 解析仍由 Git history owner 在集合预算前完成；集合预算覆盖 check-runs、workflow runs 和 jobs，不应解释为跨 owner 的绝对全局预算。
 12. 分页实现已拆为 provider pagination、base/GraphQL、checks/jobs、PR/fork 和 issue facade 五个模块；最大新增生产模块 485 行，未保留首稿 1086 行巨型服务。
 
@@ -269,8 +273,8 @@ PR #30 已完成主链收口：
 | 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
 | UI 聚焦收敛 | 已完成 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪已合并 |
 | 窄屏完整可用 | 已完成 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区验收已合并 |
-| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；还需请求级取消和恢复 |
-| cancel/retry/resume | 基础完成 | 聊天工具 ResearchRun 的异步请求级取消、统一超时、实时阶段事件与恢复 |
+| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；准备阶段通过同一 `run_id` 推送版本化阶段/失败事件，失败/取消 Run 已接入正式恢复入口 |
+| cancel/retry/resume | 本切片推进 | 浏览器预分配 Turn owner，停止时请求 durable ResearchRun 取消；失败/取消可重试或继续；恢复来源进入下一轮后旧恢复卡退出，服务端校验 source block 并将同一 `run_id` 写入 EvidenceTrail；还需真实浏览器验收 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
 | GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件 |
 | 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理、磁盘统计 |
@@ -280,11 +284,11 @@ PR #30 已完成主链收口：
 | 单符号影响 | 初版完成 | 数据流、配置影响、风险分层 |
 | Git ref/commit/compare | 基础完成 | 多页 commit/files、超大 compare、持久化缓存 |
 | blame | 基础完成 | Token 授权体验、超大文件和 Provider 替代方案 |
-| PR / review | 分页基础完成 | nested review comment cursor、持久化缓存、cross-fork 语义影响 |
+| PR / review | 分页增强完成 | 原始 work-item 持久化、真实多仓库 replay corpus |
 | issue | 分页基础完成 | release、linked PR、完整 timeline、项目字段、持久化缓存 |
 | checks / jobs / logs | 分页基础完成 | ref-resolution 预算统一、artifacts、rerun attempt、日志分段、持久化缓存 |
-| 跨版本结构影响 | 初版完成 | rename inference、AST edit、跨文件移动、cross-repository 图、真实仓库评测 |
-| PR review context | 初版完成 | cross-fork 语义影响、持久化缓存、多仓库真实 replay corpus |
+| 跨版本结构影响 | 双仓库图完成 | rename inference、AST edit、跨文件移动、真实仓库评测 |
+| PR review context | 双仓库取证完成 | 多仓库真实 replay corpus、symbol/CI association 质量指标 |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
 | TaskContract UI override | 已完成 | 按 Turn 一次性选择已接入；发送后清空，retry/continuation 不继承新 Turn override |
 | 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
@@ -295,23 +299,22 @@ PR #30 已完成主链收口：
 
 ### 核心学习产品优先
 
-1. **聊天工具 ResearchRun 请求级控制**：在 thread/turn owner 与工具 trace 持久化基础上，补齐异步请求级取消、统一超时和失败恢复。
-2. **聊天研究阶段事件**：让前端通过正式 `run_id` 读取实时阶段、失败原因与可恢复操作，而不是依赖一次性响应 trace。
+1. **聊天研究浏览器验收已闭环**：刷新恢复、进入下一轮、旧卡退出与同一 ResearchRun 的 EvidenceTrail 已通过；真实慢查询已覆盖 planned/searching/reading/synthesizing/completed，停止会取消 chat-owned Run，失败卡可正式重试。取消后旧实时进度遮住 cancelled 终态的缺口已修复并补回归。
 
 ### G10-C2 持久化缓存
 
-1. 为 work-item、checks、change-impact 和 review-context 定义稳定 cache key 与 schema version。
-2. 使用 SQLite 保存 payload、immutable refs、provider status、预算、创建时间和过期时间。
-3. 区分 complete / partial / failed cache 的复用规则，失败或超预算结果不得长期污染。
-4. 增加 TTL、按 repository/kind 清理、磁盘统计和 cache manifest。
-5. 服务重启后复用 immutable 证据；移动 ref 必须重新解析后再决定是否命中。
-6. 增加 migration、兼容恢复、过期清理和并发写入回归。
+1. **已完成基础设施**：统一 v1 cache key/schema，可承载 work-item、checks、change-impact 和 review-context。
+2. **已完成 SQLite repository**：保存 payload、immutable refs、provider status、预算、创建时间和过期时间。
+3. **已完成复用规则**：complete 使用配置 TTL，partial 最长 60 秒，failed 不写入持久缓存。
+4. **已完成运维原语**：TTL、按 repository/kind 过期清理、磁盘统计和 cache manifest。
+5. **已完成三类生产接入**：checks 与 change-impact 在移动 ref 先解析为 commit SHA 后支持跨服务重启复用；review-context 还将当前 files/reviews/review threads/checks 证据指纹纳入 key，base/head 不变但评论或 CI 变化时也不会误命中。PR/issue 原始 work-item 仍保持内存缓存。
+6. **已完成首轮回归**：schema v16 migration、跨重启恢复、过期、partial/failed、并发 upsert、manifest/stats 与移动 work-item 不持久化均有测试。
 
 ### G10-C2 后续 Provider 补齐
 
-1. review thread 内 comments 的嵌套 cursor。
-2. checks ref resolution 与集合请求的跨 owner 预算合同。
-3. cross-fork base/head 双仓库 snapshot 与 change-impact 图。
+1. **已完成 review thread 嵌套分页**：thread comments 跟随独立 cursor，保留每线程分页、provider count、截断与 stop reason，并与外层 REST/GraphQL 共用总请求预算。
+2. **已完成 checks 跨 owner 合同**：fork PR 的 head SHA 优先在 head repository 查询，按剩余共享预算回退 base repository；结果记录候选仓库、尝试顺序、请求消耗与最终证据仓库。
+3. **已完成 cross-fork 双仓库 change-impact**：直接消费 PR 的 immutable files/hunks，base/head 分别按实际 repository URL 与 commit SHA 建 snapshot；缓存 key 同时绑定两侧 repository 与 SHA，同 SHA 不同 fork 不会串用结果，snapshot 失败继续以 repository-aware uncertainty 降级。
 4. release、artifact metadata 和按需下载。
 5. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
 6. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
@@ -336,6 +339,16 @@ PR #30 已完成主链收口：
 - PR #42（G7）：最终 head `eb61f0cbd27ee9fe51a65fadabf358470f43d094`，CI Run #1015 完整通过后合并；pytest、Ruff、package helper、detect-secrets、expanded mypy、159 个前端测试、TypeScript build 和 Vite production build 全部通过。
 - PR #43（G8）：最终 head `f78b9b1` 的两条 CI 均通过后合并，merge commit `6e1d107`；本地 1440 / 760 / 430 px 浏览器验收覆盖 More 菜单、设置抽屉、滚动锁、关闭后焦点恢复与知识库开发代理。
 - PR #44（聊天 ResearchRun owner）：目标测试 17 passed，完整 pytest 756 passed，Ruff 全量通过，前端 47 个测试文件 / 164 个测试及 TypeScript/Vite build 通过；head `256dac4` 的 push 与 pull_request CI 均通过。
+- 当前请求级取消/超时工作树：Chat/API/Policy/Persistent/WebTool 相关后端 68 passed，Ruff 全量通过，前端 47 个测试文件 / 165 个测试通过，TypeScript 与 Vite production build 通过；完整 pytest 在本地 10 分钟门限内未结束，因此尚未记为全量通过。
+- 当前失败恢复入口工作树：前端 48 个测试文件 / 167 个测试通过，TypeScript 与 Vite production build 通过；failed/cancelled chat-owned ResearchRun、停止前 Run 创建竞态和独立 standalone run 隔离均有回归覆盖。
+- 当前实时阶段事件工作树：ResearchRun/Chat/API 相关后端 67 passed，Ruff 增量通过；前端 48 个测试文件 / 169 个测试通过，TypeScript 与 Vite production build 通过；准备阶段正式 `run_id` 事件早于 session 事件、终态完整 Run 刷新和实时进度卡均有回归覆盖。
+- 当前恢复回答闭环工作树：Chat/API/Policy/ResearchRun 相关后端 63 passed，Ruff 增量通过；前端 49 个测试文件 / 172 个测试通过，TypeScript 与 Vite production build 通过；服务端 Run/source block 匹配校验、下一轮一次性消费、旧恢复卡退出、持久化 EvidenceTrail 同 Run 归属和 `/research-runs` 开发代理均有回归覆盖。
+- 当前浏览器恢复路径：Playwright 验证 `/research-runs` 开发代理 200、恢复卡可见、请求携带服务端匹配的 `web_context_run_id`、回答后旧卡退出、EvidenceTrail 显示并展开“恢复研究来源”；headed 会话首次启动失败后使用无界面 Chromium 完成 DOM/请求验收。
+- 当前聊天研究浏览器补充验收：真实浏览器按时间检查 planned/searching/reading/synthesizing/completed；停止生成确认 owner cancel 请求、`已停止生成` 与 cancelled 终态，失败卡确认 `重试研究` 后进入恢复态。恢复后的 Playwright daemon 再启动超时，但刷新恢复路径已有前序 DOM/请求验收和专项回归覆盖。
+- 当前 G10-C2 持久化缓存切片：Provider cache schema v1 / SQLite schema v16 已落地；缓存与 migration 专项 21 passed，Ruff 增量通过；checks 只在解析到 immutable commit SHA 后跨重启复用，移动 work-item 不会直接命中持久缓存。
+- 当前 G10-C2 第二切片：change-impact 每次先 compare 重解析 base/head，再按双 SHA 与完整预算复用；review-context 每次先取得 PR 证据，再按双 SHA、review/CI 证据指纹与预算复用。缓存/API/Provider 专项 32 passed，评论证据变化失效与跨重启命中均有回归。
+- 当前 Provider 分页/跨 owner 切片：review thread comments 嵌套 cursor、共享预算耗尽、fork head checks 优先与 base fallback 均有回归；相关 review/provider 专项 15 passed，Ruff 增量通过。
+- 当前 cross-fork change-impact 切片：PR review context 不再返回 unsupported，而是复用 commit-pinned PR comparison 生成 base/head 双仓库源码图；双仓库 snapshot 路由、repository 归属、同 SHA 不同 fork 缓存隔离与 review-context 接线均有回归。聚焦测试 11 passed，GitHub 专项 94 passed，全量 pytest 777 passed，Ruff 全量通过；expanded mypy 当前 126 个既有错误，低于 127 基线且无新增。
 
 PR #31 功能代码验证：
 
@@ -363,7 +376,7 @@ GitHub Provider 分页切片回归覆盖：
 - checks 从目标仓库失败后回退到 fork 仓库；
 - PR base/head immutable commit detail 计入共享请求预算；
 - API 和模型工具预算范围校验；
-- cross-fork change-impact 限制转为显式 uncertainty；
+- cross-fork base/head 从各自仓库按 immutable SHA 建 snapshot，并组合 repository-aware change-impact；
 - 旧 API、工具 dispatch、mypy 和前端回归保持通过。
 
 ## 6. 文档规则

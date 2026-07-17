@@ -2,6 +2,7 @@ import type {
   ApiSnapshot,
   ChatMessage,
   ChatResponse,
+  ChatResearchProgress,
   ChatSettings,
   HealthResponse,
   MemoryCommitResponse,
@@ -77,6 +78,7 @@ type ChatRequestOptions = {
   ragSettings: RagSettings;
   keepCurrentRole?: boolean;
   webContext?: string;
+  webContextRunId?: string;
   conversationInstruction?: string;
   previousMode?: string;
   scene?: "single" | "group";
@@ -90,6 +92,7 @@ type ChatStreamHandlers = {
   onSession?: (sessionId: string, meta?: { turnId?: string; operationId?: string }) => void;
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
+  onResearch?: (progress: ChatResearchProgress) => void;
   onToken?: (token: string) => void;
   onUsage?: (usage: Record<string, unknown>) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -135,6 +138,7 @@ function buildChatPayload(userInput: string, history: ChatMessage[], options: Ch
     rag_retrieval_mode: options.ragSettings.retrievalMode,
     rag_min_score: options.ragSettings.minScore,
     web_context: options.webContext ?? "",
+    web_context_run_id: options.webContextRunId ?? null,
     task_intent: consumePendingTaskIntentOverride() ?? null,
     continuation_of_turn_id: options.continuationOfTurnId ?? null,
     retry_of_turn_id: options.retryOfTurnId ?? null,
@@ -700,6 +704,14 @@ export async function sendChat(
   });
 }
 
+export async function cancelChatResearchRuns(turnId: string): Promise<WebLookupRunResponse[]> {
+  const response = await requestJson<{ runs: WebLookupRunResponse[] }>(
+    `/research-runs/owners/turns/${encodeURIComponent(turnId)}/cancel`,
+    { method: "POST" }
+  );
+  return response.runs;
+}
+
 export async function sendChatStream(
   userInput: string,
   history: ChatMessage[],
@@ -766,6 +778,10 @@ export async function sendChatStream(
     if (message.event === "rag") {
       rag = (message.data.rag && typeof message.data.rag === "object" ? message.data.rag : message.data) as ChatResponse["rag"];
       handlers.onRag?.(rag);
+      return;
+    }
+    if (message.event === "research") {
+      handlers.onResearch?.(message.data as ChatResearchProgress);
       return;
     }
     if (message.event === "token") {

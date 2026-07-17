@@ -157,6 +157,19 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     setIsBusy(false);
   };
 
+  const refreshRun = async (runId: string) => {
+    try {
+      const response = await loadResearchRun(runId);
+      setResult(response);
+      setUseInChat(isUsable(response));
+      options.setActiveRunId(response.run_id);
+    } catch (error) {
+      options.setOperationError(
+        `联网研究状态刷新失败：${error instanceof Error ? error.message : "记录不存在"}`,
+      );
+    }
+  };
+
   return {
     result,
     useInChat,
@@ -168,5 +181,6 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     retry,
     resume,
     cancel,
+    refreshRun,
   };
 }

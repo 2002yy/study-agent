@@ -100,6 +100,25 @@ def list_research_runs(
     return list_web_lookup_runs(service=service, limit=limit)
 
 
+@router.post(
+    "/research-runs/owners/turns/{turn_id}/cancel",
+    response_model=WebLookupRunListResponse,
+)
+def cancel_research_runs_for_turn(
+    turn_id: str,
+    service: WebLookupServiceDependency,
+) -> WebLookupRunListResponse:
+    try:
+        return WebLookupRunListResponse(
+            runs=[
+                _response(run)
+                for run in service.cancel_owned_by_turn(turn_id, wait_seconds=5.0)
+            ]
+        )
+    except ValueError as exc:
+        raise _not_found_or_conflict(exc) from exc
+
+
 @router.get("/research-runs/{run_id}", response_model=WebLookupRunResponse)
 def get_research_run(
     run_id: str,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from src.web.github_provider_pagination import (
@@ -120,10 +121,11 @@ class PaginatedGitHubBase(GitHubWorkItemService):
 
         bounded = max(1, min(int(limit), 100))
         first = max(1, min(bounded + 1, 100))
+        comment_first = max(1, min(_provider_page_size(), bounded + 1, 100))
         query = """
         query ReviewThreads(
           $owner: String!, $repo: String!, $number: Int!,
-          $first: Int!, $after: String
+          $first: Int!, $after: String, $commentFirst: Int!
         ) {
           repository(owner: $owner, name: $repo) {
             pullRequest(number: $number) {
@@ -132,7 +134,7 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                 pageInfo { hasNextPage endCursor }
                 nodes {
                   id isResolved isOutdated path line startLine diffSide
-                  comments(first: 100) {
+                  comments(first: $commentFirst) {
                     totalCount
                     pageInfo { hasNextPage endCursor }
                     nodes {
@@ -172,6 +174,7 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                         "number": number,
                         "first": first,
                         "after": after,
+                        "commentFirst": comment_first,
                     },
                 )
             except Exception as exc:
@@ -202,42 +205,16 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                 else []
             )
             for item in page_nodes:
-                comments_data = as_dict(item.get("comments"))
-                comment_nodes = comments_data.get("nodes")
-                raw_comments = (
-                    [
-                        dict(comment)
-                        for comment in comment_nodes
-                        if isinstance(comment, dict)
-                    ]
-                    if isinstance(comment_nodes, list)
-                    else []
+                nested = self._review_thread_comments_paginated(
+                    str(item.get("id") or ""),
+                    as_dict(item.get("comments")),
+                    limit=bounded,
+                    request_budget=request_budget,
                 )
-                provider_comment_count = int(
-                    comments_data.get("totalCount") or len(raw_comments)
-                )
-                comments: list[dict[str, Any]] = []
-                for comment in raw_comments:
-                    body, body_truncated = _bounded_text(
-                        comment.get("body"), max_chars=8_000
-                    )
-                    author = as_dict(comment.get("author"))
-                    comments.append(
-                        {
-                            "id": int(comment.get("databaseId") or 0),
-                            "body": body,
-                            "body_truncated": body_truncated,
-                            "created_at": str(comment.get("createdAt") or ""),
-                            "updated_at": str(comment.get("updatedAt") or ""),
-                            "url": str(comment.get("url") or ""),
-                            "author_login": str(author.get("login") or ""),
-                        }
-                    )
-                comment_page_info = as_dict(comments_data.get("pageInfo"))
-                comments_truncated = (
-                    provider_comment_count > len(comments)
-                    or bool(comment_page_info.get("hasNextPage"))
-                )
+                provider_errors.extend(dict_errors(nested.get("provider_errors")))
+                comments = list(nested["comments"])
+                provider_comment_count = int(nested["provider_comment_count"])
+                comments_truncated = bool(nested["truncated"])
                 nested_comments_truncated = (
                     nested_comments_truncated or comments_truncated
                 )
@@ -253,6 +230,7 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                         "comments": comments,
                         "provider_comment_count": provider_comment_count,
                         "comments_truncated": comments_truncated,
+                        "comments_pagination": as_dict(nested.get("pagination")),
                     }
                 )
                 if len(threads) >= bounded + 1:
@@ -308,5 +286,184 @@ class PaginatedGitHubBase(GitHubWorkItemService):
                 "stop_reason": stop_reason,
                 "max_pages": request_budget.max_pages_per_collection,
                 "nested_comments_truncated": nested_comments_truncated,
+                "nested_comment_pages_fetched": sum(
+                    int(as_dict(item.get("comments_pagination")).get("pages_fetched") or 0)
+                    for item in visible
+                ),
             },
         }
+
+    def _review_thread_comments_paginated(
+        self,
+        thread_id: str,
+        initial: dict[str, Any],
+        *,
+        limit: int,
+        request_budget: GitHubProviderRequestBudget,
+    ) -> dict[str, Any]:
+        bounded = max(1, min(int(limit), 100))
+        request_graphql = self.request_graphql
+        if not callable(request_graphql):
+            return {
+                "comments": [],
+                "provider_comment_count": int(initial.get("totalCount") or 0),
+                "provider_errors": [
+                    _provider_error(
+                        "pull_request_review_thread_comments",
+                        "github_graphql_adapter_unavailable",
+                    )
+                ],
+                "truncated": True,
+                "pagination": {
+                    "pages_fetched": 1,
+                    "nested_requests": 0,
+                    "stop_reason": "adapter_unavailable",
+                    "max_pages": request_budget.max_pages_per_collection,
+                    "end_cursor": "",
+                },
+            }
+        target_count = bounded + 1
+        nodes = initial.get("nodes")
+        collected = (
+            [dict(item) for item in nodes if isinstance(item, dict)]
+            if isinstance(nodes, list)
+            else []
+        )
+        provider_count = int(initial.get("totalCount") or len(collected))
+        page_info = as_dict(initial.get("pageInfo"))
+        has_next_page = bool(page_info.get("hasNextPage"))
+        after = str(page_info.get("endCursor") or "") or None
+        pages_fetched = 1
+        nested_requests = 0
+        stop_reason = "provider_exhausted"
+        provider_errors: list[dict[str, str]] = []
+        query = """
+        query ReviewThreadComments(
+          $threadId: ID!, $first: Int!, $after: String
+        ) {
+          node(id: $threadId) {
+            ... on PullRequestReviewThread {
+              comments(first: $first, after: $after) {
+                totalCount
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  databaseId body createdAt updatedAt url
+                  author { login }
+                }
+              }
+            }
+          }
+        }
+        """
+        while has_next_page and len(collected) < target_count:
+            if pages_fetched >= request_budget.max_pages_per_collection:
+                stop_reason = "page_budget_exhausted"
+                break
+            operation = f"pull_request_review_thread_comments:{thread_id}"
+            if not after:
+                provider_errors.append(
+                    _provider_error(operation, "github_graphql_cursor_missing")
+                )
+                stop_reason = "provider_error"
+                break
+            if not request_budget.claim(operation):
+                provider_errors.append(
+                    _provider_error(operation, "provider_request_budget_exhausted")
+                )
+                stop_reason = "request_budget_exhausted"
+                break
+            try:
+                payload = request_graphql(
+                    query,
+                    {
+                        "threadId": thread_id,
+                        "first": min(
+                            _provider_page_size(),
+                            target_count - len(collected),
+                            100,
+                        ),
+                        "after": after,
+                    },
+                )
+            except Exception as exc:
+                provider_errors.append(
+                    _provider_error(operation, f"{type(exc).__name__}: {exc}")
+                )
+                stop_reason = "provider_error"
+                break
+            nested_requests += 1
+            pages_fetched += 1
+            if not isinstance(payload, dict) or payload.get("errors"):
+                provider_errors.append(
+                    _provider_error(operation, "github_review_comments_graphql_failed")
+                )
+                stop_reason = "provider_error"
+                break
+            node = as_dict(as_dict(payload.get("data")).get("node"))
+            comments_data = as_dict(node.get("comments"))
+            comment_nodes = comments_data.get("nodes")
+            page_nodes = (
+                [dict(item) for item in comment_nodes if isinstance(item, dict)]
+                if isinstance(comment_nodes, list)
+                else []
+            )
+            collected.extend(page_nodes)
+            provider_count = max(
+                provider_count,
+                int(comments_data.get("totalCount") or 0),
+                len(collected),
+            )
+            page_info = as_dict(comments_data.get("pageInfo"))
+            has_next_page = bool(page_info.get("hasNextPage"))
+            after = str(page_info.get("endCursor") or "") or None
+        if len(collected) >= target_count:
+            stop_reason = "item_budget_reached"
+        elif not has_next_page and stop_reason == "provider_exhausted":
+            stop_reason = "provider_exhausted"
+        visible = [self._review_thread_comment(item) for item in collected[:bounded]]
+        truncated = (
+            len(collected) > bounded
+            or provider_count > len(visible)
+            or has_next_page
+            or stop_reason
+            in {
+                "page_budget_exhausted",
+                "request_budget_exhausted",
+                "provider_error",
+            }
+        )
+        return {
+            "comments": visible,
+            "provider_comment_count": max(provider_count, len(collected)),
+            "provider_errors": provider_errors,
+            "truncated": bool(truncated),
+            "pagination": {
+                "pages_fetched": pages_fetched,
+                "nested_requests": nested_requests,
+                "stop_reason": stop_reason,
+                "max_pages": request_budget.max_pages_per_collection,
+                "end_cursor": after or "",
+            },
+        }
+
+    @staticmethod
+    def _review_thread_comment(comment: dict[str, Any]) -> dict[str, Any]:
+        body, body_truncated = _bounded_text(comment.get("body"), max_chars=8_000)
+        author = as_dict(comment.get("author"))
+        return {
+            "id": int(comment.get("databaseId") or 0),
+            "body": body,
+            "body_truncated": body_truncated,
+            "created_at": str(comment.get("createdAt") or ""),
+            "updated_at": str(comment.get("updatedAt") or ""),
+            "url": str(comment.get("url") or ""),
+            "author_login": str(author.get("login") or ""),
+        }
+
+
+def _provider_page_size() -> int:
+    try:
+        value = int(os.getenv("GITHUB_PROVIDER_PAGE_SIZE", "100"))
+    except (TypeError, ValueError):
+        value = 100
+    return max(1, min(value, 100))

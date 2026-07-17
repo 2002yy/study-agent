@@ -68,7 +68,11 @@ def inspect_github_pr_review_context(
 ) -> GitHubSnapshotResultResponse:
     result = GitHubPRReviewContextService(
         work_item_service,
-        GitHubChangeImpactService(history_service, snapshot_service),
+        GitHubChangeImpactService(
+            history_service,
+            snapshot_service,
+            getattr(work_item_service, "cache_repository", None),
+        ),
     ).build(
         request.repo_url,
         request.number,

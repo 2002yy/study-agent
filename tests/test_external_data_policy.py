@@ -224,6 +224,32 @@ def test_auto_with_local_evidence_allows_full_context(tmp_path):
     assert prepared.web_context_used is True
 
 
+def test_recovered_research_context_keeps_run_provenance_in_turn_evidence(tmp_path):
+    service, captured = _service(tmp_path)
+
+    prepared = service.start_turn(
+        PolicyChatCommand(
+            user_input="Use the recovered sources",
+            thread_id="chat-recovered-research",
+            task_intent="quick_answer",
+            web_context="RECOVERED RESEARCH SOURCE BLOCK",
+            web_context_run_id="research-recovered-1",
+            web_policy="auto",
+            cloud_context_policy="allow_local_evidence",
+        )
+    )
+
+    assert "RECOVERED RESEARCH SOURCE BLOCK" in captured["messages"][0]["rag_context"]
+    assert prepared.rag["web_context"] == {
+        "used": True,
+        "run_id": "research-recovered-1",
+        "source": "research_run",
+    }
+    stored = service.repository.get_chat_turn(prepared.turn.id)
+    assert stored is not None
+    assert stored.rag_snapshot["web_context"]["run_id"] == "research-recovered-1"
+
+
 def test_research_task_does_not_query_local_knowledge(tmp_path):
     service, captured = _service(tmp_path)
 
@@ -343,3 +369,8 @@ def test_ask_mode_does_not_treat_manual_web_context_as_consent(tmp_path):
     assert prepared.route["external_data_policy"]["web_allowed"] is False
     assert prepared.route["external_data_policy"]["reason"] == "web_consent_required"
     assert prepared.web_context_used is False
+    assert prepared.rag["web_context"] == {
+        "used": False,
+        "run_id": "",
+        "source": "manual",
+    }

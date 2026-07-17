@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
@@ -120,6 +121,24 @@ class WebLookupRepository:
                 ORDER BY updated_at DESC, id DESC LIMIT ?
                 """,
                 (safe_limit,),
+            ).fetchall()
+        return [_from_row(row) for row in rows]
+
+    def list_by_owner_turn(
+        self,
+        turn_id: str,
+        *,
+        limit: int = 20,
+    ) -> builtins.list[WebLookupRun]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM web_lookup_runs
+                WHERE json_extract(research_context, '$.owner.turn_id') = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (turn_id, max(1, min(int(limit), 100))),
             ).fetchall()
         return [_from_row(row) for row in rows]
 

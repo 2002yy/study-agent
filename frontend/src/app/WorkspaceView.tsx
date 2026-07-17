@@ -197,6 +197,14 @@ export function WorkspaceView({
             openDrawer("memory");
           }}
           isEndingSession={memoryController.isPreviewing}
+          researchRun={webLookupController.result}
+          researchProgress={chatController.researchProgress}
+          isResearchBusy={webLookupController.isBusy}
+          canRetryResearch={webLookupController.canRetry}
+          canResumeResearch={webLookupController.canResume}
+          useResearchInChat={webLookupController.useInChat}
+          onRetryResearch={() => void webLookupController.retry()}
+          onResumeResearch={() => void webLookupController.resume()}
         />
       </div>
       <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>

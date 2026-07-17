@@ -10,6 +10,7 @@ from src.domain.runtime_entities import WebLookupRun
 from src.infrastructure.sqlite.database import (
     MIGRATIONS,
     RuntimeDatabase,
+    SCHEMA_VERSION,
     _migration_statements,
     apply_migrations,
     schema_version,
@@ -241,7 +242,7 @@ def test_schema_15_backfills_legacy_completed_web_lookup(tmp_path):
         "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy_completed'"
     ).fetchone()
 
-    assert schema_version(connection) == 15
+    assert schema_version(connection) == SCHEMA_VERSION
     assert row["stage"] == "completed"
     assert row["provider_status"] == "found"
     assert row["stop_reason"] == "direct_results_found"
@@ -264,7 +265,7 @@ def test_schema_15_marks_legacy_running_lookup_as_interrupted_not_empty(tmp_path
         "SELECT * FROM web_lookup_runs WHERE id = 'web_lookup_legacy_running'"
     ).fetchone()
 
-    assert schema_version(connection) == 15
+    assert schema_version(connection) == SCHEMA_VERSION
     assert row["stage"] == "failed"
     assert row["status"] == "failed"
     assert row["provider_status"] == "unknown"

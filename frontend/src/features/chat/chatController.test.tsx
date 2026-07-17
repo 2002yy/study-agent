@@ -9,6 +9,7 @@ import { useChatController } from "./chatController";
 
 const apiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
+  cancelChatResearchRuns: vi.fn(),
   commitTurn: vi.fn(),
   createNewSession: vi.fn(),
   loadSessionDetail: vi.fn(),
@@ -35,8 +36,16 @@ function setter<T>(): Dispatch<SetStateAction<T>> {
   return vi.fn<(value: SetStateAction<T>) => void>();
 }
 
-function controllerHarness() {
+function controllerHarness(
+  recoveredResearch: { source: string; runId: string; use: boolean } = {
+    source: "",
+    runId: "",
+    use: false,
+  },
+) {
   let controller: ReturnType<typeof useChatController> | undefined;
+  const onResearchRunDiscovered = vi.fn();
+  const setUseWebLookup = setter<boolean>();
   function Harness() {
     controller = useChatController({
       chatSettings,
@@ -51,27 +60,36 @@ function controllerHarness() {
       setKeepCurrentRole: setter<boolean>(),
       conversationInstruction: "",
       setConversationInstruction: setter<string>(),
-      webLookupSource: "",
-      useWebLookup: false,
-      setUseWebLookup: setter<boolean>(),
+      webLookupSource: recoveredResearch.source,
+      webLookupRunId: recoveredResearch.runId || undefined,
+      useWebLookup: recoveredResearch.use,
+      setUseWebLookup,
       setInput: setter<string>(),
       setOperationError: setter<string>(),
       clearChatArtifacts: vi.fn(),
       refresh: vi.fn().mockResolvedValue(undefined),
+      onResearchRunDiscovered,
     });
     return null;
   }
-  return { Harness, getController: () => controller };
+  return {
+    Harness,
+    getController: () => controller,
+    onResearchRunDiscovered,
+    setUseWebLookup,
+  };
 }
 
 describe("useChatController stop behavior", () => {
   beforeEach(() => {
     operationRegistry.cancelAll();
     vi.clearAllMocks();
+    apiMocks.cancelChatResearchRuns.mockResolvedValue([]);
   });
 
   it("preserves partial output, commits it, exposes recovery, and clears busy", async () => {
     apiMocks.commitTurn.mockResolvedValue({ committed: true });
+    apiMocks.cancelChatResearchRuns.mockResolvedValue([{ id: "research-stop" }]);
     apiMocks.sendChatStream.mockImplementation(
       async (_question, _history, _options, callbacks, requestOptions) =>
         new Promise((_resolve, reject) => {
@@ -80,6 +98,18 @@ describe("useChatController stop behavior", () => {
             operationId: "op-stop",
           });
           callbacks.onRoute({ role: "nahida", mode: "normal", model_profile: "flash" });
+          callbacks.onRag({ web_tools: { run_id: "research-rag" } });
+          callbacks.onResearch({
+            run_id: "research-stop",
+            status: "running",
+            stage: "searching",
+            provider_status: "",
+            stop_reason: "",
+            error: "",
+            query_attempt_count: 0,
+            selected_source_count: 0,
+            version: 1,
+          });
           callbacks.onToken("partial token");
           requestOptions.signal.addEventListener("abort", () => {
             reject(new DOMException("stopped", "AbortError"));
@@ -87,7 +117,7 @@ describe("useChatController stop behavior", () => {
         })
     );
 
-    const { Harness, getController } = controllerHarness();
+    const { Harness, getController, onResearchRunDiscovered } = controllerHarness();
     await act(async () => {
       create(
         <WorkspaceProvider initialState={{ activeChatThreadId: "chat-stop" }}>
@@ -133,7 +163,83 @@ describe("useChatController stop behavior", () => {
         operationId: "op-stop",
       })
     );
+    expect(apiMocks.cancelChatResearchRuns).toHaveBeenCalledWith("turn-stop");
+    await vi.waitFor(() => {
+      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-rag");
+      expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop", true);
+      expect(getController()!.researchProgress).toBeNull();
+    });
     expect(operationRegistry.size).toBe(0);
+  });
+
+  it("consumes one recovered ResearchRun and keeps its id in turn evidence", async () => {
+    const recoveredRag = {
+      status: "found",
+      query: "recovered",
+      retrieval_mode: "hybrid",
+      reason: "",
+      context: "",
+      sources: "",
+      result_count: 0,
+      results: [],
+      debug: {},
+      attempts: [],
+      rewritten_query: "",
+      web_context: {
+        used: true,
+        run_id: "research-recovered-1",
+        source: "research_run",
+      },
+    };
+    apiMocks.sendChatStream.mockImplementation(
+      async (_question, _history, _options, callbacks) => {
+        callbacks.onSession("chat-recovered", { turnId: "turn-recovered" });
+        callbacks.onRoute({ role: "nahida" });
+        callbacks.onRag(recoveredRag);
+        callbacks.onDone({
+          session_id: "chat-recovered",
+          turn_id: "turn-recovered",
+          reply: "answer from recovered sources",
+        });
+        return {
+          reply: "answer from recovered sources",
+          session_id: "chat-recovered",
+          turn_id: "turn-recovered",
+          route: { role: "nahida" },
+          rag: recoveredRag,
+        };
+      },
+    );
+
+    const { Harness, getController, setUseWebLookup } = controllerHarness({
+      source: "RECOVERED SOURCE BLOCK",
+      runId: "research-recovered-1",
+      use: true,
+    });
+    await act(async () => {
+      create(
+        <WorkspaceProvider initialState={{ activeChatThreadId: "chat-recovered" }}>
+          <Harness />
+        </WorkspaceProvider>,
+      );
+    });
+
+    await act(async () => {
+      await getController()!.send("use the recovered evidence");
+    });
+
+    expect(apiMocks.sendChatStream.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        webContext: "RECOVERED SOURCE BLOCK",
+        webContextRunId: "research-recovered-1",
+      }),
+    );
+    expect(setUseWebLookup).toHaveBeenCalledWith(false);
+    const messages = getController()!.messages;
+    const assistant = messages[messages.length - 1];
+    expect(assistant?.evidence?.rag?.web_context?.run_id).toBe(
+      "research-recovered-1",
+    );
   });
 
   it("restores committed learning state instead of interrupted attempted state", async () => {

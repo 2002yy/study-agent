@@ -5,6 +5,8 @@ from urllib.parse import parse_qs, urlparse
 
 from src.web.github_history import GitHubHistoryService
 from src.web.github_paginated_work_items import PaginatedGitHubWorkItemService
+from src.web.github_provider_pagination import GitHubProviderRequestBudget
+from src.web.github_reader import parse_github_url
 
 REPO = "https://github.com/openai/example"
 FORK_REPO = "https://github.com/contributor/example-fork"
@@ -222,6 +224,179 @@ def test_pull_request_paginates_rest_and_graphql_collections(monkeypatch):
     assert result["truncated"] is True
 
 
+def test_review_thread_comments_follow_nested_cursor_with_shared_budget(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_PROVIDER_PAGE_SIZE", "2")
+
+    def provider(url: str, **_kwargs):
+        if url.endswith("/repos/openai/example/pulls/7"):
+            return _pr_payload()
+        if any(
+            marker in url
+            for marker in (
+                "/pulls/7/files?",
+                "/pulls/7/reviews?",
+                "/pulls/7/comments?",
+                "/issues/7/comments?",
+            )
+        ):
+            return []
+        if url.endswith(f"/repos/openai/example/commits/{BASE_SHA}"):
+            return _commit_payload(BASE_SHA)
+        if url.endswith(f"/repos/openai/example/commits/{HEAD_SHA}"):
+            return _commit_payload(HEAD_SHA)
+        raise AssertionError(f"unexpected URL: {url}")
+
+    graphql_calls: list[dict] = []
+
+    def comment(comment_id: int) -> dict:
+        return {
+            "databaseId": comment_id,
+            "body": f"review-{comment_id}",
+            "createdAt": "2026-07-14T00:00:00Z",
+            "updatedAt": "2026-07-14T00:00:00Z",
+            "url": f"url-{comment_id}",
+            "author": {"login": "reviewer"},
+        }
+
+    def graphql(_query: str, variables: dict) -> dict:
+        graphql_calls.append(dict(variables))
+        if variables.get("threadId"):
+            assert variables["after"] == "comment-cursor-1"
+            return {
+                "data": {
+                    "node": {
+                        "comments": {
+                            "totalCount": 3,
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [comment(3)],
+                        }
+                    }
+                }
+            }
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 1,
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [
+                                {
+                                    "id": "thread-1",
+                                    "isResolved": False,
+                                    "isOutdated": False,
+                                    "path": "src/a.py",
+                                    "line": 1,
+                                    "startLine": 1,
+                                    "diffSide": "RIGHT",
+                                    "comments": {
+                                        "totalCount": 3,
+                                        "pageInfo": {
+                                            "hasNextPage": True,
+                                            "endCursor": "comment-cursor-1",
+                                        },
+                                        "nodes": [comment(1), comment(2)],
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+    result = PaginatedGitHubWorkItemService(
+        FakeHistory(),  # type: ignore[arg-type]
+        request_json=provider,
+        request_graphql=graphql,
+    ).pull_request(
+        REPO,
+        7,
+        max_comments=3,
+        include_checks=False,
+        max_provider_requests=12,
+        max_pages_per_collection=4,
+    )
+
+    thread = result["review_threads"]["threads"][0]
+    assert [item["id"] for item in thread["comments"]] == [1, 2, 3]
+    assert thread["comments_truncated"] is False
+    assert thread["comments_pagination"]["pages_fetched"] == 2
+    assert thread["comments_pagination"]["nested_requests"] == 1
+    assert result["review_threads"]["pagination"][
+        "nested_comment_pages_fetched"
+    ] == 2
+    assert result["provider_request_budget"]["operations"][
+        "pull_request_review_thread_comments:thread-1"
+    ] == 1
+    assert len(graphql_calls) == 2
+
+
+def test_nested_review_comment_cursor_stops_at_shared_request_budget(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def graphql(_query: str, _variables: dict) -> dict:
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 1,
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [
+                                {
+                                    "id": "thread-budget",
+                                    "comments": {
+                                        "totalCount": 2,
+                                        "pageInfo": {
+                                            "hasNextPage": True,
+                                            "endCursor": "comment-cursor",
+                                        },
+                                        "nodes": [],
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+    target = parse_github_url(REPO)
+    assert target is not None
+    budget = GitHubProviderRequestBudget(max_requests=1, max_pages_per_collection=4)
+    result = PaginatedGitHubWorkItemService(
+        FakeHistory(),  # type: ignore[arg-type]
+        request_graphql=graphql,
+    )._review_threads_paginated(
+        target,
+        7,
+        limit=2,
+        request_budget=budget,
+    )
+
+    thread = result["threads"][0]
+    assert thread["comments"] == []
+    assert thread["comments_truncated"] is True
+    assert thread["comments_pagination"]["stop_reason"] == (
+        "request_budget_exhausted"
+    )
+    assert result["pagination"]["nested_comments_truncated"] is True
+    assert budget.exhausted_operations == [
+        "pull_request_review_thread_comments:thread-budget"
+    ]
+
+
 def test_pull_request_budget_exhaustion_keeps_partial_evidence(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     calls: list[str] = []
@@ -263,7 +438,7 @@ def test_pull_request_budget_exhaustion_keeps_partial_evidence(monkeypatch):
     assert result["truncated"] is True
 
 
-def test_cross_fork_pr_uses_source_repo_for_head_commit_and_check_fallback(monkeypatch):
+def test_cross_fork_pr_prefers_source_repo_for_head_checks(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
     def provider(url: str, **_kwargs):
@@ -279,10 +454,6 @@ def test_cross_fork_pr_uses_source_repo_for_head_commit_and_check_fallback(monke
             )
         ):
             return []
-        if url.startswith("https://api.github.com/repos/openai/example/") and (
-            "/check-runs?" in url or "/actions/runs?" in url
-        ):
-            raise _http_404(url)
         if f"/repos/contributor/example-fork/commits/{HEAD_SHA}/check-runs?" in url:
             return {
                 "total_count": 1,
@@ -326,8 +497,97 @@ def test_cross_fork_pr_uses_source_repo_for_head_commit_and_check_fallback(monke
     assert result["head"]["commit"]["commit_sha"] == HEAD_SHA
     assert result["checks"]["ok"] is True
     assert result["checks_repository"] == "contributor/example-fork"
-    assert result["checks"]["fallback_from_repository"] == "openai/example"
     assert result["checks"]["check_runs"][0]["name"] == "fork-ci"
+    assert result["checks_resolution"]["preferred_repository"] == (
+        "contributor/example-fork"
+    )
+    assert result["checks_resolution"]["candidate_repositories"] == [
+        "contributor/example-fork",
+        "openai/example",
+    ]
+    assert result["checks_resolution"]["attempts"] == [
+        {
+            "repository": "contributor/example-fork",
+            "status": "resolved",
+            "reason": "",
+            "used_requests": 2,
+            "provider_errors": [],
+        }
+    ]
+    assert result["checks_resolution"]["shared_provider_request_budget"] is True
+
+
+def test_cross_fork_checks_fallback_shares_the_same_request_budget(monkeypatch):
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    def provider(url: str, **_kwargs):
+        if url.endswith("/repos/openai/example/pulls/7"):
+            return _pr_payload(cross_fork=True)
+        if any(
+            marker in url
+            for marker in (
+                "/pulls/7/files?",
+                "/pulls/7/reviews?",
+                "/pulls/7/comments?",
+                "/issues/7/comments?",
+            )
+        ):
+            return []
+        if url.startswith("https://api.github.com/repos/contributor/example-fork/") and (
+            "/check-runs?" in url or "/actions/runs?" in url
+        ):
+            raise _http_404(url)
+        if f"/repos/openai/example/commits/{HEAD_SHA}/check-runs?" in url:
+            return {
+                "total_count": 1,
+                "check_runs": [
+                    {
+                        "id": 22,
+                        "name": "base-ci",
+                        "status": "completed",
+                        "conclusion": "success",
+                    }
+                ],
+            }
+        if "/repos/openai/example/actions/runs?" in url:
+            return {"total_count": 0, "workflow_runs": []}
+        if url.endswith(f"/repos/openai/example/commits/{BASE_SHA}"):
+            return _commit_payload(BASE_SHA)
+        if url.endswith(
+            f"/repos/contributor/example-fork/commits/{HEAD_SHA}"
+        ):
+            return _commit_payload(HEAD_SHA)
+        raise AssertionError(f"unexpected URL: {url}")
+
+    result = PaginatedGitHubWorkItemService(
+        FakeHistory(),  # type: ignore[arg-type]
+        request_json=provider,
+    ).pull_request(
+        REPO,
+        7,
+        include_checks=True,
+        max_provider_requests=20,
+    )
+
+    assert result["checks"]["ok"] is True
+    assert result["checks_repository"] == "openai/example"
+    assert result["checks"]["fallback_from_repository"] == (
+        "contributor/example-fork"
+    )
+    assert [item["repository"] for item in result["checks_resolution"]["attempts"]] == [
+        "contributor/example-fork",
+        "openai/example",
+    ]
+    assert [item["used_requests"] for item in result["checks_resolution"]["attempts"]] == [
+        2,
+        2,
+    ]
+    assert result["provider_request_budget"]["operations"][
+        "check_runs:contributor/example-fork"
+    ] == 1
+    assert result["provider_request_budget"]["operations"][
+        "check_runs:openai/example"
+    ] == 1
 
 
 def test_checks_paginates_jobs_across_pages(monkeypatch):

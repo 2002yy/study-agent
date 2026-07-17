@@ -15,6 +15,10 @@ from typing import Any, Callable
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from src.repositories.provider_cache_repository import (
+    ProviderCacheRepository,
+    provider_cache_key,
+)
 from src.web.github_history import GitHubHistoryService
 from src.web.github_reader import (
     GitHubTarget,
@@ -132,6 +136,7 @@ class GitHubWorkItemService:
         request_json: Callable[..., Any] | None = None,
         request_text: Callable[..., str] | None = None,
         request_graphql: Callable[[str, dict[str, Any]], Any] | None = None,
+        cache_repository: ProviderCacheRepository | None = None,
     ) -> None:
         self.history_service = history_service or GitHubHistoryService()
         self.request_json = request_json or _request_json
@@ -139,7 +144,29 @@ class GitHubWorkItemService:
         self.request_graphql = request_graphql or getattr(
             self.history_service, "request_graphql", None
         )
+        self.cache_repository = cache_repository
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+    @staticmethod
+    def _persistent_cache_identity(key: str) -> tuple[str, str, str]:
+        parts = key.split(":", 2)
+        raw_kind = parts[0]
+        kind = {
+            "checks": "checks",
+            "checks-v2": "checks",
+            "pr": "work-item",
+            "pr-v2": "work-item",
+            "issue": "work-item",
+            "issue-v2": "work-item",
+            "ci-log": "ci-log",
+        }.get(raw_kind, raw_kind)
+        repository = parts[1].lower() if len(parts) > 1 else ""
+        stable_key = provider_cache_key(
+            kind=kind,
+            repository=repository,
+            request={"cache_scope": key},
+        )
+        return stable_key, kind, repository
 
     def _target(
         self, repo_url: str
@@ -161,10 +188,27 @@ class GitHubWorkItemService:
         if ttl <= 0:
             return None
         item = self._cache.get(key)
-        if item is None or item[0] < time.monotonic():
+        if item is not None and item[0] >= time.monotonic():
+            return {**item[1], "cache_hit": True}
+        if item is not None:
             self._cache.pop(key, None)
+        if self.cache_repository is None:
             return None
-        return {**item[1], "cache_hit": True}
+        stable_key, kind, _ = self._persistent_cache_identity(key)
+        # Checks are safe to reuse because their key is built only after the
+        # requested ref has been resolved to a commit SHA. Moving work items
+        # remain memory-only until their immutable refs are re-resolved.
+        if kind != "checks":
+            return None
+        entry = self.cache_repository.get(stable_key)
+        if entry is None:
+            return None
+        return {
+            **entry.payload,
+            "cache_hit": True,
+            "cache_mode": "persistent",
+            "cache_schema_version": entry.schema_version,
+        }
 
     def _cache_put(self, key: str, value: dict[str, Any]) -> dict[str, Any]:
         ttl = _env_int(
@@ -172,6 +216,24 @@ class GitHubWorkItemService:
         )
         if ttl > 0 and value.get("status") not in {"unavailable", "failed"}:
             self._cache[key] = (time.monotonic() + ttl, dict(value))
+            if self.cache_repository is not None:
+                stable_key, kind, repository = self._persistent_cache_identity(key)
+                commit_sha = str(value.get("commit_sha") or "")
+                if kind == "checks" and re.fullmatch(r"[0-9a-fA-F]{40}", commit_sha):
+                    provider_status = str(value.get("provider_status") or "complete")
+                    reuse_class = "partial" if provider_status == "partial" else "complete"
+                    budget = value.get("provider_request_budget") or value.get("budget") or {}
+                    self.cache_repository.put(
+                        cache_key=stable_key,
+                        kind=kind,
+                        repository=repository,
+                        payload=dict(value),
+                        immutable_refs={"commit_sha": commit_sha.lower()},
+                        provider_status=provider_status,
+                        budget=budget if isinstance(budget, dict) else {},
+                        reuse_class=reuse_class,
+                        ttl_seconds=ttl,
+                    )
         return {**value, "cache_hit": False}
 
     def _json(self, url: str, *, max_bytes: int = 8_000_000) -> Any:

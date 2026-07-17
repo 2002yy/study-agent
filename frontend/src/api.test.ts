@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   callToolRun,
   archiveSession,
+  cancelChatResearchRuns,
   createNewsRun,
   digestNewsRun,
   discussNewsRun,
@@ -122,6 +123,31 @@ describe("sendChatStream", () => {
     ]);
   });
 
+  it("delivers formal research progress before the chat session is ready", async () => {
+    const progress: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sseResponse([
+          'event: research\ndata: {"run_id":"research-1","status":"running","stage":"searching","provider_status":"","stop_reason":"","error":"","query_attempt_count":0,"selected_source_count":0,"version":1}\n\n',
+          'event: session\ndata: {"session_id":"session-research","turn_id":"turn-research"}\n\n',
+          'event: done\ndata: {"session_id":"session-research","turn_id":"turn-research","reply":"done"}\n\n'
+        ])
+      )
+    );
+
+    await sendChatStream(
+      "research",
+      [],
+      { ragEnabled: false, chatSettings, ragSettings, turnId: "turn-research" },
+      { onResearch: (value) => progress.push(value) }
+    );
+
+    expect(progress).toEqual([
+      expect.objectContaining({ run_id: "research-1", stage: "searching", version: 1 })
+    ]);
+  });
+
   it("sends scene and conversation instruction in the chat payload", async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       sseResponse([
@@ -140,6 +166,8 @@ describe("sendChatStream", () => {
         keepCurrentRole: true,
         previousMode: "苏格拉底",
         conversationInstruction: "不要转交给其他角色。",
+        webContext: "recovered sources",
+        webContextRunId: "research-recovered-1",
         scene: "single"
       }
     );
@@ -148,6 +176,8 @@ describe("sendChatStream", () => {
     const body = JSON.parse(String(init.body));
     expect(body.scene).toBe("single");
     expect(body.conversation_instruction).toBe("不要转交给其他角色。");
+    expect(body.web_context).toBe("recovered sources");
+    expect(body.web_context_run_id).toBe("research-recovered-1");
     expect(body.performance_mode).toBe("deep");
     expect(body.previous_mode).toBe("苏格拉底");
     expect(body.rag_min_score).toBe(0.42);
@@ -176,6 +206,29 @@ describe("sendChatStream", () => {
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.signal).toBe(controller.signal);
+  });
+});
+
+describe("cancelChatResearchRuns", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels durable research runs by the preallocated turn owner", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ runs: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(cancelChatResearchRuns("turn / 1")).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/research-runs/owners/turns/turn%20%2F%201/cancel",
+      expect.objectContaining({ method: "POST" })
+    );
   });
 });
 

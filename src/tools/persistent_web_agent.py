@@ -95,6 +95,7 @@ class PersistentWebToolAgent(WebToolAgent):
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
         run = None
+        operation_id = ""
         persistence_error = ""
         if self.research_service is not None:
             try:
@@ -104,6 +105,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     owner_turn_id=owner_turn_id,
                     run_kind="chat_tool_loop",
                 )
+                operation_id = self.research_service.begin_tool_trace(run.id)
             except Exception as exc:
                 persistence_error = (
                     f"ResearchRun create failed: {type(exc).__name__}: {exc}"
@@ -143,6 +145,21 @@ class PersistentWebToolAgent(WebToolAgent):
                     minimum=1,
                     maximum=8,
                 ),
+                should_cancel=(
+                    lambda: self.research_service.tool_trace_cancel_requested(
+                        run.id, operation_id
+                    )
+                    if self.research_service is not None and run is not None and operation_id
+                    else False
+                ),
+                timeout=float(
+                    _env_int(
+                        "WEB_TOOL_REQUEST_TIMEOUT_SECONDS",
+                        45,
+                        minimum=5,
+                        maximum=300,
+                    )
+                ),
             )
             trace_error = persistence_error
             if run is not None:
@@ -151,6 +168,7 @@ class PersistentWebToolAgent(WebToolAgent):
                     run.id,
                     calls=calls,
                     source_block=preview.context_block(),
+                    operation_id=operation_id,
                 )
             return WebToolTrace(
                 calls=tuple(calls),
@@ -160,12 +178,24 @@ class PersistentWebToolAgent(WebToolAgent):
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             if run is not None:
-                persistence_error = self._record_trace(
-                    run.id,
-                    calls=[],
-                    source_block="",
-                    error=error,
-                )
+                if (
+                    operation_id
+                    and self.research_service is not None
+                    and self.research_service.tool_trace_cancel_requested(
+                        run.id, operation_id
+                    )
+                ):
+                    self.research_service.finish_tool_trace_cancel(run.id, operation_id)
+                    error = "ResearchCancelled: Research cancelled by user"
+                    persistence_error = ""
+                else:
+                    persistence_error = self._record_trace(
+                        run.id,
+                        calls=[],
+                        source_block="",
+                        error=error,
+                        operation_id=operation_id,
+                    )
                 if persistence_error:
                     error = f"{error}; {persistence_error}"
             return WebToolTrace(error=error, run_id=(run.id if run else ""))
@@ -177,6 +207,7 @@ class PersistentWebToolAgent(WebToolAgent):
         calls: list[dict[str, Any]],
         source_block: str,
         error: str = "",
+        operation_id: str = "",
     ) -> str:
         if self.research_service is None:
             return ""
@@ -186,6 +217,7 @@ class PersistentWebToolAgent(WebToolAgent):
                 calls=calls,
                 source_block=source_block,
                 error=error,
+                operation_id=operation_id or None,
             )
         except Exception as exc:
             return f"ResearchRun persistence failed: {type(exc).__name__}: {exc}"

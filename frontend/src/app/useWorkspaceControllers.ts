@@ -168,6 +168,7 @@ export function useWorkspaceControllers(options: {
     conversationInstruction: options.conversationInstruction,
     setConversationInstruction: options.setConversationInstruction,
     webLookupSource: webLookupController.result?.source_block ?? "",
+    webLookupRunId: webLookupController.result?.run_id,
     useWebLookup: webLookupController.useInChat,
     webPolicy,
     setUseWebLookup: webLookupController.setUseInChat,
@@ -176,6 +177,10 @@ export function useWorkspaceControllers(options: {
     clearChatArtifacts:
       workspaceCoordinator.clearChatArtifacts.bind(workspaceCoordinator),
     refresh: options.refresh,
+    onResearchRunDiscovered: (runId, forceRefresh = false) => {
+      options.setRunId.webLookup(runId);
+      if (forceRefresh) void webLookupController.refreshRun(runId);
+    },
   });
   const activeQuery =
     options.input.trim() || chatController.lastChat?.rag?.query || "";

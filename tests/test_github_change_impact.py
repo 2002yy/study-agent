@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.infrastructure.sqlite.database import RuntimeDatabase
+from src.repositories.provider_cache_repository import ProviderCacheRepository
 from src.web.github_change_impact import GitHubChangeImpactService
 
 
@@ -92,7 +94,11 @@ def handle(value):
 
 
 class FakeHistory:
+    def __init__(self) -> None:
+        self.calls = 0
+
     def compare(self, _repo_url: str, base: str, head: str, **_kwargs) -> dict:
+        self.calls += 1
         assert base == "main"
         assert head == "feature"
         return {
@@ -128,9 +134,11 @@ class FakeSnapshotService:
     def __init__(self, *, missing_head: bool = False) -> None:
         self.missing_head = missing_head
         self.calls: list[tuple[str, str]] = []
+        self.repo_calls: list[tuple[str, str, str]] = []
 
-    def snapshot(self, _repo_url: str, *, query: str, ref: str) -> dict:
+    def snapshot(self, repo_url: str, *, query: str, ref: str) -> dict:
         self.calls.append((query, ref))
+        self.repo_calls.append((repo_url, query, ref))
         if ref == BASE_SHA:
             return BASE_SNAPSHOT
         if self.missing_head:
@@ -186,3 +194,131 @@ def test_change_impact_reports_missing_changed_file_in_snapshot():
     assert result["snapshots"]["head"]["missing_changed_paths"] == ["src/service.py"]
     assert {item["kind"] for item in result["uncertainties"]} >= {"missing_head_file"}
     assert result["summary"]["removed"] == 1
+
+
+def test_change_impact_snapshots_cross_fork_sides_from_own_repositories():
+    snapshots = FakeSnapshotService()
+    base_repo_url = "https://github.com/openai/example"
+    head_repo_url = "https://github.com/contributor/example"
+    comparison = {
+        "ok": True,
+        "status": "cross_repository",
+        "repository": "openai/example",
+        "base": {
+            "commit_sha": BASE_SHA,
+            "repository": "openai/example",
+            "repository_url": base_repo_url,
+        },
+        "head": {
+            "commit_sha": HEAD_SHA,
+            "repository": "contributor/example",
+            "repository_url": head_repo_url,
+        },
+        "files": FakeHistory().compare(REPO, "main", "feature")["files"],
+        "truncated": False,
+    }
+
+    result = GitHubChangeImpactService(
+        FakeHistory(),  # type: ignore[arg-type]
+        snapshots,
+    ).analyze(
+        REPO,
+        BASE_SHA,
+        HEAD_SHA,
+        comparison=comparison,
+        base_repo_url=base_repo_url,
+        head_repo_url=head_repo_url,
+    )
+
+    assert result["ok"] is True
+    assert result["cross_repository"] is True
+    assert result["base_repository"] == "openai/example"
+    assert result["head_repository"] == "contributor/example"
+    assert result["snapshots"]["base"]["repository"] == "openai/example"
+    assert result["snapshots"]["head"]["repository"] == "contributor/example"
+    assert snapshots.repo_calls == [
+        (base_repo_url, "src/service.py", BASE_SHA),
+        (head_repo_url, "src/service.py", HEAD_SHA),
+    ]
+
+
+def test_cross_fork_cache_identity_includes_both_repositories(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    snapshots = FakeSnapshotService()
+    service = GitHubChangeImpactService(
+        FakeHistory(),  # type: ignore[arg-type]
+        snapshots,
+        ProviderCacheRepository(database),
+    )
+    base_ref = {
+        "commit_sha": BASE_SHA,
+        "repository": "openai/example",
+        "repository_url": REPO,
+    }
+    files = FakeHistory().compare(REPO, "main", "feature")["files"]
+
+    results = []
+    for owner in ("contributor", "other-contributor"):
+        head_repo_url = f"https://github.com/{owner}/example"
+        results.append(
+            service.analyze(
+                REPO,
+                BASE_SHA,
+                HEAD_SHA,
+                comparison={
+                    "ok": True,
+                    "status": "cross_repository",
+                    "repository": "openai/example",
+                    "base": base_ref,
+                    "head": {
+                        "commit_sha": HEAD_SHA,
+                        "repository": f"{owner}/example",
+                        "repository_url": head_repo_url,
+                    },
+                    "files": files,
+                    "truncated": False,
+                },
+                base_repo_url=REPO,
+                head_repo_url=head_repo_url,
+            )
+        )
+
+    assert [result["cache_hit"] for result in results] == [False, False]
+    assert len(snapshots.repo_calls) == 4
+
+
+def test_change_impact_reuses_commit_pinned_result_after_restart(tmp_path):
+    database = RuntimeDatabase(tmp_path / "runtime.db")
+    cache = ProviderCacheRepository(database)
+    history = FakeHistory()
+    snapshots = FakeSnapshotService()
+    first = GitHubChangeImpactService(history, snapshots, cache).analyze(
+        REPO,
+        "main",
+        "feature",
+        max_files=10,
+        max_symbols=20,
+        depth=3,
+    )
+
+    restarted = GitHubChangeImpactService(
+        history,
+        snapshots,
+        ProviderCacheRepository(database),
+    ).analyze(
+        REPO,
+        "main",
+        "feature",
+        max_files=10,
+        max_symbols=20,
+        depth=3,
+    )
+
+    assert first["cache_hit"] is False
+    assert restarted["cache_hit"] is True
+    assert restarted["cache_mode"] == "persistent"
+    assert history.calls == 2
+    assert snapshots.calls == [
+        ("src/service.py", BASE_SHA),
+        ("src/service.py", HEAD_SHA),
+    ]

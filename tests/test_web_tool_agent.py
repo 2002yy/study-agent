@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from src.llm_client import run_tool_loop
 from src.tools.web_agent import WebToolAgent
 from src.web.tool_gateway import _DuckDuckGoResultsParser
@@ -40,6 +42,7 @@ def test_tool_loop_executes_function_calls_and_returns_evidence(monkeypatch):
         tools=[{"type": "function", "function": {"name": "web_search"}}],
         execute_tool=lambda name, arguments: {"name": name, "query": arguments["query"]},
         max_rounds=2,
+        timeout=12.0,
     )
 
     assert evidence == [
@@ -50,8 +53,24 @@ def test_tool_loop_executes_function_calls_and_returns_evidence(monkeypatch):
         }
     ]
     assert requests[0]["tool_choice"] == "auto"
+    assert requests[0]["timeout"] == 12.0
     assert requests[1]["messages"][-2]["role"] == "assistant"
     assert requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_tool_loop_stops_before_provider_request_when_cancelled(monkeypatch):
+    monkeypatch.setattr(
+        "src.llm_client.get_client",
+        lambda **kwargs: pytest.fail("provider must not be called after cancellation"),
+    )
+
+    with pytest.raises(RuntimeError, match="tool_loop_cancelled"):
+        run_tool_loop(
+            [{"role": "user", "content": "cancel me"}],
+            tools=[{"type": "function", "function": {"name": "web_search"}}],
+            execute_tool=lambda _name, _arguments: {},
+            should_cancel=lambda: True,
+        )
 
 
 def test_web_agent_formats_model_selected_results_as_context():

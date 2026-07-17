@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import os
+import time
 from typing import Any, Protocol
 
 from src.domain.runtime_entities import WebLookupRun, new_id
@@ -308,13 +309,16 @@ class WebLookupService:
         calls: list[dict[str, Any]],
         source_block: str,
         error: str = "",
+        operation_id: str | None = None,
     ) -> WebLookupRun:
-        operation_id = new_id("web_tool")
-        run = self.repository.begin_operation(
-            run_id,
-            operation_id=operation_id,
-            stage="searching",
-        )
+        operation_id = operation_id or new_id("web_tool")
+        run = self.get(run_id)
+        if run.status != "running" or run.active_operation_id != operation_id:
+            run = self.repository.begin_operation(
+                run_id,
+                operation_id=operation_id,
+                stage="searching",
+            )
         context = {
             **run.research_context,
             "tool_trace": {"calls": calls},
@@ -329,6 +333,8 @@ class WebLookupService:
                 "run_attempt": context["run_attempt"],
             },
         ]
+        if self.repository.cancel_requested(run_id, operation_id=operation_id):
+            return self.repository.finish_cancel(run_id, operation_id=operation_id)
         if error:
             return self.repository.fail(
                 run_id,
@@ -352,6 +358,50 @@ class WebLookupService:
             stop_reason="tool_calls_completed" if calls else "no_tool_calls",
             operation_id=operation_id,
         )
+
+    def begin_tool_trace(self, run_id: str) -> str:
+        operation_id = new_id("web_tool")
+        self.repository.begin_operation(
+            run_id,
+            operation_id=operation_id,
+            stage="searching",
+        )
+        return operation_id
+
+    def tool_trace_cancel_requested(self, run_id: str, operation_id: str) -> bool:
+        return self.repository.cancel_requested(run_id, operation_id=operation_id)
+
+    def finish_tool_trace_cancel(self, run_id: str, operation_id: str) -> WebLookupRun:
+        return self.repository.finish_cancel(run_id, operation_id=operation_id)
+
+    def cancel_owned_by_turn(
+        self,
+        turn_id: str,
+        *,
+        wait_seconds: float = 0.0,
+    ) -> list[WebLookupRun]:
+        normalized = turn_id.strip()
+        if not normalized:
+            raise ValueError("Owner turn ID is required")
+        deadline = time.monotonic() + max(0.0, min(float(wait_seconds), 10.0))
+        while True:
+            active = [
+                run
+                for run in self.repository.list_by_owner_turn(normalized)
+                if run.status in {"pending", "running", "failed", "partial"}
+            ]
+            if active:
+                return [self.cancel(run.id) for run in active]
+            if time.monotonic() >= deadline:
+                return []
+            time.sleep(0.05)
+
+    def latest_owned_by_turn(self, turn_id: str) -> WebLookupRun | None:
+        normalized = turn_id.strip()
+        if not normalized:
+            raise ValueError("Owner turn ID is required")
+        runs = self.repository.list_by_owner_turn(normalized, limit=1)
+        return runs[0] if runs else None
 
     def lookup(self, query: str, *, max_items: int) -> WebLookupRun:
         run = self.create(query, max_items=max_items)

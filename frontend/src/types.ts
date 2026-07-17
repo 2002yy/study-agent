@@ -334,6 +334,11 @@ export type ChatResponse = {
       error?: string;
       run_id?: string;
     };
+    web_context?: {
+      used: boolean;
+      run_id?: string;
+      source: "research_run" | "manual";
+    };
   };
   pedagogy?: PedagogySummary;
 };
@@ -475,6 +480,18 @@ export type WebLookupRunResponse = {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
+};
+
+export type ChatResearchProgress = {
+  run_id: string;
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "cancelled";
+  stage: "planned" | "searching" | "assessing" | "reading" | "synthesizing" | "completed" | "failed" | "cancelled";
+  provider_status: string;
+  stop_reason: string;
+  error: string;
+  query_attempt_count: number;
+  selected_source_count: number;
+  version: number;
 };
 
 export type ToolRunResponse = {

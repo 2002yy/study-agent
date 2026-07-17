@@ -1,6 +1,7 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   archiveSession,
+  cancelChatResearchRuns,
   commitTurn,
   createNewSession,
   loadSessionDetail,
@@ -11,6 +12,7 @@ import { useWorkspace } from "../../app/WorkspaceProvider";
 import type { StreamRecoveryState } from "../../app/workspaceReducer";
 import type {
   ChatMessage,
+  ChatResearchProgress,
   ChatResponse,
   ChatSettings,
   RagSettings,
@@ -43,6 +45,7 @@ type ControllerOptions = {
   conversationInstruction: string;
   setConversationInstruction: Dispatch<SetStateAction<string>>;
   webLookupSource: string;
+  webLookupRunId?: string;
   useWebLookup: boolean;
   webPolicy?: string;
   setUseWebLookup: Dispatch<SetStateAction<boolean>>;
@@ -50,6 +53,7 @@ type ControllerOptions = {
   setOperationError: Dispatch<SetStateAction<string>>;
   clearChatArtifacts: () => void;
   refresh: () => Promise<void>;
+  onResearchRunDiscovered: (runId: string, refresh?: boolean) => void;
 };
 
 type SendOptions = {
@@ -78,6 +82,20 @@ export function createEmptyRag(): ChatResponse["rag"] {
 export function useChatController(options: ControllerOptions) {
   const { state, dispatch } = useWorkspace();
   const [isSending, setIsSending] = useState(false);
+  const [researchProgress, setResearchProgress] = useState<ChatResearchProgress | null>(null);
+  const activeTurnIdRef = useRef<string | null>(null);
+
+  const cancelActiveResearch = useCallback((turnId: string) => {
+    void cancelChatResearchRuns(turnId)
+      .then((runs) => {
+        const runId = runs[0]?.id;
+        if (runId) {
+          setResearchProgress(null);
+          options.onResearchRunDiscovered(runId, true);
+        }
+      })
+      .catch(() => undefined);
+  }, [options.onResearchRunDiscovered]);
 
   const setMessages: Dispatch<SetStateAction<ChatMessage[]>> = useCallback(
     (value) => dispatch({ type: "SET_CHAT_MESSAGES", value }),
@@ -113,9 +131,13 @@ export function useChatController(options: ControllerOptions) {
   );
 
   const cancelWorkspaceRuns = useCallback(() => {
+    const activeTurnId = activeTurnIdRef.current;
+    if (activeTurnId) {
+      cancelActiveResearch(activeTurnId);
+    }
     operationRegistry.invalidate("chat");
     setIsSending(false);
-  }, []);
+  }, [cancelActiveResearch]);
 
   const send = async (
     question: string,
@@ -147,6 +169,7 @@ export function useChatController(options: ControllerOptions) {
     );
     options.setInput("");
     setStreamRecovery(null);
+    setResearchProgress(null);
     options.setOperationError("");
     setIsSending(true);
     let streamedReply = "";
@@ -154,7 +177,9 @@ export function useChatController(options: ControllerOptions) {
     let streamedRoute: Record<string, unknown> = {};
     let streamedRag: ChatResponse["rag"] | null = null;
     let activeSessionId = state.activeChatThreadId ?? "";
-    let activeTurnId = extraOpts.turnId ?? "";
+    let activeTurnId =
+      extraOpts.turnId ?? `turn_${globalThis.crypto.randomUUID()}`;
+    activeTurnIdRef.current = activeTurnId;
     let activeOperationId = "";
     const shouldConsumeWebLookup = options.useWebLookup && Boolean(options.webLookupSource);
     let turnWebContext = shouldConsumeWebLookup ? options.webLookupSource : "";
@@ -182,16 +207,18 @@ export function useChatController(options: ControllerOptions) {
               : undefined,
           conversationInstruction: options.conversationInstruction,
           webContext: turnWebContext,
+          webContextRunId: shouldConsumeWebLookup ? options.webLookupRunId : undefined,
           continuationOfTurnId: extraOpts.continuationOfTurnId,
           retryOfTurnId: extraOpts.retryOfTurnId,
           partialReply: extraOpts.partialReply ?? "",
-          turnId: extraOpts.turnId,
+          turnId: activeTurnId,
         },
         {
           onSession: (sessionId, meta) => {
             if (!isCurrent()) return;
             activeSessionId = sessionId;
             activeTurnId = meta?.turnId ?? activeTurnId;
+            activeTurnIdRef.current = activeTurnId;
             activeOperationId = meta?.operationId ?? activeOperationId;
             setThreadId(sessionId);
             if (activeTurnId) {
@@ -224,12 +251,22 @@ export function useChatController(options: ControllerOptions) {
           onRag: (rag) => {
             if (!isCurrent()) return;
             streamedRag = rag;
+            const researchRunId = rag.web_tools?.run_id;
+            if (researchRunId) options.onResearchRunDiscovered(researchRunId);
             setLastChat((current) => ({
               reply: current?.reply ?? streamedReply,
               session_id: current?.session_id ?? state.activeChatThreadId ?? "streaming",
               route: current?.route ?? {},
               rag,
             }));
+          },
+          onResearch: (progress) => {
+            if (!isCurrent()) return;
+            setResearchProgress(progress);
+            options.onResearchRunDiscovered(
+              progress.run_id,
+              ["completed", "partial", "failed", "cancelled"].includes(progress.status),
+            );
           },
           onToken: (token) => {
             if (!isCurrent()) return;
@@ -380,6 +417,9 @@ export function useChatController(options: ControllerOptions) {
         )
       );
     } finally {
+      if (activeTurnIdRef.current === activeTurnId) {
+        activeTurnIdRef.current = null;
+      }
       const ownsSettlement = isOwned();
       operationRegistry.complete(operationId);
       if (ownsSettlement) setIsSending(false);
@@ -488,6 +528,8 @@ export function useChatController(options: ControllerOptions) {
           turnId: interrupted.turn_id,
         }
       : null;
+    const restoredResearchRunId = restoredRag.web_tools?.run_id;
+    if (restoredResearchRunId) options.onResearchRunDiscovered(restoredResearchRunId);
 
     const evidenceByTurn = evidenceFromSessionTurns(detail.turns ?? []);
     const restoredWithEvidence = restoredMessages.map((message) =>
@@ -640,6 +682,7 @@ export function useChatController(options: ControllerOptions) {
     lastChat: state.lastChat,
     streamRecovery: state.streamRecovery,
     isSending,
+    researchProgress,
     setMessages,
     setLastChat,
     setStreamRecovery,
@@ -647,7 +690,13 @@ export function useChatController(options: ControllerOptions) {
     transitionSession,
     applySessionDetail,
     send,
-    stop: () => operationRegistry.abort("chat"),
+    stop: () => {
+      const activeTurnId = activeTurnIdRef.current;
+      if (activeTurnId) {
+        cancelActiveResearch(activeTurnId);
+      }
+      operationRegistry.abort("chat");
+    },
     retry,
     continueInterrupted,
     copyInterrupted,
