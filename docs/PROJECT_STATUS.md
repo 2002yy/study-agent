@@ -312,8 +312,8 @@ PR #30 已完成主链收口：
 
 ### G10-C2 后续 Provider 补齐
 
-1. review thread 内 comments 的嵌套 cursor。
-2. checks ref resolution 与集合请求的跨 owner 预算合同。
+1. **已完成 review thread 嵌套分页**：thread comments 跟随独立 cursor，保留每线程分页、provider count、截断与 stop reason，并与外层 REST/GraphQL 共用总请求预算。
+2. **已完成 checks 跨 owner 合同**：fork PR 的 head SHA 优先在 head repository 查询，按剩余共享预算回退 base repository；结果记录候选仓库、尝试顺序、请求消耗与最终证据仓库。
 3. cross-fork base/head 双仓库 snapshot 与 change-impact 图。
 4. release、artifact metadata 和按需下载。
 5. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
@@ -347,6 +347,7 @@ PR #30 已完成主链收口：
 - 当前聊天研究浏览器补充验收：真实浏览器按时间检查 planned/searching/reading/synthesizing/completed；停止生成确认 owner cancel 请求、`已停止生成` 与 cancelled 终态，失败卡确认 `重试研究` 后进入恢复态。恢复后的 Playwright daemon 再启动超时，但刷新恢复路径已有前序 DOM/请求验收和专项回归覆盖。
 - 当前 G10-C2 持久化缓存切片：Provider cache schema v1 / SQLite schema v16 已落地；缓存与 migration 专项 21 passed，Ruff 增量通过；checks 只在解析到 immutable commit SHA 后跨重启复用，移动 work-item 不会直接命中持久缓存。
 - 当前 G10-C2 第二切片：change-impact 每次先 compare 重解析 base/head，再按双 SHA 与完整预算复用；review-context 每次先取得 PR 证据，再按双 SHA、review/CI 证据指纹与预算复用。缓存/API/Provider 专项 32 passed，评论证据变化失效与跨重启命中均有回归。
+- 当前 Provider 分页/跨 owner 切片：review thread comments 嵌套 cursor、共享预算耗尽、fork head checks 优先与 base fallback 均有回归；相关 review/provider 专项 15 passed，Ruff 增量通过。
 
 PR #31 功能代码验证：
 

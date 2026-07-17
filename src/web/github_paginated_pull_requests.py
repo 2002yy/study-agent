@@ -109,6 +109,98 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
             "html_url": str(payload.get("html_url") or ""),
         }
 
+    def _checks_for_pull_head(
+        self,
+        *,
+        base_repo_url: str,
+        base_repository: str,
+        head_repo_url: str,
+        head_repository: str,
+        head_sha: str,
+        cross_repository: bool,
+        item_budget: GitHubWorkItemBudget,
+        request_budget: GitHubProviderRequestBudget,
+    ) -> dict[str, Any]:
+        candidates = (
+            [(head_repo_url, head_repository), (base_repo_url, base_repository)]
+            if cross_repository
+            else [(base_repo_url, base_repository)]
+        )
+        unique_candidates: list[tuple[str, str]] = []
+        for candidate in candidates:
+            if candidate not in unique_candidates:
+                unique_candidates.append(candidate)
+        attempts: list[dict[str, Any]] = []
+        checks: dict[str, Any] = {
+            "ok": False,
+            "status": "unavailable",
+            "error": "github_checks_providers_unavailable",
+        }
+        for index, (candidate_url, candidate_repository) in enumerate(
+            unique_candidates
+        ):
+            if request_budget.remaining_requests <= 0:
+                attempts.append(
+                    {
+                        "repository": candidate_repository,
+                        "status": "not_attempted",
+                        "reason": "provider_request_budget_exhausted",
+                        "used_requests": 0,
+                        "provider_errors": [],
+                    }
+                )
+                break
+            used_before = request_budget.used_requests
+            candidate_result = self._checks_for_commit(
+                candidate_url,
+                requested_ref=head_sha,
+                commit_sha=head_sha,
+                max_runs=item_budget.max_runs,
+                max_checks=item_budget.max_checks,
+                max_jobs=item_budget.max_jobs,
+                include_jobs=True,
+                request_budget=request_budget,
+            )
+            attempts.append(
+                {
+                    "repository": candidate_repository,
+                    "status": (
+                        "resolved"
+                        if candidate_result.get("ok") is True
+                        else str(candidate_result.get("status") or "unavailable")
+                    ),
+                    "reason": str(candidate_result.get("error") or ""),
+                    "used_requests": request_budget.used_requests - used_before,
+                    "provider_errors": dict_errors(
+                        candidate_result.get("provider_errors")
+                    ),
+                }
+            )
+            checks = candidate_result
+            if checks.get("ok") is True:
+                if index > 0:
+                    checks = {
+                        **checks,
+                        "fallback_from_repository": unique_candidates[0][1],
+                    }
+                break
+        return {
+            **checks,
+            "resolution": {
+                "commit_sha": head_sha,
+                "cross_repository": cross_repository,
+                "preferred_repository": (
+                    head_repository if cross_repository else base_repository
+                ),
+                "evidence_repository": str(
+                    checks.get("evidence_repository") or ""
+                ),
+                "candidate_repositories": [item[1] for item in unique_candidates],
+                "attempts": attempts,
+                "shared_provider_request_budget": True,
+            },
+        }
+
     def pull_request(
         self,
         repo_url: str,
@@ -275,41 +367,18 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
 
         checks: dict[str, Any] = {"status": "not_requested", "ok": False}
         if include_checks and head_sha:
-            checks = self._checks_for_commit(
-                repo_url,
-                requested_ref=head_sha,
-                commit_sha=head_sha,
-                max_runs=item_budget.max_runs,
-                max_checks=item_budget.max_checks,
-                max_jobs=item_budget.max_jobs,
-                include_jobs=True,
+            checks = self._checks_for_pull_head(
+                base_repo_url=base_repo_url,
+                base_repository=base_repository,
+                head_repo_url=head_repo_url,
+                head_repository=head_repository,
+                head_sha=head_sha,
+                cross_repository=cross_repository,
+                item_budget=item_budget,
                 request_budget=request_budget,
             )
-            if (
-                checks.get("ok") is not True
-                and cross_repository
-                and request_budget.remaining_requests > 0
-            ):
-                fallback = self._checks_for_commit(
-                    head_repo_url,
-                    requested_ref=head_sha,
-                    commit_sha=head_sha,
-                    max_runs=item_budget.max_runs,
-                    max_checks=item_budget.max_checks,
-                    max_jobs=item_budget.max_jobs,
-                    include_jobs=True,
-                    request_budget=request_budget,
-                )
-                if fallback.get("ok") is True:
-                    checks = {
-                        **fallback,
-                        "fallback_from_repository": target.repository,
-                    }
-                else:
-                    provider_errors.extend(
-                        dict_errors(fallback.get("provider_errors"))
-                    )
             if checks.get("ok") is not True:
+                provider_errors.extend(dict_errors(checks.get("provider_errors")))
                 provider_errors.append(
                     _provider_error(
                         "pull_request_checks",
@@ -444,6 +513,7 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
             ),
             "review_threads": review_threads,
             "checks": checks,
+            "checks_resolution": as_dict(checks.get("resolution")),
             "checks_repository": str(
                 checks.get("evidence_repository") or target.repository
             ),
