@@ -8,18 +8,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ChatResponse } from "../../types";
 import {
-  consumePendingTaskIntentOverride,
   clearPendingTaskIntentOverride,
+  consumePendingTaskIntentOverride,
 } from "../task/taskContract";
 import { ChatPanel } from "./ChatPanel";
 
 type RenderOptions = {
   input?: string;
-  hasSearchQuery?: boolean;
   taskIntent?: string;
   closureEligibility?: string;
   onOpenDrawer?: ReturnType<typeof vi.fn>;
-  onSearchSources?: ReturnType<typeof vi.fn>;
   onSubmit?: ReturnType<typeof vi.fn>;
   onRetry?: ReturnType<typeof vi.fn>;
   onAbandonInterruptedReply?: ReturnType<typeof vi.fn>;
@@ -51,9 +49,9 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
         onAbandonInterruptedReply={options.onAbandonInterruptedReply ?? vi.fn()}
         onCopyInterruptedReply={vi.fn()}
         onUploadClick={vi.fn()}
-        onSearchSources={options.onSearchSources ?? vi.fn()}
+        onSearchSources={vi.fn()}
         isSearching={false}
-        hasSearchQuery={options.hasSearchQuery ?? false}
+        hasSearchQuery={false}
         onQuickPrompt={vi.fn()}
         onStartNewTopic={vi.fn()}
         lastChat={{
@@ -93,7 +91,7 @@ function renderPanel(options: RenderOptions = {}): ReactTestRenderer {
         useResearchInChat={false}
         onRetryResearch={vi.fn()}
         onResumeResearch={vi.fn()}
-      />
+      />,
     );
   });
   return renderer;
@@ -109,7 +107,22 @@ function textContent(node: ReactTestInstance): string {
     .join("");
 }
 
-describe("ChatPanel practical workspace navigation", () => {
+function menuClickTarget() {
+  const removeAttribute = vi.fn();
+  const focus = vi.fn();
+  return {
+    removeAttribute,
+    focus,
+    currentTarget: {
+      closest: () => ({
+        removeAttribute,
+        querySelector: () => ({ focus }),
+      }),
+    },
+  };
+}
+
+describe("ChatPanel learning product boundary", () => {
   it("shows user-facing task state without leaking the raw session id", () => {
     const renderer = renderPanel();
     const statusTexts = renderer.root.findAllByType("span").map(directText);
@@ -122,7 +135,7 @@ describe("ChatPanel practical workspace navigation", () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps the primary dock focused on task closure, upload, sessions, and More", () => {
+  it("keeps the primary dock focused on closure, upload, sessions, and More", () => {
     const renderer = renderPanel({
       taskIntent: "learn",
       closureEligibility: "learning_summary",
@@ -131,7 +144,7 @@ describe("ChatPanel practical workspace navigation", () => {
     const directButtonLabels = actions.children
       .filter(
         (child): child is ReactTestInstance =>
-          typeof child !== "string" && child.type === "button"
+          typeof child !== "string" && child.type === "button",
       )
       .map((button) => button.props["aria-label"]);
 
@@ -141,95 +154,73 @@ describe("ChatPanel practical workspace navigation", () => {
       "打开会话历史",
     ]);
     expect(actions.findByType("summary").props["aria-label"]).toBe("打开更多学习工具");
-    expect(directButtonLabels).not.toContain("检索当前问题的资料来源");
-    expect(directButtonLabels).not.toContain("打开引用来源与知识库");
-    expect(directButtonLabels).not.toContain("打开设置");
 
     act(() => renderer.unmount());
   });
 
-  it("keeps secondary and low-frequency workspaces in a labelled menu", () => {
+  it("keeps only learning-facing destinations in the primary More section", () => {
     const renderer = renderPanel();
     const serialized = JSON.stringify(renderer.toJSON());
 
-    expect(serialized).toContain("检索当前问题");
-    expect(serialized).toContain("引用来源");
+    expect(serialized).toContain("资料与来源");
+    expect(serialized).toContain("学习成果");
     expect(serialized).toContain("设置");
+    expect(serialized).toContain("实验功能");
     expect(serialized).toContain("群聊讨论");
     expect(serialized).toContain("新闻研究");
     expect(serialized).toContain("受控工具");
-    expect(serialized).toContain("学习记忆");
-    expect(serialized).toContain("工作流记录");
+    expect(serialized).toContain("开发者诊断");
+    expect(serialized).not.toContain("检索当前问题");
+    expect(serialized).not.toContain("工作流记录");
+    expect(serialized).not.toContain("学习记忆");
 
     act(() => renderer.unmount());
   });
 
-  it("opens a selected low-frequency workspace and closes the menu", () => {
+  it("opens an experimental workspace and closes the More menu", () => {
     const onOpenDrawer = vi.fn();
-    const removeAttribute = vi.fn();
-    const focus = vi.fn();
+    const target = menuClickTarget();
     const renderer = renderPanel({ onOpenDrawer });
     const groupAction = renderer.root.findAllByProps({ role: "menuitem" }).find(
-      (button) => textContent(button).includes("群聊讨论")
+      (button) => textContent(button).includes("群聊讨论"),
     );
 
     expect(groupAction).toBeTruthy();
-    act(() => {
-      groupAction?.props.onClick({
-        currentTarget: {
-          closest: () => ({
-            removeAttribute,
-            querySelector: () => ({ focus }),
-          }),
-        },
-      });
-    });
+    act(() => groupAction?.props.onClick({ currentTarget: target.currentTarget }));
 
     expect(onOpenDrawer).toHaveBeenCalledWith("group");
-    expect(removeAttribute).toHaveBeenCalledWith("open");
-    expect(focus).toHaveBeenCalledTimes(1);
+    expect(target.removeAttribute).toHaveBeenCalledWith("open");
+    expect(target.focus).toHaveBeenCalledTimes(1);
 
     act(() => renderer.unmount());
   });
 
-  it("keeps source search reachable from More and closes the menu after use", () => {
-    const onSearchSources = vi.fn();
-    const removeAttribute = vi.fn();
-    const focus = vi.fn();
-    const renderer = renderPanel({ hasSearchQuery: true, onSearchSources });
-    const searchButton = renderer.root.findByProps({
-      "aria-label": "检索当前问题的资料来源",
-    });
-
-    act(() => searchButton.props.onClick({
-      currentTarget: {
-        closest: () => ({
-          removeAttribute,
-          querySelector: () => ({ focus }),
-        }),
-      },
-    }));
-    expect(onSearchSources).toHaveBeenCalledTimes(1);
-    expect(removeAttribute).toHaveBeenCalledWith("open");
-    expect(focus).toHaveBeenCalledTimes(1);
-
-    act(() => renderer.unmount());
-  });
-
-  it("applies a manual task choice to one new message and then resets", async () => {
+  it("replaces the permanent task selector with an optional one-shot task chip", async () => {
     let observedIntent: string | undefined;
     const onSubmit = vi.fn(async () => {
       observedIntent = consumePendingTaskIntentOverride();
     });
     const renderer = renderPanel({ input: "请帮我查资料", onSubmit });
-    const selector = renderer.root.findByProps({
-      "aria-label": "下一条消息的任务类型",
-    });
 
-    act(() => selector.props.onChange({ target: { value: "research" } }));
-    expect(renderer.root.findByProps({
+    expect(renderer.root.findAllByProps({
       "aria-label": "下一条消息的任务类型",
-    }).props.value).toBe("research");
+    })).toHaveLength(0);
+
+    const chip = renderer.root.findByProps({
+      "aria-label": "调整下一条消息的任务方式",
+    });
+    expect(directText(chip)).toBe("自动 · 临时研究");
+
+    const target = menuClickTarget();
+    const researchOption = renderer.root.findAllByProps({ role: "menuitemradio" }).find(
+      (button) => textContent(button).includes("临时研究"),
+    );
+    expect(researchOption).toBeTruthy();
+
+    act(() => researchOption?.props.onClick({ currentTarget: target.currentTarget }));
+    expect(directText(renderer.root.findByProps({
+      "aria-label": "调整下一条消息的任务方式",
+    }))).toBe("本次 · 临时研究");
 
     const form = renderer.root.findByProps({ className: "composer" });
     await act(async () => {
@@ -238,9 +229,9 @@ describe("ChatPanel practical workspace navigation", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(observedIntent).toBe("research");
-    expect(renderer.root.findByProps({
-      "aria-label": "下一条消息的任务类型",
-    }).props.value).toBe("");
+    expect(directText(renderer.root.findByProps({
+      "aria-label": "调整下一条消息的任务方式",
+    }))).toBe("自动 · 临时研究");
     expect(consumePendingTaskIntentOverride()).toBeUndefined();
 
     act(() => renderer.unmount());
@@ -258,20 +249,22 @@ describe("ChatPanel practical workspace navigation", () => {
         turnId: "turn-1",
       },
     });
-    const selector = renderer.root.findByProps({
-      "aria-label": "下一条消息的任务类型",
-    });
-    act(() => selector.props.onChange({ target: { value: "quick_answer" } }));
+    const target = menuClickTarget();
+    const quickAnswerOption = renderer.root.findAllByProps({ role: "menuitemradio" }).find(
+      (button) => textContent(button).includes("快速问答"),
+    );
+
+    act(() => quickAnswerOption?.props.onClick({ currentTarget: target.currentTarget }));
     const retryButton = renderer.root.findAllByType("button").find(
-      (button) => directText(button).includes("重新生成")
+      (button) => directText(button).includes("重新生成"),
     );
 
     act(() => retryButton?.props.onClick());
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(consumePendingTaskIntentOverride()).toBeUndefined();
-    expect(renderer.root.findByProps({
-      "aria-label": "下一条消息的任务类型",
-    }).props.value).toBe("quick_answer");
+    expect(directText(renderer.root.findByProps({
+      "aria-label": "调整下一条消息的任务方式",
+    }))).toBe("本次 · 快速问答");
 
     act(() => renderer.unmount());
   });
@@ -282,7 +275,7 @@ describe("ChatPanel practical workspace navigation", () => {
       (node) =>
         node.type === "button" &&
         typeof node.props.className === "string" &&
-        node.props.className.split(" ").includes("icon-button")
+        node.props.className.split(" ").includes("icon-button"),
     );
 
     expect(iconButtons.length).toBeGreaterThan(0);
