@@ -1,0 +1,57 @@
+.workspace-menu-section-label {
+  margin: 5px 6px 2px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  padding: 9px 4px 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-panel > .panel-header {
+  margin-bottom: 2px;
+}
+
+.settings-panel .side-section {
+  margin: 0;
+}
+
+.settings-advanced {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-strong);
+  padding: 9px 10px;
+}
+
+.settings-advanced > summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.settings-advanced[open] > summary {
+  margin-bottom: 10px;
+}
+
+.settings-advanced .field-row,
+.settings-advanced .number-grid {
+  margin-top: 9px;
+}
+
+@media (max-width: 760px) {
+  .workspace-menu-section-label {
+    padding-top: 11px;
+  }
+
+  .settings-panel {
+    gap: 12px;
+  }
+}
