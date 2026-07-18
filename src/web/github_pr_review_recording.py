@@ -32,6 +32,27 @@ def _review_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _ci_association(item: dict[str, Any]) -> dict[str, Any]:
+    job = _dict(item.get("job"))
+    if job:
+        return {
+            "job": {
+                "id": str(job.get("id") or ""),
+                "run_id": str(job.get("run_id") or ""),
+                "name": str(job.get("name") or ""),
+                "status": str(job.get("status") or ""),
+                "conclusion": str(job.get("conclusion") or ""),
+                "url": str(job.get("url") or ""),
+            },
+            "failed_steps": [
+                {
+                    "name": str(step.get("name") or ""),
+                    "number": int(step.get("number") or 0),
+                    "conclusion": str(step.get("conclusion") or ""),
+                }
+                for step in _items(item.get("failed_steps"))
+            ],
+            "association": _dict(item.get("association")),
+        }
     check = _dict(item.get("check"))
     return {
         "check": {
@@ -108,7 +129,9 @@ def compact_recording(
             "head_sha": head_sha,
             "cross_repository": bool(result.get("cross_repository", False)),
         },
-        "review_items": [_review_item(item) for item in _items(result.get("review_items"))],
+        "review_items": [
+            _review_item(item) for item in _items(result.get("review_items"))
+        ],
         "ci_associations": [
             _ci_association(item) for item in _items(result.get("ci_associations"))
         ],

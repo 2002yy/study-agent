@@ -1,0 +1,596 @@
+{
+  "ci_associations": [
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85336479985",
+        "name": "Lint 3.10",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85336479985"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85336479989",
+        "name": "Lint 3.12",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85336479989"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85336480008",
+        "name": "Lint 3.13",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85336480008"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85336480023",
+        "name": "Lint 3.11",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85336480023"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85336480252",
+        "name": "Lint 3.14",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85336480252"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [],
+        "status": "unmapped",
+        "symbols": [],
+        "tests": []
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Decide whether the needed jobs succeeded or failed",
+          "number": 2
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "85339167988",
+        "name": "check",
+        "run_id": "28781055010",
+        "status": "completed",
+        "url": "https://github.com/pydantic/pydantic/actions/runs/28781055010/job/85339167988"
+      }
+    }
+  ],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 0.429,
+    "failed_job_association_coverage": 0.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 0.0,
+    "review_location_symbol_coverage": 0.0,
+    "score": 0.286,
+    "status": "limited",
+    "unresolved_thread_symbol_coverage": 0.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "added",
+      "end_line": 276,
+      "id": "symbol_1d16dba87b696c4849e6752a",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "py_and_json.ChosenPyAndJsonApapter",
+      "side": "new",
+      "start_line": 275
+    },
+    {
+      "change_type": "added",
+      "end_line": 267,
+      "id": "symbol_3d7f4552a433e73c7450de1d",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "PyAndJsonAdapter",
+      "side": "new",
+      "start_line": 237
+    },
+    {
+      "change_type": "added",
+      "end_line": 209,
+      "id": "symbol_d3f794e56c8babba3e44bfa1",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_duplicate_extra_keys_in_json_later_wins.Model",
+      "side": "new",
+      "start_line": 206
+    },
+    {
+      "change_type": "added",
+      "end_line": 117,
+      "id": "symbol_9295ab310349abb4cf28cdcf",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_extra_key_and_value_both_error.Model",
+      "side": "new",
+      "start_line": 114
+    },
+    {
+      "change_type": "added",
+      "end_line": 98,
+      "id": "symbol_cc13101ad1eb75cd6a916805",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_extra_with_alias.Model",
+      "side": "new",
+      "start_line": 95
+    },
+    {
+      "change_type": "added",
+      "end_line": 165,
+      "id": "symbol_893ac1d981b63183e4907369",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_field_validation_order.Model",
+      "side": "new",
+      "start_line": 154
+    },
+    {
+      "change_type": "added",
+      "end_line": 192,
+      "id": "symbol_0b77ab577a78c078d2e27ec4",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_path_alias_winner_not_in_extras.Model",
+      "side": "new",
+      "start_line": 184
+    },
+    {
+      "change_type": "added",
+      "end_line": 278,
+      "id": "symbol_a0fdbc2d3597bc4834742b8f",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "py_and_json",
+      "side": "new",
+      "start_line": 274
+    },
+    {
+      "change_type": "modified",
+      "end_line": 228,
+      "id": "symbol_205e9476000fe458ec4f9f9b",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "pytest_itemcollected",
+      "side": "old",
+      "start_line": 224
+    },
+    {
+      "change_type": "modified",
+      "end_line": 231,
+      "id": "symbol_54682f7a750a51edf731393d",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "pytest_itemcollected",
+      "side": "new",
+      "start_line": 227
+    },
+    {
+      "change_type": "added",
+      "end_line": 215,
+      "id": "symbol_c55eab739c681cf94e9324e6",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_duplicate_extra_keys_in_json_later_wins",
+      "side": "new",
+      "start_line": 202
+    },
+    {
+      "change_type": "added",
+      "end_line": 137,
+      "id": "symbol_5446b8695cf9f13ff91435cc",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_extra_key_and_value_both_error",
+      "side": "new",
+      "start_line": 108
+    },
+    {
+      "change_type": "added",
+      "end_line": 112,
+      "id": "symbol_1a1343c0df4cf2cd3ec63d18",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_extra_key_and_value_both_error.reject_bad_keys",
+      "side": "new",
+      "start_line": 109
+    },
+    {
+      "change_type": "added",
+      "end_line": 105,
+      "id": "symbol_66a1e660e88153d97ec31cb4",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_extra_with_alias",
+      "side": "new",
+      "start_line": 94
+    },
+    {
+      "change_type": "added",
+      "end_line": 177,
+      "id": "symbol_91dc003921f7fad9c649577b",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_field_validation_order",
+      "side": "new",
+      "start_line": 140
+    },
+    {
+      "change_type": "added",
+      "end_line": 152,
+      "id": "symbol_2301a1e2d9e59579317c15eb",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_field_validation_order.record_extra_key",
+      "side": "new",
+      "start_line": 150
+    },
+    {
+      "change_type": "added",
+      "end_line": 148,
+      "id": "symbol_97a0c81dd048f642acc55c29",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_field_validation_order.record_field",
+      "side": "new",
+      "start_line": 143
+    },
+    {
+      "change_type": "added",
+      "end_line": 146,
+      "id": "symbol_e53d61034946fdc53cf8af70",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_field_validation_order.record_field.validator",
+      "side": "new",
+      "start_line": 144
+    },
+    {
+      "change_type": "added",
+      "end_line": 199,
+      "id": "symbol_848a88b44009659eb4bdc6c4",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_path_alias_winner_not_in_extras",
+      "side": "new",
+      "start_line": 180
+    },
+    {
+      "change_type": "modified",
+      "end_line": 83,
+      "id": "symbol_b28498b945b8d1a7ecca3bf1",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_polymorphic_serialization_with_model_serializer",
+      "side": "old",
+      "start_line": 44
+    },
+    {
+      "change_type": "modified",
+      "end_line": 91,
+      "id": "symbol_130c648275e242bf9c779746",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/types/test_model.py",
+      "qualified_name": "test_polymorphic_serialization_with_model_serializer",
+      "side": "new",
+      "start_line": 52
+    },
+    {
+      "change_type": "added",
+      "end_line": 245,
+      "id": "symbol_781643cfa553d656f06775b0",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "PyAndJsonAdapter.__init__",
+      "side": "new",
+      "start_line": 238
+    },
+    {
+      "change_type": "added",
+      "end_line": 251,
+      "id": "symbol_0071b4ed8961d493bca0205a",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "PyAndJsonAdapter.validate_json",
+      "side": "new",
+      "start_line": 250
+    },
+    {
+      "change_type": "added",
+      "end_line": 248,
+      "id": "symbol_0777587e967982fb7a416c88",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "PyAndJsonAdapter.validate_python",
+      "side": "new",
+      "start_line": 247
+    },
+    {
+      "change_type": "added",
+      "end_line": 267,
+      "id": "symbol_edd580d979286f198ef6f411",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/conftest.py",
+      "qualified_name": "PyAndJsonAdapter.validate_test",
+      "side": "new",
+      "start_line": 253
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 48,
+    "operations": {
+      "check_runs:pydantic/pydantic": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:pydantic/pydantic": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:pydantic/pydantic": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_jobs:pydantic/pydantic:28781054731": 1,
+      "workflow_jobs:pydantic/pydantic:28781054934": 1,
+      "workflow_jobs:pydantic/pydantic:28781055010": 1,
+      "workflow_runs:pydantic/pydantic": 1
+    },
+    "remaining_requests": 35,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 13
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 110084.104,
+    "provider_requests": 13,
+    "recorded_at": "2026-07-17T17:40:08+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOBWBCuM6JjY9P",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "pydantic-core/src/validators/model_fields.rs",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "pydantic-core/src/validators/model_fields.rs"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOBWBCuM6JjZke",
+      "is_resolved": false,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "pydantic-core/src/validators/model_fields.rs",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "pydantic-core/src/validators/model_fields.rs"
+    }
+  ],
+  "source": {
+    "base_sha": "5edeeaf8c17588ba0b810b9df0d40801354a2d9b",
+    "cross_repository": false,
+    "head_sha": "4d1d0e0af1475d8cf01e2509516b43f330d402f8",
+    "kind": "github_provider",
+    "pull_request": 13275,
+    "repository": "pydantic/pydantic",
+    "url": "https://github.com/pydantic/pydantic/pull/13275"
+  },
+  "summary": {
+    "affected_test_count": 14,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 7,
+    "failed_check_count": 7,
+    "failed_job_count": 6,
+    "impact_file_count": 3,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 2,
+    "review_submission_count": 5,
+    "symbol_change_count": 23,
+    "uncertainty_count": 10,
+    "unresolved_review_thread_count": 1
+  },
+  "truncated": false,
+  "uncertainties": [
+    {
+      "kind": "review_location_unmapped",
+      "path": "pydantic-core/src/validators/model_fields.rs",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOBWBCuM6JjY9P",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "pydantic-core/src/validators/model_fields.rs",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOBWBCuM6JjY9P",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "pydantic-core/src/validators/model_fields.rs",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOBWBCuM6JjZke",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "pydantic-core/src/validators/model_fields.rs",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOBWBCuM6JjZke",
+      "review_kind": "review_thread"
+    },
+    {
+      "job_id": 85336479985,
+      "job_name": "Lint 3.10",
+      "kind": "failed_ci_job_unmapped"
+    },
+    {
+      "job_id": 85336479989,
+      "job_name": "Lint 3.12",
+      "kind": "failed_ci_job_unmapped"
+    },
+    {
+      "job_id": 85336480008,
+      "job_name": "Lint 3.13",
+      "kind": "failed_ci_job_unmapped"
+    },
+    {
+      "job_id": 85336480023,
+      "job_name": "Lint 3.11",
+      "kind": "failed_ci_job_unmapped"
+    },
+    {
+      "job_id": 85336480252,
+      "job_name": "Lint 3.14",
+      "kind": "failed_ci_job_unmapped"
+    },
+    {
+      "job_id": 85339167988,
+      "job_name": "check",
+      "kind": "failed_ci_job_unmapped"
+    }
+  ]
+}

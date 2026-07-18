@@ -590,6 +590,72 @@ def test_cross_fork_checks_fallback_shares_the_same_request_budget(monkeypatch):
     ] == 1
 
 
+def test_cross_fork_checks_fallback_when_source_repo_has_no_checks(monkeypatch):
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    def provider(url: str, **_kwargs):
+        if url.endswith("/repos/openai/example/pulls/7"):
+            return _pr_payload(cross_fork=True)
+        if any(
+            marker in url
+            for marker in (
+                "/pulls/7/files?",
+                "/pulls/7/reviews?",
+                "/pulls/7/comments?",
+                "/issues/7/comments?",
+            )
+        ):
+            return []
+        if f"/repos/contributor/example-fork/commits/{HEAD_SHA}/check-runs?" in url:
+            return {"total_count": 0, "check_runs": []}
+        if "/repos/contributor/example-fork/actions/runs?" in url:
+            return {"total_count": 0, "workflow_runs": []}
+        if f"/repos/openai/example/commits/{HEAD_SHA}/check-runs?" in url:
+            return {
+                "total_count": 1,
+                "check_runs": [
+                    {
+                        "id": 23,
+                        "name": "base-ci",
+                        "status": "completed",
+                        "conclusion": "failure",
+                    }
+                ],
+            }
+        if "/repos/openai/example/actions/runs?" in url:
+            return {"total_count": 0, "workflow_runs": []}
+        if url.endswith(f"/repos/openai/example/commits/{BASE_SHA}"):
+            return _commit_payload(BASE_SHA)
+        if url.endswith(
+            f"/repos/contributor/example-fork/commits/{HEAD_SHA}"
+        ):
+            return _commit_payload(HEAD_SHA)
+        raise AssertionError(f"unexpected URL: {url}")
+
+    result = PaginatedGitHubWorkItemService(
+        FakeHistory(),  # type: ignore[arg-type]
+        request_json=provider,
+    ).pull_request(
+        REPO,
+        7,
+        include_checks=True,
+        max_provider_requests=20,
+    )
+
+    assert result["checks_repository"] == "openai/example"
+    assert result["checks"]["check_runs"][0]["conclusion"] == "failure"
+    assert result["checks"]["fallback_from_repository"] == (
+        "contributor/example-fork"
+    )
+    assert result["checks_resolution"]["attempts"][0]["reason"] == (
+        "no_checks_found_trying_base_repository"
+    )
+    assert [item["repository"] for item in result["checks_resolution"]["attempts"]] == [
+        "contributor/example-fork",
+        "openai/example",
+    ]
+
+
 def test_checks_paginates_jobs_across_pages(monkeypatch):
     monkeypatch.setenv("GITHUB_PROVIDER_PAGE_SIZE", "2")
 
