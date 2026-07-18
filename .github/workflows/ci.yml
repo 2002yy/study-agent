@@ -52,6 +52,31 @@ jobs:
           tail -200 pytest.log
           exit 1
 
+      - name: Run RAG K1 local quality baseline
+        id: rag_quality
+        continue-on-error: true
+        run: |
+          python tools/run_rag_quality_baseline.py \
+            --output rag-quality-baseline.json \
+            > rag-quality-baseline.log 2>&1
+
+      - name: Upload RAG K1 quality baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-quality-baseline
+          path: |
+            rag-quality-baseline.json
+            rag-quality-baseline.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce RAG quality harness integrity
+        if: steps.rag_quality.outcome == 'failure'
+        run: |
+          tail -200 rag-quality-baseline.log
+          exit 1
+
       - name: Run ruff
         run: ruff check .
 
