@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 
 import type {
@@ -61,12 +61,14 @@ export function SourcesPanel({
   isSearching,
   knowledgeBase,
   onDeleteDocument,
+  onRebuildKnowledge,
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
   knowledgeBase?: KnowledgeDocumentListResponse | null;
   onDeleteDocument?: (documentId: string) => void;
+  onRebuildKnowledge?: () => void;
 }) {
   const rows = useMemo(() => {
     const source = ragSearch ?? lastChat?.rag;
@@ -140,27 +142,41 @@ export function SourcesPanel({
         </details>
       ) : null}
       {knowledgeBase ? (
-        <details className="debug-drawer">
-          <summary>已上传资料 {knowledgeBase.documents.length} 个</summary>
-          <div className="session-list">
-            {knowledgeBase.documents.map((document) => (
-              <div className="session-row" key={document.document_id}>
-                <strong>{document.title}</strong>
-                <span>{document.file_type} · {document.chunks} 个片段</span>
-                <em title={document.source_path}>{document.source_path}</em>
-                {onDeleteDocument ? (
-                  <button
-                    className="ghost-action compact danger"
-                    onClick={() => onDeleteDocument(document.document_id)}
-                    type="button"
-                  >
-                    删除资料
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </details>
+        <>
+          <details className="debug-drawer">
+            <summary>已上传资料 {knowledgeBase.documents.length} 个</summary>
+            <div className="session-list">
+              {knowledgeBase.documents.map((document) => (
+                <div className="session-row" key={document.document_id}>
+                  <strong>{document.title}</strong>
+                  <span>{document.file_type} · {document.chunks} 个片段</span>
+                  <em title={document.source_path}>{document.source_path}</em>
+                  {onDeleteDocument ? (
+                    <button
+                      className="ghost-action compact danger"
+                      onClick={() => onDeleteDocument(document.document_id)}
+                      type="button"
+                    >
+                      删除资料
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </details>
+          {onRebuildKnowledge ? (
+            <details className="knowledge-danger-zone">
+              <summary>知识管理危险操作</summary>
+              <small className="field-hint">
+                重建会用下一次选择的文件替换当前全部资料索引。普通添加资料不需要使用这个操作。
+              </small>
+              <button className="ghost-action compact danger" onClick={onRebuildKnowledge} type="button">
+                <RefreshCw size={14} />
+                选择文件并重建全部资料
+              </button>
+            </details>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
