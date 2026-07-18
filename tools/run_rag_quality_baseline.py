@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,18 @@ def _unique_sources(sources: list[str]) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _corpus_fingerprint(paths: list[Path], fixture_dir: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(paths, key=lambda item: item.relative_to(fixture_dir).as_posix()):
+        relative = path.relative_to(fixture_dir).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        content = path.read_bytes()
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
 def _build_extractive_candidates(
     index,
     answer_cases,
@@ -105,14 +118,17 @@ def _build_extractive_candidates(
 
 def run_baseline(fixture_dir: Path) -> dict[str, Any]:
     document_paths = [fixture_dir / name for name in FIXTURE_DOCS]
-    missing = [str(path) for path in document_paths if not path.is_file()]
+    retrieval_case_path = fixture_dir / "cases.json"
+    answer_case_path = fixture_dir / "answer_cases.json"
+    corpus_paths = [*document_paths, retrieval_case_path, answer_case_path]
+    missing = [str(path) for path in corpus_paths if not path.is_file()]
     if missing:
-        raise FileNotFoundError(f"Missing RAG quality documents: {', '.join(missing)}")
+        raise FileNotFoundError(f"Missing RAG quality corpus files: {', '.join(missing)}")
 
     index = build_rag_index(document_paths, max_chars=700, overlap_chars=80)
-    retrieval_cases = load_eval_cases(fixture_dir / "cases.json")
+    retrieval_cases = load_eval_cases(retrieval_case_path)
     retrieval_profiles = evaluate_retrieval_profiles(index, retrieval_cases)
-    answer_cases, _ = load_answer_eval_fixture(fixture_dir / "answer_cases.json")
+    answer_cases, _ = load_answer_eval_fixture(answer_case_path)
     extractive_candidates = _build_extractive_candidates(
         index,
         answer_cases,
@@ -125,6 +141,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
         "baseline_kind": "deterministic_local_extractive_lower_bound",
         "gating": "record_only",
         "corpus": {
+            "fingerprint_sha256": _corpus_fingerprint(corpus_paths, fixture_dir),
             "documents": len(document_paths),
             "retrieval_cases": len(retrieval_cases),
             "answer_cases": len(answer_cases),
@@ -146,15 +163,17 @@ def main() -> int:
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    hybrid = dict(report["retrieval_profiles"]["hybrid"])
+    hybrid.pop("results", None)
+    answer_quality = dict(report["answer_quality"])
+    answer_quality.pop("results", None)
     compact = {
         "baseline_kind": report["baseline_kind"],
         "gating": report["gating"],
         "corpus": report["corpus"],
-        "hybrid": report["retrieval_profiles"]["hybrid"],
-        "answer_quality": report["answer_quality"],
+        "hybrid": hybrid,
+        "answer_quality": answer_quality,
     }
-    compact["hybrid"].pop("results", None)
-    compact["answer_quality"].pop("results", None)
     print(json.dumps(compact, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
