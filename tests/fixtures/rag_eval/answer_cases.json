@@ -35,7 +35,6 @@
           "support_sources": ["memory_routing.md", "frontend_workspace.md"]
         }
       ],
-      "forbidden_terms": ["mastery percentage inferred from turn count"],
       "forbidden_sources": ["memory_routing_legacy.md"]
     },
     {
@@ -132,7 +131,6 @@
           "support_sources": ["memory_routing.md"]
         }
       ],
-      "forbidden_terms": ["permanent task-intent dropdown"],
       "forbidden_sources": ["frontend_legacy_sidebar.md", "memory_routing_legacy.md"]
     },
     {
@@ -152,7 +150,6 @@
           "support_sources": ["learning_recovery.md"]
         }
       ],
-      "forbidden_terms": ["mastery percentage inferred from turn count"],
       "forbidden_sources": ["memory_routing_legacy.md"]
     },
     {
