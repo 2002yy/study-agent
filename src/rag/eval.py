@@ -419,10 +419,15 @@ def _ndcg_at_k(
 ) -> float:
     if not expected_sources or top_k <= 0:
         return 0.0
-    gains = [
-        1.0 if _matches_expected_source(source, expected_sources) else 0.0
-        for source in retrieved_sources[:top_k]
-    ]
+    seen_sources: set[str] = set()
+    gains: list[float] = []
+    for source in retrieved_sources[:top_k]:
+        normalized = source.replace("\\", "/")
+        if normalized in seen_sources:
+            gains.append(0.0)
+            continue
+        seen_sources.add(normalized)
+        gains.append(1.0 if _matches_expected_source(source, expected_sources) else 0.0)
     dcg = _discounted_cumulative_gain(gains)
     ideal_relevant = min(len(expected_sources), top_k)
     ideal_dcg = _discounted_cumulative_gain([1.0] * ideal_relevant)
