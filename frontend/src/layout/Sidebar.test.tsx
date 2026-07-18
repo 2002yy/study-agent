@@ -80,7 +80,8 @@ describe("focused learning settings", () => {
     expect(serialized).toContain("高级检索设置");
     expect(serialized).toContain("服务已连接");
 
-    expect(serialized).not.toContain("上传资料");
+    expect(serialized).not.toContain("添加到现有知识库");
+    expect(serialized).not.toContain("重建整个知识库");
     expect(serialized).not.toContain("新建单人会话");
     expect(serialized).not.toContain("工作流");
     expect(serialized).not.toContain("受控工具");
