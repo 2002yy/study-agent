@@ -7,6 +7,7 @@ import { LearningStrip } from "../features/learning/LearningStrip";
 import { MemoryPanel } from "../features/learning-memory/MemoryPanel";
 import { NewsWorkspace } from "../features/news-workspace/NewsWorkspace";
 import { SourcesPanel } from "../features/rag/SourcesPanel";
+import { UploadLearningPrompt } from "../features/rag/UploadLearningPrompt";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { SessionSidebar } from "../features/sessions/SessionSidebar";
 import { SessionsPanel } from "../features/sessions/SessionsPanel";
@@ -75,7 +76,7 @@ export function WorkspaceView({
   const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
   const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
   const activeSession = snapshot.sessions.find(
-    (session) => session.session_id === chatController.threadId
+    (session) => session.session_id === chatController.threadId,
   ) as SemanticSessionRow | undefined;
   const serverSummary = (activeSession as SessionRowWithSummary | undefined)?.summary;
   const localSummary =
@@ -88,10 +89,12 @@ export function WorkspaceView({
     localSummary.status !== "not_summarized"
       ? localSummary
       : serverSummary ?? localSummary;
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     await chatController.send(ui.input.trim());
   };
+
   const requestNewSession = () => {
     const hasMessages = chatController.messages.some((message) => message.role === "user");
     if (
@@ -99,13 +102,14 @@ export function WorkspaceView({
       !window.confirm(
         sessionSummary?.status === "summarized"
           ? "当前会话已整理但尚未归档。直接开始新会话时，旧会话会保留在历史中。继续吗？"
-          : "当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。"
+          : "当前学习尚未整理，直接开始新会话？旧会话会保留在历史中。",
       )
     ) {
       return;
     }
     void chatController.startNewSession();
   };
+
   const abandonRecovery = async () => {
     const recovery = chatController.streamRecovery;
     if (!recovery) return;
@@ -119,25 +123,35 @@ export function WorkspaceView({
       await refresh();
     } catch (error) {
       ui.setOperationError(
-        `放弃恢复失败：${error instanceof Error ? error.message : "未知错误"}`
+        `放弃恢复失败：${error instanceof Error ? error.message : "未知错误"}`,
       );
     }
   };
+
+  const requestUpload = (mode: "upload" | "rebuild" = "upload") => {
+    uploadController.setMode(mode);
+    fileInputRef.current?.click();
+  };
+
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
+    const selectedMode = uploadController.mode;
     if (
-      uploadController.mode === "rebuild" &&
+      selectedMode === "rebuild" &&
       !window.confirm(
-        `将用本次 ${files.length} 个文件重建整个知识库索引，旧索引会被替换。继续吗？`,
+        `将用本次 ${files.length} 个文件重建整个资料索引，现有资料索引会被替换。继续吗？`,
       )
     ) {
       event.target.value = "";
+      uploadController.setMode("upload");
       return;
     }
     await uploadController.upload(files);
+    uploadController.setMode("upload");
     event.target.value = "";
   };
+
   const partialErrors = Object.entries(snapshot.errors ?? {}).filter(
     ([key]) => key !== "health",
   );
@@ -167,6 +181,25 @@ export function WorkspaceView({
           visitedPhases={state.pedagogyPhases}
           memoryStatus={snapshot.memoryStatus}
         />
+        <UploadLearningPrompt
+          phase={uploadController.flowPhase}
+          status={uploadController.status}
+          detail={uploadController.detail}
+          uploadCount={uploadController.lastUploadCount}
+          onStartLearning={() => {
+            ui.setInput("请基于刚上传的资料开始系统学习。先和我确认学习目标，再逐步讲解并验证我的理解：");
+            uploadController.dismissFlow();
+          }}
+          onAskDirectly={() => {
+            ui.setInput("请基于刚上传的资料回答我的问题：");
+            uploadController.dismissFlow();
+          }}
+          onChooseAgain={() => {
+            uploadController.dismissFlow();
+            requestUpload("upload");
+          }}
+          onDismiss={uploadController.dismissFlow}
+        />
         <ChatPanel
           sessionId={chatController.threadId}
           sessionNavigation={activeSession ?? null}
@@ -181,7 +214,7 @@ export function WorkspaceView({
           onRetry={chatController.retry}
           onAbandonInterruptedReply={abandonRecovery}
           onCopyInterruptedReply={chatController.copyInterrupted}
-          onUploadClick={() => fileInputRef.current?.click()}
+          onUploadClick={() => requestUpload("upload")}
           onSearchSources={() => ragController.search(activeQuery)}
           isSearching={ragController.isSearching}
           hasSearchQuery={Boolean(activeQuery)}
@@ -207,6 +240,7 @@ export function WorkspaceView({
           onResumeResearch={() => void webLookupController.resume()}
         />
       </div>
+
       <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
         <SessionsPanel
           sessions={snapshot.sessions}
@@ -217,6 +251,7 @@ export function WorkspaceView({
           onSessionChanged={refresh}
         />
       </SlideOver>
+
       <SlideOver open={state.activeDrawer === "settings"} title="设置" onClose={closeDrawer}>
         <Sidebar
           snapshot={snapshot}
@@ -239,11 +274,12 @@ export function WorkspaceView({
           onNewSession={requestNewSession}
           isSending={chatController.isSending}
           refresh={refresh}
-          onUploadClick={() => fileInputRef.current?.click()}
+          onUploadClick={() => requestUpload("upload")}
           uploadState={uploadController.status}
           lastChat={chatController.lastChat}
         />
       </SlideOver>
+
       <SlideOver open={state.activeDrawer === "group"} title="群聊" onClose={closeDrawer}>
         <WechatPanel
           wechat={snapshot.wechat}
@@ -270,6 +306,7 @@ export function WorkspaceView({
           isNewsBusy={webLookupController.isBusy}
         />
       </SlideOver>
+
       <SlideOver open={state.activeDrawer === "news"} title="新闻" onClose={closeDrawer}>
         <NewsWorkspace
           query={ui.newsQuery}
@@ -282,6 +319,7 @@ export function WorkspaceView({
           isLookupBusy={webLookupController.isBusy}
         />
       </SlideOver>
+
       <SlideOver open={state.activeDrawer === "tools"} title="工具" onClose={closeDrawer}>
         <ToolPanel
           toolCount={snapshot.tools.length}
@@ -296,7 +334,8 @@ export function WorkspaceView({
           invocationLabel={toolController.invocationLabel}
         />
       </SlideOver>
-      <SlideOver open={state.activeDrawer === "memory"} title="学习记忆" onClose={closeDrawer}>
+
+      <SlideOver open={state.activeDrawer === "memory"} title="学习成果" onClose={closeDrawer}>
         <MemoryPanel
           memoryStatus={snapshot.memoryStatus}
           controller={memoryController}
@@ -309,20 +348,23 @@ export function WorkspaceView({
           }}
         />
       </SlideOver>
-      <SlideOver open={state.activeDrawer === "sources"} title="引用来源与知识库" onClose={closeDrawer}>
+
+      <SlideOver open={state.activeDrawer === "sources"} title="资料与来源" onClose={closeDrawer}>
         <SourcesPanel
           lastChat={chatController.lastChat}
           ragSearch={ragController.result}
           isSearching={ragController.isSearching}
           knowledgeBase={uploadController.documents}
           onDeleteDocument={(documentId) => {
-            if (window.confirm("确定从长期知识库中删除这个文档及其索引片段吗？")) {
+            if (window.confirm("确定从长期资料中删除这个文档及其索引片段吗？")) {
               void uploadController.removeDocument(documentId);
             }
           }}
+          onRebuildKnowledge={() => requestUpload("rebuild")}
         />
       </SlideOver>
-      <SlideOver open={state.activeDrawer === "timeline"} title="工作流时间线" onClose={closeDrawer}>
+
+      <SlideOver open={state.activeDrawer === "timeline"} title="开发者诊断" onClose={closeDrawer}>
         <TimelinePanel
           runs={snapshot.workflowRuns}
           selectedRun={workflowController.selectedRun}
@@ -330,6 +372,7 @@ export function WorkspaceView({
           onSelectRun={workflowController.selectRun}
         />
       </SlideOver>
+
       <GlobalNotices
         apiError={snapshot.error}
         operationError={ui.operationError}
