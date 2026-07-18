@@ -1,6 +1,13 @@
 import { FileText } from "lucide-react";
 import { useMemo } from "react";
-import type { ChatResponse, KnowledgeDocumentListResponse, RagDebugResult, RagQueryResponse, RagResult } from "../../types";
+
+import type {
+  ChatResponse,
+  KnowledgeDocumentListResponse,
+  RagDebugResult,
+  RagQueryResponse,
+  RagResult,
+} from "../../types";
 import { basename, formatScore, translateStatus } from "../../utils/format";
 
 type SourceRow = {
@@ -14,7 +21,10 @@ type SourceRow = {
   scoreBreakdown: Record<string, number>;
 };
 
-function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbackResults: RagResult[]): SourceRow[] {
+function sourceRowsFromDebug(
+  debugResults: RagDebugResult[] | undefined,
+  fallbackResults: RagResult[],
+): SourceRow[] {
   if (debugResults?.length) {
     return debugResults.map((item, index) => ({
       key: `${item.source_path ?? "source"}-${item.rank ?? index}`,
@@ -24,7 +34,7 @@ function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbac
       lineRange: item.line_range ?? "-",
       score: item.score ?? 0,
       matchedTerms: item.matched_terms ?? [],
-      scoreBreakdown: item.score_breakdown ?? {}
+      scoreBreakdown: item.score_breakdown ?? {},
     }));
   }
   return fallbackResults.map((item, index) => {
@@ -40,7 +50,7 @@ function sourceRowsFromDebug(debugResults: RagDebugResult[] | undefined, fallbac
           : "-",
       score: item.score ?? 0,
       matchedTerms: item.matched_terms ?? [],
-      scoreBreakdown: {}
+      scoreBreakdown: {},
     };
   });
 }
@@ -50,7 +60,7 @@ export function SourcesPanel({
   ragSearch,
   isSearching,
   knowledgeBase,
-  onDeleteDocument
+  onDeleteDocument,
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
@@ -63,26 +73,28 @@ export function SourcesPanel({
     return sourceRowsFromDebug(source?.debug.results, source?.results ?? []);
   }, [lastChat, ragSearch]);
   const activeSource = ragSearch ?? lastChat?.rag;
-  const status = ragSearch ? `检索到 ${ragSearch.result_count} 条` : translateStatus(lastChat?.rag.status ?? "waiting");
+  const status = ragSearch
+    ? `检索到 ${ragSearch.result_count} 条`
+    : translateStatus(lastChat?.rag.status ?? "waiting");
 
   return (
     <section className="panel" id="sources">
       <div className="panel-header">
         <div>
-          <h2>引用来源</h2>
-          <span>{isSearching ? "正在检索" : status}</span>
+          <h2>资料与来源</h2>
+          <span>{isSearching ? "正在查找相关资料" : status}</span>
         </div>
         <FileText size={18} />
       </div>
       <small className="field-hint">
-        这里展示 RAG 找到的本地资料。分数越高越相关；“注入上下文”是实际送进回答的资料片段。
+        这里展示回答实际使用或检索到的资料，帮助你核对结论来自哪里。
       </small>
       {rows.length ? (
         <div className="source-table" role="table" aria-label="检索到的引用来源">
           <div className="source-row header" role="row">
             <span>排序</span>
             <span>来源</span>
-            <span>分数</span>
+            <span>相关度</span>
           </div>
           {rows.map((row) => (
             <div className="source-row" role="row" key={row.key}>
@@ -95,7 +107,7 @@ export function SourcesPanel({
                 <em title={row.sourcePath}>{row.sourcePath}</em>
                 {Object.keys(row.scoreBreakdown).length ? (
                   <details className="inline-details">
-                    <summary>分数 breakdown</summary>
+                    <summary>查看检索评分详情</summary>
                     <pre>{JSON.stringify(row.scoreBreakdown, null, 2)}</pre>
                   </details>
                 ) : null}
@@ -105,21 +117,23 @@ export function SourcesPanel({
           ))}
         </div>
       ) : (
-        <div className="empty-state">还没有引用来源。开启“用于聊天回答”后提问，或点击顶部检索按钮。</div>
+        <div className="empty-state">
+          还没有可展示的资料来源。开启“回答时使用我的资料”后继续提问，系统会在需要时自动查找。
+        </div>
       )}
       {activeSource?.context || activeSource?.sources ? (
         <details className="debug-drawer">
-          <summary>引用上下文与来源块</summary>
-          <small className="field-hint">来源块偏向审计和定位文件；注入上下文偏向还原模型实际看到的内容。</small>
+          <summary>查看本次引用详情</summary>
+          <small className="field-hint">用于核对模型实际看到的资料片段和来源位置。</small>
           {activeSource.sources ? (
             <>
-              <strong>来源块</strong>
+              <strong>来源片段</strong>
               <pre>{activeSource.sources}</pre>
             </>
           ) : null}
           {activeSource.context ? (
             <>
-              <strong>注入上下文</strong>
+              <strong>回答上下文</strong>
               <pre>{activeSource.context}</pre>
             </>
           ) : null}
@@ -127,9 +141,7 @@ export function SourcesPanel({
       ) : null}
       {knowledgeBase ? (
         <details className="debug-drawer">
-          <summary>
-            知识库文档 {knowledgeBase.documents.length} 个 · 索引版本 v{knowledgeBase.index_version}
-          </summary>
+          <summary>已上传资料 {knowledgeBase.documents.length} 个</summary>
           <div className="session-list">
             {knowledgeBase.documents.map((document) => (
               <div className="session-row" key={document.document_id}>
@@ -142,7 +154,7 @@ export function SourcesPanel({
                     onClick={() => onDeleteDocument(document.document_id)}
                     type="button"
                   >
-                    删除文档
+                    删除资料
                   </button>
                 ) : null}
               </div>

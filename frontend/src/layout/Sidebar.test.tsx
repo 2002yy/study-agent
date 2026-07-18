@@ -8,8 +8,8 @@ import {
   Sidebar,
 } from "./Sidebar";
 
-describe("Sidebar user-facing settings", () => {
-  it("does not expose provider, route, or session identifiers in ordinary settings", () => {
+describe("focused learning settings", () => {
+  it("keeps the settings drawer limited to learning experience, materials, and privacy", () => {
     const snapshot = {
       health: {
         status: "ok",
@@ -69,14 +69,25 @@ describe("Sidebar user-facing settings", () => {
           onUploadClick={vi.fn()}
           uploadState=""
           lastChat={lastChat}
-        />
+        />,
       );
     });
 
     const serialized = JSON.stringify(renderer.toJSON());
-    expect(serialized).toContain("语义检索");
-    expect(serialized).toContain("可用");
+    expect(serialized).toContain("学习体验");
+    expect(serialized).toContain("资料辅助");
+    expect(serialized).toContain("外发数据与联网");
+    expect(serialized).toContain("高级检索设置");
     expect(serialized).toContain("服务已连接");
+
+    expect(serialized).not.toContain("添加到现有知识库");
+    expect(serialized).not.toContain("重建整个知识库");
+    expect(serialized).not.toContain("新建单人会话");
+    expect(serialized).not.toContain("工作流");
+    expect(serialized).not.toContain("受控工具");
+    expect(serialized).not.toContain("学习记忆");
+    expect(serialized).not.toContain("单人对话");
+
     expect(serialized).not.toContain("provider-secret-service");
     expect(serialized).not.toContain("secret-vector-provider");
     expect(serialized).not.toContain("session-secret-id");

@@ -1,11 +1,35 @@
-import { Activity, ArrowDown, BookOpen, Clipboard, Database, Library, Loader2, LogOut, MemoryStick, MessageSquare, MoreHorizontal, Search, Send, Settings, Square, Upload, Wrench } from "lucide-react";
+import {
+  Activity,
+  ArrowDown,
+  BookOpen,
+  CheckCircle2,
+  Clipboard,
+  Database,
+  Library,
+  Loader2,
+  LogOut,
+  MessageSquare,
+  MoreHorizontal,
+  Send,
+  Settings,
+  Square,
+  Upload,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
+import type {
+  ChatMessage,
+  ChatResearchProgress,
+  ChatResponse,
+  DrawerId,
+  MemoryStatusResponse,
+} from "../../types";
 import { EvidenceTrail } from "../evidence/EvidenceTrail";
-import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
-import type { ResearchLookupResponse } from "../web-lookup/researchApi";
+import { roleLabel } from "../roles/roleCatalog";
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
 import {
   TURN_TASK_INTENT_OPTIONS,
@@ -16,15 +40,17 @@ import {
   taskIntentLabel,
   type TaskIntent,
 } from "../task/taskContract";
-import type { ChatMessage, ChatResearchProgress, ChatResponse, DrawerId, MemoryStatusResponse } from "../../types";
-import { roleLabel } from "../roles/roleCatalog";
+import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
+import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
 
-export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, name: string, fallback: string): string {
+export function latestMemorySection(
+  memoryStatus: MemoryStatusResponse | null,
+  name: string,
+  fallback: string,
+): string {
   const preview = memoryStatus?.files.find((file) => file.name === name)?.preview.trim();
-  if (!preview) {
-    return fallback;
-  }
+  if (!preview) return fallback;
   const sections = preview
     .split(/\n(?=#{1,6}\s+)/)
     .map((section) => section.trim())
@@ -32,41 +58,7 @@ export function latestMemorySection(memoryStatus: MemoryStatusResponse | null, n
   return sections.length ? sections[sections.length - 1] : preview;
 }
 
-export function ChatPanel({
-  messages,
-  sessionId,
-  sessionNavigation,
-  input,
-  setInput,
-  isSending,
-  onSubmit,
-  onStop,
-  streamRecovery,
-  onContinueInterruptedReply,
-  onRetry,
-  onAbandonInterruptedReply,
-  onCopyInterruptedReply,
-  onUploadClick,
-  onSearchSources,
-  isSearching,
-  hasSearchQuery,
-  onQuickPrompt,
-  onStartNewTopic,
-  lastChat,
-  ragEnabled,
-  memoryStatus,
-  onOpenDrawer,
-  onEndSession,
-  isEndingSession,
-  researchRun,
-  researchProgress = null,
-  isResearchBusy,
-  canRetryResearch,
-  canResumeResearch,
-  useResearchInChat,
-  onRetryResearch,
-  onResumeResearch,
-}: {
+type ChatPanelProps = {
   messages: ChatMessage[];
   sessionId?: string;
   sessionNavigation: SemanticSessionRow | null;
@@ -75,7 +67,13 @@ export function ChatPanel({
   isSending: boolean;
   onSubmit: (event: FormEvent) => void | Promise<void>;
   onStop: () => void;
-  streamRecovery: { question: string; reply: string; reason: string; sessionId?: string; turnId?: string | null } | null;
+  streamRecovery: {
+    question: string;
+    reply: string;
+    reason: string;
+    sessionId?: string;
+    turnId?: string | null;
+  } | null;
   onContinueInterruptedReply: () => void;
   onRetry: () => void;
   onAbandonInterruptedReply: () => Promise<void> | void;
@@ -100,7 +98,41 @@ export function ChatPanel({
   useResearchInChat: boolean;
   onRetryResearch: () => void;
   onResumeResearch: () => void;
-}) {
+};
+
+export function ChatPanel(props: ChatPanelProps) {
+  const {
+    messages,
+    sessionId,
+    sessionNavigation,
+    input,
+    setInput,
+    isSending,
+    onSubmit,
+    onStop,
+    streamRecovery,
+    onContinueInterruptedReply,
+    onRetry,
+    onAbandonInterruptedReply,
+    onCopyInterruptedReply,
+    onUploadClick,
+    onQuickPrompt,
+    onStartNewTopic,
+    lastChat,
+    ragEnabled,
+    onOpenDrawer,
+    onEndSession,
+    isEndingSession,
+    researchRun,
+    researchProgress = null,
+    isResearchBusy,
+    canRetryResearch,
+    canResumeResearch,
+    useResearchInChat,
+    onRetryResearch,
+    onResumeResearch,
+  } = props;
+
   const conversationRef = useRef<HTMLElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -111,9 +143,9 @@ export function ChatPanel({
   const taskLabel = taskContract
     ? `${taskIntentLabel(taskContract.task_intent)}${taskContract.explicit_override ? " · 手动" : ""}`
     : "等待提问";
-  const selectedTaskIntent = TURN_TASK_INTENT_OPTIONS.find(
-    (option) => option.value === taskIntentOverride
-  ) ?? TURN_TASK_INTENT_OPTIONS[0];
+  const taskChipLabel = taskIntentOverride
+    ? `本次 · ${taskIntentLabel(taskIntentOverride)}`
+    : `自动 · ${taskContract ? taskIntentLabel(taskContract.task_intent) : "当前任务"}`;
   const displayMessages = sessionNavigation?.has_completed_turns
     ? messages
     : messages.filter(
@@ -122,14 +154,12 @@ export function ChatPanel({
             message.role === "assistant" &&
             message.transient &&
             !message.turnId
-          )
+          ),
       );
 
   const updateScrollState = () => {
     const element = conversationRef.current;
-    if (!element) {
-      return;
-    }
+    if (!element) return;
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
     setIsAtBottom(distanceFromBottom < 80);
   };
@@ -154,9 +184,7 @@ export function ChatPanel({
   const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (!isSending && input.trim()) {
-      event.currentTarget.form?.requestSubmit();
-    }
+    if (!isSending && input.trim()) event.currentTarget.form?.requestSubmit();
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -176,26 +204,24 @@ export function ChatPanel({
     onQuickPrompt(prompt);
   };
 
-  const closeWorkspaceMenu = (target: HTMLButtonElement) => {
+  const closeDetailsMenu = (target: HTMLButtonElement) => {
     const menu = target.closest("details");
     menu?.removeAttribute("open");
     menu?.querySelector<HTMLElement>("summary")?.focus();
   };
 
   const openFromMenu = (drawer: DrawerId, target: HTMLButtonElement) => {
-    closeWorkspaceMenu(target);
+    closeDetailsMenu(target);
     onOpenDrawer(drawer);
   };
 
-  const searchFromMenu = (target: HTMLButtonElement) => {
-    closeWorkspaceMenu(target);
-    onSearchSources();
+  const selectTaskIntent = (intent: "" | TaskIntent, target: HTMLButtonElement) => {
+    setTaskIntentOverride(intent);
+    closeDetailsMenu(target);
   };
 
   useEffect(() => {
-    if (isAtBottom) {
-      bottomRef.current?.scrollIntoView({ block: "end" });
-    }
+    if (isAtBottom) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, streamRecovery, isAtBottom]);
 
   useEffect(() => {
@@ -209,10 +235,10 @@ export function ChatPanel({
       <header className="topbar">
         <div className="topbar-copy">
           <h1>学习工作台</h1>
-          <p>围绕目标提问；需要资料时再调用本地检索或联网证据，结果由你确认后写入记忆。</p>
+          <p>围绕目标继续学习；资料、联网和工具只在需要时提供支持。</p>
           <div className="topbar-meta" aria-label="当前学习状态">
             <span>任务 {taskLabel}</span>
-            <span>资料 {ragEnabled ? "按需检索" : "未启用"}</span>
+            <span>资料 {ragEnabled ? "按需使用" : "未启用"}</span>
             <span>会话 {sessionId ? "进行中" : "未开始"}</span>
           </div>
         </div>
@@ -224,64 +250,65 @@ export function ChatPanel({
               disabled={isEndingSession || isSending || !messages.some((m) => m.role === "user")}
               onClick={onEndSession}
               type="button"
-              title="生成结果整理候选（确认后才写入）"
+              title="整理本次学习成果（确认后才写入）"
             >
               {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
               {closureLabel}
             </button>
           ) : null}
-          <button aria-label="上传学习资料" className="icon-button" onClick={onUploadClick} type="button" title="上传学习资料">
+          <button
+            aria-label="上传学习资料"
+            className="icon-button"
+            onClick={onUploadClick}
+            type="button"
+            title="上传学习资料"
+          >
             <Upload size={17} />
           </button>
-          <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={() => onOpenDrawer("sessions")} type="button" title="会话历史">
+          <button
+            aria-label="打开会话历史"
+            className="icon-button session-dock-button"
+            onClick={() => onOpenDrawer("sessions")}
+            type="button"
+            title="会话历史"
+          >
             <BookOpen size={16} />
           </button>
           <details className="workspace-menu">
-            <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多学习工具">
+            <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多">
               <MoreHorizontal size={18} />
               <span>更多</span>
             </summary>
             <div className="workspace-menu-popover" role="menu">
-              <button
-                aria-label="检索当前问题的资料来源"
-                disabled={!hasSearchQuery}
-                onClick={(event) => searchFromMenu(event.currentTarget)}
-                role="menuitem"
-                type="button"
-              >
-                {isSearching ? <Loader2 className="spin" size={16} /> : <Search size={16} />}
-                <span>
-                  <strong>检索当前问题</strong>
-                  <small>{hasSearchQuery ? "查找本地资料与可用来源" : "输入问题后即可检索资料来源"}</small>
-                </span>
-              </button>
               <button onClick={(event) => openFromMenu("sources", event.currentTarget)} role="menuitem" type="button">
                 <Library size={16} />
-                <span><strong>引用来源</strong><small>查看本次引用与长期知识库</small></span>
+                <span><strong>资料与来源</strong><small>查看回答引用和已上传资料</small></span>
+              </button>
+              <button onClick={(event) => openFromMenu("memory", event.currentTarget)} role="menuitem" type="button">
+                <CheckCircle2 size={16} />
+                <span><strong>学习成果</strong><small>整理并确认本次学习沉淀</small></span>
               </button>
               <button onClick={(event) => openFromMenu("settings", event.currentTarget)} role="menuitem" type="button">
                 <Settings size={16} />
-                <span><strong>设置</strong><small>调整角色、模型与检索策略</small></span>
+                <span><strong>设置</strong><small>调整学习体验、资料使用与隐私</small></span>
               </button>
+
+              <div className="workspace-menu-section-label" role="presentation">实验功能</div>
               <button onClick={(event) => openFromMenu("group", event.currentTarget)} role="menuitem" type="button">
                 <MessageSquare size={16} />
                 <span><strong>群聊讨论</strong><small>让多位角色从不同角度讨论</small></span>
               </button>
               <button onClick={(event) => openFromMenu("news", event.currentTarget)} role="menuitem" type="button">
                 <Database size={16} />
-                <span><strong>新闻研究</strong><small>检索公开信息并保留来源</small></span>
+                <span><strong>新闻研究</strong><small>实验性的公开信息研究工作区</small></span>
               </button>
               <button onClick={(event) => openFromMenu("tools", event.currentTarget)} role="menuitem" type="button">
                 <Wrench size={16} />
-                <span><strong>受控工具</strong><small>预览并运行本地知识工具</small></span>
-              </button>
-              <button onClick={(event) => openFromMenu("memory", event.currentTarget)} role="menuitem" type="button">
-                <MemoryStick size={16} />
-                <span><strong>学习记忆</strong><small>预览和确认长期记忆写入</small></span>
+                <span><strong>受控工具</strong><small>实验性的本地知识工具入口</small></span>
               </button>
               <button onClick={(event) => openFromMenu("timeline", event.currentTarget)} role="menuitem" type="button">
                 <Activity size={16} />
-                <span><strong>工作流记录</strong><small>查看任务执行阶段与失败原因</small></span>
+                <span><strong>开发者诊断</strong><small>查看工作流阶段和失败原因</small></span>
               </button>
             </div>
           </details>
@@ -327,6 +354,7 @@ export function ChatPanel({
         })}
         <div ref={bottomRef} />
       </section>
+
       {!isAtBottom ? (
         <button className="back-to-latest" onClick={scrollToLatest} type="button">
           <ArrowDown size={14} />
@@ -337,12 +365,7 @@ export function ChatPanel({
       {streamRecovery?.reply ? (
         <div className="interrupted-copy-shortcut">
           <span>部分回答已保留；恢复、重试或放弃请使用上方恢复卡。</span>
-          <button
-            className="ghost-action compact"
-            disabled={isSending}
-            onClick={onCopyInterruptedReply}
-            type="button"
-          >
+          <button className="ghost-action compact" disabled={isSending} onClick={onCopyInterruptedReply} type="button">
             <Clipboard size={14} />
             复制已有内容
           </button>
@@ -362,27 +385,36 @@ export function ChatPanel({
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">
-          <label className="turn-intent-control">
-            <span>下一条按</span>
-            <select
-              aria-label="下一条消息的任务类型"
-              disabled={isSending}
-              onChange={(event) => setTaskIntentOverride(event.target.value as "" | TaskIntent)}
-              value={taskIntentOverride}
-            >
+          <details className="turn-intent-chip-menu">
+            <summary aria-label="调整下一条消息的任务方式" className="turn-intent-chip">
+              {taskChipLabel}
+            </summary>
+            <div className="turn-intent-chip-popover" role="menu" aria-label="下一条消息的任务方式">
+              <div className="turn-intent-chip-heading">
+                <strong>下一条消息</strong>
+                <small>默认自动判断；只在系统理解错任务时手动纠正。</small>
+              </div>
               {TURN_TASK_INTENT_OPTIONS.map((option) => (
-                <option key={option.value || "auto"} value={option.value}>
-                  {option.label}
-                </option>
+                <button
+                  aria-checked={taskIntentOverride === option.value}
+                  key={option.value || "auto"}
+                  onClick={(event) => selectTaskIntent(option.value, event.currentTarget)}
+                  role="menuitemradio"
+                  type="button"
+                >
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </button>
               ))}
-            </select>
-            <small>{selectedTaskIntent.description}；仅影响下一条新消息</small>
-          </label>
+            </div>
+          </details>
           <textarea
             aria-label="输入学习问题"
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleComposerKeyDown}
-            placeholder="输入你的问题，或让本地资料帮你解释一个概念..."
+            placeholder="输入你的问题，或继续当前学习..."
             value={input}
           />
         </div>
