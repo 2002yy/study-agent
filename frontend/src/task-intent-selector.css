@@ -1,78 +1,130 @@
 .composer-main {
+  position: relative;
   display: grid;
   min-width: 0;
-  gap: 8px;
+  gap: 7px;
 }
 
-.turn-intent-control {
-  display: grid;
-  grid-template-columns: auto minmax(132px, 180px) minmax(0, 1fr);
+.turn-intent-chip-menu {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+}
+
+.turn-intent-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.turn-intent-control > span {
-  color: var(--text);
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.turn-intent-control select {
-  width: 100%;
-  min-height: 34px;
+  min-height: 28px;
+  max-width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--surface);
+  color: var(--muted);
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  list-style: none;
+  user-select: none;
+}
+
+.turn-intent-chip::-webkit-details-marker {
+  display: none;
+}
+
+.turn-intent-chip:hover,
+.turn-intent-chip-menu[open] .turn-intent-chip {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
   color: var(--text);
-  padding: 0 28px 0 10px;
-  font-size: 12px;
-  font-weight: 700;
 }
 
-.turn-intent-control select:focus-visible {
+.turn-intent-chip:focus-visible,
+.turn-intent-chip-popover button:focus-visible {
   outline: 3px solid rgba(19, 124, 118, 0.18);
-  outline-offset: 1px;
-  border-color: var(--accent);
+  outline-offset: 2px;
 }
 
-.turn-intent-control select:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
+.turn-intent-chip-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 24;
+  display: grid;
+  width: min(340px, calc(100vw - 32px));
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 7px;
+  box-shadow: 0 18px 45px rgba(23, 32, 36, 0.16);
 }
 
-.turn-intent-control small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.turn-intent-chip-heading {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px 8px;
+}
+
+.turn-intent-chip-heading strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.turn-intent-chip-heading small {
+  color: var(--muted);
+  font-size: 11px;
   line-height: 1.4;
 }
 
-@media (max-width: 760px) {
-  .turn-intent-control {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .turn-intent-control small {
-    grid-column: 1 / -1;
-    white-space: normal;
-  }
+.turn-intent-chip-popover button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 9px;
+  text-align: left;
 }
 
-@media (max-width: 430px) {
-  .turn-intent-control {
-    grid-template-columns: 1fr;
-    gap: 5px;
+.turn-intent-chip-popover button:hover,
+.turn-intent-chip-popover button[aria-checked="true"] {
+  background: var(--surface-strong);
+}
+
+.turn-intent-chip-popover button span,
+.turn-intent-chip-popover button strong,
+.turn-intent-chip-popover button small {
+  display: block;
+}
+
+.turn-intent-chip-popover button strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.turn-intent-chip-popover button small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .turn-intent-chip {
+    min-height: 30px;
   }
 
-  .turn-intent-control > span {
-    font-size: 11px;
-  }
-
-  .turn-intent-control small {
-    grid-column: auto;
+  .turn-intent-chip-popover {
+    position: fixed;
+    right: 16px;
+    bottom: calc(112px + env(safe-area-inset-bottom));
+    left: 16px;
+    width: auto;
+    max-height: min(58vh, 440px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
