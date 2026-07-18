@@ -4,12 +4,12 @@ import {
   createRagWriteRun,
   deleteKnowledgeDocument,
   loadKnowledgeDocuments,
-  loadRagRun
+  loadRagRun,
 } from "../../api";
 import type {
   KnowledgeDocumentListResponse,
   RagIndexResponse,
-  RagRunResponse
+  RagRunResponse,
 } from "../../types";
 
 type UploadControllerOptions = {
@@ -18,6 +18,8 @@ type UploadControllerOptions = {
   setOperationError: (message: string) => void;
   onChanged: () => Promise<void> | void;
 };
+
+export type UploadFlowPhase = "idle" | "processing" | "ready" | "failed";
 
 export function describeRagWriteResult(result: RagIndexResponse): string {
   const base = `已索引 ${result.documents} 个文档、${result.chunks} 个片段`;
@@ -28,10 +30,17 @@ export function describeRagWriteResult(result: RagIndexResponse): string {
     : `${base}${version}`;
 }
 
+function hasFailedStage(result: RagIndexResponse): boolean {
+  return (result.stages ?? []).some((stage) => stage.status === "failed");
+}
+
 export function useUploadController(options: UploadControllerOptions) {
   const [mode, setMode] = useState<"upload" | "rebuild">("upload");
   const [run, setRun] = useState<RagRunResponse | null>(null);
   const [status, setStatus] = useState("");
+  const [detail, setDetail] = useState("");
+  const [flowPhase, setFlowPhase] = useState<UploadFlowPhase>("idle");
+  const [lastUploadCount, setLastUploadCount] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [documents, setDocuments] = useState<KnowledgeDocumentListResponse | null>(null);
 
@@ -40,7 +49,7 @@ export function useUploadController(options: UploadControllerOptions) {
       setDocuments(await loadKnowledgeDocuments());
     } catch (error) {
       options.setOperationError(
-        `知识库文档读取失败：${error instanceof Error ? error.message : "读取失败"}`
+        `知识库文档读取失败：${error instanceof Error ? error.message : "读取失败"}`,
       );
     }
   };
@@ -48,22 +57,42 @@ export function useUploadController(options: UploadControllerOptions) {
   const upload = async (files: File[]) => {
     if (!files.length || isUploading) return;
     setIsUploading(true);
-    setStatus(`${mode === "upload" ? "正在追加索引" : "正在重建索引"} ${files.length} 个文件...`);
+    setLastUploadCount(files.length);
+    setFlowPhase("processing");
+    setStatus(`正在解析 ${files.length} 份资料…`);
+    setDetail("");
     options.setOperationError("");
     try {
       const created = await createRagWriteRun(files, mode);
+      const result = created.result as unknown as RagIndexResponse;
       setRun(created);
       options.setActiveRunId(created.id);
-      setStatus(describeRagWriteResult(created.result as unknown as RagIndexResponse));
+      setDetail(describeRagWriteResult(result));
+      if (hasFailedStage(result)) {
+        setFlowPhase("failed");
+        setStatus("资料处理没有完整完成，请查看错误后重试。");
+      } else {
+        setFlowPhase("ready");
+        setStatus(`${files.length} 份资料已准备好`);
+      }
       await refreshDocuments();
       await options.onChanged();
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
-      setStatus(`上传失败：${message}`);
+      setFlowPhase("failed");
+      setStatus("资料处理失败，请重试。");
+      setDetail(message);
       options.setOperationError(`资料上传失败：${message}`);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const dismissFlow = () => {
+    setFlowPhase("idle");
+    setStatus("");
+    setDetail("");
+    setLastUploadCount(0);
   };
 
   const removeDocument = async (documentId: string) => {
@@ -74,7 +103,7 @@ export function useUploadController(options: UploadControllerOptions) {
       await options.onChanged();
     } catch (error) {
       options.setOperationError(
-        `文档删除失败：${error instanceof Error ? error.message : "删除失败"}`
+        `文档删除失败：${error instanceof Error ? error.message : "删除失败"}`,
       );
     }
   };
@@ -89,15 +118,18 @@ export function useUploadController(options: UploadControllerOptions) {
     void loadRagRun(options.activeRunId)
       .then((restored) => {
         if (active && (restored.kind === "upload" || restored.kind === "rebuild")) {
+          const result = restored.result as unknown as RagIndexResponse;
           setRun(restored);
           setMode(restored.kind);
-          setStatus(describeRagWriteResult(restored.result as unknown as RagIndexResponse));
+          setDetail(describeRagWriteResult(result));
+          setFlowPhase(hasFailedStage(result) ? "failed" : "ready");
+          setStatus(hasFailedStage(result) ? "资料处理没有完整完成，请查看错误后重试。" : "资料已准备好");
         }
       })
       .catch((error) => {
         if (active) {
           options.setOperationError(
-            `RAG 写入恢复失败：${error instanceof Error ? error.message : "记录不存在"}`
+            `RAG 写入恢复失败：${error instanceof Error ? error.message : "记录不存在"}`,
           );
           options.setActiveRunId(undefined);
         }
@@ -112,10 +144,14 @@ export function useUploadController(options: UploadControllerOptions) {
     setMode,
     run,
     status,
+    detail,
+    flowPhase,
+    lastUploadCount,
     isUploading,
     documents,
     upload,
+    dismissFlow,
     removeDocument,
-    refreshDocuments
+    refreshDocuments,
   };
 }
