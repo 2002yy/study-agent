@@ -105,6 +105,73 @@
         ],
         "ci_test_paths": []
       }
+    },
+    {
+      "case_id": "pydantic-pr13275-outdated-rust-review-and-lint-ci",
+      "repository": "pydantic/pydantic",
+      "pull_request": 13275,
+      "base_sha": "5edeeaf8c17588ba0b810b9df0d40801354a2d9b",
+      "head_sha": "4d1d0e0af1475d8cf01e2509516b43f330d402f8",
+      "language": "rust",
+      "scenarios": [
+        "provider-replay",
+        "outdated-review-line",
+        "unsupported-language-symbol",
+        "failed-ci-negative-control",
+        "lint-failure"
+      ],
+      "context_path": "contexts/pydantic-pr13275.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [
+          "ModelFieldsValidator.validate_json_by_iteration"
+        ],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "junit5-pr5295-build-ci-negative-control",
+      "repository": "junit-team/junit5",
+      "pull_request": 5295,
+      "base_sha": "ca0fec14b0f8209738a774f9523aaf08cf5e2bf6",
+      "head_sha": "99bf1ef5dc8f9a60b640154e24e0dbdac1c25007",
+      "language": "java",
+      "scenarios": [
+        "provider-replay",
+        "empty-review-label",
+        "failed-ci-negative-control",
+        "build-failure"
+      ],
+      "context_path": "contexts/junit5-pr5295.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "pytest-pr13987-cross-fork-ci-negative-control",
+      "repository": "pytest-dev/pytest",
+      "pull_request": 13987,
+      "base_sha": "324ef9434f0d31744042afb061c8dac0e0efe7cb",
+      "head_sha": "02206c294801af0b61887e2c7351585339324c65",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "resolved-non-code-review",
+        "failed-ci-negative-control",
+        "test-matrix-failure"
+      ],
+      "context_path": "contexts/pytest-pr13987.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
     }
   ]
 }

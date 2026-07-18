@@ -178,6 +178,17 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
             )
             checks = candidate_result
             if checks.get("ok") is True:
+                has_check_evidence = bool(checks.get("check_runs")) or bool(
+                    checks.get("workflow_runs")
+                )
+                if (
+                    cross_repository
+                    and index == 0
+                    and not has_check_evidence
+                    and len(unique_candidates) > 1
+                ):
+                    attempts[-1]["reason"] = "no_checks_found_trying_base_repository"
+                    continue
                 if index > 0:
                     checks = {
                         **checks,

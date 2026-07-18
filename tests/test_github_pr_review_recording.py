@@ -27,20 +27,36 @@ def test_compact_recording_keeps_replay_evidence_without_provider_bodies():
                     "path": "src/app.py",
                     "line": 12,
                     "body": "provider comment body must not be recorded",
-                    "mapping": {"status": "mapped", "symbol": {"identity": {"id": "s1"}}},
+                    "mapping": {
+                        "status": "mapped",
+                        "symbol": {"identity": {"id": "s1"}},
+                    },
                     "hunk_mapping": {"status": "mapped"},
                 }
             ],
             "ci_associations": [
                 {
-                    "check": {
+                    "job": {
                         "id": 10,
-                        "name": "tests",
+                        "run_id": 20,
+                        "name": "tests (py312)",
+                        "status": "completed",
                         "conclusion": "failure",
-                        "url": "https://example.test/check/10",
+                        "url": "https://example.test/job/10",
                         "logs": "must not be recorded",
                     },
-                    "association": {"status": "associated", "tests": ["tests/test_app.py"]},
+                    "failed_steps": [
+                        {
+                            "name": "Run tests",
+                            "number": 4,
+                            "conclusion": "failure",
+                            "logs": "must not be recorded",
+                        }
+                    ],
+                    "association": {
+                        "status": "associated",
+                        "tests": ["tests/test_app.py"],
+                    },
                 }
             ],
             "source_evidence": {"large": "must not be recorded"},
@@ -59,9 +75,16 @@ def test_compact_recording_keeps_replay_evidence_without_provider_bodies():
         "cache_hit": False,
     }
     assert payload["review_items"][0]["mapping"]["symbol"]["identity"]["id"] == "s1"
-    assert payload["ci_associations"][0]["association"]["tests"] == ["tests/test_app.py"]
+    assert payload["ci_associations"][0]["association"]["tests"] == [
+        "tests/test_app.py"
+    ]
+    assert payload["ci_associations"][0]["job"]["name"] == "tests (py312)"
+    assert payload["ci_associations"][0]["failed_steps"] == [
+        {"name": "Run tests", "number": 4, "conclusion": "failure"}
+    ]
     assert "body" not in payload["review_items"][0]
-    assert "logs" not in payload["ci_associations"][0]["check"]
+    assert "logs" not in payload["ci_associations"][0]["job"]
+    assert "logs" not in payload["ci_associations"][0]["failed_steps"][0]
     assert "source_evidence" not in payload
 
 
