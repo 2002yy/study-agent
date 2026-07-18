@@ -238,6 +238,55 @@
         "review_symbol_ids": ["symbol_1b160477e6e3af736b50a8a4"],
         "ci_test_paths": []
       }
+    },
+    {
+      "case_id": "devtask-manager-pr35-real-failed-tests",
+      "repository": "Corfucinas/devtask-manager",
+      "pull_request": 35,
+      "base_sha": "f29d1a03924d13052ab228bb653aea4e31b5e821",
+      "head_sha": "987defeab26cc4d88ee8b2e2f5811d6b4bdd94c0",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "empty-review-label",
+        "failed-ci-test",
+        "failed-ci-positive-control",
+        "ci-test-over-association"
+      ],
+      "context_path": "contexts/devtask-pr35-ci-positive.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": [
+          "tests/test_backup.py",
+          "tests/test_formatter.py",
+          "tests/test_importer.py"
+        ]
+      }
+    },
+    {
+      "case_id": "glyphik-pr215-real-rename",
+      "repository": "durandtibo/glyphik",
+      "pull_request": 215,
+      "base_sha": "9c099b028ad0b5b7418772cbbe4b1b479ca649d9",
+      "head_sha": "e069e3c25dd533f50bd15fbcf1f6c1307185df6c",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "real-file-rename",
+        "old-new-path-candidates",
+        "provider-truncated",
+        "request-budget-exhausted",
+        "empty-review-label"
+      ],
+      "context_path": "contexts/glyphik-pr215-rename.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
     }
   ]
 }

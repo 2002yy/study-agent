@@ -1,0 +1,498 @@
+{
+  "ci_associations": [
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "cancelled",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056714318",
+        "name": "test (3.10)",
+        "run_id": "29635387392",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635387392/job/88056714318"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "cancelled",
+          "name": "Run actions/setup-python@v5",
+          "number": 3
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056714334",
+        "name": "test (3.9)",
+        "run_id": "29635387392",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635387392/job/88056714334"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "88056714343",
+        "name": "test (3.12)",
+        "run_id": "29635387392",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635387392/job/88056714343"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056714352",
+        "name": "test (3.11)",
+        "run_id": "29635387392",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635387392/job/88056714352"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056711921",
+        "name": "test (3.12)",
+        "run_id": "29635386483",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635386483/job/88056711921"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "cancelled",
+          "name": "Run actions/setup-python@v5",
+          "number": 3
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056711931",
+        "name": "test (3.9)",
+        "run_id": "29635386483",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635386483/job/88056711931"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "failure",
+        "id": "88056711937",
+        "name": "test (3.11)",
+        "run_id": "29635386483",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635386483/job/88056711937"
+      }
+    },
+    {
+      "association": {
+        "confidence": "low",
+        "files": [],
+        "reasons": [
+          "generic_test_job_matches_affected_tests_only"
+        ],
+        "status": "associated",
+        "symbols": [],
+        "tests": [
+          "tests/test_backup.py",
+          "tests/test_dedupe.py",
+          "tests/test_exporter.py",
+          "tests/test_formatter.py",
+          "tests/test_history.py",
+          "tests/test_importer.py",
+          "tests/test_models.py",
+          "tests/test_notify.py",
+          "tests/test_priority_queue.py",
+          "tests/test_recurring.py",
+          "tests/test_sorting.py",
+          "tests/test_stats.py",
+          "tests/test_storage.py",
+          "tests/test_templates.py"
+        ]
+      },
+      "failed_steps": [
+        {
+          "conclusion": "failure",
+          "name": "Run python -m pytest tests/ -v",
+          "number": 5
+        }
+      ],
+      "job": {
+        "conclusion": "cancelled",
+        "id": "88056711948",
+        "name": "test (3.10)",
+        "run_id": "29635386483",
+        "status": "completed",
+        "url": "https://github.com/Corfucinas/devtask-manager/actions/runs/29635386483/job/88056711948"
+      }
+    }
+  ],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 1.0,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 1.0,
+    "review_location_symbol_coverage": 1.0,
+    "score": 1.0,
+    "status": "complete",
+    "unresolved_thread_symbol_coverage": 1.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "added",
+      "end_line": 19,
+      "id": "symbol_29ae9c603df1c907ded04be2",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestFindDuplicates",
+      "side": "new",
+      "start_line": 12
+    },
+    {
+      "change_type": "added",
+      "end_line": 10,
+      "id": "symbol_16b6f0826fa12186deb43702",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestSimilarity",
+      "side": "new",
+      "start_line": 6
+    },
+    {
+      "change_type": "added",
+      "end_line": 26,
+      "id": "symbol_26b8854dfac96b10e1d71b17",
+      "kind": "class",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestSuggestMerges",
+      "side": "new",
+      "start_line": 21
+    },
+    {
+      "change_type": "added",
+      "end_line": 19,
+      "id": "symbol_547217d172ffdd73e00e6529",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestFindDuplicates.test_excludes_done",
+      "side": "new",
+      "start_line": 17
+    },
+    {
+      "change_type": "added",
+      "end_line": 16,
+      "id": "symbol_173fe61a9064857e58c2623c",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestFindDuplicates.test_finds_similar",
+      "side": "new",
+      "start_line": 13
+    },
+    {
+      "change_type": "added",
+      "end_line": 10,
+      "id": "symbol_fde7096c353c482146cbd097",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestSimilarity.test_different",
+      "side": "new",
+      "start_line": 9
+    },
+    {
+      "change_type": "added",
+      "end_line": 8,
+      "id": "symbol_f21ed0b05b5f2d7c7df24837",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestSimilarity.test_identical",
+      "side": "new",
+      "start_line": 7
+    },
+    {
+      "change_type": "added",
+      "end_line": 26,
+      "id": "symbol_93a921480e6a923d4512f493",
+      "kind": "method",
+      "language": "python",
+      "path": "tests/test_dedupe.py",
+      "qualified_name": "TestSuggestMerges.test_suggests",
+      "side": "new",
+      "start_line": 22
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 48,
+    "operations": {
+      "check_runs:Corfucinas/devtask-manager": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:Corfucinas/devtask-manager": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:Corfucinas/devtask-manager": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_jobs:Corfucinas/devtask-manager:29635386483": 1,
+      "workflow_jobs:Corfucinas/devtask-manager:29635387392": 1,
+      "workflow_runs:Corfucinas/devtask-manager": 1
+    },
+    "remaining_requests": 36,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 12
+  },
+  "provider_status": "complete",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 234091.391,
+    "provider_requests": 12,
+    "recorded_at": "2026-07-18T07:27:16+00:00"
+  },
+  "review_items": [],
+  "source": {
+    "base_sha": "f29d1a03924d13052ab228bb653aea4e31b5e821",
+    "cross_repository": false,
+    "head_sha": "987defeab26cc4d88ee8b2e2f5811d6b4bdd94c0",
+    "kind": "github_provider",
+    "pull_request": 35,
+    "repository": "Corfucinas/devtask-manager",
+    "url": "https://github.com/Corfucinas/devtask-manager/pull/35"
+  },
+  "summary": {
+    "affected_test_count": 14,
+    "associated_failed_job_count": 8,
+    "changed_file_count": 1,
+    "failed_check_count": 8,
+    "failed_job_count": 8,
+    "impact_file_count": 1,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 0,
+    "review_submission_count": 1,
+    "symbol_change_count": 8,
+    "uncertainty_count": 0,
+    "unresolved_review_thread_count": 0
+  },
+  "truncated": false,
+  "uncertainties": []
+}

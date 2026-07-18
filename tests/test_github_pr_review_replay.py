@@ -21,22 +21,24 @@ def test_manifest_loads_immutable_seed_and_real_provider_cases():
     manifest = load_github_replay_manifest(_MANIFEST)
 
     assert manifest.corpus_id == "study-agent-g10-c3a-replay-v2"
-    assert len(manifest.cases) == 11
+    assert len(manifest.cases) == 13
     assert all(
         len(case.base_sha) == 40 and len(case.head_sha) == 40 for case in manifest.cases
     )
     assert sum(case.provenance == "curated_unit_seed" for case in manifest.cases) == 2
-    assert sum(case.provider_replay for case in manifest.cases) == 9
+    assert sum(case.provider_replay for case in manifest.cases) == 11
 
 
 def test_manifest_summary_reports_quality_coverage_and_provider_limits():
     summary = evaluate_github_replay_manifest(_MANIFEST)
 
     assert summary["coverage"] == {
-        "cases": 11,
-        "repositories": 9,
+        "cases": 13,
+        "repositories": 11,
         "repository_names": [
             "2002yy/study-agent",
+            "Corfucinas/devtask-manager",
+            "durandtibo/glyphik",
             "encode/httpx",
             "fastapi/fastapi",
             "google/gson",
@@ -51,19 +53,23 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "ambiguous-mapping",
             "build-failure",
             "change-impact-test",
+            "ci-test-over-association",
             "cross-fork",
             "deleted-file",
             "empty-review-label",
             "failed-ci-negative-control",
+            "failed-ci-positive-control",
             "failed-ci-test",
             "historical-non-code-reviews",
             "historical-review-line-missing",
             "lint-failure",
             "mapping-false-positive",
+            "old-new-path-candidates",
             "outdated-review-line",
             "persistent-cache-hit",
             "provider-replay",
             "provider-truncated",
+            "real-file-rename",
             "removed-review-target",
             "removed-symbol-candidates",
             "request-budget-exhausted",
@@ -75,21 +81,21 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "unsupported-language-symbol",
             "warm-replay",
         ],
-        "provider_replay_cases": 9,
+        "provider_replay_cases": 11,
         "curated_seed_cases": 2,
     }
     assert summary["provider"] == {
-        "status_counts": {"curated": 2, "partial": 9},
-        "partial_rate": 0.8182,
-        "mean_requests": 8.909,
-        "mean_elapsed_ms": 130564.292,
-        "cache_hit_rate": 0.0909,
+        "status_counts": {"complete": 1, "curated": 2, "partial": 10},
+        "partial_rate": 0.7692,
+        "mean_requests": 8.923,
+        "mean_elapsed_ms": 144071.406,
+        "cache_hit_rate": 0.0769,
     }
     assert summary["metrics"]["macro"] == {
-        "precision": 0.7,
+        "precision": 0.3765,
         "recall": 0.625,
-        "f1": 0.6539,
-        "mean_case_f1": 0.818,
+        "f1": 0.4147,
+        "mean_case_f1": 0.821,
     }
 
 
@@ -143,6 +149,63 @@ def test_edge_replays_keep_deleted_cache_and_truncation_evidence():
     assert truncated["provider_request_budget"]["used_requests"] == 6
 
 
+def test_real_failed_ci_positive_exposes_over_association_baseline():
+    summary = evaluate_github_replay_manifest(_MANIFEST)
+    case = next(
+        item
+        for item in summary["cases"]
+        if item["case_id"] == "devtask-manager-pr35-real-failed-tests"
+    )
+    metric = case["metrics"]["failed_ci_test_association"]
+
+    assert metric["expected"] == [
+        "tests/test_backup.py",
+        "tests/test_formatter.py",
+        "tests/test_importer.py",
+    ]
+    assert len(metric["predicted"]) == 14
+    assert "tests/test_dedupe.py" in metric["predicted"]
+    assert metric["precision"] == 0.2143
+    assert metric["recall"] == 1.0
+    assert metric["false_positive"] == 11
+
+
+def test_real_rename_keeps_both_paths_without_historical_ci_noise():
+    context = json.loads(
+        (_FIXTURE_DIR / "contexts" / "glyphik-pr215-rename.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    candidates = {
+        (candidate["path"], candidate["side"], candidate["change_type"])
+        for candidate in context["label_candidates"]
+    }
+
+    assert (
+        "src/glyphik/pipelines/factory/sec_document_summarization.py",
+        "old",
+        "removed",
+    ) in candidates
+    assert (
+        "src/glyphik/pipelines/factory/company_document.py",
+        "new",
+        "added",
+    ) in candidates
+    assert (
+        "tests/unit/pipelines/factory/test_sec_document_summarization.py",
+        "old",
+        "moved",
+    ) in candidates
+    assert (
+        "tests/unit/pipelines/factory/test_company_document.py",
+        "new",
+        "moved",
+    ) in candidates
+    assert context["ci_associations"] == []
+    assert context["truncated"] is True
+    assert context["provider_request_budget"]["used_requests"] == 6
+
+
 def test_manifest_rejects_mutable_ref_and_context_path_escape(tmp_path: Path):
     context = tmp_path / "context.json"
     context.write_text("{}", encoding="utf-8")
@@ -180,7 +243,7 @@ def test_replay_cli_writes_deterministic_json(tmp_path: Path):
 
     assert completed.returncode == 0, completed.stderr
     first = output.read_text(encoding="utf-8")
-    assert json.loads(first)["coverage"]["provider_replay_cases"] == 9
+    assert json.loads(first)["coverage"]["provider_replay_cases"] == 11
     subprocess.run(
         [
             sys.executable,
