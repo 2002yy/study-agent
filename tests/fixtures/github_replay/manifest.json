@@ -172,6 +172,72 @@
         "review_symbol_ids": [],
         "ci_test_paths": []
       }
+    },
+    {
+      "case_id": "httpx-pr3319-deleted-compat-target",
+      "repository": "encode/httpx",
+      "pull_request": 3319,
+      "base_sha": "3f76571d3429497c4ee4ecf5d8bc034b6f765957",
+      "head_sha": "e83069830fa016b509377dcc4af713615fe44f4f",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "deleted-file",
+        "removed-symbol-candidates",
+        "historical-non-code-reviews",
+        "empty-review-label"
+      ],
+      "context_path": "contexts/httpx-pr3319.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "study-agent-pr48-persistent-cache-hit",
+      "repository": "2002yy/study-agent",
+      "pull_request": 48,
+      "base_sha": "920098ca3501bcd45d1785291acd9fece7c8f1e8",
+      "head_sha": "65c88a97d3f812382dff4fc693d46a6d729d11f8",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "persistent-cache-hit",
+        "warm-replay",
+        "unresolved-non-code-review",
+        "empty-review-label"
+      ],
+      "context_path": "contexts/study-agent-pr48-cache-hit.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "fastapi-pr15493-provider-budget-truncation",
+      "repository": "fastapi/fastapi",
+      "pull_request": 15493,
+      "base_sha": "622b6356b5102113d0074083ac23c82367f4284b",
+      "head_sha": "12f149a3c29d2da615720190939fdfc63fa53dc5",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "provider-truncated",
+        "request-budget-exhausted",
+        "review-symbol"
+      ],
+      "context_path": "contexts/fastapi-pr15493-truncated.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": ["symbol_1b160477e6e3af736b50a8a4"],
+        "ci_test_paths": []
+      }
     }
   ]
 }

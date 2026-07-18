@@ -1,9 +1,9 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**  
-> 更新：2026-07-17
-> 当前能力基线：PR #47 已合并，核心学习产品 G1–G8、聊天 ResearchRun 恢复/取消/EvidenceTrail 闭环、G10-C2 cross-fork Provider 取证及 G10-C3a 前两批 replay 已进入 `main`
-> 当前代码切片：G10-C3a 第三小批已发布为 Draft PR #48，新增 Pydantic/JUnit 5/pytest 失败 CI replay，当前 7 仓库/8 case；下一步继续扩到 24–30 case，并补 rename/delete、Provider 截断、缓存复放与可独立标注的失败测试正例
+> 更新：2026-07-18
+> 当前能力基线：PR #48 已合并，核心学习产品 G1–G8、聊天 ResearchRun 恢复/取消/EvidenceTrail 闭环、G10-C2 cross-fork Provider 取证及 G10-C3a 前三批 replay 已进入 `main`
+> 当前代码切片：G10-C3a 第四小批已发布为 Draft PR #49，补齐 deleted target、Provider 截断和缓存热复放，当前 9 仓库/11 case；下一小批继续补 rename 与可独立标注的失败测试正例，目标仍为 24–30 case
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
@@ -351,8 +351,11 @@ PR #30 已完成主链收口：
    - Flask #3709、Vite #144、Gson #705 形成 3 个真实 Provider replay，覆盖 Python/TypeScript/Java、2 个 cross-fork、历史 review line 丢失、unresolved thread、removed target 和 ambiguous mapping。gold label 由 GitHub diff hunk 与完整 immutable head 文件独立复核，不复制 Provider 预测。
    - **第三小批已完成本地录制与独立标注**：新增 Pydantic #13275、JUnit 5 #5295、pytest #13987，覆盖 2 个普通 PR、1 个 cross-fork、Rust outdated review target、resolved 非代码 review，以及 lint/build/test-matrix 失败。三案共保留 35 个具名失败 job；失败步骤与改动测试之间没有可证实关联，gold `ci_test_paths` 均为空，用作“不得臆造测试关联”的真实负控。Pydantic Rust review 独立定位到 `ModelFieldsValidator.validate_json_by_iteration`，当前符号解析不支持 Rust，因此作为明确 false-negative 记录。
    - 真实 replay 暴露并修复两项取证缺口：cross-fork 来源仓库返回 0 checks 时现在继续回退基仓库；压缩录制器现在保存实际 `job + failed_steps`，不再错误读取不存在的 `check` 字段。两项均有回归测试。
-   - 当前 corpus 为 7 仓库/8 case，其中 6 个 Provider replay 全部 partial；整体 partial rate 0.75、平均 8.75 次请求/126.6 秒。聚合 symbol mapping precision 0.25 / recall 0.1429 / F1 0.1819；CI micro F1 虽为 1.0，但真实新增案例都是负控，尚不能证明失败测试正例的关联质量。
-   - 当前结果仍只作为失败基线：已达到仓库数下限，但仍缺 16–22 个 case，以及 rename/delete、Provider 截断、缓存复放和失败测试正例；达到 24–30 case 前不设置不可回退阈值，也不进入 RAG-K1。
+   - 第三小批结束时 corpus 为 7 仓库/8 case，其中 6 个 Provider replay 全部 partial；整体 partial rate 0.75、平均 8.75 次请求/126.6 秒。聚合 symbol mapping precision 0.25 / recall 0.1429 / F1 0.1819；CI micro F1 虽为 1.0，但真实新增案例都是负控，尚不能证明失败测试正例的关联质量。
+   - **第四小批已完成本地录制与独立标注**：HTTPX #3319 保留删除 `httpx/_compat.py` 后的 old-side symbol candidates，并验证 7 个历史非代码 review 不应映射到代码符号；Study Agent #48 的同 immutable refs 冷录制为 232.8 秒/未命中，热复放为 31.9 秒/`cache_hit=true`；FastAPI #15493 以 6 次请求/1 页预算稳定产生 `provider-truncated + request-budget-exhausted`，review line 31 由 immutable head 文件独立定位到 `main`，与 `symbol_1b160477e6e3af736b50a8a4` 一致。
+   - Django #18780 的 8 请求边界暴露顶层 `truncated=false` 与预算耗尽矛盾；现已让共享请求预算的任何 `exhausted_operations` 显式传播为 `truncated=true`，并有“集合读完后在 commit detail 耗尽”的专项回归。Django 大体积录制未纳入 corpus，避免重复 uncertainty 和 59 个线程膨胀 fixture。
+   - 当前 corpus 为 9 仓库/11 case、9 个 Provider replay；整体 partial rate 0.8182、cache hit rate 0.0909、平均 8.909 次请求/130.6 秒。聚合 symbol mapping precision 0.40 / recall 0.25 / F1 0.3077；CI micro F1 仍主要由 curated 正例和真实负控构成。
+   - 当前结果仍只作为失败基线：已达到仓库数下限，但仍缺 13–19 个 case，以及真实 rename、失败测试正例和更多 Provider 截断/缓存复放；达到 24–30 case 前不设置不可回退阈值，也不进入 RAG-K1。
 2. **G10-C3b Provider 证据补齐**：release、artifact metadata/按需下载，以及按 run attempt -> job -> step -> 时间窗口读取日志；所有新结果继续携带 repository、commit SHA、provider status 和 stop reason。
 3. **G10-D0 只读 RepositoryWorkspaceRun**：受控临时目录、immutable checkout、Docker sandbox 优先、显式不安全的 process fallback、取消/恢复/过期清理和资源预算；只允许 list/read/search/diff。
 4. **G10-D1 确定性命令执行**：仓库配置映射为结构化 `CommandSpec`，只开放声明过的 test/lint/build；保存 stdout/stderr、exit code、timeout、耗时和 artifact，不接受模型拼接任意 shell。
@@ -385,8 +388,8 @@ PR #30 已完成主链收口：
 
 ### 统一下一阶段顺序
 
-1. **已完成**：PR #45、PR #46 与 PR #47 已合并；G10-C3a 基础 harness、curated seed 隔离及前两批真实跨语言 Provider replay 已落地。
-2. **本切片推进**：当前本地 7 仓库/8 case；继续以小批次补真实多仓库 Provider replay，达到 24–30 case 前只记录基线、不宣称代表性质量。
+1. **已完成**：PR #45、PR #46、PR #47 与 PR #48 已合并；G10-C3a 基础 harness、curated seed 隔离及前三批真实跨语言 Provider replay 已落地。
+2. **本切片推进**：当前 9 仓库/11 case；继续以小批次补真实多仓库 Provider replay，达到 24–30 case 前只记录基线、不宣称代表性质量。
 3. G10-C3a 达到最低 corpus 覆盖后，回到核心学习产品，连续完成 RAG-K1 retrieval + answer faithfulness 基线和 RAG-K2 结构化摄取。
 4. 根据 K1 数据决定是否先做 RAG-K3，或补 G10-C3b release/artifact/日志定位。
 5. 只有上述只读质量门禁稳定后，才进入 G10-D0；G10-D2 可写代理、私有仓库自动执行、GraphRAG 和重型连接器继续后置。
@@ -416,6 +419,7 @@ PR #30 已完成主链收口：
 - 当前 G10-C3a replay harness 第一小批：PR #28/#30 的 immutable SHA 与 curated context 已进入 schema v1 manifest；CLI 两次输出字节级一致，明确报告 1 个仓库、2 个 seed、0 个 Provider replay。原有独立 golden JSON 已删除，manifest 成为唯一 label 真值；评测/replay 聚焦 7 passed，GitHub 专项 97 passed，全量 pytest 781 passed，Ruff 全量通过，新增模块目标 mypy 通过。因 C 盘空间不足，全量 pytest 的临时目录改到 D 盘后通过。
 - 当前 G10-C3a 第二小批：录制器/manifest/replay/evaluation 聚焦 12 passed，GitHub 专项 97 passed，全量 pytest 786 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量与 package/secret scan 通过，新录制模块与 CLI 使用 `--follow-imports=skip` 目标 mypy 通过；真实基线为 4 仓库/5 case、3 个 Provider replay、partial rate 0.6、symbol F1 0.20。远端 CI 门禁待本分支发布后确认。
 - 当前 G10-C3a 第三小批（PR #48）：新增 3 个失败 CI 真实 replay、35 个具名失败 job 负控，并补 cross-fork 空 checks 回退和录制器 job/step 完整性回归；当前基线为 7 仓库/8 case、6 个 Provider replay、partial rate 0.75、symbol F1 0.1819。聚焦回归 18 passed、GitHub 专项 99 passed、全量 pytest 788 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量、目标 mypy、package helper（893 files）和 detect-secrets 均通过；同 SHA 的 PR CI 通过，push CI 首次因 PyPI 镜像缺少 `altair==6.1.0` 失败，原 run 重试后全绿。
+- 当前 G10-C3a 第四小批（PR #49）：新增 HTTPX deleted target、Study Agent #48 cache-hit 与 FastAPI request-budget truncation 三个 replay，并修复 late commit-detail budget exhaustion 未传播 `truncated` 的缺口；当前基线为 9 仓库/11 case、9 个 Provider replay、partial rate 0.8182、cache hit rate 0.0909、symbol F1 0.3077。聚焦回归 16 passed、GitHub 专项 101 passed、全量 pytest 790 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量、目标 mypy、package helper（893 files）和 detect-secrets 均通过；最终功能 head 的 push 与 PR CI 均全绿。
 
 PR #31 功能代码验证：
 

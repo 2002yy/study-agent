@@ -530,7 +530,8 @@ class PaginatedGitHubPullRequestService(PaginatedGitHubChecksService):
             ),
             "provider_errors": provider_errors,
             "truncated": (
-                any(bool(item["truncated"]) for item in collections.values())
+                bool(request_budget.exhausted_operations)
+                or any(bool(item["truncated"]) for item in collections.values())
                 or any(item.get("patch_truncated") for item in files)
                 or bool(review_threads.get("truncated"))
                 or bool(checks.get("truncated"))

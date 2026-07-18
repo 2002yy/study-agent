@@ -1,0 +1,309 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 0.5,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 1.0,
+    "review_location_symbol_coverage": 0.0,
+    "score": 0.7,
+    "status": "partial",
+    "unresolved_thread_symbol_coverage": 0.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "added",
+      "end_line": 313,
+      "id": "symbol_9bc70fc4f99800ccd6e39dda",
+      "kind": "class",
+      "language": "python",
+      "path": "src/web/github_paginated_pull_requests.py",
+      "qualified_name": "PaginatedGitHubPullRequestService",
+      "side": "new",
+      "start_line": 25
+    },
+    {
+      "change_type": "removed",
+      "end_line": 202,
+      "id": "symbol_2a55ba3abb415f9501d8789e",
+      "kind": "function",
+      "language": "python",
+      "path": "src/web/github_paginated_pull_requests.py",
+      "qualified_name": "_checks_for_pull_head",
+      "side": "old",
+      "start_line": 112
+    },
+    {
+      "change_type": "modified",
+      "end_line": 44,
+      "id": "symbol_7dee9b69e50ed26ecdd6b3d9",
+      "kind": "function",
+      "language": "python",
+      "path": "src/web/github_pr_review_recording.py",
+      "qualified_name": "_ci_association",
+      "side": "old",
+      "start_line": 34
+    },
+    {
+      "change_type": "modified",
+      "end_line": 65,
+      "id": "symbol_9c3c12a17f9ed1864cdf17ef",
+      "kind": "function",
+      "language": "python",
+      "path": "src/web/github_pr_review_recording.py",
+      "qualified_name": "_ci_association",
+      "side": "new",
+      "start_line": 34
+    },
+    {
+      "change_type": "modified",
+      "end_line": 121,
+      "id": "symbol_8c58afd27f64de40e0248856",
+      "kind": "function",
+      "language": "python",
+      "path": "src/web/github_pr_review_recording.py",
+      "qualified_name": "compact_recording",
+      "side": "old",
+      "start_line": 77
+    },
+    {
+      "change_type": "modified",
+      "end_line": 144,
+      "id": "symbol_2a82017902d60652db670879",
+      "kind": "function",
+      "language": "python",
+      "path": "src/web/github_pr_review_recording.py",
+      "qualified_name": "compact_recording",
+      "side": "new",
+      "start_line": 98
+    },
+    {
+      "change_type": "modified",
+      "end_line": 65,
+      "id": "symbol_e9c43fd0102cdad5714b35ac",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_recording.py",
+      "qualified_name": "test_compact_recording_keeps_replay_evidence_without_provider_bodies",
+      "side": "old",
+      "start_line": 13
+    },
+    {
+      "change_type": "modified",
+      "end_line": 88,
+      "id": "symbol_d14f0c049b5a00464be65e2d",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_recording.py",
+      "qualified_name": "test_compact_recording_keeps_replay_evidence_without_provider_bodies",
+      "side": "new",
+      "start_line": 13
+    },
+    {
+      "change_type": "added",
+      "end_line": 108,
+      "id": "symbol_cb8b5ca4eebe75faa69ec2f4",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_failed_ci_replays_keep_named_job_evidence_without_hallucinated_tests",
+      "side": "new",
+      "start_line": 86
+    },
+    {
+      "change_type": "modified",
+      "end_line": 27,
+      "id": "symbol_438497c425e672f699473ee1",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_loads_immutable_seed_and_real_provider_cases",
+      "side": "old",
+      "start_line": 20
+    },
+    {
+      "change_type": "modified",
+      "end_line": 29,
+      "id": "symbol_7287d9a84ba96c51fd40ac8c",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_loads_immutable_seed_and_real_provider_cases",
+      "side": "new",
+      "start_line": 20
+    },
+    {
+      "change_type": "modified",
+      "end_line": 91,
+      "id": "symbol_7076cc7642d05afe13ea3d4a",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_rejects_mutable_ref_and_context_path_escape",
+      "side": "old",
+      "start_line": 74
+    },
+    {
+      "change_type": "modified",
+      "end_line": 128,
+      "id": "symbol_1cb07881c61573b5c89ddeb3",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_rejects_mutable_ref_and_context_path_escape",
+      "side": "new",
+      "start_line": 111
+    },
+    {
+      "change_type": "modified",
+      "end_line": 71,
+      "id": "symbol_723cf82b5be579c23d212485",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_summary_reports_quality_coverage_and_provider_limits",
+      "side": "old",
+      "start_line": 30
+    },
+    {
+      "change_type": "modified",
+      "end_line": 83,
+      "id": "symbol_f43379ff24ffbbd9531c6211",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_manifest_summary_reports_quality_coverage_and_provider_limits",
+      "side": "new",
+      "start_line": 32
+    },
+    {
+      "change_type": "modified",
+      "end_line": 122,
+      "id": "symbol_9012d53318caee6a0da26469",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_replay_cli_writes_deterministic_json",
+      "side": "old",
+      "start_line": 94
+    },
+    {
+      "change_type": "modified",
+      "end_line": 159,
+      "id": "symbol_8f522c5256079341ea5c4724",
+      "kind": "function",
+      "language": "python",
+      "path": "tests/test_github_pr_review_replay.py",
+      "qualified_name": "test_replay_cli_writes_deterministic_json",
+      "side": "new",
+      "start_line": 131
+    },
+    {
+      "change_type": "added",
+      "end_line": 213,
+      "id": "symbol_48543c094843dd423a58ee3e",
+      "kind": "method",
+      "language": "python",
+      "path": "src/web/github_paginated_pull_requests.py",
+      "qualified_name": "PaginatedGitHubPullRequestService._checks_for_pull_head",
+      "side": "new",
+      "start_line": 112
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 48,
+    "operations": {
+      "check_runs:2002yy/study-agent": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:2002yy/study-agent": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:2002yy/study-agent": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_jobs:2002yy/study-agent:29632858952": 1,
+      "workflow_jobs:2002yy/study-agent:29632860096": 1,
+      "workflow_runs:2002yy/study-agent": 1
+    },
+    "remaining_requests": 36,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 12
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": true,
+    "elapsed_ms": 31935.043,
+    "provider_requests": 12,
+    "recorded_at": "2026-07-18T06:21:14+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "high",
+        "hunk": {
+          "file_status": "added",
+          "hunk_id": "tests/fixtures/github_replay/contexts/junit5-pr5295.json#hunk-1",
+          "new_end": 381,
+          "new_path": "tests/fixtures/github_replay/contexts/junit5-pr5295.json",
+          "new_start": 1,
+          "old_end": 0,
+          "old_path": "tests/fixtures/github_replay/contexts/junit5-pr5295.json",
+          "old_start": 0,
+          "patch_truncated": false
+        },
+        "reason": "single_containing_diff_hunk",
+        "status": "mapped"
+      },
+      "id": "PRRT_kwDOSYWoX86R9XcZ",
+      "is_resolved": false,
+      "kind": "review_thread",
+      "line": 305,
+      "mapping": {
+        "confidence": "low",
+        "path": "tests/fixtures/github_replay/contexts/junit5-pr5295.json",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "tests/fixtures/github_replay/contexts/junit5-pr5295.json"
+    }
+  ],
+  "source": {
+    "base_sha": "920098ca3501bcd45d1785291acd9fece7c8f1e8",
+    "cross_repository": false,
+    "head_sha": "65c88a97d3f812382dff4fc693d46a6d729d11f8",
+    "kind": "github_provider",
+    "pull_request": 48,
+    "repository": "2002yy/study-agent",
+    "url": "https://github.com/2002yy/study-agent/pull/48"
+  },
+  "summary": {
+    "affected_test_count": 12,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 10,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 5,
+    "mapped_review_hunk_count": 1,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 1,
+    "review_submission_count": 1,
+    "symbol_change_count": 11,
+    "uncertainty_count": 1,
+    "unresolved_review_thread_count": 1
+  },
+  "truncated": false,
+  "uncertainties": [
+    {
+      "kind": "review_location_unmapped",
+      "path": "tests/fixtures/github_replay/contexts/junit5-pr5295.json",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOSYWoX86R9XcZ",
+      "review_kind": "review_thread"
+    }
+  ]
+}
