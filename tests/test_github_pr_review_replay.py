@@ -21,34 +21,36 @@ def test_manifest_loads_immutable_seed_and_real_provider_cases():
     manifest = load_github_replay_manifest(_MANIFEST)
 
     assert manifest.corpus_id == "study-agent-g10-c3a-replay-v2"
-    assert len(manifest.cases) == 13
+    assert len(manifest.cases) == 15
     assert all(
         len(case.base_sha) == 40 and len(case.head_sha) == 40 for case in manifest.cases
     )
     assert sum(case.provenance == "curated_unit_seed" for case in manifest.cases) == 2
-    assert sum(case.provider_replay for case in manifest.cases) == 11
+    assert sum(case.provider_replay for case in manifest.cases) == 13
 
 
 def test_manifest_summary_reports_quality_coverage_and_provider_limits():
     summary = evaluate_github_replay_manifest(_MANIFEST)
 
     assert summary["coverage"] == {
-        "cases": 13,
-        "repositories": 11,
+        "cases": 15,
+        "repositories": 13,
         "repository_names": [
             "2002yy/study-agent",
             "Corfucinas/devtask-manager",
             "durandtibo/glyphik",
             "encode/httpx",
+            "encode/starlette",
             "fastapi/fastapi",
             "google/gson",
             "junit-team/junit5",
+            "pallets/click",
             "pallets/flask",
             "pydantic/pydantic",
             "pytest-dev/pytest",
             "vitejs/vite",
         ],
-        "languages": ["java", "python", "rust", "typescript"],
+        "languages": ["java", "markdown", "python", "rust", "typescript"],
         "scenarios": [
             "ambiguous-mapping",
             "build-failure",
@@ -56,6 +58,7 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "ci-test-over-association",
             "cross-fork",
             "deleted-file",
+            "docs-only",
             "empty-review-label",
             "failed-ci-negative-control",
             "failed-ci-positive-control",
@@ -64,6 +67,8 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "historical-review-line-missing",
             "lint-failure",
             "mapping-false-positive",
+            "no-failed-ci",
+            "no-label-candidates",
             "old-new-path-candidates",
             "outdated-review-line",
             "persistent-cache-hit",
@@ -81,21 +86,21 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "unsupported-language-symbol",
             "warm-replay",
         ],
-        "provider_replay_cases": 11,
+        "provider_replay_cases": 13,
         "curated_seed_cases": 2,
     }
     assert summary["provider"] == {
-        "status_counts": {"complete": 1, "curated": 2, "partial": 10},
-        "partial_rate": 0.7692,
-        "mean_requests": 8.923,
-        "mean_elapsed_ms": 144071.406,
-        "cache_hit_rate": 0.0769,
+        "status_counts": {"complete": 2, "curated": 2, "partial": 11},
+        "partial_rate": 0.7333,
+        "mean_requests": 9.6,
+        "mean_elapsed_ms": 152362.216,
+        "cache_hit_rate": 0.0667,
     }
     assert summary["metrics"]["macro"] == {
         "precision": 0.3765,
         "recall": 0.625,
         "f1": 0.4147,
-        "mean_case_f1": 0.821,
+        "mean_case_f1": 0.845,
     }
 
 
@@ -206,6 +211,38 @@ def test_real_rename_keeps_both_paths_without_historical_ci_noise():
     assert context["provider_request_budget"]["used_requests"] == 6
 
 
+def test_cross_fork_impact_and_docs_only_replays_keep_distinct_evidence():
+    click = json.loads(
+        (_FIXTURE_DIR / "contexts" / "click-pr3681.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    starlette = json.loads(
+        (_FIXTURE_DIR / "contexts" / "starlette-pr3359.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert any(
+        candidate["path"] == "src/click/_compat.py"
+        for candidate in click["label_candidates"]
+    )
+    assert {
+        candidate["path"]
+        for candidate in click["label_candidates"]
+        if candidate["path"].startswith("tests/")
+    } >= {
+        "tests/test_compat.py",
+        "tests/test_utils/test_style.py",
+    }
+    assert click["provider_status"] == "complete"
+    assert click["ci_associations"] == []
+    assert starlette["label_candidates"] == []
+    assert starlette["ci_associations"] == []
+    assert starlette["provider_status"] == "partial"
+    assert starlette["truncated"] is True
+
+
 def test_manifest_rejects_mutable_ref_and_context_path_escape(tmp_path: Path):
     context = tmp_path / "context.json"
     context.write_text("{}", encoding="utf-8")
@@ -243,7 +280,7 @@ def test_replay_cli_writes_deterministic_json(tmp_path: Path):
 
     assert completed.returncode == 0, completed.stderr
     first = output.read_text(encoding="utf-8")
-    assert json.loads(first)["coverage"]["provider_replay_cases"] == 11
+    assert json.loads(first)["coverage"]["provider_replay_cases"] == 13
     subprocess.run(
         [
             sys.executable,
