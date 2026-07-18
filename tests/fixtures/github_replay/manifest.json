@@ -287,6 +287,51 @@
         "review_symbol_ids": [],
         "ci_test_paths": []
       }
+    },
+    {
+      "case_id": "click-pr3681-cross-fork-ansi-impact",
+      "repository": "pallets/click",
+      "pull_request": 3681,
+      "base_sha": "8a4ce842564ae94ab050062db8525196ad476c19",
+      "head_sha": "71f2bafa541e7f798834e74076786ff4281ac83e",
+      "language": "python",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "change-impact-test",
+        "empty-review-label",
+        "no-failed-ci"
+      ],
+      "context_path": "contexts/click-pr3681.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
+    },
+    {
+      "case_id": "starlette-pr3359-docs-only-truncation",
+      "repository": "encode/starlette",
+      "pull_request": 3359,
+      "base_sha": "de970d7b3facb853eb7ad077decbf3d94f2aab6c",
+      "head_sha": "e39764030bbc0901664647904064c4d192ae932a",
+      "language": "markdown",
+      "scenarios": [
+        "provider-replay",
+        "cross-fork",
+        "docs-only",
+        "empty-review-label",
+        "no-label-candidates",
+        "provider-truncated"
+      ],
+      "context_path": "contexts/starlette-pr3359.json",
+      "provenance": "github_provider_recording",
+      "provider_replay": true,
+      "labels": {
+        "review_symbol_ids": [],
+        "ci_test_paths": []
+      }
     }
   ]
 }

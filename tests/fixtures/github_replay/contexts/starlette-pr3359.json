@@ -1,0 +1,81 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 0.0,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 1.0,
+    "review_location_symbol_coverage": 1.0,
+    "score": 0.8,
+    "status": "partial",
+    "unresolved_thread_symbol_coverage": 1.0
+  },
+  "label_candidates": [],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 32,
+    "operations": {
+      "check_runs:Kludex/starlette": 1,
+      "check_runs:lkk7/starlette": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:Kludex/starlette": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:lkk7/starlette": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_jobs:Kludex/starlette:28651083939": 1,
+      "workflow_jobs:Kludex/starlette:28651083954": 1,
+      "workflow_runs:Kludex/starlette": 1,
+      "workflow_runs:lkk7/starlette": 1
+    },
+    "remaining_requests": 18,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 14
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 207796.887,
+    "provider_requests": 14,
+    "recorded_at": "2026-07-18T08:14:28+00:00"
+  },
+  "review_items": [],
+  "source": {
+    "base_sha": "de970d7b3facb853eb7ad077decbf3d94f2aab6c",
+    "cross_repository": true,
+    "head_sha": "e39764030bbc0901664647904064c4d192ae932a",
+    "kind": "github_provider",
+    "pull_request": 3359,
+    "repository": "encode/starlette",
+    "url": "https://github.com/Kludex/starlette/pull/3359"
+  },
+  "summary": {
+    "affected_test_count": 0,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 1,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 0,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 0,
+    "review_submission_count": 1,
+    "symbol_change_count": 0,
+    "uncertainty_count": 2,
+    "unresolved_review_thread_count": 0
+  },
+  "truncated": true,
+  "uncertainties": [
+    {
+      "kind": "pull_request_evidence_truncated"
+    },
+    {
+      "kind": "change_impact_evidence_truncated"
+    }
+  ]
+}
