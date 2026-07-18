@@ -415,7 +415,7 @@ PR #30 已完成主链收口：
 - 当前 cross-fork change-impact 切片：PR review context 不再返回 unsupported，而是复用 commit-pinned PR comparison 生成 base/head 双仓库源码图；双仓库 snapshot 路由、repository 归属、同 SHA 不同 fork 缓存隔离与 review-context 接线均有回归。聚焦测试 11 passed，GitHub 专项 94 passed，全量 pytest 777 passed，Ruff 全量通过；expanded mypy 当前 126 个既有错误，低于 127 基线且无新增。
 - 当前 G10-C3a replay harness 第一小批：PR #28/#30 的 immutable SHA 与 curated context 已进入 schema v1 manifest；CLI 两次输出字节级一致，明确报告 1 个仓库、2 个 seed、0 个 Provider replay。原有独立 golden JSON 已删除，manifest 成为唯一 label 真值；评测/replay 聚焦 7 passed，GitHub 专项 97 passed，全量 pytest 781 passed，Ruff 全量通过，新增模块目标 mypy 通过。因 C 盘空间不足，全量 pytest 的临时目录改到 D 盘后通过。
 - 当前 G10-C3a 第二小批：录制器/manifest/replay/evaluation 聚焦 12 passed，GitHub 专项 97 passed，全量 pytest 786 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量与 package/secret scan 通过，新录制模块与 CLI 使用 `--follow-imports=skip` 目标 mypy 通过；真实基线为 4 仓库/5 case、3 个 Provider replay、partial rate 0.6、symbol F1 0.20。远端 CI 门禁待本分支发布后确认。
-- 当前 G10-C3a 第三小批（Draft PR #48）：新增 3 个失败 CI 真实 replay、35 个具名失败 job 负控，并补 cross-fork 空 checks 回退和录制器 job/step 完整性回归；当前基线为 7 仓库/8 case、6 个 Provider replay、partial rate 0.75、symbol F1 0.1819。聚焦回归 18 passed、GitHub 专项 99 passed、全量 pytest 788 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量、目标 mypy、package helper（893 files）和 detect-secrets 均通过；远端 CI 待确认。
+- 当前 G10-C3a 第三小批（PR #48）：新增 3 个失败 CI 真实 replay、35 个具名失败 job 负控，并补 cross-fork 空 checks 回退和录制器 job/step 完整性回归；当前基线为 7 仓库/8 case、6 个 Provider replay、partial rate 0.75、symbol F1 0.1819。聚焦回归 18 passed、GitHub 专项 99 passed、全量 pytest 788 passed，前端 49 files/172 tests 与生产构建通过，Ruff 全量、目标 mypy、package helper（893 files）和 detect-secrets 均通过；同 SHA 的 PR CI 通过，push CI 首次因 PyPI 镜像缺少 `altair==6.1.0` 失败，原 run 重试后全绿。
 
 PR #31 功能代码验证：
 
