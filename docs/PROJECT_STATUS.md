@@ -1,19 +1,35 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**  
-> 更新：2026-07-18
-> 当前能力基线：PR #50 已合并，核心学习产品 G1–G8、聊天 ResearchRun 恢复/取消/EvidenceTrail 闭环、G10-C2 cross-fork Provider 取证及 G10-C3a 前五批 replay 已进入 `main`
-> 当前代码切片：G10-C3a 第六小批补 cross-fork change-impact 与 docs-only 截断负控；当前 13 仓库/15 case，目标仍为 24–30 case
+> 更新：2026-07-18  
+> 当前产品定义：**Study Agent 是一个能够长期保持“我正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**  
+> 当前产品边界：GitHub = 学习源码时使用的高级研究工具；RAG = 围绕自己的资料学习；Web Research = 需要外部事实时获得可信证据；Memory = 学习连续性基础设施；Workflow = 高级诊断 / 开发者模式。  
+> 当前能力基线：PR #52、#53、#54 已按顺序合并，完成产品边界清理、上传资料到学习的完整交接，以及五条 Golden Journey 产品级流畅度回归；G1–G8 与现有 ResearchRun / RAG / GitHub 取证能力继续作为学习主链的支撑基础设施。  
+> 当前代码切片：**停止无明确学习价值的横向功能扩张。下一阶段优先做真实学习语料与回答可信度基线，再做结构化摄取；GitHub / G10 只按“是否帮助源码学习”继续质量工作，不作为第二产品扩张。**
 
 这里只回答：**做到哪里、还差什么、下一步做什么**。
 
+## 0. 产品方向与能力层级
+
+所有新增能力都必须先回答一个问题：
+
+> **它是否帮助用户更好地继续学习？**
+
+- **GitHub** 不是第二个产品，而是学习源码时使用的高级研究工具。仓库快照、代码结构、Git 历史、PR / CI、change impact 与 review context 都必须回到源码理解和当前学习目标。
+- **RAG** 不是“知识库产品”，而是围绕自己的资料学习。普通用户首先看到上传资料、围绕资料提问和查看引用，而不是索引、向量数据库、topK 或 Provider 参数。
+- **Web Research** 不是“搜索引擎”，而是在需要外部事实时提供可信证据。搜索、来源筛选、阅读和 EvidenceTrail 是学习回答的证据基础设施。
+- **Memory** 不是独立工作区，而是学习连续性基础设施。用户关心的是这次确认了什么、还缺什么、下次从哪里继续。
+- **Workflow** 不属于普通用户主功能，只作为高级诊断 / 开发者模式存在。普通用户只需要知道任务是否进行中、是否失败、能否继续或重试。
+
+普通用户主路径优先保持：**当前目标 / 当前任务 -> 已确认内容 -> 未解决缺口 -> 明确下一步 -> 对话输入 -> 按需出现资料、来源与恢复动作**。低频设置、实验功能和开发者诊断不得与学习主路径争夺一级注意力。
+
 ## 1. 当前阶段
 
-> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口、准备阶段实时事件，以及恢复来源与 EvidenceTrail 的同 Run 可信归属。G10 同时已具备可恢复 ResearchRun、commit-pinned GitHub 快照、四语言结构图、模块/re-export/overload 语义、单符号影响分析、Git 历史对象、PR/issue/CI 联合研究、跨版本 hunk-to-symbol 影响分析、source-backed PR review context，以及 REST/GraphQL 分页、共享请求预算、cross-fork PR 证据归属和 base/head 双仓库 change-impact。**
+> **React + FastAPI + SQLite 主架构已完成。核心学习主链已具备单一持久化 TaskContract、LearningClosureRun、结构化证据总结、线程级 summary status、可信四态学习状态、语义化会话导航、结构化恢复卡、聚焦后的一级操作与窄屏完整可用界面；聊天联网工具循环已接入带 thread/turn owner 的 durable ResearchRun、请求级取消、正式恢复入口、准备阶段实时事件，以及恢复来源与 EvidenceTrail 的同 Run 可信归属。PR #52–#54 进一步将普通用户界面正式收敛为“学习主链 + 按需能力”：任务类型改为按需纠正、设置与工作区解耦、上传资料完成后直接进入学习或提问、五条 Golden Journey 进入产品级回归门禁。G10 继续保留 commit-pinned GitHub 快照、四语言结构图、Git 历史、PR/issue/CI、跨版本 change-impact 和 source-backed review context 等能力，但产品定位固定为源码学习的高级研究工具，而不是平级产品。**
 
 ## 2. 已完成
 
-### 核心学习产品 G1–G8
+### 核心学习产品 G1–G8 + 产品收敛
 
 1. **G1 LearningClosureRun**：学习整理拥有 durable owner、正式状态机、source hash 幂等、retry/cancel/resume 和 MemoryRun 关联；刷新后可恢复，research 不会被错误写成学习总结。
 2. **G2 结构化总结输入**：只使用 committed LearningState、最终 PedagogyEvalRun、证据引用、受预算限制的最近对话和冻结记忆上下文；失败/中断回合不能伪装成已掌握，候选保存来源、置信度和评估引用。
@@ -23,6 +39,9 @@
 6. **G6 结构化恢复卡**：新用户提供快速问答、系统学习、联网研究、项目推进和上传资料五类入口；返回用户按 committed task/goal、确认点或已披露来源、缺口和下一步恢复；interrupted turn 支持继续、重试和 durable abandon，放弃后刷新不会再次复活。
 7. **G7 UI 聚焦收敛**：一级操作收敛到当前任务收束、上传、会话和 More；检索、来源、设置与低频工作区下沉但保持可达；普通态不再暴露 memory 文件名、run/step/session ID、route code 和低层 Provider 参数。
 8. **G8 窄屏完整可用**：顶部操作、More、输入、会话与抽屉在窄屏、触控和非 hover 环境完整可达；知识库开发代理与关闭后焦点恢复已通过浏览器验收。
+9. **PR #52 产品边界清理**：输入区永久 TaskIntent 下拉改为按需“自动 · 当前任务” Chip；Settings 不再渲染旧式全工作区 Sidebar；More 一级只保留“资料与来源 / 学习成果 / 设置”，群聊、新闻、工具和工作流归入实验功能 / 开发者诊断。
+10. **PR #53 上传到学习交接**：普通上传固定为“添加资料”；界面展示正在解析与资料已准备好；成功后直接提供“开始系统学习 / 直接提问”；重建全部资料下沉到知识管理危险操作区。
+11. **PR #54 Golden Journey 流畅度门禁**：固定首次问答、系统学习、资料学习、联网研究、GitHub 源码学习五条路径，并对必需决策数、跨越 surface 数、恢复点击数、下一步可见性和普通界面内部术语建立回归合同。
 
 正式学习闭环当前已经可以走通：
 
@@ -260,7 +279,7 @@ PR #30 已完成主链收口：
 5. `POST /chat` 与 `POST /chat/stream` 接受受限枚举 `task_intent`。
 6. 前端只展示服务端持久化合同，不再根据 `learning_state` 二次推断。
 
-当前显式 override 已接入主界面按 Turn 一次性选择；发送后自动清空，retry/continuation 不继承新的 override。
+当前显式 override 已收敛为按需任务 Chip；默认由系统自动判断，只有用户需要纠正当前任务时才展开选择。发送后自动清空，retry/continuation 不继承新的 override。
 
 ## 3. 还差什么
 
@@ -271,12 +290,14 @@ PR #30 已完成主链收口：
 | 会话语义导航 | 已完成 | G4 已合并，已支持标题、目标/研究摘要、阶段/缺口、状态、搜索和分组 |
 | 学习状态去伪精化 | 已完成 | G5：可信四态、committed/attempted 分离、非学习结果状态已合并 |
 | 结构化恢复卡 | 已完成 | G6：新老用户恢复入口、继续这里/新主题、partial/interrupted 恢复与 durable abandon 已合并 |
-| UI 聚焦收敛 | 已完成 | G7：一级动作收敛、普通态内部 memory/run/route/provider 标识降噪已合并 |
+| UI 聚焦收敛 | 已完成 | G7 + PR #52：一级动作收敛、设置与工作区解耦、普通态内部 memory/run/route/provider 标识降噪 |
 | 窄屏完整可用 | 已完成 | G8：顶部操作、More 菜单、输入、会话与各类抽屉的触控/非 hover/安全区验收已合并 |
-| 广域网页搜索 | 本切片推进 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；准备阶段通过同一 `run_id` 推送版本化阶段/失败事件，失败/取消 Run 已接入正式恢复入口 |
-| cancel/retry/resume | 本切片推进 | 浏览器预分配 Turn owner，停止时请求 durable ResearchRun 取消；失败/取消可重试或继续；恢复来源进入下一轮后旧恢复卡退出，服务端校验 source block 并将同一 `run_id` 写入 EvidenceTrail；还需真实浏览器验收 |
+| 上传资料学习交接 | 已完成 | PR #53：解析状态、完成后开始系统学习 / 直接提问、重建危险操作区已合并 |
+| Golden Journey 流畅度门禁 | 已完成 | PR #54：五条核心路径已有决策数、surface、恢复点击、下一步与内部术语回归合同 |
+| 广域网页搜索 | 基础完成 | 聊天工具循环已创建带 thread/turn owner 的 durable ResearchRun，并回写工具 trace 与 `run_id`；准备阶段通过同一 `run_id` 推送版本化阶段/失败事件，失败/取消 Run 已接入正式恢复入口；后续只按学习证据价值继续增强 |
+| cancel/retry/resume | 基础完成 | 刷新恢复、进入下一轮、旧卡退出与同一 ResearchRun 的 EvidenceTrail 已通过；继续补真实使用下的长任务体验 |
 | 网页读取 | 基础完成 | PDF、动态页面、登录状态页面 |
-| GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件 |
+| GitHub repo/tree/blob/raw | 基础完成 | submodule、LFS、超大文件；定位固定为源码学习研究能力 |
 | 持久化仓库快照 | 基础完成 | manifest 增量刷新、过期清理、磁盘统计 |
 | 本地代码搜索 | 初版完成 | embedding 融合与真实仓库评测集 |
 | Tree-sitter / 模块语义 | 初版完成 | 更多语言、package-manager exports、动态派发 |
@@ -295,16 +316,20 @@ PR #30 已完成主链收口：
 | RAG 回答可信度 | 未完成 | 已有 citation-first context 和来源行号；缺回答级 citation precision/recall、groundedness、answerability/refusal 与 stale revision 评测 |
 | KnowledgeBase 治理 | 初版完成 | 文档列表、稳定 document/revision identity、删除与索引版本已完成；缺 collection/scope、active revision、完整文档/聚焦检索策略和增量同步 |
 | 全量 mypy 零错误 | 未完成 | 增量门禁已阻止新增，后续应按模块逐步归零 |
-| TaskContract UI override | 已完成 | 按 Turn 一次性选择已接入；发送后清空，retry/continuation 不继承新 Turn override |
-| 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离 |
-| 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚 |
+| TaskContract UI override | 已完成 | 按需 Chip 已接入；默认自动判断，发送后清空，retry/continuation 不继承新 Turn override |
+| 本地 checkout | 未完成 | clone/fetch/checkout 和 worktree 隔离；只有证明能帮助源码学习时才进入普通产品路线 |
+| 测试与构建 | 未完成 | 受控环境、命令预算、日志和回滚；保持开发者/高级源码学习能力边界 |
 | 私有仓库体验 | 未完成 | 逐仓库确认、凭据管理、外发摘要、仅本地模式 |
 
 ## 4. 下一代码顺序
 
 ### 核心学习产品优先
 
-1. **聊天研究浏览器验收已闭环**：刷新恢复、进入下一轮、旧卡退出与同一 ResearchRun 的 EvidenceTrail 已通过；真实慢查询已覆盖 planned/searching/reading/synthesizing/completed，停止会取消 chat-owned Run，失败卡可正式重试。取消后旧实时进度遮住 cancelled 终态的缺口已修复并补回归。
+1. **已完成产品收敛 PR #52–#54**：产品边界清理、上传资料到学习的完整交接、五条 Golden Journey 流畅度回归均已进入 `main`。
+2. **第一优先级：RAG-K1 真实学习语料与回答可信度基线**。用真实 Markdown / PDF / DOCX、中英混合、长文、重复/矛盾/过时版本、多来源和不可回答问题验证 retrieval 与最终回答，而不是继续横向增加 Provider 或向量库。
+3. **第二优先级：RAG-K2 结构化摄取与切块**。保留 heading / page / paragraph / table / list identity、parser/chunker version、warnings 和 chunk preview，让“围绕自己的资料学习”真正可信可解释。
+4. **第三优先级：根据 K1/K2 数据决定 RAG-K3 KnowledgeBase scope 或源码学习侧的 G10 质量补强**。GitHub 只在能明显改善源码理解、证据质量或学习连续性时继续推进。
+5. **继续禁止横向产品扩张**：Memory 保持学习连续性基础设施；Workflow 保持开发者诊断；群聊、新闻、工具保持实验功能，不再升级为平级主产品。
 
 ### G10-C2 持久化缓存
 
@@ -322,7 +347,7 @@ PR #30 已完成主链收口：
 3. **已完成 cross-fork 双仓库 change-impact**：直接消费 PR 的 immutable files/hunks，base/head 分别按实际 repository URL 与 commit SHA 建 snapshot；缓存 key 同时绑定两侧 repository 与 SHA，同 SHA 不同 fork 不会串用结果，snapshot 失败继续以 repository-aware uncertainty 降级。
 4. release、artifact metadata 和按需下载。
 5. CI 日志按 run attempt、job、step 和时间窗口定位，而不只读取尾部。
-6. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall。
+6. 扩充真实多仓库 replay corpus，分别报告 symbol mapping 与 CI association precision/recall；只作为源码学习研究质量工作，不抢占核心学习产品优先级。
 
 ### G10-D：可执行仓库代理
 
@@ -357,8 +382,8 @@ PR #30 已完成主链收口：
    - 第四小批结束时 corpus 为 9 仓库/11 case、9 个 Provider replay；整体 partial rate 0.8182、cache hit rate 0.0909、平均 8.909 次请求/130.6 秒。聚合 symbol mapping precision 0.40 / recall 0.25 / F1 0.3077；CI micro F1 仍主要由 curated 正例和真实负控构成。
    - 第五小批加入 Glyphik #215 的真实 rename（旧/新源码与测试路径均保留）及 devtask-manager #35 的真实失败测试正例。后者的失败日志独立金标为 `test_backup.py`、`test_formatter.py`、`test_importer.py`，Provider 预测 14 个测试路径，precision 0.2143 / recall 1.0 / 11 false positives，明确暴露 generic matrix job 的过度关联。
    - 第五小批结束时 corpus 为 11 仓库/13 case、11 个 Provider replay；整体 partial rate 0.7692、cache hit rate 0.0769、平均 8.923 次请求/144.1 秒。聚合 symbol mapping precision 0.40 / recall 0.25 / F1 0.3077；CI association precision 0.3529 / recall 1.0 / F1 0.5217。
-   - 第六小批加入 Click #3681 cross-fork ANSI change-impact 和 Starlette #3359 docs-only cross-fork。Click 完整录制保留源码与两个测试文件的候选、无 review/失败 CI；Starlette 明确为 0 symbol/label candidate、0 CI association 的截断负控，新增 Markdown 覆盖。
-   - 当前 corpus 为 13 仓库/15 case、13 个 Provider replay；整体 partial rate 0.7333、cache hit rate 0.0667、平均 9.6 次请求/152.4 秒。symbol 与 CI 指标不变；结果仍只作为失败基线：尚缺 9–15 个 case 和更多真实正例/缓存复放，达到 24–30 case 前不设置不可回退阈值，也不进入 RAG-K1。
+   - 第六小批加入 Click #3681 cross-fork change-impact 和 Starlette #3359 docs-only cross-fork。Click 完整录制保留源码与两个测试文件的候选、无 review/失败 CI；Starlette 明确为 0 symbol/label candidate、0 CI association 的截断负控，新增 Markdown 覆盖。
+   - 当前 corpus 为 13 仓库/15 case、13 个 Provider replay；整体 partial rate 0.7333、cache hit rate 0.0667、平均 9.6 次请求/152.4 秒。symbol 与 CI 指标不变；结果仍只作为失败基线：尚缺 9–15 个 case 和更多真实正例/缓存复放，达到 24–30 case 前不设置不可回退阈值。
 2. **G10-C3b Provider 证据补齐**：release、artifact metadata/按需下载，以及按 run attempt -> job -> step -> 时间窗口读取日志；所有新结果继续携带 repository、commit SHA、provider status 和 stop reason。
 3. **G10-D0 只读 RepositoryWorkspaceRun**：受控临时目录、immutable checkout、Docker sandbox 优先、显式不安全的 process fallback、取消/恢复/过期清理和资源预算；只允许 list/read/search/diff。
 4. **G10-D1 确定性命令执行**：仓库配置映射为结构化 `CommandSpec`，只开放声明过的 test/lint/build；保存 stdout/stderr、exit code、timeout、耗时和 artifact，不接受模型拼接任意 shell。
@@ -382,7 +407,7 @@ PR #30 已完成主链收口：
 
 #### RAG 推荐门禁与顺序
 
-1. **RAG-K1 真实学习语料质量基线，作为 PR #45 后的核心产品第一优先级**：至少 12 份真实文档、30–40 个查询，覆盖 Markdown/PDF/DOCX、中英混合、长文、重复/矛盾/过时版本、多来源问题和不可回答问题。保留 deterministic local 子集，并提供显式联网/付费的 production embedding replay。
+1. **RAG-K1 真实学习语料质量基线，作为当前核心产品第一优先级**：至少 12 份真实文档、30–40 个查询，覆盖 Markdown/PDF/DOCX、中英混合、长文、重复/矛盾/过时版本、多来源问题和不可回答问题。保留 deterministic local 子集，并提供显式联网/付费的 production embedding replay。
 2. **RAG-K1 同时补回答级评测**：除 Recall/MRR/nDCG 外，新增 citation precision/recall、claim support、groundedness、answerability/refusal、source diversity、stale revision leakage、端到端延迟和 embedding/rerank 成本；第一轮只记录基线，之后才设置不可回退门禁。
 3. **RAG-K2 结构化摄取与切块**：引入 `ParserResult -> DocumentBlock -> Chunk`，保留 page/heading/paragraph/table/list identity、parser/chunker version 和 warnings；提供 Markdown heading、prose、PDF page/layout 等策略 profile、最小 chunk 合并与 chunk preview。扫描件/OCR 和多模态解析作为可选 adapter，失败必须显式降级，不能伪装为完整解析。
 4. **RAG-K3 KnowledgeBase domain**：增加 collection/scope、active revision、逐文档状态与重试、索引 manifest/磁盘统计；明确 `full_document / focused_retrieval / tools_only` 三种上下文策略，并由 TaskContract、文档长度、模型 context budget 与用户选择共同决定。
@@ -391,16 +416,19 @@ PR #30 已完成主链收口：
 
 ### 统一下一阶段顺序
 
-1. **已完成**：PR #45、PR #46、PR #47、PR #48、PR #49 与 PR #50 已合并；G10-C3a 基础 harness、curated seed 隔离及前五批真实跨语言 Provider replay 已落地。
-2. **本切片推进**：当前 13 仓库/15 case；继续以小批次补真实多仓库 Provider replay，达到 24–30 case 前只记录基线、不宣称代表性质量。
-3. G10-C3a 达到最低 corpus 覆盖后，回到核心学习产品，连续完成 RAG-K1 retrieval + answer faithfulness 基线和 RAG-K2 结构化摄取。
-4. 根据 K1 数据决定是否先做 RAG-K3，或补 G10-C3b release/artifact/日志定位。
-5. 只有上述只读质量门禁稳定后，才进入 G10-D0；G10-D2 可写代理、私有仓库自动执行、GraphRAG 和重型连接器继续后置。
+1. **已完成**：PR #52、#53、#54 已按顺序合并；产品边界、上传资料学习交接与五条 Golden Journey 产品级流畅度门禁已经进入 `main`。旧 Draft PR #33 已作为 superseded 关闭，仓库不再保留并行缓存实现主线。
+2. **当前核心产品第一优先级：RAG-K1**，建立真实学习语料 retrieval + answer faithfulness 基线；先记录真实失败，再决定功能。
+3. **随后推进 RAG-K2**，完成结构化摄取、切块身份、warnings 与 chunk preview，让资料学习的输入质量可见、可验证。
+4. **根据 K1/K2 数据决定 RAG-K3 或源码学习侧 G10 质量补强**；G10-C3a 可以继续补代表性评测，但不得再次成为压过学习主链的默认开发主线。
+5. **G10-D0 及以后执行能力继续后置**；只有明确证明它改善源码学习闭环并具备安全边界时才推进。可写代理、私有仓库自动执行、GraphRAG 和重型连接器继续后置。
 
 ## 5. 当前验证
 
 核心学习产品最近完整门禁：
 
+- **PR #52（产品边界清理）**：最终 head `6d83051a428177389f71f19b2a02234521f7ea70` 完整 CI 通过后合并，merge commit `16f77fea9225f9ae8edee9b9bff8d51cc81fb216`；输入任务方式改为按需 Chip，Settings 与旧工作区 Sidebar 解耦，More 一级产品边界完成收敛。
+- **PR #53（上传资料学习交接）**：最终 head `d614b1cbf4114c24ef89a80a0e0dc21c753c919d`，CI Run #1118 完整通过后合并，merge commit `b1c8772a44b4354091be68dcf02c1a8a2fa139bb`；前端新增上传 processing/ready/failed 状态、学习/提问交接与危险重建入口。
+- **PR #54（Golden Journey 流畅度门禁）**：最终 head `0db3058d2dbd41aab54af2a20efa8bfa737518ea`，CI Run #1120 完整通过后合并，merge commit `c2d2a7b7dc9f8f1303e2c24a70f86c8984d237e1`；五条核心路径的决策数、surface、恢复点击、下一步可见性和内部术语进入产品级回归。
 - PR #37（G2）：最新 head 完整 pytest、Ruff、package helper、detect-secrets、expanded mypy、frontend Vitest、TypeScript build、Vite production build 全部通过后合并。
 - PR #38（G3）：最新 head CI Run #915 完整通过后合并。
 - PR #39（G4）：最新 head `9896272b678723677aabba6f9d1b523d244e5c17`，CI Run #947 完整通过后合并；前端 139 个测试、TypeScript build 和 Vite production build 均通过。
