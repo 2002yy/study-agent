@@ -1,7 +1,13 @@
-import { act, create } from "react-test-renderer";
+import { act, create, type ReactTestInstance } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
 import { UploadLearningPrompt } from "./UploadLearningPrompt";
+
+function textContent(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === "string" ? child : textContent(child)))
+    .join("");
+}
 
 describe("UploadLearningPrompt", () => {
   it("turns a completed upload into two clear learning actions", () => {
@@ -33,8 +39,8 @@ describe("UploadLearningPrompt", () => {
     expect(serialized).not.toContain("vector backend");
 
     const buttons = renderer.root.findAllByType("button");
-    act(() => buttons.find((button) => JSON.stringify(button.children).includes("开始系统学习"))?.props.onClick());
-    act(() => buttons.find((button) => JSON.stringify(button.children).includes("直接提问"))?.props.onClick());
+    act(() => buttons.find((button) => textContent(button).includes("开始系统学习"))?.props.onClick());
+    act(() => buttons.find((button) => textContent(button).includes("直接提问"))?.props.onClick());
 
     expect(onStartLearning).toHaveBeenCalledTimes(1);
     expect(onAskDirectly).toHaveBeenCalledTimes(1);
