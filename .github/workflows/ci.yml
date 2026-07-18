@@ -46,12 +46,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Enforce pytest result
-        if: steps.pytest.outcome == 'failure'
-        run: |
-          tail -200 pytest.log
-          exit 1
-
       - name: Run RAG K1 local quality baseline
         id: rag_quality
         continue-on-error: true
@@ -75,6 +69,12 @@ jobs:
         if: steps.rag_quality.outcome == 'failure'
         run: |
           tail -200 rag-quality-baseline.log
+          exit 1
+
+      - name: Enforce pytest result
+        if: steps.pytest.outcome == 'failure'
+        run: |
+          tail -200 pytest.log
           exit 1
 
       - name: Run ruff
