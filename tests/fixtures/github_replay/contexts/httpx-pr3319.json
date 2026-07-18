@@ -1,0 +1,1079 @@
+{
+  "ci_associations": [],
+  "evidence_coverage": {
+    "changed_file_impact_coverage": 0.448,
+    "failed_job_association_coverage": 1.0,
+    "immutable_ref_coverage": 1.0,
+    "review_location_hunk_coverage": 0.0,
+    "review_location_symbol_coverage": 0.0,
+    "score": 0.49,
+    "status": "limited",
+    "unresolved_thread_symbol_coverage": 1.0
+  },
+  "label_candidates": [
+    {
+      "change_type": "modified",
+      "end_line": 47,
+      "id": "symbol_8b3db4d5008b55613568ef63",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/asgi.py",
+      "qualified_name": "ASGIResponseStream",
+      "side": "old",
+      "start_line": 42
+    },
+    {
+      "change_type": "modified",
+      "end_line": 60,
+      "id": "symbol_b69e61519d9006591bdca233",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/asgi.py",
+      "qualified_name": "ASGIResponseStream",
+      "side": "new",
+      "start_line": 55
+    },
+    {
+      "change_type": "modified",
+      "end_line": 345,
+      "id": "symbol_db0f2804cbb809a6474592a2",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "AsyncHTTPTransport",
+      "side": "old",
+      "start_line": 265
+    },
+    {
+      "change_type": "modified",
+      "end_line": 346,
+      "id": "symbol_36ae688456ed90266772e76d",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "AsyncHTTPTransport",
+      "side": "new",
+      "start_line": 271
+    },
+    {
+      "change_type": "modified",
+      "end_line": 386,
+      "id": "symbol_1a5e3abf0f32f9410afb00cb",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient",
+      "side": "old",
+      "start_line": 162
+    },
+    {
+      "change_type": "modified",
+      "end_line": 385,
+      "id": "symbol_84c2031dc88bf1b3dc09bfb2",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient",
+      "side": "new",
+      "start_line": 158
+    },
+    {
+      "change_type": "modified",
+      "end_line": 156,
+      "id": "symbol_cf91a714927c4ad8aff895d8",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream",
+      "side": "old",
+      "start_line": 136
+    },
+    {
+      "change_type": "modified",
+      "end_line": 152,
+      "id": "symbol_1261f86c35fbebde2af4fbad",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream",
+      "side": "new",
+      "start_line": 132
+    },
+    {
+      "change_type": "modified",
+      "end_line": 133,
+      "id": "symbol_959e2ab44d1771fa76593289",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream",
+      "side": "old",
+      "start_line": 113
+    },
+    {
+      "change_type": "modified",
+      "end_line": 129,
+      "id": "symbol_10525e7316894532dcb3b52d",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream",
+      "side": "new",
+      "start_line": 109
+    },
+    {
+      "change_type": "modified",
+      "end_line": 248,
+      "id": "symbol_f68141ff9b16f196f28b2f3d",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "HTTPTransport",
+      "side": "old",
+      "start_line": 124
+    },
+    {
+      "change_type": "modified",
+      "end_line": 254,
+      "id": "symbol_727dafd79a1392529292295a",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "HTTPTransport",
+      "side": "new",
+      "start_line": 125
+    },
+    {
+      "change_type": "removed",
+      "end_line": 193,
+      "id": "symbol_ab60f01f079aad2683388220",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig",
+      "side": "old",
+      "start_line": 60
+    },
+    {
+      "change_type": "removed",
+      "end_line": 270,
+      "id": "symbol_9fe175aed11c824ba9c8c76c",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "Timeout",
+      "side": "old",
+      "start_line": 196
+    },
+    {
+      "change_type": "removed",
+      "end_line": 43,
+      "id": "symbol_02daa1bbaaf03b3474cd0dc3",
+      "kind": "class",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "UnsetType",
+      "side": "old",
+      "start_line": 42
+    },
+    {
+      "change_type": "modified",
+      "end_line": 39,
+      "id": "symbol_c6632b50ac31cc675a4d79b8",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_transports/asgi.py",
+      "qualified_name": "create_event",
+      "side": "old",
+      "start_line": 31
+    },
+    {
+      "change_type": "modified",
+      "end_line": 52,
+      "id": "symbol_d0e6f6163f822b39f9325332",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_transports/asgi.py",
+      "qualified_name": "create_event",
+      "side": "new",
+      "start_line": 44
+    },
+    {
+      "change_type": "removed",
+      "end_line": 57,
+      "id": "symbol_9f153afafb272f1a6c015746",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "create_ssl_context",
+      "side": "old",
+      "start_line": 49
+    },
+    {
+      "change_type": "modified",
+      "end_line": 224,
+      "id": "symbol_dc5ebaf7fe8c1380391a4d54",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "get",
+      "side": "old",
+      "start_line": 187
+    },
+    {
+      "change_type": "modified",
+      "end_line": 218,
+      "id": "symbol_cc15cee3da850dcc27e79f4e",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "get",
+      "side": "new",
+      "start_line": 180
+    },
+    {
+      "change_type": "modified",
+      "end_line": 304,
+      "id": "symbol_71ccbb3c7884b6a0ddb065b3",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "head",
+      "side": "old",
+      "start_line": 267
+    },
+    {
+      "change_type": "modified",
+      "end_line": 300,
+      "id": "symbol_cf2b7a5904eeaf6869ced53f",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "head",
+      "side": "new",
+      "start_line": 262
+    },
+    {
+      "change_type": "added",
+      "end_line": 41,
+      "id": "symbol_90b9594b1f4646e7cfe0bcdc",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_transports/asgi.py",
+      "qualified_name": "is_running_trio",
+      "side": "new",
+      "start_line": 29
+    },
+    {
+      "change_type": "modified",
+      "end_line": 264,
+      "id": "symbol_cece59b75c3477993c731d9c",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "options",
+      "side": "old",
+      "start_line": 227
+    },
+    {
+      "change_type": "modified",
+      "end_line": 259,
+      "id": "symbol_6b5b54a1ca884ebbd661da5c",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "options",
+      "side": "new",
+      "start_line": 221
+    },
+    {
+      "change_type": "modified",
+      "end_line": 438,
+      "id": "symbol_c97896bcfcc56841ff11a8cb",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "patch",
+      "side": "old",
+      "start_line": 397
+    },
+    {
+      "change_type": "modified",
+      "end_line": 438,
+      "id": "symbol_8bb03eaf056743e5566dfe7a",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "patch",
+      "side": "new",
+      "start_line": 395
+    },
+    {
+      "change_type": "modified",
+      "end_line": 349,
+      "id": "symbol_ff1bc4de43aa9632817f15a7",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "post",
+      "side": "old",
+      "start_line": 307
+    },
+    {
+      "change_type": "modified",
+      "end_line": 346,
+      "id": "symbol_5e37e6a8eacfed970cb9dcea",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "post",
+      "side": "new",
+      "start_line": 303
+    },
+    {
+      "change_type": "modified",
+      "end_line": 394,
+      "id": "symbol_a2c7b67364a2d582c2297d3b",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "put",
+      "side": "old",
+      "start_line": 352
+    },
+    {
+      "change_type": "modified",
+      "end_line": 392,
+      "id": "symbol_ecc13a6b157522729b1c1e23",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "put",
+      "side": "new",
+      "start_line": 349
+    },
+    {
+      "change_type": "modified",
+      "end_line": 129,
+      "id": "symbol_214bad1e5ae6431596efca8f",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "request",
+      "side": "old",
+      "start_line": 38
+    },
+    {
+      "change_type": "modified",
+      "end_line": 121,
+      "id": "symbol_cab74a707d7d38404c56b67f",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "request",
+      "side": "new",
+      "start_line": 36
+    },
+    {
+      "change_type": "ambiguous",
+      "end_line": 50,
+      "id": "symbol_bf1ae52408d5a3bbab05843c",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_compat.py",
+      "qualified_name": "set_minimum_tls_version_1_2",
+      "side": "old",
+      "start_line": 43
+    },
+    {
+      "change_type": "ambiguous",
+      "end_line": 60,
+      "id": "symbol_ecb07bb22d9af02d2c08a6e0",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_compat.py",
+      "qualified_name": "set_minimum_tls_version_1_2",
+      "side": "old",
+      "start_line": 54
+    },
+    {
+      "change_type": "modified",
+      "end_line": 184,
+      "id": "symbol_6045273dad18f0aefb0fc1bd",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "stream",
+      "side": "old",
+      "start_line": 133
+    },
+    {
+      "change_type": "modified",
+      "end_line": 177,
+      "id": "symbol_bbfdfea7416411d81b0679a9",
+      "kind": "function",
+      "language": "python",
+      "path": "httpx/_api.py",
+      "qualified_name": "stream",
+      "side": "new",
+      "start_line": 125
+    },
+    {
+      "change_type": "modified",
+      "end_line": 343,
+      "id": "symbol_f0cc7b7633831a3881bb9c0d",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "AsyncHTTPTransport.__init__",
+      "side": "old",
+      "start_line": 266
+    },
+    {
+      "change_type": "modified",
+      "end_line": 346,
+      "id": "symbol_84f33af4f5c9b17046d679aa",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "AsyncHTTPTransport.__init__",
+      "side": "new",
+      "start_line": 272
+    },
+    {
+      "change_type": "modified",
+      "end_line": 211,
+      "id": "symbol_58547fe914a99cf89a49b5cb",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient._enforce_trailing_slash",
+      "side": "old",
+      "start_line": 208
+    },
+    {
+      "change_type": "modified",
+      "end_line": 207,
+      "id": "symbol_67ee6337f2216f07fc28eb30",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient._enforce_trailing_slash",
+      "side": "new",
+      "start_line": 204
+    },
+    {
+      "change_type": "modified",
+      "end_line": 231,
+      "id": "symbol_1ae1950a01299222bc963004",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient._get_proxy_map",
+      "side": "old",
+      "start_line": 213
+    },
+    {
+      "change_type": "modified",
+      "end_line": 221,
+      "id": "symbol_5c10bc2e56897711c9570037",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BaseClient._get_proxy_map",
+      "side": "new",
+      "start_line": 209
+    },
+    {
+      "change_type": "modified",
+      "end_line": 151,
+      "id": "symbol_c515904edd0079d3195cf13e",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.__aiter__",
+      "side": "old",
+      "start_line": 149
+    },
+    {
+      "change_type": "modified",
+      "end_line": 147,
+      "id": "symbol_86db4e088a7268a754424f03",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.__aiter__",
+      "side": "new",
+      "start_line": 145
+    },
+    {
+      "change_type": "modified",
+      "end_line": 147,
+      "id": "symbol_9bf64ad312c32832b0b00ced",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.__init__",
+      "side": "old",
+      "start_line": 142
+    },
+    {
+      "change_type": "modified",
+      "end_line": 143,
+      "id": "symbol_813f3eec5d14d36bb57f2969",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.__init__",
+      "side": "new",
+      "start_line": 138
+    },
+    {
+      "change_type": "modified",
+      "end_line": 156,
+      "id": "symbol_a7684722a140e584b3e57613",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.aclose",
+      "side": "old",
+      "start_line": 153
+    },
+    {
+      "change_type": "modified",
+      "end_line": 152,
+      "id": "symbol_6ab12dc850722dbb43fd5fa6",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundAsyncStream.aclose",
+      "side": "new",
+      "start_line": 149
+    },
+    {
+      "change_type": "modified",
+      "end_line": 124,
+      "id": "symbol_999e7ed4af69901740b77334",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.__init__",
+      "side": "old",
+      "start_line": 119
+    },
+    {
+      "change_type": "modified",
+      "end_line": 120,
+      "id": "symbol_430b5262e873739324eaf315",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.__init__",
+      "side": "new",
+      "start_line": 115
+    },
+    {
+      "change_type": "modified",
+      "end_line": 128,
+      "id": "symbol_c9c8a95635988459805f0fb2",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.__iter__",
+      "side": "old",
+      "start_line": 126
+    },
+    {
+      "change_type": "modified",
+      "end_line": 124,
+      "id": "symbol_7ee067bf9c16a28cdff8eb90",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.__iter__",
+      "side": "new",
+      "start_line": 122
+    },
+    {
+      "change_type": "modified",
+      "end_line": 133,
+      "id": "symbol_ac6950d63a5fd0f47bc86aa9",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.close",
+      "side": "old",
+      "start_line": 130
+    },
+    {
+      "change_type": "modified",
+      "end_line": 129,
+      "id": "symbol_22c221943f2c2f60678256c9",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_client.py",
+      "qualified_name": "BoundSyncStream.close",
+      "side": "new",
+      "start_line": 126
+    },
+    {
+      "change_type": "modified",
+      "end_line": 202,
+      "id": "symbol_f64fe39a18f0def1149baf3e",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "HTTPTransport.__init__",
+      "side": "old",
+      "start_line": 125
+    },
+    {
+      "change_type": "modified",
+      "end_line": 208,
+      "id": "symbol_5d5204902495394c1a077466",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_transports/default.py",
+      "qualified_name": "HTTPTransport.__init__",
+      "side": "new",
+      "start_line": 126
+    },
+    {
+      "change_type": "removed",
+      "end_line": 79,
+      "id": "symbol_2a62ad5d4e09818e56789e0f",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig.__init__",
+      "side": "old",
+      "start_line": 67
+    },
+    {
+      "change_type": "removed",
+      "end_line": 177,
+      "id": "symbol_7ab5223048deeadbf182e530",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig._create_default_ssl_context",
+      "side": "old",
+      "start_line": 159
+    },
+    {
+      "change_type": "removed",
+      "end_line": 193,
+      "id": "symbol_70988410aa1c44dcd415f757",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig._load_client_certs",
+      "side": "old",
+      "start_line": 179
+    },
+    {
+      "change_type": "removed",
+      "end_line": 92,
+      "id": "symbol_488ef1a291b62ce87011e1cf",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig.load_ssl_context",
+      "side": "old",
+      "start_line": 81
+    },
+    {
+      "change_type": "removed",
+      "end_line": 102,
+      "id": "symbol_a14c82db379c9b6d64245f89",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig.load_ssl_context_no_verify",
+      "side": "old",
+      "start_line": 94
+    },
+    {
+      "change_type": "removed",
+      "end_line": 157,
+      "id": "symbol_38eb88d4715230597453dd30",
+      "kind": "method",
+      "language": "python",
+      "path": "httpx/_config.py",
+      "qualified_name": "SSLConfig.load_ssl_context_verify",
+      "side": "old",
+      "start_line": 104
+    }
+  ],
+  "provider_request_budget": {
+    "exhausted": false,
+    "exhausted_operations": [],
+    "max_pages_per_collection": 10,
+    "max_requests": 48,
+    "operations": {
+      "check_runs:encode/httpx": 1,
+      "pull_request": 1,
+      "pull_request_base_commit:encode/httpx": 1,
+      "pull_request_files": 1,
+      "pull_request_head_commit:encode/httpx": 1,
+      "pull_request_issue_comments": 1,
+      "pull_request_review_comments": 1,
+      "pull_request_review_threads": 1,
+      "pull_request_reviews": 1,
+      "workflow_runs:encode/httpx": 1
+    },
+    "remaining_requests": 38,
+    "scope": "pull_request_rest_graphql_calls",
+    "used_requests": 10
+  },
+  "provider_status": "partial",
+  "replay_metadata": {
+    "cache_hit": false,
+    "elapsed_ms": 203838.307,
+    "provider_requests": 10,
+    "recorded_at": "2026-07-18T06:12:56+00:00"
+  },
+  "review_items": [
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FVsQv",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": ".github/CONTRIBUTING.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": ".github/CONTRIBUTING.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FVs9x",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "CHANGELOG.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "CHANGELOG.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FVtHv",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "CHANGELOG.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "CHANGELOG.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FV0IX",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "CHANGELOG.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "CHANGELOG.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FV1kz",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "docs/advanced/ssl.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "docs/advanced/ssl.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FV2XQ",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "CHANGELOG.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "CHANGELOG.md"
+    },
+    {
+      "hunk_mapping": {
+        "confidence": "low",
+        "reason": "review_path_or_line_missing",
+        "status": "unmapped"
+      },
+      "id": "PRRT_kwDOCrLX_c5FV2by",
+      "is_resolved": true,
+      "kind": "review_thread",
+      "line": 0,
+      "mapping": {
+        "confidence": "low",
+        "path": "CHANGELOG.md",
+        "reason": "review_location_not_in_change_impact",
+        "status": "unmapped"
+      },
+      "path": "CHANGELOG.md"
+    }
+  ],
+  "source": {
+    "base_sha": "3f76571d3429497c4ee4ecf5d8bc034b6f765957",
+    "cross_repository": false,
+    "head_sha": "e83069830fa016b509377dcc4af713615fe44f4f",
+    "kind": "github_provider",
+    "pull_request": 3319,
+    "repository": "encode/httpx",
+    "url": "https://github.com/encode/httpx/pull/3319"
+  },
+  "summary": {
+    "affected_test_count": 8,
+    "associated_failed_job_count": 0,
+    "changed_file_count": 29,
+    "failed_check_count": 0,
+    "failed_job_count": 0,
+    "impact_file_count": 13,
+    "mapped_review_hunk_count": 0,
+    "mapped_review_item_count": 0,
+    "mapped_unresolved_review_thread_count": 0,
+    "review_item_count": 7,
+    "review_submission_count": 8,
+    "symbol_change_count": 37,
+    "uncertainty_count": 27,
+    "unresolved_review_thread_count": 0
+  },
+  "truncated": true,
+  "uncertainties": [
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "httpx/_content.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "httpx/_content.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "httpx/_decoders.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "httpx/_decoders.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "httpx/_main.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "httpx/_main.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "httpx/_types.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "httpx/_types.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_base_file",
+        "path": "httpx/_urls.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "missing_head_file",
+        "path": "httpx/_urls.py"
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "detail": {
+        "kind": "ambiguous_symbol_pair",
+        "new_count": 0,
+        "old_count": 2,
+        "symbol_key": [
+          "python",
+          "function",
+          "set_minimum_tls_version_1_2"
+        ]
+      },
+      "kind": "change_impact_uncertainty"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": ".github/CONTRIBUTING.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FVsQv",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": ".github/CONTRIBUTING.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FVsQv",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FVs9x",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FVs9x",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FVtHv",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FVtHv",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FV0IX",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FV0IX",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "docs/advanced/ssl.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FV1kz",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "docs/advanced/ssl.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FV1kz",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FV2XQ",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FV2XQ",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_location_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_location_not_in_change_impact",
+      "review_id": "PRRT_kwDOCrLX_c5FV2by",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "review_hunk_unmapped",
+      "path": "CHANGELOG.md",
+      "reason": "review_path_or_line_missing",
+      "review_id": "PRRT_kwDOCrLX_c5FV2by",
+      "review_kind": "review_thread"
+    },
+    {
+      "kind": "pull_request_evidence_truncated"
+    },
+    {
+      "kind": "change_impact_evidence_truncated"
+    }
+  ]
+}

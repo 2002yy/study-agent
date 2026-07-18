@@ -21,22 +21,24 @@ def test_manifest_loads_immutable_seed_and_real_provider_cases():
     manifest = load_github_replay_manifest(_MANIFEST)
 
     assert manifest.corpus_id == "study-agent-g10-c3a-replay-v2"
-    assert len(manifest.cases) == 8
+    assert len(manifest.cases) == 11
     assert all(
         len(case.base_sha) == 40 and len(case.head_sha) == 40 for case in manifest.cases
     )
     assert sum(case.provenance == "curated_unit_seed" for case in manifest.cases) == 2
-    assert sum(case.provider_replay for case in manifest.cases) == 6
+    assert sum(case.provider_replay for case in manifest.cases) == 9
 
 
 def test_manifest_summary_reports_quality_coverage_and_provider_limits():
     summary = evaluate_github_replay_manifest(_MANIFEST)
 
     assert summary["coverage"] == {
-        "cases": 8,
-        "repositories": 7,
+        "cases": 11,
+        "repositories": 9,
         "repository_names": [
             "2002yy/study-agent",
+            "encode/httpx",
+            "fastapi/fastapi",
             "google/gson",
             "junit-team/junit5",
             "pallets/flask",
@@ -50,36 +52,44 @@ def test_manifest_summary_reports_quality_coverage_and_provider_limits():
             "build-failure",
             "change-impact-test",
             "cross-fork",
+            "deleted-file",
             "empty-review-label",
             "failed-ci-negative-control",
             "failed-ci-test",
+            "historical-non-code-reviews",
             "historical-review-line-missing",
             "lint-failure",
             "mapping-false-positive",
             "outdated-review-line",
+            "persistent-cache-hit",
             "provider-replay",
+            "provider-truncated",
             "removed-review-target",
+            "removed-symbol-candidates",
+            "request-budget-exhausted",
             "resolved-non-code-review",
             "review-symbol",
             "test-matrix-failure",
+            "unresolved-non-code-review",
             "unresolved-review-thread",
             "unsupported-language-symbol",
+            "warm-replay",
         ],
-        "provider_replay_cases": 6,
+        "provider_replay_cases": 9,
         "curated_seed_cases": 2,
     }
     assert summary["provider"] == {
-        "status_counts": {"curated": 2, "partial": 6},
-        "partial_rate": 0.75,
-        "mean_requests": 8.75,
-        "mean_elapsed_ms": 126602.36,
-        "cache_hit_rate": 0.0,
+        "status_counts": {"curated": 2, "partial": 9},
+        "partial_rate": 0.8182,
+        "mean_requests": 8.909,
+        "mean_elapsed_ms": 130564.292,
+        "cache_hit_rate": 0.0909,
     }
     assert summary["metrics"]["macro"] == {
-        "precision": 0.625,
-        "recall": 0.5715,
-        "f1": 0.5909,
-        "mean_case_f1": 0.75,
+        "precision": 0.7,
+        "recall": 0.625,
+        "f1": 0.6539,
+        "mean_case_f1": 0.818,
     }
 
 
@@ -106,6 +116,31 @@ def test_failed_ci_replays_keep_named_job_evidence_without_hallucinated_tests():
     assert all(
         association["association"]["tests"] == [] for association in associations
     )
+
+
+def test_edge_replays_keep_deleted_cache_and_truncation_evidence():
+    httpx = json.loads(
+        (_FIXTURE_DIR / "contexts" / "httpx-pr3319.json").read_text(encoding="utf-8")
+    )
+    cached = json.loads(
+        (_FIXTURE_DIR / "contexts" / "study-agent-pr48-cache-hit.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    truncated = json.loads(
+        (_FIXTURE_DIR / "contexts" / "fastapi-pr15493-truncated.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert any(
+        candidate["side"] == "old" and candidate["path"] == "httpx/_compat.py"
+        for candidate in httpx["label_candidates"]
+    )
+    assert cached["replay_metadata"]["cache_hit"] is True
+    assert truncated["truncated"] is True
+    assert truncated["provider_request_budget"]["exhausted"] is True
+    assert truncated["provider_request_budget"]["used_requests"] == 6
 
 
 def test_manifest_rejects_mutable_ref_and_context_path_escape(tmp_path: Path):
@@ -145,7 +180,7 @@ def test_replay_cli_writes_deterministic_json(tmp_path: Path):
 
     assert completed.returncode == 0, completed.stderr
     first = output.read_text(encoding="utf-8")
-    assert json.loads(first)["coverage"]["provider_replay_cases"] == 6
+    assert json.loads(first)["coverage"]["provider_replay_cases"] == 9
     subprocess.run(
         [
             sys.executable,

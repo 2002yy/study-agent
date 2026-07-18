@@ -438,6 +438,63 @@ def test_pull_request_budget_exhaustion_keeps_partial_evidence(monkeypatch):
     assert result["truncated"] is True
 
 
+def test_pull_request_marks_late_commit_detail_budget_exhaustion_as_truncated(
+    monkeypatch,
+):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def provider(url: str, **_kwargs):
+        if url.endswith("/repos/openai/example/pulls/7"):
+            return _pr_payload()
+        if any(
+            marker in url
+            for marker in (
+                "/pulls/7/files?",
+                "/pulls/7/reviews?",
+                "/pulls/7/comments?",
+                "/issues/7/comments?",
+            )
+        ):
+            return []
+        raise AssertionError(f"unexpected URL: {url}")
+
+    def graphql(_query: str, _variables: dict) -> dict:
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 0,
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [],
+                        }
+                    }
+                }
+            }
+        }
+
+    result = PaginatedGitHubWorkItemService(
+        FakeHistory(),  # type: ignore[arg-type]
+        request_json=provider,
+        request_graphql=graphql,
+    ).pull_request(
+        REPO,
+        7,
+        include_checks=False,
+        max_provider_requests=6,
+    )
+
+    assert result["provider_request_budget"]["exhausted_operations"] == [
+        "pull_request_base_commit:openai/example",
+        "pull_request_head_commit:openai/example",
+    ]
+    assert result["provider_status"] == "partial"
+    assert result["truncated"] is True
+
+
 def test_cross_fork_pr_prefers_source_repo_for_head_checks(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
