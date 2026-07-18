@@ -1,46 +1,255 @@
 {
   "cases": [
     {
-      "query": "requests sessions reuse connections",
+      "id": "clean_requests_session",
+      "scenario": "clean",
+      "query": "How does requests.Session reuse connections and what reliability settings still matter?",
       "expected_sources": ["python_requests.md"],
-      "expected_terms": ["requests", "sessions", "connections"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["Session", "connections", "timeouts"],
+      "top_k": 3
     },
     {
-      "query": "context tiers memory model routing token budget",
+      "id": "clean_task_routing",
+      "scenario": "clean",
+      "query": "What is the current task intent priority and when should the learner open the task chip?",
       "expected_sources": ["memory_routing.md"],
-      "expected_terms": ["context", "routing", "token"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["explicit", "active learning", "quick-answer"],
+      "top_k": 3,
+      "forbidden_sources": ["memory_routing_legacy.md"]
     },
     {
-      "query": "unsafe redirects article fetching source trace",
+      "id": "clean_web_evidence",
+      "scenario": "clean",
+      "query": "How does web research block unsafe redirects and preserve evidence for later verification?",
       "expected_sources": ["news_pipeline.md"],
-      "expected_terms": ["redirects", "article", "source"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["redirects", "evidence", "resume"],
+      "top_k": 3
     },
     {
-      "query": "FastAPI durable RagRun upload rebuild index version",
+      "id": "clean_rag_activation",
+      "scenario": "clean",
+      "query": "What happens when a required vector stage fails during a durable RAG write?",
       "expected_sources": ["fastapi_rag_runs.md"],
-      "expected_terms": ["FastAPI", "RagRun", "index"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["activation", "previous active version", "vector"],
+      "top_k": 3
     },
     {
-      "query": "React workspace durable run ids controllers App shell",
+      "id": "clean_frontend_hierarchy",
+      "scenario": "clean",
+      "query": "Which three entries remain in the primary More menu of the current React workspace?",
       "expected_sources": ["frontend_workspace.md"],
-      "expected_terms": ["React", "controllers", "server-owned"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["资料与来源", "学习成果", "设置"],
+      "top_k": 3,
+      "forbidden_sources": ["frontend_legacy_sidebar.md"]
     },
     {
-      "query": "中文 向量检索 本地知识库 来源引用",
+      "id": "clean_chinese_hybrid",
+      "scenario": "clean",
+      "query": "中文混合检索为什么要同时考虑关键词、向量和来源引用？",
       "expected_sources": ["chinese_vector.md"],
-      "expected_terms": ["向量检索", "本地知识库", "来源"],
-      "retrieval_mode": "hybrid",
-      "top_k": 2
+      "expected_terms": ["关键词检索", "向量检索", "来源引用"],
+      "top_k": 3
+    },
+    {
+      "id": "clean_upload_handoff",
+      "scenario": "clean",
+      "query": "After an ordinary material upload succeeds, what learner-facing actions should appear?",
+      "expected_sources": ["rag_upload_rebuild.md"],
+      "expected_terms": ["start systematic learning", "ask a direct question"],
+      "top_k": 3
+    },
+    {
+      "id": "clean_learning_recovery",
+      "scenario": "clean",
+      "query": "What four pieces of information should help a returning learner continue immediately?",
+      "expected_sources": ["learning_recovery.md"],
+      "expected_terms": ["objective", "confirmed", "unresolved gap", "next action"],
+      "top_k": 3
+    },
+    {
+      "id": "paraphrase_transport_pool",
+      "scenario": "paraphrase",
+      "query": "Why can keeping sockets warm reduce handshake overhead even outside the Requests library?",
+      "expected_sources": ["http_client_pooling.md"],
+      "expected_terms": ["connection pool", "handshake"],
+      "top_k": 3
+    },
+    {
+      "id": "paraphrase_committed_truth",
+      "scenario": "paraphrase",
+      "query": "Why should progress not be guessed from how many messages or hints a student used?",
+      "expected_sources": ["memory_routing.md", "learning_recovery.md"],
+      "expected_terms": ["committed learning state", "confirmed"],
+      "top_k": 4,
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "paraphrase_research_recovery",
+      "scenario": "paraphrase",
+      "query": "When an external research run stops halfway, how can the system continue without presenting partial evidence as complete?",
+      "expected_sources": ["news_pipeline.md"],
+      "expected_terms": ["retry", "resume", "incomplete evidence"],
+      "top_k": 3
+    },
+    {
+      "id": "paraphrase_citation_quality",
+      "scenario": "paraphrase",
+      "query": "How do we tell the difference between merely finding a relevant document and proving a specific answer statement?",
+      "expected_sources": ["citation_policy.md"],
+      "expected_terms": ["Claim support", "specific statement"],
+      "top_k": 3
+    },
+    {
+      "id": "paraphrase_retry_contract",
+      "scenario": "paraphrase",
+      "query": "If I retry an old turn after changing the task selector, which task decision should the retry use?",
+      "expected_sources": ["memory_routing.md"],
+      "expected_terms": ["Retry", "persisted task contract"],
+      "top_k": 3,
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "multisource_upload_system",
+      "scenario": "multi_source",
+      "query": "Explain both the internal safety of RAG index activation and the user-facing flow after uploading study material.",
+      "expected_sources": ["fastapi_rag_runs.md", "rag_upload_rebuild.md"],
+      "expected_terms": ["previous active version", "start systematic learning"],
+      "top_k": 4
+    },
+    {
+      "id": "multisource_learning_continuity",
+      "scenario": "multi_source",
+      "query": "How do durable task routing and the restore card work together so a learner can continue where they stopped?",
+      "expected_sources": ["memory_routing.md", "learning_recovery.md"],
+      "expected_terms": ["task contract", "next action"],
+      "top_k": 4,
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "multisource_frontend_truth",
+      "scenario": "multi_source",
+      "query": "How does the current frontend keep the interface simple while avoiding duplicated workflow truth in local state?",
+      "expected_sources": ["frontend_workspace.md", "memory_routing.md"],
+      "expected_terms": ["server-owned", "task chip"],
+      "top_k": 4,
+      "forbidden_sources": ["frontend_legacy_sidebar.md"]
+    },
+    {
+      "id": "multisource_research_grounding",
+      "scenario": "multi_source",
+      "query": "What should happen between web research and the final answer so externally sourced claims stay trustworthy?",
+      "expected_sources": ["news_pipeline.md", "citation_policy.md"],
+      "expected_terms": ["evidence", "support"],
+      "top_k": 4
+    },
+    {
+      "id": "multisource_chinese_trust",
+      "scenario": "multi_source",
+      "query": "中文资料问答中，如何同时保证召回、多来源覆盖和无法回答时的拒答？",
+      "expected_sources": ["chinese_vector.md", "citation_policy.md"],
+      "expected_terms": ["混合检索", "来源", "无法回答"],
+      "top_k": 4
+    },
+    {
+      "id": "ambiguous_requests_api",
+      "scenario": "ambiguous_overlap",
+      "query": "In Python Requests specifically, which object persists cookies, default headers and a reusable connection pool?",
+      "expected_sources": ["python_requests.md"],
+      "expected_terms": ["requests.Session", "cookies", "default headers"],
+      "top_k": 3
+    },
+    {
+      "id": "ambiguous_http2_transport",
+      "scenario": "ambiguous_overlap",
+      "query": "Which note explains HTTP/2 multiplexing, DNS caching and TLS session resumption as generic transport concerns?",
+      "expected_sources": ["http_client_pooling.md"],
+      "expected_terms": ["HTTP/2", "DNS", "TLS"],
+      "top_k": 3
+    },
+    {
+      "id": "ambiguous_rebuild_boundary",
+      "scenario": "ambiguous_overlap",
+      "query": "Why is rebuild hidden in a danger zone rather than shown as a normal upload choice?",
+      "expected_sources": ["rag_upload_rebuild.md"],
+      "expected_terms": ["destructive", "danger zone", "confirmation"],
+      "top_k": 3
+    },
+    {
+      "id": "ambiguous_server_owned_ui",
+      "scenario": "ambiguous_overlap",
+      "query": "What does the current UI do to avoid keeping business workflow truth in the browser?",
+      "expected_sources": ["frontend_workspace.md"],
+      "expected_terms": ["server-owned", "Controllers"],
+      "top_k": 3,
+      "forbidden_sources": ["frontend_legacy_sidebar.md"]
+    },
+    {
+      "id": "stale_task_selector",
+      "scenario": "stale_revision",
+      "query": "Does the current composer require a permanent task-intent dropdown before every message?",
+      "expected_sources": ["frontend_workspace.md", "memory_routing.md"],
+      "expected_terms": ["does not require", "on-demand"],
+      "top_k": 4,
+      "forbidden_sources": ["frontend_legacy_sidebar.md", "memory_routing_legacy.md"]
+    },
+    {
+      "id": "stale_mastery_percentage",
+      "scenario": "stale_revision",
+      "query": "How does current Study Agent decide what the learner has actually mastered or confirmed?",
+      "expected_sources": ["memory_routing.md", "learning_recovery.md"],
+      "expected_terms": ["committed learning state", "confirmed"],
+      "top_k": 4,
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "stale_memory_workspace",
+      "scenario": "stale_revision",
+      "query": "Is memory still a separate workspace the learner must manage directly?",
+      "expected_sources": ["memory_routing.md", "learning_recovery.md"],
+      "expected_terms": ["infrastructure", "rather than"],
+      "top_k": 4,
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "stale_settings_sidebar",
+      "scenario": "stale_revision",
+      "query": "Does the current Settings panel still contain upload, new session, tools, workflows and memory navigation?",
+      "expected_sources": ["frontend_workspace.md"],
+      "expected_terms": ["do not live inside Settings"],
+      "top_k": 4,
+      "forbidden_sources": ["frontend_legacy_sidebar.md"]
+    },
+    {
+      "id": "unanswerable_gpu",
+      "scenario": "unanswerable",
+      "query": "Which exact NVIDIA GPU model is required to run Study Agent in production?",
+      "expected_sources": [],
+      "answerable": false,
+      "top_k": 3
+    },
+    {
+      "id": "unanswerable_monthly_cost",
+      "scenario": "unanswerable",
+      "query": "What is the exact monthly cloud bill for running Study Agent for one thousand users?",
+      "expected_sources": [],
+      "answerable": false,
+      "top_k": 3
+    },
+    {
+      "id": "unanswerable_database_port",
+      "scenario": "unanswerable",
+      "query": "Which production database port is configured for the deployed Study Agent service?",
+      "expected_sources": [],
+      "answerable": false,
+      "top_k": 3
+    },
+    {
+      "id": "unanswerable_handwriting_ocr",
+      "scenario": "unanswerable",
+      "query": "Which handwriting OCR model does the current RAG pipeline use for scanned notes?",
+      "expected_sources": [],
+      "answerable": false,
+      "top_k": 3
     }
   ]
 }
