@@ -1,0 +1,171 @@
+{
+  "cases": [
+    {
+      "id": "clean_requests_session",
+      "query": "How does requests.Session reuse connections and what reliability settings still matter?",
+      "answerable": true,
+      "expected_sources": ["python_requests.md"],
+      "expected_claims": [
+        {
+          "id": "session_pool",
+          "match_terms": ["Session", "connection pool"],
+          "support_sources": ["python_requests.md"]
+        },
+        {
+          "id": "explicit_timeouts",
+          "match_terms": ["timeout"],
+          "support_sources": ["python_requests.md"]
+        }
+      ]
+    },
+    {
+      "id": "clean_task_routing",
+      "query": "What is the current task intent priority and when should the learner open the task chip?",
+      "answerable": true,
+      "expected_sources": ["memory_routing.md"],
+      "expected_claims": [
+        {
+          "id": "task_priority",
+          "match_terms": ["highest priority", "quick-answer default"],
+          "support_sources": ["memory_routing.md"]
+        },
+        {
+          "id": "on_demand_chip",
+          "match_terms": ["on-demand task chip"],
+          "support_sources": ["memory_routing.md", "frontend_workspace.md"]
+        }
+      ],
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "clean_upload_handoff",
+      "query": "After an ordinary material upload succeeds, what learner-facing actions should appear?",
+      "answerable": true,
+      "expected_sources": ["rag_upload_rebuild.md"],
+      "expected_claims": [
+        {
+          "id": "start_learning",
+          "match_terms": ["start systematic learning"],
+          "support_sources": ["rag_upload_rebuild.md"]
+        },
+        {
+          "id": "direct_question",
+          "match_terms": ["ask a direct question"],
+          "support_sources": ["rag_upload_rebuild.md"]
+        }
+      ]
+    },
+    {
+      "id": "multisource_upload_system",
+      "query": "Explain both the internal safety of RAG index activation and the user-facing flow after uploading study material.",
+      "answerable": true,
+      "expected_sources": ["fastapi_rag_runs.md", "rag_upload_rebuild.md"],
+      "expected_claims": [
+        {
+          "id": "keep_previous_active",
+          "match_terms": ["previous active version"],
+          "support_sources": ["fastapi_rag_runs.md"]
+        },
+        {
+          "id": "learner_handoff",
+          "match_terms": ["start systematic learning", "ask a direct question"],
+          "support_sources": ["rag_upload_rebuild.md"]
+        }
+      ]
+    },
+    {
+      "id": "multisource_research_grounding",
+      "query": "What should happen between web research and the final answer so externally sourced claims stay trustworthy?",
+      "answerable": true,
+      "expected_sources": ["news_pipeline.md", "citation_policy.md"],
+      "expected_claims": [
+        {
+          "id": "disclose_used_evidence",
+          "match_terms": ["evidence actually used"],
+          "support_sources": ["news_pipeline.md"]
+        },
+        {
+          "id": "claim_support",
+          "match_terms": ["specific statement"],
+          "support_sources": ["citation_policy.md"]
+        }
+      ]
+    },
+    {
+      "id": "multisource_chinese_trust",
+      "query": "中文资料问答中，如何同时保证召回、多来源覆盖和无法回答时的拒答？",
+      "answerable": true,
+      "expected_sources": ["chinese_vector.md", "citation_policy.md"],
+      "expected_claims": [
+        {
+          "id": "hybrid_retrieval",
+          "match_terms": ["混合检索"],
+          "support_sources": ["chinese_vector.md"]
+        },
+        {
+          "id": "refuse_without_evidence",
+          "match_terms": ["无法回答"],
+          "support_sources": ["chinese_vector.md"]
+        },
+        {
+          "id": "source_diversity",
+          "match_terms": ["source diversity"],
+          "support_sources": ["citation_policy.md"]
+        }
+      ]
+    },
+    {
+      "id": "stale_task_selector",
+      "query": "Does the current composer require a permanent task-intent dropdown before every message?",
+      "answerable": true,
+      "expected_sources": ["frontend_workspace.md", "memory_routing.md"],
+      "expected_claims": [
+        {
+          "id": "automatic_by_default",
+          "match_terms": ["stays automatic"],
+          "support_sources": ["frontend_workspace.md"]
+        },
+        {
+          "id": "correction_chip",
+          "match_terms": ["on-demand task chip"],
+          "support_sources": ["memory_routing.md"]
+        }
+      ],
+      "forbidden_sources": ["frontend_legacy_sidebar.md", "memory_routing_legacy.md"]
+    },
+    {
+      "id": "stale_mastery_percentage",
+      "query": "How does current Study Agent decide what the learner has actually mastered or confirmed?",
+      "answerable": true,
+      "expected_sources": ["memory_routing.md", "learning_recovery.md"],
+      "expected_claims": [
+        {
+          "id": "committed_truth",
+          "match_terms": ["Committed learning state"],
+          "support_sources": ["memory_routing.md"]
+        },
+        {
+          "id": "confirmed_points",
+          "match_terms": ["Confirmed points"],
+          "support_sources": ["learning_recovery.md"]
+        }
+      ],
+      "forbidden_sources": ["memory_routing_legacy.md"]
+    },
+    {
+      "id": "unanswerable_gpu",
+      "query": "Which exact NVIDIA GPU model is required to run Study Agent in production?",
+      "answerable": false,
+      "expected_sources": [],
+      "expected_claims": []
+    },
+    {
+      "id": "unanswerable_handwriting_ocr",
+      "query": "Which handwriting OCR model does the current RAG pipeline use for scanned notes?",
+      "answerable": false,
+      "expected_sources": [],
+      "expected_claims": []
+    }
+  ],
+  "candidates": []
+}
