@@ -59,13 +59,13 @@ describe("SourcesPanel evidence eligibility", () => {
       );
     });
 
-    const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain("当前可用于回答 1 个");
-    expect(rendered).toContain("当前资料 · 会参与回答");
-    expect(rendered).toContain("旧版本 · 不参与回答");
-    expect(rendered).toContain("标记为旧版本");
-    expect(rendered).toContain("不参与回答");
-    expect(rendered).toContain("恢复为当前资料");
+    const renderedText = textContent(renderer.root);
+    expect(renderedText).toContain("当前可用于回答 1 个");
+    expect(renderedText).toContain("当前资料 · 会参与回答");
+    expect(renderedText).toContain("旧版本 · 不参与回答");
+    expect(renderedText).toContain("标记为旧版本");
+    expect(renderedText).toContain("不参与回答");
+    expect(renderedText).toContain("恢复为当前资料");
 
     const buttons = renderer.root.findAllByType("button");
     const exclude = buttons.find((button) => textContent(button).includes("不参与回答"));
@@ -114,8 +114,9 @@ describe("SourcesPanel evidence eligibility", () => {
       );
     });
 
-    expect(JSON.stringify(renderer.toJSON())).toContain("当前资料 · 会参与回答");
-    expect(JSON.stringify(renderer.toJSON())).toContain("当前可用于回答 1 个");
+    const renderedText = textContent(renderer.root);
+    expect(renderedText).toContain("当前资料 · 会参与回答");
+    expect(renderedText).toContain("当前可用于回答 1 个");
 
     act(() => renderer.unmount());
   });
