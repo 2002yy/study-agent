@@ -5,7 +5,7 @@ from typing import Any
 
 from src.rag.backends import VectorBackendStatus
 from src.rag.embeddings import EmbeddingProvider, LocalHashEmbeddingProvider
-from src.rag.schema import RagChunk, RagIndex, RagSearchResult
+from src.rag.schema import EVIDENCE_STATUS_ACTIVE, RagChunk, RagIndex, RagSearchResult
 
 
 class ChromaVectorBackend:
@@ -48,7 +48,7 @@ class ChromaVectorBackend:
                 path=str(self.path),
                 collection=self.collection_name,
                 embedding_provider=self.embedding_provider.name,
-                embedding_semantic=self.embedding_provider.name != "local_hash",
+                embedding_semantic=False if self.embedding_provider.name == "local_hash" else True,
                 embedding_intended_use=(
                     "test_fallback"
                     if self.embedding_provider.name == "local_hash"
@@ -144,6 +144,8 @@ def _chunk_metadata(chunk: RagChunk) -> dict[str, str | int]:
         "end_line": chunk.end_line,
         "file_type": str(chunk.metadata.get("file_type", "")),
         "char_count": int(chunk.metadata.get("char_count", len(chunk.text))),
+        "evidence_status": chunk.evidence_status,
+        "superseded_by_document_id": chunk.superseded_by_document_id,
     }
 
 
@@ -159,6 +161,8 @@ def _chunk_from_metadata(chunk_id: str, text: str, metadata: dict) -> RagChunk:
         end_line=int(metadata.get("end_line", 1)),
         document_id=str(metadata.get("document_id", "")),
         revision_id=str(metadata.get("revision_id", "")),
+        evidence_status=str(metadata.get("evidence_status") or EVIDENCE_STATUS_ACTIVE),
+        superseded_by_document_id=str(metadata.get("superseded_by_document_id") or ""),
         metadata={
             "file_type": metadata.get("file_type", ""),
             "char_count": int(metadata.get("char_count", len(text))),

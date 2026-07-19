@@ -16,6 +16,7 @@ from src.rag.service import (
     index_documents_with_stages,
     list_knowledge_documents,
     search_documents_with_debug,
+    set_knowledge_document_evidence_status,
 )
 from src.repositories.rag_repository import RagRepository
 
@@ -181,6 +182,58 @@ class RagRunService:
 
     def documents(self, *, index_path: Path) -> dict[str, Any]:
         return list_knowledge_documents(index_path)
+
+    def set_document_evidence_status(
+        self,
+        document_id: str,
+        evidence_status: str,
+        *,
+        superseded_by_document_id: str = "",
+        index_path: Path,
+    ) -> dict[str, Any]:
+        expected_version = _index_version(index_path)
+        state = self.repository.begin_index_write(
+            str(index_path.resolve()),
+            expected_version=expected_version,
+        )
+        staging_version = int(state["staging_version"])
+        try:
+            result = set_knowledge_document_evidence_status(
+                document_id,
+                evidence_status,
+                superseded_by_document_id=superseded_by_document_id,
+                index_path=index_path,
+                target_version=staging_version,
+            )
+            if not result["activated"]:
+                detail = _failed_stage_detail(result["stages"])
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=detail,
+                )
+                raise RuntimeError(
+                    f"Knowledge document evidence status was not activated: {detail}"
+                )
+            self.repository.activate_index(
+                str(index_path.resolve()),
+                staging_version=staging_version,
+                document_count=int(result["documents"]),
+                chunk_count=int(result["chunks"]),
+            )
+            return result
+        except Exception as exc:
+            current = self.repository.get_index_state(str(index_path.resolve()))
+            if (
+                current is not None
+                and current.get("staging_version") == staging_version
+            ):
+                self.repository.fail_index_write(
+                    str(index_path.resolve()),
+                    staging_version=staging_version,
+                    error=str(exc),
+                )
+            raise
 
     def delete_document(
         self, document_id: str, *, index_path: Path

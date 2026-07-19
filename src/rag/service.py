@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import re
 import secrets
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-import re
 from typing import Any
 
+from src.rag.backends import get_vector_backend_from_env
 from src.rag.index import (
-    _average_chunk_length,
     DEFAULT_RAG_INDEX_PATH,
+    _average_chunk_length,
     _document_frequency,
     _score_chunk,
     _tokenize,
@@ -19,9 +20,14 @@ from src.rag.index import (
     save_rag_index,
     search_rag_index,
 )
-from src.rag.backends import get_vector_backend_from_env
 from src.rag.rerank import apply_reranker, reranker_config_from_env
-from src.rag.schema import RagIndex, RagSearchResult
+from src.rag.schema import (
+    EVIDENCE_STATUS_ACTIVE,
+    EVIDENCE_STATUS_SUPERSEDED,
+    EVIDENCE_STATUSES,
+    RagIndex,
+    RagSearchResult,
+)
 from src.rag.vector import (
     RRF_K,
     cosine_similarity,
@@ -46,6 +52,35 @@ class RagIndexWriteResult:
 class RagSearchDiagnostics:
     results: list[RagSearchResult]
     debug: dict[str, Any]
+
+
+def normalize_evidence_status(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized not in EVIDENCE_STATUSES:
+        supported = ", ".join(sorted(EVIDENCE_STATUSES))
+        raise ValueError(f"Unsupported evidence status: {value!r}; expected one of {supported}")
+    return normalized
+
+
+def retrievable_rag_index(index: RagIndex) -> RagIndex:
+    """Return the active-only view used by every normal retrieval path."""
+    active_document_ids = {
+        _document_id(document)
+        for document in index.documents
+        if document.evidence_status == EVIDENCE_STATUS_ACTIVE
+    }
+    documents = tuple(
+        document
+        for document in index.documents
+        if _document_id(document) in active_document_ids
+    )
+    chunks = tuple(
+        chunk
+        for chunk in index.chunks
+        if chunk.evidence_status == EVIDENCE_STATUS_ACTIVE
+        and _chunk_document_id(chunk) in active_document_ids
+    )
+    return RagIndex(version=index.version, documents=documents, chunks=chunks)
 
 
 def _transactional_save_index(index: RagIndex, target: Path) -> None:
@@ -90,21 +125,46 @@ def _merge_document_revisions(
     *,
     version: int,
 ) -> RagIndex:
-    incoming_documents = {
-        _document_id(document): document for document in incoming.documents
-    }
+    existing_by_id = {_document_id(document): document for document in existing.documents}
+    preserved_eligibility: dict[str, tuple[str, str]] = {}
+    incoming_documents = {}
+    for document in incoming.documents:
+        document_id = _document_id(document)
+        previous = existing_by_id.get(document_id)
+        if previous is not None:
+            preserved_eligibility[document_id] = (
+                previous.evidence_status,
+                previous.superseded_by_document_id,
+            )
+            document = replace(
+                document,
+                evidence_status=previous.evidence_status,
+                superseded_by_document_id=previous.superseded_by_document_id,
+            )
+        incoming_documents[document_id] = document
+
     incoming_ids = set(incoming_documents)
     documents = [
         incoming_documents.pop(_document_id(document), document)
         for document in existing.documents
     ]
     documents.extend(incoming_documents.values())
+
     chunks = [
         chunk
         for chunk in existing.chunks
         if _chunk_document_id(chunk) not in incoming_ids
     ]
-    chunks.extend(incoming.chunks)
+    for chunk in incoming.chunks:
+        eligibility = preserved_eligibility.get(_chunk_document_id(chunk))
+        if eligibility is not None:
+            chunk = replace(
+                chunk,
+                evidence_status=eligibility[0],
+                superseded_by_document_id=eligibility[1],
+            )
+        chunks.append(chunk)
+
     return RagIndex(
         version=version,
         documents=tuple(documents),
@@ -113,11 +173,14 @@ def _merge_document_revisions(
 
 
 def _completed_local_stage(index: RagIndex, target: Path) -> dict[str, Any]:
+    active = retrievable_rag_index(index)
     return {
         "name": "local",
         "status": "completed",
         "documents": len(index.documents),
         "chunks": len(index.chunks),
+        "retrievable_documents": len(active.documents),
+        "retrievable_chunks": len(active.chunks),
         "index_path": str(target),
     }
 
@@ -146,14 +209,17 @@ def _activation_stage(
 
 
 def _vector_stage(index: RagIndex) -> dict[str, Any]:
+    active = retrievable_rag_index(index)
     try:
         backend = get_vector_backend_from_env()
-        backend.upsert_index(index)
+        backend.upsert_index(active)
         return {
             "name": "vector",
             "status": "completed",
             "documents": len(index.documents),
             "chunks": len(index.chunks),
+            "retrievable_documents": len(active.documents),
+            "retrievable_chunks": len(active.chunks),
             "backend": backend.status().to_dict(),
         }
     except Exception as exc:
@@ -162,6 +228,8 @@ def _vector_stage(index: RagIndex) -> dict[str, Any]:
             "status": "failed",
             "documents": len(index.documents),
             "chunks": len(index.chunks),
+            "retrievable_documents": len(active.documents),
+            "retrievable_chunks": len(active.chunks),
             "detail": str(exc),
         }
 
@@ -181,7 +249,7 @@ def index_documents(
     )
     index = _with_version(index, _next_index_version(Path(index_path)))
     _transactional_save_index(index, Path(index_path))
-    get_vector_backend_from_env().upsert_index(index)
+    get_vector_backend_from_env().upsert_index(retrievable_rag_index(index))
     return index
 
 
@@ -237,7 +305,7 @@ def append_documents_to_index(
     max_chars: int = 900,
     overlap_chars: int = 120,
 ) -> RagIndex:
-    """Append documents to an existing index, de-duplicating by content hash."""
+    """Append documents to an existing index, preserving document eligibility."""
     new_index = build_rag_index(
         paths,
         max_chars=max_chars,
@@ -255,7 +323,7 @@ def append_documents_to_index(
         version=existing.version + 1 if target.is_file() else 1,
     )
     _transactional_save_index(merged, target)
-    get_vector_backend_from_env().upsert_index(merged)
+    get_vector_backend_from_env().upsert_index(retrievable_rag_index(merged))
     return merged
 
 
@@ -325,8 +393,11 @@ def list_knowledge_documents(
             "index_version": 0,
             "documents": [],
             "chunks": 0,
+            "retrievable_documents": 0,
+            "retrievable_chunks": 0,
         }
     index = load_rag_index(target)
+    active = retrievable_rag_index(index)
     chunk_counts: dict[str, int] = {}
     for chunk in index.chunks:
         document_id = _chunk_document_id(chunk)
@@ -344,11 +415,117 @@ def list_knowledge_documents(
                 "file_type": document.file_type,
                 "content_hash": document.content_hash,
                 "chunks": chunk_counts.get(_document_id(document), 0),
+                "evidence_status": document.evidence_status,
+                "superseded_by_document_id": document.superseded_by_document_id,
                 "metadata": document.metadata,
             }
             for document in index.documents
         ],
         "chunks": len(index.chunks),
+        "retrievable_documents": len(active.documents),
+        "retrievable_chunks": len(active.chunks),
+    }
+
+
+def set_knowledge_document_evidence_status(
+    document_id: str,
+    evidence_status: str,
+    *,
+    superseded_by_document_id: str = "",
+    index_path: str | Path = DEFAULT_RAG_INDEX_PATH,
+    target_version: int | None = None,
+) -> dict[str, Any]:
+    target = Path(index_path)
+    index = load_rag_index(target)
+    normalized_status = normalize_evidence_status(evidence_status)
+    document_ids = {_document_id(document) for document in index.documents}
+    if document_id not in document_ids:
+        raise ValueError(f"Knowledge document not found: {document_id}")
+
+    replacement_id = superseded_by_document_id.strip()
+    if normalized_status != EVIDENCE_STATUS_SUPERSEDED:
+        replacement_id = ""
+    elif replacement_id:
+        if replacement_id == document_id:
+            raise ValueError("A document cannot supersede itself")
+        if replacement_id not in document_ids:
+            raise ValueError(f"Superseding document not found: {replacement_id}")
+        replacement = next(
+            document
+            for document in index.documents
+            if _document_id(document) == replacement_id
+        )
+        if replacement.evidence_status != EVIDENCE_STATUS_ACTIVE:
+            raise ValueError("Superseding document must be active")
+
+    documents = tuple(
+        replace(
+            document,
+            evidence_status=normalized_status,
+            superseded_by_document_id=replacement_id,
+        )
+        if _document_id(document) == document_id
+        else document
+        for document in index.documents
+    )
+    chunks = tuple(
+        replace(
+            chunk,
+            evidence_status=normalized_status,
+            superseded_by_document_id=replacement_id,
+        )
+        if _chunk_document_id(chunk) == document_id
+        else chunk
+        for chunk in index.chunks
+    )
+    updated = RagIndex(
+        version=target_version or index.version + 1,
+        documents=documents,
+        chunks=chunks,
+    )
+    vector_stage = _vector_stage(updated)
+    active = retrievable_rag_index(updated)
+    if vector_stage["status"] != "completed":
+        return {
+            "document_id": document_id,
+            "evidence_status": normalized_status,
+            "superseded_by_document_id": replacement_id,
+            "documents": len(index.documents),
+            "chunks": len(index.chunks),
+            "retrievable_documents": len(retrievable_rag_index(index).documents),
+            "retrievable_chunks": len(retrievable_rag_index(index).chunks),
+            "index_path": str(target),
+            "index_version": index.version,
+            "staging_version": updated.version,
+            "activated": False,
+            "stages": [
+                _staged_local_stage(updated, target),
+                vector_stage,
+                _activation_stage(
+                    updated,
+                    target,
+                    status="skipped",
+                    detail="required vector stage failed",
+                ),
+            ],
+        }
+    _transactional_save_index(updated, target)
+    return {
+        "document_id": document_id,
+        "evidence_status": normalized_status,
+        "superseded_by_document_id": replacement_id,
+        "documents": len(updated.documents),
+        "chunks": len(updated.chunks),
+        "retrievable_documents": len(active.documents),
+        "retrievable_chunks": len(active.chunks),
+        "index_path": str(target),
+        "index_version": updated.version,
+        "activated": True,
+        "stages": [
+            _completed_local_stage(updated, target),
+            vector_stage,
+            _activation_stage(updated, target, status="completed"),
+        ],
     }
 
 
@@ -369,6 +546,18 @@ def delete_knowledge_document(
     chunks = tuple(
         chunk for chunk in index.chunks
         if _chunk_document_id(chunk) != document_id
+    )
+    documents = tuple(
+        replace(document, superseded_by_document_id="")
+        if document.superseded_by_document_id == document_id
+        else document
+        for document in documents
+    )
+    chunks = tuple(
+        replace(chunk, superseded_by_document_id="")
+        if chunk.superseded_by_document_id == document_id
+        else chunk
+        for chunk in chunks
     )
     updated = RagIndex(
         version=target_version or index.version + 1,
@@ -420,7 +609,7 @@ def query_documents(
     min_score: float = 0.01,
     retrieval_mode: str = "lexical",
 ) -> list[RagSearchResult]:
-    """Search the persisted local RAG index."""
+    """Search the active evidence view of the persisted local RAG index."""
     index = load_rag_index(index_path)
     return search_documents(
         index,
@@ -446,9 +635,10 @@ def search_documents(
     rerank_latency_budget_ms: int | None = None,
     rerank_cost_budget: float | None = None,
 ) -> list[RagSearchResult]:
-    """Search an in-memory RAG index."""
+    """Search only active evidence in an in-memory RAG index."""
+    active = retrievable_rag_index(index)
     results, _post_filter, _reranker_stage = _search_documents_with_stats(
-        index,
+        active,
         query,
         top_k=top_k,
         min_score=min_score,
@@ -479,9 +669,10 @@ def search_documents_with_debug(
     rerank_latency_budget_ms: int | None = None,
     rerank_cost_budget: float | None = None,
 ) -> RagSearchDiagnostics:
+    active = retrievable_rag_index(index)
     started = time.perf_counter()
     results, post_filter, reranker_stage = _search_documents_with_stats(
-        index,
+        active,
         query,
         top_k=top_k,
         min_score=min_score,
@@ -496,7 +687,7 @@ def search_documents_with_debug(
     )
     elapsed_ms = (time.perf_counter() - started) * 1000
     debug = build_rag_debug(
-        index,
+        active,
         query,
         results,
         retrieval_mode=retrieval_mode,
@@ -509,6 +700,14 @@ def search_documents_with_debug(
         reranker_stage=reranker_stage,
         stage_timings={"backend_vector": elapsed_ms} if retrieval_mode == "backend_vector" else None,
     )
+    debug["evidence_eligibility"] = {
+        "total_documents": len(index.documents),
+        "total_chunks": len(index.chunks),
+        "retrievable_documents": len(active.documents),
+        "retrievable_chunks": len(active.chunks),
+        "excluded_documents": len(index.documents) - len(active.documents),
+        "excluded_chunks": len(index.chunks) - len(active.chunks),
+    }
     return RagSearchDiagnostics(results=results, debug=debug)
 
 
@@ -606,9 +805,11 @@ def _post_process_results(
     max_chunks_per_source: int,
     suppress_duplicate_text: bool,
 ) -> tuple[list[RagSearchResult], dict[str, Any]]:
+    eligible_chunk_ids = {chunk.chunk_id for chunk in index.chunks}
     stats: dict[str, Any] = {
         "input_count": len(results),
         "output_count": 0,
+        "ineligible_suppressed": 0,
         "metadata_filtered": 0,
         "duplicates_suppressed": 0,
         "source_diversity_suppressed": 0,
@@ -620,6 +821,9 @@ def _post_process_results(
     seen_texts: set[str] = set()
     source_counts: dict[str, int] = {}
     for result in results:
+        if result.chunk.chunk_id not in eligible_chunk_ids:
+            stats["ineligible_suppressed"] += 1
+            continue
         if metadata_filters and not _matches_metadata_filters(index, result, metadata_filters):
             stats["metadata_filtered"] += 1
             continue
@@ -669,6 +873,8 @@ def _chunk_metadata(index: RagIndex, result: RagSearchResult) -> dict[str, Any]:
         "document_id": chunk.document_id,
         "revision_id": chunk.revision_id,
         "document_hash": chunk.document_hash,
+        "evidence_status": chunk.evidence_status,
+        "superseded_by_document_id": chunk.superseded_by_document_id,
     }
     metadata.update(chunk.metadata)
     if document is not None:
@@ -677,6 +883,8 @@ def _chunk_metadata(index: RagIndex, result: RagSearchResult) -> dict[str, Any]:
                 "document_title": document.title,
                 "file_type": document.file_type,
                 "document_content_hash": document.content_hash,
+                "document_evidence_status": document.evidence_status,
+                "document_superseded_by_document_id": document.superseded_by_document_id,
             }
         )
         metadata.update(document.metadata)
@@ -852,6 +1060,7 @@ def build_rag_debug(
         or {
             "input_count": len(results),
             "output_count": len(results),
+            "ineligible_suppressed": 0,
             "metadata_filtered": 0,
             "duplicates_suppressed": 0,
             "source_diversity_suppressed": 0,

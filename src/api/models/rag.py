@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -103,6 +105,9 @@ class RagRunListResponse(BaseModel):
     runs: list[RagRunResponse]
 
 
+EvidenceStatus = Literal["active", "superseded", "excluded"]
+
+
 class KnowledgeDocumentResponse(BaseModel):
     document_id: str
     revision_id: str
@@ -111,6 +116,8 @@ class KnowledgeDocumentResponse(BaseModel):
     file_type: str
     content_hash: str
     chunks: int
+    evidence_status: EvidenceStatus = "active"
+    superseded_by_document_id: str = ""
     metadata: dict
 
 
@@ -120,6 +127,26 @@ class KnowledgeDocumentListResponse(BaseModel):
     index_version: int
     documents: list[KnowledgeDocumentResponse]
     chunks: int
+    retrievable_documents: int = 0
+    retrievable_chunks: int = 0
+
+
+class KnowledgeDocumentEvidenceStatusRequest(BaseModel):
+    evidence_status: EvidenceStatus
+    superseded_by_document_id: str = ""
+
+
+class KnowledgeDocumentEvidenceStatusResponse(BaseModel):
+    document_id: str
+    evidence_status: EvidenceStatus
+    superseded_by_document_id: str = ""
+    documents: int
+    chunks: int
+    retrievable_documents: int
+    retrievable_chunks: int
+    index_path: str
+    index_version: int
+    stages: list[dict]
 
 
 class KnowledgeDocumentDeleteResponse(BaseModel):

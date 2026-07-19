@@ -4,6 +4,18 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
+EVIDENCE_STATUS_ACTIVE = "active"
+EVIDENCE_STATUS_SUPERSEDED = "superseded"
+EVIDENCE_STATUS_EXCLUDED = "excluded"
+EVIDENCE_STATUSES = frozenset(
+    {
+        EVIDENCE_STATUS_ACTIVE,
+        EVIDENCE_STATUS_SUPERSEDED,
+        EVIDENCE_STATUS_EXCLUDED,
+    }
+)
+
+
 @dataclass(frozen=True)
 class RagDocument:
     source_path: str
@@ -14,6 +26,8 @@ class RagDocument:
     document_id: str = ""
     revision_id: str = ""
     parser_version: str = "loader_v1"
+    evidence_status: str = EVIDENCE_STATUS_ACTIVE
+    superseded_by_document_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,6 +46,8 @@ class RagChunk:
     end_line: int
     document_id: str = ""
     revision_id: str = ""
+    evidence_status: str = EVIDENCE_STATUS_ACTIVE
+    superseded_by_document_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

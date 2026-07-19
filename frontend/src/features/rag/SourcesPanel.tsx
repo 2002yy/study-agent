@@ -1,14 +1,18 @@
 import { FileText, RefreshCw } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type {
   ChatResponse,
-  KnowledgeDocumentListResponse,
   RagDebugResult,
   RagQueryResponse,
   RagResult,
 } from "../../types";
 import { basename, formatScore, translateStatus } from "../../utils/format";
+import {
+  setKnowledgeDocumentEvidenceStatus,
+  type EvidenceKnowledgeDocumentListResponse,
+  type EvidenceStatus,
+} from "./evidenceEligibilityApi";
 
 type SourceRow = {
   key: string;
@@ -55,21 +59,38 @@ function sourceRowsFromDebug(
   });
 }
 
+function evidenceStatusLabel(status: EvidenceStatus): string {
+  if (status === "superseded") {
+    return "旧版本 · 不参与回答";
+  }
+  if (status === "excluded") {
+    return "已排除 · 不参与回答";
+  }
+  return "当前资料 · 会参与回答";
+}
+
 export function SourcesPanel({
   lastChat,
   ragSearch,
   isSearching,
   knowledgeBase,
   onDeleteDocument,
+  onSetEvidenceStatus,
   onRebuildKnowledge,
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
-  knowledgeBase?: KnowledgeDocumentListResponse | null;
+  knowledgeBase?: EvidenceKnowledgeDocumentListResponse | null;
   onDeleteDocument?: (documentId: string) => void;
+  onSetEvidenceStatus?: (
+    documentId: string,
+    status: EvidenceStatus,
+  ) => Promise<void> | void;
   onRebuildKnowledge?: () => void;
 }) {
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, EvidenceStatus>>({});
+  const [evidenceError, setEvidenceError] = useState("");
   const rows = useMemo(() => {
     const source = ragSearch ?? lastChat?.rag;
     return sourceRowsFromDebug(source?.debug.results, source?.results ?? []);
@@ -78,6 +99,34 @@ export function SourcesPanel({
   const status = ragSearch
     ? `检索到 ${ragSearch.result_count} 条`
     : translateStatus(lastChat?.rag.status ?? "waiting");
+
+  useEffect(() => {
+    setStatusOverrides({});
+  }, [knowledgeBase?.index_version]);
+
+  const effectiveStatus = (documentId: string, serverStatus?: EvidenceStatus): EvidenceStatus =>
+    statusOverrides[documentId] ?? serverStatus ?? "active";
+  const retrievableDocumentCount = knowledgeBase
+    ? knowledgeBase.documents.filter(
+        (document) => effectiveStatus(document.document_id, document.evidence_status) === "active",
+      ).length
+    : 0;
+
+  const updateEvidenceStatus = async (documentId: string, nextStatus: EvidenceStatus) => {
+    setEvidenceError("");
+    try {
+      if (onSetEvidenceStatus) {
+        await onSetEvidenceStatus(documentId, nextStatus);
+      } else {
+        await setKnowledgeDocumentEvidenceStatus(documentId, nextStatus);
+      }
+      setStatusOverrides((current) => ({ ...current, [documentId]: nextStatus }));
+    } catch (error) {
+      setEvidenceError(
+        `资料状态更新失败：${error instanceof Error ? error.message : "更新失败"}`,
+      );
+    }
+  };
 
   return (
     <section className="panel" id="sources">
@@ -144,24 +193,62 @@ export function SourcesPanel({
       {knowledgeBase ? (
         <>
           <details className="debug-drawer">
-            <summary>已上传资料 {knowledgeBase.documents.length} 个</summary>
+            <summary>
+              已上传资料 {knowledgeBase.documents.length} 个 · 当前可用于回答 {retrievableDocumentCount} 个
+            </summary>
+            <small className="field-hint">
+              “旧版本”和“已排除”资料仍会保留，但不会进入普通检索和回答证据。
+            </small>
+            {evidenceError ? <div className="inline-error">{evidenceError}</div> : null}
             <div className="session-list">
-              {knowledgeBase.documents.map((document) => (
-                <div className="session-row" key={document.document_id}>
-                  <strong>{document.title}</strong>
-                  <span>{document.file_type} · {document.chunks} 个片段</span>
-                  <em title={document.source_path}>{document.source_path}</em>
-                  {onDeleteDocument ? (
-                    <button
-                      className="ghost-action compact danger"
-                      onClick={() => onDeleteDocument(document.document_id)}
-                      type="button"
-                    >
-                      删除资料
-                    </button>
-                  ) : null}
-                </div>
-              ))}
+              {knowledgeBase.documents.map((document) => {
+                const documentStatus = effectiveStatus(document.document_id, document.evidence_status);
+                return (
+                  <div className="session-row" key={document.document_id}>
+                    <strong>{document.title}</strong>
+                    <span>{document.file_type} · {document.chunks} 个片段</span>
+                    <span>{evidenceStatusLabel(documentStatus)}</span>
+                    <em title={document.source_path}>{document.source_path}</em>
+                    <div className="inline-actions">
+                      {documentStatus === "active" ? (
+                        <>
+                          <button
+                            className="ghost-action compact"
+                            onClick={() => void updateEvidenceStatus(document.document_id, "superseded")}
+                            type="button"
+                          >
+                            标记为旧版本
+                          </button>
+                          <button
+                            className="ghost-action compact"
+                            onClick={() => void updateEvidenceStatus(document.document_id, "excluded")}
+                            type="button"
+                          >
+                            不参与回答
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="ghost-action compact"
+                          onClick={() => void updateEvidenceStatus(document.document_id, "active")}
+                          type="button"
+                        >
+                          恢复为当前资料
+                        </button>
+                      )}
+                    </div>
+                    {onDeleteDocument ? (
+                      <button
+                        className="ghost-action compact danger"
+                        onClick={() => onDeleteDocument(document.document_id)}
+                        type="button"
+                      >
+                        删除资料
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </details>
           {onRebuildKnowledge ? (
