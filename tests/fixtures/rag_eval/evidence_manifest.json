@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "documents": {
+    "memory_routing_legacy.md": {
+      "evidence_status": "superseded",
+      "superseded_by": "memory_routing.md"
+    },
+    "frontend_legacy_sidebar.md": {
+      "evidence_status": "superseded",
+      "superseded_by": "frontend_workspace.md"
+    }
+  }
+}
