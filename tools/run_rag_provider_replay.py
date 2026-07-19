@@ -38,8 +38,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        default="rag-provider-replay.json",
-        help="JSON report path.",
+        default="output/rag-provider-replay.json",
+        help="JSON report path. Defaults to the gitignored output directory.",
     )
     parser.add_argument(
         "--provider-profile",
