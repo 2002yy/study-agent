@@ -10,6 +10,8 @@ export function translateStatus(value: string | undefined): string {
     waiting: "等待中",
     skipped: "已跳过",
     found: "已找到",
+    uncertain: "证据待确认",
+    insufficient: "证据不足",
     not_found: "未找到",
     index_missing: "索引缺失",
     error: "错误",
