@@ -38,6 +38,34 @@ def _line_spans(text: str) -> list[tuple[str, int, int]]:
     return spans
 
 
+def _new_chunk(
+    document: RagDocument,
+    *,
+    text: str,
+    chunk_index: int,
+    start_line: int,
+    end_line: int,
+) -> RagChunk:
+    return RagChunk(
+        chunk_id=_chunk_hash(document.content_hash, chunk_index, text),
+        document_hash=document.content_hash,
+        source_path=document.source_path,
+        title=document.title,
+        text=text,
+        chunk_index=chunk_index,
+        start_line=start_line,
+        end_line=end_line,
+        document_id=document.document_id,
+        revision_id=document.revision_id,
+        evidence_status=document.evidence_status,
+        superseded_by_document_id=document.superseded_by_document_id,
+        metadata={
+            "file_type": document.file_type,
+            "char_count": len(text),
+        },
+    )
+
+
 def chunk_document(
     document: RagDocument,
     *,
@@ -62,23 +90,13 @@ def chunk_document(
         if not current_parts:
             return
         text = "\n\n".join(current_parts).strip()
-        chunk_index = len(chunks)
         chunks.append(
-            RagChunk(
-                chunk_id=_chunk_hash(document.content_hash, chunk_index, text),
-                document_hash=document.content_hash,
-                source_path=document.source_path,
-                title=document.title,
+            _new_chunk(
+                document,
                 text=text,
-                chunk_index=chunk_index,
+                chunk_index=len(chunks),
                 start_line=current_start,
                 end_line=current_end,
-                document_id=document.document_id,
-                revision_id=document.revision_id,
-                metadata={
-                    "file_type": document.file_type,
-                    "char_count": len(text),
-                },
             )
         )
 
@@ -101,23 +119,13 @@ def chunk_document(
         while len("\n\n".join(current_parts)) > max_chars:
             text = "\n\n".join(current_parts).strip()
             head = text[:max_chars].strip()
-            chunk_index = len(chunks)
             chunks.append(
-                RagChunk(
-                    chunk_id=_chunk_hash(document.content_hash, chunk_index, head),
-                    document_hash=document.content_hash,
-                    source_path=document.source_path,
-                    title=document.title,
+                _new_chunk(
+                    document,
                     text=head,
-                    chunk_index=chunk_index,
+                    chunk_index=len(chunks),
                     start_line=current_start,
                     end_line=current_end,
-                    document_id=document.document_id,
-                    revision_id=document.revision_id,
-                    metadata={
-                        "file_type": document.file_type,
-                        "char_count": len(head),
-                    },
                 )
             )
             remainder_start = max(0, max_chars - overlap_chars)
