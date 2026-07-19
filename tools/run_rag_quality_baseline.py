@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,8 @@ from src.rag.answer_eval import (
     load_answer_eval_fixture,
 )
 from src.rag.eval import evaluate_retrieval_profiles, load_eval_cases
-from src.rag.service import search_documents
+from src.rag.schema import RagIndex
+from src.rag.service import normalize_evidence_status, search_documents
 
 
 FIXTURE_DOCS = (
@@ -74,6 +76,56 @@ def _corpus_fingerprint(paths: list[Path], fixture_dir: Path) -> str:
     return digest.hexdigest()
 
 
+def _apply_evidence_manifest(index: RagIndex, path: Path) -> RagIndex:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw_documents = data.get("documents", {})
+    if not isinstance(raw_documents, dict):
+        raise ValueError("RAG evidence manifest requires a 'documents' object")
+
+    document_ids_by_name = {
+        Path(document.source_path).name: document.document_id
+        for document in index.documents
+    }
+    status_by_document_id: dict[str, tuple[str, str]] = {}
+    for source_name, raw_config in raw_documents.items():
+        if source_name not in document_ids_by_name:
+            raise ValueError(f"Evidence manifest source is not in corpus: {source_name}")
+        if not isinstance(raw_config, dict):
+            raise ValueError(f"Evidence manifest entry must be an object: {source_name}")
+        status = normalize_evidence_status(str(raw_config.get("evidence_status", "active")))
+        replacement_name = str(raw_config.get("superseded_by", "")).strip()
+        replacement_id = ""
+        if replacement_name:
+            replacement_id = document_ids_by_name.get(replacement_name, "")
+            if not replacement_id:
+                raise ValueError(
+                    f"Evidence manifest superseding source is not in corpus: {replacement_name}"
+                )
+        status_by_document_id[document_ids_by_name[source_name]] = (status, replacement_id)
+
+    documents = tuple(
+        replace(
+            document,
+            evidence_status=status_by_document_id[document.document_id][0],
+            superseded_by_document_id=status_by_document_id[document.document_id][1],
+        )
+        if document.document_id in status_by_document_id
+        else document
+        for document in index.documents
+    )
+    chunks = tuple(
+        replace(
+            chunk,
+            evidence_status=status_by_document_id[chunk.document_id][0],
+            superseded_by_document_id=status_by_document_id[chunk.document_id][1],
+        )
+        if chunk.document_id in status_by_document_id
+        else chunk
+        for chunk in index.chunks
+    )
+    return RagIndex(version=index.version, documents=documents, chunks=chunks)
+
+
 def _build_extractive_candidates(
     index,
     answer_cases,
@@ -120,12 +172,19 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
     document_paths = [fixture_dir / name for name in FIXTURE_DOCS]
     retrieval_case_path = fixture_dir / "cases.json"
     answer_case_path = fixture_dir / "answer_cases.json"
-    corpus_paths = [*document_paths, retrieval_case_path, answer_case_path]
+    evidence_manifest_path = fixture_dir / "evidence_manifest.json"
+    corpus_paths = [
+        *document_paths,
+        retrieval_case_path,
+        answer_case_path,
+        evidence_manifest_path,
+    ]
     missing = [str(path) for path in corpus_paths if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"Missing RAG quality corpus files: {', '.join(missing)}")
 
     index = build_rag_index(document_paths, max_chars=700, overlap_chars=80)
+    index = _apply_evidence_manifest(index, evidence_manifest_path)
     retrieval_cases = load_eval_cases(retrieval_case_path)
     retrieval_profiles = evaluate_retrieval_profiles(index, retrieval_cases)
     answer_cases, _ = load_answer_eval_fixture(answer_case_path)
@@ -136,8 +195,12 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
     )
     answer_summary = evaluate_answer_suite(answer_cases, extractive_candidates)
 
+    status_counts: dict[str, int] = {}
+    for document in index.documents:
+        status_counts[document.evidence_status] = status_counts.get(document.evidence_status, 0) + 1
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "baseline_kind": "deterministic_local_extractive_lower_bound",
         "gating": "record_only",
         "corpus": {
@@ -145,6 +208,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
             "documents": len(document_paths),
             "retrieval_cases": len(retrieval_cases),
             "answer_cases": len(answer_cases),
+            "evidence_status_counts": status_counts,
             "document_paths": [str(path).replace("\\", "/") for path in document_paths],
         },
         "retrieval_profiles": {
