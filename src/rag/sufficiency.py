@@ -74,6 +74,10 @@ _ENGLISH_STOPWORDS = frozenset(
     }
 )
 
+_HARD_ANCHOR_RE = re.compile(
+    r"(?<![A-Za-z0-9])([A-Z][A-Z0-9+_.-]{1,})(?![A-Za-z0-9])"
+)
+
 
 @dataclass(frozen=True)
 class EvidenceSufficiencyDecision:
@@ -83,6 +87,8 @@ class EvidenceSufficiencyDecision:
     covered_terms: tuple[str, ...]
     missing_terms: tuple[str, ...]
     absent_from_corpus_terms: tuple[str, ...]
+    hard_anchor_terms: tuple[str, ...]
+    missing_hard_anchor_terms: tuple[str, ...]
     weighted_coverage: float
     absent_weight_ratio: float
     distinctive_coverage: float
@@ -126,6 +132,23 @@ def informative_query_terms(query: str) -> tuple[str, ...]:
     return tuple(terms)
 
 
+def explicit_hard_anchor_terms(query: str) -> tuple[str, ...]:
+    """Extract explicit acronym-like concepts whose absence is high-confidence evidence.
+
+    Examples include GPU, OCR and CUDA. Ordinary title-case words and paraphrase
+    verbs are intentionally not treated as hard blockers.
+    """
+    seen: set[str] = set()
+    anchors: list[str] = []
+    for match in _HARD_ANCHOR_RE.finditer(query):
+        anchor = match.group(1).casefold()
+        if anchor in seen:
+            continue
+        seen.add(anchor)
+        anchors.append(anchor)
+    return tuple(anchors)
+
+
 def _idf(total_chunks: int, document_frequency: int) -> float:
     return math.log(
         1.0 + (total_chunks - document_frequency + 0.5) / (document_frequency + 0.5)
@@ -138,6 +161,7 @@ def assess_evidence_sufficiency(
     results: list[RagSearchResult],
 ) -> EvidenceSufficiencyDecision:
     query_terms = informative_query_terms(query)
+    hard_anchor_terms = explicit_hard_anchor_terms(query)
     distinct_sources = {
         result.chunk.document_id or result.chunk.source_path for result in results
     }
@@ -150,6 +174,8 @@ def assess_evidence_sufficiency(
             covered_terms=(),
             missing_terms=query_terms,
             absent_from_corpus_terms=(),
+            hard_anchor_terms=hard_anchor_terms,
+            missing_hard_anchor_terms=hard_anchor_terms,
             weighted_coverage=0.0,
             absent_weight_ratio=0.0,
             distinctive_coverage=0.0,
@@ -165,6 +191,8 @@ def assess_evidence_sufficiency(
             covered_terms=(),
             missing_terms=(),
             absent_from_corpus_terms=(),
+            hard_anchor_terms=hard_anchor_terms,
+            missing_hard_anchor_terms=hard_anchor_terms,
             weighted_coverage=0.0,
             absent_weight_ratio=0.0,
             distinctive_coverage=0.0,
@@ -188,6 +216,9 @@ def assess_evidence_sufficiency(
     covered = tuple(term for term in query_terms if term in result_terms)
     missing = tuple(term for term in query_terms if term not in result_terms)
     absent = tuple(term for term in query_terms if document_frequency.get(term, 0) == 0)
+    missing_hard_anchors = tuple(
+        term for term in hard_anchor_terms if document_frequency.get(term, 0) == 0
+    )
     weighted_coverage = sum(weights[term] for term in covered) / total_weight
     absent_weight_ratio = sum(weights[term] for term in absent) / total_weight
 
@@ -201,21 +232,35 @@ def assess_evidence_sufficiency(
         distinctive_covered / len(distinctive_terms) if distinctive_terms else weighted_coverage
     )
 
-    # A related result is not enough when multiple high-information concepts from
-    # the question do not exist anywhere in the active corpus. This is the main
-    # deterministic blocker for unsupported exact-fact questions.
-    if len(absent) >= 2 and absent_weight_ratio >= 0.38:
+    # Refusal is intentionally high precision. Ordinary paraphrase words may be
+    # absent even when the underlying fact is covered, so only explicit acronym-
+    # like anchors and near-zero total concept coverage are hard blockers.
+    all_multiple_hard_anchors_missing = (
+        len(hard_anchor_terms) >= 2
+        and len(missing_hard_anchors) == len(hard_anchor_terms)
+    )
+    one_hard_anchor_missing_with_weak_coverage = (
+        bool(missing_hard_anchors) and weighted_coverage < 0.25
+    )
+    near_zero_concept_coverage = (
+        weighted_coverage < 0.10 and absent_weight_ratio >= 0.60
+    )
+
+    if all_multiple_hard_anchors_missing:
         status: EvidenceSufficiencyStatus = "insufficient"
-        reason = "missing_specific_concepts_from_corpus"
-    elif weighted_coverage >= 0.52 and distinctive_coverage >= 0.34:
-        status = "supported"
-        reason = "evidence_covers_query_concepts"
-    elif weighted_coverage >= 0.42 and absent_weight_ratio <= 0.20:
-        status = "supported"
-        reason = "evidence_has_broad_query_coverage"
-    else:
+        reason = "missing_explicit_anchor_concepts"
+    elif one_hard_anchor_missing_with_weak_coverage:
+        status = "insufficient"
+        reason = "missing_explicit_anchor_with_weak_coverage"
+    elif near_zero_concept_coverage:
+        status = "insufficient"
+        reason = "near_zero_query_concept_coverage"
+    elif weighted_coverage < 0.10:
         status = "uncertain"
-        reason = "related_evidence_without_enough_concept_coverage"
+        reason = "very_low_query_concept_coverage"
+    else:
+        status = "supported"
+        reason = "no_high_confidence_insufficiency_signal"
 
     return EvidenceSufficiencyDecision(
         status=status,
@@ -224,6 +269,8 @@ def assess_evidence_sufficiency(
         covered_terms=covered,
         missing_terms=missing,
         absent_from_corpus_terms=absent,
+        hard_anchor_terms=hard_anchor_terms,
+        missing_hard_anchor_terms=missing_hard_anchors,
         weighted_coverage=round(weighted_coverage, 6),
         absent_weight_ratio=round(absent_weight_ratio, 6),
         distinctive_coverage=round(distinctive_coverage, 6),
