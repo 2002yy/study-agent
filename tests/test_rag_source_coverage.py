@@ -20,6 +20,16 @@ def test_source_coverage_plan_only_enables_for_explicit_composite_questions():
         top_k=4,
         configured_max_chunks_per_source=0,
     )
+    while_clauses = plan_source_coverage(
+        "How does the frontend stay simple while avoiding duplicated workflow truth?",
+        top_k=4,
+        configured_max_chunks_per_source=0,
+    )
+    between_clauses = plan_source_coverage(
+        "What should happen between web research and the final answer?",
+        top_k=4,
+        configured_max_chunks_per_source=0,
+    )
     chinese = plan_source_coverage(
         "中文资料问答如何同时保证召回和来源覆盖？",
         top_k=4,
@@ -31,6 +41,11 @@ def test_source_coverage_plan_only_enables_for_explicit_composite_questions():
     assert combined.enabled is True
     assert combined.reason == "together"
     assert combined.effective_max_chunks_per_source == 1
+    assert combined.candidate_multiplier == 8
+    assert while_clauses.enabled is True
+    assert while_clauses.reason == "while_clauses"
+    assert between_clauses.enabled is True
+    assert between_clauses.reason == "between_clauses"
     assert chinese.enabled is True
     assert chinese.reason == "chinese_simultaneous"
 
@@ -57,8 +72,7 @@ def test_composite_query_prevents_one_source_from_crowding_out_another(tmp_path)
     )
 
     query = (
-        "Which documents together explain the frontend task selector simplification "
-        "and committed learning truth?"
+        "How does the frontend stay simple while committed learning truth remains durable?"
     )
     diagnostics = search_documents_with_adaptive_source_coverage(
         index,
@@ -69,6 +83,7 @@ def test_composite_query_prevents_one_source_from_crowding_out_another(tmp_path)
     names = [Path(result.chunk.source_path).name for result in diagnostics.results]
 
     assert diagnostics.debug["source_coverage"]["enabled"] is True
+    assert diagnostics.debug["source_coverage"]["expanded_candidate_k"] >= 4
     assert names.count("dominant.md") <= 1
     assert "dominant.md" in names
     assert "supporting.md" in names
