@@ -46,10 +46,6 @@ jobs:
       SELECTED_MODEL_PROFILE: ${{ inputs.model_profile }}
       SELECTED_MODEL_NAME: ${{ inputs.model_name }}
       SELECTED_BASE_URL: ${{ inputs.base_url }}
-      KEY_OPENAI: ${{ secrets.OPENAI_API_KEY }}
-      KEY_DEEPSEEK: ${{ secrets.DEEPSEEK_API_KEY }}
-      KEY_OPENROUTER: ${{ secrets.OPENROUTER_API_KEY }}
-      KEY_SILICONFLOW: ${{ secrets.SILICONFLOW_API_KEY }}
 
     steps:
       - name: Check out repository
@@ -64,10 +60,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Resolve selected provider configuration
+      - name: Run real-provider K1e replay
+        id: replay
         shell: bash
+        env:
+          KEY_OPENAI: ${{ secrets.OPENAI_API_KEY }}
+          KEY_DEEPSEEK: ${{ secrets.DEEPSEEK_API_KEY }}
+          KEY_OPENROUTER: ${{ secrets.OPENROUTER_API_KEY }}
+          KEY_SILICONFLOW: ${{ secrets.SILICONFLOW_API_KEY }}
         run: |
           set -euo pipefail
+
+          case "$SELECTED_MODEL_NAME" in
+            *$'\n'*|*$'\r'*)
+              echo "Model name must be a single line." >&2
+              exit 2
+              ;;
+          esac
+          case "$SELECTED_BASE_URL" in
+            *$'\n'*|*$'\r'*)
+              echo "Base URL must be a single line." >&2
+              exit 2
+              ;;
+          esac
 
           case "$SELECTED_PROVIDER" in
             openai)
@@ -93,7 +108,7 @@ jobs:
           esac
 
           if [ -z "$selected_key" ]; then
-            echo "The selected provider secret is not configured for this repository." >&2
+            echo "The selected provider credential is not configured for this repository." >&2
             exit 2
           fi
 
@@ -102,22 +117,19 @@ jobs:
             resolved_base_url="$default_base_url"
           fi
 
-          echo "LLM_PROVIDER_PROFILE=$SELECTED_PROVIDER" >> "$GITHUB_ENV"
-          echo "OPENAI_API_KEY=$selected_key" >> "$GITHUB_ENV"
-          echo "OPENAI_BASE_URL=$resolved_base_url" >> "$GITHUB_ENV"
-          echo "MODEL_FLASH_NAME=$SELECTED_MODEL_NAME" >> "$GITHUB_ENV"
-          echo "MODEL_PRO_NAME=$SELECTED_MODEL_NAME" >> "$GITHUB_ENV"
+          export LLM_PROVIDER_PROFILE="$SELECTED_PROVIDER"
+          export OPENAI_API_KEY="$selected_key"
+          export OPENAI_BASE_URL="$resolved_base_url"
+          export MODEL_FLASH_NAME="$SELECTED_MODEL_NAME"
+          export MODEL_PRO_NAME="$SELECTED_MODEL_NAME"
 
-      - name: Run real-provider K1e replay
-        id: replay
-        shell: bash
-        run: |
           set +e
           python tools/run_rag_provider_replay.py \
             --provider-profile "$SELECTED_PROVIDER" \
             --model-profile "$SELECTED_MODEL_PROFILE" \
             --output output/rag-provider-replay.json
           replay_status=$?
+          set -e
           echo "exit_code=$replay_status" >> "$GITHUB_OUTPUT"
           exit 0
 
