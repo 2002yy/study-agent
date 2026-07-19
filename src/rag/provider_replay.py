@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
 
-from src.llm_client import get_client, get_model_name, get_provider_settings
+from src.llm_client import ModelProfile, get_client, get_model_name, get_provider_settings
 from src.rag.answer_eval import (
     RagAnswerAssertion,
     RagAnswerCandidate,
@@ -76,8 +76,6 @@ class ProviderCompletion:
 
 
 class ReplayProvider(Protocol):
-    replay_kind: ReplayKind
-
     def complete(self, messages: list[dict[str, str]]) -> ProviderCompletion:
         ...
 
@@ -91,7 +89,7 @@ class OpenAICompatibleReplayProvider:
         self,
         *,
         provider_profile: str | None = None,
-        model_profile: str = "pro",
+        model_profile: ModelProfile = "pro",
         temperature: float = 0.0,
         max_tokens: int = 700,
         timeout: float = 60.0,
@@ -100,7 +98,8 @@ class OpenAICompatibleReplayProvider:
         self.provider_profile = settings.profile_name
         self.model_profile = model_profile
         self.model_name = get_model_name(
-            model_profile, provider_profile=self.provider_profile
+            model_profile,
+            provider_profile=self.provider_profile,
         )
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -190,15 +189,16 @@ def parse_provider_answer(case_id: str, raw_text: str) -> ParsedProviderAnswer:
         if not isinstance(payload, dict):
             raise ValueError("provider answer must be a JSON object")
     except (json.JSONDecodeError, ValueError) as exc:
+        stripped = raw_text.strip()
         fallback = RagAnswerCandidate(
             case_id=case_id,
-            answer=raw_text.strip(),
+            answer=stripped,
             cited_sources=(),
             refused=False,
             assertions=(
-                RagAnswerAssertion(text=raw_text.strip(), cited_sources=()),
+                RagAnswerAssertion(text=stripped, cited_sources=()),
             )
-            if raw_text.strip()
+            if stripped
             else (),
         )
         return ParsedProviderAnswer(
@@ -223,7 +223,12 @@ def parse_provider_answer(case_id: str, raw_text: str) -> ParsedProviderAnswer:
                 if isinstance(raw_sources, list)
                 else ()
             )
-            assertions.append(RagAnswerAssertion(text=text, cited_sources=sources))
+            assertions.append(
+                RagAnswerAssertion(
+                    text=text,
+                    cited_sources=sources,
+                )
+            )
     cited_sources = _unique_sources(
         source
         for assertion in assertions
@@ -299,7 +304,8 @@ def run_provider_answer_replay(
                 "retrieval_status": retrieval.status,
                 "retrieval_reason": retrieval.reason,
                 "retrieved_sources": [
-                    Path(result.chunk.source_path).name for result in retrieval.results
+                    Path(result.chunk.source_path).name
+                    for result in retrieval.results
                 ],
                 "prompt_fingerprint": prompt_fingerprint,
                 "provider": completion.to_dict(),
@@ -319,31 +325,34 @@ def run_provider_answer_replay(
             }
         )
 
-    status: ReplayRunStatus = "completed" if not failed_cases else "partial_failure"
+    status: ReplayRunStatus = (
+        "completed" if not failed_cases else "partial_failure"
+    )
     answer_quality: dict[str, Any] | None = None
     if not failed_cases and len(candidates) == len(cases):
         answer_quality = evaluate_answer_suite(cases, tuple(candidates)).to_dict()
 
     provider_rows = [row["provider"] for row in case_rows if "provider" in row]
-    provider_identity = _provider_identity(provider_rows)
     return {
         "schema_version": 1,
-        "replay_kind": provider.replay_kind,
+        "replay_kind": _replay_kind_for_provider(provider),
         "status": status,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "corpus_fingerprint": corpus_fingerprint,
         "prompt_template_fingerprint": hashlib.sha256(
             _REPLAY_SYSTEM_PROMPT.encode("utf-8")
         ).hexdigest(),
-        "provider": provider_identity,
+        "provider": _provider_identity(provider_rows),
         "cases": len(cases),
         "completed_cases": len(candidates),
         "failed_cases": failed_cases,
         "latency": {
             "total_seconds": round(total_latency, 6),
-            "mean_seconds": round(total_latency / len(candidates), 6)
-            if candidates
-            else 0.0,
+            "mean_seconds": (
+                round(total_latency / len(candidates), 6)
+                if candidates
+                else 0.0
+            ),
         },
         "usage": {
             "complete": usage_complete and bool(candidates),
@@ -379,6 +388,12 @@ def provider_unavailable_report(
         "answer_quality": None,
         "results": [],
     }
+
+
+def _replay_kind_for_provider(provider: ReplayProvider) -> ReplayKind:
+    if isinstance(provider, OpenAICompatibleReplayProvider):
+        return "real_provider"
+    return "synthetic_test"
 
 
 def _provider_identity(rows: list[dict[str, Any]]) -> dict[str, Any]:
