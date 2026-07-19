@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.rag import build_rag_index
+from src.rag.service import search_documents_with_debug
 from src.rag.source_coverage import (
     plan_source_coverage,
     search_documents_with_adaptive_source_coverage,
@@ -113,18 +114,34 @@ def test_adaptive_coverage_preserves_every_unique_source_from_base_top_k(tmp_pat
         max_chars=55,
         overlap_chars=0,
     )
+    query = (
+        "How do durable task routing and the restore card work together so a learner "
+        "can continue where they stopped?"
+    )
 
-    diagnostics = search_documents_with_adaptive_source_coverage(
+    base = search_documents_with_debug(
         index,
-        "How do durable task routing and the restore card work together so a learner can continue where they stopped?",
+        query,
         retrieval_mode="hybrid",
         top_k=3,
     )
-    names = [Path(result.chunk.source_path).name for result in diagnostics.results]
+    diagnostics = search_documents_with_adaptive_source_coverage(
+        index,
+        query,
+        retrieval_mode="hybrid",
+        top_k=3,
+    )
+    base_names = {
+        Path(result.chunk.source_path).name
+        for result in base.results
+    }
+    adaptive_names = [
+        Path(result.chunk.source_path).name
+        for result in diagnostics.results
+    ]
 
-    assert "primary.md" in names
-    assert "already_relevant.md" in names
-    assert len(set(names)) == len(names)
+    assert base_names.issubset(set(adaptive_names))
+    assert len(set(adaptive_names)) == len(adaptive_names)
 
 
 def test_normal_question_preserves_existing_source_ranking_behavior(tmp_path):
