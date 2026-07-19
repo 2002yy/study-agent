@@ -10,7 +10,13 @@ from typing import Any
 
 from src.rag.chunker import chunk_documents
 from src.rag.loader import load_documents
-from src.rag.schema import RagChunk, RagDocument, RagIndex, RagSearchResult
+from src.rag.schema import (
+    EVIDENCE_STATUS_ACTIVE,
+    RagChunk,
+    RagDocument,
+    RagIndex,
+    RagSearchResult,
+)
 from src.safe_writer import safe_write_text
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -102,6 +108,8 @@ def _document_from_dict(data: dict[str, Any]) -> RagDocument:
         document_id=str(data.get("document_id") or data["content_hash"]),
         revision_id=str(data.get("revision_id") or data["content_hash"]),
         parser_version=str(data.get("parser_version") or "legacy_v1"),
+        evidence_status=str(data.get("evidence_status") or EVIDENCE_STATUS_ACTIVE),
+        superseded_by_document_id=str(data.get("superseded_by_document_id") or ""),
         metadata=dict(data.get("metadata") or {}),
     )
 
@@ -118,6 +126,8 @@ def _chunk_from_dict(data: dict[str, Any]) -> RagChunk:
         end_line=int(data["end_line"]),
         document_id=str(data.get("document_id") or data["document_hash"]),
         revision_id=str(data.get("revision_id") or data["document_hash"]),
+        evidence_status=str(data.get("evidence_status") or EVIDENCE_STATUS_ACTIVE),
+        superseded_by_document_id=str(data.get("superseded_by_document_id") or ""),
         metadata=dict(data.get("metadata") or {}),
     )
 
