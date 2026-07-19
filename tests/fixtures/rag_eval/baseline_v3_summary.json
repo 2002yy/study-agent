@@ -1,0 +1,126 @@
+{
+  "schema_version": 3,
+  "recorded_date": "2026-07-19",
+  "baseline_kind": "deterministic_local_extractive_lower_bound",
+  "gating": "record_only",
+  "source_artifact_head": "59bf44c34d42c70dfd20ac51aaf757b6f84cef08",
+  "corpus": {
+    "fingerprint_sha256": "dea1d571944f5fa260eec1761e90c1556279ada509beb21679f249c97ad9f9e1",
+    "documents": 12,
+    "retrieval_cases": 30,
+    "answer_cases": 10,
+    "evidence_status_counts": {
+      "active": 10,
+      "superseded": 2
+    }
+  },
+  "retrieval_profiles": {
+    "hybrid": {
+      "source_hit_rate": 0.961538,
+      "mean_precision_at_k": 0.477564,
+      "mean_recall_at_k": 0.923077,
+      "mean_reciprocal_rank": 0.942308,
+      "mean_ndcg_at_k": 0.9036,
+      "forbidden_source_leakage_rate": 0.0,
+      "unanswerable_nonempty_rate": 1.0
+    },
+    "hybrid_reranked": {
+      "source_hit_rate": 0.961538,
+      "mean_precision_at_k": 0.429487,
+      "mean_recall_at_k": 0.923077,
+      "mean_reciprocal_rank": 0.942308,
+      "mean_ndcg_at_k": 0.912179,
+      "forbidden_source_leakage_rate": 0.0,
+      "unanswerable_nonempty_rate": 1.0
+    },
+    "lexical": {
+      "source_hit_rate": 0.961538,
+      "mean_precision_at_k": 0.477564,
+      "mean_recall_at_k": 0.923077,
+      "mean_reciprocal_rank": 0.942308,
+      "mean_ndcg_at_k": 0.905053,
+      "forbidden_source_leakage_rate": 0.0,
+      "unanswerable_nonempty_rate": 1.0
+    },
+    "vector": {
+      "source_hit_rate": 0.961538,
+      "mean_precision_at_k": 0.448718,
+      "mean_recall_at_k": 0.903846,
+      "mean_reciprocal_rank": 0.839744,
+      "mean_ndcg_at_k": 0.816567,
+      "forbidden_source_leakage_rate": 0.0,
+      "unanswerable_nonempty_rate": 1.0
+    }
+  },
+  "hybrid_scenarios": {
+    "ambiguous_overlap": {
+      "source_hit_rate": 1.0,
+      "mean_precision_at_k": 0.458333,
+      "mean_recall_at_k": 1.0,
+      "mean_ndcg_at_k": 0.907733,
+      "forbidden_source_leakage_rate": 0.0
+    },
+    "clean": {
+      "source_hit_rate": 1.0,
+      "mean_precision_at_k": 0.416666,
+      "mean_recall_at_k": 1.0,
+      "mean_ndcg_at_k": 1.0,
+      "forbidden_source_leakage_rate": 0.0
+    },
+    "multi_source": {
+      "source_hit_rate": 1.0,
+      "mean_precision_at_k": 0.7,
+      "mean_recall_at_k": 0.8,
+      "mean_ndcg_at_k": 0.78859,
+      "forbidden_source_leakage_rate": 0.0
+    },
+    "paraphrase": {
+      "source_hit_rate": 0.8,
+      "mean_precision_at_k": 0.333333,
+      "mean_recall_at_k": 0.8,
+      "mean_ndcg_at_k": 0.8,
+      "forbidden_source_leakage_rate": 0.0
+    },
+    "stale_revision": {
+      "source_hit_rate": 1.0,
+      "mean_precision_at_k": 0.520833,
+      "mean_recall_at_k": 1.0,
+      "mean_ndcg_at_k": 0.97993,
+      "forbidden_source_leakage_rate": 0.0
+    },
+    "unanswerable": {
+      "source_hit_rate": 0.0,
+      "mean_precision_at_k": 0.0,
+      "mean_recall_at_k": 0.0,
+      "mean_ndcg_at_k": 0.0,
+      "forbidden_source_leakage_rate": 0.0,
+      "unanswerable_nonempty_rate": 1.0
+    }
+  },
+  "evidence_sufficiency": {
+    "total_cases": 30,
+    "answerable_cases": 26,
+    "unanswerable_cases": 4,
+    "answerability_accuracy": 1.0,
+    "answerable_supported_rate": 1.0,
+    "unanswerable_block_rate": 1.0,
+    "supported_rate": 0.866667,
+    "uncertain_rate": 0.0,
+    "insufficient_rate": 0.133333,
+    "status_counts": {
+      "supported": 26,
+      "uncertain": 0,
+      "insufficient": 4
+    }
+  },
+  "answer_quality": {
+    "answerability_accuracy": 1.0,
+    "mean_citation_precision": 0.7,
+    "mean_citation_recall": 1.0,
+    "mean_claim_coverage": 1.0,
+    "mean_claim_support_rate": 1.0,
+    "mean_groundedness": 0.55,
+    "mean_source_diversity": 1.0,
+    "stale_revision_leakage_rate": 0.0
+  }
+}
