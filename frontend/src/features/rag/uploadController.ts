@@ -10,11 +10,7 @@ import type {
   RagIndexResponse,
   RagRunResponse,
 } from "../../types";
-import {
-  setKnowledgeDocumentEvidenceStatus,
-  type EvidenceKnowledgeDocumentListResponse,
-  type EvidenceStatus,
-} from "./evidenceEligibilityApi";
+import type { EvidenceKnowledgeDocumentListResponse } from "./evidenceEligibilityApi";
 
 type UploadControllerOptions = {
   activeRunId?: string;
@@ -114,27 +110,6 @@ export function useUploadController(options: UploadControllerOptions) {
     }
   };
 
-  const setDocumentEvidenceStatus = async (
-    documentId: string,
-    evidenceStatus: EvidenceStatus,
-    supersededByDocumentId = "",
-  ) => {
-    options.setOperationError("");
-    try {
-      await setKnowledgeDocumentEvidenceStatus(
-        documentId,
-        evidenceStatus,
-        supersededByDocumentId,
-      );
-      await refreshDocuments();
-      await options.onChanged();
-    } catch (error) {
-      options.setOperationError(
-        `资料状态更新失败：${error instanceof Error ? error.message : "更新失败"}`,
-      );
-    }
-  };
-
   useEffect(() => {
     void refreshDocuments();
   }, []);
@@ -179,7 +154,6 @@ export function useUploadController(options: UploadControllerOptions) {
     upload,
     dismissFlow,
     removeDocument,
-    setDocumentEvidenceStatus,
     refreshDocuments,
   };
 }
