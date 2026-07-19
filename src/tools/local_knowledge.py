@@ -22,7 +22,7 @@ LocalKnowledgeStatus = Literal[
 ]
 
 _SKIP_PATTERNS = (
-    r"^\s*(hi|hello|hey|thanks|thank you|你好|您好|谢谢|早上好|晚上好)[!！。.[\s]*$",
+    r"^\s*(hi|hello|hey|thanks|thank you|你好|您好|谢谢|早上好|晚上好)[!！。.\s]*$",
     r"(讲个笑话|随便聊|你是谁|自我介绍|打招呼)",
 )
 
