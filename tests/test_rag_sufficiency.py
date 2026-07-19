@@ -28,7 +28,7 @@ def test_evidence_sufficiency_accepts_well_covered_local_answer(tmp_path):
     assert "requests" in decision.covered_terms
 
 
-def test_evidence_sufficiency_blocks_related_text_when_specific_concepts_are_absent(tmp_path):
+def test_evidence_sufficiency_blocks_related_text_when_explicit_hard_anchors_are_absent(tmp_path):
     document = tmp_path / "deployment.md"
     document.write_text(
         "Study Agent production model deployment requirements are documented at a high level.",
@@ -45,7 +45,9 @@ def test_evidence_sufficiency_blocks_related_text_when_specific_concepts_are_abs
     )
 
     assert decision.status == "insufficient"
-    assert decision.reason == "missing_specific_concepts_from_corpus"
+    assert decision.reason == "missing_explicit_anchor_concepts"
+    assert decision.hard_anchor_terms == ("nvidia", "gpu")
+    assert decision.missing_hard_anchor_terms == ("nvidia", "gpu")
     assert {"nvidia", "gpu"}.issubset(decision.absent_from_corpus_terms)
     assert decision.allows_grounded_answer is False
 
