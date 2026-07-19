@@ -9,24 +9,26 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from src.api.models.rag import (
+    KnowledgeDocumentDeleteResponse,
+    KnowledgeDocumentEvidenceStatusRequest,
+    KnowledgeDocumentEvidenceStatusResponse,
+    KnowledgeDocumentListResponse,
     LocalKnowledgeRequest,
     LocalKnowledgeResponse,
     RagIndexRequest,
     RagIndexResponse,
     RagQueryRequest,
     RagQueryResponse,
-    RagStatusResponse,
     RagRunListResponse,
     RagRunResponse,
-    KnowledgeDocumentDeleteResponse,
-    KnowledgeDocumentListResponse,
+    RagStatusResponse,
 )
 from src.application.rag_run_service import RagRunService
+from src.application.runtime_repository import get_rag_run_service
 from src.rag.upload_validation import (
     UploadCandidate,
     validate_upload_batch,
 )
-from src.application.runtime_repository import get_rag_run_service
 
 router = APIRouter(tags=["rag"])
 RagRunServiceDependency = Annotated[RagRunService, Depends(get_rag_run_service)]
@@ -285,6 +287,33 @@ def list_knowledge_base_documents(
     return KnowledgeDocumentListResponse(
         **service.documents(index_path=_index_path(index_path))
     )
+
+
+@router.patch(
+    "/knowledge-base/documents/{document_id}/evidence-status",
+    response_model=KnowledgeDocumentEvidenceStatusResponse,
+)
+def set_knowledge_base_document_evidence_status(
+    document_id: str,
+    request: KnowledgeDocumentEvidenceStatusRequest,
+    service: RagRunServiceDependency,
+    index_path: str | None = None,
+) -> KnowledgeDocumentEvidenceStatusResponse:
+    try:
+        return KnowledgeDocumentEvidenceStatusResponse(
+            **service.set_document_evidence_status(
+                document_id,
+                request.evidence_status,
+                superseded_by_document_id=request.superseded_by_document_id,
+                index_path=_index_path(index_path),
+            )
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="RAG index not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.delete(
