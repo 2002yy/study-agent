@@ -6,8 +6,8 @@ const API_TOKEN = import.meta.env.VITE_STUDY_AGENT_API_TOKEN ?? "";
 export type EvidenceStatus = "active" | "superseded" | "excluded";
 
 export type EvidenceKnowledgeDocument = KnowledgeDocument & {
-  evidence_status: EvidenceStatus;
-  superseded_by_document_id: string;
+  evidence_status?: EvidenceStatus;
+  superseded_by_document_id?: string;
 };
 
 export type EvidenceKnowledgeDocumentListResponse = Omit<
@@ -15,8 +15,8 @@ export type EvidenceKnowledgeDocumentListResponse = Omit<
   "documents"
 > & {
   documents: EvidenceKnowledgeDocument[];
-  retrievable_documents: number;
-  retrievable_chunks: number;
+  retrievable_documents?: number;
+  retrievable_chunks?: number;
 };
 
 export type EvidenceStatusUpdateResponse = {
