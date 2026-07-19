@@ -122,7 +122,7 @@ def main() -> int:
         report = provider_unavailable_report(
             corpus_fingerprint=corpus_fingerprint,
             provider_profile=provider_profile,
-            reason=f"{type(exc).__name__}: {exc}",
+            reason=f"provider_initialization_failed:{type(exc).__name__}",
         )
         _write_report(Path(args.output), report)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
