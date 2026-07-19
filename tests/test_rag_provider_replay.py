@@ -63,6 +63,10 @@ class _SyntheticProvider:
         )
 
 
+class _SpoofedRealProvider(_SyntheticProvider):
+    replay_kind = "real_provider"
+
+
 def _answerable_case() -> RagAnswerEvalCase:
     return RagAnswerEvalCase(
         case_id="answerable",
@@ -94,7 +98,7 @@ def _unanswerable_case() -> RagAnswerEvalCase:
     )
 
 
-def test_synthetic_replay_cannot_be_reported_as_real_provider(tmp_path):
+def _fixture_retrieval(tmp_path):
     document = tmp_path / "requests.md"
     document.write_text(
         "A Session uses a connection pool. Explicit timeout settings still matter.",
@@ -102,7 +106,12 @@ def test_synthetic_replay_cannot_be_reported_as_real_provider(tmp_path):
     )
     index = build_rag_index([document], max_chars=300, overlap_chars=0)
     found_results = tuple(
-        search_documents(index, _answerable_case().query, top_k=2, retrieval_mode="hybrid")
+        search_documents(
+            index,
+            _answerable_case().query,
+            top_k=2,
+            retrieval_mode="hybrid",
+        )
     )
 
     def retrieve_case(case):
@@ -120,9 +129,13 @@ def test_synthetic_replay_cannot_be_reported_as_real_provider(tmp_path):
             results=(),
         )
 
+    return retrieve_case
+
+
+def test_synthetic_replay_cannot_be_reported_as_real_provider(tmp_path):
     report = run_provider_answer_replay(
         cases=(_answerable_case(), _unanswerable_case()),
-        retrieve_case=retrieve_case,
+        retrieve_case=_fixture_retrieval(tmp_path),
         provider=_SyntheticProvider(),
         corpus_fingerprint="fixture-corpus",
     )
@@ -137,6 +150,17 @@ def test_synthetic_replay_cannot_be_reported_as_real_provider(tmp_path):
         "completion_tokens": 10,
         "total_tokens": 30,
     }
+
+
+def test_provider_cannot_spoof_real_replay_kind_with_a_string_flag(tmp_path):
+    report = run_provider_answer_replay(
+        cases=(_answerable_case(),),
+        retrieve_case=_fixture_retrieval(tmp_path),
+        provider=_SpoofedRealProvider(),
+        corpus_fingerprint="fixture-corpus",
+    )
+
+    assert report["replay_kind"] == "synthetic_test"
 
 
 def test_real_provider_adapter_records_usage_without_persisting_api_key(monkeypatch):
@@ -162,12 +186,14 @@ def test_real_provider_adapter_records_usage_without_persisting_api_key(monkeypa
     fake_client = SimpleNamespace(
         chat=SimpleNamespace(completions=_FakeCompletions())
     )
+    fake_key = "test-placeholder-value"
+    fake_endpoint = "https://provider.example/v1"
     monkeypatch.setattr(
         "src.rag.provider_replay.get_provider_settings",
         lambda _profile=None: SimpleNamespace(
             profile_name="deepseek",
-            api_key="super-secret-key",
-            base_url="https://provider.example/v1",
+            api_key=fake_key,
+            base_url=fake_endpoint,
         ),
     )
     monkeypatch.setattr(
@@ -189,7 +215,7 @@ def test_real_provider_adapter_records_usage_without_persisting_api_key(monkeypa
     assert completion.provider_profile == "deepseek"
     assert completion.model_name == "real-model"
     assert completion.usage.total_tokens == 16
-    assert "super-secret-key" not in serialized
+    assert fake_key not in serialized
     assert "provider.example" not in serialized
 
 
