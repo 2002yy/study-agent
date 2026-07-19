@@ -16,11 +16,9 @@ from src.rag.answer_eval import (
 )
 from src.rag.eval import evaluate_retrieval_profiles, load_eval_cases
 from src.rag.schema import RagIndex
-from src.rag.service import (
-    normalize_evidence_status,
-    retrievable_rag_index,
-    search_documents,
-)
+from src.rag.service import normalize_evidence_status, retrievable_rag_index
+from src.rag.source_coverage import search_documents_with_adaptive_source_coverage
+from src.rag.source_coverage_eval import evaluate_adaptive_source_coverage
 from src.rag.sufficiency import assess_evidence_sufficiency
 
 
@@ -132,14 +130,15 @@ def _apply_evidence_manifest(index: RagIndex, path: Path) -> RagIndex:
 
 
 def _search_for_case(index: RagIndex, case) -> list:
-    return search_documents(
+    return search_documents_with_adaptive_source_coverage(
         index,
         case.query,
         top_k=case.top_k,
         min_score=0.01,
         retrieval_mode=case.retrieval_mode,
+        configured_max_chunks_per_source=case.max_chunks_per_source,
         reranker=case.reranker,
-    )
+    ).results
 
 
 def _evaluate_sufficiency(index: RagIndex, retrieval_cases) -> dict[str, Any]:
@@ -203,7 +202,7 @@ def _build_extractive_candidates(
     for answer_case in answer_cases:
         retrieval_case = retrieval_by_id.get(answer_case.case_id)
         top_k = retrieval_case.top_k if retrieval_case is not None else 4
-        results = search_documents(
+        diagnostics = search_documents_with_adaptive_source_coverage(
             index,
             answer_case.query,
             top_k=top_k,
@@ -211,8 +210,12 @@ def _build_extractive_candidates(
             retrieval_mode=(
                 retrieval_case.retrieval_mode if retrieval_case is not None else "hybrid"
             ),
+            configured_max_chunks_per_source=(
+                retrieval_case.max_chunks_per_source if retrieval_case is not None else 0
+            ),
             reranker=(retrieval_case.reranker if retrieval_case is not None else "disabled"),
         )
+        results = diagnostics.results
         decision = assess_evidence_sufficiency(index, answer_case.query, results)
         if decision.status != "supported":
             candidates.append(
@@ -267,6 +270,10 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
     active_index = retrievable_rag_index(index)
     retrieval_cases = load_eval_cases(retrieval_case_path)
     retrieval_profiles = evaluate_retrieval_profiles(index, retrieval_cases)
+    adaptive_source_coverage = evaluate_adaptive_source_coverage(
+        active_index,
+        retrieval_cases,
+    )
     sufficiency_summary = _evaluate_sufficiency(active_index, retrieval_cases)
     answer_cases, _ = load_answer_eval_fixture(answer_case_path)
     extractive_candidates = _build_extractive_candidates(
@@ -281,7 +288,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
         status_counts[document.evidence_status] = status_counts.get(document.evidence_status, 0) + 1
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "baseline_kind": "deterministic_local_extractive_lower_bound",
         "gating": "record_only",
         "corpus": {
@@ -295,6 +302,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
         "retrieval_profiles": {
             name: summary.to_dict() for name, summary in retrieval_profiles.items()
         },
+        "adaptive_source_coverage": adaptive_source_coverage.to_dict(),
         "evidence_sufficiency": sufficiency_summary,
         "answer_quality": answer_summary.to_dict(),
     }
@@ -311,6 +319,8 @@ def main() -> int:
     )
     hybrid = dict(report["retrieval_profiles"]["hybrid"])
     hybrid.pop("results", None)
+    adaptive = dict(report["adaptive_source_coverage"])
+    adaptive.pop("results", None)
     answer_quality = dict(report["answer_quality"])
     answer_quality.pop("results", None)
     sufficiency = dict(report["evidence_sufficiency"])
@@ -320,6 +330,7 @@ def main() -> int:
         "gating": report["gating"],
         "corpus": report["corpus"],
         "hybrid": hybrid,
+        "adaptive_source_coverage": adaptive,
         "evidence_sufficiency": sufficiency,
         "answer_quality": answer_quality,
     }
