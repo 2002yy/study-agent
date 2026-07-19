@@ -8,7 +8,8 @@ from typing import Any, Literal
 from src.rag import build_rag_context, format_rag_sources
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.schema import RagSearchResult
-from src.rag.service import retrievable_rag_index, search_documents_with_debug
+from src.rag.service import retrievable_rag_index
+from src.rag.source_coverage import search_documents_with_adaptive_source_coverage
 from src.rag.sufficiency import assess_evidence_sufficiency
 
 LocalKnowledgeStatus = Literal[
@@ -239,7 +240,7 @@ def retrieve_local_knowledge(
     debug: dict[str, Any] = {}
     selected_query = query
     try:
-        diagnostics = search_documents_with_debug(
+        diagnostics = search_documents_with_adaptive_source_coverage(
             active_index,
             query,
             top_k=top_k,
@@ -254,7 +255,7 @@ def retrieve_local_knowledge(
         if allow_rewrite and _is_weak_result(results, weak_score_threshold):
             candidate = rewrite_local_knowledge_query(query)
             if candidate and candidate != query.strip():
-                rewritten_diagnostics = search_documents_with_debug(
+                rewritten_diagnostics = search_documents_with_adaptive_source_coverage(
                     active_index,
                     candidate,
                     top_k=top_k,
