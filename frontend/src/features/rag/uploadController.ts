@@ -7,10 +7,14 @@ import {
   loadRagRun,
 } from "../../api";
 import type {
-  KnowledgeDocumentListResponse,
   RagIndexResponse,
   RagRunResponse,
 } from "../../types";
+import {
+  setKnowledgeDocumentEvidenceStatus,
+  type EvidenceKnowledgeDocumentListResponse,
+  type EvidenceStatus,
+} from "./evidenceEligibilityApi";
 
 type UploadControllerOptions = {
   activeRunId?: string;
@@ -42,11 +46,13 @@ export function useUploadController(options: UploadControllerOptions) {
   const [flowPhase, setFlowPhase] = useState<UploadFlowPhase>("idle");
   const [lastUploadCount, setLastUploadCount] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [documents, setDocuments] = useState<KnowledgeDocumentListResponse | null>(null);
+  const [documents, setDocuments] = useState<EvidenceKnowledgeDocumentListResponse | null>(null);
 
   const refreshDocuments = async () => {
     try {
-      setDocuments(await loadKnowledgeDocuments());
+      setDocuments(
+        (await loadKnowledgeDocuments()) as EvidenceKnowledgeDocumentListResponse,
+      );
     } catch (error) {
       options.setOperationError(
         `知识库文档读取失败：${error instanceof Error ? error.message : "读取失败"}`,
@@ -108,6 +114,27 @@ export function useUploadController(options: UploadControllerOptions) {
     }
   };
 
+  const setDocumentEvidenceStatus = async (
+    documentId: string,
+    evidenceStatus: EvidenceStatus,
+    supersededByDocumentId = "",
+  ) => {
+    options.setOperationError("");
+    try {
+      await setKnowledgeDocumentEvidenceStatus(
+        documentId,
+        evidenceStatus,
+        supersededByDocumentId,
+      );
+      await refreshDocuments();
+      await options.onChanged();
+    } catch (error) {
+      options.setOperationError(
+        `资料状态更新失败：${error instanceof Error ? error.message : "更新失败"}`,
+      );
+    }
+  };
+
   useEffect(() => {
     void refreshDocuments();
   }, []);
@@ -152,6 +179,7 @@ export function useUploadController(options: UploadControllerOptions) {
     upload,
     dismissFlow,
     removeDocument,
+    setDocumentEvidenceStatus,
     refreshDocuments,
   };
 }
