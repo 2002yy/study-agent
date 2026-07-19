@@ -3,12 +3,16 @@ import { useMemo } from "react";
 
 import type {
   ChatResponse,
-  KnowledgeDocumentListResponse,
   RagDebugResult,
   RagQueryResponse,
   RagResult,
 } from "../../types";
 import { basename, formatScore, translateStatus } from "../../utils/format";
+import type {
+  EvidenceKnowledgeDocument,
+  EvidenceKnowledgeDocumentListResponse,
+  EvidenceStatus,
+} from "./evidenceEligibilityApi";
 
 type SourceRow = {
   key: string;
@@ -55,19 +59,31 @@ function sourceRowsFromDebug(
   });
 }
 
+function evidenceStatusLabel(document: EvidenceKnowledgeDocument): string {
+  if (document.evidence_status === "superseded") {
+    return "旧版本 · 不参与回答";
+  }
+  if (document.evidence_status === "excluded") {
+    return "已排除 · 不参与回答";
+  }
+  return "当前资料 · 会参与回答";
+}
+
 export function SourcesPanel({
   lastChat,
   ragSearch,
   isSearching,
   knowledgeBase,
   onDeleteDocument,
+  onSetEvidenceStatus,
   onRebuildKnowledge,
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
   isSearching: boolean;
-  knowledgeBase?: KnowledgeDocumentListResponse | null;
+  knowledgeBase?: EvidenceKnowledgeDocumentListResponse | null;
   onDeleteDocument?: (documentId: string) => void;
+  onSetEvidenceStatus?: (documentId: string, status: EvidenceStatus) => void;
   onRebuildKnowledge?: () => void;
 }) {
   const rows = useMemo(() => {
@@ -144,13 +160,49 @@ export function SourcesPanel({
       {knowledgeBase ? (
         <>
           <details className="debug-drawer">
-            <summary>已上传资料 {knowledgeBase.documents.length} 个</summary>
+            <summary>
+              已上传资料 {knowledgeBase.documents.length} 个 · 当前可用于回答 {knowledgeBase.retrievable_documents} 个
+            </summary>
+            <small className="field-hint">
+              “旧版本”和“已排除”资料仍会保留，但不会进入普通检索和回答证据。
+            </small>
             <div className="session-list">
               {knowledgeBase.documents.map((document) => (
                 <div className="session-row" key={document.document_id}>
                   <strong>{document.title}</strong>
                   <span>{document.file_type} · {document.chunks} 个片段</span>
+                  <span>{evidenceStatusLabel(document)}</span>
                   <em title={document.source_path}>{document.source_path}</em>
+                  {onSetEvidenceStatus ? (
+                    <div className="inline-actions">
+                      {document.evidence_status === "active" ? (
+                        <>
+                          <button
+                            className="ghost-action compact"
+                            onClick={() => onSetEvidenceStatus(document.document_id, "superseded")}
+                            type="button"
+                          >
+                            标记为旧版本
+                          </button>
+                          <button
+                            className="ghost-action compact"
+                            onClick={() => onSetEvidenceStatus(document.document_id, "excluded")}
+                            type="button"
+                          >
+                            不参与回答
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="ghost-action compact"
+                          onClick={() => onSetEvidenceStatus(document.document_id, "active")}
+                          type="button"
+                        >
+                          恢复为当前资料
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
                   {onDeleteDocument ? (
                     <button
                       className="ghost-action compact danger"
