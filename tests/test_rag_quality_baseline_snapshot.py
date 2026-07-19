@@ -7,7 +7,7 @@ from tools.run_rag_quality_baseline import run_baseline
 
 
 FIXTURE_DIR = Path("tests/fixtures/rag_eval")
-SNAPSHOT_PATH = FIXTURE_DIR / "baseline_v1_summary.json"
+SNAPSHOT_PATH = FIXTURE_DIR / "baseline_v2_summary.json"
 PROFILE_METRICS = (
     "source_hit_rate",
     "mean_precision_at_k",
@@ -38,7 +38,13 @@ def test_rag_k1_baseline_changes_require_an_explicit_snapshot_update():
     assert actual["gating"] == expected["gating"] == "record_only"
     assert {
         key: actual["corpus"][key]
-        for key in ("fingerprint_sha256", "documents", "retrieval_cases", "answer_cases")
+        for key in (
+            "fingerprint_sha256",
+            "documents",
+            "retrieval_cases",
+            "answer_cases",
+            "evidence_status_counts",
+        )
     } == expected["corpus"]
 
     for profile_name, expected_metrics in expected["retrieval_profiles"].items():
