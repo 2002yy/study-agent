@@ -23,9 +23,10 @@ def test_evidence_sufficiency_accepts_well_covered_local_answer(tmp_path):
     decision = assess_evidence_sufficiency(index, "requests Session connections explicit timeouts", results)
 
     assert decision.status == "supported"
+    assert decision.reason == "no_high_confidence_insufficiency_signal"
     assert decision.allows_grounded_answer is True
-    assert decision.weighted_coverage >= 0.5
-    assert "requests" in decision.covered_terms
+    assert decision.missing_hard_anchor_terms == ()
+    assert {"requests", "session", "timeouts"}.issubset(decision.covered_terms)
 
 
 def test_evidence_sufficiency_blocks_related_text_when_explicit_hard_anchors_are_absent(tmp_path):
