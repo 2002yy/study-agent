@@ -16,7 +16,12 @@ from src.rag.answer_eval import (
 )
 from src.rag.eval import evaluate_retrieval_profiles, load_eval_cases
 from src.rag.schema import RagIndex
-from src.rag.service import normalize_evidence_status, search_documents
+from src.rag.service import (
+    normalize_evidence_status,
+    retrievable_rag_index,
+    search_documents,
+)
+from src.rag.sufficiency import assess_evidence_sufficiency
 
 
 FIXTURE_DOCS = (
@@ -126,8 +131,70 @@ def _apply_evidence_manifest(index: RagIndex, path: Path) -> RagIndex:
     return RagIndex(version=index.version, documents=documents, chunks=chunks)
 
 
+def _search_for_case(index: RagIndex, case) -> list:
+    return search_documents(
+        index,
+        case.query,
+        top_k=case.top_k,
+        min_score=0.01,
+        retrieval_mode=case.retrieval_mode,
+        reranker=case.reranker,
+    )
+
+
+def _evaluate_sufficiency(index: RagIndex, retrieval_cases) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    correct = 0
+    answerable_total = 0
+    answerable_supported = 0
+    unanswerable_total = 0
+    unanswerable_blocked = 0
+    status_counts = {"supported": 0, "uncertain": 0, "insufficient": 0}
+
+    for case in retrieval_cases:
+        retrieved = _search_for_case(index, case)
+        decision = assess_evidence_sufficiency(index, case.query, retrieved)
+        predicted_answerable = decision.status == "supported"
+        expected_answerable = bool(case.answerable)
+        correct += int(predicted_answerable == expected_answerable)
+        status_counts[decision.status] += 1
+        if expected_answerable:
+            answerable_total += 1
+            answerable_supported += int(predicted_answerable)
+        else:
+            unanswerable_total += 1
+            unanswerable_blocked += int(not predicted_answerable)
+        results.append(
+            {
+                "case_id": case.case_id,
+                "scenario": case.scenario,
+                "expected_answerable": expected_answerable,
+                **decision.to_dict(),
+            }
+        )
+
+    total = len(retrieval_cases)
+    return {
+        "total_cases": total,
+        "answerable_cases": answerable_total,
+        "unanswerable_cases": unanswerable_total,
+        "answerability_accuracy": round(correct / total, 6) if total else 0.0,
+        "answerable_supported_rate": round(
+            answerable_supported / answerable_total, 6
+        ) if answerable_total else 0.0,
+        "unanswerable_block_rate": round(
+            unanswerable_blocked / unanswerable_total, 6
+        ) if unanswerable_total else 0.0,
+        "supported_rate": round(status_counts["supported"] / total, 6) if total else 0.0,
+        "uncertain_rate": round(status_counts["uncertain"] / total, 6) if total else 0.0,
+        "insufficient_rate": round(status_counts["insufficient"] / total, 6) if total else 0.0,
+        "status_counts": status_counts,
+        "results": results,
+    }
+
+
 def _build_extractive_candidates(
-    index,
+    index: RagIndex,
     answer_cases,
     retrieval_cases,
 ) -> tuple[RagAnswerCandidate, ...]:
@@ -146,6 +213,18 @@ def _build_extractive_candidates(
             ),
             reranker=(retrieval_case.reranker if retrieval_case is not None else "disabled"),
         )
+        decision = assess_evidence_sufficiency(index, answer_case.query, results)
+        if decision.status != "supported":
+            candidates.append(
+                RagAnswerCandidate(
+                    case_id=answer_case.case_id,
+                    answer="",
+                    cited_sources=(),
+                    refused=True,
+                    assertions=(),
+                )
+            )
+            continue
         assertions = tuple(
             RagAnswerAssertion(
                 text=result.chunk.text,
@@ -161,7 +240,7 @@ def _build_extractive_candidates(
                 case_id=answer_case.case_id,
                 answer="\n\n".join(result.chunk.text for result in results),
                 cited_sources=cited_sources,
-                refused=not results,
+                refused=False,
                 assertions=assertions,
             )
         )
@@ -185,11 +264,13 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
 
     index = build_rag_index(document_paths, max_chars=700, overlap_chars=80)
     index = _apply_evidence_manifest(index, evidence_manifest_path)
+    active_index = retrievable_rag_index(index)
     retrieval_cases = load_eval_cases(retrieval_case_path)
     retrieval_profiles = evaluate_retrieval_profiles(index, retrieval_cases)
+    sufficiency_summary = _evaluate_sufficiency(active_index, retrieval_cases)
     answer_cases, _ = load_answer_eval_fixture(answer_case_path)
     extractive_candidates = _build_extractive_candidates(
-        index,
+        active_index,
         answer_cases,
         retrieval_cases,
     )
@@ -200,7 +281,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
         status_counts[document.evidence_status] = status_counts.get(document.evidence_status, 0) + 1
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "baseline_kind": "deterministic_local_extractive_lower_bound",
         "gating": "record_only",
         "corpus": {
@@ -214,6 +295,7 @@ def run_baseline(fixture_dir: Path) -> dict[str, Any]:
         "retrieval_profiles": {
             name: summary.to_dict() for name, summary in retrieval_profiles.items()
         },
+        "evidence_sufficiency": sufficiency_summary,
         "answer_quality": answer_summary.to_dict(),
     }
 
@@ -231,11 +313,14 @@ def main() -> int:
     hybrid.pop("results", None)
     answer_quality = dict(report["answer_quality"])
     answer_quality.pop("results", None)
+    sufficiency = dict(report["evidence_sufficiency"])
+    sufficiency.pop("results", None)
     compact = {
         "baseline_kind": report["baseline_kind"],
         "gating": report["gating"],
         "corpus": report["corpus"],
         "hybrid": hybrid,
+        "evidence_sufficiency": sufficiency,
         "answer_quality": answer_quality,
     }
     print(json.dumps(compact, ensure_ascii=False, indent=2, sort_keys=True))

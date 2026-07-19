@@ -8,11 +8,14 @@ from typing import Any, Literal
 from src.rag import build_rag_context, format_rag_sources
 from src.rag.index import DEFAULT_RAG_INDEX_PATH, load_rag_index
 from src.rag.schema import RagSearchResult
-from src.rag.service import search_documents_with_debug
+from src.rag.service import retrievable_rag_index, search_documents_with_debug
+from src.rag.sufficiency import assess_evidence_sufficiency
 
 LocalKnowledgeStatus = Literal[
     "skipped",
     "found",
+    "uncertain",
+    "insufficient",
     "not_found",
     "index_missing",
     "error",
@@ -79,6 +82,15 @@ NOT_FOUND_CONTEXT = (
     "Local knowledge retrieval was attempted, but no relevant local documents were found. "
     "When answering, explicitly state that the local knowledge base did not contain supporting evidence."
 )
+INSUFFICIENT_CONTEXT = (
+    "Related local material was retrieved, but the active corpus does not contain enough support "
+    "for the specific question. Do not present a direct answer as grounded in the user's materials. "
+    "State the evidence limitation and ask for missing material when useful."
+)
+UNCERTAIN_CONTEXT = (
+    "Local retrieval found related material, but evidence coverage is uncertain. Do not turn partial "
+    "topical similarity into a confident factual claim from the user's materials."
+)
 
 
 @dataclass(frozen=True)
@@ -114,7 +126,14 @@ class LocalKnowledgeResult:
 
     @property
     def attempted(self) -> bool:
-        return self.status in {"found", "not_found", "index_missing", "error"}
+        return self.status in {
+            "found",
+            "uncertain",
+            "insufficient",
+            "not_found",
+            "index_missing",
+            "error",
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -215,11 +234,13 @@ def retrieve_local_knowledge(
             reason=f"index_load_failed: {exc}",
         )
 
+    active_index = retrievable_rag_index(index)
     attempts: list[RetrievalAttempt] = []
     debug: dict[str, Any] = {}
+    selected_query = query
     try:
         diagnostics = search_documents_with_debug(
-            index,
+            active_index,
             query,
             top_k=top_k,
             min_score=min_score,
@@ -234,7 +255,7 @@ def retrieve_local_knowledge(
             candidate = rewrite_local_knowledge_query(query)
             if candidate and candidate != query.strip():
                 rewritten_diagnostics = search_documents_with_debug(
-                    index,
+                    active_index,
                     candidate,
                     top_k=top_k,
                     min_score=min_score,
@@ -245,11 +266,16 @@ def retrieve_local_knowledge(
                 if rewritten_results:
                     results = rewritten_results
                     rewritten_query = candidate
+                    selected_query = candidate
                     debug = rewritten_diagnostics.debug
                 else:
                     results = []
                     rewritten_query = candidate
+                    selected_query = candidate
                     debug = rewritten_diagnostics.debug
+
+        decision = assess_evidence_sufficiency(active_index, selected_query, results)
+        debug = {**debug, "sufficiency": decision.to_dict()}
 
         if not results:
             return LocalKnowledgeResult(
@@ -260,6 +286,23 @@ def retrieve_local_knowledge(
                 context=NOT_FOUND_CONTEXT,
                 debug=debug,
                 attempts=tuple(attempts),
+                rewritten_query=rewritten_query,
+            )
+
+        if decision.status != "supported":
+            return LocalKnowledgeResult(
+                status=decision.status,
+                query=query,
+                retrieval_mode=retrieval_mode,
+                reason=decision.reason,
+                context=(
+                    INSUFFICIENT_CONTEXT
+                    if decision.status == "insufficient"
+                    else UNCERTAIN_CONTEXT
+                ),
+                debug=debug,
+                attempts=tuple(attempts),
+                rewritten_query=rewritten_query,
             )
 
         return LocalKnowledgeResult(

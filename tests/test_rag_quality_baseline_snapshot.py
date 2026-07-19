@@ -7,7 +7,7 @@ from tools.run_rag_quality_baseline import run_baseline
 
 
 FIXTURE_DIR = Path("tests/fixtures/rag_eval")
-SNAPSHOT_PATH = FIXTURE_DIR / "baseline_v2_summary.json"
+SNAPSHOT_PATH = FIXTURE_DIR / "baseline_v3_summary.json"
 PROFILE_METRICS = (
     "source_hit_rate",
     "mean_precision_at_k",
@@ -16,6 +16,18 @@ PROFILE_METRICS = (
     "mean_ndcg_at_k",
     "forbidden_source_leakage_rate",
     "unanswerable_nonempty_rate",
+)
+SUFFICIENCY_METRICS = (
+    "total_cases",
+    "answerable_cases",
+    "unanswerable_cases",
+    "answerability_accuracy",
+    "answerable_supported_rate",
+    "unanswerable_block_rate",
+    "supported_rate",
+    "uncertain_rate",
+    "insufficient_rate",
+    "status_counts",
 )
 ANSWER_METRICS = (
     "answerability_accuracy",
@@ -59,6 +71,11 @@ def test_rag_k1_baseline_changes_require_an_explicit_snapshot_update():
             metric: actual_hybrid_scenarios[scenario][metric]
             for metric in expected_metrics
         } == expected_metrics
+
+    assert {
+        metric: actual["evidence_sufficiency"][metric]
+        for metric in SUFFICIENCY_METRICS
+    } == expected["evidence_sufficiency"]
 
     assert {
         metric: actual["answer_quality"][metric] for metric in ANSWER_METRICS
