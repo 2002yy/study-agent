@@ -1,0 +1,190 @@
+name: RAG Provider Replay
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_profile:
+        description: "Study Agent provider profile"
+        required: true
+        default: "openai"
+        type: choice
+        options:
+          - openai
+          - deepseek
+          - openrouter
+          - siliconflow
+      model_profile:
+        description: "Study Agent model profile"
+        required: true
+        default: "pro"
+        type: choice
+        options:
+          - pro
+          - flash
+      model_name:
+        description: "Exact provider model name used for this replay"
+        required: true
+        type: string
+      base_url:
+        description: "Optional OpenAI-compatible base URL override"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rag-provider-replay
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SELECTED_PROVIDER: ${{ inputs.provider_profile }}
+      SELECTED_MODEL_PROFILE: ${{ inputs.model_profile }}
+      SELECTED_MODEL_NAME: ${{ inputs.model_name }}
+      SELECTED_BASE_URL: ${{ inputs.base_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run real-provider K1e replay
+        id: replay
+        shell: bash
+        env:
+          KEY_OPENAI: ${{ secrets.OPENAI_API_KEY }}
+          KEY_DEEPSEEK: ${{ secrets.DEEPSEEK_API_KEY }}
+          KEY_OPENROUTER: ${{ secrets.OPENROUTER_API_KEY }}
+          KEY_SILICONFLOW: ${{ secrets.SILICONFLOW_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          case "$SELECTED_MODEL_NAME" in
+            *$'\n'*|*$'\r'*)
+              echo "Model name must be a single line." >&2
+              exit 2
+              ;;
+          esac
+          case "$SELECTED_BASE_URL" in
+            *$'\n'*|*$'\r'*)
+              echo "Base URL must be a single line." >&2
+              exit 2
+              ;;
+          esac
+
+          case "$SELECTED_PROVIDER" in
+            openai)
+              selected_key="$KEY_OPENAI"
+              default_base_url="https://api.openai.com/v1"
+              ;;
+            deepseek)
+              selected_key="$KEY_DEEPSEEK"
+              default_base_url="https://api.deepseek.com/v1"
+              ;;
+            openrouter)
+              selected_key="$KEY_OPENROUTER"
+              default_base_url="https://openrouter.ai/api/v1"
+              ;;
+            siliconflow)
+              selected_key="$KEY_SILICONFLOW"
+              default_base_url="https://api.siliconflow.cn/v1"
+              ;;
+            *)
+              echo "Unsupported provider profile." >&2
+              exit 2
+              ;;
+          esac
+
+          if [ -z "$selected_key" ]; then
+            echo "The selected provider credential is not configured for this repository." >&2
+            exit 2
+          fi
+
+          resolved_base_url="$SELECTED_BASE_URL"
+          if [ -z "$resolved_base_url" ]; then
+            resolved_base_url="$default_base_url"
+          fi
+
+          export LLM_PROVIDER_PROFILE="$SELECTED_PROVIDER"
+          export OPENAI_API_KEY="$selected_key"
+          export OPENAI_BASE_URL="$resolved_base_url"
+          export MODEL_FLASH_NAME="$SELECTED_MODEL_NAME"
+          export MODEL_PRO_NAME="$SELECTED_MODEL_NAME"
+
+          set +e
+          python tools/run_rag_provider_replay.py \
+            --provider-profile "$SELECTED_PROVIDER" \
+            --model-profile "$SELECTED_MODEL_PROFILE" \
+            --output output/rag-provider-replay.json
+          replay_status=$?
+          set -e
+          echo "exit_code=$replay_status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Validate completed real-provider provenance
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          report_path = Path("output/rag-provider-replay.json")
+          if not report_path.is_file():
+              raise SystemExit("Replay report was not created.")
+
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          if report.get("replay_kind") != "real_provider":
+              raise SystemExit("Replay provenance is not real_provider.")
+          if report.get("status") != "completed":
+              raise SystemExit(f"Replay did not complete: {report.get('status')}")
+          if report.get("completed_cases") != report.get("cases"):
+              raise SystemExit("Not all requested replay cases completed.")
+          if not isinstance(report.get("answer_quality"), dict):
+              raise SystemExit("Completed replay is missing answer-quality metrics.")
+
+          provider = report.get("provider") or {}
+          print(
+              json.dumps(
+                  {
+                      "status": report.get("status"),
+                      "cases": report.get("cases"),
+                      "provider_profile": provider.get("provider_profile"),
+                      "model_name": provider.get("model_name"),
+                      "corpus_fingerprint": report.get("corpus_fingerprint"),
+                      "answer_quality": report.get("answer_quality"),
+                      "usage": report.get("usage"),
+                      "latency": report.get("latency"),
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+              )
+          )
+
+      - name: Upload replay artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-provider-replay-${{ github.run_id }}
+          path: output/rag-provider-replay.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce replay command result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.replay.outputs.exit_code }}" != "0" ]; then
+            echo "Provider replay command failed with exit code ${{ steps.replay.outputs.exit_code }}." >&2
+            exit 1
+          fi
