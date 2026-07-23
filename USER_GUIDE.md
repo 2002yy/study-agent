@@ -22,7 +22,7 @@ Study Agent 是一个**本地优先、教学法驱动的 AI 学习工作台**。
 6. **长期记忆**：safe writer 预览确认写入
 7. 角色群聊、新闻研究为延伸学习空间（位于顶部抽屉）
 
-> 当前主架构是 React + FastAPI。旧 Streamlit 入口（`streamlit run app.py`）仅作 legacy 兼容验证，不再是推荐用法。
+> 当前主架构是 React + FastAPI。Streamlit 入口（`app.py`）已移除，前端统一为 React。
 
 ## 2. 启动
 
@@ -34,8 +34,6 @@ tools\start-study-agent.bat    # 一键启动（自动建 venv、装依赖、起
 ```
 
 浏览器打开 `http://127.0.0.1:5173`。后端 API 在 `http://127.0.0.1:8000`，健康检查 `/health`。
-
-> 旧 `streamlit run app.py`（`localhost:8501`）仅用于兼容验证，功能不完整，请优先使用上面的 React 入口。
 
 ## 3. 基本配置
 

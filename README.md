@@ -117,7 +117,7 @@ Study Agent 的定位很明确：**一个运行在你本地的、教学法驱动
 ## 架构
 
 当前主架构是 **React + FastAPI + application services + SQLite**。
-Streamlit 仅作为 legacy compatibility 入口。迁移状态的唯一事实源见
+Streamlit 入口（`app.py`）已移除，`src/ui` 待清理；前端统一为 React。迁移状态的唯一事实源见
 [Architecture Status](docs/ARCHITECTURE_STATUS.md)。
 
 ![architecture](assets/screenshots/arch.png)
@@ -215,7 +215,6 @@ RAG_RERANKER=disabled
 ## 项目结构
 
 ```
-├── app.py                  # legacy Streamlit compatibility 入口
 ├── src/
 │   ├── llm_client.py       # LLM 调用（chat / stream）
 │   ├── llm_router.py       # 模型路由分发
