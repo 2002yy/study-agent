@@ -1,4 +1,6 @@
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunDetail, WorkflowRunSummary } from "../../types";
@@ -38,31 +40,26 @@ describe("TimelinePanel user-facing presentation", () => {
       ],
     };
 
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(
-        <TimelinePanel
-          runs={[run]}
-          selectedRun={selectedRun}
-          loadingRunId=""
-          onSelectRun={onSelectRun}
-        />
-      );
-    });
+    const { container } = render(
+      <TimelinePanel
+        runs={[run]}
+        selectedRun={selectedRun}
+        loadingRunId=""
+        onSelectRun={onSelectRun}
+      />
+    );
 
-    const serialized = JSON.stringify(renderer.toJSON());
-    expect(serialized).toContain("任务运行");
-    expect(serialized).toContain("读取学习资料");
-    expect(serialized).toContain("成功");
-    expect(serialized).not.toContain("run-secret-id");
-    expect(serialized).not.toContain("step-secret-id");
-    expect(serialized).not.toContain("route_internal_code");
-    expect(serialized).not.toContain("internal_workflow_code");
+    const text = container.textContent ?? "";
+    expect(text).toContain("任务运行");
+    expect(text).toContain("读取学习资料");
+    expect(text).toContain("成功");
+    expect(text).not.toContain("run-secret-id");
+    expect(text).not.toContain("step-secret-id");
+    expect(text).not.toContain("route_internal_code");
+    expect(text).not.toContain("internal_workflow_code");
 
-    act(() => renderer.root.findByType("button").props.onClick());
+    fireEvent.click(screen.getAllByRole("button")[0]);
     expect(onSelectRun).toHaveBeenCalledWith("run-secret-id");
-
-    act(() => renderer.unmount());
   });
 
   it("uses readable workflow and duration labels", () => {
