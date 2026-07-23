@@ -1,5 +1,6 @@
-import React from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useMemoryController } from "./memoryController";
@@ -7,7 +8,7 @@ import { useMemoryController } from "./memoryController";
 const apiMocks = vi.hoisted(() => ({
   createMemoryRun: vi.fn(),
   loadMemoryRun: vi.fn(),
-  commitMemoryRun: vi.fn()
+  commitMemoryRun: vi.fn(),
 }));
 const closureMocks = vi.hoisted(() => ({
   createLearningClosure: vi.fn(),
@@ -29,13 +30,13 @@ const previewedRun = {
     writable: true,
     memory_mode: "confirm_write",
     safe_mode: false,
-    updates: [{ target: "progress", path: "progress.md", action: "append", allowed: true, preview: "remember" }]
+    updates: [{ target: "progress", path: "progress.md", action: "append", allowed: true, preview: "remember" }],
   },
   result: {},
   reason: "",
   version: 1,
   created_at: "now",
-  updated_at: "now"
+  updated_at: "now",
 };
 
 const previewSummary = {
@@ -81,33 +82,28 @@ describe("useMemoryController", () => {
     apiMocks.commitMemoryRun.mockResolvedValue({
       ...previewedRun,
       status: "succeeded",
-      result: { results: [{ target: "progress", action: "append", path: "progress.md" }], errors: [] }
+      result: { results: [{ target: "progress", action: "append", path: "progress.md" }], errors: [] },
     });
     const setActiveRunId = vi.fn();
-    let controller: ReturnType<typeof useMemoryController> | undefined;
 
-    function Harness() {
-      controller = useMemoryController({
+    const { result } = renderHook(() =>
+      useMemoryController({
         setActiveRunId,
         setActiveClosureRunId: vi.fn(),
-        onMemoryChanged: vi.fn()
-      });
-      return null;
-    }
+        onMemoryChanged: vi.fn(),
+      }),
+    );
 
+    act(() => result.current.updateDraft(result.current.drafts[0].id, "content", "remember"));
     await act(async () => {
-      create(<Harness />);
-    });
-    act(() => controller?.updateDraft(controller?.drafts[0].id, "content", "remember"));
-    await act(async () => {
-      await controller?.previewUpdates();
+      await result.current.previewUpdates();
     });
     await act(async () => {
-      await controller?.commitRun();
+      await result.current.commitRun();
     });
 
     expect(apiMocks.createMemoryRun).toHaveBeenCalledWith([
-      { target: "progress", content: "remember", append: true, learner_pending: false }
+      { target: "progress", content: "remember", append: true, learner_pending: false },
     ]);
     expect(apiMocks.commitMemoryRun).toHaveBeenCalledWith("memory_1");
     expect(setActiveRunId).toHaveBeenCalledWith("memory_1");
@@ -115,27 +111,22 @@ describe("useMemoryController", () => {
 
   it("restores the frozen payload by active run ID", async () => {
     apiMocks.loadMemoryRun.mockResolvedValue(previewedRun);
-    let controller: ReturnType<typeof useMemoryController> | undefined;
 
-    function Harness() {
-      controller = useMemoryController({
+    const { result } = renderHook(() =>
+      useMemoryController({
         activeRunId: "memory_1",
         setActiveRunId: vi.fn(),
-        setActiveClosureRunId: vi.fn()
-      });
-      return null;
-    }
+        setActiveClosureRunId: vi.fn(),
+      }),
+    );
 
-    await act(async () => {
-      create(<Harness />);
-    });
     await act(async () => {
       await Promise.resolve();
     });
 
     expect(apiMocks.loadMemoryRun).toHaveBeenCalledWith("memory_1");
-    expect(controller?.run?.updates_hash).toBe("hash");
-    expect(controller?.drafts[0].content).toBe("remember");
+    expect(result.current.run?.updates_hash).toBe("hash");
+    expect(result.current.drafts[0].content).toBe("remember");
   });
 
   it("restores and commits a closure through the closure owner", async () => {
@@ -165,29 +156,26 @@ describe("useMemoryController", () => {
     const setActiveRunId = vi.fn();
     const onMemoryChanged = vi.fn();
     const onSummaryChanged = vi.fn();
-    let controller: ReturnType<typeof useMemoryController> | undefined;
 
-    function Harness() {
-      controller = useMemoryController({
+    const { result } = renderHook(() =>
+      useMemoryController({
         activeClosureRunId: "closure_1",
         setActiveClosureRunId: vi.fn(),
         setActiveRunId,
         onMemoryChanged,
         onSummaryChanged,
-      });
-      return null;
-    }
+      }),
+    );
 
     await act(async () => {
-      create(<Harness />);
       await Promise.resolve();
     });
-    expect(controller?.isClosurePreview).toBe(true);
-    expect(controller?.drafts[0].content).toBe("remember");
+    expect(result.current.isClosurePreview).toBe(true);
+    expect(result.current.drafts[0].content).toBe("remember");
     expect(onSummaryChanged).toHaveBeenCalledWith(previewSummary);
 
     await act(async () => {
-      await controller?.commitRun();
+      await result.current.commitRun();
     });
 
     expect(closureMocks.commitLearningClosure).toHaveBeenCalledWith("closure_1");
