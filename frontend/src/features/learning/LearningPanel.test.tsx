@@ -1,5 +1,6 @@
-import React from "react";
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ChatResponse } from "../../types";
@@ -40,26 +41,21 @@ function learningResponse(): ChatResponse {
 
 describe("LearningPanel evidence summary", () => {
   it("shows committed evidence and trustworthy evaluation without a mastery estimate", () => {
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <LearningPanel
-          lastChat={learningResponse()}
-          visitedPhases={["orientation", "scaffold"]}
-          memoryStatus={null}
-        />
-      );
-    });
+    const { container } = render(
+      <LearningPanel
+        lastChat={learningResponse()}
+        visitedPhases={["orientation", "scaffold"]}
+        memoryStatus={null}
+      />
+    );
 
-    const serialized = JSON.stringify(renderer.toJSON());
-    expect(serialized).toContain("最近评估");
-    expect(serialized).toContain("待验证");
-    expect(serialized).toContain("已记录的学习证据");
-    expect(serialized).toContain("已确认知识点");
-    expect(serialized).toContain("已使用第 1 级提示");
-    expect(serialized).toContain("不换算为掌握度");
-    expect(serialized).not.toContain("mastery-ring");
-
-    act(() => renderer.unmount());
+    const text = container.textContent ?? "";
+    expect(text).toContain("最近评估");
+    expect(text).toContain("待验证");
+    expect(text).toContain("已记录的学习证据");
+    expect(text).toContain("已确认知识点");
+    expect(text).toContain("已使用第 1 级提示");
+    expect(text).toContain("不换算为掌握度");
+    expect(container.querySelector(".mastery-ring")).toBeNull();
   });
 });
