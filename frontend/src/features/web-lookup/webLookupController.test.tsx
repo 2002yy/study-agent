@@ -1,5 +1,6 @@
-import React from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { operationRegistry } from "../../app/operationRegistry";
@@ -50,33 +51,23 @@ describe("useWebLookupController", () => {
 
   it("creates a durable run before executing research", async () => {
     apiMocks.createResearchRun.mockResolvedValue(
-      runPayload({
-        status: "pending",
-        stage: "planned",
-        news_items: [],
-        source_block: "",
-      }),
+      runPayload({ status: "pending", stage: "planned", news_items: [], source_block: "" }),
     );
     apiMocks.executeResearchRun.mockResolvedValue(runPayload());
     const errors: string[] = [];
     const setActiveRunId = vi.fn();
-    let controller: ReturnType<typeof useWebLookupController> | undefined;
 
-    function Harness() {
-      controller = useWebLookupController({
+    const { result } = renderHook(() =>
+      useWebLookupController({
         query: "Python docs",
-        setOperationError: (message) => errors.push(message),
+        setOperationError: (message: string) => errors.push(message),
         activeRunId: undefined,
         setActiveRunId,
-      });
-      return null;
-    }
+      }),
+    );
 
     await act(async () => {
-      create(<Harness />);
-    });
-    await act(async () => {
-      await controller?.lookup();
+      await result.current.lookup();
     });
 
     expect(apiMocks.createResearchRun).toHaveBeenCalledWith(
@@ -88,43 +79,34 @@ describe("useWebLookupController", () => {
       "web_lookup_1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(controller?.result?.run_id).toBe("web_lookup_1");
-    expect(controller?.useInChat).toBe(true);
+    expect(result.current.result?.run_id).toBe("web_lookup_1");
+    expect(result.current.useInChat).toBe(true);
     expect(setActiveRunId).toHaveBeenCalledWith("web_lookup_1");
     expect(errors[errors.length - 1]).toBe("");
   });
 
   it("rehydrates and resumes a pending run instead of creating another", async () => {
     apiMocks.loadResearchRun.mockResolvedValue(
-      runPayload({
-        run_id: "web_lookup_saved",
-        query_text: "saved",
-        status: "pending",
-        stage: "planned",
-        news_items: [],
-      }),
+      runPayload({ run_id: "web_lookup_saved", query_text: "saved", status: "pending", stage: "planned", news_items: [] }),
     );
     apiMocks.resumeResearchRun.mockResolvedValue(
       runPayload({ run_id: "web_lookup_saved", query_text: "saved" }),
     );
-    let controller: ReturnType<typeof useWebLookupController> | undefined;
 
-    function Harness() {
-      controller = useWebLookupController({
+    const { result } = renderHook(() =>
+      useWebLookupController({
         query: "saved",
         setOperationError: vi.fn(),
         activeRunId: "web_lookup_saved",
         setActiveRunId: vi.fn(),
-      });
-      return null;
-    }
+      }),
+    );
 
     await act(async () => {
-      create(<Harness />);
       await Promise.resolve();
     });
     await act(async () => {
-      await controller?.lookup();
+      await result.current.lookup();
     });
 
     expect(apiMocks.loadResearchRun).toHaveBeenCalledWith("web_lookup_saved");
@@ -146,27 +128,22 @@ describe("useWebLookupController", () => {
         news_items: [],
       }),
     );
-    apiMocks.retryResearchRun.mockResolvedValue(
-      runPayload({ run_id: "web_lookup_failed" }),
-    );
-    let controller: ReturnType<typeof useWebLookupController> | undefined;
+    apiMocks.retryResearchRun.mockResolvedValue(runPayload({ run_id: "web_lookup_failed" }));
 
-    function Harness() {
-      controller = useWebLookupController({
+    const { result } = renderHook(() =>
+      useWebLookupController({
         query: "Python docs",
         setOperationError: vi.fn(),
         activeRunId: "web_lookup_failed",
         setActiveRunId: vi.fn(),
-      });
-      return null;
-    }
+      }),
+    );
 
     await act(async () => {
-      create(<Harness />);
       await Promise.resolve();
     });
     await act(async () => {
-      await controller?.lookup();
+      await result.current.lookup();
     });
 
     expect(apiMocks.retryResearchRun).toHaveBeenCalled();
@@ -175,42 +152,31 @@ describe("useWebLookupController", () => {
 
   it("sends server cancellation before invalidating the browser request", async () => {
     apiMocks.loadResearchRun.mockResolvedValue(
-      runPayload({
-        status: "running",
-        stage: "reading",
-        active_operation_id: "op_1",
-      }),
+      runPayload({ status: "running", stage: "reading", active_operation_id: "op_1" }),
     );
     apiMocks.cancelResearchRun.mockResolvedValue(
-      runPayload({
-        status: "cancelled",
-        stage: "cancelled",
-        provider_status: "partial",
-      }),
+      runPayload({ status: "cancelled", stage: "cancelled", provider_status: "partial" }),
     );
-    let controller: ReturnType<typeof useWebLookupController> | undefined;
 
-    function Harness() {
-      controller = useWebLookupController({
+    const { result } = renderHook(() =>
+      useWebLookupController({
         query: "Python docs",
         setOperationError: vi.fn(),
         activeRunId: "web_lookup_1",
         setActiveRunId: vi.fn(),
-      });
-      return null;
-    }
+      }),
+    );
 
     await act(async () => {
-      create(<Harness />);
       await Promise.resolve();
     });
     await act(async () => {
-      controller?.cancel();
+      result.current.cancel();
       await Promise.resolve();
     });
 
     expect(apiMocks.cancelResearchRun).toHaveBeenCalledWith("web_lookup_1");
-    expect(controller?.result?.status).toBe("cancelled");
-    expect(controller?.useInChat).toBe(false);
+    expect(result.current.result?.status).toBe("cancelled");
+    expect(result.current.useInChat).toBe(false);
   });
 });
