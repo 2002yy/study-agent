@@ -1,47 +1,44 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { EvidenceTrail } from "./EvidenceTrail";
 
 describe("EvidenceTrail", () => {
   it("keeps recovered ResearchRun provenance without exposing the id in the label", () => {
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <EvidenceTrail
-          evidence={{
-            rag: {
-              status: "found",
-              query: "recovered",
-              retrieval_mode: "hybrid",
-              reason: "",
-              context: "",
-              sources: "",
-              result_count: 0,
-              results: [],
-              debug: {},
-              attempts: [],
-              rewritten_query: "",
-              web_context: {
-                used: true,
-                run_id: "research-recovered-1",
-                source: "research_run",
-              },
+    const { container } = render(
+      <EvidenceTrail
+        evidence={{
+          rag: {
+            status: "found",
+            query: "recovered",
+            retrieval_mode: "hybrid",
+            reason: "",
+            context: "",
+            sources: "",
+            result_count: 0,
+            results: [],
+            debug: {},
+            attempts: [],
+            rewritten_query: "",
+            web_context: {
+              used: true,
+              run_id: "research-recovered-1",
+              source: "research_run",
             },
-          }}
-        />,
-      );
-    });
+          },
+        }}
+      />,
+    );
 
-    expect(JSON.stringify(renderer.toJSON())).toContain("恢复研究来源");
-    expect(JSON.stringify(renderer.toJSON())).not.toContain("research-recovered-1");
+    expect(container).toHaveTextContent("恢复研究来源");
+    expect(container).not.toHaveTextContent("research-recovered-1");
 
-    act(() => renderer.root.findByType("button").props.onClick());
+    fireEvent.click(screen.getByRole("button", { name: /证据轨迹/ }));
 
     expect(
-      renderer.root.findByProps({
-        "data-research-run-id": "research-recovered-1",
-      }),
+      container.querySelector('[data-research-run-id="research-recovered-1"]'),
     ).toBeTruthy();
   });
 });
