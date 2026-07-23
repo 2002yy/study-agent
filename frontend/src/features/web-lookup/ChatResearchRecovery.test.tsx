@@ -1,4 +1,6 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ChatResearchRecovery } from "./ChatResearchRecovery";
 import type { ResearchLookupResponse } from "./researchApi";
@@ -29,78 +31,67 @@ function run(status: ResearchLookupResponse["status"]): ResearchLookupResponse {
 
 describe("ChatResearchRecovery", () => {
   it("shows live progress from the chat preparation stream", () => {
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <ChatResearchRecovery
-          run={null}
-          progress={{
-            run_id: "research-chat-live",
-            status: "running",
-            stage: "reading",
-            provider_status: "",
-            stop_reason: "",
-            error: "",
-            query_attempt_count: 2,
-            selected_source_count: 1,
-            version: 3,
-          }}
-          isBusy={false}
-          canRetry={false}
-          canResume
-          useInChat={false}
-          onRetry={vi.fn()}
-          onResume={vi.fn()}
-        />
-      );
-    });
+    const { container } = render(
+      <ChatResearchRecovery
+        run={null}
+        progress={{
+          run_id: "research-chat-live",
+          status: "running",
+          stage: "reading",
+          provider_status: "",
+          stop_reason: "",
+          error: "",
+          query_attempt_count: 2,
+          selected_source_count: 1,
+          version: 3,
+        }}
+        isBusy={false}
+        canRetry={false}
+        canResume
+        useInChat={false}
+        onRetry={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
 
-    const rendered = JSON.stringify(renderer.toJSON());
-    expect(renderer.root.findByProps({ role: "status" })).toBeTruthy();
-    expect(renderer.root.findByProps({ className: "spin" })).toBeTruthy();
-    expect(rendered).toContain("2");
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(container.querySelector(".spin")).toBeTruthy();
+    expect(container.textContent ?? "").toContain("2");
   });
 
   it("offers a formal retry for a failed chat-owned ResearchRun", () => {
     const onRetry = vi.fn();
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <ChatResearchRecovery
-          run={run("failed")}
-          isBusy={false}
-          canRetry
-          canResume={false}
-          useInChat={false}
-          onRetry={onRetry}
-          onResume={vi.fn()}
-        />
-      );
-    });
+    const { container } = render(
+      <ChatResearchRecovery
+        run={run("failed")}
+        isBusy={false}
+        canRetry
+        canResume={false}
+        useInChat={false}
+        onRetry={onRetry}
+        onResume={vi.fn()}
+      />,
+    );
 
-    const button = renderer.root.findByType("button");
-    act(() => button.props.onClick());
+    fireEvent.click(screen.getByRole("button"));
 
-    expect(JSON.stringify(renderer.toJSON())).toContain("provider timeout");
+    expect(container.textContent ?? "").toContain("provider timeout");
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it("does not expose standalone research as chat recovery", () => {
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <ChatResearchRecovery
-          run={{ ...run("failed"), research_context: { run_kind: "standalone" } }}
-          isBusy={false}
-          canRetry
-          canResume={false}
-          useInChat={false}
-          onRetry={vi.fn()}
-          onResume={vi.fn()}
-        />
-      );
-    });
+    const { container } = render(
+      <ChatResearchRecovery
+        run={{ ...run("failed"), research_context: { run_kind: "standalone" } }}
+        isBusy={false}
+        canRetry
+        canResume={false}
+        useInChat={false}
+        onRetry={vi.fn()}
+        onResume={vi.fn()}
+      />,
+    );
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(container).toBeEmptyDOMElement();
   });
 });
