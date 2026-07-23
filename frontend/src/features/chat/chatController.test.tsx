@@ -1,5 +1,7 @@
-import React, { type Dispatch, type SetStateAction } from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
+import { type Dispatch, type SetStateAction } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { operationRegistry } from "../../app/operationRegistry";
@@ -42,42 +44,45 @@ function controllerHarness(
     runId: "",
     use: false,
   },
+  initialState?: Record<string, unknown>,
 ) {
-  let controller: ReturnType<typeof useChatController> | undefined;
   const onResearchRunDiscovered = vi.fn();
   const setUseWebLookup = setter<boolean>();
-  function Harness() {
-    controller = useChatController({
-      chatSettings,
-      chatSettingsDefaults: chatSettings,
-      setChatSettings: setter<ChatSettings>(),
-      ragSettings,
-      ragSettingsDefaults: ragSettings,
-      setRagSettings: setter<RagSettings>(),
-      ragEnabled: false,
-      setRagEnabled: setter<boolean>(),
-      keepCurrentRole: false,
-      setKeepCurrentRole: setter<boolean>(),
-      conversationInstruction: "",
-      setConversationInstruction: setter<string>(),
-      webLookupSource: recoveredResearch.source,
-      webLookupRunId: recoveredResearch.runId || undefined,
-      useWebLookup: recoveredResearch.use,
-      setUseWebLookup,
-      setInput: setter<string>(),
-      setOperationError: setter<string>(),
-      clearChatArtifacts: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      onResearchRunDiscovered,
-    });
-    return null;
-  }
-  return {
-    Harness,
-    getController: () => controller,
-    onResearchRunDiscovered,
-    setUseWebLookup,
-  };
+  const { result } = renderHook(
+    () =>
+      useChatController({
+        chatSettings,
+        chatSettingsDefaults: chatSettings,
+        setChatSettings: setter<ChatSettings>(),
+        ragSettings,
+        ragSettingsDefaults: ragSettings,
+        setRagSettings: setter<RagSettings>(),
+        ragEnabled: false,
+        setRagEnabled: setter<boolean>(),
+        keepCurrentRole: false,
+        setKeepCurrentRole: setter<boolean>(),
+        conversationInstruction: "",
+        setConversationInstruction: setter<string>(),
+        webLookupSource: recoveredResearch.source,
+        webLookupRunId: recoveredResearch.runId || undefined,
+        useWebLookup: recoveredResearch.use,
+        setUseWebLookup,
+        setInput: setter<string>(),
+        setOperationError: setter<string>(),
+        clearChatArtifacts: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        onResearchRunDiscovered,
+      }),
+    {
+      wrapper: ({ children }) =>
+        initialState ? (
+          <WorkspaceProvider initialState={initialState}>{children}</WorkspaceProvider>
+        ) : (
+          <WorkspaceProvider>{children}</WorkspaceProvider>
+        ),
+    },
+  );
+  return { result, onResearchRunDiscovered, setUseWebLookup };
 }
 
 describe("useChatController stop behavior", () => {
@@ -114,39 +119,35 @@ describe("useChatController stop behavior", () => {
           requestOptions.signal.addEventListener("abort", () => {
             reject(new DOMException("stopped", "AbortError"));
           });
-        })
+        }),
     );
 
-    const { Harness, getController, onResearchRunDiscovered } = controllerHarness();
-    await act(async () => {
-      create(
-        <WorkspaceProvider initialState={{ activeChatThreadId: "chat-stop" }}>
-          <Harness />
-        </WorkspaceProvider>
-      );
-    });
+    const { result, onResearchRunDiscovered } = controllerHarness(
+      { source: "", runId: "", use: false },
+      { activeChatThreadId: "chat-stop" },
+    );
 
     let sendPromise: Promise<void> | undefined;
     await act(async () => {
-      sendPromise = getController()!.send("question");
+      sendPromise = result.current.send("question");
       await Promise.resolve();
     });
-    expect(getController()!.isSending).toBe(true);
+    expect(result.current.isSending).toBe(true);
 
     await act(async () => {
-      getController()!.stop();
+      result.current.stop();
       await sendPromise;
     });
 
-    expect(getController()!.isSending).toBe(false);
-    expect(getController()!.streamRecovery).toEqual({
+    expect(result.current.isSending).toBe(false);
+    expect(result.current.streamRecovery).toEqual({
       question: "question",
       reply: "partial token",
       reason: "已停止生成",
       sessionId: "chat-stop",
       turnId: "turn-stop",
     });
-    const lastMessage = getController()!.messages[getController()!.messages.length - 1];
+    const lastMessage = result.current.messages[result.current.messages.length - 1];
     expect(lastMessage).toMatchObject({
       role: "assistant",
       transient: true,
@@ -161,13 +162,13 @@ describe("useChatController stop behavior", () => {
         agentReply: "partial token",
         turnId: "turn-stop",
         operationId: "op-stop",
-      })
+      }),
     );
     expect(apiMocks.cancelChatResearchRuns).toHaveBeenCalledWith("turn-stop");
     await vi.waitFor(() => {
       expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-rag");
       expect(onResearchRunDiscovered).toHaveBeenCalledWith("research-stop", true);
-      expect(getController()!.researchProgress).toBeNull();
+      expect(result.current.researchProgress).toBeNull();
     });
     expect(operationRegistry.size).toBe(0);
   });
@@ -211,21 +212,13 @@ describe("useChatController stop behavior", () => {
       },
     );
 
-    const { Harness, getController, setUseWebLookup } = controllerHarness({
-      source: "RECOVERED SOURCE BLOCK",
-      runId: "research-recovered-1",
-      use: true,
-    });
-    await act(async () => {
-      create(
-        <WorkspaceProvider initialState={{ activeChatThreadId: "chat-recovered" }}>
-          <Harness />
-        </WorkspaceProvider>,
-      );
-    });
+    const { result, setUseWebLookup } = controllerHarness(
+      { source: "RECOVERED SOURCE BLOCK", runId: "research-recovered-1", use: true },
+      { activeChatThreadId: "chat-recovered" },
+    );
 
     await act(async () => {
-      await getController()!.send("use the recovered evidence");
+      await result.current.send("use the recovered evidence");
     });
 
     expect(apiMocks.sendChatStream.mock.calls[0]?.[2]).toEqual(
@@ -235,11 +228,9 @@ describe("useChatController stop behavior", () => {
       }),
     );
     expect(setUseWebLookup).toHaveBeenCalledWith(false);
-    const messages = getController()!.messages;
+    const messages = result.current.messages;
     const assistant = messages[messages.length - 1];
-    expect(assistant?.evidence?.rag?.web_context?.run_id).toBe(
-      "research-recovered-1",
-    );
+    expect(assistant?.evidence?.rag?.web_context?.run_id).toBe("research-recovered-1");
   });
 
   it("restores committed learning state instead of interrupted attempted state", async () => {
@@ -248,19 +239,8 @@ describe("useChatController stop behavior", () => {
       kind: "active",
       path: "",
       messages: [
-        {
-          role: "user",
-          content: "继续",
-          turnId: "turn-interrupted",
-          turnStatus: "interrupted",
-        },
-        {
-          role: "assistant",
-          content: "partial",
-          avatarRole: "nahida",
-          turnId: "turn-interrupted",
-          turnStatus: "interrupted",
-        },
+        { role: "user", content: "继续", turnId: "turn-interrupted", turnStatus: "interrupted" },
+        { role: "assistant", content: "partial", avatarRole: "nahida", turnId: "turn-interrupted", turnStatus: "interrupted" },
       ],
       settings: {},
       route: {
@@ -279,12 +259,7 @@ describe("useChatController stop behavior", () => {
         unresolved_gap: "committed gap",
         hint_level: 0,
         turn_count: 2,
-        payload: {
-          pedagogy_evaluation: {
-            final_decision: "reject",
-            reasons: ["reasoning_incomplete"],
-          },
-        },
+        payload: { pedagogy_evaluation: { final_decision: "reject", reasons: ["reasoning_incomplete"] } },
       },
       summary: {},
       navigation: {},
@@ -292,41 +267,18 @@ describe("useChatController stop behavior", () => {
       latest_attempted_pedagogy: { phase: "complete" },
       conversation_instruction: "",
       turns: [
-        {
-          turn_id: "turn-completed",
-          status: "completed",
-          user_message: "explain",
-          assistant_message: "answer",
-          pedagogy_snapshot: {
-            committed_learning_state: { phase: "repair" },
-          },
-        },
-        {
-          turn_id: "turn-interrupted",
-          status: "interrupted",
-          user_message: "继续",
-          assistant_message: "partial",
-          pedagogy_snapshot: {
-            learning_state_after: { phase: "complete" },
-          },
-        },
+        { turn_id: "turn-completed", status: "completed", user_message: "explain", assistant_message: "answer", pedagogy_snapshot: { committed_learning_state: { phase: "repair" } } },
+        { turn_id: "turn-interrupted", status: "interrupted", user_message: "继续", assistant_message: "partial", pedagogy_snapshot: { learning_state_after: { phase: "complete" } } },
       ],
       raw: "",
     });
 
-    const { Harness, getController } = controllerHarness();
+    const { result } = controllerHarness();
     await act(async () => {
-      create(
-        <WorkspaceProvider>
-          <Harness />
-        </WorkspaceProvider>
-      );
-    });
-    await act(async () => {
-      await getController()!.restoreSession("chat-restore");
+      await result.current.restoreSession("chat-restore");
     });
 
-    const restoredLearningState = getController()!.lastChat?.route?.learning_state as
+    const restoredLearningState = result.current.lastChat?.route?.learning_state as
       | Record<string, unknown>
       | undefined;
     expect(restoredLearningState?.objective).toBe("committed objective");
