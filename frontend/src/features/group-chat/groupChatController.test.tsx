@@ -1,5 +1,6 @@
-import React from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { operationRegistry } from "../../app/operationRegistry";
@@ -47,62 +48,61 @@ describe("useGroupChatController", () => {
           requestOptions.signal.addEventListener("abort", () => {
             reject(new DOMException("stopped", "AbortError"));
           });
-        })
+        }),
     );
     const setWechat = vi.fn();
-    let controller: ReturnType<typeof useGroupChatController> | undefined;
 
-    function Harness() {
-      controller = useGroupChatController({
-        wechat: initialWechat,
-        setWechat,
-        chatSettings: {
-          selectedRole: "auto",
-          selectedMode: "auto",
-          selectedModel: "flash",
-          relationshipMode: "standard",
-          contextMode: "fast",
-        },
-        ragSettings: {
-          retrievalMode: "hybrid",
-          topK: 5,
-          chatTopK: 3,
-          minScore: 0,
-        },
-        ragEnabled: false,
-        clearAssociatedNews: vi.fn(),
-      });
-      return null;
-    }
+    const { result } = renderHook(
+      () =>
+        useGroupChatController({
+          wechat: initialWechat,
+          setWechat,
+          chatSettings: {
+            selectedRole: "auto",
+            selectedMode: "auto",
+            selectedModel: "flash",
+            relationshipMode: "standard",
+            contextMode: "fast",
+          },
+          ragSettings: {
+            retrievalMode: "hybrid",
+            topK: 5,
+            chatTopK: 3,
+            minScore: 0,
+          },
+          ragEnabled: false,
+          clearAssociatedNews: vi.fn(),
+        }),
+      {
+        wrapper: ({ children }) => (
+          <WorkspaceProvider initialState={{ activeGroupThreadId: "group-test" }}>
+            {children}
+          </WorkspaceProvider>
+        ),
+      },
+    );
 
-    await act(async () => {
-      create(
-        <WorkspaceProvider initialState={{ activeGroupThreadId: "group-test" }}>
-          <Harness />
-        </WorkspaceProvider>
-      );
-    });
-    await act(async () => controller!.setInput("question"));
+    await act(async () => result.current.setInput("question"));
 
     let sendPromise: Promise<void> | undefined;
     await act(async () => {
-      sendPromise = controller!.send({ preventDefault: vi.fn() } as never);
+      sendPromise = result.current.send({ preventDefault: vi.fn() } as never);
       await Promise.resolve();
     });
-    expect(controller!.isBusy).toBe(true);
+    expect(result.current.isBusy).toBe(true);
 
     await act(async () => {
-      controller!.stop();
+      result.current.stop();
       await sendPromise;
     });
 
-    expect(controller!.isBusy).toBe(false);
-    expect(controller!.error).toContain("已停止生成");
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.error).toContain("已停止生成");
     expect(apiMocks.sendWechatMessageStream).toHaveBeenCalledWith(
       "question",
       expect.objectContaining({ groupThreadId: "group-test" }),
       expect.any(Object),
-      expect.any(Object)
+      expect.any(Object),
     );
     expect(setWechat).toHaveBeenLastCalledWith(initialWechat);
     expect(operationRegistry.size).toBe(0);
