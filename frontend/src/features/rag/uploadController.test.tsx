@@ -1,5 +1,6 @@
-import React from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useUploadController } from "./uploadController";
@@ -51,45 +52,27 @@ describe("useUploadController", () => {
   it("owns upload state, durable run id, and learner-facing readiness", async () => {
     apiMocks.createRagWriteRun.mockResolvedValue(writeRun);
     const setActiveRunId = vi.fn();
-    let controller: ReturnType<typeof useUploadController> | undefined;
-    function Harness() {
-      controller = useUploadController({
-        setActiveRunId,
-        setOperationError: vi.fn(),
-        onChanged: vi.fn(),
-      });
-      return null;
-    }
+    const { result } = renderHook(() =>
+      useUploadController({ setActiveRunId, setOperationError: vi.fn(), onChanged: vi.fn() }),
+    );
     await act(async () => {
-      create(<Harness />);
-    });
-    await act(async () => {
-      await controller?.upload([new File(["doc"], "doc.md")]);
+      await result.current.upload([new File(["doc"], "doc.md")]);
     });
 
     expect(setActiveRunId).toHaveBeenCalledWith("rag_upload_1");
-    expect(controller?.flowPhase).toBe("ready");
-    expect(controller?.status).toBe("1 份资料已准备好");
-    expect(controller?.detail).toContain("索引版本 v3");
-    expect(controller?.documents?.documents[0].document_id).toBe("hash");
+    expect(result.current.flowPhase).toBe("ready");
+    expect(result.current.status).toBe("1 份资料已准备好");
+    expect(result.current.detail).toContain("索引版本 v3");
+    expect(result.current.documents?.documents[0].document_id).toBe("hash");
   });
 
   it("deletes a document and refreshes the server list", async () => {
     apiMocks.deleteKnowledgeDocument.mockResolvedValue({ deleted_document_id: "hash" });
-    let controller: ReturnType<typeof useUploadController> | undefined;
-    function Harness() {
-      controller = useUploadController({
-        setActiveRunId: vi.fn(),
-        setOperationError: vi.fn(),
-        onChanged: vi.fn(),
-      });
-      return null;
-    }
+    const { result } = renderHook(() =>
+      useUploadController({ setActiveRunId: vi.fn(), setOperationError: vi.fn(), onChanged: vi.fn() }),
+    );
     await act(async () => {
-      create(<Harness />);
-    });
-    await act(async () => {
-      await controller?.removeDocument("hash");
+      await result.current.removeDocument("hash");
     });
     expect(apiMocks.deleteKnowledgeDocument).toHaveBeenCalledWith("hash");
     expect(apiMocks.loadKnowledgeDocuments).toHaveBeenCalled();

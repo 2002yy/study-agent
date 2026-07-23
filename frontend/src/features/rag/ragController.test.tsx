@@ -1,12 +1,13 @@
-import React from "react";
-import { act, create } from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useRagController } from "./ragController";
 
 const apiMocks = vi.hoisted(() => ({
   createRagQueryRun: vi.fn(),
-  loadRagRun: vi.fn()
+  loadRagRun: vi.fn(),
 }));
 vi.mock("../../api", () => apiMocks);
 
@@ -21,7 +22,7 @@ const queryRun = {
   index_version: 2,
   version: 2,
   created_at: "now",
-  updated_at: "now"
+  updated_at: "now",
 };
 
 describe("useRagController", () => {
@@ -30,36 +31,30 @@ describe("useRagController", () => {
   it("owns query state and persists the server run id", async () => {
     apiMocks.createRagQueryRun.mockResolvedValue(queryRun);
     const setActiveRunId = vi.fn();
-    let controller: ReturnType<typeof useRagController> | undefined;
-    function Harness() {
-      controller = useRagController({
-        settings,
-        setActiveRunId,
-        setOperationError: vi.fn()
-      });
-      return null;
-    }
-    await act(async () => { create(<Harness />); });
-    await act(async () => { await controller?.search("alpha"); });
+    const { result } = renderHook(() =>
+      useRagController({ settings, setActiveRunId, setOperationError: vi.fn() }),
+    );
+    await act(async () => {
+      await result.current.search("alpha");
+    });
 
-    expect(controller?.result?.result_count).toBe(1);
+    expect(result.current.result?.result_count).toBe(1);
     expect(setActiveRunId).toHaveBeenCalledWith("rag_query_1");
   });
 
   it("restores query result after refresh", async () => {
     apiMocks.loadRagRun.mockResolvedValue(queryRun);
-    let controller: ReturnType<typeof useRagController> | undefined;
-    function Harness() {
-      controller = useRagController({
+    const { result } = renderHook(() =>
+      useRagController({
         settings,
         activeRunId: "rag_query_1",
         setActiveRunId: vi.fn(),
-        setOperationError: vi.fn()
-      });
-      return null;
-    }
-    await act(async () => { create(<Harness />); });
-    await act(async () => { await Promise.resolve(); });
-    expect(controller?.result?.query).toBe("alpha");
+        setOperationError: vi.fn(),
+      }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.result?.query).toBe("alpha");
   });
 });
