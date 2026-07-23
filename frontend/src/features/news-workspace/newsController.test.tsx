@@ -84,7 +84,7 @@ describe("useNewsController", () => {
         chatSettings,
         groupThreadId: "group-current",
         activeRunId,
-        setActiveRunId: (runId: string) => {
+        setActiveRunId: (runId?: string) => {
           setActiveRunId(runId);
           setActiveRunIdState(runId);
         },
