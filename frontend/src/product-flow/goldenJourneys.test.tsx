@@ -1,9 +1,10 @@
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+// jsdom does not implement Element.scrollIntoView; ChatPanel calls it on a ref.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatResponse } from "../types";
@@ -33,12 +34,6 @@ const baseRag: ChatResponse["rag"] = {
   rewritten_query: "",
 };
 
-function textContent(node: ReactTestInstance): string {
-  return node.children
-    .map((child) => (typeof child === "string" ? child : textContent(child)))
-    .join("");
-}
-
 function renderChatPanel({
   isSending = false,
   taskIntent = "quick_answer",
@@ -47,58 +42,54 @@ function renderChatPanel({
   isSending?: boolean;
   taskIntent?: string;
   learningStateEnabled?: boolean;
-} = {}): ReactTestRenderer {
-  let renderer!: ReactTestRenderer;
-  act(() => {
-    renderer = create(
-      <ChatPanel
-        messages={[]}
-        sessionId="journey-session"
-        sessionNavigation={null}
-        input=""
-        setInput={vi.fn()}
-        isSending={isSending}
-        onSubmit={vi.fn()}
-        onStop={vi.fn()}
-        streamRecovery={null}
-        onContinueInterruptedReply={vi.fn()}
-        onRetry={vi.fn()}
-        onAbandonInterruptedReply={vi.fn()}
-        onCopyInterruptedReply={vi.fn()}
-        onUploadClick={vi.fn()}
-        onSearchSources={vi.fn()}
-        isSearching={false}
-        hasSearchQuery={false}
-        onQuickPrompt={vi.fn()}
-        onStartNewTopic={vi.fn()}
-        lastChat={{
-          reply: "",
-          session_id: "journey-session",
-          route: {
-            task_contract: {
-              task_intent: taskIntent,
-              source_policy: "model_only",
-              closure_eligibility: learningStateEnabled ? "learning_summary" : "not_applicable",
-              learning_state_enabled: learningStateEnabled,
-            },
+} = {}) {
+  return render(
+    <ChatPanel
+      messages={[]}
+      sessionId="journey-session"
+      sessionNavigation={null}
+      input=""
+      setInput={vi.fn()}
+      isSending={isSending}
+      onSubmit={vi.fn()}
+      onStop={vi.fn()}
+      streamRecovery={null}
+      onContinueInterruptedReply={vi.fn()}
+      onRetry={vi.fn()}
+      onAbandonInterruptedReply={vi.fn()}
+      onCopyInterruptedReply={vi.fn()}
+      onUploadClick={vi.fn()}
+      onSearchSources={vi.fn()}
+      isSearching={false}
+      hasSearchQuery={false}
+      onQuickPrompt={vi.fn()}
+      onStartNewTopic={vi.fn()}
+      lastChat={{
+        reply: "",
+        session_id: "journey-session",
+        route: {
+          task_contract: {
+            task_intent: taskIntent,
+            source_policy: "model_only",
+            closure_eligibility: learningStateEnabled ? "learning_summary" : "not_applicable",
+            learning_state_enabled: learningStateEnabled,
           },
-          rag: baseRag,
-        }}
-        ragEnabled
-        memoryStatus={null}
-        onOpenDrawer={vi.fn()}
-        onEndSession={vi.fn()}
-        researchRun={null}
-        isResearchBusy={false}
-        canRetryResearch={false}
-        canResumeResearch={false}
-        useResearchInChat={false}
-        onRetryResearch={vi.fn()}
-        onResumeResearch={vi.fn()}
-      />,
-    );
-  });
-  return renderer;
+        },
+        rag: baseRag,
+      }}
+      ragEnabled
+      memoryStatus={null}
+      onOpenDrawer={vi.fn()}
+      onEndSession={vi.fn()}
+      researchRun={null}
+      isResearchBusy={false}
+      canRetryResearch={false}
+      canResumeResearch={false}
+      useResearchInChat={false}
+      onRetryResearch={vi.fn()}
+      onResumeResearch={vi.fn()}
+    />,
+  );
 }
 
 function learningResponse(): ChatResponse {
@@ -121,10 +112,7 @@ function learningResponse(): ChatResponse {
         turn_count: 4,
         payload: {
           next_action: "用自己的话解释一次依赖解析调用链",
-          pedagogy_evaluation: {
-            final_decision: "needs_more_evidence",
-            confidence: 0.8,
-          },
+          pedagogy_evaluation: { final_decision: "needs_more_evidence", confidence: 0.8 },
         },
       },
     },
@@ -165,18 +153,16 @@ function assertNoInternalTerms(rendered: string) {
 describe("Study Agent product-level Golden Journeys", () => {
   it("1. first answer requires no configuration decision before typing", () => {
     const budget = GOLDEN_JOURNEY_BUDGETS.first_answer;
-    const renderer = renderChatPanel();
-    const composer = renderer.root.findByProps({ className: "composer" });
-    const requiredSelectors = composer.findAllByType("select").length;
+    const { container } = renderChatPanel();
+    const composer = container.querySelector(".composer") as HTMLElement;
+    const requiredSelectors = composer.querySelectorAll("select").length;
     const productSurfaces = 1;
 
     expect(requiredSelectors).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
     expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
-    expect(composer.findByType("textarea")).toBeTruthy();
-    expect(textContent(composer)).toContain("发送");
-    assertNoInternalTerms(JSON.stringify(renderer.toJSON()));
-
-    act(() => renderer.unmount());
+    expect(composer.querySelector("textarea")).toBeTruthy();
+    expect(composer.textContent ?? "").toContain("发送");
+    assertNoInternalTerms(container.innerHTML);
   });
 
   it("2. returning system learning exposes objective, confirmed truth, gap, and next action", () => {
@@ -196,23 +182,20 @@ describe("Study Agent product-level Golden Journeys", () => {
       next_action: "完成一次边界迁移练习",
       has_completed_turns: true,
     };
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <RestoreCard
-          session={session}
-          streamRecovery={null}
-          onSelectEntry={vi.fn()}
-          onUpload={vi.fn()}
-          onContinueHere={vi.fn()}
-          onStartNewTopic={vi.fn()}
-          onContinueInterrupted={vi.fn()}
-          onRetryInterrupted={vi.fn()}
-          onAbandonInterrupted={vi.fn()}
-        />,
-      );
-    });
-    const rendered = JSON.stringify(renderer.toJSON());
+    const { container } = render(
+      <RestoreCard
+        session={session}
+        streamRecovery={null}
+        onSelectEntry={vi.fn()}
+        onUpload={vi.fn()}
+        onContinueHere={vi.fn()}
+        onStartNewTopic={vi.fn()}
+        onContinueInterrupted={vi.fn()}
+        onRetryInterrupted={vi.fn()}
+        onAbandonInterrupted={vi.fn()}
+      />,
+    );
+    const rendered = container.innerHTML;
     const requiredDecisionsBeforeResume = 1;
     const productSurfaces = 2;
 
@@ -224,28 +207,23 @@ describe("Study Agent product-level Golden Journeys", () => {
     expect(rendered).toContain("完成一次边界迁移练习");
     expect(rendered).toContain("继续这里");
     assertNoInternalTerms(rendered);
-
-    act(() => renderer.unmount());
   });
 
   it("3. uploaded material ends in an explicit learning choice without retrieval jargon", () => {
     const budget = GOLDEN_JOURNEY_BUDGETS.material_learning;
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <UploadLearningPrompt
-          phase="ready"
-          status="2 份资料已准备好"
-          detail="已处理 2 份资料"
-          uploadCount={2}
-          onStartLearning={vi.fn()}
-          onAskDirectly={vi.fn()}
-          onChooseAgain={vi.fn()}
-          onDismiss={vi.fn()}
-        />,
-      );
-    });
-    const rendered = JSON.stringify(renderer.toJSON());
+    const { container } = render(
+      <UploadLearningPrompt
+        phase="ready"
+        status="2 份资料已准备好"
+        detail="已处理 2 份资料"
+        uploadCount={2}
+        onStartLearning={vi.fn()}
+        onAskDirectly={vi.fn()}
+        onChooseAgain={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    const rendered = container.innerHTML;
     const requiredDecisionsBeforeStart = 1;
     const productSurfaces = 2;
 
@@ -257,53 +235,45 @@ describe("Study Agent product-level Golden Journeys", () => {
     expect(rendered).not.toContain("rebuild");
     expect(rendered).not.toContain("vector");
     assertNoInternalTerms(rendered);
-
-    act(() => renderer.unmount());
   });
 
   it("4. web research stays in chat, supports one-click stop and one-click recovery", () => {
     const budget = GOLDEN_JOURNEY_BUDGETS.web_research;
-    const chat = renderChatPanel({ isSending: true, taskIntent: "research" });
-    const stopButton = chat.root.findAllByType("button").find((button) =>
-      textContent(button).includes("停止"),
+    const { container: chatContainer } = renderChatPanel({ isSending: true, taskIntent: "research" });
+    const stopButton = Array.from(chatContainer.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("停止"),
     );
     expect(stopButton).toBeTruthy();
 
     const onRetry = vi.fn();
-    let recovery!: ReactTestRenderer;
-    act(() => {
-      recovery = create(
-        <ChatResearchRecovery
-          run={failedResearchRun()}
-          isBusy={false}
-          canRetry
-          canResume={false}
-          useInChat={false}
-          onRetry={onRetry}
-          onResume={vi.fn()}
-        />,
-      );
-    });
-    const recoveryButtons = recovery.root.findAllByType("button");
+    const { container: recoveryContainer } = render(
+      <ChatResearchRecovery
+        run={failedResearchRun()}
+        isBusy={false}
+        canRetry
+        canResume={false}
+        useInChat={false}
+        onRetry={onRetry}
+        onResume={vi.fn()}
+      />,
+    );
+    const recoveryButtons = Array.from(recoveryContainer.querySelectorAll("button"));
     const recoveryClicks = recoveryButtons.length;
     const productSurfaces = 1;
 
     expect(recoveryClicks).toBeLessThanOrEqual(budget.maxRecoveryClicks);
     expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
-    expect(JSON.stringify(recovery.toJSON())).toContain("重试研究");
-    act(() => recoveryButtons[0].props.onClick());
+    expect(recoveryContainer.innerHTML).toContain("重试研究");
+    fireEvent.click(recoveryButtons[0] as HTMLButtonElement);
     expect(onRetry).toHaveBeenCalledTimes(1);
-    assertNoInternalTerms(JSON.stringify(chat.toJSON()));
-
-    act(() => chat.unmount());
-    act(() => recovery.unmount());
+    assertNoInternalTerms(chatContainer.innerHTML);
   });
 
   it("5. source-code research remains a learning aid rather than a parallel GitHub workspace", () => {
     const budget = GOLDEN_JOURNEY_BUDGETS.source_code_learning;
-    const chat = renderChatPanel({ taskIntent: "learn", learningStateEnabled: true });
-    const menu = chat.root.findByProps({ className: "workspace-menu-popover" });
-    const menuText = textContent(menu);
+    const { container: chatContainer } = renderChatPanel({ taskIntent: "learn", learningStateEnabled: true });
+    const menu = chatContainer.querySelector(".workspace-menu-popover") as HTMLElement | null;
+    const menuText = menu?.textContent ?? "";
     const productSurfaces = 1;
     const requiredDecisionsBeforeStart = 0;
 
@@ -311,23 +281,13 @@ describe("Study Agent product-level Golden Journeys", () => {
     expect(requiredDecisionsBeforeStart).toBeLessThanOrEqual(budget.maxRequiredDecisionsBeforeStart);
     expect(productSurfaces).toBeLessThanOrEqual(budget.maxProductSurfaces);
 
-    let strip!: ReactTestRenderer;
-    act(() => {
-      strip = create(
-        <LearningStrip
-          lastChat={learningResponse()}
-          visitedPhases={["verify"]}
-          memoryStatus={null}
-        />,
-      );
-    });
-    const stripText = JSON.stringify(strip.toJSON());
+    const { container: stripContainer } = render(
+      <LearningStrip lastChat={learningResponse()} visitedPhases={["verify"]} memoryStatus={null} />,
+    );
+    const stripText = stripContainer.innerHTML;
     expect(stripText).toContain("通过 FastAPI 源码理解依赖注入调用链");
     expect(stripText).toContain("下一步：用自己的话解释一次依赖解析调用链");
     assertNoInternalTerms(stripText);
-
-    act(() => chat.unmount());
-    act(() => strip.unmount());
   });
 
   it("keeps all five journey budgets next-action explicit", () => {
