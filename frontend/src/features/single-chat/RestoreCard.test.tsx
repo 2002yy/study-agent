@@ -1,10 +1,6 @@
-import React from "react";
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from "react-test-renderer";
+// @vitest-environment jsdom
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, type RenderResult } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SemanticSessionRow } from "../sessions/sessionNavigation";
@@ -27,48 +23,38 @@ type RenderOptions = {
   onAbandonInterrupted?: () => Promise<void> | void;
 };
 
-function renderCard(options: RenderOptions = {}): ReactTestRenderer {
-  let renderer!: ReactTestRenderer;
-  act(() => {
-    renderer = create(
-      <RestoreCard
-        session={options.session ?? null}
-        streamRecovery={options.streamRecovery ?? null}
-        onSelectEntry={options.onSelectEntry ?? (() => undefined)}
-        onUpload={() => undefined}
-        onContinueHere={options.onContinueHere ?? (() => undefined)}
-        onStartNewTopic={() => undefined}
-        onContinueInterrupted={options.onContinueInterrupted ?? (() => undefined)}
-        onRetryInterrupted={options.onRetryInterrupted ?? (() => undefined)}
-        onAbandonInterrupted={options.onAbandonInterrupted ?? (() => undefined)}
-      />
-    );
-  });
-  return renderer;
-}
-
-function textContent(node: ReactTestInstance): string {
-  return node.children
-    .map((child) => (typeof child === "string" ? child : textContent(child)))
-    .join("");
+function renderCard(options: RenderOptions = {}): RenderResult {
+  return render(
+    <RestoreCard
+      session={options.session ?? null}
+      streamRecovery={options.streamRecovery ?? null}
+      onSelectEntry={options.onSelectEntry ?? (() => undefined)}
+      onUpload={() => undefined}
+      onContinueHere={options.onContinueHere ?? (() => undefined)}
+      onStartNewTopic={() => undefined}
+      onContinueInterrupted={options.onContinueInterrupted ?? (() => undefined)}
+      onRetryInterrupted={options.onRetryInterrupted ?? (() => undefined)}
+      onAbandonInterrupted={options.onAbandonInterrupted ?? (() => undefined)}
+    />,
+  );
 }
 
 describe("RestoreCard", () => {
   it("shows five explicit entry points for a new session", () => {
     const onSelectEntry = vi.fn<(intent: TaskIntent, prompt: string) => void>();
-    const renderer = renderCard({ onSelectEntry });
-    const serialized = JSON.stringify(renderer.toJSON());
+    const { container } = renderCard({ onSelectEntry });
+    const text = container.textContent ?? "";
 
-    expect(serialized).toContain("快速问答");
-    expect(serialized).toContain("系统学习");
-    expect(serialized).toContain("联网研究");
-    expect(serialized).toContain("项目推进");
-    expect(serialized).toContain("上传资料");
+    expect(text).toContain("快速问答");
+    expect(text).toContain("系统学习");
+    expect(text).toContain("联网研究");
+    expect(text).toContain("项目推进");
+    expect(text).toContain("上传资料");
 
-    const learningButton = renderer.root.findAllByType("button").find((button) =>
-      textContent(button).includes("系统学习")
-    );
-    act(() => learningButton?.props.onClick());
+    const learningButton = screen
+      .getAllByRole("button")
+      .find((button) => (button.textContent ?? "").includes("系统学习"));
+    fireEvent.click(learningButton as HTMLButtonElement);
     expect(onSelectEntry).toHaveBeenCalledWith("learn", "我想系统学习：");
   });
 
@@ -94,21 +80,21 @@ describe("RestoreCard", () => {
         can_summarize: true,
       },
     };
-    const renderer = renderCard({ session, onContinueHere });
-    const serialized = JSON.stringify(renderer.toJSON());
+    const { container } = renderCard({ session, onContinueHere });
+    const text = container.textContent ?? "";
 
-    expect(serialized).toContain("理解二分查找复杂度");
-    expect(serialized).toContain("区间每轮减半");
-    expect(serialized).toContain("边界条件");
-    expect(serialized).toContain("完成一次边界迁移练习");
-    expect(serialized).toContain("有新增内容");
+    expect(text).toContain("理解二分查找复杂度");
+    expect(text).toContain("区间每轮减半");
+    expect(text).toContain("边界条件");
+    expect(text).toContain("完成一次边界迁移练习");
+    expect(text).toContain("有新增内容");
 
-    const continueButton = renderer.root.findAllByType("button").find((button) =>
-      textContent(button).includes("继续这里")
-    );
-    act(() => continueButton?.props.onClick());
+    const continueButton = screen
+      .getAllByRole("button")
+      .find((button) => (button.textContent ?? "").includes("继续这里"));
+    fireEvent.click(continueButton as HTMLButtonElement);
     expect(onContinueHere).toHaveBeenCalledWith(
-      "继续当前任务，下一步是：完成一次边界迁移练习"
+      "继续当前任务，下一步是：完成一次边界迁移练习",
     );
   });
 
@@ -128,18 +114,19 @@ describe("RestoreCard", () => {
       ],
       has_completed_turns: true,
     };
-    const serialized = JSON.stringify(renderCard({ session }).toJSON());
+    const { container } = renderCard({ session });
+    const text = container.textContent ?? "";
 
-    expect(serialized).toContain("已披露来源");
-    expect(serialized).toContain("Python 官方发布说明");
-    expect(serialized).not.toContain("已确认点");
+    expect(text).toContain("已披露来源");
+    expect(text).toContain("Python 官方发布说明");
+    expect(text).not.toContain("已确认点");
   });
 
   it("prioritizes interrupted recovery actions over normal session restore", () => {
     const onContinueInterrupted = vi.fn<() => void>();
     const onRetryInterrupted = vi.fn<() => void>();
     const onAbandonInterrupted = vi.fn<() => void>();
-    const renderer = renderCard({
+    const { container } = renderCard({
       session: {
         session_id: "session-1",
         kind: "current",
@@ -161,15 +148,15 @@ describe("RestoreCard", () => {
       onRetryInterrupted,
       onAbandonInterrupted,
     });
-    const buttons = renderer.root.findAllByType("button");
+    const buttons = screen.getAllByRole("button");
 
-    act(() => buttons.find((button) => textContent(button).includes("从断点继续"))?.props.onClick());
-    act(() => buttons.find((button) => textContent(button).includes("重新生成"))?.props.onClick());
-    act(() => buttons.find((button) => textContent(button).includes("放弃恢复"))?.props.onClick());
+    fireEvent.click(buttons.find((button) => (button.textContent ?? "").includes("从断点继续")) as HTMLButtonElement);
+    fireEvent.click(buttons.find((button) => (button.textContent ?? "").includes("重新生成")) as HTMLButtonElement);
+    fireEvent.click(buttons.find((button) => (button.textContent ?? "").includes("放弃恢复")) as HTMLButtonElement);
 
     expect(onContinueInterrupted).toHaveBeenCalledTimes(1);
     expect(onRetryInterrupted).toHaveBeenCalledTimes(1);
     expect(onAbandonInterrupted).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(renderer.toJSON())).not.toContain("已有会话");
+    expect(container.textContent ?? "").not.toContain("已有会话");
   });
 });
