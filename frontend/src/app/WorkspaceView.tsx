@@ -34,7 +34,7 @@ export function WorkspaceView({
 }: {
   snapshot: ApiSnapshot;
   refresh: () => Promise<void>;
-  fileInputRef: RefObject<HTMLInputElement>;
+  fileInputRef: RefObject<HTMLInputElement | null>;
   ui: {
     input: string;
     setInput: Dispatch<SetStateAction<string>>;
