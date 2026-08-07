@@ -39,14 +39,7 @@ def match_line_range(
     chunk_end_line: int,
     query: str,
 ) -> tuple[int, int]:
-    """Locate the strongest deterministic query-bearing line inside a chunk.
-
-    Search chunks are intentionally wider than a symbol.  Returning the whole
-    chunk as source evidence can therefore make every definition in the chunk
-    look relevant.  This function narrows the evidence to the best matching
-    line without model inference.  If there is no lexical match it preserves
-    the original chunk range as a conservative fallback.
-    """
+    """Locate the strongest deterministic query-bearing line inside a chunk."""
 
     lines = str(text or "").splitlines()
     query_tokens = set(_tokens(query))
@@ -63,8 +56,6 @@ def match_line_range(
         if not exact and overlap <= 0:
             continue
         coverage = int(1000 * overlap / max(1, len(query_tokens)))
-        # Prefer exact phrase, then token coverage, then fewer unrelated tokens,
-        # then the earliest stable line.
         rank = (exact, coverage, -len(line_tokens - query_tokens), -offset)
         if best is None or rank > best:
             best = rank
@@ -106,12 +97,21 @@ def primary_symbol_for_range(
     return min(candidates, key=rank)
 
 
+def _ci_record(raw: dict[str, Any], *, kind: str) -> dict[str, str]:
+    return {
+        "kind": kind,
+        "name": str(raw.get("name") or raw.get("display_title") or ""),
+        "status": str(raw.get("status") or ""),
+        "conclusion": str(raw.get("conclusion") or ""),
+        "details_url": str(raw.get("details_url") or raw.get("url") or ""),
+    }
+
+
 def summarize_commit_ci(payload: dict[str, Any], *, commit_sha: str) -> dict[str, Any]:
     """Project Provider CI data into a small exact-SHA source-evidence summary.
 
-    CI is supporting evidence only.  Provider failures and missing checks are
-    explicit ``unavailable`` states and never invalidate otherwise valid source
-    evidence.
+    CI is supporting evidence only. Provider failures and missing checks/runs are
+    explicit ``unavailable`` states and never invalidate valid source evidence.
     """
 
     requested_sha = str(commit_sha or "").strip().lower()
@@ -130,23 +130,28 @@ def summarize_commit_ci(payload: dict[str, Any], *, commit_sha: str) -> dict[str
         return {
             **base,
             "error": str(payload.get("error") or "ci_provider_unavailable"),
-            "provider_status": str(payload.get("provider_status") or payload.get("status") or "unavailable"),
+            "provider_status": str(
+                payload.get("provider_status")
+                or payload.get("status")
+                or "unavailable"
+            ),
         }
 
     normalized: list[dict[str, str]] = []
     for raw in payload.get("check_runs", []):
+        if isinstance(raw, dict):
+            normalized.append(_ci_record(raw, kind="check_run"))
+    for raw in payload.get("workflow_runs", []):
         if not isinstance(raw, dict):
             continue
-        normalized.append(
-            {
-                "name": str(raw.get("name") or ""),
-                "status": str(raw.get("status") or ""),
-                "conclusion": str(raw.get("conclusion") or ""),
-                "details_url": str(raw.get("details_url") or ""),
-            }
-        )
+        head_sha = str(raw.get("head_sha") or "").strip().lower()
+        if head_sha and head_sha != requested_sha:
+            continue
+        normalized.append(_ci_record(raw, kind="workflow_run"))
+
     normalized.sort(
         key=lambda item: (
+            item["kind"],
             item["name"].casefold(),
             item["details_url"],
             item["status"],
@@ -156,17 +161,19 @@ def summarize_commit_ci(payload: dict[str, Any], *, commit_sha: str) -> dict[str
     if not normalized:
         return {
             **base,
-            "error": "no_check_runs",
+            "error": "no_ci_runs",
             "provider_status": str(payload.get("provider_status") or "complete"),
         }
 
-    statuses = {item["status"].casefold() for item in normalized}
-    conclusions = {item["conclusion"].casefold() for item in normalized if item["conclusion"]}
-    if any(status != "completed" for status in statuses) or not conclusions:
+    statuses = [item["status"].casefold() for item in normalized]
+    conclusions = [item["conclusion"].casefold() for item in normalized]
+    if any(status != "completed" for status in statuses) or any(
+        not conclusion for conclusion in conclusions
+    ):
         overall = "pending"
-    elif conclusions & _FAILURE_CONCLUSIONS:
+    elif any(conclusion in _FAILURE_CONCLUSIONS for conclusion in conclusions):
         overall = "failure"
-    elif conclusions <= _SUCCESS_CONCLUSIONS:
+    elif all(conclusion in _SUCCESS_CONCLUSIONS for conclusion in conclusions):
         overall = "success"
     else:
         overall = "unknown"
