@@ -65,7 +65,9 @@ def test_ci_summary_requires_exact_commit_sha():
         {
             "ok": True,
             "commit_sha": "b" * 40,
-            "check_runs": [{"name": "tests", "status": "completed", "conclusion": "success"}],
+            "check_runs": [
+                {"name": "tests", "status": "completed", "conclusion": "success"}
+            ],
         },
         commit_sha=COMMIT_SHA,
     )
@@ -83,8 +85,18 @@ def test_ci_summary_normalizes_success_failure_and_pending():
             "commit_sha": COMMIT_SHA,
             "provider_status": "complete",
             "check_runs": [
-                {"name": "lint", "status": "completed", "conclusion": "success", "details_url": "https://example/lint"},
-                {"name": "tests", "status": "completed", "conclusion": "success", "details_url": "https://example/tests"},
+                {
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "details_url": "https://example/lint",
+                },
+                {
+                    "name": "tests",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "details_url": "https://example/tests",
+                },
             ],
         },
         commit_sha=COMMIT_SHA,
@@ -117,7 +129,44 @@ def test_ci_summary_normalizes_success_failure_and_pending():
     assert pending["overall_status"] == "pending"
 
 
-def test_ci_summary_degrades_cleanly_for_provider_failure_and_no_checks():
+def test_ci_summary_uses_exact_sha_workflow_run_when_checks_are_absent():
+    result = summarize_commit_ci(
+        {
+            "ok": True,
+            "commit_sha": COMMIT_SHA,
+            "workflow_runs": [
+                {
+                    "name": "CI",
+                    "head_sha": COMMIT_SHA,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://example/workflow",
+                },
+                {
+                    "name": "wrong-sha",
+                    "head_sha": "b" * 40,
+                    "status": "completed",
+                    "conclusion": "failure",
+                },
+            ],
+        },
+        commit_sha=COMMIT_SHA,
+    )
+
+    assert result["association"] == "verified_exact_sha"
+    assert result["overall_status"] == "success"
+    assert result["checks"] == [
+        {
+            "kind": "workflow_run",
+            "name": "CI",
+            "status": "completed",
+            "conclusion": "success",
+            "details_url": "https://example/workflow",
+        }
+    ]
+
+
+def test_ci_summary_degrades_cleanly_for_provider_failure_and_no_runs():
     unavailable = summarize_commit_ci(
         {"ok": False, "status": "unavailable", "error": "github_http_403"},
         commit_sha=COMMIT_SHA,
@@ -130,4 +179,4 @@ def test_ci_summary_degrades_cleanly_for_provider_failure_and_no_checks():
     assert unavailable["association"] == "unavailable"
     assert unavailable["error"] == "github_http_403"
     assert empty["association"] == "unavailable"
-    assert empty["error"] == "no_check_runs"
+    assert empty["error"] == "no_ci_runs"
