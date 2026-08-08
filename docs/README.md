@@ -34,6 +34,14 @@
 - 不承担当前进度维护；
 - 实现变化时可修订规范，但不得把 spec 当状态看板。
 
+当前产品设计上位约束：
+
+- [`../superpowers/specs/2026-08-07-product-design-direction-design.md`](../superpowers/specs/2026-08-07-product-design-direction-design.md)：Study Agent 学习产品定位、Learning Task、动态路线、掌握证据、角色/教学策略分离、群聊与主动性边界。
+- [`../superpowers/specs/2026-08-08-offline-group-event-model-design.md`](../superpowers/specs/2026-08-08-offline-group-event-model-design.md)：事件驱动的延迟群聊、Learning/Relationship Event、Activity/Message 分离、未读真实性与 Group Orchestrator 边界。
+- [`../superpowers/specs/2026-08-08-learning-event-ledger-authority-design.md`](../superpowers/specs/2026-08-08-learning-event-ledger-authority-design.md)：Event 生命周期、History/Active Set、Delivery/Attention Policy、Event Authority、Observation/Assessment/Evidence/Trusted Event 分层，以及规则/LLM 的事实写入边界。
+- [`../superpowers/specs/2026-08-08-learning-evidence-objective-design.md`](../superpowers/specs/2026-08-08-learning-evidence-objective-design.md)：系统级 Learning Evidence System、Evidence 五要素、Objective、Provenance、冲突证据与 Verification Contract 边界。
+- [`../superpowers/specs/2026-08-08-verification-mastery-authority-design.md`](../superpowers/specs/2026-08-08-verification-mastery-authority-design.md)：能力验证规则、独立/提示程度、新场景应用证据、重复与延迟验证、`needs_review` 语义，以及 mastery 单一 Owner 与各系统写权限。
+
 ## 5. 实施计划与历史记录
 
 目录：`superpowers/plans/`
