@@ -6,9 +6,15 @@ import os
 import re
 from typing import Any
 
+from src.application.github_source_evidence import (
+    match_line_range,
+    primary_symbol_for_range,
+    summarize_commit_ci,
+)
 from src.repositories.github_snapshot_repository import GitHubSnapshotRepository
 from src.web.evidence_pinning import pin_evidence_refs
 from src.web.github_code_index import GitHubCodeIndex
+from src.web.github_paginated_checks import PaginatedGitHubChecksService
 from src.web.github_reader import parse_github_url
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.github_structure import RepositoryStructureIndex, evidence_for_range
@@ -88,9 +94,15 @@ class GitHubSnapshotService:
         self,
         repository: GitHubSnapshotRepository,
         snapshotter: GitHubRepositorySnapshotter | None = None,
+        checks_service: PaginatedGitHubChecksService | None = None,
     ) -> None:
         self.repository = repository
         self.snapshotter = snapshotter or GitHubRepositorySnapshotter()
+        self.checks_service = checks_service
+        # A custom snapshotter normally means an offline/test/provider-adapter
+        # context. Do not silently add live Provider calls there unless a checks
+        # service is explicitly injected or the caller asks for CI.
+        self._auto_include_ci = snapshotter is None
         self._indexes: dict[str, GitHubCodeIndex] = {}
         self._structure_indexes: dict[str, RepositoryStructureIndex] = {}
 
@@ -209,6 +221,41 @@ class GitHubSnapshotService:
             self._structure_indexes[key] = index
         return index
 
+    def _commit_ci(
+        self,
+        repo_url: str,
+        snapshot: dict[str, Any],
+        *,
+        include_ci: bool | None,
+    ) -> dict[str, Any]:
+        commit_sha = str(snapshot.get("commit_sha") or "")
+        should_include = self._auto_include_ci if include_ci is None else bool(include_ci)
+        if not should_include:
+            return {
+                "commit_sha": commit_sha.lower(),
+                "association": "not_requested",
+                "overall_status": "unknown",
+                "checks": [],
+            }
+        service = self.checks_service or PaginatedGitHubChecksService()
+        try:
+            payload = service.checks(
+                repo_url,
+                ref=commit_sha,
+                max_runs=20,
+                max_checks=100,
+                max_jobs=1,
+                include_jobs=False,
+            )
+        except Exception as exc:
+            payload = {
+                "ok": False,
+                "status": "unavailable",
+                "commit_sha": commit_sha,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        return summarize_commit_ci(payload, commit_sha=commit_sha)
+
     def search_repository(
         self,
         repo_url: str,
@@ -216,6 +263,7 @@ class GitHubSnapshotService:
         *,
         ref: str = "",
         top_k: int = 12,
+        include_ci: bool | None = None,
     ) -> dict[str, Any]:
         focused_query = _focused(query)
         if not focused_query:
@@ -245,35 +293,60 @@ class GitHubSnapshotService:
                 continue
             result = dict(raw)
             path = str(result.get("path") or "")
-            start_line = int(result.get("start_line") or 1)
-            end_line = int(result.get("end_line") or start_line)
+            chunk_start_line = int(result.get("start_line") or 1)
+            chunk_end_line = int(result.get("end_line") or chunk_start_line)
+            match_start_line, match_end_line = match_line_range(
+                text=str(result.get("text") or ""),
+                chunk_start_line=chunk_start_line,
+                chunk_end_line=chunk_end_line,
+                query=focused_query,
+            )
             structured_file = structure.files.get(path)
             definitions = []
             imports = []
+            primary_symbol = None
             if structured_file is not None:
                 definitions = [
                     symbol.to_dict()
                     for symbol in structured_file.symbols
-                    if symbol.evidence.start_line <= end_line
-                    and symbol.evidence.end_line >= start_line
+                    if symbol.evidence.start_line <= chunk_end_line
+                    and symbol.evidence.end_line >= chunk_start_line
                 ]
                 imports = [
                     edge.to_dict()
                     for edge in structured_file.imports
-                    if start_line <= edge.evidence.start_line <= end_line
+                    if chunk_start_line <= edge.evidence.start_line <= chunk_end_line
                 ]
-            result["evidence_ref"] = evidence_for_range(
+                primary_symbol = primary_symbol_for_range(
+                    structured_file.symbols,
+                    start_line=match_start_line,
+                    end_line=match_end_line,
+                )
+            evidence_ref = evidence_for_range(
                 snapshot,
                 path=path,
                 file_sha=str(result.get("sha") or ""),
-                start_line=start_line,
-                end_line=end_line,
+                start_line=match_start_line,
+                end_line=match_end_line,
+                symbol=(
+                    str(primary_symbol.qualified_name)
+                    if primary_symbol is not None
+                    else ""
+                ),
                 kind="search_result",
+            )
+            if primary_symbol is not None:
+                evidence_ref["symbol_kind"] = str(primary_symbol.kind)
+            result["evidence_ref"] = evidence_ref
+            result["match_line_range"] = f"L{match_start_line}-L{match_end_line}"
+            result["primary_symbol"] = (
+                primary_symbol.to_dict() if primary_symbol is not None else None
             )
             result["definitions"] = definitions
             result["imports"] = imports
             enriched_results.append(pin_evidence_refs(result, snapshot))
         searched = {**searched, "results": enriched_results}
+        ci = self._commit_ci(repo_url, snapshot, include_ci=include_ci)
         return {
             "ok": True,
             "mode": "local_snapshot_hybrid_structured",
@@ -286,6 +359,7 @@ class GitHubSnapshotService:
             "cache_hit": bool(snapshot.get("cache_hit")),
             "cache_mode": str(snapshot.get("cache_mode") or ""),
             "structure": structure.stats(),
+            "ci_association": ci,
             **searched,
         }
 
