@@ -110,26 +110,32 @@ class _StructuredClient:
         system = str(kwargs["messages"][0]["content"])
         request = loads(str(kwargs["messages"][1]["content"]))
         if "claim planner" in system:
-            claims = [
-                {
-                    "surface": "The verified release date is current",
-                    "kind": "factual",
-                    "priority": "critical",
-                    "policy_profile": "current_fact",
-                }
-            ]
+            question = str(request["question"])
+            supporting_claims: list[dict[str, str]] = []
             if self.claims_count > 1:
-                claims.append(
+                critical_anchor = "verified current release date"
+                supporting_anchor = "current release date"
+                if critical_anchor not in question or supporting_anchor not in question:
+                    raise AssertionError(
+                        "multi-claim fixture requires two distinct question anchors"
+                    )
+                supporting_claims.append(
                     {
-                        "surface": "The release announcement is published by the official project",
+                        "question_anchor": supporting_anchor,
                         "kind": "factual",
-                        "priority": "major",
                         "policy_profile": "current_fact",
                     }
                 )
+            else:
+                critical_anchor = question if len(question) <= 160 else question[:160].rstrip()
             payload = {
                 "schema_version": "research-runtime-claim-plan-v1",
-                "claims": claims,
+                "critical_claim": {
+                    "question_anchor": critical_anchor,
+                    "kind": "factual",
+                    "policy_profile": "current_fact",
+                },
+                "supporting_claims": supporting_claims,
             }
         elif "search candidates" in system:
             payload = {
@@ -155,7 +161,7 @@ class _StructuredClient:
             # (the strict parser rejects anchors absent from the excerpt), and
             # the fake output must be deterministic per claim input.
             claim_text = str(request["claim_text"])
-            if "official project" in claim_text:
+            if claim_text == "current release date":
                 locator = "2026-08-01"
                 anchored_spans = ["2026-08-01"]
             else:
@@ -1145,7 +1151,7 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
     anchors = {}
     for claim in state.claims:
         row = rows_by_claim[claim.id]
-        if "official project" in claim.text:
+        if claim.text == "current release date":
             assert row["locator"] == "2026-08-01"
             assert row["anchored_spans"] == ["2026-08-01"]
             anchors[claim.id] = (row["locator"], tuple(row["anchored_spans"]))

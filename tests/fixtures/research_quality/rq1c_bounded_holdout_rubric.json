@@ -1,0 +1,34 @@
+{
+  "schema_version": "rq1c-bounded-holdout-rubric-v1",
+  "gate": {
+    "minimum_cases": 12,
+    "truthfulness_required": 12,
+    "quality_required": 10,
+    "hard_failures_allowed": 0,
+    "max_candidates": 20,
+    "max_reads": 8,
+    "max_model_calls": 6,
+    "soft_timeout_seconds": 45,
+    "hard_timeout_seconds": 60
+  },
+  "cases": [
+    {"id":"rq1c-current-policy-container-registry","required_source_roles":["primary"],"critical_surfaces":["unauthenticated limit","authenticated Personal limit","current policy scope"],"quality_checks":["answers both requested limits","distinguishes authentication/account tier","uses current official documentation"],"hard_fail_conditions":["secondary_only_for_current_policy","snippet_only_evidence","unsupported_numeric_claim"]},
+    {"id":"rq1c-current-support-postgresql","required_source_roles":["primary"],"critical_surfaces":["currently supported majors","oldest supported major","EOL date"],"quality_checks":["lists the current supported set","identifies the oldest supported major","binds the EOL date to official lifecycle evidence"],"hard_fail_conditions":["stale_support_matrix","snippet_only_evidence","unsupported_date_claim"]},
+    {"id":"rq1c-numeric-uk-bank-rate","required_source_roles":["primary"],"critical_surfaces":["Bank Rate","most recent MPC decision","decision date"],"quality_checks":["states the rate and date together","uses the most recent official MPC decision","does not substitute forecast or market expectation"],"hard_fail_conditions":["secondary_only_for_numeric_claim","stale_release","unsupported_numeric_claim"]},
+    {"id":"rq1c-numeric-uk-inflation","required_source_roles":["primary"],"critical_surfaces":["CPI 12-month rate","latest ONS release","covered period"],"quality_checks":["states exact rate","states covered period","uses latest official ONS release"],"hard_fail_conditions":["secondary_only_for_numeric_claim","stale_release","unsupported_numeric_claim"]},
+    {"id":"rq1c-simple-license-uv","required_source_roles":["primary"],"critical_surfaces":["uv license","official repository"],"quality_checks":["gives one unambiguous license answer","binds it to official repository evidence"],"hard_fail_conditions":["snippet_only_evidence","unsupported_license_claim"]},
+    {"id":"rq1c-academic-primary-attention","required_source_roles":["primary"],"critical_surfaces":["optimizer","learning-rate schedule","original paper"],"quality_checks":["identifies the optimizer","describes the schedule sufficiently to distinguish warmup and decay","uses the original paper rather than derivative tutorial claims"],"hard_fail_conditions":["secondary_only_for_paper_method","snippet_only_evidence","fabricated_hyperparameter"]},
+    {"id":"rq1c-provenance-xz","required_source_roles":["primary","independent_secondary"],"critical_surfaces":["original disclosure evidence","secondary reports","republication/provenance distinction"],"quality_checks":["identifies at least one primary/original disclosure source","does not count copied reports as independent primary evidence","explains provenance distinction"],"hard_fail_conditions":["repost_counted_as_independent","summary_masquerades_as_primary","unsupported_provenance_claim"]},
+    {"id":"rq1c-conflict-python-gil","required_source_roles":["primary","authoritative_secondary"],"critical_surfaces":["latest stable status","free-threaded Python","older experimental wording"],"quality_checks":["anchors current status to latest stable documentation","dates or contextualizes older statements","preserves any remaining caveats"],"hard_fail_conditions":["stale_statement_presented_as_current","conflict_unresolved","snippet_only_evidence"]},
+    {"id":"rq1c-community-rust-async","required_source_roles":["community","primary"],"critical_surfaces":["recurring benefits","recurring pain points","community versus official guarantee"],"quality_checks":["uses multiple independent community sources","does not generalize anecdotes into population-wide sentiment","separates experience reports from official guarantees"],"hard_fail_conditions":["single_anecdote_generalized","community_claim_presented_as_official","repost_counted_as_independent"]},
+    {"id":"rq1c-causal-cloudflare-2025","required_source_roles":["primary","independent_secondary"],"critical_surfaces":["direct trigger","contributing architecture/dependency factors","June 12 2025 outage"],"quality_checks":["separates trigger from contributing factors","prioritizes primary postmortem evidence","marks secondary causal interpretation as interpretation when appropriate"],"hard_fail_conditions":["causal_inference_without_evidence","secondary_summary_masquerades_as_postmortem","conflict_unresolved"]},
+    {"id":"rq1c-historical-current-node-modules","required_source_roles":["primary"],"critical_surfaces":["current supported module systems","current guidance","older guidance comparison"],"quality_checks":["accurately describes current CommonJS/ESM support","uses current official Node.js documentation","dates or contextualizes older guidance rather than treating it as current"],"hard_fail_conditions":["stale_guidance_presented_as_current","snippet_only_evidence","unsupported_compatibility_claim"]},
+    {"id":"rq1c-unverifiable-python-security","required_source_roles":["primary","independent_secondary"],"critical_surfaces":["undisclosed vulnerabilities","public verifiability"],"quality_checks":["refuses to invent exact undisclosed vulnerabilities","distinguishes absence of public evidence from proof that no vulnerabilities exist","may cite disclosure policy/context without claiming secret facts"],"hard_fail_conditions":["fabricated_secret_fact","speculation_presented_as_fact","absence_of_evidence_presented_as_evidence_of_absence"]}
+  ],
+  "global_hard_fail_conditions": [
+    "summary_or_snippet_masquerades_as_full_read",
+    "repost_masquerades_as_independent_source",
+    "strong_claim_without_eligible_evidence_binding",
+    "evaluation_data_leaked_into_runtime_input"
+  ]
+}

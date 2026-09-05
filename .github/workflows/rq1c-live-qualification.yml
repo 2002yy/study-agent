@@ -1,0 +1,434 @@
+name: RQ1-C Live 12 Qualification
+
+on:
+  push:
+    branches:
+      - codex/rq1c-bounded-qualification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rq1c-live-12-qualification
+  cancel-in-progress: false
+
+jobs:
+  live12:
+    if: "${{ github.event.head_commit.message == 'rq1c-live12-execute-local-split-planner' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: .
+      LLM_PROVIDER_PROFILE: local
+      LOCAL_API_KEY: local
+      LOCAL_BASE_URL: http://127.0.0.1:8000/v1
+      LOCAL_MODEL_FLASH_NAME: rq1c-qwen3-4b-instruct-2507-q4km
+      LOCAL_MODEL_PRO_NAME: rq1c-qwen3-4b-instruct-2507-q4km
+      LOCAL_DEFAULT_MODEL_PROFILE: flash
+      DEFAULT_MODEL_PROFILE: flash
+      LOCAL_MAX_RETRIES: '0'
+      LLM_MAX_RETRIES: '0'
+      LOCAL_TIMEOUT_SECONDS: '20'
+      LLM_TIMEOUT_SECONDS: '20'
+      RESEARCH_CLAIM_PLANNER_BASE_URL: http://127.0.0.1:8001/v1
+      RESEARCH_CLAIM_PLANNER_MODEL_NAME: rq1c-qwen25-15b-instruct-q4km
+      RESEARCH_CLAIM_PLANNER_API_KEY: local
+      WEB_TOOL_ENABLED: 'true'
+      WEB_ENABLE_DUCKDUCKGO: 'true'
+      WEB_ENABLE_SEARXNG: 'false'
+      WEB_ENABLE_BING_RSS: 'true'
+      WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS: '6'
+      WEB_SEARCH_TOTAL_TIMEOUT_SECONDS: '8'
+      NEWS_ENABLE_FIRECRAWL_READER: 'false'
+      NEWS_ENABLE_JINA_READER: 'false'
+      LLAMA_CPP_TAG: b10809
+      LLAMA_CPP_ARCHIVE_SHA256: 5e34434ddc6d03cd1584f403201aff0d4bd1a5793a72ff7e286532dfd1e4b941
+      HF_MODEL_REPO: unsloth/Qwen3-4B-Instruct-2507-GGUF
+      HF_MODEL_FILE: Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+      MODEL_ALIAS: rq1c-qwen3-4b-instruct-2507-q4km
+      PLANNER_HF_MODEL_REPO: Qwen/Qwen2.5-1.5B-Instruct-GGUF
+      PLANNER_HF_MODEL_FILE: qwen2.5-1.5b-instruct-q4_k_m.gguf
+      PLANNER_MODEL_SHA256_EXPECTED: 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+      PLANNER_MODEL_ALIAS: rq1c-qwen25-15b-instruct-q4km
+
+    steps:
+      - name: Check out exact qualification head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Study Agent dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install pinned llama.cpp CPU server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .local-llama output
+          archive=.local-llama/llama.tar.gz
+          curl -fL --retry 4 --retry-delay 2 \
+            "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_TAG}/llama-${LLAMA_CPP_TAG}-bin-ubuntu-x64.tar.gz" \
+            -o "$archive"
+          echo "${LLAMA_CPP_ARCHIVE_SHA256}  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C .local-llama
+          server="$(find .local-llama -type f -name llama-server -print -quit)"
+          test -n "$server"
+          chmod +x "$server"
+          echo "LLAMA_SERVER=$server" >> "$GITHUB_ENV"
+          "$server" --version | tee output/llama-server-version.log
+
+      - name: Download pinned Qwen3 4B GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .local-model output
+          model=.local-model/${HF_MODEL_FILE}
+          curl -fL --retry 5 --retry-delay 3 \
+            "https://huggingface.co/${HF_MODEL_REPO}/resolve/main/${HF_MODEL_FILE}?download=true" \
+            -o "$model"
+          test -s "$model"
+          model_sha="$(sha256sum "$model" | awk '{print $1}')"
+          model_bytes="$(stat -c '%s' "$model")"
+          echo "MODEL_PATH=$model" >> "$GITHUB_ENV"
+          echo "MODEL_SHA256=$model_sha" >> "$GITHUB_ENV"
+          echo "MODEL_BYTES=$model_bytes" >> "$GITHUB_ENV"
+          printf '%s  %s\n' "$model_sha" "$HF_MODEL_FILE" | tee output/model-sha256.txt
+
+      - name: Download pinned Qwen2.5 1.5B planner GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .local-model output
+          model=.local-model/${PLANNER_HF_MODEL_FILE}
+          curl -fL --retry 5 --retry-delay 3 \
+            "https://huggingface.co/${PLANNER_HF_MODEL_REPO}/resolve/main/${PLANNER_HF_MODEL_FILE}?download=true" \
+            -o "$model"
+          test -s "$model"
+          model_sha="$(sha256sum "$model" | awk '{print $1}')"
+          test "$model_sha" = "$PLANNER_MODEL_SHA256_EXPECTED"
+          model_bytes="$(stat -c '%s' "$model")"
+          echo "PLANNER_MODEL_PATH=$model" >> "$GITHUB_ENV"
+          echo "PLANNER_MODEL_SHA256=$model_sha" >> "$GITHUB_ENV"
+          echo "PLANNER_MODEL_BYTES=$model_bytes" >> "$GITHUB_ENV"
+          printf '%s  %s\n' "$model_sha" "$PLANNER_HF_MODEL_FILE" | tee output/planner-model-sha256.txt
+
+      - name: Start local Qwen3 4B OpenAI-compatible server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_SERVER" \
+            -m "$MODEL_PATH" \
+            --alias "$MODEL_ALIAS" \
+            --host 127.0.0.1 \
+            --port 8000 \
+            -c 8192 \
+            -t "$(nproc)" \
+            --jinja \
+            > output/llama-server.log 2>&1 &
+          echo $! > output/llama-server.pid
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8000/health > output/llama-health.json 2>/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat output/llama-server.pid)" 2>/dev/null; then
+              cat output/llama-server.log >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          cat output/llama-server.log >&2
+          exit 1
+
+      - name: Start local Qwen2.5 1.5B planner server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_SERVER" \
+            -m "$PLANNER_MODEL_PATH" \
+            --alias "$PLANNER_MODEL_ALIAS" \
+            --host 127.0.0.1 \
+            --port 8001 \
+            -c 4096 \
+            -t "$(nproc)" \
+            --jinja \
+            > output/planner-llama-server.log 2>&1 &
+          echo $! > output/planner-llama-server.pid
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8001/health > output/planner-llama-health.json 2>/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat output/planner-llama-server.pid)" 2>/dev/null; then
+              cat output/planner-llama-server.log >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          cat output/planner-llama-server.log >&2
+          exit 1
+
+      - name: Run production claim-planner smoke
+        shell: python
+        run: |
+          import json
+          import time
+          from pathlib import Path
+
+          from src.web.research.claim_planner import RuntimeClaimPlanner
+          from src.web.research.contracts import ResearchBudget
+          from src.web.research.model_gateway import ResearchModelGateway
+
+          budget = ResearchBudget(
+              max_candidates=20,
+              max_reads=8,
+              soft_timeout_seconds=45,
+              hard_timeout_seconds=60,
+              max_total_chars=16000,
+          )
+          cases = [
+              'What is the current stable Python release?',
+              'Compare the current official support status of two software releases.',
+              'What can be verified about an announced feature if independent confirmation is limited?',
+          ]
+          records = []
+          for index, question in enumerate(cases, start=1):
+              planner = RuntimeClaimPlanner(ResearchModelGateway(timeout_seconds=20.0))
+              started = time.monotonic()
+              result = planner.plan(
+                  run_id=f'planner_smoke_{index}',
+                  question=question,
+                  reference_date='2026-09-05',
+                  budget=budget,
+                  mode='active',
+                  timeout_seconds=20.0,
+              )
+              elapsed = time.monotonic() - started
+              record = {
+                  'case': index,
+                  'completed': result.completed,
+                  'elapsed_seconds': round(elapsed, 6),
+                  'audit_count': len(result.audits),
+                  'reason': result.reason,
+                  'model_name': result.audits[0].model_name if result.audits else '',
+                  'output_tokens': result.audits[0].output_tokens if result.audits else None,
+              }
+              records.append(record)
+              if not result.completed:
+                  raise SystemExit(f'production planner smoke unavailable: {record}')
+              if elapsed >= 20.0:
+                  raise SystemExit(f'production planner smoke exceeded 20s: {record}')
+              if len(result.audits) != 1:
+                  raise SystemExit(f'planner smoke spent unexpected attempts: {record}')
+          Path('output/rq1c-claim-planner-smoke.json').write_text(
+              json.dumps(records, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(records, sort_keys=True))
+
+      - name: Run non-qualification Qwen3 4B smoke
+        shell: python
+        run: |
+          import json
+          import time
+          from pathlib import Path
+          from openai import OpenAI
+
+          client = OpenAI(
+              api_key='local',
+              base_url='http://127.0.0.1:8000/v1',
+              timeout=60,
+              max_retries=0,
+          )
+          evidence = (
+              'A bounded research system must distinguish retrieved candidates, successful reads, '
+              'eligible evidence, and final supported claims. It must not upgrade unread snippets into '
+              'evidence, and it must report uncertainty when support is insufficient. '
+          ) * 12
+          started = time.monotonic()
+          response = client.chat.completions.create(
+              model='rq1c-qwen3-4b-instruct-2507-q4km',
+              messages=[
+                  {
+                      'role': 'system',
+                      'content': 'Return one JSON object only with keys summary, risks, ready.',
+                  },
+                  {
+                      'role': 'user',
+                      'content': evidence + '\nSummarize this into 4 concise risks and set ready=true.',
+                  },
+              ],
+              temperature=0,
+              max_tokens=256,
+              response_format={'type': 'json_object'},
+          )
+          elapsed = time.monotonic() - started
+          text = response.choices[0].message.content or ''
+          parsed = json.loads(text)
+          if parsed.get('ready') is not True:
+              raise SystemExit('local model smoke did not return ready=true')
+          if elapsed >= 60.0:
+              raise SystemExit(f'local model smoke exceeded 60s: {elapsed:.3f}s')
+          usage = response.usage
+          record = {
+              'kind': 'non_qualification_local_model_smoke',
+              'elapsed_seconds': round(elapsed, 6),
+              'prompt_tokens': getattr(usage, 'prompt_tokens', None),
+              'completion_tokens': getattr(usage, 'completion_tokens', None),
+              'total_tokens': getattr(usage, 'total_tokens', None),
+              'json_valid': True,
+              'ready': True,
+          }
+          Path('output/rq1c-local-model-smoke.json').write_text(
+              json.dumps(record, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(record, sort_keys=True))
+
+      - name: Record exact local-provider environment
+        shell: python
+        run: |
+          import json
+          import os
+          import platform
+          import subprocess
+          from pathlib import Path
+
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          dirty = subprocess.check_output(
+              ['git', 'status', '--porcelain=v1', '--untracked-files=no'], text=True
+          ).strip()
+          if head != os.environ['GITHUB_SHA']:
+              raise SystemExit('checkout HEAD does not match GITHUB_SHA')
+          if dirty:
+              raise SystemExit('tracked checkout is dirty before qualification')
+          metadata = {
+              'git_sha': head,
+              'provider_profile': 'local',
+              'base_url': 'http://127.0.0.1:8000/v1',
+              'model_alias': os.environ['MODEL_ALIAS'],
+              'model_repo': os.environ['HF_MODEL_REPO'],
+              'model_file': os.environ['HF_MODEL_FILE'],
+              'model_sha256': os.environ['MODEL_SHA256'],
+              'model_bytes': int(os.environ['MODEL_BYTES']),
+              'planner_base_url': os.environ['RESEARCH_CLAIM_PLANNER_BASE_URL'],
+              'planner_model_alias': os.environ['PLANNER_MODEL_ALIAS'],
+              'planner_model_repo': os.environ['PLANNER_HF_MODEL_REPO'],
+              'planner_model_file': os.environ['PLANNER_HF_MODEL_FILE'],
+              'planner_model_sha256': os.environ['PLANNER_MODEL_SHA256'],
+              'planner_model_bytes': int(os.environ['PLANNER_MODEL_BYTES']),
+              'planner_max_tokens': 320,
+              'planner_max_attempts': 1,
+              'llama_cpp_tag': os.environ['LLAMA_CPP_TAG'],
+              'llama_cpp_archive_sha256': os.environ['LLAMA_CPP_ARCHIVE_SHA256'],
+              'runner_arch': platform.machine(),
+              'runner_cpu_count': os.cpu_count(),
+              'server_context_tokens': 8192,
+              'planner_server_context_tokens': 4096,
+              'sdk_max_retries': 0,
+              'provider_timeout_seconds': 20,
+              'smoke_is_qualification_evidence': False,
+          }
+          Path('output/rq1c-live12-environment.json').write_text(
+              json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(metadata, sort_keys=True))
+
+      - name: Run bounded live 12 runtime
+        id: runtime
+        shell: bash
+        run: |
+          set +e
+          python tools/run_rq1c_bounded_qualification.py \
+            --output output/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json \
+            > output/rq1c-live12-runtime.log 2>&1
+          status=$?
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          cat output/rq1c-live12-runtime.log
+          exit 0
+
+      - name: Run deterministic protocol probes bound to runtime artifact
+        id: protocol
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f output/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json ]; then
+            python tools/run_rq1c_protocol_probes.py \
+              --runtime output/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json \
+              --output output/RQ1C_BOUNDED_PROTOCOL_PROBES.json \
+              > output/rq1c-live12-protocol.log 2>&1
+            status=$?
+          else
+            echo 'runtime artifact missing; protocol probes not run' > output/rq1c-live12-protocol.log
+            status=3
+          fi
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          cat output/rq1c-live12-protocol.log
+          exit 0
+
+      - name: Write structural execution summary
+        if: always()
+        shell: python
+        env:
+          RUNTIME_EXIT: ${{ steps.runtime.outputs.exit_code }}
+          PROTOCOL_EXIT: ${{ steps.protocol.outputs.exit_code }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path('output')
+          runtime_path = output / 'RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json'
+          protocol_path = output / 'RQ1C_BOUNDED_PROTOCOL_PROBES.json'
+          summary = {
+              'git_sha': os.environ['GITHUB_SHA'],
+              'runtime_exit_code': os.environ.get('RUNTIME_EXIT', ''),
+              'protocol_exit_code': os.environ.get('PROTOCOL_EXIT', ''),
+              'runtime_artifact_present': runtime_path.is_file(),
+              'protocol_artifact_present': protocol_path.is_file(),
+          }
+          if runtime_path.is_file():
+              runtime = json.loads(runtime_path.read_text(encoding='utf-8'))
+              summary['runtime_summary'] = runtime.get('summary')
+          if protocol_path.is_file():
+              protocol = json.loads(protocol_path.read_text(encoding='utf-8'))
+              summary['protocol_summary'] = protocol.get('summary')
+          (output / 'rq1c-live12-execution-summary.json').write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(summary, sort_keys=True))
+
+      - name: Upload live 12 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rq1c-live12-evidence
+          path: |
+            output/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json
+            output/RQ1C_BOUNDED_PROTOCOL_PROBES.json
+            output/rq1c-live12-environment.json
+            output/rq1c-live12-execution-summary.json
+            output/rq1c-live12-runtime.log
+            output/rq1c-live12-protocol.log
+            output/rq1c-claim-planner-smoke.json
+            output/rq1c-local-model-smoke.json
+            output/model-sha256.txt
+            output/planner-model-sha256.txt
+            output/llama-server-version.log
+            output/llama-server.log
+            output/llama-health.json
+            output/planner-llama-server.log
+            output/planner-llama-health.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce evidence presence only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f output/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json
+          test -f output/RQ1C_BOUNDED_PROTOCOL_PROBES.json

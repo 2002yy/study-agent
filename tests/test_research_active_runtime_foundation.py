@@ -12,6 +12,7 @@ from src.application.active_research_runtime import (
     _model_attempt_start,
 )
 from src.web.research.claim_planner import (
+    CLAIM_PLANNER_MAX_TOKENS,
     RUNTIME_CLAIM_PLAN_SCHEMA_VERSION,
     RuntimeClaimPlanner,
 )
@@ -128,9 +129,10 @@ def _budget() -> ResearchBudget:
 
 def _valid_claim_payload() -> str:
     return (
-        '{"schema_version":"research-runtime-claim-plan-v1","claims":['
-        '{"surface":"What is the current API rate limit?","kind":"factual",'
-        '"priority":"critical","policy_profile":"current_fact"}]}'
+        '{"schema_version":"research-runtime-claim-plan-v1",'
+        '"critical_claim":{"question_anchor":"What is the current API rate limit?",'
+        '"kind":"factual","policy_profile":"current_fact"},'
+        '"supporting_claims":[]}'
     )
 
 
@@ -285,15 +287,8 @@ def test_claim_planner_allows_active_only_when_explicitly_requested() -> None:
     assert result.state.mode == "active"
 
 
-def test_claim_planner_requests_full_completion_budget() -> None:
-    """Regression: DeepSeek v4 Flash JSON-mode needs >900 completion tokens.
-
-    A real run showed finish_reason=length with output_tokens==900 and an
-    unparseable truncated plan; the same call with a 4000 ceiling produced a
-    valid plan (output_tokens=1056). The planner must keep requesting the
-    full gateway ceiling so the provider cannot truncate the control-plane
-    JSON mid-object.
-    """
+def test_claim_planner_requests_bounded_completion_budget() -> None:
+    """Planner control-plane output is deliberately bounded and task-specific."""
 
     gateway, client = _gateway([_response(_valid_claim_payload())])
 
@@ -308,26 +303,27 @@ def test_claim_planner_requests_full_completion_budget() -> None:
     assert result.completed is True
     assert client.create_calls, "planner must issue exactly one model call"
     for call in client.create_calls:
-        assert call["max_tokens"] == 4000
+        assert call["max_tokens"] == CLAIM_PLANNER_MAX_TOKENS == 320
 
 
 @pytest.mark.parametrize(
     "payload",
     [
         (
-            '{"schema_version":"research-runtime-claim-plan-v1","claims":['
-            '{"surface":"Explain the cause","kind":"factual",'
-            '"priority":"critical","policy_profile":"causal_analysis"}]}'
+            '{"schema_version":"research-runtime-claim-plan-v1",'
+            '"critical_claim":{"question_anchor":"Question","kind":"factual",'
+            '"policy_profile":"causal_analysis"},"supporting_claims":[]}'
         ),
         (
-            '{"schema_version":"research-runtime-claim-plan-v1","claims":['
-            '{"surface":"A fact","kind":"factual","priority":"major",'
-            '"policy_profile":"current_fact"}]}'
+            '{"schema_version":"research-runtime-claim-plan-v1",'
+            '"critical_claim":{"question_anchor":"Not in question","kind":"factual",'
+            '"policy_profile":"current_fact"},"supporting_claims":[]}'
         ),
         (
-            '{"schema_version":"research-runtime-claim-plan-v1","claims":['
-            '{"surface":"A fact","kind":"factual","priority":"critical",'
-            '"policy_profile":"current_fact","evidence_id":"model-owned"}]}'
+            '{"schema_version":"research-runtime-claim-plan-v1",'
+            '"critical_claim":{"question_anchor":"Question","kind":"factual",'
+            '"policy_profile":"current_fact","evidence_id":"model-owned"},'
+            '"supporting_claims":[]}'
         ),
     ],
 )
@@ -343,7 +339,7 @@ def test_claim_planner_invalid_schema_or_policy_fails_closed(payload: str) -> No
 
     assert result.status == "unavailable"
     assert result.state is None
-    assert len(result.audits) == 2
+    assert len(result.audits) == 1
     assert all(item.status == "attempt_failed" for item in result.audits)
 
 
@@ -676,6 +672,7 @@ def test_a4a_production_modules_do_not_import_eval_code() -> None:
         text = (research_dir / name).read_text(encoding="utf-8")
         assert "src.evals" not in text
 
+
 def test_runtime_cursor_rejects_malformed_wave_fields() -> None:
     """P1-C batch 2: wave-related cursor fields fail closed on malformed input."""
     with pytest.raises(ValueError):
@@ -733,6 +730,7 @@ def test_runtime_cursor_rejects_malformed_wave_fields() -> None:
                 "no_gain_batches_by_claim": {"gap_1": True},
             }
         )
+
 
 def test_assessment_call_suffix_is_canonical_over_candidate_order() -> None:
     """P1-C batch 2: the assessment logical identity must not depend on the

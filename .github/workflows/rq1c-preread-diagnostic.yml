@@ -1,0 +1,196 @@
+name: RQ1-C Pre-read Diagnostic
+
+on:
+  push:
+    branches:
+      - codex/rq1c-bounded-qualification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rq1c-preread-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  preread-diagnostic:
+    if: "${{ github.event.head_commit.message == 'rq1c-preread-diagnostic-live2' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: .
+      LLM_PROVIDER_PROFILE: local
+      LOCAL_API_KEY: local
+      LOCAL_BASE_URL: http://127.0.0.1:8000/v1
+      LOCAL_MODEL_FLASH_NAME: rq1c-qwen3-4b-instruct-2507-q4km
+      LOCAL_MODEL_PRO_NAME: rq1c-qwen3-4b-instruct-2507-q4km
+      LOCAL_DEFAULT_MODEL_PROFILE: flash
+      DEFAULT_MODEL_PROFILE: flash
+      LOCAL_MAX_RETRIES: '0'
+      LLM_MAX_RETRIES: '0'
+      LOCAL_TIMEOUT_SECONDS: '20'
+      LLM_TIMEOUT_SECONDS: '20'
+      RESEARCH_CLAIM_PLANNER_BASE_URL: http://127.0.0.1:8001/v1
+      RESEARCH_CLAIM_PLANNER_MODEL_NAME: rq1c-qwen25-15b-instruct-q4km
+      RESEARCH_CLAIM_PLANNER_API_KEY: local
+      WEB_TOOL_ENABLED: 'true'
+      WEB_ENABLE_DUCKDUCKGO: 'true'
+      WEB_ENABLE_SEARXNG: 'false'
+      WEB_ENABLE_BING_RSS: 'true'
+      WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS: '6'
+      WEB_SEARCH_TOTAL_TIMEOUT_SECONDS: '8'
+      NEWS_ENABLE_FIRECRAWLER_READER: 'false'
+      NEWS_ENABLE_FIRECRAWL_READER: 'false'
+      NEWS_ENABLE_JINA_READER: 'false'
+      LLAMA_CPP_TAG: b10809
+      LLAMA_CPP_ARCHIVE_SHA256: 5e34434ddc6d03cd1584f403201aff0d4bd1a5793a72ff7e286532dfd1e4b941  # pragma: allowlist secret
+      HF_MODEL_REPO: unsloth/Qwen3-4B-Instruct-2507-GGUF
+      HF_MODEL_FILE: Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+      MODEL_ALIAS: rq1c-qwen3-4b-instruct-2507-q4km
+      PLANNER_HF_MODEL_REPO: Qwen/Qwen2.5-1.5B-Instruct-GGUF
+      PLANNER_HF_MODEL_FILE: qwen2.5-1.5b-instruct-q4_k_m.gguf
+      PLANNER_MODEL_SHA256_EXPECTED: 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  # pragma: allowlist secret
+      PLANNER_MODEL_ALIAS: rq1c-qwen25-15b-instruct-q4km
+
+    steps:
+      - name: Check out exact diagnostic head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Study Agent dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install pinned llama.cpp CPU server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .local-llama .local-model output
+          archive=.local-llama/llama.tar.gz
+          curl -fL --retry 4 --retry-delay 2 \
+            "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_TAG}/llama-${LLAMA_CPP_TAG}-bin-ubuntu-x64.tar.gz" \
+            -o "$archive"
+          echo "${LLAMA_CPP_ARCHIVE_SHA256}  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C .local-llama
+          server="$(find .local-llama -type f -name llama-server -print -quit)"
+          test -n "$server"
+          chmod +x "$server"
+          echo "LLAMA_SERVER=$server" >> "$GITHUB_ENV"
+
+      - name: Download pinned Qwen3 4B GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          model=.local-model/${HF_MODEL_FILE}
+          curl -fL --retry 5 --retry-delay 3 \
+            "https://huggingface.co/${HF_MODEL_REPO}/resolve/main/${HF_MODEL_FILE}?download=true" \
+            -o "$model"
+          test -s "$model"
+          echo "MODEL_PATH=$model" >> "$GITHUB_ENV"
+
+      - name: Download pinned planner GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          model=.local-model/${PLANNER_HF_MODEL_FILE}
+          curl -fL --retry 5 --retry-delay 3 \
+            "https://huggingface.co/${PLANNER_HF_MODEL_REPO}/resolve/main/${PLANNER_HF_MODEL_FILE}?download=true" \
+            -o "$model"
+          test -s "$model"
+          actual="$(sha256sum "$model" | awk '{print $1}')"
+          test "$actual" = "$PLANNER_MODEL_SHA256_EXPECTED"
+          echo "PLANNER_MODEL_PATH=$model" >> "$GITHUB_ENV"
+
+      - name: Start candidate-assessment model server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_SERVER" \
+            -m "$MODEL_PATH" \
+            --alias "$MODEL_ALIAS" \
+            --host 127.0.0.1 \
+            --port 8000 \
+            -c 8192 \
+            -np 1 \
+            -t "$(nproc)" \
+            --jinja \
+            > output/llama-server.log 2>&1 &
+          echo $! > output/llama-server.pid
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then exit 0; fi
+            if ! kill -0 "$(cat output/llama-server.pid)" 2>/dev/null; then
+              cat output/llama-server.log >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          cat output/llama-server.log >&2
+          exit 1
+
+      - name: Start planner model server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_SERVER" \
+            -m "$PLANNER_MODEL_PATH" \
+            --alias "$PLANNER_MODEL_ALIAS" \
+            --host 127.0.0.1 \
+            --port 8001 \
+            -c 4096 \
+            -np 1 \
+            -t "$(nproc)" \
+            --jinja \
+            > output/planner-server.log 2>&1 &
+          echo $! > output/planner-server.pid
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then exit 0; fi
+            if ! kill -0 "$(cat output/planner-server.pid)" 2>/dev/null; then
+              cat output/planner-server.log >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          cat output/planner-server.log >&2
+          exit 1
+
+      - name: Run production pre-read diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/run_rq1c_preread_diagnostic.py \
+            --manifest tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json \
+            --reference-date 2026-09-05 \
+            --output output/rq1c-preread-starvation-diagnostic.json \
+            | tee output/rq1c-preread-starvation-diagnostic.log
+
+      - name: Enforce safe diagnostic evidence shape
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('output/rq1c-preread-starvation-diagnostic.json').read_text(encoding='utf-8'))
+          assert len(data['cases']) == 2
+          assert data['stores_raw_model_text'] is False
+          assert data['stores_query_text'] is False
+          assert data['stores_page_bodies'] is False
+          encoded = json.dumps(data)
+          for forbidden in ('prompt', 'response_text', 'page_body', 'query_text'):
+              assert forbidden not in encoded
+
+      - name: Upload pre-read diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rq1c-preread-starvation-diagnostic
+          path: |
+            output/rq1c-preread-starvation-diagnostic.json
+            output/rq1c-preread-starvation-diagnostic.log
+            output/llama-server.log
+            output/planner-server.log
+          if-no-files-found: error
+          retention-days: 7
