@@ -45,6 +45,41 @@ class EvidenceGateResult:
         }
 
 
+def claim_support_topology(
+    state: ResearchState,
+    claim: ResearchClaim,
+) -> tuple[int, int, bool]:
+    """Eligible support topology for one claim: (clusters, required, has_primary).
+
+    This mirrors the Gate's own eligible-support computation exactly (same
+    structural + freshness eligibility, same ``supports`` relation and strength
+    threshold). It is exposed for the bounded lead scheduler so "does this claim
+    still have a discovery-shaped gap?" cannot drift from what the Gate actually
+    requires. The Gate's own evaluation is unchanged.
+    """
+
+    evidence_by_id = {item.evidence_id: item for item in state.evidence}
+    supports = []
+    for link in state.evidence_links:
+        if link.claim_id != claim.id:
+            continue
+        evidence = evidence_by_id.get(link.evidence_id)
+        if not evidence_link_eligibility(
+            claim=claim,
+            link=link,
+            evidence=evidence,
+            reference_date=state.reference_date,
+        ):
+            continue
+        if link.relation != "supports" or link.strength < STRONG_EVIDENCE_THRESHOLD:
+            continue
+        supports.append(link)
+    clusters = {link.source_cluster_id for link in supports}
+    required = claim.evidence_requirement.min_independent_sources
+    has_primary = any(link.source_role == "primary" for link in supports)
+    return len(clusters), required, has_primary
+
+
 def evaluate_evidence_gate(state: ResearchState) -> EvidenceGateResult:
     """Evaluate only code-owned hard rules; never trust model closure flags."""
 

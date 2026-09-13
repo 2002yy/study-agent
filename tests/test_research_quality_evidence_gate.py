@@ -14,7 +14,10 @@ from src.web.research.contracts import (
     ResearchState,
     build_research_state,
 )
-from src.web.research.evidence_gate import evaluate_evidence_gate
+from src.web.research.evidence_gate import (
+    claim_support_topology,
+    evaluate_evidence_gate,
+)
 from src.web.research.policy import evidence_policy_for_claim
 
 
@@ -338,3 +341,68 @@ def test_resolved_gap_does_not_hide_missing_active_gap() -> None:
 
     assert result.gap_ids == ()
     assert "critical:claim1:evidence_gap_missing" in result.reasons
+
+
+def test_claim_support_topology_matches_gate_reasons() -> None:
+    """Slice 4 drift guard: the shared topology helper agrees with the Gate."""
+
+    state = _state(
+        evidence=(_evidence("ev1"),),
+        links=(_link("ev1", cluster="c1", role="primary"),),
+        clusters=(EvidenceCluster("c1", ("ev1",)),),
+    )
+    clusters, required, has_primary = claim_support_topology(state, state.claims[0])
+    gate = evaluate_evidence_gate(state)
+
+    assert clusters == 1
+    assert required == 2
+    assert has_primary is True
+    assert (
+        f"eligible_support_clusters={clusters}/{required}"
+        in " ".join(gate.reasons)
+    )
+    assert "primary_required" not in " ".join(gate.reasons)
+
+
+def test_lead_discovery_gap_triggers_on_partial_independent_cluster_coverage() -> None:
+    from src.application.active_research_runtime import _claim_has_discovery_gap
+
+    state = _state(
+        evidence=(_evidence("ev1"),),
+        links=(_link("ev1", cluster="c1", role="primary"),),
+        clusters=(EvidenceCluster("c1", ("ev1",)),),
+    )
+
+    # primary present, but only 1/2 independent support clusters.
+    assert _claim_has_discovery_gap(state, state.claims[0]) is True
+
+
+def test_lead_discovery_gap_cluster_branch_requires_partial_coverage() -> None:
+    """0/N must not be treated as an independent-cluster discovery gap."""
+
+    state = _state()
+    clusters, required, has_primary = claim_support_topology(state, state.claims[0])
+
+    assert clusters == 0
+    assert required == 2
+    assert has_primary is False
+    # The cluster branch is 0 < clusters < required, so 0/N cannot trigger it.
+    assert (0 < clusters < required) is False
+
+
+def test_lead_discovery_gap_is_false_when_topology_is_satisfied() -> None:
+    from src.application.active_research_runtime import _claim_has_discovery_gap
+
+    state = _state(
+        evidence=(_evidence("ev1"), _evidence("ev2")),
+        links=(
+            _link("ev1", cluster="c1", role="primary"),
+            _link("ev2", cluster="c2", role="independent_secondary"),
+        ),
+        clusters=(
+            EvidenceCluster("c1", ("ev1",)),
+            EvidenceCluster("c2", ("ev2",)),
+        ),
+    )
+
+    assert _claim_has_discovery_gap(state, state.claims[0]) is False

@@ -50,6 +50,7 @@ from src.web.research.contracts import (
 )
 from src.web.research.evidence_gate import (
     EvidenceGateResult,
+    claim_support_topology,
     evaluate_evidence_gate,
     evidence_link_eligibility,
 )
@@ -2561,6 +2562,27 @@ def _claim_lacks_primary_evidence(
     return True
 
 
+def _claim_has_discovery_gap(state: ResearchState, claim: ResearchClaim) -> bool:
+    """True when a bounded lead read could close an evidence-topology gap.
+
+    Slice 4: primary support and independent-cluster coverage are orthogonal.
+    A lead read is justified when either
+    - primary support is missing (existing rule), or
+    - independent support clusters are partially covered
+      (``0 < eligible_clusters < required``).
+
+    ``0 / N`` is deliberately NOT a discovery gap: that is basic evidence
+    discovery/assessment, and spending bounded lead reads there is not
+    justified. This predicate only gates scheduling; it never changes evidence
+    eligibility or the Gate.
+    """
+
+    if _claim_lacks_primary_evidence(state, claim):
+        return True
+    clusters, required, _has_primary = claim_support_topology(state, claim)
+    return 0 < clusters < required
+
+
 def _lead_read_plan(
     state: ResearchState,
     claim_rankings: Mapping[str, tuple[RankedCandidate, ...]],
@@ -2582,7 +2604,7 @@ def _lead_read_plan(
     for claim in _ordered_claims(state):
         if claim.priority != "critical":
             continue
-        if not _claim_lacks_primary_evidence(state, claim):
+        if not _claim_has_discovery_gap(state, claim):
             continue
         for item in claim_rankings.get(claim.id, ()):
             candidate_id = item.candidate.id
