@@ -222,3 +222,39 @@ def test_lead_scheduling_requires_primary_provenance_or_verification_intent() ->
     assert not is_schedulable_lead(
         discovery_only, lead_budget_available=True, gap_needs_primary=True
     )
+
+
+def test_cursor_round_trips_lead_discovery_state() -> None:
+    from src.web.research.lead_discovery import LeadDiscoveryPayload
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    payload = LeadDiscoveryPayload(
+        source_candidate_id="cand-1",
+        discovered_urls=("https://www.bankofengland.co.uk/bank-rate",),
+        domains=("bankofengland.co.uk",),
+        organizations=("Bank of England",),
+        primary_source_hints=("Bank of England Bank Rate",),
+        warnings=(),
+    )
+    cursor = ResearchRuntimeCursor(
+        lead_read_ids=("cand-1",),
+        lead_discoveries=(payload.to_dict(),),
+    )
+
+    restored = ResearchRuntimeCursor.from_dict(cursor.to_dict())
+
+    assert restored.lead_read_ids == ("cand-1",)
+    assert restored.lead_discoveries == (payload.to_dict(),)
+
+
+def test_pre_lead_cursor_still_loads_with_empty_lead_state() -> None:
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    legacy = ResearchRuntimeCursor().to_dict()
+    legacy.pop("lead_read_ids")
+    legacy.pop("lead_discoveries")
+
+    restored = ResearchRuntimeCursor.from_dict(legacy)
+
+    assert restored.lead_read_ids == ()
+    assert restored.lead_discoveries == ()

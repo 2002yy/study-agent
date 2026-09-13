@@ -53,6 +53,17 @@ LEAD_DISCOVERY_FIELDS = frozenset(
     }
 )
 
+LEAD_DISCOVERY_PAYLOAD_FIELDS = frozenset(
+    {
+        "source_candidate_id",
+        "discovered_urls",
+        "domains",
+        "organizations",
+        "primary_source_hints",
+        "warnings",
+    }
+)
+
 LEAD_DISCOVERY_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -133,6 +144,40 @@ class LeadDiscoveryPayload:
             "primary_source_hints": list(self.primary_source_hints),
             "warnings": list(self.warnings),
         }
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> "LeadDiscoveryPayload":
+        """Strict durable-cursor round trip (same bounds as the model parser)."""
+
+        data = _mapping(raw, "lead discovery payload")
+        if set(data) != LEAD_DISCOVERY_PAYLOAD_FIELDS:
+            raise ValueError("lead discovery payload has unknown or missing fields")
+        return cls(
+            source_candidate_id=_required_text(
+                data.get("source_candidate_id"), 300, "source_candidate_id"
+            ),
+            discovered_urls=_url_tuple(
+                data.get("discovered_urls"), LEAD_DISCOVERY_MAX_URLS, "discovered_urls"
+            ),
+            domains=_text_tuple(
+                data.get("domains"), LEAD_DISCOVERY_MAX_DOMAINS, 253, "domains"
+            ),
+            organizations=_text_tuple(
+                data.get("organizations"),
+                LEAD_DISCOVERY_MAX_ORGANIZATIONS,
+                200,
+                "organizations",
+            ),
+            primary_source_hints=_text_tuple(
+                data.get("primary_source_hints"),
+                LEAD_DISCOVERY_MAX_HINTS,
+                300,
+                "primary_source_hints",
+            ),
+            warnings=_text_tuple(
+                data.get("warnings"), LEAD_DISCOVERY_MAX_WARNINGS, 300, "warnings"
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -321,6 +366,7 @@ def _url_tuple(value: Any, limit: int, label: str) -> tuple[str, ...]:
 __all__ = [
     "LEAD_DISCOVERY_FIELDS",
     "LEAD_DISCOVERY_MAX_TOKENS",
+    "LEAD_DISCOVERY_PAYLOAD_FIELDS",
     "LEAD_DISCOVERY_RESPONSE_SCHEMA",
     "LEAD_DISCOVERY_SCHEMA_VERSION",
     "LeadDiscoveryPayload",

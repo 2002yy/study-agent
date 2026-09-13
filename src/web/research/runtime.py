@@ -17,6 +17,7 @@ from src.web.research.model_gateway import (
     ResearchModelCallAudit,
 )
 from src.web.research.evidence_gain import EvidenceGainResult, SaturationState
+from src.web.research.lead_discovery import LeadDiscoveryPayload
 from src.web.research.failure_contracts import (
     ResearchFailureCode,
     require_research_failure_code,
@@ -72,6 +73,10 @@ _MAX_CURSOR_ITEMS = 100
 # P1-C batch 2: durable gain history keeps only the most recent entries so a
 # long multi-wave run can never outgrow the cursor serialization limit.
 _MAX_GAIN_HISTORY_ENTRIES = 24
+# Slice 1: bounded lead discovery keeps at most the run-level lead-read budget
+# of durable discovery payloads (never evidence).
+MAX_LEAD_READS_PER_RUN = 2
+_MAX_LEAD_DISCOVERIES = MAX_LEAD_READS_PER_RUN
 # Frozen wave ceiling for the bounded multi-wave loop: saturation (2 batches,
 # 3 for critical/conflict) always fits, and the ceiling guards against any
 # endless loop if gain/saturation bookkeeping were ever inconsistent.
@@ -492,6 +497,12 @@ class ResearchRuntimeCursor:
     gain_history: tuple[dict[str, Any], ...] = ()
     no_gain_batches_by_claim: dict[str, int] = field(default_factory=dict)
     no_gain_batches_by_gap: dict[str, int] = field(default_factory=dict)
+    # Lead discovery (Slice 1): bounded lead reads and their discovery assets.
+    # Leads are discovery assets, never evidence: the durable cursor stores the
+    # typed LeadDiscoveryPayload only, and lead reads spend the same shared
+    # read/model budget as evidence reads.
+    lead_read_ids: tuple[str, ...] = ()
+    lead_discoveries: tuple[dict[str, Any], ...] = ()
     schema_version: str = RESEARCH_RUNTIME_SCHEMA_VERSION
 
     @property
@@ -535,6 +546,8 @@ class ResearchRuntimeCursor:
             "gain_history": [dict(item) for item in self.gain_history],
             "no_gain_batches_by_claim": dict(self.no_gain_batches_by_claim),
             "no_gain_batches_by_gap": dict(self.no_gain_batches_by_gap),
+            "lead_read_ids": list(self.lead_read_ids),
+            "lead_discoveries": [dict(item) for item in self.lead_discoveries],
         }
 
     @classmethod
@@ -553,6 +566,11 @@ class ResearchRuntimeCursor:
         compatible.setdefault("gain_history", [])
         compatible.setdefault("no_gain_batches_by_claim", {})
         compatible.setdefault("no_gain_batches_by_gap", {})
+        # Slice 1 added bounded lead discovery. Pre-Slice-1 cursors have no
+        # lead state; accept only those absent fields so durable checkpoints
+        # survive the upgrade.
+        compatible.setdefault("lead_read_ids", [])
+        compatible.setdefault("lead_discoveries", [])
         data = _strict_mapping(
             compatible,
             {
@@ -574,6 +592,8 @@ class ResearchRuntimeCursor:
                 "gain_history",
                 "no_gain_batches_by_claim",
                 "no_gain_batches_by_gap",
+                "lead_read_ids",
+                "lead_discoveries",
             },
             "research runtime cursor",
         )
@@ -675,6 +695,15 @@ class ResearchRuntimeCursor:
                         ),
                     }
                 ).no_gain_batches_by_gap
+            ),
+            lead_read_ids=_text_tuple(
+                data.get("lead_read_ids"), _MAX_CURSOR_ITEMS, 300
+            ),
+            lead_discoveries=tuple(
+                LeadDiscoveryPayload.from_dict(item).to_dict()
+                for item in _object_list(
+                    data.get("lead_discoveries"), "lead_discoveries"
+                )[-_MAX_LEAD_DISCOVERIES:]
             ),
         )
         _validate_cursor_links(cursor)
