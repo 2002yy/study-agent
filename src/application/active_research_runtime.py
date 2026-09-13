@@ -13,8 +13,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timezone
 from math import ceil, isfinite
+import re
 import time
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
 from src.domain.runtime_entities import WebLookupRun, new_id
@@ -80,6 +82,9 @@ from src.web.research.model_gateway import (
     ResearchModelGateway,
 )
 from src.web.research.runtime import (
+    EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
+    MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
+    MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
     MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN,
     MAX_LEAD_DISCOVERY_DEPTH,
     MAX_LEAD_READS_PER_RUN,
@@ -1233,7 +1238,7 @@ class ActiveResearchRuntimeExecutor:
                 discovery_assets_before_lead = sum(
                     1
                     for item in cursor.candidates
-                    if item.discovery_method == "lead_url"
+                    if _is_discovery_candidate(item)
                 )
                 discoveries_before_lead = len(cursor.lead_discoveries)
                 lead_budget_available = (
@@ -1588,6 +1593,113 @@ class ActiveResearchRuntimeExecutor:
                     )
                     checkpoint()
 
+                    # Evidence Lead Follow-up: relation="lead" means the page
+                    # did not answer the claim but points somewhere better.
+                    # Consume the ALREADY-READ content (never re-read, no model
+                    # call) and feed bounded discovery input. Admission is strict
+                    # and shares the frozen read/model/time budget.
+                    if link.relation == "lead":
+                        wave_followups = sum(
+                            1
+                            for item in cursor.evidence_lead_followups
+                            if int(item.get("wave_index") or 0) == cursor.wave_index
+                        )
+                        remaining_seconds = (
+                            state.budget.hard_timeout_seconds - elapsed()
+                        )
+                        if (
+                            wave_followups >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE
+                            or len(cursor.evidence_lead_followups)
+                            >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN
+                        ):
+                            _bump_lead_metric(
+                                context, "evidence_lead_followup_cap_reached"
+                            )
+                        elif (
+                            remaining_seconds
+                            < EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS
+                        ):
+                            _bump_lead_metric(
+                                context,
+                                "evidence_lead_followup_skipped_insufficient_budget",
+                            )
+                        elif (
+                            claim_support_topology(state, claim)[0]
+                            >= claim.evidence_requirement.min_independent_sources
+                        ):
+                            _bump_lead_metric(
+                                context, "evidence_lead_followup_no_support_gap"
+                            )
+                        else:
+                            _bump_lead_metric(
+                                context, "evidence_lead_followup_started"
+                            )
+                            parent_candidate = next(
+                                (
+                                    item
+                                    for item in cursor.candidates
+                                    if item.id == candidate_id
+                                ),
+                                None,
+                            )
+                            keywords = tuple(
+                                dict.fromkeys(
+                                    token.casefold()
+                                    for token in re.findall(
+                                        r"[A-Za-z0-9]{4,}", claim.text
+                                    )
+                                )
+                            )[:8]
+                            discovered, followup_stats = (
+                                _evidence_lead_followup_candidates(
+                                    cursor.candidates,
+                                    page_url=candidate.url,
+                                    content=str(read.get("content") or ""),
+                                    parent=parent_candidate,
+                                    keywords=keywords,
+                                    max_candidates=state.budget.max_candidates,
+                                )
+                                if parent_candidate is not None
+                                else ((), {"no_deeper_url": 1})
+                            )
+                            for stats_key, stats_value in followup_stats.items():
+                                if stats_key != "added" and stats_value:
+                                    _bump_lead_metric(
+                                        context,
+                                        f"evidence_lead_{stats_key}",
+                                        int(stats_value),
+                                    )
+                            if discovered:
+                                cursor = replace(
+                                    cursor,
+                                    candidates=(*cursor.candidates, *discovered),
+                                )
+                                _bump_lead_metric(
+                                    context,
+                                    "evidence_lead_candidate_added",
+                                    len(discovered),
+                                )
+                            cursor = replace(
+                                cursor,
+                                evidence_lead_followups=(
+                                    *cursor.evidence_lead_followups,
+                                    {
+                                        "wave_index": cursor.wave_index,
+                                        "evidence_id": evidence_id,
+                                        "source_candidate_id": candidate_id,
+                                        "method": (
+                                            "evidence_lead_url"
+                                            if discovered
+                                            else "no_deeper_url"
+                                        ),
+                                        "added_candidate_ids": [
+                                            item.id for item in discovered
+                                        ],
+                                    },
+                                ),
+                            )
+                            checkpoint()
+
                 cursor = replace(cursor, phase="gating")
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(state)
@@ -1638,7 +1750,7 @@ class ActiveResearchRuntimeExecutor:
                 discovered_candidates_after = sum(
                     1
                     for item in cursor.candidates
-                    if item.discovery_method == "lead_url"
+                    if _is_discovery_candidate(item)
                 )
                 new_discovery_payloads = cursor.lead_discoveries[
                     discoveries_before_lead:
@@ -2686,6 +2798,117 @@ def _lead_hints_for_claim(
             if isinstance(values, list):
                 hints.extend(str(value) for value in values)
     return tuple(dict.fromkeys(hint for hint in hints if hint))
+
+
+def _domain_of(url: str) -> str:
+    try:
+        return (urlsplit(str(url or "")).netloc or "").casefold()
+    except ValueError:
+        return ""
+
+
+def _is_discovery_candidate(item: RuntimeCandidate) -> bool:
+    """Candidates produced by a bounded discovery path (Slice 2 + Follow-up)."""
+
+    return item.discovery_method in {"lead_url", "evidence_lead_url"}
+
+
+def _harvest_page_urls(
+    content: str,
+    *,
+    page_url: str,
+    keywords: tuple[str, ...],
+    limit: int = 4,
+) -> tuple[str, ...]:
+    """Deterministic deeper-URL harvest from an already-read page (no re-read).
+
+    Priority (frozen v1): same domain + claim keyword > same domain > keyword.
+    Every URL still goes through ``canonicalize_url`` (safe URL / SSRF policy).
+    """
+
+    page_canonical = canonicalize_url(page_url)
+    page_domain = _domain_of(page_canonical)
+    lowered_keywords = tuple(
+        keyword.casefold() for keyword in keywords if len(str(keyword)) >= 3
+    )
+    scored: list[tuple[tuple[int, int, int], str]] = []
+    seen: set[str] = set()
+    for raw in re.findall(r"https?://[^\s\"'<>)\]},;]+", str(content or "")):
+        canonical = canonicalize_url(raw)
+        if not canonical or canonical == page_canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        same_domain = int(bool(page_domain) and _domain_of(canonical) == page_domain)
+        keyword_hit = int(
+            any(keyword in canonical.casefold() for keyword in lowered_keywords)
+        )
+        depth = int(urlsplit(canonical).path.count("/") > 1)
+        scored.append(((same_domain, keyword_hit, depth), canonical))
+    scored.sort(key=lambda item: (-item[0][0], -item[0][1], -item[0][2], item[1]))
+    return tuple(item[1] for item in scored[:limit])
+
+
+def _evidence_lead_followup_candidates(
+    existing: tuple[RuntimeCandidate, ...],
+    *,
+    page_url: str,
+    content: str,
+    parent: RuntimeCandidate,
+    keywords: tuple[str, ...],
+    max_candidates: int,
+) -> tuple[tuple[RuntimeCandidate, ...], dict[str, int]]:
+    """Turn an evidence-stage ``lead`` into bounded discovery input.
+
+    This never re-reads the page and never calls a model: it consumes the
+    already-read content of the eligible evidence page. ``relation="lead"``
+    stays a discovery signal only - it is never weak/partial support.
+    """
+
+    stats = {
+        "added": 0,
+        "no_deeper_url": 0,
+        "duplicate_url_rejected": 0,
+        "depth_blocked": 0,
+        "cap_exhausted": 0,
+    }
+    if parent.discovery_depth >= MAX_LEAD_DISCOVERY_DEPTH:
+        stats["depth_blocked"] = 1
+        return (), stats
+    urls = _harvest_page_urls(content, page_url=page_url, keywords=keywords)
+    if not urls:
+        stats["no_deeper_url"] = 1
+        return (), stats
+    known_urls = {item.url for item in existing}
+    added: list[RuntimeCandidate] = []
+    for url in urls:
+        if len(existing) + len(added) >= max_candidates:
+            stats["cap_exhausted"] = 1
+            break
+        if url in known_urls:
+            stats["duplicate_url_rejected"] += 1
+            continue
+        known_urls.add(url)
+        added.append(
+            RuntimeCandidate(
+                id=new_id("candidate"),
+                url=url,
+                title=url,
+                snippet="",
+                source="evidence_lead",
+                published_at="",
+                query_ids=parent.query_ids,
+                intents=parent.intents,
+                providers=("evidence_lead",),
+                first_seen_rank=0,
+                parent_lead_candidate_id=parent.id,
+                discovery_method="evidence_lead_url",
+                discovery_depth=min(
+                    MAX_LEAD_DISCOVERY_DEPTH, parent.discovery_depth + 1
+                ),
+            )
+        )
+    stats["added"] = len(added)
+    return tuple(added), stats
 
 
 def _lead_discovered_candidates(

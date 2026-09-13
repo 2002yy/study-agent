@@ -82,6 +82,12 @@ _MAX_LEAD_DISCOVERIES = MAX_LEAD_READS_PER_RUN
 # can never refill the candidate pool or the budget.
 MAX_LEAD_DISCOVERY_DEPTH = 1
 MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN = 4
+# Evidence Lead Follow-up admission (strict; shares the frozen read/model/time
+# budget - it never adds budget of its own).
+MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN = 2
+MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE = 1
+EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS = 20.0
+_MAX_EVIDENCE_LEAD_FOLLOWUPS = MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN
 # Frozen wave ceiling for the bounded multi-wave loop: saturation (2 batches,
 # 3 for critical/conflict) always fits, and the ceiling guards against any
 # endless loop if gain/saturation bookkeeping were ever inconsistent.
@@ -533,6 +539,10 @@ class ResearchRuntimeCursor:
     # read/model budget as evidence reads.
     lead_read_ids: tuple[str, ...] = ()
     lead_discoveries: tuple[dict[str, Any], ...] = ()
+    # Evidence Lead Follow-up: an eligible evidence link with relation="lead"
+    # means the read page did not answer the claim but points deeper. Bounded
+    # per wave/run; consumes the already-read content (never re-reads).
+    evidence_lead_followups: tuple[dict[str, Any], ...] = ()
     schema_version: str = RESEARCH_RUNTIME_SCHEMA_VERSION
 
     @property
@@ -578,6 +588,9 @@ class ResearchRuntimeCursor:
             "no_gain_batches_by_gap": dict(self.no_gain_batches_by_gap),
             "lead_read_ids": list(self.lead_read_ids),
             "lead_discoveries": [dict(item) for item in self.lead_discoveries],
+            "evidence_lead_followups": [
+                dict(item) for item in self.evidence_lead_followups
+            ],
         }
 
     @classmethod
@@ -601,6 +614,7 @@ class ResearchRuntimeCursor:
         # survive the upgrade.
         compatible.setdefault("lead_read_ids", [])
         compatible.setdefault("lead_discoveries", [])
+        compatible.setdefault("evidence_lead_followups", [])
         data = _strict_mapping(
             compatible,
             {
@@ -624,6 +638,7 @@ class ResearchRuntimeCursor:
                 "no_gain_batches_by_gap",
                 "lead_read_ids",
                 "lead_discoveries",
+                "evidence_lead_followups",
             },
             "research runtime cursor",
         )
@@ -734,6 +749,23 @@ class ResearchRuntimeCursor:
                 for item in _object_list(
                     data.get("lead_discoveries"), "lead_discoveries"
                 )[-_MAX_LEAD_DISCOVERIES:]
+            ),
+            evidence_lead_followups=tuple(
+                _strict_mapping(
+                    item,
+                    {
+                        "wave_index",
+                        "evidence_id",
+                        "source_candidate_id",
+                        "method",
+                        "added_candidate_ids",
+                    },
+                    "evidence lead follow-up",
+                )
+                for item in _object_list(
+                    data.get("evidence_lead_followups"),
+                    "evidence_lead_followups",
+                )[-_MAX_EVIDENCE_LEAD_FOLLOWUPS:]
             ),
         )
         _validate_cursor_links(cursor)

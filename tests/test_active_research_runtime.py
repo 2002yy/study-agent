@@ -144,6 +144,8 @@ class _StructuredClient:
         malformed_extraction: bool = False,
         claims_count: int = 1,
         lead_only_assessment: bool = False,
+        lead_then_support: bool = False,
+        eligible_urls: tuple[str, ...] = (),
     ) -> None:
         self.chat = SimpleNamespace(completions=self)
         self.calls: list[dict[str, Any]] = []
@@ -151,6 +153,8 @@ class _StructuredClient:
         self.malformed_extraction = malformed_extraction
         self.claims_count = claims_count
         self.lead_only_assessment = lead_only_assessment
+        self.lead_then_support = lead_then_support
+        self.eligible_urls = tuple(eligible_urls)
         self.assessment_urls: list[list[str]] = []
 
     def with_options(self, **kwargs: Any) -> "_StructuredClient":
@@ -200,9 +204,10 @@ class _StructuredClient:
             )
             rows: list[dict[str, Any]] = []
             for index, item in enumerate(request["candidates"]):
+                canonical = str(item.get("canonical_url") or "")
                 is_discovered = (
-                    str(item.get("canonical_url") or "")
-                    == "https://primary.example/bank-rate"
+                    canonical == "https://primary.example/bank-rate"
+                    or canonical in self.eligible_urls
                 )
                 rows.append(
                     {
@@ -242,7 +247,20 @@ class _StructuredClient:
             # (the strict parser rejects anchors absent from the excerpt), and
             # the fake output must be deterministic per claim input.
             claim_text = str(request["claim_text"])
-            if claim_text == "current release date":
+            page_url = str((request.get("page") or {}).get("url") or "")
+            relation = "supports"
+            strength = 0.95
+            caveats: list[str] = []
+            if self.lead_then_support and page_url.rstrip("/") == "https://official.example":
+                relation = "lead"
+                strength = 0.1
+                locator = "Official release announcement"
+                anchored_spans = ["Official release announcement"]
+                caveats = ["The page does not state the verified release date itself."]
+            elif self.lead_then_support and "docs.official.example" in page_url:
+                locator = "2026-08-01"
+                anchored_spans = ["2026-08-01"]
+            elif claim_text == "current release date":
                 locator = "2026-08-01"
                 anchored_spans = ["2026-08-01"]
             else:
@@ -258,11 +276,11 @@ class _StructuredClient:
                 "claim_id": request["claim_id"],
                 "source_role": request["source_role"],
                 "source_cluster_id": request["source_cluster_id"],
-                "relation": "supports",
-                "strength": 0.95,
+                "relation": relation,
+                "strength": strength,
                 "locator": locator,
                 "anchored_spans": anchored_spans,
-                "caveats": [],
+                "caveats": caveats,
                 "published_at": request["published_at"],
             }
         content = __import__("json").dumps(payload)
@@ -4125,3 +4143,120 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
         "wave_progress"
     ]
     assert any(item["discovery_progress"] for item in wave_progress)
+
+
+class _HomepageOnlySearchBackend:
+    """Returns only the official homepage.
+
+    The deeper URL must come from the evidence-lead follow-up, never from search.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def search_exact(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+    ) -> dict[str, Any]:
+        del query, max_results
+        self.calls += 1
+        return {
+            "status": "ok",
+            "reason": "results_found",
+            "results": [
+                {
+                    "title": "Official project homepage",
+                    "url": "https://official.example/",
+                    "snippet": "Official release announcement and downloads",
+                    "published_at": "2026-08-01",
+                    "provider": "bing_rss",
+                }
+            ],
+            "providers_attempted": ["bing_rss"],
+            "provider_errors": [],
+            "provider_audits": [],
+            "provider_outcomes": [],
+            "searched_at": "2026-08-27T00:00:00+00:00",
+        }
+
+
+class _EvidenceLeadReadGateway:
+    """Homepage points at a deeper docs subdomain; that page carries the fact."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        if "docs.official.example" in url:
+            content = "Verified fact: the release date is 2026-08-01."
+        else:
+            content = (
+                "Official release announcement. See "
+                "https://docs.official.example/releases/2026-08-01 for the verified date."
+            )
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Official page",
+            "content": content[:max_chars],
+        }
+
+
+def test_evidence_lead_followup_reaches_deeper_support(tmp_path: Any) -> None:
+    """Frozen fixture: homepage -> lead -> deeper URL -> supports -> 1/2 clusters.
+
+    ``relation="lead"`` must stay a discovery signal only: it never counts as
+    support, but it must feed a bounded follow-up that can reach the page which
+    actually answers the claim.
+    """
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "evidence_lead.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_evidence_lead",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(
+        lead_then_support=True,
+        eligible_urls=("https://docs.official.example/releases/2026-08-01",),
+    )
+    reader = _EvidenceLeadReadGateway()
+    service = _service(
+        repository,
+        client,
+        search_backend=_HomepageOnlySearchBackend(),
+        read_gateway=reader,
+    )
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    # The evidence-stage lead produced a bounded follow-up.
+    assert cursor.evidence_lead_followups, "expected an evidence-lead follow-up"
+    followup = cursor.evidence_lead_followups[0]
+    assert followup["method"] == "evidence_lead_url"
+    deeper = [
+        item
+        for item in cursor.candidates
+        if item.discovery_method == "evidence_lead_url"
+    ]
+    assert deeper
+    assert deeper[0].url == "https://docs.official.example/releases/2026-08-01"
+    # The deeper page was really read (the search backend never returned it).
+    assert any("docs.official.example" in url for url in reader.calls)
+    # relation="lead" never counts as support: the claim reaches 1/2 clusters.
+    brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    reasons = " ".join(brief.get("gate_reasons") or [])
+    assert "eligible_support_clusters=1/" in reasons, reasons
