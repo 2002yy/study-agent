@@ -48,7 +48,14 @@ from src.web.research.contracts import (
     ResearchTraceEvent,
     build_research_state,
 )
-from src.web.research.evidence_gate import EvidenceGateResult, evaluate_evidence_gate
+from src.web.research.evidence_gate import (
+    EvidenceGateResult,
+    evaluate_evidence_gate,
+    evidence_link_eligibility,
+)
+from src.web.research.lead_discovery import (
+    RuntimeLeadDiscoverer,
+)
 from src.web.research.evidence_gain import (
     GapBatchDelta,
     SaturationState,
@@ -57,7 +64,12 @@ from src.web.research.evidence_gain import (
     update_saturation,
 )
 from src.web.research.failure_contracts import ResearchFailureCode
-from src.web.research.gap_planner import GapQueryBatch, GapSearchIntent, PlannedGapQuery, plan_gap_queries
+from src.web.research.gap_planner import (
+    GapQueryBatch,
+    GapSearchIntent,
+    PlannedGapQuery,
+    plan_gap_queries,
+)
 from src.web.research.model_gateway import (
     MAX_RESEARCH_MODEL_ATTEMPTS,
     ResearchModelAttemptStart,
@@ -65,6 +77,7 @@ from src.web.research.model_gateway import (
     ResearchModelGateway,
 )
 from src.web.research.runtime import (
+    MAX_LEAD_READS_PER_RUN,
     MAX_RESEARCH_WAVES,
     ResearchRuntimeCursor,
     RuntimeCandidate,
@@ -90,6 +103,7 @@ from src.web.research.scheduler import (
     ReadSchedulerPolicy,
     ReadSchedulingCancelled,
     is_schedulable_candidate,
+    is_schedulable_lead,
     plan_read_wave,
 )
 from src.web.research.source_cluster import (
@@ -150,6 +164,7 @@ class ActiveResearchRuntimeExecutor:
         claim_planner: RuntimeClaimPlanner | None = None,
         candidate_assessor: RuntimeCandidateAssessor | None = None,
         evidence_extractor: RuntimeEvidenceExtractor | None = None,
+        lead_discoverer: RuntimeLeadDiscoverer | None = None,
         policy_check: PolicyCheck | None = None,
         monotonic: Callable[[], float] = time.monotonic,
         utc_now: Callable[[], str] | None = None,
@@ -176,6 +191,7 @@ class ActiveResearchRuntimeExecutor:
         timeout_cap_seconds=candidate_assessment_timeout_cap_seconds,
     )
         self.evidence_extractor = evidence_extractor or RuntimeEvidenceExtractor(shared_model)
+        self.lead_discoverer = lead_discoverer or RuntimeLeadDiscoverer(shared_model)
         self.policy_check = policy_check or _default_policy_check
         self.monotonic = monotonic
         self.utc_now = utc_now or _utc_now
@@ -1201,6 +1217,155 @@ class ActiveResearchRuntimeExecutor:
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
                         outcome.to_dict() for outcome in cursor.read_outcomes
                     ]
+                    checkpoint()
+
+                # Slice 1: bounded lead discovery. A lead read is a discovery
+                # action, never an evidence read: it runs strictly after the
+                # evidence reads, at most one per wave and at most
+                # MAX_LEAD_READS_PER_RUN per run, and it spends the same shared
+                # read/model budget. Its output can never become eligible
+                # evidence (separate typed contract).
+                lead_plan = _lead_read_plan(
+                    state,
+                    claim_rankings,
+                    completed_read_ids=cursor.completed_read_ids,
+                    lead_read_ids=cursor.lead_read_ids,
+                    lead_budget_available=(
+                        len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
+                    ),
+                )
+                for lead_item in lead_plan:
+                    if len(cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
+                        break
+                    if (
+                        successful_reads >= state.budget.max_reads
+                        or used_chars >= state.budget.max_total_chars
+                    ):
+                        break
+                    lead_candidate = lead_item["candidate"]
+                    lead_candidate_id = lead_candidate.id
+                    ensure_active()
+                    ensure_budget()
+                    lead_source_limit = min(
+                        6000, state.budget.max_total_chars - used_chars
+                    )
+                    lead_attempt = _attempt_number(
+                        cursor, f"lead:{lead_candidate_id}"
+                    )
+                    lead_marker = RuntimeExternalAttemptStart(
+                        call_id=(
+                            f"research_lead_read:{run_id}:{lead_candidate_id}"
+                            f":attempt:{lead_attempt}"
+                        ),
+                        purpose="read",
+                        item_id=f"lead:{lead_candidate_id}",
+                        attempt=lead_attempt,
+                        started_at=self.utc_now(),
+                    )
+                    cursor = begin_external_attempt(cursor, lead_marker)
+                    checkpoint()
+                    lead_read_exception = ""
+                    try:
+                        raw_lead_read = dict(
+                            self.gateway.read(
+                                lead_candidate.url, max_chars=lead_source_limit
+                            )
+                            or {}
+                        )
+                    except Exception as exc:
+                        lead_read_exception = type(exc).__name__
+                        raw_lead_read = {
+                            "ok": False,
+                            "status": "failed",
+                            "url": lead_candidate.url,
+                            "error": type(exc).__name__,
+                        }
+                    finally:
+                        cursor = finish_external_attempt(
+                            cursor, call_id=lead_marker.call_id
+                        )
+                        checkpoint()
+                    ensure_active()
+                    lead_content = str(
+                        raw_lead_read.get("content")
+                        or raw_lead_read.get("readme")
+                        or ""
+                    )[:lead_source_limit]
+                    cursor = replace(
+                        cursor,
+                        lead_read_ids=(*cursor.lead_read_ids, lead_candidate_id),
+                    )
+                    if not (
+                        raw_lead_read.get("ok") is True and lead_content.strip()
+                    ):
+                        _append_failure(
+                            "read_failed",
+                            "reading",
+                            logical_call_id=lead_marker.call_id,
+                            item_id=lead_candidate_id,
+                            detail=_bounded_text(
+                                raw_lead_read.get("error") or "lead_read_failed",
+                                2000,
+                            ),
+                            exception_type=lead_read_exception,
+                            attempt_id=lead_marker.call_id,
+                        )
+                        checkpoint()
+                        continue
+                    successful_reads += 1
+                    used_chars += len(lead_content)
+                    update_budget(reads_used=successful_reads)
+                    checkpoint()
+                    lead_categories = (
+                        "public_research_candidate_metadata",
+                        "bounded_public_page_excerpt",
+                    )
+                    if not model_allowed(
+                        "research_lead_discovery", lead_categories
+                    ):
+                        _append_failure(
+                            "policy_blocked",
+                            "reading",
+                            logical_call_id=(
+                                f"policy:research_lead_discovery:{lead_candidate_id}"
+                            ),
+                            item_id=lead_candidate_id,
+                            detail="blocked_by_policy",
+                        )
+                        checkpoint()
+                        continue
+                    discovery = self.lead_discoverer.discover(
+                        run_id=run_id,
+                        candidate=lead_candidate,
+                        content=lead_content,
+                        timeout_seconds=remaining_timeout(),
+                        on_attempt_started=on_model_started,
+                        on_attempt_finished=on_model_finished,
+                    )
+                    ensure_active()
+                    if (
+                        discovery.status == "completed"
+                        and discovery.discovery is not None
+                    ):
+                        cursor = replace(
+                            cursor,
+                            lead_discoveries=(
+                                *cursor.lead_discoveries,
+                                discovery.discovery.to_dict(),
+                            ),
+                        )
+                    else:
+                        _append_failure(
+                            "extraction_failed",
+                            "reading",
+                            logical_call_id=(
+                                f"research_lead_discovery:{run_id}"
+                                f":{lead_candidate_id}:1"
+                            ),
+                            item_id=lead_candidate_id,
+                            detail=discovery.reason
+                            or "lead_discovery_unavailable",
+                        )
                     checkpoint()
 
                 cursor = replace(cursor, phase="extracting")
@@ -2234,6 +2399,78 @@ def _fair_read_plan(
     schedule(conflict_claims, reserve, allow_reserve=True)
     read_cap = max(0, state.budget.max_reads - state.budget.reads_used)
     return physical[:read_cap], targets
+
+
+def _claim_lacks_primary_evidence(
+    state: ResearchState,
+    claim: ResearchClaim,
+) -> bool:
+    """True when the claim has no Gate-eligible primary evidence yet.
+
+    Used only to decide whether a bounded lead read is worth spending; it never
+    changes evidence eligibility.
+    """
+
+    evidence_by_id = {evidence.evidence_id: evidence for evidence in state.evidence}
+    for link in state.evidence_links:
+        if link.claim_id != claim.id:
+            continue
+        if link.source_role != "primary":
+            continue
+        if evidence_link_eligibility(
+            claim=claim,
+            link=link,
+            evidence=evidence_by_id.get(link.evidence_id),
+            reference_date=state.reference_date,
+        ):
+            return False
+    return True
+
+
+def _lead_read_plan(
+    state: ResearchState,
+    claim_rankings: Mapping[str, tuple[RankedCandidate, ...]],
+    *,
+    completed_read_ids: tuple[str, ...],
+    lead_read_ids: tuple[str, ...],
+    lead_budget_available: bool,
+) -> list[dict[str, Any]]:
+    """At most one bounded lead read per wave, strictly below evidence reads.
+
+    Deterministic v1 rule (see ``is_schedulable_lead``): ``lead_only`` +
+    primary/provenance/verification intent + the claim still lacks primary
+    evidence + lead budget available. ``rejected`` candidates are never read.
+    """
+
+    if not lead_budget_available:
+        return []
+    seen: set[str] = set()
+    for claim in _ordered_claims(state):
+        if claim.priority != "critical":
+            continue
+        if not _claim_lacks_primary_evidence(state, claim):
+            continue
+        for item in claim_rankings.get(claim.id, ()):
+            candidate_id = item.candidate.id
+            if (
+                candidate_id in completed_read_ids
+                or candidate_id in lead_read_ids
+                or candidate_id in seen
+            ):
+                continue
+            if is_schedulable_lead(
+                item, lead_budget_available=True, gap_needs_primary=True
+            ):
+                return [
+                    {
+                        "candidate": item.candidate,
+                        "claim_id": claim.id,
+                        "source_role": item.assessment.source_role,
+                        "cluster_id": item.assessment.cluster_id,
+                    }
+                ]
+            seen.add(candidate_id)
+    return []
 
 
 def _restore_completed_read_targets(

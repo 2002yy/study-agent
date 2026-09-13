@@ -143,12 +143,14 @@ class _StructuredClient:
         on_call: Callable[[int], None] | None = None,
         malformed_extraction: bool = False,
         claims_count: int = 1,
+        lead_only_assessment: bool = False,
     ) -> None:
         self.chat = SimpleNamespace(completions=self)
         self.calls: list[dict[str, Any]] = []
         self.on_call = on_call
         self.malformed_extraction = malformed_extraction
         self.claims_count = claims_count
+        self.lead_only_assessment = lead_only_assessment
 
     def with_options(self, **kwargs: Any) -> "_StructuredClient":
         assert kwargs == {"max_retries": 0}
@@ -194,14 +196,28 @@ class _StructuredClient:
                 "a": [
                     {
                         "i": index,
-                        "r": 0,
+                        "r": 1 if self.lead_only_assessment else 0,
                         "rc": 0.98,
-                        "s": 1 if index == 0 else 3,
+                        "s": (
+                            5
+                            if self.lead_only_assessment
+                            else (1 if index == 0 else 3)
+                        ),
                         "sc": 0.95,
                         "g": [0 if index == 0 else 1],
                     }
                     for index, _item in enumerate(request["candidates"])
                 ],
+            }
+        elif "provenance scout" in system:
+            payload = {
+                "schema_version": "research-lead-discovery-v1",
+                "candidate_id": request["candidate_id"],
+                "discovered_urls": ["https://official.example/bank-rate"],
+                "domains": ["official.example"],
+                "organizations": ["Official Body"],
+                "primary_source_hints": ["Official Bank Rate page"],
+                "warnings": [],
             }
         else:
             # H7: anchors must differ per claim AND exist in the read excerpt
@@ -4018,3 +4034,47 @@ def test_v1_planning_attempt_exhaustion_is_classified_before_third_call(
         failure.item_id.startswith(f"{logical_call_id}:attempt:3")
         for failure in resumed_cursor.failures
     )
+
+
+def test_bounded_lead_read_discovers_assets_without_creating_evidence(
+    tmp_path: Any,
+) -> None:
+    """Slice 1: a lead_only candidate is read as a lead and yields discovery
+    assets only; it never produces eligible evidence or an evidence read."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "lead.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_lead",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(lead_only_assessment=True)
+    service = _service(repository, client)
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    # Exactly one bounded lead read produced one typed discovery payload.
+    assert len(cursor.lead_read_ids) == 1
+    assert len(cursor.lead_discoveries) == 1
+    discovery = cursor.lead_discoveries[0]
+    assert discovery["discovered_urls"] == ["https://official.example/bank-rate"]
+    assert discovery["domains"] == ["official.example"]
+    assert discovery["primary_source_hints"] == ["Official Bank Rate page"]
+    # The discovery payload is a lead asset: it cannot carry evidence fields.
+    assert set(discovery) == {
+        "source_candidate_id",
+        "discovered_urls",
+        "domains",
+        "organizations",
+        "primary_source_hints",
+        "warnings",
+    }
+    assert any(call.purpose == "research_lead_discovery" for call in cursor.model_calls)
