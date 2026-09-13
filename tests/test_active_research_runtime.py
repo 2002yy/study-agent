@@ -151,6 +151,7 @@ class _StructuredClient:
         self.malformed_extraction = malformed_extraction
         self.claims_count = claims_count
         self.lead_only_assessment = lead_only_assessment
+        self.assessment_urls: list[list[str]] = []
 
     def with_options(self, **kwargs: Any) -> "_StructuredClient":
         assert kwargs == {"max_retries": 0}
@@ -191,30 +192,47 @@ class _StructuredClient:
                 "supporting_claims": supporting_claims,
             }
         elif "search candidates" in system:
-            payload = {
-                "v": "ca2",
-                "a": [
+            self.assessment_urls.append(
+                [
+                    str(item.get("canonical_url") or "")
+                    for item in request["candidates"]
+                ]
+            )
+            rows: list[dict[str, Any]] = []
+            for index, item in enumerate(request["candidates"]):
+                is_discovered = (
+                    str(item.get("canonical_url") or "")
+                    == "https://primary.example/bank-rate"
+                )
+                rows.append(
                     {
                         "i": index,
-                        "r": 1 if self.lead_only_assessment else 0,
+                        "r": (
+                            0
+                            if is_discovered
+                            else (1 if self.lead_only_assessment else 0)
+                        ),
                         "rc": 0.98,
                         "s": (
-                            5
-                            if self.lead_only_assessment
-                            else (1 if index == 0 else 3)
+                            1
+                            if is_discovered
+                            else (
+                                5
+                                if self.lead_only_assessment
+                                else (1 if index == 0 else 3)
+                            )
                         ),
                         "sc": 0.95,
                         "g": [0 if index == 0 else 1],
                     }
-                    for index, _item in enumerate(request["candidates"])
-                ],
-            }
+                )
+            payload = {"v": "ca2", "a": rows}
         elif "provenance scout" in system:
             payload = {
                 "schema_version": "research-lead-discovery-v1",
                 "candidate_id": request["candidate_id"],
-                "discovered_urls": ["https://official.example/bank-rate"],
-                "domains": ["official.example"],
+                "discovered_urls": ["https://primary.example/bank-rate"],
+                "domains": ["primary.example"],
                 "organizations": ["Official Body"],
                 "primary_source_hints": ["Official Bank Rate page"],
                 "warnings": [],
@@ -4065,8 +4083,8 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
     assert 1 <= len(cursor.lead_read_ids) <= 2
     assert len(cursor.lead_discoveries) == len(cursor.lead_read_ids)
     discovery = cursor.lead_discoveries[0]
-    assert discovery["discovered_urls"] == ["https://official.example/bank-rate"]
-    assert discovery["domains"] == ["official.example"]
+    assert discovery["discovered_urls"] == ["https://primary.example/bank-rate"]
+    assert discovery["domains"] == ["primary.example"]
     assert discovery["primary_source_hints"] == ["Official Bank Rate page"]
     # The discovery payload is a lead asset: it cannot carry evidence fields.
     assert set(discovery) == {
@@ -4084,6 +4102,13 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
         item for item in cursor.candidates if item.discovery_method == "lead_url"
     ]
     assert len(discovered) == 1
-    assert discovered[0].url == "https://official.example/bank-rate"
+    assert discovered[0].url == "https://primary.example/bank-rate"
     assert discovered[0].parent_lead_candidate_id in cursor.lead_read_ids
     assert discovered[0].discovery_depth == 1
+    # Slice 2 closed loop: the discovered candidate re-enters assessment like
+    # any other candidate (no privilege) and, once the assessor marks it
+    # answer_relevant + primary, it becomes a schedulable evidence read.
+    discovered_id = discovered[0].id
+    assert any(
+        outcome.candidate_id == discovered_id for outcome in cursor.read_outcomes
+    )
