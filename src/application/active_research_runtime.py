@@ -1241,6 +1241,7 @@ class ActiveResearchRuntimeExecutor:
                     if _is_discovery_candidate(item)
                 )
                 discoveries_before_lead = len(cursor.lead_discoveries)
+                followups_before_lead = len(cursor.evidence_lead_followups)
                 lead_budget_available = (
                     len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
                 )
@@ -1695,6 +1696,11 @@ class ActiveResearchRuntimeExecutor:
                                         "added_candidate_ids": [
                                             item.id for item in discovered
                                         ],
+                                        # Fallback discovery input: the page's own
+                                        # domain plus bounded claim terms. The Gap
+                                        # Planner turns this into its own query.
+                                        "hint_domain": _domain_of(candidate.url),
+                                        "hint_terms": list(keywords[:4]),
                                     },
                                 ),
                             )
@@ -1766,6 +1772,13 @@ class ActiveResearchRuntimeExecutor:
                 discovery_progress = (
                     discovered_candidates_after > discovery_assets_before_lead
                     or new_discovery_assets
+                    or any(
+                        str(item.get("hint_domain") or "")
+                        for item in cursor.evidence_lead_followups[
+                            followups_before_lead:
+                        ]
+                        if isinstance(item, Mapping)
+                    )
                 )
                 no_gain_incremented = not (evidence_progress or discovery_progress)
                 if no_gain_incremented:
@@ -2235,8 +2248,21 @@ def _append_gap_queries(
         for item in batch.queries:
             runtime_query = _runtime_query(item)
             query_key = runtime_query.query.casefold()
-            if runtime_query.id in planned_ids or query_key in planned_text:
+            if query_key in planned_text:
                 continue
+            if runtime_query.id in planned_ids:
+                # Same (gap, intent) re-planned with different wording (for
+                # example a lead hint sharpened it): mint a deterministic
+                # content-scoped id so the new query is not silently dropped.
+                runtime_query = replace(
+                    runtime_query,
+                    id=(
+                        f"{runtime_query.id}:"
+                        f"{hashlib.sha256(runtime_query.query.encode('utf-8')).hexdigest()[:8]}"
+                    ),
+                )
+                if runtime_query.id in planned_ids:
+                    continue
             new_planned.append(runtime_query)
             planned_ids.add(runtime_query.id)
             planned_text.add(query_key)
@@ -2797,6 +2823,19 @@ def _lead_hints_for_claim(
             values = payload.get(key)
             if isinstance(values, list):
                 hints.extend(str(value) for value in values)
+    # Evidence-stage lead follow-ups contribute their own bounded hint (page
+    # domain + claim terms) when no deeper URL was harvestable.
+    for followup in cursor.evidence_lead_followups:
+        parent_id = str(followup.get("source_candidate_id") or "")
+        parent = candidates_by_id.get(parent_id)
+        if parent is None or not claim_query_ids.intersection(parent.query_ids):
+            continue
+        domain = str(followup.get("hint_domain") or "")
+        if domain:
+            hints.append(domain)
+        terms = followup.get("hint_terms")
+        if isinstance(terms, list):
+            hints.extend(str(term) for term in terms[:2])
     return tuple(dict.fromkeys(hint for hint in hints if hint))
 
 

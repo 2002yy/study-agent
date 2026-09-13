@@ -4260,3 +4260,62 @@ def test_evidence_lead_followup_reaches_deeper_support(tmp_path: Any) -> None:
     brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
     reasons = " ".join(brief.get("gate_reasons") or [])
     assert "eligible_support_clusters=1/" in reasons, reasons
+
+
+class _EvidenceLeadNoUrlReadGateway:
+    """Official homepage with no harvestable links (plain text only)."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Official page",
+            "content": (
+                "Official release announcement for the current release. "
+                "No links are present in this plain text body."
+            )[:max_chars],
+        }
+
+
+def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None:
+    """No deeper URL: the follow-up must still feed the Gap Planner a hint."""
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "evidence_lead_hint.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_evidence_lead_hint",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(lead_then_support=True)
+    reader = _EvidenceLeadNoUrlReadGateway()
+    service = _service(
+        repository,
+        client,
+        search_backend=_HomepageOnlySearchBackend(),
+        read_gateway=reader,
+    )
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    assert cursor.evidence_lead_followups
+    followup = cursor.evidence_lead_followups[0]
+    assert followup["method"] == "no_deeper_url"
+    assert followup["hint_domain"] == "official.example"
+    # The Gap Planner (still the only query owner) turned the hint into a
+    # site-scoped follow-up query.
+    queries = [item.query for item in cursor.planned_queries]
+    assert any("site:official.example" in query for query in queries), queries

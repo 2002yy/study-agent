@@ -759,6 +759,8 @@ class ResearchRuntimeCursor:
                         "source_candidate_id",
                         "method",
                         "added_candidate_ids",
+                        "hint_domain",
+                        "hint_terms",
                     },
                     "evidence lead follow-up",
                 )
