@@ -132,6 +132,12 @@ class _ExternalAttemptBudgetExhausted(RuntimeError):
     pass
 
 
+# Deadline-aware provider policy: the search stage must not consume the entire
+# shared hard budget. This tail is reserved for downstream assessment/read/
+# answer so a degraded provider cannot starve the rest of the bounded run.
+SEARCH_STAGE_RESERVE_SECONDS = 20.0
+
+
 class ActiveResearchRuntimeExecutor:
     """Execute one active run under the durable WebLookupRun owner."""
 
@@ -739,8 +745,19 @@ class ActiveResearchRuntimeExecutor:
 
                     def search_exact(query: str, *, max_results: int = 5) -> Mapping[str, Any]:
                         nonlocal audit
+                        # Deadline-aware provider policy: reserve the tail of the
+                        # shared hard budget for assessment/read/answer so a
+                        # degraded provider cannot consume the entire budget.
+                        remaining = state.budget.hard_timeout_seconds - elapsed()
+                        search_deadline = self.monotonic() + max(
+                            0.0, remaining - SEARCH_STAGE_RESERVE_SECONDS
+                        )
                         try:
-                            payload = self.gateway.search_detailed(query, max_items=max_results)
+                            payload = self.gateway.search_detailed(
+                                query,
+                                max_items=max_results,
+                                deadline=search_deadline,
+                            )
                             audit = self.gateway.last_search_audit()
                             return payload
                         finally:

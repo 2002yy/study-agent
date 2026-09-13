@@ -12,9 +12,10 @@ a second evidence store.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from src.web.research.provider_search import ResearchProviderSearch
 from src.web.research_gateway import ResearchWebGateway
@@ -91,15 +92,29 @@ class ActiveResearchGateway:
     ) -> None:
         self._search_backend = search_backend or ResearchProviderSearch()
         self._read_gateway = read_gateway or ResearchWebGateway()
+        self._backend_accepts_deadline = _accepts_deadline(self._search_backend)
         self._last_audit: ActiveSearchCallAudit | None = None
         self._pending_audits: list[dict[str, Any] | None] = []
         self._warnings: list[dict[str, str]] = []
 
-    def search_detailed(self, query: str, *, max_items: int = 10) -> dict[str, Any]:
+    def search_detailed(
+        self,
+        query: str,
+        *,
+        max_items: int = 10,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
         self._last_audit = None
         self._warnings = []
         try:
-            payload = self._search_backend.search_exact(query, max_results=max_items)
+            if deadline is not None and self._backend_accepts_deadline:
+                payload = cast(Any, self._search_backend).search_exact(
+                    query,
+                    max_results=max_items,
+                    deadline=deadline,
+                )
+            else:
+                payload = self._search_backend.search_exact(query, max_results=max_items)
             if not isinstance(payload, Mapping):
                 raise ValueError("research search backend must return a mapping")
             snapshot = dict(payload)
@@ -214,6 +229,20 @@ def _strings(value: Any, *, limit: int) -> tuple[str, ...]:
 
 def _bounded_text(value: Any, limit: int) -> str:
     return " ".join(str(value or "").split())[:limit]
+
+
+def _accepts_deadline(backend: ResearchSearchExact) -> bool:
+    """Return True only when the backend's search_exact accepts ``deadline``.
+
+    Keeps injected legacy backends (and test doubles) working unchanged while the
+    deadline-aware production backend receives the stage deadline.
+    """
+
+    try:
+        parameters = inspect.signature(backend.search_exact).parameters
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return "deadline" in parameters
 
 
 __all__ = ["ActiveResearchGateway", "ActiveSearchCallAudit"]

@@ -219,3 +219,32 @@ def test_active_gateway_reuses_existing_reader() -> None:
 
     assert result == {"ok": True, "content": "body"}
     assert reader.calls == [("https://example.test/article", 1234)]
+
+
+class DeadlineSearchBackend:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+        self.deadlines: list[float | None] = []
+
+    def search_exact(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        self.deadlines.append(deadline)
+        return self.payload
+
+
+def test_deadline_is_forwarded_only_to_deadline_aware_backend() -> None:
+    deadline_backend = DeadlineSearchBackend(_payload())
+    deadline_gateway = ActiveResearchGateway(search_backend=deadline_backend)
+    deadline_gateway.search_detailed("query", deadline=123.5)
+    assert deadline_backend.deadlines == [123.5]
+
+    legacy_backend = FakeSearchBackend([_payload()])
+    legacy_gateway = ActiveResearchGateway(search_backend=legacy_backend)
+    legacy_gateway.search_detailed("query", deadline=123.5)
+    assert legacy_backend.calls == [("query", 10)]
+    assert legacy_gateway.last_search_audit() is not None

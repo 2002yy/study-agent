@@ -231,3 +231,304 @@ def test_b1_module_does_not_import_eval_code() -> None:
         / "provider_search.py"
     )
     assert "src.evals" not in path.read_text(encoding="utf-8")
+
+
+class _ManualClock:
+    def __init__(self, value: float = 100.0) -> None:
+        self.value = value
+
+    def __call__(self) -> float:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value += seconds
+
+
+def test_deadline_skips_all_providers_when_budget_insufficient() -> None:
+    calls: list[str] = []
+    clock = _ManualClock(100.0)
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        return [_item(f"https://example.test/{provider}", provider)], ""
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: True,
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=100.5)
+
+    assert calls == []
+    assert payload["status"] == "unavailable"
+    assert payload["reason"] == "skipped_insufficient_budget"
+    assert payload["provider_errors"] == []
+    assert [item["status"] for item in payload["provider_outcomes"]] == [
+        "skipped",
+        "skipped",
+        "skipped",
+    ]
+    assert all(
+        item["reason"] == "skipped_insufficient_budget"
+        and item["attempts"] == 0
+        for item in payload["provider_outcomes"]
+    )
+    assert [item["status"] for item in payload["provider_audits"]] == [
+        "skipped",
+        "skipped",
+        "skipped",
+    ]
+
+
+def test_deadline_stops_transient_retry_and_preserves_failure_reason() -> None:
+    calls: list[str] = []
+    clock = _ManualClock(100.0)
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        clock.advance(6.0)
+        return [], "bing_rss:TimeoutError:timed out"
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "bing_rss",
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=100.0 + 7.0)
+
+    assert calls == ["bing_rss"]
+    outcome = payload["provider_outcomes"][0]
+    assert outcome["status"] == "failed"
+    assert outcome["reason"] == "timeout"
+    assert outcome["attempts"] == 1
+    assert payload["provider_errors"] == ["bing_rss:timeout"]
+
+
+def test_deadline_caps_attempt_timeout_to_remaining_budget() -> None:
+    seen_timeouts: list[float] = []
+    clock = _ManualClock(100.0)
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        seen_timeouts.append(timeout)
+        return [_item("https://example.test/a", "a")], ""
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "bing_rss",
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=100.0 + 3.0)
+
+    assert seen_timeouts == [3.0]
+    assert payload["status"] == "ok"
+
+
+def test_deadline_skip_after_success_is_partial_with_results() -> None:
+    clock = _ManualClock(100.0)
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        if provider == "searxng":
+            clock.advance(9.0)
+            return [_item("https://example.test/searx", "searx")], ""
+        return [_item(f"https://example.test/{provider}", provider)], ""
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: True,
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=100.0 + 10.0)
+
+    assert payload["status"] == "partial"
+    assert payload["reason"] == "results_with_provider_failures"
+    assert [item["url"] for item in payload["results"]] == [
+        "https://example.test/searx"
+    ]
+    statuses = [item["status"] for item in payload["provider_outcomes"]]
+    assert statuses == ["ok", "skipped", "skipped"]
+
+
+def test_no_deadline_preserves_legacy_retry_behavior() -> None:
+    calls = 0
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return [], "bing_rss:TimeoutError:temporary"
+        return [_item("https://example.test/recovered", "recovered")], ""
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "bing_rss",
+        monotonic=_Clock(),
+    ).search_exact("query")
+
+    assert calls == 2
+    assert payload["status"] == "ok"
+
+
+def test_fault_injection_bad_providers_do_not_starve_healthy_provider() -> None:
+    """A timeout + B challenge must not stop the runtime from reaching C."""
+
+    clock = _ManualClock(0.0)
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        clock.advance(timeout)  # every attempt consumes its full attempt timeout
+        if provider == "searxng":
+            return [], "searxng:TimeoutError:timed out"
+        if provider == "duckduckgo_html":
+            return [], "duckduckgo_html:challenge"
+        return [_item("https://example.test/bing", "bing")], ""
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: True,
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=30.0)
+
+    # searxng: 2 transient attempts (12s); bing_rss: success (6s);
+    # duckduckgo_html: challenge, no retry (6s). Total 24s < 30s stage deadline.
+    assert clock.value == 24.0
+    assert payload["status"] == "partial"
+    assert [item["url"] for item in payload["results"]] == [
+        "https://example.test/bing"
+    ]
+    by_provider = {item["provider"]: item for item in payload["provider_outcomes"]}
+    assert by_provider["searxng"]["status"] == "failed"
+    assert by_provider["searxng"]["reason"] == "timeout"
+    assert by_provider["searxng"]["attempts"] == 2
+    assert by_provider["bing_rss"]["status"] == "ok"
+    assert by_provider["duckduckgo_html"]["status"] == "failed"
+    assert by_provider["duckduckgo_html"]["reason"] == "challenge"
+    assert by_provider["duckduckgo_html"]["attempts"] == 1
+
+
+def test_deadline_prevents_bad_provider_from_consuming_whole_stage() -> None:
+    clock = _ManualClock(0.0)
+    calls: list[str] = []
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        clock.advance(timeout)
+        return [], "searxng:TimeoutError:timed out"
+
+    payload = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: True,
+        monotonic=clock,
+        provider_timeout_seconds=6.0,
+    ).search_exact("query", deadline=8.0)
+
+    # searxng attempt 1 (6s) + capped attempt 2 (2s) exhausts the 8s stage
+    # deadline; the remaining providers are skipped, not retried.
+    assert calls == ["searxng", "searxng"]
+    assert clock.value == 8.0
+    assert payload["status"] == "partial"
+    assert payload["reason"] == "providers_partially_failed_without_results"
+    statuses = [item["status"] for item in payload["provider_outcomes"]]
+    assert statuses == ["failed", "skipped", "skipped"]
+
+
+def test_challenge_opens_circuit_and_skips_provider_on_later_queries() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append((provider, query))
+        if provider == "searxng":
+            return [], "searxng:challenge"
+        return [_item(f"https://example.test/{query}", query)], ""
+
+    search = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: True,
+        monotonic=_Clock(),
+        provider_timeout_seconds=6.0,
+    )
+
+    first = search.search_exact("q1")
+    assert first["status"] == "partial"
+    searxng_first = next(
+        item for item in first["provider_outcomes"] if item["provider"] == "searxng"
+    )
+    assert searxng_first["status"] == "failed"
+    assert searxng_first["reason"] == "challenge"
+    assert searxng_first["attempts"] == 1
+
+    calls.clear()
+    second = search.search_exact("q2")
+    assert ("searxng", "q2") not in calls
+    searxng_second = next(
+        item for item in second["provider_outcomes"] if item["provider"] == "searxng"
+    )
+    assert searxng_second["status"] == "skipped"
+    assert searxng_second["reason"] == "skipped_provider_degraded"
+    assert searxng_second["attempts"] == 0
+    assert search.degraded_providers() == ("searxng",)
+
+
+def test_429_is_not_retried_and_opens_circuit() -> None:
+    calls: list[str] = []
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        return [], "searxng:http_status:429"
+
+    search = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "searxng",
+        monotonic=_Clock(),
+        provider_timeout_seconds=6.0,
+    )
+    payload = search.search_exact("q1")
+
+    assert calls == ["searxng"]
+    outcome = payload["provider_outcomes"][0]
+    assert outcome["status"] == "failed"
+    assert outcome["reason"] == "http_status:429"
+    assert outcome["attempts"] == 1
+    assert search.degraded_providers() == ("searxng",)
+
+
+def test_timeout_failure_opens_circuit_for_later_queries() -> None:
+    calls: list[str] = []
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        return [], "searxng:TimeoutError:timed out"
+
+    search = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "searxng",
+        monotonic=_Clock(),
+        provider_timeout_seconds=6.0,
+    )
+    search.search_exact("q1")
+    assert calls == ["searxng", "searxng"]  # transient retry once, then circuit opens
+
+    calls.clear()
+    payload = search.search_exact("q2")
+    assert calls == []
+    assert payload["provider_outcomes"][0]["reason"] == "skipped_provider_degraded"
+
+
+def test_empty_response_does_not_open_circuit() -> None:
+    calls: list[str] = []
+
+    def call(provider: str, query: str, limit: int, timeout: float):
+        calls.append(provider)
+        return [], "searxng:empty_response"
+
+    search = ResearchProviderSearch(
+        provider_call=call,
+        provider_enabled=lambda provider: provider == "searxng",
+        monotonic=_Clock(),
+        provider_timeout_seconds=6.0,
+    )
+    first = search.search_exact("q1")
+    assert first["provider_outcomes"][0]["status"] == "empty"
+    assert search.degraded_providers() == ()
+
+    search.search_exact("q2")
+    assert calls == ["searxng", "searxng"]

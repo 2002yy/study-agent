@@ -29,7 +29,7 @@ from src.news.url_normalizer import canonicalize_url
 from src.web.tool_gateway import GeneralWebGateway
 
 ResearchSearchProvider = Literal["searxng", "bing_rss", "duckduckgo_html"]
-ProviderAttemptStatus = Literal["ok", "empty", "failed"]
+ProviderAttemptStatus = Literal["ok", "empty", "failed", "skipped"]
 ProviderCall = Callable[
     [ResearchSearchProvider, str, int, float],
     tuple[list[Mapping[str, Any]], str],
@@ -44,6 +44,22 @@ PROVIDER_ORDER: tuple[ResearchSearchProvider, ...] = (
 DEFAULT_PROVIDER_TIMEOUT_SECONDS = 6.0
 MAX_PROVIDER_TIMEOUT_SECONDS = 8.0
 MAX_PROVIDER_ATTEMPTS = 2
+
+# Deadline-aware provider policy (deterministic, first version):
+# a provider attempt is only started when the remaining stage deadline can
+# actually absorb a useful attempt. Below this floor the provider is skipped
+# with an observable reason instead of burning the shared research budget.
+SKIPPED_INSUFFICIENT_BUDGET = "skipped_insufficient_budget"
+MIN_USEFUL_PROVIDER_SECONDS = 1.5
+
+# Single-run circuit breaker: block-style provider responses are not worth
+# retrying and mark the provider degraded for the rest of the run so later
+# queries do not pay the same cost again. Failure truth is preserved in the
+# audit; a degraded provider is never reported as "no results".
+SKIPPED_PROVIDER_DEGRADED = "skipped_provider_degraded"
+PROVIDER_BLOCKED_REASONS = frozenset(
+    {"challenge", "http_status:401", "http_status:403", "http_status:429"}
+)
 
 
 @dataclass(frozen=True)
@@ -103,6 +119,17 @@ class ResearchProviderSearch:
         self._provider_enabled = provider_enabled or _default_provider_enabled
         self._monotonic = monotonic
         self._provider_timeout_seconds = _bounded_timeout(provider_timeout_seconds)
+        # Providers that failed/blocked earlier in this run. The circuit is
+        # per-instance and therefore per-run; it is never persisted and never
+        # reported as "no results".
+        self._degraded: set[ResearchSearchProvider] = set()
+
+    def degraded_providers(self) -> tuple[ResearchSearchProvider, ...]:
+        """Return providers whose circuit is open for the current run."""
+
+        return tuple(
+            provider for provider in PROVIDER_ORDER if provider in self._degraded
+        )
 
     def search_exact(
         self,
@@ -110,8 +137,17 @@ class ResearchProviderSearch:
         *,
         max_results: int = 5,
         now: datetime | None = None,
+        deadline: float | None = None,
     ) -> dict[str, Any]:
         """Search one planned query across all enabled providers.
+
+        ``deadline`` is an optional absolute monotonic timestamp. When provided,
+        the provider scheduler is deadline-aware: a provider attempt is skipped
+        with ``skipped_insufficient_budget`` when the remaining stage budget
+        cannot absorb a useful attempt, per-attempt timeouts are capped to the
+        remaining budget, and transient retries stop once the deadline is
+        exhausted. Provider failure truth (challenge/timeout/connection) is
+        preserved; a skipped provider is never reported as "no results".
 
         The returned mapping intentionally resembles ``GeneralWebGateway`` so a
         later runtime slice can inject this method into CandidatePool without
@@ -167,15 +203,63 @@ class ResearchProviderSearch:
             final_reason = "provider_error"
             final_results: tuple[Mapping[str, Any], ...] = ()
             attempts = 0
+            if provider in self._degraded:
+                audits.append(
+                    ProviderAttemptAudit(
+                        provider=provider,
+                        attempt=1,
+                        status="skipped",
+                        reason=SKIPPED_PROVIDER_DEGRADED,
+                        result_count=0,
+                        elapsed_seconds=0.0,
+                        query_sha256=query_digest,
+                        query_chars=len(focused),
+                    )
+                )
+                outcomes.append(
+                    ProviderFinalOutcome(
+                        provider=provider,
+                        status="skipped",
+                        reason=SKIPPED_PROVIDER_DEGRADED,
+                        attempts=0,
+                        result_count=0,
+                    )
+                )
+                continue
             for attempt in range(1, MAX_PROVIDER_ATTEMPTS + 1):
+                remaining = None if deadline is None else deadline - self._monotonic()
+                if remaining is not None and remaining < MIN_USEFUL_PROVIDER_SECONDS:
+                    # Not enough stage budget for a useful attempt. On the first
+                    # attempt this is an observable skip; after a transient
+                    # failure it simply stops retrying while preserving the
+                    # original failure reason.
+                    if attempt == 1:
+                        final_status = "skipped"
+                        final_reason = SKIPPED_INSUFFICIENT_BUDGET
+                        audits.append(
+                            ProviderAttemptAudit(
+                                provider=provider,
+                                attempt=1,
+                                status="skipped",
+                                reason=SKIPPED_INSUFFICIENT_BUDGET,
+                                result_count=0,
+                                elapsed_seconds=0.0,
+                                query_sha256=query_digest,
+                                query_chars=len(focused),
+                            )
+                        )
+                    break
                 attempts = attempt
+                attempt_timeout = self._provider_timeout_seconds
+                if remaining is not None:
+                    attempt_timeout = max(1.0, min(attempt_timeout, remaining))
                 started = self._monotonic()
                 try:
                     raw_results, error = self._provider_call(
                         provider,
                         focused,
                         limit,
-                        self._provider_timeout_seconds,
+                        attempt_timeout,
                     )
                     normalized_results = tuple(
                         item for item in raw_results if isinstance(item, Mapping)
@@ -202,11 +286,17 @@ class ResearchProviderSearch:
                     )
                 )
                 final_results = normalized_results
-                if final_status != "failed" or not _is_transient_failure(
-                    final_reason
+                if (
+                    final_status != "failed"
+                    or final_reason in PROVIDER_BLOCKED_REASONS
+                    or not _is_transient_failure(final_reason)
                 ):
                     break
             provider_results[provider] = final_results if final_status == "ok" else ()
+            if final_status == "failed":
+                # Single-run circuit breaker: a provider that already failed or
+                # blocked in this run is not retried on later queries.
+                self._degraded.add(provider)
             outcomes.append(
                 ProviderFinalOutcome(
                     provider=provider,
@@ -387,16 +477,21 @@ def _overall_status(
     has_results: bool,
 ) -> tuple[str, str]:
     failed = sum(item.status == "failed" for item in outcomes)
+    skipped = sum(item.status == "skipped" for item in outcomes)
     if has_results:
         return (
             ("partial", "results_with_provider_failures")
-            if failed
+            if (failed or skipped)
             else ("ok", "results_found")
         )
     if failed == len(outcomes):
         return "unavailable", "providers_failed"
     if failed:
         return "partial", "providers_partially_failed_without_results"
+    if skipped == len(outcomes):
+        return "unavailable", SKIPPED_INSUFFICIENT_BUDGET
+    if skipped:
+        return "partial", "providers_partially_skipped_without_results"
     return "empty", "providers_returned_no_results"
 
 
@@ -500,9 +595,13 @@ def _bounded_text(value: Any, limit: int) -> str:
 
 __all__ = [
     "MAX_PROVIDER_ATTEMPTS",
+    "MIN_USEFUL_PROVIDER_SECONDS",
+    "PROVIDER_BLOCKED_REASONS",
     "PROVIDER_ORDER",
     "ProviderAttemptAudit",
     "ProviderFinalOutcome",
     "ResearchProviderSearch",
     "ResearchSearchProvider",
+    "SKIPPED_INSUFFICIENT_BUDGET",
+    "SKIPPED_PROVIDER_DEGRADED",
 ]
