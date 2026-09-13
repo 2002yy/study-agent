@@ -54,8 +54,10 @@ from src.web.research.evidence_gate import (
     evidence_link_eligibility,
 )
 from src.web.research.lead_discovery import (
+    LeadDiscoveryPayload,
     RuntimeLeadDiscoverer,
 )
+from src.news.url_normalizer import canonicalize_url
 from src.web.research.evidence_gain import (
     GapBatchDelta,
     SaturationState,
@@ -77,6 +79,8 @@ from src.web.research.model_gateway import (
     ResearchModelGateway,
 )
 from src.web.research.runtime import (
+    MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN,
+    MAX_LEAD_DISCOVERY_DEPTH,
     MAX_LEAD_READS_PER_RUN,
     MAX_RESEARCH_WAVES,
     ResearchRuntimeCursor,
@@ -1225,6 +1229,11 @@ class ActiveResearchRuntimeExecutor:
                 # MAX_LEAD_READS_PER_RUN per run, and it spends the same shared
                 # read/model budget. Its output can never become eligible
                 # evidence (separate typed contract).
+                discovery_assets_before_lead = sum(
+                    1
+                    for item in cursor.candidates
+                    if item.discovery_method == "lead_url"
+                )
                 lead_plan = _lead_read_plan(
                     state,
                     claim_rankings,
@@ -1354,6 +1363,44 @@ class ActiveResearchRuntimeExecutor:
                                 discovery.discovery.to_dict(),
                             ),
                         )
+                        # Slice 2A: lead-discovered URLs re-enter the pool as
+                        # ordinary candidates (canonical-URL identity, run-level
+                        # cap, depth 1). They get no eligibility privilege.
+                        parent_candidate = next(
+                            (
+                                item
+                                for item in cursor.candidates
+                                if item.id == lead_candidate_id
+                            ),
+                            None,
+                        )
+                        discovered = (
+                            _lead_discovered_candidates(
+                                cursor.candidates,
+                                discovery.discovery,
+                                parent=parent_candidate,
+                                max_candidates=state.budget.max_candidates,
+                                discovered_so_far=sum(
+                                    1
+                                    for item in cursor.candidates
+                                    if item.discovery_method == "lead_url"
+                                ),
+                            )
+                            if parent_candidate is not None
+                            else ()
+                        )
+                        if discovered:
+                            cursor = replace(
+                                cursor,
+                                candidates=(*cursor.candidates, *discovered),
+                            )
+                            context.setdefault(
+                                ACTIVE_RESEARCH_METRICS_KEY, {}
+                            )["lead_discovered_candidate_ids"] = [
+                                item.id
+                                for item in cursor.candidates
+                                if item.discovery_method == "lead_url"
+                            ]
                     else:
                         _append_failure(
                             "extraction_failed",
@@ -1556,12 +1603,35 @@ class ActiveResearchRuntimeExecutor:
                     handled_claim_ids=handled_claim_ids,
                     handled_gap_ids=handled_gap_ids,
                 )
-                cursor = replace(
-                    cursor,
-                    gain_history=(*cursor.gain_history, gain.to_dict()),
-                    no_gain_batches_by_claim=dict(saturation.no_gain_batches_by_claim),
-                    no_gain_batches_by_gap=dict(saturation.no_gain_batches_by_gap),
+                # Slice 2: a wave that produced new lead-discovered candidates
+                # made discovery progress. It is not a "no gain" wave for
+                # saturation purposes, because there is still unassessed
+                # material for the next wave. The discovery budget (depth 1,
+                # <=2 lead reads/run) keeps this bounded.
+                discovery_progress = (
+                    sum(
+                        1
+                        for item in cursor.candidates
+                        if item.discovery_method == "lead_url"
+                    )
+                    > discovery_assets_before_lead
                 )
+                if discovery_progress:
+                    cursor = replace(
+                        cursor,
+                        gain_history=(*cursor.gain_history, gain.to_dict()),
+                    )
+                else:
+                    cursor = replace(
+                        cursor,
+                        gain_history=(*cursor.gain_history, gain.to_dict()),
+                        no_gain_batches_by_claim=dict(
+                            saturation.no_gain_batches_by_claim
+                        ),
+                        no_gain_batches_by_gap=dict(
+                            saturation.no_gain_batches_by_gap
+                        ),
+                    )
                 checkpoint()
                 settled = settle_completed_wave(gate, brief)
                 if settled is not None:
@@ -2055,6 +2125,9 @@ def _merge_runtime_candidates(
                 intents=tuple(intent.value for intent in item.intents),
                 providers=item.providers,
                 first_seen_rank=item.first_seen_rank,
+                parent_lead_candidate_id=item.parent_lead_candidate_id,
+                discovery_method=item.discovery_method,
+                discovery_depth=item.discovery_depth,
             )
         )
     return tuple(merged)
@@ -2073,6 +2146,9 @@ def _candidate_item(item: RuntimeCandidate) -> CandidatePoolItem:
         intents=tuple(GapSearchIntent(value) for value in item.intents),
         providers=item.providers,
         first_seen_rank=item.first_seen_rank,
+        parent_lead_candidate_id=item.parent_lead_candidate_id,
+        discovery_method=item.discovery_method,
+        discovery_depth=item.discovery_depth,
     )
 
 
@@ -2458,6 +2534,10 @@ def _lead_read_plan(
                 or candidate_id in seen
             ):
                 continue
+            # Slice 2A depth guard: a lead-discovered candidate is never read as
+            # a lead again, so lead -> lead -> lead recursion cannot happen.
+            if item.candidate.discovery_depth >= MAX_LEAD_DISCOVERY_DEPTH:
+                continue
             if is_schedulable_lead(
                 item, lead_budget_available=True, gap_needs_primary=True
             ):
@@ -2471,6 +2551,63 @@ def _lead_read_plan(
                 ]
             seen.add(candidate_id)
     return []
+
+
+def _lead_discovered_candidates(
+    existing: tuple[RuntimeCandidate, ...],
+    discovery: LeadDiscoveryPayload,
+    *,
+    parent: RuntimeCandidate,
+    max_candidates: int,
+    discovered_so_far: int,
+) -> tuple[RuntimeCandidate, ...]:
+    """Convert lead-discovered URLs into candidates with discovery provenance.
+
+    Slice 2C: identity is the canonical URL. A URL already in the pool is never
+    duplicated, and ``parent_lead_candidate_id`` is provenance, not identity.
+    Slice 2D: the new candidate receives no privilege - it inherits the parent's
+    query ids so the existing per-claim assessment path sees it, and assessment
+    -> eligibility -> scheduler still decides everything.
+    """
+
+    if parent.discovery_depth >= MAX_LEAD_DISCOVERY_DEPTH:
+        return ()
+    remaining_run_budget = (
+        MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN - discovered_so_far
+    )
+    if remaining_run_budget <= 0:
+        return ()
+    known_urls = {item.url for item in existing}
+    added: list[RuntimeCandidate] = []
+    for raw_url in discovery.discovered_urls:
+        if len(added) >= remaining_run_budget:
+            break
+        if len(existing) + len(added) >= max_candidates:
+            break
+        canonical = canonicalize_url(raw_url)
+        if not canonical or canonical in known_urls:
+            continue
+        known_urls.add(canonical)
+        added.append(
+            RuntimeCandidate(
+                id=new_id("candidate"),
+                url=canonical,
+                title=canonical,
+                snippet="",
+                source="lead_discovery",
+                published_at="",
+                query_ids=parent.query_ids,
+                intents=parent.intents,
+                providers=("lead_discovery",),
+                first_seen_rank=0,
+                parent_lead_candidate_id=parent.id,
+                discovery_method="lead_url",
+                discovery_depth=min(
+                    MAX_LEAD_DISCOVERY_DEPTH, parent.discovery_depth + 1
+                ),
+            )
+        )
+    return tuple(added)
 
 
 def _restore_completed_read_targets(

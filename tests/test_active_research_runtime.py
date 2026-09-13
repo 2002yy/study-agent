@@ -4061,9 +4061,9 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
     cursor = ResearchRuntimeCursor.from_dict(
         completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
     )
-    # Exactly one bounded lead read produced one typed discovery payload.
-    assert len(cursor.lead_read_ids) == 1
-    assert len(cursor.lead_discoveries) == 1
+    # Bounded lead reads (<= MAX_LEAD_READS_PER_RUN) produced typed payloads.
+    assert 1 <= len(cursor.lead_read_ids) <= 2
+    assert len(cursor.lead_discoveries) == len(cursor.lead_read_ids)
     discovery = cursor.lead_discoveries[0]
     assert discovery["discovered_urls"] == ["https://official.example/bank-rate"]
     assert discovery["domains"] == ["official.example"]
@@ -4078,3 +4078,12 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
         "warnings",
     }
     assert any(call.purpose == "research_lead_discovery" for call in cursor.model_calls)
+    # Slice 2A: the discovered URL re-entered the pool exactly once (canonical
+    # URL identity dedupes the repeated discovery) with discovery provenance.
+    discovered = [
+        item for item in cursor.candidates if item.discovery_method == "lead_url"
+    ]
+    assert len(discovered) == 1
+    assert discovered[0].url == "https://official.example/bank-rate"
+    assert discovered[0].parent_lead_candidate_id in cursor.lead_read_ids
+    assert discovered[0].discovery_depth == 1

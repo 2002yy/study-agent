@@ -65,6 +65,10 @@ class CandidatePoolItem:
     intents: tuple[GapSearchIntent, ...]
     providers: tuple[str, ...]
     first_seen_rank: int
+    # Slice 2 provenance (discovery only; identity stays the canonical URL).
+    parent_lead_candidate_id: str = ""
+    discovery_method: str = ""
+    discovery_depth: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +83,9 @@ class CandidatePoolItem:
             "intents": [intent.value for intent in self.intents],
             "providers": list(self.providers),
             "first_seen_rank": self.first_seen_rank,
+            "parent_lead_candidate_id": self.parent_lead_candidate_id,
+            "discovery_method": self.discovery_method,
+            "discovery_depth": self.discovery_depth,
         }
 
 

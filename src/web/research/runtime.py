@@ -77,6 +77,11 @@ _MAX_GAIN_HISTORY_ENTRIES = 24
 # of durable discovery payloads (never evidence).
 MAX_LEAD_READS_PER_RUN = 2
 _MAX_LEAD_DISCOVERIES = MAX_LEAD_READS_PER_RUN
+# Slice 2: bounded re-entry of lead-discovered URLs. Discovery depth 1 only
+# (no lead -> lead -> lead recursion), and a small run-level cap so discovery
+# can never refill the candidate pool or the budget.
+MAX_LEAD_DISCOVERY_DEPTH = 1
+MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN = 4
 # Frozen wave ceiling for the bounded multi-wave loop: saturation (2 batches,
 # 3 for critical/conflict) always fits, and the ceiling guards against any
 # endless loop if gain/saturation bookkeeping were ever inconsistent.
@@ -167,6 +172,11 @@ class RuntimeCandidate:
     intents: tuple[str, ...] = ()
     providers: tuple[str, ...] = ()
     first_seen_rank: int = 0
+    # Slice 2 provenance: a candidate discovered by a bounded lead read records
+    # how it was found. Provenance only - identity stays the canonical URL.
+    parent_lead_candidate_id: str = ""
+    discovery_method: str = ""
+    discovery_depth: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -180,12 +190,22 @@ class RuntimeCandidate:
             "intents": list(self.intents),
             "providers": list(self.providers),
             "first_seen_rank": self.first_seen_rank,
+            "parent_lead_candidate_id": self.parent_lead_candidate_id,
+            "discovery_method": self.discovery_method,
+            "discovery_depth": self.discovery_depth,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "RuntimeCandidate":
+        compatible = dict(raw)
+        # Slice 2 added lead-discovery provenance. Pre-Slice-2 cursors have no
+        # provenance fields; accept only those absent fields so a durable
+        # checkpoint survives the upgrade.
+        compatible.setdefault("parent_lead_candidate_id", "")
+        compatible.setdefault("discovery_method", "")
+        compatible.setdefault("discovery_depth", 0)
         data = _strict_mapping(
-            raw,
+            compatible,
             {
                 "id",
                 "url",
@@ -197,6 +217,9 @@ class RuntimeCandidate:
                 "intents",
                 "providers",
                 "first_seen_rank",
+                "parent_lead_candidate_id",
+                "discovery_method",
+                "discovery_depth",
             },
             "runtime candidate",
         )
@@ -212,6 +235,13 @@ class RuntimeCandidate:
             providers=_text_tuple(data.get("providers"), 20, 100),
             first_seen_rank=_bounded_int(
                 data.get("first_seen_rank"), 0, 10000, "first_seen_rank"
+            ),
+            parent_lead_candidate_id=_optional_text(
+                data.get("parent_lead_candidate_id"), 300
+            ),
+            discovery_method=_optional_text(data.get("discovery_method"), 50),
+            discovery_depth=_bounded_int(
+                data.get("discovery_depth"), 0, 5, "discovery_depth"
             ),
         )
 
