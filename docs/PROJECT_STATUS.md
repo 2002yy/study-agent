@@ -12,8 +12,8 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步：**RQ1-C closure 前最后一个 production hardening batch = **deadline-aware provider failure policy**（见 §8），并补一次 **DeepSeek V4.1-Flash 三段 structured compatibility smoke**（见 §9）；两者通过后，再用本机同一网络环境重跑 Live12（见 §5）。
-- **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96`。
+- **当前唯一下一步：**RQ1-C closure 前 hardening batch **已交付**（`178dbf4`，见 §8）：deadline-aware provider policy + single-run circuit breaker + Live12 provider preflight；DeepSeek V4.1-Flash 三段 structured compatibility smoke **3/3 PASS**（见 §9）。下一步：用本机同一网络环境重跑 Live12（见 §5）。
+- **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` 或 `178dbf4` 之前的 head。
 
 ## 1. DeepSeek structured-output compatibility closure
 
@@ -102,10 +102,10 @@ source-equivalent exact head `06679dd5efe4e69cefd7a186c6561eb8fa5d67b1` 已取�
 
 ## 5. 唯一下一步
 
-1. 完成 RQ1-C closure 前最后一个 hardening batch：**deadline-aware provider failure policy**（§8）。硬约束：不改 45s/60s qualification 门；不增加总 provider/search/read/model budget；不因当前 provider 坏而永久偏置 Bing；provider challenge 保留失败真值（不当作"无结果"）；必须为 assessment/read/answer 预留预算；deadline skip 可观测（如 `skipped_insufficient_budget`）；第一版只做 deterministic policy，不做 adaptive health scoring。附本地故障注入测试（A timeout / B challenge+retry / C success）。
-2. 补一次 **DeepSeek V4.1-Flash 三段 structured compatibility smoke**（planner / assessor / extractor；`json_object` + `thinking=disabled` + schema prompt + strict parser），不跑 12-case（§9）。
-3. 上述通过后，在**本机同一网络环境**（VPN 出口 `23.80.90.156`，provider 仍降级）重跑 Live12：若系统能快速跳过坏 provider 并进入 read/answer，这比"换干净节点跑绿"更强。
-4. 本地确认 `git status --porcelain --untracked-files=no` 为空，记录 `git rev-parse HEAD`；该 SHA 是新 Live12 唯一 source identity（不得回用 `be48a96`）。
+1. ~~完成 RQ1-C closure 前最后一个 hardening batch：deadline-aware provider failure policy~~ **DONE（`178dbf4`，§8）**。
+2. ~~补一次 DeepSeek V4.1-Flash 三段 structured compatibility smoke~~ **DONE（3/3 PASS，§9）**。
+3. 在**本机同一网络环境**（VPN 出口 `23.80.90.156`，provider 仍降级）重跑 Live12：若系统能快速跳过坏 provider 并进入 read/answer，这比"换干净节点跑绿"更强。可选先跑 `python -m tools.run_rq1c_provider_preflight` 快速确认环境。
+4. 本地确认 `git status --porcelain --untracked-files=no` 为空，记录 `git rev-parse HEAD`；该 SHA 是新 Live12 唯一 source identity（不得回用 `be48a96` 或 hardening 之前的 head）。
 5. 若 artifact 通过冻结门，进入 independent evaluation / qualification closure；随后才允许 default activation 决策以及 PR #142 squash/merge。
 6. 若失败，只处理新 artifact 暴露的最小真实 blocker，再从同一冻结门重跑；不得回改已通过的门槛。
 7. **暂停换 VPN 节点作为主线**：网络问题已证明是出口 IP 被搜索引擎风控，不是代理传递缺失；换节点属环境恢复手段，非工程解决方案。
@@ -136,12 +136,22 @@ source-equivalent exact head `06679dd5efe4e69cefd7a186c6561eb8fa5d67b1` 已取�
 
 **网络出口事实（2026-09-13）：** Windows 直连 IPv4 `223.12.160.235`；Windows via `127.0.0.1:7890` = VPN `23.80.90.156`；容器 direct / env proxy / explicit `host.docker.internal:7890` **全部 = `23.80.90.156`**。即 Docker 流量已被 VPN 整体接管，代理传递链无缺失；问题为该出口 IP 被 DDG/Brave/Startpage/Qwant engine 风控（Bing RSS 不受影响）。
 
-## 8. 待修工程问题：provider failure policy 非 deadline-aware（RQ1-C closure 前最后 hardening batch）
+## 8. RQ1-C provider resilience hardening（DELIVERED，`178dbf4`）
 
-- **现象：** 60s bounded preset 下，坏 provider 串行重试（searxng challenge + ddg timeout，各 2 attempts × ~6s/query）即可吃光整轮预算，导致 assessment/read/answer 无预算可用。
-- **目标：** `bad provider ≠ consume entire research budget`。引入 deadline-aware Provider Scheduler：provider 近期失败状态 + 单次尝试最大可花时间 + 剩余 deadline 是否值得启动该 provider → 快速失败 / skip / 必要时有限竞速，并保留 downstream assessment/read/answer reservation。
-- **硬约束：** 不改 45s/60s 门；不增加总预算；不永久偏置 Bing；challenge/timeout 必须保留失败真值；skip 可观测（`skipped_insufficient_budget` 类 reason）；第一版 deterministic，不做 adaptive health scoring。
-- **验收：** 本地故障注入（A timeout 6s / B challenge+retry / C success 1s）证明 runtime 不再花 ~50s 才走到 C，且既有 failure truth 不变。
+**问题（§7 实测）：** 60s bounded preset 下，坏 provider 串行重试（searxng challenge + ddg timeout，各 2 attempts × ~6s/query）即可吃光整轮预算，导致 assessment/read/answer 无预算可用。
+
+**交付（`178dbf4`，仅 production resilience，不改 45s/60s 门、不增预算）：**
+
+- `src/web/research/provider_search.py`：`search_exact(..., deadline=)` deadline-aware 调度——剩余预算 < `MIN_USEFUL_PROVIDER_SECONDS` 时 skip（可观测 reason `skipped_insufficient_budget`）；per-attempt timeout 收敛到剩余预算；transient retry 仅在预算足够时进行；`empty` 不视为 failure、不 retry；failure truth（challenge/timeout/connection）原样保留。
+- 单轮 circuit breaker：block 类响应（`challenge` / `http_status:401/403/429`）立即熔断且不 retry；任一 provider 在本 run 最终 `failed` 即标记 degraded，后续 query 以 `skipped_provider_degraded` 跳过（不伪装成 0 results）。
+- `src/web/research/active_adapter.py`：`search_detailed(..., deadline=)` 仅对 deadline-aware backend 转发（legacy/测试 backend 不变）。
+- `src/application/active_research_runtime.py`：`SEARCH_STAGE_RESERVE_SECONDS = 20.0`，search 阶段 deadline = now + (hard − elapsed − reserve)，为 downstream assessment/read/answer 预留尾部预算。
+- 新增 `tools/run_rq1c_provider_preflight.py`：几秒~几十秒跑代表性 query，输出 `qualified` / `degraded` / `unqualified`（exit 0/0/2），避免在已知坏环境下空跑 12-case。
+- 故障注入测试：A timeout / B challenge / C success；deadline skip / capped timeout / circuit breaker / empty-not-failure / legacy 无 deadline 行为保持。
+
+**门禁：** focused `tests/test_research_provider_search.py` 20/20、`tests/test_research_active_adapter.py`、`tests/test_rq1c_provider_preflight.py` 全通过；全量 pytest **1746 passed / 2 failed**（两个失败为 Windows 本地既有环境问题，已在父提交 `c029984` 同样复现：`test_rq1c_impl_entrypoints` subprocess `ModuleNotFoundError: src`、`test_rq1c_protocol_probes` 本地 probe；Ubuntu exact-head CI 通过，登记为 pre-existing local-platform behavior）；Ruff all clean；mypy baseline `122 ≤ 128 / resolved=6`。
+
+**真实 preflight 结果（2026-09-13）：** `decision=degraded`，`result_bearing_providers=[bing_rss]`，`degraded_providers=[searxng, duckduckgo_html]`。
 
 ## 9. DeepSeek 接口变更（2026-09-10）：V4.1-Flash
 
@@ -149,3 +159,5 @@ source-equivalent exact head `06679dd5efe4e69cefd7a186c6561eb8fa5d67b1` 已取�
 - 旧名 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp` **已下线**，仅兼容路由到 V4.1-Flash（按 Flash 计费）。
 - `deepseek-v4-pro`（V4-Pro-0813）仍可用，计费不变。
 - **影响：** §1 的 DeepSeek structured-output compatibility closure 是针对 **V4 Flash** 验证的；现在同一模型名实际由 **V4.1-Flash** 提供服务，因此该 closure **不再是"当前模型已验证"的有效证据**，必须用规范名 `deepseek-flash` 重跑三段 structured smoke（planner/assessor/extractor）确认 `json_object + thinking=disabled + schema prompt + strict parser` 仍 PASS。
+- **配置收敛（已交付）：** `.env` 与 `.env.example` 的 `DEEPSEEK_MODEL_FLASH_NAME` 由 `deepseek-v4-flash` 改为规范名 `deepseek-flash`（仅模型名，`DEEPSEEK_MODEL_PRO_NAME=deepseek-v4-pro` 与其余 API 参数不动）。代码层不硬编码模型名，provider 层动态解析，因此无需改 adapter。
+- **V4.1-Flash 三段 structured smoke（2026-09-13，3/3 PASS）：** 生产 `ResearchModelGateway` + `RuntimeClaimPlanner` / `RuntimeCandidateAssessor` / `RuntimeEvidenceExtractor`，真实 DeepSeek、规范名 `deepseek-flash`：planner `completed` 81 output tokens、assessor `completed` 43、extractor `completed` 135，均 `finish_reason=stop`、attempt 1、strict parser PASS。**协议代码暂不改**：保持 `json_object` + `thinking=disabled` + 精确 schema prompt + strict Python parser，不因 V4.1 新而改用 `json_schema`。
