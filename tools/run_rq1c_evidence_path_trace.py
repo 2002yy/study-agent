@@ -230,6 +230,18 @@ def _trace_case(
             if isinstance(metrics.get("lead_discovery"), Mapping)
             else {}
         ),
+        "evidence_lead_followups": [
+            {
+                "wave_index": item.get("wave_index"),
+                "source_candidate_id": item.get("source_candidate_id"),
+                "method": item.get("method"),
+                "added_candidate_ids": list(item.get("added_candidate_ids") or []),
+                "hint_domain": item.get("hint_domain"),
+                "hint_terms": list(item.get("hint_terms") or []),
+            }
+            for item in (runtime.get("evidence_lead_followups") or [])[:4]
+            if isinstance(item, Mapping)
+        ],
         "wave_progress": [
             dict(item)
             for item in (metrics.get("wave_progress") or [])[:10]
