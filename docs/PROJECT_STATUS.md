@@ -196,4 +196,28 @@ source-equivalent exact head `06679dd5efe4e69cefd7a186c6561eb8fa5d67b1` 已取�
 
 **测试：** `tests/test_lead_discovery.py` 14（parser 拒绝 evidence-shaped 字段、非绝对/不安全 URL、超限、去重；discoverer 成功/空内容不调用/模型失败；调度谓词确定性；cursor round-trip 与 pre-Slice-1 兼容）；`tests/test_active_research_runtime.py` 新增 lead read 集成测试（1 次 lead read → 1 条 typed payload → 无 evidence 字段）。focused 88 passed；Ruff clean；mypy `122 ≤ 128 / NEW=0`。
 
-**未做（Slice 2/3）：** discovery asset 回灌（新 URL → candidate pool、primary hint → gap planner）、lead 预算/可观测/故障注入扩展。**Slice 1 不要求改善 Live12**：它的目标是先把 Lead 概念建立正确。下一步 = Slice 2 回灌。
+**未做（Slice 3）：** lead 预算/可观测/故障注入扩展。
+
+## 12. Lead → Discovery 回灌（Slice 2 DELIVERED：`b45ec27` / `1aeea11` / `f758691`）
+
+**目标（用户拍板）：** 把 `LeadDiscoveryPayload` 真正变成新的 discovery 输入，且**严格不扩大 Truth 边界**。
+
+**Slice 2A — URL 回灌（`b45ec27`）：**
+- `CandidatePoolItem` / `RuntimeCandidate` 新增 provenance 字段：`parent_lead_candidate_id` / `discovery_method` / `discovery_depth`（cursor 严格 codec + 向后兼容 setdefault）。
+- `_lead_discovered_candidates`：`discovered_urls` → `canonicalize_url`（内置 safe/SSRF 校验）→ 去重 → run-level cap `MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN = 4` → 新候选（继承 parent 的 `query_ids` 以便既有 per-claim 评估路径可见）。
+- **Slice 2C**：identity 仍是 canonical URL；`parent_lead_candidate_id` 只是 provenance，不生成平行 identity。
+- **Slice 2D**：新候选**无任何特权**——必须重新经过 assessment → eligibility → scheduler。
+- 深度护栏：`MAX_LEAD_DISCOVERY_DEPTH = 1`，`_lead_read_plan` 跳过 `discovery_depth >= 1` 的候选，禁止 Lead→Lead→Lead 递归。
+
+**Slice 2B — primary hint 回灌（`1aeea11`）：**
+- `plan_gap_queries(..., source_hints=)`：hints 只影响 PRIMARY/PROVENANCE 的措辞（`site:<domain>` + 一个术语 hint，bounded ≤4、≤120 字符）。
+- **Gap Planner 仍是唯一 query strategy owner**；hint 不能创建候选、不能改 eligibility（Slice 2E）。
+- runtime 通过 `_lead_hints_for_claim` 从 `lead_discoveries` 关联到 claim（parent candidate 的 query_ids → claim）。
+
+**Saturation 交互（Slice 2 必要补充）：** 产生新 lead-discovered 候选的 wave 记为 **discovery progress**，不计入 no-gain batch（否则会在新候选被评估前就饱和停止）。discovery 预算（depth 1、≤2 lead reads/run）保证该延迟有界。
+
+**闭环验收（`f758691`）：** 集成测试证明 `Lead-only candidate → lead read → discovered primary URL（不同域）→ 新 Candidate（provenance）→ assessor → eligible → schedulable evidence read` 全链成立。同域 discovered URL 会被既有 cluster-diversity 正确挡掉（同 publisher 同 cluster），测试用不同域 fixture 覆盖。
+
+**门禁：** focused **135 passed**；Ruff clean；mypy `122 ≤ 128 / NEW=0`。
+
+**未做（Slice 3）：** run/wave caps 细化、failure injection、observability、budget accounting 扩展。Slice 2 不设 "Live12 GO" 标准；下一步 = Slice 3，之后重跑 evidence-path trace 与 Live12。
