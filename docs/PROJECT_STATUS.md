@@ -288,3 +288,39 @@ discovery_gap = missing_primary
 **下一阶段禁止改动：** Evidence Gate、45s/60s、read/model budget、`rejected → lead`、Lead caps、provider hardening。
 
 **下一阶段问题定义：** 为什么"与主题有关、可能包含 provenance/primary 线索"的 Bing 结果被 assessor 判成 `off_target`，以及 discovery query/result 本身差到什么程度。**先不要改 assessor prompt**：先做 `86 off_target` 的误判率审计，把 `off_target` 拆成 `true_off_target`（搜索真跑题）与 `false_off_target`（相关但被判死），再决定修 discovery 还是修 assessor relevance taxonomy（把 `off_target → rejected` 纠正为 `topic_only → lead_only`，而不是放宽 Evidence eligibility）。
+
+## 16. `off_target` 审计（2026-09-13）：根因是 discovery query 构造，不是 assessor
+
+**方法：** 扩展 `tools/run_rq1c_evidence_path_trace.py` 捕获候选级审计字段（bounded title/snippet/canonical_url/intents/query_ids + `query_index`），对 6 个 case 抽样（47 条 ranked 行）。artifact：`docs/research_quality/RQ1C_EVIDENCE_PATH_TRACE.json`（未跟踪诊断产物）。
+
+**抽样分布：** `off_target 41` / `topic_only 5` / `answer_relevant 1`。
+
+**核心发现：`off_target` 绝大多数是 `true_off_target`，原因是 query 构造，不是 assessor 过严。**
+
+查询文本本身就是不自然的碎片（由 claim 文本拼接 + 后缀堆叠而成）：
+
+- `"pull-rate limits apply unauthenticated users authenticated Personal users on Docker Hub"`
+- `"oldest supported major version reach end life 2026"`
+- `"on date was that decision announced"`
+- `"month it cover"`
+- `"Bank Rate was set at recent Bank England Monetary Policy Committee decision 2026"`
+
+搜索引擎因此命中单个单词，返回**词典/百科词条**：Cambridge/百度百科/爱词霸/查查/给力词典 的 `pull`、`oldest`、`date`、`bank`、`month` 词条，PULL&BEAR 服装站，timeanddate，以及"中国银行/北京银行"（bank 字面命中）。这些**确实与 claim 无关**——assessor 判 `off_target` 是正确的。
+
+**混淆矩阵（本轮 47 条抽样，人工初判）：**
+
+| assessor 判定 | true_off_target | topic_related（应 topic_only/lead） | answer_relevant |
+| --- | ---: | ---: | ---: |
+| `off_target` (41) | **~37** | ~4（runoob PostgreSQL 教程、postgres.ac.cn 文档镜像、gov.uk 门户、visituk 概况） | 0 |
+| `topic_only` (5) | 2（百度百科/爱词霸 month 词条） | 3（postgresql.org Downloads、git.postgresql.org、postgres.ac.cn 文档） | 0 |
+| `answer_relevant` (1) | 0 | 0 | **1**（postgresql.org 主页） |
+
+→ `off_target` 中约 **90% 为真跑题**；`false_off_target` 约 10%。assessor 总体判对，**不应放宽**。
+
+**结论（下一阶段方向）：**
+
+1. **修 discovery query 构造**（`gap_planner`）：把 claim 文本碎片转成自然检索式；避免后缀堆叠（`official documentation primary source` / `original source announcement`）；优先使用 lead hints（`site:<domain>` / organization / official terminology，Slice 2B 已具备）做锚定。
+2. **不要放宽 assessor relevance taxonomy**；`off_target → rejected` 保持。
+3. 附带确认：本轮 trace 中 `support-postgresql` 再次出现完整 lead 闭环（1 lead read → 1 discovered → 3 reads），其余 case 因无合适 `lead_only` 而 `no_lead_candidate`。
+
+**禁止改动（延续 §15）：** Evidence Gate、45s/60s、read/model budget、`rejected → lead`、Lead caps、provider hardening。

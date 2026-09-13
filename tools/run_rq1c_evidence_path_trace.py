@@ -75,6 +75,14 @@ def _install_rank_capture() -> None:
                     "source_role": item.assessment.source_role,
                     "gain_signals": list(item.assessment.expected_gain_signals),
                     "cluster_id": item.assessment.cluster_id,
+                    # Audit fields (bounded, diagnostic artifact only).
+                    "title": " ".join(str(item.candidate.title or "").split())[:200],
+                    "snippet": " ".join(str(item.candidate.snippet or "").split())[
+                        :300
+                    ],
+                    "canonical_url": str(item.candidate.canonical_url or "")[:300],
+                    "intents": [str(intent.value) for intent in item.candidate.intents],
+                    "query_ids": list(item.candidate.query_ids)[:6],
                 }
             )
         return ranked
@@ -155,6 +163,15 @@ def _trace_case(
         o for o in (runtime.get("read_outcomes") or []) if isinstance(o, Mapping)
     ]
     model_calls = [m for m in (runtime.get("model_calls") or []) if isinstance(m, Mapping)]
+    query_index = {
+        str(item.get("id")): {
+            "intent": item.get("intent"),
+            "query": " ".join(str(item.get("query") or "").split())[:300],
+            "claim_id": item.get("claim_id"),
+        }
+        for item in (runtime.get("planned_queries") or [])[:40]
+        if isinstance(item, Mapping)
+    }
 
     return {
         "case_id": case["id"],
@@ -167,6 +184,7 @@ def _trace_case(
         "candidate_count": len(candidates),
         "candidates": [_candidate_row(c) for c in candidates[:20]],
         "ranked_candidates": ranked_candidates[:30],
+        "query_index": query_index,
         "planned_read_ids": list(runtime.get("planned_read_ids") or []),
         "read_outcomes": [
             {
