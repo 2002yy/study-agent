@@ -181,6 +181,42 @@ def _trace_case(
         "model_calls": [_model_call_row(m) for m in model_calls[:20]],
         "no_gain_batches_by_claim": dict(runtime.get("no_gain_batches_by_claim") or {}),
         "no_gain_batches_by_gap": dict(runtime.get("no_gain_batches_by_gap") or {}),
+        "lead_read_ids": list(runtime.get("lead_read_ids") or []),
+        "lead_discoveries": [
+            {
+                "source_candidate_id": payload.get("source_candidate_id"),
+                "discovered_urls": list(payload.get("discovered_urls") or []),
+                "domains": list(payload.get("domains") or []),
+                "primary_source_hints": list(
+                    payload.get("primary_source_hints") or []
+                ),
+            }
+            for payload in (runtime.get("lead_discoveries") or [])[:4]
+            if isinstance(payload, Mapping)
+        ],
+        "lead_discovered_candidates": [
+            {
+                "id": candidate.get("id"),
+                "parent_lead_candidate_id": candidate.get("parent_lead_candidate_id"),
+                "discovery_method": candidate.get("discovery_method"),
+                "discovery_depth": candidate.get("discovery_depth"),
+            }
+            for candidate in candidates
+            if candidate.get("discovery_method") == "lead_url"
+        ][:8],
+        "lead_discovery_metrics": (
+            {
+                str(key): value
+                for key, value in metrics["lead_discovery"].items()
+            }
+            if isinstance(metrics.get("lead_discovery"), Mapping)
+            else {}
+        ),
+        "wave_progress": [
+            dict(item)
+            for item in (metrics.get("wave_progress") or [])[:10]
+            if isinstance(item, Mapping)
+        ],
         "gain_history": [
             {
                 "new_eligible_evidence": g.get("new_eligible_evidence"),

@@ -1234,15 +1234,24 @@ class ActiveResearchRuntimeExecutor:
                     for item in cursor.candidates
                     if item.discovery_method == "lead_url"
                 )
+                discoveries_before_lead = len(cursor.lead_discoveries)
+                lead_budget_available = (
+                    len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
+                )
                 lead_plan = _lead_read_plan(
                     state,
                     claim_rankings,
                     completed_read_ids=cursor.completed_read_ids,
                     lead_read_ids=cursor.lead_read_ids,
-                    lead_budget_available=(
-                        len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
-                    ),
+                    lead_budget_available=lead_budget_available,
                 )
+                if not lead_plan:
+                    _bump_lead_metric(
+                        context,
+                        "insufficient_budget"
+                        if not lead_budget_available
+                        else "no_lead_candidate",
+                    )
                 for lead_item in lead_plan:
                     if len(cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
                         break
@@ -1272,6 +1281,7 @@ class ActiveResearchRuntimeExecutor:
                         started_at=self.utc_now(),
                     )
                     cursor = begin_external_attempt(cursor, lead_marker)
+                    _bump_lead_metric(context, "lead_read_started")
                     checkpoint()
                     lead_read_exception = ""
                     try:
@@ -1319,6 +1329,7 @@ class ActiveResearchRuntimeExecutor:
                             exception_type=lead_read_exception,
                             attempt_id=lead_marker.call_id,
                         )
+                        _bump_lead_metric(context, "lead_read_failed")
                         checkpoint()
                         continue
                     successful_reads += 1
@@ -1341,6 +1352,7 @@ class ActiveResearchRuntimeExecutor:
                             item_id=lead_candidate_id,
                             detail="blocked_by_policy",
                         )
+                        _bump_lead_metric(context, "policy_blocked")
                         checkpoint()
                         continue
                     discovery = self.lead_discoverer.discover(
@@ -1356,6 +1368,7 @@ class ActiveResearchRuntimeExecutor:
                         discovery.status == "completed"
                         and discovery.discovery is not None
                     ):
+                        _bump_lead_metric(context, "lead_discovery_succeeded")
                         cursor = replace(
                             cursor,
                             lead_discoveries=(
@@ -1374,7 +1387,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                             None,
                         )
-                        discovered = (
+                        discovered, discovery_stats = (
                             _lead_discovered_candidates(
                                 cursor.candidates,
                                 discovery.discovery,
@@ -1387,12 +1400,22 @@ class ActiveResearchRuntimeExecutor:
                                 ),
                             )
                             if parent_candidate is not None
-                            else ()
+                            else ((), {})
                         )
+                        for stats_key, stats_value in discovery_stats.items():
+                            if stats_key != "added" and stats_value:
+                                _bump_lead_metric(
+                                    context, stats_key, int(stats_value)
+                                )
                         if discovered:
                             cursor = replace(
                                 cursor,
                                 candidates=(*cursor.candidates, *discovered),
+                            )
+                            _bump_lead_metric(
+                                context,
+                                "discovered_candidate_added",
+                                len(discovered),
                             )
                             context.setdefault(
                                 ACTIVE_RESEARCH_METRICS_KEY, {}
@@ -1402,6 +1425,7 @@ class ActiveResearchRuntimeExecutor:
                                 if item.discovery_method == "lead_url"
                             ]
                     else:
+                        _bump_lead_metric(context, "lead_discovery_failed")
                         _append_failure(
                             "extraction_failed",
                             "reading",
@@ -1603,25 +1627,35 @@ class ActiveResearchRuntimeExecutor:
                     handled_claim_ids=handled_claim_ids,
                     handled_gap_ids=handled_gap_ids,
                 )
-                # Slice 2: a wave that produced new lead-discovered candidates
-                # made discovery progress. It is not a "no gain" wave for
-                # saturation purposes, because there is still unassessed
-                # material for the next wave. The discovery budget (depth 1,
-                # <=2 lead reads/run) keeps this bounded.
-                discovery_progress = (
-                    sum(
-                        1
-                        for item in cursor.candidates
-                        if item.discovery_method == "lead_url"
-                    )
-                    > discovery_assets_before_lead
+                # Slice 3: explicit progress axes. Evidence progress is the
+                # frozen gain contract; discovery progress is new candidate /
+                # hint material produced by a bounded lead read. Discovery
+                # progress only DELAYS saturation for this batch - it never
+                # creates evidence gain and never resets the accumulated
+                # no-gain history (so weak leads cannot endlessly extend a run).
+                evidence_progress = bool(gain.substantive_gain)
+                discovered_candidates_after = sum(
+                    1
+                    for item in cursor.candidates
+                    if item.discovery_method == "lead_url"
                 )
-                if discovery_progress:
-                    cursor = replace(
-                        cursor,
-                        gain_history=(*cursor.gain_history, gain.to_dict()),
-                    )
-                else:
+                new_discovery_payloads = cursor.lead_discoveries[
+                    discoveries_before_lead:
+                ]
+                new_discovery_assets = any(
+                    bool(payload.get("discovered_urls"))
+                    or bool(payload.get("domains"))
+                    or bool(payload.get("organizations"))
+                    or bool(payload.get("primary_source_hints"))
+                    for payload in new_discovery_payloads
+                    if isinstance(payload, Mapping)
+                )
+                discovery_progress = (
+                    discovered_candidates_after > discovery_assets_before_lead
+                    or new_discovery_assets
+                )
+                no_gain_incremented = not (evidence_progress or discovery_progress)
+                if no_gain_incremented:
                     cursor = replace(
                         cursor,
                         gain_history=(*cursor.gain_history, gain.to_dict()),
@@ -1632,6 +1666,29 @@ class ActiveResearchRuntimeExecutor:
                             saturation.no_gain_batches_by_gap
                         ),
                     )
+                else:
+                    cursor = replace(
+                        cursor,
+                        gain_history=(*cursor.gain_history, gain.to_dict()),
+                    )
+                wave_metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+                wave_progress = wave_metrics.get("wave_progress")
+                if not isinstance(wave_progress, list):
+                    wave_progress = []
+                wave_progress.append(
+                    {
+                        "wave_index": cursor.wave_index,
+                        "evidence_progress": evidence_progress,
+                        "discovery_progress": discovery_progress,
+                        "discovered_candidates_added": max(
+                            0,
+                            discovered_candidates_after
+                            - discovery_assets_before_lead,
+                        ),
+                        "no_gain_incremented": no_gain_incremented,
+                    }
+                )
+                wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
                 settled = settle_completed_wave(gate, brief)
                 if settled is not None:
@@ -2554,6 +2611,24 @@ def _lead_read_plan(
     return []
 
 
+def _lead_metrics(context: dict[str, Any]) -> dict[str, int]:
+    """Bounded lead-discovery counters for the run audit (Slice 3B)."""
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    state = metrics.get("lead_discovery")
+    if not isinstance(state, dict):
+        state = {}
+        metrics["lead_discovery"] = state
+    return state
+
+
+def _bump_lead_metric(
+    context: dict[str, Any], key: str, amount: int = 1
+) -> None:
+    state = _lead_metrics(context)
+    state[key] = int(state.get(key) or 0) + max(0, int(amount))
+
+
 def _lead_hints_for_claim(
     cursor: ResearchRuntimeCursor, claim_id: str
 ) -> tuple[str, ...]:
@@ -2589,7 +2664,7 @@ def _lead_discovered_candidates(
     parent: RuntimeCandidate,
     max_candidates: int,
     discovered_so_far: int,
-) -> tuple[RuntimeCandidate, ...]:
+) -> tuple[tuple[RuntimeCandidate, ...], dict[str, int]]:
     """Convert lead-discovered URLs into candidates with discovery provenance.
 
     Slice 2C: identity is the canonical URL. A URL already in the pool is never
@@ -2597,24 +2672,43 @@ def _lead_discovered_candidates(
     Slice 2D: the new candidate receives no privilege - it inherits the parent's
     query ids so the existing per-claim assessment path sees it, and assessment
     -> eligibility -> scheduler still decides everything.
+
+    Returns ``(added_candidates, stats)`` where stats are bounded counters for
+    the lead-discovery audit (added / duplicate / unsafe / cap_exhausted /
+    depth_blocked).
     """
 
+    stats = {
+        "added": 0,
+        "duplicate_url_rejected": 0,
+        "unsafe_url_rejected": 0,
+        "cap_exhausted": 0,
+        "depth_blocked": 0,
+    }
     if parent.discovery_depth >= MAX_LEAD_DISCOVERY_DEPTH:
-        return ()
+        stats["depth_blocked"] = 1
+        return (), stats
     remaining_run_budget = (
         MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN - discovered_so_far
     )
     if remaining_run_budget <= 0:
-        return ()
+        stats["cap_exhausted"] = 1
+        return (), stats
     known_urls = {item.url for item in existing}
     added: list[RuntimeCandidate] = []
     for raw_url in discovery.discovered_urls:
         if len(added) >= remaining_run_budget:
+            stats["cap_exhausted"] = 1
             break
         if len(existing) + len(added) >= max_candidates:
+            stats["cap_exhausted"] = 1
             break
         canonical = canonicalize_url(raw_url)
-        if not canonical or canonical in known_urls:
+        if not canonical:
+            stats["unsafe_url_rejected"] += 1
+            continue
+        if canonical in known_urls:
+            stats["duplicate_url_rejected"] += 1
             continue
         known_urls.add(canonical)
         added.append(
@@ -2636,7 +2730,8 @@ def _lead_discovered_candidates(
                 ),
             )
         )
-    return tuple(added)
+    stats["added"] = len(added)
+    return tuple(added), stats
 
 
 def _restore_completed_read_targets(

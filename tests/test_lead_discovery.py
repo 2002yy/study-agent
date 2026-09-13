@@ -147,13 +147,19 @@ class _FakeGateway:
 
     def complete_structured(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
-        value = None
-        reason = ""
-        if self.status == "completed":
+        if self.status != "completed":
+            return SimpleNamespace(
+                status=self.status, value=None, audits=(), reason="model_call_failed"
+            )
+        try:
             value = kwargs["parse"](self.payload)
-        else:
-            reason = "model_call_failed"
-        return SimpleNamespace(status=self.status, value=value, audits=(), reason=reason)
+        except Exception:
+            # Real gateway behavior: a strict-parser rejection is a fail-closed
+            # unavailable result, never a silent success.
+            return SimpleNamespace(
+                status="unavailable", value=None, audits=(), reason="parse_failed"
+            )
+        return SimpleNamespace(status="completed", value=value, audits=(), reason="")
 
 
 def test_discoverer_returns_typed_discovery_and_uses_lead_purpose() -> None:
@@ -191,6 +197,101 @@ def test_discoverer_reports_unavailable_on_model_failure() -> None:
     )
     assert result.status == "unavailable"
     assert result.discovery is None
+
+
+def test_discoverer_fails_closed_when_parser_rejects_payload() -> None:
+    # Missing required keys -> strict parser rejects -> unavailable, not success.
+    gateway = _FakeGateway({"schema_version": LEAD_DISCOVERY_SCHEMA_VERSION})
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="page text",
+    )
+    assert result.status == "unavailable"
+    assert result.discovery is None
+    assert result.reason == "parse_failed"
+
+
+def _runtime_candidate(
+    url: str,
+    *,
+    candidate_id: str = "cand-parent",
+    depth: int = 0,
+) -> Any:
+    from src.web.research.runtime import RuntimeCandidate
+
+    return RuntimeCandidate(
+        id=candidate_id,
+        url=url,
+        title=url,
+        query_ids=("q-1",),
+        intents=("primary",),
+        discovery_depth=depth,
+    )
+
+
+def _payload_with_urls(*urls: str) -> Any:
+    from src.web.research.lead_discovery import LeadDiscoveryPayload
+
+    return LeadDiscoveryPayload(
+        source_candidate_id="cand-parent",
+        discovered_urls=tuple(urls),
+        domains=(),
+        organizations=(),
+        primary_source_hints=(),
+        warnings=(),
+    )
+
+
+def test_lead_discovered_candidates_reject_unsafe_and_duplicate_urls() -> None:
+    from src.application.active_research_runtime import _lead_discovered_candidates
+
+    parent = _runtime_candidate("https://news.example/report")
+    existing = (_runtime_candidate("https://existing.example/page", candidate_id="e"),)
+    discovery = _payload_with_urls(
+        "javascript:alert(1)",
+        "https://existing.example/page",
+        "https://primary.example/a",
+    )
+
+    added, stats = _lead_discovered_candidates(
+        existing, discovery, parent=parent, max_candidates=20, discovered_so_far=0
+    )
+
+    assert [item.url for item in added] == ["https://primary.example/a"]
+    assert stats["unsafe_url_rejected"] == 1
+    assert stats["duplicate_url_rejected"] == 1
+    assert stats["added"] == 1
+    assert added[0].parent_lead_candidate_id == "cand-parent"
+    assert added[0].discovery_method == "lead_url"
+    assert added[0].discovery_depth == 1
+    assert added[0].query_ids == ("q-1",)
+
+
+def test_lead_discovered_candidates_respect_depth_and_run_cap() -> None:
+    from src.application.active_research_runtime import _lead_discovered_candidates
+
+    discovery = _payload_with_urls("https://primary.example/a")
+
+    deep_added, deep_stats = _lead_discovered_candidates(
+        (),
+        discovery,
+        parent=_runtime_candidate("https://news.example/report", depth=1),
+        max_candidates=20,
+        discovered_so_far=0,
+    )
+    assert deep_added == ()
+    assert deep_stats["depth_blocked"] == 1
+
+    capped_added, capped_stats = _lead_discovered_candidates(
+        (),
+        discovery,
+        parent=_runtime_candidate("https://news.example/report"),
+        max_candidates=20,
+        discovered_so_far=4,
+    )
+    assert capped_added == ()
+    assert capped_stats["cap_exhausted"] == 1
 
 
 def test_lead_scheduling_is_deterministic_and_budget_bounded() -> None:

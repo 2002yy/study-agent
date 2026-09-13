@@ -4112,3 +4112,16 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
     assert any(
         outcome.candidate_id == discovered_id for outcome in cursor.read_outcomes
     )
+    # Slice 3A budget consistency: lead reads and lead-discovery model calls
+    # stay inside the frozen shared budgets (max_reads=8, max_model_calls=8).
+    assert len(cursor.lead_read_ids) <= 2
+    assert len(cursor.model_calls) <= 8
+    successful_evidence_reads = sum(
+        1 for outcome in cursor.read_outcomes if outcome.status == "success"
+    )
+    assert len(cursor.lead_read_ids) + successful_evidence_reads <= 8
+    # Slice 3A progress axes are audited explicitly.
+    wave_progress = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY][
+        "wave_progress"
+    ]
+    assert any(item["discovery_progress"] for item in wave_progress)
