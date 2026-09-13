@@ -2051,6 +2051,7 @@ def _append_gap_queries(
             gap,
             claim,
             reference_date=state.reference_date,
+            source_hints=_lead_hints_for_claim(cursor, claim.id),
         )
         for item in batch.queries:
             runtime_query = _runtime_query(item)
@@ -2551,6 +2552,34 @@ def _lead_read_plan(
                 ]
             seen.add(candidate_id)
     return []
+
+
+def _lead_hints_for_claim(
+    cursor: ResearchRuntimeCursor, claim_id: str
+) -> tuple[str, ...]:
+    """Bounded primary-source hints from leads associated with one claim.
+
+    Hints only sharpen the Gap Planner's own query wording; they never create a
+    candidate and never change evidence eligibility (Slice 2E).
+    """
+
+    claim_query_ids = {
+        item.id for item in cursor.planned_queries if item.claim_id == claim_id
+    }
+    if not claim_query_ids:
+        return ()
+    candidates_by_id = {item.id: item for item in cursor.candidates}
+    hints: list[str] = []
+    for payload in cursor.lead_discoveries:
+        parent_id = str(payload.get("source_candidate_id") or "")
+        parent = candidates_by_id.get(parent_id)
+        if parent is None or not claim_query_ids.intersection(parent.query_ids):
+            continue
+        for key in ("domains", "organizations", "primary_source_hints"):
+            values = payload.get(key)
+            if isinstance(values, list):
+                hints.extend(str(value) for value in values)
+    return tuple(dict.fromkeys(hint for hint in hints if hint))
 
 
 def _lead_discovered_candidates(

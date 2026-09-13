@@ -160,8 +160,15 @@ def plan_gap_queries(
     *,
     reference_date: str = "",
     max_queries: int = DEFAULT_QUERIES_PER_GAP,
+    source_hints: tuple[str, ...] = (),
 ) -> GapQueryBatch:
-    """Return a bounded, intent-diverse query batch for one open gap."""
+    """Return a bounded, intent-diverse query batch for one open gap.
+
+    ``source_hints`` are bounded lead-discovery hints (domains, organizations,
+    official terminology). They only influence how this planner words its own
+    queries - the Gap Planner remains the single query-strategy owner, and a
+    hint can never mint a candidate or change evidence eligibility.
+    """
 
     if gap.claim_id != claim.id:
         raise ValueError("gap claim_id does not match research claim")
@@ -174,6 +181,7 @@ def plan_gap_queries(
         or claim.evidence_requirement.max_age_days is not None
     )
     year = _reference_year(reference_date) if temporal else ""
+    hints = _bounded_hints(source_hints)
     intents = _select_intents(gap=gap, claim=claim)[:limit]
     queries: list[PlannedGapQuery] = []
     seen: set[str] = set()
@@ -183,6 +191,7 @@ def plan_gap_queries(
             intent=intent,
             desired_source_role=gap.desired_source_role,
             reference_year=year,
+            source_hints=hints,
         )
         key = query.casefold()
         if key in seen:
@@ -266,6 +275,7 @@ def _query_for_intent(
     intent: GapSearchIntent,
     desired_source_role: str,
     reference_year: str,
+    source_hints: tuple[str, ...] = (),
 ) -> str:
     suffixes = (
         {
@@ -289,6 +299,16 @@ def _query_for_intent(
     parts = [focused, suffixes[intent]]
     if desired_source_role == "primary" and intent == GapSearchIntent.PRIMARY:
         parts.append("primary source")
+    # Lead-discovery hints only sharpen primary/provenance query wording.
+    if source_hints and intent in {
+        GapSearchIntent.PRIMARY,
+        GapSearchIntent.PROVENANCE,
+    }:
+        site_hint, term_hint = _hint_fragments(source_hints)
+        if site_hint:
+            parts.append(f"site:{site_hint}")
+        if term_hint:
+            parts.append(term_hint)
     if reference_year and intent in {
         GapSearchIntent.DISCOVERY,
         GapSearchIntent.PRIMARY,
@@ -296,6 +316,34 @@ def _query_for_intent(
     }:
         parts.append(reference_year)
     return " ".join(part for part in parts if part).strip()[:1200]
+
+
+def _bounded_hints(source_hints: tuple[str, ...]) -> tuple[str, ...]:
+    """Bound and normalize lead-discovery hints before they reach a query."""
+
+    bounded: list[str] = []
+    for raw in source_hints:
+        hint = " ".join(str(raw or "").split())[:120]
+        if not hint or hint in bounded:
+            continue
+        bounded.append(hint)
+        if len(bounded) >= 4:
+            break
+    return tuple(bounded)
+
+
+def _hint_fragments(source_hints: tuple[str, ...]) -> tuple[str, str]:
+    """Return one site hint and one terminology hint, in that priority."""
+
+    site = ""
+    term = ""
+    for hint in source_hints:
+        if not site and re.fullmatch(r"[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", hint):
+            site = hint.casefold()
+            continue
+        if not term:
+            term = hint
+    return site, term
 
 
 def _reference_year(value: str) -> str:

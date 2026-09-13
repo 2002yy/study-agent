@@ -258,3 +258,64 @@ def test_pre_lead_cursor_still_loads_with_empty_lead_state() -> None:
 
     assert restored.lead_read_ids == ()
     assert restored.lead_discoveries == ()
+
+
+def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
+    """Slice 2B: hints only sharpen planner wording; the planner stays owner."""
+
+    from src.web.research.contracts import (
+        EvidenceGap,
+        EvidenceRequirement,
+        ResearchClaim,
+    )
+    from src.web.research.gap_planner import GapSearchIntent, plan_gap_queries
+
+    claim = ResearchClaim(
+        id="claim-1",
+        question_id="q-1",
+        text="UK bank rate current",
+        kind="factual",
+        priority="critical",
+        state="searching",
+        evidence_requirement=EvidenceRequirement(
+            source_roles=("primary", "independent_secondary"),
+            min_independent_sources=1,
+            requires_primary_source=True,
+            requires_successful_read=True,
+            requires_dated_evidence=False,
+        ),
+    )
+    gap = EvidenceGap(
+        id="gap-1",
+        claim_id="claim-1",
+        gap_type="primary_required",
+        desired_source_role="primary",
+        state="open",
+    )
+
+    without_hints = plan_gap_queries(gap, claim)
+    with_hints = plan_gap_queries(
+        gap,
+        claim,
+        source_hints=("bankofengland.co.uk", "Bank of England"),
+    )
+
+    primary_plain = next(
+        item for item in without_hints.queries if item.intent == GapSearchIntent.PRIMARY
+    )
+    primary_hinted = next(
+        item for item in with_hints.queries if item.intent == GapSearchIntent.PRIMARY
+    )
+    assert "site:" not in primary_plain.query
+    assert "site:bankofengland.co.uk" in primary_hinted.query
+    assert "Bank of England" in primary_hinted.query
+    # Non-primary intents are untouched by hints.
+    discovery_plain = next(
+        item
+        for item in without_hints.queries
+        if item.intent == GapSearchIntent.DISCOVERY
+    )
+    discovery_hinted = next(
+        item for item in with_hints.queries if item.intent == GapSearchIntent.DISCOVERY
+    )
+    assert discovery_plain.query == discovery_hinted.query
