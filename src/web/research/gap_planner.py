@@ -430,6 +430,16 @@ def _query_for_intent(
     return " ".join(tokens[:_QUERY_MAX_TOKENS]).strip()[:1200]
 
 
+def query_terms(text: str) -> tuple[str, ...]:
+    """Public wrapper: deterministic content tokens (fragments removed).
+
+    Used for hint/term extraction outside the planner (e.g. evidence-lead
+    follow-up hints) so the same fragment rules apply everywhere.
+    """
+
+    return _query_content_tokens(text)
+
+
 def _query_content_tokens(text: str) -> tuple[str, ...]:
     """Deterministic content tokens: fragments/pronouns/auxiliaries removed."""
 

@@ -74,6 +74,7 @@ from src.web.research.gap_planner import (
     GapSearchIntent,
     PlannedGapQuery,
     plan_gap_queries,
+    query_terms,
 )
 from src.web.research.model_gateway import (
     MAX_RESEARCH_MODEL_ATTEMPTS,
@@ -1644,12 +1645,8 @@ class ActiveResearchRuntimeExecutor:
                                 None,
                             )
                             keywords = tuple(
-                                dict.fromkeys(
-                                    token.casefold()
-                                    for token in re.findall(
-                                        r"[A-Za-z0-9]{4,}", claim.text
-                                    )
-                                )
+                                token.casefold()
+                                for token in query_terms(claim.text)
                             )[:8]
                             discovered, followup_stats = (
                                 _evidence_lead_followup_candidates(
