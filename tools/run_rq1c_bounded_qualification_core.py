@@ -39,6 +39,7 @@ if __name__ == "__main__":
 from dotenv import load_dotenv  # noqa: E402
 
 from src.application.active_research_runtime import (  # noqa: E402
+    ACTIVE_RESEARCH_ASSESSMENTS_KEY,
     ACTIVE_RESEARCH_BRIEF_KEY,
     ACTIVE_RESEARCH_METRICS_KEY,
     ActiveResearchRuntimeExecutor,
@@ -516,6 +517,66 @@ def _production_chat_command(
     )
 
 
+def _evidence_path_projection(
+    context: Mapping[str, Any],
+    runtime: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bounded evidence-path projection (Slice 1-4 observability).
+
+    Read-only telemetry: eligibility / relevance / source-role distributions and
+    the lead-discovery chain. It never changes the frozen gate or the artifact
+    summary.
+    """
+
+    eligibility: dict[str, int] = {}
+    relevance: dict[str, int] = {}
+    source_roles: dict[str, int] = {}
+    assessments = context.get(ACTIVE_RESEARCH_ASSESSMENTS_KEY)
+    if isinstance(assessments, Mapping):
+        for rows in assessments.values():
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    continue
+                key = _bounded(row.get("eligibility"), 40) or "unknown"
+                eligibility[key] = eligibility.get(key, 0) + 1
+                assessment = row.get("assessment")
+                if not isinstance(assessment, Mapping):
+                    continue
+                rel = _bounded(assessment.get("relevance"), 40) or "unknown"
+                relevance[rel] = relevance.get(rel, 0) + 1
+                role = _bounded(assessment.get("source_role"), 40) or "unknown"
+                source_roles[role] = source_roles.get(role, 0) + 1
+
+    lead_read_ids = _bounded_sequence(
+        runtime.get("lead_read_ids"), item_limit=300, max_items=8
+    )
+    discoveries = runtime.get("lead_discoveries")
+    discovery_count = len(discoveries) if isinstance(discoveries, list) else 0
+    discovered_candidates = [
+        {
+            "id": _bounded(candidate.get("id"), 300),
+            "parent_lead_candidate_id": _bounded(
+                candidate.get("parent_lead_candidate_id"), 300
+            ),
+            "discovery_method": _bounded(candidate.get("discovery_method"), 50),
+            "discovery_depth": candidate.get("discovery_depth"),
+        }
+        for candidate in (runtime.get("candidates") or [])[:50]
+        if isinstance(candidate, Mapping)
+        and candidate.get("discovery_method") == "lead_url"
+    ][:8]
+    return {
+        "eligibility": eligibility,
+        "relevance": relevance,
+        "source_role": source_roles,
+        "lead_read_ids": list(lead_read_ids),
+        "lead_discovery_count": discovery_count,
+        "lead_discovered_candidates": discovered_candidates,
+    }
+
+
 def _run_case(
     *,
     case: Mapping[str, str],
@@ -668,6 +729,7 @@ def _run_case(
         },
         "brief": brief_projection,
         "metrics": dict(metrics),
+        "evidence_path": _evidence_path_projection(context, runtime),
     }
 
 
