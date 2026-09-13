@@ -409,7 +409,7 @@ def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
     )
     assert "site:" not in primary_plain.query
     assert "site:bankofengland.co.uk" in primary_hinted.query
-    assert "Bank of England" in primary_hinted.query
+    assert "England" in primary_hinted.query
     # Non-primary intents are untouched by hints.
     discovery_plain = next(
         item

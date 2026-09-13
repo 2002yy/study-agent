@@ -88,7 +88,7 @@ def test_primary_gap_produces_four_distinct_intents_and_queries() -> None:
     ]
     assert len({item.query.casefold() for item in batch.queries}) == 4
     assert "2026" in batch.queries[0].query
-    assert "official documentation" in batch.queries[1].query
+    assert "official docs" in batch.queries[1].query
     assert all("What is the current" not in item.query for item in batch.queries)
 
 

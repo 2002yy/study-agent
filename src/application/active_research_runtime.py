@@ -2105,11 +2105,20 @@ def _append_gap_queries(
     new_planned: list[RuntimePlannedQuery] = []
     for gap in _ordered_gaps(state):
         claim = claims[gap.claim_id]
+        question_surface = next(
+            (
+                item.question_surface
+                for item in state.questions
+                if item.id == claim.question_id
+            ),
+            "",
+        )
         batch = plan_gap_queries(
             gap,
             claim,
             reference_date=state.reference_date,
             source_hints=_lead_hints_for_claim(cursor, claim.id),
+            question=question_surface,
         )
         for item in batch.queries:
             runtime_query = _runtime_query(item)
