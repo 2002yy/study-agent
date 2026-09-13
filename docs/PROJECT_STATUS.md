@@ -12,8 +12,8 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步：**hardening batch 已交付（`178dbf4`）并已重跑 Live12（`9/12` reviewable，budget violation `12→3`，§7）；**第一个真实 blocker 已定位为候选选择/assessment 层**（Bing RSS 候选被判 `off_target`+`aggregator` → `rejected` → 0 reads → 饱和；见 §10），不是 reader / Gate / stop policy。下一步在该链上做最小真实修复，不改 Gate、不改 45s/60s 门。
-- **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` 或 `178dbf4` 之前的 head。
+- **当前唯一下一步（2026-09-13 记录，明天执行）：** 做**下一批小修 = Evidence-lead fallback domain policy**（见 §20），然后立即重跑同一 6-case trace；**trace 通过前不要跑 Live12**（现在跑只会再次确认已知缺陷，信息增益低）。其余一切冻结：不改 Gate、不改 45s/60s、不改 read/model budget、不改 Lead caps、不改 query hardening、不改 assessor、不改 provider。
+- **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
 
@@ -416,3 +416,96 @@ Gate 的 support cluster 只认 `relation=="supports"` 且 `strength >= STRONG_E
 - academic-primary-attention：follow-up（blog.csdn.net）→ `Transformer optimizer learning-rate schedule used train site:blog.csdn.net`
 
 `followup_started` 在 3 个 case 触发，全部 `no_deeper_url`（reader 只返回纯文本）→ 全部走 hint 回退。**clusters 仍 0/N**：site 查询尚未在本轮内产出可 support 的更深页面（预算与检索结果的双重限制）。机制链已完整，剩下的是"site 查询能否命中真正含事实的页面"这一经验问题。
+
+## 20. 下一批（明天执行）：Evidence-lead fallback domain policy
+
+**状态：** 已记录，**未开工**。`git_sha` 基线 `1472398`（记录提交之前）。**在完成本批并通过 trace 验收前，不要跑 Live12。**
+
+### 20.1 新发现的确定性缺陷（真实 trace 证据）
+
+fallback 的 `site:<domain>` 锚点**继承"当前 lead 页的域"**，而该域未必是目标事实的权威来源：
+
+```text
+Docker      → site:docker.github.net.cn   （镜像域）
+CPI         → site:www.gov.uk             （门户域；claim 指向 ONS）
+Transformer → site:blog.csdn.net          （聚合域）
+```
+
+第 1、3 例尤其明确：一旦把搜索锁死在镜像/聚合域，**再好的 query planner 也不可能找到 primary evidence**——这不是搜索引擎偶然未命中，而是 follow-up 的 search space 被自己错误收窄。当前链：
+
+```text
+正确识别 evidence-stage lead
+→ 无 deeper URL
+→ fallback
+→ 用当前页面 domain 当 primary locator
+→ site:弱域/镜像/聚合域
+→ search space 被错误收窄
+→ 仍无 support
+```
+
+**结论：** 现在跑 Live12 信息增益低（只会再次证明 `site:docker.github.net.cn` / `site:blog.csdn.net` 找不到 primary）。
+
+### 20.2 修复范围（非常小，只改这一条规则）
+
+> **"当前页面 domain" 不能自动等价于 "应该继续深挖的 domain"。**
+
+按 source role 分流：
+
+| 当前 candidate/source_role | fallback 行为 |
+| --- | --- |
+| `primary` | 允许优先 same-domain `site:<domain>` |
+| `authoritative_secondary` | 保留 domain hint，但**不强制 `site:`**——除非该机构本身就是目标事实的发布主体 |
+| `aggregator` / `community` / `independent_secondary` | **禁止**把当前 domain 用作 `site:` 锚；只回灌 organization / entity / official terminology，由 Gap Planner 重新找 primary |
+
+预期结果：
+
+```text
+docker.github.net.cn → 不再 site:docker.github.net.cn
+                    → "Docker Hub + pull rate limits + official docs"
+
+blog.csdn.net       → 不再 site:blog.csdn.net
+                    → "Transformer + optimizer / learning-rate schedule + 原始论文/官方实现实体"
+```
+
+`gov.uk` 需按 assessment 的 source role + claim owner 判断：若该页本身是目标政策/统计的正式发布主体可保留；若 claim 明确指向 ONS 而 GOV.UK 只是门户，则不锁死 `site:www.gov.uk`。
+
+### 20.3 数据层护栏（必须同时做）
+
+`site:` 是**强约束**，只应在"有理由相信该 domain 就是 evidence owner"时使用：
+
+```text
+trusted_primary_domain → site:<domain>
+mere_source_domain     → 普通 hint，不加 site:
+```
+
+- 建议在数据层分开 `hint_domain` 与 `trusted_primary_domain`；
+- v1 至少让 planner 接收一个 `domain_constraint_allowed: bool`；
+- 目的：避免以后再把"见过这个域"与"这个域值得锁定"混为一谈。
+
+### 20.4 验收（本批唯一验收方式）
+
+重跑同一 6-case trace，至少应满足：
+
+```text
+docker.github.net.cn → 不再作为 site constraint
+blog.csdn.net        → 不再作为 site constraint
+真正 primary page    → 允许 same-domain site constraint
+```
+
+并观察：`primary/authoritative` 候选比例 ↑、support extraction 是否首次出现。
+
+**升级条件：** 若 trace 出现哪怕一条
+
+```text
+homepage/aggregator lead
+→ follow-up
+→ deeper primary page
+→ relation="supports"
+→ cluster 0/N → 1/N
+```
+
+**则立刻跑 Live12。**
+
+### 20.5 本批禁止改动
+
+Evidence Gate、45s/60s、read/model budget、Lead caps、query hardening、assessor、provider hardening、`rejected → lead`。
