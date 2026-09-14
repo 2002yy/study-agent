@@ -406,19 +406,58 @@ class ActiveResearchRuntimeExecutor:
                 metrics["research_window_skips"] = skips
             skips[key] = int(skips.get(key) or 0) + 1
 
+        phase_started: dict[str, float] = {}
+
+        def phase_begin(phase: str) -> None:
+            """Start timing one research phase (telemetry only)."""
+
+            phase_started[phase] = self.monotonic()
+
+        def phase_end(phase: str) -> None:
+            """Accumulate wall-clock seconds per research phase (telemetry only).
+
+            Paired performance attribution needs the research window split into
+            search / assessment / read / extraction / discovery, so a later batch
+            can price one action instead of guessing a constant. This never
+            changes control flow: it only adds to ``metrics.phase_seconds``.
+            """
+
+            started = phase_started.pop(phase, None)
+            if started is None:
+                return
+            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            phases = metrics.get("phase_seconds")
+            if not isinstance(phases, dict):
+                phases = {}
+                metrics["phase_seconds"] = phases
+            entry = phases.get(phase)
+            if not isinstance(entry, dict):
+                entry = {"seconds": 0.0, "calls": 0}
+                phases[phase] = entry
+            entry["seconds"] = round(
+                float(entry.get("seconds") or 0.0)
+                + max(0.0, self.monotonic() - started),
+                6,
+            )
+            entry["calls"] = int(entry.get("calls") or 0) + 1
+
         def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
             """Read a page, forwarding the shared deadline when supported."""
 
-            if self.read_gateway_accepts_timeout:
-                return dict(
-                    self.gateway.read(
-                        url,
-                        max_chars=max_chars,
-                        timeout=read_timeout_seconds(),
+            phase_begin("read")
+            try:
+                if self.read_gateway_accepts_timeout:
+                    return dict(
+                        self.gateway.read(
+                            url,
+                            max_chars=max_chars,
+                            timeout=read_timeout_seconds(),
+                        )
+                        or {}
                     )
-                    or {}
-                )
-            return dict(self.gateway.read(url, max_chars=max_chars) or {})
+                return dict(self.gateway.read(url, max_chars=max_chars) or {})
+            finally:
+                phase_end("read")
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -870,6 +909,7 @@ class ActiveResearchRuntimeExecutor:
                             remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
                         )
                         try:
+                            phase_begin("search")
                             payload = self.gateway.search_detailed(
                                 query,
                                 max_items=max_results,
@@ -878,7 +918,7 @@ class ActiveResearchRuntimeExecutor:
                             audit = self.gateway.last_search_audit()
                             return payload
                         finally:
-                            pass
+                            phase_end("search")
 
                     one_query = _gap_query_batch(planned)
                     try:
@@ -1029,20 +1069,24 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    assessed = self.candidate_assessor.assess(
-                        run_id=run_id,
-                        claim=claim,
-                        candidates=candidates,
-                        assignments=assessment_assignments,
-                        reference_date=state.reference_date,
-                        timeout_seconds=remaining_timeout(),
-                        on_attempt_started=on_model_started,
-                        on_attempt_finished=on_model_finished,
-                        call_id_suffix=_assessment_call_suffix(
-                            cursor, claim.id, candidate_ids
-                        ),
-                        attempt_start=assessment_attempt_start,
-                    )
+                    phase_begin("assessment")
+                    try:
+                        assessed = self.candidate_assessor.assess(
+                            run_id=run_id,
+                            claim=claim,
+                            candidates=candidates,
+                            assignments=assessment_assignments,
+                            reference_date=state.reference_date,
+                            timeout_seconds=remaining_timeout(),
+                            on_attempt_started=on_model_started,
+                            on_attempt_finished=on_model_finished,
+                            call_id_suffix=_assessment_call_suffix(
+                                cursor, claim.id, candidate_ids
+                            ),
+                            attempt_start=assessment_attempt_start,
+                        )
+                    finally:
+                        phase_end("assessment")
                     ensure_active()
                     if assessed.status != "completed" or not assessed.assessments:
                         assessment_reason = (
@@ -1464,14 +1508,18 @@ class ActiveResearchRuntimeExecutor:
                         _bump_lead_metric(context, "policy_blocked")
                         checkpoint()
                         continue
-                    discovery = self.lead_discoverer.discover(
-                        run_id=run_id,
-                        candidate=lead_candidate,
-                        content=lead_content,
-                        timeout_seconds=remaining_timeout(),
-                        on_attempt_started=on_model_started,
-                        on_attempt_finished=on_model_finished,
-                    )
+                    phase_begin("discovery")
+                    try:
+                        discovery = self.lead_discoverer.discover(
+                            run_id=run_id,
+                            candidate=lead_candidate,
+                            content=lead_content,
+                            timeout_seconds=remaining_timeout(),
+                            on_attempt_started=on_model_started,
+                            on_attempt_finished=on_model_finished,
+                        )
+                    finally:
+                        phase_end("discovery")
                     ensure_active()
                     if (
                         discovery.status == "completed"
@@ -1625,21 +1673,25 @@ class ActiveResearchRuntimeExecutor:
                         )
                         checkpoint()
                         continue
-                    extracted = self.evidence_extractor.extract(
-                        run_id=run_id,
-                        claim=claim,
-                        candidate=candidate,
-                        source_role=extraction_target["source_role"],
-                        source_cluster_id=extraction_target["cluster_id"],
-                        content=str(read.get("content") or ""),
-                        timeout_seconds=remaining_timeout(),
-                        on_attempt_started=on_model_started,
-                        on_attempt_finished=on_model_finished,
-                        call_id_suffix=_extraction_call_suffix(
-                            cursor, candidate_id, claim_id
-                        ),
-                        attempt_start=extraction_attempt_start,
-                    )
+                    phase_begin("extraction")
+                    try:
+                        extracted = self.evidence_extractor.extract(
+                            run_id=run_id,
+                            claim=claim,
+                            candidate=candidate,
+                            source_role=extraction_target["source_role"],
+                            source_cluster_id=extraction_target["cluster_id"],
+                            content=str(read.get("content") or ""),
+                            timeout_seconds=remaining_timeout(),
+                            on_attempt_started=on_model_started,
+                            on_attempt_finished=on_model_finished,
+                            call_id_suffix=_extraction_call_suffix(
+                                cursor, candidate_id, claim_id
+                            ),
+                            attempt_start=extraction_attempt_start,
+                        )
+                    finally:
+                        phase_end("extraction")
                     ensure_active()
                     if extracted.status != "completed" or extracted.extraction is None:
                         extraction_reason = extracted.reason or "extractor_unavailable"

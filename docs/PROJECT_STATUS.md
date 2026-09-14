@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Timeout Invariant Hardening 已实现并验收（§26：DDG 失败成本 24016 ms → 6000 ms；一条坏 query provider 成本 ≈28s → ≈10.1s）。下一批 = **Item 4 A→B→A paired-run harness**（3–4 calibration cases + `comparison_status = stable | environment_unstable`），用真实 telemetry 校准 `FINALIZATION_RESERVE_SECONDS` 与 §22 成本常数，然后才在 clean exact head 上重跑严格 Live12。其余一切冻结：不改 Gate、不改 45s/60s、不改 read/model budget、不改 Lead caps、不改 query hardening、不改 assessor、不改 provider 语义。
+- **当前唯一下一步（2026-09-14 记录）：**Timeout Invariant Hardening 已判定关闭（§26：DDG 失败成本 24016 ms → 6000 ms）。本批 = **Paired Performance Attribution Harness**（§27）：`F0→A1→F1→B→F2→A2→F3`，先证 A1↔A2 环境稳定，才允许把 case 差异归因给代码；同时建立 finalization telemetry 以便后续按测量校准 `FINALIZATION_RESERVE_SECONDS`（样本不足时保持 12s 不动）。严格 Live12 仍冻结，直到 paired calibration 支持归因。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -720,3 +720,52 @@ Evidence Gate、assessor、query hardening、provider resilience、Lead contract
 1. **Item 4 剩余：A→B→A paired-run harness**（3–4 calibration cases，`comparison_status = stable | environment_unstable`；不稳定禁止性能归因）。
 2. 用真实 telemetry 校准 `FINALIZATION_RESERVE_SECONDS` 与 §22 成本常数。
 3. 之后才在 clean exact head 上重跑严格 Live12。
+
+## 27. Paired Performance Attribution Harness（`tools/run_paired_attribution.py`）
+
+**冻结规则：环境不稳定时，禁止把性能变化归因给代码。** 本批不是优化性能，而是建立"先证环境、再谈代码"的测量纪律。
+
+### 27.1 结构与锁定项
+
+```text
+F0 -> A1 -> F1 -> B -> F2 -> A2 -> F3
+```
+
+- `A1`/`A2`/`B` 执行**同一组** calibration case、同一 frozen budget、同一 provider/model 配置；`A` = baseline ref，`B` = candidate ref，两者都 check out 到一次性 git worktree，因此每次运行都绑定 exact 40-char SHA + clean tracked tree（沿用 `rq1c_git_identity` 的 exact-head 语义）。
+- `F0`..`F3` 是环境指纹（`run_environment_fingerprint`）。
+- **稳定性只看 A1↔A2 的外部依赖基线**（比较紧邻 A 运行的 `F1`↔`F3`），先于任何 case 比较：DeepSeek planner/assessor/extractor、Bing RSS、DDG failure path、SearXNG、reader。判定 = 各 probe 超出 v1 宽松容差（abs 2000/3000ms + rel 1.0）**或** provider 状态/reason 实质变化**或** fingerprint 自身报错 → `comparison_status = environment_unstable`、`attribution_allowed = false`。原始值全部保留。
+
+### 27.2 Calibration cases（全部取自既有 holdout，不造新 workload）
+
+| 标签 | case | 形态 | 选取依据（来自 `7b6f4aa` 历史 artifact） |
+| --- | --- | --- | --- |
+| C1 | `rq1c-numeric-uk-inflation` | direct-primary | 搜索直达 primary，无 lead 动作 |
+| C2 | `rq1c-unverifiable-python-security` | candidate-lead | `lead_discovery_succeeded` + `lead_read_started` |
+| C3 | `rq1c-academic-primary-attention` | evidence-lead | `evidence_lead_followup_started`（relation=lead → follow-up） |
+| C4 | `rq1c-provenance-xz` | deadline-stress | `evidence_lead_followup_skipped_insufficient_budget`，历史上触及 research window 边界 |
+
+### 27.3 输出（不是只给 reviewable）
+
+- **phase/action delta**：per case 的 search / assessment / read / extraction / discovery 秒数（新增生产 telemetry `metrics.phase_seconds`，纯累加、不改控制流）、research elapsed、finalization elapsed（= total − research）、provider attempts、reads、model calls、lead action 计数、support clusters；全部保留 A1/A2 原始值与 A mean、`B − A` delta、方向标注。
+- **`reserve_calibration`**：finalization latency（research stop → run completed）p50 / p90 / max + `sample_adequate_for_reserve`，用于以后按 **finalization**（而不是总 runtime）校准 `FINALIZATION_RESERVE_SECONDS`，规则是 `reserve ≈ p90 + margin`；样本不足时**保持 12s 不动**，先建立测量。
+- 产物：`docs/research_quality/PAIRED_ATTRIBUTION.<candidate8>.json`（未跟踪诊断产物）。
+
+### 27.4 技术债登记（非阻塞，用户要求）
+
+**被放弃的 wall-clock worker（`provider_search._call_with_wallclock`）**：超时后 daemon worker 不被等待——这是正确的 wall-clock containment，但底层网络调用可能短暂继续存在。登记观察项：`abandoned_worker_count`、`peak concurrent abandoned workers`、`worker eventually completed`；当前 provider 数量有限、上限低，不阻塞 RQ1-C，但极差网络下多 query 可持续累积后台线程/连接。
+
+**边界检查（当前判定健康）**：worker 只把结果写入**局部**列表，调用方超时后彻底丢弃该结果，不触碰 cursor/审计/共享状态；因此"被放弃的 worker 晚到后修改当前 run 结果"这条风险在现有实现下不成立。若以后 worker 改为写共享对象，必须先加 fence。
+
+### 27.5 状态
+
+```text
+Provider Resilience       CLOSED
+Lead architecture         CLOSED
+Query Construction        CLOSED
+Evidence Lead Follow-up   CLOSED
+Timeout Invariants        CLOSED
+Performance Attribution   THIS BATCH
+Cost-aware Admission      BLOCKED by measurement
+Strict Live12 rerun       BLOCKED by paired calibration
+```
+
