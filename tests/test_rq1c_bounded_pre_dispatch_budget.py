@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -221,9 +222,128 @@ def test_answer_phase_seconds_record_failures_without_leaking_messages(
         budget.chat([], task_name="single_chat", timeout=10.0)
 
     assert budget.phase_seconds["answer_generation"] >= 0.0
-    assert budget.call_records == [
-        {"phase": "answer_generation", "elapsed_seconds": budget.call_records[0]["elapsed_seconds"], "outcome": "TimeoutError"}
-    ]
+    record = budget.call_records[0]
+    assert record["phase"] == "answer_generation"
+    assert record["outcome"] == "TimeoutError"
+    # Only bounded metadata is stored: sizes and timings, never provider text.
+    assert "provider detail" not in json.dumps(record)
+
+
+def test_diagnostic_limits_widen_only_the_measurement_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The deadline invariant holds even with a widened diagnostic answer budget."""
+
+    seen: list[float] = []
+
+    def fake_chat(messages: list[dict], **kwargs: object) -> str:
+        seen.append(float(kwargs.get("timeout") or 0.0))
+        return "ok"
+
+    monkeypatch.setattr(runner, "_production_chat", fake_chat)
+    guardrails = runner._impl._core
+    guarded = guardrails.make_guarded_run_case(
+        raw_run_case=lambda **kwargs: {
+            "case_id": "case-x",
+            "budget_observed": {},
+            "budget_contract_violations": [],
+            "answer": {},
+        },
+        build_chat_service=_fake_chat_service_factory(),
+        binding_rows_provider=lambda run: [],
+        answer_stage_model_calls=lambda value: None,
+        exact_git_check=lambda: "a" * 40,
+        diagnostic_limits=(240.0, 90.0),
+    )
+
+    record = guarded(
+        case={"id": "case-x", "category": "synthetic", "question": "q"},
+        repository=SimpleNamespace(get=lambda run_id: None),
+        service=SimpleNamespace(execute=lambda *args, **kwargs: None),
+        chat_service=SimpleNamespace(repository=SimpleNamespace(database=None)),
+        reference_date="2026-09-14",
+    )
+
+    assert record["finalization_breakdown"]["diagnostic_limits"] == {
+        "deadline_seconds": 240.0,
+        "answer_timeout_floor_seconds": 90.0,
+        "qualification_evidence": False,
+        "note": (
+            "measurement-only seam: it widens the observed distribution, "
+            "it is never a qualification or product configuration"
+        ),
+    }
+
+
+def test_qualification_guard_reports_no_diagnostic_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runner, "_production_chat", lambda *a, **k: "ok")
+    guardrails = runner._impl._core
+    guarded = guardrails.make_guarded_run_case(
+        raw_run_case=lambda **kwargs: {
+            "case_id": "case-x",
+            "budget_observed": {},
+            "budget_contract_violations": [],
+            "answer": {},
+        },
+        build_chat_service=_fake_chat_service_factory(),
+        binding_rows_provider=lambda run: [],
+        answer_stage_model_calls=lambda value: None,
+        exact_git_check=lambda: "a" * 40,
+    )
+
+    record = guarded(
+        case={"id": "case-x", "category": "synthetic", "question": "q"},
+        repository=SimpleNamespace(get=lambda run_id: None),
+        service=SimpleNamespace(execute=lambda *args, **kwargs: None),
+        chat_service=SimpleNamespace(repository=SimpleNamespace(database=None)),
+        reference_date="2026-09-14",
+    )
+
+    assert record["finalization_breakdown"]["diagnostic_limits"] is None
+
+
+def _fake_chat_service_factory():
+    @dataclass
+    class FakeDependencies:
+        chat: object = None
+
+    @dataclass
+    class FakeChatService:
+        dependencies: FakeDependencies = field(default_factory=FakeDependencies)
+
+    return lambda database: FakeChatService()
+
+
+def test_call_records_expose_deadline_invariant_and_prompt_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_chat(messages: list[dict], **kwargs: object) -> str:
+        assert "content" in messages[0]
+        return "ok"
+
+    monkeypatch.setattr(runner, "_production_chat", fake_chat)
+    budget = runner._AnswerStageBudget(
+        started_at=time.monotonic(),
+        hard_timeout_seconds=100.0,
+        answer_timeout_floor_seconds=90.0,
+    )
+
+    budget.chat(
+        [{"role": "system", "content": "system"}, {"role": "user", "content": "x" * 40}],
+        task_name="single_chat",
+        timeout=10.0,
+    )
+
+    record = budget.call_records[0]
+    # The diagnostic floor raises the configured 10s to 90s (that is the point of
+    # the measurement seam), and the deadline still caps it via min(remaining).
+    assert record["timeout_seconds"] == 90.0
+    assert record["remaining_seconds"] > 0.0
+    assert record["message_count"] == 2
+    assert record["message_chars"] == 6 + 40
+    assert record["outcome"] == "ok"
 
 
 def test_guarded_run_case_attaches_finalization_breakdown(

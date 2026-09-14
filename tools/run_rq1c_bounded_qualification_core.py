@@ -749,6 +749,11 @@ def _run_case(
     }
 
 
+# Measurement seam: the raw driver stays reachable so a non-qualification
+# diagnostic runner can wrap it with widened diagnostic limits. The
+# qualification path below keeps using the production limits unchanged.
+raw_run_case = _run_case
+
 _run_case = make_guarded_run_case(
     raw_run_case=_run_case,
     build_chat_service=_build_chat_service,

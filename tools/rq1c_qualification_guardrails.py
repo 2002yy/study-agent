@@ -295,31 +295,64 @@ class _AnswerStageBudget:
         try:
             reply = _production_chat(messages, **forwarded)
         except Exception as exc:
-            self._record_phase_call(phase, call_started, type(exc).__name__)
+            self._record_phase_call(
+                phase,
+                call_started,
+                type(exc).__name__,
+                timeout_seconds=bounded_timeout,
+                messages=messages,
+            )
             raise
-        self._record_phase_call(phase, call_started, "ok")
+        self._record_phase_call(
+            phase,
+            call_started,
+            "ok",
+            timeout_seconds=bounded_timeout,
+            messages=messages,
+        )
         return reply
 
-    def _record_phase_call(self, phase: str, started_at: float, outcome: str) -> None:
+    def _record_phase_call(
+        self,
+        phase: str,
+        started_at: float,
+        outcome: str,
+        *,
+        timeout_seconds: float,
+        messages: list[dict] | None = None,
+    ) -> None:
         """Bounded per-phase wall-clock telemetry for the answer stage.
 
         Product code is untouched: this only measures what already happened, so a
         later batch can price answer_generation against answer_claim_binding
         instead of guessing a single finalization constant. The production
         ``chat`` boundary returns text only, so token usage is genuinely not
-        observable here and is deliberately not fabricated.
+        observable here and is deliberately not fabricated. Prompt sizes are
+        recorded as sizes only - never content.
         """
 
         elapsed = max(0.0, round(time.monotonic() - started_at, 3))
         self.phase_seconds[phase] = round(
             float(self.phase_seconds.get(phase) or 0.0) + elapsed, 3
         )
-        if len(self.call_records) < 32:
+        if len(self.call_records) < 64:
+            message_chars = 0
+            if isinstance(messages, list):
+                for message in messages:
+                    if isinstance(message, Mapping):
+                        message_chars += len(str(message.get("content") or ""))
             self.call_records.append(
                 {
                     "phase": phase,
                     "elapsed_seconds": elapsed,
                     "outcome": outcome,
+                    # Deadline invariant evidence: the call ran with
+                    # min(configured/floor, remaining) and we keep how much of
+                    # the production window was still left at dispatch time.
+                    "timeout_seconds": round(float(timeout_seconds), 3),
+                    "remaining_seconds": round(self.remaining_seconds(), 3),
+                    "message_count": len(messages) if isinstance(messages, list) else 0,
+                    "message_chars": message_chars,
                 }
             )
 
@@ -354,8 +387,18 @@ def make_guarded_run_case(
     binding_rows_provider: Callable[[Any], Any],
     answer_stage_model_calls: Callable[[Any], tuple[int, int] | None],
     exact_git_check: Callable[[], str],
+    diagnostic_limits: tuple[float, float | None] | None = None,
 ) -> Callable[..., dict[str, Any]]:
-    """Close the reviewed raw case function inside a non-bypassable guarded API."""
+    """Close the reviewed raw case function inside a non-bypassable guarded API.
+
+    ``diagnostic_limits`` is strictly a **measurement** seam: it lets a
+    non-qualification diagnostic run widen ``(deadline_seconds,
+    answer_timeout_floor_seconds)`` so a truncated latency distribution can be
+    observed. The qualification path never passes it, so the frozen 60s/30s
+    product contract is untouched, and the deadline invariant itself is never
+    relaxed: every answer call still runs with
+    ``min(configured_or_floor, remaining_seconds)``.
+    """
 
     def guarded_run_case(
         *,
@@ -367,9 +410,12 @@ def make_guarded_run_case(
     ) -> dict[str, Any]:
         # Exact checkout identity is part of the callable contract, not just CLI setup.
         exact_git_check()
-        hard_timeout_seconds, answer_timeout_floor_seconds = (
-            _qualification_execution_limits()
-        )
+        if diagnostic_limits is None:
+            hard_timeout_seconds, answer_timeout_floor_seconds = (
+                _qualification_execution_limits()
+            )
+        else:
+            hard_timeout_seconds, answer_timeout_floor_seconds = diagnostic_limits
         budget = _AnswerStageBudget(
             started_at=time.monotonic(),
             hard_timeout_seconds=hard_timeout_seconds,
@@ -467,6 +513,19 @@ def make_guarded_run_case(
         breakdown["answer_stage_call_count"] = budget.answer_calls_started
         breakdown["answer_stage_calls"] = [dict(item) for item in budget.call_records]
         breakdown["answer_stage_tokens"] = None
+        breakdown["diagnostic_limits"] = (
+            None
+            if diagnostic_limits is None
+            else {
+                "deadline_seconds": diagnostic_limits[0],
+                "answer_timeout_floor_seconds": diagnostic_limits[1],
+                "qualification_evidence": False,
+                "note": (
+                    "measurement-only seam: it widens the observed distribution, "
+                    "it is never a qualification or product configuration"
+                ),
+            }
+        )
         breakdown["notes"] = [
             "gate settle and checkpointing run inside the research phase",
             "answer-stage token usage is not surfaced at the production chat boundary",
