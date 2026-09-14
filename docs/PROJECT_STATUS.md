@@ -532,3 +532,33 @@ Evidence Gate、45s/60s、read/model budget、Lead caps、query hardening、asse
 **门禁：** focused 149 passed；Ruff clean；mypy `122 ≤ 128 / NEW=0`。
 
 **触发升级条件（§20.4）→ 立即跑 Live12。**
+
+## 21. Live12（§20 后，clean head `7b6f4aa`）：发现层继续改善，但预算成为绑定约束
+
+**Artifact：** `docs/research_quality/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.json`（`git_sha=7b6f4aa…`）；上一轮 `4d1ed67` 结果备份为 `RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json`。frozen gate 未改。
+
+**Summary：** `reviewable_answer_cases=8`（上轮 10）、`budget_violation_cases=4`（上轮 2）、`runner_error_cases=4`（上轮 2）、`partial_runs=12`、`failed_runs=0`、elapsed 49.3–60.1s。**仍非 GO**（`eligible_support_clusters=0/N` 12/12）。
+
+**对照（4d1ed67 → 7b6f4aa）：**
+
+| 指标 | 前 | 后 |
+| --- | ---: | ---: |
+| reviewable answers | 10 | **8** |
+| budget violations | 2 | **4** |
+| eligible_support_clusters | 0/N ×12 | 0/N ×12（无变化） |
+| eligible（assessment 层） | 2 | 2 |
+| reads / model_calls | 18 / 81 | 18 / 81 |
+| `role:primary` | 13 | 9 |
+| `role:aggregator` | 22 | **28** |
+| lead_reads | 1 | 2 |
+| `evidence_lead_followup_started` | 0 | **8**（全部 `no_deeper_url`） |
+| `evidence_lead_followup_cap_reached` | 0 | 3 |
+| `evidence_lead_followup_skipped_insufficient_budget` | 0 | 1 |
+
+**判定（对应 §20 预判的第三分支）：** §20 的 domain policy 在 **trace 验收成立**（mirror/aggregator 域不再锁定；primary 域可用；出现首个 support cluster 1/2），但在 **Live12 的成本侧**：8 次 evidence-lead follow-up 全部走 hint 回退 → 生成新的 `site:` 查询 → 触发额外 search/assess/read → **4 个 case 撞 60s、reviewable 下降**，而 cluster 覆盖没有提升。
+
+**结论：** 发现层机制已完整且策略正确，但现在**绑定约束转移到 phase-budget / scheduling**：
+- follow-up 产生的 hint 会驱动新查询与候选，其成本没有被独立核算；
+- `evidence_lead_followup_cap_reached=3` 说明 admission 已在生效，但仍不足以保护尾部预算。
+
+**下一批（待用户确认）：** phase-budget / scheduling 优化（不是继续加 discovery 功能）。**禁止改动：** Evidence Gate、45s/60s、read/model budget 上限、Lead caps、query hardening、assessor、provider hardening。
