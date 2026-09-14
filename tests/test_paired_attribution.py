@@ -179,6 +179,52 @@ def test_case_projection_splits_research_and_finalization() -> None:
     assert projection["stop_reason"] == "evidence_saturated"
 
 
+def test_case_projection_surfaces_answer_stage_truth() -> None:
+    """A timed-out generation must be visible as an unavailable answer."""
+
+    case = _case("case-z", elapsed=56.0, research=26.0)
+    case["answer"] = {
+        "status": "unavailable",
+        "reason": "production_chat_failed",
+        "text": "",
+        "validation": {},
+    }
+    case["runner_error_type"] = "RuntimeError"
+
+    projection = project_case_artifact(case)
+
+    assert projection["answer_status"] == "unavailable"
+    assert projection["answer_reason"] == "production_chat_failed"
+    assert projection["answer_text_chars"] == 0
+    assert projection["runner_error_type"] == "RuntimeError"
+    assert projection["binding_outcome"] is None
+
+
+def test_case_projection_reports_binding_rejection_without_calls() -> None:
+    case = _case("case-w", elapsed=34.0, research=23.0)
+    case["answer"] = {
+        "status": "available",
+        "reason": "",
+        "text": "conditional answer",
+        "validation": {
+            "phases": {
+                "answer_generation": {"outcome": "completed", "model_calls": 1},
+                "answer_claim_binding": {
+                    "outcome": "rejected",
+                    "error_type": "missing_evidence_brief",
+                    "model_calls": 0,
+                },
+            }
+        },
+    }
+
+    projection = project_case_artifact(case)
+
+    assert projection["answer_status"] == "available"
+    assert projection["binding_outcome"] == "rejected"
+    assert projection["binding_error_type"] == "missing_evidence_brief"
+
+
 def test_case_projection_tolerates_missing_phase_telemetry() -> None:
     case = _case("case-y", elapsed=50.0, research=46.0)
     case["metrics"]["phase_seconds"] = None

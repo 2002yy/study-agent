@@ -37,9 +37,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 SCHEMA_VERSION = "rq1c-paired-attribution-v1"
 DEFAULT_MANIFEST = Path("tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json")
@@ -225,12 +226,34 @@ def project_case_artifact(case: Mapping[str, Any]) -> dict[str, Any]:
     lead = lead if isinstance(lead, Mapping) else {}
     breakdown = case.get("finalization_breakdown")
     breakdown = dict(breakdown) if isinstance(breakdown, Mapping) else {}
+    answer_raw = case.get("answer")
+    answer: Mapping[str, Any] = answer_raw if isinstance(answer_raw, Mapping) else {}
+    validation_raw = answer.get("validation")
+    validation: Mapping[str, Any] = (
+        validation_raw if isinstance(validation_raw, Mapping) else {}
+    )
+    phases_raw = validation.get("phases")
+    validation_phases: Mapping[str, Any] = (
+        phases_raw if isinstance(phases_raw, Mapping) else {}
+    )
+    binding_raw = validation_phases.get("answer_claim_binding")
+    binding_phase: Mapping[str, Any] = (
+        binding_raw if isinstance(binding_raw, Mapping) else {}
+    )
     return {
         "case_id": case.get("case_id"),
         "category": case.get("category"),
         "status": (case.get("run") or {}).get("status"),
         "stop_reason": (case.get("run") or {}).get("stop_reason"),
         "gate_status": (case.get("gate") or {}).get("status"),
+        # Answer-stage truth: a timed-out generation is an unavailable answer,
+        # not merely a slow finalization, so it must be visible in the artifact.
+        "runner_error_type": case.get("runner_error_type") or "",
+        "answer_status": answer.get("status"),
+        "answer_reason": answer.get("reason"),
+        "answer_text_chars": len(str(answer.get("text") or "")),
+        "binding_outcome": binding_phase.get("outcome"),
+        "binding_error_type": binding_phase.get("error_type"),
         "elapsed_seconds": total_seconds,
         "research_elapsed_seconds": research_elapsed,
         "finalization_seconds": finalization,

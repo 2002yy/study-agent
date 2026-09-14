@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Paired Performance Attribution Harness 已交付并完成首次真实 calibration（§27.5）：A1↔A2 环境 `stable`、`attribution_allowed=true`，12 个 finalization 样本 p50 **26.626s** / p90 **30.781s** / max **31.124s**，而 reserve 仍是 12s → **12s 不是够用的 reserve，而是尚未触发的预算缺口**（research 目前 19–27s 自行结束才没爆 60s）。下一步 = ① 拆开 finalization telemetry（answer generation / binding / serialization）② 每 ref 每 case ≥3 样本 ③ 用户决策 §27.6.3 的结构性三选一；在此之前 reserve 保持 12s 不动，Live12 仍冻结。
+- **当前唯一下一步（2026-09-14 记录）：**Finalization Breakdown 已完成（§28）：真实拆分显示 **answer_generation 就是 finalization 的全部成本**（binding 在 blocked case 下 0 次调用；projection/序列化 ≈0），且 **12 次里 7 次在 30.09–30.13s 撞上生产 LLM 30s 默认超时 → `answer.status=unavailable`** —— 之前测到的 p90≈30.8s 是**被截断的下界**，同时这是 qualification 阻塞项（reviewable answer 不达标）。下一步先**解除截断**（仅在资格/校准路径提高 answer timeout floor）拿到真实生成分布，再决定 reserve/(a)；60s 与 reserve 12s 均保持冻结不动，Live12 仍冻结。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -816,4 +816,56 @@ Performance Attribution   DELIVERED（instrument + 首次真实 calibration；�
 Cost-aware Admission      BLOCKED by finalization telemetry split（见 §27.6.1）
 Strict Live12 rerun       BLOCKED by §27.6.3 决策
 ```
+
+## 28. Finalization Breakdown（测量层完成）+ 决定性发现：answer generation 撞 30s 生产超时
+
+**用户决策（本批路线）：**60s hard budget **不解冻**；(a) 是结构上必须成立的 correctness boundary；(b) 是拿到拆分 telemetry 后优先检查的优化方向；在拆分数据出来前**不把 reserve 从 12s 改成拍脑袋的新值**。
+
+### 28.1 测到的真实结构（不发明阶段）
+
+| 段 | 真实归属 | 实现 |
+| --- | --- | --- |
+| `research` | 含 Gate settle、checkpoint（均在 runtime 内） | `finalization_breakdown.research_seconds` |
+| `post_research_projection` | 记录投影（source/brief/cluster/evidence） | runner 计时 |
+| `answer_generation` | 生产 `chat(task_name="single_chat")` 物理调用 | guard `_AnswerStageBudget` 计时 |
+| `answer_claim_binding` | 生产 binder 物理调用 | 同上（本批 blocked case 下被拒 → 0 次） |
+| `artifact_write` | 校准 artifact 序列化 | calibration runner 计时 |
+| `answer_stage_tokens` | **不可观测**（生产 chat 边界只返回文本） | 记录 `null`，不编造 |
+
+### 28.2 证据（repeats=3：4 cases × A1/B/A2 × 3 = 36 次真实运行；A=`0ea2689`，B=`63e397f`）
+
+- 环境 `stable`（0 drift、0 provider 状态变化），DDG 四轮恒 6000/6016ms。产物：`PAIRED_ATTRIBUTION.63e397f6.json`、原始 probe `CALIBRATION_BREAKDOWN_PROBE.json`。
+- **research**：p50 **22.875s** / p90 25.547 / max 27.828（n=36）。
+- **finalization**：p50 **28.531s** / p90 30.798 / max 30.828（n=36）。
+- **拆分（B 侧 n=12）**：`answer_generation` p50 **30.094s**、max 30.125；`answer_binding` 0.0（`outcome=rejected, error_type=missing_evidence_brief` → blocked case 不发起 binder 调用）；projection ≈ 0.0；artifact write ≤ 0.016s。
+
+### 28.3 决定性发现（qualification-blocking，比 reserve 问题更靠前）
+
+B 侧 12 次里 **7 次 `answer_generation` 在 30.094–30.125s 以 `RuntimeError` 结束** —— 这是撞上生产 LLM 默认超时（`LLM_TIMEOUT_SECONDS`/`DEEPSEEK_TIMEOUT_SECONDS`，默认 **30.0s**），不是模型自然延迟。原始 probe 直接证据：
+
+```text
+rq1c-provenance-xz   elapsed 56.437s
+  answer.status = unavailable / reason = production_chat_failed
+  runner_error_type = RuntimeError
+  answer_generation = 30.094s（单次调用，outcome=RuntimeError）
+  answer 文本长度 = 0
+```
+
+推论：
+
+1. **§27 的 "finalization p90 ≈ 30.8s" 是被截断（censored）的下界**，不是真实 p90 —— 真实 answer 生成延迟分布被 30s 上限切掉；成功样本里已经出现 29.0s（贴着上限）。
+2. 因此 reserve 不能按"30.8 + margin"来定；先要拿到**未被截断**的分布。
+3. 这是**验收阻塞项**：generation 超时 → answer unavailable → `reviewable_answer_cases` 不达标（12/12 门槛）。本轮 4-case probe 已复现 1/4；36-run 批次 7/12。
+4. 按用户决策树定位：不是"情况 2（冗余浪费）"（binding 0 调用、projection/序列化≈0），而是 **情况 3（调用级 timeout）**——与 §26 的 provider "6s 配置却烧 24s" 同类，只是这次方向相反：**超时太紧，把真实工作切掉了**。
+
+### 28.4 下一步选项（需要用户拍板，本批不擅自改）
+
+1. **先解除截断（推荐第一步）**：只在资格/校准路径提高 answer 阶段 timeout floor（`rq1c_qualification_guardrails` 已有 `answer_timeout_floor_seconds`，本地为 `None`、hosted CPU 才用 120s），拿到真实生成分布后再决定 reserve/(a)。属测量配置，不改产品默认。
+2. **同时查生成为何到 30s**：answer prompt/证据块大小、`max_tokens`、模型 profile（是否可用更快 profile）、能否流式分块。
+3. **注意与 60s 冻结的交互**：若真实生成 p90 ≈ 35–40s，则 (a) 成立时 research window 只剩 ~15–20s —— 这会显著改变 (a) 的形态，也可能让 (b) 从"优化空间"升级为"必须"。
+
+### 28.5 本批附带修正
+
+第一版 harness 投影缺少 answer 字段，导致 36-run artifact 掩盖了"answer unavailable"这一事实。已修：投影新增 `answer_status / answer_reason / answer_text_chars / binding_outcome / binding_error_type / runner_error_type`（2 个新测试），后续 calibration 不再能隐藏该状态。
+
 
