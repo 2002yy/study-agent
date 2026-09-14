@@ -84,6 +84,7 @@ from src.web.research.model_gateway import (
 )
 from src.web.research.phase_budget import (
     PHASE_RESEARCH_MODEL_CALL_BUDGET,
+    ActionType,
     PhaseAdmission,
     PhaseBudget,
     admit_phase_action,
@@ -1683,6 +1684,7 @@ class ActiveResearchRuntimeExecutor:
                                 if link.source_role == "primary"
                                 else ""
                             )
+                            followup_action: ActionType
                             if discovered:
                                 followup_action = "evidence_lead_direct_url"
                             elif trusted_primary_domain:
