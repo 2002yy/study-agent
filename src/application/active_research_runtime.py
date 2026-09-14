@@ -83,6 +83,7 @@ from src.web.research.model_gateway import (
     ResearchModelGateway,
 )
 from src.web.research.phase_budget import (
+    FINALIZATION_RESERVE_SECONDS,
     PHASE_RESEARCH_MODEL_CALL_BUDGET,
     ActionType,
     PhaseAdmission,
@@ -643,6 +644,18 @@ class ActiveResearchRuntimeExecutor:
             # is checkpointed, and a crash resumes inside the durable wave
             # (completed queries/reads/extractions are never repeated).
             while True:
+                # Phase-budget finalization reserve: stop starting new research
+                # waves once only the finalization tail remains, so the answer
+                # stage (Gate, synthesis, binding, auditing, serialization) can
+                # still run inside the frozen hard deadline.
+                if (
+                    state.budget.hard_timeout_seconds - elapsed()
+                    <= FINALIZATION_RESERVE_SECONDS
+                ):
+                    _bump_lead_metric(
+                        context, "research_stopped_for_finalization"
+                    )
+                    raise _HardBudgetReached
                 if cursor.wave_index == 0:
                     cursor = replace(cursor, wave_index=1)
                     refresh_steering()
