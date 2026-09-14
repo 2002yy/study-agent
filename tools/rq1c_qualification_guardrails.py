@@ -301,6 +301,7 @@ class _AnswerStageBudget:
                 type(exc).__name__,
                 timeout_seconds=bounded_timeout,
                 messages=messages,
+                request_max_retries=kwargs.get("request_max_retries"),
             )
             raise
         self._record_phase_call(
@@ -309,6 +310,7 @@ class _AnswerStageBudget:
             "ok",
             timeout_seconds=bounded_timeout,
             messages=messages,
+            request_max_retries=kwargs.get("request_max_retries"),
         )
         return reply
 
@@ -320,6 +322,7 @@ class _AnswerStageBudget:
         *,
         timeout_seconds: float,
         messages: list[dict] | None = None,
+        request_max_retries: Any = None,
     ) -> None:
         """Bounded per-phase wall-clock telemetry for the answer stage.
 
@@ -356,6 +359,8 @@ class _AnswerStageBudget:
                     ),
                     "message_count": len(messages) if isinstance(messages, list) else 0,
                     "message_chars": message_chars,
+                    # Observation only: whether this call disabled SDK retries.
+                    "request_max_retries": request_max_retries,
                 }
             )
 
