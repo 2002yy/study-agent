@@ -340,7 +340,10 @@ def test_call_records_expose_deadline_invariant_and_prompt_size(
     # The diagnostic floor raises the configured 10s to 90s (that is the point of
     # the measurement seam), and the deadline still caps it via min(remaining).
     assert record["timeout_seconds"] == 90.0
-    assert record["remaining_seconds"] > 0.0
+    assert record["remaining_at_dispatch_seconds"] > 0.0
+    assert record["remaining_after_call_seconds"] <= record[
+        "remaining_at_dispatch_seconds"
+    ]
     assert record["message_count"] == 2
     assert record["message_chars"] == 6 + 40
     assert record["outcome"] == "ok"

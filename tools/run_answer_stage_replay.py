@@ -119,7 +119,10 @@ def _generation_outcome(
         "answer_reason": answer_reason,
         "answer_text_chars": answer_text_chars,
         "timeout_seconds": (call or {}).get("timeout_seconds"),
-        "remaining_seconds": (call or {}).get("remaining_seconds"),
+        "remaining_at_dispatch_seconds": (call or {}).get(
+            "remaining_at_dispatch_seconds"
+        ),
+        "remaining_after_call_seconds": (call or {}).get("remaining_after_call_seconds"),
         "prompt_message_count": (call or {}).get("message_count"),
         "prompt_message_chars": (call or {}).get("message_chars"),
         "binding_outcome": (binding_phase or {}).get("outcome"),

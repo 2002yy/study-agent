@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Finalization Breakdown 已完成（§28）：真实拆分显示 **answer_generation 就是 finalization 的全部成本**（binding 在 blocked case 下 0 次调用；projection/序列化 ≈0），且 **12 次里 7 次在 30.09–30.13s 撞上生产 LLM 30s 默认超时 → `answer.status=unavailable`** —— 之前测到的 p90≈30.8s 是**被截断的下界**，同时这是 qualification 阻塞项（reviewable answer 不达标）。下一步先**解除截断**（仅在资格/校准路径提高 answer timeout floor）拿到真实生成分布，再决定 reserve/(a)；60s 与 reserve 12s 均保持冻结不动，Live12 仍冻结。
+- **当前唯一下一步（2026-09-14 记录）：**Untruncated Answer Calibration 完成（§29）：未截断生成 **12/12 可用，p50 21.5s / p90 27.7s / max 27.9s**；同工具用生产 30s cap 再测 **0/12 超时**；而 in-situ 复测 **2/4 在 30.11/30.125s 被 cap 切断**（prompt 规模与 replay 几乎一致 → 重量不是解释变量）。结论接近决策树 **A**：`reserve ≈ 31–34s` → research window ≈ 26–29s（实测 research p90 25.5s，**装得进但很薄**）。下一步 = 解释 in-situ vs replay 差异（同位置 A/B 或 in-situ ≥3 重复），然后才正式校准 reserve；**reserve 仍 12s、60s 与 Live12 继续冻结**。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -871,6 +871,63 @@ rq1c-provenance-xz   elapsed 56.437s
 ### 28.6 门禁（head `eae8aa9`）
 
 focused：`test_paired_attribution.py` 20/20、`test_rq1c_bounded_pre_dispatch_budget.py` 11/11、`test_rq1c_bounded_qualification.py`、`test_rq1c_protocol_probes.py`（后者的 1 项为既有本地失败）；Ruff 全仓 clean；单次全量 pytest **1814 passed / 3 failed**：三项全部属既有 Windows-local 平台族（`test_rq1c_impl_entrypoints` 两项 + `test_rq1c_protocol_probes` 一项，根因均为 cloned/imported checkout 下 `ModuleNotFoundError: No module named 'src'` 与 git identity 子进程行为；`test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes` 单独运行时通过，全量顺序下复现同族失败，本批未触及任何 git identity / clone 逻辑）。
+
+## 29. Untruncated Answer Calibration（诊断路径解除 30s 截断）
+
+**用户决策（本批路线）：**只解除**校准/诊断路径**的 30s 截断；**绝不**把它当成 qualification 配置，也绝不为了让 Live12 变绿而提高资格路径 timeout。提高诊断 timeout 的唯一目的是**测量被截断的真实分布**。
+
+### 29.1 交付与边界
+
+- `tools/run_answer_stage_replay.py`：**每 case 只跑 1 次真实 research**，然后对同一 frozen ResearchRun 做 N 次**真实 production answer generation**（复用 `_production_chat_command` + 同一 production chat service，不做任何 prompt 简化）。
+- `make_guarded_run_case(..., diagnostic_limits=...)`：测量 seam；qualification 路径**不传**，冻结的 60s/30s 契约不变；artifact 里 `diagnostic_limits` 明确标注测量用途。
+- **deadline invariant 保持成立**：每次调用仍是 `min(configured_or_floor, remaining)`；per-call telemetry 现在记录 `timeout_seconds`、`remaining_at_dispatch_seconds`、`remaining_after_call_seconds`、`message_count`、`message_chars`（只有尺寸，无内容）。
+- 所有诊断 artifact：`qualification_evidence = false`。
+
+### 29.2 测量结果
+
+**A. 解除截断（cap 90s / deadline 240s，4 cases × 3 = 12 generations）：**
+
+```text
+available = 12/12      p50 = 21.547s   p90 = 27.703s   max = 27.891s
+per case: numeric 18.0/16.8/21.5 · unverifiable 18.3/27.7/22.2
+         academic 20.9/21.4/15.0 · provenance 24.8/27.9/26.2
+```
+
+**B. 同一工具、生产同值 30s cap（再 12 generations）：**
+
+```text
+available = 12/12      p50 = 23.547s   p90 = 26.719s   max = 27.703s   → 0 次超时
+```
+
+**C. in-situ 复测（生产 limits，4 cases × 1，prompt 规模已入库）：**
+
+```text
+numeric        prompt 3548 chars  → 14.172s  ok
+unverifiable   prompt 3060 chars  → 22.984s  ok
+academic       prompt 4712 chars  → 30.110s  RuntimeError → answer unavailable
+provenance     prompt 3118 chars  → 30.125s  RuntimeError → answer unavailable
+```
+
+### 29.3 结论（可被证伪的表述）
+
+1. **生成的自然完成成本没有"远超 30s"**：未截断分布 p50 ≈ 21.5–23.5s、p90 ≈ 27s、max ≈ 27.9s（两次共 24 次 generation，12/12 可用）。
+2. 但 **30s cap 确实切进了这个分布的尾部**：in-situ 命中率 7/12（36-run 批次）与 2/4（本轮复测），被切掉的样本真实耗时**未知（censored ≥30.1s）**。
+3. **prompt 重量不是解释变量**：in-situ 与 replay 的 prompt 规模几乎一致（3060/3548/4712/3118 vs 3060/4090/4732/4590 chars），且失败样本的 prompt 并非最大。"更多 evidence → prompt 更大 → 更慢"在本组（blocked、小 prompt）case 上**不成立**。
+4. **deadline invariant 没有被违反**：in-situ 失败样本的 dispatch 余量 ≈ 36s（`remaining_after_call` 5.9 / 9.5s + 30.1s elapsed），`min(30, 36) = 30`，**是 30s cap 而不是窗口把调用切掉的**。
+5. **in-situ 与 replay 的差异尚未解释**（同一 cap、同一 case、同时段：replay 0/12 超时 vs in-situ 2/4）。不得手滑归因；下一步候选假设：调用发生的时机（长进程内第 ~20–24s）、客户端重试/socket 行为、跨时段负载。
+
+### 29.4 对 reserve 与决策树的含义
+
+- 未截断 p90 ≈ 27.7–28s → `reserve ≈ p90 + 3–6s margin` ≈ **31–34s**；对应 research window ≈ **26–29s**，而实测 research p50/p90 = **22.9 / 25.5s** → **数学上装得进 60s，但很薄，且系统当前正好工作在这个边界上**。这落在用户决策树的 **A（p90 ≈ 32–35s）**附近，而不是 B/C。
+- 但 in-situ 尾部确实存在 ≥30s 的样本（2/4、7/12），(b) 的**正确目标不是"平均生成太慢"，而是"压掉 ≥30s 的尾部/方差"**。
+- **reserve 仍未改动（12s）**，60s 继续冻结，Live12 继续冻结：在 (i) in-situ/replay 差异被解释、(ii) reserve 按未截断分布正式校准之前不做参数改动。
+
+### 29.5 下一步（未开工）
+
+1. 解释 in-situ vs replay 差异（同一诊断工具，把 generation 放在 case 时间线的相同位置做 A/B；或对同一 case 连续 in-situ 重复 ≥3 次）。
+2. 用未截断分布做一次正式 reserve 校准（(a)），并把 research window 收紧到真实成立的位置。
+3. 若尾部/方差确认为主要成本，(b) 转向降低 answer 阶段方差（prompt/输出契约/调用策略），仍以 telemetry 为依据。
+
 
 
 

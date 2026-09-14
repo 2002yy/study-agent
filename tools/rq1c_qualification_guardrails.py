@@ -346,11 +346,14 @@ class _AnswerStageBudget:
                     "phase": phase,
                     "elapsed_seconds": elapsed,
                     "outcome": outcome,
-                    # Deadline invariant evidence: the call ran with
-                    # min(configured/floor, remaining) and we keep how much of
-                    # the production window was still left at dispatch time.
+                    # Deadline invariant evidence: the call was dispatched with
+                    # min(configured/floor, remaining) and the remaining budget is
+                    # recorded both after the call and (reconstructed) at dispatch.
                     "timeout_seconds": round(float(timeout_seconds), 3),
-                    "remaining_seconds": round(self.remaining_seconds(), 3),
+                    "remaining_after_call_seconds": round(self.remaining_seconds(), 3),
+                    "remaining_at_dispatch_seconds": round(
+                        self.remaining_seconds() + elapsed, 3
+                    ),
                     "message_count": len(messages) if isinstance(messages, list) else 0,
                     "message_chars": message_chars,
                 }
