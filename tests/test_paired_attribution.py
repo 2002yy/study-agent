@@ -6,6 +6,7 @@ only through its pure helpers plus the fail-closed ref guard.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,7 @@ def _case(
     model_calls: int = 7,
     clusters: int = 2,
     status: str = "partial",
+    breakdown: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "case_id": case_id,
@@ -78,6 +80,18 @@ def _case(
         "elapsed_seconds": elapsed,
         "run": {"status": status, "stop_reason": "evidence_saturated"},
         "gate": {"status": "block"},
+        "finalization_breakdown": breakdown
+        if breakdown is not None
+        else {
+            "research_seconds": research,
+            "post_research_projection_seconds": 0.2,
+            "answer_stage_seconds": round(elapsed - research - 0.2, 3),
+            "answer_generation_seconds": round((elapsed - research) * 0.6, 3),
+            "answer_claim_binding_seconds": round((elapsed - research) * 0.3, 3),
+            "other_seconds": 0.0,
+            "answer_stage_call_count": 2,
+            "artifact_write_seconds": 0.05,
+        },
         "budget_observed": {
             "read_count": reads,
             "read_attempt_count": reads,
@@ -246,16 +260,56 @@ def test_case_deltas_keep_raw_values_and_use_baseline_mean() -> None:
     assert len(rows) == 1
     row = rows[0]
     elapsed = row["metrics"]["elapsed_seconds"]
-    assert elapsed["baseline_runs"] == [50.0, 54.0]
-    assert elapsed["baseline_mean"] == 52.0
-    assert elapsed["candidate"] == 52.0
-    assert elapsed["delta"] == 0.0
+    assert elapsed["baseline"]["samples"] == [50.0, 54.0]
+    assert elapsed["baseline"]["count"] == 2
+    assert elapsed["baseline"]["p50"] == 54.0
+    assert elapsed["candidate"]["p50"] == 52.0
+    assert elapsed["delta_p50"] == -2.0
     assert elapsed["direction"] == "lower_is_better"
-    assert row["metrics"]["finalization_seconds"]["baseline_runs"] == [4.0, 4.0]
-    assert row["metrics"]["support_clusters"]["baseline_mean"] == 1.0
-    assert row["metrics"]["support_clusters"]["candidate"] == 2
+    assert row["metrics"]["support_clusters"]["delta_p50"] == 1.0
     assert row["metrics"]["support_clusters"]["direction"] == "higher_is_better"
-    assert row["phases"]["search"]["baseline_runs"] == [4.0, 4.0]
+    assert row["phases"]["search"]["baseline"]["samples"] == [4.0, 4.0]
+
+
+def test_case_deltas_report_finalization_breakdown_distributions() -> None:
+    baseline_runs = [
+        {
+            "cases": [
+                project_case_artifact(_case("case-x", elapsed=50.0, research=20.0))
+            ]
+        }
+    ]
+    candidate_run = {
+        "cases": [
+            project_case_artifact(_case("case-x", elapsed=60.0, research=22.0))
+        ]
+    }
+
+    rows = summarize_case_deltas(baseline_runs, candidate_run)
+
+    metrics = rows[0]["metrics"]
+    assert metrics["answer_generation_seconds"]["baseline"]["p50"] == 18.0
+    assert metrics["answer_binding_seconds"]["candidate"]["p50"] == 11.4
+    assert metrics["answer_stage_seconds"]["candidate"]["p50"] == 37.8
+    assert metrics["artifact_write_seconds"]["candidate"]["p50"] == 0.05
+
+
+def test_load_case_artifacts_reads_repeat_files(tmp_path: Path) -> None:
+    from tools.run_paired_attribution import _load_case_artifacts
+
+    for repeat, elapsed in ((1, 50.0), (2, 52.0), (3, 48.0)):
+        artifact = {
+            "schema_version": "rq1c-calibration-run-v1",
+            "cases": [_case("case-x", elapsed=elapsed, research=20.0)],
+        }
+        (tmp_path / f"case-x__r{repeat}.json").write_text(
+            json.dumps(artifact), encoding="utf-8"
+        )
+
+    loaded = _load_case_artifacts(tmp_path, ["case-x"], 3)
+
+    assert loaded["missing_cases"] == []
+    assert [item["elapsed_seconds"] for item in loaded["cases"]] == [50.0, 52.0, 48.0]
 
 
 def test_reserve_calibration_reports_percentiles_and_adequacy() -> None:
@@ -276,6 +330,28 @@ def test_reserve_calibration_reports_percentiles_and_adequacy() -> None:
     assert result["finalization_p90_seconds"] == 8.0
     assert result["finalization_max_seconds"] == 8.0
     assert result["sample_adequate_for_reserve"] is False
+    distributions = result["distributions"]
+    assert distributions["research"]["p50"] == 45.0
+    assert distributions["answer_generation"]["count"] == 4
+    assert distributions["answer_binding"]["samples"]
+
+
+def test_reserve_calibration_includes_answer_stage_split() -> None:
+    runs = [
+        {
+            "cases": [
+                project_case_artifact(_case("case-x", elapsed=55.0, research=25.0))
+            ]
+        }
+    ]
+
+    result = summarize_reserve_calibration(runs)
+
+    distributions = result["distributions"]
+    assert distributions["answer_generation"]["p50"] == 18.0
+    assert distributions["answer_binding"]["p50"] == 9.0
+    assert distributions["answer_stage"]["p50"] == 29.8
+    assert distributions["artifact_write"]["p50"] == 0.05
 
 
 def test_paired_run_requires_distinct_refs(tmp_path: Path) -> None:

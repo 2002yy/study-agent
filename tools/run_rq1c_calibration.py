@@ -18,6 +18,7 @@ import hashlib
 import json
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -135,10 +136,16 @@ def run_calibration(
                 reference_date=reference_date,
             )
             artifact["cases"].append(record)
+            write_started = time.monotonic()
             output_path.write_text(
                 json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
+            breakdown = record.get("finalization_breakdown")
+            if isinstance(breakdown, dict):
+                breakdown["artifact_write_seconds"] = round(
+                    max(0.0, time.monotonic() - write_started), 3
+                )
             print(
                 f"[{index}/{len(cases)}] {case['id']}: "
                 f"status={(record.get('run') or {}).get('status', 'runner_error')} · "

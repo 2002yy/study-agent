@@ -34,7 +34,6 @@ import io
 import json
 import os
 import shutil
-import statistics
 import subprocess
 import sys
 import tempfile
@@ -166,6 +165,34 @@ def write_case_manifest(
     return destination
 
 
+def _percentile(values: Sequence[float], fraction: float) -> float | None:
+    """Nearest-rank percentile (ties round up) over a small sample.
+
+    Deterministic and explicit rather than interpolated: with 9-12 samples a
+    reported p90 should be an actually observed value, not a synthetic average.
+    """
+
+    ordered = sorted(float(item) for item in values)
+    if not ordered:
+        return None
+    index = min(
+        len(ordered) - 1,
+        max(0, int(fraction * (len(ordered) - 1) + 0.5)),
+    )
+    return round(ordered[index], 3)
+
+
+def _distribution(values: Sequence[float]) -> dict[str, Any]:
+    clean = [float(item) for item in values]
+    return {
+        "samples": [round(item, 3) for item in clean],
+        "count": len(clean),
+        "p50": _percentile(clean, 0.5),
+        "p90": _percentile(clean, 0.9),
+        "max": round(max(clean), 3) if clean else None,
+    }
+
+
 def project_case_artifact(case: Mapping[str, Any]) -> dict[str, Any]:
     """Project one qualification case into the attribution metric set."""
 
@@ -196,6 +223,8 @@ def project_case_artifact(case: Mapping[str, Any]) -> dict[str, Any]:
     search = case.get("search") or {}
     lead = metrics.get("lead_discovery") if isinstance(metrics, Mapping) else {}
     lead = lead if isinstance(lead, Mapping) else {}
+    breakdown = case.get("finalization_breakdown")
+    breakdown = dict(breakdown) if isinstance(breakdown, Mapping) else {}
     return {
         "case_id": case.get("case_id"),
         "category": case.get("category"),
@@ -207,6 +236,24 @@ def project_case_artifact(case: Mapping[str, Any]) -> dict[str, Any]:
         "finalization_seconds": finalization,
         "phase_seconds": phase_seconds,
         "phase_calls": phase_calls,
+        "finalization_breakdown": breakdown,
+        "answer_generation_seconds": _breakdown_seconds(
+            breakdown, "answer_generation_seconds"
+        ),
+        "answer_binding_seconds": _breakdown_seconds(
+            breakdown, "answer_claim_binding_seconds"
+        ),
+        "answer_stage_seconds": _breakdown_seconds(breakdown, "answer_stage_seconds"),
+        "unclassified_answer_seconds": _breakdown_seconds(
+            breakdown, "other_seconds"
+        ),
+        "projection_seconds": _breakdown_seconds(
+            breakdown, "post_research_projection_seconds"
+        ),
+        "artifact_write_seconds": _breakdown_seconds(
+            breakdown, "artifact_write_seconds"
+        ),
+        "answer_stage_call_count": int(breakdown.get("answer_stage_call_count") or 0),
         "provider_attempts": int(search.get("attempt_count") or 0),
         "reads": int(budget.get("read_count") or 0),
         "read_attempts": int(budget.get("read_attempt_count") or 0),
@@ -222,6 +269,16 @@ def project_case_artifact(case: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_count": int(metrics.get("candidate_count") or 0),
         "lead_actions": {str(key): int(value) for key, value in lead.items()},
     }
+
+
+def _breakdown_seconds(breakdown: Mapping[str, Any], key: str) -> float | None:
+    value = breakdown.get(key)
+    if value is None:
+        return None
+    try:
+        return round(float(value), 3)
+    except (TypeError, ValueError):
+        return None
 
 
 def _fingerprint_metrics(fingerprint: Mapping[str, Any]) -> dict[str, float]:
@@ -325,6 +382,11 @@ _METRIC_DIRECTIONS: dict[str, str] = {
     "elapsed_seconds": "lower_is_better",
     "research_elapsed_seconds": "lower_is_better",
     "finalization_seconds": "lower_is_better",
+    "answer_generation_seconds": "lower_is_better",
+    "answer_binding_seconds": "lower_is_better",
+    "answer_stage_seconds": "lower_is_better",
+    "projection_seconds": "lower_is_better",
+    "artifact_write_seconds": "lower_is_better",
     "provider_attempts": "lower_is_better",
     "reads": "lower_is_better",
     "read_attempts": "lower_is_better",
@@ -341,20 +403,24 @@ def summarize_case_deltas(
     baseline_runs: Sequence[Mapping[str, Any]],
     candidate_run: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    """Per case, per metric: raw A1/A2/B values, A mean and B-A delta."""
+    """Per case, per metric: raw samples plus p50/p90/max for A and B.
+
+    Distributions are reported instead of a single mean because a single
+    finalization run already varies by ~10s; a difference is only meaningful
+    against that spread.
+    """
 
     by_case: dict[str, list[dict[str, Any]]] = {}
     for run in baseline_runs:
         for projection in run.get("cases", []):
             by_case.setdefault(str(projection.get("case_id")), []).append(projection)
-    candidate_by_case = {
-        str(projection.get("case_id")): projection
-        for projection in candidate_run.get("cases", [])
-    }
+    candidate_by_case: dict[str, list[dict[str, Any]]] = {}
+    for projection in candidate_run.get("cases", []):
+        candidate_by_case.setdefault(str(projection.get("case_id")), []).append(projection)
     rows: list[dict[str, Any]] = []
     for case_id in sorted(set(by_case) | set(candidate_by_case)):
         baseline = by_case.get(case_id, [])
-        candidate = candidate_by_case.get(case_id, {})
+        candidate = candidate_by_case.get(case_id, [])
         metrics: dict[str, Any] = {}
         for metric, direction in _METRIC_DIRECTIONS.items():
             baseline_values = [
@@ -362,57 +428,58 @@ def summarize_case_deltas(
                 for item in baseline
                 if item.get(metric) is not None
             ]
-            candidate_value = candidate.get(metric)
-            mean = round(statistics.fmean(baseline_values), 3) if baseline_values else None
+            candidate_values = [
+                float(item[metric])
+                for item in candidate
+                if item.get(metric) is not None
+            ]
+            baseline_stats = _distribution(baseline_values)
+            candidate_stats = _distribution(candidate_values)
             delta = (
-                round(float(candidate_value) - mean, 3)
-                if candidate_value is not None and mean is not None
+                round(candidate_stats["p50"] - baseline_stats["p50"], 3)
+                if candidate_stats["p50"] is not None
+                and baseline_stats["p50"] is not None
                 else None
             )
             metrics[metric] = {
-                "baseline_runs": [item.get(metric) for item in baseline],
-                "baseline_mean": mean,
-                "candidate": candidate_value,
-                "delta": delta,
+                "baseline": baseline_stats,
+                "candidate": candidate_stats,
+                "delta_p50": delta,
                 "direction": direction,
             }
-        baseline_phases = [
-            item.get("phase_seconds") or {} for item in baseline
-        ]
-        candidate_phases = candidate.get("phase_seconds") or {}
+        baseline_phases = [item.get("phase_seconds") or {} for item in baseline]
+        candidate_phases = [item.get("phase_seconds") or {} for item in candidate]
         phase_rows: dict[str, Any] = {}
         for phase in sorted(
-            {key for item in baseline_phases for key in item} | set(candidate_phases)
+            {key for item in baseline_phases for key in item}
+            | {key for item in candidate_phases for key in item}
         ):
             values = [
                 float(item[phase])
                 for item in baseline_phases
                 if item.get(phase) is not None
             ]
-            mean = round(statistics.fmean(values), 3) if values else None
-            current = candidate_phases.get(phase)
+            candidate_values = [
+                float(item[phase])
+                for item in candidate_phases
+                if item.get(phase) is not None
+            ]
             phase_rows[phase] = {
-                "baseline_runs": values,
-                "baseline_mean": mean,
-                "candidate": current,
-                "delta": (
-                    round(float(current) - mean, 3)
-                    if current is not None and mean is not None
-                    else None
-                ),
+                "baseline": _distribution(values),
+                "candidate": _distribution(candidate_values),
             }
         rows.append(
             {
                 "case_id": case_id,
                 "baseline_statuses": [item.get("status") for item in baseline],
-                "candidate_status": candidate.get("status"),
+                "candidate_statuses": [item.get("status") for item in candidate],
                 "baseline_gate_statuses": [item.get("gate_status") for item in baseline],
-                "candidate_gate_status": candidate.get("gate_status"),
+                "candidate_gate_statuses": [item.get("gate_status") for item in candidate],
                 "baseline_stop_reasons": [item.get("stop_reason") for item in baseline],
-                "candidate_stop_reason": candidate.get("stop_reason"),
+                "candidate_stop_reasons": [item.get("stop_reason") for item in candidate],
                 "lead_actions": {
                     "baseline_runs": [item.get("lead_actions") for item in baseline],
-                    "candidate": candidate.get("lead_actions"),
+                    "candidate_runs": [item.get("lead_actions") for item in candidate],
                 },
                 "metrics": metrics,
                 "phases": phase_rows,
@@ -424,37 +491,44 @@ def summarize_case_deltas(
 def summarize_reserve_calibration(
     runs: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Finalization latency statistics (research stop -> run completed)."""
+    """Finalization distributions (research stop -> run completed).
 
-    finalization: list[float] = []
-    research: list[float] = []
+    Reports the real steps: research, projection, answer stage (split into
+    answer_generation / answer_claim_binding), artifact write and the residual.
+    A reserve calibrated from p90 needs several samples per ref, so the sample
+    count and adequacy flag travel with the numbers.
+    """
+
+    keys = {
+        "finalization": "finalization_seconds",
+        "research": "research_elapsed_seconds",
+        "answer_generation": "answer_generation_seconds",
+        "answer_binding": "answer_binding_seconds",
+        "answer_stage": "answer_stage_seconds",
+        "projection": "projection_seconds",
+        "artifact_write": "artifact_write_seconds",
+    }
+    samples: dict[str, list[float]] = {name: [] for name in keys}
     for run in runs:
         for projection in run.get("cases", []):
-            value = projection.get("finalization_seconds")
-            if value is not None:
-                finalization.append(float(value))
-            research_value = projection.get("research_elapsed_seconds")
-            if research_value is not None:
-                research.append(float(research_value))
-    ordered = sorted(finalization)
-
-    def _percentile(values: Sequence[float], fraction: float) -> float | None:
-        if not values:
-            return None
-        index = min(len(values) - 1, max(0, int(round(fraction * (len(values) - 1)))))
-        return values[index]
-
+            for name, metric in keys.items():
+                value = projection.get(metric)
+                if value is not None:
+                    samples[name].append(float(value))
+    finalization = samples["finalization"]
     return {
-        "sample_count": len(ordered),
-        "finalization_p50_seconds": _percentile(ordered, 0.5),
-        "finalization_p90_seconds": _percentile(ordered, 0.9),
-        "finalization_max_seconds": max(ordered) if ordered else None,
-        "research_p50_seconds": _percentile(sorted(research), 0.5),
-        "research_max_seconds": max(research) if research else None,
-        "sample_adequate_for_reserve": len(ordered) >= 6,
+        "sample_count": len(finalization),
+        "distributions": {name: _distribution(values) for name, values in samples.items()},
+        "finalization_p50_seconds": _percentile(finalization, 0.5),
+        "finalization_p90_seconds": _percentile(finalization, 0.9),
+        "finalization_max_seconds": max(finalization) if finalization else None,
+        "research_p50_seconds": _percentile(samples["research"], 0.5),
+        "research_max_seconds": max(samples["research"]) if samples["research"] else None,
+        "sample_adequate_for_reserve": len(finalization) >= 6,
         "note": (
-            "A reserve calibrated from p90 needs more samples than one paired run; "
-            "keep FINALIZATION_RESERVE_SECONDS unchanged until measurement says otherwise."
+            "A reserve calibrated from p90 needs several samples per ref; keep "
+            "FINALIZATION_RESERVE_SECONDS unchanged until the breakdown says which "
+            "step actually dominates."
         ),
     }
 
@@ -605,30 +679,36 @@ def _run_fingerprint(output: Path, env: Mapping[str, str], repo: Path) -> dict[s
 
 
 def _load_case_artifacts(
-    directory: Path, case_ids: Sequence[str]
+    directory: Path, case_ids: Sequence[str], repeats: int
 ) -> dict[str, Any]:
-    """Project the per-case qualification artifacts written by one execution."""
+    """Project the per-case calibration artifacts written by one execution."""
 
     projections: list[dict[str, Any]] = []
     missing: list[str] = []
     for case_id in case_ids:
-        path = directory / f"{case_id}.json"
-        if not path.exists():
+        found = False
+        for repeat in range(1, max(1, repeats) + 1):
+            suffix = "" if repeats <= 1 else f"__r{repeat}"
+            path = directory / f"{case_id}{suffix}.json"
+            if not path.exists():
+                missing.append(f"{case_id}{suffix}")
+                continue
+            artifact = json.loads(path.read_text(encoding="utf-8"))
+            case = next(
+                (
+                    item
+                    for item in artifact.get("cases", [])
+                    if str(item.get("case_id")) == case_id
+                ),
+                None,
+            )
+            if case is None:
+                missing.append(f"{case_id}{suffix}")
+                continue
+            found = True
+            projections.append(project_case_artifact(case))
+        if not found:
             missing.append(case_id)
-            continue
-        artifact = json.loads(path.read_text(encoding="utf-8"))
-        case = next(
-            (
-                item
-                for item in artifact.get("cases", [])
-                if str(item.get("case_id")) == case_id
-            ),
-            None,
-        )
-        if case is None:
-            missing.append(case_id)
-            continue
-        projections.append(project_case_artifact(case))
     return {"cases": projections, "missing_cases": missing}
 
 
@@ -642,6 +722,7 @@ def run_paired_attribution(
     workdir: Path,
     manifest_path: Path = DEFAULT_MANIFEST,
     case_timeout_seconds: float = DEFAULT_CASE_TIMEOUT_SECONDS,
+    repeats: int = 1,
     keep_worktrees: bool = False,
 ) -> dict[str, Any]:
     baseline_sha = _resolve_commit(repo, baseline_ref)
@@ -684,17 +765,19 @@ def run_paired_attribution(
                 "case_runs": {},
             }
             for case_id in case_ids:
-                result = _run_case(
-                    worktree=worktree,
-                    manifest=(repo / manifest_path).resolve(),
-                    case_id=case_id,
-                    output=run_dir / f"{case_id}.json",
-                    timeout_seconds=case_timeout_seconds,
-                    env=env,
-                )
-                runs[label]["case_runs"][case_id] = result
+                for repeat in range(1, max(1, repeats) + 1):
+                    suffix = "" if repeats <= 1 else f"__r{repeat}"
+                    result = _run_case(
+                        worktree=worktree,
+                        manifest=(repo / manifest_path).resolve(),
+                        case_id=case_id,
+                        output=run_dir / f"{case_id}{suffix}.json",
+                        timeout_seconds=case_timeout_seconds,
+                        env=env,
+                    )
+                    runs[label]["case_runs"][f"{case_id}{suffix}"] = result
             runs[label].update(
-                _load_case_artifacts(run_dir, case_ids)
+                _load_case_artifacts(run_dir, case_ids, repeats)
             )
             fingerprints.append(
                 {
@@ -724,6 +807,7 @@ def run_paired_attribution(
         "candidate": {"ref": candidate_ref, "sha": candidate_sha},
         "calibration_cases": selected,
         "case_timeout_seconds": case_timeout_seconds,
+        "repeats_per_ref_per_case": max(1, repeats),
         "external_tolerances": EXTERNAL_TOLERANCES,
         "measurement_runner": {
             "path": MEASUREMENT_RUNNER.as_posix(),
@@ -781,6 +865,12 @@ def main(argv: Iterable[str] | None = None) -> int:
         default=DEFAULT_CASE_TIMEOUT_SECONDS,
     )
     parser.add_argument("--keep-worktrees", action="store_true")
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=1,
+        help="runs per ref per case (>=3 gives a usable p50/p90 distribution)",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     repo = args.repo.resolve()
@@ -805,6 +895,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         workdir=workdir,
         manifest_path=args.manifest,
         case_timeout_seconds=args.case_timeout_seconds,
+        repeats=max(1, args.repeats),
         keep_worktrees=args.keep_worktrees,
     )
     summary = {
@@ -816,14 +907,24 @@ def main(argv: Iterable[str] | None = None) -> int:
         ),
         "baseline_sha": artifact["baseline"]["sha"],
         "candidate_sha": artifact["candidate"]["sha"],
+        "repeats_per_ref_per_case": artifact["repeats_per_ref_per_case"],
         "cases": [
             {
                 "case_id": row["case_id"],
-                "baseline_elapsed_mean": row["metrics"]["elapsed_seconds"]["baseline_mean"],
+                "baseline_elapsed": row["metrics"]["elapsed_seconds"]["baseline"],
                 "candidate_elapsed": row["metrics"]["elapsed_seconds"]["candidate"],
-                "delta_elapsed": row["metrics"]["elapsed_seconds"]["delta"],
-                "delta_finalization": row["metrics"]["finalization_seconds"]["delta"],
-                "delta_support_clusters": row["metrics"]["support_clusters"]["delta"],
+                "baseline_finalization": row["metrics"]["finalization_seconds"][
+                    "baseline"
+                ],
+                "candidate_finalization": row["metrics"]["finalization_seconds"][
+                    "candidate"
+                ],
+                "delta_finalization_p50": row["metrics"]["finalization_seconds"][
+                    "delta_p50"
+                ],
+                "delta_support_clusters_p50": row["metrics"]["support_clusters"][
+                    "delta_p50"
+                ],
             }
             for row in artifact["case_deltas"]
         ],

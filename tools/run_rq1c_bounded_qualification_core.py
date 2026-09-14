@@ -612,6 +612,7 @@ def _run_case(
         }
 
     context = completed.research_context
+    research_done = time.monotonic()
     runtime = context.get("claim_engine_runtime")
     if not isinstance(runtime, Mapping):
         runtime = {}
@@ -635,6 +636,7 @@ def _run_case(
     brief_projection = _brief_projection(brief)
     evidence_rows = brief_projection["eligible_evidence"]
     cluster_ids = _cluster_ids(source_rows, evidence_rows)
+    projection_done = time.monotonic()
 
     runner_error_type = ""
     answer_surface = _unavailable_answer_surface("production_chat_not_attempted")
@@ -667,6 +669,7 @@ def _run_case(
         answer_binding_call_count = None
 
     elapsed = round(time.monotonic() - started, 3)
+    answer_done = time.monotonic()
     total_model_call_count = (
         research_model_call_count
         + answer_generation_call_count
@@ -718,6 +721,19 @@ def _run_case(
         "budget_contract_violations": violations,
         "sources": source_rows,
         "cluster_ids": cluster_ids,
+        # Finalization breakdown (measurement only): what really happens after
+        # research stops, split into the steps that actually exist. Gate settle
+        # and checkpointing run inside the research phase, so they are not
+        # invented here; answer-stage phase seconds are filled in by the
+        # qualification guard around each physical answer call.
+        "finalization_breakdown": {
+            "research_seconds": round(max(0.0, research_done - started), 3),
+            "post_research_projection_seconds": round(
+                max(0.0, projection_done - research_done), 3
+            ),
+            "answer_stage_seconds": round(max(0.0, answer_done - projection_done), 3),
+            "total_seconds": elapsed,
+        },
         "gate": {
             "status": _bounded(brief.get("gate_status"), 80),
             "open_critical_claim_ids": _bounded_sequence(

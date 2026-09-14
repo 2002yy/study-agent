@@ -194,6 +194,15 @@ class _AnswerStageBudget:
             "other": 0,
         }
     )
+    phase_seconds: dict[str, float] = field(
+        default_factory=lambda: {
+            "answer_generation": 0.0,
+            "answer_claim_binding": 0.0,
+            "other": 0.0,
+        }
+    )
+    call_records: list[dict[str, Any]] = field(default_factory=list)
+    research_seconds: float = 0.0
     rejection_reasons: list[str] = field(default_factory=list)
     binding_rows_provider: Callable[[Any], Any] | None = field(
         default=None,
@@ -282,7 +291,37 @@ class _AnswerStageBudget:
         self.phase_calls[phase] = self.phase_calls.get(phase, 0) + 1
         forwarded = dict(kwargs)
         forwarded["timeout"] = bounded_timeout
-        return _production_chat(messages, **forwarded)
+        call_started = time.monotonic()
+        try:
+            reply = _production_chat(messages, **forwarded)
+        except Exception as exc:
+            self._record_phase_call(phase, call_started, type(exc).__name__)
+            raise
+        self._record_phase_call(phase, call_started, "ok")
+        return reply
+
+    def _record_phase_call(self, phase: str, started_at: float, outcome: str) -> None:
+        """Bounded per-phase wall-clock telemetry for the answer stage.
+
+        Product code is untouched: this only measures what already happened, so a
+        later batch can price answer_generation against answer_claim_binding
+        instead of guessing a single finalization constant. The production
+        ``chat`` boundary returns text only, so token usage is genuinely not
+        observable here and is deliberately not fabricated.
+        """
+
+        elapsed = max(0.0, round(time.monotonic() - started_at, 3))
+        self.phase_seconds[phase] = round(
+            float(self.phase_seconds.get(phase) or 0.0) + elapsed, 3
+        )
+        if len(self.call_records) < 32:
+            self.call_records.append(
+                {
+                    "phase": phase,
+                    "elapsed_seconds": elapsed,
+                    "outcome": outcome,
+                }
+            )
 
 
 class _ResearchBudgetProxy:
@@ -296,8 +335,14 @@ class _ResearchBudgetProxy:
         return getattr(self._delegate, name)
 
     def execute(self, *args: Any, **kwargs: Any) -> Any:
-        with _reserve_answer_model_capacity():
-            completed = self._delegate.execute(*args, **kwargs)
+        research_started = time.monotonic()
+        try:
+            with _reserve_answer_model_capacity():
+                completed = self._delegate.execute(*args, **kwargs)
+        finally:
+            self._budget.research_seconds = max(
+                0.0, round(time.monotonic() - research_started, 3)
+            )
         self._budget.set_research_truth(completed)
         return completed
 
@@ -403,6 +448,29 @@ def make_guarded_run_case(
         if elapsed > budget.hard_timeout_seconds:
             if "hard_timeout_exceeded" not in violations:
                 violations.append("hard_timeout_exceeded")
+
+        # Finalization breakdown (measurement only): merge the answer-stage phase
+        # seconds observed around each physical answer call into the real steps
+        # the runner already timed. Nothing here changes control flow, budgets or
+        # the answer-stage audit contract.
+        breakdown = record.get("finalization_breakdown")
+        if not isinstance(breakdown, dict):
+            breakdown = {}
+            record["finalization_breakdown"] = breakdown
+        breakdown["research_seconds"] = budget.research_seconds
+        breakdown["total_seconds"] = elapsed
+        breakdown["finalization_seconds"] = round(
+            max(0.0, elapsed - budget.research_seconds), 3
+        )
+        for phase, seconds in budget.phase_seconds.items():
+            breakdown[f"{phase}_seconds"] = round(float(seconds), 3)
+        breakdown["answer_stage_call_count"] = budget.answer_calls_started
+        breakdown["answer_stage_calls"] = [dict(item) for item in budget.call_records]
+        breakdown["answer_stage_tokens"] = None
+        breakdown["notes"] = [
+            "gate settle and checkpointing run inside the research phase",
+            "answer-stage token usage is not surfaced at the production chat boundary",
+        ]
         return record
 
     return guarded_run_case
