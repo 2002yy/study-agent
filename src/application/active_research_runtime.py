@@ -1125,6 +1125,36 @@ class ActiveResearchRuntimeExecutor:
                     if successful_reads >= state.budget.max_reads or used_chars >= state.budget.max_total_chars:
                         break
                     ensure_budget()
+                    # Phase-budget gate: a new read chain must still fit inside
+                    # the research window, otherwise the tail belongs to
+                    # finalization (answer stage) and the read is skipped.
+                    read_budget = _phase_budget(
+                        state,
+                        elapsed=elapsed(),
+                        model_calls_used=len(cursor.model_calls),
+                    )
+                    read_admission = admit_phase_action(
+                        read_budget, action_type="evidence_read"
+                    )
+                    if not read_admission.admitted:
+                        _record_phase_action(
+                            context,
+                            action="evidence_read",
+                            admission=read_admission,
+                            budget=read_budget,
+                            outcome="skipped",
+                        )
+                        _bump_lead_metric(
+                            context, f"evidence_read_{read_admission.reason}"
+                        )
+                        break
+                    _record_phase_action(
+                        context,
+                        action="evidence_read",
+                        admission=read_admission,
+                        budget=read_budget,
+                        outcome="",
+                    )
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
                     try:
