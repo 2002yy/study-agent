@@ -297,3 +297,27 @@ def test_calibration_case_ids_exist_in_the_holdout_manifest() -> None:
     for row in CALIBRATION_CASES:
         assert row["case_id"] in case_ids, row
         assert row["rationale"]
+
+
+def test_calibration_runner_selects_a_subset_without_touching_the_guard() -> None:
+    from tools.run_rq1c_calibration import DEFAULT_CASES, _load_cases
+
+    manifest = load_manifest(MANIFEST)
+    default_ids = {case["id"] for case in manifest["cases"]}
+    assert set(DEFAULT_CASES) <= default_ids
+
+    selected = _load_cases(MANIFEST, ["rq1c-provenance-xz"])
+
+    assert [case["id"] for case in selected] == ["rq1c-provenance-xz"]
+    assert selected[0]["question"]
+    # The strict qualification entrypoint keeps its own 12-case guard.
+    from tools.run_rq1c_bounded_qualification_core import _load_manifest
+
+    assert len(_load_manifest(MANIFEST)) == 12
+
+
+def test_calibration_runner_fails_closed_on_unknown_case_id() -> None:
+    from tools.run_rq1c_calibration import _load_cases
+
+    with pytest.raises(ValueError):
+        _load_cases(MANIFEST, ["rq1c-does-not-exist"])

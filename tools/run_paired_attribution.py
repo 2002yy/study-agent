@@ -507,10 +507,35 @@ def _git_env(repo: Path) -> dict[str, str]:
     return env
 
 
+MEASUREMENT_RUNNER = Path("tools/run_rq1c_calibration.py")
+
+
+def _install_measurement_runner(worktree: Path, repo: Path) -> str:
+    """Make the calibration-case runner available inside a worktree.
+
+    The strict qualification entrypoint is frozen to 12 holdout cases, so paired
+    attribution drives a diagnostic subset through a dedicated runner. A ref
+    that predates that runner gets the harness's own copy *as an untracked
+    file* - the worktree's tracked tree stays exactly at the ref, which is what
+    the exact-head guard checks. A ref that already ships the runner keeps its
+    own copy so the measured code is the ref's code.
+    """
+
+    destination = worktree / MEASUREMENT_RUNNER
+    if destination.exists():
+        return "checkout"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        (repo / MEASUREMENT_RUNNER).read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    return "injected"
+
+
 def _run_case(
     *,
     worktree: Path,
     manifest: Path,
+    case_id: str,
     output: Path,
     timeout_seconds: float,
     env: Mapping[str, str],
@@ -522,9 +547,11 @@ def _run_case(
             [
                 sys.executable,
                 "-m",
-                "tools.run_rq1c_bounded_qualification",
+                "tools.run_rq1c_calibration",
                 "--manifest",
                 str(manifest),
+                "--cases",
+                case_id,
                 "--output",
                 str(output),
             ],
@@ -627,18 +654,17 @@ def run_paired_attribution(
     case_ids = [row["case_id"] for row in selected]
 
     workdir.mkdir(parents=True, exist_ok=True)
-    manifest_for_cases = write_case_manifest(
-        manifest, case_ids, workdir / "calibration_manifest.json"
-    )
     env = _git_env(repo)
 
     worktrees: dict[str, Path] = {}
+    runner_sources: dict[str, str] = {}
     for label, sha in (("baseline", baseline_sha), ("candidate", candidate_sha)):
         path = workdir / f"wt_{label}"
         if path.exists():
             shutil.rmtree(path)
         _git(repo, "worktree", "add", "--detach", str(path), sha)
         worktrees[label] = path
+        runner_sources[label] = _install_measurement_runner(path, repo)
 
     runs: dict[str, dict[str, Any]] = {}
     fingerprints: list[dict[str, Any]] = []
@@ -660,7 +686,8 @@ def run_paired_attribution(
             for case_id in case_ids:
                 result = _run_case(
                     worktree=worktree,
-                    manifest=manifest_for_cases,
+                    manifest=(repo / manifest_path).resolve(),
+                    case_id=case_id,
                     output=run_dir / f"{case_id}.json",
                     timeout_seconds=case_timeout_seconds,
                     env=env,
@@ -698,6 +725,14 @@ def run_paired_attribution(
         "calibration_cases": selected,
         "case_timeout_seconds": case_timeout_seconds,
         "external_tolerances": EXTERNAL_TOLERANCES,
+        "measurement_runner": {
+            "path": MEASUREMENT_RUNNER.as_posix(),
+            "sources": runner_sources,
+            "qualification_guard": (
+                "the strict 12-case qualification entrypoint is untouched; this "
+                "runner drives a diagnostic subset of the same frozen manifest"
+            ),
+        },
         "fingerprints": {
             item["label"]: item["artifact"] for item in fingerprints
         },
