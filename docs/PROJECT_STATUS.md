@@ -509,3 +509,26 @@ homepage/aggregator lead
 ### 20.5 本批禁止改动
 
 Evidence Gate、45s/60s、read/model budget、Lead caps、query hardening、assessor、provider hardening、`rejected → lead`。
+
+### 20.6 交付与验收结果（DELIVERED：`7180740`）
+
+**实现：**
+- `plan_gap_queries(..., trusted_domain="")`：**只有显式 `trusted_domain` 才能产生 `site:`**；普通 hint 不再被嗅探成 site 约束（`_hint_fragments` 已移除，改为 `_first_term_hint`，且跳过 domain-like hint）。
+- `_bounded_domain` / `_looks_like_domain`：site 值必须匹配域名形态。
+- runtime：follow-up 记录 `trusted_primary_domain`（**仅当该页 server-owned `source_role == "primary"`**）与 `hint_domain`（审计用）；`_lead_hints_for_claim` 现在返回 `(trusted_domain, hints)`，只信任两类来源：lead read **发现**的域，或 source role 为 primary 的页面域。cursor codec 同步（`trusted_primary_domain`）。
+- 测试：§20 单元回归（mirror 域不可信 / primary 域可信）+ Slice 2B 测试改为同时验证"普通 hint 不产生 site:；显式 trusted_domain 才产生"。
+
+**验收 trace（6 case）：全部达标**
+
+| 观察项 | 结果 |
+| --- | --- |
+| `docker.github.net.cn` | **不再**成为 site 约束（仅审计字段保留） |
+| `blog.csdn.net` / `www.zhihu.com` | **不再**产生 site 查询 |
+| `www.gov.uk`（非 primary 角色） | **不再**产生 site 查询 |
+| 真正 primary 页（`www.docker.com`、`postgresql.org`） | 允许 same-domain `site:` |
+
+**首次出现真实 support cluster：** `rq1c-current-support-postgresql` → `eligible_support_clusters 0/2 → **1/2**`，`eligible_ev 3`，2 次成功读取（postgresql.org 主页 + 另一页），并有 1 个 lead-discovered 候选（`parent_lead_candidate_id` 链完整）。这是整个 RQCE 会话中第一次由"发现链"走到 supports。
+
+**门禁：** focused 149 passed；Ruff clean；mypy `122 ≤ 128 / NEW=0`。
+
+**触发升级条件（§20.4）→ 立即跑 Live12。**
