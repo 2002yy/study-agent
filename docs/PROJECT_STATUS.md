@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Timeout Invariant Hardening 已判定关闭（§26：DDG 失败成本 24016 ms → 6000 ms）。本批 = **Paired Performance Attribution Harness**（§27）：`F0→A1→F1→B→F2→A2→F3`，先证 A1↔A2 环境稳定，才允许把 case 差异归因给代码；同时建立 finalization telemetry 以便后续按测量校准 `FINALIZATION_RESERVE_SECONDS`（样本不足时保持 12s 不动）。严格 Live12 仍冻结，直到 paired calibration 支持归因。
+- **当前唯一下一步（2026-09-14 记录）：**Paired Performance Attribution Harness 已交付并完成首次真实 calibration（§27.5）：A1↔A2 环境 `stable`、`attribution_allowed=true`，12 个 finalization 样本 p50 **26.626s** / p90 **30.781s** / max **31.124s**，而 reserve 仍是 12s → **12s 不是够用的 reserve，而是尚未触发的预算缺口**（research 目前 19–27s 自行结束才没爆 60s）。下一步 = ① 拆开 finalization telemetry（answer generation / binding / serialization）② 每 ref 每 case ≥3 样本 ③ 用户决策 §27.6.3 的结构性三选一；在此之前 reserve 保持 12s 不动，Live12 仍冻结。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -756,7 +756,55 @@ F0 -> A1 -> F1 -> B -> F2 -> A2 -> F3
 
 **边界检查（当前判定健康）**：worker 只把结果写入**局部**列表，调用方超时后彻底丢弃该结果，不触碰 cursor/审计/共享状态；因此"被放弃的 worker 晚到后修改当前 run 结果"这条风险在现有实现下不成立。若以后 worker 改为写共享对象，必须先加 fence。
 
-### 27.5 状态
+### 27.5 首次真实 paired calibration（2026-09-14）
+
+**配置：** A = `0ea2689`（Timeout Invariants，尚无 phase telemetry），B = `37ab2e0`（harness + phase telemetry），4 cases × 3 runs = 12 次真实运行 + 4 次 fingerprint；产物 `docs/research_quality/PAIRED_ATTRIBUTION.37ab2e01.json`。
+
+**A1↔A2 环境基线：`stable`，`attribution_allowed = true`，0 drift、0 provider 状态变化。** 原始值（F0/F1/F2/F3）：
+
+| probe | F0 | F1 | F2 | F3 |
+| --- | --- | --- | --- | --- |
+| DeepSeek planner | 1250 | 1516 | 1203 | 1625 |
+| DeepSeek assessor | 563 | 781 | 922 | 703 |
+| DeepSeek extractor | 1125 | 1219 | 1046 | 1078 |
+| bing_rss | 391 | 360 | 360 | 328 |
+| duckduckgo_html | **6016** | **6000** | **6000** | **6016** |
+| searxng | 4109 | 4094 | 4078 | 4093 |
+| reader | 687 | 672 | 765 | 531 |
+
+（单位 ms。四轮 DDG 恒在 6s 上界，等于顺带证明 §26 的 wall-clock 不变量在整轮 calibration 中持续成立。）
+
+**Phase telemetry（仅 B；A 的 ref 早于本批）：**
+
+| case | search | assessment | read | extraction | discovery | research 合计 | finalization |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| C1 numeric-uk-inflation | 13.173 | 3.688 | 3.531 | 1.234 | — | 25.141 | 31.124 |
+| C2 unverifiable-python-security | 11.844 | 2.109 | 1.125 | 4.282 | 1.578 | 23.766 | 26.672 |
+| C3 academic-primary-attention | 11.407 | 1.579 | 1.749 | 4.077 | — | 21.984 | 26.626 |
+| C4 provenance-xz | 12.688 | 2.781 | 4.454 | 3.781 | — | 27.078 | 30.781 |
+
+→ **research 内 search 占 ≈50%**（11.4–13.2s / 22–27s），与 §26 的"一条坏 query ≈10.1s"一致。
+
+**reserve 校准（12 个 finalization 样本）：**
+
+```text
+finalization  p50 = 26.626s   p90 = 30.781s   max = 31.124s
+research      p50 = 23.484s   max = 27.360s
+sample_adequate_for_reserve = true（就本轮的 descriptive 统计而言）
+```
+
+**这是本轮最重要的发现：**实测 finalization（research stop → run completed：Gate settle + answer generation + binding + serialization）是 **~27–31s**，而 `FINALIZATION_RESERVE_SECONDS` 仍是 **12s**。当前之所以没爆 60s，是因为 research 在 19–27s 就自行结束了（gap/saturation 而非窗口边界），把差额让给了 finalization；一旦 research 真的跑满窗口（48s），finalization 会把总时长推到 ~78s，越过冻结的 60s hard budget。因此**12s 不是"够用的 reserve"，而是尚未被触发的预算缺口**。
+
+**归因纪律（规则生效的直接案例）：** B 相对 A 在两个 case 上 elapsed 高 ~10s（numeric +10.406、provenance +11.156），但 A1↔A2 的组内离散本身就很大（academic finalization 29.578 vs 19.767 = 9.8s；unverifiable 30.703 vs 24.577 = 6.1s；numeric 19.360 vs 23.422 = 4.1s），且 A/B 只差"纯累加 telemetry"。**结论：不作任何代码归因**——这正是本 harness 存在的理由。同理，support cluster 的差异（academic A1 0 / A2 1 / B 2）是内容与模型输出方差，不得读成代码效果。n=1/ref/case 不足以支撑任何显著性主张。
+
+### 27.6 下一步（由测量决定）
+
+1. **把 finalization 拆开测**：当前只有一个总数（27–31s）。需要在 answer stage（generation → binding → serialization）内部加入与 `metrics.phase_seconds` 同构的累加 telemetry，才能定价"一次 answer generation 值多少秒"。
+2. **提高每 ref 样本量**（建议每 case 每 ref ≥3 次）后再谈 reserve 数值；在此之前**保持 12s 不动**。
+3. **结构性选择（需要用户决策）**：60s hard budget 无法同时容纳"跑满的 research 窗口"和 ~30s 的 finalization。三选一：(a) 收紧 research 窗口使 reserve 真实成立；(b) 降低 finalization 成本（answer 阶段模型调用/绑定轮次）；(c) 调整 60s 预算本身（冻结项，需显式解冻）。
+4. 之后才在 clean exact head 上重跑严格 Live12。
+
+### 27.7 状态
 
 ```text
 Provider Resilience       CLOSED
@@ -764,8 +812,8 @@ Lead architecture         CLOSED
 Query Construction        CLOSED
 Evidence Lead Follow-up   CLOSED
 Timeout Invariants        CLOSED
-Performance Attribution   THIS BATCH
-Cost-aware Admission      BLOCKED by measurement
-Strict Live12 rerun       BLOCKED by paired calibration
+Performance Attribution   DELIVERED（instrument + 首次真实 calibration；归因规则已生效）
+Cost-aware Admission      BLOCKED by finalization telemetry split（见 §27.6.1）
+Strict Live12 rerun       BLOCKED by §27.6.3 决策
 ```
 
