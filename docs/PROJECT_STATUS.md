@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**BLOCK-only thinking disabled 已落地并经**生产路径**验证（§32）：BLOCK case 的 `answer_generation` 从 16–41s（含 2/4 超时）降到 **2.7–5.9s**，finalization **2.8–6.0s**，timeout 0/4，**发布 surface 与审计语义零变化**（`missing_evidence_brief` 不变），且 `thinking_disabled=true` 在 telemetry 中可证。PARTIAL/PASS 未改、其分布仍未知 → **reserve 保持 12s 未校准、60s 与 Live12 继续冻结**。下一步 = 用历史真实 PARTIAL artifact 做第一份 PARTIAL A/B，PASS 等真实 artifact。
+- **当前唯一下一步（2026-09-14 记录）：**第 1 项（测试/诊断 API 统一 flash）已完成（§33.1，并更正 §30/§31 的 pro 模型数字）。**PARTIAL A/B 现在无法测**（§33.2–33.3）：6 份历史 artifact × 12 case ≈70 次真实运行里 answer 阶段**从未产出 substantive 答案**，3 次 gate=partial 的 eligible evidence 全是 `relation="lead"` → binding rows 为空 → 仍走 fail-closed。已上线 BLOCK 策略因此覆盖了当前**全部**实际产出；下一步杠杆是 **research 形成 supports 关系证据**，而非 answer policy。新工具 `run_frozen_answer_ab.py` 带拒跑路径（已对真实 4d1ed67 PARTIAL artifact 产出 `refused_not_substantive`），等真实 substantive artifact 出现即可按锁定判据跑 A/B。**reserve 仍 12s、60s/Live12/30s timeout/PARTIAL·PASS 策略全部冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1057,6 +1057,49 @@ PASS         coverage = 0         → 待测
 
 - **PARTIAL / PASS 未改**，且其 finalization 分布仍未知 → **全局 reserve 仍是"未校准"，保持 12s 不动**。
 - 下一步：① 用历史真实 PARTIAL artifact（`4d1ed67` 的 `rq1c-historical-current-node-modules`）做第一份 PARTIAL A/B；② PASS 等真实 artifact（不可 synthetic 冒充质量证据）；③ 之后才重测最终 finalization 分布并校准 reserve → research window / cost-aware admission → paired validation → strict Live12。
+
+## 33. 模型配置对齐 flash + PARTIAL A/B 的测量缺口（历史 artifact 全部为 answer-blocked）
+
+### 33.1 测试/诊断 API 统一到 flash（用户指令 1）
+
+本地 `.env` 存在两处漂移：`DEFAULT_MODEL_PROFILE=pro`、`MODEL_FLASH_NAME=deepseek-v4-flash`（已退役名）。后果：诊断探针用 `get_model_name(None)` 实际测的是 **pro**，而产品 answer path 走的是 **flash**。已修：
+
+- `.env`：`DEFAULT_MODEL_PROFILE=flash`，`MODEL_FLASH_NAME=deepseek-flash`；`.env.example` 显式写出 `DEFAULT_MODEL_PROFILE=flash`。
+- `run_answer_reasoning_policy_probe` / `run_answer_timeline_probe`：改为显式 `get_model_name("flash")`；新增测试断言（禁止 `get_model_name(None)`、禁止退役名）。
+
+**方法学更正（不许含糊）：**§30/§31 里 `59.718s / 29.297s`、`reasoning 1775–4067` 等数字是在 **pro** 上测的；§32 的生产路径验证（BLOCK 4.78s → 4.09s 等）本就是 flash ✓。方向性结论（隐藏 reasoning 主导、与 prompt 大小/可见输出长度无关）在 flash 上也成立（同一批 in-situ flash 调用同样是 14–30s+ 且只产出 32 字符），但**具体 token/秒数按模型区分**，后续一律以 flash 数字为准。
+
+### 33.2 历史 artifact 全量扫描：从未产出 substantive answer
+
+对 6 份真实 artifact × 12 case（≈70 次真实运行）逐 case 检查 `answer.status / chars / binding`：
+
+```text
+所有成功发布：chars=32（fail-closed 文案），binding=rejected/missing_evidence_brief，binder 调用=0
+其余：answer=unavailable（production chat 超时或失败）
+gate=partial 的 3 次（academic ×2、historical-current-node-modules ×1）同样落到 missing_evidence_brief
+```
+
+根因（可引用）：这 3 次 partial 的 `eligible_evidence` 行**全部是 `relation="lead"`**，而 `research_binding_rows` 只接受 `relation == "supports"` → binding rows 为空 → 发布门直接走 fail-closed。**即 `gate=partial` 在答案阶段未必是"部分可答"，仍可能是 answer-blocked。**
+
+### 33.3 结论：PARTIAL/PASS A/B 现在无法测（不是工具问题）
+
+- 用户要求的第一份 PARTIAL A/B（default vs disabled，判据：supported-claim retention / unsupported leakage / uncertainty preservation / binding outcome）**缺少可用输入**：唯一的历史 PARTIAL artifact 其实是 answer-blocked，用它做 A/B 只会重复测量已经上线的 BLOCK 策略。
+- **正面含义**：已上线的 BLOCK 策略覆盖了当前系统**全部**实际产出（含 partial-gate 但 lead-only 的情形）；在 research 尚未产出 `supports` 关系证据之前，答案阶段的 reasoning 优化空间已经被吃完。
+- 下一步的杠杆不在 answer policy，而在 **research 能否形成 supports 关系证据**（RQ1-C 证据质量本身）。
+
+### 33.4 新增工具：`tools/run_frozen_answer_ab.py`（带拒跑路径）
+
+- `classify_answer_input(case)`：用与发布门**同一谓词**（`relation == "supports"`）判定 `substantive` / `blocked_no_binding_rows`。
+- 非 substantive 且未显式 `--allow-blocked-replay` → 记录 `status=refused_not_substantive` + 原因，**不跑 A/B**（防止以后拿 lead-only artifact 冒充 PARTIAL 实验）。
+- substantive 时：从冻结 artifact 重建生产 answer 输入（question、eligible rows、bounded source rows）→ 两臂（production default / thinking disabled）走**真实 production chat service**，输出四类质量判据 + binding outcome + latency；并明确标注 `web_context_source=reconstructed_from_bounded_sources`（artifact 不存 page body，故非逐字节复现；仅诊断，非 qualification 证据）。
+- 6 个确定性测试覆盖：lead-only → blocked、supports → substantive、真实 4d1ed67 artifact 判定、拒跑路径、缺失 case fail-closed、诊断标记。
+- 实跑证据：`docs/research_quality/FROZEN_AB_PARTIAL_4d1ed67.json` → `refused_not_substantive`（`eligible=2 / binding=0 / lead=2 / gate=partial`）。
+
+### 33.5 未改与下一步
+
+- **reserve 仍 12s（未校准）**；60s、Live12、30s answer timeout、PARTIAL/PASS thinking 策略均继续冻结。
+- 等出现真实 `supports` 关系证据的 artifact（即 research 质量改善后）→ 直接 `--artifact <该 artifact> --case-id <case>` 跑锁定判据的 PARTIAL A/B → 再决定 PARTIAL/PASS policy → 之后重测分层 finalization 分布 → 决定 reserve 是否 gate-aware。
+
 
 
 
