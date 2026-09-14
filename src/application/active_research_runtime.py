@@ -82,6 +82,7 @@ from src.web.research.model_gateway import (
     ResearchModelCallAudit,
     ResearchModelGateway,
 )
+from src.web.research.phase_budget import FINALIZATION_RESERVE_SECONDS
 from src.web.research.runtime import (
     EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
@@ -160,7 +161,13 @@ class _ExternalAttemptBudgetExhausted(RuntimeError):
 # Deadline-aware provider policy: the search stage must not consume the entire
 # shared hard budget. This tail is reserved for downstream assessment/read/
 # answer so a degraded provider cannot starve the rest of the bounded run.
-SEARCH_STAGE_RESERVE_SECONDS = 20.0
+#
+# Research Window Deadline Hardening: ONE reserve is the single source of truth
+# for every phase (search / assessment / read / extraction / discovery). It is a
+# safety reserve - deliberately NOT a calibrated action cost. Real finalization
+# cost is recorded in ``metrics.research_window`` so a later batch can calibrate
+# it from paired runs instead of guessing.
+RESEARCH_WINDOW_RESERVE_SECONDS = FINALIZATION_RESERVE_SECONDS
 
 
 class ActiveResearchRuntimeExecutor:
@@ -337,9 +344,41 @@ class ActiveResearchRuntimeExecutor:
         1.0,
         min(
             self.model_timeout_cap_seconds,
-            state.budget.hard_timeout_seconds - elapsed(),
+            research_seconds_left(),
         ),
     )
+
+        def research_seconds_left() -> float:
+            """Seconds left in the research window (finalization reserve kept)."""
+
+            return (
+                state.budget.hard_timeout_seconds
+                - RESEARCH_WINDOW_RESERVE_SECONDS
+                - elapsed()
+            )
+
+        def research_window_exhausted() -> bool:
+            return research_seconds_left() <= 0.0
+
+        def record_research_window(exhausted: bool) -> None:
+            """Phase telemetry: when research ended and how much tail remained."""
+
+            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            metrics["research_window"] = {
+                "reserve_seconds": RESEARCH_WINDOW_RESERVE_SECONDS,
+                "hard_seconds": state.budget.hard_timeout_seconds,
+                "deadline_elapsed": round(
+                    state.budget.hard_timeout_seconds
+                    - RESEARCH_WINDOW_RESERVE_SECONDS,
+                    3,
+                ),
+                "research_elapsed_seconds": round(elapsed(), 3),
+                "remaining_after_research_seconds": round(
+                    state.budget.hard_timeout_seconds - elapsed(), 3
+                ),
+                "exhausted": exhausted,
+            }
+            checkpoint()
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -637,6 +676,13 @@ class ActiveResearchRuntimeExecutor:
             # is checkpointed, and a crash resumes inside the durable wave
             # (completed queries/reads/extractions are never repeated).
             while True:
+                # Research Window Deadline Hardening: the research window is an
+                # absolute boundary. Once it is exhausted the tail belongs to
+                # finalization (Gate, answer synthesis, claim binding,
+                # serialization), so no new wave starts.
+                if research_window_exhausted():
+                    record_research_window(exhausted=True)
+                    raise _HardBudgetReached
                 if cursor.wave_index == 0:
                     cursor = replace(cursor, wave_index=1)
                     refresh_steering()
@@ -652,6 +698,9 @@ class ActiveResearchRuntimeExecutor:
                     gate = evaluate_evidence_gate(state)
                     brief = _evidence_brief(state, gate, selected_sources)
                     context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+                    record_research_window(
+                        exhausted=research_window_exhausted()
+                    )
                     settled = settle_completed_wave(gate, brief)
                     if settled is not None:
                         return settled
@@ -777,7 +826,8 @@ class ActiveResearchRuntimeExecutor:
                         # degraded provider cannot consume the entire budget.
                         remaining = state.budget.hard_timeout_seconds - elapsed()
                         search_deadline = self.monotonic() + max(
-                            0.0, remaining - SEARCH_STAGE_RESERVE_SECONDS
+                            0.0,
+                            remaining - RESEARCH_WINDOW_RESERVE_SECONDS,
                         )
                         try:
                             payload = self.gateway.search_detailed(
@@ -1819,6 +1869,7 @@ class ActiveResearchRuntimeExecutor:
                 )
                 wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
+                record_research_window(exhausted=research_window_exhausted())
                 settled = settle_completed_wave(gate, brief)
                 if settled is not None:
                     return settled
@@ -1837,6 +1888,7 @@ class ActiveResearchRuntimeExecutor:
             update_budget()
             refresh_steering()
             mark_pending_steering_late("hard_budget_exhausted")
+            record_research_window(exhausted=research_window_exhausted())
             checkpoint()
             gate = evaluate_evidence_gate(state)
             brief = _evidence_brief(state, gate, selected_sources)

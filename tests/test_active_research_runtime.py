@@ -4145,6 +4145,52 @@ def test_bounded_lead_read_discovers_assets_without_creating_evidence(
     assert any(item["discovery_progress"] for item in wave_progress)
 
 
+class _AdvancingClock:
+    """Monotonic clock that jumps forward on every read (simulates slow phases)."""
+
+    def __init__(self, step: float) -> None:
+        self.value = 0.0
+        self.step = step
+
+    def __call__(self) -> float:
+        self.value += self.step
+        return self.value
+
+
+def test_research_window_stops_new_waves_before_the_hard_deadline(
+    tmp_path: Any,
+) -> None:
+    """Research Window Deadline Hardening: the research tail belongs to finalization."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "window.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_research_window",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    clock = _AdvancingClock(30.0)
+    service = _service(repository, _StructuredClient(), monotonic=clock)
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    metrics = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY]
+    window = metrics.get("research_window")
+    assert window is not None, (completed.status, completed.stop_reason, sorted(metrics))
+    assert window["reserve_seconds"] == 12.0
+    assert window["hard_seconds"] == 60.0
+    assert window["deadline_elapsed"] == 48.0
+    # The research window guard fired (research ended on the window boundary
+    # rather than on the hard deadline).
+    assert window["exhausted"] is True
+    assert window["research_elapsed_seconds"] >= window["deadline_elapsed"]
+    assert completed.status == "partial"
+
+
 class _HomepageOnlySearchBackend:
     """Returns only the official homepage.
 
