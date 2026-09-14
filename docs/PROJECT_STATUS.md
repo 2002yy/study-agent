@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Untruncated Answer Calibration 完成（§29）：未截断生成 **12/12 可用，p50 21.5s / p90 27.7s / max 27.9s**；同工具用生产 30s cap 再测 **0/12 超时**；而 in-situ 复测 **2/4 在 30.11/30.125s 被 cap 切断**（prompt 规模与 replay 几乎一致 → 重量不是解释变量）。结论接近决策树 **A**：`reserve ≈ 31–34s` → research window ≈ 26–29s（实测 research p90 25.5s，**装得进但很薄**）。下一步 = 解释 in-situ vs replay 差异（同位置 A/B 或 in-situ ≥3 重复），然后才正式校准 reserve；**reserve 仍 12s、60s 与 Live12 继续冻结**。
+- **当前唯一下一步（2026-09-14 记录）：**in-situ vs replay 差异**已解释**（§30）：answer 路径 thinking 开启，32 字符可见答案背后是 **1775–4067 隐藏 reasoning tokens** → 同 prompt 单次 generation 29.3s vs 59.7s；**thinking disabled 后 3.7–3.8s**；position 臂无效应；answer 路径 `request_max_retries=0`（单次超时形态）。因此 (b) 有了精确杠杆（answer 阶段关/限 thinking，可把 reserve 从 ~31–34s 压到 ~5–8s），但**质量权衡未验证**，需用户决策后先只在诊断路径复测。**reserve 仍 12s、60s 与 Live12 继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -927,6 +927,54 @@ provenance     prompt 3118 chars  → 30.125s  RuntimeError → answer unavailab
 1. 解释 in-situ vs replay 差异（同一诊断工具，把 generation 放在 case 时间线的相同位置做 A/B；或对同一 case 连续 in-situ 重复 ≥3 次）。
 2. 用未截断分布做一次正式 reserve 校准（(a)），并把 research window 收紧到真实成立的位置。
 3. 若尾部/方差确认为主要成本，(b) 转向降低 answer 阶段方差（prompt/输出契约/调用策略），仍以 telemetry 为依据。
+
+## 30. Timeline/Reasoning Probe：in-situ vs replay 差异已解释（隐藏 reasoning）
+
+用户决策（本批路线）：**本批只解决一件事 = 为什么同一 production generation 在 replay 30s cap 下 12/12 成功，而 in-situ 同时段 2/4 精确撞 30s。** 不做 prompt trimming（已被 §29 排除），先观测不修改。
+
+### 30.1 工具
+
+`tools/run_answer_timeline_probe.py`（诊断专用，`qualification_evidence=false`）三种模式：`position`（同一 frozen input 在 3 个时间位置生成）、`insitu-replay`（真实 in-situ 后立刻 replay）、`thinking`（同一 frozen production prompt 下对比 production 默认 vs thinking disabled，直接走 SDK 以便观测隐藏 reasoning tokens）。per-call telemetry 新增 `request_max_retries`（只观测）。
+
+### 30.2 结果（1 个代表 case：`rq1c-academic-primary-attention`）
+
+**position 臂（无位置效应）：**
+
+```text
+immediate 21.063s ok · delayed 20.062s ok · delayed2 16.407s ok   → 3/3 成功、无 30s 命中
+```
+
+**thinking 臂（决定性）：**
+
+```text
+production_default r1 = 59.718s   reasoning_tokens = 4067   ok
+production_default r2 = 29.297s   reasoning_tokens = 1775   ok
+thinking_disabled  r1 =  3.672s   reasoning_tokens = none   ok
+thinking_disabled  r2 =  3.844s   reasoning_tokens = none   ok
+```
+
+**retry policy（回答用户的具体问题）：** answer 路径实际传入 **`request_max_retries = 0`**（SDK 内部 retry 被显式关闭，replay/in-situ 两侧一致）→ `30.11s RuntimeError` 是**单次请求超时**的形态，不是 retry 边界。
+
+### 30.3 结论：差异 = reasoning token 采样，不是 prompt / 位置 / retry
+
+1. **answer 路径的 thinking 是开启的**（`_build_request_kwargs` 从不注入 `extra_body`；关 thinking 只用于 structured research 调用）。32 字符的可见答案背后是 **1775–4067 个不可见 reasoning tokens**。
+2. 单次 generation 的耗时 ≈ reasoning tokens 量级 → **同 prompt 下 29s vs 60s 的差异只是采样**；30s cap 因此切在分布中部偏上：in-situ 2/4（本批）与 7/12（36-run 批次）与 replay 0/12 的差别是**抽到长 reasoning 的概率差**，不需要额外机制解释。
+3. §29 的"prompt 重量无关"得到机制层确认：耗时由隐藏 reasoning 决定，与 prompt 大小/可见输出长度无关。
+4. **position 臂无效应**：把同一调用放在 +0/+25/+50s 位置不改变结果 → 排除"长进程/连接生命周期位置效应"。
+
+### 30.4 对 reserve 与 (b) 的含义（重要）
+
+- 不改变现状时：generation 的**可见**分布 p90 ≈ 28s，但 reasoning 尾部可达 60s → `reserve ≈ 31–34s` 只能覆盖 p90，**p99 仍会被 30s cap 切断**；Reserve 单靠数值无法解决（与"成本分布本身不稳定时不能用常数解决"一致）。
+- **精确且便宜的 (b) 杠杆已找到**：answer 阶段关闭 thinking（与 research structured 调用同款处理）→ generation 从 ~20–60s 降到 **~3.7–3.8s**（本轮 8–16×），此时 reserve 可降到 ~5–8s，research window 可回到 ~50s 量级。
+- **必须显式对待的权衡（未验证）**：关闭 thinking 可能改变答案质量；本轮 case 均为 blocked/conditional（可见答案 32 字符），**无法用质量证据支持该改动**。可选折中：若 provider 支持带 budget 的 thinking 上限，则保留"有限 reasoning"而非直接关闭。
+- **reserve 仍为 12s、60s 与 Live12 继续冻结**；任何 timeout/thinking 配置变更都必须先由该 probe 复测分布，再谈 reserve 校准。
+
+### 30.5 下一步
+
+1. 用户决策 (b)：answer path 是否关闭（或限界）thinking；若同意，先只改诊断路径复测分布与答案质量样本。
+2. 之后才做正式 reserve 校准（(a)）与 research window 收紧。
+3. `insitu-replay` 模式已实现但**不再需要**用于解释本差异（保留备查）。
+
 
 
 
