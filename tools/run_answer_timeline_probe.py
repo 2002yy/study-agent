@@ -186,7 +186,8 @@ def _reasoning_probe(
     from src import llm_client
 
     client = llm_client.get_client()
-    model = llm_client.get_model_name(None)
+    # Diagnostics measure the model the product answer path uses (flash).
+    model = llm_client.get_model_name("flash")
     results: list[dict[str, Any]] = []
     for variant, extra_body in (
         ("production_default", None),

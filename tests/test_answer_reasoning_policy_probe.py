@@ -35,6 +35,26 @@ def test_policy_probe_is_diagnostic_only() -> None:
     assert '"qualification_evidence": False' in source
 
 
+def test_policy_probe_pins_the_product_model_profile() -> None:
+    """Diagnostics must measure flash (the answer-path model), not a default."""
+
+    source = Path("tools/run_answer_reasoning_policy_probe.py").read_text(
+        encoding="utf-8"
+    )
+    timeline = Path("tools/run_answer_timeline_probe.py").read_text(encoding="utf-8")
+
+    assert 'get_model_name("flash")' in source
+    assert 'get_model_name("flash")' in timeline
+    assert "get_model_name(None)" not in source
+    assert "get_model_name(None)" not in timeline
+
+
+def test_repo_default_model_profile_is_flash() -> None:
+    example = Path(".env.example").read_text(encoding="utf-8")
+    assert "DEFAULT_MODEL_PROFILE=flash" in example
+    assert "deepseek-v4-flash" not in example
+
+
 def test_policy_probe_selection_bound_to_manifest() -> None:
     selected = _load_cases(MANIFEST, ["rq1c-provenance-xz"])
 

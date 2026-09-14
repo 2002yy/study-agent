@@ -150,7 +150,9 @@ def _sdk_call(
     from src import llm_client
 
     client = llm_client.get_client()
-    model = llm_client.get_model_name(None)
+    # Diagnostics must measure the model the product answer path actually uses
+    # (flash), never the provider default, which may differ.
+    model = llm_client.get_model_name("flash")
     request: dict[str, Any] = {
         "model": model,
         "messages": messages,
