@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**第 1 项（测试/诊断 API 统一 flash）已完成（§33.1，并更正 §30/§31 的 pro 模型数字）。**PARTIAL A/B 现在无法测**（§33.2–33.3）：6 份历史 artifact × 12 case ≈70 次真实运行里 answer 阶段**从未产出 substantive 答案**，3 次 gate=partial 的 eligible evidence 全是 `relation="lead"` → binding rows 为空 → 仍走 fail-closed。已上线 BLOCK 策略因此覆盖了当前**全部**实际产出；下一步杠杆是 **research 形成 supports 关系证据**，而非 answer policy。新工具 `run_frozen_answer_ab.py` 带拒跑路径（已对真实 4d1ed67 PARTIAL artifact 产出 `refused_not_substantive`），等真实 substantive artifact 出现即可按锁定判据跑 A/B。**reserve 仍 12s、60s/Live12/30s timeout/PARTIAL·PASS 策略全部冻结。**
+- **当前唯一下一步（2026-09-15 记录）：**Answer 侧已知性能问题已基本处理完（§32 BLOCK-only thinking disabled 生产验证；§33 PARTIAL/PASS 策略因**缺少 supports 关系证据**而无法测、已用拒跑工具防假实验）。RQ1-C 主 blocker **重新定性回 Research 侧 = 如何形成真正的 `supports` 证据**。下一批 = **Support Formation Audit**（§34.5）：对已 read 的官方页做 A/B 分类（A 页面本身没有答案 → discovery depth 问题；B 正文已含答案但 extractor 仍给 lead → extractor/support classification 问题），按占比决定下一刀；目标里程碑 = **第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS 策略继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1105,6 +1105,135 @@ gate=partial 的 3 次（academic ×2、historical-current-node-modules ×1）�
 - focused：`test_frozen_answer_ab.py` 6/6、`test_answer_reasoning_policy_probe.py` + `test_answer_timeline_probe.py` 12/12、`test_answer_publication_gate.py` 20/20（含 4 个 BLOCK 不变量）；Ruff 全仓 clean。
 - 全量 pytest 同 head 两次：第一次 `3 failed / 1843 passed`，第二次 `2 failed / 1844 passed`。两次都含既有两项 Windows-local 平台失败（`test_rq1c_impl_entrypoints::…exact_head_guard`、`test_rq1c_protocol_probes::…all_required_probes`）。
 - **新登记闪失败（非本批回归）**：`tests/test_chat_research_run_owner.py::test_chat_tool_trace_cancelled_by_owner_turn_cannot_complete` —— 第一次全量失败、第二次全量通过、单文件运行 7/7 通过；该路径为 `WebLookupService` durable ownership + cancel + SQLite，与批内改动（chat_service 策略 / `llm_client.extra_body` / `.env` 模型口径 / tools+tests）无交集。判定：负载相关的本地竞态闪失败（debt，非阻塞），后续如再复现再单独立项。
+
+## 34. 状态再定性（2026-09-15 记录，仅记录、无代码改动）
+
+### 34.1 重新定性
+
+```text
+Answer 侧：已知性能问题已基本处理完
+（BLOCK 策略已上线并生产验证；PARTIAL/PASS 策略在缺少 supports 证据前无法测）
+
+RQ1-C 主 blocker：回到 Research 侧 —— 如何形成真正的 supports 证据
+```
+
+**阶段性结论（重要）：**当前所有**已经真实发布**的 RQ1-C answer 本质上都是 **non-substantive fail-closed surface**（32 字符固定文案，`binding=rejected/missing_evidence_brief`）。也就是说：**到目前为止从未真正测试过"RQCE 有证据之后能不能生成一个好答案"**。下一里程碑因此被明确为：
+
+> **第一份可重复形成 `supports` + `binding rows > 0` + substantive answer 的真实 artifact。**
+
+### 34.2 语义分层（不得再混用）
+
+```text
+Research Gate        block / partial / pass
+Evidence relation    supports / contradicts / lead
+Answerability        substantive / non-substantive
+```
+
+三次历史 `partial` 的实际链路：
+
+```text
+gate = partial
+eligible_evidence > 0            ← 容易被误读成"部分可答"
+但 eligible_evidence 全是 relation="lead"
+↓
+research_binding_rows = 0
+↓
+answerability = non-substantive
+↓
+最终 fail-closed（binder 一次都不会被调用）
+```
+
+**规则（冻结）：**今后**不得**再用 gate state 直接决定 answer reasoning policy；判据必须是 **answerability**（即 `relation=="supports"` 的 binding rows 是否存在）。`tools/run_frozen_answer_ab.py` 已按此谓词实现，方向正确。
+
+**待做（下一批的一个小 slice，尚未实现）：**把该概念正式落进代码/telemetry（哪怕先只是 derived field）：
+
+```text
+answerability: blocked_no_support | substantive
+answer_support_rows: <int>
+answerable_claim_count: <int>
+```
+
+目的：避免以后再次出现"看到 gate=partial → 以为需要做 PARTIAL answer A/B，但 binder 实际上一次都不会被调用"。
+
+### 34.3 方法学锁定：性能 artifact 必须自带模型口径
+
+flash/pro 漂移更正必须保留为**方法学结论**，两套数字**不得**混入同一张 latency distribution：
+
+```text
+旧 diagnostic numbers（pro）:      59.7s / 29.3s，reasoning 1775–4067 tokens
+production RQ1-C answer（flash）:   in situ 14–30s+；BLOCK thinking-off → finalization ~3–6s
+```
+
+**规则（冻结）：**所有性能 artifact 强制带
+
+```text
+provider_profile
+model_name
+thinking_mode
+```
+
+缺少这三个字段的 latency 样本**不参加跨实验比较**。
+
+### 34.4 时间表（当前权威版本）
+
+```text
+✅ Provider resilience
+✅ Query hardening
+✅ Candidate Lead
+✅ Evidence Lead follow-up
+✅ Timeout invariants
+✅ Environment attribution
+✅ Answer latency root cause
+✅ BLOCK-only thinking disabled
+✅ flash/pro diagnostic drift corrected
+✅ Fake PARTIAL experiment prevented
+
+➡️ Support Formation Audit              ← 当前真正 blocker
+➡️ 修 discovery depth 或 extractor（由审计决定）
+➡️ 得到真实 supports artifact
+➡️ Frozen substantive Answer A/B
+➡️ 决定 PARTIAL/PASS reasoning policy
+➡️ 建立真实 finalization 分布
+➡️ 校准 reserve / research window
+➡️ cost-aware scheduling
+➡️ paired validation
+➡️ strict Live12
+```
+
+表述纪律：不要把工作描述成"等真实 PARTIAL/PASS artifact"，准确说法是——
+
+> **主动把 Research 推到第一次稳定产生 `supports`，answer 侧 A/B 工具已经在那里等着。**
+
+### 34.5 下一批施工定义：Support Formation Audit（尚未开工）
+
+目标不是改 Gate、也不是改 answer，而是回答：
+
+> **为什么现在大量研究最终只能形成 `relation="lead"`，而不是 `supports`？**
+
+方法：抽取已 read 成功的官方页样本，按下列表格分类（沿用 `off_target` 审计思路：先区分"上游输入差"还是"判定器错"）：
+
+| Claim | URL | 正文是否实际含目标事实 | extractor relation | 人工判断 |
+| --- | --- | --- | --- | --- |
+| … | … | 是/否 | lead/supports/contradicts | correct / missed_support / false_lead |
+
+输出两类占比：
+
+```text
+A. lead_because_page_lacks_fact     （页面本身没有答案 → discovery depth 问题）
+B. false_lead                        （正文已含答案但 extractor 仍给 lead → extractor/support classification 问题）
+```
+
+决策规则（先锁死，避免事后解释）：
+
+- 若 ~90% 属 A → 下一刀打 **discovery / deeper-page targeting**（继续 lead → deeper discovery → 真正的 docs/policy page）。
+- 若 false_lead 占比明显 → 下一刀打 **extractor contract/prompt**。
+- 两者**不得混着修**。
+
+### 34.6 冻结项（本记录不改变任何实现）
+
+- reserve 仍 **12s（未校准）**；60s hard budget、Live12、30s answer timeout、PARTIAL/PASS thinking 策略均继续冻结。
+- 今日为**纯记录**：无代码、无参数、无测试变更。
+
 
 
 
