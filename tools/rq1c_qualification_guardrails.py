@@ -292,6 +292,10 @@ class _AnswerStageBudget:
         forwarded = dict(kwargs)
         forwarded["timeout"] = bounded_timeout
         call_started = time.monotonic()
+        extra_body = kwargs.get("extra_body")
+        thinking_disabled = bool(
+            isinstance(extra_body, Mapping) and "thinking" in dict(extra_body)
+        )
         try:
             reply = _production_chat(messages, **forwarded)
         except Exception as exc:
@@ -302,6 +306,7 @@ class _AnswerStageBudget:
                 timeout_seconds=bounded_timeout,
                 messages=messages,
                 request_max_retries=kwargs.get("request_max_retries"),
+                thinking_disabled=thinking_disabled,
             )
             raise
         self._record_phase_call(
@@ -311,6 +316,7 @@ class _AnswerStageBudget:
             timeout_seconds=bounded_timeout,
             messages=messages,
             request_max_retries=kwargs.get("request_max_retries"),
+            thinking_disabled=thinking_disabled,
         )
         return reply
 
@@ -323,6 +329,7 @@ class _AnswerStageBudget:
         timeout_seconds: float,
         messages: list[dict] | None = None,
         request_max_retries: Any = None,
+        thinking_disabled: bool = False,
     ) -> None:
         """Bounded per-phase wall-clock telemetry for the answer stage.
 
@@ -359,8 +366,10 @@ class _AnswerStageBudget:
                     ),
                     "message_count": len(messages) if isinstance(messages, list) else 0,
                     "message_chars": message_chars,
-                    # Observation only: whether this call disabled SDK retries.
+                    # Observation only: whether this call disabled SDK retries and
+                    # whether the BLOCK policy disabled hidden reasoning.
                     "request_max_retries": request_max_retries,
+                    "thinking_disabled": thinking_disabled,
                 }
             )
 

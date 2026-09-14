@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator, Literal
 
@@ -463,6 +464,7 @@ def stream_chat(
     provider_profile: str | None = None,
     task_name: str | None = None,
     request_max_retries: int | None = None,
+    extra_body: Mapping[str, Any] | None = None,
 ) -> Iterator[str]:
     if not messages:
         return
@@ -484,6 +486,8 @@ def stream_chat(
         response_format=response_format,
         stream=True,
     )
+    if extra_body is not None:
+        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = request_client.chat.completions.create(**request_kwargs)
     except Exception as e:
@@ -520,6 +524,7 @@ async def async_stream_chat(
     provider_profile: str | None = None,
     task_name: str | None = None,
     request_max_retries: int | None = None,
+    extra_body: Mapping[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     """Stream provider output without blocking the server event loop."""
 
@@ -543,6 +548,8 @@ async def async_stream_chat(
         response_format=response_format,
         stream=True,
     )
+    if extra_body is not None:
+        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = await request_client.chat.completions.create(**request_kwargs)
     except Exception as e:
@@ -578,6 +585,7 @@ def chat(
     provider_profile: str | None = None,
     task_name: str | None = None,
     request_max_retries: int | None = None,
+    extra_body: Mapping[str, Any] | None = None,
 ) -> str:
     if not messages:
         return ""
@@ -599,6 +607,8 @@ def chat(
         response_format=response_format,
         stream=False,
     )
+    if extra_body is not None:
+        request_kwargs["extra_body"] = dict(extra_body)
     try:
         response = request_client.chat.completions.create(**request_kwargs)
         return response.choices[0].message.content or ""

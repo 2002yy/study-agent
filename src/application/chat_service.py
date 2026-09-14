@@ -48,6 +48,49 @@ RESEARCH_ANSWER_BLOCKED_COPY = (
     "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
 )
 
+# Gate=BLOCK is known *before* generation (no eligible evidence rows, or no
+# attempt budget), and in that case the release gate replaces whatever the model
+# writes with RESEARCH_ANSWER_BLOCKED_COPY. Measured: the default answer call
+# spends 1330-2083 hidden reasoning tokens (16-41s) for output that is then
+# discarded, so the blocked branch runs with thinking disabled. The published
+# surface is unchanged; PARTIAL/PASS keep the production default.
+THINKING_DISABLED_EXTRA_BODY: dict[str, dict[str, str]] = {
+    "thinking": {"type": "disabled"}
+}
+
+
+def _answer_attempt_budget(prepared: Any) -> int:
+    """Allowed answer-generation attempts for this turn (shared gate input)."""
+
+    plan = prepared.answer_validation or {}
+    raw_allowed = plan.get("allowed_attempts")
+    try:
+        return 0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _evidence_rows_present(prepared: Any) -> bool:
+    """Whether the turn carries any eligible evidence row (shared gate input)."""
+
+    plan = prepared.answer_validation or {}
+    raw_rows = plan.get("evidence_rows") or ()
+    return any(isinstance(row, dict) for row in raw_rows)
+
+
+def _answer_generation_extra_body(prepared: Any) -> dict[str, dict[str, str]] | None:
+    """Return the per-turn generation policy.
+
+    ``BLOCK`` (no evidence rows / no attempt budget) disables hidden reasoning;
+    any other gate outcome keeps the production default. This is derived from the
+    same two inputs the release gate uses, so the policy cannot drift away from
+    the gate decision.
+    """
+
+    if _answer_attempt_budget(prepared) < 1 or not _evidence_rows_present(prepared):
+        return THINKING_DISABLED_EXTRA_BODY
+    return None
+
 
 def _configured_llm_provider() -> str:
     import os
@@ -595,6 +638,7 @@ class ChatService:
                 max_tokens=max_tokens,
                 task_name="single_chat",
                 request_max_retries=0,
+                extra_body=_answer_generation_extra_body(prepared),
             )
         except TurnCancelled:
             self._settle_cancelled_preparation(
@@ -660,6 +704,7 @@ class ChatService:
             task_name="single_chat",
             should_cancel=should_cancel,
             request_max_retries=0,
+            extra_body=_answer_generation_extra_body(prepared),
         )
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
@@ -675,6 +720,7 @@ class ChatService:
             max_tokens=max_tokens,
             task_name="single_chat",
             request_max_retries=0,
+            extra_body=_answer_generation_extra_body(prepared),
         ):
             yield token
 
@@ -743,13 +789,7 @@ class ChatService:
             "error_type": "",
         }
         plan = prepared.answer_validation or {}
-        raw_allowed = plan.get("allowed_attempts")
-        try:
-            allowed_attempts = (
-                0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
-            )
-        except (TypeError, ValueError):
-            allowed_attempts = 1
+        allowed_attempts = _answer_attempt_budget(prepared)
         if allowed_attempts < 1:
             return (
                 RESEARCH_ANSWER_BLOCKED_COPY,
