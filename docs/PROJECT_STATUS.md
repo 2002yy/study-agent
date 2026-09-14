@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**in-situ vs replay 差异**已解释**（§30）：answer 路径 thinking 开启，32 字符可见答案背后是 **1775–4067 隐藏 reasoning tokens** → 同 prompt 单次 generation 29.3s vs 59.7s；**thinking disabled 后 3.7–3.8s**；position 臂无效应；answer 路径 `request_max_retries=0`（单次超时形态）。因此 (b) 有了精确杠杆（answer 阶段关/限 thinking，可把 reserve 从 ~31–34s 压到 ~5–8s），但**质量权衡未验证**，需用户决策后先只在诊断路径复测。**reserve 仍 12s、60s 与 Live12 继续冻结。**
+- **当前唯一下一步（2026-09-14 记录）：**Answer Reasoning Policy 诊断完成 BLOCK 分层（§31）：gate=block 的 case 里 answer model 花 **1330–2083 reasoning tokens / 16–41s**，产出随后被**发布门替换成同一句 32 字符 fail-closed 文本**（四例完全相同）→ 纯浪费且是 30s 截断来源；thinking disabled 快 **4–6×**（p50 4.4–8.0s）。因此 BLOCK 层可先落 **thinking disabled**（可见行为不变）；但 **PARTIAL/PASS 覆盖为 0**（本批 4 案例全 gate=block，历史 holdout 从未 pass）→ **不得外推**，需等真实 gate=partial/pass artifact 再跑同工具分层 A/B。reserve 仍 12s、60s 与 Live12 继续冻结；产品默认未改。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -974,6 +974,51 @@ thinking_disabled  r2 =  3.844s   reasoning_tokens = none   ok
 1. 用户决策 (b)：answer path 是否关闭（或限界）thinking；若同意，先只改诊断路径复测分布与答案质量样本。
 2. 之后才做正式 reserve 校准（(a)）与 research window 收紧。
 3. `insitu-replay` 模式已实现但**不再需要**用于解释本差异（保留备查）。
+
+## 31. Answer Reasoning Policy Diagnostic：(b) 从"优化项"升级为结构性问题
+
+**用户决策（本批路线）：**(b) 必须处理，但**不能一刀切全局关 thinking**；先做分层策略与 A/B 诊断，只改诊断默认，不动 qualification。reasoning 应发生在可审计的 research/evidence pipeline，final answer 更应是 **grounded renderer**。
+
+### 31.1 工具与方法
+
+`tools/run_answer_reasoning_policy_probe.py`（`qualification_evidence=false`）：每个 frozen 真实 research artifact 上跑三臂 —— `A_production`（真实生产 answer path，含 binding/validation 真相）、`A_sdk_default`（同一 frozen messages，SDK 默认 thinking，可观测 reasoning tokens）、`B_sdk_disabled`（同一 messages，thinking disabled）。质量用确定性代理：长度/句数、conditional/fail-closed 措辞、**答案中出现但 evidence 里不存在的数字**。原始文本留档供人工复核。
+
+### 31.2 结果（4 cases，均 gate=block）
+
+| case | A_production | A_sdk_default（n=3，reasoning tokens） | B_sdk_disabled（n=3） |
+| --- | --- | --- | --- |
+| numeric-uk-inflation | 23.094s（可见 32 字符） | p50 20.734 / max 27.031（874–1020） | p50 **4.390** / max 6.938 |
+| provenance-xz | **31.359s**（>30s，生产 cap 下必被切） | p50 36.797 / max 41.328（1546–1917） | p50 **7.968** / max 11.907 |
+| current-support-postgresql | 16.140s | p50 31.047 / max 37.016（1343–2083） | p50 **6.656** / max 10.781 |
+| historical-current-node-modules | 25.672s | p50 29.281 / max 34.547（1330–1547） | p50 **6.656** / max 6.859 |
+
+→ thinking disabled 快 **4–6×**；默认臂 reasoning 1330–2083 tokens。
+
+### 31.3 BLOCK 分层的结论（强）
+
+1. `A_production` 四例的可见答案**完全相同且固定 32 字符**：`联网检索未通过证据核验，因此回答未采用任何联网来源的结论。` —— 这是**发布门（publication gate）替换后的 fail-closed 表面**，不是模型自己写的文本。
+2. 也就是说：**门已经 BLOCK 的 case，answer model 花 1330–2083 个隐藏 reasoning tokens、16–41s，产出的内容随后被门丢弃**。这是纯浪费，且是 30s 截断的来源。
+3. **方法学注意（不许夸大）**：`B_sdk_disabled` 臂直连 SDK，**绕过了发布门**，因此它的长文本不是生产会发布的内容；生产同样会把 B 的文本替换成同一句 fail-closed 表面。所以对 BLOCK 而言，"质量等价"是**结构性**结论（用户可见文本由门决定），而不是对两段文本打分的结论。
+4. 由此 (b) 在 BLOCK 层有两条路：**(i) answer path 关 thinking**（改动最小，省 10–35s/case，可见行为不变）；**(ii) 完全 deterministic fail-closed surface（不再调用 answer LLM）**——收益更大但属产品行为变更，用户已明确"先不做"。
+
+### 31.4 PARTIAL / PASS 覆盖：本批未取得（测量缺口，不是走捷径）
+
+4 个候选 case（含历史上有 2–3 clusters 的 `current-support-postgresql` / `historical-current-node-modules`）在本轮**全部 gate=block**；历史 artifact 中 gate=partial 仅出现过 1 次、pass 从未出现。因此：
+
+```text
+BLOCK        coverage = 4 cases   → 结论可用（见 §31.3）
+PARTIAL      coverage = 0         → 待测
+PASS         coverage = 0         → 待测
+```
+
+**在拿到 gate=partial / pass 的真实 artifact 之前，不得把 BLOCK 的结论外推到 substantive answer**。下一步需要等 research 层真的产出 gate=pass（或 partial 且有 evidence brief）的 run，再用同一工具跑分层 A/B。
+
+### 31.5 reserve 与后续顺序
+
+- 若 BLOCK 分层先落地（thinking disabled 或 deterministic surface），blocked case 的 finalization 将从 ~16–41s 降到 ~4–12s；但 **PARTIAL/PASS 尚未测量**，所以 reserve 依旧**不动**（12s）。
+- 顺序保持用户的冻结表：`Answer Thinking Quality A/B（本批 BLOCK 部分完成）` → `决定 answer reasoning policy` → `重新测 finalization 分布` → `再校准 reserve` → `cost-aware scheduling` → `paired validation` → `strict Live12`。
+- 产品默认（60s / 30s answer timeout / thinking 开关）本批**未改**；60s 与 Live12 继续冻结。
+
 
 
 
