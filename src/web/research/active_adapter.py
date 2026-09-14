@@ -93,6 +93,9 @@ class ActiveResearchGateway:
         self._search_backend = search_backend or ResearchProviderSearch()
         self._read_gateway = read_gateway or ResearchWebGateway()
         self._backend_accepts_deadline = _accepts_deadline(self._search_backend)
+        self._read_gateway_accepts_timeout = read_gateway_accepts_timeout(
+            self._read_gateway
+        )
         self._last_audit: ActiveSearchCallAudit | None = None
         self._pending_audits: list[dict[str, Any] | None] = []
         self._warnings: list[dict[str, str]] = []
@@ -158,7 +161,21 @@ class ActiveResearchGateway:
             normalized.append(record)
         return normalized
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        # The shared research-window deadline is forwarded only to gateways
+        # that accept it; legacy doubles keep the previous signature.
+        if timeout is not None and self._read_gateway_accepts_timeout:
+            return cast(Any, self._read_gateway).read(
+                url,
+                max_chars=max_chars,
+                timeout=timeout,
+            )
         return self._read_gateway.read(url, max_chars=max_chars)
 
     def warnings(self) -> list[dict[str, str]]:
@@ -245,4 +262,22 @@ def _accepts_deadline(backend: ResearchSearchExact) -> bool:
     return "deadline" in parameters
 
 
-__all__ = ["ActiveResearchGateway", "ActiveSearchCallAudit"]
+def read_gateway_accepts_timeout(gateway: object) -> bool:
+    """Return whether a read gateway can honour a shared read timeout.
+
+    Legacy gateways (and test doubles) that only accept ``max_chars`` keep
+    working; the caller then falls back to the gateway's own default timeout.
+    """
+
+    try:
+        parameters = inspect.signature(gateway.read).parameters  # type: ignore[attr-defined]
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return "timeout" in parameters
+
+
+__all__ = [
+    "ActiveResearchGateway",
+    "ActiveSearchCallAudit",
+    "read_gateway_accepts_timeout",
+]

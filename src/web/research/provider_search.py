@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import os
+import threading
 import time
 from typing import Any, Literal, cast
 
@@ -51,6 +52,15 @@ MAX_PROVIDER_ATTEMPTS = 2
 # with an observable reason instead of burning the shared research budget.
 SKIPPED_INSUFFICIENT_BUDGET = "skipped_insufficient_budget"
 MIN_USEFUL_PROVIDER_SECONDS = 1.5
+
+# Timeout Invariant Hardening: a provider's configured budget is an *aggregate*
+# wall-clock bound for its whole lifetime (all attempts + retry decisions), not
+# a per-attempt nominal value. ``urlopen(timeout=...)`` is not a wall-clock
+# guarantee (DNS/connect/read are bounded separately - measured: a 6s timeout
+# produced a 12s call), so the orchestration layer enforces its own absolute
+# bound and abandons an overrunning worker instead of trusting the library.
+WALLCLOCK_TIMEOUT_REASON = "wallclock_timeout"
+RETRY_BUDGET_EXHAUSTED_REASON = "retry_budget_exhausted"
 
 # Single-run circuit breaker: block-style provider responses are not worth
 # retrying and mark the provider degraded for the rest of the run so later
@@ -226,13 +236,23 @@ class ResearchProviderSearch:
                     )
                 )
                 continue
+            # Aggregate provider deadline: the configured provider budget bounds
+            # the provider's WHOLE lifetime (attempts + retries), not one attempt.
+            provider_deadline = self._monotonic() + self._provider_timeout_seconds
             for attempt in range(1, MAX_PROVIDER_ATTEMPTS + 1):
-                remaining = None if deadline is None else deadline - self._monotonic()
-                if remaining is not None and remaining < MIN_USEFUL_PROVIDER_SECONDS:
-                    # Not enough stage budget for a useful attempt. On the first
-                    # attempt this is an observable skip; after a transient
-                    # failure it simply stops retrying while preserving the
-                    # original failure reason.
+                now_monotonic = self._monotonic()
+                provider_remaining = provider_deadline - now_monotonic
+                stage_remaining = (
+                    None if deadline is None else deadline - now_monotonic
+                )
+                remaining = provider_remaining
+                if stage_remaining is not None:
+                    remaining = min(remaining, stage_remaining)
+                if remaining < MIN_USEFUL_PROVIDER_SECONDS:
+                    # Not enough aggregate budget for a useful attempt. On the
+                    # first attempt this is an observable skip; after a transient
+                    # failure it stops retrying while preserving the failure
+                    # reason and records why the retry did not happen.
                     if attempt == 1:
                         final_status = "skipped"
                         final_reason = SKIPPED_INSUFFICIENT_BUDGET
@@ -248,18 +268,31 @@ class ResearchProviderSearch:
                                 query_chars=len(focused),
                             )
                         )
+                    else:
+                        audits.append(
+                            ProviderAttemptAudit(
+                                provider=provider,
+                                attempt=attempt,
+                                status="skipped",
+                                reason=RETRY_BUDGET_EXHAUSTED_REASON,
+                                result_count=0,
+                                elapsed_seconds=0.0,
+                                query_sha256=query_digest,
+                                query_chars=len(focused),
+                            )
+                        )
                     break
                 attempts = attempt
-                attempt_timeout = self._provider_timeout_seconds
-                if remaining is not None:
-                    attempt_timeout = max(1.0, min(attempt_timeout, remaining))
+                attempt_timeout = max(1.0, min(self._provider_timeout_seconds, remaining))
                 started = self._monotonic()
                 try:
-                    raw_results, error = self._provider_call(
+                    raw_results, error = _call_with_wallclock(
+                        self._provider_call,
                         provider,
                         focused,
                         limit,
                         attempt_timeout,
+                        timeout_seconds=attempt_timeout,
                     )
                     normalized_results = tuple(
                         item for item in raw_results if isinstance(item, Mapping)
@@ -322,6 +355,49 @@ class ResearchProviderSearch:
             provider_outcomes=tuple(outcomes),
             searched_at=current.isoformat(),
         )
+
+
+def _call_with_wallclock(
+    call: ProviderCall,
+    provider: ResearchSearchProvider,
+    query: str,
+    limit: int,
+    attempt_timeout: float,
+    *,
+    timeout_seconds: float,
+) -> tuple[list[Mapping[str, Any]], str]:
+    """Run one provider call under an absolute wall-clock bound.
+
+    The network stack's own timeout is not a wall-clock guarantee (measured: a
+    6s ``urlopen`` timeout produced a 12s call), so an overrunning worker is
+    abandoned and reported as ``wallclock_timeout`` instead of blocking the
+    research window. The worker is a daemon thread, so an abandoned call cannot
+    delay process exit.
+    """
+
+    outcome: list[Any] = []
+
+    def worker() -> None:
+        try:
+            outcome.append(call(provider, query, limit, attempt_timeout))
+        except Exception as exc:
+            outcome.append(([], f"provider_exception:{type(exc).__name__}"))
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    thread.join(max(0.0, float(timeout_seconds)))
+    if thread.is_alive():
+        return [], WALLCLOCK_TIMEOUT_REASON
+    if not outcome:
+        return [], "provider_call_failed"
+    result = outcome[0]
+    if (
+        not isinstance(result, tuple)
+        or len(result) != 2
+        or not isinstance(result[0], list)
+    ):
+        return [], "provider_call_failed"
+    return result[0], str(result[1] or "")
 
 
 def _payload(
@@ -413,6 +489,10 @@ def _sanitize_provider_error(error: str) -> str:
     """Collapse raw provider errors into bounded, non-sensitive categories."""
 
     value = str(error or "").casefold()
+    if value.startswith(WALLCLOCK_TIMEOUT_REASON):
+        # Preserve the wall-clock invariant signal instead of collapsing it
+        # into the generic network ``timeout`` category.
+        return WALLCLOCK_TIMEOUT_REASON
     if "challenge" in value or "captcha" in value or "bot" in value:
         return "challenge"
     status = _http_status(value)

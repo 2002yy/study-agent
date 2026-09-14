@@ -21,7 +21,10 @@ from urllib.parse import urlsplit
 from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
 from src.domain.runtime_entities import WebLookupRun, new_id
 from src.repositories.web_lookup_repository import WebLookupRepository
-from src.web.research.active_adapter import ActiveResearchGateway
+from src.web.research.active_adapter import (
+    ActiveResearchGateway,
+    read_gateway_accepts_timeout,
+)
 from src.web.research.active_semantics import (
     CANDIDATE_ASSESSMENT_TIMEOUT_SECONDS,
     RuntimeCandidateAssessor,
@@ -169,6 +172,13 @@ class _ExternalAttemptBudgetExhausted(RuntimeError):
 # it from paired runs instead of guessing.
 RESEARCH_WINDOW_RESERVE_SECONDS = FINALIZATION_RESERVE_SECONDS
 
+# Reader side of the same invariant: a page read may never start (or overrun)
+# outside the shared research window. ``READ_TIMEOUT_CAP_SECONDS`` mirrors the
+# reader's own default network timeout; the effective timeout is the smaller of
+# that cap and the remaining research window.
+READ_TIMEOUT_CAP_SECONDS = 10.0
+MIN_READ_SECONDS = 1.0
+
 
 class ActiveResearchRuntimeExecutor:
     """Execute one active run under the durable WebLookupRun owner."""
@@ -213,6 +223,7 @@ class ActiveResearchRuntimeExecutor:
         self.policy_check = policy_check or _default_policy_check
         self.monotonic = monotonic
         self.utc_now = utc_now or _utc_now
+        self.read_gateway_accepts_timeout = read_gateway_accepts_timeout(gateway)
 
     def execute(
         self,
@@ -379,6 +390,35 @@ class ActiveResearchRuntimeExecutor:
                 "exhausted": exhausted,
             }
             checkpoint()
+
+        def read_timeout_seconds() -> float:
+            """Reader deadline: a page read may never outlive the window."""
+
+            return min(READ_TIMEOUT_CAP_SECONDS, max(0.0, research_seconds_left()))
+
+        def record_research_window_skip(key: str) -> None:
+            """Count work the exhausted research window refused to start."""
+
+            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            skips = metrics.get("research_window_skips")
+            if not isinstance(skips, dict):
+                skips = {}
+                metrics["research_window_skips"] = skips
+            skips[key] = int(skips.get(key) or 0) + 1
+
+        def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
+            """Read a page, forwarding the shared deadline when supported."""
+
+            if self.read_gateway_accepts_timeout:
+                return dict(
+                    self.gateway.read(
+                        url,
+                        max_chars=max_chars,
+                        timeout=read_timeout_seconds(),
+                    )
+                    or {}
+                )
+            return dict(self.gateway.read(url, max_chars=max_chars) or {})
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -1168,6 +1208,13 @@ class ActiveResearchRuntimeExecutor:
                     ensure_active()
                     if successful_reads >= state.budget.max_reads or used_chars >= state.budget.max_total_chars:
                         break
+                    if research_seconds_left() < MIN_READ_SECONDS:
+                        # The window cannot absorb a useful read; stop starting
+                        # reads instead of overrunning the finalization reserve.
+                        record_research_window_skip(
+                            "read_skipped_insufficient_research_window"
+                        )
+                        break
                     ensure_budget()
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
@@ -1222,7 +1269,7 @@ class ActiveResearchRuntimeExecutor:
                     checkpoint()
                     read_exception_type = ""
                     try:
-                        raw_read = dict(self.gateway.read(candidate.url, max_chars=source_limit) or {})
+                        raw_read = gateway_read(candidate.url, max_chars=source_limit)
                     except Exception as exc:
                         read_exception_type = type(exc).__name__
                         raw_read = {
@@ -1318,6 +1365,13 @@ class ActiveResearchRuntimeExecutor:
                         or used_chars >= state.budget.max_total_chars
                     ):
                         break
+                    if research_seconds_left() < MIN_READ_SECONDS:
+                        # Bounded lead reads obey the same shared window as
+                        # evidence reads; an exhausted window starts none.
+                        record_research_window_skip(
+                            "lead_read_skipped_insufficient_research_window"
+                        )
+                        break
                     lead_candidate = lead_item["candidate"]
                     lead_candidate_id = lead_candidate.id
                     ensure_active()
@@ -1343,11 +1397,8 @@ class ActiveResearchRuntimeExecutor:
                     checkpoint()
                     lead_read_exception = ""
                     try:
-                        raw_lead_read = dict(
-                            self.gateway.read(
-                                lead_candidate.url, max_chars=lead_source_limit
-                            )
-                            or {}
+                        raw_lead_read = gateway_read(
+                            lead_candidate.url, max_chars=lead_source_limit
                         )
                     except Exception as exc:
                         lead_read_exception = type(exc).__name__

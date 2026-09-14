@@ -4365,3 +4365,129 @@ def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None
     # site-scoped follow-up query.
     queries = [item.query for item in cursor.planned_queries]
     assert any("site:official.example" in query for query in queries), queries
+
+
+class _DeadlineRecordingReadGateway:
+    """Timeout-aware reader that records the shared research deadline."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, float | None]] = []
+
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append((url, timeout))
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Read source",
+            "content": "Verified fact: The release date is 2026-08-01."[:max_chars],
+        }
+
+
+def test_read_forwards_shared_research_deadline(tmp_path: Any) -> None:
+    """Every evidence read is bounded by min(reader cap, research window)."""
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "read_deadline.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_read_deadline",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    reader = _DeadlineRecordingReadGateway()
+
+    completed = _service(repository, _StructuredClient(), read_gateway=reader).execute(
+        run.id, raise_on_error=False
+    )
+
+    assert completed.status == "completed"
+    assert reader.calls, "expected the run to read at least one page"
+    # The reader's own 10s default is the cap while the window is healthy.
+    assert {timeout for _url, timeout in reader.calls} == {10.0}
+
+
+class _WindowJumpTimer:
+    """Research clock that reports an exhausted window once search is done."""
+
+    def __init__(self) -> None:
+        self.value = 0.0
+        self.exhaust = False
+
+    def __call__(self) -> float:
+        if self.exhaust:
+            self.value = 50.0
+        return self.value
+
+
+class _WindowJumpingSearchBackend:
+    def __init__(self, timer: _WindowJumpTimer) -> None:
+        self.timer = timer
+        self._inner = _SearchBackend()
+
+    def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
+        payload = self._inner.search_exact(query, max_results=max_results)
+        return payload
+
+
+class _WindowJumpClient(_StructuredClient):
+    """Exhaust the research window at the last model phase before reading."""
+
+    def __init__(self, timer: _WindowJumpTimer) -> None:
+        super().__init__()
+        self.timer = timer
+
+    def create(self, **kwargs: Any) -> Any:
+        result = super().create(**kwargs)
+        system = str(kwargs["messages"][0]["content"])
+        if "search candidates" in system:
+            # Candidate assessment is the final model phase before physical
+            # reads, so the read phase itself starts against a spent window.
+            self.timer.exhaust = True
+        return result
+
+
+def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
+    """An exhausted research window starts no reads instead of overrunning it."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "read_window.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_read_window",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    timer = _WindowJumpTimer()
+    reader = _DeadlineRecordingReadGateway()
+
+    completed = _service(
+        repository,
+        _WindowJumpClient(timer),
+        search_backend=_WindowJumpingSearchBackend(timer),
+        read_gateway=reader,
+        monotonic=timer,
+    ).execute(run.id, raise_on_error=False)
+
+    # Boundary invariant: research never crosses into the finalization reserve.
+    # An exhausted window starts no page reads and settles as a partial run.
+    assert reader.calls == []
+    metrics = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY]
+    assert metrics.get("read_count") == 0
+    window = metrics.get("research_window") or {}
+    assert window.get("exhausted") is True
+    assert float(window.get("remaining_after_research_seconds") or 0) > 0
+    assert completed.stop_reason == "evidence_budget_exhausted"

@@ -248,3 +248,35 @@ def test_deadline_is_forwarded_only_to_deadline_aware_backend() -> None:
     legacy_gateway.search_detailed("query", deadline=123.5)
     assert legacy_backend.calls == [("query", 10)]
     assert legacy_gateway.last_search_audit() is not None
+
+
+class DeadlineReadGateway:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, float | None]] = []
+
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append((url, max_chars, timeout))
+        return {"ok": True, "content": "body"}
+
+
+def test_read_timeout_is_forwarded_only_to_timeout_aware_gateway() -> None:
+    """Evidence reads share the research-window deadline when supported."""
+
+    deadline_reader = DeadlineReadGateway()
+    deadline_gateway = ActiveResearchGateway(read_gateway=deadline_reader)
+    deadline_gateway.read("https://example.test/article", max_chars=1234, timeout=3.5)
+    assert deadline_reader.calls == [("https://example.test/article", 1234, 3.5)]
+
+    legacy_reader = FakeReadGateway()
+    legacy_gateway = ActiveResearchGateway(read_gateway=legacy_reader)
+    result = legacy_gateway.read(
+        "https://example.test/article", max_chars=1234, timeout=3.5
+    )
+    assert result == {"ok": True, "content": "body"}
+    assert legacy_reader.calls == [("https://example.test/article", 1234)]

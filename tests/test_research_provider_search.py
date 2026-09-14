@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -348,6 +349,57 @@ def test_deadline_skip_after_success_is_partial_with_results() -> None:
     assert statuses == ["ok", "skipped", "skipped"]
 
 
+def test_provider_wallclock_timeout_is_enforced() -> None:
+    """Timeout Invariant: the configured provider budget bounds wall-clock."""
+
+    def slow_call(provider: str, query: str, limit: int, timeout: float):
+        time.sleep(3.0)
+        return [], "bing_rss:TimeoutError:timed out"
+
+    started = time.monotonic()
+    payload = ResearchProviderSearch(
+        provider_call=slow_call,
+        provider_enabled=lambda provider: provider == "bing_rss",
+        provider_timeout_seconds=2.0,
+    ).search_exact("query")
+    elapsed = time.monotonic() - started
+
+    outcome = payload["provider_outcomes"][0]
+    assert outcome["status"] == "failed"
+    assert outcome["reason"] == "wallclock_timeout"
+    assert outcome["attempts"] == 1
+    # The abandoned worker keeps running in the background, but the provider
+    # lifetime itself is bounded (with a small scheduling margin).
+    assert elapsed < 2.6
+
+
+def test_retry_is_not_started_without_provider_budget() -> None:
+    """A transient failure that spends the aggregate budget must not retry."""
+
+    calls: list[float] = []
+
+    def slow_transient(provider: str, query: str, limit: int, timeout: float):
+        calls.append(timeout)
+        time.sleep(1.8)
+        return [], "bing_rss:TimeoutError:timed out"
+
+    payload = ResearchProviderSearch(
+        provider_call=slow_transient,
+        provider_enabled=lambda provider: provider == "bing_rss",
+        provider_timeout_seconds=2.0,
+    ).search_exact("query")
+
+    assert len(calls) == 1
+    outcome = payload["provider_outcomes"][0]
+    assert outcome["status"] == "failed"
+    assert outcome["attempts"] == 1
+    # The skipped retry is observable in the audit trail.
+    assert any(
+        audit["reason"] == "retry_budget_exhausted"
+        for audit in payload["provider_audits"]
+    )
+
+
 def test_no_deadline_preserves_legacy_retry_behavior() -> None:
     calls = 0
 
@@ -388,9 +440,11 @@ def test_fault_injection_bad_providers_do_not_starve_healthy_provider() -> None:
         provider_timeout_seconds=6.0,
     ).search_exact("query", deadline=30.0)
 
-    # searxng: 2 transient attempts (12s); bing_rss: success (6s);
-    # duckduckgo_html: challenge, no retry (6s). Total 24s < 30s stage deadline.
-    assert clock.value == 24.0
+    # The aggregate provider budget (6s) bounds each provider's whole lifetime:
+    # searxng spends 6s on one attempt and does not get a second one;
+    # bing_rss succeeds after 6s; duckduckgo_html challenges after 6s.
+    # Total 18s < 30s stage deadline.
+    assert clock.value == 18.0
     assert payload["status"] == "partial"
     assert [item["url"] for item in payload["results"]] == [
         "https://example.test/bing"
@@ -398,7 +452,7 @@ def test_fault_injection_bad_providers_do_not_starve_healthy_provider() -> None:
     by_provider = {item["provider"]: item for item in payload["provider_outcomes"]}
     assert by_provider["searxng"]["status"] == "failed"
     assert by_provider["searxng"]["reason"] == "timeout"
-    assert by_provider["searxng"]["attempts"] == 2
+    assert by_provider["searxng"]["attempts"] == 1
     assert by_provider["bing_rss"]["status"] == "ok"
     assert by_provider["duckduckgo_html"]["status"] == "failed"
     assert by_provider["duckduckgo_html"]["reason"] == "challenge"
@@ -421,14 +475,16 @@ def test_deadline_prevents_bad_provider_from_consuming_whole_stage() -> None:
         provider_timeout_seconds=6.0,
     ).search_exact("query", deadline=8.0)
 
-    # searxng attempt 1 (6s) + capped attempt 2 (2s) exhausts the 8s stage
-    # deadline; the remaining providers are skipped, not retried.
-    assert calls == ["searxng", "searxng"]
+    # The aggregate provider budget (6s) bounds each provider's WHOLE lifetime,
+    # so a bad provider can no longer burn two full attempts: searxng spends its
+    # 6s once, bing_rss is capped to the 2s left by the 8s stage deadline, and
+    # the remaining provider is skipped instead of eating the stage.
+    assert calls == ["searxng", "bing_rss"]
     assert clock.value == 8.0
     assert payload["status"] == "partial"
     assert payload["reason"] == "providers_partially_failed_without_results"
     statuses = [item["status"] for item in payload["provider_outcomes"]]
-    assert statuses == ["failed", "skipped", "skipped"]
+    assert statuses == ["failed", "failed", "skipped"]
 
 
 def test_challenge_opens_circuit_and_skips_provider_on_later_queries() -> None:

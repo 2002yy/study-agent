@@ -373,13 +373,15 @@ class GeneralWebGateway:
             "providers_attempted": providers_attempted,
         }
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+    def read(
+        self, url: str, *, max_chars: int = 6000, timeout: float | None = None
+    ) -> dict[str, Any]:
         value = str(url or "").strip()
         if self.github_reader.supports(value):
             return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(
             value,
-            timeout=10,
+            timeout=max(1, int(timeout if timeout is not None else 10)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
