@@ -32,6 +32,7 @@
 |---|---|
 | [`RAG.md`](RAG.md) | 用户资料检索、RAG evidence provider、引用与冲突边界 |
 | [`WEB_SEARCH_SETUP.md`](WEB_SEARCH_SETUP.md) | 普通联网研究与 NewsRun 的 provider 配置、健康检查和降级顺序 |
+| [`RESEARCH_PROVIDER_PORTFOLIO.md`](RESEARCH_PROVIDER_PORTFOLIO.md) | **post-RQ1-C** discovery provider portfolio 2.0：General Web / Semantic / Specialized 分层、调度原则与扩展顺序；**不属于当前 frozen qualification 配置** |
 | [`NEWS_PIPELINE.md`](NEWS_PIPELINE.md) | durable NewsRun workflow 的实现合同与历史兼容面 |
 | [`MEMORY_SYSTEM.md`](MEMORY_SYSTEM.md) | 长期记忆与 committed learning truth 的边界 |
 | [`CONTEXT_TIERS.md`](CONTEXT_TIERS.md) | prompt/context 分层与预算优先级 |
