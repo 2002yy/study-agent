@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-14 记录）：**Answer Reasoning Policy 诊断完成 BLOCK 分层（§31）：gate=block 的 case 里 answer model 花 **1330–2083 reasoning tokens / 16–41s**，产出随后被**发布门替换成同一句 32 字符 fail-closed 文本**（四例完全相同）→ 纯浪费且是 30s 截断来源；thinking disabled 快 **4–6×**（p50 4.4–8.0s）。因此 BLOCK 层可先落 **thinking disabled**（可见行为不变）；但 **PARTIAL/PASS 覆盖为 0**（本批 4 案例全 gate=block，历史 holdout 从未 pass）→ **不得外推**，需等真实 gate=partial/pass artifact 再跑同工具分层 A/B。reserve 仍 12s、60s 与 Live12 继续冻结；产品默认未改。
+- **当前唯一下一步（2026-09-14 记录）：**BLOCK-only thinking disabled 已落地并经**生产路径**验证（§32）：BLOCK case 的 `answer_generation` 从 16–41s（含 2/4 超时）降到 **2.7–5.9s**，finalization **2.8–6.0s**，timeout 0/4，**发布 surface 与审计语义零变化**（`missing_evidence_brief` 不变），且 `thinking_disabled=true` 在 telemetry 中可证。PARTIAL/PASS 未改、其分布仍未知 → **reserve 保持 12s 未校准、60s 与 Live12 继续冻结**。下一步 = 用历史真实 PARTIAL artifact 做第一份 PARTIAL A/B，PASS 等真实 artifact。
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1018,6 +1018,46 @@ PASS         coverage = 0         → 待测
 - 若 BLOCK 分层先落地（thinking disabled 或 deterministic surface），blocked case 的 finalization 将从 ~16–41s 降到 ~4–12s；但 **PARTIAL/PASS 尚未测量**，所以 reserve 依旧**不动**（12s）。
 - 顺序保持用户的冻结表：`Answer Thinking Quality A/B（本批 BLOCK 部分完成）` → `决定 answer reasoning policy` → `重新测 finalization 分布` → `再校准 reserve` → `cost-aware scheduling` → `paired validation` → `strict Live12`。
 - 产品默认（60s / 30s answer timeout / thinking 开关）本批**未改**；60s 与 Live12 继续冻结。
+
+## 32. BLOCK-only thinking disabled（已落地并生产路径验证）
+
+**用户决策：**现在就落 `Gate=BLOCK → answer thinking disabled`，**只改 BLOCK 分支**；PARTIAL/PASS 保持 production default，不外推；reserve、60s、Live12 继续冻结。理由不是"disabled 文本质量差不多"，而是**结构性事实**：Gate=BLOCK 时无论模型写什么，release gate 都会替换成固定 fail-closed surface，因此那 1330–2083 reasoning tokens / 16–41s 对用户可见结果的贡献严格为 0。
+
+### 32.1 实现（窄边界）
+
+- `src/application/chat_service.py`：抽出与 gate **同源**的两个判定 `_answer_attempt_budget(prepared)` / `_evidence_rows_present(prepared)`（`_gate_research_answer` 也改用它们，杜绝策略与门判定漂移），新增 `_answer_generation_extra_body(prepared)`：
+  - BLOCK（无 eligible evidence rows 或 attempt budget < 1）→ `{"thinking": {"type": "disabled"}}`
+  - 其他 → `None`（production 默认不变）
+  三个生成调用点（`generate` / `stream` / `async_stream_chat`）统一使用该策略。
+- `src/llm_client.py`：`chat` / `stream_chat` / `async_stream_chat` 增加**可选** `extra_body`（默认 `None`，其余调用点行为不变）。
+- `tools/rq1c_qualification_guardrails.py`：per-call telemetry 新增 `thinking_disabled`，使**生产路径**可被验证而不是假设。
+- **answer 调用仍然发生**（6 research + 2 reserved answer 的 qualification accounting 不变）；发布门逻辑完全未动。
+
+### 32.2 防漂移测试（4 个新测试，`tests/test_answer_publication_gate.py`）
+
+1. 无 evidence brief → BLOCK：生成请求显式 `extra_body={"thinking":{"type":"disabled"}}`，**发布 surface 与改动前完全一致**（`RESEARCH_ANSWER_BLOCKED_COPY` + `missing_evidence_brief` 审计）。
+2. attempt budget=0 → 同样 disabled。
+3. streaming surface 同样注入。
+4. **substantive answer（有 evidence rows）→ `extra_body is None`**（防止 BLOCK 策略泄漏到 PARTIAL/PASS）。
+
+### 32.3 生产路径复测（`BLOCK_THINKING_OFF_PROBE.json`，4 cases，生产 limits）
+
+| case | answer_generation 改前 | 改后 | thinking_disabled | 可见 surface |
+| --- | --- | --- | --- | --- |
+| numeric-uk-inflation | 14.172s | **4.782s** | true | available，32 字符（不变） |
+| unverifiable-python-security | 22.984s | **2.719s** | true | available（不变） |
+| academic-primary-attention | **30.110s（超时）** | **4.094s** | true | available（不再超时） |
+| provenance-xz | **30.125s（超时）** | **5.859s** | true | available（不再超时） |
+
+- **finalization：2.797–5.969s**（改前 16–41s，约 5–8×），**timeout rate 0/4**（改前 2/4）。
+- 每例 `answer_claim_binding` 仍为 `rejected / missing_evidence_brief`、0 次 binder 调用，**发布面与审计语义零变化** ✓
+- 改后 total elapsed 22.7–29.5s，**research（19.9–23.5s）重新成为唯一主要成本**。
+
+### 32.4 仍未做的事（守住边界）
+
+- **PARTIAL / PASS 未改**，且其 finalization 分布仍未知 → **全局 reserve 仍是"未校准"，保持 12s 不动**。
+- 下一步：① 用历史真实 PARTIAL artifact（`4d1ed67` 的 `rq1c-historical-current-node-modules`）做第一份 PARTIAL A/B；② PASS 等真实 artifact（不可 synthetic 冒充质量证据）；③ 之后才重测最终 finalization 分布并校准 reserve → research window / cost-aware admission → paired validation → strict Live12。
+
 
 
 
