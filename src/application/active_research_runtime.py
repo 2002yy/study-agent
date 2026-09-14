@@ -82,8 +82,13 @@ from src.web.research.model_gateway import (
     ResearchModelCallAudit,
     ResearchModelGateway,
 )
+from src.web.research.phase_budget import (
+    PHASE_RESEARCH_MODEL_CALL_BUDGET,
+    PhaseAdmission,
+    PhaseBudget,
+    admit_phase_action,
+)
 from src.web.research.runtime import (
-    EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN,
     MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE,
     MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN,
@@ -1246,19 +1251,44 @@ class ActiveResearchRuntimeExecutor:
                 lead_budget_available = (
                     len(cursor.lead_read_ids) < MAX_LEAD_READS_PER_RUN
                 )
-                lead_plan = _lead_read_plan(
+                candidate_lead_budget = _phase_budget(
                     state,
-                    claim_rankings,
-                    completed_read_ids=cursor.completed_read_ids,
-                    lead_read_ids=cursor.lead_read_ids,
-                    lead_budget_available=lead_budget_available,
+                    elapsed=elapsed(),
+                    model_calls_used=len(cursor.model_calls),
+                )
+                candidate_lead_admission = admit_phase_action(
+                    candidate_lead_budget, action_type="candidate_lead"
+                )
+                _record_phase_action(
+                    context,
+                    action="candidate_lead",
+                    admission=candidate_lead_admission,
+                    budget=candidate_lead_budget,
+                    outcome="",
+                )
+                lead_plan = (
+                    _lead_read_plan(
+                        state,
+                        claim_rankings,
+                        completed_read_ids=cursor.completed_read_ids,
+                        lead_read_ids=cursor.lead_read_ids,
+                        lead_budget_available=lead_budget_available,
+                    )
+                    if candidate_lead_admission.admitted
+                    else []
                 )
                 if not lead_plan:
                     _bump_lead_metric(
                         context,
-                        "insufficient_budget"
-                        if not lead_budget_available
-                        else "no_lead_candidate",
+                        (
+                            "insufficient_budget"
+                            if not lead_budget_available
+                            else (
+                                f"candidate_lead_{candidate_lead_admission.reason}"
+                                if not candidate_lead_admission.admitted
+                                else "no_lead_candidate"
+                            )
+                        ),
                     )
                 for lead_item in lead_plan:
                     if len(cursor.lead_read_ids) >= MAX_LEAD_READS_PER_RUN:
@@ -1606,9 +1636,6 @@ class ActiveResearchRuntimeExecutor:
                             for item in cursor.evidence_lead_followups
                             if int(item.get("wave_index") or 0) == cursor.wave_index
                         )
-                        remaining_seconds = (
-                            state.budget.hard_timeout_seconds - elapsed()
-                        )
                         if (
                             wave_followups >= MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE
                             or len(cursor.evidence_lead_followups)
@@ -1618,14 +1645,6 @@ class ActiveResearchRuntimeExecutor:
                                 context, "evidence_lead_followup_cap_reached"
                             )
                         elif (
-                            remaining_seconds
-                            < EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS
-                        ):
-                            _bump_lead_metric(
-                                context,
-                                "evidence_lead_followup_skipped_insufficient_budget",
-                            )
-                        elif (
                             claim_support_topology(state, claim)[0]
                             >= claim.evidence_requirement.min_independent_sources
                         ):
@@ -1633,9 +1652,6 @@ class ActiveResearchRuntimeExecutor:
                                 context, "evidence_lead_followup_no_support_gap"
                             )
                         else:
-                            _bump_lead_metric(
-                                context, "evidence_lead_followup_started"
-                            )
                             parent_candidate = next(
                                 (
                                     item
@@ -1648,6 +1664,8 @@ class ActiveResearchRuntimeExecutor:
                                 token.casefold()
                                 for token in query_terms(claim.text)
                             )[:8]
+                            # Harvest first (cheap, no search/model call) so the
+                            # action can be classified before admission.
                             discovered, followup_stats = (
                                 _evidence_lead_followup_candidates(
                                     cursor.candidates,
@@ -1660,53 +1678,91 @@ class ActiveResearchRuntimeExecutor:
                                 if parent_candidate is not None
                                 else ((), {"no_deeper_url": 1})
                             )
-                            for stats_key, stats_value in followup_stats.items():
-                                if stats_key != "added" and stats_value:
-                                    _bump_lead_metric(
-                                        context,
-                                        f"evidence_lead_{stats_key}",
-                                        int(stats_value),
-                                    )
+                            trusted_primary_domain = (
+                                _domain_of(candidate.url)
+                                if link.source_role == "primary"
+                                else ""
+                            )
                             if discovered:
-                                cursor = replace(
-                                    cursor,
-                                    candidates=(*cursor.candidates, *discovered),
-                                )
+                                followup_action = "evidence_lead_direct_url"
+                            elif trusted_primary_domain:
+                                followup_action = "evidence_lead_trusted_domain"
+                            else:
+                                followup_action = "evidence_lead_hint_query"
+                            phase_budget = _phase_budget(
+                                state,
+                                elapsed=elapsed(),
+                                model_calls_used=len(cursor.model_calls),
+                            )
+                            admission = admit_phase_action(
+                                phase_budget, action_type=followup_action
+                            )
+                            _record_phase_action(
+                                context,
+                                action=followup_action,
+                                admission=admission,
+                                budget=phase_budget,
+                                outcome="",
+                            )
+                            if not admission.admitted:
                                 _bump_lead_metric(
                                     context,
-                                    "evidence_lead_candidate_added",
-                                    len(discovered),
+                                    f"evidence_lead_followup_{admission.reason}",
                                 )
-                            cursor = replace(
-                                cursor,
-                                evidence_lead_followups=(
-                                    *cursor.evidence_lead_followups,
-                                    {
-                                        "wave_index": cursor.wave_index,
-                                        "evidence_id": evidence_id,
-                                        "source_candidate_id": candidate_id,
-                                        "method": (
-                                            "evidence_lead_url"
-                                            if discovered
-                                            else "no_deeper_url"
+                            else:
+                                _bump_lead_metric(
+                                    context, "evidence_lead_followup_started"
+                                )
+                                for stats_key, stats_value in followup_stats.items():
+                                    if stats_key != "added" and stats_value:
+                                        _bump_lead_metric(
+                                            context,
+                                            f"evidence_lead_{stats_key}",
+                                            int(stats_value),
+                                        )
+                                if discovered:
+                                    cursor = replace(
+                                        cursor,
+                                        candidates=(
+                                            *cursor.candidates,
+                                            *discovered,
                                         ),
-                                        "added_candidate_ids": [
-                                            item.id for item in discovered
-                                        ],
-                                        # The observed page domain is audit
-                                        # only; it may become a site: constraint
-                                        # only when this page's server-owned
-                                        # role is primary (the evidence owner).
-                                        "hint_domain": _domain_of(candidate.url),
-                                        "trusted_primary_domain": (
-                                            _domain_of(candidate.url)
-                                            if link.source_role == "primary"
-                                            else ""
-                                        ),
-                                        "hint_terms": list(keywords[:4]),
-                                    },
-                                ),
-                            )
+                                    )
+                                    _bump_lead_metric(
+                                        context,
+                                        "evidence_lead_candidate_added",
+                                        len(discovered),
+                                    )
+                                cursor = replace(
+                                    cursor,
+                                    evidence_lead_followups=(
+                                        *cursor.evidence_lead_followups,
+                                        {
+                                            "wave_index": cursor.wave_index,
+                                            "evidence_id": evidence_id,
+                                            "source_candidate_id": candidate_id,
+                                            "method": (
+                                                "evidence_lead_url"
+                                                if discovered
+                                                else "no_deeper_url"
+                                            ),
+                                            "added_candidate_ids": [
+                                                item.id for item in discovered
+                                            ],
+                                            # The observed page domain is audit
+                                            # only; it may become a site:
+                                            # constraint only when this page's
+                                            # server-owned role is primary.
+                                            "hint_domain": _domain_of(
+                                                candidate.url
+                                            ),
+                                            "trusted_primary_domain": (
+                                                trusted_primary_domain
+                                            ),
+                                            "hint_terms": list(keywords[:4]),
+                                        },
+                                    ),
+                                )
                             checkpoint()
 
                 cursor = replace(cursor, phase="gating")
@@ -2783,6 +2839,50 @@ def _lead_read_plan(
                 ]
             seen.add(candidate_id)
     return []
+
+
+def _phase_budget(state: ResearchState, *, elapsed: float, model_calls_used: int) -> PhaseBudget:
+    """Remaining budget of the current run in all three dimensions."""
+
+    return PhaseBudget(
+        elapsed_seconds=elapsed,
+        soft_timeout_seconds=state.budget.soft_timeout_seconds,
+        hard_timeout_seconds=state.budget.hard_timeout_seconds,
+        remaining_reads=max(0, state.budget.max_reads - state.budget.reads_used),
+        remaining_model_calls=max(
+            0, PHASE_RESEARCH_MODEL_CALL_BUDGET - model_calls_used
+        ),
+    )
+
+
+def _record_phase_action(
+    context: dict[str, Any],
+    *,
+    action: str,
+    admission: PhaseAdmission,
+    budget: PhaseBudget,
+    outcome: str,
+) -> None:
+    """Action-level observability: why an action ran or was skipped."""
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    rows = metrics.get("phase_actions")
+    if not isinstance(rows, list):
+        rows = []
+    rows.append(
+        {
+            "action": action,
+            "priority": admission.priority,
+            "estimated_seconds": admission.estimated_seconds,
+            "remaining_seconds_before": round(budget.remaining_seconds, 3),
+            "remaining_reads_before": budget.remaining_reads,
+            "remaining_model_calls_before": budget.remaining_model_calls,
+            "admitted": admission.admitted,
+            "skip_reason": "" if admission.admitted else admission.reason,
+            "outcome": outcome,
+        }
+    )
+    metrics["phase_actions"] = rows[-64:]
 
 
 def _lead_metrics(context: dict[str, Any]) -> dict[str, int]:
