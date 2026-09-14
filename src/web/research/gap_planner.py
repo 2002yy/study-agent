@@ -223,6 +223,7 @@ def plan_gap_queries(
     reference_date: str = "",
     max_queries: int = DEFAULT_QUERIES_PER_GAP,
     source_hints: tuple[str, ...] = (),
+    trusted_domain: str = "",
     question: str = "",
 ) -> GapQueryBatch:
     """Return a bounded, intent-diverse query batch for one open gap.
@@ -233,10 +234,15 @@ def plan_gap_queries(
     rewriter. ``question`` (the original question) is the preferred surface when
     available, because claim text can be a grammar fragment with no entity.
 
-    ``source_hints`` are bounded lead-discovery hints (domains, organizations,
-    official terminology). They only influence how this planner words its own
-    queries - the Gap Planner remains the single query-strategy owner, and a
-    hint can never mint a candidate or change evidence eligibility.
+    ``source_hints`` are bounded research hints (organizations, official
+    terminology, follow-up terms). They only sharpen wording.
+
+    ``trusted_domain`` is the ONLY source of a ``site:`` constraint: ``site:`` is
+    a strong restriction, so it is used only when the caller has a reason to
+    believe the domain *is* the evidence owner (Slice 2B discovered domains, or
+    a page whose server-owned source role is ``primary``). A mere source domain
+    must never be converted into a ``site:`` constraint - that would lock the
+    follow-up search into a mirror/aggregator domain.
     """
 
     if gap.claim_id != claim.id:
@@ -281,6 +287,7 @@ def plan_gap_queries(
     )
     year = _reference_year(reference_date) if temporal else ""
     hints = _bounded_hints(source_hints)
+    trusted = _bounded_domain(trusted_domain)
     intents = _select_intents(gap=gap, claim=claim)[:limit]
     queries: list[PlannedGapQuery] = []
     seen: set[str] = set()
@@ -293,6 +300,7 @@ def plan_gap_queries(
             desired_source_role=gap.desired_source_role,
             reference_year=year,
             source_hints=hints,
+            trusted_domain=trusted,
         )
         key = query.casefold()
         if key in seen:
@@ -380,6 +388,7 @@ def _query_for_intent(
     desired_source_role: str,
     reference_year: str,
     source_hints: tuple[str, ...] = (),
+    trusted_domain: str = "",
 ) -> str:
     """Compose one search expression from explicit anchors.
 
@@ -387,6 +396,9 @@ def _query_for_intent(
     source anchor is a single bounded phrase chosen by intent - suffixes are
     never stacked, because stacking dilutes the entity and does not make a
     search engine prefer primary sources.
+
+    A ``site:`` constraint is only emitted from an explicit ``trusted_domain``
+    (evidence owner), never from a hint string that merely looks like a domain.
     """
 
     parts: list[str] = []
@@ -404,10 +416,13 @@ def _query_for_intent(
         if re.search(r"[\u3400-\u9fff]", f"{subject_anchor}{fact_anchor}{fallback_surface}")
         else _QUERY_SOURCE_ANCHORS
     ).get(intent, "")
-    site_hint, term_hint = _hint_fragments(source_hints)
-    if intent in {GapSearchIntent.PRIMARY, GapSearchIntent.PROVENANCE} and site_hint:
-        # A discovered official domain is the strongest possible anchor.
-        parts.append(f"site:{site_hint}")
+    term_hint = _first_term_hint(source_hints)
+    if (
+        intent in {GapSearchIntent.PRIMARY, GapSearchIntent.PROVENANCE}
+        and trusted_domain
+    ):
+        # A discovered/verified evidence-owner domain is the strongest anchor.
+        parts.append(f"site:{trusted_domain}")
         if term_hint:
             parts.append(term_hint)
     elif source_anchor:
@@ -428,6 +443,34 @@ def _query_for_intent(
 
     tokens = _dedupe_query_tokens(" ".join(parts))
     return " ".join(tokens[:_QUERY_MAX_TOKENS]).strip()[:1200]
+
+
+def _bounded_domain(value: str) -> str:
+    """Return a site-worthy domain, or "" when the value is not a domain."""
+
+    text = str(value or "").strip().casefold()
+    if not text:
+        return ""
+    text = text.split("//")[-1].split("/")[0].strip()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}", text):
+        return ""
+    return text[:253]
+
+
+def _looks_like_domain(value: str) -> bool:
+    return bool(_bounded_domain(value))
+
+
+def _first_term_hint(source_hints: tuple[str, ...]) -> str:
+    """First non-domain hint, bounded (domains are never search terms here)."""
+
+    for hint in source_hints:
+        if _looks_like_domain(hint):
+            continue
+        text = " ".join(str(hint or "").split())[:120]
+        if text:
+            return text
+    return ""
 
 
 def query_terms(text: str) -> tuple[str, ...]:
@@ -545,20 +588,6 @@ def _bounded_hints(source_hints: tuple[str, ...]) -> tuple[str, ...]:
         if len(bounded) >= 4:
             break
     return tuple(bounded)
-
-
-def _hint_fragments(source_hints: tuple[str, ...]) -> tuple[str, str]:
-    """Return one site hint and one terminology hint, in that priority."""
-
-    site = ""
-    term = ""
-    for hint in source_hints:
-        if not site and re.fullmatch(r"[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", hint):
-            site = hint.casefold()
-            continue
-        if not term:
-            term = hint
-    return site, term
 
 
 def _reference_year(value: str) -> str:

@@ -325,6 +325,71 @@ def test_lead_scheduling_requires_primary_provenance_or_verification_intent() ->
     )
 
 
+def test_lead_hints_never_trust_a_mere_source_domain() -> None:
+    """§20: only a primary-role page or a discovered domain is site-worthy."""
+
+    from src.application.active_research_runtime import _lead_hints_for_claim
+    from src.web.research.runtime import (
+        ResearchRuntimeCursor,
+        RuntimeCandidate,
+        RuntimePlannedQuery,
+    )
+
+    def _cursor(
+        *, trusted_primary_domain: str, hint_domain: str
+    ) -> ResearchRuntimeCursor:
+        return ResearchRuntimeCursor(
+            planned_queries=(
+                RuntimePlannedQuery(
+                    id="gap_1:discovery",
+                    gap_id="gap_1",
+                    claim_id="claim_1",
+                    intent="discovery",
+                    query="mirror page query",
+                ),
+            ),
+            candidates=(
+                RuntimeCandidate(
+                    id="cand-1",
+                    url="https://mirror.example/page",
+                    title="mirror",
+                    query_ids=("gap_1:discovery",),
+                ),
+            ),
+            evidence_lead_followups=(
+                {
+                    "wave_index": 1,
+                    "evidence_id": "web_x",
+                    "source_candidate_id": "cand-1",
+                    "method": "no_deeper_url",
+                    "added_candidate_ids": [],
+                    "hint_domain": hint_domain,
+                    "trusted_primary_domain": trusted_primary_domain,
+                    "hint_terms": ["pull", "rate"],
+                },
+            ),
+        )
+
+    # Aggregator/mirror page: the observed domain is audit only.
+    trusted, hints = _lead_hints_for_claim(
+        _cursor(trusted_primary_domain="", hint_domain="mirror.example"),
+        "claim_1",
+    )
+    assert trusted == ""
+    assert "mirror.example" not in hints
+    assert "pull" in hints
+
+    # Primary-role page: the domain is the evidence owner, so it may be used.
+    trusted_primary, _ = _lead_hints_for_claim(
+        _cursor(
+            trusted_primary_domain="official.example",
+            hint_domain="official.example",
+        ),
+        "claim_1",
+    )
+    assert trusted_primary == "official.example"
+
+
 def test_cursor_round_trips_lead_discovery_state() -> None:
     from src.web.research.lead_discovery import LeadDiscoveryPayload
     from src.web.research.runtime import ResearchRuntimeCursor
@@ -362,7 +427,11 @@ def test_pre_lead_cursor_still_loads_with_empty_lead_state() -> None:
 
 
 def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
-    """Slice 2B: hints only sharpen planner wording; the planner stays owner."""
+    """§20: a mere source domain never becomes a ``site:`` constraint.
+
+    Only an explicit ``trusted_domain`` (evidence owner) may lock the search
+    space with ``site:``; hints only sharpen wording.
+    """
 
     from src.web.research.contracts import (
         EvidenceGap,
@@ -400,6 +469,11 @@ def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
         claim,
         source_hints=("bankofengland.co.uk", "Bank of England"),
     )
+    with_trusted = plan_gap_queries(
+        gap,
+        claim,
+        trusted_domain="bankofengland.co.uk",
+    )
 
     primary_plain = next(
         item for item in without_hints.queries if item.intent == GapSearchIntent.PRIMARY
@@ -407,9 +481,15 @@ def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
     primary_hinted = next(
         item for item in with_hints.queries if item.intent == GapSearchIntent.PRIMARY
     )
+    primary_trusted = next(
+        item for item in with_trusted.queries if item.intent == GapSearchIntent.PRIMARY
+    )
     assert "site:" not in primary_plain.query
-    assert "site:bankofengland.co.uk" in primary_hinted.query
+    # A mere source domain is never converted into a site constraint.
+    assert "site:" not in primary_hinted.query
     assert "England" in primary_hinted.query
+    # Only an explicit trusted domain locks the search space.
+    assert "site:bankofengland.co.uk" in primary_trusted.query
     # Non-primary intents are untouched by hints.
     discovery_plain = next(
         item

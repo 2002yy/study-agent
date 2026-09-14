@@ -1693,10 +1693,16 @@ class ActiveResearchRuntimeExecutor:
                                         "added_candidate_ids": [
                                             item.id for item in discovered
                                         ],
-                                        # Fallback discovery input: the page's own
-                                        # domain plus bounded claim terms. The Gap
-                                        # Planner turns this into its own query.
+                                        # The observed page domain is audit
+                                        # only; it may become a site: constraint
+                                        # only when this page's server-owned
+                                        # role is primary (the evidence owner).
                                         "hint_domain": _domain_of(candidate.url),
+                                        "trusted_primary_domain": (
+                                            _domain_of(candidate.url)
+                                            if link.source_role == "primary"
+                                            else ""
+                                        ),
                                         "hint_terms": list(keywords[:4]),
                                     },
                                 ),
@@ -2235,11 +2241,13 @@ def _append_gap_queries(
             ),
             "",
         )
+        trusted_domain, claim_hints = _lead_hints_for_claim(cursor, claim.id)
         batch = plan_gap_queries(
             gap,
             claim,
             reference_date=state.reference_date,
-            source_hints=_lead_hints_for_claim(cursor, claim.id),
+            source_hints=claim_hints,
+            trusted_domain=trusted_domain,
             question=question_surface,
         )
         for item in batch.queries:
@@ -2797,43 +2805,54 @@ def _bump_lead_metric(
 
 def _lead_hints_for_claim(
     cursor: ResearchRuntimeCursor, claim_id: str
-) -> tuple[str, ...]:
-    """Bounded primary-source hints from leads associated with one claim.
+) -> tuple[str, tuple[str, ...]]:
+    """Return ``(trusted_domain, hints)`` for one claim.
 
-    Hints only sharpen the Gap Planner's own query wording; they never create a
-    candidate and never change evidence eligibility (Slice 2E).
+    ``trusted_domain`` may become a ``site:`` constraint, and only two sources
+    are trusted: a domain explicitly *discovered* by a lead read, or a page
+    whose server-owned source role is ``primary`` (recorded as
+    ``trusted_primary_domain``). A mere source domain - the page we happened to
+    read - is never returned as trusted, because locking a follow-up search into
+    a mirror/aggregator domain makes primary evidence unreachable.
     """
 
     claim_query_ids = {
         item.id for item in cursor.planned_queries if item.claim_id == claim_id
     }
     if not claim_query_ids:
-        return ()
+        return "", ()
     candidates_by_id = {item.id: item for item in cursor.candidates}
+    trusted = ""
     hints: list[str] = []
     for payload in cursor.lead_discoveries:
         parent_id = str(payload.get("source_candidate_id") or "")
         parent = candidates_by_id.get(parent_id)
         if parent is None or not claim_query_ids.intersection(parent.query_ids):
             continue
-        for key in ("domains", "organizations", "primary_source_hints"):
+        if not trusted:
+            domains = payload.get("domains")
+            if isinstance(domains, list):
+                trusted = next(
+                    (str(domain).strip() for domain in domains if str(domain).strip()),
+                    "",
+                )
+        for key in ("organizations", "primary_source_hints"):
             values = payload.get(key)
             if isinstance(values, list):
                 hints.extend(str(value) for value in values)
-    # Evidence-stage lead follow-ups contribute their own bounded hint (page
-    # domain + claim terms) when no deeper URL was harvestable.
+    # Evidence-stage lead follow-ups contribute bounded terms; their domain is
+    # trusted only when the read page's own role was primary.
     for followup in cursor.evidence_lead_followups:
         parent_id = str(followup.get("source_candidate_id") or "")
         parent = candidates_by_id.get(parent_id)
         if parent is None or not claim_query_ids.intersection(parent.query_ids):
             continue
-        domain = str(followup.get("hint_domain") or "")
-        if domain:
-            hints.append(domain)
+        if not trusted:
+            trusted = str(followup.get("trusted_primary_domain") or "")
         terms = followup.get("hint_terms")
         if isinstance(terms, list):
             hints.extend(str(term) for term in terms[:2])
-    return tuple(dict.fromkeys(hint for hint in hints if hint))
+    return trusted, tuple(dict.fromkeys(hint for hint in hints if hint))
 
 
 def _domain_of(url: str) -> str:
