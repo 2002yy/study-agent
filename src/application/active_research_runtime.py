@@ -51,6 +51,7 @@ from src.web.research.deeper_targeting import (
     target_path_hit,
     targeted_query_terms,
 )
+from src.web.research.discovery_observability import record_search_call
 from src.web.research.page_intent import (
     PageIntent,
     infer_page_intent,
@@ -932,6 +933,31 @@ class ActiveResearchRuntimeExecutor:
                                 deadline=search_deadline,
                             )
                             audit = self.gateway.last_search_audit()
+                            # §37A observability (diagnostic only): record the
+                            # actually-issued query and the provider's bounded
+                            # results. This never changes search behaviour,
+                            # ordering, budgets or eligibility.
+                            _search_intent, _search_variants = _deeper_targeting_inputs(
+                                context
+                            )
+                            record_search_call(
+                                context,
+                                metrics_key=ACTIVE_RESEARCH_METRICS_KEY,
+                                slot_index=_search_discovery_slot(context),
+                                query=query,
+                                claim_id=str(getattr(planned, "claim_id", "") or ""),
+                                intent=_search_intent,
+                                variants=_search_variants,
+                                hint_terms=_lead_hints_for_claim(
+                                    cursor,
+                                    str(getattr(planned, "claim_id", "") or ""),
+                                )[1],
+                                results=(
+                                    payload.get("results")
+                                    if isinstance(payload, Mapping)
+                                    else ()
+                                ),
+                            )
                             return payload
                         finally:
                             phase_end("search")
@@ -3038,6 +3064,62 @@ def _bump_lead_metric(
 ) -> None:
     state = _lead_metrics(context)
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
+
+
+def _deeper_targeting_inputs(
+    context: dict[str, Any],
+) -> tuple[PageIntent | None, tuple[str, ...]]:
+    """Latest §36A/§36B discovery hints, for §37A observability only.
+
+    The linkage from one issued query back to a specific follow-up is
+    approximate on purpose: the durable cursor records keep their frozen shape,
+    so observability reads the most recent diagnostics entry instead of adding a
+    query-to-follow-up key. ``hint_terms`` at the search call site remain exact.
+    """
+
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if not isinstance(metrics, Mapping):
+        return None, ()
+    state = metrics.get("deeper_targeting")
+    if not isinstance(state, Mapping):
+        return None, ()
+    recent = state.get("recent")
+    if not isinstance(recent, list) or not recent:
+        return None, ()
+    latest = recent[-1]
+    if not isinstance(latest, Mapping):
+        return None, ()
+    raw_intent = latest.get("page_intent")
+    intent: PageIntent | None = None
+    if isinstance(raw_intent, Mapping) and raw_intent.get("kind"):
+        path_terms = raw_intent.get("path_terms")
+        intent = PageIntent(
+            kind=str(raw_intent.get("kind") or ""),
+            path_terms=tuple(str(item) for item in (path_terms or []) if str(item)),
+            matched_terms=tuple(
+                str(item) for item in (raw_intent.get("matched_terms") or []) if str(item)
+            ),
+        )
+    raw_variants = latest.get("query_variants")
+    variants = (
+        tuple(str(item) for item in raw_variants if str(item))
+        if isinstance(raw_variants, list)
+        else ()
+    )
+    return intent, variants
+
+
+def _search_discovery_slot(context: dict[str, Any]) -> int:
+    """Execution-order index of the next issued query (deterministic)."""
+
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if not isinstance(metrics, Mapping):
+        return 1
+    state = metrics.get("search_discovery")
+    if not isinstance(state, Mapping):
+        return 1
+    queries = state.get("queries")
+    return len(queries) + 1 if isinstance(queries, list) else 1
 
 
 def _record_deeper_targeting(

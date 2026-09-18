@@ -34,7 +34,7 @@ import hashlib
 import json
 import re
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,6 +45,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from dotenv import load_dotenv  # noqa: E402
 
+from src.web.research.discovery_observability import (  # noqa: E402
+    issued_variant_coverage,
+)
 from src.web.tool_gateway import GeneralWebGateway  # noqa: E402
 
 SCHEMA_VERSION = "rq1c-support-formation-audit-v1"
@@ -59,6 +62,165 @@ _NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
+    """§37A: join provider results with harvest/read/extraction truth.
+
+    The tool only joins recorded observations; it never classifies a page as
+    "the right page" - that stays a human audit field.
+    """
+
+    metrics_raw = case.get("metrics")
+    metrics: Mapping[str, Any] = metrics_raw if isinstance(metrics_raw, Mapping) else {}
+    state_raw = metrics.get("search_discovery")
+    state: Mapping[str, Any] = state_raw if isinstance(state_raw, Mapping) else {}
+    queries_raw = state.get("queries")
+    queries: list[Mapping[str, Any]] = [
+        item for item in (queries_raw if isinstance(queries_raw, list) else []) if isinstance(item, Mapping)
+    ]
+
+    sources_raw = case.get("sources")
+    sources: list[Mapping[str, Any]] = [
+        item for item in (sources_raw if isinstance(sources_raw, list) else []) if isinstance(item, Mapping)
+    ]
+    read_urls: dict[str, str] = {}
+    for row in sources:
+        url = str(row.get("url") or "")
+        if url:
+            read_urls[url] = str(row.get("read_status") or "")
+
+    deeper_raw = metrics.get("deeper_targeting")
+    deeper: Mapping[str, Any] = deeper_raw if isinstance(deeper_raw, Mapping) else {}
+    harvest_urls = {
+        str(item.get("selected_candidate_url") or "")
+        for item in (deeper.get("recent") or [])
+        if isinstance(item, Mapping)
+    }
+
+    brief_raw = case.get("brief")
+    brief: Mapping[str, Any] = brief_raw if isinstance(brief_raw, Mapping) else {}
+    evidence_raw = brief.get("eligible_evidence")
+    evidence_by_url: dict[str, tuple[str, str]] = {}
+    for row in (evidence_raw if isinstance(evidence_raw, list) else []):
+        if not isinstance(row, Mapping):
+            continue
+        url = str(row.get("url") or "")
+        if url and url not in evidence_by_url:
+            caveats = row.get("caveats") or []
+            caveat = str(caveats[0]) if caveats else ""
+            evidence_by_url[url] = (str(row.get("relation") or ""), caveat)
+
+    annotated: list[dict[str, Any]] = []
+    for item in queries:
+        results = item.get("results")
+        rows: list[dict[str, Any]] = []
+        for row in (results if isinstance(results, list) else []):
+            if not isinstance(row, Mapping):
+                continue
+            url = str(row.get("url") or "")
+            relation, caveat = evidence_by_url.get(url, ("", ""))
+            rows.append(
+                {
+                    "result_rank": row.get("result_rank"),
+                    "url": url,
+                    "title": row.get("title"),
+                    "snippet": row.get("snippet"),
+                    "authority_class": row.get("authority_class"),
+                    "lexical_targeting_score": row.get("lexical_targeting_score"),
+                    "selection_reason": row.get("selection_reason"),
+                    "selected_for_harvest": url in harvest_urls,
+                    "selected_for_read": url in read_urls,
+                    "read_status": read_urls.get(url, ""),
+                    "final_relation": relation,
+                    "final_caveat": caveat[:240],
+                    # Human field: likely_target | near_hit | irrelevant | unknown
+                    "human_candidate_classification": "",
+                }
+            )
+        annotated.append(
+            {
+                "slot_index": item.get("slot_index"),
+                "query_sha256": item.get("query_sha256"),
+                "query_excerpt": item.get("query_excerpt"),
+                "page_intent": item.get("page_intent"),
+                "generated_query_variants": item.get("generated_query_variants"),
+                "variant_matches": item.get("variant_matches"),
+                "hint_terms": item.get("hint_terms"),
+                "results": rows,
+            }
+        )
+
+    return {
+        "case_id": case.get("case_id"),
+        "query_count": len(annotated),
+        "queries": annotated,
+        "issued_variant_coverage": issued_variant_coverage(annotated),
+        # Human fields (never auto-filled):
+        "human_target_fact_present_after_read": "",
+        "human_case_note": "",
+    }
+
+
+def summarize_discovery_rates(
+    cases: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Compute §37A rates from human labels; report pending when absent."""
+
+    audited = 0
+    with_likely_target = 0
+    selected_likely_target = 0
+    present_after_read = 0
+    present_after_read_audited = 0
+    for case in cases:
+        queries = case.get("queries") or []
+        labelled_any = False
+        case_has_likely = False
+        case_selected_likely = False
+        for item in queries:
+            for row in item.get("results") or []:
+                label = str(row.get("human_candidate_classification") or "").strip()
+                if not label:
+                    continue
+                labelled_any = True
+                if label == "likely_target":
+                    case_has_likely = True
+                    if row.get("selected_for_read"):
+                        case_selected_likely = True
+        if labelled_any:
+            audited += 1
+            if case_has_likely:
+                with_likely_target += 1
+                if case_selected_likely:
+                    selected_likely_target += 1
+        present = str(case.get("human_target_fact_present_after_read") or "").strip()
+        if present:
+            present_after_read_audited += 1
+            if present.casefold() in {"yes", "true", "1"}:
+                present_after_read += 1
+
+    def _rate(numerator: int, denominator: int) -> float | None:
+        return round(numerator / denominator, 4) if denominator else None
+
+    return {
+        "audited_cases": audited,
+        "cases_with_likely_target": with_likely_target,
+        "cases_with_selected_likely_target": selected_likely_target,
+        "target_fact_candidate_rate": _rate(with_likely_target, audited),
+        "target_fact_selected_rate": _rate(selected_likely_target, with_likely_target),
+        "target_fact_present_after_read": _rate(
+            present_after_read, present_after_read_audited
+        ),
+        "status": (
+            "pending_human_classification"
+            if audited == 0
+            else "computed_from_human_labels"
+        ),
+        "note": (
+            "candidate/selected rates need the human_candidate_classification field; "
+            "the tool never decides which page is the target"
+        ),
+    }
 
 
 def load_audit_rows(artifact_path: Path) -> list[dict[str, Any]]:
@@ -207,6 +369,20 @@ def audit(
         key = str(row.get("relation") or "unknown")
         relation_counts[key] = relation_counts.get(key, 0) + 1
 
+    discovery_cases: list[dict[str, Any]] = []
+    for artifact_path in artifact_paths:
+        if not artifact_path.exists():
+            continue
+        try:
+            payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for case in payload.get("cases") or []:
+            if isinstance(case, Mapping):
+                projection = _search_discovery_projection(case)
+                if projection["query_count"]:
+                    discovery_cases.append(projection)
+
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "diagnostic_only": True,
@@ -222,6 +398,10 @@ def audit(
         "row_count": len(rows),
         "relation_counts": relation_counts,
         "rows": rows,
+        # §37A: bounded search-discovery observability per case, joined with
+        # harvest/read/extraction truth. Human labels stay empty on purpose.
+        "search_discovery": discovery_cases,
+        "discovery_rates": summarize_discovery_rates(discovery_cases),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
