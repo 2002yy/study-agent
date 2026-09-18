@@ -1440,6 +1440,82 @@ selected 且正文有事实但 lead    → 首次允许动 extractor
 
 reserve 12s、60s、Live12、30s answer timeout、PARTIAL/PASS 策略、extractor/Gate/answer、研究预算与物理模型调用数、Lead caps、H9 scheduler、read adequacy。
 
+## 39. §37A.1 Diagnostic Accounting Repair（已实施，纯诊断口径修正）
+
+**用户纠正（接受）：**§38 里"`selected_for_harvest=0/475` → §36A/§36B harvest 排序基本没参与"**不成立**——harvest 探针本就不存在，必须记 `unobserved` 而**不能记 false**；`475` 是 **query-result occurrence**，不是 475 个候选，同一 URL 被 8 条 query 召回就会在 8 行上重复计数。
+
+### 39.1 实施（`f38d1f0`）
+
+- 三态：`STATE_TRUE/STATE_FALSE/STATE_UNOBSERVED`；**未埋探针 ≠ false**。read 可按 case 观测（结果 URL 要么被读要么没有）；**harvest 只有在确实发生过 harvest 尝试时才可记 true/false**。
+- URL 去重：`dedupe_candidates`（用**生产 canonicalizer** 做 key，返回 occurrence map）→ 人工标注只对**unique candidates** 填一次，再投影回各 query occurrence。
+- 人工字段两层分离：`human_candidate_classification ∈ {likely_target, near_hit, irrelevant, unknown}`；`human_target_fact_present_after_read ∈ {true, false, unobserved}`，且**只有真的读过正文才能填 true/false**——违反会被记为 `accounting_violations`（不静默接受）。
+- case 级计率（不按 475 行加权）：
+  ```text
+  target_fact_candidate_rate = 含 >=1 likely_target 的 case / 完成分类的 case
+  target_fact_selected_rate  = likely_target 被 harvest/read 的 case / 含 likely_target 的 case
+  target_fact_read_rate      = 读到 likely_target 的 case / 含 likely_target 的 case
+  target_fact_present_after_read = 读到且正文含事实的 case / 读到 likely_target 的 case
+  target_fact_harvest_rate   = unobserved（探针补上之前不猜；绝不用 read 冒充 harvest）
+  ```
+- 饱和量化：`unique_urls_per_case` / `new_url_gain_after_q1` / `pairwise_result_set_overlap`。
+
+### 39.2 修复后的真实数字（同一份 §37A probe，`SUPPORT_FORMATION_AUDIT.after_37a1.json`）
+
+| case | queries | occurrences | unique | gain>q1 | pairwise overlap | harvest_probe |
+| --- | --- | --- | --- | --- | --- | --- |
+| current-policy-container-registry | 10 | 50 | 5 | 0 | 1.0 | no_harvest_attempt |
+| current-support-postgresql | 10 | 50 | 5 | 0 | 1.0 | no_harvest_attempt |
+| numeric-uk-bank-rate | 8 | 40 | 5 | 0 | 1.0 | no_harvest_attempt |
+| numeric-uk-inflation | 9 | 45 | 5 | 0 | 1.0 | no_harvest_attempt |
+| simple-license-uv | 4 | 20 | 5 | 0 | 1.0 | no_harvest_attempt |
+| academic-primary-attention | 8 | 40 | 10 | 5 | 1.0 | no_harvest_attempt |
+| provenance-xz | 8 | 40 | 5 | 0 | 1.0 | no_harvest_attempt |
+| conflict-python-gil | 8 | 40 | 5 | 0 | 1.0 | no_harvest_attempt |
+| community-rust-async | 9 | 45 | 5 | 0 | 1.0 | no_harvest_attempt |
+| causal-cloudflare-2025 | 8 | 40 | 10 | 5 | 1.0 | no_harvest_attempt |
+| historical-current-node-modules | 9 | 45 | 10 | 5 | 1.0 | no_harvest_attempt |
+| unverifiable-python-security | 4 | 20 | 5 | 0 | 1.0 | no_harvest_attempt |
+
+```text
+475 occurrences → 75 unique candidates（比例 0.158）
+每个 case 的相邻 query 结果集 overlap 恒为 1.0（Q2..QN 与 Q1 返回同一批 URL）
+9/12 case 的 new_url_gain_after_q1 = 0（其余 3 个 case +5）
+harvest：12/12 全部 no_harvest_attempt（本轮 §36A harvest 路径压根没触发）
+read：unique 层 25 read / 50 not read（read 可观测，故 false 合法）
+rates：pending_human_classification；target_fact_harvest_rate = unobserved；accounting_violations = []
+```
+
+**修正后的结论：**"结果饱和"比 §38 的描述**更强**也更干净——不是"8–10 条 query 只换回 5–10 个 URL"，而是**相邻查询返回完全相同的结果集（overlap 恒 1.0）**，且 9/12 case 在 Q1 之后再无新增 URL。同时 §36A/§36B 的 harvest 路径本轮**一次都没触发**（`no_harvest_attempt`），因此"harvest 排序是否有效"在本轮**不可判定**（unobserved），不得再作为结论。
+
+### 39.3 `root_or_shallow` 正式降级
+
+用户外核验：PostgreSQL 真正正确的页面是 **`/support/versioning/`**（URL 浅但就是权威事实页），Docker 正确页为 **`docs.docker.com/docker-hub/usage/pulls/`**。因此从 §37 起 `root_or_shallow` **不再作为任何方向性证据**，只保留为次要诊断。真正有意义的是四层：`有没有召回事实承载页 → 召回后有没有选它 → 选后有没有读到 → 读到后 extractor 有没有认可`。
+
+### 39.4 下一批：§37B Positive-Control Provider-Recall Probe（未开工，等人工 rate 后执行）
+
+在改任何生产搜索逻辑之前，先用**已知正例页**做 positive control（用户已独立核验两例）：
+
+```text
+Docker : docs.docker.com/docker-hub/usage/pulls/  （"Docker Hub pull usage and limits"）
+PostgreSQL: postgresql.org/support/versioning/    （"Versioning Policy"）
+```
+
+判定矩阵（用户给定）：
+
+| positive-control 结果 | 真正瓶颈 |
+| --- | --- |
+| 连精确页面标题都召不回 | provider/search backend recall |
+| 精确标题能召回、§36B query 召不回 | query formulation |
+| provider raw response 有目标页但 §37A 看不到 | request normalization / cache / adapter |
+| §37A 能看到但没 harvest | pre-H9 harvest ranking |
+| harvest/read 到但 reader 没正文 | read adequacy |
+| reader 有事实但 extractor 仍 lead | extractor false-negative |
+
+**必须同时排除的候选机制（§37A 尚未排除）：**`95/95 query 字符串唯一 ≠ provider cache key 唯一`。若更下层存在 `cache_key = claim_id` 或过度归一化的 key，不同字符串仍可能命中同一缓存结果。因此该 probe 需同时记录：`final provider query hash`、`provider request params`、`cache-key hash（若可见）`、`cache hit/miss`、`raw returned canonical URLs`。
+
+只有 positive control 稳定失败（连精确标题都召回不到）时，才有资格宣布：**瓶颈不再是 query intelligence，而是 search/provider retrieval surface 本身。**
+
+
 
 
 
