@@ -139,6 +139,12 @@ from src.web.research.scheduler import (
     plan_read_wave,
 )
 from src.web.research.selection_trace import SelectionTraceCollector
+from src.web.research.selection_authority import (
+    SELECTION_AUTHORITY_MODEL,
+    SelectionAuthorityDiagnostics,
+    select_candidates_with_model,
+    selection_authority_mode,
+)
 from src.web.research.source_cluster import (
     CandidateClusterAssignment,
     cluster_candidate_sources,
@@ -231,6 +237,7 @@ class ActiveResearchRuntimeExecutor:
             raise ValueError("model timeout cap must be positive")
         self.model_timeout_cap_seconds = model_timeout_cap
         shared_model = model_gateway or ResearchModelGateway(timeout_seconds=20.0)
+        self.model_gateway = shared_model
         self.claim_planner = claim_planner or RuntimeClaimPlanner(shared_model)
         self.candidate_assessor = candidate_assessor or RuntimeCandidateAssessor(
         shared_model,
@@ -1078,14 +1085,20 @@ class ActiveResearchRuntimeExecutor:
                                 getattr(assignment, "cluster_id", "") or ""
                             ),
                         )
-                    candidates = _bounded_assessment_candidates(
+                    candidates = _select_assessment_window(
                         claim_candidates,
+                        claim=claim,
                         assignments=assignments,
                         max_reads=state.budget.max_reads,
                         excluded_candidate_ids=frozenset(
                             {*cursor.completed_read_ids, *saved_candidate_ids}
                         ),
                         trace=selection_trace,
+                        context=context,
+                        model_gateway=self.model_gateway,
+                        run_id=run_id,
+                        wave_index=cursor.wave_index,
+                        timeout_seconds=remaining_timeout(),
                     )
                     if not candidates:
                         continue
@@ -2703,6 +2716,104 @@ def _candidates_for_claim(cursor: ResearchRuntimeCursor, claim_id: str) -> tuple
         for item in cursor.candidates
         if query_ids.intersection(item.query_ids)
     )
+
+
+def _select_assessment_window(
+    candidates: tuple[CandidatePoolItem, ...],
+    *,
+    claim: ResearchClaim,
+    assignments: Mapping[str, CandidateClusterAssignment],
+    max_reads: int,
+    excluded_candidate_ids: frozenset[str],
+    trace: SelectionTraceCollector | None,
+    context: dict[str, Any],
+    model_gateway: Any,
+    run_id: str,
+    wave_index: int,
+    timeout_seconds: float | None,
+) -> tuple[CandidatePoolItem, ...]:
+    """§38b diagnostic selection authority; rules by default.
+
+    ``RESEARCH_SELECTION_AUTHORITY=model`` lets the model choose which pooled
+    candidates enter the bounded assessment window (same cap as the rules).
+    Unusable model decisions fall back to the deterministic window, so the
+    model can raise the ceiling but never remove the floor. Every model
+    decision and both URL sets are recorded in run metrics for the runtime vs
+    offline-replay invariant check. With the default flag nothing changes.
+    """
+
+    mode = selection_authority_mode()
+    if mode != SELECTION_AUTHORITY_MODEL:
+        return _bounded_assessment_candidates(
+            candidates,
+            assignments=assignments,
+            max_reads=max_reads,
+            excluded_candidate_ids=excluded_candidate_ids,
+            trace=trace,
+        )
+
+    unread = tuple(
+        item for item in candidates if item.id not in excluded_candidate_ids
+    )
+    limit = max(
+        0,
+        min(len(unread), int(max_reads), CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES),
+    )
+    ordered = tuple(sorted(unread, key=lambda item: (item.first_seen_rank, item.id)))
+    diagnostics = SelectionAuthorityDiagnostics()
+    picked_items: tuple[CandidatePoolItem, ...] = ()
+    if limit > 0 and ordered:
+        picks, diagnostics = select_candidates_with_model(
+            model_gateway=model_gateway,
+            claim_text=claim.text,
+            candidates=ordered,
+            max_picks=limit,
+            timeout_seconds=timeout_seconds,
+            logical_call_id=(
+                f"research_selection_authority:{run_id}:{claim.id}:{wave_index}:1"
+            ),
+        )
+        if picks:
+            picked_urls = set(picks)
+            picked_items = tuple(
+                item for item in ordered if item.canonical_url in picked_urls
+            )
+            if trace is not None:
+                for item in candidates:
+                    if item.id in excluded_candidate_ids:
+                        trace.note_already_read(item.canonical_url)
+                for item in ordered:
+                    trace.note_window(
+                        item.canonical_url,
+                        selected=item.canonical_url in picked_urls,
+                        reason="model_selection_not_chosen",
+                    )
+    if not picked_items:
+        diagnostics.fallback = True
+        picked_items = _bounded_assessment_candidates(
+            candidates,
+            assignments=assignments,
+            max_reads=max_reads,
+            excluded_candidate_ids=excluded_candidate_ids,
+            trace=trace,
+        )
+        diagnostics.mode = mode
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if isinstance(metrics, dict):
+        records = metrics.get("selection_authority")
+        if not isinstance(records, list):
+            records = []
+        records.append(
+            {
+                "wave_index": wave_index,
+                "claim_id": claim.id,
+                "window_limit": limit,
+                **diagnostics.to_dict(),
+            }
+        )
+        metrics["selection_authority"] = records[-40:]
+    return picked_items
 
 
 def _bounded_assessment_candidates(
