@@ -1651,20 +1651,30 @@ rq1c-historical-current-node-modules:
 
 **下一批（§38b hybrid，建议）**：保留冻结的 query construction（规则变体已被证明能召回目标），**只把评估窗口/读选择替换为模型 selector**——在同一个 case 上直接对比 supports/binding/reads。这是"AI 决定去哪读、代码决定读多少"的最小可控实验，也是 §37B 修一个 seam 而非重写 architecture 的路径。
 
-### 42.1 §38b selector replay：离线 A/B 已完成（`8769926`，结果在 `SELECTOR_REPLAY.v1.json`）
+### 42.1 §38b selector replay：离线 A/B + 稳定性复测（`8769926`/`7ad3c96`）
 
-在 §37A 冻结数据上（95 query / 475 结果 → 每 case 5–10 个 unique 候选），对每个 case 重建完全相同的候选池，把**规则窗口实际做出的选择**（`selected_for_read` / `read_status`）与**模型 selector 的 top-K（K=2）**逐 case 对比：
+在 §37A 冻结数据上（95 query / 475 结果 → 每 case 5–10 个 unique 候选），对每个 case 重建完全相同的候选池，把**规则窗口实际做出的选择**（`selected_for_read` / `read_status`）与**模型 selector 的 top-K（K=2）**逐 case 对比。模型 = 生产同一通道（provider `deepseek`，model `deepseek-flash`，structured research 调用 thinking disabled，temperature 0，timeout 30s，max_attempts 2）。
+
+**单轮结果（`SELECTOR_REPLAY.v1.json`）**
 
 ```text
 cases_with_targets = 1（仅 rq1c-historical-current-node-modules，agreed likely_target ×2）
 rule_target_hits  = 0    ← 规则窗口：两个目标都没被选（与 §37B 的 candidate_pool_excluded 一致）
-model_target_hits = 1    ← 模型 selector：top-2 恰好是两个目标，rank 1 = nodejs.cn/api/modules.html，rank 2 = node.org.cn/api/modules.html
-model_errors = 0
+model_target_hits = 1    ← 模型 top-2 恰好是两个目标（rank1 nodejs.cn/api/modules.html，rank2 node.org.cn/api/modules.html）
 ```
 
-同一候选池、同一 K、同一问题下：**规则窗口丢掉的目标，模型选择器排第 1/2 位捡回**。其他 case 的行为也可校准：候选池只有首页时它选官方首页（docker.com / postgresql.org / github tukaani xz），候选池明显不相关时返回空而不是硬选。
+**稳定性复测（`--repeat 5`，60 次调用，`SELECTOR_REPLAY.repeat5*.json`）**
 
-**必要的保留**：selection 正确 ≠ 证据成立。目标页被读之后仍需 reader/extractor 成功（`relation=supports`）；本实验只证明"选择环节"这一个 seam 上模型显著优于规则窗口，不证明端到端 supports。**positive control（Docker/PostgreSQL 官方精确页）仍保持未运行。**
+```text
+repeat5 : model_target_hit_runs = 3/5（命中时为两个目标且顺序正确；2/5 为空返回）
+repeat5b: model_target_hit_runs = 0/5；model_status_counts = {completed 41, unavailable:model_call_attempts_exhausted 19}
+```
+
+⇒ 结论必须分开写：
+
+1. **内容上模型选择有效**：只要 flash 调用成功返回，Node 池子的 top-2 就是两个 agreed likely_target（多次复现，顺序正确）；非目标 case 大多返回空而非硬选。
+2. **调用层不稳定**：同一提示+同一池子，返回会整体空掉（2/5 甚至 5/5），且约 1/3 的调用两次尝试都失败（`model_call_attempts_exhausted`，模型侧超时）。**这意味着"把 selection 交给模型"必须先定义失败语义**：模型空/不可用时回退到规则窗口（deterministic shell 保住下限），模型可用时用模型选择提升上限。
+3. 仍**未证明端到端 supports**：selection 正确后仍需 read + extractor 成功；positive control（Docker/PostgreSQL 精确页）仍未运行。
 
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 

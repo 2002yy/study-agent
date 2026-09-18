@@ -219,12 +219,12 @@ def _resolved_model_name() -> str:
     except Exception:
         return ""
 
-
 def _model_selector(max_calls: int = 60) -> Any:
     from src.web.research.model_gateway import ResearchModelGateway
 
     model = ResearchModelGateway(model_profile="flash", timeout_seconds=30.0)
-    calls = {"count": 0}
+    calls = {"count": 0, "statuses": {}}
+
     def selector(question: str, pool: list[dict], max_picks: int) -> list[str]:
         if calls["count"] >= max_calls:
             return []
@@ -247,7 +247,11 @@ def _model_selector(max_calls: int = 60) -> Any:
             data_categories=("public_research_claim", "public_candidate_metadata"),
             max_tokens=500,
         )
-        if getattr(result, "status", "") != "completed" or result.value is None:
+        status = str(getattr(result, "status", ""))
+        reason = str(getattr(result, "reason", "") or "")
+        key = f"{status}:{reason}" if reason else status
+        calls["statuses"][key] = calls["statuses"].get(key, 0) + 1
+        if status != "completed" or result.value is None:
             return []
         pool_urls = {entry["url"] for entry in pool}
         picks: list[str] = []
@@ -259,6 +263,7 @@ def _model_selector(max_calls: int = 60) -> Any:
                 break
         return picks
 
+    selector.status_counts = lambda: dict(calls["statuses"])  # type: ignore[attr-defined]
     return selector
 
 
@@ -297,6 +302,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         "model_profile": "flash",
         "model_name": _resolved_model_name(),
         "thinking_mode": "disabled_for_structured_research_calls",
+        "model_status_counts": (
+            selector.status_counts() if hasattr(selector, "status_counts") else {}
+        ),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "cases": [case.to_dict() for case in cases],
         "summary": {
