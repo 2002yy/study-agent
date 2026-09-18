@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-15 记录）：**§37A Search Discovery Observability 已实现并验收（`f9fb023`，13 测试）：12/12 case、95 条已发出 query、475 条有界结果全部记录；**机械结论**：query 无重复（95/95 unique）、**变体确实进入 provider**（variant_matches 18/21，否决"Q2/Q3 未生效"猜测）、但每 case 8–10 条不同 query 只换回 **5–10 个唯一 URL**（provider 结果饱和）、`selected_for_harvest=0/475`。⇒ 待人工填 `human_candidate_classification` 与 `human_target_fact_present_after_read` 后，`discovery_rates` 直接给出 `candidate_rate`/`selected_rate`，据此在 §37B 分叉：candidate=0 → Query/Provider Recall；>0 且 selected=0 → 接 pre-H9 `rank_search_results`（接线点已指定，H9 不动）。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**
+- **当前唯一下一步（2026-09-15 记录）：**§37A.2 双遍独立盲标已完成（`6f14b2c`）：75/75 完全一致（likely_target 2 · near_hit 47 · irrelevant 26 · unknown 0），四级漏斗首次可读 **candidate_rate 0.0833 → read_rate 0.0 → present_rate null → extractor_capture null**（harvest 仍 unobserved）；两个 agreed likely_target 都被召回但**都没被读取**。按锁定分叉：**candidate>0 且 read 低 → 先查 search-result → read selection 链，不碰 provider recall、也不提前跑 positive control**。下一批 = **§37B-selection**（观察 selection 环节；H9 语义层继续冻结）。另修正口径：`pairwise_result_set_overlap` = Jaccard，完整数组为"9/12 全 1.0，3/12 出现 0.0 切换"，此前"完全相同"表述已更正。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1514,6 +1514,75 @@ PostgreSQL: postgresql.org/support/versioning/    （"Versioning Policy"）
 **必须同时排除的候选机制（§37A 尚未排除）：**`95/95 query 字符串唯一 ≠ provider cache key 唯一`。若更下层存在 `cache_key = claim_id` 或过度归一化的 key，不同字符串仍可能命中同一缓存结果。因此该 probe 需同时记录：`final provider query hash`、`provider request params`、`cache-key hash（若可见）`、`cache hit/miss`、`raw returned canonical URLs`。
 
 只有 positive control 稳定失败（连精确标题都召回不到）时，才有资格宣布：**瓶颈不再是 query intelligence，而是 search/provider retrieval surface 本身。**
+
+## 40. §37A.2 Model-assisted Blind Annotation（已执行）+ 指标口径修正
+
+### 40.1 指标口径修正（用户指出）
+
+`pairwise_result_set_overlap` 的公式是 **Jaccard `|A∩B| / |A∪B|`**（现在写死在文档里）。此前我在 §39.2 写"相邻查询返回完全相同"是**从截断输出（只打印前 3 个）过度概括**。完整数组为：
+
+```text
+9/12 case：全部相邻对 overlap = 1.0（结果集完全一致）
+3/12 case：各有 1–2 处 overlap = 0.0（相邻结果集完全不相交），新增 URL 即来自该处
+```
+
+即结果集**要么完全相同、要么完全不相交**，不存在部分重叠。稳妥表述：**9/12 case Q1 后零增量；其余 3/12 存在新增候选；查询结果高度重叠（或完全切换）**。
+
+### 40.2 双遍独立盲标（`6f14b2c`）
+
+- 工具：`tools/run_discovery_annotation.py`（6 测试）——盲标任务只含 `claim / page_intent / url / title / snippet`（无 relation/caveat/read 状态/answer/authority/已知正确 URL）；按固定种子逐遍洗牌；presence 任务只覆盖**确实读过**的候选并附 bounded 重抓正文（记录 freshness caveat）；`validate_annotations` 强校验 `reviewer_type=opencode` + `reviewer_model` + 词表；`merge_passes` 输出一致率与分歧清单；`summarize_model_rates` 出四级漏斗率，**read 状态从观测系统 join，绝不用 presence 字段冒充**；`target_fact_harvest_rate` 保持 `unobserved`。
+- 两遍在**独立上下文**中完成（pass A / pass B，B 为洗牌顺序），逐条对照：
+
+```text
+75/75 候选：candidate_classification 完全一致（exact agreement = 1.0）
+75/75 候选：presence 字段完全一致（= 1.0）
+标签分布（两遍相同）：likely_target 2 · near_hit 47 · irrelevant 26 · unknown 0
+分歧清单：空 → 无需人工裁决
+reviewer_type = opencode；reviewer_model = opencode-go/deepseek-v4.1-flash
+（human_* 字段按约定保持为空；本结果只记为 model-assisted）
+```
+
+### 40.3 四级漏斗首次可读（`DISCOVERY_RATES.json`）
+
+```text
+12 cases
+  ↓ search recall
+cases with >=1 likely_target            = 1        → model_target_fact_candidate_rate = 0.0833
+  ↓ read selection
+cases where likely_target was read      = 0        → model_likely_target_read_rate  = 0.0
+  ↓ page precision / reader
+present_after_read                      = n/a      → model_target_fact_present_rate = null（无分母）
+  ↓ extractor
+supports among present                   = n/a      → model_extractor_capture_rate   = null
+target_fact_harvest_rate                = unobserved（探针仍缺）
+```
+
+两个 agreed `likely_target`（均在 `rq1c-historical-current-node-modules`）：
+
+```text
+https://node.org.cn/api/modules.html   （Node.js v26 模块文档；snippet 明说 CommonJS + ECMAScript 两套模块系统）
+https://nodejs.cn/api/modules.html     （同上，镜像）
+两者均 read=False → presence 只能 unobserved
+```
+
+### 40.4 判定：本次触发的是 **selection 链**，不是 provider recall
+
+按 §39.4 预先锁定的分叉规则：
+
+```text
+candidate_rate > 0（0.0833）但 likely_target_read_rate 很低（0.0）
+→ 先研究 search-result → read selection 链，不碰 provider recall
+→ 也**不**提前跑 Docker/PostgreSQL positive control（避免用已知答案污染 recall 判断）
+```
+
+同时保留一个并行事实：**11/12 case 连一个 likely_target 都没有召回**（recall 弱），但那属于"零候选"情形的另一条支线，按规则排在 selection 之后。
+
+**下一步（§37B-selection，未开工）**：查清"被召回的正确页面为什么没进 read 选择"——观察对象是 search result → `rank_candidate_pool`(H9 语义层，冻结) → read plan 这条链上的**选择**环节；本文档同时确认 §36A/§36B 的 harvest 路径本轮 `no_harvest_attempt`（unobserved），因此 selection 失败发生在**非 harvest** 路径上。
+
+### 40.5 冻结项（未改动）
+
+reserve 12s、60s、Live12、30s answer timeout、PARTIAL/PASS 策略、extractor/Gate/answer、研究预算与物理模型调用数、Lead caps、H9 scheduler、read adequacy。
+
 
 
 
