@@ -1704,6 +1704,40 @@ run3: attempts=[completed(2)]  run4: attempts=[completed(2)]
 
 **§38b 下一执行切片**：把该 hybrid 作为**诊断变体**接进 runtime 的 `_bounded_assessment_candidates` 调用点（env 开关，默认 rules），跑 Node case 的完整链 `target_selected → … → binding_rows → answer`，并核对 runtime 的 selector input 集与离线池的一致性（诊断记录已在 `metrics.selection_trace` 中准备好）。
 
+### 42.3 §38b runtime 诊断变体：已接入并跑通（`8d0e1f1`/`a4fd498`）
+
+实现（生产默认不变）：
+
+- `src/web/research/selection_authority.py`：`RESEARCH_SELECTION_AUTHORITY=model` 时由模型选择进入评估窗口的候选；未设置/未知值 → 原 `_bounded_assessment_candidates` 行为。模型只能从 runtime 自己的 pooled candidate 集里按 canonical 匹配，输出 ≤ 原窗口 cap；空/不可用/异常 → **回退规则窗口**（模型可抬上限、不能拆地板）。7 条 focused 测试，其中一条专门断言默认路径**完全不会调用模型**。
+- runtime `_select_assessment_window`：逐 wave/claim 把 `selector_input_candidate_set`、`selector_output_urls`、状态、`fallback` 写入 `metrics.selection_authority`（40 条封顶）——离线/在线分歧可见，不靠猜。
+- `tools/run_selection_authority_runtime_probe.py`：走 **raw（非 guard）driver** 跑单 case，因为 qualification guard 的 6 次研究调用上限会把逐 wave selector 调用饿死（实测 wave2+ 直接 `qualification_research_model_budget_exhausted` → fallback → 目标再次被规则窗口丢掉）。artifact 记录 `/guard_bypass_reason/` 与 selector 记账 caveat（selector 调用**不进** runtime 的 durable model-attempt ledger，单独计数）。
+
+三次 raw 运行（Node case，flag=model）：
+
+```text
+run1: wave2 模型 completed，选中目标 → H9 rank1 → **read plan 未读**
+      observed_drops = [candidate_pool_excluded(窗口), read_budget_exhausted(reserve 门), …]
+      ← 选中后的隐藏压缩点：normal_limit = max_reads - reads_used - reserve(=3) 关闭了预算门
+run2: 同 run1 形态（目标进输入集、被选中、被 reserve 门挡在读之前）
+run3: wave1 模型选中目标 → read ✓（6000 chars，role=primary）→ 冻结 extractor **eligible**
+      但 relation = **background**（strength 0.3，caveat 明确："describes the current dual
+      module system … does not explicitly contrast them with older guidance"）
+      → supports=0 → gate=block（eligible_support_clusters=0/1, primary_required）
+      → answer=available（32 字符 fail-closed 面）
+```
+
+**因果链（单变量）在 runtime 里被推进到最后一步**：
+
+```text
+规则路径（§37B）  ：target ✗ 评估窗口（从未进入 scheduler/read）
+模型路径（run3）  ：target_selected ✓ → target_read ✓ → extractor_relation = background
+                    （同一页面、同一冻结 extractor，在 §38b 离线单-claim 链里判为 supports）
+```
+
+⇒ §38b 的下一步瓶颈不再是 selection，而是**claim 分解后目标页被绑到"新旧指引差异"子 claim 时 extractor 给 background**（以及 r run1 形态下的 read-plan reserve 门）——两者都属于用户分层表里"选中/读到之后"的行。**生产默认路径未改；positive control 仍未运行。**
+
+附带的观测修正（`a4fd498`）：`_bounded_assessment_candidates` 曾把所有被排除候选标为 `already_read`（排除集同时含已评估者），现只由读循环记录真实 already-read；`metrics.selection_authority` + trace 两套记录均可复核。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
