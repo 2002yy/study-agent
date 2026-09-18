@@ -1335,6 +1335,16 @@ official homepage→official deep docs / →policy-support page / →spec-PEP-re
 
 本轮证据落在**第一条**：页面仍普遍不含目标事实（11/11 caveat 如此），**extractor 依旧无责**；`github.com/tukaani-project/xz` 这类官方一手页已经能触达但内容本身不回答问题。⇒ **下一步 = §36B（继续 discovery/query targeting）**，Read Content Adequacy 作为独立小批待排期。
 
+### 36.6 门禁账目（code head `5e73042`，clean tree）
+
+- focused：`test_deeper_targeting.py` 12/12、`test_active_research_runtime.py` 52/52（含 §36A 诊断与 8-key 契约断言）；Ruff 全仓 clean；mypy `122 ≤ 128 / NEW=0`。
+- 全量 pytest（该 head，dirty docs 未提交时执行）：**1861 passed / 4 failed**，逐项定性：
+  1. `test_rq1c_impl_entrypoints::…exact_head_guard` —— 既有 Windows-local 平台失败（父提交同样复现）。
+  2. `test_rq1c_protocol_probes::…all_required_probes` —— 同上，既有平台失败。
+  3. `test_rq1c_protocol_probes::test_protocol_runner_rejects_non_rq1c_runtime_artifact` —— **跑测时工作树 dirty（docs 未提交）造成的 exact-head 契约行为**；提交 docs 后 clean tree 复跑已 **PASS** ✓。
+  4. `test_chat_turn_cancellation::test_concurrent_cancel_during_slow_retrieval` —— 负载型并发闪失败；单文件复跑 **32/32 passed** ✓，与本批改动（research discovery 路径）无交集。
+
+
 
 
 
