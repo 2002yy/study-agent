@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-15 记录）：**Support Formation Audit v1 已执行（§35）：27 个真实判定行中 **supports=0**（lead 24 / qualifies 2 / background 1），且 **27/27 caveat 都说明"页面本身没有目标事实"、25/27 anchor 真实存在** → **A 类主导，extractor 不是瓶颈；瓶颈是页面选择/发现深度**（root_or_shallow 13/27，镜像/教程/社区页居多）。依 §34.5 锁定规则，下一刀 = **discovery / deeper-page targeting**（不得顺手改 extractor）；另有独立小项 **read content adequacy**（gov.uk 125 字符 cookie 横幅被当作有效读取并进入抽取，6/27 行正文 <400 字符）。目标里程碑不变：**第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS 策略继续冻结。**
+- **当前唯一下一步（2026-09-15 记录）：**§36A Deeper-page Targeting 已实现并通过本地门禁（`5e73042`：gap-aware 正向 query、authority/tier 分层排序、`qualifies` 纳入触发、诊断进 `metrics.deeper_targeting`、cursor 8-key 契约不变；12 个专项测试 + runtime 断言），但**首次真实验收未达成里程碑**（12 case probe 全部健康运行，审计仅有 11 行、`supports` 仍为 0、binding rows 为 0；root/shallow 48%→45%、tutorial 37%→27% 在 n=11 下不构成证据）。按 §36.5 三岔口规则，证据落在第一条 → **下一步 = §36B（继续 discovery/query targeting），不动 extractor**；Read Content Adequacy（gov.uk 125 字符 cookie 被当有效读取）作为独立小批待排期。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS 策略继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1284,6 +1284,57 @@ runoob（PyTorch 教程）  qualifies 0.40  "uses Adam with lr=0.001, not necess
 1. **Deeper-page targeting（主）**：把发现从 root/shallow 与镜像/教程页推向官方深层页——可复用既有 bounded lead/follow-up 机制（`lead → deeper discovery`），并利用 caveat 所揭示的"缺什么事实"来构造定向更深的查询/候选偏好；不得改动 Gate/extractor/answer。
 2. **Read content adequacy（次，独立小批）**：正面处理 125 字符样板正文被当作有效读取的问题。
 3. 两者完成后重跑 audit 复测（同工具、同判据），目标里程碑仍是 **第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。
+
+## 36. §36A Deeper-page Targeting（已实现并完成首次真实验收；里程碑尚未达成）
+
+### 36.1 冻结范围（用户定义，已严格遵守）
+
+链路：`浅层/近命中页面 → extractor 给出"缺什么" → bounded follow-up → 更深/更权威页面 → 原 extractor 重判`。
+**禁止**：改 supports binding predicate、extractor prompt/parser/threshold、Evidence Gate、answer policy、BLOCK/PARTIAL/PASS 语义、research 总预算、物理模型调用数、Lead caps、provider/query hardening、顺手修 125-char cookie 页、人工把 qualifies 升成 supports。
+
+### 36.2 实现（`5e73042`）
+
+- 新增 `src/web/research/deeper_targeting.py`（纯函数、可单测）：
+  - `gap_from_extraction`：仅 `relation ∈ {lead, qualifies}` + 有效 locator/anchor + 含 missing-fact 的 caveat 触发；`supports`/`background`/无 anchor/无 caveat 一律不触发；
+  - `missing_fact_terms` / `targeted_query_terms`：把 caveat 的**缺失事实**转成正向 query 词（claim 主体最多 3 词，其余留给 gap 词；否定词/填充词被过滤，绝不搜 "does not mention …"）；
+  - `authority_class`：只惩罚已知 mirror/tutorial/community 域；**官方身份不靠域名猜**，而由服务端 source role（`primary`）决定 → tutorial 源不会把发现锁死在自己域名；
+  - `rank_targeting_candidates`：分层确定性排序，严格遵循用户给的优先级 `authoritative deep page > same official domain deep page > generic deep page > root/landing`（层内软分数 + URL tie-break）；**排序只是发现偏好，relation/strength/binding eligibility 仍由 extractor + Gate 决定**。
+- runtime 接线（最小）：触发条件加入 `qualifies`；harvest 后的 URL 用新排序；`hint_terms` 改为 gap-aware 正向词。
+- **durable cursor 记录保持冻结的 8-key 形状**（codec 严格校验；实测加字段会导致 resume 失败 → `active_runtime_unavailable`），§36A 诊断改记 `metrics.deeper_targeting`：`followup_reason / source_candidate_url / source_authority_class / targeting_strategy / gap_hint / selected_candidate_url / selected_candidate_depth`。
+
+### 36.3 测试（8 类 + 不变量，全部通过）
+
+official homepage→official deep docs / →policy-support page / →spec-PEP-reference；**unofficial tutorial 不得锁死自己域名**；`already supports` 不触发；`background` 不触发；重复 URL 不占 slot；**caveat 否定表达 → query 只搜正向 missing fact**；同一输入 → 排序确定性一致。另加 runtime 断言：follow-up 记录仍是 8 个 key、`hint_terms` 不含否定词、`metrics.deeper_targeting` 有诊断。
+
+### 36.4 首次真实验收（12 case 全量 probe，`DEEPER_TARGETING_PROBE.json`）
+
+- 运行健康：12/12 case 完成，`budget_contract_violations=0`、`runner_error_cases=0`，总耗时 321.8s（单 case 17.9–39.7s）。
+- 审计对比（同一工具/判据）：
+
+| 指标 | §35 baseline | §36A 首次验收 |
+| --- | --- | --- |
+| rows | 27 | 11 |
+| relations | lead 24 · qualifies 2 · background 1 · **supports 0** | lead 10 · background 1 · **supports 0** |
+| anchor hit | 25/27 | 11/11 |
+| caveat 指出"页面无目标事实" | 27/27 | 11/11 |
+| root_or_shallow | 13/27（48%） | 5/11（45%） |
+| tutorial/community | 10/27（37%） | 3/11（27%） |
+| 正文 <400 字符 | 6/27（22%） | 2/11（18%） |
+
+- **判定：里程碑未达成（supports 仍为 0，binding rows 仍为 0）。** 方向性变化（root/shallow 与 tutorial 占比略降）在 n=11 且非同一 case 组合下**不构成证据**，不据此宣称改善（遵守"不写死百分比目标"的约定）。
+- 一个值得记录的正面信号：`provenance-xz` 出现 **`https://github.com/tukaani-project/xz`（CVE-2024-3094 的上游项目仓库）** 行——即发现已能触达官方一手页；但仍判 `lead`，因为该 README 本身不回答"哪些来源构成原始披露"。
+- 两个仍未解决、且**不得混修**的旁证：`gov.uk` 125 字符 cookie 正文依旧被当有效读取（read adequacy，独立小批）；本轮多个 case 的 eligible 行为 0（run 间方差）。
+
+### 36.5 三岔口判定（按用户预设规则）
+
+```text
+搜到的仍是浅层页 / 深层页仍无目标事实 → 瓶颈仍是 discovery/query targeting → 继续 §36B，不动 extractor
+页面只有 cookie/壳内容                → Read Content Adequacy（独立小批 §37）
+深层官方页有事实但 extractor 仍判 lead → 才首次出现 B 类 false-negative，才有资格开 extractor repair
+```
+
+本轮证据落在**第一条**：页面仍普遍不含目标事实（11/11 caveat 如此），**extractor 依旧无责**；`github.com/tukaani-project/xz` 这类官方一手页已经能触达但内容本身不回答问题。⇒ **下一步 = §36B（继续 discovery/query targeting）**，Read Content Adequacy 作为独立小批待排期。
+
 
 
 
