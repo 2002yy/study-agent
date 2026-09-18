@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -50,7 +51,18 @@ class ReplayCase:
     rule_reasons: dict[str, str] = field(default_factory=dict)
     targets: list[str] = field(default_factory=list)
     model_picks: list[str] = field(default_factory=list)
+    model_picks_runs: list[list[str]] = field(default_factory=list)
     model_error: str = ""
+
+    def model_hits(self) -> int:
+        return sum(
+            1
+            for picks in self.model_picks_runs
+            if any(target in picks for target in self.targets)
+        )
+
+    def model_empties(self) -> int:
+        return sum(1 for picks in self.model_picks_runs if not picks)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -62,6 +74,10 @@ class ReplayCase:
             "targets": list(self.targets),
             "rule_target_hits": [t for t in self.targets if t in self.rule_picks],
             "model_picks": list(self.model_picks),
+            "model_picks_runs": [list(picks) for picks in self.model_picks_runs],
+            "model_hit_runs": self.model_hits(),
+            "model_empty_runs": self.model_empties(),
+            "model_runs": len(self.model_picks_runs),
             "model_target_hits": [t for t in self.targets if t in self.model_picks],
             "model_target_rank": (
                 self.model_picks.index(self.targets[0]) + 1
@@ -163,6 +179,7 @@ def replay(
     *,
     selector: Any,
     max_picks: int = 2,
+    repeat: int = 1,
 ) -> list[ReplayCase]:
     """Run the model selector over every frozen case (selector is injectable)."""
 
@@ -175,12 +192,15 @@ def replay(
         replay_case.rule_picks, replay_case.rule_reasons = rule_selection(case)
         replay_case.targets = agreed_targets(annotations, case_id)
         if replay_case.pool:
-            try:
-                replay_case.model_picks = list(
-                    selector(question, replay_case.pool, max_picks)
-                )[:max_picks]
-            except Exception as exc:  # model failures stay visible, never fatal
-                replay_case.model_error = f"{type(exc).__name__}: {exc}"[:300]
+            for _ in range(max(1, repeat)):
+                try:
+                    picks = list(selector(question, replay_case.pool, max_picks))[:max_picks]
+                    replay_case.model_picks_runs.append(picks)
+                    if not replay_case.model_picks:
+                        replay_case.model_picks = list(picks)
+                except Exception as exc:  # model failures stay visible, never fatal
+                    replay_case.model_error = f"{type(exc).__name__}: {exc}"[:300]
+                    replay_case.model_picks_runs.append([])
         results.append(replay_case)
     return results
 
@@ -189,12 +209,22 @@ def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _resolved_model_name() -> str:
+    """The exact model id the flash profile resolves to (methodology lock)."""
+
+    try:
+        from src.llm_client import get_model_name
+
+        return get_model_name("flash")
+    except Exception:
+        return ""
+
+
 def _model_selector(max_calls: int = 60) -> Any:
     from src.web.research.model_gateway import ResearchModelGateway
 
     model = ResearchModelGateway(model_profile="flash", timeout_seconds=30.0)
     calls = {"count": 0}
-
     def selector(question: str, pool: list[dict], max_picks: int) -> list[str]:
         if calls["count"] >= max_calls:
             return []
@@ -238,6 +268,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--annotations", type=Path, default=DEFAULT_ANNOTATIONS)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-picks", type=int, default=2)
+    parser.add_argument("--repeat", type=int, default=1)
     return parser
 
 
@@ -246,8 +277,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     load_dotenv(REPO_ROOT / ".env")
     probe = _load(args.probe)
     annotations = _load(args.annotations)
-    selector = _model_selector()
-    cases = replay(probe, annotations, selector=selector, max_picks=args.max_picks)
+    selector = _model_selector(max_calls=40 * max(1, args.repeat))
+    cases = replay(
+        probe,
+        annotations,
+        selector=selector,
+        max_picks=args.max_picks,
+        repeat=max(1, args.repeat),
+    )
     artifact = {
         "schema_version": SCHEMA_VERSION,
         "diagnostic_only": True,
@@ -255,6 +292,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         "source_probe": str(args.probe).replace("\\", "/"),
         "annotations": str(args.annotations).replace("\\", "/"),
         "max_picks": args.max_picks,
+        "repeat": max(1, args.repeat),
+        "provider_profile": (os.getenv("LLM_PROVIDER_PROFILE") or "openai"),
+        "model_profile": "flash",
+        "model_name": _resolved_model_name(),
+        "thinking_mode": "disabled_for_structured_research_calls",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "cases": [case.to_dict() for case in cases],
         "summary": {
@@ -263,9 +305,9 @@ def main(argv: Iterable[str] | None = None) -> int:
             "rule_target_hits": sum(
                 1 for case in cases if any(t in case.rule_picks for t in case.targets)
             ),
-            "model_target_hits": sum(
-                1 for case in cases if any(t in case.model_picks for t in case.targets)
-            ),
+            "model_target_hit_runs": sum(case.model_hits() for case in cases),
+            "model_runs_total": sum(len(case.model_picks_runs) for case in cases),
+            "model_empty_runs": sum(case.model_empties() for case in cases),
             "model_errors": sum(1 for case in cases if case.model_error),
         },
     }

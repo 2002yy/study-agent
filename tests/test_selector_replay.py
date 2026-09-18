@@ -63,9 +63,15 @@ def test_agreed_targets_require_two_pass_agreement() -> None:
 
 
 def test_replay_compares_rule_and_model_picks() -> None:
+    calls = {"count": 0}
+
     def selector(question: str, pool: list[dict], max_picks: int) -> list[str]:
         del question, max_picks
-        return [entry["url"] for entry in pool if entry["url"] == NODE]
+        calls["count"] += 1
+        # Unstable model: hits on the first run, empty on the second.
+        if calls["count"] == 1:
+            return [entry["url"] for entry in pool if entry["url"] == NODE]
+        return []
 
     cases = replay(
         {"cases": [_probe_case()]},
@@ -75,11 +81,15 @@ def test_replay_compares_rule_and_model_picks() -> None:
             ]
         },
         selector=selector,
+        repeat=2,
     )
     record = cases[0].to_dict()
     assert record["rule_target_hits"] == []
     assert record["model_target_hits"] == [NODE]
     assert record["model_target_rank"] == 1
+    assert record["model_runs"] == 2
+    assert record["model_hit_runs"] == 1
+    assert record["model_empty_runs"] == 1
 
 
 def test_model_failure_is_recorded_not_fatal() -> None:

@@ -625,6 +625,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         },
         "provider_profile": os.getenv("LLM_PROVIDER_PROFILE") or "openai",
         "model_profile": "flash",
+        "model_name": _resolved_model_name(),
+        "thinking_mode": "disabled_for_structured_research_calls",
         "assumptions": {
             "source_role": "primary_for_every_selector_chosen_page",
             "source_cluster_id": "single_constant_cluster",
@@ -695,6 +697,17 @@ def _git_sha() -> str:
             text=True,
             check=True,
         ).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _resolved_model_name() -> str:
+    """The exact model id the flash profile resolves to (methodology lock)."""
+
+    try:
+        from src.llm_client import get_model_name
+
+        return get_model_name("flash")
     except Exception:
         return ""
 
