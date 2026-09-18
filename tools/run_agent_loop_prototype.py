@@ -311,11 +311,16 @@ def run_loop(
 
 PLANNER_SYSTEM_PROMPT = (
     "You are a bounded web-research planner. Given the claim, the evidence so "
-    "far (relation + caveat) and the queries/titles already tried, decide the "
+    "far (relation + caveat) and the queries/results already tried, decide the "
     "single next search query that would most directly carry the missing fact. "
-    'Reply with strict JSON: {"query": str, "desired_source_type": str, '
-    '"sufficient": bool, "reason": str}. Set sufficient=true only when the '
-    "existing evidence already answers the claim."
+    "The search backend is Bing RSS: it does not support site:, boolean "
+    "operators or long keyword stacks. Use short queries (roughly 3-8 words), "
+    "prefer one distinctive quoted phrase plus at most two concept words, and "
+    "when earlier results were off-target change the phrase or the document "
+    "type (official docs / support policy / changelog) instead of adding more "
+    'keywords. Reply with strict JSON: {"query": str, "desired_source_type": '
+    'str, "sufficient": bool, "reason": str}. Set sufficient=true only when '
+    "the existing evidence already answers the claim."
 )
 
 SELECTOR_SYSTEM_PROMPT = (
