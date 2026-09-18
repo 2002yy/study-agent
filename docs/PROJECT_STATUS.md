@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-15 记录）：**§37A.2 双遍独立盲标已完成（`6f14b2c`）：75/75 完全一致（likely_target 2 · near_hit 47 · irrelevant 26 · unknown 0），四级漏斗首次可读 **candidate_rate 0.0833 → read_rate 0.0 → present_rate null → extractor_capture null**（harvest 仍 unobserved）；两个 agreed likely_target 都被召回但**都没被读取**。按锁定分叉：**candidate>0 且 read 低 → 先查 search-result → read selection 链，不碰 provider recall、也不提前跑 positive control**。下一批 = **§37B-selection**（观察 selection 环节；H9 语义层继续冻结）。另修正口径：`pairwise_result_set_overlap` = Jaccard，完整数组为"9/12 全 1.0，3/12 出现 0.0 切换"，此前"完全相同"表述已更正。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**
+- **当前唯一下一步（2026-09-16 更新）：**§37B-selection 已完成并给出**第一个可信的正例丢失定位**：目标候选 `https://nodejs.cn/api/modules.html`（provider ✓ → normalized ✓ → materialized ✓ → pool ✓）**死在 bounded assessment window（`_bounded_assessment_candidates`，cap=2）**，terminal_reason = `candidate_pool_excluded`（观察到的分支：`window_limit_reached`）——**没有进入 H9、没有进入 read plan、也没有触发任何 authority/mirror/budget 规则**（read budget 2/8 未用尽）。工具：`tools/run_selection_provenance.py`（`daebd8a`/`cea5db4`）。⇒ 未来 ranking 接线点是**评估窗口的候选排序**，不是此前猜的 harvest seam。**§38 agent-loop prototype**（`7dca213`/`0b61afd`/`9ddfd7d`）首批实测：纯模型 planner+selector 在同样的 provider/reader/extractor 下**目前弱于 pipeline**（Docker case 4 次 search 未召回 docs.docker.com；Node case 未召回 `/api/modules.html`；planner 需 provider 感知提示，模型调用有超时噪声）。下一批 = **§38b hybrid**：保留冻结的 query planning，只把 selection（评估窗口/读选择）交给模型，直接验证"selection 是死因"的假设。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**（注：§37B 生产 instrumentation 的全量 pytest 门禁因用户要求切换方向而中断，pending 一次完整复跑。）
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1582,6 +1582,75 @@ candidate_rate > 0（0.0833）但 likely_target_read_rate 很低（0.0）
 ### 40.5 冻结项（未改动）
 
 reserve 12s、60s、Live12、30s answer timeout、PARTIAL/PASS 策略、extractor/Gate/answer、研究预算与物理模型调用数、Lead caps、H9 scheduler、read adequacy。
+
+## 41. §37B-selection：正例丢失的第一层定位（已完成，`daebd8a`/`cea5db4`）
+
+### 41.1 真实调用链（代码路径实测，不是设计图）
+
+```text
+ActiveResearchGateway.search_detailed(query)              ← 同一 provider stack（§37A 观测点）
+  → execute_candidate_pool_batch(one_query, results_per_query=5, max_candidates=budget)
+      → merge_candidate_pool                                   [第 1 层压缩：canonicalize/dedupe/cap]
+  → _merge_runtime_candidates(cursor.candidates, ...)          [第 2 层：跨 query 去重/上限]
+  → _candidates_for_claim
+  → cluster_candidate_sources(assignments)
+  → _bounded_assessment_candidates                             [第 3 层压缩：评估窗口 cap=2]
+  → candidate_assessor.assess（模型）
+  → rank_candidate_pool (H9)                                   [只排序已评估者，不改语义]
+  → _fair_read_plan → schedule() → plan_read_wave              [covered cluster / normal_limit / reserve]
+  → 读循环（budget / research window / already_read）
+```
+
+**此前假设的"normalized result → harvest"接线点不正确**：本 case harvest 全程 `no_harvest_attempt`（unobserved），真实压缩发生在 `merge_candidate_pool`、`_merge_runtime_candidates` 与**评估窗口**。
+
+### 41.2 观测机制（纯 telemetry，零行为变更）
+
+- `src/web/research/selection_trace.py`：每个 canonical URL 一条 trace（seen/normalized/materialized/deduped_survivor/duplicate_merges/pool/window/scheduler_rank/read…），`terminal_reason` 由 **first observed drop** 在 payload 生成时定型；未观察到原因 = `unobserved`，读过的候选 = 空。
+- 只记录既有代码**已经做出**的决定（分支原因名取自真实分支：`window_limit_reached` / `cluster_represented_by_earlier_candidate` / `covered_cluster` / `budget`…），禁止诊断代码重推选择。
+- payload 只进 `metrics.selection_trace`（resume 可 hydrate），**不进入 cursor / evidence qualification**；H9 rank 直接取现成输出，不改 H9。
+- 12 条契约测试（blinding/顺序/预算/cursor/determinism/first-drop 稳定性）。
+
+### 41.3 首次真实结论（case `rq1c-historical-current-node-modules`）
+
+```text
+https://nodejs.cn/api/modules.html（agreed likely_target）
+  provider ✓（4 次出现，duplicate_merges=3）
+  normalized ✓ → materialized ✓（deduped survivor）
+  entered_candidate_pool ✓
+  entered_scheduler ✗  ← 死在这里之前
+  scheduler_rank null / read_dispatched false
+  terminal_reason = candidate_pool_excluded
+  filter_reason  = assessment_window:window_limit_reached
+```
+
+- 该 run 的评估窗口 cap = 2（`CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2`），每 wave 只允许最早 `first_seen_rank` 的前 2 个 cluster 代表进入评估；目标页在 wave 1/2 都被窗口截断，**未触达 H9、未触达 read plan**。
+- **不是** authority/mirror 过滤（链上没有 mirror 规则触发）、**不是** read budget（2/8）、**不是** canonicalization 错误、**不是** scheduler 未选（它从未进入 scheduler）。
+- `https://node.org.cn/api/modules.html` 在带 trace 的两次真实运行中**未被召回**（unobserved）→ 两个镜像的召回本身在 run 间不稳定（与 §37A 原 run 对照）。
+- 读到的 4 个候选（2 wave × cap 2）中 1 个 read 失败；gate=block、answer=available（32 字符 fail-closed surface）。
+
+**判定（按 §39.4 分叉）**：目标丢失发生在**评估窗口的候选排序/上限**，属于 selection/ranking 问题；修复 seam 在**窗口的候选排序**（§36B `rank_search_results` 的自然落点），不在 harvest、不动 H9。**positive control（Docker/PostgreSQL）仍未运行**。
+
+## 42. §38 Agent-loop prototype：首批实测（`7dca213`/`0b61afd`/`9ddfd7d`）
+
+架构假设：把 PLAN（query planning）与 SELECT（结果选择）从规则链交给 flash 模型，代码只保留硬约束（搜索/读取上限、超时、去重、citation、reader/extractor/Gate 原样）。工具 `tools/run_agent_loop_prototype.py`（diagnostic_only，8 契约测试；bounds 4 search / 6 read / 60s per case；复用 `ActiveResearchGateway` 与冻结 `RuntimeEvidenceExtractor`）。
+
+首批（2 case，v0–v3 迭代）：
+
+```text
+rq1c-current-policy-container-registry:
+  v0-v2: planner 产出 8–12 词堆叠 query（含 Bing RSS 不支持的 site:/布尔），召回全是教程/无关页；
+         selector 全部返回空列表（现在可见：model completed，raw=[]）→ reads=0
+  v3:    provider 感知提示后 query 变短（"Docker Hub usage and limits" pull rate），
+         仍**未召回 docs.docker.com 官方页**；1 次 read（docker.com 首页，无正文）→ supports=0
+
+rq1c-historical-current-node-modules:
+  未召回 /api/modules.html；selector 多次 unavailable（model_call_attempts_exhausted，模型侧超时噪声）
+```
+
+**诚实结论（首批）**：纯 agent loop 在当前 provider（Bing RSS）与当前 planner 提示下**没有显示出优于规则 pipeline 的召回**；它验证了"模型选择环节可用"（Node v1 正确选中 nodejs.org/ 并把 caveat 说清楚：页面未陈述目标事实），但 **query planning 交给模型并没有立刻变好**——反而暴露 provider 交互（`site:` 无效、结果稀疏）才是共同瓶颈。**§37B 的结论仍然成立**：在 pipeline 内部，目标死因是评估窗口选择，而不是"缺少一个更像 agent 的 planner"。
+
+**下一批（§38b hybrid，建议）**：保留冻结的 query construction（规则变体已被证明能召回目标），**只把评估窗口/读选择替换为模型 selector**——在同一个 case 上直接对比 supports/binding/reads。这是"AI 决定去哪读、代码决定读多少"的最小可控实验，也是 §37B 修一个 seam 而非重写 architecture 的路径。
+
 
 
 
