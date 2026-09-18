@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-15 记录）：**§36B Slice 1+2 已实现并冻结缺陷（`5e73042` + `c2b5be0`：page-intent taxonomy + 有界 query variants + title/snippet 排序键；两个由自身诊断暴露的缺陷已修：token 精确匹配、禁止 caveat 原文回退）。两轮 12-case 真实验收：**`supports` 仍 0、binding rows 仍 0** → `PASS as implementation / FAIL as milestone`；live 诊断显示 Slice 1 确实在跑（intents 分布 + ≤3 变体 + `page_intent_match` 计数）。下一批**第一步是补仪器**：在诊断 artifact 记录有界候选 `title/snippet/url`，据此算出 `target_fact_candidate_rate` 与 `target_fact_selected_rate`，才能把 **recall 与 ranking 分开**；title/snippet 排序若要真正接入，需要用户指定一个**非冻结接线点**（当前唯一候选排序位置是冻结的 H9 scheduler）。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**
+- **当前唯一下一步（2026-09-15 记录）：**§37A Search Discovery Observability 已实现并验收（`f9fb023`，13 测试）：12/12 case、95 条已发出 query、475 条有界结果全部记录；**机械结论**：query 无重复（95/95 unique）、**变体确实进入 provider**（variant_matches 18/21，否决"Q2/Q3 未生效"猜测）、但每 case 8–10 条不同 query 只换回 **5–10 个唯一 URL**（provider 结果饱和）、`selected_for_harvest=0/475`。⇒ 待人工填 `human_candidate_classification` 与 `human_target_fact_present_after_read` 后，`discovery_rates` 直接给出 `candidate_rate`/`selected_rate`，据此在 §37B 分叉：candidate=0 → Query/Provider Recall；>0 且 selected=0 → 接 pre-H9 `rank_search_results`（接线点已指定，H9 不动）。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1387,6 +1387,59 @@ official homepage→official deep docs / →policy-support page / →spec-PEP-re
 ### 37.4 冻结项
 
 - reserve 12s、60s、Live12、30s answer timeout、PARTIAL/PASS thinking 策略、extractor/Gate/answer、research 总预算与物理模型调用数、Lead caps、read adequacy（§37 独立小批）均**未改动**。
+
+## 38. §37A Search Discovery Observability（已实现并完成首次真实验收；recall/ranking 首次可分离）
+
+**用户冻结的 contract：**只增加**有界**的 search-result 可观测性——记录实际发出的 query variant 与 provider 返回的有界 `title/snippet/url`、机械 targeting 信号、selected/read 状态；**不改变**任何搜索、排序、预算、资格或回答行为；人工 audit 计算两个 rate，从而正式区分 recall 与 ranking。
+
+### 38.1 实现（`f9fb023`）
+
+- 新增 `src/web/research/discovery_observability.py`（纯函数、13 测试）：
+  - `record_search_call` 每个**实际发出的 query** 记一条有界记录：`slot_index / query_sha256 / query_chars / query_excerpt / claim_id / page_intent / generated_query_variants / variant_matches / hint_terms`，以及 provider Top-K（默认 5）的 `result_rank / url / title(≤200) / snippet(≤240) / provider / authority_class / lexical_targeting_score / selection_reason`；
+  - `human_candidate_classification / selected_for_harvest / selected_for_read / read_status / final_relation / final_caveat` **一律留空**（工具不宣布"这是正确页面"）；
+  - 上限：queries ≤24、results ≤Top-K；同输入**确定性**输出；空结果也记录（"没有召回"≠"没有观测"）；异常 payload 不抛错。
+  - `issued_variant_coverage`：生成的 variant 中有多少**真的**与已发出 query 有机械词面重叠。
+- runtime：在既有 `search_exact` 闭包内 **observe-then-return**（payload 不变）；`intent/variants` 取最近一条 §36A/§36B 诊断（近似关联已在代码注释与文档说明，且逐条查询的 `hint_terms` 是精确的）。
+- audit 工具新增 `search_discovery`（按 URL 与 harvest/read/extraction 连接）+ `discovery_rates`：`target_fact_candidate_rate` / `target_fact_selected_rate` / `target_fact_present_after_read`，在人工字段未填时显式返回 `pending_human_classification`。
+
+### 38.2 首次真实验收（12 case，`SEARCH_DISCOVERY_PROBE.json` → `SUPPORT_FORMATION_AUDIT.after_37a.json`）
+
+```text
+观测覆盖        : 12/12 cases，95 条已发出 query，475 条有界结果
+query 重复率    : 95 issued / 95 unique = 0%（无重复查询）
+variant 覆盖    : generated 21 / matched 18（变体确实影响了已发出 query）
+result 饱和度   : 每 case 8–10 条不同 query 只得到 5–10 个唯一 URL（provider 反复返回同一批浅层页）
+authority 分布  : unknown 327 · tutorial 130 · mirror 18
+selected_for_harvest = 0/475（§36A harvest 路径本轮未选中任何结果）
+selected_for_read    = 154/475
+rates           : status = pending_human_classification（等人工标注）
+```
+
+**机械结论（不需要人工即可成立）：**
+
+1. **"Q2/Q3 没进 provider"的猜测被否决**：95/95 query 唯一，且变体形态（`… official docs` / `… announcement` / `… independent verification`）都真实出现在已发出 query 中；`variant_matches` 18/21。
+2. **召回天花板在 provider/query 层**：同一 case 的 8–10 条不同 query 只换回 **5–10 个唯一 URL**（Docker 例：docker.com / docker.github.net.cn / runoob 反复出现；PostgreSQL 例：postgresql.org / postgresql.org/download / runoob），即**查询多样化没有扩大结果空间**。
+3. `selected_for_harvest=0` 说明 §36A/§36B 的 harvest 排序在本轮**几乎不参与**；被读取的 154 条来自既有 pool 选择（H9），与 §35 的"页面不对"一致。
+
+**待人工填写后才能判定的两项**（工具已就绪）：`human_candidate_classification`（`likely_target|near_hit|irrelevant|unknown`）与 `human_target_fact_present_after_read`。填完后 `discovery_rates` 会直接给出：
+
+```text
+candidate_rate = 0            → Recall（§37B query/provider recall）
+candidate_rate > 0, selected=0 → Ranking（接 pre-H9 rank_search_results）
+selected 且正文无事实          → Discovery precision（继续 page targeting）
+selected 且正文有事实但 lead    → 首次允许动 extractor
+```
+
+### 38.3 下一批分叉（按你的矩阵，等人工 rate 后执行）
+
+- 若 `target_fact_candidate_rate` 为 0 → **§37B Query/Provider Recall**（换查询空间/查询形态，注意 provider 结果饱和是机械证据）。
+- 若 >0 且 `selected_rate` 低 → **接 `rank_search_results`**，接线点已由你指定：`normalized search results → [rank_search_results] → bounded URL harvest → candidate construction → H9(不动)`。
+- `read adequacy` 与 `extractor` 两条支线继续冻结，直到对应证据出现。
+
+### 38.4 冻结项（未改动）
+
+reserve 12s、60s、Live12、30s answer timeout、PARTIAL/PASS 策略、extractor/Gate/answer、研究预算与物理模型调用数、Lead caps、H9 scheduler、read adequacy。
+
 
 
 
