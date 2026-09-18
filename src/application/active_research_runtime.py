@@ -42,10 +42,20 @@ from src.web.research.candidate_ranking import (
 )
 from src.web.research.claim_planner import RuntimeClaimPlanner
 from src.web.research.deeper_targeting import (
+    AUTHORITY_OFFICIAL,
+    AUTHORITY_TUTORIAL,
     GapHint,
+    authority_class,
     gap_from_extraction,
     rank_targeting_candidates,
+    target_path_hit,
     targeted_query_terms,
+)
+from src.web.research.page_intent import (
+    PageIntent,
+    infer_page_intent,
+    query_variants,
+    selection_reason,
 )
 from src.web.research.contracts import (
     EvidenceCluster,
@@ -1822,10 +1832,25 @@ class ActiveResearchRuntimeExecutor:
                                 _bump_lead_metric(
                                     context, "deeper_targeting_gap_unavailable"
                                 )
+                                intent = None
+                                variants: tuple[str, ...] = ()
                             else:
                                 _bump_lead_metric(
                                     context,
                                     f"deeper_targeting_{gap.targeting_strategy}",
+                                )
+                                # §36B slice 1: infer the kind of page that would
+                                # carry the fact and derive bounded query variants.
+                                # These are discovery hints allocated inside the
+                                # existing follow-up slots - no budget growth.
+                                intent = infer_page_intent(
+                                    claim_terms=keywords,
+                                    missing_fact_terms=gap.missing_fact_terms,
+                                )
+                                variants = query_variants(
+                                    subject_terms=keywords,
+                                    missing_fact_terms=gap.missing_fact_terms,
+                                    intent=intent,
                                 )
                             discovered, followup_stats = (
                                 _evidence_lead_followup_candidates(
@@ -1890,8 +1915,14 @@ class ActiveResearchRuntimeExecutor:
                                         # The obstacle is searched positively:
                                         # claim subject first, then the missing
                                         # fact's own terms (never the negation).
+                                        # §36B may add page-intent terms, still
+                                        # bounded, still inside this slot.
                                         "hint_terms": list(
-                                            targeted_query_terms(gap, keywords)[:4]
+                                            (
+                                                variants[0].split()
+                                                if variants
+                                                else targeted_query_terms(gap, keywords)
+                                            )[:4]
                                             if gap is not None
                                             else keywords[:4]
                                         ),
@@ -1908,6 +1939,8 @@ class ActiveResearchRuntimeExecutor:
                                     if discovered
                                     else 0
                                 ),
+                                intent=intent,
+                                variants=variants,
                             )
                             checkpoint()
 
@@ -3014,8 +3047,10 @@ def _record_deeper_targeting(
     source_url: str,
     selected_url: str,
     selected_depth: int,
+    intent: PageIntent | None = None,
+    variants: tuple[str, ...] = (),
 ) -> None:
-    """§36A diagnostics (audit only; never qualification semantics).
+    """§36A/§36B diagnostics (audit only; never qualification semantics).
 
     Recorded in ``metrics["deeper_targeting"]`` instead of the durable cursor
     record on purpose: the cursor codec strictly validates the follow-up key set,
@@ -3036,19 +3071,45 @@ def _record_deeper_targeting(
             state["strategy_counts"] = counts
         key = gap.targeting_strategy
         counts[key] = int(counts.get(key) or 0) + 1
+        if intent is not None:
+            intent_counts = state.get("page_intent_counts")
+            if not isinstance(intent_counts, dict):
+                intent_counts = {}
+                state["page_intent_counts"] = intent_counts
+            intent_counts[intent.kind] = int(intent_counts.get(intent.kind) or 0) + 1
     recent = state.get("recent")
     if not isinstance(recent, list):
         recent = []
         state["recent"] = recent
+    source_authority = gap.source_authority_class if gap else ""
+    selected_authoritative = bool(
+        gap is not None
+        and selected_url
+        and authority_class(selected_url) != AUTHORITY_TUTORIAL
+        and (
+            gap.source_authority_class == AUTHORITY_OFFICIAL
+            or target_path_hit(selected_url)
+        )
+    )
     recent.append(
         {
             "followup_reason": (
                 "missing_target_fact" if gap is not None else "lead_without_usable_gap"
             ),
             "source_candidate_url": str(source_url or "")[:300],
-            "source_authority_class": gap.source_authority_class if gap else "",
+            "source_authority_class": source_authority,
             "targeting_strategy": gap.targeting_strategy if gap else "unspecified",
             "gap_hint": gap.to_dict() if gap else {},
+            # §36B slice 1 diagnostics: what kind of page was inferred, which
+            # bounded variants were derived, and which one fed the hints.
+            "page_intent": intent.to_dict() if intent is not None else {},
+            "query_variants": list(variants[:3]),
+            "selected_query_variant": variants[0] if variants else "",
+            "selection_reason": selection_reason(
+                authoritative=selected_authoritative,
+                title_match=0,
+                intent_match=len(intent.path_terms) if intent is not None else 0,
+            ),
             "selected_candidate_url": str(selected_url or "")[:300],
             "selected_candidate_depth": int(selected_depth or 0),
         }

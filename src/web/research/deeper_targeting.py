@@ -296,6 +296,16 @@ def target_path_hit(url: str) -> bool:
     return any(token in lowered for token in _TARGET_PATH_TOKENS)
 
 
+def is_query_stopword(term: str) -> bool:
+    """Whether a term must never appear in a discovery query (negations/fillers).
+
+    Shared with §36B's query-variant builder so both paths strip the same words
+    from a single source of truth.
+    """
+
+    return str(term).strip().casefold() in _NEGATION_TOKENS
+
+
 def missing_fact_terms(caveat: str) -> tuple[str, ...]:
     """Extract the positive object of an absence clause (never the negation)."""
 

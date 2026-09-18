@@ -4380,10 +4380,21 @@ def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None
     ).get("deeper_targeting")
     assert isinstance(diagnostics, dict)
     assert diagnostics["recent"], "expected §36A diagnostics in metrics"
-    assert diagnostics["recent"][-1]["followup_reason"] in {
+    entry = diagnostics["recent"][-1]
+    assert entry["followup_reason"] in {
         "missing_target_fact",
         "lead_without_usable_gap",
     }
+    # §36B slice 1: page-intent + bounded query variants are recorded as
+    # discovery diagnostics only (never as evidence semantics).
+    for key in (
+        "page_intent",
+        "query_variants",
+        "selected_query_variant",
+        "selection_reason",
+    ):
+        assert key in entry
+    assert len(entry["query_variants"]) <= 3
     # The Gap Planner (still the only query owner) turned the hint into a
     # site-scoped follow-up query.
     queries = [item.query for item in cursor.planned_queries]
