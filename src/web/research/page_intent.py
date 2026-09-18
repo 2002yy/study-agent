@@ -18,6 +18,7 @@ queries instead of repeating one.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -52,7 +53,8 @@ PAGE_INTENT_TAXONOMY: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
             "eol",
             "end-of-life",
             "maintained",
-            "deprecat",
+            "deprecated",
+            "deprecation",
         ),
         ("support", "versioning", "lifecycle", "releases", "eol"),
     ),
@@ -138,6 +140,12 @@ def _normalized_terms(values: Sequence[str]) -> tuple[str, ...]:
     return tuple(terms)
 
 
+def _tokenize(text: str) -> set[str]:
+    """Token set with word boundaries (``learning-rate`` is not a ``rate`` hit)."""
+
+    return set(re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", str(text or "").casefold()))
+
+
 def infer_page_intent(
     *,
     claim_terms: Sequence[str] = (),
@@ -145,20 +153,20 @@ def infer_page_intent(
 ) -> PageIntent | None:
     """Pick the best-matching intent kind, deterministically.
 
-    Scoring is pure term overlap over the bounded taxonomy; ties break by
-    ``INTENT_KIND_ORDER`` so identical inputs always yield the same intent.
+    Scoring is pure term overlap over the bounded taxonomy, matched on token
+    boundaries (so ``learning-rate`` cannot masquerade as a ``rate`` claim);
+    ties break by ``INTENT_KIND_ORDER`` so identical inputs always yield the
+    same intent.
     """
 
-    haystack = " ".join(
-        (*_normalized_terms(claim_terms), *_normalized_terms(missing_fact_terms))
-    )
-    if not haystack:
+    tokens = _tokenize(" ".join((*_normalized_terms(claim_terms), *_normalized_terms(missing_fact_terms))))
+    if not tokens:
         return None
     best: tuple[int, str] | None = None
     matched_by_kind: dict[str, tuple[str, ...]] = {}
     for kind in INTENT_KIND_ORDER:
         match_terms, _path_terms = PAGE_INTENT_TAXONOMY[kind]
-        matched = tuple(term for term in match_terms if term in haystack)
+        matched = tuple(term for term in match_terms if term in tokens)
         if not matched:
             continue
         matched_by_kind[kind] = matched

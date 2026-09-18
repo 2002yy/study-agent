@@ -61,6 +61,30 @@ def test_intent_is_none_without_evidence_of_a_page_kind() -> None:
     )
 
 
+def test_intent_matching_respects_token_boundaries() -> None:
+    """``learning-rate`` must not masquerade as a ``rate`` (limit) claim."""
+
+    assert (
+        infer_page_intent(
+            claim_terms=("optimizer", "learning-rate", "schedule"),
+            missing_fact_terms=("adam", "beta"),
+        )
+        is None
+    )
+    assert (
+        infer_page_intent(
+            claim_terms=("consumer", "prices", "inflation"),
+            missing_fact_terms=("cpi", "month"),
+        )
+        is None
+    )
+    # Real limit/pricing claims still classify.
+    limit_intent = infer_page_intent(claim_terms=("rate", "limits"))
+    assert limit_intent is not None and limit_intent.kind == "limit_policy"
+    pricing_intent = infer_page_intent(claim_terms=("pricing", "plan"))
+    assert pricing_intent is not None and pricing_intent.kind == "pricing_plan"
+
+
 def test_class5_query_variants_never_contain_negation() -> None:
     intent = infer_page_intent(
         claim_terms=("docker", "hub", "pull", "rate", "limits"),

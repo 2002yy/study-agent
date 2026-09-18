@@ -307,14 +307,23 @@ def is_query_stopword(term: str) -> bool:
 
 
 def missing_fact_terms(caveat: str) -> tuple[str, ...]:
-    """Extract the positive object of an absence clause (never the negation)."""
+    """Extract the positive object of an absence clause (never the negation).
+
+    When the caveat states no absence clause (for example it only says the page
+    is the wrong kind of source), an empty tuple is returned on purpose: the
+    caller must not turn the raw caveat sentence into query terms.
+    """
 
     lowered = str(caveat or "").casefold()
+    matched = False
     for pattern in _ABSENCE_PATTERNS:
         match = re.search(pattern, lowered)
         if match:
             lowered = lowered[match.end() :]
+            matched = True
             break
+    if not matched:
+        return ()
     tokens = re.findall(r"[a-z0-9][a-z0-9\-\.\+]{1,}", lowered)
     terms: list[str] = []
     for token in tokens:
@@ -448,10 +457,10 @@ def gap_from_extraction(
     caveat = next((str(item).strip() for item in caveats if str(item).strip()), "")
     if not caveat:
         return None
+    # Terms may legitimately be empty (a source-quality caveat names no missing
+    # fact); the caller then builds the query from claim terms + page intent
+    # instead of the raw caveat sentence.
     terms = missing_fact_terms(caveat)
-    if not terms:
-        # A caveat that names no target fact cannot produce a positive query.
-        return None
     authority = (
         AUTHORITY_OFFICIAL
         if str(source_role or "").strip().casefold() == "primary"

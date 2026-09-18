@@ -24,6 +24,7 @@ from src.web.research.deeper_targeting import (
     targeted_query_terms,
     targeting_strategy,
 )
+from src.web.research.page_intent import infer_page_intent, query_variants
 
 
 def test_class1_official_homepage_prefers_official_deep_docs() -> None:
@@ -211,6 +212,36 @@ def test_gap_hint_builds_a_positive_bounded_query() -> None:
     assert payload["source_url"] == "https://www.docker.com/"
     assert payload["targeting_strategy"] == "root_or_landing_page"
     assert isinstance(payload["missing_fact_terms"], list)
+
+
+def test_caveat_without_absence_clause_yields_no_junk_query_terms() -> None:
+    """A source-quality caveat must not become query text."""
+
+    gap = gap_from_extraction(
+        relation="lead",
+        locator="third-party tutorial page",
+        anchored_spans=("third-party tutorial page",),
+        caveats=(
+            "Excerpt is a third-party tutorial page (runoob.com), not Docker's "
+            "official documentation.",
+        ),
+        source_url="https://www.runoob.com/docker/docker-tutorial.html",
+        source_role="independent_secondary",
+    )
+
+    assert isinstance(gap, GapHint)
+    assert gap.missing_fact_terms == ()
+    # With no missing-fact terms the query must fall back to claim terms and
+    # page intent, and never reuse the caveat sentence.
+    variants = query_variants(
+        subject_terms=("docker", "hub", "pull"),
+        missing_fact_terms=gap.missing_fact_terms,
+        intent=infer_page_intent(claim_terms=("docker", "hub", "pull", "rate", "limits")),
+    )
+    assert variants
+    for variant in variants:
+        assert "runoob" not in variant
+        assert "third-party" not in variant
 
 
 def test_gap_hint_requires_usable_anchor_and_caveat() -> None:
