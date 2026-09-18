@@ -76,6 +76,10 @@ class LoopOutcome:
     planner_calls: int = 0
     selector_calls: int = 0
     queries: list[str] = field(default_factory=list)
+    search_steps: list[dict] = field(default_factory=list)
+    selector_steps: list[dict] = field(default_factory=list)
+    planner_failures: int = 0
+    selector_failures: int = 0
     results_seen: list[dict] = field(default_factory=list)
     read_urls: list[str] = field(default_factory=list)
     relations: list[dict] = field(default_factory=list)
@@ -94,8 +98,13 @@ class LoopOutcome:
             "reads": self.reads,
             "extractor_calls": self.extractor_calls,
             "planner_calls": self.planner_calls,
+            "planner_failures": self.planner_failures,
             "selector_calls": self.selector_calls,
+            "selector_failures": self.selector_failures,
             "queries": list(self.queries),
+            "search_steps": list(self.search_steps),
+            "selector_steps": list(self.selector_steps),
+            "results_seen": list(self.results_seen),
             "read_urls": list(self.read_urls),
             "relations": list(self.relations),
             "relation_counts": dict(sorted(self.relation_counts.items())),
@@ -136,6 +145,8 @@ def run_loop(
             break
 
         planner_state = {
+            "case_id": case_id,
+            "step": outcome.searches + 1,
             "question": question,
             "evidence": evidence_rows[-8:],
             "previous_queries": list(outcome.queries),
@@ -150,6 +161,7 @@ def run_loop(
             break
         query = " ".join(str(plan_raw.get("query") or "").split())
         if not query:
+            outcome.planner_failures += 1
             outcome.stop_reason = "planner_no_query"
             break
         if query in outcome.queries:
@@ -179,6 +191,15 @@ def run_loop(
                 seen_urls.add(canonical)
                 outcome.results_seen.append(entry)
             outcomes.append(entry)
+        outcome.search_steps.append(
+            {
+                "query": query,
+                "status": str(payload.get("status") or ""),
+                "result_count": len(outcomes),
+                "providers_attempted": list(payload.get("providers_attempted") or []),
+                "provider_errors": list(payload.get("provider_errors") or []),
+            }
+        )
 
         remaining_reads = budget.max_reads - outcome.reads
         if remaining_reads <= 0:
@@ -192,23 +213,40 @@ def run_loop(
         if not candidates:
             continue
         selector_state = {
+            "case_id": case_id,
+            "step": outcome.searches,
             "question": question,
             "evidence": evidence_rows[-8:],
             "queries": list(outcome.queries),
         }
         chosen_raw = selector_fn(selector_state, candidates, remaining_reads) or ()
         outcome.selector_calls += 1
+        candidate_urls = {entry["canonical_url"]: entry["canonical_url"] for entry in candidates}
         chosen: list[str] = []
+        rejected: list[str] = []
         for item in chosen_raw:
             canonical = canonicalize_url(str(item))
             if (
                 canonical
-                and canonical in {entry["canonical_url"] for entry in candidates}
+                and canonical in candidate_urls
                 and canonical not in outcome.read_urls
                 and len(chosen) < remaining_reads
             ):
                 chosen.append(canonical)
+            else:
+                rejected.append(str(item)[:200])
+        outcome.selector_steps.append(
+            {
+                "query": query,
+                "candidate_count": len(candidates),
+                "chosen": list(chosen),
+                "rejected": rejected[:6],
+                "raw": [str(item)[:200] for item in list(chosen_raw)[:8]],
+            }
+        )
         if not chosen:
+            if not list(chosen_raw):
+                outcome.selector_failures += 1
             continue
 
         for canonical in chosen:
@@ -283,9 +321,12 @@ PLANNER_SYSTEM_PROMPT = (
 SELECTOR_SYSTEM_PROMPT = (
     "You are a bounded search-result selector. Given the claim, the evidence "
     "so far and the candidate search results, choose which pages to open. "
-    'Reply with strict JSON: {"urls": [str], "reason": str}. Use only the '
-    "listed candidate URLs, at most the given number, and prefer the page that "
-    "would directly state the missing fact (official or primary sources first)."
+    'Reply with strict JSON: {"urls": [str], "reason": str}. Copy the '
+    "candidate URLs exactly as given - no rewrites, no invented URLs. Choose "
+    "between 1 and the given maximum number of pages whenever any candidate "
+    "plausibly concerns the claim; only return an empty list when no candidate "
+    "is even plausibly related. Prefer the page that would directly state the "
+    "missing fact (official or primary sources first)."
 )
 
 
@@ -312,7 +353,15 @@ def _parse_selector(raw: Any) -> list[str]:
 def build_adapters(
     *,
     model_timeout_seconds: float = 30.0,
-) -> tuple[SearcherFn, ReaderFn, PlannerFn, SelectorFn, ExtractFn, Callable[[], None]]:
+) -> tuple[
+    SearcherFn,
+    ReaderFn,
+    PlannerFn,
+    SelectorFn,
+    ExtractFn,
+    Callable[[], None],
+    Callable[[], list[dict]],
+]:
     """Wire the prototype to the same provider/reader/extractor production uses."""
 
     from src.web.research.active_adapter import ActiveResearchGateway
@@ -327,6 +376,18 @@ def build_adapters(
     model = ResearchModelGateway(model_profile="flash", timeout_seconds=model_timeout_seconds)
     extractor = RuntimeEvidenceExtractor(model)
     state: dict[str, Any] = {"claim": None}
+    diagnostics: list[dict] = []
+
+    def _record_model_call(purpose: str, logical_call_id: str, result: Any) -> None:
+        diagnostics.append(
+            {
+                "purpose": purpose,
+                "logical_call_id": logical_call_id,
+                "status": str(getattr(result, "status", "")),
+                "reason": str(getattr(result, "reason", "") or "")[:300],
+                "attempts": len(getattr(result, "audits", ()) or ()),
+            }
+        )
 
     def claim_for(question: str) -> Any:
         claim = state.get("claim")
@@ -361,8 +422,11 @@ def build_adapters(
             "remaining_searches": loop_state.get("remaining_searches"),
             "remaining_reads": loop_state.get("remaining_reads"),
         }
+        logical_call_id = (
+            f"agent_loop_planner:{loop_state.get('case_id')}:{loop_state.get('step')}"
+        )
         result = model.complete_structured(
-            logical_call_id="agent_loop_planner:1",
+            logical_call_id=logical_call_id,
             purpose="agent_loop_planner",
             messages=[
                 {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
@@ -375,7 +439,9 @@ def build_adapters(
             max_tokens=400,
         )
         if getattr(result, "status", "") != "completed" or result.value is None:
+            _record_model_call("planner", logical_call_id, result)
             return {"query": "", "sufficient": False}
+        _record_model_call("planner", logical_call_id, result)
         return result.value
 
     def selector_fn(
@@ -397,8 +463,11 @@ def build_adapters(
                 for entry in candidates
             ],
         }
+        logical_call_id = (
+            f"agent_loop_selector:{loop_state.get('case_id')}:{loop_state.get('step')}"
+        )
         result = model.complete_structured(
-            logical_call_id="agent_loop_selector:1",
+            logical_call_id=logical_call_id,
             purpose="agent_loop_selector",
             messages=[
                 {"role": "system", "content": SELECTOR_SYSTEM_PROMPT},
@@ -410,6 +479,7 @@ def build_adapters(
             data_categories=("public_research_claim", "public_candidate_metadata"),
             max_tokens=400,
         )
+        _record_model_call("selector", logical_call_id, result)
         if getattr(result, "status", "") != "completed" or result.value is None:
             return []
         return list(result.value)[:max_urls]
@@ -451,7 +521,20 @@ def build_adapters(
     def close() -> None:
         return None
 
-    return search_fn, read_fn, planner_fn, selector_fn, extract_fn, close
+    def drain_diagnostics() -> list[dict]:
+        items = list(diagnostics)
+        diagnostics.clear()
+        return items
+
+    return (
+        search_fn,
+        read_fn,
+        planner_fn,
+        selector_fn,
+        extract_fn,
+        close,
+        drain_diagnostics,
+    )
 
 
 def _load_cases(manifest_path: Path, case_ids: Iterable[str]) -> list[dict[str, str]]:
@@ -513,7 +596,15 @@ def main(argv: Iterable[str] | None = None) -> int:
         max_reads=max(0, args.max_reads),
         case_timeout_seconds=max(5.0, args.case_timeout),
     )
-    search_fn, read_fn, planner_fn, selector_fn, extract_fn, close = build_adapters()
+    (
+        search_fn,
+        read_fn,
+        planner_fn,
+        selector_fn,
+        extract_fn,
+        close,
+        drain_diagnostics,
+    ) = build_adapters()
     artifact: dict[str, Any] = {
         "schema_version": PROTOTYPE_SCHEMA_VERSION,
         "diagnostic_only": True,
@@ -554,6 +645,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             )
             record = outcome.to_dict()
             record["category"] = case["category"]
+            record["model_calls"] = drain_diagnostics()
             artifact["cases"].append(record)
             print(
                 f"[agent-loop] {case['id']}: searches={record['searches']} "
