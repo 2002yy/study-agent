@@ -192,6 +192,10 @@ def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
 
     return {
         "case_id": case.get("case_id"),
+        # The artifact stores the case question but not per-claim text, so the
+        # annotation prompt uses the question as the claim proxy (recorded).
+        "claim": str(case.get("question") or ""),
+        "claim_field_source": "case_question",
         "query_count": len(annotated),
         "queries": annotated,
         # Occam: occurrence rows keep their own states; labels go on unique rows.
