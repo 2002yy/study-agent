@@ -12,7 +12,7 @@
 - **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
 - **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-15 记录）：**Answer 侧已知性能问题已基本处理完（§32 BLOCK-only thinking disabled 生产验证；§33 PARTIAL/PASS 策略因**缺少 supports 关系证据**而无法测、已用拒跑工具防假实验）。RQ1-C 主 blocker **重新定性回 Research 侧 = 如何形成真正的 `supports` 证据**。下一批 = **Support Formation Audit**（§34.5）：对已 read 的官方页做 A/B 分类（A 页面本身没有答案 → discovery depth 问题；B 正文已含答案但 extractor 仍给 lead → extractor/support classification 问题），按占比决定下一刀；目标里程碑 = **第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS 策略继续冻结。**
+- **当前唯一下一步（2026-09-15 记录）：**Support Formation Audit v1 已执行（§35）：27 个真实判定行中 **supports=0**（lead 24 / qualifies 2 / background 1），且 **27/27 caveat 都说明"页面本身没有目标事实"、25/27 anchor 真实存在** → **A 类主导，extractor 不是瓶颈；瓶颈是页面选择/发现深度**（root_or_shallow 13/27，镜像/教程/社区页居多）。依 §34.5 锁定规则，下一刀 = **discovery / deeper-page targeting**（不得顺手改 extractor）；另有独立小项 **read content adequacy**（gov.uk 125 字符 cookie 横幅被当作有效读取并进入抽取，6/27 行正文 <400 字符）。目标里程碑不变：**第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS 策略继续冻结。**
 - **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
 
 ## 1. DeepSeek structured-output compatibility closure
@@ -1233,6 +1233,58 @@ B. false_lead                        （正文已含答案但 extractor 仍给 l
 
 - reserve 仍 **12s（未校准）**；60s hard budget、Live12、30s answer timeout、PARTIAL/PASS thinking 策略均继续冻结。
 - 今日为**纯记录**：无代码、无参数、无测试变更。
+
+## 35. Support Formation Audit v1（已执行，结论：A 类主导 → 下一刀打 discovery depth）
+
+### 35.1 工具与方法
+
+`tools/run_support_formation_audit.py`（诊断专用，`qualification_evidence=false`）：
+
+- **判定行来自真实 qualification artifact**（extractor 自己的 `relation / strength / locator / anchored_spans / caveats`），不重跑 research、不改任何产品路径；
+- **正文用生产 reader 重新抓取**（artifact 按 leakage contract 从不存 page body），记录 `content_chars / content_sha256 / 以 anchor 为中心的 bounded excerpt`；
+- 计算确定性提示：`anchor_hits / locator_hit / anchor_numbers_missing_from_page / page_contains_recorded_anchors|recorded_anchors_absent_from_page`；
+- **`human_classification` 故意留空**：A（`lead_because_page_lacks_fact`）vs B（`false_lead`）需要人工判定，工具不替人做语义结论。
+- 方法学注意：重新抓取的页面可能与原始 run 读到的内容有 freshness 漂移，提示只作复核证据。
+- 7 个确定性测试（行提取、anchor 命中/缺失、数字缺失、excerpt 定位与回退、无抓取路径、缺失 artifact 不造假）。
+
+### 35.2 实测（3 份真实 artifact，27 个 eligible-evidence 判定行）
+
+```text
+relation 分布        : lead 24 · qualifies 2 · background 1 · supports 0     ← supports = 0
+anchor 提示          : page_contains_recorded_anchors 25/27 · absent 2/27
+caveat               : 27/27 行都有 caveat，且 27/27 的 caveat 明说"页面不含目标事实"
+URL 形态             : root_or_shallow 13/27（docker.com / postgresql.org / gov.uk / nodejs.org / python.org / rust-lang.org）
+页面正文 < 400 字符  : 6/27（其中 gov.uk ×3 只有 125 字符 = cookie 同意横幅）
+域名                 : 14 个，非官方/镜像/教程/社区居多（runoob 3、csdn 2、zhihu 2、aliyun 1、163 1、juejin 1、docker.github.net.cn 1、node.org.cn 1）
+```
+
+典型行（caveat 摘要 = extractor 自己的判定）：
+
+```text
+Docker 首页            lead 0.10  "mentions Docker Hub pull volume but does not state any pull-rate limits"
+postgresql.org         lead 0.05  "does not mention any PostgreSQL version numbers or support policy"
+gov.uk                 lead 0.05  "cookie-consent notice and contains no CPI or inflation data"（正文 125 字符）
+python.org             lead 0.10  "only states the latest Python version; does not mention free-threaded Python"
+nodejs.org             lead 0.20  "shows only ESM-style import syntax ... does not explicitly enumerate supported module systems"
+runoob（PyTorch 教程）  qualifies 0.40  "uses Adam with lr=0.001, not necessarily the original paper"（近似命中，但来源不对）
+```
+
+### 35.3 结论（按 §34.5 预先锁死的判据）
+
+- **A 类主导：27/27 行的 caveat 都指向"页面本身没有目标事实"，B 类（false_lead）在本样本为 0。** 且 25/27 的 anchor 在页面中确实存在（说明 extractor 的引用是真实的），`supports=0`。
+- ⇒ **extractor/support classification 不是当前瓶颈**；瓶颈是 **页面选择/发现深度**：读到的多是首页、落地页、镜像站与教程/社区页，而不是含目标事实的官方深层页（docs/policy/release/changelog 等）。
+- 依锁定规则：**下一刀 = discovery / deeper-page targeting**；**不得**顺手改 extractor（无证据支持）。
+
+### 35.4 附带发现的独立小项（不得与 discovery 混修）
+
+**读取内容充分性（read content adequacy）**：`gov.uk` 三次被判为"已读"的正文只有 **125 字符的 cookie 同意横幅**，却照常进入抽取并产出 `lead`。即读取验收只看 `ok == True and content.strip()`，缺少"是否含实质内容"的门槛/样板检测。登记为独立小项：**要么在读取验收处加最小实质内容门槛/样板识别，要么至少不以这类正文计数为 evidence-bearing read**（涉及 read budget 语义，需单独立项与验收）。样本：6/27 行正文 < 400 字符。
+
+### 35.5 下一批建议（施工顺序，待用户确认）
+
+1. **Deeper-page targeting（主）**：把发现从 root/shallow 与镜像/教程页推向官方深层页——可复用既有 bounded lead/follow-up 机制（`lead → deeper discovery`），并利用 caveat 所揭示的"缺什么事实"来构造定向更深的查询/候选偏好；不得改动 Gate/extractor/answer。
+2. **Read content adequacy（次，独立小批）**：正面处理 125 字符样板正文被当作有效读取的问题。
+3. 两者完成后重跑 audit 复测（同工具、同判据），目标里程碑仍是 **第一份 supports + binding rows>0 + substantive answer 的真实 artifact**。
+
 
 
 
