@@ -2779,9 +2779,6 @@ def _select_assessment_window(
                 item for item in ordered if item.canonical_url in picked_urls
             )
             if trace is not None:
-                for item in candidates:
-                    if item.id in excluded_candidate_ids:
-                        trace.note_already_read(item.canonical_url)
                 for item in ordered:
                     trace.note_window(
                         item.canonical_url,
@@ -2834,10 +2831,6 @@ def _bounded_assessment_candidates(
     unread = tuple(
         item for item in candidates if item.id not in excluded_candidate_ids
     )
-    if trace is not None:
-        for item in candidates:
-            if item.id in excluded_candidate_ids:
-                trace.note_already_read(item.canonical_url)
     limit = max(
         0,
         min(
