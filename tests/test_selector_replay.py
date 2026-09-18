@@ -45,6 +45,17 @@ def test_build_pool_dedupes_in_observation_order() -> None:
     ]
 
 
+def test_rule_selection_uses_sources_read_set() -> None:
+    case = _probe_case()
+    case["sources"] = [
+        {"url": NODE, "read_status": "read", "source_role": "primary"},
+        {"url": "https://nodejs.org/", "read_status": "failed", "source_role": "primary"},
+    ]
+    picks, reasons = rule_selection(case)
+    assert picks == [NODE]
+    assert reasons[NODE] == "source_role:primary"
+
+
 def test_rule_selection_reads_the_frozen_decisions() -> None:
     picks, reasons = rule_selection(_probe_case())
     assert picks == ["https://nodejs.org/"]

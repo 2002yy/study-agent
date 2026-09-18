@@ -52,6 +52,7 @@ class ReplayCase:
     targets: list[str] = field(default_factory=list)
     model_picks: list[str] = field(default_factory=list)
     model_picks_runs: list[list[str]] = field(default_factory=list)
+    model_calls_runs: list[dict] = field(default_factory=list)
     model_error: str = ""
 
     def model_hits(self) -> int:
@@ -75,6 +76,7 @@ class ReplayCase:
             "rule_target_hits": [t for t in self.targets if t in self.rule_picks],
             "model_picks": list(self.model_picks),
             "model_picks_runs": [list(picks) for picks in self.model_picks_runs],
+            "model_calls_runs": [dict(call) for call in self.model_calls_runs],
             "model_hit_runs": self.model_hits(),
             "model_empty_runs": self.model_empties(),
             "model_runs": len(self.model_picks_runs),
@@ -129,14 +131,33 @@ def build_pool(case: Mapping[str, Any]) -> list[dict]:
 
 
 def rule_selection(case: Mapping[str, Any]) -> tuple[list[str], dict[str, str]]:
-    """The selection the rule pipeline actually made in the frozen run."""
+    """The reads the frozen run actually performed.
+
+    The §37A probe's per-result ``selected_for_read`` flags are placeholders
+    (all false); the run's real read set is the ``sources`` list with
+    ``read_status == "read"``. Per-result flags are only used as a fallback
+    when no sources were recorded, so the baseline column stays honest.
+    """
+
+    picks: list[str] = []
+    reasons: dict[str, str] = {}
+    sources = case.get("sources")
+    if isinstance(sources, list) and sources:
+        for source in sources:
+            if not isinstance(source, Mapping):
+                continue
+            if str(source.get("read_status")) != "read":
+                continue
+            canonical = canonicalize_url(str(source.get("url") or ""))
+            if canonical and canonical not in reasons:
+                picks.append(canonical)
+                reasons[canonical] = f"source_role:{source.get('source_role') or 'unknown'}"
+        return picks, reasons
 
     metrics = case.get("metrics")
     metrics = metrics if isinstance(metrics, Mapping) else {}
     discovery = metrics.get("search_discovery")
     discovery = discovery if isinstance(discovery, Mapping) else {}
-    picks: list[str] = []
-    reasons: dict[str, str] = {}
     for query in discovery.get("queries") or []:
         if not isinstance(query, Mapping):
             continue
@@ -196,6 +217,9 @@ def replay(
                 try:
                     picks = list(selector(question, replay_case.pool, max_picks))[:max_picks]
                     replay_case.model_picks_runs.append(picks)
+                    call_record = getattr(selector, "last_call", None)
+                    if isinstance(call_record, dict):
+                        replay_case.model_calls_runs.append(dict(call_record))
                     if not replay_case.model_picks:
                         replay_case.model_picks = list(picks)
                 except Exception as exc:  # model failures stay visible, never fatal
@@ -251,6 +275,17 @@ def _model_selector(max_calls: int = 60) -> Any:
         reason = str(getattr(result, "reason", "") or "")
         key = f"{status}:{reason}" if reason else status
         calls["statuses"][key] = calls["statuses"].get(key, 0) + 1
+        raw_urls = (
+            list(result.value)
+            if getattr(result, "status", "") == "completed" and result.value is not None
+            else []
+        )
+        selector.last_call = {  # type: ignore[attr-defined]
+            "status": status,
+            "reason": reason,
+            "output_count": len(raw_urls),
+            "empty_output": len(raw_urls) == 0,
+        }
         if status != "completed" or result.value is None:
             return []
         pool_urls = {entry["url"] for entry in pool}
@@ -274,6 +309,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-picks", type=int, default=2)
     parser.add_argument("--repeat", type=int, default=1)
+    parser.add_argument(
+        "--cases",
+        default="",
+        help="optional comma separated case-id filter",
+    )
     return parser
 
 
@@ -282,6 +322,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     load_dotenv(REPO_ROOT / ".env")
     probe = _load(args.probe)
     annotations = _load(args.annotations)
+    wanted = {item.strip() for item in args.cases.split(",") if item.strip()}
+    if wanted and isinstance(probe, dict):
+        probe = {
+            **probe,
+            "cases": [
+                case
+                for case in probe.get("cases") or []
+                if str(case.get("case_id")) in wanted
+            ],
+        }
     selector = _model_selector(max_calls=40 * max(1, args.repeat))
     cases = replay(
         probe,
