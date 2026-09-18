@@ -46,7 +46,13 @@ if str(REPO_ROOT) not in sys.path:
 from dotenv import load_dotenv  # noqa: E402
 
 from src.web.research.discovery_observability import (  # noqa: E402
+    STATE_FALSE,
+    STATE_TRUE,
+    STATE_UNOBSERVED,
+    canonical_for_audit,
+    dedupe_candidates,
     issued_variant_coverage,
+    saturation_metrics,
 )
 from src.web.tool_gateway import GeneralWebGateway  # noqa: E402
 
@@ -65,10 +71,14 @@ def _utc_now() -> str:
 
 
 def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
-    """§37A: join provider results with harvest/read/extraction truth.
+    """§37A.1 accounting: three-state fields, URL dedup, saturation metrics.
 
-    The tool only joins recorded observations; it never classifies a page as
-    "the right page" - that stays a human audit field.
+    Observation rules:
+    * read is observable per case (a result URL either was read or was not);
+    * harvest is only observable when a harvest attempt actually happened - with
+      no probe the state is ``unobserved`` and must never be read as ``false``;
+    * human labels live on deduplicated unique candidates, then project back to
+      the query-result occurrences.
     """
 
     metrics_raw = case.get("metrics")
@@ -77,67 +87,83 @@ def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
     state: Mapping[str, Any] = state_raw if isinstance(state_raw, Mapping) else {}
     queries_raw = state.get("queries")
     queries: list[Mapping[str, Any]] = [
-        item for item in (queries_raw if isinstance(queries_raw, list) else []) if isinstance(item, Mapping)
+        item
+        for item in (queries_raw if isinstance(queries_raw, list) else [])
+        if isinstance(item, Mapping)
     ]
 
     sources_raw = case.get("sources")
     sources: list[Mapping[str, Any]] = [
-        item for item in (sources_raw if isinstance(sources_raw, list) else []) if isinstance(item, Mapping)
+        item
+        for item in (sources_raw if isinstance(sources_raw, list) else [])
+        if isinstance(item, Mapping)
     ]
     read_urls: dict[str, str] = {}
     for row in sources:
-        url = str(row.get("url") or "")
-        if url:
-            read_urls[url] = str(row.get("read_status") or "")
+        key = canonical_for_audit(str(row.get("url") or ""))
+        if key:
+            read_urls[key] = str(row.get("read_status") or "")
 
     deeper_raw = metrics.get("deeper_targeting")
     deeper: Mapping[str, Any] = deeper_raw if isinstance(deeper_raw, Mapping) else {}
     harvest_urls = {
-        str(item.get("selected_candidate_url") or "")
+        canonical_for_audit(str(item.get("selected_candidate_url") or ""))
         for item in (deeper.get("recent") or [])
-        if isinstance(item, Mapping)
+        if isinstance(item, Mapping) and item.get("selected_candidate_url")
     }
+    lead_metrics_raw = metrics.get("lead_discovery")
+    lead_metrics: Mapping[str, Any] = (
+        lead_metrics_raw if isinstance(lead_metrics_raw, Mapping) else {}
+    )
+    harvest_attempted = bool(harvest_urls) or int(
+        lead_metrics.get("evidence_lead_candidate_added") or 0
+    ) > 0
+    harvest_probe = "observed" if harvest_attempted else "no_harvest_attempt"
 
     brief_raw = case.get("brief")
     brief: Mapping[str, Any] = brief_raw if isinstance(brief_raw, Mapping) else {}
     evidence_raw = brief.get("eligible_evidence")
     evidence_by_url: dict[str, tuple[str, str]] = {}
-    for row in (evidence_raw if isinstance(evidence_raw, list) else []):
+    for row in evidence_raw if isinstance(evidence_raw, list) else []:
         if not isinstance(row, Mapping):
             continue
-        url = str(row.get("url") or "")
-        if url and url not in evidence_by_url:
+        key = canonical_for_audit(str(row.get("url") or ""))
+        if key and key not in evidence_by_url:
             caveats = row.get("caveats") or []
             caveat = str(caveats[0]) if caveats else ""
-            evidence_by_url[url] = (str(row.get("relation") or ""), caveat)
+            evidence_by_url[key] = (str(row.get("relation") or ""), caveat)
 
+    def _harvest_state(key: str) -> str:
+        if key in harvest_urls:
+            return STATE_TRUE
+        return STATE_FALSE if harvest_attempted else STATE_UNOBSERVED
+
+    occurrences: list[dict[str, Any]] = []
     annotated: list[dict[str, Any]] = []
     for item in queries:
-        results = item.get("results")
         rows: list[dict[str, Any]] = []
-        for row in (results if isinstance(results, list) else []):
+        for row in item.get("results") or []:
             if not isinstance(row, Mapping):
                 continue
-            url = str(row.get("url") or "")
-            relation, caveat = evidence_by_url.get(url, ("", ""))
-            rows.append(
-                {
-                    "result_rank": row.get("result_rank"),
-                    "url": url,
-                    "title": row.get("title"),
-                    "snippet": row.get("snippet"),
-                    "authority_class": row.get("authority_class"),
-                    "lexical_targeting_score": row.get("lexical_targeting_score"),
-                    "selection_reason": row.get("selection_reason"),
-                    "selected_for_harvest": url in harvest_urls,
-                    "selected_for_read": url in read_urls,
-                    "read_status": read_urls.get(url, ""),
-                    "final_relation": relation,
-                    "final_caveat": caveat[:240],
-                    # Human field: likely_target | near_hit | irrelevant | unknown
-                    "human_candidate_classification": "",
-                }
-            )
+            key = canonical_for_audit(str(row.get("url") or ""))
+            relation, caveat = evidence_by_url.get(key, ("", ""))
+            entry = {
+                "result_rank": row.get("result_rank"),
+                "url": row.get("url"),
+                "canonical_url": key,
+                "title": row.get("title"),
+                "snippet": row.get("snippet"),
+                "authority_class": row.get("authority_class"),
+                "lexical_targeting_score": row.get("lexical_targeting_score"),
+                "selection_reason": row.get("selection_reason"),
+                "selected_for_harvest": _harvest_state(key),
+                "selected_for_read": STATE_TRUE if key in read_urls else STATE_FALSE,
+                "read_status": read_urls.get(key, ""),
+                "final_relation": relation,
+                "final_caveat": caveat[:240],
+            }
+            rows.append(entry)
+            occurrences.append(entry)
         annotated.append(
             {
                 "slot_index": item.get("slot_index"),
@@ -151,13 +177,30 @@ def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
             }
         )
 
+    unique_candidates, occurrence_map = dedupe_candidates(occurrences)
+    for candidate in unique_candidates:
+        key = str(candidate["canonical_url"])
+        candidate["selected_for_harvest"] = _harvest_state(key)
+        candidate["selected_for_read"] = (
+            STATE_TRUE if key in read_urls else STATE_FALSE
+        )
+        candidate["read_status"] = read_urls.get(key, "")
+        relation, caveat = evidence_by_url.get(key, ("", ""))
+        candidate["final_relation"] = relation
+        candidate["final_caveat"] = caveat[:240]
+        candidate["occurrence_indices"] = occurrence_map.get(key, [])
+
     return {
         "case_id": case.get("case_id"),
         "query_count": len(annotated),
         "queries": annotated,
+        # Occam: occurrence rows keep their own states; labels go on unique rows.
+        "occurrence_count": len(occurrences),
+        "unique_candidates": unique_candidates,
+        "harvest_probe": harvest_probe,
+        "saturation": saturation_metrics(annotated),
         "issued_variant_coverage": issued_variant_coverage(annotated),
         # Human fields (never auto-filled):
-        "human_target_fact_present_after_read": "",
         "human_case_note": "",
     }
 
@@ -165,60 +208,99 @@ def _search_discovery_projection(case: Mapping[str, Any]) -> dict[str, Any]:
 def summarize_discovery_rates(
     cases: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Compute §37A rates from human labels; report pending when absent."""
+    """Case-level §37A.1 rates from human labels on unique candidates."""
 
-    audited = 0
-    with_likely_target = 0
-    selected_likely_target = 0
-    present_after_read = 0
-    present_after_read_audited = 0
+    classified_cases = 0
+    cases_with_likely = 0
+    cases_with_selected_likely = 0
+    cases_reading_likely = 0
+    cases_with_fact = 0
+    harvest_states: set[str] = set()
+    violations: list[dict[str, Any]] = []
+
     for case in cases:
-        queries = case.get("queries") or []
-        labelled_any = False
-        case_has_likely = False
-        case_selected_likely = False
-        for item in queries:
-            for row in item.get("results") or []:
-                label = str(row.get("human_candidate_classification") or "").strip()
-                if not label:
-                    continue
-                labelled_any = True
-                if label == "likely_target":
-                    case_has_likely = True
-                    if row.get("selected_for_read"):
-                        case_selected_likely = True
-        if labelled_any:
-            audited += 1
-            if case_has_likely:
-                with_likely_target += 1
-                if case_selected_likely:
-                    selected_likely_target += 1
-        present = str(case.get("human_target_fact_present_after_read") or "").strip()
-        if present:
-            present_after_read_audited += 1
-            if present.casefold() in {"yes", "true", "1"}:
-                present_after_read += 1
+        candidates = case.get("unique_candidates") or []
+        labelled = [
+            item
+            for item in candidates
+            if str(item.get("human_candidate_classification") or "").strip()
+        ]
+        likely = [
+            item
+            for item in labelled
+            if str(item.get("human_candidate_classification")).strip() == "likely_target"
+        ]
+        if labelled:
+            classified_cases += 1
+        if likely:
+            cases_with_likely += 1
+            selected = any(
+                str(item.get("selected_for_read")) == STATE_TRUE
+                or str(item.get("selected_for_harvest")) == STATE_TRUE
+                for item in likely
+            )
+            if selected:
+                cases_with_selected_likely += 1
+            read_likely = [
+                item
+                for item in likely
+                if str(item.get("selected_for_read")) == STATE_TRUE
+            ]
+            if read_likely:
+                cases_reading_likely += 1
+                if any(
+                    str(item.get("human_target_fact_present_after_read")).strip().casefold()
+                    == "true"
+                    for item in read_likely
+                ):
+                    cases_with_fact += 1
+        for item in candidates:
+            harvest_states.add(str(item.get("selected_for_harvest")))
+            presence = str(
+                item.get("human_target_fact_present_after_read") or ""
+            ).strip().casefold()
+            if presence in {"true", "false"} and str(
+                item.get("selected_for_read")
+            ) != STATE_TRUE:
+                violations.append(
+                    {
+                        "case_id": case.get("case_id"),
+                        "canonical_url": item.get("canonical_url"),
+                        "reason": (
+                            "presence may only be true/false for a candidate that "
+                            "was actually read; otherwise it stays unobserved"
+                        ),
+                    }
+                )
 
     def _rate(numerator: int, denominator: int) -> float | None:
         return round(numerator / denominator, 4) if denominator else None
 
+    harvest_observed = harvest_states - {STATE_UNOBSERVED}
+    harvest_rate: float | None | str
+    if not harvest_observed:
+        harvest_rate = "unobserved"
+    else:
+        harvest_rate = _rate(cases_with_selected_likely, cases_with_likely)
+
     return {
-        "audited_cases": audited,
-        "cases_with_likely_target": with_likely_target,
-        "cases_with_selected_likely_target": selected_likely_target,
-        "target_fact_candidate_rate": _rate(with_likely_target, audited),
-        "target_fact_selected_rate": _rate(selected_likely_target, with_likely_target),
-        "target_fact_present_after_read": _rate(
-            present_after_read, present_after_read_audited
-        ),
+        "classified_cases": classified_cases,
+        "cases_with_likely_target": cases_with_likely,
+        "target_fact_candidate_rate": _rate(cases_with_likely, classified_cases),
+        "target_fact_selected_rate": _rate(cases_with_selected_likely, cases_with_likely),
+        "target_fact_read_rate": _rate(cases_reading_likely, cases_with_likely),
+        "target_fact_present_after_read": _rate(cases_with_fact, cases_reading_likely),
+        "target_fact_harvest_rate": harvest_rate,
+        "accounting_violations": violations,
         "status": (
             "pending_human_classification"
-            if audited == 0
+            if classified_cases == 0
             else "computed_from_human_labels"
         ),
         "note": (
-            "candidate/selected rates need the human_candidate_classification field; "
-            "the tool never decides which page is the target"
+            "rates are case-level (a URL recalled by ten queries counts once); "
+            "harvest stays unobserved until a harvest probe exists - read is not "
+            "substituted for harvest"
         ),
     }
 

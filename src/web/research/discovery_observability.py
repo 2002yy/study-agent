@@ -29,7 +29,114 @@ from src.web.research.page_intent import (
     targeting_preference_key,
 )
 
+STATE_TRUE = "true"
+STATE_FALSE = "false"
+STATE_UNOBSERVED = "unobserved"
+
 SCHEMA_VERSION = "rq1c-search-discovery-v1"
+DEFAULT_MAX_QUERIES = 24
+DEFAULT_TOP_K = 5
+_MAX_QUERY_EXCERPT = 160
+_MAX_TITLE = 200
+_MAX_SNIPPET = 240
+_MAX_TERMS = 6
+_OUTCOME = "observability_only"
+
+
+def canonical_for_audit(url: str) -> str:
+    """Canonical key for audit dedup (production canonicalizer, audit only)."""
+
+    try:
+        from src.news.url_normalizer import canonicalize_url
+
+        canonical = canonicalize_url(str(url or ""))
+        if canonical:
+            return str(canonical)
+    except Exception:  # pragma: no cover - canonicalizer is optional here
+        pass
+    return str(url or "").strip()
+
+
+def dedupe_candidates(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, list[int]]]:
+    """Collapse query-result occurrences into unique candidates per case.
+
+    Returns ``(unique_rows, occurrences)`` where ``occurrences`` maps the
+    canonical URL to the 1-based occurrence indices that produced it. Human
+    labelling happens on ``unique_rows`` and is projected back through this map,
+    so a URL recalled by ten queries is not weighted ten times.
+    """
+
+    unique_rows: list[dict[str, Any]] = []
+    by_key: dict[str, dict[str, Any]] = {}
+    occurrences: dict[str, list[int]] = {}
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, Mapping):
+            continue
+        key = canonical_for_audit(str(row.get("url") or ""))
+        if not key:
+            continue
+        occurrences.setdefault(key, []).append(index)
+        if key in by_key:
+            by_key[key]["occurrence_count"] = int(
+                by_key[key].get("occurrence_count") or 1
+            ) + 1
+            continue
+        entry = {
+            "canonical_url": key,
+            "url": str(row.get("url") or ""),
+            "title": row.get("title"),
+            "snippet": row.get("snippet"),
+            "authority_class": row.get("authority_class"),
+            "lexical_targeting_score": row.get("lexical_targeting_score"),
+            "selection_reason": row.get("selection_reason"),
+            "occurrence_count": 1,
+            "first_result_rank": row.get("result_rank"),
+            # Three-state accounting: no probe means unobserved, never false.
+            "selected_for_harvest": STATE_UNOBSERVED,
+            "selected_for_read": STATE_UNOBSERVED,
+            "read_status": "",
+            "final_relation": "",
+            "final_caveat": "",
+            # Human fields (candidate level):
+            "human_candidate_classification": "",
+            "human_target_fact_present_after_read": STATE_UNOBSERVED,
+        }
+        by_key[key] = entry
+        unique_rows.append(entry)
+    return unique_rows, occurrences
+
+
+def saturation_metrics(
+    queries: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Mechanical result-set saturation: how little new the extra queries find."""
+
+    per_query: list[set[str]] = []
+    for item in queries:
+        urls = {
+            canonical_for_audit(str(row.get("url") or ""))
+            for row in (item.get("results") or [])
+            if isinstance(row, Mapping)
+        }
+        urls.discard("")
+        per_query.append(urls)
+    unique_urls = set().union(*per_query) if per_query else set()
+    first = per_query[0] if per_query else set()
+    added_after_first = unique_urls - first
+    overlap: list[float] = []
+    for index in range(1, len(per_query)):
+        previous, current = per_query[index - 1], per_query[index]
+        union = previous | current
+        overlap.append(round(len(previous & current) / len(union), 4) if union else 0.0)
+    return {
+        "query_count": len(per_query),
+        "unique_urls_per_case": len(unique_urls),
+        "new_url_gain_after_q1": len(added_after_first),
+        "pairwise_result_set_overlap": overlap,
+    }
+
 DEFAULT_MAX_QUERIES = 24
 DEFAULT_TOP_K = 5
 _MAX_QUERY_EXCERPT = 160
