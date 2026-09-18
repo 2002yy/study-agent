@@ -385,6 +385,14 @@ def main(argv: Iterable[str] | None = None) -> int:
         "annotations": str(args.annotations).replace("\\", "/"),
         "max_attempts": args.max_attempts,
         "max_picks": args.max_picks,
+        "read_chars": DEFAULT_READ_CHARS,
+        "assumptions": {
+            "source_role": "primary_for_every_selected_page",
+            "source_cluster_id": "single_constant_cluster",
+            "claim": "one factual claim per case (the case question)",
+            "note": "prototype simplification; relation semantics are the frozen "
+            "extractor's own output, but cluster independence is not modelled",
+        },
         "rule_picks": rule_picks,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         **provenance(),

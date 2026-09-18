@@ -1676,6 +1676,34 @@ repeat5b: model_target_hit_runs = 0/5；model_status_counts = {completed 41, una
 2. **调用层不稳定**：同一提示+同一池子，返回会整体空掉（2/5 甚至 5/5），且约 1/3 的调用两次尝试都失败（`model_call_attempts_exhausted`，模型侧超时）。**这意味着"把 selection 交给模型"必须先定义失败语义**：模型空/不可用时回退到规则窗口（deterministic shell 保住下限），模型可用时用模型选择提升上限。
 3. 仍**未证明端到端 supports**：selection 正确后仍需 read + extractor 成功；positive control（Docker/PostgreSQL 精确页）仍未运行。
 
+### 42.2 §38b hybrid 链：第一次出现 `supports > 0`（`cd893fa`，4/4 复跑）
+
+工具 `tools/run_hybrid_selection_chain.py`（诊断-only，生产 runtime 未动）。单变量：只把 selection authority 从规则窗口换成模型 selector，其余全冻结（同一冻结候选池、同一 provider、同一 reader、同一 `RuntimeEvidenceExtractor`、同一 parser）。失败语义：模型最多尝试 3 次；**任何一次可用决定即采用；全部不可用才回退规则读取集**（模型有优先权但无权把研究留空）。
+
+```text
+selector_input_candidate_set = 冻结 Node 池 10 个 canonical URL（与离线 replay 完全一致，不变量已入 artifact）
+selector_output_urls         = [nodejs.cn/api/modules.html, node.org.cn/api/modules.html]
+
+run1: attempts=[unavailable×2, completed(2)] → authority=model
+run2: attempts=[unavailable×2, completed(2)] → authority=model
+run3: attempts=[completed(2)]  run4: attempts=[completed(2)]
+
+分层验收（4/4 全部相同）：
+  target_selected  = true
+  target_read      = true（两页各 6000 chars，ok=true）
+  extractor_relation = supports ×2（冻结 extractor，caveat 诚实记录"未对比新旧指引"）
+  target_fact_present = true
+  supports         = 2
+```
+
+**这是项目历史上第一次：被召回的正确候选 → 被选中 → 被读取 → 被冻结 extractor 判为 `supports`。**对比规则路径（§37B 同一 case）：`candidate_pool_excluded(window_limit_reached)`，supports=0。
+
+**空返回分型（`model_calls_runs` 逐调用记录）**：本 case 观察到的全部空返回都是 `unavailable:model_call_attempts_exhausted`（调用可靠性/超时），**没有一次是"模型 completed 但决定返回空"**；所有拿到可用决定的运行都精确选择两个目标（0 次选错）。即：**precision 已展示，问题在 usable-decision reliability**，而 retry+fallback 语义使链级结果不受影响（4/4 到达 supports）。
+
+**保留与边界**：两个 supports 来自同一内容的两个镜像，且 cluster 未建模（常量 `hybrid_cluster`）——Gate/binding 阶段可能合并为 1；`binding_rows` 与 `substantive_answer` 层尚未测（需要 runtime 路径）；`target_fact_present` 由 extractor relation 推导（supports 针对"支持哪些模块系统"，caveat 明确指出未回答"新旧指引差异"这一子句）。**positive control 仍未运行；生产默认路径未改。**
+
+**§38b 下一执行切片**：把该 hybrid 作为**诊断变体**接进 runtime 的 `_bounded_assessment_candidates` 调用点（env 开关，默认 rules），跑 Node case 的完整链 `target_selected → … → binding_rows → answer`，并核对 runtime 的 selector input 集与离线池的一致性（诊断记录已在 `metrics.selection_trace` 中准备好）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
