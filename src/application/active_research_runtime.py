@@ -41,6 +41,12 @@ from src.web.research.candidate_ranking import (
     rank_candidate_pool,
 )
 from src.web.research.claim_planner import RuntimeClaimPlanner
+from src.web.research.deeper_targeting import (
+    GapHint,
+    gap_from_extraction,
+    rank_targeting_candidates,
+    targeted_query_terms,
+)
 from src.web.research.contracts import (
     EvidenceCluster,
     EvidenceGap,
@@ -1753,7 +1759,18 @@ class ActiveResearchRuntimeExecutor:
                     # Consume the ALREADY-READ content (never re-read, no model
                     # call) and feed bounded discovery input. Admission is strict
                     # and shares the frozen read/model/time budget.
-                    if link.relation == "lead":
+                    # §36A: "qualifies" rows join the trigger when the extractor
+                    # named a usable anchor/locator plus a missing-fact caveat,
+                    # and the caveat is turned into a positive deeper-page target.
+                    if link.relation in {"lead", "qualifies"}:
+                        gap = gap_from_extraction(
+                            relation=link.relation,
+                            locator=link.locator,
+                            anchored_spans=link.anchored_spans,
+                            caveats=link.caveats,
+                            source_url=candidate.url,
+                            source_role=link.source_role,
+                        )
                         wave_followups = sum(
                             1
                             for item in cursor.evidence_lead_followups
@@ -1801,6 +1818,15 @@ class ActiveResearchRuntimeExecutor:
                                 token.casefold()
                                 for token in query_terms(claim.text)
                             )[:8]
+                            if gap is None:
+                                _bump_lead_metric(
+                                    context, "deeper_targeting_gap_unavailable"
+                                )
+                            else:
+                                _bump_lead_metric(
+                                    context,
+                                    f"deeper_targeting_{gap.targeting_strategy}",
+                                )
                             discovered, followup_stats = (
                                 _evidence_lead_followup_candidates(
                                     cursor.candidates,
@@ -1809,6 +1835,7 @@ class ActiveResearchRuntimeExecutor:
                                     parent=parent_candidate,
                                     keywords=keywords,
                                     max_candidates=state.budget.max_candidates,
+                                    gap=gap,
                                 )
                                 if parent_candidate is not None
                                 else ((), {"no_deeper_url": 1})
@@ -1835,6 +1862,10 @@ class ActiveResearchRuntimeExecutor:
                                 evidence_lead_followups=(
                                     *cursor.evidence_lead_followups,
                                     {
+                                        # The durable cursor record keeps its frozen
+                                        # shape (the codec strictly validates these
+                                        # keys). §36A diagnostics go to metrics
+                                        # below, so no runtime contract changes.
                                         "wave_index": cursor.wave_index,
                                         "evidence_id": evidence_id,
                                         "source_candidate_id": candidate_id,
@@ -1856,8 +1887,26 @@ class ActiveResearchRuntimeExecutor:
                                             if link.source_role == "primary"
                                             else ""
                                         ),
-                                        "hint_terms": list(keywords[:4]),
+                                        # The obstacle is searched positively:
+                                        # claim subject first, then the missing
+                                        # fact's own terms (never the negation).
+                                        "hint_terms": list(
+                                            targeted_query_terms(gap, keywords)[:4]
+                                            if gap is not None
+                                            else keywords[:4]
+                                        ),
                                     },
+                                ),
+                            )
+                            _record_deeper_targeting(
+                                context,
+                                gap=gap,
+                                source_url=candidate.url,
+                                selected_url=(discovered[0].url if discovered else ""),
+                                selected_depth=(
+                                    discovered[0].discovery_depth
+                                    if discovered
+                                    else 0
                                 ),
                             )
                             checkpoint()
@@ -2958,6 +3007,55 @@ def _bump_lead_metric(
     state[key] = int(state.get(key) or 0) + max(0, int(amount))
 
 
+def _record_deeper_targeting(
+    context: dict[str, Any],
+    *,
+    gap: GapHint | None,
+    source_url: str,
+    selected_url: str,
+    selected_depth: int,
+) -> None:
+    """§36A diagnostics (audit only; never qualification semantics).
+
+    Recorded in ``metrics["deeper_targeting"]`` instead of the durable cursor
+    record on purpose: the cursor codec strictly validates the follow-up key set,
+    and discovery provenance must not become part of the frozen runtime contract.
+    """
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    state = metrics.get("deeper_targeting")
+    if not isinstance(state, dict):
+        state = {"gap_unavailable": 0, "strategy_counts": {}, "recent": []}
+        metrics["deeper_targeting"] = state
+    if gap is None:
+        state["gap_unavailable"] = int(state.get("gap_unavailable") or 0) + 1
+    else:
+        counts = state.get("strategy_counts")
+        if not isinstance(counts, dict):
+            counts = {}
+            state["strategy_counts"] = counts
+        key = gap.targeting_strategy
+        counts[key] = int(counts.get(key) or 0) + 1
+    recent = state.get("recent")
+    if not isinstance(recent, list):
+        recent = []
+        state["recent"] = recent
+    recent.append(
+        {
+            "followup_reason": (
+                "missing_target_fact" if gap is not None else "lead_without_usable_gap"
+            ),
+            "source_candidate_url": str(source_url or "")[:300],
+            "source_authority_class": gap.source_authority_class if gap else "",
+            "targeting_strategy": gap.targeting_strategy if gap else "unspecified",
+            "gap_hint": gap.to_dict() if gap else {},
+            "selected_candidate_url": str(selected_url or "")[:300],
+            "selected_candidate_depth": int(selected_depth or 0),
+        }
+    )
+    del recent[:-8]
+
+
 def _lead_hints_for_claim(
     cursor: ResearchRuntimeCursor, claim_id: str
 ) -> tuple[str, tuple[str, ...]]:
@@ -3066,12 +3164,17 @@ def _evidence_lead_followup_candidates(
     parent: RuntimeCandidate,
     keywords: tuple[str, ...],
     max_candidates: int,
+    gap: GapHint | None = None,
 ) -> tuple[tuple[RuntimeCandidate, ...], dict[str, int]]:
     """Turn an evidence-stage ``lead`` into bounded discovery input.
 
     This never re-reads the page and never calls a model: it consumes the
     already-read content of the eligible evidence page. ``relation="lead"``
     stays a discovery signal only - it is never weak/partial support.
+
+    §36A: when a gap hint is available the harvested URLs are ordered by
+    authoritative-deep-page rank (``rank_targeting_candidates``); ordering is a
+    discovery preference only and never decides relation/strength/eligibility.
     """
 
     stats = {
@@ -3088,6 +3191,12 @@ def _evidence_lead_followup_candidates(
     if not urls:
         stats["no_deeper_url"] = 1
         return (), stats
+    if gap is not None:
+        urls = rank_targeting_candidates(
+            urls,
+            source_url=page_url,
+            source_authority_class=gap.source_authority_class,
+        )
     known_urls = {item.url for item in existing}
     added: list[RuntimeCandidate] = []
     for url in urls:

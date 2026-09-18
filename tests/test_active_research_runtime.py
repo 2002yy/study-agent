@@ -4361,6 +4361,29 @@ def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None
     followup = cursor.evidence_lead_followups[0]
     assert followup["method"] == "no_deeper_url"
     assert followup["hint_domain"] == "official.example"
+    # §36A: the durable follow-up record keeps its frozen 8-key shape (the codec
+    # strictly validates it), and the obstacle is searched positively: the claim
+    # subject first, then the missing fact's own terms - never the negation.
+    assert set(followup) == {
+        "wave_index",
+        "evidence_id",
+        "source_candidate_id",
+        "method",
+        "added_candidate_ids",
+        "hint_domain",
+        "trusted_primary_domain",
+        "hint_terms",
+    }
+    assert all(term not in {"not", "does", "no"} for term in followup["hint_terms"])
+    diagnostics = (
+        completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY, {}) or {}
+    ).get("deeper_targeting")
+    assert isinstance(diagnostics, dict)
+    assert diagnostics["recent"], "expected §36A diagnostics in metrics"
+    assert diagnostics["recent"][-1]["followup_reason"] in {
+        "missing_target_fact",
+        "lead_without_usable_gap",
+    }
     # The Gap Planner (still the only query owner) turned the hint into a
     # site-scoped follow-up query.
     queries = [item.query for item in cursor.planned_queries]
