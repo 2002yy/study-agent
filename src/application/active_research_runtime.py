@@ -2760,16 +2760,19 @@ def _bounded_assessment_candidates(
         selected.extend(deferred[: limit - len(selected)])
     if trace is not None:
         selected_ids = {item.id for item in selected}
+        deferred_ids = {item.id for item in deferred}
         for item in ordered:
             if item.id in selected_ids:
                 continue
-            # The only observed exclusion path: the candidate's cluster was
-            # already represented and the window filled before backfill.
-            trace.note_window(
-                item.canonical_url,
-                selected=False,
-                reason="cluster_diversity_defer",
+            # Record which existing branch excluded the candidate: never
+            # reached before the window filled, or considered only in the
+            # deferred (same-cluster) pool that the remaining slots capped.
+            reason = (
+                "cluster_represented_by_earlier_candidate"
+                if item.id in deferred_ids
+                else "window_limit_reached"
             )
+            trace.note_window(item.canonical_url, selected=False, reason=reason)
     return tuple(selected)
 
 

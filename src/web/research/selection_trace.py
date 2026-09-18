@@ -55,6 +55,7 @@ class SelectionTraceEntry:
     scheduler_reason: str = ""
     read_dispatched: bool = False
     read_skip_reason: str = ""
+    duplicate_merges: int = 0
     observed_drops: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -74,6 +75,7 @@ class SelectionTraceEntry:
             "scheduler_reason": self.scheduler_reason,
             "read_dispatched": self.read_dispatched,
             "read_skip_reason": self.read_skip_reason,
+            "duplicate_merges": self.duplicate_merges,
             "terminal_reason": self.final_terminal_reason(),
             "observed_drops": list(self.observed_drops),
         }
@@ -158,9 +160,18 @@ class SelectionTraceCollector:
         )
 
     def note_duplicate(self, url: Any) -> None:
+        """A repeated occurrence merged into its own surviving candidate.
+
+        This is a merge observation, not a drop: the pool item is keyed by the
+        canonical URL, so the same URL observed again (or a raw variant that
+        canonicalizes to it) always continues as the survivor. The
+        ``canonical_duplicate`` terminal remains reserved for an observed
+        distinct-URL loss, which the current pipeline does not produce.
+        """
+
         entry = self._entry(url)
         if entry is not None:
-            self._drop(entry, "canonical_duplicate", "merged_into_existing_candidate")
+            entry.duplicate_merges += 1
 
     def note_cap_excluded(self, url: Any, *, stage: str) -> None:
         entry = self._entry(url)

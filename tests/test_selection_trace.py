@@ -71,8 +71,8 @@ def test_seen_and_normalized_are_recorded_and_joinable() -> None:
     assert entry["terminal_reason"] == "unobserved"
 
 
-# 3: only the survivor continues; duplicates carry canonical_duplicate.
-def test_duplicate_only_survivor_continues() -> None:
+# 3: a repeated occurrence merges into its own survivor (merge, not drop).
+def test_duplicate_merge_is_not_a_drop() -> None:
     trace = SelectionTraceCollector()
     pool = merge_candidate_pool(
         [
@@ -84,9 +84,9 @@ def test_duplicate_only_survivor_continues() -> None:
     )
     assert [item.canonical_url.rstrip("/") for item in pool] == [CASES.rstrip("/")]
     entry = _entry(trace.to_payload(), CASES)
-    assert entry["terminal_reason"] == "canonical_duplicate"
+    assert entry["duplicate_merges"] == 1
+    assert entry["terminal_reason"] == "unobserved"
     assert entry["deduped_survivor"] is True
-    assert entry["entered_candidate_pool"] is False
 
 
 # 4: excluded candidates keep the existing reason and never gain a guess.
@@ -95,11 +95,11 @@ def test_window_exclusion_keeps_observed_reason() -> None:
     trace.note_seen(CASES)
     trace.note_normalized(CASES)
     trace.note_materialized(CASES)
-    trace.note_window(CASES, selected=False, reason="cluster_diversity_defer")
+    trace.note_window(CASES, selected=False, reason="window_limit_reached")
 
     entry = _entry(trace.to_payload(), CASES)
     assert entry["filter_decision"] == "rejected"
-    assert "cluster_diversity_defer" in entry["filter_reason"]
+    assert "window_limit_reached" in entry["filter_reason"]
     assert entry["terminal_reason"] == "candidate_pool_excluded"
 
 
@@ -158,7 +158,7 @@ def test_first_drop_reason_is_stable() -> None:
     trace = SelectionTraceCollector()
     trace.note_seen(CASES)
     trace.note_materialized(CASES)
-    trace.note_window(CASES, selected=False, reason="cluster_diversity_defer")
+    trace.note_window(CASES, selected=False, reason="window_limit_reached")
     trace.note_scheduler_rank(CASES, rank=1)
     trace.note_scheduler_rejected(CASES, stage="budget")
 
@@ -244,7 +244,7 @@ def test_deterministic_payload_and_reason_vocabulary() -> None:
 def test_resume_hydration_preserves_observed_drops() -> None:
     trace = SelectionTraceCollector()
     trace.note_seen(CASES)
-    trace.note_window(CASES, selected=False, reason="cluster_diversity_defer")
+    trace.note_window(CASES, selected=False, reason="window_limit_reached")
     payload = trace.to_payload()
 
     restored = SelectionTraceCollector.from_payload(json.loads(json.dumps(payload)))
@@ -306,7 +306,8 @@ def test_runtime_merge_records_duplicate_and_cap() -> None:
     assert [item.url for item in merged] == [CASES]
 
     duplicate = _entry(trace.to_payload(), CASES)
-    assert duplicate["terminal_reason"] == "canonical_duplicate"
+    assert duplicate["duplicate_merges"] == 1
+    assert duplicate["terminal_reason"] == "unobserved"
     capped = _entry(trace.to_payload(), "https://example.com/new")
     assert capped["terminal_reason"] == "candidate_pool_excluded"
     assert "runtime_merge" in capped["filter_reason"]

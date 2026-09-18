@@ -58,11 +58,23 @@ def load_selection_trace(artifact: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def agreed_likely_targets(annotations: Mapping[str, Any]) -> list[str]:
+    """Agreed likely_target URLs from either annotation payload shape."""
+
+    rows = annotations.get("annotations")
+    if not isinstance(rows, list):
+        rows = annotations.get("merged")
     targets: list[str] = []
-    for item in annotations.get("annotations") or []:
+    for item in rows if isinstance(rows, list) else []:
         if not isinstance(item, Mapping):
             continue
-        if item.get("candidate_classification") != "likely_target":
+        label = str(item.get("candidate_classification") or "")
+        if not label:
+            # Merged two-pass rows: the agreed label only exists when both
+            # passes agree; disagreements never become targets.
+            pass_a = str(item.get("pass_a") or "")
+            pass_b = str(item.get("pass_b") or "")
+            label = pass_a if pass_a and pass_a == pass_b else ""
+        if label != "likely_target":
             continue
         url = str(item.get("canonical_url") or "").strip()
         if url:
@@ -100,6 +112,7 @@ def summarize(
                     "scheduler_rank": entry.get("scheduler_rank"),
                     "scheduler_decision": str(entry.get("scheduler_decision") or ""),
                     "read_dispatched": bool(entry.get("read_dispatched")),
+                    "duplicate_merges": int(entry.get("duplicate_merges") or 0),
                     "filter_decision": str(entry.get("filter_decision") or ""),
                     "filter_reason": str(entry.get("filter_reason") or ""),
                     "read_skip_reason": str(entry.get("read_skip_reason") or ""),

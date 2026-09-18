@@ -71,3 +71,14 @@ def test_agreed_targets_are_deduplicated() -> None:
         ]
     }
     assert agreed_likely_targets(annotations) == [NODE]
+
+
+def test_agreed_targets_from_two_pass_merge_require_agreement() -> None:
+    merged = {
+        "merged": [
+            {"canonical_url": NODE, "pass_a": "likely_target", "pass_b": "likely_target"},
+            {"canonical_url": "https://x", "pass_a": "likely_target", "pass_b": "near_hit"},
+            {"canonical_url": "https://y", "pass_a": "irrelevant", "pass_b": "irrelevant"},
+        ]
+    }
+    assert agreed_likely_targets(merged) == [NODE]
