@@ -138,6 +138,7 @@ from src.web.research.scheduler import (
     is_schedulable_lead,
     plan_read_wave,
 )
+from src.web.research.selection_trace import SelectionTraceCollector
 from src.web.research.source_cluster import (
     CandidateClusterAssignment,
     cluster_candidate_sources,
@@ -771,8 +772,18 @@ class ActiveResearchRuntimeExecutor:
             # contracts decide whether another wave runs. Every wave boundary
             # is checkpointed, and a crash resumes inside the durable wave
             # (completed queries/reads/extractions are never repeated).
-            while True:
-                # Research Window Deadline Hardening: the research window is an
+            # §37B-selection: diagnostic provenance only. The collector records
+            # decisions the existing pipeline already makes; it never changes
+            # ordering, budgets or the cursor, and its payload lives in the run
+            # metrics (resume-safe hydration from a previous process payload).
+            raw_metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+            previous_trace = (
+                raw_metrics.get("selection_trace")
+                if isinstance(raw_metrics, Mapping)
+                else None
+            )
+            selection_trace = SelectionTraceCollector.from_payload(previous_trace)
+            while True:                # Research Window Deadline Hardening: the research window is an
                 # absolute boundary. Once it is exhausted the tail belongs to
                 # finalization (Gate, answer synthesis, claim binding,
                 # serialization), so no new wave starts.
@@ -972,6 +983,7 @@ class ActiveResearchRuntimeExecutor:
                             ),
                             results_per_query=5,
                             max_candidates=state.budget.max_candidates,
+                            trace=selection_trace,
                         )
                     finally:
                         cursor = finish_external_attempt(cursor, call_id=marker.call_id)
@@ -1008,6 +1020,7 @@ class ActiveResearchRuntimeExecutor:
                             cursor.candidates,
                             batch_result.candidates,
                             max_candidates=state.budget.max_candidates,
+                            trace=selection_trace,
                         ),
                     )
                     query_attempts.append(
@@ -1057,6 +1070,14 @@ class ActiveResearchRuntimeExecutor:
                     }
                     clusters = cluster_candidate_sources(claim_candidates)
                     assignments = {item.candidate_id: item for item in clusters.assignments}
+                    for claim_candidate in claim_candidates:
+                        assignment = assignments.get(claim_candidate.id)
+                        selection_trace.note_pool_entered(
+                            claim_candidate.canonical_url,
+                            pool_class=str(
+                                getattr(assignment, "cluster_id", "") or ""
+                            ),
+                        )
                     candidates = _bounded_assessment_candidates(
                         claim_candidates,
                         assignments=assignments,
@@ -1064,6 +1085,7 @@ class ActiveResearchRuntimeExecutor:
                         excluded_candidate_ids=frozenset(
                             {*cursor.completed_read_ids, *saved_candidate_ids}
                         ),
+                        trace=selection_trace,
                     )
                     if not candidates:
                         continue
@@ -1162,6 +1184,11 @@ class ActiveResearchRuntimeExecutor:
                         claim=claim,
                         assessments=merged_assessments,
                     )
+                    for rank_position, ranked_item in enumerate(ranked, start=1):
+                        selection_trace.note_scheduler_rank(
+                            ranked_item.candidate.canonical_url,
+                            rank=rank_position,
+                        )
                     claim_rankings[claim.id] = ranked
                     stored_assessments[claim.id] = [item.to_dict() for item in ranked]
                     assessed_inputs[claim.id] = sorted(merged_assessments)
@@ -1251,6 +1278,7 @@ class ActiveResearchRuntimeExecutor:
                     state,
                     rankings_for_plan,
                     covered_cluster_ids_by_claim=covered_clusters_by_claim,
+                    trace=selection_trace,
                 )
                 # Already-read candidates whose extraction crashed mid-wave
                 # stay extractable on resume, but physical reuse never bypasses
@@ -1287,16 +1315,26 @@ class ActiveResearchRuntimeExecutor:
                     if isinstance(item, Mapping)
                 )
                 successful_reads = state.budget.reads_used
+                read_loop_stop_reason = ""
+                dispatched_read_ids: set[str] = set()
                 for plan_item in physical_reads:
                     candidate_id = plan_item["candidate_id"]
                     if candidate_id in cursor.completed_read_ids:
+                        try:
+                            selection_trace.note_already_read(
+                                _candidate_by_id(cursor, candidate_id).canonical_url
+                            )
+                        except ValueError:
+                            pass
                         continue
                     ensure_active()
                     if successful_reads >= state.budget.max_reads or used_chars >= state.budget.max_total_chars:
+                        read_loop_stop_reason = "read_budget_exhausted"
                         break
                     if research_seconds_left() < MIN_READ_SECONDS:
                         # The window cannot absorb a useful read; stop starting
                         # reads instead of overrunning the finalization reserve.
+                        read_loop_stop_reason = "research_window_closed"
                         record_research_window_skip(
                             "read_skipped_insufficient_research_window"
                         )
@@ -1351,6 +1389,8 @@ class ActiveResearchRuntimeExecutor:
                         attempt=attempt,
                         started_at=self.utc_now(),
                     )
+                    selection_trace.note_read(candidate.canonical_url, dispatched=True)
+                    dispatched_read_ids.add(candidate_id)
                     cursor = begin_external_attempt(cursor, marker)
                     checkpoint()
                     read_exception_type = ""
@@ -1412,6 +1452,29 @@ class ActiveResearchRuntimeExecutor:
                         outcome.to_dict() for outcome in cursor.read_outcomes
                     ]
                     checkpoint()
+
+                if read_loop_stop_reason:
+                    # Observed loop-level stop: every planned candidate after the
+                    # break shares the same recorded cause; none of them was
+                    # dispatched, and the run never reconsiders them this wave.
+                    for plan_item in physical_reads:
+                        leftover_id = plan_item["candidate_id"]
+                        if leftover_id in dispatched_read_ids:
+                            continue
+                        if leftover_id in cursor.completed_read_ids:
+                            continue
+                        try:
+                            leftover_url = _candidate_by_id(
+                                cursor, leftover_id
+                            ).canonical_url
+                        except ValueError:
+                            continue
+                        selection_trace.note_read(
+                            leftover_url,
+                            dispatched=False,
+                            skip_reason=read_loop_stop_reason,
+                        )
+                _flush_selection_trace(context, selection_trace)
 
                 # Slice 1: bounded lead discovery. A lead read is a discovery
                 # action, never an evidence read: it runs strictly after the
@@ -2568,12 +2631,15 @@ def _merge_runtime_candidates(
     incoming: tuple[CandidatePoolItem, ...],
     *,
     max_candidates: int,
+    trace: SelectionTraceCollector | None = None,
 ) -> tuple[RuntimeCandidate, ...]:
     merged = list(existing)
     by_url = {item.url: index for index, item in enumerate(merged)}
     for item in incoming:
         index = by_url.get(item.canonical_url)
         if index is not None:
+            if trace is not None:
+                trace.note_duplicate(item.canonical_url)
             current = merged[index]
             merged[index] = replace(
                 current,
@@ -2585,6 +2651,8 @@ def _merge_runtime_candidates(
             )
             continue
         if len(merged) >= max_candidates:
+            if trace is not None:
+                trace.note_cap_excluded(item.canonical_url, stage="runtime_merge")
             continue
         by_url[item.canonical_url] = len(merged)
         merged.append(
@@ -2604,6 +2672,8 @@ def _merge_runtime_candidates(
                 discovery_depth=item.discovery_depth,
             )
         )
+        if trace is not None:
+            trace.note_materialized(item.canonical_url)
     return tuple(merged)
 
 
@@ -2641,6 +2711,7 @@ def _bounded_assessment_candidates(
     assignments: Mapping[str, CandidateClusterAssignment],
     max_reads: int,
     excluded_candidate_ids: frozenset[str] = frozenset(),
+    trace: SelectionTraceCollector | None = None,
 ) -> tuple[CandidatePoolItem, ...]:
     """Select a stable, cluster-diverse semantic-assessment window.
 
@@ -2652,6 +2723,10 @@ def _bounded_assessment_candidates(
     unread = tuple(
         item for item in candidates if item.id not in excluded_candidate_ids
     )
+    if trace is not None:
+        for item in candidates:
+            if item.id in excluded_candidate_ids:
+                trace.note_already_read(item.canonical_url)
     limit = max(
         0,
         min(
@@ -2661,6 +2736,11 @@ def _bounded_assessment_candidates(
         ),
     )
     if limit == 0:
+        if trace is not None:
+            for item in unread:
+                trace.note_window(
+                    item.canonical_url, selected=False, reason="window_limit_zero"
+                )
         return ()
     ordered = tuple(sorted(unread, key=lambda item: (item.first_seen_rank, item.id)))
     selected: list[CandidatePoolItem] = []
@@ -2675,8 +2755,21 @@ def _bounded_assessment_candidates(
         seen_clusters.add(cluster_id)
         selected.append(candidate)
         if len(selected) == limit:
-            return tuple(selected)
-    selected.extend(deferred[: limit - len(selected)])
+            break
+    if len(selected) < limit:
+        selected.extend(deferred[: limit - len(selected)])
+    if trace is not None:
+        selected_ids = {item.id for item in selected}
+        for item in ordered:
+            if item.id in selected_ids:
+                continue
+            # The only observed exclusion path: the candidate's cluster was
+            # already represented and the window filled before backfill.
+            trace.note_window(
+                item.canonical_url,
+                selected=False,
+                reason="cluster_diversity_defer",
+            )
     return tuple(selected)
 
 
@@ -2793,6 +2886,7 @@ def _fair_read_plan(
     rankings: Mapping[str, tuple[RankedCandidate, ...]],
     *,
     covered_cluster_ids_by_claim: Mapping[str, set[str]] | None = None,
+    trace: SelectionTraceCollector | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Return ``(physical_reads, extraction_targets)`` for the read stage.
 
@@ -2869,6 +2963,26 @@ def _fair_read_plan(
             )
             remaining = state.budget.max_reads - state.budget.reads_used - len(physical)
             budget_open = remaining > 0 and (allow_reserve or len(physical) < normal_limit)
+            if trace is not None:
+                fresh_ids = {item.candidate.id for item in fresh}
+                for item in ranked:
+                    if item.candidate.id in physical_ids or item.candidate.id in fresh_ids:
+                        continue
+                    # Observed exclusion: the claim's cluster coverage already
+                    # contains this candidate's cluster before scheduling.
+                    trace.note_scheduler(
+                        item.candidate.canonical_url,
+                        decision="rejected",
+                        reason="covered_cluster",
+                    )
+                    trace.note_scheduler_rejected(
+                        item.candidate.canonical_url, stage="covered_cluster"
+                    )
+                if not budget_open:
+                    for item in fresh:
+                        trace.note_scheduler_rejected(
+                            item.candidate.canonical_url, stage="budget"
+                        )
 
             conflict_open = claim_id in open_conflict_claim_ids or any(
                 "new_contradiction" in item.assessment.expected_gain_signals
@@ -3120,6 +3234,23 @@ def _search_discovery_slot(context: dict[str, Any]) -> int:
         return 1
     queries = state.get("queries")
     return len(queries) + 1 if isinstance(queries, list) else 1
+
+
+def _flush_selection_trace(
+    context: dict[str, Any], trace: SelectionTraceCollector
+) -> None:
+    """§37B-selection: publish the diagnostic payload into run metrics only.
+
+    Never touches the runtime cursor; the payload is rebuilt (derived terminal
+    reasons) on every flush, so later observations are reflected without
+    re-deriving any selection decision.
+    """
+
+    if len(trace) == 0:
+        return
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if isinstance(metrics, dict):
+        metrics["selection_trace"] = trace.to_payload()
 
 
 def _record_deeper_targeting(

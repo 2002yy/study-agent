@@ -15,6 +15,7 @@ from typing import Any
 
 from src.news.url_normalizer import canonicalize_url
 from src.web.research.gap_planner import GapQueryBatch, GapSearchIntent, PlannedGapQuery
+from src.web.research.selection_trace import SelectionTraceCollector
 
 DEFAULT_RESULTS_PER_QUERY = 5
 DEFAULT_MAX_POOL_CANDIDATES = 20
@@ -133,6 +134,7 @@ def execute_candidate_pool_batch(
     checkpoint: Checkpoint | None = None,
     results_per_query: int = DEFAULT_RESULTS_PER_QUERY,
     max_candidates: int = DEFAULT_MAX_POOL_CANDIDATES,
+    trace: SelectionTraceCollector | None = None,
 ) -> CandidatePoolBatchResult:
     """Execute all planned queries and merge their result provenance."""
 
@@ -155,6 +157,9 @@ def execute_candidate_pool_batch(
                 for item in payload.get("results", [])
                 if isinstance(item, Mapping)
             )
+            if trace is not None:
+                for raw in raw_results:
+                    trace.note_seen(raw.get("url") or raw.get("link"))
             providers = _strings(payload.get("providers_attempted", []), limit=12)
             provider_errors = _strings(payload.get("provider_errors", []), limit=24)
             status = _bounded_text(payload.get("status"), 100) or (
@@ -179,7 +184,9 @@ def execute_candidate_pool_batch(
         )
         outcomes.append(outcome)
         raw_batches.append((planned, raw_results, providers))
-        candidates = merge_candidate_pool(raw_batches, max_candidates=pool_limit)
+        candidates = merge_candidate_pool(
+            raw_batches, max_candidates=pool_limit, trace=trace
+        )
         _ensure_active(should_cancel)
         if checkpoint is not None:
             checkpoint(
@@ -212,6 +219,7 @@ def merge_candidate_pool(
     ],
     *,
     max_candidates: int = DEFAULT_MAX_POOL_CANDIDATES,
+    trace: SelectionTraceCollector | None = None,
 ) -> tuple[CandidatePoolItem, ...]:
     """Canonicalize and dedupe results while retaining all discovery paths."""
 
@@ -226,11 +234,20 @@ def merge_candidate_pool(
             )
             title = _bounded_text(raw.get("title") or raw.get("name"), 500)
             if not canonical or not title:
+                if trace is not None:
+                    trace.note_unusable(
+                        raw.get("url") or raw.get("link"),
+                        had_canonical=bool(canonical),
+                    )
                 continue
+            if trace is not None:
+                trace.note_normalized(canonical)
             source = _bounded_text(raw.get("source"), 200)
             providers = _candidate_providers(raw, payload_providers)
             existing_position = positions.get(canonical)
             if existing_position is not None:
+                if trace is not None:
+                    trace.note_duplicate(canonical)
                 existing = ordered[existing_position]
                 ordered[existing_position] = replace(
                     existing,
@@ -248,6 +265,8 @@ def merge_candidate_pool(
                 )
                 continue
             if len(ordered) >= limit:
+                if trace is not None:
+                    trace.note_cap_excluded(canonical, stage="merge_candidate_pool")
                 continue
             seen_rank += 1
             item = CandidatePoolItem(
@@ -267,6 +286,8 @@ def merge_candidate_pool(
             )
             positions[canonical] = len(ordered)
             ordered.append(item)
+            if trace is not None:
+                trace.note_materialized(canonical)
     return tuple(ordered)
 
 
