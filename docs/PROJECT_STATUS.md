@@ -2038,6 +2038,39 @@ hard cap：reads_used 2–3，总 dispatch 未超 cap
 
 **§39 confound 关闭措辞（按用户定稿）**：`model_call_attempts_exhausted` 的旧样本无法事后区分具体 provider failure，但与余额耗尽/402 时间高度重合；健康余额下 0/4 复现，且在 elapsed 56.5–58.0s 的 wave2 中 extraction 仍可成功，因此现有证据**不支持** 60s research-window tail 或 30s per-call timeout 是主要原因（**最俭省解释 = 资源/402**，保留 strongest-current-explanation 措辞，不升级为"已证明"）。"extraction 失败 detail 附带首个 provider error code"列为后续诊断项（未实施）。
 
+## 47. §42 Selector Production Contract（已实施 `69b7eb4`；默认关闭）
+
+### 47.1 合同（用户冻结）
+
+```text
+candidate_pool → [1 次 model selector（≤K=2，无 app 级 retry）] → usable?
+  ├─ yes → model picks
+  └─ no  → deterministic legacy window（在**同一原始 pool** 上重跑）
+        → 既有下游
+```
+
+- **usable 机械判定（不由模型自述）**：调用 completed + schema 合法（`urls: [str]`，parse 失败经 attempt audit 的 error types 区分为 `invalid_schema`）+ 每个 URL 都在**输入候选集**内 + 无 forbidden（已排除候选）+ 无重复 + 数量 1..K（**over_k 直接 fallback，不截断后偷偷接受**）。
+- `unusable_reason` 枚举：`empty / call_unavailable / invalid_schema / unknown_url / duplicate_only / over_k / policy_violation`。
+- **fallback = 原始 pool 上的 legacy window**（不是模型剩余的候选）：`original_pool / model_picks / fallback_picks / final_picks / selection_source` 独立可审计。
+- **预算**：selector 属于 **orchestration** 工作——`metrics.orchestration_model_calls` 每次尝试 +1；不动 search/read/evidence budget；qualification guard 下仍计入全局物理调用 cap（"语义上属于 orchestration；资源上仍然是真实模型调用"）。
+- 默认 off：bit-for-bit 保持原 selection（有测试断言默认路径**完全不会调用模型**）。
+
+### 47.2 测试（17 条合同测试，`tests/test_selection_authority.py`）
+
+合法 2 选 → model picks；`[]` → empty；unavailable → call_unavailable；schema 失败 → invalid_schema（与 transport 区分）；池外 URL → unknown_url；3 选 K=2 → over_k；重复 → duplicate_only；forbidden → policy_violation；异常不抛出；**每 window 恰 1 次逻辑调用**；诊断字段全量；默认 off 不触模型；**fallback 在原 pool 上**（与直接调 legacy window 结果逐 id 相等）；model 路径记账；**availability 不变量（unavailable 模型也不能把 legacy 能填的窗口变空）**。
+
+### 47.3 Live 验收（Node case ×6；`SELECTION_AUTHORITY.node.s42_1–6.json`）
+
+```text
+selector_caused_availability_loss = 0/6 runs（0/28 windows）  ← 合同核心目标达成
+usable 窗口 → selection_source=model（s42_5 等多次出现）
+unusable 窗口 → legacy_fallback，final_picks 恒非空（2/1 交替，与 legacy 一致）
+目标页：entered_scheduler rank1 5/6；read_dispatched 3/6；gate=pass 1/6（s42_5）
+orchestration_model_calls = 4–6/run（与 window/claim 数一致）
+```
+
+**观察（记录为债项，不属本批修复）**：unusable 中 `invalid_schema` 占多数（约 16/28 windows）——DeepSeek json_object 输出对 `{"urls": [str]}` 契约的遵从度不稳；`empty`、`call_unavailable` 次之。合同已证明"模型输出不达标也不会降低 availability"，但若要提升 model-path 占比，下一步应做 **schema 遵从性硬化**（不是调提示词追命中率），列为后续项。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
