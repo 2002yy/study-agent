@@ -170,13 +170,22 @@ class ActiveResearchGateway:
     ) -> dict[str, Any]:
         # The shared research-window deadline is forwarded only to gateways
         # that accept it; legacy doubles keep the previous signature.
-        if timeout is not None and self._read_gateway_accepts_timeout:
-            return cast(Any, self._read_gateway).read(
-                url,
-                max_chars=max_chars,
-                timeout=timeout,
-            )
-        return self._read_gateway.read(url, max_chars=max_chars)
+        # §48 diagnostic (default off): bounded fetch-layer retries wrap the
+        # read; success-path behaviour and content semantics are unchanged.
+        from src.web.research.read_retry import read_retry_enabled, read_with_bounded_retry
+
+        def _inner(target: str) -> Mapping[str, Any]:
+            if timeout is not None and self._read_gateway_accepts_timeout:
+                return cast(Any, self._read_gateway).read(
+                    target,
+                    max_chars=max_chars,
+                    timeout=timeout,
+                )
+            return self._read_gateway.read(target, max_chars=max_chars)
+
+        if read_retry_enabled():
+            return read_with_bounded_retry(url, read_fn=_inner)
+        return dict(_inner(url) or {})
 
     def warnings(self) -> list[dict[str, str]]:
         return [dict(item) for item in self._warnings]

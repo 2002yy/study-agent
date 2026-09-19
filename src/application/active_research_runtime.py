@@ -4212,7 +4212,7 @@ def _source_record(
         "content": str(raw_read.get("content") or "")[:6000],
         "error": _bounded_text(raw_read.get("error"), 200),
     }
-    return {
+    record = {
         "candidate_id": candidate.id,
         "item": {
             "title": candidate.title,
@@ -4234,6 +4234,18 @@ def _source_record(
         "read_status": read["status"],
         "evidence_state": "new" if read["status"] == "read" else "invalid_or_rejected",
     }
+    retry = raw_read.get("read_retry")
+    if isinstance(retry, Mapping):
+        # §48 diagnostics only: how many bounded fetch-layer retries the reader
+        # spent before this result; never influences evidence semantics.
+        record["read_retry"] = {
+            "attempts": int(retry.get("attempts") or 0),
+            "retries": int(retry.get("retries") or 0),
+            "retry_reasons": [
+                _bounded_text(item, 160) for item in (retry.get("retry_reasons") or [])
+            ][:4],
+        }
+    return record
 
 
 def _upsert_source(records: list[dict[str, Any]], record: dict[str, Any]) -> None:
