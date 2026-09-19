@@ -1965,6 +1965,28 @@ Production default           NOT YET（全部开关默认关闭）
 
 ⇒ **§35 起追的完整 research E2E positive control 首次闭环**。后续顺序：§39 confound 复核 → read reserve → selector 生产化（含 guard 预算语义）→ recall/selection 稳定性；本批所有开关仍为诊断态，生产默认未变。
 
+### 46.4 §39 confound 复核（已完成，`SELECTION_AUTHORITY.node.confound1–4.json`）
+
+**窄目标**：只在 run1 形态（`RESEARCH_SELECTION_AUTHORITY=model` + `RESEARCH_ATOMIC_ROUTING=on`，不掺任何 answer 改动）下、健康余额重跑，判定当时的 `model_call_attempts_exhausted` 属于哪类。
+
+```text
+confound1: target_read=false；juejin 路由 eligible/background（wave2/3）；elapsed 57.2s
+confound2: target_read=true → routed extraction **eligible / relation=supports**（wave2）；elapsed 58.0s
+confound3: target_read=false；juejin 路由 eligible/background；elapsed 59.5s
+confound4: target_read=true → routed extraction **eligible / relation=supports**（wave2）；elapsed 56.5s
+
+model_call_attempts_exhausted 复现次数：**0/4**；
+research_model_call_count 10–11，extraction phase 3.9–7.2s。
+```
+
+**判定**
+
+1. **资源/402 假设为最俭省解释**：这批失败与账户在 capture3 之后立即出现 `402 Insufficient Balance` 时间重合；gateway 在全部尝试失败时统一返回 `model_call_attempts_exhausted`，余额耗尽与超时在该记录里**不可区分**——健康余额下 0/4 复现，指向资源类原因。
+2. **60s research window 假设被削弱**：confound2/4 的 routed extraction 在 **wave 2、总 elapsed 56.5–58.0s**（距 60s 硬预算仅 2–3.5s）依然成功完成。
+3. **30s 单调用窗口假设同样不被支持**：成功 run 的 extraction phase 仅 3.9–7.2s。
+4. 残留不确定性：当时未记录 provider 错误文本，无法追溯性证明；**建议**（未实施）在 extraction 失败路径的有界 detail 中附带首个 provider 错误码/文本，避免再次出现"402 与超时不可区分"。
+5. 附带收获：confound2/4 又贡献两个"目标页 → 路由 supports（primary, cluster 7dcd…）"实例（这两次 gate 仍 block，属评估角色/选择方差，不属本项）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
