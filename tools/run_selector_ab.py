@@ -84,11 +84,13 @@ class PoolResult:
     target_read_hybrid: str = ""
     selector_calls: int = 0
     outcome: str = ""
+    pool_class: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "case_id": self.case_id,
             "pool_source": self.pool_source,
+            "pool_class": self.pool_class,
             "pool_size": self.pool_size,
             "targets": list(self.targets),
             "legacy_picks": list(self.legacy_picks),
@@ -97,6 +99,7 @@ class PoolResult:
             "hybrid_reason": self.hybrid_reason,
             "legacy_hit": self.legacy_hit,
             "hybrid_hit": self.hybrid_hit,
+            "replacement_loss": self.outcome == "loss",
             "target_read_legacy": self.target_read_legacy,
             "target_read_hybrid": self.target_read_hybrid,
             "selector_calls": self.selector_calls,
@@ -156,42 +159,80 @@ def classify(legacy_hit: bool, hybrid_hit: bool) -> str:
 
 def run_ab(
     *,
-    probe_path: Path,
-    annotations_path: Path,
+    probe_path: Path | None = None,
+    annotations_path: Path | None = None,
+    pools_file: Path | None = None,
     output_path: Path,
     read_targets: bool,
     selector_caller: Callable[..., tuple[Sequence[Any], Any]] | None = None,
     reader: Callable[[str], Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     load_dotenv(REPO_ROOT / ".env")
-    probe = json.loads(probe_path.read_text(encoding="utf-8"))
-    annotations = json.loads(annotations_path.read_text(encoding="utf-8"))
     caller = selector_caller or _live_selector()
     read_fn = reader or _live_reader()
+    entries: list[dict[str, Any]] = []
+    if pools_file is not None:
+        raw_entries = json.loads(pools_file.read_text(encoding="utf-8"))
+        rows = raw_entries.get("pools") if isinstance(raw_entries, Mapping) else raw_entries
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, Mapping):
+                continue
+            entries.append(
+                {
+                    "case_id": str(row.get("case_id") or ""),
+                    "question": str(row.get("question") or ""),
+                    "pool": [
+                        dict(item)
+                        for item in row.get("pool") or []
+                        if isinstance(item, Mapping)
+                    ],
+                    "targets": [str(item) for item in row.get("targets") or []],
+                    "pool_source": str(row.get("pool_source") or "natural"),
+                }
+            )
+    else:
+        if probe_path is None or annotations_path is None:
+            raise ValueError("run_ab needs either --pools-file or probe + annotations")
+        probe = json.loads(probe_path.read_text(encoding="utf-8"))
+        annotations = json.loads(annotations_path.read_text(encoding="utf-8"))
+        for case in load_probe_cases(probe):
+            case_id = str(case.get("case_id") or "")
+            pool = build_pool(case)
+            injected = INJECTED_TARGETS.get(case_id)
+            targets = agreed_targets(annotations, case_id)
+            pool_source = "annotated"
+            if injected and not targets:
+                pool.append(dict(injected))
+                targets = [str(injected["url"])]
+                pool_source = "injected"
+            entries.append(
+                {
+                    "case_id": case_id,
+                    "question": str(case.get("question") or ""),
+                    "pool": pool,
+                    "targets": targets,
+                    "pool_source": pool_source,
+                }
+            )
     results: list[PoolResult] = []
-    for case in load_probe_cases(probe):
-        case_id = str(case.get("case_id") or "")
-        pool = build_pool(case)
-        injected = INJECTED_TARGETS.get(case_id)
-        targets = agreed_targets(annotations, case_id)
-        pool_source = "annotated"
-        if injected and not targets:
-            pool.append(dict(injected))
-            targets = [str(injected["url"])]
-            pool_source = "injected"
-        if not targets:
+    for entry in entries:
+        targets = entry["targets"]
+        if not targets or not entry["pool"]:
             continue
         result = PoolResult(
-            case_id=case_id, pool_source=pool_source, pool_size=len(pool), targets=targets
+            case_id=entry["case_id"],
+            pool_source=entry["pool_source"],
+            pool_size=len(entry["pool"]),
+            targets=targets,
         )
-        items = build_items(pool)
+        items = build_items(entry["pool"])
         legacy_items, assignments = legacy_window(items)
         result.legacy_picks = [item.canonical_url for item in legacy_items]
         result.legacy_hit = any(url in result.legacy_picks for url in targets)
 
         picks, diagnostics = caller(
             items,
-            claim_text=str(case.get("question") or ""),
+            claim_text=entry["question"],
             assignments=assignments,
             max_picks=WINDOW_CAP,
         )
@@ -201,6 +242,7 @@ def run_ab(
         result.hybrid_picks = [item.canonical_url for item in picks]
         result.hybrid_hit = any(url in result.hybrid_picks for url in targets)
         result.outcome = classify(result.legacy_hit, result.hybrid_hit)
+        result.pool_class = "B_preservation" if result.legacy_hit else "A_recovery"
 
         if read_targets:
             for arm, picked in (("legacy", result.legacy_picks), ("hybrid", result.hybrid_picks)):
@@ -231,6 +273,12 @@ def run_ab(
         "pools": [row.to_dict() for row in results],
         "summary": {
             "pools": total,
+            "pool_classes": {
+                "A_recovery": sum(1 for row in results if row.pool_class == "A_recovery"),
+                "B_preservation": sum(
+                    1 for row in results if row.pool_class == "B_preservation"
+                ),
+            },
             "conditional_target_selection_rate_legacy": (
                 round(legacy_hits / total, 3) if total else None
             ),
@@ -242,6 +290,7 @@ def run_ab(
             "wins": wins,
             "ties": ties,
             "losses": losses,
+            "replacement_losses": losses,
             "selector_caused_losses": losses,
             "orchestration_model_calls": total,
             "incremental_target_reads": hybrid_hits - legacy_hits,
@@ -310,6 +359,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", type=Path, default=DEFAULT_PROBE)
     parser.add_argument("--annotations", type=Path, default=DEFAULT_ANNOTATIONS)
+    parser.add_argument("--pools-file", type=Path, default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--no-read", action="store_true", help="skip target reads")
     return parser
@@ -318,15 +368,16 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     args = _parser().parse_args(list(argv) if argv is not None else None)
     artifact = run_ab(
-        probe_path=args.probe.resolve(),
-        annotations_path=args.annotations.resolve(),
+        probe_path=None if args.pools_file else args.probe.resolve(),
+        annotations_path=None if args.pools_file else args.annotations.resolve(),
+        pools_file=args.pools_file.resolve() if args.pools_file else None,
         output_path=args.output.resolve(),
         read_targets=not args.no_read,
     )
     print(json.dumps(artifact["summary"], ensure_ascii=False, sort_keys=True))
     for row in artifact["pools"]:
         print(
-            f"{row['case_id']} [{row['pool_source']}] "
+            f"{row['case_id']} [{row['pool_source']}/{row['pool_class']}] "
             f"legacy={row['legacy_hit']} hybrid={row['hybrid_hit']} "
             f"source={row['hybrid_source']}{('/' + row['hybrid_reason']) if row['hybrid_reason'] else ''} "
             f"read L/H={row['target_read_legacy'] or '-'}/{row['target_read_hybrid'] or '-'}"
