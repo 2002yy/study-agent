@@ -2407,6 +2407,29 @@ local_richer_available = 0    answer_question_3 = **no**
 - (c) 接受现状：把此类页面视为 unreadable，证据资格交给既有链。
 - 观测项：Docker 的 read adequacy 由**两类不同问题**组成——内容形态（正文不在常规文本节点）与 fetch 层波动（10054）；不是本项目 reader 选择问题。
 
+## 57. §47 Fetch Retry/Backoff 特征化（`7853cfb`；结论：retry 有效、成本可承受）
+
+工具 `tools/run_fetch_retry_characterization.py`（5 条 focused 测试；注入式 fetch 序列 + 实时 fetch 两用）：每 URL 6 trials，每 trial 最多 3 attempts、固定 1s/2s 退避；记录 `first_attempt_failure_rate / retry_success_rate_given_first_failure / attempts_to_success / final_success_rate / latency / failure_signature_counts`。样本 = 3 个 docs.docker.com 页 + 1 个对照页。
+
+**结果（`FETCH_RETRY.probe1.json`，24 trials）**
+
+| URL | 首发失败率 | 首败后重试成功率 | K=3 最终成功率 | 失败签名 |
+|---|---:|---:|---:|---|
+| docker-hub/usage/pulls | 3/6 = 50% | 1/3 = 33% | **4/6 = 66.7%** | WinError10054 ×7 |
+| docker-hub/usage | 3/6 = 50% | 3/3 = 100% | **6/6 = 100%** | WinError10054 ×5 |
+| desktop/windows-install | 4/6 = 66.7% | 3/4 = 75% | **5/6 = 83.3%** | WinError10054 ×7 + RemoteDisconnected ×1 |
+| postgresql 对照 | **0/6** | — | 6/6 = 100% | 无 |
+
+**延迟成本**：成功单次 p50 ≈ 3.0–4.5s（Docker 页本身慢；对照 1.3s）；带重试的 trial 总延迟 p50 ≈ 3.6–4.5s、max 4.4–8.0s（≈ 成功那次 + 1–2 次退避）。在 48s research window / 60s hard budget 内属**每秒级、可承受**成本。
+
+**结论（冻结）**
+
+1. **docs.docker.com 的 fetch flakiness 是真实且高频的**（首发失败 50–67%；同一环境下对照页 0/6），归因于目标 host，而非随机网络。
+2. **有界 retry/backoff 显著恢复可用性**：最终成功率 50%→100%（usage）、67%→83%（windows-install）、50%→67%（pulls，仍有 1/6 trial 三次皆失败）。
+3. **但它只对症 `fetch_failed`**：§46 的 `short_doc`（HTML 349,998 chars → 提取恒 520）是内容形态问题，retry 不会带来正文。
+4. 因此若动 runtime，最小方向是 **reader 侧有界重试（≤2 次、1s/2s 退避、仅对 fetch-layer 失败）**；不改 extractor、不改依赖边界、不引入外部服务。是否实施待用户拍板；`pulls` 页的 33% 三连败说明 retry 不能作为该页可达性的保证。
+5. 样本量限制：每 URL 6 trials，属特征化而非分布推断；结论已足以支持"是否值得动 runtime"的判断。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
