@@ -2144,21 +2144,22 @@ incremental_target_reads_per_selector_call = 1.0
 - `tools/run_natural_target_scan.py`：读取自然运行 artifact，从各 case 自己的 search discovery 重建候选池，检查已知目标页（Node 标注 + Docker/PostgreSQL/uv 权威页）是否**已进入池**，冻结每个 distinct 的自然 target-pool（presence-only，不是 recall 主张）。
 - `tools/run_selector_ab.py`：新增 `--pools-file`（冻结自然池输入）、池分类 `A_recovery / B_preservation`、以及 **`replacement_loss`**（legacy 命中而 hybrid 丢失）——与 `selector_caused_losses`（窗口不得变空）区分开。
 
-**自然采集（4 个已知目标 case × 2 次 = 8 次自然运行，全部默认 legacy、无任何 selector 开关）**：
+**自然采集（4 个已知目标 case × 2 次 = 8 次自然运行，全部默认 legacy、无任何 selector 开关；另对历史 17 份 artifact 全量扫描）**：
 
 ```text
-distinct natural target-containing pools = **1**（仅 Node：nodejs.cn/api/modules.html 进池）
-Docker / PostgreSQL / uv：6 次运行 **0 次**目标进池
-→ 自然 target-pool 的供给本身被 recall 限制（与 11/12 无 likely-target 的结论一致）
+distinct natural target-containing pools = **6**（全部 Node：§37A 池含双镜像 + 5 个单镜像变体）
+Docker / PostgreSQL / uv：17 份 artifact 中 **0 次**目标进池
+→ 自然 target-pool 的供给本身被 recall 限制（与 11/12 无 likely-target 的结论一致），且当前唯一自然供给源仍是 Node 单 case
 ```
 
-**自然池 paired replay（`SELECTOR_AB.natural1.json`）**：
+**自然池 paired replay（`SELECTOR_AB.natural6.json`，N=6）**：
 
 ```text
-pool_class = A_recovery（legacy miss / target in pool）
-legacy hit = 0 → hybrid hit = 1（source=model）→ outcome = win
-replacement_losses = 0；selector_caused_losses = 0；target read H = ok
-orchestration calls = 1；incremental_target_reads / selector_call = 1.0
+pool_class = A_recovery × 6（legacy miss / target in pool）
+legacy hit = 0/6 → hybrid hit = 6/6（source=model ×6）→ wins = 6
+replacement_losses = 0；selector_caused_losses = 0
+orchestration calls = 6；incremental_target_reads / selector_call = 1.0
+（read 列本轮 --no-read 跳过；单池真实 read 已在 natural1 验证 ok）
 ```
 
 **结论与阶段判定**：
