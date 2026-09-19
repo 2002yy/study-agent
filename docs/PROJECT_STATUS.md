@@ -2376,6 +2376,36 @@ node   run2: gate=pass；Tier-2 在该 claim"已读但尚无 support"时触发�
 
 其余冻结项复核一致：`RESEARCH_LLM_PROPOSAL` 默认 off；未新增第三方商业 Search API；Tier-1 / selector / routing / extractor / Gate / answer consistency 语义未动；Discovery 可换、证据链不换。
 
+## 56. §46 Read Adequacy 特征化（首轮完成 `82caa33`/`df0763f`；结论：本地方案无提升空间）
+
+工具 `tools/run_read_adequacy_probe.py`（9 条 focused 测试；纯本地、无新依赖）：对样本 URL 同时测 (a) 生产 read（`ActiveResearchGateway.read`，6000 上限）与 method；(b) 原始 HTML 抓取（chars/final_url/reason）；(c) **三个本地抽取器**各自产出（trafilatura-precision / readability / HTMLParser，20000 上限）——回答"同一页面是否有更完整的本地抽取路径"。形状分类：`ok / short_doc / extraction_loss / js_shell / anti_bot_or_error / redirect_landing / fetch_failed`。
+
+**样本**：4 个已知目标 + 4 个 artifact 中观测到的官方深页（去重，cap 12）。**结果（`READ_ADEQUACY.probe2.json`，8 URL）**：
+
+```text
+ok           : 5   （postgresql versioning 2384 / uv LICENSE 1077 / nodejs.cn+nodejs.org modules 6000 /
+                      github.com/docker 1117——多个页面本地抽取器还能给更多，但生产均已达标）
+short_doc    : 1   ← docs.docker.com/docker-hub/usage/pulls/：
+                     production=520 chars，而原始 HTML=**349,998 chars**，三个本地抽取器**全部只有 520**
+                     ⇒ 文本在 JS 渲染里，HTML 无正文文本节点 ⇒ **本地抽取器无法补救**
+fetch_failed : 2   ← docs.docker.com 两页（连接重置 10054；该 host 抓取在本环境反复出现瞬时 reset）
+short_ratio  : 3/8 = 0.375
+local_richer_available = 0    answer_question_3 = **no**
+```
+
+**三问的答案（冻结记录）**：
+
+1. **短页比例**：本样本 3/8（37.5%）——其中 1 个是 JS 渲染正文（html 巨大、文本恒 520），2 个是**抓取层 reset**（run 间波动；同一 pulls 页在成功抓取时也是 520）。
+2. **形状**：`short_doc`=JS 渲染；`fetch_failed`=网络 reset；**没有** js_shell 文案、anti-bot、redirect、extraction_loss。
+3. **不存在"同一 URL 的本地更完整路径"（0 extraction_loss）** ⇒ **按用户判据，不应实施 trafilatura→readability→parser 的抽取器 fallback**——它修不了任何本次观测到的问题。
+
+**可选的下一层（仅记录，不实施）**：
+
+- (a) 对 `fetch_failed`：reader 侧有界重试/退避（本地行为，不改依赖）；docs.docker.com 的 10054 为环境级 flaky。
+- (b) 对 JS 渲染页：**本地 headless browser**（如 Playwright 驱动，浏览器引擎计时本地组件）才能取到正文——这是一条**运行时依赖决定**，需用户拍板；不引入 r.jina.ai 等外部服务。
+- (c) 接受现状：把 JS-shell 页视为 unreadable（现有 `short_doc` 行为），evidence 资格交给既有链。
+- 观测项：Docker 的 read adequacy 是**页面本身 + 网络 flaky** 的组合，不是本项目 reader 选择问题。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
