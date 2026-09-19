@@ -1789,6 +1789,44 @@ runtime end-to-end answer:  NOT YET（仍 32 字符 fail-closed）
 
 **下一批 = §39 Binding/Decomposition 职责边界**（不先修 read reserve、不生产化 selector）：目标是让读到的页面在**正确的 claim** 上被抽取与绑定——具体方向由 §38c 给出：原子事实 claim 独立抽取 + 比较 claim 由 binding/synthesis 组合。read reserve 门（run1/2 复现两次）仍记录为独立待修项，排在 §39 之后。
 
+## 44. §39 Evidence-to-Claim Routing / Atomic Claim Extraction（已实现，run7 首次 runtime gate PASS）
+
+### 44.1 实现（`b1a208e`/`400ecdf`，默认关闭）
+
+- `src/web/research/atomic_routing.py`：读到的页面可被**同一 run 内仍缺 `supports` 的 factual claim** 追加消费；比较/analytical claim **永不路由**（其支持属于后续 synthesis）；硬上限：每个 read artifact ≤2 个、每 wave ≤4 个；不重读页面、不做 page×all-claims 笛卡尔积。route reasons 按契约记录（`missing_atomic_child`/`origin_claim`/`already_supported_skip`/`unrelated_skip`/`bounded_cap_skip`/`already_bound_skip`）；6 条 focused 测试。
+- runtime 接线：在 `_restore_completed_read_targets` 之后扩展 `extraction_targets`（路由行**紧跟在 origin 行之后**，保证与 origin 同等的机会，`400ecdf`），流经同一条 extraction → evidence → Gate 路径；`metrics.atomic_routing` + `metrics.atomic_routing_extractions`（每对 read_artifact × claim 的 status/relation/cluster）。
+- 开关：`RESEARCH_ATOMIC_ROUTING=on`（默认 off，生产行为不变）。
+
+### 44.2 验收运行（Node case；`RESEARCH_SELECTION_AUTHORITY=model` + `RESEARCH_ATOMIC_ROUTING=on`，raw driver）
+
+```text
+run1/5/6 : 目标页已读并被路由（missing_atomic_child）→ routed extraction = extractor_failed
+           reason（run6 捕获）= model_call_attempts_exhausted（wave 2 尾部窗口）
+run2/3/4 : 路由抽取正常完成，但目标是 juejin（background）；目标页未被读（selector/窗口方差）
+run7     : 目标页被读 → 路由到原子 claim → extractor = supports（role=primary, cluster 7dcd…）
+           → eligible_support_clusters ≥ 1 → **gate = pass**（open_critical_claim_ids 空）
+           → answer stage 28.61s → candidate answer = EMPTY（sha256=e3b0c442…）→ 32 字符 fail-closed
+run9     : 同页同 claim 同样 supports，但该页被 assessor 判为 authoritative_secondary →
+           不满足 primary_required → gate 仍 block
+```
+
+**§39 验收结论**
+
+```text
+atomic_claim_routed      ✓（run1/5/6/7/9）
+atomic extraction        ✓ supports（run7/run9）
+eligible_support_clusters 0 → 1   ✓（run7）
+gate                     ✓ pass（run7；首次）
+binding                  ✓（gate pass 即计数）
+substantive answer       ✗ NOT YET → 新暴露的 blocker 在 answer generation：
+                          gate=pass 时 answer 路径**不**走 BLOCK-only thinking-off，
+                          生成在 28.6s/30s 处返回空 candidate（与 §28–§31 的 30s 截断一致）
+```
+
+**run9 的方差发现（记录，不现在修）**：同一页面在同一 claim 上，assessor 给出的 `source_role` 会在 run 间变化（primary ↔ authoritative_secondary），而关键 claim 有 `primary_required`——这决定 supports 是否被 gate 计入。属于 assessment 层的 run 间不稳定性，与 §38b selector 的不稳定性并列，留作后续批次。
+
+**边界声明**：以上全部是 **raw（非 guard）driver 诊断运行**；生产默认路径未启用 selector/atomic routing；`read reserve` 门仍待修；recall（11/12 case 无 likely-target）与 selection 不稳定仍未被本批解决。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
