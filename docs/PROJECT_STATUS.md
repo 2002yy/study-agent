@@ -2369,6 +2369,13 @@ node   run2: gate=pass；Tier-2 在该 claim"已读但尚无 support"时触发�
 3. 下一层 blocker 已由数据指出：**Docker 的 read adequacy**（壳页 520 字符）与 **Tier-1 support 落地前的时序**；均记录为后续项，不在本批修。
 4. 默认关闭不变；生产路径不启用。
 
+### 55.4 冻结记录的两处修正（按用户 §45 冻结语句核对）
+
+1. **触发条件的 read 计数改为 claim 级**（`3c69463`）：用户冻结语句要求"**当前 claim** 已完成至少一次 read"，而实现此前用的是**运行级** `len(completed_read_ids)`——其他 claim 的 read 可能误解锁 Tier-2。现改为统计属于该 claim 候选集的 read outcome，并新增测试证明"外 claim 的 read 不触发"。
+2. **全量 pytest 门禁补跑**（head `3c69463`）：**2036 passed / 2 failed（650s）**；两个失败均是已登记的 Windows-local 平台族（`test_rq1c_impl_entrypoints::…exact_head_guard`、`test_rq1c_protocol_probes::…deterministic_protocol_runner…`），父提交同样复现，**非本批回归**。此前记录中的"existing suite = PASS"应以此条为准。
+
+其余冻结项复核一致：`RESEARCH_LLM_PROPOSAL` 默认 off；未新增第三方商业 Search API；Tier-1 / selector / routing / extractor / Gate / answer consistency 语义未动；Discovery 可换、证据链不换。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
