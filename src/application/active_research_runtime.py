@@ -146,6 +146,11 @@ from src.web.research.llm_proposal import (
     proposal_messages,
     tier1_miss_reason,
 )
+from src.web.research.read_retry import (
+    read_retry_mode,
+    read_with_bounded_retry,
+    retry_window_floor_seconds,
+)
 from src.web.research.selection_trace import SelectionTraceCollector
 from src.web.research.atomic_routing import (
     atomic_routing_enabled,
@@ -487,20 +492,45 @@ class ActiveResearchRuntimeExecutor:
             entry["calls"] = int(entry.get("calls") or 0) + 1
 
         def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
-            """Read a page, forwarding the shared deadline when supported."""
+            """Read a page, forwarding the shared deadline when supported.
 
-            phase_begin("read")
-            try:
+            §48/§49 diagnostic (default off): bounded fetch-layer retries wrap
+            the read here, where the research window is visible, so the
+            ``window_aware`` mode can refuse a retry that would eat the
+            finalization reserve. Success-path behaviour and content semantics
+            are unchanged.
+            """
+
+            def _inner(target: str) -> Mapping[str, Any]:
                 if self.read_gateway_accepts_timeout:
-                    return dict(
+                    return (
                         self.gateway.read(
-                            url,
+                            target,
                             max_chars=max_chars,
                             timeout=read_timeout_seconds(),
                         )
                         or {}
                     )
-                return dict(self.gateway.read(url, max_chars=max_chars) or {})
+                return self.gateway.read(target, max_chars=max_chars) or {}
+
+            mode = read_retry_mode()
+            phase_begin("read")
+            try:
+                if mode == "off":
+                    return dict(_inner(url))
+                admission = None
+                if mode == "window_aware":
+                    floor = retry_window_floor_seconds()
+
+                    def admission(_retry_number: int, *, _floor: float = floor) -> bool:
+                        # Admission only uses the observed remaining research
+                        # time; the floor is provisional for this
+                        # characterization and is not frozen here.
+                        return research_seconds_left() >= _floor
+
+                return read_with_bounded_retry(
+                    url, read_fn=_inner, admission=admission
+                )
             finally:
                 phase_end("read")
 

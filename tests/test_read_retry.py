@@ -6,9 +6,12 @@ import pytest
 
 from src.web.research.read_retry import (
     READ_RETRY_ENV,
+    READ_RETRY_FLOOR_ENV,
     is_fetch_layer_failure,
     read_retry_enabled,
+    read_retry_mode,
     read_with_bounded_retry,
+    retry_window_floor_seconds,
 )
 
 FETCH_ERROR = {
@@ -22,8 +25,23 @@ POLICY_FAILURE = {"ok": False, "error": "unsafe_or_empty_url"}
 def test_flag_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(READ_RETRY_ENV, raising=False)
     assert read_retry_enabled() is False
+    assert read_retry_mode() == "off"
     monkeypatch.setenv(READ_RETRY_ENV, "on")
     assert read_retry_enabled() is True
+    assert read_retry_mode() == "unbounded"
+    monkeypatch.setenv(READ_RETRY_ENV, "window_aware")
+    assert read_retry_mode() == "window_aware"
+
+
+def test_window_floor_is_bounded_and_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(READ_RETRY_FLOOR_ENV, raising=False)
+    assert retry_window_floor_seconds() == 18.0
+    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "25")
+    assert retry_window_floor_seconds() == 25.0
+    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "junk")
+    assert retry_window_floor_seconds() == 18.0
+    monkeypatch.setenv(READ_RETRY_FLOOR_ENV, "0.2")
+    assert retry_window_floor_seconds() == 1.0
 
 
 def test_fetch_layer_failure_detection() -> None:
@@ -60,6 +78,7 @@ def test_fetch_failure_recovers_on_retry() -> None:
     assert result["read_retry"] == {
         "attempts": 2,
         "retries": 1,
+        "skipped_by_admission": 0,
         "retry_reasons": [FETCH_ERROR["error"]],
     }
 
@@ -117,7 +136,7 @@ def test_disabled_adapter_path_is_a_single_inner_call(
 ) -> None:
     from src.web.research.active_adapter import ActiveResearchGateway
 
-    monkeypatch.delenv(READ_RETRY_ENV, raising=False)
+    monkeypatch.setenv(READ_RETRY_ENV, "window_aware")
     calls = {"count": 0}
 
     class _Inner:
@@ -126,32 +145,46 @@ def test_disabled_adapter_path_is_a_single_inner_call(
             calls["count"] += 1
             return {"ok": False, "error": "URLError: 10054"}
 
+    # The adapter is a plain delegation now: retry lives in the runtime's
+    # gateway_read (window-aware), so a read is never retried twice.
     gateway = ActiveResearchGateway(read_gateway=_Inner())
     gateway.read("https://x.example/a")
     assert calls["count"] == 1
 
 
-def test_enabled_adapter_path_retries_fetch_failures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from src.web.research.active_adapter import ActiveResearchGateway
-
-    monkeypatch.setenv(READ_RETRY_ENV, "on")
-    calls = {"count": 0}
-
-    class _Inner:
-        def read(self, url: str, *, max_chars: int = 6000):
-            del url, max_chars
-            calls["count"] += 1
-            if calls["count"] == 1:
-                return {"ok": False, "error": "URLError: 10054"}
-            return {"ok": True, "content": "page", "status": "read"}
-
-    gateway = ActiveResearchGateway(read_gateway=_Inner())
-    monkeypatch.setattr(
-        "src.web.research.read_retry.time.sleep", lambda seconds: None
+def test_admission_can_skip_the_retry() -> None:
+    read_fn, calls = _sequence([FETCH_ERROR, SHORT_OK])
+    result = read_with_bounded_retry(
+        "https://x.example/a",
+        read_fn=read_fn,
+        sleep=lambda s: None,
+        admission=lambda retry_number: False,
     )
-    result = gateway.read("https://x.example/a")
-    assert result["ok"] is True
+    assert calls["count"] == 1
+    assert result["ok"] is False
+    assert result["read_retry"] == {
+        "attempts": 1,
+        "retries": 0,
+        "skipped_by_admission": 1,
+        "retry_reasons": [],
+    }
+
+
+def test_admission_uses_the_retry_number() -> None:
+    read_fn, calls = _sequence([FETCH_ERROR, FETCH_ERROR, SHORT_OK])
+    seen: list[int] = []
+
+    def admission(retry_number: int) -> bool:
+        seen.append(retry_number)
+        return retry_number < 2
+
+    result = read_with_bounded_retry(
+        "https://x.example/a",
+        read_fn=read_fn,
+        sleep=lambda s: None,
+        admission=admission,
+    )
     assert calls["count"] == 2
-    assert result["read_retry"]["retries"] == 1
+    assert seen == [1, 2]
+    assert result["read_retry"]["skipped_by_admission"] == 1
+    assert result["ok"] is False

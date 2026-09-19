@@ -17,8 +17,13 @@ import time
 from typing import Any, Callable, Mapping
 
 READ_RETRY_ENV = "RESEARCH_READ_RETRY"
+READ_RETRY_FLOOR_ENV = "RESEARCH_READ_RETRY_FLOOR_SECONDS"
 MAX_READ_RETRIES = 2
 READ_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0)
+# Provisional floor for the window-aware arm of the §48/§49 characterization:
+# expected attempt latency + required backoff + finalization reserve. To be
+# calibrated by the next characterization round, not frozen here.
+READ_RETRY_WINDOW_FLOOR_SECONDS = 18.0
 
 # Fetch-layer signatures only. Deliberately excludes shape/policy failures
 # such as "unsafe_or_empty_url", "non_html_resource" and any successful read.
@@ -46,6 +51,31 @@ def read_retry_enabled() -> bool:
     return raw in {"1", "true", "on", "yes"}
 
 
+def read_retry_mode() -> str:
+    """``off`` (default) | ``unbounded`` | ``window_aware``.
+
+    ``on``/``1``/``yes`` keep the §48 unbounded behaviour for
+    reproducibility; ``window_aware`` additionally requires the admission
+    floor (remaining research time) before every retry.
+    """
+
+    raw = (os.getenv(READ_RETRY_ENV) or "").strip().lower()
+    if raw in {"window_aware", "window-aware", "aware"}:
+        return "window_aware"
+    if raw in {"1", "true", "on", "yes", "unbounded"}:
+        return "unbounded"
+    return "off"
+
+
+def retry_window_floor_seconds() -> float:
+    raw = os.getenv(READ_RETRY_FLOOR_ENV)
+    try:
+        value = float(raw) if raw not in (None, "") else READ_RETRY_WINDOW_FLOOR_SECONDS
+    except (TypeError, ValueError):
+        value = READ_RETRY_WINDOW_FLOOR_SECONDS
+    return max(1.0, min(value, 120.0))
+
+
 def is_fetch_layer_failure(result: Mapping[str, Any] | None) -> bool:
     """True only when the read failed at the fetch/transport layer."""
 
@@ -69,11 +99,19 @@ def read_with_bounded_retry(
     max_retries: int = MAX_READ_RETRIES,
     backoff_seconds: tuple[float, ...] = READ_RETRY_BACKOFF_SECONDS,
     sleep: Callable[[float], None] = time.sleep,
+    admission: Callable[[int], bool] | None = None,
 ) -> dict[str, Any]:
-    """Run one read with bounded fetch-layer retries and additive diagnostics."""
+    """Run one read with bounded fetch-layer retries and additive diagnostics.
+
+    ``admission(retry_number)`` gates each retry (``True`` proceeds); the
+    window-aware mode passes a callable that checks the remaining research
+    time so a retry never eats the finalization reserve. A skipped admission
+    is recorded as ``skipped_by_admission`` in the diagnostics.
+    """
 
     attempts = 0
     retry_reasons: list[str] = []
+    skipped_by_admission = 0
     retried = 0
     result: Mapping[str, Any] = {}
     while True:
@@ -91,6 +129,9 @@ def read_with_bounded_retry(
             break
         if not is_fetch_layer_failure(result):
             break
+        if admission is not None and not admission(retried + 1):
+            skipped_by_admission += 1
+            break
         retry_reasons.append(
             str(result.get("error") or result.get("reason") or "")[:160]
         )
@@ -98,10 +139,11 @@ def read_with_bounded_retry(
         if backoff_seconds:
             sleep(backoff_seconds[min(retried - 1, len(backoff_seconds) - 1)])
     payload = dict(result)
-    if retried:
+    if retried or skipped_by_admission:
         payload["read_retry"] = {
             "attempts": attempts,
             "retries": retried,
+            "skipped_by_admission": skipped_by_admission,
             "retry_reasons": retry_reasons,
         }
     return payload
@@ -112,7 +154,11 @@ __all__ = [
     "MAX_READ_RETRIES",
     "READ_RETRY_BACKOFF_SECONDS",
     "READ_RETRY_ENV",
+    "READ_RETRY_FLOOR_ENV",
+    "READ_RETRY_WINDOW_FLOOR_SECONDS",
     "is_fetch_layer_failure",
     "read_retry_enabled",
+    "read_retry_mode",
     "read_with_bounded_retry",
+    "retry_window_floor_seconds",
 ]
