@@ -138,6 +138,14 @@ from src.web.research.scheduler import (
     is_schedulable_lead,
     plan_read_wave,
 )
+from src.web.research.llm_proposal import (
+    DISCOVERY_METHOD_LLM_PROPOSED,
+    build_proposal_payload,
+    llm_proposal_enabled,
+    parse_proposal_response,
+    proposal_messages,
+    tier1_miss_reason,
+)
 from src.web.research.selection_trace import SelectionTraceCollector
 from src.web.research.atomic_routing import (
     atomic_routing_enabled,
@@ -178,6 +186,7 @@ ACTIVE_RESEARCH_READ_PLAN_KEY = "claim_engine_read_plan"
 ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY = "claim_engine_covered_clusters"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 ACTIVE_RESEARCH_METRICS_KEY = "claim_engine_metrics"
+TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 
@@ -1218,6 +1227,26 @@ class ActiveResearchRuntimeExecutor:
                     assessed_inputs[claim.id] = sorted(merged_assessments)
                     context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
                     context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
+                    # §45 Tier-2 (default off): when Tier-1 produced candidates
+                    # but none is answer-relevant, one bounded proposal call may
+                    # add reader-verified candidates with llm_proposed provenance.
+                    proposed_claim_ids = context.setdefault(
+                        TIER2_PROPOSED_CLAIMS_KEY, []
+                    )
+                    if isinstance(proposed_claim_ids, list):
+                        cursor = _tier2_proposal_step(
+                            cursor=cursor,
+                            state=state,
+                            claim=claim,
+                            assessments=merged_assessments,
+                            model_gateway=self.model_gateway,
+                            read_fn=gateway_read,
+                            context=context,
+                            run_id=run_id,
+                            wave_index=cursor.wave_index,
+                            timeout_seconds=remaining_timeout(),
+                            proposed_claim_ids=proposed_claim_ids,
+                        )
                     checkpoint()
 
                 cursor = replace(cursor, phase="ranking")
@@ -2143,6 +2172,9 @@ class ActiveResearchRuntimeExecutor:
                 state = _state_after_gate(state, gate)
                 brief = _evidence_brief(state, gate, selected_sources)
                 context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+                # §45 funnel: proposal -> added -> assessed -> read ->
+                # extracted -> gate-eligible, per llm_proposed candidate.
+                _record_tier2_funnel(context, cursor, brief, selected_sources)
                 checkpoint()
 
                 # P1-C batch 2: wave-level Evidence Gain + Saturation using the
@@ -2807,6 +2839,232 @@ def _candidates_for_claim(cursor: ResearchRuntimeCursor, claim_id: str) -> tuple
         for item in cursor.candidates
         if query_ids.intersection(item.query_ids)
     )
+
+
+def _tier2_proposal_step(
+    *,
+    cursor: ResearchRuntimeCursor,
+    state: ResearchState,
+    claim: ResearchClaim,
+    assessments: Mapping[str, Any],
+    model_gateway: Any,
+    read_fn: Any,
+    context: dict[str, Any],
+    run_id: str,
+    wave_index: int,
+    timeout_seconds: float | None,
+    proposed_claim_ids: list[str],
+) -> ResearchRuntimeCursor:
+    """§45 Tier-2: LLM URL proposal -> reader verification -> candidate.
+
+    Runs only when Tier-1 produced candidates but none was assessed
+    ``answer_relevant``, at most once per claim per run, and only with
+    ``RESEARCH_LLM_PROPOSAL=on``. Proposed URLs never become evidence: a
+    verified page is added as a candidate with
+    ``discovery_method="llm_proposed"`` and must pass the same assessment,
+    read, extraction and Gate path as any search-discovered candidate.
+    """
+
+    if not llm_proposal_enabled():
+        return cursor
+    if claim.id in proposed_claim_ids:
+        return cursor
+    claim_candidates = _candidates_for_claim(cursor, claim.id)
+    miss_reason = tier1_miss_reason(
+        assessments=assessments,
+        candidate_ids=[item.id for item in claim_candidates],
+    )
+    if not miss_reason:
+        return cursor
+    proposed_claim_ids.append(claim.id)
+    del proposed_claim_ids[50:]
+
+    record: dict[str, Any] = {
+        "wave_index": wave_index,
+        "claim_id": claim.id,
+        "tier1_miss_reason": miss_reason,
+        "call_status": "",
+        "proposed": [],
+        "verified": [],
+        "dropped": [],
+        "added_candidate_ids": [],
+        "verification_reads": 0,
+    }
+    extra_body: Mapping[str, Any] | None = None
+    try:
+        from src.llm_client import research_structured_output_capabilities
+
+        provider_profile = str(getattr(model_gateway, "provider_profile", "") or "")
+        _, thinking_off = research_structured_output_capabilities(provider_profile)
+        extra_body = thinking_off
+    except Exception:
+        extra_body = None
+    try:
+        result = model_gateway.complete_structured(
+            logical_call_id=f"research_url_proposal:{run_id}:{claim.id}:{wave_index}",
+            purpose="research_url_proposal",
+            messages=proposal_messages(claim.text),
+            audit_payload=build_proposal_payload(claim.text),
+            response_schema_version="research-url-proposal-v1",
+            parse=parse_proposal_response,
+            data_categories=("public_research_claim",),
+            max_tokens=300,
+            timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
+        )
+    except Exception as exc:  # diagnostics must never fail the run
+        record["call_status"] = f"exception:{type(exc).__name__}"
+        result = None
+    if result is not None:
+        status = str(getattr(result, "status", ""))
+        record["call_status"] = status or "unknown"
+        value = result.value if status == "completed" else None
+        record["proposed"] = list(value or [])
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if isinstance(metrics, dict):
+        metrics["orchestration_model_calls"] = int(
+            metrics.get("orchestration_model_calls") or 0
+        ) + 1
+
+    existing_urls = {item.url for item in cursor.candidates}
+    anchor_query_id = next(
+        (
+            query.id
+            for query in cursor.planned_queries
+            if query.claim_id == claim.id
+        ),
+        "",
+    )
+    new_items: list[RuntimeCandidate] = []
+    for url in record["proposed"]:
+        if url in existing_urls:
+            record["dropped"].append({"url": url, "reason": "duplicate_candidate"})
+            continue
+        record["verification_reads"] += 1
+        try:
+            raw = read_fn(url, 1200) or {}
+        except Exception:
+            raw = {}
+        content = str(raw.get("content") or "")
+        if raw.get("ok") is not True or not content.strip():
+            record["dropped"].append({"url": url, "reason": "read_failed"})
+            continue
+        title = str(raw.get("title") or url)[:300]
+        candidate_id = (
+            f"candidate_{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}"
+        )
+        new_items.append(
+            RuntimeCandidate(
+                id=candidate_id,
+                url=url,
+                title=title,
+                snippet="",
+                source="llm_proposal",
+                published_at="",
+                query_ids=(anchor_query_id,) if anchor_query_id else (),
+                intents=(),
+                providers=("llm_proposal",),
+                first_seen_rank=len(cursor.candidates) + len(new_items),
+                discovery_method=DISCOVERY_METHOD_LLM_PROPOSED,
+                discovery_depth=0,
+            )
+        )
+        record["verified"].append(url)
+        record["added_candidate_ids"].append(candidate_id)
+        existing_urls.add(url)
+    if isinstance(metrics, dict):
+        records = metrics.get("tier2_proposal")
+        if not isinstance(records, list):
+            records = []
+        records.append(record)
+        metrics["tier2_proposal"] = records[-40:]
+    if not new_items:
+        return cursor
+    return replace(cursor, candidates=(*cursor.candidates, *new_items))
+
+
+def _record_tier2_funnel(
+    context: dict[str, Any],
+    cursor: ResearchRuntimeCursor,
+    brief: Mapping[str, Any],
+    selected_sources: list[dict[str, Any]],
+) -> None:
+    """§45 funnel: proposal -> added -> assessed -> read -> extracted -> gate."""
+
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if not isinstance(metrics, dict):
+        return
+    proposals = metrics.get("tier2_proposal")
+    if not isinstance(proposals, list) or not proposals:
+        return
+    assessment_store = _assessment_store(context)
+    relevant_ids: set[str] = set()
+    for ranked in assessment_store.values():
+        if not isinstance(ranked, list):
+            continue
+        for row in ranked:
+            if not isinstance(row, Mapping):
+                continue
+            assessment = row.get("assessment")
+            candidate = row.get("candidate")
+            if not isinstance(assessment, Mapping) or not isinstance(candidate, Mapping):
+                continue
+            if str(assessment.get("relevance") or "") == "answer_relevant":
+                relevant_ids.add(str(candidate.get("id") or ""))
+    completed_reads = set(cursor.completed_read_ids)
+    extraction_by_candidate: dict[str, list[str]] = {}
+    for source in selected_sources:
+        if not isinstance(source, Mapping):
+            continue
+        candidate_id = str(source.get("candidate_id") or "")
+        extractions = source.get("extractions")
+        relations: list[str] = []
+        if isinstance(extractions, Mapping):
+            for summary in extractions.values():
+                if isinstance(summary, Mapping):
+                    relation = str(summary.get("relation") or "")
+                    if relation:
+                        relations.append(relation)
+        extraction_by_candidate[candidate_id] = sorted(set(relations))
+    eligible_ids = {
+        str(row.get("evidence_id") or "")
+        for row in brief.get("eligible_evidence") or []
+        if isinstance(row, Mapping)
+    }
+    evidence_by_candidate = {
+        outcome.candidate_id: outcome.evidence_id
+        for outcome in cursor.read_outcomes
+        if outcome.evidence_id
+    }
+    rows: list[dict[str, Any]] = []
+    for record in proposals:
+        for candidate_id in record.get("added_candidate_ids") or []:
+            evidence_id = evidence_by_candidate.get(str(candidate_id), "")
+            rows.append(
+                {
+                    "claim_id": record.get("claim_id"),
+                    "candidate_id": candidate_id,
+                    "proposed": True,
+                    "assessed_answer_relevant": str(candidate_id) in relevant_ids,
+                    "read": str(candidate_id) in completed_reads,
+                    "extraction_relations": extraction_by_candidate.get(
+                        str(candidate_id), []
+                    ),
+                    "gate_eligible": bool(evidence_id) and evidence_id in eligible_ids,
+                }
+            )
+    metrics["tier2_funnel"] = {
+        "proposed_candidates": len(rows),
+        "assessed_answer_relevant": sum(
+            1 for row in rows if row["assessed_answer_relevant"]
+        ),
+        "read": sum(1 for row in rows if row["read"]),
+        "extracted_supports": sum(
+            1 for row in rows if "supports" in row["extraction_relations"]
+        ),
+        "gate_eligible": sum(1 for row in rows if row["gate_eligible"]),
+        "rows": rows,
+    }
 
 
 def _select_assessment_window(
