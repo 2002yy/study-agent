@@ -2103,6 +2103,40 @@ orchestration_model_calls：4–7/run
 
 **§43B（下一批）**：在 **target-containing pools** 上做 paired A/B（同一 frozen original_pool、同 K=2：A=legacy window，B=production-contract hybrid），统计 `conditional_target_selection_rate`、`conditional_target_read_rate`、`legacy/hybrid/model_path/fallback target hits`、`selector_caused_losses=0`，并报告成本 `incremental_target_reads / orchestration_model_calls`；之后才讨论 selector 默认开启与 recall。
 
+## 49. §43B Paired A/B：legacy window vs production-contract hybrid（已完成，3×4=12 pairings）
+
+工具 `tools/run_selector_ab.py`（3 条 focused 测试）：同一 frozen pool、同 K=2，A=deterministic legacy window，B=production-contract hybrid（1 次 selector 调用；usable→model picks；否则同一原始 pool 上跑 legacy）。Pool 来源：Node=**agreed 标注** likely-targets；Docker/PostgreSQL/uv=**已知权威目标页注入**（附在 frozen pool 末尾，标注 `injected`——测"埋没目标的恢复"，不是 recall 主张）。
+
+**逐池结果（第 1 次 run，含真实 read）**
+
+| Pool | Source | Legacy hit | Hybrid hit | Path | Target read L/H | Calls |
+|---|---|---:|---:|---|---|---:|
+| rq1c-current-policy-container-registry | injected | 0 | 1 | model | – / failed* | 1 |
+| rq1c-current-support-postgresql | injected | 0 | 1 | model | – / ok | 1 |
+| rq1c-simple-license-uv | injected | 0 | 1 | model | – / ok | 1 |
+| rq1c-historical-current-node-modules | annotated | 0 | 1 | model | – / ok | 1 |
+
+\* Docker 页首次 read 失败为瞬时问题：单独复读成功（ok，520 字符——正文偏短，另行观察；不影响 selection 指标）。
+
+**汇总（3 次重复 ×4 pools = 12 pairings）**
+
+```text
+conditional_target_selection_rate  legacy = 0/12 (0.0)   hybrid = 12/12 (1.0)
+wins = 12   ties = 0   losses = 0   selector_caused_losses = 0
+model path = 12/12（无 fallback 触发；fallback 合同已由 §42 live 验证）
+orchestration_model_calls = 12
+incremental_target_reads = 12
+incremental_target_reads_per_selector_call = 1.0
+```
+
+**结论与限定**：
+
+1. **在"池中已存在目标页"的条件下，hybrid 12/12 选中目标、legacy 0/12；wins>0、losses=0、selector_caused_losses=0** —— 满足用户设定的"值得讨论默认开启"的门槛。
+2. **限定必须写清楚**：12 个 pairing 中 9 个来自 injected pools（目标被刻意放在队尾），legacy 的 0/12 部分由构造决定；Node 是唯一自然标注池（legacy 0/1 与 §37B 的窗口丢失一致）。因此这批证明的是 **model preference authority 的 buried-target recovery + 零回退损失**，不是野外 selection 分布。
+3. 成本口径：`incremental_target_reads_per_selector_call = 1.0`（这里每池 1 次调用换来 1 个额外 target read）；prompt/语义未做任何调优（§43A 只修传输）。
+
+**下一步（按既定顺序）**：selector 默认开启的决策材料已具备（以"零 losses + 成本可解释"为前提），但建议先补**更多 natural target-containing pools**（而非重复同一池）再定默认；随后回到 **recall**（11/12 case 无 likely-target）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
