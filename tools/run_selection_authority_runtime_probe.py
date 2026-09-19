@@ -120,6 +120,11 @@ def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]
                 "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
                 "content": content,
                 "extractions": extractions,
+                "read_retry": (
+                    dict(source.get("read_retry") or {})
+                    if isinstance(source.get("read_retry"), Mapping)
+                    else {}
+                ),
             }
         )
     return rows[:12]
