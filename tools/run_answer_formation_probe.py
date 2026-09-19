@@ -139,6 +139,7 @@ def replay(
             reply = chat_fn(messages, **kwargs)
         except Exception as exc:  # diagnostics never fatal
             record["exception_type"] = type(exc).__name__
+            record["exception_message"] = str(exc)[:300]
             record["elapsed_ms"] = int((time.monotonic() - started) * 1000)
             record["reply_chars"] = 0
             record["candidate_chars"] = 0
