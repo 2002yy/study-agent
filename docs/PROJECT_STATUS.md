@@ -2531,6 +2531,55 @@ aware2           4   3    1    block   53.8     11.6           0       0
 
 **引用规则**：引用表中任一结论时必须同时引用其"默认/边界"列；所有带 N 的数字都是 **observed characterization**（样本量在各章节标注），不是分布估计或 SLA。
 
+## 62. 当前方案：从"定位"转入"能力建设"（记录于 2026-09-21）
+
+### 62.1 为什么之前没做这些（批次纪律，非遗漏）
+
+§35→§49 全部是 **RQCE 诊断批次**，固定节奏为：`audit → localize → probe → contract → implement(default off) → characterize`。
+在这个阶段，**能力建设被有意推迟**，因为先必须回答"到底是哪一层坏、坏到什么程度"。定位结果（见 §61）：
+
+```text
+Recall   : provider retrieval surface（Bing RSS 单栈，深页 raw top-20 全 miss）
+Read     : fetch flaky（10054/timeout）+ JS/client-rendered 页面无正文 + retry 未窗口感知
+Analysis : 比较/演进类 claim 没有综合层（单页抽取永远给 background/qualifies）
+```
+
+因此"ChatGPT 式连续搜索+分析"缺的不是模型能力，而是**三件基础设施 + 生产化**。从现在起进入建设阶段。
+
+### 62.2 方案（按杠杆排序；每批独立可回滚、默认 off、单独验收）
+
+**B1 — Tier-1.5 域内定向检索**（最高杠杆；DeepSeek-only、无新依赖）
+- 机制：planner 已有/可产出 `desired_domain` → 用**现有 reader** 读取该官方域的**站内搜索页**（如 `docs.docker.com/search/?q=…`、`postgresql.org/search/`）→ 从正文抽取候选链接 → 候选标记 `discovery_method="domain_targeted"` → 走既有 assessment/read/extract/Gate。
+- 触发器：与 Tier-2 同级的状态谓词（Tier-1 已消费、该 claim 无 support），**有界**（≤1 次/claim、≤N 候选）。
+- 验收：四个已知深页中至少 2 个可经此路径进入 evidence 链并成为 `gate-eligible`；d40.2 四项不变量不回归。
+
+**B2 — Retry 窗口感知的 in-situ 证据**（§50 确定性失败注入）
+- 用可注入失败计划的 reader/gateway，构造"剩余研究时间跨过 floor"的确定性场景，证明：**floor 之上 retry、floor 之下 skip 并保留 finalization headroom**。
+- 顺带校准 `retry_attempt_floor`（当前临时 18s）。
+
+**B3 — Headless browser 决定与最小接入**（runtime 依赖决定）
+- 目标：让 JS/client-rendered 页面可读（Docker pulls 520 → 正文可提取），并顺带增强站内搜索的可执行性。
+- 必答：许可/体积/启动成本/超时与预算耦合；验收：指定 JS 页面正文达标且不破坏窗口预算。
+
+**B4 — 综合层（comparison synthesis）**
+- 比较/演进类 claim **不再要求单页 supports**：由 binding/synthesis 组合两条原子事实（§38c 已给设计依据）。
+- 验收：Node/Docker 的比较类问题从"永不 supports"到可形成组合结论；Gate/answer 语义不变。
+
+**B5 — 生产化（逐开关、逐批）**
+- 顺序建议：selector → atomic routing → Tier-2 → grounded answer + consistency gate；每项单独批次、单独证据、单独回滚点。
+- 预算语义随附：selector = orchestration 记账；retry = window-aware；所有开关默认 off 直到各自批次验收。
+
+**B6 — Provider health metrics**（小、可并行）
+- `configured / attempted / succeeded / contributed / result_count_by_provider` + "attempted>0 且 contributed=0" 告警；用于区分"配置了 provider"与"真的贡献了结果"。
+
+### 62.3 冻结边界（跨所有新批次，不得静默更改）
+
+- **DeepSeek-only**：不引入 Brave / r.jina.ai 等外部服务。
+- 不给 Bing RSS 做 provider-specific 补丁；不调 selector prompt 追命中率；不把 retry 当作 `short_doc` 修复；不改 K / H9 / extractor / Gate / answer 语义（除非该批次明确立项并给出证据）。
+- **d40.2 黄金 artifact 四项不变量**（gate=pass / binding=valid / consistency=clean / publish=substantive）是所有改动的回归底线。
+- 全量 pytest 每个候选 head 一次；诊断产物（`docs/research_quality/*.json`）不提交。
+- 每个结论引用必须带"默认/边界"（§61 引用规则）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
