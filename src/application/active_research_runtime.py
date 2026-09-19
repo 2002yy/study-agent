@@ -149,15 +149,16 @@ from src.web.research.llm_proposal import (
 from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     MAX_DOMAINS,
-    MAX_LINKS_PER_SEARCH,
-    build_search_query,
+    MAX_LINKS_PER_INVENTORY,
     claim_search_terms,
     domain_proposal_messages,
     domain_proposal_payload,
     domain_targeted_enabled,
-    extract_candidate_links,
     parse_domain_proposal,
-    site_search_urls,
+    parse_sitemap,
+    prioritise_sitemap_children,
+    rank_domain_urls,
+    sitemap_urls,
 )
 from src.web.research.read_retry import (
     read_retry_mode,
@@ -551,17 +552,17 @@ class ActiveResearchRuntimeExecutor:
             finally:
                 phase_end("read")
 
-        def fetch_search_html(url: str) -> tuple[str, str, str, str]:
-            """§63: raw HTML for a site-search page (existing fetch layer).
+        def fetch_text(url: str) -> tuple[str, str, str, str]:
+            """§63: raw text (XML/JSON/HTML) for inventory documents.
 
-            Used by the domain-targeted channel only, which needs anchors that
-            the extracted-text reader does not expose. Bounded, local, and
+            Used by the domain-targeted channel only, which needs <loc> entries
+            that the extracted-text reader does not expose. Bounded, local, and
             never used for evidence reads.
             """
 
-            from src.news.article_fetcher import _fetch_html_payload
+            from src.news.article_fetcher import _fetch_text_payload
 
-            return _fetch_html_payload(url, timeout=12, max_bytes=350_000)
+            return _fetch_text_payload(url, timeout=12, max_bytes=1_500_000)
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -1318,7 +1319,7 @@ class ActiveResearchRuntimeExecutor:
                             claim=claim,
                             assessments=merged_assessments,
                             model_gateway=self.model_gateway,
-                            fetch_html=fetch_search_html,
+                            fetch_text=fetch_text,
                             read_fn=gateway_read,
                             context=context,
                             run_id=run_id,
@@ -3089,7 +3090,7 @@ def _domain_targeted_step(
     claim: ResearchClaim,
     assessments: Mapping[str, Any],
     model_gateway: Any,
-    fetch_html: Any,
+    fetch_text: Any,
     read_fn: Any,
     context: dict[str, Any],
     run_id: str,
@@ -3179,42 +3180,71 @@ def _domain_targeted_step(
             metrics.get("orchestration_model_calls") or 0
         ) + 1
 
-    query = build_search_query(claim.text)
     terms = claim_search_terms(claim.text)
     links: list[str] = []
-    search_fetches = 0
+    inventory_fetches = 0
     for domain in record["domains"][:MAX_DOMAINS]:
-        for search_url in site_search_urls(domain, query):
-            if search_fetches >= MAX_DOMAIN_TARGETED_SEARCH_FETCHES:
+        domain_links: list[str] = []
+        for sitemap_url in sitemap_urls(domain):
+            if inventory_fetches >= MAX_DOMAIN_TARGETED_SEARCH_FETCHES:
                 record["dropped"].append(
-                    {"url": search_url, "reason": "search_fetch_cap"}
+                    {"url": sitemap_url, "reason": "inventory_fetch_cap"}
                 )
                 break
-            # §63 budget guard: a site-search fetch must never eat the
-            # research window (five 12s timeouts once pushed a run to ~100s).
+            # §63 budget guard: an inventory fetch must never eat the research
+            # window (five 12s timeouts once pushed a run to ~100s).
             if seconds_left() < DOMAIN_TARGETED_MIN_SECONDS_LEFT:
                 record["dropped"].append(
-                    {"url": search_url, "reason": "skipped_by_window"}
+                    {"url": sitemap_url, "reason": "skipped_by_window"}
                 )
                 continue
-            search_fetches += 1
-            record["search_urls"].append(search_url)
+            inventory_fetches += 1
+            record["search_urls"].append(sitemap_url)
             try:
-                html, _final_url, _content_type, reason = fetch_html(search_url)
+                text, _final_url, _content_type, reason = fetch_text(sitemap_url)
             except Exception as exc:
-                html, reason = "", f"exception:{type(exc).__name__}"
-            if not html:
+                text, reason = "", f"exception:{type(exc).__name__}"
+            if not text:
                 record["dropped"].append(
-                    {"url": search_url, "reason": "search_page_fetch_failed", "detail": str(reason)[:120]}
+                    {"url": sitemap_url, "reason": "inventory_fetch_failed", "detail": str(reason)[:120]}
                 )
                 continue
-            found = extract_candidate_links(
-                html, domain=domain, terms=terms, page_url=search_url
-            )
-            if found:
-                links.extend(found)
-                break
-    record["links_found"] = list(dict.fromkeys(links))[: MAX_LINKS_PER_SEARCH * MAX_DOMAINS]
+            kind, locations = parse_sitemap(text)
+            record["inventory_kind"] = kind
+            if kind == "index":
+                for child in prioritise_sitemap_children(locations):
+                    if inventory_fetches >= MAX_DOMAIN_TARGETED_SEARCH_FETCHES:
+                        record["dropped"].append(
+                            {"url": child, "reason": "inventory_fetch_cap"}
+                        )
+                        break
+                    if seconds_left() < DOMAIN_TARGETED_MIN_SECONDS_LEFT:
+                        record["dropped"].append(
+                            {"url": child, "reason": "skipped_by_window"}
+                        )
+                        continue
+                    inventory_fetches += 1
+                    record["search_urls"].append(child)
+                    try:
+                        child_text, _f, _c, child_reason = fetch_text(child)
+                    except Exception as exc:
+                        child_text, child_reason = "", f"exception:{type(exc).__name__}"
+                    if not child_text:
+                        record["dropped"].append(
+                            {"url": child, "reason": "inventory_fetch_failed", "detail": str(child_reason)[:120]}
+                        )
+                        continue
+                    _child_kind, child_locations = parse_sitemap(child_text)
+                    locations = [*locations, *child_locations]
+            if locations:
+                record["inventory_locations"] = len(locations)
+                domain_links = rank_domain_urls(
+                    locations, domain=domain, terms=terms
+                )
+                if domain_links:
+                    break
+        links.extend(domain_links)
+    record["links_found"] = list(dict.fromkeys(links))[: MAX_LINKS_PER_INVENTORY * MAX_DOMAINS]
 
     existing_urls = {item.url for item in cursor.candidates}
     anchor_query_id = next(

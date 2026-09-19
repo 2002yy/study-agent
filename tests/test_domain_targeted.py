@@ -1,4 +1,4 @@
-"""§63 tier-1.5 domain-targeted retrieval: parsing, patterns, extraction, step."""
+"""§63 tier-1.5 domain-targeted retrieval: proposal, sitemap harvest, step."""
 
 from __future__ import annotations
 
@@ -14,20 +14,41 @@ from src.web.research.domain_targeted import (
     domain_targeted_enabled,
     extract_candidate_links,
     parse_domain_proposal,
-    site_search_urls,
+    parse_sitemap,
+    prioritise_sitemap_children,
+    rank_domain_urls,
+    sitemap_urls,
 )
 
-SEARCH_HTML = """
+DOCKER_SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://docs.docker.com/security/security-announcements/</loc></url>
+  <url><loc>https://docs.docker.com/docker-hub/usage/pulls/</loc></url>
+  <url><loc>https://docs.docker.com/reference/api/hub/latest/</loc></url>
+  <url><loc>https://docs.docker.com/get-started/tutorials/run-an-app/</loc></url>
+  <url><loc>https://other.example/docker-hub/usage/pulls/</loc></url>
+</urlset>
+"""
+
+DOCKER_INDEX_SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://redis.io/sitemap/blog-1.xml</loc></sitemap>
+  <sitemap><loc>https://redis.io/sitemap/pages.xml</loc></sitemap>
+  <sitemap><loc>https://redis.io/sitemap/routes.xml</loc></sitemap>
+</sitemapindex>
+"""
+
+HUB_HTML = """
 <html><body>
-<a href="https://docs.docker.com/docker-hub/usage/pulls/">Pull usage and limits</a>
-<a href="/docker-hub/usage/">Usage</a>
-<a href="https://docs.docker.com/manuals/">Manuals</a>
+<a href="/docker-hub/usage/pulls/">Pull usage and limits</a>
 <a href="https://other.example/pull-limits">External</a>
 <a href="#fragment">Frag</a>
 <a href="mailto:x@y.z">Mail</a>
 <a href="/docker-hub/usage/pulls/">Duplicate</a>
 </body></html>
 """
+
+CLAIM_TEXT = "Docker Hub pull-rate limits for unauthenticated users"
 
 
 def test_flag_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,43 +68,65 @@ def test_domain_parser_is_strict_and_bounded() -> None:
         parse_domain_proposal(["not-an-object"])
 
 
-def test_search_query_uses_significant_terms() -> None:
-    terms = claim_search_terms(
-        "What pull-rate limits apply to unauthenticated Docker Hub users?"
-    )
+def test_claim_terms_and_query() -> None:
+    terms = claim_search_terms(CLAIM_TEXT)
     assert "pull-rate" in terms
-    assert "the" not in terms
-    assert build_search_query("What pull-rate limits apply?") == "pull-rate limits apply"
+    assert "for" not in terms
+    assert build_search_query(CLAIM_TEXT) == " ".join(terms)
 
 
-def test_site_search_urls_are_deterministic_patterns() -> None:
-    urls = site_search_urls("docs.docker.com", "pull rate limits")
-    assert urls[0] == "https://docs.docker.com/search/?q=pull+rate+limits"
-    assert len(urls) == 3
-    assert site_search_urls("bad", "q") == []
+def test_sitemap_urls_are_deterministic() -> None:
+    assert sitemap_urls("docs.docker.com") == [
+        "https://docs.docker.com/sitemap.xml",
+        "https://docs.docker.com/sitemap_index.xml",
+    ]
+    assert sitemap_urls("bad") == []
 
 
-def test_anchor_extraction_filters_scores_and_bounds() -> None:
-    links = extract_candidate_links(
-        SEARCH_HTML,
-        domain="docs.docker.com",
-        terms=["pull", "limits", "usage"],
-        page_url="https://docs.docker.com/search/?q=x",
+def test_parse_sitemap_urlset_and_index() -> None:
+    kind, locations = parse_sitemap(DOCKER_SITEMAP)
+    assert kind == "urlset"
+    assert "https://docs.docker.com/docker-hub/usage/pulls/" in locations
+    index_kind, children = parse_sitemap(DOCKER_INDEX_SITEMAP)
+    assert index_kind == "index"
+    assert len(children) == 3
+    assert parse_sitemap("") == ("empty", [])
+
+
+def test_sitemap_children_prioritise_docs_over_blog() -> None:
+    ranked = prioritise_sitemap_children(
+        [
+            "https://redis.io/sitemap/blog-1.xml",
+            "https://redis.io/sitemap/routes.xml",
+            "https://redis.io/sitemap/pages.xml",
+        ],
+        limit=2,
     )
-    assert links[0] == "https://docs.docker.com/docker-hub/usage/pulls"
-    assert "https://other.example/pull-limits" not in links
-    assert all("mailto" not in url for url in links)
-    assert len(links) == len(set(links))
-    assert len(links) <= 5
+    assert "https://redis.io/sitemap/routes.xml" in ranked
+    assert "https://redis.io/sitemap/pages.xml" in ranked
+    assert "https://redis.io/sitemap/blog-1.xml" not in ranked
+
+
+def test_rank_domain_urls_finds_the_deep_target_first() -> None:
+    _kind, locations = parse_sitemap(DOCKER_SITEMAP)
+    ranked = rank_domain_urls(
+        locations, domain="docs.docker.com", terms=claim_search_terms(CLAIM_TEXT)
+    )
+    assert ranked[0] == "https://docs.docker.com/docker-hub/usage/pulls"
+    assert all("other.example" not in url for url in ranked)
+
+
+def test_anchor_extraction_filters_and_ranks() -> None:
+    links = extract_candidate_links(
+        HUB_HTML, domain="docs.docker.com", terms=claim_search_terms(CLAIM_TEXT)
+    )
+    assert links == ["https://docs.docker.com/docker-hub/usage/pulls"]
+    assert len(extract_candidate_links(HUB_HTML, domain="docs.docker.com", terms=["x"])) == 0
 
 
 # ---------------------------------------------------------------------------
 # Runtime step with injected collaborators.
 # ---------------------------------------------------------------------------
-
-
-def _quote_response_terms() -> list[str]:
-    return ["pull", "limits", "usage"]
 
 
 def _runtime_state_and_claim():
@@ -100,7 +143,7 @@ def _runtime_state_and_claim():
     claim = ResearchClaim(
         id="claim_1",
         question_id="q1",
-        text="Docker Hub pull-rate limits for unauthenticated users",
+        text=CLAIM_TEXT,
         kind="factual",
         priority="critical",
         state="pending",
@@ -189,9 +232,9 @@ def test_step_adds_verified_domain_targeted_candidate(
     gateway = _Gateway(["docs.docker.com"])
     target = "https://docs.docker.com/docker-hub/usage/pulls"
 
-    def fetch_html(url: str):
-        if "search" in url or "?s=" in url:
-            return SEARCH_HTML, url, "text/html", ""
+    def fetch_text(url: str):
+        if url.endswith("/sitemap.xml"):
+            return DOCKER_SITEMAP, url, "application/xml", ""
         return "", "", "", "unexpected"
 
     reads: list[str] = []
@@ -209,7 +252,7 @@ def test_step_adds_verified_domain_targeted_candidate(
         claim=claim,
         assessments={"candidate_search_1": _Diagnostics("topic_only")},
         model_gateway=gateway,
-        fetch_html=fetch_html,
+        fetch_text=fetch_text,
         read_fn=read_fn,
         context=context,
         run_id="run_1",
@@ -227,9 +270,173 @@ def test_step_adds_verified_domain_targeted_candidate(
     assert [item.url for item in added] == [target]
     record = context["claim_engine_metrics"]["domain_targeted"][-1]
     assert record["domains"] == ["docs.docker.com"]
+    assert record["inventory_kind"] == "urlset"
     assert record["verified"] == [target]
-    assert any(row["reason"] == "read_failed" for row in record["dropped"])
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
+
+
+def test_step_follows_a_sitemap_index_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com"])
+    target = "https://docs.docker.com/docker-hub/usage/pulls"
+
+    def fetch_text(url: str):
+        if url.endswith("/sitemap.xml"):
+            return DOCKER_INDEX_SITEMAP, url, "application/xml", ""
+        if url.endswith("pages.xml"):
+            return DOCKER_SITEMAP, url, "application/xml", ""
+        return "", "", "", "not_expected"
+
+    context: dict = {}
+    cursor = _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=fetch_text,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert record["inventory_kind"] == "index"
+    assert record["verified"][0] == target
+    assert len(record["verified"]) <= 3
+    assert any(item.url == target for item in cursor.candidates)
+
+
+def test_step_is_silent_when_support_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state = _state_with_support("claim_1")
+    claim = state.claims[0]
+    gateway = _Gateway(["docs.docker.com"])
+    cursor = _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context={},
+        run_id="run_1",
+        wave_index=2,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    assert gateway.calls == 0
+    assert len(cursor.candidates) == 1
+
+
+def test_step_never_runs_twice_for_the_same_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com"])
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context={},
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=["claim_1"],
+        seconds_left=lambda: 30.0,
+    )
+    assert gateway.calls == 0
+
+
+def test_it_reads_no_content_from_the_inventory_fetches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com"])
+    reads: list[str] = []
+
+    def read_fn(url: str, *, max_chars: int):
+        reads.append(url)
+        return {"ok": False, "error": "unsafe_or_empty_url"}
+
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=read_fn,
+        context=context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert record["inventory_kind"] == "urlset"
+    assert record["inventory_locations"] == 5
+    assert record["added_candidate_ids"] == []
+    assert any(row["reason"] == "read_failed" for row in record["dropped"])
+    assert len(reads) >= 1
+
+
+def test_window_guard_skips_inventory_fetches(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
+    attempts: list[str] = []
+
+    def fetch_text(url: str):
+        attempts.append(url)
+        return DOCKER_SITEMAP, url, "application/xml", ""
+
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=fetch_text,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 5.0,
+    )
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert attempts == []
+    assert record["search_urls"] == []
+    assert {row["reason"] for row in record["dropped"]} == {"skipped_by_window"}
 
 
 def _state_with_support(claim_id: str):
@@ -250,7 +457,7 @@ def _state_with_support(claim_id: str):
     claim = ResearchClaim(
         id=claim_id,
         question_id="q1",
-        text="Docker Hub pull-rate limits for unauthenticated users",
+        text=CLAIM_TEXT,
         kind="factual",
         priority="critical",
         state="pending",
@@ -295,122 +502,3 @@ def _state_with_support(claim_id: str):
         reference_date="2026-09-21",
         known_evidence_ids=("ev_x",),
     )
-
-
-def test_step_is_silent_when_support_exists(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _domain_targeted_step
-
-    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
-    state = _state_with_support("claim_1")
-    claim = state.claims[0]
-    gateway = _Gateway(["docs.docker.com"])
-    cursor = _domain_targeted_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        fetch_html=lambda url: (SEARCH_HTML, url, "text/html", ""),
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
-        context={},
-        run_id="run_1",
-        wave_index=2,
-        timeout_seconds=5.0,
-        targeted_claim_ids=[],
-        seconds_left=lambda: 30.0,
-    )
-    assert gateway.calls == 0
-    assert len(cursor.candidates) == 1
-
-
-def test_step_never_runs_twice_for_the_same_claim(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from src.application.active_research_runtime import _domain_targeted_step
-
-    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["docs.docker.com"])
-    _domain_targeted_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        fetch_html=lambda url: (SEARCH_HTML, url, "text/html", ""),
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
-        context={},
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        targeted_claim_ids=["claim_1"],
-        seconds_left=lambda: 30.0,
-    )
-    assert gateway.calls == 0
-
-
-def test_search_fetches_are_capped(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _domain_targeted_step
-
-    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
-    attempts: list[str] = []
-
-    def fetch_html(url: str):
-        attempts.append(url)
-        return "", "", "", "connection_reset"
-
-    context: dict = {}
-    _domain_targeted_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        fetch_html=fetch_html,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
-        context=context,
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        targeted_claim_ids=[],
-        seconds_left=lambda: 30.0,
-    )
-    record = context["claim_engine_metrics"]["domain_targeted"][-1]
-    assert len(attempts) == 3
-    assert sum(1 for row in record["dropped"] if row["reason"] == "search_fetch_cap") == 1
-
-
-def test_window_guard_skips_search_fetches(monkeypatch: pytest.MonkeyPatch) -> None:
-    from src.application.active_research_runtime import _domain_targeted_step
-
-    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
-    state, claim = _runtime_state_and_claim()
-    gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
-    attempts: list[str] = []
-
-    def fetch_html(url: str):
-        attempts.append(url)
-        return SEARCH_HTML, url, "text/html", ""
-
-    context: dict = {}
-    _domain_targeted_step(
-        cursor=_runtime_cursor(),
-        state=state,
-        claim=claim,
-        assessments={},
-        model_gateway=gateway,
-        fetch_html=fetch_html,
-        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
-        context=context,
-        run_id="run_1",
-        wave_index=1,
-        timeout_seconds=5.0,
-        targeted_claim_ids=[],
-        seconds_left=lambda: 5.0,
-    )
-    record = context["claim_engine_metrics"]["domain_targeted"][-1]
-    assert attempts == []
-    assert record["search_urls"] == []
-    assert {row["reason"] for row in record["dropped"]} == {"skipped_by_window"}

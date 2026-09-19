@@ -1,16 +1,24 @@
-"""§63 Tier-1.5 domain-targeted retrieval: official-domain site search.
+"""§63 Tier-1.5 domain-targeted retrieval: official-domain deep-page discovery.
 
-The missing capability behind §44/§51/§52: the effective Tier-1 provider
-(Bing RSS) never returns deep official pages. This channel asks the model only
-for **official domains** (not URLs), then uses deterministic machinery on top
-of the existing fetch layer:
+The missing capability behind §44/§51/§52: the effective Tier-1 provider (Bing
+RSS) never returns deep official pages. This channel asks the model only for
+**official domains** (not URLs), then uses deterministic machinery on top of the
+existing fetch layer:
 
     claim -> model: up to 2 official domains
-          -> deterministic site-search URL patterns (<=3 per domain)
-          -> fetch the search page HTML (existing fetch layer)
-          -> extract same-domain anchors, ranked by claim-term overlap
+          -> deterministic inventory URLs (/sitemap.xml, /sitemap_index.xml)
+          -> parse <loc> entries (one sitemapindex level, bounded children)
+          -> rank same-domain URLs by claim-term overlap in the path
           -> reader verification (ok + non-empty) -> candidate
           -> existing assessment -> extraction -> Gate
+
+Why sitemaps and not site search: a cross-site probe over eight documentation
+hosts (docker, postgresql, python, kubernetes, redis, npm, node, rust) found the
+``/search/?q=`` shapes returning 404 on 7/8 and, where they returned 200, the
+root page with the query ignored — so site-search URL guessing is not a
+generalisable discovery surface. Sitemaps are: docs.docker.com serves
+``/sitemap.xml`` with 1811 URLs including the deep target
+``/docker-hub/usage/pulls/``, and redis.io serves a sitemapindex.
 
 Candidates carry ``discovery_method="domain_targeted"`` so provenance stays
 separate from ``search`` and ``llm_proposed``. Default off
@@ -24,13 +32,14 @@ import os
 import re
 from html.parser import HTMLParser
 from typing import Any, Iterable, Mapping
-from urllib.parse import quote_plus, urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 
 DOMAIN_TARGETED_ENV = "RESEARCH_DOMAIN_TARGETED"
 DISCOVERY_METHOD_DOMAIN_TARGETED = "domain_targeted"
 MAX_DOMAINS = 2
-MAX_SEARCH_PATTERNS = 3
-MAX_LINKS_PER_SEARCH = 5
+MAX_SITEMAP_URLS = 2
+MAX_SITEMAP_CHILDREN = 2
+MAX_LINKS_PER_INVENTORY = 5
 MAX_SEARCH_TERMS = 6
 
 DOMAIN_SYSTEM_PROMPT = (
@@ -52,11 +61,9 @@ _STOPWORDS = frozenset(
     }
 )
 
-_SEARCH_PATTERNS = (
-    "/search/?q={query}",
-    "/search?q={query}",
-    "/?s={query}",
-)
+_SITEMAP_PATHS = ("/sitemap.xml", "/sitemap_index.xml")
+_LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
+_CHILD_HINTS = ("page", "route", "doc")
 
 
 def domain_targeted_enabled() -> bool:
@@ -105,20 +112,44 @@ def build_search_query(claim_text: str) -> str:
     return " ".join(claim_search_terms(claim_text))
 
 
-def site_search_urls(
-    domain: str, query: str, *, max_patterns: int = MAX_SEARCH_PATTERNS
-) -> list[str]:
-    """Deterministic site-search URL candidates for one official domain."""
+def sitemap_urls(domain: str, *, max_paths: int = MAX_SITEMAP_URLS) -> list[str]:
+    """Deterministic sitemap locations for one official domain."""
 
     host = parse_domain_proposal({"domains": [domain]})
-    if not host or not query.strip():
+    if not host:
         return []
-    encoded = quote_plus(query.strip())
     base = f"https://{host[0]}"
-    return [
-        base + pattern.format(query=encoded)
-        for pattern in _SEARCH_PATTERNS[: max(1, int(max_patterns))]
-    ]
+    return [base + path for path in _SITEMAP_PATHS[: max(1, int(max_paths))]]
+
+
+def parse_sitemap(text: str) -> tuple[str, list[str]]:
+    """Return (kind, locations) where kind is 'index', 'urlset', or 'empty'."""
+
+    if not text:
+        return "empty", []
+    locations = _LOC_RE.findall(text)
+    head = text[:2000].lower()
+    if "<sitemapindex" in head:
+        return "index", locations
+    if locations:
+        return "urlset", locations
+    return "empty", []
+
+
+def prioritise_sitemap_children(
+    children: Iterable[str], *, limit: int = MAX_SITEMAP_CHILDREN
+) -> list[str]:
+    """Pick the most documentation-likely children of a sitemapindex."""
+
+    ranked: list[tuple[int, str]] = []
+    for child in children:
+        lowered = child.lower()
+        score = sum(1 for hint in _CHILD_HINTS if hint in lowered)
+        if any(bad in lowered for bad in ("blog", "news", "press", "event")):
+            score -= 2
+        ranked.append((-score, lowered))
+    ranked.sort()
+    return [child for _score, child in ranked[: max(1, int(limit))]]
 
 
 class _AnchorExtractor(HTMLParser):
@@ -134,15 +165,78 @@ class _AnchorExtractor(HTMLParser):
                 self.hrefs.append(value)
 
 
+def _token_variants(value: str) -> set[str]:
+    """Lowercased alphanumeric parts of a path/term, with naive plural stems."""
+
+    tokens: set[str] = set()
+    for part in re.findall(r"[a-z0-9]+", value.lower()):
+        if len(part) < 2:
+            continue
+        tokens.add(part)
+        if len(part) > 4 and part.endswith("s"):
+            tokens.add(part[:-1])
+    return tokens
+
+
+def _path_tokens(path: str) -> set[str]:
+    return {path} | _token_variants(path)
+
+
+def rank_domain_urls(
+    urls: Iterable[str],
+    *,
+    domain: str,
+    terms: Iterable[str],
+    limit: int = MAX_LINKS_PER_INVENTORY,
+) -> list[str]:
+    """Same-domain URLs ranked by claim-term overlap in the path."""
+
+    host = parse_domain_proposal({"domains": [domain]})
+    if not host:
+        return []
+    host = host[0]
+    term_tokens: set[str] = set()
+    for term in terms:
+        lowered = str(term or "").lower()
+        if not lowered:
+            continue
+        term_tokens.add(lowered)
+        term_tokens |= _token_variants(lowered)
+
+    scored: list[tuple[int, int, str]] = []
+    seen: set[str] = set()
+    for raw in urls:
+        parsed = urlparse(str(raw or "").strip())
+        if parsed.scheme != "https" or not parsed.netloc.lower().endswith(host):
+            continue
+        path = (parsed.path or "/").lower()
+        if not path.strip("/"):
+            continue
+        tokens = _path_tokens(path)
+        score = sum(1 for term in term_tokens if term in tokens)
+        if score <= 0:
+            continue
+        normalized = f"https://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        scored.append((-score, path.count("/"), normalized))
+    scored.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [url for _neg, _depth, url in scored[: max(1, int(limit))]]
+
+
 def extract_candidate_links(
     html: str,
     *,
     domain: str,
     terms: Iterable[str],
-    limit: int = MAX_LINKS_PER_SEARCH,
+    limit: int = MAX_LINKS_PER_INVENTORY,
     page_url: str = "",
 ) -> list[str]:
-    """Same-domain anchors ranked by claim-term overlap in the URL path."""
+    """Same-domain anchors ranked by claim-term overlap in the URL path.
+
+    Kept for HTML inventories (hub/nav pages) alongside sitemap harvesting.
+    """
 
     host = parse_domain_proposal({"domains": [domain]})
     if not host or not html:
@@ -154,30 +248,12 @@ def extract_candidate_links(
     except Exception:
         return []
     base = page_url or f"https://{host}/"
-    term_set = {term.lower() for term in terms if term}
-    scored: list[tuple[int, str]] = []
-    seen: set[str] = set()
+    absolute_urls: list[str] = []
     for href in parser.hrefs:
         if href.startswith(("mailto:", "javascript:", "#", "tel:")):
             continue
-        absolute = urljoin(base, href)
-        parsed = urlparse(absolute)
-        if parsed.scheme != "https" or not parsed.netloc.lower().endswith(host):
-            continue
-        path = (parsed.path or "/").lower()
-        if not path.strip("/"):
-            continue
-        candidates = {path} | set(re.findall(r"[a-z0-9][a-z0-9+._-]*", path))
-        score = sum(1 for term in term_set if term in path or term in candidates)
-        if score <= 0:
-            continue
-        normalized = f"https://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        scored.append((score, normalized))
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return [url for _score, url in scored[: max(1, int(limit))]]
+        absolute_urls.append(urljoin(base, href))
+    return rank_domain_urls(absolute_urls, domain=host, terms=terms, limit=limit)
 
 
 def domain_proposal_payload(claim_text: str) -> dict[str, str]:
@@ -201,7 +277,9 @@ __all__ = [
     "DOMAIN_SYSTEM_PROMPT",
     "DOMAIN_TARGETED_ENV",
     "MAX_DOMAINS",
-    "MAX_LINKS_PER_SEARCH",
+    "MAX_LINKS_PER_INVENTORY",
+    "MAX_SITEMAP_CHILDREN",
+    "MAX_SITEMAP_URLS",
     "build_search_query",
     "claim_search_terms",
     "domain_proposal_messages",
@@ -209,5 +287,8 @@ __all__ = [
     "domain_targeted_enabled",
     "extract_candidate_links",
     "parse_domain_proposal",
-    "site_search_urls",
+    "parse_sitemap",
+    "prioritise_sitemap_children",
+    "rank_domain_urls",
+    "sitemap_urls",
 ]
