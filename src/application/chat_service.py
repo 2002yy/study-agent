@@ -85,11 +85,27 @@ def _answer_generation_extra_body(prepared: Any) -> dict[str, dict[str, str]] | 
     any other gate outcome keeps the production default. This is derived from the
     same two inputs the release gate uses, so the policy cannot drift away from
     the gate decision.
+
+    ``RESEARCH_ANSWER_BOUNDED_POLICY=on`` is a diagnostic override (§40c): the
+    gate-pass path also runs the bounded thinking-off policy, because the
+    captured gate-pass answer calls returned empty content with thinking on
+    (reasoning consumed the output budget). Default off: production unchanged.
     """
 
     if _answer_attempt_budget(prepared) < 1 or not _evidence_rows_present(prepared):
         return THINKING_DISABLED_EXTRA_BODY
+    if _answer_bounded_policy_enabled():
+        return THINKING_DISABLED_EXTRA_BODY
     return None
+
+
+def _answer_bounded_policy_enabled() -> bool:
+    """§40c diagnostic switch; unset/unknown keeps the production policy."""
+
+    import os
+
+    raw = (os.getenv("RESEARCH_ANSWER_BOUNDED_POLICY") or "").strip().lower()
+    return raw in {"1", "true", "on", "yes"}
 
 
 def _configured_llm_provider() -> str:
@@ -859,6 +875,11 @@ class ChatService:
                 ),
                 task_name="answer_claim_binding",
                 request_max_retries=0,
+                extra_body=(
+                    THINKING_DISABLED_EXTRA_BODY
+                    if _answer_bounded_policy_enabled()
+                    else None
+                ),
             ),
             max_attempts=allowed_attempts,
             before_model_call=lambda: cancel_check("answer_claim_binding_pre"),

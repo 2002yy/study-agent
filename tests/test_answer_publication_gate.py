@@ -820,3 +820,31 @@ def test_substantive_answer_keeps_production_thinking_default(tmp_path) -> None:
     generation = _generation_calls(seen)
     assert generation
     assert generation[0].get("extra_body") is None
+
+
+def test_bounded_policy_flag_applies_thinking_off_to_gate_pass_answers(
+    tmp_path, monkeypatch
+) -> None:
+    """§40c diagnostic override: gate-pass answers run bounded thinking-off."""
+
+    monkeypatch.setenv("RESEARCH_ANSWER_BOUNDED_POLICY", "on")
+    seen: list[dict[str, Any]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        seen.append(dict(kwargs))
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, _turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    generation = _generation_calls(seen)
+    assert generation
+    assert generation[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+    binding = [
+        call for call in seen if call.get("task_name") == "answer_claim_binding"
+    ]
+    assert binding
+    assert binding[0].get("extra_body") == {"thinking": {"type": "disabled"}}
