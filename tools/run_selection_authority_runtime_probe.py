@@ -27,7 +27,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -94,6 +94,18 @@ def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]
         item = source.get("item")
         item = item if isinstance(item, dict) else {}
         content = str(read.get("content") or "")[:6000]
+        raw_extractions = source.get("extractions")
+        extractions: dict[str, dict[str, str]] = {}
+        if isinstance(raw_extractions, Mapping):
+            for claim_key, summary in raw_extractions.items():
+                if not isinstance(summary, Mapping):
+                    continue
+                extractions[str(claim_key)] = {
+                    "status": str(summary.get("status") or ""),
+                    "reason": str(summary.get("reason") or "")[:200],
+                    "relation": str(summary.get("relation") or ""),
+                    "source_cluster_id": str(summary.get("source_cluster_id") or ""),
+                }
         rows.append(
             {
                 "candidate_id": str(source.get("candidate_id") or ""),
@@ -107,6 +119,7 @@ def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]
                 "content_chars": len(content),
                 "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
                 "content": content,
+                "extractions": extractions,
             }
         )
     return rows[:12]
