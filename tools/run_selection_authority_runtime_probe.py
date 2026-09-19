@@ -89,15 +89,21 @@ def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]
             continue
         read = source.get("read")
         read = read if isinstance(read, dict) else {}
+        assessment = source.get("assessment")
+        assessment = assessment if isinstance(assessment, dict) else {}
+        item = source.get("item")
+        item = item if isinstance(item, dict) else {}
         content = str(read.get("content") or "")[:6000]
         rows.append(
             {
-                "url": str(source.get("url") or ""),
-                "title": str(source.get("title") or "")[:300],
-                "source_role": str(source.get("source_role") or ""),
-                "cluster_id": str(source.get("cluster_id") or ""),
-                "published_at": str(source.get("published_at") or ""),
-                "read_status": str(source.get("read_status") or ""),
+                "candidate_id": str(source.get("candidate_id") or ""),
+                "url": str(read.get("url") or item.get("url") or ""),
+                "title": str(read.get("title") or item.get("title") or "")[:300],
+                "source_role": str(assessment.get("source_role") or ""),
+                "cluster_id": str(assessment.get("source_cluster_id") or ""),
+                "owner_claim_id": str(assessment.get("claim_id") or ""),
+                "published_at": str(item.get("published_at") or ""),
+                "read_status": str(read.get("status") or ""),
                 "content_chars": len(content),
                 "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
                 "content": content,
