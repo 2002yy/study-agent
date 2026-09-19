@@ -1903,6 +1903,29 @@ answer_claim_binding (结构化输出):
 
 **§39 confound 复核**：本次健康余额下重放全部 `completed`，说明 402 只在余额耗尽后出现；run1/5/6 的 `model_call_attempts_exhausted` 仍需一次健康余额的 §39 重跑才能定性（已列为待办）。
 
+### 45.5 §40c 执行（`4ad32435`/`73450b3`/`50915f0`）：门已实现，live publish 被新一层卡住
+
+实现（两个诊断开关，默认关闭）：
+
+- `RESEARCH_ANSWER_BOUNDED_POLICY=on`：gate-pass 的 generation 与 binding 两个调用都走 bounded thinking-off（已测试：开=两个调用都带 thinking-off extra_body；关=与生产一致）。
+- `RESEARCH_ANSWER_CONSISTENCY_GATE=on`：binding 通过后做**机械一致性门**（`src/application/answer_consistency.py`）：unknown evidence ids / unknown claim ids / unbound substantive claims / direction violations（须 supports 行）/ **evidence-state conflict**（ledger 有 supports 时，文本不得出现有界否认词表）。失败→发布 fail-closed，保留真实 binding snapshot，binding phase 记 `error_type=consistency_failed:<codes>`；成功→`rag.answer_consistency.ok=true`。6+3 条 focused 测试。
+
+live raw run（四开关：selector=model、routing=on、bounded policy、consistency gate；`ANSWER_FORMATION.c40c1/2.json`）：
+
+```text
+c40c1: gate=block → generation 409 chars（thinking-off ✓, 4.3s）→ binding rejected: missing_evidence_brief
+c40c2: gate=pass  → generation 545 chars（thinking-off ✓, 4.5s）→ binding rejected: **answer_not_segmentable**
+        （未到 consistency gate；published = 32 字符 fail-closed）
+```
+
+**c40c2 根因（离线复算，全部机械可复核）**：
+
+1. **分段预算**：545 字符文本被 `_SEGMENT_BOUNDARY` 切成 20 个非空段 > `_MAX_SEGMENTS=16` → `_segment_answer` 返回空 → `answer_not_segmentable`。thinking-off 的 generation 更丰富，**3/7 生成超出 16 段预算**（replay：14/9/0/13/12 段；c40c1=11 段，c40c2=0 段）。
+2. **生成输入没有正文**：capture3 的 generation system prompt（5101 chars）只含证据**行元数据**（relation/claim/source/strength/anchor/url），**不含已读正文**；因此 thinking-off 文本里"没有已读取的正文/无法给出确定性结论"是对其输入的**诚实描述**，但与 ledger 状态（supports strength 0.9）不一致——这正是 §40c 一致性门要拦的对象，说明**下一步该修的是 answer 输入表示与产出形状，而不是 extractor**。
+3. 一致性门自身工作正常（测试覆盖 denial-over-supports 拦截与 clean 发布）；它尚未在 live run 中被触发，因为 c40c2 先死在分段预算。
+
+**§40d 建议（未实施，待决策）**：在 answer generation 输入中加入**有界的已读内容/受支持片段**（evidence row 的正文摘录），并约束输出形状（≤16 段或结构化答案计划）——两者都属 answer 输入合同、不动 extractor/Gate/binder 语义。做完后重跑同一验收：`gate pass → generation → binding → consistency clean → publish`。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
