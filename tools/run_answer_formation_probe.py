@@ -157,6 +157,7 @@ def replay(
         record["candidate_chars"] = len(reply_text)
         record["candidate_sha256"] = hashlib.sha256(reply_text.encode("utf-8")).hexdigest()
         record["reply_excerpt"] = reply_text[:600]
+        record["candidate_text"] = reply_text[:4000]
         record["publish_decision"] = (
             "publish_candidate" if reply_text else "fail_closed_empty_candidate"
         )
