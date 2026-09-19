@@ -2430,6 +2430,37 @@ local_richer_available = 0    answer_question_3 = **no**
 4. 若动 runtime，最小方向是 **reader 侧有界重试（≤2 次、1s/2s 退避、仅 fetch-layer 失败）**；不改 extractor、不改依赖边界、不引入外部服务。
 5. **样本限制（正式记录）**：4 URLs × 6 trials = 24 trials；结果用于失败形态识别、retry 是否值得进入下一阶段、延迟数量级判断；**不用于**估计长期失败率、推断通用网络失败率或给出生产成功概率。Docker pulls 的 `3/6 首发失败 / 4/6 K=3 成功` 属当前环境的 observed characterization，不是 SLA。
 
+## 58. §48 Reader Retry 接入（默认关闭）与 E2E 对照（`8ecbff0`/`79ff540`）
+
+**实现**（`RESEARCH_READ_RETRY=on`，默认 off）：
+
+- `src/web/research/read_retry.py`：≤2 次重试、固定 1s/2s 退避、**仅 fetch-layer 失败**（URLError/RemoteDisconnected/10054/reset/timeout/SSL handshake 等 signature）；**成功读取（无论多短）与 policy 失败（如 `unsafe_or_empty_url`）一律不重试**——不得把 §46 的 `short_doc` 当网络问题。
+- `ActiveResearchGateway.read` 仅在开关开启时走 `read_with_bounded_retry`；返回附带 `read_retry:{attempts,retries,retry_reasons}`；runtime `_source_record` 将其有界保入 source record（诊断字段，不触证据语义）；probe 已能捕获。
+- 9 条 focused 测试（策略/上限/退避/异常计入/两条 adapter 路径）。
+
+**E2E 对照（Docker case，恒定开关：selector=model + routing=on；proposal=off 以隔离变量；各 2 次）**
+
+```text
+off1: reads=3  ok=0 failed=3  gate=block   elapsed=33.7s  retried=0
+on1 : reads=5  ok=3 failed=2  gate=block   elapsed=50.0s  retried=1
+        ← docker.com：10054 → retry#1 → 成功
+off2: reads=1  ok=1 failed=0  gate=block   elapsed=28.2s  retried=0
+on2 : reads=3  ok=2 failed=1  gate=partial elapsed=72.9s  retried=1
+        ← github.com/docker：TimeoutError → retry#1；SSL handshake timeout → retry#2（共 2 次）
+
+读成功：OFF 1/4 vs ON 5/8（小样本，方向性）
+```
+
+**结论（冻结）**
+
+1. **机制在真实运行中复现**：3 次重试事件分别命中 10054 / read timeout / SSL handshake timeout，均按 ≤2 次、1s/2s 策略执行。
+2. **延迟成本真实且不可忽略**：ON 臂 elapsed +16s ~ +45s；on2 达 **72.9s**（超过 48s research window，finalization 与窗口重叠）。⇒ 若将来采纳，retry **必须做窗口感知**（剩余研究时间不足时不再发起重试），否则以 finalization 头寸换 recall。
+3. `gate=partial`（on2）是单次观察，**不作为因果增益证据**（受 assessment/extraction 方差影响）。
+4. d40.2 四项下游不变量本批未触碰（answer 路径无改动）；**默认仍为 OFF**，生产行为未变。
+5. 样本量：2 对 OFF/ON，属 observed characterization，不构成分布结论。
+
+**下一步候选（未实施，待拍板）**：(a) 窗口感知版的 retry 诊断开关 + 更大样本 E2E（含 Node 对照与 d40.2 不变量复核）；(b) 本地 headless browser 的 runtime 依赖决定（针对 §46 short_doc 形态）；(c) provider health metrics 升级（§46+ 清单）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
