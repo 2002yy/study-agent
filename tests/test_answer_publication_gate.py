@@ -848,3 +848,42 @@ def test_bounded_policy_flag_applies_thinking_off_to_gate_pass_answers(
     ]
     assert binding
     assert binding[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+
+
+def test_consistency_gate_flags_evidence_denial_despite_valid_binding(
+    tmp_path, monkeypatch
+) -> None:
+    """§40c: an answer that denies evidence must not publish over a supports ledger."""
+
+    monkeypatch.setenv("RESEARCH_ANSWER_CONSISTENCY_GATE", "on")
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return "本轮没有任何证据可以支持该结论。"
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
+    audit = turn.rag_snapshot.get("answer_validation_audit") or {}
+    binding_phase = (audit.get("phases") or {}).get("answer_claim_binding") or {}
+    assert binding_phase.get("outcome") == "rejected"
+    assert str(binding_phase.get("error_type") or "").startswith("consistency_failed")
+
+
+def test_consistency_gate_publishes_clean_answer(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_ANSWER_CONSISTENCY_GATE", "on")
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    consistency = turn.rag_snapshot.get("answer_consistency") or {}
+    assert consistency.get("ok") is True
+    assert consistency.get("codes") == []

@@ -14,6 +14,10 @@ from src.application.answer_claim_binder import (
     bind_answer_claims,
     factual_claims_fully_bound,
 )
+from src.application.answer_consistency import (
+    check_answer_consistency,
+    consistency_gate_enabled,
+)
 from src.context_builder import build_messages
 from src.domain.answer_claims import rejected_answer_claim_snapshot
 from src.domain.answer_validation import (
@@ -899,6 +903,32 @@ class ChatService:
             candidate=candidate,
         )
         if snapshot.status == "validated" and factual_claims_fully_bound(snapshot):
+            if consistency_gate_enabled():
+                # §40c diagnostic consistency gate: the generated text must not
+                # contradict the evidence ledger. The binding snapshot stays
+                # truthful; only the publication decision changes.
+                consistency = check_answer_consistency(
+                    candidate=candidate,
+                    claims=snapshot.claims,
+                    links=snapshot.claim_links,
+                    rows=rows,
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_consistency"] = consistency.to_dict()
+                if not consistency.ok:
+                    binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
+                    binding_phase["error_type"] = (
+                        "consistency_failed:" + "_".join(consistency.codes())
+                    )[:120]
+                    return (
+                        RESEARCH_ANSWER_BLOCKED_COPY,
+                        snapshot,
+                        {
+                            PHASE_ANSWER_GENERATION: generation_phase,
+                            PHASE_ANSWER_CLAIM_BINDING: binding_phase,
+                        },
+                        True,
+                    )
             binding_phase["outcome"] = PHASE_OUTCOME_PASSED
             return (
                 candidate,
