@@ -2213,6 +2213,47 @@ top10 : 0/12 hit（结果形态见下）
 
 **状态表（更新）**：Research E2E positive control PASS · Answer formation PASS demonstrated · Atomic routing PASS demonstrated · Read reserve FIXED · Selector transport PASS · Selector safety/fallback PASS · Selector conditional lift PASS · Natural selector generalization supply-limited · **Recall = PRIMARY OPEN BLOCKER（当前定位：provider retrieval surface）**。
 
+## 52. §44B Provider Attribution Audit（`aea23d8`；结论：生产栈实际只有 Bing RSS）
+
+### 52.1 决定性历史事实：effective provider surface = Bing RSS 单栈
+
+对 §37A 冻结语料（95 query / 475 结果）逐结果统计 `provider` / `providers` 字段：
+
+```text
+bing_rss: 475/475（100%）
+searxng / duckduckgo_html: 0
+```
+
+⇒ 历次"多 provider 合并栈"在此环境下**实际只有 Bing RSS 在供结果**；searxng 与 DDG 的 attempt 只出现在 `providers_attempted`，从未贡献任何结果。（与早期环境记录"仅 Bing RSS 稳定"一致，但此前未被量化到 100% 这个程度。）
+
+### 52.2 §44B 工具与当前归因（`PROVIDER_ATTRIBUTION.json`）
+
+工具 `tools/run_provider_attribution.py`（4 条 focused 测试）：对每个 known target × 3 类 query 分别取三 provider **raw top-20**，重放生产 round-robin merge（width 10 / width 5），记录 `provider_returned / raw_rank / post_merge_rank / survived_topk / drop_reason`、官方深页 merge 前/后计数、结果语言分布，并对 searxng 腿做 `language=en` 诊断变体（生产固定 `zh-CN`），按冻结决策树输出分支。
+
+本轮运行结果：**12/12 探针全部 A_provider_capability_insufficiency**（无任何 provider 在 raw top-20 返回目标；en 变体也未命中）。
+
+### 52.3 环境限定（必须与结论一起读）
+
+运行时的 provider 存活状态：
+
+```text
+bing_rss            : 正常（200；可返回 10 条 generic 结果）
+searxng（容器已启动）: 引擎全部失败 — brave:timeout; duckduckgo:timeout; google cse:HTTP connection error; startpage:timeout
+duckduckgo_html     : urllib timed out
+直连观测            : bing.com 200 / postgresql.org 200 / duckduckgo.com timeout / google.com connection refused
+```
+
+因此：
+1. **A 类结论只对"实际生效的 provider = Bing RSS"成立**：exact-title 在 Bing raw top-20 也召不回四个已知深页（Docker/PostgreSQL/uv/Node 全含）。
+2. **locale 分支（D）本轮不可测**：searxng 的 en 变体没有可用引擎，无法区分"locale 问题"与"引擎被网络阻断"。
+3. 若网络恢复（DDG/Google/Brave 可达），§44B 应重跑以区分 searxng/DDG 各自能力；但鉴于 475/475 的历史事实，**provider surface 的真实上限目前就是 Bing RSS**。
+
+### 52.4 对 recall 路线的影响（记入决策）
+
+- "换/补 provider"已从可选项升级为首要候选：可选方向 = 官方站内检索 / 支持深索引的搜索 API（带 key 的 Bing Web Search、Google CSE 等）/ domain-aware targeted retrieval（已知官方域时直接读站内搜索页）。
+- query compilation / LLM-intent compiler 继续搁置（其前提是"exact title 能召回、semantic 召不回"，当前不满足）。
+- 复跑条件：网络出口允许 DDG/Google（或选用其它可达 provider）后，§44B 重跑 + 对候选新 provider 做同一 exact-title 三件套。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
