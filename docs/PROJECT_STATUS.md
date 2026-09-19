@@ -2512,6 +2512,25 @@ aware2           4   3    1    block   53.8     11.6           0       0
 - 或把样本扩大到 Node + 多次 Docker，并同时记录 `post_research_projection` / `answer_stage` 秒数以量化 finalization headroom；
 - **headless browser（§46 short_doc）与 retry 严格正交，继续独立冻结**。
 
+## 61. 已证明结论汇总（可引用；每行含证据位置与适用边界）
+
+> 本表是**结论索引**，不是新实验；所有数字都可回溯到对应章节与 `docs/research_quality/` 下的诊断产物（未跟踪）。默认状态与边界一栏必须随结论一起引用。
+
+| 领域 | 结论 | 证据位置 | 默认/边界 |
+|---|---|---|---|
+| **端到端** | 首次完整 runtime E2E 正例闭环：`target_read → routing supports → eligible → gate pass → grounded generation → binding valid → consistency clean → substantive publish` | §44（run7）+ §46（`ANSWER_FORMATION.d40.2.json` 黄金 artifact） | 诊断开关组合；生产默认未启用 |
+| **Answer formation** | 空返回=**A_model_empty**（thinking 吃 1600-token 输出预算；非 timeout、非 parse）；thinking-off 使 generation 与 binding 各 5/5 非空、p50≈1/5 延迟；一致性门（unknown ids / 未绑定实质段 / 方向 / 证据状态矛盾）可机械拦截并保留真实 binding snapshot | §45.4/§46 | `RESEARCH_ANSWER_BOUNDED_POLICY`、`RESEARCH_ANSWER_CONSISTENCY_GATE`、`RESEARCH_ANSWER_GROUNDED_INPUT` 均默认 off |
+| **Atomic routing** | 读到的页面可 bounded 路由到缺 support 的 factual claim（≤2/read、≤4/wave、不重读、不做 page×all-claims）；分析/比较类 claim **永不路由** | §44（`b1a208e`/`400ecdf`） | `RESEARCH_ATOMIC_ROUTING` 默认 off |
+| **Read reserve** | reserve 的语义是"留给冲突解"；**无 open conflict 时在既有 hard read cap 内回流**；修复后该形态的 `read_budget_exhausted` 归零，历史目标页丢失模式消失 | §46.6（`505aca8`） | 有冲突时行为与修前完全一致 |
+| **Selector** | ① `invalid_schema` 根因=**缺 thinking-off 传输配置**（修后 0/≈30 window）；② 生产合同=模型偏好+确定性 legacy fallback，**0/28 availability loss**；③ 条件性 lift：injected 12/12、natural 6/6，`wins>0 / losses=0 / replacement_loss=0`（natural 供给受 recall 限制）；④ 未证实普遍优于规则 | §47/§48/§49（`69b7eb4`/`de7fcf4`/`8769926`/`6989c75`） | `RESEARCH_SELECTION_AUTHORITY` 默认 off；只换 selection authority，不动 K/H9/下游 |
+| **Recall** | 生产"三 provider"实际是 **Bing RSS 单栈（475/475 结果）**；四个已知深页在 raw top-20（含 exact title）**全部召不回** ⇒ 瓶颈在 **provider retrieval surface**，不在 query 表达或 merge/topK | §51/§52（`19747a1`/`aea23d8`） | query/intent compiler 因此继续搁置 |
+| **Tier-2** | DeepSeek URL 提案 + reader 验证构成**第二 discovery 通道**并闭环（proposal→verify→candidate→assessment→read→extract→gate-eligible）；Docker 由"永不召回"变为"精确页进链（lead/primary）"；触发器为 claim-scoped 状态谓词（该 claim 已读≥1、无 support、无 answer_relevant、Tier-1 已消费） | §55（`8bb3310`/`8a1ade2`/`bc771af`/`3c69463`） | `RESEARCH_LLM_PROPOSAL` 默认 off；提案永不直接成为证据 |
+| **Read adequacy** | 本地抽取器**无提升空间**（0 extraction_loss）；短页分两类：`fetch_failed`（连接重置）与 `short_doc`（HTML≈35 万字符而三种本地抽取器恒 520 字符，符合 client-rendered/script-embedded 形态，未做浏览器执行验证） | §56（`82caa33`/`df0763f`） | `short_doc_ratio=1/8`、`unreadable_or_failed=3/8`（两者不可混用） |
+| **Fetch retry** | flakiness 真实且在当前环境呈 docs.docker.com 特异性（首发失败 50–67% vs 对照 0/6）；有界 retry 恢复 50→100% / 67→83% / 50→67%；成本为观察差值 +16.3s/+44.7s，一次 **72.9s** 同时超过 48s research window 与 60s hard budget | §57/§58/§59（`7853cfb`/`8ecbff0`） | **冻结约束：retry 必须 window-aware**；默认 off；`fetch_failed` 才 retry，`short_doc` 不 retry |
+| **架构原则** | **Discovery 可换、证据链不换**；`proposal ≠ candidate ≠ evidence ≠ support`；全部在 **DeepSeek-only** 边界内完成（未引入 Brave / r.jina.ai 等外部服务） | §54/§55 + 各批合同段 | 生产默认行为始终未启用任何诊断开关 |
+
+**引用规则**：引用表中任一结论时必须同时引用其"默认/边界"列；所有带 N 的数字都是 **observed characterization**（样本量在各章节标注），不是分布估计或 SLA。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
