@@ -1926,6 +1926,45 @@ c40c2: gate=pass  → generation 545 chars（thinking-off ✓, 4.5s）→ bindin
 
 **§40d 建议（未实施，待决策）**：在 answer generation 输入中加入**有界的已读内容/受支持片段**（evidence row 的正文摘录），并约束输出形状（≤16 段或结构化答案计划）——两者都属 answer 输入合同、不动 extractor/Gate/binder 语义。做完后重跑同一验收：`gate pass → generation → binding → consistency clean → publish`。
 
+## 46. §40d 完成：首个完整 runtime E2E positive control 闭环（`f449083`；`ANSWER_FORMATION.d40.2.json`）
+
+### 46.1 实施（两刀 + 诊断；全部默认关闭）
+
+- **Evidence-grounded answer input**（`RESEARCH_ANSWER_GROUNDED_INPUT=on`）：`_evidence_brief` 为每条 eligible row 附加**有界正文 excerpt**（优先 anchor 周围 ±200 字符，找不到则取页首；单条 ≤400、总量 ≤6000），`_format_evidence_brief` 渲染 `excerpt:` 行；brief 同时附加输出形状契约（≤12 个实质段落/条目、每段一个结论、引用置段内）——**`_MAX_SEGMENTS=16` 未动**。
+- **分段溢出诊断**：`segment_answer_with_stats` 记录 `raw_nonempty_segment_count / segment_limit / segment_overflow / overflow_reason`，挂在 `BoundAnswerClaims.segment_stats` 并写入 turn rag 的 `answer_binding_segments`——"0 段"不再掩盖"20>16 被拒"。
+
+### 46.2 验收（第 2 次 run 即通过；五开关：selector=model、routing=on、bounded policy、consistency gate、grounded input）
+
+```text
+d40.1: gate=block（生成 1617 字符、prompt 已含 excerpt/shape；binding missing_evidence_brief）
+d40.2: gate=pass
+  prompt_has_excerpt=true / prompt_has_shape_contract=true
+  generation: 606 chars, thinking-off  ✓
+  binding: outcome=passed（结构化输出，factual 段全部绑定 web_c7a26954e016ab458dc09362 + claim_12f2…）✓
+  consistency: ok=true, 4 claims / 4 links, 0 violations（unknown ids / unbound / direction / state-conflict 全 0）✓
+  publish: 606 字符实质回答（**非** 32 字符 fail-closed）✓
+```
+
+验收清单（全部满足）：`candidate_non_empty ✓ / raw_segments≤16 ✓（binding passed 即证）/ binding_schema_valid ✓ / unknown_evidence_ids=0 ✓ / unknown_claim_ids=0 ✓ / unbound_substantive_claims=0 ✓ / direction_violations=0 ✓ / evidence_state_conflicts=0 ✓ / published=true ✓`。
+
+**发布答案**：明确列出 CommonJS + ECMAScript 两套系统（[web-1] 引用），描述 `.cjs/.mjs/package.json type` 判定规则，并**对照回答了新旧指引差异**（旧表述把 CommonJS 当默认唯一、现为并列双系统；显式扩展名消除歧义），末尾诚实标注证据边界。人工核查：`.cjs/.mjs` 在 excerpt 内；**`package.json type` 恰位于 400 字符截断点之后**（模型用先验补全，方向正确但超出 excerpt 原文）——记录为 excerpt 窗口的后续 polish 项，不属本批缺陷。
+
+### 46.3 状态（按用户口径）
+
+```text
+Discovery / recall           OPEN
+Selection                    OPEN（规则窗口 target-loss 已定位）
+Read                         DEMONSTRATED
+Atomic routing               PASS as mechanism
+Extraction                   PASS on positive control
+Eligible support formation   PASS demonstrated（run7 / d40.2）
+Gate                         PASS demonstrated
+Answer formation             **PASS demonstrated（d40.2，首个 E2E）**
+Production default           NOT YET（全部开关默认关闭）
+```
+
+⇒ **§35 起追的完整 research E2E positive control 首次闭环**。后续顺序：§39 confound 复核 → read reserve → selector 生产化（含 guard 预算语义）→ recall/selection 稳定性；本批所有开关仍为诊断态，生产默认未变。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
