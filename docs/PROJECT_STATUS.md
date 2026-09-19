@@ -2583,19 +2583,41 @@ Analysis : 比较/演进类 claim 没有综合层（单页抽取永远给 backgr
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
+## §63 B1 Tier-1.5 域内定向检索（实现完成，能力前提被观测否定）
 
+### 63.1 实现（`e557381` + `2ad66a2`，默认 off）
 
+- `src/web/research/domain_targeted.py`：域提案严格解析（`parse_domain_proposal`）、claim 显著词（`claim_search_terms`/`build_search_query`）、确定性站内搜索 URL 模式（`site_search_urls`，3 形态）、`_AnchorExtractor` 同域锚点抽取与词重叠打分（`extract_candidate_links`，≤5/次）、`domain_targeted_enabled()`。
+- runtime `_domain_targeted_step`：与 Tier-2 同一状态谓词（该 claim 有完成 read、无 supports、当前评估无 answer_relevant）、每 claim 每 run ≤1 次；候选标 `discovery_method="domain_targeted"`；**预算护栏**：站内搜索页 fetch ≤3 次/claim、仅当 `research_seconds_left() >= 12s` 才发起（否则记 `skipped_by_window`）。
+- 漏斗泛化：`metrics.discovery_funnel` 同时覆盖 `llm_proposed` 与 `domain_targeted`（含 `by_discovery_method`）；`metrics.tier2_funnel` 被取代。
+- 10 个 focused 测试（解析/搜索词/URL 模式/锚点过滤与排序/上限、已验证候选、有 support 时不触发、每 claim 一次、fetch cap、窗口护栏）；Ruff clean。
 
+### 63.2 验收（Docker case，`RESEARCH_DOMAIN_TARGETED=on` + selector=model + routing=on，Tier-2 off）
 
+- **run1（修复前，`e557381`）**：域提案正确（`docs.docker.com` + `hub.docker.com`），5 个站内搜索 URL 依次 12s 超时 → **elapsed 99.985s，穿透 60s 硬预算**（fetch 层不是 read 层，无 deadline 检查）。此预算漏洞即 63.1 护栏的由来。
+- **run2（`2ad66a2`）**：elapsed **29.2s**（预算修复），gate=block；站内搜索页 3 次 fetch 后 `search_fetch_cap` 截断；`links_found=[]`、`verified=[]`、`added_candidate_ids=[]` → 该通道**零候选**。
 
+### 63.3 搜索面特征化（一次性探针，非生产工具）
 
+同一 fetch 层 + 原始 urllib 探针，对 `docs.docker.com`：
 
+| 通道 | 结果 |
+| --- | --- |
+| `/search/?q=`、`/search?q=`、`/?s=` | 全部 `URLError`（连接失败；`/docker-hub/` 同 run 正常返回 350KB ⇒ 非宿主整体不可达） |
+| `/docker-hub/`、`/docker-hub/usage/` | 返回**逐字节相同**的 349,998 字符 nav shell（531–532 同域链接），目标深页 `docker-hub/usage/pulls` **不在其中** |
+| `sitemap.xml` / `sitemap_index.xml` / `robots.txt` | URLError / HTTPError(404) / 200 但无 sitemap 指令 ⇒ **无 sitemap 可用** |
 
+### 63.4 结论（能力前提否定）
 
+- B1 的前提（"把模型限制为域、链接由本地确定性机制产出"）在观测站点上**不成立**：站内搜索不可用（JS/被拒）、hub 页只暴露 nav shell、无 sitemap ⇒ 本地机制无法产出深页 URL。
+- 而"模型能否命名精确 URL"从来不是缺失能力：§44C-Alt / §45 已证模型能稳定给出官方精确页并进入证据链（Docker run4 lead/primary gate-eligible）。
+- 因此 **B1 相对 §45 Tier-2 不增加能力**；缺的仍是"检索/阅读面"（§59 provider surface、§60 JS 正文），而非 URL 生成方式。
+- 诊断产物：`docs/research_quality/B1.docker.run1.json`、`B1.docker.run2.json`（未跟踪）。
 
+### 63.5 待用户裁决的分叉（B1 后续形态）
 
+1. **收口 B1**：保留代码为默认 off 的受限通道，把 §62 能力排序改为 B2（失败注入）→ B3（headless 阅读面）。
+2. **B1' 深通道下沉**：把 Tier-2 的 URL 提案**限定在域提案的域内**（模型给域 + 域内路径），保留本地 URL 构造/校验；本质是"带域约束的 Tier-2"，可解释性提升但重复现有能力。
+3. **B1'' 站点地图/索引扩展**：允许 XML sitemap 抓取并索引；本环境 docs.docker.com **无 sitemap**，收益不可证。
 
-
-
-
-
+推荐 1（配合 B3）；理由：B1 观测已表明瓶颈在读取/检索面而非 URL 生成。
