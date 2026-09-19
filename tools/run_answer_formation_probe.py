@@ -322,12 +322,26 @@ def _load_case(manifest_path: Path, case_id: str) -> dict[str, str]:
     raise ValueError(f"case is not in the manifest: {case_id}")
 
 
+def select_calls(
+    calls: list[Any], task: str
+) -> list[Mapping[str, Any]]:
+    if task == "all":
+        return list(calls)
+    selected = [
+        row
+        for row in calls
+        if str((row.get("kwargs") or {}).get("task_name") or "") == task
+    ]
+    return selected or [calls[-1]]
+
+
 def run_replay(
     *,
     capture_path: Path,
     output_path: Path,
     runs: int,
     policy: str,
+    task: str,
 ) -> dict[str, Any]:
     from src.llm_client import chat as production_chat
 
@@ -335,17 +349,7 @@ def run_replay(
     calls = capture_chat_records(artifact)
     if not calls:
         raise ValueError("capture artifact contains no answer calls")
-    # Replay the substantive answer call: prefer the captured answer_generation
-    # task, else the last non-empty-message call.
-    target = next(
-        (
-            row
-            for row in calls
-            if str((row.get("kwargs") or {}).get("task_name") or "")
-            == "answer_generation"
-        ),
-        calls[-1],
-    )
+    target_calls = select_calls(calls, task)
     policies = ["captured", "thinking_off"] if policy == "both" else [policy]
     results: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -353,20 +357,26 @@ def run_replay(
         "diagnostic_only": True,
         "qualification_evidence": False,
         "source_capture": str(capture_path).replace("\\", "/"),
+        "gate_status": ((artifact.get("chain") or {}).get("gate") or {}).get("status"),
+        "task_filter": task,
         "runs_per_policy": max(1, int(runs)),
         "attempts": [],
         "summaries": {},
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
-    for selected_policy in policies:
-        attempts = replay(
-            target,
-            chat_fn=production_chat,
-            runs=max(1, int(runs)),
-            policy=selected_policy,
-        )
-        results["attempts"].extend(attempts)
-        results["summaries"][selected_policy] = summarize_attempts(attempts)
+    for call in target_calls:
+        call_task = str((call.get("kwargs") or {}).get("task_name") or "unknown")
+        for selected_policy in policies:
+            attempts = replay(
+                call,
+                chat_fn=production_chat,
+                runs=max(1, int(runs)),
+                policy=selected_policy,
+            )
+            results["attempts"].extend(attempts)
+            results["summaries"][f"{call_task}:{selected_policy}"] = summarize_attempts(
+                attempts
+            )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -386,6 +396,11 @@ def _parser() -> argparse.ArgumentParser:
         "--policy",
         choices=["captured", "thinking_off", "both"],
         default="captured",
+    )
+    parser.add_argument(
+        "--task",
+        default="all",
+        help="answer call to replay: task_name, or 'all'",
     )
     return parser
 
@@ -411,6 +426,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         output_path=args.output.resolve(),
         runs=args.runs,
         policy=args.policy,
+        task=args.task,
     )
     print(json.dumps(results["summaries"], ensure_ascii=False, sort_keys=True))
     return 0
