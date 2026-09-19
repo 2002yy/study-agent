@@ -20,6 +20,7 @@ budget does not count it. Selector calls are counted separately in
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tempfile
@@ -47,6 +48,62 @@ from src.web.research.selection_authority import (  # noqa: E402
 
 PROBE_SCHEMA_VERSION = "selection-authority-runtime-probe-v1"
 DEFAULT_CASE = "rq1c-historical-current-node-modules"
+
+
+def _capture_claims(repository: Any, case_id: str) -> list[dict[str, Any]]:
+    """§38c input capture: the runtime's own claims with their metadata."""
+
+    persisted = repository.get(f"rq1c_{case_id}")
+    context = dict(getattr(persisted, "research_context", {}) or {})
+    state = context.get("claim_engine")
+    claims = state.get("claims") if isinstance(state, dict) else None
+    rows: list[dict[str, Any]] = []
+    for claim in claims if isinstance(claims, list) else []:
+        if not isinstance(claim, dict):
+            continue
+        requirement = claim.get("evidence_requirement")
+        rows.append(
+            {
+                "id": str(claim.get("id") or ""),
+                "text": str(claim.get("text") or "")[:500],
+                "kind": str(claim.get("kind") or ""),
+                "priority": str(claim.get("priority") or ""),
+                "state": str(claim.get("state") or ""),
+                "parent_id": str(claim.get("parent_id") or ""),
+                "created_by": str(claim.get("created_by") or ""),
+                "created_reason": str(claim.get("created_reason") or ""),
+                "evidence_requirement": requirement if isinstance(requirement, dict) else {},
+            }
+        )
+    return rows[:20]
+
+
+def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]:
+    """§38c input capture: the exact read payloads the extractor saw."""
+
+    persisted = repository.get(f"rq1c_{case_id}")
+    sources = getattr(persisted, "selected_sources", None) or []
+    rows: list[dict[str, Any]] = []
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        read = source.get("read")
+        read = read if isinstance(read, dict) else {}
+        content = str(read.get("content") or "")[:6000]
+        rows.append(
+            {
+                "url": str(source.get("url") or ""),
+                "title": str(source.get("title") or "")[:300],
+                "source_role": str(source.get("source_role") or ""),
+                "cluster_id": str(source.get("cluster_id") or ""),
+                "published_at": str(source.get("published_at") or ""),
+                "read_status": str(source.get("read_status") or ""),
+                "content_chars": len(content),
+                "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                "content": content,
+            }
+        )
+    return rows[:12]
 
 
 def _load_case(manifest_path: Path, case_id: str) -> dict[str, str]:
@@ -114,6 +171,8 @@ def run_probe(*, manifest_path: Path, output_path: Path, case_id: str) -> dict[s
         )
         record["elapsed_seconds"] = round(max(0.0, time.monotonic() - started), 3)
         artifact["cases"].append(record)
+        artifact["claims"] = _capture_claims(repository, case["id"])
+        artifact["source_reads"] = _capture_source_reads(repository, case["id"])
     finally:
         import shutil
 
