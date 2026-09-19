@@ -2329,6 +2329,46 @@ node       : nodejs.org/api/modules.html 等（reader ok，6000 chars）
 2. 用同一验收链（Node/Docker）验证 `提案 → 候选 → read → extract supports → gate pass → answer`，并保持 selector/atomic routing/consistency 开关组合不变、不回归 d40.2 四项不变量。
 3. 仍排队：provider 健康指标升级（configured/attempted/succeeded/contributed + attempted-N-contributed-0 告警）、§44B 在网络允许时的 provider 级复核、recall 的更大样本。
 
+## 55. §45 Tier-2 LLM 提案接入 runtime（已实施 `8bb3310`/`8a1ade2`/`bc771af`，默认关闭）
+
+### 55.1 合同与实现
+
+```text
+proposal → URL 校验 → reader 验证 → candidate → assessment → extraction
+        → support → eligibility → Gate          （LLM 提案永不直接成为证据）
+```
+
+- `src/web/research/llm_proposal.py`：`RESEARCH_LLM_PROPOSAL`（默认 off）、https-only 严格解析（≤3、canonical 去重）、Tier-1 miss 谓词、提案 messages。
+- runtime `_tier2_proposal_step`：每 claim 每次运行最多 1 次提案调用（json_object + thinking-off，与 selector 同传输契约）；候选写入 `discovery_method="llm_proposed"` + 该 claim 的 query 锚点；`metrics.tier2_proposal`（miss 原因/调用状态/proposed/verified/dropped+detail/verification_reads/added ids）与 `metrics.tier2_funnel`（proposed→assessed_relevant→read→extracted_supports→gate_eligible，逐 wave 重算）。
+- **触发契约（精确）**：仅当"该 claim 已有 ≥1 次完成的物理 read、仍无 supports、且当前评估里没有 answer_relevant 候选"时触发；`claim_has_support=True` 或 Tier-1 尚未被消费（completed_read=0）时保持静默（单元测试覆盖）。
+
+### 55.2 两次真实缺陷修复（都记录在案）
+
+1. `8a1ade2`：验证 read 用了位置参数，而 `gateway_read(url, *, max_chars)` 是 keyword-only → TypeError 被吞成空 dict → 全部 `read_failed` 且无 detail。现用 `read_fn(url, max_chars=1200)`，异常文本入 detail。
+2. `bc771af`：Node 对照跑显示 Tier-2 在 **Tier-1 尚未被消费前**（wave 1、无任何 read）就触发；触发谓词加入 completed_read ≥1 与 claim_has_support 两项状态条件。
+
+### 55.3 验收（raw run，开关：`RESEARCH_LLM_PROPOSAL=on` + selector=model + routing=on，部分含 answer 开关组）
+
+```text
+docker run3: Tier-1 miss → 提案精确 URL ×3（pulls/usage/根）→ 验证 2 个（pulls 命中瞬时
+            WinError 10054 被丢弃）→ 候选走完 assessment(read=1)/extract(lead)/gate_eligible=1
+docker run4: 提案精确 pulls 页并在**正常读取路径**中成功读出（sources: read + eligible）→
+            gate_eligible=1（relation=lead, primary）；gate 仍 block，但**原因已换层**：
+            页面正文过短（520 字符壳页）→ extractor 无法给出 supports ⇒ Docker 的下一个
+            blocker = **read adequacy**（不再是 recall/discovery）
+node   run2: gate=pass；Tier-2 在该 claim"已读但尚无 support"时触发，其候选
+            （nodejs.org/api/modules.html）被评 relevant → read → extract **supports** →
+            gate_eligible=1 ⇒ 本轮 supports 实际来自 Tier-2 通道；触发先于 Tier-1 support
+            落地，属状态谓词（契约不矛盾）
+```
+
+**结论（本批冻结）**：
+
+1. **Tier-2 作为独立 discovery 通道已闭环**：proposal→验证→候选→评估→read→extraction→Gate eligibility 全链可跑；Docker 从"永远召不回"变成"精确页进链并以 lead primary 计入门禁"。
+2. **Discovery 可换、证据链不换**成立：同一 extractor/Gate/answer 语义下，Tier-2 候选与 search 候选走完全相同的下游。
+3. 下一层 blocker 已由数据指出：**Docker 的 read adequacy**（壳页 520 字符）与 **Tier-1 support 落地前的时序**；均记录为后续项，不在本批修。
+4. 默认关闭不变；生产路径不启用。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
