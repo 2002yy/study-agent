@@ -139,6 +139,10 @@ from src.web.research.scheduler import (
     plan_read_wave,
 )
 from src.web.research.selection_trace import SelectionTraceCollector
+from src.web.research.atomic_routing import (
+    atomic_routing_enabled,
+    route_missing_atomic_claims,
+)
 from src.web.research.selection_authority import (
     SELECTION_AUTHORITY_MODEL,
     SelectionAuthorityDiagnostics,
@@ -1303,6 +1307,49 @@ class ActiveResearchRuntimeExecutor:
                     completed_read_ids=completed_read,
                     rankings=claim_rankings,
                 )
+                # §39 atomic routing (default off): a read artifact also serves
+                # factual claims that still lack support, bounded per read and
+                # per wave. Comparison/analytical claims are never routed: their
+                # support belongs to synthesis over atomic facts, never to a
+                # single-page extraction.
+                routed_pairs: set[tuple[str, str]] = set()
+                if atomic_routing_enabled():
+                    routing_read_ids = frozenset(
+                        str(record.get("candidate_id") or "")
+                        for record in selected_sources
+                        if str(record.get("read_status") or "") == "read"
+                    )
+                    supported_ids = frozenset(
+                        link.claim_id
+                        for link in state.evidence_links
+                        if link.relation == "supports"
+                    )
+                    extraction_targets, routing_records = route_missing_atomic_claims(
+                        extraction_targets,
+                        claims=state.claims,
+                        supported_claim_ids=supported_ids,
+                        read_candidate_ids=routing_read_ids,
+                    )
+                    routed_pairs = {
+                        (str(record["read_artifact_id"]), claim_id)
+                        for record in routing_records
+                        for claim_id in record.get("routed_claim_ids") or []
+                    }
+                    routing_metrics = context.setdefault(
+                        ACTIVE_RESEARCH_METRICS_KEY, {}
+                    )
+                    if isinstance(routing_metrics, dict):
+                        existing_routing = routing_metrics.get("atomic_routing")
+                        existing_routing = (
+                            existing_routing
+                            if isinstance(existing_routing, list)
+                            else []
+                        )
+                        for record in routing_records:
+                            existing_routing.append(
+                                {"wave_index": cursor.wave_index, **record}
+                            )
+                        routing_metrics["atomic_routing"] = existing_routing[-60:]
                 context[ACTIVE_RESEARCH_READ_PLAN_KEY] = {
                     "physical_reads": physical_reads,
                     "extraction_targets": extraction_targets,
@@ -2045,6 +2092,40 @@ class ActiveResearchRuntimeExecutor:
                                 variants=variants,
                             )
                             checkpoint()
+
+                if routed_pairs:
+                    # §39 observability: what the routed extractions returned,
+                    # per read artifact and claim, so a routed-but-not-supported
+                    # outcome is distinguishable from a never-routed one.
+                    routing_metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+                    if isinstance(routing_metrics, dict):
+                        observed = routing_metrics.get("atomic_routing_extractions")
+                        observed = observed if isinstance(observed, list) else []
+                        for routed_candidate_id, routed_claim_id in sorted(routed_pairs):
+                            routed_source = _source_by_candidate(
+                                selected_sources, routed_candidate_id
+                            )
+                            if routed_source is None:
+                                continue
+                            routed_extraction = (
+                                routed_source.get("extractions") or {}
+                            ).get(routed_claim_id)
+                            if not isinstance(routed_extraction, Mapping):
+                                continue
+                            observed.append(
+                                {
+                                    "wave_index": cursor.wave_index,
+                                    "read_artifact_id": routed_candidate_id,
+                                    "origin_claim_id": "",
+                                    "claim_id": routed_claim_id,
+                                    "status": str(routed_extraction.get("status") or ""),
+                                    "relation": str(routed_extraction.get("relation") or ""),
+                                    "source_cluster_id": str(
+                                        routed_extraction.get("source_cluster_id") or ""
+                                    ),
+                                }
+                            )
+                        routing_metrics["atomic_routing_extractions"] = observed[-60:]
 
                 cursor = replace(cursor, phase="gating")
                 checkpoint(stage="gating")
