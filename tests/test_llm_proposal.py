@@ -269,6 +269,40 @@ def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 
+def test_completed_read_must_belong_to_this_claim(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Frozen §45: reads from other claims must not unlock the proposal step."""
+
+    from src.application.active_research_runtime import _tier2_proposal_step
+    from src.web.research.runtime import RuntimeReadOutcome
+
+    monkeypatch.setenv(LLM_PROPOSAL_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["https://docs.docker.com/docker-hub/usage/pulls/"])
+    base = _runtime_cursor()
+    foreign_read_cursor = base.__class__(
+        candidates=base.candidates,
+        read_outcomes=(
+            RuntimeReadOutcome(candidate_id="candidate_other_claim", status="success"),
+        ),
+        planned_queries=base.planned_queries,
+    )
+    cursor = _tier2_proposal_step(
+        cursor=foreign_read_cursor,
+        state=state,
+        claim=claim,
+        assessments={"candidate_search_1": _Assessment("topic_only")},
+        model_gateway=gateway,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context={},
+        run_id="run_1",
+        wave_index=2,
+        timeout_seconds=5.0,
+        proposed_claim_ids=[],
+    )
+    assert gateway.calls == 0
+    assert len(cursor.candidates) == 1
+
+
 def test_missing_api_never_repeats_for_the_same_claim(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.application.active_research_runtime import _tier2_proposal_step
 

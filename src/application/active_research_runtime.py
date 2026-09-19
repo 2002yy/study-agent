@@ -2870,10 +2870,18 @@ def _tier2_proposal_step(
     if claim.id in proposed_claim_ids:
         return cursor
     claim_candidates = _candidates_for_claim(cursor, claim.id)
+    claim_candidate_ids = {item.id for item in claim_candidates}
+    # Frozen §45 contract: the read that unlocks Tier-2 must belong to THIS
+    # claim, not just to the run.
+    claim_completed_reads = sum(
+        1
+        for outcome in cursor.read_outcomes
+        if outcome.candidate_id in claim_candidate_ids
+    )
     miss_reason = tier1_miss_reason(
         assessments=assessments,
         candidate_ids=[item.id for item in claim_candidates],
-        completed_read_count=len(cursor.completed_read_ids),
+        completed_read_count=claim_completed_reads,
         claim_has_support=any(
             link.claim_id == claim.id and link.relation == "supports"
             for link in state.evidence_links
