@@ -1862,6 +1862,47 @@ RuntimeError: API call failed: Error code: 402 -
 
 **需要一并回看的 confound**：§39 的 run1/5/6 里 routed extraction 的 `model_call_attempts_exhausted`（当时解释为窗口/预算）与本次 402 是同一类"调用不可用"信号；在健康余额下重跑之前，这两个解释**不能区分**。此类记录已在 §44.2 标注为待复核。
 
+### 45.4 §40 执行结果（充值后，`986a239` 工具 + `ANSWER_FORMATION.replay.*.json`）
+
+**Step 1：empty 机制定性（capture3 冻结输入，N=5 × 两 policy × 两个调用）**
+
+```text
+问题1 empty 是否稳定复现？
+  binding  : captured policy  0/5 非空（5/5 empty，20.6–22.0s）
+  generation: captured policy 2/5 非空（3/5 empty，19.9–23.1s）
+
+问题2 empty 时 model call 状态？
+  全部 completed，无异常、无 402、无超时 —— 调用本身"成功"，只是返回空串（~21s 的推理型耗时）
+
+问题3 机制分类？
+  **A_model_empty（模型真的返回 ""）**；B_parse_loss 0 次；C_call_unavailable 0 次。
+  与 §1.1 已知的 DeepSeek 行为一致：thinking 吃掉 1600-token 输出预算 → content 为空。
+```
+
+**A/B（同一冻结输入，只换 generation policy）**
+
+```text
+single_chat (answer generation, pro + 1600 tokens):
+  captured   : non_empty 2/5 (40%), p50 21.8s
+               两个非空文本**内容准确**（[web-1] 引用 + 明确说明对比部分证据不足）
+  thinking_off: non_empty 5/5 (100%), p50 4.5s
+               但 fidelity 混合：1 条清晰合格（引用+strength 0.9+缺口说明）、1 条基本合格、
+               1 条错误声称"没有任何已校验证据"、2 条部分合格
+answer_claim_binding (结构化输出):
+  captured   : 0/5（全 empty）
+  thinking_off: 5/5 **结构化有效**：refused=false、13/13 segment 全覆盖、
+               0 个未知 evidence id / research claim id / segment ref，p50 3.4s
+```
+
+**结论（按用户口径）**
+
+1. **C 被排除**：不是超时/不可用；**B 被排除**：不是 parse 层丢失；**A 成立**：模型返回空串。
+2. **generation policy 是单变量主因**：thinking-off 使两个调用非空率 0–40% → 100%，延迟约 1/5。
+3. **但不能只看非空**：thinking-off 的 generation 有 2/5 文本**错误描述证据状态**（声称"没有读取正文"，而输入里含 supports 行）——"非空"不等于"忠实"；binding 侧则 5/5 结构与 allow-list 全通过。
+4. 推荐（**未实施**）：把 gate-pass 的 answer 两个调用改为 bounded thinking-off **作为诊断开关**，然后在完整 raw run 里检查发布决策与答案-证据一致性（不是只看 non-empty）。
+
+**§39 confound 复核**：本次健康余额下重放全部 `completed`，说明 402 只在余额耗尽后出现；run1/5/6 的 `model_call_attempts_exhausted` 仍需一次健康余额的 §39 重跑才能定性（已列为待办）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
