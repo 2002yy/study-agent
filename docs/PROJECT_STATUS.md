@@ -2461,6 +2461,43 @@ on2 : reads=3  ok=2 failed=1  gate=partial elapsed=72.9s  retried=1
 
 **下一步候选（未实施，待拍板）**：(a) 窗口感知版的 retry 诊断开关 + 更大样本 E2E（含 Node 对照与 d40.2 不变量复核）；(b) 本地 headless browser 的 runtime 依赖决定（针对 §46 short_doc 形态）；(c) provider health metrics 升级（§46+ 清单）。
 
+## 59. §49 Window-aware Retry Admission + 三臂 E2E（`cd1e7dd`；机制已实现并测试，样本仍未足）
+
+### 59.1 实现
+
+- `read_retry.read_retry_mode()`：`off`（默认）| `unbounded`（§48 臂，`on/1/yes` 复现）| `window_aware`；`retry_window_floor_seconds()` 可配（`RESEARCH_READ_RETRY_FLOOR_SECONDS`，**临时默认 18s** = attempt 估计 + backoff + finalization reserve；按用户要求不在本批冻结阈值）。
+- `read_with_bounded_retry(..., admission)`：每次 retry 前过 admission；被拒时记 `skipped_by_admission`。
+- **retry 改接在 runtime 的 `gateway_read`**（窗口在那里可见）；adapter 恢复为纯转发，避免双重重试。
+- 11 条 focused 测试：mode/floor 边界/admission 拒绝与 retry 序号语义/策略与上限/退避。
+
+### 59.2 三臂 E2E（Docker case，各 2 次；恒定 selector=model + routing=on；proposal=off）
+
+```text
+run          reads  ok failed gate   elapsed  win_remaining retries skipped
+off1             1   1    0    block   30.5     34.5           0       0
+off2             4   2    2    block   46.5     18.3           0       0
+unbounded1       1   1    0    block   31.3     36.2           0       0
+unbounded2       4   3    1    block   55.4     11.0           0       0
+aware1           3   2    1    block   60.3      2.4           1       0
+aware2           4   3    1    block   53.8     11.6           0       0
+```
+
+**读成功**：OFF 3/5 · unbounded 4/5 · aware 5/7（N=2/臂，方向性观察，不是分布结论）。
+
+### 59.3 本批的诚实结论
+
+1. **机制成立且可复现**：aware1 真实触发 1 次 retry（admission 放行，`skipped=0`）；§48 的 unbounded 臂在本批恰好未撞上 fetch 失败（0 retries）——说明**retry 触发本身高度依赖 run 运气**。
+2. **window-aware 的 headroom 收益在本样本无法证明**：admission 的"拒绝"路径只在**剩余研究时间 < floor** 时才会出现，而 N=2 尚未观察到该时刻的失败；该路径目前由单元测试覆盖（`skipped_by_admission` 语义），不是 in-situ 证据。
+3. 窗口余量分布（`remaining_after_research_seconds`）：18.3 / 34.5 / 36.2 / 11.0 / **2.4** / 11.6——重 run 的余量本就紧张；aware1 在 60.3s 处结束（贴近 60s hard cap），说明**即使有 admission，重 run 仍会逼近预算上限**；floor=18s 是否足够留出 finalization headroom，本批未定论。
+4. gate 全为 block（本批无 partial），与 §48 的 on2=partial 对照说明 gate 结果受运行方差主导，不能用于本批臂间归因。
+5. 默认仍 OFF；生产行为未变；d40.2 下游不变量未触碰。
+
+### 59.4 下一刀（建议，未实施）
+
+- **确定性注入**：要验证 floor 穿越，需要可**注入 fetch 失败**的机制（例如测试用 gateway 或在 `gateway_read` 注入失败计划），否则靠自然 flakiness 需要大量 run 才有信号；
+- 或把样本扩大到 Node + 多次 Docker，并同时记录 `post_research_projection` / `answer_stage` 秒数以量化 finalization headroom；
+- **headless browser（§46 short_doc）与 retry 严格正交，继续独立冻结**。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
