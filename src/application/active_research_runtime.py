@@ -1303,6 +1303,9 @@ class ActiveResearchRuntimeExecutor:
                     rankings_for_plan,
                     covered_cluster_ids_by_claim=covered_clusters_by_claim,
                     trace=selection_trace,
+                    diagnostics=context.setdefault(
+                        ACTIVE_RESEARCH_METRICS_KEY, {}
+                    ),
                 )
                 # Already-read candidates whose extraction crashed mid-wave
                 # stay extractable on resume, but physical reuse never bypasses
@@ -3082,6 +3085,7 @@ def _fair_read_plan(
     *,
     covered_cluster_ids_by_claim: Mapping[str, set[str]] | None = None,
     trace: SelectionTraceCollector | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Return ``(physical_reads, extraction_targets)`` for the read stage.
 
@@ -3091,6 +3095,12 @@ def _fair_read_plan(
     serve evidence extraction for multiple claims. Read-budget exhaustion
     never blocks binding an already-planned candidate to another claim: the
     budget only limits new physical candidates, not extraction-only reuse.
+
+    §41 Read Reserve Reclaim: the conflict reserve exists to protect conflict
+    resolution. When no conflict gap is open, the unused reserve returns to
+    ordinary scheduling **within the existing hard read budget** - the hard
+    cap (``max_reads - reads_used``) and every ranking/eligibility rule stay
+    exactly as they were. With an open conflict the behaviour is unchanged.
     """
     claims = {claim.id: claim for claim in state.claims}
     physical: list[dict[str, str]] = []
@@ -3110,7 +3120,24 @@ def _fair_read_plan(
         if conflict.state in {"open", "searching"}
     }
     reserve = ceil(state.budget.max_reads / 3)
-    normal_limit = max(0, state.budget.max_reads - state.budget.reads_used - reserve)
+    if open_conflict_claim_ids:
+        reclaimed = 0
+        reclaim_reason = "open_conflicts_present"
+    else:
+        reclaimed = reserve
+        reclaim_reason = "no_open_conflicts"
+    normal_limit = max(
+        0,
+        state.budget.max_reads - state.budget.reads_used - reserve + reclaimed,
+    )
+    if diagnostics is not None:
+        diagnostics["read_reserve"] = {
+            "configured": reserve,
+            "reclaimed": reclaimed,
+            "reclaim_reason": reclaim_reason,
+            "hard_cap": state.budget.max_reads,
+            "reads_used": state.budget.reads_used,
+        }
 
     def _bind(candidate_id: str, claim_id: str, item: RankedCandidate) -> None:
         pair = (candidate_id, claim_id)
@@ -3198,7 +3225,12 @@ def _fair_read_plan(
                     budget=budget,
                     policy=policy,
                     conflict_open=conflict_open,
-                    preserve_conflict_reserve=not allow_reserve,
+                    # §41: the reserve is only held when a conflict gap is
+                    # actually open; otherwise ordinary scheduling reclaims it
+                    # within the same hard read budget.
+                    preserve_conflict_reserve=(
+                        not allow_reserve and bool(open_conflict_claim_ids)
+                    ),
                 )
                 by_id = {item.candidate.id: item for item in fresh}
                 fresh_selected = [
