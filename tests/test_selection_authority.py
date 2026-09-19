@@ -82,8 +82,24 @@ def test_parser_requires_string_urls() -> None:
     with pytest.raises(ValueError):
         parse_selection_response({"urls": [1, 2]})
     with pytest.raises(ValueError):
-        parse_selection_response(["not-an-object"])
+        parse_selection_response(["not-a-string", 5])
     assert parse_selection_response({"urls": [HOME]}) == [HOME]
+
+
+def test_parser_accepts_an_unambiguous_top_level_url_array() -> None:
+    assert parse_selection_response([HOME, TARGET]) == [HOME, TARGET]
+    assert parse_selection_response([]) == []
+
+
+def test_selector_call_disables_provider_thinking_for_json_object_providers() -> None:
+    _FakeGateway.last_kwargs = None
+    gateway = _FakeGateway(_Result(status="completed", value=[HOME]))
+    gateway.provider_profile = "deepseek"  # type: ignore[attr-defined]
+    _select(gateway)
+    assert _FakeGateway.last_kwargs is not None
+    assert _FakeGateway.last_kwargs.get("extra_body") == {
+        "thinking": {"type": "disabled"}
+    }
 
 
 def test_1_valid_two_picks_are_usable() -> None:

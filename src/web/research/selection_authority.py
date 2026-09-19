@@ -114,8 +114,18 @@ def _schema_failure(audits: Any) -> bool:
 
 
 def parse_selection_response(raw: Any) -> list[str]:
-    """Strict parser: an object with a urls list of strings."""
+    """Strict parser with one representation-only normalization.
 
+    The contract shape is ``{"urls": [str, ...]}``. A top-level JSON array of
+    strings is also accepted because it is the same decision in an
+    unambiguous shape (no prose parsing, no truncation, no guessing). Anything
+    else stays a schema failure.
+    """
+
+    if isinstance(raw, list):
+        if all(isinstance(item, str) for item in raw):
+            return [str(item) for item in raw]
+        raise ValueError("selection url array must contain only strings")
     if not isinstance(raw, Mapping):
         raise ValueError("selection response must be an object")
     urls = raw.get("urls")
@@ -178,6 +188,19 @@ def select_candidates_with_model(
         "candidates": candidate_payload(ordered),
     }
     started = clock()
+    # §43A: every structured research call disables provider-side thinking for
+    # json_object providers; the selector must use the same transport contract
+    # or DeepSeek reasoning consumes the 500-token output budget and returns
+    # empty/partial JSON (the observed invalid_schema bucket).
+    extra_body: Mapping[str, Any] | None = None
+    try:
+        from src.llm_client import research_structured_output_capabilities
+
+        provider_profile = str(getattr(model_gateway, "provider_profile", "") or "")
+        _, thinking_off = research_structured_output_capabilities(provider_profile)
+        extra_body = thinking_off
+    except Exception:
+        extra_body = None
     try:
         result = model_gateway.complete_structured(
             logical_call_id=logical_call_id,
@@ -192,6 +215,7 @@ def select_candidates_with_model(
             data_categories=("public_research_claim", "public_candidate_metadata"),
             max_tokens=500,
             timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
         )
     except Exception:  # diagnostics must never fail the run
         diagnostics.call_status = "exception"
