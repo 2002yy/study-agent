@@ -2254,6 +2254,41 @@ duckduckgo_html     : urllib timed out
 - query compilation / LLM-intent compiler 继续搁置（其前提是"exact title 能召回、semantic 召不回"，当前不满足）。
 - 复跑条件：网络出口允许 DDG/Google（或选用其它可达 provider）后，§44B 重跑 + 对候选新 provider 做同一 exact-title 三件套。
 
+## 53. §44C Replacement Provider Qualification（已准备 `aa77a260`；等待 Brave API key）
+
+### 53.1 候选顺序与依据（用户冻结）
+
+```text
+Tier 1: 通用高质量 Web provider（首选 Brave Web Search API）
+Tier 2: 已知官方 domain 的 targeted retrieval（planner 已给出 desired domain 时；general provider miss 之后才用）
+Tier 3: fallback
+```
+
+- **为什么不是 Bing/Google API**：Bing Search APIs 已于 **2025-08-11 退役**（现推荐 Grounding with Bing Search，不是同层通用 Search API）；Google 旧的 Custom Search Site Restricted JSON API 已于 **2025-01-08 停服**；Google 新的 Web Search Service API 需 API key **+ partner agreement 的 client ID**，不能即取即用。Brave 提供正式 Web Search API：独立索引、结构化 url/title/description、单次最多 20 条、支持 `country` / `search_lang` / `ui_lang`——正好匹配 §44A/§44B 的 raw-top20 harness。
+- 成本：$5/1000 requests + 每月 $5 credits；本批 4 targets × 3 query × 2 参数集 = **24 次调用 ≈ $0.024**，在免费额度内。
+
+### 53.2 资格考试（provider-only，不接 merge/planner/selector）
+
+工具 `tools/run_brave_qualification.py`（5 条 focused 测试）：
+
+```text
+四目标 × 三 query 类（exact title / title+entity / semantic）× 两参数集（default / country=us,search_lang=en,ui_lang=en）
+count=20；记录 target_returned / target_raw_rank / official_domain_hit /
+official_deep_page_count(merge 前) / latency / status/error / CJK 结果数
+```
+
+**冻结 gate**：Docker 与 PostgreSQL 的 **exact-title raw-top20 必须命中**，否则该 provider 直接判不合格；exact/title+entity 的缺失按 target 列出。
+
+运行方式：`.env` 增加 `BRAVE_SEARCH_API_KEY=<key>`（`.env.example` 已加占位）后执行
+`python -m tools.run_brave_qualification --output docs/research_quality/BRAVE_QUAL.json`
+——当前无 key 时工具会干净退出并提示（已验证）。
+
+### 53.3 通过后的既定路线（未实施）
+
+1. 先只做 **provider → normalization → existing merge contract → existing selector** 的接线验证（仍不动 planner/selector 语义）。
+2. **provider 健康指标升级**（记入待办）：`providers_configured / attempted / succeeded / contributed_results / result_count_by_provider`，并加实用告警——**某 provider 连续 attempted N 次但 contributed=0 时，不再计入"有效 provider 数"**（§44B 用 475/475 的代价换来这条教训）。
+3. Tier-2 的 domain-targeted retrieval 只在 Tier-1 miss 后触发，避免再次规则膨胀。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
