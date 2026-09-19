@@ -146,6 +146,19 @@ from src.web.research.llm_proposal import (
     proposal_messages,
     tier1_miss_reason,
 )
+from src.web.research.domain_targeted import (
+    DISCOVERY_METHOD_DOMAIN_TARGETED,
+    MAX_DOMAINS,
+    MAX_LINKS_PER_SEARCH,
+    build_search_query,
+    claim_search_terms,
+    domain_proposal_messages,
+    domain_proposal_payload,
+    domain_targeted_enabled,
+    extract_candidate_links,
+    parse_domain_proposal,
+    site_search_urls,
+)
 from src.web.research.read_retry import (
     read_retry_mode,
     read_with_bounded_retry,
@@ -192,6 +205,8 @@ ACTIVE_RESEARCH_COVERED_CLUSTERS_KEY = "claim_engine_covered_clusters"
 ACTIVE_RESEARCH_BRIEF_KEY = "claim_engine_evidence_brief"
 ACTIVE_RESEARCH_METRICS_KEY = "claim_engine_metrics"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
+DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
+MAX_DOMAIN_TARGETED_CANDIDATES = 3
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 
@@ -533,6 +548,18 @@ class ActiveResearchRuntimeExecutor:
                 )
             finally:
                 phase_end("read")
+
+        def fetch_search_html(url: str) -> tuple[str, str, str, str]:
+            """§63: raw HTML for a site-search page (existing fetch layer).
+
+            Used by the domain-targeted channel only, which needs anchors that
+            the extracted-text reader does not expose. Bounded, local, and
+            never used for evidence reads.
+            """
+
+            from src.news.article_fetcher import _fetch_html_payload
+
+            return _fetch_html_payload(url, timeout=12, max_bytes=350_000)
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -1276,6 +1303,26 @@ class ActiveResearchRuntimeExecutor:
                             wave_index=cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
+                        )
+                    # §63 Tier-1.5 (default off): official-domain site search
+                    # as a second, deterministic discovery channel.
+                    targeted_claim_ids = context.setdefault(
+                        DOMAIN_TARGETED_CLAIMS_KEY, []
+                    )
+                    if isinstance(targeted_claim_ids, list):
+                        cursor = _domain_targeted_step(
+                            cursor=cursor,
+                            state=state,
+                            claim=claim,
+                            assessments=merged_assessments,
+                            model_gateway=self.model_gateway,
+                            fetch_html=fetch_search_html,
+                            read_fn=gateway_read,
+                            context=context,
+                            run_id=run_id,
+                            wave_index=cursor.wave_index,
+                            timeout_seconds=remaining_timeout(),
+                            targeted_claim_ids=targeted_claim_ids,
                         )
                     checkpoint()
 
@@ -3032,6 +3079,187 @@ def _tier2_proposal_step(
     return replace(cursor, candidates=(*cursor.candidates, *new_items))
 
 
+def _domain_targeted_step(
+    *,
+    cursor: ResearchRuntimeCursor,
+    state: ResearchState,
+    claim: ResearchClaim,
+    assessments: Mapping[str, Any],
+    model_gateway: Any,
+    fetch_html: Any,
+    read_fn: Any,
+    context: dict[str, Any],
+    run_id: str,
+    wave_index: int,
+    timeout_seconds: float | None,
+    targeted_claim_ids: list[str],
+) -> ResearchRuntimeCursor:
+    """§63 Tier-1.5: official-domain site search -> verified candidates.
+
+    Same state predicate and provenance discipline as Tier-2: at most one
+    pass per claim per run, bounded fetches (domains x patterns) and bounded
+    verifications, candidates tagged ``domain_targeted``. Nothing here can
+    create evidence; the extractor and the Gate keep final authority.
+    """
+
+    if not domain_targeted_enabled():
+        return cursor
+    if claim.id in targeted_claim_ids:
+        return cursor
+    claim_candidates = _candidates_for_claim(cursor, claim.id)
+    claim_candidate_ids = {item.id for item in claim_candidates}
+    claim_completed_reads = sum(
+        1
+        for outcome in cursor.read_outcomes
+        if outcome.candidate_id in claim_candidate_ids
+    )
+    miss_reason = tier1_miss_reason(
+        assessments=assessments,
+        candidate_ids=[item.id for item in claim_candidates],
+        completed_read_count=claim_completed_reads,
+        claim_has_support=any(
+            link.claim_id == claim.id and link.relation == "supports"
+            for link in state.evidence_links
+        ),
+    )
+    if not miss_reason:
+        return cursor
+    targeted_claim_ids.append(claim.id)
+    del targeted_claim_ids[50:]
+
+    record: dict[str, Any] = {
+        "wave_index": wave_index,
+        "claim_id": claim.id,
+        "tier1_miss_reason": miss_reason,
+        "call_status": "",
+        "domains": [],
+        "search_urls": [],
+        "links_found": [],
+        "verified": [],
+        "dropped": [],
+        "added_candidate_ids": [],
+        "verification_reads": 0,
+    }
+    extra_body: Mapping[str, Any] | None = None
+    try:
+        from src.llm_client import research_structured_output_capabilities
+
+        provider_profile = str(getattr(model_gateway, "provider_profile", "") or "")
+        _, thinking_off = research_structured_output_capabilities(provider_profile)
+        extra_body = thinking_off
+    except Exception:
+        extra_body = None
+    try:
+        result = model_gateway.complete_structured(
+            logical_call_id=f"research_domain_proposal:{run_id}:{claim.id}:{wave_index}",
+            purpose="research_domain_proposal",
+            messages=domain_proposal_messages(claim.text),
+            audit_payload=domain_proposal_payload(claim.text),
+            response_schema_version="research-domain-proposal-v1",
+            parse=parse_domain_proposal,
+            data_categories=("public_research_claim",),
+            max_tokens=200,
+            timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
+        )
+    except Exception as exc:  # diagnostics must never fail the run
+        record["call_status"] = f"exception:{type(exc).__name__}"
+        result = None
+    if result is not None:
+        status = str(getattr(result, "status", ""))
+        record["call_status"] = status or "unknown"
+        record["domains"] = list(result.value or []) if status == "completed" else []
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if isinstance(metrics, dict):
+        metrics["orchestration_model_calls"] = int(
+            metrics.get("orchestration_model_calls") or 0
+        ) + 1
+
+    query = build_search_query(claim.text)
+    terms = claim_search_terms(claim.text)
+    links: list[str] = []
+    for domain in record["domains"][:MAX_DOMAINS]:
+        for search_url in site_search_urls(domain, query):
+            record["search_urls"].append(search_url)
+            try:
+                html, _final_url, _content_type, reason = fetch_html(search_url)
+            except Exception as exc:
+                html, reason = "", f"exception:{type(exc).__name__}"
+            if not html:
+                record["dropped"].append(
+                    {"url": search_url, "reason": "search_page_fetch_failed", "detail": str(reason)[:120]}
+                )
+                continue
+            found = extract_candidate_links(
+                html, domain=domain, terms=terms, page_url=search_url
+            )
+            if found:
+                links.extend(found)
+                break
+    record["links_found"] = list(dict.fromkeys(links))[: MAX_LINKS_PER_SEARCH * MAX_DOMAINS]
+
+    existing_urls = {item.url for item in cursor.candidates}
+    anchor_query_id = next(
+        (query.id for query in cursor.planned_queries if query.claim_id == claim.id),
+        "",
+    )
+    new_items: list[RuntimeCandidate] = []
+    for url in record["links_found"]:
+        if url in existing_urls:
+            record["dropped"].append({"url": url, "reason": "duplicate_candidate"})
+            continue
+        if len(new_items) >= MAX_DOMAIN_TARGETED_CANDIDATES:
+            record["dropped"].append({"url": url, "reason": "candidate_cap"})
+            continue
+        record["verification_reads"] += 1
+        try:
+            raw = read_fn(url, max_chars=1200) or {}
+        except Exception as exc:
+            raw = {"ok": False, "error": f"{type(exc).__name__}:{str(exc)[:80]}"}
+        content = str(raw.get("content") or "")
+        if raw.get("ok") is not True or not content.strip():
+            record["dropped"].append(
+                {
+                    "url": url,
+                    "reason": "read_failed",
+                    "detail": str(raw.get("error") or raw.get("status") or "")[:120],
+                }
+            )
+            continue
+        title = str(raw.get("title") or url)[:300]
+        candidate_id = (
+            f"candidate_{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}"
+        )
+        new_items.append(
+            RuntimeCandidate(
+                id=candidate_id,
+                url=url,
+                title=title,
+                snippet="",
+                source="domain_targeted",
+                published_at="",
+                query_ids=(anchor_query_id,) if anchor_query_id else (),
+                intents=(),
+                providers=("domain_targeted",),
+                first_seen_rank=len(cursor.candidates) + len(new_items),
+                discovery_method=DISCOVERY_METHOD_DOMAIN_TARGETED,
+                discovery_depth=0,
+            )
+        )
+        record["verified"].append(url)
+        record["added_candidate_ids"].append(candidate_id)
+        existing_urls.add(url)
+    if isinstance(metrics, dict):
+        records = metrics.get("domain_targeted")
+        if not isinstance(records, list):
+            records = []
+        records.append(record)
+        metrics["domain_targeted"] = records[-40:]
+    if not new_items:
+        return cursor
+    return replace(cursor, candidates=(*cursor.candidates, *new_items))
+
+
 def _record_tier2_funnel(
     context: dict[str, Any],
     cursor: ResearchRuntimeCursor,
@@ -3043,8 +3271,15 @@ def _record_tier2_funnel(
     metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
     if not isinstance(metrics, dict):
         return
-    proposals = metrics.get("tier2_proposal")
-    if not isinstance(proposals, list) or not proposals:
+    proposals: list[tuple[str, Mapping[str, Any]]] = []
+    for key, method in (
+        ("tier2_proposal", "llm_proposed"),
+        ("domain_targeted", DISCOVERY_METHOD_DOMAIN_TARGETED),
+    ):
+        records = metrics.get(key)
+        if isinstance(records, list):
+            proposals.extend((method, record) for record in records if isinstance(record, Mapping))
+    if not proposals:
         return
     assessment_store = _assessment_store(context)
     relevant_ids: set[str] = set()
@@ -3086,13 +3321,14 @@ def _record_tier2_funnel(
         if outcome.evidence_id
     }
     rows: list[dict[str, Any]] = []
-    for record in proposals:
+    for method, record in proposals:
         for candidate_id in record.get("added_candidate_ids") or []:
             evidence_id = evidence_by_candidate.get(str(candidate_id), "")
             rows.append(
                 {
                     "claim_id": record.get("claim_id"),
                     "candidate_id": candidate_id,
+                    "discovery_method": method,
                     "proposed": True,
                     "assessed_answer_relevant": str(candidate_id) in relevant_ids,
                     "read": str(candidate_id) in completed_reads,
@@ -3102,8 +3338,12 @@ def _record_tier2_funnel(
                     "gate_eligible": bool(evidence_id) and evidence_id in eligible_ids,
                 }
             )
-    metrics["tier2_funnel"] = {
+    metrics["discovery_funnel"] = {
         "proposed_candidates": len(rows),
+        "by_discovery_method": {
+            method: sum(1 for row in rows if row["discovery_method"] == method)
+            for method in sorted({row["discovery_method"] for row in rows})
+        },
         "assessed_answer_relevant": sum(
             1 for row in rows if row["assessed_answer_relevant"]
         ),
