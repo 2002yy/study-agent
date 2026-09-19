@@ -143,6 +143,13 @@ from src.web.research.atomic_routing import (
     atomic_routing_enabled,
     route_missing_atomic_claims,
 )
+from src.web.research.grounded_excerpts import (
+    ANSWER_SHAPE_CONTRACT,
+    EXCERPT_MAX_CHARS,
+    EXCERPT_TOTAL_CHARS,
+    grounded_excerpt,
+    grounded_input_enabled,
+)
 from src.web.research.selection_authority import (
     SELECTION_AUTHORITY_MODEL,
     SelectionAuthorityDiagnostics,
@@ -4055,6 +4062,8 @@ def _evidence_brief(
     records_by_id = {
         str(record.get("candidate_id")): record for record in selected_sources
     }
+    grounded_input = grounded_input_enabled()
+    excerpt_budget = EXCERPT_TOTAL_CHARS if grounded_input else 0
     evidence_rows: list[dict[str, Any]] = []
     for link in state.evidence_links:
         evidence = next((item for item in state.evidence if item.evidence_id == link.evidence_id), None)
@@ -4090,28 +4099,48 @@ def _evidence_brief(
                 if isinstance(detail, Mapping):
                     claim_anchor = detail
         anchors_source = claim_anchor if claim_anchor is not None else {}
-        evidence_rows.append(
-            {
-                "evidence_id": link.evidence_id,
-                "claim_id": link.claim_id,
-                "relation": link.relation,
-                "strength": link.strength,
-                "source_role": link.source_role,
-                "source_cluster_id": link.source_cluster_id,
-                "title": str(item.get("title") or "") if isinstance(item, Mapping) else "",
-                "url": str(item.get("url") or "") if isinstance(item, Mapping) else "",
-                "locator": str(
-                    anchors_source.get("locator") or link.locator or ""
-                ),
-                "anchored_spans": list(
-                    anchors_source.get("anchored_spans") or evidence.anchored_spans
-                ),
-                "published_at": evidence.published_at,
-                "caveats": list(
-                    anchors_source.get("caveats") or link.caveats
-                ),
-            }
-        )
+        row = {
+            "evidence_id": link.evidence_id,
+            "claim_id": link.claim_id,
+            "relation": link.relation,
+            "strength": link.strength,
+            "source_role": link.source_role,
+            "source_cluster_id": link.source_cluster_id,
+            "title": str(item.get("title") or "") if isinstance(item, Mapping) else "",
+            "url": str(item.get("url") or "") if isinstance(item, Mapping) else "",
+            "locator": str(
+                anchors_source.get("locator") or link.locator or ""
+            ),
+            "anchored_spans": list(
+                anchors_source.get("anchored_spans") or evidence.anchored_spans
+            ),
+            "published_at": evidence.published_at,
+            "caveats": list(
+                anchors_source.get("caveats") or link.caveats
+            ),
+        }
+        # §40d grounded input (default off): attach a bounded excerpt from the
+        # page that was actually read, preferring the anchor's surroundings.
+        if grounded_input and excerpt_budget > 0:
+            read_payload = record.get("read") if isinstance(record, Mapping) else {}
+            content = (
+                str(read_payload.get("content") or "")
+                if isinstance(read_payload, Mapping)
+                else ""
+            )
+            anchor = str(
+                row["locator"]
+                or (row["anchored_spans"][0] if row["anchored_spans"] else "")
+            )
+            excerpt = grounded_excerpt(
+                content,
+                anchor=anchor,
+                max_chars=min(EXCERPT_MAX_CHARS, excerpt_budget),
+            )
+            if excerpt:
+                row["excerpt"] = excerpt
+                excerpt_budget -= len(excerpt)
+        evidence_rows.append(row)
     return {
         "schema_version": "research-evidence-brief-v1",
         "gate_status": gate.status if gate else "unavailable",
@@ -4129,6 +4158,7 @@ def _evidence_brief(
         "answer_instruction": (
             "Use only eligible evidence. State unresolved gaps and conflicts. "
             "When gate_status is not pass, use conditional language and do not present a complete conclusion."
+            + (" " + ANSWER_SHAPE_CONTRACT if grounded_input else "")
         ),
     }
 
@@ -4147,6 +4177,9 @@ def _format_evidence_brief(brief: Mapping[str, Any]) -> str:
             f"cluster={row.get('source_cluster_id')} strength={row.get('strength')}"
         )
         lines.append(f"  anchor: {row.get('locator')}")
+        excerpt = str(row.get("excerpt") or "")
+        if excerpt:
+            lines.append(f"  excerpt: {excerpt}")
         if row.get("url"):
             lines.append(f"  url: {row.get('url')}")
     open_claims = brief.get("open_critical_claim_ids") or []

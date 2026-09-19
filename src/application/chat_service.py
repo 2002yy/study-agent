@@ -896,6 +896,9 @@ class ChatService:
             "error_type": "",
         }
         snapshot = bound.snapshot
+        if bound.segment_stats and isinstance(prepared.rag, dict):
+            # §40d: keep overflow distinguishable from an empty answer.
+            prepared.rag["answer_binding_segments"] = dict(bound.segment_stats)
         self._record_claim_binding_call(
             prepared,
             outcome=snapshot.status,
