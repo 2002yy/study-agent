@@ -203,19 +203,24 @@ def probe_url(
     row.production_chars = len(str(raw.get("content") or ""))
     row.production_method = str(raw.get("method") or "")
     row.production_error = str(raw.get("error") or "")
-    html, final_url, content_type, reason = html_fetcher(url)
+    try:
+        html, final_url, content_type, reason = html_fetcher(url)
+    except Exception as exc:  # transient network resets must stay visible
+        html, final_url, content_type = "", "", ""
+        reason = f"exception:{type(exc).__name__}:{str(exc)[:80]}"
     row.html_chars = len(html or "")
     row.html_reason = reason
     row.final_url = final_url or ""
     row.content_type = content_type or ""
     best_name = ""
     best_chars = 0
-    for name, extractor in extractors:
-        chars = len(extractor(html or "") or "")
-        setattr(row, f"{name}_chars", chars)
-        if chars > best_chars:
-            best_chars = chars
-            best_name = name
+    if html:
+        for name, extractor in extractors:
+            chars = len(extractor(html) or "")
+            setattr(row, f"{name}_chars", chars)
+            if chars > best_chars:
+                best_chars = chars
+                best_name = name
     row.best_local_chars = max(best_chars, row.production_chars)
     row.extra["best_local_extractor"] = best_name
     row.classification = classify_read(
@@ -226,6 +231,14 @@ def probe_url(
         final_url=row.final_url,
         requested_url=url,
     )
+    if (
+        row.classification == "short_doc"
+        and row.html_chars == 0
+        and row.html_reason
+        and not row.production_ok
+    ):
+        # The page never arrived at all (network resets etc.): not a shape.
+        row.classification = "fetch_failed"
     return row.to_dict()
 
 

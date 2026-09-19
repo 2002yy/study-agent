@@ -106,6 +106,25 @@ def test_summary_answers_question_three() -> None:
     assert no_gap["answer_question_3"].startswith("no")
 
 
+def test_fetch_failure_is_its_own_shape(tmp_path: Path) -> None:
+    def production_reader(url: str) -> dict:
+        del url
+        return {"ok": False, "error": "URLError"}
+
+    def html_fetcher(url: str) -> tuple[str, str, str, str]:
+        del url
+        return "", "", "", "exception:URLError:<reset>"
+
+    row = probe_url(
+        "https://docs.example/a",
+        production_reader=production_reader,
+        html_fetcher=html_fetcher,
+        extractors=[("trafilatura", lambda html: "")],
+    )
+    assert row["classification"] == "fetch_failed"
+    assert row["html_reason"].startswith("exception")
+
+
 def test_probe_url_measures_all_extractors(tmp_path: Path) -> None:
     def production_reader(url: str) -> dict:
         del url
