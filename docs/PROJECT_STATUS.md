@@ -1987,6 +1987,29 @@ research_model_call_count 10–11，extraction phase 3.9–7.2s。
 4. 残留不确定性：当时未记录 provider 错误文本，无法追溯性证明；**建议**（未实施）在 extraction 失败路径的有界 detail 中附带首个 provider 错误码/文本，避免再次出现"402 与超时不可区分"。
 5. 附带收获：confound2/4 又贡献两个"目标页 → 路由 supports（primary, cluster 7dcd…）"实例（这两次 gate 仍 block，属评估角色/选择方差，不属本项）。
 
+### 46.5 Read reserve 命中量化（测量完成，待方案决策）
+
+对 22 份含 `selection_trace` 的近期 artifact 全量扫描：
+
+```text
+entered_scheduler 候选总数          169
+read_budget_exhausted 淘汰          10   （≈6%）
+其中"已进 scheduler（ranked）后被 budget 门淘汰"  10
+涉及 artifact                        3（ATOMIC_ROUTING.run6/run9、rawprobe1）
+其中目标页被该门淘汰                 1（rawprobe1 的 nodejs.cn/api/modules.html）
+其余被淘汰 URL                       低价值页（juejin/zhihu/csdn）
+```
+
+**结论**：reserve 门不是普遍性失败（10/169），但它确实命中过一次唯一的目标页；对 E2E 成功率是**窄而真实**的风险。
+
+**待决策的修复选项（未实施）**：
+
+- (a) `normal_limit` 对"尚无 eligible support 的 critical claim"临时抬升 1 个读位——直接但改预算语义；
+- (b) **无开放冲突时把 reserve 还给普通调度**：reserve 的语义是"留给冲突解"，`open_conflict_claim_ids` 为空时它本来就不会被 `schedule(conflict_claims, reserve, allow_reserve=True)` 用掉——这是最小、语义自洽的改动（有冲突时行为完全不变）；
+- (c) 只改选择/排序让高价值候选在 wave1 被读（属 selector/selection 生产化，不属本项）。
+
+推荐 (b)（一行级改动 + 2 条 focused 测试），等确认后实施。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
