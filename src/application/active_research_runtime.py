@@ -150,6 +150,7 @@ from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     MAX_DOMAINS,
     MAX_LINKS_PER_INVENTORY,
+    MAX_RANK_TERMS,
     claim_search_terms,
     domain_proposal_messages,
     domain_proposal_payload,
@@ -3180,7 +3181,10 @@ def _domain_targeted_step(
             metrics.get("orchestration_model_calls") or 0
         ) + 1
 
-    terms = claim_search_terms(claim.text)
+    # Ranking may use more terms than a prose query: the runtime claim text
+    # led with generic words, so a 6-term cap dropped the subject entity
+    # ("Docker Hub") before it could match the deep page.
+    terms = claim_search_terms(claim.text, limit=MAX_RANK_TERMS)
     links: list[str] = []
     inventory_fetches = 0
     for domain in record["domains"][:MAX_DOMAINS]:

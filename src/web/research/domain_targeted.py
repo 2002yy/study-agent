@@ -41,6 +41,7 @@ MAX_SITEMAP_URLS = 2
 MAX_SITEMAP_CHILDREN = 2
 MAX_LINKS_PER_INVENTORY = 5
 MAX_SEARCH_TERMS = 6
+MAX_RANK_TERMS = 12
 
 DOMAIN_SYSTEM_PROMPT = (
     "You are a web-research planner. Given a claim, name up to 2 **official "
@@ -165,21 +166,20 @@ class _AnchorExtractor(HTMLParser):
                 self.hrefs.append(value)
 
 
-def _token_variants(value: str) -> set[str]:
-    """Lowercased alphanumeric parts of a path/term, with naive plural stems."""
+def _stem(token: str) -> str:
+    """Naive plural stem so 'limits'/'limit' and 'pulls'/'pull' collapse."""
 
-    tokens: set[str] = set()
-    for part in re.findall(r"[a-z0-9]+", value.lower()):
-        if len(part) < 2:
-            continue
-        tokens.add(part)
-        if len(part) > 4 and part.endswith("s"):
-            tokens.add(part[:-1])
-    return tokens
+    return token[:-1] if len(token) > 4 and token.endswith("s") else token
 
 
-def _path_tokens(path: str) -> set[str]:
-    return {path} | _token_variants(path)
+def _stems(value: str) -> set[str]:
+    """Lowercased alphanumeric stems of a string (path or term list)."""
+
+    return {
+        _stem(part)
+        for part in re.findall(r"[a-z0-9]+", value.lower())
+        if len(part) >= 2
+    }
 
 
 def rank_domain_urls(
@@ -189,21 +189,27 @@ def rank_domain_urls(
     terms: Iterable[str],
     limit: int = MAX_LINKS_PER_INVENTORY,
 ) -> list[str]:
-    """Same-domain URLs ranked by claim-term overlap in the path."""
+    """Same-domain URLs ranked by claim-term overlap in the path.
+
+    Scoring counts distinct matched stems (with plural collapse, so
+    "limits"/"limit" count once). Distinct-match counting was chosen over
+    inverse-document-frequency weighting on evidence: idf over-rewards rare but
+    semantically empty words ("official", "current") that appear in a claim's
+    preamble, whereas a plain count rewards paths that match several claim
+    stems at once — exactly the deep page here (`docker` + `hub` + `pull`).
+    Ties break towards shallower paths, then lexicographically.
+    """
 
     host = parse_domain_proposal({"domains": [domain]})
     if not host:
         return []
     host = host[0]
-    term_tokens: set[str] = set()
-    for term in terms:
-        lowered = str(term or "").lower()
-        if not lowered:
-            continue
-        term_tokens.add(lowered)
-        term_tokens |= _token_variants(lowered)
 
-    scored: list[tuple[int, int, str]] = []
+    term_stems: set[str] = set()
+    for term in terms:
+        term_stems |= _stems(str(term or ""))
+
+    documents: list[tuple[str, str, set[str]]] = []
     seen: set[str] = set()
     for raw in urls:
         parsed = urlparse(str(raw or "").strip())
@@ -212,15 +218,21 @@ def rank_domain_urls(
         path = (parsed.path or "/").lower()
         if not path.strip("/"):
             continue
-        tokens = _path_tokens(path)
-        score = sum(1 for term in term_tokens if term in tokens)
-        if score <= 0:
-            continue
         normalized = f"https://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
         if normalized in seen:
             continue
         seen.add(normalized)
-        scored.append((-score, path.count("/"), normalized))
+        documents.append((normalized, path, _stems(path)))
+
+    if not documents or not term_stems:
+        return []
+
+    scored: list[tuple[float, int, str]] = []
+    for url, path, stems in documents:
+        matched = stems & term_stems
+        if not matched:
+            continue
+        scored.append((-float(len(matched)), path.count("/"), url))
     scored.sort(key=lambda item: (item[0], item[1], item[2]))
     return [url for _neg, _depth, url in scored[: max(1, int(limit))]]
 
@@ -278,6 +290,7 @@ __all__ = [
     "DOMAIN_TARGETED_ENV",
     "MAX_DOMAINS",
     "MAX_LINKS_PER_INVENTORY",
+    "MAX_RANK_TERMS",
     "MAX_SITEMAP_CHILDREN",
     "MAX_SITEMAP_URLS",
     "build_search_query",

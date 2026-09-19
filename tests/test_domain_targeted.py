@@ -9,6 +9,7 @@ import pytest
 from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     DOMAIN_TARGETED_ENV,
+    MAX_RANK_TERMS,
     build_search_query,
     claim_search_terms,
     domain_targeted_enabled,
@@ -114,6 +115,56 @@ def test_rank_domain_urls_finds_the_deep_target_first() -> None:
     )
     assert ranked[0] == "https://docs.docker.com/docker-hub/usage/pulls"
     assert all("other.example" not in url for url in ranked)
+
+
+def test_ranking_used_the_real_run_claim_text() -> None:
+    """Regression for the observed run: generic pages outranked the deep target
+    when the subject entity was dropped by the 6-term cap and plural pairs
+    double-counted."""
+
+    locations = [
+        "https://docs.example.com/ai/gordon/usage-limits",
+        "https://docs.example.com/guides/admin-user-management",
+        "https://docs.example.com/accounts/individual/deactivate-user-account",
+        "https://docs.example.com/docker-hub/usage/pulls",
+        "https://docs.example.com/reference/cli/docker/pull",
+    ]
+    question = (
+        "what pull-rate limits apply to unauthenticated users and "
+        "authenticated Personal users on Docker Hub?"
+    )
+    terms = claim_search_terms(question, limit=MAX_RANK_TERMS)
+    assert "docker" in terms and "hub" in terms
+    ranked = rank_domain_urls(
+        locations, domain="docs.example.com", terms=terms
+    )
+    assert ranked[0] == "https://docs.example.com/docker-hub/usage/pulls"
+
+
+def test_generic_tokens_are_not_privileged_over_the_subject() -> None:
+    """Rare-but-empty claim words must not outrank the on-topic deep page."""
+
+    locations = [
+        f"https://docs.example.com/docker/guide-{i}" for i in range(10)
+    ] + [
+        "https://docs.example.com/trusted-content/official-images",
+        "https://docs.example.com/docker-hub/usage/pulls",
+    ]
+    terms = [
+        "According",
+        "to",
+        "Docker's",
+        "current",
+        "official",
+        "documentation",
+        "pull-rate",
+        "limits",
+        "apply",
+    ]
+    ranked = rank_domain_urls(
+        locations, domain="docs.example.com", terms=terms
+    )
+    assert ranked[0] == "https://docs.example.com/docker-hub/usage/pulls"
 
 
 def test_anchor_extraction_filters_and_ranks() -> None:
