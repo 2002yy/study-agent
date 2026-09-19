@@ -216,6 +216,7 @@ def test_step_adds_verified_domain_targeted_candidate(
         wave_index=1,
         timeout_seconds=5.0,
         targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
     )
     assert gateway.calls == 1
     added = [
@@ -316,6 +317,7 @@ def test_step_is_silent_when_support_exists(monkeypatch: pytest.MonkeyPatch) -> 
         wave_index=2,
         timeout_seconds=5.0,
         targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
     )
     assert gateway.calls == 0
     assert len(cursor.candidates) == 1
@@ -342,5 +344,73 @@ def test_step_never_runs_twice_for_the_same_claim(
         wave_index=1,
         timeout_seconds=5.0,
         targeted_claim_ids=["claim_1"],
+        seconds_left=lambda: 30.0,
     )
     assert gateway.calls == 0
+
+
+def test_search_fetches_are_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
+    attempts: list[str] = []
+
+    def fetch_html(url: str):
+        attempts.append(url)
+        return "", "", "", "connection_reset"
+
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_html=fetch_html,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert len(attempts) == 3
+    assert sum(1 for row in record["dropped"] if row["reason"] == "search_fetch_cap") == 1
+
+
+def test_window_guard_skips_search_fetches(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    state, claim = _runtime_state_and_claim()
+    gateway = _Gateway(["docs.docker.com", "hub.docker.com"])
+    attempts: list[str] = []
+
+    def fetch_html(url: str):
+        attempts.append(url)
+        return SEARCH_HTML, url, "text/html", ""
+
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_html=fetch_html,
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 5.0,
+    )
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert attempts == []
+    assert record["search_urls"] == []
+    assert {row["reason"] for row in record["dropped"]} == {"skipped_by_window"}

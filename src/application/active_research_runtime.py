@@ -207,6 +207,8 @@ ACTIVE_RESEARCH_METRICS_KEY = "claim_engine_metrics"
 TIER2_PROPOSED_CLAIMS_KEY = "tier2_proposed_claim_ids"
 DOMAIN_TARGETED_CLAIMS_KEY = "domain_targeted_claim_ids"
 MAX_DOMAIN_TARGETED_CANDIDATES = 3
+MAX_DOMAIN_TARGETED_SEARCH_FETCHES = 3
+DOMAIN_TARGETED_MIN_SECONDS_LEFT = 12.0
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 
@@ -1323,6 +1325,7 @@ class ActiveResearchRuntimeExecutor:
                             wave_index=cursor.wave_index,
                             timeout_seconds=remaining_timeout(),
                             targeted_claim_ids=targeted_claim_ids,
+                            seconds_left=research_seconds_left,
                         )
                     checkpoint()
 
@@ -3093,6 +3096,7 @@ def _domain_targeted_step(
     wave_index: int,
     timeout_seconds: float | None,
     targeted_claim_ids: list[str],
+    seconds_left: Any,
 ) -> ResearchRuntimeCursor:
     """§63 Tier-1.5: official-domain site search -> verified candidates.
 
@@ -3178,8 +3182,22 @@ def _domain_targeted_step(
     query = build_search_query(claim.text)
     terms = claim_search_terms(claim.text)
     links: list[str] = []
+    search_fetches = 0
     for domain in record["domains"][:MAX_DOMAINS]:
         for search_url in site_search_urls(domain, query):
+            if search_fetches >= MAX_DOMAIN_TARGETED_SEARCH_FETCHES:
+                record["dropped"].append(
+                    {"url": search_url, "reason": "search_fetch_cap"}
+                )
+                break
+            # §63 budget guard: a site-search fetch must never eat the
+            # research window (five 12s timeouts once pushed a run to ~100s).
+            if seconds_left() < DOMAIN_TARGETED_MIN_SECONDS_LEFT:
+                record["dropped"].append(
+                    {"url": search_url, "reason": "skipped_by_window"}
+                )
+                continue
+            search_fetches += 1
             record["search_urls"].append(search_url)
             try:
                 html, _final_url, _content_type, reason = fetch_html(search_url)
