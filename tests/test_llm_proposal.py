@@ -56,13 +56,43 @@ def test_miss_reason_requires_candidates_and_no_relevant_one() -> None:
         tier1_miss_reason(assessments={}, candidate_ids=[])
         == "no_candidates"
     )
+    # Tier-1 has not been consumed yet: stay silent.
+    assert (
+        tier1_miss_reason(
+            assessments={"c1": _Assessment("topic_only")},
+            candidate_ids=["c1"],
+            completed_read_count=0,
+        )
+        == ""
+    )
     assessments = {"c1": _Assessment("topic_only")}
     assert (
-        tier1_miss_reason(assessments=assessments, candidate_ids=["c1"])
+        tier1_miss_reason(
+            assessments=assessments,
+            candidate_ids=["c1"],
+            completed_read_count=1,
+        )
         == "no_answer_relevant_candidate"
     )
     assessments = {"c1": _Assessment("answer_relevant")}
-    assert tier1_miss_reason(assessments=assessments, candidate_ids=["c1"]) == ""
+    assert (
+        tier1_miss_reason(
+            assessments=assessments,
+            candidate_ids=["c1"],
+            completed_read_count=1,
+        )
+        == ""
+    )
+    # A claim that already holds support never proposes.
+    assert (
+        tier1_miss_reason(
+            assessments={"c1": _Assessment("topic_only")},
+            candidate_ids=["c1"],
+            completed_read_count=2,
+            claim_has_support=True,
+        )
+        == ""
+    )
 
 
 def test_messages_carry_the_claim_only() -> None:
@@ -82,6 +112,7 @@ def _runtime_cursor():
         ResearchRuntimeCursor,
         RuntimeCandidate,
         RuntimePlannedQuery,
+        RuntimeReadOutcome,
     )
 
     candidates = (
@@ -95,6 +126,9 @@ def _runtime_cursor():
     )
     return ResearchRuntimeCursor(
         candidates=candidates,
+        read_outcomes=(
+            RuntimeReadOutcome(candidate_id="candidate_search_1", status="success"),
+        ),
         planned_queries=(
             RuntimePlannedQuery(
                 id="q1",

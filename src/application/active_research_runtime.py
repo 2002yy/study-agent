@@ -2873,6 +2873,11 @@ def _tier2_proposal_step(
     miss_reason = tier1_miss_reason(
         assessments=assessments,
         candidate_ids=[item.id for item in claim_candidates],
+        completed_read_count=len(cursor.completed_read_ids),
+        claim_has_support=any(
+            link.claim_id == claim.id and link.relation == "supports"
+            for link in state.evidence_links
+        ),
     )
     if not miss_reason:
         return cursor

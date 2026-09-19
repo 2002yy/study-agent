@@ -69,11 +69,23 @@ def tier1_miss_reason(
     *,
     assessments: Mapping[str, Any],
     candidate_ids: Sequence[str],
+    completed_read_count: int = 0,
+    claim_has_support: bool = False,
 ) -> str:
-    """Return a miss reason when Tier-1 produced no promising candidate."""
+    """Return a miss reason when Tier-1 has been consumed and landed nothing.
 
+    Tier-1 must have had its chance: at least one physical read completed and
+    the claim still holds no ``supports`` link. Otherwise the proposal step
+    stays silent, so a Tier-1 hit cannot trigger it just because the winning
+    page has not been assessed yet in the current wave.
+    """
+
+    if claim_has_support:
+        return ""
     if not candidate_ids:
         return "no_candidates"
+    if int(completed_read_count) < 1:
+        return ""
     relevant = [
         candidate_id
         for candidate_id in candidate_ids
