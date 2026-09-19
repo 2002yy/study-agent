@@ -187,6 +187,22 @@ def summarize_attempts(attempts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _capture_turn_snapshot(chat_service: Any, turn_id: str) -> dict[str, Any]:
+    """Best-effort capture of the published rag snapshot for the §40c flags."""
+
+    try:
+        turn = chat_service.repository.get_chat_turn(turn_id)
+    except Exception:
+        return {}
+    rag = getattr(turn, "rag_snapshot", None)
+    if not isinstance(rag, Mapping):
+        return {}
+    return {
+        "answer_consistency": rag.get("answer_consistency"),
+        "answer_validation_audit": rag.get("answer_validation_audit"),
+    }
+
+
 def run_capture(
     *,
     manifest_path: Path,
@@ -285,6 +301,9 @@ def run_capture(
             },
         }
         artifact["answer_calls"] = captured
+        artifact["turn_snapshot"] = _capture_turn_snapshot(
+            chat_service, f"rq1c-turn-{case_id}"
+        )
     finally:
         import shutil
 
