@@ -1738,6 +1738,57 @@ run3: wave1 模型选中目标 → read ✓（6000 chars，role=primary）→ �
 
 附带的观测修正（`a4fd498`）：`_bounded_assessment_candidates` 曾把所有被排除候选标为 `already_read`（排除集同时含已评估者），现只由读循环记录真实 already-read；`metrics.selection_authority` + trace 两套记录均可复核。
 
+## 43. §38c Claim-shape / Extractor Disambiguation（已完成，`67d1aca`，结果 `CLAIM_SHAPE.node.json`）
+
+方法：冻结 runtime 实际读到的目标页正文（`https://nodejs.cn/api/modules.html`，6000 chars，sha256 `c8d4e733…`）与同一个冻结 extractor（同 flash、同参数），只交换两个维度：**claim 形状**（3 行）× **harness 约定**（2 列：离线约定 vs runtime 实际 source 元数据）。矩阵共 6 格，另加原子 claim 两格是因为 runtime 把该页绑定到了比较 claim、而 gate 的关键 claim 是原子事实 claim。
+
+实际输入（来自 capture2 的真实 runtime run）：
+
+```text
+runtime_atomic_claim     : "What module systems does current Node.js officially support"
+                           kind=factual  priority=critical  policy_profile=official_statement
+runtime_comparison_claim : "how does current guidance differ from older CommonJS-versus-ES-modules guidance?"
+                           kind=analytical priority=major     policy_profile=causal_analysis
+目标页 owner claim（runtime 实际抽取时绑定）= runtime_comparison_claim（relation=background）
+gate 关键 claim = runtime_atomic_claim（eligible_support_clusters=0/1）
+
+关于 harness 两列：capture2 中两列的 role/title/published_at 实际上完全相同，
+唯一差异是 source_cluster_id 字符串 → 该维度**不构成有效自变量**（见下）。
+```
+
+结果（同一冻结正文，6 次真实 extractor 调用）：
+
+```text
+A: offline_question         x offline_harness → supports    (0.70)
+B: offline_question         x runtime_harness → background  (0.35)
+C: runtime_comparison_claim x offline_harness → background  (0.30)
+D: runtime_comparison_claim x runtime_harness → qualifies   (0.55)   ← runtime 本 run 为 background
+E: runtime_atomic_claim     x offline_harness → supports    (0.95)
+F: runtime_atomic_claim     x runtime_harness → supports    (0.90)
+```
+
+**判定（按预设决策树裁剪后）**：
+
+1. **claim 形状是决定性变量**：原子 claim 在两列下都是 `supports`（0.9–0.95）；比较 claim 在两列下都**不是** `supports`（background/qualifies）→ 比较 claim 需要跨来源证据，单页自足式抽取无法成立。**不应调整 extractor 去把比较 claim 改成 supports。**
+2. **harness 列无效**：两列唯一差异是 cluster id 字符串；A/B、C/D 的行内差异与既有 extractor 方差一致（比较 claim 在 runtime 本 run 是 background、复测是 qualifies）→ 判据落在 claim 形状，不在包装。
+3. **runtime 的真实缺陷是绑定路由**：该页被抽取时只绑定到比较 claim；而 E/F 证明**同一页面对关键原子 claim 是 0.9+ 强度的 `supports`**。gate 的 `eligible_support_clusters=0/1` 不是因为证据不存在，而是因为**证据从未被绑定到需要的 claim 上**。
+4. 混合问句（A/B 出现 supports/background 分裂）进一步支持：混合问句不是稳定的单来源抽取目标。
+
+**结论**：这是一个 **claim decomposition 与 evidence binding 的职责边界问题**——比较类子 claim 应交由 binding/synthesis 由两条原子事实组合（旧 guidance × 新 guidance），而不是要求单个 current-state 页面证明"变化"。extractor 行为正确。
+
+## 43.1 当前状态与唯一下一步
+
+```text
+offline evidence path:      4/4 supports PASS（§38b 链）
+runtime selection path:     target reachability demonstrated（§38b runtime 诊断）
+runtime read path:          demonstrated once（capture2：目标页 6000 chars 已读）
+runtime support path:       NOT YET（关键 claim 未拿到 supports —— 绑定路由问题，非证据缺失）
+runtime binding path:       NOT REACHED
+runtime end-to-end answer:  NOT YET（仍 32 字符 fail-closed）
+```
+
+**下一批 = §39 Binding/Decomposition 职责边界**（不先修 read reserve、不生产化 selector）：目标是让读到的页面在**正确的 claim** 上被抽取与绑定——具体方向由 §38c 给出：原子事实 claim 独立抽取 + 比较 claim 由 binding/synthesis 组合。read reserve 门（run1/2 复现两次）仍记录为独立待修项，排在 §39 之后。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
