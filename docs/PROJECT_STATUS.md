@@ -1965,6 +1965,11 @@ Production default           NOT YET（全部开关默认关闭）
 
 ⇒ **§35 起追的完整 research E2E positive control 首次闭环**。后续顺序：§39 confound 复核 → read reserve → selector 生产化（含 guard 预算语义）→ recall/selection 稳定性；本批所有开关仍为诊断态，生产默认未变。
 
+### 46.3.1 黄金 artifact 与登记债项
+
+- **黄金 positive-control artifact**：`docs/research_quality/ANSWER_FORMATION.d40.2.json`（未跟踪诊断产物，本地保留）。**回归不变量**：未来任何 read reserve / selector / recall / 生产化改动，必须至少保证该 case 不回退——`gate=pass`、`binding=valid`、`consistency=clean`、`publish=substantive`（四项同时成立）；对应开关组合：selector=model + routing=on + bounded policy + consistency gate + grounded input。
+- **登记债项（不阻挡既定顺序，先作为人工/诊断指标，不新增模型 gate）**：**Answer grounding entailment / unsupported-detail audit** —— 现有一致性门验证的是 segment↔evidence/claim 绑定、evidence-id 合法性与方向，**不验证"段落中的每个事实可从给定 excerpt 推出"**（d40.2 的 `package.json type` 即位于 400 字符窗口之外、由模型先验补全）。生产默认开启前需要一个（非模型的）文本蕴含/未支持细节审查方案。
+
 ### 46.4 §39 confound 复核（已完成，`SELECTION_AUTHORITY.node.confound1–4.json`）
 
 **窄目标**：只在 run1 形态（`RESEARCH_SELECTION_AUTHORITY=model` + `RESEARCH_ATOMIC_ROUTING=on`，不掺任何 answer 改动）下、健康余额重跑，判定当时的 `model_call_attempts_exhausted` 属于哪类。
