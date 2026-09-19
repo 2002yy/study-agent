@@ -2071,6 +2071,38 @@ orchestration_model_calls = 4–6/run（与 window/claim 数一致）
 
 **观察（记录为债项，不属本批修复）**：unusable 中 `invalid_schema` 占多数（约 16/28 windows）——DeepSeek json_object 输出对 `{"urls": [str]}` 契约的遵从度不稳；`empty`、`call_unavailable` 次之。合同已证明"模型输出不达标也不会降低 availability"，但若要提升 model-path 占比，下一步应做 **schema 遵从性硬化**（不是调提示词追命中率），列为后续项。
 
+## 48. §43A Selector Schema Reliability（已完成 `de7fcf4`；invalid_schema → 0）
+
+### 48.1 分型（先分类，不改 prompt）
+
+- 工具 `tools/run_selector_schema_probe.py`（7 条分类测试）：同传输（同 prompt/池/模型/`json_object`/`max_tokens=500`）直接采样原始响应，形状分类：`contract_shape / url_array / fenced_json / valid_json_wrong_shape / valid_json_wrong_field / truncated_json / non_json_text / empty_content`。
+- **首轮采样 20/20 `contract_shape`** ⇒ `invalid_schema` **不是模型输出形状问题**。
+
+### 48.2 根因：selector 调用缺 thinking-off 传输配置
+
+对比 gateway 路径后发现：`select_candidates_with_model` 是**唯一**没有携带 provider thinking-off extra_body 的结构化研究调用（assessor/extractor 都经 `research_structured_output_capabilities` 注入）。DeepSeek 默认 thinking 会吃光 500-token 输出预算 → 空/截断 JSON → `json.loads` 失败 → 被记为 `invalid_schema`。属**传输配置缺口**，非语义/遵从性问题。
+
+### 48.3 修复（表示层，不动语义）
+
+- `select_candidates_with_model`：解析 `research_structured_output_capabilities(provider_profile)` 并传入 thinking-off `extra_body`（与 assessor/extractor 同款）。
+- `parse_selection_response`：额外接受**无歧义**的顶层 URL 字符串数组（`["url1","url2"]` → `urls`）——纯表示层归一，不解析自然语言、不截断、不猜。
+- 新增测试：url 数组接受/拒绝；fake gateway 断言 selector 调用携带 thinking-off extra_body。
+
+### 48.4 复测（4 runs；`SELECTION_AUTHORITY.node.s43a_1–4.json`）
+
+```text
+invalid_schema：**0 次**（约 30 个 window；修前 ≈16/28）
+usable/model path：~28/30 window（s43a_3/4 全部 usable=model）
+selector_caused_availability_loss = 0/4（不变量保持）
+目标页：read_dispatched 4/4；gate=pass 2/4
+orchestration_model_calls：4–7/run
+残余 unusable：仅 "empty"（个别尾部 wave 的池子几乎空时模型返回 []）→ fallback 正常
+```
+
+**§43A 关闭**。记录一个小债项：无输入（`limit==0`）时也会写 selection_authority 记录且 `unusable_reason=""`，后续可补 `no_input` 语义（不影响合同）。
+
+**§43B（下一批）**：在 **target-containing pools** 上做 paired A/B（同一 frozen original_pool、同 K=2：A=legacy window，B=production-contract hybrid），统计 `conditional_target_selection_rate`、`conditional_target_read_rate`、`legacy/hybrid/model_path/fallback target hits`、`selector_caused_losses=0`，并报告成本 `incremental_target_reads / orchestration_model_calls`；之后才讨论 selector 默认开启与 recall。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
