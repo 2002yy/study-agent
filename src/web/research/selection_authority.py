@@ -24,7 +24,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from src.news.url_normalizer import canonicalize_url
 
 SELECTION_AUTHORITY_ENV = "RESEARCH_SELECTION_AUTHORITY"
 SELECTION_AUTHORITY_RULES = "rules"
@@ -53,26 +52,65 @@ def selection_authority_mode() -> str:
 
 @dataclass
 class SelectionAuthorityDiagnostics:
-    mode: str = SELECTION_AUTHORITY_MODEL
-    status: str = ""
-    reason: str = ""
+    """§42 contract diagnostics: model preference, deterministic fallback."""
+
+    enabled: bool = True
+    authority: str = "model_preference_with_legacy_fallback"
+    model: str = ""
+    call_status: str = ""
+    elapsed_ms: int = 0
+    raw_pick_count: int = 0
+    valid_pick_count: int = 0
+    usable: bool = False
+    unusable_reason: str = ""
+    model_picks: list[str] = field(default_factory=list)
+    fallback_invoked: bool = False
+    fallback_picks: list[str] = field(default_factory=list)
+    final_picks: list[str] = field(default_factory=list)
+    selection_source: str = ""
     input_size: int = 0
     input_set: list[str] = field(default_factory=list)
-    output_urls: list[str] = field(default_factory=list)
-    output_count: int = 0
-    fallback: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "mode": self.mode,
-            "status": self.status,
-            "reason": self.reason,
+            "enabled": self.enabled,
+            "authority": self.authority,
+            "model": self.model,
+            "call_status": self.call_status,
+            "elapsed_ms": self.elapsed_ms,
+            "raw_pick_count": self.raw_pick_count,
+            "valid_pick_count": self.valid_pick_count,
+            "usable": self.usable,
+            "unusable_reason": self.unusable_reason,
+            "model_picks": list(self.model_picks),
+            "fallback_invoked": self.fallback_invoked,
+            "fallback_picks": list(self.fallback_picks),
+            "final_picks": list(self.final_picks),
+            "selection_source": self.selection_source,
             "input_size": self.input_size,
             "input_set": list(self.input_set),
-            "output_urls": list(self.output_urls),
-            "output_count": self.output_count,
-            "fallback": self.fallback,
         }
+
+
+UNUSABLE_EMPTY = "empty"
+UNUSABLE_CALL_UNAVAILABLE = "call_unavailable"
+UNUSABLE_INVALID_SCHEMA = "invalid_schema"
+UNUSABLE_UNKNOWN_URL = "unknown_url"
+UNUSABLE_DUPLICATE_ONLY = "duplicate_only"
+UNUSABLE_OVER_K = "over_k"
+UNUSABLE_POLICY_VIOLATION = "policy_violation"
+
+_SCHEMA_ERROR_TYPES = frozenset({"ValueError", "TypeError", "JSONDecodeError"})
+
+
+def _schema_failure(audits: Any) -> bool:
+    """True when the exhausted attempts failed on parsing, not transport."""
+
+    error_types = {
+        str(getattr(audit, "error_type", "") or "")
+        for audit in (audits or ())
+    } - {""}
+    return bool(error_types) and error_types <= _SCHEMA_ERROR_TYPES
 
 
 def parse_selection_response(raw: Any) -> list[str]:
@@ -81,8 +119,8 @@ def parse_selection_response(raw: Any) -> list[str]:
     if not isinstance(raw, Mapping):
         raise ValueError("selection response must be an object")
     urls = raw.get("urls")
-    if not isinstance(urls, list):
-        raise ValueError("selection response needs a urls list")
+    if not isinstance(urls, list) or not all(isinstance(item, str) for item in urls):
+        raise ValueError("selection response needs a urls list of strings")
     return [str(item) for item in urls]
 
 
@@ -110,23 +148,36 @@ def select_candidates_with_model(
     timeout_seconds: float | None,
     logical_call_id: str,
     input_max: int = MODEL_SELECTION_INPUT_MAX,
+    forbidden_urls: frozenset[str] = frozenset(),
+    model_name: str = "",
+    monotonic: Any = None,
 ) -> tuple[list[str], SelectionAuthorityDiagnostics]:
-    """One bounded model call; returns (picked canonical urls, diagnostics).
+    """One bounded model call; returns (usable picks, diagnostics).
 
-    Usable means: the gateway completed AND at least one returned URL matched a
-    candidate. Everything else is the caller's cue to fall back.
+    §42 usable is mechanical and never self-declared: the call completed, the
+    schema parsed, every URL is one of the **input** candidates, none is
+    forbidden, no duplicates, and the count is 1..``max_picks``. Anything else
+    is unusable and the caller must run the deterministic legacy window on the
+    original pool.
     """
 
-    diagnostics = SelectionAuthorityDiagnostics()
+    import time
+
+    clock = monotonic or time.monotonic
+    diagnostics = SelectionAuthorityDiagnostics(model=model_name)
     ordered = list(candidates)[: max(1, int(input_max))]
     diagnostics.input_size = len(ordered)
-    diagnostics.input_set = [str(getattr(item, "canonical_url", "")) for item in ordered]
+    diagnostics.input_set = [
+        str(getattr(item, "canonical_url", "")) for item in ordered
+    ]
+    pool_urls = set(diagnostics.input_set)
     payload = {
         "schema_version": SELECTION_AUTHORITY_SCHEMA_VERSION,
         "claim": claim_text[:2000],
         "max_urls": max(1, int(max_picks)),
         "candidates": candidate_payload(ordered),
     }
+    started = clock()
     try:
         result = model_gateway.complete_structured(
             logical_call_id=logical_call_id,
@@ -142,32 +193,46 @@ def select_candidates_with_model(
             max_tokens=500,
             timeout_seconds=timeout_seconds,
         )
-    except Exception as exc:  # diagnostics must never fail the run
-        diagnostics.status = "exception"
-        diagnostics.reason = type(exc).__name__
+    except Exception:  # diagnostics must never fail the run
+        diagnostics.call_status = "exception"
+        diagnostics.elapsed_ms = int((clock() - started) * 1000)
+        diagnostics.unusable_reason = UNUSABLE_CALL_UNAVAILABLE
+        diagnostics.model_picks = []
         return [], diagnostics
+    diagnostics.elapsed_ms = int((clock() - started) * 1000)
 
     status = str(getattr(result, "status", ""))
-    diagnostics.status = status or "unknown"
-    diagnostics.reason = str(getattr(result, "reason", "") or "")[:300]
+    diagnostics.call_status = status or "unknown"
     value = result.value if status == "completed" else None
     if value is None:
+        diagnostics.unusable_reason = (
+            UNUSABLE_INVALID_SCHEMA
+            if _schema_failure(getattr(result, "audits", ()))
+            else UNUSABLE_CALL_UNAVAILABLE
+        )
         return [], diagnostics
-
-    by_url = {
-        str(getattr(item, "canonical_url", "")): str(getattr(item, "canonical_url", ""))
-        for item in ordered
-    }
-    picks: list[str] = []
-    for item in list(value):
-        canonical = canonicalize_url(str(item))
-        if canonical and canonical in by_url and canonical not in picks:
-            picks.append(canonical)
-        if len(picks) >= max(1, int(max_picks)):
-            break
-    diagnostics.output_urls = list(picks)
-    diagnostics.output_count = len(picks)
-    return picks, diagnostics
+    raw = list(value)
+    diagnostics.raw_pick_count = len(raw)
+    if not raw:
+        diagnostics.unusable_reason = UNUSABLE_EMPTY
+        return [], diagnostics
+    if any(str(item) in forbidden_urls for item in raw):
+        diagnostics.unusable_reason = UNUSABLE_POLICY_VIOLATION
+        return [], diagnostics
+    if any(str(item) not in pool_urls for item in raw):
+        diagnostics.unusable_reason = UNUSABLE_UNKNOWN_URL
+        return [], diagnostics
+    unique = list(dict.fromkeys(str(item) for item in raw))
+    if len(unique) != len(raw):
+        diagnostics.unusable_reason = UNUSABLE_DUPLICATE_ONLY
+        return [], diagnostics
+    if len(unique) > max(1, int(max_picks)):
+        diagnostics.unusable_reason = UNUSABLE_OVER_K
+        return [], diagnostics
+    diagnostics.usable = True
+    diagnostics.valid_pick_count = len(unique)
+    diagnostics.model_picks = list(unique)
+    return unique, diagnostics
 
 
 __all__ = [
@@ -178,6 +243,13 @@ __all__ = [
     "SELECTION_AUTHORITY_SCHEMA_VERSION",
     "SELECTION_SYSTEM_PROMPT",
     "SelectionAuthorityDiagnostics",
+    "UNUSABLE_CALL_UNAVAILABLE",
+    "UNUSABLE_DUPLICATE_ONLY",
+    "UNUSABLE_EMPTY",
+    "UNUSABLE_INVALID_SCHEMA",
+    "UNUSABLE_OVER_K",
+    "UNUSABLE_POLICY_VIOLATION",
+    "UNUSABLE_UNKNOWN_URL",
     "candidate_payload",
     "parse_selection_response",
     "select_candidates_with_model",

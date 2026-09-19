@@ -2823,14 +2823,19 @@ def _select_assessment_window(
     wave_index: int,
     timeout_seconds: float | None,
 ) -> tuple[CandidatePoolItem, ...]:
-    """§38b diagnostic selection authority; rules by default.
+    """§42 selector production contract; rules by default.
 
-    ``RESEARCH_SELECTION_AUTHORITY=model`` lets the model choose which pooled
-    candidates enter the bounded assessment window (same cap as the rules).
-    Unusable model decisions fall back to the deterministic window, so the
-    model can raise the ceiling but never remove the floor. Every model
-    decision and both URL sets are recorded in run metrics for the runtime vs
-    offline-replay invariant check. With the default flag nothing changes.
+    ``RESEARCH_SELECTION_AUTHORITY=model`` gives the model a *preference*
+    authority over the bounded assessment window: exactly **one** call per
+    window (no app-level retry), a mechanical ``usable`` check, and - whenever
+    the decision is unusable - the deterministic legacy window rerun on the
+    **same original candidate pool**. The model can raise quality but can never
+    reduce availability, and with the default flag nothing changes.
+
+    The selector call is orchestration work: it is counted in
+    ``metrics.orchestration_model_calls`` (and, under the qualification guard,
+    in the global physical-call cap like any other gateway call); it performs
+    no search, read, extraction or evidence work.
     """
 
     mode = selection_authority_mode()
@@ -2851,9 +2856,22 @@ def _select_assessment_window(
         min(len(unread), int(max_reads), CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES),
     )
     ordered = tuple(sorted(unread, key=lambda item: (item.first_seen_rank, item.id)))
+    forbidden = frozenset(
+        item.canonical_url
+        for item in candidates
+        if item.id in excluded_candidate_ids
+    )
     diagnostics = SelectionAuthorityDiagnostics()
-    picked_items: tuple[CandidatePoolItem, ...] = ()
+    final_items: tuple[CandidatePoolItem, ...] = ()
     if limit > 0 and ordered:
+        model_name = ""
+        try:
+            from src.llm_client import get_model_name
+
+            profile = str(getattr(model_gateway, "model_profile", "") or "flash")
+            model_name = get_model_name(profile)  # type: ignore[arg-type]
+        except Exception:
+            model_name = ""
         picks, diagnostics = select_candidates_with_model(
             model_gateway=model_gateway,
             claim_text=claim.text,
@@ -2863,12 +2881,15 @@ def _select_assessment_window(
             logical_call_id=(
                 f"research_selection_authority:{run_id}:{claim.id}:{wave_index}:1"
             ),
+            forbidden_urls=forbidden,
+            model_name=model_name,
         )
-        if picks:
+        if diagnostics.usable and picks:
             picked_urls = set(picks)
-            picked_items = tuple(
+            final_items = tuple(
                 item for item in ordered if item.canonical_url in picked_urls
             )
+            diagnostics.selection_source = "model"
             if trace is not None:
                 for item in ordered:
                     trace.note_window(
@@ -2876,19 +2897,28 @@ def _select_assessment_window(
                         selected=item.canonical_url in picked_urls,
                         reason="model_selection_not_chosen",
                     )
-    if not picked_items:
-        diagnostics.fallback = True
-        picked_items = _bounded_assessment_candidates(
+    if not final_items:
+        # Deterministic legacy fallback on the ORIGINAL pool - never on the
+        # model's leftovers, so a failed model call cannot shrink the pool.
+        diagnostics.fallback_invoked = True
+        final_items = _bounded_assessment_candidates(
             candidates,
             assignments=assignments,
             max_reads=max_reads,
             excluded_candidate_ids=excluded_candidate_ids,
             trace=trace,
         )
-        diagnostics.mode = mode
+        diagnostics.fallback_picks = [item.canonical_url for item in final_items]
+        if diagnostics.selection_source != "model":
+            diagnostics.selection_source = "legacy_fallback"
+    diagnostics.final_picks = [item.canonical_url for item in final_items]
+    diagnostics.enabled = True
 
     metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
+        metrics["orchestration_model_calls"] = int(
+            metrics.get("orchestration_model_calls") or 0
+        ) + (1 if limit > 0 and ordered else 0)
         records = metrics.get("selection_authority")
         if not isinstance(records, list):
             records = []
@@ -2897,11 +2927,12 @@ def _select_assessment_window(
                 "wave_index": wave_index,
                 "claim_id": claim.id,
                 "window_limit": limit,
+                "orchestration_model_call": 1 if (limit > 0 and ordered) else 0,
                 **diagnostics.to_dict(),
             }
         )
         metrics["selection_authority"] = records[-40:]
-    return picked_items
+    return final_items
 
 
 def _bounded_assessment_candidates(
