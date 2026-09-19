@@ -2137,6 +2137,38 @@ incremental_target_reads_per_selector_call = 1.0
 
 **下一步（按既定顺序）**：selector 默认开启的决策材料已具备（以"零 losses + 成本可解释"为前提），但建议先补**更多 natural target-containing pools**（而非重复同一池）再定默认；随后回到 **recall**（11/12 case 无 likely-target）。
 
+## 50. §43C Natural Selection Lift 采样（已完成，`16ed41c`）
+
+工具（不改 selector）：
+
+- `tools/run_natural_target_scan.py`：读取自然运行 artifact，从各 case 自己的 search discovery 重建候选池，检查已知目标页（Node 标注 + Docker/PostgreSQL/uv 权威页）是否**已进入池**，冻结每个 distinct 的自然 target-pool（presence-only，不是 recall 主张）。
+- `tools/run_selector_ab.py`：新增 `--pools-file`（冻结自然池输入）、池分类 `A_recovery / B_preservation`、以及 **`replacement_loss`**（legacy 命中而 hybrid 丢失）——与 `selector_caused_losses`（窗口不得变空）区分开。
+
+**自然采集（4 个已知目标 case × 2 次 = 8 次自然运行，全部默认 legacy、无任何 selector 开关）**：
+
+```text
+distinct natural target-containing pools = **1**（仅 Node：nodejs.cn/api/modules.html 进池）
+Docker / PostgreSQL / uv：6 次运行 **0 次**目标进池
+→ 自然 target-pool 的供给本身被 recall 限制（与 11/12 无 likely-target 的结论一致）
+```
+
+**自然池 paired replay（`SELECTOR_AB.natural1.json`）**：
+
+```text
+pool_class = A_recovery（legacy miss / target in pool）
+legacy hit = 0 → hybrid hit = 1（source=model）→ outcome = win
+replacement_losses = 0；selector_caused_losses = 0；target read H = ok
+orchestration calls = 1；incremental_target_reads / selector_call = 1.0
+```
+
+**结论与阶段判定**：
+
+1. 机制层面：**target 一旦进池，model preference authority 的恢复稳定存在**（12/12 injected + 1/1 natural），且至今**零 replacement loss、零 availability loss**。
+2. **selector 默认开启的"野外分布"判据仍未满足**——不是 selector 不行，而是**自然样本供给受 recall 限制**（8 次自然运行仅 1 个池含目标）。继续堆同池重复只测 stochastic stability，不测泛化。
+3. 因此主精力按计划切回 **recall**：等 recall 改善产生更多自然 target-pool 后，再回来做默认开启决策（判据已冻结：wins>losses、losses/replacement/availability 全 0、model-path usable 保持、成本可接受）。
+
+**阶段总结（用户口径）**：Evidence chain 闭环 ✅ · Answer path 闭环 ✅ · Reserve 已修 ✅ · Selector transport 已修 ✅ · Selector safety 已证 ✅ · Selector lift 已证（条件性）✅ · **Recall = 当前最大开放问题**。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
