@@ -2170,6 +2170,49 @@ orchestration calls = 6；incremental_target_reads / selector_call = 1.0
 
 **阶段总结（用户口径）**：Evidence chain 闭环 ✅ · Answer path 闭环 ✅ · Reserve 已修 ✅ · Selector transport 已修 ✅ · Selector safety 已证 ✅ · Selector lift 已证（条件性）✅ · **Recall = 当前最大开放问题**。
 
+## 51. §44A Known-target Recall Audit（已完成 `19747a1`；结论：provider 检索面是首要嫌疑）
+
+### 51.1 历史 query 审计（`RECALL_AUDIT.historical.json`；§37A 全量 + 8 次自然运行）
+
+对每个已知目标页，把**历史上实际发出的每条 query** 做机械相关度分层 + provider 返回事实：
+
+| case/target | queries | relevance 分布 | 目标页返回 | 同域返回 | 近似页返回 |
+|---|---:|---|---:|---:|---:|
+| Docker `docs.docker.com/docker-hub/usage/pulls/` | 10 | direct 5 / plausible 1 / weak 4 | **0** | **0** | 0 |
+| PostgreSQL `postgresql.org/support/versioning/` | 12 | plausible 12 | **0** | 12 | 0 |
+| uv `github.com/astral-sh/uv/.../LICENSE-MIT` | 4 | plausible 4 | **0** | 4 | 0 |
+| Node `nodejs.cn/api/modules.html`（参照） | 9 | weak 9 | **4** | 9 | 4 |
+
+**读法**：
+1. **Docker 是最强信号**：5/10 条 query 属 `direct_targeting`，但目标页与**同域任何页面**都从未返回 → 不只是"query 太泛"。
+2. PostgreSQL/uv：同域返回充分（12/12、4/4），但**深页/功能性页面从未出现**（版本政策页、LICENSE 文件）。
+3. Node 参照证明 provider **并非完全召不回深页**（4/9），所以问题是**不稳定/不可解释**，而不是绝对能力缺失。
+
+### 51.2 exact-title 正例探针（`RECALL_AUDIT.probe.json` top5 / `RECALL_AUDIT.probe10.json` top10）
+
+3 类 query（exact title / title+entity / semantic）× 4 目标：
+
+```text
+top5  : 0/12 hit
+top10 : 0/12 hit（结果形态见下）
+  Docker   exact "Pull usage and limits" → 词典/百科"pull"词条（连 docker.com 都没回）
+  PostgreSQL exact "PostgreSQL Versioning Policy" → postgresql.org 首页 / download
+  uv       exact "uv LICENSE-MIT" → runoob/csdn 教程
+  Node     exact "Node.js two module systems" → 百度知道/经验（历史 4/9 命中过）
+```
+
+**判定（按用户预设决策树）**：
+
+> **exact title 都召不回 → 现有 provider 合并栈的 retrieval surface 不适合作为高精度 research recall backbone。**
+
+即：**瓶颈主要在 provider 检索面（或合并/排序逻辑），不在"LLM query 表达能力"**。因此：
+
+1. **暂不做** LLM-intent→deterministic compiler 的大改（该方向只有在"exact title 能召回、semantic 召不回"时才成为首选）。
+2. 下一步应是 **provider 级归因**：对 exact-title 类 query 分别探测 searxng / bing_rss / duckduckgo_html 的**单独返回**（谁返回了什么、rank 多少），并检查合并层（top-k 截断、去重、排序）是否丢掉了深页；若单 provider 也召不回 → 讨论**换/补 provider**（例如直连官方站内检索、或增加可返回深页的 provider）。
+3. Docker 的 `direct_targeting + 0 同域` 也提示：SearXNG/Bing 的**中文区域化结果**（词典/百科/教程）可能压过了英文官方深页——provider 的区域/语言参数值得进入归因清单。
+
+**状态表（更新）**：Research E2E positive control PASS · Answer formation PASS demonstrated · Atomic routing PASS demonstrated · Read reserve FIXED · Selector transport PASS · Selector safety/fallback PASS · Selector conditional lift PASS · Natural selector generalization supply-limited · **Recall = PRIMARY OPEN BLOCKER（当前定位：provider retrieval surface）**。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
