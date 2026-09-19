@@ -62,7 +62,7 @@ def route_missing_atomic_claims(
     records: list[dict[str, Any]] = []
     total_routed = 0
 
-    for target in extended:
+    for target in list(extended):
         candidate_id = str(target.get("candidate_id") or "")
         origin_claim_id = str(target.get("claim_id") or "")
         if candidate_id not in read_candidate_ids:
@@ -76,6 +76,7 @@ def route_missing_atomic_claims(
             "skips": [],
         }
         per_read = 0
+        inserted: list[dict[str, str]] = []
         for claim in claims:
             claim_id = str(getattr(claim, "id", "") or "")
             if claim_id == origin_claim_id:
@@ -103,7 +104,7 @@ def route_missing_atomic_claims(
                     {"claim_id": claim_id, "reason": ROUTE_REASON_BOUNDED_CAP}
                 )
                 continue
-            extended.append({**dict(target), "claim_id": claim_id})
+            inserted.append({**dict(target), "claim_id": claim_id})
             known_pairs.add((candidate_id, claim_id))
             per_read += 1
             total_routed += 1
@@ -114,6 +115,11 @@ def route_missing_atomic_claims(
                     "reason": ROUTE_REASON_MISSING_ATOMIC_CHILD,
                 }
             )
+        if inserted:
+            # Keep a routed extraction adjacent to its origin so it runs before
+            # the shared model/extraction budget is spent on later origins.
+            position = extended.index(target)
+            extended[position + 1 : position + 1] = inserted
         if record["routed_claim_ids"] or record["skips"]:
             records.append(record)
 
