@@ -2015,6 +2015,29 @@ read_budget_exhausted 淘汰          10   （≈6%）
 
 推荐 (b)（一行级改动 + 2 条 focused 测试），等确认后实施。
 
+### 46.6 §41 Read Reserve Reclaim（已实施 `505aca8`，三层验收完成）
+
+**语义（用户冻结）**：`open conflict 存在 → 一切不变；不存在 → 未使用的 conflict reserve 在既有 hard read budget 内回流给普通调度`。措辞 = **reclaim unused conflict reserve within the existing hard read budget**（不是增加预算）。不改 ranking/eligibility/conflict 优先权/search/model budget。
+
+**实现**（`_fair_read_plan`）：`reclaimed = 0 / reserve` 由 `open_conflict_claim_ids` 决定；`normal_limit` 加回 reclaimed；同一致回落到 wave planner 的第二层 reserve（`preserve_conflict_reserve` 仅在冲突存在时为 True——否则 planner 内部还会再扣一份，使 reclaim 变成空操作）。`metrics.read_reserve = {configured, reclaimed, reclaim_reason, hard_cap, reads_used}`。
+
+**第一层（focused，3 条）**：无冲突→reserve 可被普通候选使用；有冲突→reserve 严格保留（普通 claim 不排、冲突 claim 可排）；两种模式下 `总 dispatch ≤ max_reads - reads_used` 的 hard cap 不变量。
+
+**第二层（历史复现，run1 形态 4 次；`SELECTION_AUTHORITY.node.reserve1–4.json`）**：
+
+```text
+4/4 run：read_reserve = {configured 3, reclaimed 3, reason no_open_conflicts}
+4/4 run：**无任何 read_budget_exhausted**（对照 rawprobe1：目标页曾被该门挤掉）
+目标页：entered_scheduler=true (rank1) 4/4；read_dispatched = true 3/4
+  reserve1 的唯一丢失原因是 assessment window（candidate_pool_excluded）——既有的另一个瓶颈，非 reserve
+reserve2：全链 gate=pass（post-fix 新实例）
+hard cap：reads_used 2–3，总 dispatch 未超 cap
+```
+
+**第三层（黄金不回退）**：`ANSWER_FORMATION.d40.2.json` 是 answer-stage 冻结重放，不经过 scheduler；它继续证明 **下游契约不回退**（gate=pass/binding=valid/consistency=clean/publish=substantive 由 freeze 保证）。**历史 reserve-loss replay + d40.2 downstream golden 两个角色分别保留**：前者证明修复命中测量到的故障，后者证明下游契约稳定。
+
+**§39 confound 关闭措辞（按用户定稿）**：`model_call_attempts_exhausted` 的旧样本无法事后区分具体 provider failure，但与余额耗尽/402 时间高度重合；健康余额下 0/4 复现，且在 elapsed 56.5–58.0s 的 wave2 中 extraction 仍可成功，因此现有证据**不支持** 60s research-window tail 或 30s per-call timeout 是主要原因（**最俭省解释 = 资源/402**，保留 strongest-current-explanation 措辞，不升级为"已证明"）。"extraction 失败 detail 附带首个 provider error code"列为后续诊断项（未实施）。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
