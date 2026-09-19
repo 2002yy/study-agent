@@ -2461,16 +2461,30 @@ on2 : reads=3  ok=2 failed=1  gate=partial elapsed=72.9s  retried=1
 
 **下一步候选（未实施，待拍板）**：(a) 窗口感知版的 retry 诊断开关 + 更大样本 E2E（含 Node 对照与 d40.2 不变量复核）；(b) 本地 headless browser 的 runtime 依赖决定（针对 §46 short_doc 形态）；(c) provider health metrics 升级（§46+ 清单）。
 
-## 59. §49 Window-aware Retry Admission + 三臂 E2E（`cd1e7dd`；机制已实现并测试，样本仍未足）
+## 59. §48 结项（用户冻结版 §59，摘要；实现见 §58）
 
-### 59.1 实现
+**Status：PASS / CLOSED（characterization）。** 冻结要点：
+
+1. **机制成立**：bounded retry 在真实 E2E 复现（10054 / TimeoutError / SSL handshake timeout；共 3 次实际 retry attempt），恢复后的 source 进入既有 downstream。
+2. **读成功率方向性改善**：本批 OFF 1/4=25% vs ON 5/8=62.5%（+37.5pp）；N=2 对，**不得作为总体成功率或统计显著结论**。
+3. **延迟成本是新的主要约束**（本批核心）：两对 Δ=+16.3s / +44.7s，且 on2 elapsed=**72.9s**，超过 48s research window 与 60s hard budget。该 Δ 是**观察到的运行时差异**，不作纯因果开销估计。
+4. **新冻结设计约束**：retry 必须具备 **window awareness** —— `remaining_research_time >= retry_attempt_floor` 才允许 retry，floor 覆盖 expected attempt + backoff + finalization reserve；**具体阈值留待下一轮 characterization 决定，本批不拍脑袋固定**。
+5. **Gate 观察不构成因果证据**：on2=partial 记为正向 in-situ observation。
+6. **边界冻结**：`fetch_failed → bounded retry candidate`；`short_doc → NOT retry`（§46 的 JS/client-rendered 形态由 headless 路线单独决定，两者正交）。
+7. **默认 OFF**；answer/evidence/DeepSeek-only 边界均未变。
+
+**本地实现状态**（以本地工作树为准）：§47 `7853cfb`→`4bafce5`→`94faa69`；§48 `8ecbff0`→`79ff540`→`03725ac`。远端 `2002yy/study-agent` 尚未包含这些 SHA（本地提交，未推送）；以本地 `git log` 为准。
+
+## 60. §49 Window-aware Retry Admission + 三臂 E2E（`cd1e7dd`/`a4bd969`；机制已实现并测试，样本仍未足）
+
+### 60.1 实现
 
 - `read_retry.read_retry_mode()`：`off`（默认）| `unbounded`（§48 臂，`on/1/yes` 复现）| `window_aware`；`retry_window_floor_seconds()` 可配（`RESEARCH_READ_RETRY_FLOOR_SECONDS`，**临时默认 18s** = attempt 估计 + backoff + finalization reserve；按用户要求不在本批冻结阈值）。
 - `read_with_bounded_retry(..., admission)`：每次 retry 前过 admission；被拒时记 `skipped_by_admission`。
 - **retry 改接在 runtime 的 `gateway_read`**（窗口在那里可见）；adapter 恢复为纯转发，避免双重重试。
 - 11 条 focused 测试：mode/floor 边界/admission 拒绝与 retry 序号语义/策略与上限/退避。
 
-### 59.2 三臂 E2E（Docker case，各 2 次；恒定 selector=model + routing=on；proposal=off）
+### 60.2 三臂 E2E（Docker case，各 2 次；恒定 selector=model + routing=on；proposal=off）
 
 ```text
 run          reads  ok failed gate   elapsed  win_remaining retries skipped
@@ -2484,7 +2498,7 @@ aware2           4   3    1    block   53.8     11.6           0       0
 
 **读成功**：OFF 3/5 · unbounded 4/5 · aware 5/7（N=2/臂，方向性观察，不是分布结论）。
 
-### 59.3 本批的诚实结论
+### 60.3 本批的诚实结论
 
 1. **机制成立且可复现**：aware1 真实触发 1 次 retry（admission 放行，`skipped=0`）；§48 的 unbounded 臂在本批恰好未撞上 fetch 失败（0 retries）——说明**retry 触发本身高度依赖 run 运气**。
 2. **window-aware 的 headroom 收益在本样本无法证明**：admission 的"拒绝"路径只在**剩余研究时间 < floor** 时才会出现，而 N=2 尚未观察到该时刻的失败；该路径目前由单元测试覆盖（`skipped_by_admission` 语义），不是 in-situ 证据。
@@ -2492,7 +2506,7 @@ aware2           4   3    1    block   53.8     11.6           0       0
 4. gate 全为 block（本批无 partial），与 §48 的 on2=partial 对照说明 gate 结果受运行方差主导，不能用于本批臂间归因。
 5. 默认仍 OFF；生产行为未变；d40.2 下游不变量未触碰。
 
-### 59.4 下一刀（建议，未实施）
+### 60.4 下一刀（建议，未实施）
 
 - **确定性注入**：要验证 floor 穿越，需要可**注入 fetch 失败**的机制（例如测试用 gateway 或在 `gateway_read` 注入失败计划），否则靠自然 flakiness 需要大量 run 才有信号；
 - 或把样本扩大到 Node + 多次 Docker，并同时记录 `post_research_projection` / `answer_stage` 秒数以量化 finalization headroom；
