@@ -2947,7 +2947,13 @@ def _tier2_proposal_step(
             raw = {}
         content = str(raw.get("content") or "")
         if raw.get("ok") is not True or not content.strip():
-            record["dropped"].append({"url": url, "reason": "read_failed"})
+            record["dropped"].append(
+                {
+                    "url": url,
+                    "reason": "read_failed",
+                    "detail": str(raw.get("error") or raw.get("status") or "")[:120],
+                }
+            )
             continue
         title = str(raw.get("title") or url)[:300]
         candidate_id = (

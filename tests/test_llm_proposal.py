@@ -229,9 +229,9 @@ def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
     record = context["claim_engine_metrics"]["tier2_proposal"][-1]
     assert record["tier1_miss_reason"] == "no_answer_relevant_candidate"
     assert record["verified"] == [target]
-    assert record["dropped"] == [
-        {"url": "https://docs.docker.com/broken/", "reason": "read_failed"}
-    ]
+    assert len(record["dropped"]) == 1
+    assert record["dropped"][0]["url"] == "https://docs.docker.com/broken/"
+    assert record["dropped"][0]["reason"] == "read_failed"
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 
