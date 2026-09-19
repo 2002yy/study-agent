@@ -1827,6 +1827,41 @@ substantive answer       ✗ NOT YET → 新暴露的 blocker 在 answer generat
 
 **边界声明**：以上全部是 **raw（非 guard）driver 诊断运行**；生产默认路径未启用 selector/atomic routing；`read reserve` 门仍待修；recall（11/12 case 无 likely-target）与 selection 不稳定仍未被本批解决。
 
+## 45. §40 Answer Formation：输入已冻结，但被账户余额阻塞（`9aba24c`/`a991aa8`）
+
+### 45.1 已完成的准备
+
+- `tools/run_answer_formation_probe.py`（13 项 focused 测试合计）：`capture` 模式在 raw driver 上按 qualification guard 的同一拦截点包装 chat 依赖，冻结 answer-stage 请求（messages/kwargs/超时/profiles/重试/thinking extra_body）与原始回复（chars/sha256/excerpt/异常/耗时）；`replay` 模式对冻结调用做 N 次重放并按 **A/B/C 分类**（A_model_empty / B_parse_loss / C_call_unavailable），支持 `--task`（single_chat / answer_claim_binding / all）与 `--policy captured|thinking_off|both`，输出 non_empty/substantive/fail_closed/latency 指标。
+- 冻结样本 `ANSWER_FORMATION.capture3.json`：**gate=pass** 运行，两个 answer 调用均被捕获。
+
+### 45.2 capture3 已观测到的事实（冻结输入）
+
+```text
+answer generation  (single_chat)        : pro 模型, max_tokens 1600, retries 0, thinking ON
+                                          5246 chars → 305 chars, 17.3s, completed
+                                          但输出是"无法给出结论（研究未完成）"——而其 system prompt
+                                          **确实包含 supports 行**（api/modules.html + supports 标记）
+answer claim binding (answer_claim_binding): pro 模型, same config, thinking ON
+                                          2213 chars → **空输出**, 18.4s
+                                          验证层：outcome=rejected, error_type=empty_producer_output
+                                          → 发布 32 字符 fail-closed
+```
+
+即 gate=pass 之后仍有两个独立的失败面：**生成层给出拒答文本**（尽管输入含 supports 证据）、**绑定层空输出**（导致整条回答被拒）。两者都是 §40 的复现与 A/B 目标，工具已就绪。
+
+### 45.3 环境 blocker：DeepSeek 账户余额耗尽（HTTP 402）
+
+对 capture3 的重放**全部立即失败**：
+
+```text
+RuntimeError: API call failed: Error code: 402 -
+{'error': {'message': 'Insufficient Balance', ...}}
+```
+
+⇒ **§40 的单变量 A/B 在账户充值或更换 key 之前无法执行**。在余额恢复前，任何依赖模型调用的诊断批次都不应解释为能力结论。
+
+**需要一并回看的 confound**：§39 的 run1/5/6 里 routed extraction 的 `model_call_attempts_exhausted`（当时解释为窗口/预算）与本次 402 是同一类"调用不可用"信号；在健康余额下重跑之前，这两个解释**不能区分**。此类记录已在 §44.2 标注为待复核。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
