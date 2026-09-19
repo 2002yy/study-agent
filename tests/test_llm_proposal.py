@@ -177,7 +177,7 @@ def test_tier1_hit_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> Non
         claim=claim,
         assessments=assessments,
         model_gateway=gateway,
-        read_fn=lambda url, chars: {"ok": True, "content": "x"},
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
         wave_index=1,
@@ -200,7 +200,7 @@ def test_tier1_miss_proposes_verifies_and_adds_with_provenance(
     assessments = {"candidate_search_1": _Assessment("topic_only")}
     reads: list[str] = []
 
-    def read_fn(url: str, chars: int) -> dict:
+    def read_fn(url: str, *, max_chars: int) -> dict:
         reads.append(url)
         if "broken" in url:
             return {"ok": False, "error": "http_404"}
@@ -248,7 +248,7 @@ def test_missing_api_never_repeats_for_the_same_claim(monkeypatch: pytest.Monkey
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        read_fn=lambda url, chars: {"ok": True, "content": "x"},
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
         wave_index=2,
@@ -270,7 +270,7 @@ def test_flag_off_never_calls_the_model(monkeypatch: pytest.MonkeyPatch) -> None
         claim=claim,
         assessments={},
         model_gateway=gateway,
-        read_fn=lambda url, chars: {"ok": True, "content": "x"},
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
         wave_index=1,

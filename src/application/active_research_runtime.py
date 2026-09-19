@@ -2942,9 +2942,9 @@ def _tier2_proposal_step(
             continue
         record["verification_reads"] += 1
         try:
-            raw = read_fn(url, 1200) or {}
-        except Exception:
-            raw = {}
+            raw = read_fn(url, max_chars=1200) or {}
+        except Exception as exc:
+            raw = {"ok": False, "error": f"{type(exc).__name__}:{str(exc)[:80]}"}
         content = str(raw.get("content") or "")
         if raw.get("ok") is not True or not content.strip():
             record["dropped"].append(
