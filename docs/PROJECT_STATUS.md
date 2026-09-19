@@ -2289,6 +2289,46 @@ official_deep_page_count(merge 前) / latency / status/error / CJK 结果数
 2. **provider 健康指标升级**（记入待办）：`providers_configured / attempted / succeeded / contributed_results / result_count_by_provider`，并加实用告警——**某 provider 连续 attempted N 次但 contributed=0 时，不再计入"有效 provider 数"**（§44B 用 475/475 的代价换来这条教训）。
 3. Tier-2 的 domain-targeted retrieval 只在 Tier-1 miss 后触发，避免再次规则膨胀。
 
+## 54. §44C 路线修订：约束"仅依赖 DeepSeek API" → Brave 取消，改走 §44C-Alt（已通过）
+
+### 54.1 约束修订（用户）
+
+**项目只允许依赖 DeepSeek API**（不加任何新的第三方搜索 API / 账号）。因此 §44C 的 Brave 路线**取消**（Brave key = 其 Search API dashboard 的订阅 token，需要注册第三方账号与计费，与本约束冲突）。合并栈维持：Bing RSS（免费抓取，实际唯一在跑的 Tier-1）+ SearXNG 容器（引擎被网络阻断时贡献 0）+ DDG（网络阻断）。
+
+### 54.2 §44C-Alt：LLM URL 提案 + reader 验证（DeepSeek-only，已实施 `411a054`）
+
+机制（只加一个 Tier-2 候选来源，不动 merge/planner/selector 语义）：
+
+```text
+claim（+ 已有的 entity/domain 线索）
+   ↓ 1 次 flash 调用（json_object、thinking off、≤3 个 URL）
+proposed official URLs
+   ↓ 既有 reader 实测（ok + 非空正文）
+verified deep page → 作为候选进入既有下游（评估/读取计划/抽取/Gate 不变）
+```
+
+- 反幻觉护栏：只接受 https、只作为**候选提案**（先 reader 验证才成立）、抽取决不与 Gate 语义改变——证据资格仍由 extractor + Gate 决定。
+- 与 Tier-1 的关系：Bing RSS 保持现状（免费、无需 key）；提案层是"当搜索召不回官方深页时"的第二级；Tier-3 仍是 fallback。
+
+**资格测试（`tools/run_url_proposal_qualification.py`，4 条 focused 测试；`URL_PROPOSAL_QUAL.json`）**：
+
+```text
+gate = PASS（hard：Docker/PostgreSQL exact 提案；每 case 至少 1 个可读页）
+docker     : 精确提案 docs.docker.com/docker-hub/usage/pulls/（reader ok）
+postgresql : 精确提案 postgresql.org/support/versioning/（reader ok）
+uv         : github.com/astral-sh/uv + blob/main/LICENSE + docs.astral.sh/uv/（reader ok）
+node       : nodejs.org/api/modules.html 等（reader ok，6000 chars）
+延迟：0.5–2.2s/案（1 次 flash 调用）；无新增外部依赖。
+```
+
+对照：这些深页在 §44A/§44B 里经 **Bing RSS raw top-20 全部召不回**（含 exact title）——**提案+验证在本环境可稳定恢复官方深页**。
+
+### 54.3 下一步（建议，未实施）
+
+1. 把提案层接成 runtime 的 **Tier-2 诊断开关**（默认关闭）：在 gap/claim 有明确 entity 或 desired domain、且 Tier-1 结果里无官方深页时，允许 1 次提案调用 + reader 验证，候选带 `discovery_method="llm_proposed"` 溯源；预算计入 orchestration 层（与 selector 同口径）。
+2. 用同一验收链（Node/Docker）验证 `提案 → 候选 → read → extract supports → gate pass → answer`，并保持 selector/atomic routing/consistency 开关组合不变、不回归 d40.2 四项不变量。
+3. 仍排队：provider 健康指标升级（configured/attempted/succeeded/contributed + attempted-N-contributed-0 告警）、§44B 在网络允许时的 provider 级复核、recall 的更大样本。
+
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
 
