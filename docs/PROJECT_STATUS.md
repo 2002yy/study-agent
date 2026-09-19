@@ -2607,17 +2607,40 @@ Analysis : 比较/演进类 claim 没有综合层（单页抽取永远给 backgr
 | `/docker-hub/`、`/docker-hub/usage/` | 返回**逐字节相同**的 349,998 字符 nav shell（531–532 同域链接），目标深页 `docker-hub/usage/pulls` **不在其中** |
 | `sitemap.xml` / `sitemap_index.xml` / `robots.txt` | URLError / HTTPError(404) / 200 但无 sitemap 指令 ⇒ **无 sitemap 可用** |
 
-### 63.4 结论（能力前提否定）
+### 63.4 搜索面跨站点特征化（8 站点，同一 fetch 层）
 
-- B1 的前提（"把模型限制为域、链接由本地确定性机制产出"）在观测站点上**不成立**：站内搜索不可用（JS/被拒）、hub 页只暴露 nav shell、无 sitemap ⇒ 本地机制无法产出深页 URL。
-- 而"模型能否命名精确 URL"从来不是缺失能力：§44C-Alt / §45 已证模型能稳定给出官方精确页并进入证据链（Docker run4 lead/primary gate-eligible）。
-- 因此 **B1 相对 §45 Tier-2 不增加能力**；缺的仍是"检索/阅读面"（§59 provider surface、§60 JS 正文），而非 URL 生成方式。
-- 诊断产物：`docs/research_quality/B1.docker.run1.json`、`B1.docker.run2.json`（未跟踪）。
+对 docker / postgresql / python / kubernetes / redis / npm / node / rust 八个文档站：
 
-### 63.5 待用户裁决的分叉（B1 后续形态）
+| 形态 | 结果 |
+| --- | --- |
+| `/search/?q=`、`/search?q=` | **7/8 站 404**（含 docs.docker.com 的 URLError） |
+| `/?s=`、`/?search=` | 8/8 返回 200，但**锚点数与根页逐一致**（22/22、45/45、72/72、644/644、104/104、202/202、241/241、8/8）⇒ 查询被忽略，返回的就是根页 |
+| `/sitemap.xml` | docs.docker.com **200 urlset 1811 条**、redis.io **200 sitemapindex 26 子图**、其余 404 |
 
-1. **收口 B1**：保留代码为默认 off 的受限通道，把 §62 能力排序改为 B2（失败注入）→ B3（headless 阅读面）。
-2. **B1' 深通道下沉**：把 Tier-2 的 URL 提案**限定在域提案的域内**（模型给域 + 域内路径），保留本地 URL 构造/校验；本质是"带域约束的 Tier-2"，可解释性提升但重复现有能力。
-3. **B1'' 站点地图/索引扩展**：允许 XML sitemap 抓取并索引；本环境 docs.docker.com **无 sitemap**，收益不可证。
+⇒ **站内搜索 URL 猜测是共性失败面**（不是 docs.docker.com 个性）；**sitemap 是共性可行面**（在有的站点上）。此前的"docker 无 sitemap"是把一次 flaky `URLError` 误读为缺失，已纠正。
 
-推荐 1（配合 B3）；理由：B1 观测已表明瓶颈在读取/检索面而非 URL 生成。
+### 63.5 通道改为 sitemap 采集（三次验收 run）
+
+实现：域提案 → `/sitemap.xml`、`/sitemap_index.xml`（index 时按 page/route/doc 优先取 ≤2 子图）→ 解析 `<loc>` → 按 claim 词干匹配排序 → reader 验证 → 候选；仍受窗口护栏与 3 次 fetch 上限。`article_fetcher` 新增 `_fetch_text_payload`（同一安全 opener，仅把内容类型闸门从 html/text 放宽到 html/text/xml/json，既有调用者行为不变）。
+
+| run | head | 关键观测 |
+| --- | --- | --- |
+| run3 | `2ee312f` | sitemap 成功（**1811 loc**）→ 3 候选验证入库；但深页目标排第 4 被 candidate_cap 截掉 |
+| run4 | `bb7498a` | 排序修复后深页目标**排第 1**；但 3 次验证读取连续 `WinError 10054`（`read_failed`）⇒ 无候选入库 |
+| run5 | `bb7498a` | **sitemap 自身** 3 次 `inventory_fetch_failed`（URLError/HTTPError）⇒ links_found 空 |
+
+排序修复（`bb7498a`）：term 上限 6 → 排序用 12（原上限把主实体 "Docker Hub" 截掉）；词干化去复数重复计数（limits/limit）；改用"不同词干命中数"而非 idf（idf 反被 preamble 空词 official/current 拉高，实测更差）。离线用真实 1811 条 sitemap 复算，短/长两种 claim 文本下目标均第 1。
+
+### 63.6 结论
+
+- B1 的发现环节**已成立**：模型只给域，本地 sitemap 采集能把深页排到第 1（run4 证据）。
+- 剩余失败**不是 B1 的设计问题，而是既有读取面 flakiness**（§47：docs.docker.com 首发失败 50–67%；run4 验证读取、run5 sitemap 抓取各连挂 3 次）。B1 的验证读取走 `gateway_read`（可用 §49 window-aware retry），但**inventory 抓取走 `fetch_text`，目前无 retry**。
+- 与 §45 Tier-2 的关系：Tier-2 在 Docker run4 曾把精确页送进链；B1 的增益是"不依赖模型给 URL"且能系统性枚举域内深页，但同样受读取面约束。
+
+### 63.7 待用户裁决（B1 收尾）
+
+1. **给 inventory 抓取接上同一 §49 window-aware retry**（推荐）：run5 三次失败即该系统可救的情形；风险是 §49 已证 retry 成本 +16~45s、曾一次 72.9s 超窗，而本 case 已用 50~56s，需先确认地板值。
+2. **接受现状收口 B1**：保留默认 off，把读取面列为 B3 的前置（headless/更稳的抓取）。
+3. **加一层 domain 级 fallback**：sitemap 抓取失败时退回 HTML hub 页锚点（实证 docker hub 页 531 链接但不含深页，收益有限）。
+
+诊断产物：`docs/research_quality/B1.docker.run1..5.json`（未跟踪）。
