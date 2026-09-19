@@ -2424,11 +2424,11 @@ local_richer_available = 0    answer_question_3 = **no**
 
 **结论（冻结）**
 
-1. **docs.docker.com 的 fetch flakiness 是真实且高频的**（首发失败 50–67%；同一环境下对照页 0/6），归因于目标 host，而非随机网络。
-2. **有界 retry/backoff 显著恢复可用性**：最终成功率 50%→100%（usage）、67%→83%（windows-install）、50%→67%（pulls，仍有 1/6 trial 三次皆失败）。
-3. **但它只对症 `fetch_failed`**：§46 的 `short_doc`（HTML 349,998 chars → 提取恒 520）是内容形态问题，retry 不会带来正文。
-4. 因此若动 runtime，最小方向是 **reader 侧有界重试（≤2 次、1s/2s 退避、仅对 fetch-layer 失败）**；不改 extractor、不改依赖边界、不引入外部服务。是否实施待用户拍板；`pulls` 页的 33% 三连败说明 retry 不能作为该页可达性的保证。
-5. 样本量限制：每 URL 6 trials，属特征化而非分布推断；结论已足以支持"是否值得动 runtime"的判断。
+1. **在当前实验环境下呈现明显的 docs.docker.com 特异性**：Docker 三页首发失败 50–67%，同环境对照页 0/6；失败签名以 WinError10054 为主（另有 1 次 RemoteDisconnected）。**不将其绝对归因为 host 固有属性**——6 trials/URL 属特征化实验，不用于估计长期失败分布或通用网络失败率。
+2. **有界 retry/backoff 显著恢复可用性**：最终成功率 50%→100%（usage）、67%→83%（windows-install）、50%→67%（pulls，仍有 1/6 trial 三次皆失败）。**retry 是恢复机制，不是可达性保证。**
+3. **只对症 `fetch_failed`**：§46 的 `short_doc`（HTML 349,998 chars → 提取恒 520）是内容形态问题，retry 不会带来正文；**不得把 retry 当作 short_doc 的修复**。
+4. 若动 runtime，最小方向是 **reader 侧有界重试（≤2 次、1s/2s 退避、仅 fetch-layer 失败）**；不改 extractor、不改依赖边界、不引入外部服务。
+5. **样本限制（正式记录）**：4 URLs × 6 trials = 24 trials；结果用于失败形态识别、retry 是否值得进入下一阶段、延迟数量级判断；**不用于**估计长期失败率、推断通用网络失败率或给出生产成功概率。Docker pulls 的 `3/6 首发失败 / 4/6 K=3 成功` 属当前环境的 observed characterization，不是 SLA。
 
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
