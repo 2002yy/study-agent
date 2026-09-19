@@ -2387,24 +2387,25 @@ ok           : 5   （postgresql versioning 2384 / uv LICENSE 1077 / nodejs.cn+n
                       github.com/docker 1117——多个页面本地抽取器还能给更多，但生产均已达标）
 short_doc    : 1   ← docs.docker.com/docker-hub/usage/pulls/：
                      production=520 chars，而原始 HTML=**349,998 chars**，三个本地抽取器**全部只有 520**
-                     ⇒ 文本在 JS 渲染里，HTML 无正文文本节点 ⇒ **本地抽取器无法补救**
+                     ⇒ HTML 可成功抓取，但正文不在常规文本节点中 ⇒ **本地抽取器无法补救**
 fetch_failed : 2   ← docs.docker.com 两页（连接重置 10054；该 host 抓取在本环境反复出现瞬时 reset）
-short_ratio  : 3/8 = 0.375
+short_doc_ratio      = 1/8 = 12.5%
+unreadable_or_failed = 3/8 = 37.5%（1 short_doc + 2 fetch_failed）   ← 不得与"短页比例"混用
 local_richer_available = 0    answer_question_3 = **no**
 ```
 
-**三问的答案（冻结记录）**：
+**三问的答案（冻结记录，措辞已按精度要求修正）**：
 
-1. **短页比例**：本样本 3/8（37.5%）——其中 1 个是 JS 渲染正文（html 巨大、文本恒 520），2 个是**抓取层 reset**（run 间波动；同一 pulls 页在成功抓取时也是 520）。
-2. **形状**：`short_doc`=JS 渲染；`fetch_failed`=网络 reset；**没有** js_shell 文案、anti-bot、redirect、extraction_loss。
-3. **不存在"同一 URL 的本地更完整路径"（0 extraction_loss）** ⇒ **按用户判据，不应实施 trafilatura→readability→parser 的抽取器 fallback**——它修不了任何本次观测到的问题。
+1. **比例必须拆分**：真正 `short_doc` = **1/8（12.5%）**；`unreadable_or_failed`（不可正常读取或失败）= **3/8（37.5%，1 short_doc + 2 fetch_failed）**。两者不可混为一谈。
+2. **形状**：`short_doc`（HTML 约 350k 字符而三种本地抽取器恒 520 字符）符合 **JS/client-rendered 或 script-embedded 内容形态**——本轮**未做浏览器执行验证**，不做比实验更强的断言；`fetch_failed` = connection reset / 10054（**fetch 层**失败，非 extractor）；**没有** extraction_loss、anti-bot、redirect。
+3. **不存在"同一 URL 的本地更完整路径"（0 extraction_loss）** ⇒ **不应实施 trafilatura→readability→parser 的抽取器 fallback**——无本轮实验支持。
 
 **可选的下一层（仅记录，不实施）**：
 
-- (a) 对 `fetch_failed`：reader 侧有界重试/退避（本地行为，不改依赖）；docs.docker.com 的 10054 为环境级 flaky。
-- (b) 对 JS 渲染页：**本地 headless browser**（如 Playwright 驱动，浏览器引擎计时本地组件）才能取到正文——这是一条**运行时依赖决定**，需用户拍板；不引入 r.jina.ai 等外部服务。
-- (c) 接受现状：把 JS-shell 页视为 unreadable（现有 `short_doc` 行为），evidence 资格交给既有链。
-- 观测项：Docker 的 read adequacy 是**页面本身 + 网络 flaky** 的组合，不是本项目 reader 选择问题。
+- (a) 对 `fetch_failed`：reader 侧有界重试/退避（本地行为，不改依赖）——**§47 将先把它量化**；docs.docker.com 的 10054 为**本实验环境内观测到的 fetch flakiness**，不应泛化为"官方站点整体稳定性"结论。
+- (b) 对短文本页：需要**本地 headless browser** 才能验证/获取 client-side 渲染正文——这是 **runtime dependency / reader capability 决定**，不是 extractor fallback；本轮不实施。
+- (c) 接受现状：把此类页面视为 unreadable，证据资格交给既有链。
+- 观测项：Docker 的 read adequacy 由**两类不同问题**组成——内容形态（正文不在常规文本节点）与 fetch 层波动（10054）；不是本项目 reader 选择问题。
 
 **§38b 下一步（唯一执行切片）**：在**诊断变体**中把评估窗口替换为模型 selector（≤2 picks/次，其余全部冻结：query construction、H9、budget、reader、extractor、Gate），在同一 case 上实测 read → extract → supports 是否从 0 变 >0；不改生产默认路径。
 
