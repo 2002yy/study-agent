@@ -213,6 +213,15 @@ MAX_DOMAIN_TARGETED_SEARCH_FETCHES = 3
 DOMAIN_TARGETED_MIN_SECONDS_LEFT = 12.0
 ACTIVE_RESEARCH_POLICY_AUDITS_KEY = "claim_engine_policy_audits"
 CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
+# §69/B1-T5 R1': a discovery channel can only admit candidates *after* the
+# initial assessment window was frozen for the wave, which made them
+# unreachable for the read plan (not_in_rank_window). The late-admission
+# assessment tail is an independent, claim-scoped entry (<=2/claim/wave) for
+# exactly those candidates: no selector call, no eviction, and it still obeys
+# the global window and model-call budget. A wave may therefore assess up to
+# 2 (initial window) + 2 (late tail) = 4 candidates.
+LATE_TAIL_MAX_CANDIDATES = 2
+LATE_TAIL_MIN_SECONDS_LEFT = 8.0
 
 PolicyCheck = Callable[[Mapping[str, Any], str], bool]
 
@@ -1336,6 +1345,31 @@ class ActiveResearchRuntimeExecutor:
                             targeted_claim_ids=targeted_claim_ids,
                             seconds_left=research_seconds_left,
                         )
+                    # §69/B1-T5 R1': discovery channels can only admit after
+                    # this wave's window was frozen; give those late candidates
+                    # their own bounded assessment entry so the read plan can
+                    # actually see them.
+                    cursor = _late_admission_tail(
+                        cursor=cursor,
+                        state=state,
+                        claim=claim,
+                        context=context,
+                        run_id=run_id,
+                        wave_index=cursor.wave_index,
+                        max_reads=state.budget.max_reads,
+                        assessor=self.candidate_assessor,
+                        model_allowed=model_allowed,
+                        on_model_started=on_model_started,
+                        on_model_finished=on_model_finished,
+                        phase_begin=phase_begin,
+                        phase_end=phase_end,
+                        remaining_timeout=remaining_timeout,
+                        research_seconds_left=research_seconds_left,
+                        trace=selection_trace,
+                        claim_rankings=claim_rankings,
+                        stored_assessments=stored_assessments,
+                        assessed_inputs=assessed_inputs,
+                    )
                     checkpoint()
 
                 cursor = replace(cursor, phase="ranking")
@@ -3090,6 +3124,195 @@ def _tier2_proposal_step(
     if not new_items:
         return cursor
     return replace(cursor, candidates=(*cursor.candidates, *new_items))
+
+
+
+def _late_admission_tail(
+    *,
+    cursor: ResearchRuntimeCursor,
+    state: ResearchState,
+    claim: ResearchClaim,
+    context: dict[str, Any],
+    run_id: str,
+    wave_index: int,
+    max_reads: int,
+    assessor: Any,
+    model_allowed: Any,
+    on_model_started: Any,
+    on_model_finished: Any,
+    phase_begin: Any,
+    phase_end: Any,
+    remaining_timeout: Any,
+    research_seconds_left: Any,
+    trace: SelectionTraceCollector | None,
+    claim_rankings: dict[str, tuple[Any, ...]],
+    stored_assessments: dict[str, list[dict[str, Any]]],
+    assessed_inputs: dict[str, list[str]],
+) -> ResearchRuntimeCursor:
+    """§69/B1-T5 R1': assess this wave's late-admitted candidates.
+
+    Scope is deliberately narrow: candidates that a discovery channel admitted
+    in THIS wave after the initial assessment window was frozen, for THIS claim,
+    capped at ``LATE_TAIL_MAX_CANDIDATES`` and selected with the same
+    cluster-diverse deterministic rule as the initial window. It never calls the
+    selection authority, never evicts an existing ranking entry, and never
+    bypasses the assessment contract - a late candidate reaches
+    ``claim_rankings`` only with a completed, validated assessment. The tail
+    obeys the same time and model-call budgets as everything else; when they are
+    gone it records why it was skipped.
+    """
+
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if not isinstance(metrics, Mapping):
+        return cursor
+    late_ids: list[str] = []
+    for record in metrics.get("domain_targeted") or []:
+        if not isinstance(record, Mapping):
+            continue
+        if str(record.get("claim_id") or "") != claim.id:
+            continue
+        if int(record.get("wave_index") or 0) != int(wave_index):
+            continue
+        for candidate_id in record.get("added_candidate_ids") or []:
+            text_id = str(candidate_id)
+            if text_id and text_id not in late_ids:
+                late_ids.append(text_id)
+    if not late_ids:
+        return cursor
+
+    record: dict[str, Any] = {
+        "claim_id": claim.id,
+        "wave_index": int(wave_index),
+        "late_candidate_ids": list(late_ids),
+        "selected_ids": [],
+        "assessed_ids": [],
+        "selector_calls": 0,
+        "assessment_calls": 0,
+        "skipped_reason": "",
+        "ranked_after": 0,
+        "seconds_left": round(float(research_seconds_left()), 3),
+    }
+
+    def _store() -> None:
+        target = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+        if not isinstance(target, dict):
+            return
+        records = target.get("late_assessment_tail")
+        if not isinstance(records, list):
+            records = []
+        records.append(record)
+        target["late_assessment_tail"] = records[-40:]
+
+    already_ranked = {
+        item.candidate.id for item in claim_rankings.get(claim.id, ())
+    }
+    excluded = frozenset({*cursor.completed_read_ids, *already_ranked})
+    claim_candidates = _candidates_for_claim(cursor, claim.id)
+    late_items = tuple(
+        item
+        for item in claim_candidates
+        if item.id in set(late_ids) and item.id not in excluded
+    )
+    if not late_items:
+        record["skipped_reason"] = "no_late_candidates"
+        _store()
+        return cursor
+
+    clusters = cluster_candidate_sources(claim_candidates)
+    assignments = {item.candidate_id: item for item in clusters.assignments}
+    selected = _bounded_assessment_candidates(
+        late_items,
+        assignments=assignments,
+        max_reads=min(int(max_reads), LATE_TAIL_MAX_CANDIDATES),
+        excluded_candidate_ids=frozenset(),
+        trace=None,
+    )
+    record["selected_ids"] = [item.id for item in selected]
+    if not selected:
+        record["skipped_reason"] = "no_read_slot_for_claim"
+        _store()
+        return cursor
+
+    if float(research_seconds_left()) < LATE_TAIL_MIN_SECONDS_LEFT:
+        record["skipped_reason"] = "time_budget_exhausted"
+        _store()
+        return cursor
+
+    categories = ("public_research_claim", "public_candidate_metadata")
+    if not model_allowed("research_candidate_assessment", categories):
+        record["skipped_reason"] = "policy_blocked"
+        _store()
+        return cursor
+
+    candidate_ids = tuple(sorted(item.id for item in selected))
+    logical_call_id = (
+        f"research_candidate_assessment:{run_id}:{claim.id}:late"
+        f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
+    )
+    try:
+        attempt_start = _model_attempt_start(cursor, logical_call_id)
+    except _ModelAttemptBudgetExhausted:
+        record["skipped_reason"] = "model_call_budget_exceeded"
+        _store()
+        return cursor
+
+    assessment_assignments = {item.id: assignments[item.id] for item in selected}
+    phase_begin("assessment")
+    try:
+        assessed = assessor.assess(
+            run_id=run_id,
+            claim=claim,
+            candidates=selected,
+            assignments=assessment_assignments,
+            reference_date=state.reference_date,
+            timeout_seconds=remaining_timeout(),
+            on_attempt_started=on_model_started,
+            on_attempt_finished=on_model_finished,
+            call_id_suffix=_assessment_call_suffix(
+                cursor, claim.id, candidate_ids
+            ),
+            attempt_start=attempt_start,
+        )
+    finally:
+        phase_end("assessment")
+    record["assessment_calls"] = 1
+    if assessed.status != "completed" or not assessed.assessments:
+        record["skipped_reason"] = (
+            "model_call_budget_exceeded"
+            if str(getattr(assessed, "reason", "") or "") == "model_call_attempts_exhausted"
+            else "assessment_failed"
+        )
+        _store()
+        return cursor
+
+    merged: dict[str, Any] = {
+        item.candidate.id: item.assessment
+        for item in claim_rankings.get(claim.id, ())
+    }
+    merged.update(assessed.assessments)
+    ranked_candidates = tuple(
+        item for item in claim_candidates if item.id in merged
+    )
+    ranked = rank_candidate_pool(
+        ranked_candidates,
+        claim=claim,
+        assessments=merged,
+    )
+    for rank_position, ranked_item in enumerate(ranked, start=1):
+        if trace is not None:
+            trace.note_scheduler_rank(
+                ranked_item.candidate.canonical_url,
+                rank=rank_position,
+            )
+    claim_rankings[claim.id] = ranked
+    stored_assessments[claim.id] = [item.to_dict() for item in ranked]
+    assessed_inputs[claim.id] = sorted(merged)
+    context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
+    context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
+    record["assessed_ids"] = sorted(assessed.assessments)
+    record["ranked_after"] = len(ranked)
+    _store()
+    return cursor
 
 
 def _domain_targeted_step(
