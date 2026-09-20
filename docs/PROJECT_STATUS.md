@@ -3028,3 +3028,42 @@ node:   seconds_left = 4.875s  < 8.0                               → refused�
 - **F3 不动**：接受 late 通道在 48s 窗口下经常来不及，等更大窗口决策。
 
 诊断产物（未跟踪）：`B5S1.docker.json`、`B5S1.node.json`、`B5S1.summary.json`。
+
+
+## §71 F1 地板校准（`37254a26` 实验旋钮 + 6 次 replay）与一个诊断生命周期缺陷
+
+### 71.1 实验旋钮（F1）
+
+`RESEARCH_LATE_TAIL_FLOOR_SECONDS`（默认 8.0，clamp 1–60）——**未冻结的实验参数**，每次决策记录 `floor_seconds`。其余全部保持冻结：no reserve privilege、selector +0、≤2/claim/wave、assessment mandatory、同 H9、同 attempt ledger。测试覆盖默认/clamp/非法输入 + "7.4s 在 8s 拒绝、在 4s 放行并进入 claim_rankings"。
+
+### 71.2 六次 replay（floor=4.0）
+
+| run | B1 admitted | admission 时刻 | headroom | tail 结果 |
+| --- | --- | --- | --- | --- |
+| docker r1 | 0 | — | — | 无（B1 未产出） |
+| docker r2 | 0 | — | — | 无（B1 未产出） |
+| docker r3 | 3 | — | — | 诊断记录未落盘（见 71.3）；该 run 有 1 个 B1 候选被 read |
+| node r1 | 3 | ~42.3s | ~5.7s | 诊断记录未落盘 |
+| node r2 | 3 | **47.484s** | **0.516s** | tail 触发 → 2 选中 → **`time_budget_exhausted`**（0.5s 无法支撑 ~3s assessment，拒绝正确） |
+| node r3 | 3 | — | — | 诊断记录未落盘 |
+
+**观测到的关键事实**：node 三次 admission 落在 42.3 / 43.1 / 47.5s（deadline 48s），即 **B1 段自身 11–18.5s** 让 headroom 只剩 0.5–5.7s。以 ~3s 的 assessment 成本计，只有最幸运的样本能过。**在已观测样本中，绑定约束是 B1 延迟而非 4s 地板**——但样本量不足以定论。
+
+### 71.3 诊断生命周期缺陷（阻断 F1 定量结论）
+
+新增的 `late_tail_invocations` 标记暴露：live run 中 wave-2 的调用条目停在初始值（`late_ids: 0`、`outcome: returned_early`、无 `matching_records`、无 `store_target_type`），即**该次调用既没走 `no_late_ids` 也没走 `_store()`**；而 `domain_records: 1` 证明记录当时可见。
+
+- **离线复现证明 tail 逻辑本身正确**：同一函数、同一输入形状（wave 1 无记录 → `no_late_ids`；wave 2 有记录 → `assessed:1` + 记录落盘 + 进入 ranking）。
+- 因此缺陷在 **runtime 的 context/metrics 生命周期**（live 运行中 metrics 映射在 marker 与 store 之间被替换或替换后未回写），不在 tail 逻辑。
+- 影响：**诊断数据丢失**（部分 run 无 tail 记录），并且在"看不到 late ids"的路径上会**跳过实际 assessment 工作**——这会直接影响 F1 结论的可靠性。
+
+### 71.4 待裁决：§71A-1（小批，先修可见性）
+
+建议在继续 sweep 前做一个最小批：让 tail 的读写都经过**同一个 live metrics 映射**（store 时重新获取并做容错 upsert；若映射身份变化则显式记录 `metrics_identity_changed`），并补一条确定性测试锁住"live 形状下 marker 与记录必须同时落盘"。
+
+### 71.5 结论措辞
+
+- F1 旋钮已就绪、机制正确；**4.0s 实验值下尚未取得可定量结论**，因为 (a) docker 三次里两次 B1 未产出，(b) node 三次里两次诊断丢失，(c) 唯一完整样本显示的是 B1 延迟绑定。
+- 不改变 §70 的封板结论；不进入 F2；不动 8.0 默认值（仍为默认）。
+
+诊断产物（未跟踪）：`F1.docker.f4*.json`、`F1.node.f4*.json`。
