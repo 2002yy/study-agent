@@ -3218,10 +3218,24 @@ def _resolve_live_metrics(context: dict[str, Any]) -> dict[str, Any] | None:
     metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
     if isinstance(metrics, dict):
         return metrics
+    if isinstance(metrics, Mapping):
+        # The runtime also hands out read-only views of the metrics mapping
+        # (persisted snapshots / guards). Diagnostics must not vanish there, so
+        # the context is rebound to a writable copy of the same content -
+        # business state stays whatever the live context says.
+        try:
+            writable = dict(metrics)
+            context[ACTIVE_RESEARCH_METRICS_KEY] = writable
+            return writable
+        except Exception:
+            return None
     if metrics is None:
-        created: dict[str, Any] = {}
-        context[ACTIVE_RESEARCH_METRICS_KEY] = created
-        return created
+        try:
+            created: dict[str, Any] = {}
+            context[ACTIVE_RESEARCH_METRICS_KEY] = created
+            return created
+        except Exception:
+            return None
     return None
 
 
@@ -3287,6 +3301,11 @@ def _finalize_late_tail_invocation(
 
     if entry is None:
         return
+    if isinstance(entry, dict):
+        # never leave the in-memory entry in its initial state, even when no
+        # writable mapping can be resolved at store time
+        entry["outcome"] = str(outcome)
+        entry["late_ids"] = int(late_ids)
     live = _resolve_live_metrics(context)
     if live is None:
         return

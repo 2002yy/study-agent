@@ -649,3 +649,54 @@ def test_every_invocation_reaches_a_terminal_state() -> None:
             assert outcome != "running" and outcome, entry
             assert outcome in terminal or outcome.startswith("assessed:"), entry
 
+def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
+    """The runtime also hands out read-only views; diagnostics must survive."""
+
+    from types import MappingProxyType
+
+    readonly = MappingProxyType(
+        {
+            "domain_targeted": [
+                {
+                    "claim_id": CLAIM_ID,
+                    "wave_index": 2,
+                    "added_candidate_ids": ["candidate_0"],
+                }
+            ]
+        }
+    )
+    context: dict = {"claim_engine_metrics": readonly}
+    claim = _claim()
+    rankings: dict = {}
+    assessor = _Assessor()
+    _late_admission_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        state=_state(claim),
+        claim=claim,
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=assessor,
+        model_allowed=lambda purpose, categories: True,
+        on_model_started=lambda **kwargs: None,
+        on_model_finished=lambda **kwargs: None,
+        phase_begin=lambda name: None,
+        phase_end=lambda name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings=rankings,
+        stored_assessments={},
+        assessed_inputs={},
+        now_ms=lambda: 2000.0,
+        deadline_seconds=48.0,
+    )
+    assert assessor.calls == [("candidate_0",)]
+    assert [item.candidate.id for item in rankings[CLAIM_ID]] == ["candidate_0"]
+    live = context["claim_engine_metrics"]
+    assert isinstance(live, dict)
+    entry = (live.get("late_tail_invocations") or [])[0]
+    assert entry["outcome"] == "assessed:1"
+    assert (live.get("late_assessment_tail") or [])[-1]["assessed_ids"] == ["candidate_0"]
+
