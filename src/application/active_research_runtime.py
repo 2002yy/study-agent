@@ -3205,32 +3205,114 @@ def _b1_critical_path_ms(
 
 
 
-def _note_late_tail_invocation(
-    metrics: Any, *, claim_id: str, wave_index: int
-) -> dict[str, Any] | None:
-    """Bounded marker for every tail invocation (including silent skips).
+def _resolve_live_metrics(context: dict[str, Any]) -> dict[str, Any] | None:
+    """§71A-1: always re-resolve the live run metrics mapping.
 
-    The tail has two early returns that leave no record (metrics missing, no
-    late ids). A run that shows no tail at all is then ambiguous, so the
-    invocation itself is recorded first and the outcome appended after.
+    The runtime can replace ``context[ACTIVE_RESEARCH_METRICS_KEY]`` while a
+    step is executing, so a mapping captured at function entry may already be
+    stale at write time. Every read or write boundary resolves again instead of
+    trusting a cached sub-mapping. Resolution never changes behaviour: when no
+    writable mapping can be resolved the caller simply records nothing.
     """
 
-    if not isinstance(metrics, dict):
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if isinstance(metrics, dict):
+        return metrics
+    if metrics is None:
+        created: dict[str, Any] = {}
+        context[ACTIVE_RESEARCH_METRICS_KEY] = created
+        return created
+    return None
+
+
+def _metrics_identity(metrics: Mapping[str, Any] | None) -> str:
+    return f"{type(metrics).__name__}@{id(metrics):x}" if metrics is not None else ""
+
+
+def _note_late_tail_invocation(
+    context: dict[str, Any], *, claim_id: str, wave_index: int
+) -> dict[str, Any] | None:
+    """Bounded marker for every tail invocation, keyed for later upsert.
+
+    The tail has early returns that leave no record (no late ids, budget
+    refusal). A run showing no tail at all would then be ambiguous, so the
+    invocation is recorded first with a stable ``invocation_id`` and must reach
+    a terminal ``outcome`` before the function returns.
+    """
+
+    metrics = _resolve_live_metrics(context)
+    if metrics is None:
         return None
     invocations = metrics.get("late_tail_invocations")
     if not isinstance(invocations, list):
         invocations = []
+    sequence = (
+        sum(
+            1
+            for item in invocations
+            if isinstance(item, Mapping)
+            and str(item.get("claim_id") or "") == str(claim_id or "")
+            and int(item.get("wave_index") or 0) == int(wave_index)
+        )
+        + 1
+    )
     entry: dict[str, Any] = {
+        "invocation_id": f"{claim_id}:{wave_index}:{sequence}",
         "claim_id": str(claim_id or ""),
         "wave_index": int(wave_index),
         "late_ids": 0,
-        "outcome": "returned_early",
-        "metrics_type": type(metrics).__name__,
+        "outcome": "running",
+        "metrics_identity": _metrics_identity(metrics),
         "domain_records": len(metrics.get("domain_targeted") or []),
     }
     invocations.append(entry)
     metrics["late_tail_invocations"] = invocations[-40:]
     return entry
+
+
+def _finalize_late_tail_invocation(
+    context: dict[str, Any],
+    entry: Mapping[str, Any] | None,
+    *,
+    outcome: str,
+    late_ids: int = 0,
+) -> None:
+    """§71A-1: write the terminal state into the *live* mapping, by key.
+
+    If the entry only exists in a stale mapping it is upserted into the live one
+    under the same ``invocation_id`` (marked ``recovered``) rather than appended
+    again, so one invocation can never look like two. Identity drift is
+    recorded, never acted upon.
+    """
+
+    if entry is None:
+        return
+    live = _resolve_live_metrics(context)
+    if live is None:
+        return
+    invocations = live.get("late_tail_invocations")
+    if not isinstance(invocations, list):
+        invocations = []
+    target = next(
+        (
+            item
+            for item in invocations
+            if isinstance(item, dict)
+            and item.get("invocation_id") == entry.get("invocation_id")
+        ),
+        None,
+    )
+    if target is None:
+        target = dict(entry)
+        target["recovered"] = True
+        invocations.append(target)
+    target["outcome"] = str(outcome)
+    target["late_ids"] = int(late_ids)
+    target["store_metrics_identity"] = _metrics_identity(live)
+    target["metrics_identity_changed"] = (
+        target.get("metrics_identity") != target["store_metrics_identity"]
+    )
+    live["late_tail_invocations"] = invocations[-40:]
 
 
 def _record_b1_critical_path(
@@ -3289,12 +3371,12 @@ def _late_admission_tail(
     gone it records why it was skipped.
     """
 
-    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    metrics = _resolve_live_metrics(context)
     if not isinstance(metrics, Mapping):
         return cursor
     late_ids: list[str] = []
     invocation = _note_late_tail_invocation(
-        metrics, claim_id=claim.id, wave_index=wave_index
+        context, claim_id=claim.id, wave_index=wave_index
     )
     for record in metrics.get("domain_targeted") or []:
         if not isinstance(record, Mapping):
@@ -3308,15 +3390,7 @@ def _late_admission_tail(
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
     if not late_ids:
-        if invocation is not None:
-            invocation["outcome"] = "no_late_ids"
-            invocation["matching_records"] = sum(
-                1
-                for item in metrics.get("domain_targeted") or []
-                if isinstance(item, Mapping)
-                and str(item.get("claim_id") or "") == claim.id
-                and int(item.get("wave_index") or 0) == int(wave_index)
-            )
+        _finalize_late_tail_invocation(context, invocation, outcome="no_late_ids")
         return cursor
 
     record: dict[str, Any] = {
@@ -3367,22 +3441,22 @@ def _late_admission_tail(
             record,
             deadline_seconds=float(deadline_seconds or 0.0),
         )
-        target = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-        if not isinstance(target, dict):
-            if invocation is not None:
-                invocation["store_skipped_type"] = type(target).__name__
+        target = _resolve_live_metrics(context)
+        if target is None:
             return
         records = target.get("late_assessment_tail")
         if not isinstance(records, list):
             records = []
         records.append(record)
         target["late_assessment_tail"] = records[-40:]
-        if invocation is not None:
-            invocation["late_ids"] = len(record["late_candidate_ids"])
-            invocation["outcome"] = (
+        _finalize_late_tail_invocation(
+            context,
+            invocation,
+            outcome=(
                 record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
-            )
-            invocation["store_target_type"] = type(target).__name__
+            ),
+            late_ids=len(record["late_candidate_ids"]),
+        )
 
     already_ranked = {
         item.candidate.id for item in claim_rankings.get(claim.id, ())

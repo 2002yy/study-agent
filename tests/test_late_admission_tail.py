@@ -392,3 +392,260 @@ def test_already_read_late_candidate_is_skipped() -> None:
     assert record["skipped_reason"] == "no_late_candidates"
     assert assessor.calls == []
     assert rankings == {}
+
+# ---------------------------------------------------------------------------
+# §71A-1: live metrics resolution + terminal invocation upsert.
+# ---------------------------------------------------------------------------
+
+
+class _SwappingContext(dict):
+    """Context whose metrics mapping is replaced after the first lookup.
+
+    Mirrors the live-runtime shape where ``context[metrics_key]`` is rebuilt
+    while a step is executing: the entry-time mapping (A) is stale by the time
+    diagnostics are written, and the live one (B) is a different object.
+    """
+
+    def __init__(self, first: dict, second: dict, *, swap_after: int = 1) -> None:
+        super().__init__()
+        self._first = first
+        self._second = second
+        self._lookups = 0
+        self._swap_after = swap_after
+        self["claim_engine_metrics"] = first
+
+    def _maybe_swap(self) -> None:
+        if self._lookups >= self._swap_after:
+            dict.__setitem__(self, "claim_engine_metrics", self._second)
+        self._lookups += 1
+
+    def get(self, key, default=None):
+        value = dict.get(self, key, default)
+        if key == "claim_engine_metrics":
+            self._maybe_swap()
+        return value
+
+
+def _terminal_invocations(context: dict) -> list[dict]:
+    live = context["claim_engine_metrics"]
+    return [item for item in (live.get("late_tail_invocations") or [])]
+
+
+def test_identity_swap_keeps_behaviour_and_terminal_state() -> None:
+    """Live-shape: metrics A -> B mid-call must not lose the tail's work."""
+
+    claim = _claim()
+    stale = {
+        "domain_targeted": [
+            {
+                "claim_id": CLAIM_ID,
+                "wave_index": 2,
+                "added_candidate_ids": ["candidate_0"],
+            }
+        ]
+    }
+    live = {
+        "domain_targeted": [
+            {
+                "claim_id": CLAIM_ID,
+                "wave_index": 2,
+                "added_candidate_ids": ["candidate_0"],
+            }
+        ]
+    }
+    context = _SwappingContext(stale, live)
+    state = _state(claim)
+    rankings: dict = {}
+    stored: dict = {}
+    inputs: dict = {}
+    assessor = _Assessor()
+    _late_admission_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        state=state,
+        claim=claim,
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=assessor,
+        model_allowed=lambda purpose, categories: True,
+        on_model_started=lambda **kwargs: None,
+        on_model_finished=lambda **kwargs: None,
+        phase_begin=lambda name: None,
+        phase_end=lambda name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings=rankings,
+        stored_assessments=stored,
+        assessed_inputs=inputs,
+        now_ms=lambda: 2000.0,
+        deadline_seconds=48.0,
+    )
+    # behaviour: the late candidate was assessed and ranked
+    assert assessor.calls == [("candidate_0",)]
+    assert [item.candidate.id for item in rankings[CLAIM_ID]] == ["candidate_0"]
+    # diagnostics land in the LIVE mapping, not the stale one
+    assert not stale.get("late_assessment_tail")
+    records = live.get("late_assessment_tail") or []
+    assert records and records[-1]["assessed_ids"] == ["candidate_0"]
+    invocations = _terminal_invocations(context)
+    assert len(invocations) == 1
+    entry = invocations[0]
+    assert entry["outcome"] == "assessed:1"
+    assert entry["late_ids"] == 1
+    assert entry["metrics_identity_changed"] is True
+    assert entry.get("recovered") is True
+
+
+def test_no_identity_change_path_is_unchanged() -> None:
+    context = _context(["candidate_0"])
+    claim = _claim()
+    rankings: dict = {}
+    assessor = _Assessor()
+    _late_admission_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        state=_state(claim),
+        claim=claim,
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=assessor,
+        model_allowed=lambda purpose, categories: True,
+        on_model_started=lambda **kwargs: None,
+        on_model_finished=lambda **kwargs: None,
+        phase_begin=lambda name: None,
+        phase_end=lambda name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings=rankings,
+        stored_assessments={},
+        assessed_inputs={},
+        now_ms=lambda: 2000.0,
+        deadline_seconds=48.0,
+    )
+    entry = _terminal_invocations(context)[0]
+    assert entry["outcome"] == "assessed:1"
+    assert entry["metrics_identity_changed"] is False
+    assert "recovered" not in entry
+
+
+def test_refusal_paths_are_terminal_even_with_identity_swap() -> None:
+    """No-op and budget refusals must not leave a dangling invocation."""
+
+    # no late ids at all, with a mid-call metrics swap
+    context = _SwappingContext({"domain_targeted": []}, {"domain_targeted": []})
+    claim = _claim()
+    _late_admission_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        state=_state(claim),
+        claim=claim,
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=_Assessor(),
+        model_allowed=lambda purpose, categories: True,
+        on_model_started=lambda **kwargs: None,
+        on_model_finished=lambda **kwargs: None,
+        phase_begin=lambda name: None,
+        phase_end=lambda name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 30.0,
+        trace=None,
+        claim_rankings={},
+        stored_assessments={},
+        assessed_inputs={},
+        now_ms=lambda: 2000.0,
+        deadline_seconds=48.0,
+    )
+    entry = _terminal_invocations(context)[0]
+    assert entry["outcome"] == "no_late_ids"
+    assert entry["metrics_identity_changed"] is True
+
+    # budget refusal, again with a swap
+    refusal_context = _SwappingContext(
+        {"domain_targeted": [
+            {"claim_id": CLAIM_ID, "wave_index": 2, "added_candidate_ids": ["candidate_0"]}
+        ]},
+        {"domain_targeted": [
+            {"claim_id": CLAIM_ID, "wave_index": 2, "added_candidate_ids": ["candidate_0"]}
+        ]},
+    )
+    _late_admission_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        state=_state(claim),
+        claim=claim,
+        context=refusal_context,
+        run_id="run_1",
+        wave_index=2,
+        max_reads=8,
+        assessor=_Assessor(),
+        model_allowed=lambda purpose, categories: True,
+        on_model_started=lambda **kwargs: None,
+        on_model_finished=lambda **kwargs: None,
+        phase_begin=lambda name: None,
+        phase_end=lambda name: None,
+        remaining_timeout=lambda: 5.0,
+        research_seconds_left=lambda: 1.0,
+        trace=None,
+        claim_rankings={},
+        stored_assessments={},
+        assessed_inputs={},
+        now_ms=lambda: 2000.0,
+        deadline_seconds=48.0,
+    )
+    entry = _terminal_invocations(refusal_context)[0]
+    assert entry["outcome"] == "time_budget_exhausted"
+
+
+def test_every_invocation_reaches_a_terminal_state() -> None:
+    """No invocation may be left in the initial 'running' state."""
+
+    terminal = {
+        "no_late_ids",
+        "no_late_candidates",
+        "no_read_slot_for_claim",
+        "time_budget_exhausted",
+        "model_call_budget_exceeded",
+        "policy_blocked",
+        "assessment_failed",
+    }
+    contexts = []
+
+    # assessed
+    assessed_context = _context(["candidate_0"])
+    _run_tail(cursor=_cursor(["https://docs.example.com/pulls"]), context=assessed_context)
+    contexts.append(assessed_context)
+
+    # no late ids
+    empty_context = _context([])
+    _run_tail(cursor=_cursor(["https://docs.example.com/pulls"]), context=empty_context)
+    contexts.append(empty_context)
+
+    # budget refusal
+    refused_context = _context(["candidate_0"])
+    _run_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        context=refused_context,
+        seconds_left=1.0,
+    )
+    contexts.append(refused_context)
+
+    # failed assessment
+    failed_context = _context(["candidate_0"])
+    _run_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        context=failed_context,
+        assessor=_Assessor(status="unavailable"),
+    )
+    contexts.append(failed_context)
+
+    for context in contexts:
+        for entry in context["claim_engine_metrics"].get("late_tail_invocations") or []:
+            outcome = str(entry.get("outcome") or "")
+            assert outcome != "running" and outcome, entry
+            assert outcome in terminal or outcome.startswith("assessed:"), entry
+
