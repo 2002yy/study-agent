@@ -2784,3 +2784,50 @@ trigger iff enabled
 按裁决顺序进入 **B1-T2：域提案 official 契约**（模型返回 `domain` + `domain_role = official | project-host | third-party`，运行时只接受前两类；把"官方性"变成机器可查字段，不做长 prompt 工程）。T2 之后再跑四页 E2E，并按剩余失败分类（fetch_failed → B2 策略；short_doc/JS → B3）。§65.2 的两条 uv 阻塞记入 T2 之后的待办（宿主覆盖 / 域间配额公平性），不在 T2 范围内。
 
 诊断产物（未跟踪）：`docs/research_quality/B1T1.uv.json`。
+
+
+## §66 B1-T2 canonical target 契约（`2f3d6aaa` + `bf7b950d`）
+
+### 66.1 冻结合同（按裁决实现）
+
+```text
+{"targets": [{"host": "postgresql.org",
+              "scope": "https://www.postgresql.org/",
+              "domain_role": "official"}]}
+```
+
+- `host + scope` 取代裸域；`project-host` 的 scope 必须指向项目（`https://github.com/` → `project_host_scope_too_broad` 拒绝）。
+- 角色是**模型声明**，内部记 `proposed_domain_role`，不得读作 server-verified official status；本批**不做 verifier**。
+- runtime 接受 `official` / `project-host`，拒绝 `third-party`（tracker/镜像/博客/社区站，信息正确也算）。
+- accepted 上限 2；解析审计列表单独限 4，避免第三方声明把合法 official 挤出契约检查。
+- **每条可解析声明都保留**并带 `reject_reason`（`third_party` / `unsupported_role` / `invalid_scope` / `project_host_scope_too_broad`），记录里同时写 `targets` 与 `rejected_targets`——这样能区分"模型没提"与"契约拒绝"。
+
+### 66.2 确定性验收（三条冻结用例 + 补充）
+
+| 输入 | 期望 | 结果 |
+| --- | --- | --- |
+| `docs.astral.sh` / official | accept | ✅ |
+| `https://github.com/astral-sh/uv/` / project-host | accept | ✅ |
+| `https://github.com/` / project-host | reject（scope 过宽） | ✅ `project_host_scope_too_broad` |
+| endoflife.date / ubuntu.com / third-party | reject，且不挤掉同批 official | ✅ |
+| unknown role / 非 https / host 不匹配的 scope | reject + 原因 | ✅ `unsupported_role` / `invalid_scope` |
+
+focused：`test_domain_targeted` 23 passed；runtime/llm_proposal/fetch_retry 72 passed；Ruff clean。
+
+### 66.3 PostgreSQL 实跑（`B1T2.postgres.json` + `B1T2.postgres.run2.json`）
+
+两次实跑一致：模型只声明 **1 个 target** —— `endoflife.date`，且**自报 `third-party`**，被 runtime 正确拒绝（`reject_reason=third_party`）；`postgresql.org` **根本没被提出**。因此 `domains=[]`、无 inventory、无候选。
+
+归因（新审计能力直接证明，不是推测）：
+
+1. **契约机制 PASS**：角色枚举、scope 规则、审计字段、拒绝路径全部按设计工作；
+2. **主验收未达成**，但阻塞**不是契约**，而是 **proposal recall**：模型没有提出官方宿主。对照 §64.7（T2 之前）该 case 曾提出 `endoflife.date + ubuntu.com` 并都自报 official——角色字段引入后输出变成 1 条，属模型行为变化，需在 T2 之外处理（prompt 属后续微批，按裁决"不在 T2 堆 prompt 规则"）。
+
+附带观测：本 case `research_selection_authority` 消耗 **10 次**调用（B1 仅 1 次），`model_call_budget_exceeded` 的主因是 selector 而非 B1——这正是 §65.1 拆分按用途记账要暴露的东西。
+
+### 66.4 结论与下一步
+
+- B1-T2 = **CONTRACT PASS**（确定性 + 实跑拒绝路径）；PostgreSQL 主验收受 **proposal recall** 阻塞，单列为后续项。
+- 按裁决顺序，下一步是**四页 B1 E2E 重跑**（T1+T2 生效后的净效果），并按剩余失败分类：`fetch_failed` → B2 策略；`short_doc/JS` → B3；`no accepted target proposed` → proposal recall 微批；宿主无 sitemap / 域间配额 → host coverage。
+
+诊断产物（未跟踪）：`docs/research_quality/B1T2.postgres.json`、`B1T2.postgres.run2.json`。
