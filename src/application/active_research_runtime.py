@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from math import ceil, isfinite
 import re
 import time
-from typing import Any, cast
+from typing import Any, Iterable, cast
 from urllib.parse import urlsplit
 
 from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
@@ -436,6 +436,11 @@ class ActiveResearchRuntimeExecutor:
             research_seconds_left(),
         ),
     )
+
+        def elapsed_ms() -> float:
+            """Monotonic milliseconds since run start (diagnostics only)."""
+
+            return round(elapsed() * 1000.0, 1)
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -1196,6 +1201,7 @@ class ActiveResearchRuntimeExecutor:
                         run_id=run_id,
                         wave_index=cursor.wave_index,
                         timeout_seconds=remaining_timeout(),
+                        now_ms=elapsed_ms,
                     )
                     if not candidates:
                         continue
@@ -1344,6 +1350,7 @@ class ActiveResearchRuntimeExecutor:
                             timeout_seconds=remaining_timeout(),
                             targeted_claim_ids=targeted_claim_ids,
                             seconds_left=research_seconds_left,
+                            now_ms=elapsed_ms,
                         )
                     # §69/B1-T5 R1': discovery channels can only admit after
                     # this wave's window was frozen; give those late candidates
@@ -1369,6 +1376,11 @@ class ActiveResearchRuntimeExecutor:
                         claim_rankings=claim_rankings,
                         stored_assessments=stored_assessments,
                         assessed_inputs=assessed_inputs,
+                        now_ms=elapsed_ms,
+                        deadline_seconds=(
+                            state.budget.hard_timeout_seconds
+                            - RESEARCH_WINDOW_RESERVE_SECONDS
+                        ),
                     )
                     checkpoint()
 
@@ -3127,6 +3139,73 @@ def _tier2_proposal_step(
 
 
 
+
+def _fingerprint(values: Iterable[Any]) -> str:
+    """Stable, order-independent fingerprint of a candidate/URL set."""
+
+    items = sorted(str(item) for item in values)
+    digest = hashlib.sha1("|".join(items).encode("utf-8")).hexdigest()
+    return digest[:16]
+
+
+def _b1_critical_path_ms(
+    record: Mapping[str, Any], *, deadline_seconds: float
+) -> dict[str, Any]:
+    """§70/B5-S1: B1 discovery -> admission -> tail gate, with headroom.
+
+    Diagnostic only: it reads timestamps already recorded in the run metrics and
+    never influences scheduling, budgets or the evidence chain.
+    """
+
+    def _num(key: str) -> float | None:
+        value = record.get(key)
+        return float(value) if isinstance(value, (int, float)) else None
+
+    admitted_ms = _num("t_admitted_ms")
+    selected_ms = _num("t_tail_selected_ms")
+    gate_ms = _num("t_tail_gate_ms")
+    out: dict[str, Any] = {
+        "t_started_ms": _num("t_started_ms"),
+        "t_admitted_ms": admitted_ms,
+        "t_tail_selected_ms": selected_ms,
+        "t_tail_gate_ms": gate_ms,
+        "deadline_seconds": round(float(deadline_seconds), 3),
+    }
+    if admitted_ms is not None:
+        out["admission_seconds"] = round(admitted_ms / 1000.0, 3)
+        out["headroom_at_admission_seconds"] = round(
+            float(deadline_seconds) - admitted_ms / 1000.0, 3
+        )
+    if gate_ms is not None:
+        out["gate_seconds"] = round(gate_ms / 1000.0, 3)
+        out["headroom_at_gate_seconds"] = round(
+            float(deadline_seconds) - gate_ms / 1000.0, 3
+        )
+    started_ms = out.get("t_started_ms")
+    if started_ms is not None and gate_ms is not None:
+        out["critical_path_ms"] = round(gate_ms - started_ms, 1)
+    return out
+
+
+def _record_b1_critical_path(
+    context: dict[str, Any],
+    record: Mapping[str, Any],
+    *,
+    deadline_seconds: float,
+) -> None:
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    records = metrics.get("b1_critical_path")
+    if not isinstance(records, list):
+        records = []
+    payload = dict(_b1_critical_path_ms(record, deadline_seconds=deadline_seconds))
+    payload["claim_id"] = str(record.get("claim_id") or "")
+    payload["wave_index"] = record.get("wave_index")
+    records.append(payload)
+    metrics["b1_critical_path"] = records[-40:]
+
+
 def _late_admission_tail(
     *,
     cursor: ResearchRuntimeCursor,
@@ -3148,6 +3227,8 @@ def _late_admission_tail(
     claim_rankings: dict[str, tuple[Any, ...]],
     stored_assessments: dict[str, list[dict[str, Any]]],
     assessed_inputs: dict[str, list[str]],
+    now_ms: Any = None,
+    deadline_seconds: float = 0.0,
 ) -> ResearchRuntimeCursor:
     """§69/B1-T5 R1': assess this wave's late-admitted candidates.
 
@@ -3191,9 +3272,39 @@ def _late_admission_tail(
         "skipped_reason": "",
         "ranked_after": 0,
         "seconds_left": round(float(research_seconds_left()), 3),
+        "t_admitted_ms": None,
+        "t_tail_selected_ms": None,
+        "t_tail_gate_ms": None,
     }
+    for domain_record in metrics.get("domain_targeted") or []:
+        if (
+            isinstance(domain_record, Mapping)
+            and str(domain_record.get("claim_id") or "") == claim.id
+            and int(domain_record.get("wave_index") or 0) == int(wave_index)
+        ):
+            admitted_ms = domain_record.get("t_admitted_ms")
+            if isinstance(admitted_ms, (int, float)):
+                record["t_admitted_ms"] = float(admitted_ms)
+            break
 
     def _store() -> None:
+        if now_ms:
+            record["t_tail_gate_ms"] = round(float(now_ms()), 1)
+        if deadline_seconds and record.get("t_admitted_ms") is not None:
+            record["headroom_at_admission_seconds"] = round(
+                float(deadline_seconds) - float(record["t_admitted_ms"]) / 1000.0,
+                3,
+            )
+        if deadline_seconds and record.get("t_tail_gate_ms") is not None:
+            record["headroom_at_gate_seconds"] = round(
+                float(deadline_seconds) - float(record["t_tail_gate_ms"]) / 1000.0,
+                3,
+            )
+        _record_b1_critical_path(
+            context,
+            record,
+            deadline_seconds=float(deadline_seconds or 0.0),
+        )
         target = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
         if not isinstance(target, dict):
             return
@@ -3228,6 +3339,8 @@ def _late_admission_tail(
         trace=None,
     )
     record["selected_ids"] = [item.id for item in selected]
+    if now_ms:
+        record["t_tail_selected_ms"] = round(float(now_ms()), 1)
     if not selected:
         record["skipped_reason"] = "no_read_slot_for_claim"
         _store()
@@ -3330,6 +3443,7 @@ def _domain_targeted_step(
     timeout_seconds: float | None,
     targeted_claim_ids: list[str],
     seconds_left: Any,
+    now_ms: Any = None,
 ) -> ResearchRuntimeCursor:
     """§63 Tier-1.5: official-domain site search -> verified candidates.
 
@@ -3387,6 +3501,10 @@ def _domain_targeted_step(
         "dropped": [],
         "added_candidate_ids": [],
         "verification_reads": 0,
+        # §70/B5-S1 diagnostics: event timestamps for the B1 critical path.
+        "t_started_ms": round(float(now_ms()), 1) if now_ms else None,
+        "t_proposal_ms": None,
+        "t_admitted_ms": None,
     }
     extra_body: Mapping[str, Any] | None = None
     try:
@@ -3426,6 +3544,8 @@ def _domain_targeted_step(
     ]
     record["domains"] = [target.host for target in accepted]
     _count_orchestration_call(context, "research_domain_proposal")
+    if now_ms:
+        record["t_proposal_ms"] = round(float(now_ms()), 1)
 
     # Ranking may use more terms than a prose query: the runtime claim text
     # led with generic words, so a 6-term cap dropped the subject entity
@@ -3550,6 +3670,8 @@ def _domain_targeted_step(
     # §63/§50 acceptance accounting: discovery-side stages are counted here;
     # the downstream ladder (assessed -> read -> extracted -> gate) is joined
     # per candidate in metrics.discovery_funnel. Counters only, no heuristics.
+    if now_ms and record.get("added_candidate_ids"):
+        record["t_admitted_ms"] = round(float(now_ms()), 1)
     record["stages"] = {
         "domain_proposed": len(record["domains"]),
         "inventory_fetched": inventory_fetches,
@@ -3679,6 +3801,7 @@ def _select_assessment_window(
     run_id: str,
     wave_index: int,
     timeout_seconds: float | None,
+    now_ms: Any = None,
 ) -> tuple[CandidatePoolItem, ...]:
     """§42 selector production contract; rules by default.
 
@@ -3781,12 +3904,50 @@ def _select_assessment_window(
         records = metrics.get("selection_authority")
         if not isinstance(records, list):
             records = []
+        previous = next(
+            (
+                item
+                for item in reversed(records)
+                if isinstance(item, Mapping)
+                and str(item.get("claim_id") or "") == claim.id
+            ),
+            None,
+        )
+        input_ids = sorted(item.id for item in ordered)
+        input_urls = sorted(item.canonical_url for item in ordered)
+        excluded_ids = sorted(str(item) for item in excluded_candidate_ids)
+        fingerprint = _fingerprint([*input_ids, *input_urls])
+        previous_ids = (
+            set(previous.get("input_ids") or []) if isinstance(previous, Mapping) else set()
+        )
+        previous_fingerprint = (
+            str(previous.get("input_fingerprint") or "")
+            if isinstance(previous, Mapping)
+            else ""
+        )
+        previous_excluded = (
+            str(previous.get("excluded_fingerprint") or "")
+            if isinstance(previous, Mapping)
+            else ""
+        )
         records.append(
             {
                 "wave_index": wave_index,
                 "claim_id": claim.id,
                 "window_limit": limit,
                 "orchestration_model_call": 1 if (limit > 0 and ordered) else 0,
+                # §70/B5-S1 anatomy: what actually changed between calls
+                "input_fingerprint": fingerprint,
+                "previous_input_fingerprint": previous_fingerprint,
+                "input_changed": fingerprint != previous_fingerprint,
+                "input_ids": input_ids,
+                "new_candidate_count": len(set(input_ids) - previous_ids),
+                "removed_candidate_count": len(previous_ids - set(input_ids)),
+                "excluded_fingerprint": _fingerprint(excluded_ids),
+                "assessment_state_changed": _fingerprint(excluded_ids)
+                != previous_excluded,
+                "t_started_ms": round(float(now_ms()), 1) if now_ms else None,
+                "t_ended_ms": round(float(now_ms()), 1) if now_ms else None,
                 **diagnostics.to_dict(),
             }
         )
