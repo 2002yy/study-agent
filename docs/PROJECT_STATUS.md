@@ -3205,3 +3205,48 @@ F3                 NOT SELECTED
 **基线用途**：§71C 起会首次引入外部运行时依赖（浏览器/本地模型）、额外 wall-clock 与新失败面；此后任何全量门异常都先与此 baseline 对照，用于区分 tail/contract 改动与 Wigolo 接入引入的问题。
 
 诊断产物（未跟踪）：`full_pytest_fc50845.log`（temp）、`D402.replay.fc50845.json`（temp）。
+
+
+## §77 §71C-1/2 Wigolo fetch-only shadow 实验（`5c0e73ef`，shadow only）
+
+**接入方式**：REST `POST 127.0.0.1:3333/v1/fetch`（不走 MCP）；`wigolo@0.2.1`；浏览器经 `warmup --browser` 预装（setup cost 单独记录，不进 fetch 延迟）；daemon 无任何 LLM/API key；只用 `fetch`，未用 search/research/agent/extract。代码：`src/web/research/wigolo_backend.py`（§71B `ReadBackend`）、`tools/run_wigolo_shadow_bakeoff.py`（10 URL corpus A–F、cold/warm 分跑、`--cache-bust`）。
+
+### 77.1 三个环境坑（必须先记录，否则数据不可信）
+
+1. **`WIGOLO_RERANKER` 默认会毁掉测量**：reranker 未安装时每次请求都反复 `Loading rerank model`（≈11s × 3 ≈ **33s/请求**，连 cache 命中也要 33s）；更糟的是超时使 `http fetch failed` 三次后 daemon 把域**标记为 playwright**，污染域学习（这就是首轮"browser 升级 40s"的来源）。设 `WIGOLO_RERANKER=off` 后延迟从 ~33s 降到 **23–299ms**（cache）/ ~1s（http）。
+2. **cache 按 URL 存"首次调用时的截断文本"**：先用 `max_chars=2000` 取过，再用 `max_chars=20000` 取同 URL 仍返回 2,000 字符的缓存版本 ⇒ 测量与生产都必须固定 `max_chars`，或把 max_chars 纳入 cache key 认知。
+3. **cache-bust 查询参数会改变站点行为**（部分 URL 直接 4xx）⇒ 不能作为通用 cold 测量手段；本批 cold 结论以 plain-URL 行为准。
+
+### 77.2 关键结果（plain URL、reranker off）
+
+| class | URL | current reader | Wigolo | 判定 |
+| --- | --- | --- | --- | --- |
+| A_known_thin | docs.docker.com/docker-hub/usage/pulls（§47/§63 旗舰案例） | short_doc **520** chars @2.0–3.0s | **ok 10,793 chars @0.73–1.27s（http，无 browser）**，heading recall 0.0→1.0 | ✅ **救活且更快** |
+| A_known_thin | docs.docker.com/ | fetch_failed / extraction_loss | **ok 3,020 @1.03s（http）** | ✅ 救活 |
+| D_spa_shell | github.com/astral-sh/uv | extraction_loss **0** | **ok 10,915 @1.44s（http）** | ✅ 救活 |
+| B_js_heavy | hub.docker.com | fetch_failed @44s | **ok 5,030 @38.8s（browser）** | ✅ 救活但**极贵** |
+| B_js_heavy | docs.docker.com/search/?q=… | 不稳定（ok/failed 交替） | http 3,020 @1.7s 或 http_error | ⚠️ 不稳定 |
+| C_already_pass | nodejs / postgresql / redis | ok | ok，chars ≥ 现状，cold 0.9–1.3s（比现状 1.7–3.5s 更快） | 无实质增益（**false escalation value = 0**） |
+| E/F | PDF / github sitemap | failed | failed（anti_bot / http_error） | 双方均失败 |
+
+**裁决指标（按 77.1 修正后）**：failure 集合 7 个（A×2、B×2、D、E、F），**救活 4（≈57%）**；其中 **http 层 3 个（≈43%）每个仅 ~1s**，browser 层 1 个（~39s）。already-PASS 页面 0 个出现实质增益。added latency：http 层救活为**负值**（Wigolo 比现有 reader 更快）。
+
+### 77.3 §71C-3 建议（待裁决）
+
+授权**升级式**使用，而非把 Wigolo 当默认 reader：
+
+```text
+current HTTP reader
+      ↓
+ReadAdequacy FAIL
+      ↓
+Wigolo http tier（render_js 与 max_chars 固定；~1s）
+      ↓
+仍 FAIL 且剩余预算充足 → Wigolo browser tier（~39s，需显式预算门）
+```
+
+依据：http 层在真实失败页上 3/3 救活、~1s、负增延迟；browser 层能救但吃满 48s 窗口（hub.docker.com 39s），只能作为"最后手段 + 预算门"。already-PASS 页面无增益 ⇒ 不升级。
+
+**待办（不修）**：daemon 启动必须带 `WIGOLO_RERANKER=off`（记录为运行前提）；cache/max_chars 交互需在生产接入前固定；browser tier 的预算门与超时需要单独 characterization。
+
+诊断产物（未跟踪）：`WIGOLO_SHADOW.cold{,2,3}.json`、`WIGOLO_SHADOW.warm.json`、`wigolo_serve*.log`（temp）。
