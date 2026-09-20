@@ -2392,6 +2392,10 @@ class ActiveResearchRuntimeExecutor:
             gate = evaluate_evidence_gate(state)
             brief = _evidence_brief(state, gate, selected_sources)
             context[ACTIVE_RESEARCH_BRIEF_KEY] = brief
+            # §63/§50 acceptance accounting: the run can stop here (budget
+            # exhaustion) before the per-wave gating block, so record the
+            # discovery funnel on this path too; it only joins metrics.
+            _record_tier2_funnel(context, cursor, brief, selected_sources)
             checkpoint()
             # P1-C batch 3: the stop truth comes from the gate; the frozen
             # exception-path confidence ("partial" if evidence else "none")
