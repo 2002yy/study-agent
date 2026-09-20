@@ -3276,6 +3276,7 @@ def _note_late_tail_invocation(
         "wave_index": int(wave_index),
         "late_ids": 0,
         "outcome": "running",
+        "phase": "entered",
         "metrics_identity": _metrics_identity(metrics),
         "domain_records": len(metrics.get("domain_targeted") or []),
     }
@@ -3305,6 +3306,7 @@ def _finalize_late_tail_invocation(
         # never leave the in-memory entry in its initial state, even when no
         # writable mapping can be resolved at store time
         entry["outcome"] = str(outcome)
+        entry["phase"] = "stored"
         entry["late_ids"] = int(late_ids)
     live = _resolve_live_metrics(context)
     if live is None:
@@ -3326,6 +3328,7 @@ def _finalize_late_tail_invocation(
         target["recovered"] = True
         invocations.append(target)
     target["outcome"] = str(outcome)
+    target["phase"] = "stored"
     target["late_ids"] = int(late_ids)
     target["store_metrics_identity"] = _metrics_identity(live)
     target["metrics_identity_changed"] = (
@@ -3409,6 +3412,8 @@ def _late_admission_tail(
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
     try:
+        if invocation is not None:
+            invocation["phase"] = f"decided:{len(late_ids)}"
         if not late_ids:
             _finalize_late_tail_invocation(context, invocation, outcome="no_late_ids")
             return cursor
@@ -3505,6 +3510,8 @@ def _late_admission_tail(
         record["selected_ids"] = [item.id for item in selected]
         if now_ms:
             record["t_tail_selected_ms"] = round(float(now_ms()), 1)
+        if invocation is not None:
+            invocation["phase"] = f"selected:{len(selected)}"
         if not selected:
             record["skipped_reason"] = "no_read_slot_for_claim"
             _store()
@@ -3536,6 +3543,8 @@ def _late_admission_tail(
             return cursor
 
         assessment_assignments = {item.id: assignments[item.id] for item in selected}
+        if invocation is not None:
+            invocation["phase"] = "assessing"
         phase_begin("assessment")
         try:
             assessed = assessor.assess(
