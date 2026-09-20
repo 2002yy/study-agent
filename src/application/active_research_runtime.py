@@ -3190,10 +3190,18 @@ def _domain_targeted_step(
     except Exception as exc:  # diagnostics must never fail the run
         record["call_status"] = f"exception:{type(exc).__name__}"
         result = None
+    targets: list[Any] = []
     if result is not None:
         status = str(getattr(result, "status", ""))
         record["call_status"] = status or "unknown"
-        record["domains"] = list(result.value or []) if status == "completed" else []
+        if status == "completed":
+            targets = list(result.value or [])
+    record["targets"] = [target.to_record() for target in targets]
+    accepted = [target for target in targets if target.accepted]
+    record["rejected_targets"] = [
+        target.to_record() for target in targets if not target.accepted
+    ]
+    record["domains"] = [target.host for target in accepted]
     _count_orchestration_call(context, "research_domain_proposal")
 
     # Ranking may use more terms than a prose query: the runtime claim text

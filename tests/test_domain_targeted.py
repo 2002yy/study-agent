@@ -10,6 +10,7 @@ from src.web.research.domain_targeted import (
     DISCOVERY_METHOD_DOMAIN_TARGETED,
     DOMAIN_TARGETED_ENV,
     MAX_RANK_TERMS,
+    accepted_targets,
     build_search_query,
     claim_search_terms,
     domain_targeted_enabled,
@@ -59,14 +60,98 @@ def test_flag_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
     assert domain_targeted_enabled() is True
 
 
-def test_domain_parser_is_strict_and_bounded() -> None:
-    assert parse_domain_proposal(
-        {"domains": ["https://docs.docker.com/docker-hub/", "docs.docker.com", "bad", "example.org"]}
-    ) == ["docs.docker.com", "example.org"]
+def test_target_parser_is_strict_and_bounded() -> None:
+    targets = parse_domain_proposal(
+        {
+            "targets": [
+                {"host": "https://docs.docker.com/docker-hub/", "scope": "https://docs.docker.com/", "domain_role": "official"},
+                {"host": "docs.docker.com", "scope": "https://docs.docker.com/", "domain_role": "official"},
+                {"host": "bad", "scope": "https://bad/", "domain_role": "official"},
+                {"host": "example.org", "scope": "https://example.org/docs/", "domain_role": "official"},
+            ]
+        }
+    )
+    assert [(item.host, item.proposed_domain_role) for item in targets] == [
+        ("docs.docker.com", "official"),
+        ("example.org", "official"),
+    ]
     with pytest.raises(ValueError):
-        parse_domain_proposal({"domains": "nope"})
+        parse_domain_proposal({"targets": "nope"})
     with pytest.raises(ValueError):
         parse_domain_proposal(["not-an-object"])
+
+
+def test_frozen_role_contract() -> None:
+    """The three cases frozen for §66/B1-T2."""
+
+    official = parse_domain_proposal(
+        {
+            "targets": [
+                {
+                    "host": "docs.astral.sh",
+                    "scope": "https://docs.astral.sh/uv/",
+                    "domain_role": "official",
+                }
+            ]
+        }
+    )
+    assert [item.host for item in accepted_targets(official)] == ["docs.astral.sh"]
+
+    project_host = parse_domain_proposal(
+        {
+            "targets": [
+                {
+                    "host": "github.com",
+                    "scope": "https://github.com/astral-sh/uv/",
+                    "domain_role": "project-host",
+                }
+            ]
+        }
+    )
+    assert [item.host for item in accepted_targets(project_host)] == ["github.com"]
+
+    too_broad = parse_domain_proposal(
+        {
+            "targets": [
+                {
+                    "host": "github.com",
+                    "scope": "https://github.com/",
+                    "domain_role": "project-host",
+                }
+            ]
+        }
+    )
+    assert too_broad[0].accepted is False
+    assert too_broad[0].reject_reason == "project_host_scope_too_broad"
+    assert accepted_targets(too_broad) == []
+
+
+def test_third_party_targets_are_rejected() -> None:
+    targets = parse_domain_proposal(
+        {
+            "targets": [
+                {"host": "endoflife.date", "scope": "https://endoflife.date/postgresql/", "domain_role": "third-party"},
+                {"host": "ubuntu.com", "scope": "https://ubuntu.com/docs/", "domain_role": "third-party"},
+                {"host": "postgresql.org", "scope": "https://www.postgresql.org/support/versioning/", "domain_role": "official"},
+            ]
+        }
+    )
+    assert [item.host for item in accepted_targets(targets)] == ["postgresql.org"]
+    rejected = {item.host: item.reject_reason for item in targets if not item.accepted}
+    assert rejected == {"endoflife.date": "third_party", "ubuntu.com": "third_party"}
+
+
+def test_unknown_role_and_mismatched_scope_are_dropped() -> None:
+    targets = parse_domain_proposal(
+        {
+            "targets": [
+                {"host": "example.org", "scope": "https://example.org/", "domain_role": "vendor"},
+                {"host": "example.org", "scope": "https://other.example/", "domain_role": "official"},
+                {"host": "example.org", "scope": "http://example.org/", "domain_role": "official"},
+            ]
+        }
+    )
+    assert targets == []
 
 
 def test_claim_terms_and_query() -> None:
@@ -262,15 +347,30 @@ class _Diagnostics:
 
 
 class _Gateway:
-    def __init__(self, domains: list[str]) -> None:
-        self.domains = domains
+    """Fake gateway whose value is what parse_domain_proposal would return."""
+
+    def __init__(self, hosts: list[str]) -> None:
+        self.hosts = hosts
         self.calls = 0
 
     def complete_structured(self, **kwargs):
+        from src.web.research.domain_targeted import parse_domain_proposal
         from src.web.research.model_gateway import ResearchModelResult
 
         self.calls += 1
-        return ResearchModelResult(status="completed", value=list(self.domains), audits=())
+        targets = parse_domain_proposal(
+            {
+                "targets": [
+                    {
+                        "host": host,
+                        "scope": f"https://{host}/docs/",
+                        "domain_role": "official",
+                    }
+                    for host in self.hosts
+                ]
+            }
+        )
+        return ResearchModelResult(status="completed", value=targets, audits=())
 
 
 def test_step_adds_verified_domain_targeted_candidate(

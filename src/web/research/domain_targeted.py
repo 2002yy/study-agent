@@ -1,24 +1,42 @@
-"""§63 Tier-1.5 domain-targeted retrieval: official-domain deep-page discovery.
+"""§63/§65/§66 Tier-1.5 domain-targeted retrieval: canonical targets + sitemap.
 
 The missing capability behind §44/§51/§52: the effective Tier-1 provider (Bing
 RSS) never returns deep official pages. This channel asks the model only for
-**official domains** (not URLs), then uses deterministic machinery on top of the
-existing fetch layer:
+**canonical targets** (host + scope + a model-declared role), then uses
+deterministic machinery on top of the existing fetch layer:
 
-    claim -> model: up to 2 official domains
+    claim -> model: <=2 canonical targets
+          -> accept official / project-host, reject third-party
           -> deterministic inventory URLs (/sitemap.xml, /sitemap_index.xml)
           -> parse <loc> entries (one sitemapindex level, bounded children)
           -> rank same-domain URLs by claim-term overlap in the path
           -> reader verification (ok + non-empty) -> candidate
           -> existing assessment -> extraction -> Gate
 
+Contract (§66/B1-T2):
+
+    {"targets": [
+        {"host": "postgresql.org",
+         "scope": "https://www.postgresql.org/",
+         "domain_role": "official"}
+    ]}
+
+- ``domain_role`` is a **model-declared classification**, not verified truth:
+  it is carried internally as ``proposed_domain_role`` and must never be read
+  as server-verified official status. No verifier exists in this batch.
+- ``official``: the publisher *is* the project/entity (postgresql.org,
+  nodejs.org, docs.docker.com, docs.astral.sh).
+- ``project-host``: canonical upstream on a general hosting platform
+  (``https://github.com/astral-sh/uv/``); its scope must point at the project,
+  never at the bare host root.
+- ``third-party``: everything else (trackers, mirrors, blogs, community sites)
+  - correct information does not make a site official.
+
 Why sitemaps and not site search: a cross-site probe over eight documentation
-hosts (docker, postgresql, python, kubernetes, redis, npm, node, rust) found the
-``/search/?q=`` shapes returning 404 on 7/8 and, where they returned 200, the
-root page with the query ignored — so site-search URL guessing is not a
-generalisable discovery surface. Sitemaps are: docs.docker.com serves
-``/sitemap.xml`` with 1811 URLs including the deep target
-``/docker-hub/usage/pulls/``, and redis.io serves a sitemapindex.
+hosts found the ``/search/?q=`` shapes returning 404 on 7/8 and, where they
+returned 200, the root page with the query ignored. Sitemaps are the general
+surface where present (docs.docker.com serves 1811 <loc> entries including the
+deep target).
 
 Candidates carry ``discovery_method="domain_targeted"`` so provenance stays
 separate from ``search`` and ``llm_proposed``. Default off
@@ -30,25 +48,43 @@ from __future__ import annotations
 import json
 import os
 import re
+from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any, Iterable, Mapping
 from urllib.parse import urljoin, urlparse
 
 DOMAIN_TARGETED_ENV = "RESEARCH_DOMAIN_TARGETED"
 DISCOVERY_METHOD_DOMAIN_TARGETED = "domain_targeted"
+# Accepted targets are capped at MAX_DOMAINS; the parsed audit list is bounded
+# separately so a declared third-party target can never truncate a valid
+# official one out of the contract check.
 MAX_DOMAINS = 2
+MAX_TARGETS_PARSED = 4
 MAX_SITEMAP_URLS = 2
 MAX_SITEMAP_CHILDREN = 2
 MAX_LINKS_PER_INVENTORY = 5
 MAX_SEARCH_TERMS = 6
 MAX_RANK_TERMS = 12
 
+DOMAIN_ROLES = ("official", "project-host", "third-party")
+ACCEPTED_DOMAIN_ROLES = ("official", "project-host")
+
 DOMAIN_SYSTEM_PROMPT = (
-    "You are a web-research planner. Given a claim, name up to 2 **official "
-    "website domains** (host only, no scheme, no path, no trailing slash) that "
-    "would publish the needed fact, most likely first. Use only real official "
-    'domains (vendor docs, official project sites). Reply with strict JSON: '
-    '{"domains": ["docs.example.com", "example.org"]}'
+    "You are a web-research planner. Given a claim, name up to 2 **canonical "
+    "targets** that would publish the needed fact, most likely first. Reply "
+    "with strict JSON:\n"
+    '{"targets": [{"host": "example.org", "scope": "https://example.org/docs/", '
+    '"domain_role": "official"}]}\n'
+    "Rules:\n"
+    "- host: bare host only (no scheme, no path, no trailing slash).\n"
+    "- scope: an https URL inside that host that bounds where to look.\n"
+    "- domain_role: 'official' when the publisher IS the project/entity "
+    "(vendor docs, official project site); 'project-host' when the canonical "
+    "upstream lives on a general hosting platform and scope points at the "
+    "project (e.g. https://github.com/astral-sh/uv/), never the bare host "
+    "root; 'third-party' for trackers, mirrors, blogs, community or news "
+    "sites even when their information is correct.\n"
+    "- Prefer 'official' targets; at most 2 targets."
 )
 
 _STOPWORDS = frozenset(
@@ -72,25 +108,115 @@ def domain_targeted_enabled() -> bool:
     return raw in {"1", "true", "on", "yes"}
 
 
-def parse_domain_proposal(raw: Any) -> list[str]:
-    """Strict parser: object with a domains list of bare hosts."""
+def normalize_host(value: Any) -> str:
+    """Bare lowercase host from a host string or URL; "" when unusable."""
+
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    text = re.sub(r"^[a-z]+://", "", text)
+    text = text.split("/")[0].split("?")[0].strip(".")
+    if "@" in text:
+        text = text.rsplit("@", 1)[-1]
+    if ":" in text:
+        text = text.split(":", 1)[0]
+    if text.startswith("www."):
+        text = text[4:]
+    if not text or "." not in text or " " in text:
+        return ""
+    return text
+
+
+@dataclass(frozen=True)
+class DomainTarget:
+    """One model-declared canonical target.
+
+    ``proposed_domain_role`` is a *declaration*, not verified truth; the runtime
+    only checks it against the accepted enum plus the project-host scope rule.
+    """
+
+    host: str
+    scope: str
+    proposed_domain_role: str
+
+    @property
+    def accepted(self) -> bool:
+        return not self.reject_reason
+
+    @property
+    def reject_reason(self) -> str:
+        if self.proposed_domain_role not in ACCEPTED_DOMAIN_ROLES:
+            return "third_party" if self.proposed_domain_role == "third-party" else "unsupported_role"
+        if self.proposed_domain_role == "project-host":
+            path = urlparse(self.scope).path or "/"
+            if not path.strip("/"):
+                return "project_host_scope_too_broad"
+        return ""
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "host": self.host,
+            "scope": self.scope,
+            "proposed_domain_role": self.proposed_domain_role,
+            "accepted": self.accepted,
+            "reject_reason": self.reject_reason,
+        }
+
+
+def _parse_scope(raw: Any, *, host: str) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return f"https://{host}/"
+    parsed = urlparse(text)
+    if parsed.scheme != "https":
+        return ""
+    scope_host = normalize_host(parsed.netloc)
+    if not scope_host or not scope_host.endswith(host):
+        return ""
+    return text
+
+
+def parse_domain_proposal(raw: Any) -> list[DomainTarget]:
+    """Strict parser: object with a targets list of {host, scope, domain_role}.
+
+    Structural problems raise (the caller records the failure); per-entry
+    problems drop that entry. Output is deduplicated and bounded, including
+    rejected roles, so the audit trail keeps what the model actually claimed.
+    """
 
     if not isinstance(raw, Mapping):
         raise ValueError("domain proposal must be an object")
-    domains = raw.get("domains")
-    if not isinstance(domains, list):
-        raise ValueError("domain proposal needs a domains list")
-    cleaned: list[str] = []
-    for item in domains:
-        text = str(item or "").strip().lower()
-        text = re.sub(r"^[a-z]+://", "", text).split("/")[0].strip(".")
-        if not text or "." not in text or " " in text:
+    targets = raw.get("targets")
+    if not isinstance(targets, list):
+        raise ValueError("domain proposal needs a targets list")
+    cleaned: list[DomainTarget] = []
+    seen: set[tuple[str, str]] = set()
+    for item in targets:
+        if not isinstance(item, Mapping):
             continue
-        if text not in cleaned:
-            cleaned.append(text)
-        if len(cleaned) >= MAX_DOMAINS:
+        host = normalize_host(item.get("host"))
+        if not host:
+            continue
+        role = str(item.get("domain_role") or "").strip().lower()
+        if role not in DOMAIN_ROLES:
+            continue
+        scope = _parse_scope(item.get("scope"), host=host)
+        if not scope:
+            continue
+        key = (host, scope.rstrip("/"))
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(
+            DomainTarget(host=host, scope=scope, proposed_domain_role=role)
+        )
+        if len(cleaned) >= MAX_TARGETS_PARSED:
             break
     return cleaned
+
+
+def accepted_targets(targets: Iterable[DomainTarget]) -> list[DomainTarget]:
+    return [target for target in targets if target.accepted]
 
 
 def claim_search_terms(claim_text: str, *, limit: int = MAX_SEARCH_TERMS) -> list[str]:
@@ -113,13 +239,13 @@ def build_search_query(claim_text: str) -> str:
     return " ".join(claim_search_terms(claim_text))
 
 
-def sitemap_urls(domain: str, *, max_paths: int = MAX_SITEMAP_URLS) -> list[str]:
-    """Deterministic sitemap locations for one official domain."""
+def sitemap_urls(host: str, *, max_paths: int = MAX_SITEMAP_URLS) -> list[str]:
+    """Deterministic sitemap locations for one canonical host."""
 
-    host = parse_domain_proposal({"domains": [domain]})
-    if not host:
+    normalized = normalize_host(host)
+    if not normalized:
         return []
-    base = f"https://{host[0]}"
+    base = f"https://{normalized}"
     return [base + path for path in _SITEMAP_PATHS[: max(1, int(max_paths))]]
 
 
@@ -196,14 +322,13 @@ def rank_domain_urls(
     inverse-document-frequency weighting on evidence: idf over-rewards rare but
     semantically empty words ("official", "current") that appear in a claim's
     preamble, whereas a plain count rewards paths that match several claim
-    stems at once — exactly the deep page here (`docker` + `hub` + `pull`).
+    stems at once - exactly the deep page here (`docker` + `hub` + `pull`).
     Ties break towards shallower paths, then lexicographically.
     """
 
-    host = parse_domain_proposal({"domains": [domain]})
+    host = normalize_host(domain)
     if not host:
         return []
-    host = host[0]
 
     term_stems: set[str] = set()
     for term in terms:
@@ -250,10 +375,9 @@ def extract_candidate_links(
     Kept for HTML inventories (hub/nav pages) alongside sitemap harvesting.
     """
 
-    host = parse_domain_proposal({"domains": [domain]})
+    host = normalize_host(domain)
     if not host or not html:
         return []
-    host = host[0]
     parser = _AnchorExtractor()
     try:
         parser.feed(html)
@@ -285,20 +409,26 @@ def domain_proposal_messages(claim_text: str) -> list[dict[str, str]]:
 
 
 __all__ = [
+    "ACCEPTED_DOMAIN_ROLES",
     "DISCOVERY_METHOD_DOMAIN_TARGETED",
+    "DOMAIN_ROLES",
     "DOMAIN_SYSTEM_PROMPT",
     "DOMAIN_TARGETED_ENV",
+    "DomainTarget",
     "MAX_DOMAINS",
     "MAX_LINKS_PER_INVENTORY",
     "MAX_RANK_TERMS",
     "MAX_SITEMAP_CHILDREN",
     "MAX_SITEMAP_URLS",
+    "MAX_TARGETS_PARSED",
+    "accepted_targets",
     "build_search_query",
     "claim_search_terms",
     "domain_proposal_messages",
     "domain_proposal_payload",
     "domain_targeted_enabled",
     "extract_candidate_links",
+    "normalize_host",
     "parse_domain_proposal",
     "parse_sitemap",
     "prioritise_sitemap_children",
