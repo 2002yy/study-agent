@@ -2689,3 +2689,24 @@ extraction / gate      未到达 (read 0 → support 0 → eligible 0)
 四页 B1 E2E：对 §62 的四个已知深页各跑一次（同配置、window_aware retry），按 §64.4 的阶梯逐页统计，硬指标 **≥2/4 gate-eligible**；同时记录每页卡在哪一级，以及 read retry 的获准/跳过分布。若 10054 持续主导，则按 §62 进入 B3（headless）前先报告该证据。
 
 诊断产物：`docs/research_quality/B1.docker.run6.json`、`run7.json`（未跟踪）。
+
+
+### 64.6 建设阶段首个候选 head 门禁（`5ecca001`，2026-09-20）
+
+| 门 | 结果 |
+| --- | --- |
+| focused（domain_targeted / fetch_retry_admission / read_retry / llm_proposal / active_research_runtime） | **99 passed** |
+| 全量 pytest | **2087 passed / 3 failed**（678.4s） |
+| Ruff（src/tests/tools） | All checks passed |
+| `git diff --check` | 干净 |
+| 工作区（tracked） | clean |
+| d40.2 四项不变量（frozen replay，`--runs 3`） | **gate=pass ✓ · binding=valid（3/3 ok）✓ · consistency=clean（captured report ok, codes []）✓ · publish=substantive（substantive_answer_rate 1.0 / 1.0）✓** |
+
+3 项失败归因：
+
+- `test_rq1c_impl_entrypoints::…exact_head_guard`、`test_rq1c_protocol_probes::…deterministic_protocol_runner…`：**已知 Windows-local 平台失败**（父提交同样复现，非本批回归）。
+- `test_discovery_annotation::test_classification_tasks_are_blind_and_deterministic`：**负载型闪失败**——单独运行连续两次 6/6 通过；本批未触碰 annotation 路径（改动文件：`active_research_runtime.py` / `read_retry.py` / `domain_targeted.py` / `article_fetcher.py` 新增函数 / 测试）。
+
+diff 范围审计：本批共 6 个提交，语义边界为「§63 sitemap 发现 + §50/B2 admission + 账目/文档」；未触碰 selector prompt、K=2、H9、extractor、Gate、answer 语义，全部新行为在默认 off 开关后（`RESEARCH_DOMAIN_TARGETED`、`RESEARCH_READ_RETRY`）。
+
+诊断产物（未跟踪）：`docs/research_quality/B1.docker.run1..7.json`、`ANSWER_FORMATION.replay` 输出（temp）。
