@@ -11,6 +11,8 @@ Acceptance cases 1-7 from the ruling.
 
 from __future__ import annotations
 
+import pytest
+
 
 from src.application.active_research_runtime import (
     LATE_TAIL_MAX_CANDIDATES,
@@ -326,6 +328,42 @@ def test_budget_gates_record_why_the_tail_was_skipped() -> None:
         model_allowed=False,
     )
     assert record2["skipped_reason"] == "policy_blocked"
+
+
+def test_experimental_floor_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """§71A/F1: the floor is a calibration knob, default 8.0, not frozen."""
+
+    from src.application.active_research_runtime import late_tail_floor_seconds
+
+    monkeypatch.delenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", raising=False)
+    assert late_tail_floor_seconds() == pytest.approx(8.0)
+    monkeypatch.setenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", "4.0")
+    assert late_tail_floor_seconds() == pytest.approx(4.0)
+    monkeypatch.setenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", "0.2")
+    assert late_tail_floor_seconds() == pytest.approx(1.0)
+    monkeypatch.setenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", "junk")
+    assert late_tail_floor_seconds() == pytest.approx(8.0)
+
+    # 7.4s of headroom is refused at the default 8s floor but admitted at 4s.
+    monkeypatch.delenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", raising=False)
+    _result, rankings, record, assessor = _run_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        context=_context(["candidate_0"]),
+        seconds_left=7.4,
+    )
+    assert record["skipped_reason"] == "time_budget_exhausted"
+    assert assessor.calls == []
+
+    monkeypatch.setenv("RESEARCH_LATE_TAIL_FLOOR_SECONDS", "4.0")
+    _result2, rankings2, record2, assessor2 = _run_tail(
+        cursor=_cursor(["https://docs.example.com/pulls"]),
+        context=_context(["candidate_0"]),
+        seconds_left=7.4,
+    )
+    assert record2["skipped_reason"] == ""
+    assert record2["floor_seconds"] == pytest.approx(4.0)
+    assert assessor2.calls == [("candidate_0",)]
+    assert [item.candidate.id for item in rankings2[CLAIM_ID]] == ["candidate_0"]
 
 
 def test_tail_ignores_other_waves_and_other_claims() -> None:

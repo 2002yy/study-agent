@@ -9,6 +9,7 @@ components without changing off/shadow/legacy execution.
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -221,7 +222,23 @@ CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 # the global window and model-call budget. A wave may therefore assess up to
 # 2 (initial window) + 2 (late tail) = 4 candidates.
 LATE_TAIL_MAX_CANDIDATES = 2
+# §71A/F1 calibration: the floor is an *experimental* parameter, not a frozen
+# contract value. Default 8.0 (the original protective value); sweep it with
+# RESEARCH_LATE_TAIL_FLOOR_SECONDS to find the lowest floor that neither
+# blocks work that could still complete nor starts work that cannot.
 LATE_TAIL_MIN_SECONDS_LEFT = 8.0
+LATE_TAIL_FLOOR_ENV = "RESEARCH_LATE_TAIL_FLOOR_SECONDS"
+
+
+def late_tail_floor_seconds() -> float:
+    """Experimental late-tail admission floor (seconds left in the window)."""
+
+    raw = os.getenv(LATE_TAIL_FLOOR_ENV)
+    try:
+        value = float(raw) if raw not in (None, "") else LATE_TAIL_MIN_SECONDS_LEFT
+    except (TypeError, ValueError):
+        value = LATE_TAIL_MIN_SECONDS_LEFT
+    return max(1.0, min(value, 60.0))
 
 PolicyCheck = Callable[[Mapping[str, Any], str], bool]
 
@@ -3350,7 +3367,9 @@ def _late_admission_tail(
         _store()
         return cursor
 
-    if float(research_seconds_left()) < LATE_TAIL_MIN_SECONDS_LEFT:
+    floor_seconds = late_tail_floor_seconds()
+    record["floor_seconds"] = floor_seconds
+    if float(research_seconds_left()) < floor_seconds:
         record["skipped_reason"] = "time_budget_exhausted"
         _store()
         return cursor
