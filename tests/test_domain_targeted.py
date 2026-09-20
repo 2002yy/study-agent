@@ -323,6 +323,9 @@ def test_step_adds_verified_domain_targeted_candidate(
     assert record["domains"] == ["docs.docker.com"]
     assert record["inventory_kind"] == "urlset"
     assert record["verified"] == [target]
+    assert record["stages"]["candidate_admitted"] == 1
+    # target first, then the fixture's second ranked URL (read fails)
+    assert record["stages"]["verification_attempted"] == 2
     assert context["claim_engine_metrics"]["orchestration_model_calls"] == 1
 
 

@@ -162,9 +162,9 @@ from src.web.research.domain_targeted import (
     sitemap_urls,
 )
 from src.web.research.read_retry import (
+    make_window_admission,
     read_retry_mode,
     read_with_bounded_retry,
-    retry_window_floor_seconds,
 )
 from src.web.research.selection_trace import SelectionTraceCollector
 from src.web.research.atomic_routing import (
@@ -539,31 +539,38 @@ class ActiveResearchRuntimeExecutor:
                     return dict(_inner(url))
                 admission = None
                 if mode == "window_aware":
-                    floor = retry_window_floor_seconds()
-
-                    def admission(_retry_number: int, *, _floor: float = floor) -> bool:
-                        # Admission only uses the observed remaining research
-                        # time; the floor is provisional for this
-                        # characterization and is not frozen here.
-                        return research_seconds_left() >= _floor
-
-                return read_with_bounded_retry(
-                    url, read_fn=_inner, admission=admission
+                    # §50/B2: the same formula-based admission policy as the
+                    # inventory channel; only the metrics channel differs.
+                    admission = make_window_admission(
+                        remaining_seconds=research_seconds_left
+                    )
+                payload = read_with_bounded_retry(
+                    url,
+                    read_fn=_inner,
+                    admission=admission,
+                    diagnostics_key="read_retry",
                 )
+                _accumulate_fetch_metrics(
+                    context, "read_retry", payload.get("read_retry")
+                )
+                return payload
             finally:
                 phase_end("read")
 
         def fetch_text(url: str) -> tuple[str, str, str, str]:
-            """§63: raw text (XML/JSON/HTML) for inventory documents.
+            """§63 inventory fetch (XML/JSON/HTML) for the domain-targeted channel.
 
-            Used by the domain-targeted channel only, which needs <loc> entries
-            that the extracted-text reader does not expose. Bounded, local, and
-            never used for evidence reads.
+            §50/B2: transient fetch failures are retried under the *same*
+            window-aware admission policy as page reads, but accounted
+            separately (``inventory_fetch``) so inventory I/O never
+            contaminates read-retry statistics.
             """
 
-            from src.news.article_fetcher import _fetch_text_payload
-
-            return _fetch_text_payload(url, timeout=12, max_bytes=1_500_000)
+            return _inventory_fetch_with_retry(
+                url,
+                context=context,
+                remaining_seconds=research_seconds_left,
+            )
 
         def ensure_budget() -> None:
             if elapsed() >= state.budget.hard_timeout_seconds:
@@ -3301,6 +3308,17 @@ def _domain_targeted_step(
         record["verified"].append(url)
         record["added_candidate_ids"].append(candidate_id)
         existing_urls.add(url)
+    # §63/§50 acceptance accounting: discovery-side stages are counted here;
+    # the downstream ladder (assessed -> read -> extracted -> gate) is joined
+    # per candidate in metrics.discovery_funnel. Counters only, no heuristics.
+    record["stages"] = {
+        "domain_proposed": len(record["domains"]),
+        "inventory_fetched": inventory_fetches,
+        "links_ranked": len(record["links_found"]),
+        "verification_attempted": record["verification_reads"],
+        "verification_succeeded": len(record["verified"]),
+        "candidate_admitted": len(record["added_candidate_ids"]),
+    }
     if isinstance(metrics, dict):
         records = metrics.get("domain_targeted")
         if not isinstance(records, list):
@@ -4568,6 +4586,128 @@ def _source_record(
             ][:4],
         }
     return record
+
+
+def _inventory_fetch_with_retry(
+    url: str,
+    *,
+    context: dict[str, Any],
+    remaining_seconds: Any,
+    fetch: Any = None,
+) -> tuple[str, str, str, str]:
+    """§63 + §50/B2: bounded, window-aware inventory fetch for sitemaps.
+
+    Shares the retry admission policy with page reads but keeps its own
+    diagnostics channel (``inventory_fetch``) and its own payload adapter: the
+    fetch layer raises on transport failures and returns a 4-tuple, while the
+    retry loop speaks in ``{"ok": ...}`` mappings.
+    """
+
+    if fetch is None:
+        from src.news.article_fetcher import _fetch_text_payload
+
+        fetch = _fetch_text_payload
+
+    def _inner(target: str) -> Mapping[str, Any]:
+        try:
+            text, final_url, content_type, reason = fetch(
+                target, timeout=12, max_bytes=1_500_000
+            )
+        except Exception as exc:  # transport exceptions are retryable
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        if not text:
+            return {
+                "ok": False,
+                "reason": str(reason or "empty_response"),
+                "content_type": content_type,
+            }
+        return {
+            "ok": True,
+            "text": text,
+            "final_url": final_url,
+            "content_type": content_type,
+        }
+
+    mode = read_retry_mode()
+    if mode == "off":
+        payload = dict(_inner(url))
+    else:
+        admission = None
+        if mode == "window_aware":
+            admission = make_window_admission(remaining_seconds=remaining_seconds)
+        payload = read_with_bounded_retry(
+            url,
+            read_fn=_inner,
+            admission=admission,
+            diagnostics_key="inventory_fetch",
+        )
+        _accumulate_fetch_metrics(
+            context, "inventory_fetch", payload.get("inventory_fetch")
+        )
+    if payload.get("ok") is True:
+        return (
+            str(payload.get("text") or ""),
+            str(payload.get("final_url") or url),
+            str(payload.get("content_type") or ""),
+            "",
+        )
+    return (
+        "",
+        "",
+        "",
+        str(payload.get("error") or payload.get("reason") or "fetch_failed"),
+    )
+
+
+def _accumulate_fetch_metrics(
+    context: dict[str, Any], key: str, diagnostics: Any
+) -> None:
+    """§50/B2: aggregate per-fetch retry diagnostics into run metrics.
+
+    ``read_retry`` and ``inventory_fetch`` are accumulated under their own keys
+    so the two I/O classes stay separable; both use the same retry policy.
+    """
+
+    if not isinstance(diagnostics, Mapping):
+        return
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    entry = metrics.get(key)
+    if not isinstance(entry, dict):
+        entry = {
+            "fetches": 0,
+            "attempts": 0,
+            "retries": 0,
+            "skipped_due_to_budget": 0,
+            "retry_reasons": [],
+            "admission_reasons": [],
+        }
+        metrics[key] = entry
+    entry["fetches"] = int(entry.get("fetches") or 0) + 1
+    entry["attempts"] = int(entry.get("attempts") or 0) + int(
+        diagnostics.get("attempts") or 0
+    )
+    entry["retries"] = int(entry.get("retries") or 0) + int(
+        diagnostics.get("retries") or 0
+    )
+    entry["skipped_due_to_budget"] = int(
+        entry.get("skipped_due_to_budget") or 0
+    ) + int(diagnostics.get("skipped_due_to_budget") or 0)
+    reasons = entry.get("retry_reasons")
+    if not isinstance(reasons, list):
+        reasons = []
+    reasons.extend(
+        str(item)[:160] for item in (diagnostics.get("retry_reasons") or [])[:4]
+    )
+    entry["retry_reasons"] = reasons[-8:]
+    admission_reasons = entry.get("admission_reasons")
+    if not isinstance(admission_reasons, list):
+        admission_reasons = []
+    admission_reasons.extend(
+        str(item)[:80] for item in (diagnostics.get("admission_reasons") or [])[:4]
+    )
+    entry["admission_reasons"] = admission_reasons[-8:]
 
 
 def _upsert_source(records: list[dict[str, Any]], record: dict[str, Any]) -> None:

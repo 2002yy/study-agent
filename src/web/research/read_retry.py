@@ -14,15 +14,25 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 READ_RETRY_ENV = "RESEARCH_READ_RETRY"
 READ_RETRY_FLOOR_ENV = "RESEARCH_READ_RETRY_FLOOR_SECONDS"
 MAX_READ_RETRIES = 2
 READ_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (1.0, 2.0)
-# Provisional floor for the window-aware arm of the §48/§49 characterization:
-# expected attempt latency + required backoff + finalization reserve. To be
-# calibrated by the next characterization round, not frozen here.
+# §50/B2: the window-aware admission rule is a *formula*, not a magic floor:
+#
+#     retry_allowed = remaining_research_time
+#                     >= attempt_budget + next_backoff + finalization_reserve
+#
+# 18s (the §49 provisional floor) is simply this formula's first instance:
+# 12s attempt ceiling + 1s backoff + 5s reserve. The components stay parameters
+# so the next characterization round calibrates the rule rather than the number.
+READ_RETRY_ATTEMPT_BUDGET_SECONDS = 12.0
+READ_RETRY_RESERVE_SECONDS = 5.0
+# Kept only as an experimental override (must not exceed the computed
+# requirement); it exists so §48/§49 runs remain reproducible.
 READ_RETRY_WINDOW_FLOOR_SECONDS = 18.0
 
 # Fetch-layer signatures only. Deliberately excludes shape/policy failures
@@ -76,6 +86,80 @@ def retry_window_floor_seconds() -> float:
     return max(1.0, min(value, 120.0))
 
 
+def retry_window_requirement(
+    retry_number: int,
+    *,
+    attempt_budget_seconds: float | None = None,
+    backoff_seconds: tuple[float, ...] | None = None,
+    reserve_seconds: float | None = None,
+) -> float:
+    """Seconds a retry needs before it is admitted (the §50/B2 formula)."""
+
+    attempt = (
+        READ_RETRY_ATTEMPT_BUDGET_SECONDS
+        if attempt_budget_seconds is None
+        else float(attempt_budget_seconds)
+    )
+    reserve = (
+        READ_RETRY_RESERVE_SECONDS
+        if reserve_seconds is None
+        else float(reserve_seconds)
+    )
+    schedule = READ_RETRY_BACKOFF_SECONDS if backoff_seconds is None else tuple(backoff_seconds)
+    index = max(0, min(int(retry_number) - 1, len(schedule) - 1)) if schedule else 0
+    backoff = float(schedule[index]) if schedule else 0.0
+    return attempt + backoff + reserve
+
+
+@dataclass(frozen=True)
+class RetryAdmission:
+    """Outcome of one admission check, with the numbers that produced it."""
+
+    allowed: bool
+    reason: str
+    remaining_seconds: float
+    required_seconds: float
+
+    def __bool__(self) -> bool:  # so plain ``if admission(...)`` keeps working
+        return self.allowed
+
+
+def make_window_admission(
+    *,
+    remaining_seconds: Callable[[], float],
+    floor_seconds: float | None = None,
+    attempt_budget_seconds: float | None = None,
+    backoff_seconds: tuple[float, ...] | None = None,
+    reserve_seconds: float | None = None,
+) -> Callable[[int], RetryAdmission]:
+    """Admission callable re-evaluated before *every* retry.
+
+    The requirement is recomputed per retry from the observed remaining time,
+    so an initially-admitted retry never grants the following one: retry #2 is
+    re-checked (and needs a larger window, because its backoff is longer).
+    """
+
+    def admission(retry_number: int) -> RetryAdmission:
+        required = retry_window_requirement(
+            retry_number,
+            attempt_budget_seconds=attempt_budget_seconds,
+            backoff_seconds=backoff_seconds,
+            reserve_seconds=reserve_seconds,
+        )
+        if floor_seconds is not None:
+            required = max(required, float(floor_seconds))
+        remaining = float(remaining_seconds())
+        allowed = remaining >= required
+        return RetryAdmission(
+            allowed=allowed,
+            reason="allowed" if allowed else "insufficient_window",
+            remaining_seconds=remaining,
+            required_seconds=required,
+        )
+
+    return admission
+
+
 def is_fetch_layer_failure(result: Mapping[str, Any] | None) -> bool:
     """True only when the read failed at the fetch/transport layer."""
 
@@ -99,18 +183,26 @@ def read_with_bounded_retry(
     max_retries: int = MAX_READ_RETRIES,
     backoff_seconds: tuple[float, ...] = READ_RETRY_BACKOFF_SECONDS,
     sleep: Callable[[float], None] = time.sleep,
-    admission: Callable[[int], bool] | None = None,
+    admission: Callable[[int], Any] | None = None,
+    diagnostics_key: str = "read_retry",
 ) -> dict[str, Any]:
-    """Run one read with bounded fetch-layer retries and additive diagnostics.
+    """Run one fetch with bounded fetch-layer retries and additive diagnostics.
 
-    ``admission(retry_number)`` gates each retry (``True`` proceeds); the
-    window-aware mode passes a callable that checks the remaining research
-    time so a retry never eats the finalization reserve. A skipped admission
-    is recorded as ``skipped_by_admission`` in the diagnostics.
+    ``admission(retry_number)`` gates **each** retry (``True`` proceeds; a
+    :class:`RetryAdmission` is accepted and its reason recorded). It is called
+    again before every retry, so permission for retry #1 never implies
+    permission for retry #2. A refused admission is recorded as
+    ``skipped_by_admission`` / ``skipped_due_to_budget``.
+
+    ``diagnostics_key`` names the additive payload field, keeping I/O classes
+    separable: page reads report under ``read_retry`` and inventory fetches
+    (sitemaps) under ``inventory_fetch``. The retry policy is shared; the
+    metrics are not.
     """
 
     attempts = 0
     retry_reasons: list[str] = []
+    admission_reasons: list[str] = []
     skipped_by_admission = 0
     retried = 0
     result: Mapping[str, Any] = {}
@@ -129,9 +221,17 @@ def read_with_bounded_retry(
             break
         if not is_fetch_layer_failure(result):
             break
-        if admission is not None and not admission(retried + 1):
-            skipped_by_admission += 1
-            break
+        if admission is not None:
+            decision = admission(retried + 1)
+            if not bool(decision):
+                skipped_by_admission += 1
+                admission_reasons.append(
+                    str(getattr(decision, "reason", "") or "insufficient_window")
+                )
+                break
+            reason = str(getattr(decision, "reason", "") or "")
+            if reason:
+                admission_reasons.append(reason)
         retry_reasons.append(
             str(result.get("error") or result.get("reason") or "")[:160]
         )
@@ -140,11 +240,13 @@ def read_with_bounded_retry(
             sleep(backoff_seconds[min(retried - 1, len(backoff_seconds) - 1)])
     payload = dict(result)
     if retried or skipped_by_admission:
-        payload["read_retry"] = {
+        payload[diagnostics_key] = {
             "attempts": attempts,
             "retries": retried,
             "skipped_by_admission": skipped_by_admission,
+            "skipped_due_to_budget": skipped_by_admission,
             "retry_reasons": retry_reasons,
+            "admission_reasons": admission_reasons,
         }
     return payload
 
@@ -152,13 +254,18 @@ def read_with_bounded_retry(
 __all__ = [
     "FETCH_FAILURE_MARKERS",
     "MAX_READ_RETRIES",
+    "READ_RETRY_ATTEMPT_BUDGET_SECONDS",
     "READ_RETRY_BACKOFF_SECONDS",
     "READ_RETRY_ENV",
     "READ_RETRY_FLOOR_ENV",
+    "READ_RETRY_RESERVE_SECONDS",
     "READ_RETRY_WINDOW_FLOOR_SECONDS",
+    "RetryAdmission",
     "is_fetch_layer_failure",
+    "make_window_admission",
     "read_retry_enabled",
     "read_retry_mode",
     "read_with_bounded_retry",
     "retry_window_floor_seconds",
+    "retry_window_requirement",
 ]
