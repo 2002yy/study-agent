@@ -3146,3 +3146,43 @@ F3                 NOT SELECTED
 - 干净样本的 admission 分布（26.4–37.5s）与此前异常样本（42.3–47.5s）差异很大 ⇒ B1 延迟方差是后续 F2 的主要输入。
 
 诊断产物（未跟踪）：`F1b.*.json`、`F1c.*.json`、`F1.sweep.json`。
+
+
+## §74 F1 冻结 3.0s 与 §71A CLOSED（`b47a9fe2`）
+
+**冻结值**：`RESEARCH_LATE_TAIL_FLOOR_SECONDS = 3.0`（原 8.0 记为 *conservative bootstrap value*，不再作为默认）。
+
+**冻结语义（写进代码注释与 contract）**：
+
+> **Floor is an assessment-viability guard, not a downstream-completion reservation.**
+
+它只回答"是否还值得启动 assessment"；ranking、read scheduler 与证据链自己决定后续，入口地板不得替它们做决定。
+
+**依据**：修复后 assessment 实测 0.89–1.14s（8 干净样本），3.0s 提供约 2.6–3.4× 余量；3.0/4.0/8.0 在全部干净样本上行为等价，唯一差异区是 `3s < remaining < 4s`——4.0 无证据支持多拒绝这一秒。测试锁住：低于地板拒绝、3–4s 带内在冻结值放行、4.0 override 在该带拒绝。
+
+**§71A 完整链路已闭合**：`late admission → tail selection → assessment → ranking → scheduler → read`；docker 3/3 late read 成功；node 的 0/3 是**正确拒绝**（`answer_relevant=false` + `covered_cluster`），即 late channel 已从"能不能跑"进入"正常接受语义筛选"。
+
+**F2 状态**：`CHARACTERIZATION READY / not optimization-authorized`。待查 admission 长尾来源：inventory / 验证 read 数量 / 单次 fetch 延迟 / 10054 retry / 宿主 flakiness。先解释 26→47s 方差，再决定是否有可砍项。
+
+---
+
+## §75 §71B Retrieval Backend Contract（`061b88a9`，contract/types only）
+
+**四条冻结边界**（以类型与校验器编码）：
+
+| 边界 | 合同 |
+| --- | --- |
+| Discovery 外挂 | 只能产出 `DiscoveryCandidate` |
+| Read 外挂 | 只能产出 `RawReadArtifact` |
+| Evidence 权威 | 仍须经本地 assessment → extraction → support |
+| Gate 权威 | 外部 confidence/evidence/score 永不映射进本地 Gate；`FORBIDDEN_AUTHORITY_FIELDS` 直接拒绝，未声明字段必须移入 `external_metadata`（惰性） |
+
+**接口**：`DiscoveryBackend.search(DiscoveryRequest) -> list[DiscoveryCandidate]`；`ReadBackend.fetch(ReadRequest) -> RawReadArtifact`（Protocol，最小字段集）。
+
+**生命周期（继承 §71A-1 教训）**：`retrieval_invocation_id = claim:wave:backend:operation:seq`；创建与终结都通过 **provider callable 重新解析 live metrics**（backend 不得持有长期 context/metrics 引用）；终结按 id upsert，旧映射条目 `recovered` 迁移，绝不重复；非终态被拒；`assert_retrieval_invocations_terminal` 固化"created ⇒ terminal"不变式。
+
+**预算合同（只定义，不实现策略）**：三本账共用一口钟——`model_attempt`（外部后端永不消耗）/ `retrieval_attempt`（按 backend 记账）/ `wall_clock`（每秒钟都记在它头上，因为浏览器 fetch 的 4 秒与研究窗口里模型调用的 4 秒等价）。
+
+**测试**：8 条合同测试（边界、id 格式、终态不变式、映射替换下的 recovered upsert、预算分离）。
+
+**后续顺序**：§71C Wigolo `fetch`-only shadow reader → §71D discovery bakeoff（Current / DDGS / Agent Search / AutoSearch，强制指标含 ΔB1 admission 与 Δlate-tail headroom）→ §71E 最小 production routing。
