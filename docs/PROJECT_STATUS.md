@@ -3250,3 +3250,68 @@ Wigolo http tier（render_js 与 max_chars 固定；~1s）
 **待办（不修）**：daemon 启动必须带 `WIGOLO_RERANKER=off`（记录为运行前提）；cache/max_chars 交互需在生产接入前固定；browser tier 的预算门与超时需要单独 characterization。
 
 诊断产物（未跟踪）：`WIGOLO_SHADOW.cold{,2,3}.json`、`WIGOLO_SHADOW.warm.json`、`wigolo_serve*.log`（temp）。
+
+
+## §78 §71C-3 裁决与执行计划（已批准，待实现）
+
+**状态**：`§71C-1/2 CLOSED`（shadow 实验与数据在 §77）；**§71C-3a 尚未实现**——本节是明日执行的合同与切片，不是完成记录。
+
+### 78.1 裁决（3a / 3b 拆分）
+
+- **§71C-3a（批准）**：Wigolo **HTTP tier** 进入 production escalation：
+
+```text
+current reader
+    ↓
+ReadAdequacy PASS ─────────────→ existing pipeline
+    │
+    FAIL
+    ↓
+Wigolo HTTP-only（固定 max_chars；~1s）
+    ↓
+ReadAdequacy PASS ─────────────→ existing Extraction/Support/Gate
+    │
+    FAIL
+    ↓
+browser escalation NOT automatic（默认不启用）
+```
+
+- **不要把 Wigolo 变成默认 reader**：C 组（already-PASS 0 增益）证明 routing 必须是 `current first → adequacy FAIL → Wigolo`。
+- **§71C-3b（保守）**：browser tier **默认 OFF**（`WIGOLO_BROWSER_ESCALATION=off`），代码路径与 ledger 可接线，但只允许显式实验启用。理由：browser 只有 **1 个有效成本样本**（hub.docker.com 38.8s 救活），证明"有能力价值"但未证明"有生产时间价值"；38.8s 在 48s 窗口里接近 all-in，且进入 browser 时往往已非 t=0。**不得**现在冻结类似 `seconds_left >= 40` 的预算门（样本不足，不知 p50/p95/域间方差）——留给 **§71C-4 Browser-cost characterization**（5–10 个真需 browser 的页面：cold/warm、成功率、latency/timeout 分布、域方差、剩余 downstream 成本）。
+
+### 78.2 随 3a 一起冻结的约束
+
+1. **`max_chars` 是合同，不是启动参数**：冻结 `WIGOLO_FETCH_MAX_CHARS = 20_000`（当前救活页最高 ~10.9k，留 ~2× 余量）。语义 = **cache-affecting retrieval contract parameter**：改值视为 cache schema/config migration，不是普通 tuning（因为 daemon cache 保存的是"首次调用时被截断的文本"，§77.1-2）。provenance 至少留 `max_chars_requested` / `chars_returned`；Wigolo 若能暴露 truncation 信号才记 `possibly_truncated`，**不能猜**。
+2. **`WIGOLO_RERANKER=off` 是 hard preflight**：不满足 ⇒ `backend unavailable` ⇒ **不调用 Wigolo**、current path 正常继续、diagnostics 明确写 `misconfigured`。不许"试一下看看"（否则某台机器重启 daemon 会把 1s fallback 悄悄变成 33s 黑洞，并触发 false domain→browser promotion）。
+3. **Ledger 区分 tier**：`backend=wigolo` + **`tier = http | browser`**；每条记录 attempts / rescues / failures / latency / chars gain / **adequacy transition**（如 `short_doc → ok`），作为"Wigolo 长期是否值得保留"的线上证据。
+4. **失败隔离硬锁**：daemon absent / connection refused / timeout / invalid JSON / schema mismatch / 内部失败 ⇒ **只产生 terminal retrieval failure**；不得改 current reader 结果、不得改 claim ranking、不得伪造空 `RawReadArtifact`、不得把 external failure 当 source evidence。即：**fallback 自己失败只损失一次 fallback 机会，不能损伤原能力。**
+5. **不扩范围**：E/F（PDF、github sitemap）双方失败是好信息，本批只做 **HTML/web-document rescue**；PDF 若值得做应单独 reader/backend。
+
+### 78.3 §71C-3a 完成门（10 项，缺一不可）
+
+```text
+1.  already-PASS → Wigolo calls = 0
+2.  inadequate HTTP → Wigolo HTTP 被调用
+3.  Docker flagship → rescue
+4.  Wigolo failure → 原链行为不变
+5.  browser tier production calls = 0
+6.  reranker misconfig → fail closed
+7.  retrieval invocations terminal = 100%
+8.  model_attempt budget 不变
+9.  retrieval ledger / wall clock 正确增加
+10. max_chars 固定值进入 provenance
+```
+
+通过后，Wigolo HTTP escalation 才正式记为"Study Agent 第一项成功吸收的外挂能力"。
+
+### 78.4 明日执行切片（单一入口）
+
+1. `src/web/research/read_adequacy.py`：把 §46 adequacy 判定提取为生产库函数（阈值/markers 与 `tools/run_read_adequacy_probe.py` 同源，工具改为引用，行为不变）。
+2. `wigolo_backend.py` 扩展：`WIGOLO_FETCH_MAX_CHARS=20_000`、`tier` 参数（http|browser）、hard preflight（reranker/health，fail closed）、provenance 字段。
+3. `src/web/research/read_escalation.py`：escalation 编排（可注入 backend；任何失败 → 返回原 reader 结果 + 诊断）。
+4. 接入 `ActiveResearchGateway.read`（current first；`RESEARCH_WIGOLO_ESCALATION=off|http|browser`，默认 `off`，gate 重放用 `http`；browser 仅显式实验）。
+5. runtime：把 escalation 诊断聚合进 §71B ledger（`retrieval_attempts` / `retrieval_invocations`，含 tier 与 adequacy transition），wall clock 已由 read phase 计时。
+6. 确定性测试（无 daemon）：PASS 不调用 / FAIL 调用并救活 / 失败不改原结果 / browser 默认不调用 / reranker misconfig fail closed / max_chars 与 provenance / ledger terminal 100% / model attempt 计数不变。
+7. 完成门重放：Docker case（production path，`RESEARCH_WIGOLO_ESCALATION=http`）逐项核对 78.3 的 10 条，记录 artifact。
+
+**当前 head**：`39216d0`（tracked clean）。daemon 仍以 `WIGOLO_RERANKER=off` 在 loopback 运行。
