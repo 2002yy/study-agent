@@ -2881,3 +2881,62 @@ focused：`test_domain_targeted` 23 passed；runtime/llm_proposal/fetch_retry 72
 - A 桶字面 1/4 → 记为单点 variance；A+A′ 合并 2/4 → 触发 B1-T3（proposal 质量微批）。**取决于是否把 node 的宿主错配计入 proposal 质量。**
 - G 3/4 → 按裁决升级为当前 blocker，建议提前 B5 子批（selector 预算），不顺手改。
 - H 2/4 为新类，建议单列 B1-T5（admitted-but-unread 的读取调度归因），先 characterize 再 contract。
+
+
+## §68 B1-T5 admitted-but-unread probe（离线，未改任何生产语义）
+
+### 68.1 归因结果：6/6 唯一原因
+
+对 `B1E2.docker.json` / `B1E2.node.json` 的 6 个 admitted 候选（id 由 URL sha256 反推）：
+
+| 观测 | 结果 |
+| --- | --- |
+| 在 selector input 中 | **6/6 否** |
+| selection_trace 有条目 | **6/6 无** |
+| read outcome 存在 | **6/6 否** |
+
+**机制（代码级证据，行号为当前 head）**：波内顺序是
+`_select_assessment_window`（L1176，按 claim 固定本波窗口）→ 评估 → **`_domain_targeted_step`（L1324，此时才 admitted 新候选）** → `_fair_read_plan`（L1419，只消费由该窗口评估得到的 `claim_rankings`）。因此本波 admitted 的候选**不在该 claim 的 ranking 里**，读取计划看不到它们。
+
+**唯一原因（按冻结链的第一处失败）**：`not_in_rank_window`
+**恢复被阻断于**：`time_budget_exhausted` —— 两个 run 都止于 wave 2（`research_window.exhausted=true`，deadline 48s、实际 research ≈50s），不存在下一波重新选窗的机会。
+
+⇒ 即裁决中怀疑的 **phase-order / scheduler re-entry** 路径，但精确位置是"**窗口先于 admission 固定**"，而非"读取计划先于 admission 构造"。根因类别 = scheduler/phase ordering（**不是** orchestration/model-call budget）。
+
+### 68.2 Node 诊断问题的回答
+
+问题：`nodejs.org` 是否存在语义等价、可支持同一 claim 的 canonical page？
+
+- **存在且可读**：`https://nodejs.org/api/modules.html` 返回 200（161,237 字符，同时提到 CommonJS 与 ESM），是 `nodejs.cn/api/modules.html` 的 canonical 对应页。
+- **但不在 sitemap 里**：nodejs.org `/sitemap.xml` 共 1036 条，**0 条** `/api/` 路径（该 sitemap 只覆盖 `/en/...` 页面）。
+
+⇒ Node 的结论：既不是 proposal 失败，也不是目标不存在；是 **A′ benchmark 镜像未命中 + nodejs.org sitemap 覆盖不全**（host coverage 的又一实例）。因此 Node **不计入 proposal quality**（按裁决），且 host coverage 的实际频率由 1/4 上调为 **2/4**（uv github 无 sitemap；nodejs.org sitemap 缺 api 段）。
+
+### 68.3 待裁决：窄修方案（三选一，均不新增模型调用优先）
+
+| 方案 | 做法 | 代价/风险 |
+| --- | --- | --- |
+| R1 追加式扩窗 | 每 claim 循环结束后、`_fair_read_plan` 前，把"本波 admitted 且该 claim 窗口仍有空位"的候选**确定性追加**进该 claim 的 ranking（不重跑 selector） | 需保持窗口的 cluster-diversity 与 ≤2 上限语义；无新增模型调用 |
+| R2 下一波重选窗 | 记录"admission 发生在选窗之后"的 claim，强制下一波重选该 claim 窗口 | 本轮两 run 都无下一波（时间耗尽），单独用不足以修复；且可能增加 selector 调用（预算已紧） |
+| R3 提前 admission | 把 B1/Tier-2 step 移到选窗之前 | **与状态谓词冲突**（谓词依赖本波 assessment 的 answer_relevant/完成 read），不可行 |
+
+倾向 **R1**（确定性、零新增模型调用、不触碰 selector）；R2 可作为 R1 的兜底（当波内有剩余时间时）。
+
+### 68.4 下一步顺序（按裁决锁定）
+
+```text
+B1-T1 trigger              PASS
+B1-T2 target role          PASS
+四页 characterization       COMPLETE
+B1-T5 admitted-but-unread  COMPLETE（6/6 = not_in_rank_window；恢复被 time_budget_exhausted 阻断）
+        ↓
+窄修 read scheduling（待裁决 R1/R2/R3）
+        ↓
+B5-S1 selector/orchestration budget attribution（G 3/4，已升级为当前 blocker）
+        ↓
+PostgreSQL proposal recall 1/4 → 暂不 T3
+uv/node host coverage 2/4 → 后续 host-coverage 微批
+short_doc/JS 0/4 primary → B3 继续延期
+```
+
+B1 状态措辞（按裁决收紧）：**discovery capability demonstrated；E2E 失败已由 post-admission scheduling/orchestration 主导，而非"找不到深页 URL"**。
