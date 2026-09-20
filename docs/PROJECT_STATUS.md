@@ -3186,3 +3186,22 @@ F3                 NOT SELECTED
 **测试**：8 条合同测试（边界、id 格式、终态不变式、映射替换下的 recovered upsert、预算分离）。
 
 **后续顺序**：§71C Wigolo `fetch`-only shadow reader → §71D discovery bakeoff（Current / DDGS / Agent Search / AutoSearch，强制指标含 ΔB1 admission 与 Δlate-tail headroom）→ §71E 最小 production routing。
+
+
+## §76 候选 head 门禁：pre-external-backend baseline（`fc50845`）
+
+**状态**：`§71A CLOSED + §71B CLOSED + tracked clean`，作为引入任何外部 retrieval backend 之前的完整基线。
+
+| 门 | 结果 |
+| --- | --- |
+| full pytest | **2120 passed / 2 failed**（728.6s） |
+| 失败 signature 对照（vs `5ecca00` 的 3 项） | 已知 2 项 Windows-local 平台失败保持同类（`test_rq1c_impl_entrypoints::…exact_head_guard`、`test_rq1c_protocol_probes::…deterministic_protocol_runner…`）；上次的负载型闪失败（`test_discovery_annotation::…blind_and_deterministic`）本次未复现 ⇒ **失败数 3→2，无新增 failure family** |
+| 回归检查 | 无 retrieval-contract / late-tail 相关新回归 |
+| Ruff（src/tests/tools） | All checks passed |
+| `git diff --check` | clean |
+| tracked 工作区 | clean |
+| d40.2 四项不变量（frozen replay，runs=3） | **gate=pass ✓ · binding=valid（3/3 ok, fail_closed 0.0）✓ · consistency=clean ✓ · publish=substantive（1.0 / 1.0）✓** |
+
+**基线用途**：§71C 起会首次引入外部运行时依赖（浏览器/本地模型）、额外 wall-clock 与新失败面；此后任何全量门异常都先与此 baseline 对照，用于区分 tail/contract 改动与 Wigolo 接入引入的问题。
+
+诊断产物（未跟踪）：`full_pytest_fc50845.log`（temp）、`D402.replay.fc50845.json`（temp）。
