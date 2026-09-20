@@ -3285,6 +3285,10 @@ def _late_admission_tail(
             admitted_ms = domain_record.get("t_admitted_ms")
             if isinstance(admitted_ms, (int, float)):
                 record["t_admitted_ms"] = float(admitted_ms)
+            for key in ("t_started_ms", "t_proposal_ms"):
+                value = domain_record.get(key)
+                if isinstance(value, (int, float)):
+                    record[key] = float(value)
             break
 
     def _store() -> None:
