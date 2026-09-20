@@ -700,3 +700,47 @@ def test_read_only_metrics_mapping_is_rebound_not_lost() -> None:
     assert entry["outcome"] == "assessed:1"
     assert (live.get("late_assessment_tail") or [])[-1]["assessed_ids"] == ["candidate_0"]
 
+def test_aborted_tail_still_reaches_a_terminal_state() -> None:
+    """A control-flow exception escaping the tail must not leave a corpse."""
+
+    class _Abort(Exception):
+        pass
+
+    class _AbortingAssessor:
+        def assess(self, **kwargs):
+            raise _Abort("hard_budget_exhausted")
+
+    context = _context(["candidate_0"])
+    claim = _claim()
+    try:
+        _late_admission_tail(
+            cursor=_cursor(["https://docs.example.com/pulls"]),
+            state=_state(claim),
+            claim=claim,
+            context=context,
+            run_id="run_1",
+            wave_index=2,
+            max_reads=8,
+            assessor=_AbortingAssessor(),
+            model_allowed=lambda purpose, categories: True,
+            on_model_started=lambda **kwargs: None,
+            on_model_finished=lambda **kwargs: None,
+            phase_begin=lambda name: None,
+            phase_end=lambda name: None,
+            remaining_timeout=lambda: 5.0,
+            research_seconds_left=lambda: 30.0,
+            trace=None,
+            claim_rankings={},
+            stored_assessments={},
+            assessed_inputs={},
+            now_ms=lambda: 2000.0,
+            deadline_seconds=48.0,
+        )
+    except _Abort:
+        pass
+    else:  # pragma: no cover - the abort must propagate to the runtime
+        raise AssertionError("control-flow exception must be re-raised")
+
+    entry = _terminal_invocations(context)[0]
+    assert entry["outcome"] == "aborted:_Abort"
+

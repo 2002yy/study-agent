@@ -3408,190 +3408,197 @@ def _late_admission_tail(
             text_id = str(candidate_id)
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
-    if not late_ids:
-        _finalize_late_tail_invocation(context, invocation, outcome="no_late_ids")
-        return cursor
+    try:
+        if not late_ids:
+            _finalize_late_tail_invocation(context, invocation, outcome="no_late_ids")
+            return cursor
 
-    record: dict[str, Any] = {
-        "claim_id": claim.id,
-        "wave_index": int(wave_index),
-        "late_candidate_ids": list(late_ids),
-        "selected_ids": [],
-        "assessed_ids": [],
-        "selector_calls": 0,
-        "assessment_calls": 0,
-        "skipped_reason": "",
-        "ranked_after": 0,
-        "seconds_left": round(float(research_seconds_left()), 3),
-        "t_admitted_ms": None,
-        "t_tail_selected_ms": None,
-        "t_tail_gate_ms": None,
-    }
-    for domain_record in metrics.get("domain_targeted") or []:
-        if (
-            isinstance(domain_record, Mapping)
-            and str(domain_record.get("claim_id") or "") == claim.id
-            and int(domain_record.get("wave_index") or 0) == int(wave_index)
-        ):
-            admitted_ms = domain_record.get("t_admitted_ms")
-            if isinstance(admitted_ms, (int, float)):
-                record["t_admitted_ms"] = float(admitted_ms)
-            for key in ("t_started_ms", "t_proposal_ms"):
-                value = domain_record.get(key)
-                if isinstance(value, (int, float)):
-                    record[key] = float(value)
-            break
+        record: dict[str, Any] = {
+            "claim_id": claim.id,
+            "wave_index": int(wave_index),
+            "late_candidate_ids": list(late_ids),
+            "selected_ids": [],
+            "assessed_ids": [],
+            "selector_calls": 0,
+            "assessment_calls": 0,
+            "skipped_reason": "",
+            "ranked_after": 0,
+            "seconds_left": round(float(research_seconds_left()), 3),
+            "t_admitted_ms": None,
+            "t_tail_selected_ms": None,
+            "t_tail_gate_ms": None,
+        }
+        for domain_record in metrics.get("domain_targeted") or []:
+            if (
+                isinstance(domain_record, Mapping)
+                and str(domain_record.get("claim_id") or "") == claim.id
+                and int(domain_record.get("wave_index") or 0) == int(wave_index)
+            ):
+                admitted_ms = domain_record.get("t_admitted_ms")
+                if isinstance(admitted_ms, (int, float)):
+                    record["t_admitted_ms"] = float(admitted_ms)
+                for key in ("t_started_ms", "t_proposal_ms"):
+                    value = domain_record.get(key)
+                    if isinstance(value, (int, float)):
+                        record[key] = float(value)
+                break
 
-    def _store() -> None:
-        if now_ms:
-            record["t_tail_gate_ms"] = round(float(now_ms()), 1)
-        if deadline_seconds and record.get("t_admitted_ms") is not None:
-            record["headroom_at_admission_seconds"] = round(
-                float(deadline_seconds) - float(record["t_admitted_ms"]) / 1000.0,
-                3,
+        def _store() -> None:
+            if now_ms:
+                record["t_tail_gate_ms"] = round(float(now_ms()), 1)
+            if deadline_seconds and record.get("t_admitted_ms") is not None:
+                record["headroom_at_admission_seconds"] = round(
+                    float(deadline_seconds) - float(record["t_admitted_ms"]) / 1000.0,
+                    3,
+                )
+            if deadline_seconds and record.get("t_tail_gate_ms") is not None:
+                record["headroom_at_gate_seconds"] = round(
+                    float(deadline_seconds) - float(record["t_tail_gate_ms"]) / 1000.0,
+                    3,
+                )
+            _record_b1_critical_path(
+                context,
+                record,
+                deadline_seconds=float(deadline_seconds or 0.0),
             )
-        if deadline_seconds and record.get("t_tail_gate_ms") is not None:
-            record["headroom_at_gate_seconds"] = round(
-                float(deadline_seconds) - float(record["t_tail_gate_ms"]) / 1000.0,
-                3,
+            target = _resolve_live_metrics(context)
+            if target is None:
+                return
+            records = target.get("late_assessment_tail")
+            if not isinstance(records, list):
+                records = []
+            records.append(record)
+            target["late_assessment_tail"] = records[-40:]
+            _finalize_late_tail_invocation(
+                context,
+                invocation,
+                outcome=(
+                    record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
+                ),
+                late_ids=len(record["late_candidate_ids"]),
             )
-        _record_b1_critical_path(
-            context,
-            record,
-            deadline_seconds=float(deadline_seconds or 0.0),
+
+        already_ranked = {
+            item.candidate.id for item in claim_rankings.get(claim.id, ())
+        }
+        excluded = frozenset({*cursor.completed_read_ids, *already_ranked})
+        claim_candidates = _candidates_for_claim(cursor, claim.id)
+        late_items = tuple(
+            item
+            for item in claim_candidates
+            if item.id in set(late_ids) and item.id not in excluded
         )
-        target = _resolve_live_metrics(context)
-        if target is None:
-            return
-        records = target.get("late_assessment_tail")
-        if not isinstance(records, list):
-            records = []
-        records.append(record)
-        target["late_assessment_tail"] = records[-40:]
+        if not late_items:
+            record["skipped_reason"] = "no_late_candidates"
+            _store()
+            return cursor
+
+        clusters = cluster_candidate_sources(claim_candidates)
+        assignments = {item.candidate_id: item for item in clusters.assignments}
+        selected = _bounded_assessment_candidates(
+            late_items,
+            assignments=assignments,
+            max_reads=min(int(max_reads), LATE_TAIL_MAX_CANDIDATES),
+            excluded_candidate_ids=frozenset(),
+            trace=None,
+        )
+        record["selected_ids"] = [item.id for item in selected]
+        if now_ms:
+            record["t_tail_selected_ms"] = round(float(now_ms()), 1)
+        if not selected:
+            record["skipped_reason"] = "no_read_slot_for_claim"
+            _store()
+            return cursor
+
+        floor_seconds = late_tail_floor_seconds()
+        record["floor_seconds"] = floor_seconds
+        if float(research_seconds_left()) < floor_seconds:
+            record["skipped_reason"] = "time_budget_exhausted"
+            _store()
+            return cursor
+
+        categories = ("public_research_claim", "public_candidate_metadata")
+        if not model_allowed("research_candidate_assessment", categories):
+            record["skipped_reason"] = "policy_blocked"
+            _store()
+            return cursor
+
+        candidate_ids = tuple(sorted(item.id for item in selected))
+        logical_call_id = (
+            f"research_candidate_assessment:{run_id}:{claim.id}:late"
+            f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
+        )
+        try:
+            attempt_start = _model_attempt_start(cursor, logical_call_id)
+        except _ModelAttemptBudgetExhausted:
+            record["skipped_reason"] = "model_call_budget_exceeded"
+            _store()
+            return cursor
+
+        assessment_assignments = {item.id: assignments[item.id] for item in selected}
+        phase_begin("assessment")
+        try:
+            assessed = assessor.assess(
+                run_id=run_id,
+                claim=claim,
+                candidates=selected,
+                assignments=assessment_assignments,
+                reference_date=state.reference_date,
+                timeout_seconds=remaining_timeout(),
+                on_attempt_started=on_model_started,
+                on_attempt_finished=on_model_finished,
+                call_id_suffix=_assessment_call_suffix(
+                    cursor, claim.id, candidate_ids
+                ),
+                attempt_start=attempt_start,
+            )
+        finally:
+            phase_end("assessment")
+        record["assessment_calls"] = 1
+        if assessed.status != "completed" or not assessed.assessments:
+            record["skipped_reason"] = (
+                "model_call_budget_exceeded"
+                if str(getattr(assessed, "reason", "") or "") == "model_call_attempts_exhausted"
+                else "assessment_failed"
+            )
+            _store()
+            return cursor
+
+        merged: dict[str, Any] = {
+            item.candidate.id: item.assessment
+            for item in claim_rankings.get(claim.id, ())
+        }
+        merged.update(assessed.assessments)
+        ranked_candidates = tuple(
+            item for item in claim_candidates if item.id in merged
+        )
+        ranked = rank_candidate_pool(
+            ranked_candidates,
+            claim=claim,
+            assessments=merged,
+        )
+        for rank_position, ranked_item in enumerate(ranked, start=1):
+            if trace is not None:
+                trace.note_scheduler_rank(
+                    ranked_item.candidate.canonical_url,
+                    rank=rank_position,
+                )
+        claim_rankings[claim.id] = ranked
+        stored_assessments[claim.id] = [item.to_dict() for item in ranked]
+        assessed_inputs[claim.id] = sorted(merged)
+        context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
+        context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
+        record["assessed_ids"] = sorted(assessed.assessments)
+        record["ranked_after"] = len(ranked)
+        _store()
+        return cursor
+    except BaseException as exc:  # noqa: BLE001 - re-raised below
         _finalize_late_tail_invocation(
             context,
             invocation,
-            outcome=(
-                record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
-            ),
-            late_ids=len(record["late_candidate_ids"]),
+            outcome=f"aborted:{type(exc).__name__}",
         )
-
-    already_ranked = {
-        item.candidate.id for item in claim_rankings.get(claim.id, ())
-    }
-    excluded = frozenset({*cursor.completed_read_ids, *already_ranked})
-    claim_candidates = _candidates_for_claim(cursor, claim.id)
-    late_items = tuple(
-        item
-        for item in claim_candidates
-        if item.id in set(late_ids) and item.id not in excluded
-    )
-    if not late_items:
-        record["skipped_reason"] = "no_late_candidates"
-        _store()
-        return cursor
-
-    clusters = cluster_candidate_sources(claim_candidates)
-    assignments = {item.candidate_id: item for item in clusters.assignments}
-    selected = _bounded_assessment_candidates(
-        late_items,
-        assignments=assignments,
-        max_reads=min(int(max_reads), LATE_TAIL_MAX_CANDIDATES),
-        excluded_candidate_ids=frozenset(),
-        trace=None,
-    )
-    record["selected_ids"] = [item.id for item in selected]
-    if now_ms:
-        record["t_tail_selected_ms"] = round(float(now_ms()), 1)
-    if not selected:
-        record["skipped_reason"] = "no_read_slot_for_claim"
-        _store()
-        return cursor
-
-    floor_seconds = late_tail_floor_seconds()
-    record["floor_seconds"] = floor_seconds
-    if float(research_seconds_left()) < floor_seconds:
-        record["skipped_reason"] = "time_budget_exhausted"
-        _store()
-        return cursor
-
-    categories = ("public_research_claim", "public_candidate_metadata")
-    if not model_allowed("research_candidate_assessment", categories):
-        record["skipped_reason"] = "policy_blocked"
-        _store()
-        return cursor
-
-    candidate_ids = tuple(sorted(item.id for item in selected))
-    logical_call_id = (
-        f"research_candidate_assessment:{run_id}:{claim.id}:late"
-        f"{_assessment_call_suffix(cursor, claim.id, candidate_ids)}"
-    )
-    try:
-        attempt_start = _model_attempt_start(cursor, logical_call_id)
-    except _ModelAttemptBudgetExhausted:
-        record["skipped_reason"] = "model_call_budget_exceeded"
-        _store()
-        return cursor
-
-    assessment_assignments = {item.id: assignments[item.id] for item in selected}
-    phase_begin("assessment")
-    try:
-        assessed = assessor.assess(
-            run_id=run_id,
-            claim=claim,
-            candidates=selected,
-            assignments=assessment_assignments,
-            reference_date=state.reference_date,
-            timeout_seconds=remaining_timeout(),
-            on_attempt_started=on_model_started,
-            on_attempt_finished=on_model_finished,
-            call_id_suffix=_assessment_call_suffix(
-                cursor, claim.id, candidate_ids
-            ),
-            attempt_start=attempt_start,
-        )
-    finally:
-        phase_end("assessment")
-    record["assessment_calls"] = 1
-    if assessed.status != "completed" or not assessed.assessments:
-        record["skipped_reason"] = (
-            "model_call_budget_exceeded"
-            if str(getattr(assessed, "reason", "") or "") == "model_call_attempts_exhausted"
-            else "assessment_failed"
-        )
-        _store()
-        return cursor
-
-    merged: dict[str, Any] = {
-        item.candidate.id: item.assessment
-        for item in claim_rankings.get(claim.id, ())
-    }
-    merged.update(assessed.assessments)
-    ranked_candidates = tuple(
-        item for item in claim_candidates if item.id in merged
-    )
-    ranked = rank_candidate_pool(
-        ranked_candidates,
-        claim=claim,
-        assessments=merged,
-    )
-    for rank_position, ranked_item in enumerate(ranked, start=1):
-        if trace is not None:
-            trace.note_scheduler_rank(
-                ranked_item.candidate.canonical_url,
-                rank=rank_position,
-            )
-    claim_rankings[claim.id] = ranked
-    stored_assessments[claim.id] = [item.to_dict() for item in ranked]
-    assessed_inputs[claim.id] = sorted(merged)
-    context[ACTIVE_RESEARCH_ASSESSMENTS_KEY] = stored_assessments
-    context[ACTIVE_RESEARCH_ASSESSMENT_INPUTS_KEY] = assessed_inputs
-    record["assessed_ids"] = sorted(assessed.assessments)
-    record["ranked_after"] = len(ranked)
-    _store()
-    return cursor
-
+        raise
 
 def _domain_targeted_step(
     *,
