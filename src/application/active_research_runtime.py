@@ -1398,6 +1398,7 @@ class ActiveResearchRuntimeExecutor:
                             state.budget.hard_timeout_seconds
                             - RESEARCH_WINDOW_RESERVE_SECONDS
                         ),
+                        live_context=lambda: context,
                     )
                     checkpoint()
 
@@ -3379,6 +3380,7 @@ def _late_admission_tail(
     assessed_inputs: dict[str, list[str]],
     now_ms: Any = None,
     deadline_seconds: float = 0.0,
+    live_context: Any = None,
 ) -> ResearchRuntimeCursor:
     """§69/B1-T5 R1': assess this wave's late-admitted candidates.
 
@@ -3393,12 +3395,17 @@ def _late_admission_tail(
     gone it records why it was skipped.
     """
 
-    metrics = _resolve_live_metrics(context)
+    def _live() -> dict[str, Any]:
+        # §71A-1: refresh_steering() can replace the whole context dict while
+        # this step runs, so every read/write boundary resolves it again.
+        return live_context() if live_context is not None else context
+
+    metrics = _resolve_live_metrics(_live())
     if not isinstance(metrics, Mapping):
         return cursor
     late_ids: list[str] = []
     invocation = _note_late_tail_invocation(
-        context, claim_id=claim.id, wave_index=wave_index
+        _live(), claim_id=claim.id, wave_index=wave_index
     )
     for record in metrics.get("domain_targeted") or []:
         if not isinstance(record, Mapping):
@@ -3415,7 +3422,7 @@ def _late_admission_tail(
         if invocation is not None:
             invocation["phase"] = f"decided:{len(late_ids)}"
         if not late_ids:
-            _finalize_late_tail_invocation(context, invocation, outcome="no_late_ids")
+            _finalize_late_tail_invocation(_live(), invocation, outcome="no_late_ids")
             return cursor
 
         record: dict[str, Any] = {
@@ -3462,11 +3469,11 @@ def _late_admission_tail(
                     3,
                 )
             _record_b1_critical_path(
-                context,
+                _live(),
                 record,
                 deadline_seconds=float(deadline_seconds or 0.0),
             )
-            target = _resolve_live_metrics(context)
+            target = _resolve_live_metrics(_live())
             if target is None:
                 return
             records = target.get("late_assessment_tail")
@@ -3475,7 +3482,7 @@ def _late_admission_tail(
             records.append(record)
             target["late_assessment_tail"] = records[-40:]
             _finalize_late_tail_invocation(
-                context,
+                _live(),
                 invocation,
                 outcome=(
                     record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
@@ -3603,7 +3610,7 @@ def _late_admission_tail(
         return cursor
     except BaseException as exc:  # noqa: BLE001 - re-raised below
         _finalize_late_tail_invocation(
-            context,
+            _live(),
             invocation,
             outcome=f"aborted:{type(exc).__name__}",
         )
