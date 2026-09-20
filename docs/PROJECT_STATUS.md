@@ -2740,3 +2740,47 @@ diff 范围审计：本批共 6 个提交，语义边界为「§63 sitemap 发�
 - 建议下一步（待裁决）：优先修 **触发谓词**（让"Tier-1 零可读"时也能触发 Tier-1.5），再评估 proposal 精度；headless（B3）留到读取面证据齐备后。
 
 诊断产物（未跟踪）：`docs/research_quality/B1E.postgres.json`、`B1E.node.json`、`B1E.uv.json`、`B1.docker.run7.json`。
+
+
+## §65 B1-T1 触发合同修复（`50bb71a4`）与 uv 复验
+
+### 65.1 修复内容（只做这一件事）
+
+旧谓词只在"该 claim 已有完成 read"后才可能触发，于是"Tier-1 有候选但永远读不成"的 claim（uv 形态）永远进不了 Tier-1.5——而 Tier-1.5 的职责恰恰是覆盖"Tier-1 没给出可读结果"。新谓词两个合法入口：
+
+```text
+trigger iff enabled
+           AND not already tried for this claim
+           AND not claim_has_support
+           AND ( tier1_miss_reason(...)      # 旧入口：有完成 read 且无 support
+                 OR no_viable_read_path )    # 新入口
+```
+
+`no_viable_read_path`（最窄、纯计数、可审计）：`wave_index >= 2` 且该 claim 有计划 query（Tier-1 已走完一整波）**且该 claim 完成 read 数 == 0**。不会在第一波抢跑，也不看 run-level reads。记录里 `tier1_miss_reason` 会写成 `no_viable_read_path`，机器可查。
+
+同时按用途拆分 orchestration 记账：`metrics.orchestration_model_calls_by_purpose`（`research_url_proposal` / `research_domain_proposal` / `research_selection_authority`）。理由：资格契约限制的是**全部**模型调用，B1 多消耗一次调用可能把后续饿死而不代表 discovery 失败，失败报告必须能区分二者。
+
+测试：4 条确定性触发用例（有 read 无 support 仍触发；Tier-1 走完波次且 0 read **现在触发**；第一波有候选不抢跑；别的 claim 有 read 不影响本 claim）+ 既有每 claim 一次约束。
+
+### 65.2 uv 复验（`B1T1.uv.json`，契约 clean，elapsed 46.5s）
+
+| 阶段 | 修复前 | 修复后 |
+| --- | --- | --- |
+| trigger | **未触发** | ✅ 触发（`tier1_miss_reason=no_viable_read_path`, wave 2） |
+| domain proposed | — | ✅ `github.com`, `docs.astral.sh` |
+| inventory fetched | — | ⚠️ 2 次：`github.com/sitemap.xml` → **HTTP 406**；`sitemap_index.xml` → 超时 |
+| 第二域 | — | ❌ `docs.astral.sh/sitemap.xml` 与 `sitemap_index.xml` 均 **`skipped_by_window`**（窗口护栏拒绝） |
+| candidate | — | ❌ links_ranked 0 |
+
+`orchestration_model_calls_by_purpose` 实测：`{research_domain_proposal: 1, research_selection_authority: 3}`；`violations: []`。
+
+**结论**：触发合同修复成立（uv 从"永不触发"变为"触发并走完 proposal → inventory"）。uv 剩余阻塞已换类为两条，均非 trigger：
+
+1. **宿主无可用 sitemap**：github.com 对本站点返回 406 / 超时（且 GitHub 本就不提供 sitemap）；
+2. **窗口护栏饿死第二域**：第一域两次失败（含一次 12s 超时）后，`docs.astral.sh`（**确有其 sitemap，84 locs**）被 `skipped_by_window` 跳过——顺序与配额问题，不是能力缺失。
+
+### 65.3 下一步
+
+按裁决顺序进入 **B1-T2：域提案 official 契约**（模型返回 `domain` + `domain_role = official | project-host | third-party`，运行时只接受前两类；把"官方性"变成机器可查字段，不做长 prompt 工程）。T2 之后再跑四页 E2E，并按剩余失败分类（fetch_failed → B2 策略；short_doc/JS → B3）。§65.2 的两条 uv 阻塞记入 T2 之后的待办（宿主覆盖 / 域间配额公平性），不在 T2 范围内。
+
+诊断产物（未跟踪）：`docs/research_quality/B1T1.uv.json`。
