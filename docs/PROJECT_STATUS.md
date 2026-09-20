@@ -2831,3 +2831,53 @@ focused：`test_domain_targeted` 23 passed；runtime/llm_proposal/fetch_retry 72
 - 按裁决顺序，下一步是**四页 B1 E2E 重跑**（T1+T2 生效后的净效果），并按剩余失败分类：`fetch_failed` → B2 策略；`short_doc/JS` → B3；`no accepted target proposed` → proposal recall 微批；宿主无 sitemap / 域间配额 → host coverage。
 
 诊断产物（未跟踪）：`docs/research_quality/B1T2.postgres.json`、`B1T2.postgres.run2.json`。
+
+
+## §67 四页 E2E characterization（T1+T2 后，head `b0f79b0`）
+
+配置同上（B1 on + selector=model + routing=on + retry=window_aware）；每 case 一条统一漏斗，失败按 A–H 归档。诊断产物：`B1E2.*.json` + `B1E2.summary.json`（未跟踪）。
+
+### 67.1 漏斗（统一 14 级）
+
+| 级 | docker | node | postgres | uv |
+| --- | --- | --- | --- | --- |
+| triggered | ✅ | ✅ | ✅ | ✅ |
+| targets_proposed / accepted | 1 / 1 | 1 / 1 | 1 / **0** | 1 / 1 |
+| inventory_attempted / succeeded | 1 / ✅ 1811 | 1 / ✅ | 0 / ❌ | 2 / ❌ |
+| target_present / rank | ✅ **#1** | ❌ | n/a | ❌ |
+| verification_attempted / succeeded | 5 / 3（**含目标**） | 3 / 3（不含目标） | 0 / 0 | 0 / 0 |
+| candidate_admitted | 3（含目标） | 3 | 0 | 0 |
+| assessment_relevant / read_succeeded | 0 / **0** | 0 / **0** | 0 / 0 | 0 / 0 |
+| extraction_support / gate_eligible | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| 目标最终 eligible | ❌ | ⚠️ 是（**来自既有链**，非 B1） | ❌ | ❌ |
+
+### 67.2 失败分桶（首要阻塞）
+
+| case | 首要桶 | 证据 |
+| --- | --- | --- |
+| docker | **H downstream** | 目标 verified（verified[0]）且已 admitted，但 3 个 B1 候选 `read: false`——**admitted 后从未被读** |
+| node | **A′ proposal host mismatch** | 模型给 `nodejs.org`（scope 指向 `/api/modules.html`），目标是 **nodejs.cn** 的镜像页 → 该宿主不在 inventory；nodejs.cn 页由既有链读到并 eligible |
+| postgres | **A proposal_recall** | 唯一 target 为 `endoflife.date` 且自报 `third-party` → 正确拒绝，无 accepted target |
+| uv | **B host_coverage** | `github.com` project-host 被接受，但 `/sitemap.xml` **406**、`/sitemap_index.xml` **404** → 无可用 inventory |
+
+其余桶本轮为 0：C domain_fairness 0（uv 本轮只提 1 个域）、D fetch_failed 0 作为首要（docker 的 10054 本轮落在其他 URL，目标自身验证成功）、E short_doc_js 0、F ranking 0（无"在 inventory 但超 cap"实例）。
+
+### 67.3 频率排序与新发现的系统类
+
+1. **G orchestration_budget：3/4**（`model_call_budget_exceeded`；selector 调用 docker 4 / node 4 / postgres 8；uv 3 且 clean）。按裁决口径 Node+Postgres 均超 ⇒ **升级为当前 E2E blocker**。
+2. **A+A′ proposal 质量：2/4**（postgres 无 accepted target；node 宿主错配）。若按字面"A 桶"仅 1/4；合并"proposal 质量"则达 2/4。
+3. **H admitted-but-unread：2/4（新系统类）**：docker 与 node 各有 3 个 B1 候选被 admitted，**0 个被读**（`read: false`）。这是本轮新暴露、且比 fetch 更靠前的阻塞：候选进入池后没有进入读取计划/窗口。
+4. B host_coverage：1/4（uv）。
+5. fetch_failed / short_doc / fairness / ranking：0/4 首要。
+
+### 67.4 结论
+
+- T1+T2 的净效果可证：**触发 4/4**（此前 uv 永不触发）；**角色契约 4/4 生效**（postgres 的第三方声明被拒，不再污染 downstream）；docker 目标 **rank #1 且验证通过**——"基础设施能否到达深页"在 docker 上已答"能"。
+- 失败质量已从混杂变为**少数可重复类别**：proposal 质量（2/4）、orchestration 预算（3/4）、admitted-but-unread（2/4）、宿主覆盖（1/4）。
+- **"B1 失败"不是准确表述**：本轮 B1 机制端 4/4 触发、3/4 拿到 accepted target、docker 端到端走到 admitted；剩下的缺口分布在 proposal、预算、读取调度与宿主覆盖。
+
+### 67.5 待裁决（按裁决阈值）
+
+- A 桶字面 1/4 → 记为单点 variance；A+A′ 合并 2/4 → 触发 B1-T3（proposal 质量微批）。**取决于是否把 node 的宿主错配计入 proposal 质量。**
+- G 3/4 → 按裁决升级为当前 blocker，建议提前 B5 子批（selector 预算），不顺手改。
+- H 2/4 为新类，建议单列 B1-T5（admitted-but-unread 的读取调度归因），先 characterize 再 contract。
