@@ -3109,3 +3109,40 @@ F3                 NOT SELECTED
 ```
 
 诊断产物（未跟踪）：`A1.node.sanity*.json`、`A1.docker.sanity.json`。
+
+
+## §73 F1 calibration 结果（10 次 replay：floor 4.0×6、3.0×2、8.0×2）
+
+### 73.1 数据（全部为 §71A-1 修复后的可信样本）
+
+| run | gate | admission | head_adm | head_gate | floor | assessment 成本 | late | assessed | late read |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| docker 4.0 ×3 | partial | 26.4 / 31.4 / 32.4s | 21.6 / 16.6 / 15.6s | 20.6 / 15.5 / 14.5s | 4.0 | 0.97 / 1.09 / 1.11s | 2–3 | 2 | **✅ 3/3** |
+| node 4.0 ×3 | block | 35.5 / 35.6 / 37.5s | 12.5 / 12.4 / 10.5s | 11.3 / 11.5 / 9.4s | 4.0 | 1.14 / 0.97 / 1.13s | 3 | 2 | ❌ 0/3 |
+| node 3.0 | block | 35.6s | 12.4s | 11.5s | 3.0 | 0.95s | 3 | 2 | ❌ |
+| node 8.0 | block | 37.1s | 10.9s | 10.0s | 8.0 | 0.89s | 3 | 2 | ❌ |
+| docker 3.0 / 8.0 | — | — | — | — | — | — | 0 | 0 | —（该两次 B1 未产出候选） |
+
+### 73.2 关键测量
+
+1. **assessment 成本 = 0.89–1.14s**（8 样本，稳定）——远低于 8.0s 地板所隐含的假设。
+2. **干净样本的 headroom at admission = 10.5–21.6s**，全部高于 8.0 ⇒ **在本分布下 floor 对 3.0/4.0/8.0 都不绑定**；地板只在低 headroom 异常样本（此前观测到 0.5 / 4.9 / 5.7 / 7.4s）上起作用。
+3. **docker：late 候选 assessed → read 成功（3/3）**——首次观测到 Tier-1.5 候选走完到 read。
+4. **node：late 候选 assessed 但未 read 是正确结果**：评估判定 `answer_relevant=false`（nodejs.org 博客页与"官方支持哪些模块系统"不相关），trace 显示 `covered_cluster / scheduler_not_selected`；第 3 个候选被 selector 窗口排除（`model_selection_not_chosen`）。**这不是缺陷，是冻结证据链按设计工作。**
+
+### 73.3 F1 结论与冻结建议
+
+按裁决标准——"floor 只负责阻止明显不可能完成有意义 downstream work 的启动"——现在有实测依据：
+
+- 有意义 downstream work 的最低成本 ≈ assessment **1.1s** + read 计划/调度余量；
+- 异常样本中 headroom 7.4s 时：评估后仍余 ~6.3s（足以调度 read），8.0 地板却会误杀；headroom 0.5s 时：连 assessment 都不够，拒绝正确；
+- ⇒ 建议**冻结 floor = 3.0s**（≈2.7× 实测 assessment 成本 + 余量），把 8.0 明确记为"过保守的初值"。3.0 与 4.0 在现有数据上无行为差异，选 3.0 只因它更贴近实测下限；若倾向保守可选 4.0。
+
+待裁决：冻结值取 **3.0** 还是 **4.0**（两者在全部干净样本上等价，仅在异常低 headroom 样本上不同）。
+
+### 73.4 附带观察（不修）
+
+- docker 的 B1 产出率仍受宿主 flakiness 影响：10 次 replay 中 2 次完全未产出候选。
+- 干净样本的 admission 分布（26.4–37.5s）与此前异常样本（42.3–47.5s）差异很大 ⇒ B1 延迟方差是后续 F2 的主要输入。
+
+诊断产物（未跟踪）：`F1b.*.json`、`F1c.*.json`、`F1.sweep.json`。
