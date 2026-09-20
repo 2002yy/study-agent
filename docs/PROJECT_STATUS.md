@@ -2710,3 +2710,33 @@ extraction / gate      未到达 (read 0 → support 0 → eligible 0)
 diff 范围审计：本批共 6 个提交，语义边界为「§63 sitemap 发现 + §50/B2 admission + 账目/文档」；未触碰 selector prompt、K=2、H9、extractor、Gate、answer 语义，全部新行为在默认 off 开关后（`RESEARCH_DOMAIN_TARGETED`、`RESEARCH_READ_RETRY`）。
 
 诊断产物（未跟踪）：`docs/research_quality/B1.docker.run1..7.json`、`ANSWER_FORMATION.replay` 输出（temp）。
+
+
+### 64.7 B1 E2E：四个已知深页逐页归因（head `9cf823d`，同 run7 配置）
+
+配置：`RESEARCH_DOMAIN_TARGETED=on` + selector=model + routing=on + `RESEARCH_READ_RETRY=window_aware`。
+
+| case | 目标深页 | 域提案 | inventory | 目标进链 | 目标 gate-eligible | 卡点 |
+| --- | --- | --- | --- | --- | --- | --- |
+| container-registry | docs.docker.com/docker-hub/usage/pulls/ | ✅ 正确 | ✅ urlset 1811 | ✅ **rank #1** | ❌ | 目标 read 两次获准 retry 后仍 10054 |
+| historical-current-node-modules | nodejs.cn/api/modules.html | ⚠️ nodejs.org + developer.mozilla.org（**未含 nodejs.cn**） | ✅ index 10 | ❌ | ⚠️ 该页 eligible，但**来自既有链**（Tier-1/lead），非 B1 | 域提案未覆盖目标宿主 |
+| current-support-postgresql | postgresql.org/support/versioning/ | ❌ endoflife.date + ubuntu.com | ⚠️ index 55，links_ranked 0 | ❌ | ❌ | **域提案错误**（模型选了第三方追踪站） |
+| simple-license-uv | github.com/astral-sh/uv/blob/main/LICENSE-MIT | —（通道未触发） | — | ❌ | ❌ | **触发前置未满足**：该 case `reads=0`，claim-scoped 谓词要求"该 claim 有完成 read" |
+
+**硬指标：0/4 由 Tier-1.5 成为 gate-eligible。**
+
+### 64.8 归因（三个独立阻塞，非单一 flakiness）
+
+1. **读取面 transient failure**（Docker）：B1 已把目标排到 #1、验证读取两次获准 retry，仍连续 10054 ⇒ §47 宿主级 flakiness，B2 策略按设计工作但无法凭空修复。
+2. **域提案精度**（PostgreSQL）：模型给出 `endoflife.date` / `ubuntu.com` 而非 `postgresql.org`。发现机制无责，问题在 proposal 内容质量；且该 case 的 `links_ranked=0`（词干不匹配）说明排序对"域内无相关路径"的情形是诚实返回空。
+3. **触发前置**（uv）：B1 与 Tier-2 共用 claim-scoped 谓词（要求该 claim 至少 1 次完成 read）。当 Tier-1 完全无可读候选时，B1 **永远不会触发**——而 B1 的立项动机恰恰是"Tier-1 召回不到深页"。这是设计层面的限制，需在 §62 决策（放宽谓词 / 独立触发条件）中显式处理。
+
+附带：postgres 与 node 两个 case 出现 `model_call_budget_exceeded`——B1 多消耗 1 次研究模型调用，在这些 case 的其他编排调用已接近上限时越界。这与 §62 的"预算语义随开关逐项立项"一致，属于生产化（B5）必须解决项。
+
+### 64.9 结论与下一步
+
+- B1 机制结论不变（`MECHANISM PASS`）；E2E 结论为 **0/4**，且阻塞分布在读取面、proposal 质量、触发谓词三处。
+- 按 §64.5 的约定，进入 B3（headless）前先报告本证据（已完成）。B3 只能解第 1 类阻塞中的 JS/short_doc 部分，不能解 10054、proposal 精度与触发谓词。
+- 建议下一步（待裁决）：优先修 **触发谓词**（让"Tier-1 零可读"时也能触发 Tier-1.5），再评估 proposal 精度；headless（B3）留到读取面证据齐备后。
+
+诊断产物（未跟踪）：`docs/research_quality/B1E.postgres.json`、`B1E.node.json`、`B1E.uv.json`、`B1.docker.run7.json`。
