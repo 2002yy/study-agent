@@ -413,12 +413,228 @@ def test_step_never_runs_twice_for_the_same_claim(
         read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
         context={},
         run_id="run_1",
-        wave_index=1,
+        wave_index=2,
         timeout_seconds=5.0,
         targeted_claim_ids=["claim_1"],
         seconds_left=lambda: 30.0,
     )
     assert gateway.calls == 0
+
+
+def _run_step(
+    *,
+    gateway: _Gateway,
+    claim_id: str = "claim_1",
+    wave_index: int = 2,
+    context: dict | None = None,
+) -> dict:
+    from src.application.active_research_runtime import _domain_targeted_step
+
+    state, claim = _runtime_state_and_claim()
+    if claim_id != "claim_1":
+        claim = claim.__class__(**{**claim.__dict__, "id": claim_id})
+    context = context if context is not None else {}
+    _domain_targeted_step(
+        cursor=_runtime_cursor(),
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=wave_index,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    return context
+
+
+def test_trigger_fires_when_claim_has_read_but_no_support(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Entry 1 (legacy): a completed read for this claim with no support."""
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    gateway = _Gateway(["docs.docker.com"])
+    # The shared fixture already has one completed read for claim_1.
+    context = _run_step(gateway=gateway)
+    assert gateway.calls == 1
+    assert context["claim_engine_metrics"]["domain_targeted"][-1]["tier1_miss_reason"] == (
+        "no_answer_relevant_candidate"
+    )
+
+
+def test_trigger_fires_when_tier1_left_no_readable_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Entry 2 (new): Tier-1 had its wave and this claim still has 0 reads."""
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    from src.application.active_research_runtime import _domain_targeted_step
+    from src.web.research.runtime import ResearchRuntimeCursor, RuntimeCandidate, RuntimePlannedQuery
+
+    state, claim = _runtime_state_and_claim()
+    cursor = ResearchRuntimeCursor(
+        candidates=(
+            RuntimeCandidate(
+                id="candidate_junk_1",
+                url="https://astral.fan/",
+                title="junk",
+                query_ids=("q1",),
+                first_seen_rank=0,
+            ),
+        ),
+        read_outcomes=(),
+        planned_queries=(
+            RuntimePlannedQuery(
+                id="q1",
+                gap_id="gap_1",
+                claim_id="claim_1",
+                intent="fact",
+                query="uv license",
+            ),
+        ),
+    )
+    gateway = _Gateway(["docs.docker.com"])
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    assert gateway.calls == 1
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert record["tier1_miss_reason"] == "no_viable_read_path"
+
+
+def test_trigger_does_not_race_tier1_in_the_first_wave(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Entry 2 must not fire before Tier-1 has had a full wave."""
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    from src.application.active_research_runtime import _domain_targeted_step
+    from src.web.research.runtime import ResearchRuntimeCursor, RuntimeCandidate, RuntimePlannedQuery
+
+    state, claim = _runtime_state_and_claim()
+    cursor = ResearchRuntimeCursor(
+        candidates=(
+            RuntimeCandidate(
+                id="candidate_pending_1",
+                url="https://nodejs.org/",
+                title="pending",
+                query_ids=("q1",),
+                first_seen_rank=0,
+            ),
+        ),
+        read_outcomes=(),
+        planned_queries=(
+            RuntimePlannedQuery(
+                id="q1",
+                gap_id="gap_1",
+                claim_id="claim_1",
+                intent="fact",
+                query="node modules",
+            ),
+        ),
+    )
+    gateway = _Gateway(["docs.docker.com"])
+    _domain_targeted_step(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context={},
+        run_id="run_1",
+        wave_index=1,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    assert gateway.calls == 0
+
+
+def test_trigger_uses_claim_state_not_run_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Another claim's completed read must not gate this claim's trigger."""
+
+    monkeypatch.setenv(DOMAIN_TARGETED_ENV, "on")
+    from src.application.active_research_runtime import _domain_targeted_step
+    from src.web.research.runtime import (
+        ResearchRuntimeCursor,
+        RuntimeCandidate,
+        RuntimePlannedQuery,
+        RuntimeReadOutcome,
+    )
+
+    state, claim = _runtime_state_and_claim()
+    claim = claim.__class__(**{**claim.__dict__, "id": "claim_2"})
+    cursor = ResearchRuntimeCursor(
+        candidates=(
+            RuntimeCandidate(
+                id="candidate_other_1",
+                url="https://www.docker.com/",
+                title="other claim candidate",
+                query_ids=("q1",),
+                first_seen_rank=0,
+            ),
+            RuntimeCandidate(
+                id="candidate_claim2_1",
+                url="https://nodejs.org/en/download/current",
+                title="claim 2 candidate",
+                query_ids=("q2",),
+                first_seen_rank=1,
+            ),
+        ),
+        # a read completed for the OTHER claim only
+        read_outcomes=(RuntimeReadOutcome(candidate_id="candidate_other_1", status="success"),),
+        planned_queries=(
+            RuntimePlannedQuery(
+                id="q1", gap_id="gap_1", claim_id="claim_1", intent="fact", query="other"
+            ),
+            RuntimePlannedQuery(
+                id="q2", gap_id="gap_2", claim_id="claim_2", intent="fact", query="node"
+            ),
+        ),
+    )
+    gateway = _Gateway(["docs.docker.com"])
+    context: dict = {}
+    _domain_targeted_step(
+        cursor=cursor,
+        state=state,
+        claim=claim,
+        assessments={},
+        model_gateway=gateway,
+        fetch_text=lambda url: (DOCKER_SITEMAP, url, "application/xml", ""),
+        read_fn=lambda url, *, max_chars: {"ok": True, "content": "x"},
+        context=context,
+        run_id="run_1",
+        wave_index=2,
+        timeout_seconds=5.0,
+        targeted_claim_ids=[],
+        seconds_left=lambda: 30.0,
+    )
+    assert gateway.calls == 1
+    record = context["claim_engine_metrics"]["domain_targeted"][-1]
+    assert record["claim_id"] == "claim_2"
+    assert record["tier1_miss_reason"] == "no_viable_read_path"
 
 
 def test_it_reads_no_content_from_the_inventory_fetches(

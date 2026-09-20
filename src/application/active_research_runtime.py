@@ -3026,11 +3026,7 @@ def _tier2_proposal_step(
         record["call_status"] = status or "unknown"
         value = result.value if status == "completed" else None
         record["proposed"] = list(value or [])
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if isinstance(metrics, dict):
-        metrics["orchestration_model_calls"] = int(
-            metrics.get("orchestration_model_calls") or 0
-        ) + 1
+    _count_orchestration_call(context, "research_url_proposal")
 
     existing_urls = {item.url for item in cursor.candidates}
     anchor_query_id = next(
@@ -3084,6 +3080,7 @@ def _tier2_proposal_step(
         record["verified"].append(url)
         record["added_candidate_ids"].append(candidate_id)
         existing_urls.add(url)
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("tier2_proposal")
         if not isinstance(records, list):
@@ -3139,8 +3136,19 @@ def _domain_targeted_step(
             for link in state.evidence_links
         ),
     )
-    if not miss_reason:
+    # §65/B1-T1 trigger repair: the legacy predicate only fires once a read has
+    # completed, so a claim whose Tier-1 candidates never become readable can
+    # never reach Tier-1.5 (the uv deadlock). The second entry is deliberately
+    # narrow and counter-only: Tier-1 has had a full wave for THIS claim, and
+    # this claim still has zero completed reads. It cannot fire in the first
+    # wave (no racing Tier-1 scheduling) and never consults run-level reads.
+    tier1_wave_consumed = int(wave_index) >= 2 and any(
+        query.claim_id == claim.id for query in cursor.planned_queries
+    )
+    no_viable_read_path = tier1_wave_consumed and claim_completed_reads == 0
+    if not miss_reason and not no_viable_read_path:
         return cursor
+    miss_reason = miss_reason or "no_viable_read_path"
     targeted_claim_ids.append(claim.id)
     del targeted_claim_ids[50:]
 
@@ -3186,11 +3194,7 @@ def _domain_targeted_step(
         status = str(getattr(result, "status", ""))
         record["call_status"] = status or "unknown"
         record["domains"] = list(result.value or []) if status == "completed" else []
-    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-    if isinstance(metrics, dict):
-        metrics["orchestration_model_calls"] = int(
-            metrics.get("orchestration_model_calls") or 0
-        ) + 1
+    _count_orchestration_call(context, "research_domain_proposal")
 
     # Ranking may use more terms than a prose query: the runtime claim text
     # led with generic words, so a 6-term cap dropped the subject entity
@@ -3323,6 +3327,7 @@ def _domain_targeted_step(
         "verification_succeeded": len(record["verified"]),
         "candidate_admitted": len(record["added_candidate_ids"]),
     }
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
         records = metrics.get("domain_targeted")
         if not isinstance(records, list):
@@ -3535,11 +3540,13 @@ def _select_assessment_window(
     diagnostics.final_picks = [item.canonical_url for item in final_items]
     diagnostics.enabled = True
 
+    _count_orchestration_call(
+        context,
+        "research_selection_authority",
+        calls=1 if limit > 0 and ordered else 0,
+    )
     metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
     if isinstance(metrics, dict):
-        metrics["orchestration_model_calls"] = int(
-            metrics.get("orchestration_model_calls") or 0
-        ) + (1 if limit > 0 and ordered else 0)
         records = metrics.get("selection_authority")
         if not isinstance(records, list):
             records = []
@@ -4661,6 +4668,33 @@ def _inventory_fetch_with_retry(
         "",
         str(payload.get("error") or payload.get("reason") or "fetch_failed"),
     )
+
+
+def _count_orchestration_call(
+    context: dict[str, Any], purpose: str, *, calls: int = 1
+) -> None:
+    """§65 accounting: count orchestration model calls by purpose.
+
+    The qualification contract caps *all* model calls, so a B1 run can starve
+    the rest of the pipeline without discovery itself failing. Recording the
+    purpose split (planner / selector / domain proposal / url proposal / lead
+    discovery ...) makes that failure mode visible instead of mixing it into a
+    single number.
+    """
+
+    if calls <= 0:
+        return
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    metrics["orchestration_model_calls"] = int(
+        metrics.get("orchestration_model_calls") or 0
+    ) + int(calls)
+    by_purpose = metrics.get("orchestration_model_calls_by_purpose")
+    if not isinstance(by_purpose, dict):
+        by_purpose = {}
+    by_purpose[purpose] = int(by_purpose.get(purpose) or 0) + int(calls)
+    metrics["orchestration_model_calls_by_purpose"] = by_purpose
 
 
 def _accumulate_fetch_metrics(
