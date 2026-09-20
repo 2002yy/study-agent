@@ -222,16 +222,30 @@ CANDIDATE_ASSESSMENT_WINDOW_MAX_CANDIDATES = 2
 # the global window and model-call budget. A wave may therefore assess up to
 # 2 (initial window) + 2 (late tail) = 4 candidates.
 LATE_TAIL_MAX_CANDIDATES = 2
-# §71A/F1 calibration: the floor is an *experimental* parameter, not a frozen
-# contract value. Default 8.0 (the original protective value); sweep it with
-# RESEARCH_LATE_TAIL_FLOOR_SECONDS to find the lowest floor that neither
-# blocks work that could still complete nor starts work that cannot.
-LATE_TAIL_MIN_SECONDS_LEFT = 8.0
+# §71A/F1 frozen 3.0s (was 8.0, a conservative bootstrap value).
+#
+# Semantics (frozen): the floor is an **assessment-viability guard**, not a
+# downstream-completion reservation. It only answers "is it still worth
+# starting the assessment?" - ranking, the read scheduler and the evidence
+# chain decide the rest, and must not have that decision pre-empted here.
+#
+# Evidence: post-§71A-1 assessment cost measured at 0.89-1.14s over eight clean
+# replays (3.0 gives ~2.6-3.4x headroom even at the slowest observation), and
+# 3.0/4.0/8.0 were behaviourally identical on every clean sample - they differ
+# only in the 3s < remaining < 4s band, where 4.0 has no evidence for refusing
+# work that costs about a second. Higher floors buy false negatives, not
+# correctness. RESEARCH_LATE_TAIL_FLOOR_SECONDS still overrides for experiments.
+LATE_TAIL_MIN_SECONDS_LEFT = 3.0
 LATE_TAIL_FLOOR_ENV = "RESEARCH_LATE_TAIL_FLOOR_SECONDS"
 
 
 def late_tail_floor_seconds() -> float:
-    """Experimental late-tail admission floor (seconds left in the window)."""
+    """Late-tail admission floor (seconds left in the window).
+
+    Assessment-viability guard: it decides whether an assessment can still be
+    started, not whether the whole late-read chain can complete. Overridable for
+    experiments only; the frozen default is LATE_TAIL_MIN_SECONDS_LEFT.
+    """
 
     raw = os.getenv(LATE_TAIL_FLOOR_ENV)
     try:
