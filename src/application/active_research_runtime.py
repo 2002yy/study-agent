@@ -3225,6 +3225,8 @@ def _note_late_tail_invocation(
         "wave_index": int(wave_index),
         "late_ids": 0,
         "outcome": "returned_early",
+        "metrics_type": type(metrics).__name__,
+        "domain_records": len(metrics.get("domain_targeted") or []),
     }
     invocations.append(entry)
     metrics["late_tail_invocations"] = invocations[-40:]
@@ -3308,6 +3310,13 @@ def _late_admission_tail(
     if not late_ids:
         if invocation is not None:
             invocation["outcome"] = "no_late_ids"
+            invocation["matching_records"] = sum(
+                1
+                for item in metrics.get("domain_targeted") or []
+                if isinstance(item, Mapping)
+                and str(item.get("claim_id") or "") == claim.id
+                and int(item.get("wave_index") or 0) == int(wave_index)
+            )
         return cursor
 
     record: dict[str, Any] = {
@@ -3360,6 +3369,8 @@ def _late_admission_tail(
         )
         target = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
         if not isinstance(target, dict):
+            if invocation is not None:
+                invocation["store_skipped_type"] = type(target).__name__
             return
         records = target.get("late_assessment_tail")
         if not isinstance(records, list):
@@ -3371,6 +3382,7 @@ def _late_admission_tail(
             invocation["outcome"] = (
                 record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
             )
+            invocation["store_target_type"] = type(target).__name__
 
     already_ranked = {
         item.candidate.id for item in claim_rankings.get(claim.id, ())
