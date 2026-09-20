@@ -3067,3 +3067,45 @@ node:   seconds_left = 4.875s  < 8.0                               → refused�
 - 不改变 §70 的封板结论；不进入 F2；不动 8.0 默认值（仍为默认）。
 
 诊断产物（未跟踪）：`F1.docker.f4*.json`、`F1.node.f4*.json`。
+
+
+## §72 §71A-1 完成：live metrics/context 生命周期修复（`f9f1edd8` → `f0446c46`）
+
+### 72.1 根因链（三层，逐层被证据钉死）
+
+1. **metrics key 被替换**：每次 invocation 的 `metrics_identity` 都不同 ⇒ runtime 频繁重建 `context[metrics_key]`；早期实现在函数入口捕获一次映射，写诊断时已过期。
+2. **read-only 映射**：某些时刻该值是只读 Mapping，`isinstance(..., dict)` 检查失败 ⇒ 诊断静默丢弃（对应 `returned_early` 尸体）。
+3. **整个 context 被替换**（真正根因）：`refresh_steering()` 执行 `nonlocal context; context = merge(...)`，把**整个 context 对象**换掉；tail 持有的 `context` 参数已失效，所有写入落到被丢弃的对象上。phase marker 最终定位：尸体停在 `phase="assessing"` 且**没有任何异常**——排除 abort 路径，只剩"写到了旧对象"。
+
+### 72.2 修复（仅诊断一致性，行为零变化）
+
+- `_resolve_live_metrics(context)`：每次读写边界重新解析；遇只读 Mapping 时把 context 重绑为同内容可写副本（业务状态仍以 live context 为准）。
+- invocation 以稳定 `invocation_id = claim:wave:seq` 为键，初始 `outcome="running"`，`_finalize_late_tail_invocation` 按该键 **upsert 到 live 映射**（旧映射里的条目会被 `recovered` 迁移，绝不重复 append）。
+- identity 漂移只记录（`metrics_identity / store_metrics_identity / metrics_identity_changed`），**不改变行为**。
+- tail 新增 `live_context` 访问器（调用点传 `lambda: context`），在 marker / 域状态读取 / store / critical-path / 各 finalize 处**全部重新解析**。
+- abort 包装：任何 `BaseException` 逃逸时先 finalize 为 `aborted:<Type>` 再 re-raise（控制流不变）。
+- phase marker：`entered → decided:n → selected:n → assessing → stored`。
+
+### 72.3 完成门（裁决四项，全部满足）
+
+| 门 | 证据 |
+| --- | --- |
+| 行为零变化 | 只改诊断；focused 92 passed、Ruff clean；未触碰 eligibility/budget/ranking/assessment |
+| 无悬空 invocation | node sanity **6/6 = 100%**、docker sanity **4/4 = 100%** terminal |
+| identity 漂移可见 | 受影响 invocation 记录 `metrics_identity_changed: true` |
+| 事件链一致 | 同一 run：`late_ids:3 → selected:2 → assessed:2 → ranked_after:5`（node）；docker `late_ids:2 → assessed:2 → ranked_after:6`；`late_assessment_tail` 与 `b1_critical_path` 同步落盘 |
+
+**顺带首次在 live run 看到 late tail 完成真实工作**：node `headroom_at_admission=12.422s`、docker `15.641s`（admission 分别约 35.6s / 32.4s），selector 调用保持 **0**。
+
+### 72.4 状态与下一步
+
+```text
+§70                CLOSED
+§71A-1             CLOSED（本批）
+F1 default         8.0（仍为默认，未冻结）
+F1 calibration     可恢复：重启 8/6/5/4/3 sweep（数据现在可信）
+F2                 NOT STARTED
+F3                 NOT SELECTED
+```
+
+诊断产物（未跟踪）：`A1.node.sanity*.json`、`A1.docker.sanity.json`。
