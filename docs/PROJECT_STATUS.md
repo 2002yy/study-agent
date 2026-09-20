@@ -2644,3 +2644,48 @@ Analysis : 比较/演进类 claim 没有综合层（单页抽取永远给 backgr
 3. **加一层 domain 级 fallback**：sitemap 抓取失败时退回 HTML hub 页锚点（实证 docker hub 页 531 链接但不含深页，收益有限）。
 
 诊断产物：`docs/research_quality/B1.docker.run1..5.json`（未跟踪）。
+
+
+## §64 B2 共享 window-aware retry admission（完成）与 B1 E2E 阶段化账目
+
+### 64.1 裁决落地
+
+- **B1 状态**：`MECHANISM PASS / E2E QUALIFICATION PENDING READ RELIABILITY`。不再改 discovery（ranking / planner / sitemap heuristic 冻结）。
+- **§62 排序修订**：B1（机制 PASS）→ **B2 共享 window-aware fetch retry**（inventory + page read）→ B1 E2E qualification → B3 headless（只解 JS/short_doc）→ B4 综合层 → B5 生产化 → B6 health metrics（B2 可顺带补字段，但不施工 dashboard）。
+
+### 64.2 B2 实现（`e60be823`，默认 off）
+
+- **规则是公式，不是魔法数**：`retry_allowed = remaining_research_time >= attempt_budget + next_backoff + finalization_reserve`；`retry_window_requirement(n)` 由分量参数算出，18s 只是首例（12+1+5），retry #2 为 19s（backoff 2s）。`RESEARCH_READ_RETRY_FLOOR_SECONDS` 仅作实验覆盖，不再是语义来源。
+- **逐次重审**：`make_window_admission` 在**每次** retry 前重新计算并返回 `RetryAdmission(allowed, reason, remaining, required)`——retry #1 获准不自动授予 retry #2（这正是 72.9s 超窗的结构性修因）。
+- **语义/指标分离**：`read_with_bounded_retry(..., diagnostics_key=...)`；页面读取记 `read_retry`、sitemap 采集记 `inventory_fetch`，runtime 各自聚合进 `metrics.read_retry` / `metrics.inventory_fetch`（`attempts / retries / skipped_due_to_budget / retry_reasons / admission_reasons / fetches`），reader retry 统计不会被 sitemap 请求污染。
+- **inventory 纳入同一策略**：`_inventory_fetch_with_retry`（适配抛异常的 4 元组 fetch 层），共享 admission、独立指标、不改 reader 语义。
+- **阶段化账目**：`domain_targeted` 记录新增 `stages`（domain_proposed / inventory_fetched / links_ranked / verification_attempted / verification_succeeded / candidate_admitted）；下游阶梯（assessed → read → extracted → gate）由 `discovery_funnel` 逐候选 join（`by_discovery_method`）。**计数器 only，无启发式改动。**
+- **漏斗在硬预算退出路径也记录**（`ff60387a`）：run6 以 `evidence_budget_exhausted` 收尾、未走到逐波 gating，导致 `discovery_funnel` 缺失——恰是失败时最需要账目的情形。
+- 测试：`tests/test_fetch_retry_admission.py` 11 项（四确定性点：远高于 / 刚高于 / 刚低于 / 第二次 retry 重审；floor 覆盖；inventory 键隔离；runtime 接线 + 指标分离）；`test_read_retry.py` 断言随新增字段更新。Ruff clean，focused 99 passed。
+
+### 64.3 E2E 运行（Docker case，`RESEARCH_DOMAIN_TARGETED=on` + selector=model + routing=on + retry=window_aware）
+
+| run | head | 契约 | 关键观测 |
+| --- | --- | --- | --- |
+| run6 | `e60be823` | **违反**：7 calls（研究 6+答案 1 > 6 上限触发 research 拒呼）、elapsed 65.8s > 60s | inventory 1811、目标 rank #1、verified 3、admitted 3；但 `discovery_funnel` 缺失（硬预算路径未记录）；retry 全被 `insufficient_window` 拒绝 |
+| run7 | `ff60387a` | **clean（violations []）**，elapsed 59.3s | `discovery_funnel`: proposed 3（全部 `domain_targeted`）、read 0、gate_eligible 0；`read_retry`: fetches 3 / attempts 5 / **retries 2（两次均获准后仍 10054 失败）** / skipped_due_to_budget 2；`inventory_fetch`: 1 fetch、retry 被窗口拒绝 |
+
+### 64.4 失败归因（run7 阶段化结论）
+
+```text
+domain proposed        PASS (docs.docker.com, hub.docker.com)
+inventory fetched      PASS (urlset, 1811 loc)
+target present         PASS (rank #1)
+verification           PASS (3 verified → 3 candidate admitted)
+assessment / read      FAIL  (深页 read 连续 10054；retry 已按策略发出 2 次仍失败)
+extraction / gate      未到达 (read 0 → support 0 → eligible 0)
+```
+
+- 契约层：B1 多消耗 1 次研究模型调用（域提案），run6 因此触发研究调用上限拒呼；run7 在无 selector 完成调用时 fit 进 6 次上限。
+- 结论：**B1 的发现链已全部 PASS，唯一阻塞是读取面 transient failure**；B2 策略按设计工作（重审、跳过、分离记账），但无法凭空修复宿主级 10054。
+
+### 64.5 下一步（唯一执行切片）
+
+四页 B1 E2E：对 §62 的四个已知深页各跑一次（同配置、window_aware retry），按 §64.4 的阶梯逐页统计，硬指标 **≥2/4 gate-eligible**；同时记录每页卡在哪一级，以及 read retry 的获准/跳过分布。若 10054 持续主导，则按 §62 进入 B3（headless）前先报告该证据。
+
+诊断产物：`docs/research_quality/B1.docker.run6.json`、`run7.json`（未跟踪）。
