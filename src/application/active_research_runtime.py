@@ -3204,6 +3204,33 @@ def _b1_critical_path_ms(
     return out
 
 
+
+def _note_late_tail_invocation(
+    metrics: Any, *, claim_id: str, wave_index: int
+) -> dict[str, Any] | None:
+    """Bounded marker for every tail invocation (including silent skips).
+
+    The tail has two early returns that leave no record (metrics missing, no
+    late ids). A run that shows no tail at all is then ambiguous, so the
+    invocation itself is recorded first and the outcome appended after.
+    """
+
+    if not isinstance(metrics, dict):
+        return None
+    invocations = metrics.get("late_tail_invocations")
+    if not isinstance(invocations, list):
+        invocations = []
+    entry: dict[str, Any] = {
+        "claim_id": str(claim_id or ""),
+        "wave_index": int(wave_index),
+        "late_ids": 0,
+        "outcome": "returned_early",
+    }
+    invocations.append(entry)
+    metrics["late_tail_invocations"] = invocations[-40:]
+    return entry
+
+
 def _record_b1_critical_path(
     context: dict[str, Any],
     record: Mapping[str, Any],
@@ -3264,6 +3291,9 @@ def _late_admission_tail(
     if not isinstance(metrics, Mapping):
         return cursor
     late_ids: list[str] = []
+    invocation = _note_late_tail_invocation(
+        metrics, claim_id=claim.id, wave_index=wave_index
+    )
     for record in metrics.get("domain_targeted") or []:
         if not isinstance(record, Mapping):
             continue
@@ -3276,6 +3306,8 @@ def _late_admission_tail(
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
     if not late_ids:
+        if invocation is not None:
+            invocation["outcome"] = "no_late_ids"
         return cursor
 
     record: dict[str, Any] = {
@@ -3334,6 +3366,11 @@ def _late_admission_tail(
             records = []
         records.append(record)
         target["late_assessment_tail"] = records[-40:]
+        if invocation is not None:
+            invocation["late_ids"] = len(record["late_candidate_ids"])
+            invocation["outcome"] = (
+                record["skipped_reason"] or f"assessed:{len(record['assessed_ids'])}"
+            )
 
     already_ranked = {
         item.candidate.id for item in claim_rankings.get(claim.id, ())
