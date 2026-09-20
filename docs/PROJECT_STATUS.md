@@ -2978,3 +2978,53 @@ late_assessment_tail      : <=2 / claim / wave  （source = 本波窗口冻结�
 - 附带记录（不修）：Tier-2 的 late admission 与本轮 B1 同相位，具有同一缺口；本批按裁决只覆盖 domain_targeted，Tier-2 记为 T5b 待办。
 
 诊断产物（未跟踪）：`B1T5.docker.json`、`B1T5.docker.run2.json`、`B1T5.node.json`。
+
+
+## §70 B5-S1 selector/orchestration budget attribution（纯诊断，`b191a48f` + `c1b75bf6`）
+
+仪器（全部只写 metrics、不进 cursor、参数默认 None，行为零变化）：selector 记录新增 `input_fingerprint / previous_input_fingerprint / input_changed / input_ids / new_candidate_count / removed_candidate_count / excluded_fingerprint / assessment_state_changed / t_started_ms / t_ended_ms`；`domain_targeted` 记录新增 `t_started_ms / t_proposal_ms / t_admitted_ms`；新增 `metrics.b1_critical_path`（含 `admission_seconds / headroom_at_admission_seconds / headroom_at_gate_seconds / critical_path_ms`）；tail 记录补齐同名字段。
+
+### 70.1 Q1 — selector 调用解剖：**没有找到冗余**
+
+| case | selector 记录 | 实际发生模型调用 | 输入有实质变化 | identical-input 且有耗时 |
+| --- | --- | --- | --- | --- |
+| docker | 8 | **5**（其余 3 条 `window_limit=0`、latency 0） | 4/4（有耗时者）+1 条无耗时 duplicate | **0** |
+| node | 4 | 4 | 4/4 | **0** |
+
+调用由"每 claim 每波的窗口选择"驱动，池变化真实（wave 2 的移除来自 read 状态；docker wave 3 新增 1 个候选）。**"5 次/8 次 = 浪费"的假设被否定。**
+
+### 70.2 Q3 — B1 critical path（事件级）
+
+| case | B1 开始 | 域提案完成 | **admitted** | B1 段耗时 | admission 时刻 | headroom |
+| --- | --- | --- | --- | --- | --- | --- |
+| docker | 29.02s | 29.47s | **40.56s** | **11.09s** | 40.56s | **+7.438s** |
+| node | 25.98s | 26.64s | **43.13s** | **16.48s** | 43.13s | **+4.875s** |
+
+B1 段内部 = inventory（1811 loc）+ 3–5 次验证读取（含一次 10054 retry），是整条链的最大单段。
+
+### 70.3 Q2 — 第一个不可满足的预算事件
+
+**不是** 48s research deadline，**不是** model-call cap，而是 **late tail 自己的 8s 门**：
+
+```text
+docker: seconds_left = 7.438s  < LATE_TAIL_MIN_SECONDS_LEFT = 8.0  → refused（差 0.56s）
+node:   seconds_left = 4.875s  < 8.0                               → refused（差 3.13s）
+```
+
+### 70.4 Q4 — 反事实：**不成立**
+
+离线移除"重复 selector 工作"可回收 **0 ms**（无 identical-input 且有耗时的调用）⇒ **即使消除全部 selector 冗余，B1 也进不了 read**。可行动杠杆不在 selector。
+
+### 70.5 结论与下一批（B5-S2 待裁决）
+
+1. **selector 侧无可回收成本**（本批最重要的否定结论）；
+2. 绑定约束是 **tail 的 8s 地板 vs 实际 headroom 7.4s / 4.9s**——而 8.0 是本批我引入的**未冻结参数**（不是用户冻结项），当时裁决明确要求 B5-S1 期间不得改动，现已完成，可进入校准决策；
+3. 第二杠杆是 **B1 段自身 11–17s**（inventory + 3–5 次验证读取，其中 retry 属 B2 策略，验证次数属 B1 自身上限）；
+4. 附带：node 本轮 `hard_timeout_exceeded`（74.7s）且 gate=pass，说明该 case 有另一条时间问题（5 reads + retry），与 B1 无关，记为观察。
+
+候选方案（B5-S2 裁决项）：
+- **F1 校准地板**：把 `LATE_TAIL_MIN_SECONDS_LEFT` 从 8.0 降到观测 assessment 延迟量级（约 3–5s）；Docker 可过、node 边界；
+- **F2 缩短 B1 段**：限制验证读取次数/字节（不动 retry 策略）；
+- **F3 不动**：接受 late 通道在 48s 窗口下经常来不及，等更大窗口决策。
+
+诊断产物（未跟踪）：`B5S1.docker.json`、`B5S1.node.json`、`B5S1.summary.json`。
