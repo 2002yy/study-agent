@@ -178,8 +178,9 @@ class RawReadArtifact:
     backend: str = ""
     latency_ms: float = 0.0
     bytes: int = 0
-    rendered: bool = False
-    cache_hit: bool = False
+    # None means "no reliable backend signal" - never guessed from latency.
+    rendered: bool | None = None
+    cache_hit: bool | None = None
     external_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
