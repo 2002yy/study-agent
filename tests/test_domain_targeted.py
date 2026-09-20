@@ -141,7 +141,7 @@ def test_third_party_targets_are_rejected() -> None:
     assert rejected == {"endoflife.date": "third_party", "ubuntu.com": "third_party"}
 
 
-def test_unknown_role_and_mismatched_scope_are_dropped() -> None:
+def test_unknown_role_and_mismatched_scope_are_rejected_with_reasons() -> None:
     targets = parse_domain_proposal(
         {
             "targets": [
@@ -151,7 +151,9 @@ def test_unknown_role_and_mismatched_scope_are_dropped() -> None:
             ]
         }
     )
-    assert targets == []
+    assert accepted_targets(targets) == []
+    assert {item.reject_reason for item in targets} == {"unsupported_role", "invalid_scope"}
+    assert all(item.host == "example.org" for item in targets)
 
 
 def test_claim_terms_and_query() -> None:

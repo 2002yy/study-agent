@@ -133,6 +133,9 @@ class DomainTarget:
 
     ``proposed_domain_role`` is a *declaration*, not verified truth; the runtime
     only checks it against the accepted enum plus the project-host scope rule.
+    Every structurally parseable declaration is kept (with a ``reject_reason``)
+    so the audit shows what the model actually claimed instead of silently
+    dropping it.
     """
 
     host: str
@@ -145,8 +148,12 @@ class DomainTarget:
 
     @property
     def reject_reason(self) -> str:
-        if self.proposed_domain_role not in ACCEPTED_DOMAIN_ROLES:
-            return "third_party" if self.proposed_domain_role == "third-party" else "unsupported_role"
+        if self.proposed_domain_role not in DOMAIN_ROLES:
+            return "unsupported_role"
+        if self.proposed_domain_role == "third-party":
+            return "third_party"
+        if not self.scope:
+            return "invalid_scope"
         if self.proposed_domain_role == "project-host":
             path = urlparse(self.scope).path or "/"
             if not path.strip("/"):
@@ -179,9 +186,12 @@ def _parse_scope(raw: Any, *, host: str) -> str:
 def parse_domain_proposal(raw: Any) -> list[DomainTarget]:
     """Strict parser: object with a targets list of {host, scope, domain_role}.
 
-    Structural problems raise (the caller records the failure); per-entry
-    problems drop that entry. Output is deduplicated and bounded, including
-    rejected roles, so the audit trail keeps what the model actually claimed.
+    Structural problems raise (the caller records the failure). Per-entry
+    problems are preserved as rejected declarations with a machine-checkable
+    ``reject_reason`` (unsupported_role / third_party / invalid_scope /
+    project_host_scope_too_broad) so the audit can distinguish "the model never
+    proposed it" from "the contract refused it". Output is deduplicated and
+    bounded; the accepted cap is applied by the runtime.
     """
 
     if not isinstance(raw, Mapping):
@@ -198,12 +208,8 @@ def parse_domain_proposal(raw: Any) -> list[DomainTarget]:
         if not host:
             continue
         role = str(item.get("domain_role") or "").strip().lower()
-        if role not in DOMAIN_ROLES:
-            continue
         scope = _parse_scope(item.get("scope"), host=host)
-        if not scope:
-            continue
-        key = (host, scope.rstrip("/"))
+        key = (host, scope.rstrip("/") or role)
         if key in seen:
             continue
         seen.add(key)
