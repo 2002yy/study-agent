@@ -2940,3 +2940,41 @@ short_doc/JS 0/4 primary → B3 继续延期
 ```
 
 B1 状态措辞（按裁决收紧）：**discovery capability demonstrated；E2E 失败已由 post-admission scheduling/orchestration 主导，而非"找不到深页 URL"**。
+
+
+## §69 B1-T5 R1′ 实现（`152dfc0c`）与 Docker/Node targeted replay
+
+### 69.1 冻结合同（按裁决）
+
+```text
+initial_assessment_window : <=2 / claim / wave  （source = 窗口冻结前的候选池）
+late_assessment_tail      : <=2 / claim / wave  （source = 本波窗口冻结后才 admitted 的候选）
+⇒ 一波最多新增 assessment = 2 + 2 = 4（已写进 contract）
+```
+
+六条硬约束实现情况：仅本波 late（记录 `wave_index` 必须相等）✓；claim-scoped ✓；**selector +0**（`selector_calls: 0` 记账）✓；不驱逐既有 ranking（合并后走同一 H9，`claim_rankings` 允许 >2）✓；多样性用既有 `_bounded_assessment_candidates` 规则 ✓；**assessment 不可绕过**（无 completed+validated assessment 不进 ranking）✓。预算不特权：`LATE_TAIL_MIN_SECONDS_LEFT=8.0` + 模型 attempt 账本，跳过原因记入 `late_assessment_tail` 记录。
+
+10 条确定性测试（裁决的 7 条 + 预算门 + 跨波/跨 claim 隔离 + 已读 late 候选），focused 105 passed，Ruff clean。
+
+### 69.2 Replay 结果（3 次运行，全部命中预算门）
+
+| run | B1 结果 | tail | 跳过原因 | 备注 |
+| --- | --- | --- | --- | --- |
+| docker（`B1T5.docker.json`） | target accepted，但 **两条 sitemap 均 `skipped_by_window`** | 未触发（无 admitted） | — | B1 自身窗口护栏先拒绝 inventory |
+| docker run2（`B1T5.docker.run2.json`） | inventory 1811、admitted 2（目标 read 10054 未 verified） | ✅ 触发：late 2 → selected 2、selector +0 | **`time_budget_exhausted`**（`seconds_left=-0.219`） | 目标本轮未 verified |
+| node（`B1T5.node.json`） | admitted 3（nodejs.org 博客页） | ✅ 触发：late 3 → selected 2、selector +0 | **`time_budget_exhausted`**（`seconds_left=-1.031`） | — |
+
+### 69.3 归因更新（按裁决"若仍没读，就重新归因"）
+
+- **`not_in_rank_window` 已消除**：tail 在 2/3 运行中正确触发并完成"late → selected（≤2）→ 准备 assessment"，selector 调用保持 0。
+- **新的绑定约束 = 时间预算**：B1 结构上是 **wave 2+ 通道**（旧入口需要上一波完成 read；新入口要求 wave ≥2，且不得在第一波抢跑），而 wave 2 的 per-claim 循环发生在 search+assessment 之后 ⇒ admission 落在 ~45–50s，**已在 48s research deadline 之后**（`research_window.exhausted=true`；hard 60s 尚有 8.5s reserve，但按裁决 tail 不得动用特权预算）。
+- 因此 R1′ 把 phase-order 缺口修好之后，暴露出的下一层就是 **orchestration/time budget**（G 类）：selector 每 run 4–5 次、`model_call_budget_exceeded` 3/3。
+
+### 69.4 结论与下一步
+
+- **B1-T5 的机制修复成立**（tail 存在、有界、claim-scoped、selector +0、不绕过 assessment）；**H 的旧归因 `not_in_rank_window` 已不可复现**，取而代之的是真实预算拒绝——这正是裁决要求区分的情形。
+- H 因此可记为：**phase-order 部分 CLOSED；剩余为预算门（time + model-call），转 B5-S1**。
+- 下一步：**B5-S1 selector / orchestration budget attribution**（为什么 docker 5 次、postgres 8 次 selector；调用发生在哪一波/哪个池；是否有未变化池的重复调用；预算耗尽点在 read scheduling 之前还是之后），并同时量化"selector 成本 → B1 admission 时间点"的因果，因为它是当前 tail 无法执行的最直接上游。
+- 附带记录（不修）：Tier-2 的 late admission 与本轮 B1 同相位，具有同一缺口；本批按裁决只覆盖 domain_targeted，Tier-2 记为 T5b 待办。
+
+诊断产物（未跟踪）：`B1T5.docker.json`、`B1T5.docker.run2.json`、`B1T5.node.json`。
