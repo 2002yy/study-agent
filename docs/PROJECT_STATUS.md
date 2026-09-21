@@ -3386,3 +3386,37 @@ ReadAdequacy PASS ──────────→ existing Extraction/Support/
 **B1 的已知数据缺口**（下一步要补的仪器）：现有 attempt 行缺少 `url`、升级时刻的 `research/hard seconds_left`、以及 rescue 最终是否成为 evidence 的链接，因此"marginal rescue utility by escalation order"目前无法从 artifact 直接算出。
 
 诊断产物（未跟踪）：`C3A.docker.gate{,2,3}.json`、`full_pytest_480cd4e.log`（temp）、`D402.replay.480cd4e.json`（temp）。
+
+
+## §81 B1 完成：escalation 成本与边际效用的可测量化
+
+仪器（`5210e73` + `5648092` + `7576ea7`）：attempt 行现在携带 `url / attempt_seq / research_seconds_left_at_start / hard_seconds_left_at_start / invocation_id`；`sources[].escalation` 投影携带 `invocation_id`（闭合 null 债务）；invocation 先于 attempt 行创建（顺序修复）。三类判定：①useful rescue（升级后 ok 且该 source 最终进入 eligible evidence）②unused rescue（升级后 ok 但未被采用）③failed（升级后仍失败/后端失败）；`attempted=false` 的行（adequate 读取、禁用模式）不计入三类。
+
+### 81.1 数据（4 次生产 replay；r1 为仪器前、r3 只有 1 次尝试、r2/r4/r5/r6 完整）
+
+| run | attempts | 总 escalation ms | rescued | gate | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| r1 | 8 | 0（daemon 停机，全部 fail-closed） | 0 | block | **fail-closed in-vivo 验证**：读取结果完全未受影响 |
+| r2 | 8（7 真实） | **408ms** | 3（www.docker 141ms、pulls 16ms cache、pulls 0ms cache） | pass | `hard_timeout_exceeded` 但 escalation 仅 0.4s ⇒ 超时主因**不是** escalation |
+| r3 | 1 | 0 | 0 | block | B1 仪器后首跑（该 run 读取本就 adequate） |
+| r4 | 2 | 62ms | 1（www.docker 15ms cache） | block | |
+| r5 | 4 | 1,640ms（其中 mcp-server 1,531ms） | 2（pulls 31ms cache、mcp-server 1,531ms http） | **pass** | pulls rescue 进入 eligible evidence（①类实锤） |
+| r6 | 5 | — | — | block | |
+
+### 81.2 结论
+
+1. **HTTP tier 的真实成本远低于此前 7.3s 的担忧**：reranker 修复后，单次 15–80ms，偶发 1–1.5s；6 个可信样本的 escalation 总成本 62ms–1.64s。
+2. **①useful rescue 真实存在**：pulls 页 rescue 后成为唯一/关键 eligible evidence（r5 gate=pass），且 cost 31ms（cache）/1.5s（http）。
+3. **②unused rescue 存在**（同域候选被评估拒绝或 cluster 覆盖），单次 ≤47ms（cache）或 ~1.5s（http）。
+4. **③failed 集中在同域 http_error**（docs.docker.com 子页 404 类），单次 31–79ms——几乎免费。
+5. **62–64s 的 hard_timeout 与 escalation 无关**（escalation 仅 0.4–1.6s）；超时主因是既有的 wave/selector/assessment 时间分布（F2 范畴）。
+6. **联动缺口（记录为债务）**：重试读取会产生多个 invocation（如 pulls 的 fetch:5/6/7），source 记录的是最后一个；分析时需按 URL+wave 聚合而不是精确 id 匹配。
+
+### 81.5 B2 裁决输入
+
+- per-attempt 成本实测：**p50 ≈ 47ms，p95 ≈ 1.5s**（http 层）；
+- **per-run envelope 建议区间**：2–5s 即可覆盖本分布的全部 rescue（最大单 run 1.64s），且不会成为窗口的主要消耗；
+- hard-headroom 门：按实测，评估启动成本 ≈1.1s（见 §73）+ http fetch p95 1.5s ⇒ 门设为 ~3s 已足够（与 F1 冻结值一致）；
+- 按序边际效用：rescue 多发生在前 1–2 次 attempt（同域重复失败的后续 attempt 几乎全是 ③failed 且成本极低）⇒ envelope 而非次数上限是正确选择。
+
+**B1 CLOSED。** B2（hard-headroom 门 + per-run envelope + 默认值决策）待裁决。
