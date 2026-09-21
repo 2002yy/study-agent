@@ -3525,3 +3525,47 @@ browser calls             0
 2. **以现有证据冻结 defaults 并默认开启**，把 cold rescue 作为**开启后的线上观察项**（首次遇到 cold 救援时核对 envelope/provenance），理由是 cold 成本已被同宿主对照实测、envelope 已被实测截断、且 fail-closed 与预算语义均有确定性覆盖。
 
 倾向建议：**路径 1**（多一次抓取即可闭合，且能让 §71E 的证据链完整）；若你选择路径 2，建议同时约定"开启后第一个 cold rescue 必须回填证据"。
+
+
+## §84 状态封板：B2 参数冻结 + §71E 单点门（`f6dc0de6`）
+
+### 84.1 冻结
+
+```text
+RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT = 3.0   FROZEN
+RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS  = 3.0   FROZEN
+RESEARCH_WIGOLO_ESCALATION                 = off    （等 §71E 最终门）
+```
+
+冻结依据（写入代码注释）：健康宿主真 cold ≈1.0s（同宿主对照抓取）；历史 cold 0.7–1.5s；warm/cache 15–80ms；修复后最慢尝试被截断在 3.03s（修复前 8.03s）；useful rescue 集中于前 1–2 次尝试。env 覆盖仅保留给实验。
+
+**范围边界（写进代码与文档）**：B2 只保证"新增的 optional fallback 不成为无界新时间源"，**不负责**让整个 Study Agent <60s——后者是 wave/selector/B1 admission 的长尾，归 **F2**；不得把 F2 问题拖回 §71E。
+
+### 84.2 §71E 最终门（单点，已收窄）
+
+只补 **1 个 post-fix、自然 cold、useful rescue** 样本，随后立即裁决 `default=http`，**不再追加实验**。首选 URL：`https://docs.docker.com/reference/cli/docker/pull/`（reader short_doc 505 字符，失败不入 cache，仍为 cold）；若该宿主持续不可达，允许用任何**自然未缓存**且满足 `current FAIL + Wigolo HTTP 可救` 的真实 URL 替代（关键是验证最终实现的 cold 链路，不是验证某个域）。
+
+10 项判据：①current inadequate ②`cache_hit=false` ③mode=http ④browser=0 ⑤latency ≤3.0s 可执行 envelope ⑥Wigolo adequacy PASS ⑦进入 eligible evidence/source ⑧`sources[].escalation ↔ invocation_id ↔ ledger` 闭合 ⑨invocation terminal ⑩model_attempt 不变。
+
+**当前阻塞（已记录，非设计问题）**：本环境窗口内 docs/hub/www.docker.com 均不可达（`http_error` / 被正确截断的 `timeout`），而健康宿主（astral / ruff / node.org.cn / nodejs / github）上我们的 reader 本身 adequate ⇒ 无救援机会。这是 §47 已记录的宿主 flakiness；不得为了凑样本把正常页送进 escalation。
+
+### 84.3 本轮 cold hunt 的净收益（两个真缺陷已修）
+
+1. `4363048d`：effective timeout 未被执行（8.03s 穿透 3.0s envelope）→ 修为 `min(backend, request)`，复测 3.015–3.031s，确定性测试覆盖。
+2. `e60ffdc`：单次 per-url timeout 误开 circuit，静默屏蔽同 run 后续 escalation → 修为仅计 envelope，circuit 留给系统性失败。
+
+### 84.4 状态表
+
+```text
+§71A                     CLOSED（late-tail floor 3.0 冻结）
+§71B                     CLOSED（retrieval backend contract）
+§71C-3a                  CLOSED（HTTP escalation 10/10）
+B1                       CLOSED（成本/边际效用可测量）
+B2                       CLOSED（两层预算门 + 冻结参数）
+HTTP min hard headroom   3.0s FROZEN
+HTTP run envelope        3.0s FROZEN
+RESEARCH_WIGOLO_ESCALATION  off（pending §71E final gate）
+§71E blocker             exactly one post-fix natural-cold useful rescue
+§71C-4 browser           deferred（等 HTTP 默认化稳定后，用真实剩余失败集做）
+F2                       CHARACTERIZATION READY（wave/selector/admission 长尾）
+```
