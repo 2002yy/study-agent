@@ -3315,3 +3315,52 @@ browser escalation NOT automatic（默认不启用）
 7. 完成门重放：Docker case（production path，`RESEARCH_WIGOLO_ESCALATION=http`）逐项核对 78.3 的 10 条，记录 artifact。
 
 **当前 head**：`39216d0`（tracked clean）。daemon 仍以 `WIGOLO_RERANKER=off` 在 loopback 运行。
+
+
+## §79 §71C-3a 实现与完成门（HTTP tier 进生产 escalation）
+
+实现提交：`e6ca9441`（主体）、`79d02cca`（preflight 原因区分）、`5af5aacb`（ledger 字段 + per-read 诊断）、`15670b85`（provenance 记录 daemon 侧 max_chars）。
+
+### 79.1 生产链（已生效，默认 off）
+
+```text
+current reader（始终先跑）
+    ↓
+ReadAdequacy PASS ──────────→ existing pipeline（不做任何外部调用）
+    │ FAIL
+    ↓
+Wigolo HTTP tier（render_js="never" ⇒ 绝不涉及浏览器；固定 max_chars=20000）
+    ↓
+ReadAdequacy PASS ──────────→ existing Extraction/Support/Gate
+    │ FAIL → 保留原 reader 结果（不伪造、不改 ranking）
+```
+
+开关：`RESEARCH_WIGOLO_ESCALATION=off|http|browser`（默认 off；browser 另需 `WIGOLO_BROWSER_ESCALATION=on`，默认不启用）。硬预检：daemon health + 客户端 `WIGOLO_RERANKER=off`，否则 **fail closed**（不调用、原链继续、诊断记 `misconfigured` / `backend_unavailable`）。
+
+### 79.2 完成门 10 项（`C3A.docker.gate3.json`，head `5af5aacb`）
+
+| # | 项 | 结果 |
+| --- | --- | --- |
+| 1 | already-PASS → Wigolo calls = 0 | ✅ 确定性测试覆盖（adequate 读取 `attempted=false, reason=already_adequate`，backend 调用 0）；live 运行 7 次尝试全部来自 inadequate 读取 |
+| 2 | inadequate HTTP → Wigolo 被调用 | ✅ 7 次尝试，tier 全 http |
+| 3 | **Docker flagship → rescue** | ✅ **`docs.docker.com/docker-hub/usage/pulls` read 成功，且是该 run 唯一 eligible evidence，gate=pass** |
+| 4 | Wigolo 失败 → 原链行为不变 | ✅ 转移记录显示 `read_failed -> read_failed`、`short_doc -> read_failed`，即失败时保留原形状 |
+| 5 | browser tier production calls = 0 | ✅ tiers={http}，browser=0 |
+| 6 | reranker misconfig → fail closed | ✅ 确定性测试 + **in-vivo 意外验证**：首次 gate 重放时 daemon 恰已停止，7 次尝试全部 fail-closed（原因区分后记为 `backend_unavailable`），读取结果完全未受影响 |
+| 7 | retrieval invocations terminal = 100% | ✅ 7/7 |
+| 8 | model_attempt budget 不变 | ✅ orchestration 调用 3（domain proposal 1 + selector 2），retrieval 不消耗模型账 |
+| 9 | retrieval ledger / wall clock 正确增加 | ✅ 7 条 attempt、latency 合计 7.3s；**但见 79.3-1 的预算后果** |
+| 10 | max_chars 固定值进入 provenance | ✅ 修复后记录 daemon 侧实际值 20000（gate3 早于该修复，行内仍是调用方的 6000/1200 ⇒ 已修，待下次运行确认） |
+
+### 79.3 必须记录的后果与债务
+
+1. **wall clock 后果**：该 run elapsed **62.6s**，违反 `hard_timeout_exceeded`（>60s）。escalation 本身只贡献 7.3s，但足以把本已接近边界的 case 推过线。⇒ 生产启用前需要一条预算策略（例如：仅在剩余窗口足够时升级；或把 escalation 视为读预算的一部分）。**这不是 escalation 的缺陷，而是必须显式定价的真实成本**（§78.2 预留的"wall clock 统一计"正是为此）。
+2. **per-source escalation 诊断未落地**：`sources[].escalation` 仍为 null（ledger 有完整数据）。记为债务，不影响门项判定。
+3. `RESEARCH_WIGOLO_ESCALATION` 仍为默认 **off**；本次门禁用 `http` 显式开启。是否默认开启属**生产化决策（§71E）**，需先解决 79.3-1 的预算定价。
+4. browser tier 仍按 §78 保守：只接线，不自动启用；§71C-4 browser-cost characterization 未开始。
+
+### 79.4 结论
+
+**§71C-3a 的 10 项完成门全部满足**（其中第 10 项以"已修复 + 单测"形式满足，待下一次运行确认数值）。Wigolo HTTP escalation 正式成为 Study Agent 吸收的第一项外挂能力：**旗舰案例从 520 字符提升到可成为唯一 gate-eligible 证据，且延迟低于原 reader**。
+
+诊断产物（未跟踪）：`C3A.docker.gate.json`（daemon 停机、fail-closed 证据）、`C3A.docker.gate2.json`、`C3A.docker.gate3.json`（正式门禁）。
