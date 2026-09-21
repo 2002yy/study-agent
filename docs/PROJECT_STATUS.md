@@ -3725,3 +3725,42 @@ no_admission            = 9
    - **(B) 以 13-run 结构结论授权 F2 optimization**，把 fast/slow 中位数视为方向性证据（n=1 vs 3 已给出 read +6.9s / selector 单次 +546ms 的一致信号），并约定优化后回到同 schema 复测。
 4. 若授权优化，建议顺序（按可回收性与证据强度）：**retry/backoff 可回收性验证 → selector 单次延迟结构 → read 慢路径 → checkpoint；`search` 暂不碰**。
 5. **不授权**任何行为改动前，`§71E` 与 `F2 optimization` 均保持未开启。
+
+
+## §87.5 裁决落定：F2-S1 封板 + F2 optimization 授权（F2-O1 开始）
+
+**F2-S1 状态**：`CHARACTERIZATION COMPLETE WITH EXTERNAL-GATE EXCEPTION`
+
+```text
+原计划统计门: fast >= 3 && slow >= 3
+实际:         fast = 1 / slow = 3 / no_admission = 9
+未达原因:     docs.docker.com 持续不可达 ⇒ B1 admission 系统性缺失
+补跑额度:     4 + 2 已耗尽；不再追加 cold/fast hunt
+共享债务:     §71E natural-cold rescue 与 F2 fast cohort 由**同一外部 host
+              availability condition** 阻塞 —— 这是一个 shared external
+              evidence debt，不是两个独立工程 blocker
+恢复窗口:     宿主恢复时与 §71E 共用窗口补（§71E cold rescue + F2 2 个 fast admission）
+             补证据不追溯阻塞当前 F2 optimization；优化后必须用同一 timing schema 复测
+```
+
+**撤掉 §86 的一个旧判断**：`selector calls↑` **不是** slow cohort 的机制。现有证据是 **calls 固定为 4，而 latency/call 上升**（max +546ms、total +1.66s）——问题因此更干净。
+
+**n=1 vs 3 的 fast/slow 表**：仅作**方向性证据**，不作为因果结论；授权依据是 13-run 内**不依赖 admission** 的结构性证据。
+
+**F2 optimization 顺序（冻结）**：
+
+```text
+O1 retry/backoff recovery   ← 当前唯一执行切片
+O2 selector 单调用延迟
+O3 read slow path
+O4 checkpoint
+search = characterization-only（不进入本轮优化）
+```
+
+**F2-O1 的问题定义（冻结）**：不是"删 backoff"，而是回答——
+
+> 这 3–9 秒 sleep 中，哪些是在系统已经不可能从该 retry 获得有效结果时仍然支付的？
+
+即优化目标是 **消灭没有边际恢复价值的 backoff，而不是消灭 retry**。要回答：每次 attempt 的失败类型；第 N 次 retry 是否真的 rescue；retry 前后错误是否完全相同；对确定性/永久失败是否仍完整 sleep；backoff 是否已跨过剩余 deadline/budget；哪一级 retry 产生了 useful result。
+
+允许的 instrumentation 必须克制：**只记录 retry outcome/reason**，不再建设第二套 profiler；若现有日志已能回答则不加。
