@@ -5217,6 +5217,13 @@ def _source_record(
             "cache_hit": escalation.get("cache_hit"),
             "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
             "preflight": str(escalation.get("preflight") or ""),
+            "url": str(escalation.get("url") or ""),
+            "attempt_seq": int(escalation.get("attempt_seq") or 0),
+            "research_seconds_left_at_start": escalation.get(
+                "research_seconds_left_at_start"
+            ),
+            "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
+            "invocation_id": str(escalation.get("invocation_id") or ""),
         }
     retry = raw_read.get("read_retry")
     if isinstance(retry, Mapping):
@@ -5294,6 +5301,13 @@ def _record_escalation_diagnostics(
             + str(escalation.get("shape_after") or ""),
             "preflight": str(escalation.get("preflight") or ""),
             "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
+            # §71B/B1: where and when the escalation happened
+            "url": str(escalation.get("url") or ""),
+            "attempt_seq": int(escalation.get("attempt_seq") or 0),
+            "research_seconds_left_at_start": escalation.get(
+                "research_seconds_left_at_start"
+            ),
+            "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
         }
     )
     metrics["retrieval_attempts"] = rows[-60:]
@@ -5307,6 +5321,9 @@ def _record_escalation_diagnostics(
         operation=READ_OPERATION,
     )
     entry["tier"] = tier
+    if isinstance(escalation, MutableMapping):
+        # B1: the source provenance links to the ledger by invocation_id
+        escalation["invocation_id"] = entry["invocation_id"]
     finalize_retrieval_invocation(
         _provider,
         entry,
