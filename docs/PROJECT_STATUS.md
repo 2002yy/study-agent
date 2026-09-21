@@ -3364,3 +3364,25 @@ ReadAdequacy PASS ──────────→ existing Extraction/Support/
 **§71C-3a 的 10 项完成门全部满足**（其中第 10 项以"已修复 + 单测"形式满足，待下一次运行确认数值）。Wigolo HTTP escalation 正式成为 Study Agent 吸收的第一项外挂能力：**旗舰案例从 520 字符提升到可成为唯一 gate-eligible 证据，且延迟低于原 reader**。
 
 诊断产物（未跟踪）：`C3A.docker.gate.json`（daemon 停机、fail-closed 证据）、`C3A.docker.gate2.json`、`C3A.docker.gate3.json`（正式门禁）。
+
+
+## §80 候选 head 门禁：HTTP-escalation integrated / pre-budget-policy baseline（`480cd4e`）
+
+**状态**：§71C-3a 已实现（默认 off），首次有外部 Reader 进入生产读取路径；本 head 作为**预算策略（B）之前**的正式 baseline。
+
+| 门 | 结果 |
+| --- | --- |
+| full pytest | **2133 passed / 3 failed**（652s） |
+| 失败 1–2 | 已知 Windows-local 平台失败（`…exact_head_guard`、`…deterministic_protocol_runner…`），与 `fc50845` baseline 同类 |
+| 失败 3 | `test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes`：**负载型闪失败**——单独复跑 1 passed，且在 `fc50845` 的全量中通过；非本批回归 |
+| 新失败 family 检查（按要求） | **无**：retrieval lifecycle / read adequacy / source provenance / budget accounting 相关测试全绿（新增 `test_read_escalation.py` 14 项、`test_retrieval_backends.py` 8 项均通过） |
+| Ruff（src/tests/tools） | All checks passed |
+| `git diff --check` | clean |
+| tracked 工作区 | clean |
+| d40.2 四项不变量（frozen replay，runs=3） | **gate=pass ✓ · binding=valid（3/3 ok）✓ · consistency=clean ✓ · publish=substantive（1.0/1.0）✓** |
+
+**归因用途**：B（预算策略）会改动读取路径的准入与记账；此后任何全量门异常都先与 `fc50845`（无 escalation）和 `480cd4e`（有 escalation、无预算策略）两份 baseline 对照。
+
+**B1 的已知数据缺口**（下一步要补的仪器）：现有 attempt 行缺少 `url`、升级时刻的 `research/hard seconds_left`、以及 rescue 最终是否成为 evidence 的链接，因此"marginal rescue utility by escalation order"目前无法从 artifact 直接算出。
+
+诊断产物（未跟踪）：`C3A.docker.gate{,2,3}.json`、`full_pytest_480cd4e.log`（temp）、`D402.replay.480cd4e.json`（temp）。
