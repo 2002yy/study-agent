@@ -553,6 +553,7 @@ class ActiveResearchRuntimeExecutor:
             """Start timing one research phase (telemetry only)."""
 
             phase_started[phase] = self.monotonic()
+            timing_ledger._phase_enter(phase)
 
         def phase_end(phase: str) -> None:
             """Accumulate wall-clock seconds per research phase (telemetry only).
@@ -563,6 +564,7 @@ class ActiveResearchRuntimeExecutor:
             changes control flow: it only adds to ``metrics.phase_seconds``.
             """
 
+            timing_ledger._phase_exit(phase)
             started = phase_started.pop(phase, None)
             if started is None:
                 return
@@ -643,6 +645,12 @@ class ActiveResearchRuntimeExecutor:
                 _accumulate_fetch_metrics(
                     context, "read_retry", payload.get("read_retry")
                 )
+                _retry_diag = payload.get("read_retry")
+                if isinstance(_retry_diag, Mapping):
+                    timing_ledger.record_retry(
+                        wait_ms=float(_retry_diag.get("retry_backoff_ms") or 0.0),
+                        fetch_ms=float(_retry_diag.get("retry_fetch_ms") or 0.0),
+                    )
                 return _with_escalation_ledger(payload)
             finally:
                 phase_end("read")
