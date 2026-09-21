@@ -201,6 +201,11 @@ def escalate_read(
         return current, outcome
     artifact = fetched
     failure_state = str((artifact.external_metadata or {}).get("state") or "")
+    # §78.2-1: provenance must carry the value the daemon actually received (the
+    # frozen contract value), not the caller's read-window slice.
+    effective_max_chars = (artifact.external_metadata or {}).get("max_chars_requested")
+    if isinstance(effective_max_chars, (int, float)) and effective_max_chars > 0:
+        outcome.max_chars_requested = int(effective_max_chars)
     outcome.latency_ms = float(artifact.latency_ms)
     outcome.cache_hit = artifact.cache_hit
     outcome.retrieval_mode = artifact.retrieval_mode
