@@ -270,6 +270,10 @@ def test_source_projection_reads_nested_production_item_and_assessment() -> None
             "source_role": "primary",
             "cluster_id": "cluster-a",
             "extraction_statuses": ["eligible", "rejected"],
+            # §71C-3a/§88: per-source read provenance is always projected; it is
+            # ``None`` when the source carried none.
+            "escalation": None,
+            "read_retry": None,
         }
     ]
 
