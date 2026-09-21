@@ -422,6 +422,43 @@ def test_skip_reasons_are_a_closed_set() -> None:
     }
 
 
+# ------------------------------------------------- discovery emptiness is not a failure
+
+
+def test_empty_results_are_not_a_failure_state() -> None:
+    """A discovery backend that finds nothing has succeeded, not failed.
+
+    There is deliberately no "no results" canonical state: emptiness is carried
+    by ``result_count``. Mapping it onto ``invalid_content`` would claim the
+    query was invalid - the discovery-side twin of ``host health != URL truth``.
+    """
+
+    assert "no_results" not in RETRIEVAL_STATES
+    assert "empty" not in RETRIEVAL_STATES
+    # The phrase must not classify into a content judgement either.
+    assert state_for_text("no results found") == ""
+    assert state_for_text("0 results") == ""
+    assert classify(backend="agent_search_mcp", http_status=200).state == SUCCESS_STATE
+
+
+def test_a_2xx_does_not_outrank_a_content_shape() -> None:
+    """A 200 says the exchange worked; it does not say the read was useful."""
+
+    assert classify(backend="native_http", http_status=200).state == SUCCESS_STATE
+    for shape, expected in (
+        ("short_doc", "invalid_content"),
+        ("js_shell", "shell_page"),
+        ("anti_bot_or_error", "anti_bot"),
+        ("read_failed", UNKNOWN_STATE),
+    ):
+        assert (
+            classify(
+                backend="native_http", http_status=200, adequacy_shape=shape
+            ).state
+            == expected
+        )
+
+
 # --------------------------------------------------- artifact compatibility (§71B)
 
 

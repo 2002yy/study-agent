@@ -45,6 +45,17 @@ fail-closed and keeps the raw value in ``raw_state``::
     http_error (no status code)   -> backend_failure   (raw_state=http_error)
     unsupported + detail=circuit_open -> backend_failure + skip_reason=circuit_open
     unsupported + detail=preflight:*  -> backend_failure + skip_reason=preflight
+
+Discovery vs read
+-----------------
+
+This vocabulary describes the outcome of one retrieval. It deliberately has **no
+"no results" state**: a discovery backend that returns zero candidates has
+*succeeded* and reports ``success`` with ``result_count = 0``. Mapping an empty
+result set onto ``invalid_content`` would claim the query was invalid, which is
+the discovery-side twin of the ``host health != URL truth`` error. The §71B
+invocation state ``empty`` is a *read* meaning (an empty body), and discovery
+must not reuse it to say "nothing was found".
 """
 
 from __future__ import annotations
@@ -261,7 +272,12 @@ INVOCATION_STATE_STATES: Mapping[str, str] = {
 
 
 def state_for_status(status: int | None) -> str:
-    """Canonical state for an HTTP status code (``None`` -> unknown)."""
+    """Canonical state for an **error** HTTP status ("" when not an error).
+
+    A 2xx deliberately returns "": an HTTP 200 says the exchange worked, but a
+    read can still be useless (a short body, a shell page). Success therefore
+    needs the content shape as well - see :func:`is_success_status`.
+    """
 
     if not isinstance(status, int) or status <= 0:
         return ""
@@ -278,6 +294,12 @@ def state_for_status(status: int | None) -> str:
     if 300 <= status <= 399:
         return UNKNOWN_STATE
     return ""
+
+
+def is_success_status(status: int | None) -> bool:
+    """True only for an explicit 2xx (a completed exchange, not usable content)."""
+
+    return isinstance(status, int) and 200 <= status <= 299
 
 
 def state_for_text(text: str) -> str:
@@ -382,6 +404,13 @@ def classify(
         state = state_for_text(text)
     if not state and adequacy_shape:
         state = ADEQUACY_SHAPE_STATES.get(str(adequacy_shape), "")
+    if not state and (is_success_status(http_status) or is_success_status(
+        _status_from_text(detail)
+    )):
+        # An explicit 2xx is only *this* late in the chain: a content shape or a
+        # transport marker always outranks it, so a 200 with a short body stays
+        # invalid_content rather than becoming success.
+        state = SUCCESS_STATE
     if not state and raw:
         state = INVOCATION_STATE_STATES.get(raw, "")
     if not state:

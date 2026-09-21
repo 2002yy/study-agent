@@ -4313,3 +4313,163 @@ P2-C Final Auditor
 Full-function Shadow
 Release benchmark
 ```
+
+
+## §95 P2-A 外部能力分层与主权规则（冻结）——候选校正 + "3+1+1"
+
+**性质**：方向记录 / 冻结决策。**不改 A0 合同，不改 P2-A 顺序。**
+
+### 95.1 候选信息校正（不把未核验的数字写成事实）
+
+| 候选 | 校正后的口径 |
+| --- | --- |
+| **Agent Search MCP** | 存在且方向契合，但**不冻结"11 个引擎 / 8 个免费"这类数字**。当前项目文档口径：零 Key 默认路径是 **DuckDuckGo + 搜狗**，另可配置 Brave / Tavily / Exa / Serper 等 provider，新版已比早期复杂得多。其真正价值：**显式保留 provider failure、预算与 partial failure**，而不是失败后返回一个无来源的空结果 |
+| **AutoSearch** | 基本属实：`npx autosearch-ai`，宣称 40 个 channel、10+ 中文源，覆盖 arXiv / GitHub / Reddit / Hacker News / 微信 / 知乎 / 小红书 / 微博 / B 站，且强调 **LLM 与 retrieval 解耦**。适合补**垂直平台 Discovery**；**其 deep-research / report 不得成为 Study Agent 的证据权威** |
+| **wigolo** | 最强综合候选之一，§71 已实测。公开能力：18 个搜索 adapter；search / fetch / crawl / extract / cache / research；fetch 会从普通 HTTP **自动升级到浏览器**，对 SPA / anti-bot / PDF / 会话 / 页面 action 有支持。**License = AGPL-3.0-only**。其 research / agent 已做规划与综合 ⇒ **只把 search / fetch / crawl / extract 当 backend**，不接成主脑 |
+| **search2ai** | 真实且适合做"生产 provider gateway"：Perplexity-compatible schema，可挂 Tavily / Brave / Exa / Serper / SerpAPI / Google / SearXNG，provider 失败会 fallback 并告知**谁成功谁失败**。但 **BYO Key**，不是当前 zero-key 优先阶段的首选 |
+| **OrioSearch** | **借设计，不集成**。它本身已是 SearXNG + FastAPI + Redis cache + circuit breaker + rerank + extraction 的完整中间层——正是 P2-A 要自建的部分。整包接入会形成**两套 circuit breaker、两套 failure truth** |
+| **AgentSearch (brcrusoe72)** | 17 个 endpoint、自托管 SearXNG、去重、跨引擎评分、query expansion、domain trust、prompt-injection scrubbing、内容提取、可选 browser render ⇒ **"全家桶对照组"**，不作核心架构依赖（否则 Study Agent 变成 AgentSearch 外再套一层） |
+| **OpenSERP** | 比先前预期更值得关注：支持 **Google / Bing / 百度 / DuckDuckGo / Yandex / Ecosia** 六类 SERP，多引擎合并、URL extraction、浏览器渲染模式，并有 circuit-breaker stats；**本身足够"低层"**（不像 AgentSearch 已替你做大量 agent 决策）⇒ 非常契合 adapter 模型 |
+| **Crawl4AI** | **本清单原先漏掉的 A3 候选**。价值不在搜索，而在 JS 页面 / browser session / Markdown extraction / CSS-XPath extraction 等**读取能力** ⇒ 应与 **Wigolo Browser 做 Reader/Browser bakeoff**，不与搜索候选比 |
+| **Firecrawl** | 已把 Search / Scrape / Parse / Crawl / Map / Interact 做成整套 Web Data API；Hosted 依赖 Key，自托管主体 AGPL ⇒ 现阶段定位 **高质量外部基准**，非默认生产依赖 |
+| **Trawl** | **纠正：从"搜索候选"移除。** 未核验到"Tavily 兼容搜索 API"版本；当前公开较活跃的 `germondai/trawl` 是**浏览器/挑战页处理服务**（更接近 FlareSolverr 替代品），**本身明确不提供搜索与 ranking**。以后 A3 Browser 若需特殊 browser backend 再单独评估 |
+
+### 95.2 分层裁决（冻结）
+
+| 工具 | 我们真正需要它做什么 | 裁决 |
+| --- | --- | --- |
+| wigolo | Read / Crawl / Browser escalation | **保留，一级候选** |
+| Agent Search MCP | 普通 Web + 中英文 Discovery | **A4 一级候选** |
+| AutoSearch | GitHub / Reddit / arXiv / 中文社区等垂直 Discovery | **A4 一级候选** |
+| OpenSERP | 原始多引擎 SERP（Google / Bing / 百度等） | **A4 二级候选，强烈值得 bakeoff** |
+| search2ai | 有 API Key 后的 production provider fallback gateway | 后期候选 |
+| Crawl4AI | 浏览器渲染 / 网页抽取 | **A3 bakeoff 候选** |
+| AgentSearch | 自托管全家桶 | 对照 / 参考，**不默认集成** |
+| OrioSearch | circuit breaker / extraction 架构 | **参考实现** |
+| SearXNG | 最底层 metasearch 基线 | 基础设施候选 |
+| Firecrawl | 商用品质 Search / Scrape / Interact 对照 | **Shadow benchmark**，不必当前接 |
+| OpenClaw 插件 | 千问 / 秘塔 provider adapter 设计 | 参考 |
+| pi-web-extension / ddgs MCP 等 | 简单搜索能力 | 与上面重复，**暂不接** |
+| Lyra | Evidence Graph 思路 | 留给 **P2-B / P2-C** 参考 |
+| Trawl | browser / challenge 特殊 backend | **当前排除** |
+
+### 95.3 架构原则（冻结）：**不要把 MCP 当成核心接口**
+
+```text
+Study Agent
+    │
+DiscoveryBackend / ReadBackend / BrowserBackend      ← 我们的稳定层（Capability Contract）
+    ├── MCP adapter
+    ├── HTTP adapter
+    ├── CLI adapter
+    └── native / library adapter
+```
+
+**错误形态**：`Study Agent → MCP → 所有东西`。
+
+理由：Agent Search 是 MCP、AutoSearch 是 MCP、wigolo 是 MCP/REST/SDK、OpenSERP 是 HTTP/SDK/MCP、search2ai 可以是库/HTTP/MCP —— **协议只是 transport，Capability Contract 才是稳定层**。这与 §71B（`DiscoveryBackend` / `ReadBackend` / §94 的 `BrowserBackend`）完全一致。
+
+### 95.4 两条主权规则（冻结）
+
+**规则 1 —— provider 信号只能记录，不能晋级为证据。**
+Agent Search 的"多引擎 confidence=3"、AutoSearch 的 citation、AgentSearch 的 domain trust，**只能**记为：
+
+```text
+provider_agreement
+source_metadata
+retrieval_score
+```
+
+**绝不能**映射为 `claim.supported = true` 或 `evidence_confidence = high`。
+
+> 三家搜索引擎都搜到同一个 SEO 页面，**不等于**这个 claim 得到三份独立证据。
+
+**规则 2 —— 外部产品已生成的结论在 P2-A 全部禁止直接成为答案。**
+外部已产出的 `answer` / `research report` / `deep research` / `compare_solutions`（例如其它 Agent Search 项目提供的 `web_ask` / `web_research` / `compare_solutions`）已越过 Retrieval 进入 Synthesis ⇒ **A4 adapter 最多消费其 search / extract / crawl 原料，不消费其"结论"**。
+
+### 95.5 外部能力路线："3 + 1 + 1"（冻结）
+
+```text
+Discovery 主力
+  Agent Search MCP   —— 普通 Web / 中英文搜索
+  AutoSearch         —— 垂直平台 / 中文社区 / 学术 / GitHub
+  OpenSERP           —— 原始多 SERP、百度/Bing/Google 等独立通道
+
+Read / Browser 主力
+  wigolo             —— 已有 §71 实验基础，继续作 Reader/Browser backend
+  Crawl4AI           —— A3 做 browser/extraction 对照（不一定最终保留两个）
+
+未来有 Key 时
+  search2ai          —— 统一 paid provider fallback
+
+不进主链（只作设计与 benchmark 来源）
+  AgentSearch / OrioSearch / SearXNG 全家桶
+```
+
+```text
+普通互联网        → Agent Search MCP
+中文/社区/垂直    → AutoSearch
+原始 SERP 独立验证 → OpenSERP
+                        ↓
+                  Candidate Pool
+                        ↓
+              Study Agent ranking
+                        ↓
+                  Native HTTP
+                        ↓ fail
+              Wigolo / Crawl4AI
+                        ↓
+            Study Agent Evidence Authority
+```
+
+> 外部插件增强的是**覆盖面和读取能力**，而不是替我们做研究。
+
+**A4 最终不保证三个全进 production**：按 `unique useful discoveries / failure transparency / latency / 中文覆盖 / provenance / 运维成本 / license` 跑 cohort，**只留真正互补的 2–3 个**。
+
+### 95.6 对 P2-A 顺序的影响：**无变化，且更证明 A0 必须先做**
+
+这些 backend 会吐出**完全不同的失败**：DDG challenge、Sogou empty、Baidu SERP failure、GitHub channel unavailable、HTTP 403、browser shell、provider timeout、MCP failure、SearXNG engine failure。
+
+**没有 A0 canonical taxonomy，接得越多系统越乱。**
+
+**前向映射核对（A0 已能表达）**：
+
+| 未来失败 | A0 canonical 落点 |
+| --- | --- |
+| DDG challenge | `anti_bot` |
+| Baidu SERP failure | `backend_failure` / `http_denied` / `anti_bot`（按原始证据） |
+| GitHub channel unavailable | `backend_failure` |
+| provider timeout | `timeout` |
+| MCP failure | `backend_failure`（MCP 只是 adapter，见 §95.3） |
+| SearXNG engine failure | `backend_failure`（**按 provider 粒度**，支持部分成功） |
+| HTTP 403 | `http_denied` |
+| browser shell | `shell_page` |
+| **Sogou empty** | **不是失败状态**：`success` + `result_count = 0` |
+
+> **合同澄清（A4 必须遵守）**：**空结果集不是失败。** 一个返回 0 条候选的搜索是"成功但没有结果"，必须用 `result_count` 表达；**不得**映射成 `invalid_content`（那等于宣称查询无效）或任何内容判断——这与 `host health != URL truth` 同类，只是对象从 URL 换成 query。§71B 的 invocation `empty` 状态是**读取层**语义（空正文），discovery 不得用它表示"没搜到"。
+
+### 95.7 A0 当前状态
+
+- **合同已实现并提交**：`773e2c7`（`src/web/research/failure_taxonomy.py`、`retrieval_backends.py` 增量字段、`tests/test_failure_taxonomy.py`）。
+- focused：`test_failure_taxonomy` **63 passed**；`+test_retrieval_backends`/`test_read_escalation` 合计 **86 passed**；Ruff clean。
+- **候选 head 全量 pytest 尚未完成**（该次运行被中断）⇒ 作为 A0 收口门待补。
+- A0 **未改** timeout / breaker 行为 / retry policy / read 结果语义 / backend / ranking / answer / evidence / support / gate。
+
+### 95.8 路线（冻结）
+
+```text
+P2-A0 canonical retrieval contract          ← 已实现（773e2c7），待全量门
+P2-A1 per-run breaker / deadline policy
+P2-A2 Progressive Reader
+P2-A3 Browser bakeoff        Wigolo vs Crawl4AI
+P2-A4 Discovery provider bakeoff
+       Agent Search MCP · AutoSearch · OpenSERP · [search2ai later]
+A5 heterogeneous integration
+
+P2-B ResearchBrief / Synthesis          （Lyra 的 Evidence Graph 思路留此参考）
+P2-C Semantic / Final Auditor
+P2-D Chart / Diagram / Plan / external capabilities（输出侧能力层）
+P2-E Artifact / Publication Audit
+Full-function Shadow
+Release benchmark
+```
