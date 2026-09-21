@@ -99,6 +99,9 @@ class ActiveResearchGateway:
         self._last_audit: ActiveSearchCallAudit | None = None
         self._pending_audits: list[dict[str, Any] | None] = []
         self._warnings: list[dict[str, str]] = []
+        # §71C-3a escalation backend is built lazily (only if the mode is on)
+        self._escalation_backend: Any | None = None
+        self._escalation_backend_built = False
 
     def search_detailed(
         self,
@@ -174,12 +177,70 @@ class ActiveResearchGateway:
         # the research window is visible (window-aware admission); the adapter
         # stays a plain delegation so a read is never retried twice.
         if timeout is not None and self._read_gateway_accepts_timeout:
-            return cast(Any, self._read_gateway).read(
+            result = cast(Any, self._read_gateway).read(
                 url,
                 max_chars=max_chars,
                 timeout=timeout,
             )
-        return self._read_gateway.read(url, max_chars=max_chars)
+        else:
+            result = self._read_gateway.read(url, max_chars=max_chars)
+        # §71C-3a reader escalation (default off): the current reader always
+        # runs first and its result is only replaced when the escalated read is
+        # itself adequate. Any escalation failure leaves this payload untouched.
+        return self._escalate_if_inadequate(url, result, max_chars=max_chars)
+
+    def _escalate_if_inadequate(
+        self, url: str, result: Mapping[str, Any], *, max_chars: int
+    ) -> dict[str, Any]:
+        from src.web.research.read_escalation import escalate_read, escalation_mode
+
+        payload = dict(result or {})
+        if escalation_mode() == "off":
+            return payload
+        try:
+            escalated, outcome = escalate_read(
+                url=url,
+                current=payload,
+                http_backend=self.escalation_backend(),
+                backend_factory=self._build_escalation_backend,
+                max_chars=max_chars,
+            )
+        except Exception as exc:  # noqa: BLE001 - never damage the current read
+            payload["escalation"] = {
+                "attempted": True,
+                "tier": "http",
+                "state": "transport_error",
+                "reason": f"adapter:{type(exc).__name__}",
+                "rescued": False,
+            }
+            return payload
+        payload["escalation"] = outcome.to_dict()
+        if escalated is not None and escalated is not payload:
+            escalated_payload = dict(escalated)
+            escalated_payload["escalation"] = outcome.to_dict()
+            return escalated_payload
+        return payload
+
+    def escalation_backend(self) -> Any | None:
+        """Lazily built Wigolo HTTP-tier backend (None when disabled)."""
+
+        if self._escalation_backend is None and self._escalation_backend_built:
+            return None
+        if self._escalation_backend is None:
+            self._escalation_backend = self._build_escalation_backend("http")
+            self._escalation_backend_built = True
+        return self._escalation_backend
+
+    def _build_escalation_backend(self, tier: str) -> Any:
+        from src.web.research.wigolo_backend import WigoloShadowReadBackend
+
+        return WigoloShadowReadBackend(tier=tier)
+
+    def set_escalation_backend(self, backend: Any) -> None:
+        """Test seam: inject a backend without touching the daemon."""
+
+        self._escalation_backend = backend
+        self._escalation_backend_built = True
 
     def warnings(self) -> list[dict[str, str]]:
         return [dict(item) for item in self._warnings]

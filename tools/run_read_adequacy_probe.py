@@ -36,22 +36,14 @@ from dotenv import load_dotenv  # noqa: E402
 from tools.run_recall_target_audit import TARGETS  # noqa: E402
 
 SCHEMA_VERSION = "read-adequacy-probe-v1"
-SHORT_CHAR_THRESHOLD = 800
 RICHER_FACTOR = 3.0
 
-ANTI_BOT_MARKERS = (
-    "captcha",
-    "access denied",
-    "are you a robot",
-    "unusual traffic",
-    "just a moment",
-    "checking your browser",
-)
-JS_SHELL_MARKERS = (
-    "enable javascript",
-    "javascript is required",
-    "please turn on javascript",
-    "noscript",
+# §71C-3a: the production adequacy gate owns these; the probe measures with the
+# exact same values so measurement and escalation cannot drift.
+from src.web.research.read_adequacy import (  # noqa: E402
+    ANTI_BOT_MARKERS,
+    JS_SHELL_MARKERS,
+    SHORT_CHAR_THRESHOLD,
 )
 
 

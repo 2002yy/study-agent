@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from math import ceil, isfinite
 import re
 import time
-from typing import Any, Iterable, cast
+from typing import Any, Iterable, MutableMapping, cast
 from urllib.parse import urlsplit
 
 from src.domain.evidence import ClaimEvidenceLinkV1, build_evidence_snapshot
@@ -579,9 +579,17 @@ class ActiveResearchRuntimeExecutor:
 
             mode = read_retry_mode()
             phase_begin("read")
+            def _with_escalation_ledger(payload: dict[str, Any]) -> dict[str, Any]:
+                escalation = payload.get("escalation")
+                if isinstance(escalation, Mapping):
+                    _record_escalation_diagnostics(
+                        context, escalation, wave_index=int(cursor.wave_index)
+                    )
+                return payload
+
             try:
                 if mode == "off":
-                    return dict(_inner(url))
+                    return _with_escalation_ledger(dict(_inner(url)))
                 admission = None
                 if mode == "window_aware":
                     # §50/B2: the same formula-based admission policy as the
@@ -598,7 +606,7 @@ class ActiveResearchRuntimeExecutor:
                 _accumulate_fetch_metrics(
                     context, "read_retry", payload.get("read_retry")
                 )
-                return payload
+                return _with_escalation_ledger(payload)
             finally:
                 phase_end("read")
 
@@ -5191,6 +5199,85 @@ def _source_record(
             ][:4],
         }
     return record
+
+
+
+def _record_escalation_diagnostics(
+    context: dict[str, Any], escalation: Mapping[str, Any], *, wave_index: int
+) -> None:
+    """§71C-3a: one escalation outcome -> retrieval attempt + terminal invocation.
+
+    Reads carry no claim id (the source record keeps that link), so the ledger
+    entry is wave-scoped and the funnel joins it per claim. Diagnostics only:
+    the read payload already decided the outcome.
+    """
+
+    from src.web.research.retrieval_backends import (
+        READ_OPERATION,
+        create_retrieval_invocation,
+        finalize_retrieval_invocation,
+        retrieval_attempt_row,
+    )
+
+    def _provider() -> Any:
+        metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+        return metrics if isinstance(metrics, MutableMapping) else None
+
+    tier = str(escalation.get("tier") or "http")
+    state = str(escalation.get("state") or "")
+    terminal = {
+        "ok",
+        "empty",
+        "timeout",
+        "http_error",
+        "transport_error",
+        "unsupported",
+        "blocked",
+        "aborted",
+        "skipped_no_budget",
+        "invalid_response",
+    }
+    state = state if state in terminal else "empty"
+    metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
+    if not isinstance(metrics, dict):
+        return
+    rows = metrics.get("retrieval_attempts")
+    if not isinstance(rows, list):
+        rows = []
+    rows.append(
+        retrieval_attempt_row(
+            backend="wigolo",
+            operation=READ_OPERATION,
+            claim_id="",
+            wave_index=int(wave_index),
+            latency_ms=float(escalation.get("latency_ms") or 0.0),
+            result_count=1 if escalation.get("attempted") else 0,
+            cache_hit=bool(escalation.get("cache_hit")),
+            escalation_reason=str(escalation.get("reason") or ""),
+        )
+        | {"tier": tier, "transition": str(escalation.get("shape_before") or "") + " -> " + str(escalation.get("shape_after") or "")}
+    )
+    metrics["retrieval_attempts"] = rows[-60:]
+    if not escalation.get("attempted"):
+        return
+    entry = create_retrieval_invocation(
+        _provider,
+        claim_id="read",
+        wave_index=int(wave_index),
+        backend="wigolo",
+        operation=READ_OPERATION,
+    )
+    entry["tier"] = tier
+    finalize_retrieval_invocation(
+        _provider,
+        entry,
+        state=state,
+        result_count=1 if escalation.get("chars_after") else 0,
+        bytes=int(escalation.get("chars_after") or 0),
+        cache_hit=bool(escalation.get("cache_hit")),
+        escalation_reason=str(escalation.get("reason") or ""),
+        latency_ms=float(escalation.get("latency_ms") or 0.0),
+    )
 
 
 def _inventory_fetch_with_retry(
