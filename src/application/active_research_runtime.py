@@ -5532,6 +5532,17 @@ def _accumulate_fetch_metrics(
     entry["skipped_due_to_budget"] = int(
         entry.get("skipped_due_to_budget") or 0
     ) + int(diagnostics.get("skipped_due_to_budget") or 0)
+    # F2-O1: keep the cost side of retries in the aggregate too
+    entry["retry_backoff_ms"] = round(
+        float(entry.get("retry_backoff_ms") or 0.0)
+        + float(diagnostics.get("retry_backoff_ms") or 0.0),
+        1,
+    )
+    entry["retry_fetch_ms"] = round(
+        float(entry.get("retry_fetch_ms") or 0.0)
+        + float(diagnostics.get("retry_fetch_ms") or 0.0),
+        1,
+    )
     reasons = entry.get("retry_reasons")
     if not isinstance(reasons, list):
         reasons = []
