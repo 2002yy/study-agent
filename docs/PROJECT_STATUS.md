@@ -3619,3 +3619,52 @@ named      +9.31
 **下一步仪器（纯观测）**：
 - (a) 在 phase 上补 **model_wait 与 network_wait 分解** + **retry 等待秒数**（read_retry 增加延迟累计）；
 - (b) 补 **per-wave 时间线**（`metrics.wave_timeline[]`：wave_index/t_start/t_end 与各相耗时），用于区分"wave 1 拖长"与"wave 2 拖长"。
+
+
+## §86 F2-S1 仪器落地与首批 cohort（`42a685d2` → `7e21b842`）
+
+### 86.1 仪器（纯观测，未改任何 counts/timeout/selector/retry/budget/ranking/scheduling）
+
+- `src/web/research/timing_ledger.py`：**exclusive span** 记账 + 统一单调时钟（run 的 `elapsed_ms`）；`wave_timeline[]` 作为父级账本。
+- 已接线的 span：`search / assessment / read / extraction`（原有 phase）+ **新增 `domain_targeted`（B1）/ `tier2_proposal` / `late_tail` / `ranking` / `gating`**。
+- **model wait 分解**：`TimedGateway` 透明包装模型网关，按 purpose 归到 `selector / assessment / extraction / planner / support / other`，记录 **calls / total / max** ⇒ 可区分"调用变多"与"单次变慢"。
+- **retry 分解**：`read_retry` 新增 `retry_fetch_ms` 与 `retry_backoff_ms`（退避等待与真实重取分离；修过一个单位 bug：原为秒却标 ms）。
+- **refresh/checkpoint 显式 span**：`refresh_steering_ms` / `checkpoint_ms`（不再靠 unattributed 猜）。
+- 语义纪律（按裁决）：子 span 为 exclusive；`model_wait` 是所属 phase 的**组成**不是叠加；`unattributed_ms = wave_wall − 互斥 span 合计`。
+- 测试：`tests/test_timing_ledger.py` 9 项（exclusivity、model-wait 组成、retry 分离、refresh/checkpoint、wave 分离、隐式关闭、容错 exit、purpose 映射、属性委派）。
+
+### 86.2 首批 cohort（7 runs，同一 schema）
+
+| run | elapsed | admission | covered | unattr | ckpt | search | read | assess | domain_targeted | extract | retry(cnt/backoff/fetch) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| docker.c | 33.9 | — | 16.2 | 11.4 | 1.5 | 11.8 | 1.0 | 2.2 | — | 1.1 | 0 |
+| docker.d | 42.1 | 30.8 | 30.7 | 4.4 | 2.3 | 11.7 | **10.2** | 3.4 | 2.9 | 2.2 | 3 / 2.0s / 0.3s |
+| docker.e | 34.4 | — | 23.8 | 4.0 | 1.7 | 11.7 | 1.1 | 2.4 | **7.2** | 1.1 | 0 |
+| docker.f | 37.8 | — | 28.1 | 2.7 | 1.1 | 11.4 | **10.9** | 2.3 | 3.5 | — | **6 / 9.0s / 1.9s** |
+| node.b | 57.4 | 44.6 | 43.0 | 5.7 | 1.7 | 13.0 | **14.8** | 4.4 | 5.6 | 5.0 | 0 |
+| node.c | 100.4 | 46.5 | 43.6 | 5.1 | 1.1 | 12.9 | **17.3** | 3.2 | 5.0 | 5.0 | 0 |
+| node.d | 59.8 | — | 41.5 | 6.6 | 2.9 | 12.9 | **17.5** | 2.8 | 0.6 | 7.5 | 0 |
+
+model waits（calls x total）：docker 系 `selector 3–4 x 1.75–2.61s`（≈0.6s/call）；node 系 `selector 4 x 3.81–4.11s`（≈1.0s/call）；`other 1 x 0.41–0.97s`（domain proposal）。
+
+### 86.3 首批归因（初步，非最终）
+
+1. **`search` 是最大且最稳定的成本**：11.4–13.0s，**跨 run 几乎不动**（网络/provider 相）⇒ 不是方差来源，但是绝对成本第一。
+2. **`read` 是最大方差来源**：1.0s（docker.c/e）→ 10.2–10.9s（docker.d/f）→ 14.8–17.5s（node）⇒ 与"文档越多/越慢"一致，属网络+宿主相。
+3. **retry 退避可成为独立成本类**：docker.f **6 次 retry / 9.0s 纯退避**（另有 1.9s 重取）⇒ 这是可直接回收的候选（属 B2/宿主策略域，非 selector）。
+4. **selector 双因素**：node 系不仅调用更多（4 vs 3）且**单次更慢**（≈1.0s vs ≈0.6s）⇒ 若后续要动 selector，需先分清是"更多 claim/窗口"还是"prompt/延迟"。
+5. **B1（domain_targeted）0.6–7.2s**，方差大但小于 read；**late_tail ≈0s**（多数 run 未触发或极小）；**tier2 ≈0**；**ranking/gating ≈0.1–0.2s**。
+6. **refresh_steering ≈0s**（此前怀疑的 4–8s 未归因并不来自它）；**checkpoint 1.1–2.9s**（真实且此前完全未被计量）。
+7. `unattributed` 2.7–11.4s：docker.c 的 11.4s 已解释（该 run 早于 span 命名补丁，wave 2 的 B1/tail/ranking 未命名）。
+
+### 86.4 与完成门的差距
+
+| 门 | 现状 |
+| --- | --- |
+| ≥3 fast + ≥3 slow（同 schema） | **未达**：目前 admission 有值的仅 docker.d(30.8)/node.b(44.6)/node.c(46.5) ⇒ 需再补若干 run（fast 与 slow 各 ≥3） |
+| ≥80% 方差归因 | 接近：命名 span + model wait + retry 已覆盖绝大部分；`unattributed` 已降到 2.7–6.6s |
+| 成本类别 | 已分：网络（search/read）、模型（selector/other）、宿主 retry（backoff）、持久化（checkpoint） |
+| 可回收测算 | 已有候选：retry 退避（docker.f 9.0s）、read 方差（非策略可回收）、selector 单次延迟（待查） |
+| 不改任何策略 | ✅ 全程只读 |
+
+**下一步**：补跑到 admission 有值且覆盖 fast/slow 各 ≥3 的 cohort（预计 4–6 次 run），再出最终表并判断是否授权 F2 optimization。
