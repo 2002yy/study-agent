@@ -192,7 +192,11 @@ class ActiveResearchGateway:
     def _escalate_if_inadequate(
         self, url: str, result: Mapping[str, Any], *, max_chars: int
     ) -> dict[str, Any]:
-        from src.web.research.read_escalation import escalate_read, escalation_mode
+        from src.web.research import read_escalation
+
+        _RUNTIME_CONTEXT = read_escalation._RUNTIME_CONTEXT
+        escalate_read = read_escalation.escalate_read
+        escalation_mode = read_escalation.escalation_mode
 
         payload = dict(result or {})
         if escalation_mode() == "off":
@@ -204,6 +208,11 @@ class ActiveResearchGateway:
                 http_backend=self.escalation_backend(),
                 backend_factory=self._build_escalation_backend,
                 max_chars=max_chars,
+                attempt_seq=_RUNTIME_CONTEXT.get("attempt_seq") or 0,
+                research_seconds_left=lambda: _RUNTIME_CONTEXT.get(
+                    "research_seconds_left"
+                ),
+                hard_seconds_left=lambda: _RUNTIME_CONTEXT.get("hard_seconds_left"),
             )
         except Exception as exc:  # noqa: BLE001 - never damage the current read
             payload["escalation"] = {

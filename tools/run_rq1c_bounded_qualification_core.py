@@ -280,9 +280,43 @@ def _source_rows(selected_sources: list[dict[str, Any]]) -> list[dict[str, Any]]
                     160,
                 ),
                 "extraction_statuses": sorted(statuses),
+                # §71C-3a/B1: how this source was actually read (bounded
+                # provenance; the full ledger stays in metrics).
+                "escalation": _escalation_provenance(source.get("escalation")),
             }
         )
     return rows
+
+
+
+
+def _escalation_provenance(raw: Any) -> dict[str, Any] | None:
+    """Bounded escalation provenance for one source row."""
+
+    if not isinstance(raw, Mapping):
+        return None
+    fields = (
+        "backend",
+        "tier",
+        "invocation_id",
+        "max_chars_requested",
+        "chars_before",
+        "chars_after",
+        "latency_ms",
+        "cache_hit",
+        "state",
+        "reason",
+        "rescued",
+        "shape_before",
+        "shape_after",
+    )
+    projected: dict[str, Any] = {}
+    for key in fields:
+        value = raw.get(key)
+        if value is None:
+            continue
+        projected[key] = value
+    return projected or None
 
 
 def _evidence_rows(brief: Mapping[str, Any]) -> list[dict[str, Any]]:

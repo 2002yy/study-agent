@@ -162,6 +162,7 @@ from src.web.research.domain_targeted import (
     rank_domain_urls,
     sitemap_urls,
 )
+from src.web.research.read_escalation import set_escalation_runtime_context
 from src.web.research.read_retry import (
     make_window_admission,
     read_retry_mode,
@@ -566,6 +567,16 @@ class ActiveResearchRuntimeExecutor:
             """
 
             def _inner(target: str) -> Mapping[str, Any]:
+                # §71B/B1: stamp per-read scalars so the adapter-side escalation
+                # outcome carries the attempt order and the headroom at start.
+                metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+                seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
+                metrics_for_seq["retrieval_attempt_seq"] = seq
+                set_escalation_runtime_context(
+                    attempt_seq=seq,
+                    research_seconds_left=research_seconds_left(),
+                    hard_seconds_left=state.budget.hard_timeout_seconds - elapsed(),
+                )
                 if self.read_gateway_accepts_timeout:
                     return (
                         self.gateway.read(

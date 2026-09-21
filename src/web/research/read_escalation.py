@@ -85,6 +85,11 @@ class EscalationOutcome:
     retrieval_mode: str = ""
     max_chars_requested: int = 0
     preflight: str = ""
+    # §71B/B1 instrumentation: where and when the escalation happened
+    url: str = ""
+    attempt_seq: int = 0
+    research_seconds_left_at_start: float | None = None
+    hard_seconds_left_at_start: float | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -107,11 +112,28 @@ class EscalationOutcome:
             "max_chars_requested": self.max_chars_requested,
             "preflight": self.preflight,
             "rescued": self.rescued,
+            "url": self.url,
+            "attempt_seq": self.attempt_seq,
+            "research_seconds_left_at_start": self.research_seconds_left_at_start,
+            "hard_seconds_left_at_start": self.hard_seconds_left_at_start,
         }
         if self.extra:
             payload["extra"] = dict(self.extra)
         return payload
 
+
+
+
+def _resolve_headroom(value: Any) -> float | None:
+    """Headroom fields may be callables (runtime closure) or plain values."""
+
+    if value is None:
+        return None
+    try:
+        number = float(value() if callable(value) else value)
+        return round(number, 3)
+    except Exception:
+        return None
 
 def escalate_read(
     *,
@@ -123,6 +145,9 @@ def escalate_read(
     wave_index: int = 0,
     max_chars: int = 0,
     backend_factory: Callable[[str], Any] | None = None,
+    attempt_seq: int = 0,
+    research_seconds_left: Callable[[], float] | None = None,
+    hard_seconds_left: Callable[[], float] | None = None,
 ) -> tuple[Mapping[str, Any] | None, EscalationOutcome]:
     """Try one escalation for an inadequate read.
 
@@ -133,6 +158,10 @@ def escalate_read(
     """
 
     outcome = EscalationOutcome(
+        url=str(url or ""),
+        attempt_seq=int(attempt_seq or 0),
+        research_seconds_left_at_start=_resolve_headroom(research_seconds_left),
+        hard_seconds_left_at_start=_resolve_headroom(hard_seconds_left),
         shape_before=classify_reader_result(current).shape,
         chars_before=classify_reader_result(current).chars,
         max_chars_requested=int(max_chars or 0),
@@ -311,8 +340,35 @@ def _transition(outcome: EscalationOutcome) -> str:
     return f"{before} -> {after}"
 
 
+_RUNTIME_CONTEXT: dict[str, Any] = {}
+
+
+def set_escalation_runtime_context(
+    *,
+    attempt_seq: int,
+    research_seconds_left: float | None,
+    hard_seconds_left: float | None,
+) -> None:
+    """Per-read scalars supplied by the runtime (never a mapping reference).
+
+    The escalation happens inside the adapter, which cannot see the run's
+    wave/claim/budget; the runtime stamps these per-read values before the read
+    so the escalation outcome can carry them. Scalars only - the §71A-1 rule
+    about long-lived references applies to mappings, not to numbers.
+    """
+
+    _RUNTIME_CONTEXT["attempt_seq"] = int(attempt_seq)
+    _RUNTIME_CONTEXT["research_seconds_left"] = (
+        float(research_seconds_left) if research_seconds_left is not None else None
+    )
+    _RUNTIME_CONTEXT["hard_seconds_left"] = (
+        float(hard_seconds_left) if hard_seconds_left is not None else None
+    )
+
+
 __all__ = [
     "BROWSER_TIER_ENV",
+    "set_escalation_runtime_context",
     "ESCALATION_BROWSER",
     "ESCALATION_ENV",
     "ESCALATION_HTTP",
