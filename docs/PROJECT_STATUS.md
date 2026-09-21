@@ -3420,3 +3420,55 @@ ReadAdequacy PASS ──────────→ existing Extraction/Support/
 - 按序边际效用：rescue 多发生在前 1–2 次 attempt（同域重复失败的后续 attempt 几乎全是 ③failed 且成本极低）⇒ envelope 而非次数上限是正确选择。
 
 **B1 CLOSED。** B2（hard-headroom 门 + per-run envelope + 默认值决策）待裁决。
+
+
+## §82 B2 完成：两层预算门 + envelope 记账（`8e15aca` + 修复提交）
+
+### 82.1 实现（candidate defaults，未冻结）
+
+```text
+RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT = 3.0   # hard-headroom 门
+RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS  = 3.0   # per-run wall-clock envelope
+```
+
+- 准入顺序：adequacy FAIL → mode≠off → **hard headroom ≥3.0** → **envelope 余量 >0** → preflight → Wigolo HTTP。
+- **envelope 可执行**：`effective_timeout = min(envelope_remaining, hard_headroom)`（下限 1.0s，低于则拒绝并记 `run_envelope_exhausted` / `hard_headroom_insufficient`），通过 `ReadRequest.timeout_seconds` 传给 backend（backend 取 min(自身上限, 请求值)）⇒ **单次调用不能穿透 envelope**。
+- envelope 按**真实 latency** 计费（成功与失败都计），per-run 重置（run 开始时 `reset_http_envelope()`）。
+- **按时间不按次数**：B1 证明失败仅 31–79ms，次数上限会误杀 40ms 的关键 rescue —— 已写入 rationale。
+- 拒绝原因入账：`disabled / already_adequate / hard_headroom_insufficient / run_envelope_exhausted / backend_unavailable / misconfigured / ...`（attempt 行记录，无 invocation）。
+
+### 82.2 Gate replay（两 case，均 gate=pass）
+
+**docker（`B2.docker.gate2b.json`，elapsed 64.5s，gate=pass）**：8 attempts / 377ms 总计；①useful ×1 —— **`docker-hub/usage/pulls` 在 escalation #7（seq 11）由 `read_failed` 救活为 `ok`，成为 eligible evidence 并驱动 gate=pass**（`linked=Y`，经 invocation_id 反查）；②unused ×4；③failed ×3。
+
+**node（`B2.node.gate2.json`，elapsed 66.3s，gate=pass）**：2 attempts / 1,656ms；①useful ×1 —— **`node.org.cn/` `short_doc → ok`（@453ms），进入 eligible evidence**（`linked=Y`）；③failed ×1（nodejs.org 博客页 1,203ms，envelope 内）。
+
+**八项验收**：
+1. headroom>3 + envelope 足够 → 正常运行并 rescue ✅（两 case 各 1 次 ①）
+2. hard headroom <3 → 不调用 ✅（确定性测试）
+3. envelope 耗尽 → 不升级 ✅（确定性测试 + 单测覆盖 `run_envelope_exhausted`）
+4. 前次便宜 → 剩余 envelope 可用于后续候选 ✅（r2/docker：多次 attempt 累计仅 377ms）
+5. backend 失败 → terminal ledger + 原链不变 ✅（③类转移保留原形状）
+6. useful rescue → sources[].escalation 经 invocation_id 反查 ledger ✅（两 case 的 ① 均 `linked=Y`）
+7. already-PASS → 0 external calls ✅（gate2：already_adequate 尝试 0 invocation；单测）
+8. model_attempt budget 不变 ✅（by_purpose 仅 domain_proposal/selection_authority）
+
+**关键修复**：`_record_escalation_diagnostics` 重写——invocation 仅在 attempted 时创建（消灭 running 尸体）、先建 invocation 再写 attempt 行（行内 invocation_id 非空）、补 envelope/provenance 字段、`TERMINAL_RETRIEVAL_STATES` 从 §71B 导入。
+
+### 82.3 必须记录
+
+- 两 case 均 `hard_timeout_exceeded`（64.5s / 66.3s），但 escalation 仅 0.38s / 1.66s ⇒ **超时主因仍在 F2（wave/selector/assessment 分布）**，B2 只保证新增 fallback 本身预算有界（已达成）。
+- cold 案例：本两 run 的 rescue 均为 cache 命中或已缓存域；**§71E 默认开启裁决前需补一个自然未缓存的 cold HTTP rescue 样本**（不加 query 参数，用真实未访问过的同类页面）。
+
+### 82.4 状态
+
+```text
+§71A CLOSED（floor 3.0 冻结）
+§71B CLOSED（contract）
+§71C-3a CLOSED（10/10）
+B1   CLOSED（成本/边际效用可测量）
+B2   CLOSED（两层预算门 + envelope 记账 + 8 项验收）
+§71E default=http 裁决 → 待补 cold rescue 样本
+§71C-4 browser characterization → NOT STARTED
+F2    CHARACTERIZATION READY
+```
