@@ -1402,6 +1402,7 @@ class ActiveResearchRuntimeExecutor:
                         TIER2_PROPOSED_CLAIMS_KEY, []
                     )
                     if isinstance(proposed_claim_ids, list):
+                        phase_begin("tier2_proposal")
                         cursor = _tier2_proposal_step(
                             cursor=cursor,
                             state=state,
@@ -1415,12 +1416,14 @@ class ActiveResearchRuntimeExecutor:
                             timeout_seconds=remaining_timeout(),
                             proposed_claim_ids=proposed_claim_ids,
                         )
+                        phase_end("tier2_proposal")
                     # §63 Tier-1.5 (default off): official-domain site search
                     # as a second, deterministic discovery channel.
                     targeted_claim_ids = context.setdefault(
                         DOMAIN_TARGETED_CLAIMS_KEY, []
                     )
                     if isinstance(targeted_claim_ids, list):
+                        phase_begin("domain_targeted")
                         cursor = _domain_targeted_step(
                             cursor=cursor,
                             state=state,
@@ -1437,10 +1440,12 @@ class ActiveResearchRuntimeExecutor:
                             seconds_left=research_seconds_left,
                             now_ms=elapsed_ms,
                         )
+                        phase_end("domain_targeted")
                     # §69/B1-T5 R1': discovery channels can only admit after
                     # this wave's window was frozen; give those late candidates
                     # their own bounded assessment entry so the read plan can
                     # actually see them.
+                    phase_begin("late_tail")
                     cursor = _late_admission_tail(
                         cursor=cursor,
                         state=state,
@@ -1468,9 +1473,12 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         live_context=lambda: context,
                     )
+                    phase_end("late_tail")
                     checkpoint()
 
                 cursor = replace(cursor, phase="ranking")
+                # F2-S1: the ranking/planning block gets its own span
+                phase_begin("ranking")
                 checkpoint(stage="assessing")
 
                 # P1-C batch 2: the read plan is recomputed at the start of every
@@ -1548,6 +1556,7 @@ class ActiveResearchRuntimeExecutor:
                     )
                     for claim_id, ranked in claim_rankings.items()
                 }
+                phase_end("ranking")
                 physical_reads, extraction_targets = _fair_read_plan(
                     state,
                     rankings_for_plan,
@@ -2388,6 +2397,7 @@ class ActiveResearchRuntimeExecutor:
                         routing_metrics["atomic_routing_extractions"] = observed[-60:]
 
                 cursor = replace(cursor, phase="gating")
+                phase_begin("gating")
                 checkpoint(stage="gating")
                 gate = evaluate_evidence_gate(state)
                 state = _state_after_gate(state, gate)
@@ -2396,6 +2406,7 @@ class ActiveResearchRuntimeExecutor:
                 # §45 funnel: proposal -> added -> assessed -> read ->
                 # extracted -> gate-eligible, per llm_proposed candidate.
                 _record_tier2_funnel(context, cursor, brief, selected_sources)
+                phase_end("gating")
                 checkpoint()
 
                 # P1-C batch 2: wave-level Evidence Gain + Saturation using the
