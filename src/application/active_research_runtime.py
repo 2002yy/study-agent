@@ -441,6 +441,7 @@ class ActiveResearchRuntimeExecutor:
                 known_evidence_ids=known_evidence_ids(),
             )
             _update_metrics(context, state, cursor)
+            _repo_started = elapsed_ms()
             persisted = self.repository.checkpoint(
                 run_id,
                 operation_id=operation_id,
@@ -455,6 +456,8 @@ class ActiveResearchRuntimeExecutor:
                 answer_confidence="",
                 diagnostics=diagnostics,
             )
+            if isinstance(diagnostics, dict):
+                diagnostics["repo_call_ms"] = round(elapsed_ms() - _repo_started, 1)
             # The repository may have merged a steering entry that arrived
             # concurrently with this checkpoint.  Keep the executor's local
             # copy aligned so the next wave boundary can consume it.
@@ -5320,6 +5323,12 @@ def _record_checkpoint_timing(
         ),
         "attempts": int(diagnostics.get("attempts") or 0),
         "conflicts": int(diagnostics.get("conflicts") or 0),
+        "repo_call_ms": float(diagnostics.get("repo_call_ms") or 0.0),
+        "prep_ms": round(
+            max(0.0, float(wall_ms) - float(diagnostics.get("repo_call_ms") or 0.0)), 1
+        ),
+        "load_ms": float(diagnostics.get("load_ms") or 0.0),
+        "repo_other_ms": float(diagnostics.get("repo_other_ms") or 0.0),
         "serialize_ms": float(diagnostics.get("serialize_ms") or 0.0),
         "write_ms": float(diagnostics.get("write_ms") or 0.0),
         "hash_ms": float(diagnostics.get("hash_ms") or 0.0),

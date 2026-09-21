@@ -89,6 +89,10 @@ def load_runs(paths: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
                 "since_previous_ms": _num(row.get("since_previous_ms")),
                 "serialize_ms": _num(row.get("serialize_ms")) or 0.0,
                 "write_ms": _num(row.get("write_ms")) or 0.0,
+                "load_ms": _num(row.get("load_ms")) or 0.0,
+                "prep_ms": _num(row.get("prep_ms")) or 0.0,
+                "repo_call_ms": _num(row.get("repo_call_ms")) or 0.0,
+                "repo_other_ms": _num(row.get("repo_other_ms")) or 0.0,
                 "hash_ms": _num(row.get("hash_ms")) or 0.0,
                 "bytes_total": _num(row.get("bytes_total")) or 0.0,
                 "bytes_by_section": {
@@ -150,6 +154,10 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
     walls = [e["wall_ms"] for e in entries]
     serializes = [e["serialize_ms"] for e in entries]
     writes = [e["write_ms"] for e in entries]
+    loads = [e["load_ms"] for e in entries]
+    preps = [e["prep_ms"] for e in entries]
+    repo_calls = [e["repo_call_ms"] for e in entries]
+    repo_others = [e["repo_other_ms"] for e in entries]
     hashes = [e["hash_ms"] for e in entries]
     bytes_totals = [e["bytes_total"] for e in entries]
     unchanged = [e["unchanged_bytes"] for e in entries]
@@ -204,7 +212,19 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "share_of_wall": {
             "serialize": round(sum(serializes) / sum(walls), 3) if sum(walls) else None,
             "write": round(sum(writes) / sum(walls), 3) if sum(walls) else None,
+            "load": round(sum(loads) / sum(walls), 3) if sum(walls) else None,
+            "repo_other": round(sum(repo_others) / sum(walls), 3) if sum(walls) else None,
+            "prep": round(sum(preps) / sum(walls), 3) if sum(walls) else None,
             "instrumentation": round(sum(hashes) / sum(walls), 3) if sum(walls) else None,
+        },
+        "decomposition_ms": {
+            "total_wall": round(sum(walls), 1),
+            "prep_total": round(sum(preps), 1),
+            "repo_total": round(sum(repo_calls), 1),
+            "load_total": round(sum(loads), 1),
+            "serialize_total": round(sum(serializes), 1),
+            "write_total": round(sum(writes), 1),
+            "repo_other_total": round(sum(repo_others), 1),
         },
         "bytes": {
             "mean": round(_mean(bytes_totals), 1),
@@ -353,6 +373,7 @@ def main() -> int:
     print("pooled serialize:", json.dumps(analysis["serialize_ms"], ensure_ascii=False))
     print("pooled write  :", json.dumps(analysis["write_ms"], ensure_ascii=False))
     print("share_of_wall :", json.dumps(analysis["share_of_wall"], ensure_ascii=False))
+    print("decomposition :", json.dumps(analysis["decomposition_ms"], ensure_ascii=False))
     print("bytes         :", json.dumps(analysis["bytes"], ensure_ascii=False))
     print("changed_vs_prev:", json.dumps(analysis["changed_vs_previous"], ensure_ascii=False))
     print("gaps_ms       :", json.dumps(analysis["gaps_ms"], ensure_ascii=False))

@@ -599,9 +599,11 @@ class WebLookupRepository:
 
         stop_reason = _validated_stop_reason(stop_reason)
         checkpoint_context = dict(research_context)
+        repo_started = _monotonic()
         conflicts = 0
         serialize_ms = 0.0
         write_ms = 0.0
+        load_ms = 0.0
         attempts_used = 0
         section_sizes: dict[str, int] = {}
         # Loop-invariant sections are serialized once, outside the retry loop.
@@ -613,7 +615,9 @@ class WebLookupRepository:
         dumped_warnings = _dump(warnings)
         invariant_ms = (_monotonic() - invariant_started) * 1000.0
         for _attempt in range(4):
+            load_started = _monotonic()
             run = self._required(run_id)
+            load_ms += (_monotonic() - load_started) * 1000.0
             self._assert_running_owner(run, operation_id)
             checkpoint_context = merge_active_steering_context(
                 checkpoint_context,
@@ -666,24 +670,37 @@ class WebLookupRepository:
                 )
             write_ms = (_monotonic() - write_started) * 1000.0
             if cursor.rowcount == 1:
+                hash_started = _monotonic()
+                section_hashes = {
+                    "research_context": _short_hash(dumped_context),
+                    "query_attempts": _short_hash(dumped_query_attempts),
+                    "selected_sources": _short_hash(dumped_selected_sources),
+                    "rejected_sources": _short_hash(dumped_rejected_sources),
+                    "items": _short_hash(dumped_items),
+                    "warnings": _short_hash(dumped_warnings),
+                }
+                hash_ms = (_monotonic() - hash_started) * 1000.0
+                load_started = _monotonic()
+                persisted = self._required(run_id)
+                load_ms += (_monotonic() - load_started) * 1000.0
                 if diagnostics is not None:
-                    hash_started = _monotonic()
-                    section_hashes = {
-                        "research_context": _short_hash(dumped_context),
-                        "query_attempts": _short_hash(dumped_query_attempts),
-                        "selected_sources": _short_hash(dumped_selected_sources),
-                        "rejected_sources": _short_hash(dumped_rejected_sources),
-                        "items": _short_hash(dumped_items),
-                        "warnings": _short_hash(dumped_warnings),
-                    }
-                    hash_ms = (_monotonic() - hash_started) * 1000.0
+                    repo_ms = (_monotonic() - repo_started) * 1000.0
                     diagnostics.update(
                         {
                             "attempts": attempts_used,
                             "conflicts": conflicts,
+                            "repo_ms": round(repo_ms, 1),
+                            "load_ms": round(load_ms, 1),
                             "serialize_ms": round(serialize_ms, 1),
                             "write_ms": round(write_ms, 1),
                             "hash_ms": round(hash_ms, 1),
+                            "repo_other_ms": round(
+                                max(
+                                    0.0,
+                                    repo_ms - load_ms - serialize_ms - write_ms,
+                                ),
+                                1,
+                            ),
                             "bytes_by_section": dict(section_sizes),
                             "section_hashes": section_hashes,
                             "bytes_total": int(sum(section_sizes.values())),
@@ -691,7 +708,7 @@ class WebLookupRepository:
                             "files": 0,
                         }
                     )
-                return self._required(run_id)
+                return persisted
             conflicts += 1
             checkpoint_context = context
         raise ValueError(f"WebLookupRun checkpoint conflicted: {run_id}")
