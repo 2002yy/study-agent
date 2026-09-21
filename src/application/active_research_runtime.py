@@ -5279,6 +5279,17 @@ def _record_escalation_diagnostics(
     metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
     if not isinstance(metrics, dict):
         return
+    entry = create_retrieval_invocation(
+        _provider,
+        claim_id="read",
+        wave_index=int(wave_index),
+        backend="wigolo",
+        operation=READ_OPERATION,
+    )
+    entry["tier"] = tier
+    if isinstance(escalation, MutableMapping):
+        # B1: the source provenance links to the ledger by invocation_id
+        escalation["invocation_id"] = entry["invocation_id"]
     rows = metrics.get("retrieval_attempts")
     if not isinstance(rows, list):
         rows = []
@@ -5314,17 +5325,6 @@ def _record_escalation_diagnostics(
     metrics["retrieval_attempts"] = rows[-60:]
     if not escalation.get("attempted"):
         return
-    entry = create_retrieval_invocation(
-        _provider,
-        claim_id="read",
-        wave_index=int(wave_index),
-        backend="wigolo",
-        operation=READ_OPERATION,
-    )
-    entry["tier"] = tier
-    if isinstance(escalation, MutableMapping):
-        # B1: the source provenance links to the ledger by invocation_id
-        escalation["invocation_id"] = entry["invocation_id"]
     finalize_retrieval_invocation(
         _provider,
         entry,
