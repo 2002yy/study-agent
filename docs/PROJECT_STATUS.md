@@ -4095,3 +4095,81 @@ F2 final validation ← 下一刀
 ↓
 P2-A external functionality / failure-policy / circuit-breaker
 ```
+
+
+## §93 F2 FINAL VALIDATION — 全绿，F2 CLOSED（head `eb120930`）
+
+**范围**：严格收口，**不新增实验面**；`--runs 3` 足够，**不设性能收益硬阈值**（provider / host / FS / docs.docker.com availability 均足以污染跨批次 elapsed 比较）。
+
+### 93.1 门禁结果
+
+| # | 门 | 结果 |
+| --- | --- | --- |
+| 1 | full pytest | **2152 passed / 2 failed**（664s） |
+| 1b | 失败 1、2 | `…exact_head_guard[run_rq1c_protocol_probes_core.py]`、`…deterministic_protocol_runner_exercises_all_required_probes` —— **已知 Windows-local 平台失败**，与 `fc50845` / `480cd4e` baseline 同类 |
+| 1c | Ruff（src/tests/tools） | All checks passed |
+| 1d | `git diff --check` | clean |
+| 1e | tracked 工作树 | clean |
+| 2a | d40.2 `gate` | **pass** |
+| 2b | d40.2 `answer_claim_binding` | **3/3 ok**，`fail_closed_rate 0.0`，`non_empty_candidate_rate 1.0` |
+| 2c | d40.2 `publish` | **substantive 1.0** |
+| 2d | d40.2 `consistency` | 该 capture 不含 consistency 报告；**F2 区间内 answer 路径改动文件数 = 0**（见 93.3）⇒ 不变量由构造保持 |
+| 2e | retry ceiling / admission / selector / ranking / durability 语义 | focused 全绿（`test_read_retry` 17、`test_fetch_retry_admission`、`test_selection_authority` 21、`test_timing_ledger`）；F2 区间未触及 ranking / answer / gate 模块 |
+| 3a | d40.2 frozen replay `--runs 3` | 3/3 完成，`gate=pass`，binding 3/3 ok，publish 1.0 |
+| 3b | runtime frozen replay `--runs 3`（node case，固定 head/schema/配置） | **3/3 `gate=pass`**、`runner_error_type` 空、`timing_schema=f2-wave-timeline-v1` |
+| 3c | instrumentation 正常产出 | `read_timing` 5 行/run、`checkpoint_timing` 90 行/run |
+| 3d | timing ledger 闭合 | **全部 wave `covered_ms + unattributed_ms ≈ duration_ms`**（3/3 run） |
+| 3e | retry provenance 正常 | 见 93.2 |
+| 4a | O1 repeated-identical-failure 回归 | `test_read_retry` 全绿：attempt/retry 数不变、首次 1s backoff 保留、后续 2s 正确 suppression（`repeated_error_signature`） |
+| 4b | O1 B window guard | 确定性测试全绿（拒发 / 放行 / 估算来源） |
+| 4c | B in-situ evidence debt | **继续留档，不阻塞** |
+
+### 93.2 两处需要精确说明的观测（均**非** F2 回归）
+
+1. **retry provenance 在最终 head 的落点**：最终 head 的 node replay **无 retry**（宿主可达），docker replay 该次亦无 retry，因此 retry provenance 由**同一生产代码**的 `3b9c6a1f` cohort 证明（`git diff 3b9c6a1f..eb120930` 中 `src/` 改动为 **0**，仅 docs + 一个测试期望 + 一个分析工具）。该 cohort 中 `attempts=2/retries=1/retry_backoff_ms=1000`（A′ 生效形态）与 O1b 结论一致。
+2. **per-attempt 明细的落点**：`attempts_detail` 由 **`metrics.read_timing[].attempts_detail`** 承载（O3a 证据完整，例如 `urlerror#10054` ×3 逐 attempt `fetch_ms` 78/79/78）；`sources[].read_retry` 按既有约定只投影 bounded summary，**不含** `attempts_detail`。这是设计选择，非缺失。
+3. **跨 head 恒定、非回归的两项**（已用 cohort 对照确认）：
+   - `model_call_budget_exceeded`：自 `42a685d2`（F2-S1）起在所有 node cohort 中一致出现（node case 的 domain proposal + selector + planner 调用超过 qualification guard 上限），属既有形态；
+   - `answer_claim_binding = rejected`（`candidate_unavailable` / `empty_producer_output` / `missing_evidence_brief`）：自 `dcb4a057` 起 **18/18 run** 一致，且 `answer_status` 恒为 `available` ⇒ 用户可见语义跨 head 不变；d40.2 frozen replay 另行证明 binding 路径在给定 gate-pass capture 下 3/3 ok。
+
+### 93.3 F2 区间改动面（`480cd4e..HEAD`，`src/`）
+
+`active_research_runtime.py`（诊断通道 + B2 escalation 接线）、`web_lookup_repository.py`（可选 diagnostics + 循环不变量序列化外提）、`read_retry.py`（O1/O1b/O3a）、`read_escalation.py`（B2 timeout 执行 + circuit 语义修复）、`selection_authority.py`（O2 分解字段）、`timing_ledger.py`（F2-S1 + `current_phase()`）、`wigolo_backend.py`、`active_adapter.py`。
+
+**answer / consistency / gate / brief 模块改动 = 0** ⇒ d40.2 四项不变量由构造保持，而非仅由重放证明。
+
+### 93.4 F2 封板结论（冻结口径）
+
+> **F2 完成 runtime 成本归因与局部优化。**
+>
+> * `search`：稳定固定税，非方差源；
+> * `retry/backoff`：发现并回收确定性重复等待，**−2s / qualifying read**（attempt 数与 read outcome 不变）；
+> * `selector`：延迟方差 **100%** 位于外部 model wait，本地 residual ≈ 0（33/33 `wall == model_wait`，18/18 wave 与独立 ledger 对齐）；
+> * `read`：**79.7% wall、85.4% variance** 由网络 fetch 主导，本地后处理 **≈0.8%**（172ms/19 reads）；
+> * `checkpoint`：真实但较小（3.1–11.4% of run），**无明显重复**（0/327 全重复），主要成本来自 I/O（48.6%）+ read-back（32.9%），伴随宿主 FS jitter（2/327 次写占 36.6% 写时间）；
+> * 因此剩余主要性能问题已从"本地执行效率"转移为 **external backend / host failure handling**。
+
+**F2 唯一可宣称的性能收益是 O1**（连续相同失败路径下单 read 确定性回收 2s backoff，且保持 attempt 数与 read outcome）。**不宣称"F2 把整体 runtime 优化了 X%"**。
+
+**补充保留发现**：§87 的 `unattributed` 已被进一步解释——checkpoint wall 占其 **38.8%–66.4%**，且 84% 的 checkpoint 发生在无打开 phase 的时刻，**不是未知黑洞**；因此**不再为压低 residual 扩 timing ledger**。
+
+### 93.5 路线交接
+
+```text
+F2 ✅ CLOSED
+  ├─ O1 唯一本地可回收项（已兑现 −2s/qualifying read）
+  ├─ O2/O3/O4 均证明"继续抠本地代码"ROI 低（各自独立 cohort）
+  └─ B in-situ evidence debt（留档，不阻塞）
+        ↓
+P2-A  处理真实互联网环境中的 timeout / circuit breaker / fallback /
+      backend state / progressive reader / browser / external providers
+      —— 不是另开无关大功能，而是承接 F2 已证明的剩余问题
+```
+
+### 93.6 债务清单（F2 遗留，不阻塞）
+
+1. **B（deadline-preserving retry suppression）缺 in-situ 触发证据**（确定性测试覆盖）。
+2. **写 I/O 长尾**：2/327 次 checkpoint 写占 36.6% 写时间、max 848ms、与体量无关 ⇒ 宿主/FS。
+3. **写后重读**：`checkpoint` 末尾 `_required(run_id)` 重读反序列化刚写整行（~4ms/次，约 4% run）⇒ 并发/durability 敏感区，不动。
+4. **§71E natural-cold rescue 与 F2 fast-cohort 缺口**：同一 host availability 条件阻塞的**共享外部证据债务**，宿主恢复时共用窗口补。
+5. `sources[].read_retry` 不含 `attempts_detail`（设计选择，明细在 `metrics.read_timing[]`）。
