@@ -257,8 +257,9 @@ def read_with_bounded_retry(
             "retry_reasons": retry_reasons,
             "admission_reasons": admission_reasons,
             # F2-S1: backoff waiting and real re-fetch time are separate costs
-            "retry_fetch_ms": round(fetch_ms, 1),
-            "retry_backoff_ms": round(backoff_ms, 1),
+            # (the clock is monotonic seconds; the ledger speaks milliseconds)
+            "retry_fetch_ms": round(fetch_ms * 1000.0, 1),
+            "retry_backoff_ms": round(backoff_ms * 1000.0, 1),
         }
     return payload
 
