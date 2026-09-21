@@ -306,6 +306,9 @@ def _read_retry_provenance(raw: Any) -> dict[str, Any] | None:
         "admission_reasons",
         "retry_fetch_ms",
         "retry_backoff_ms",
+        "suppressed_backoff_ms",
+        "backoff_suppressed_reason",
+        "retry_suppressed_reason",
     )
     projected: dict[str, Any] = {}
     for key in fields:

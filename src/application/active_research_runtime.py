@@ -5298,6 +5298,14 @@ def _source_record(
                 _bounded_text(item, 80)
                 for item in (retry.get("admission_reasons") or [])
             ][:4],
+            # F2-O1b: why idle waiting or a retry was removed
+            "suppressed_backoff_ms": float(retry.get("suppressed_backoff_ms") or 0.0),
+            "backoff_suppressed_reason": _bounded_text(
+                retry.get("backoff_suppressed_reason"), 60
+            ),
+            "retry_suppressed_reason": _bounded_text(
+                retry.get("retry_suppressed_reason"), 60
+            ),
         }
     return record
 
