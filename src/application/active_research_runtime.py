@@ -5286,6 +5286,14 @@ def _source_record(
             "retry_reasons": [
                 _bounded_text(item, 160) for item in (retry.get("retry_reasons") or [])
             ][:4],
+            # F2-O1: the cost side of the retry decision, per read
+            "skipped_due_to_budget": int(retry.get("skipped_due_to_budget") or 0),
+            "retry_backoff_ms": float(retry.get("retry_backoff_ms") or 0.0),
+            "retry_fetch_ms": float(retry.get("retry_fetch_ms") or 0.0),
+            "admission_reasons": [
+                _bounded_text(item, 80)
+                for item in (retry.get("admission_reasons") or [])
+            ][:4],
         }
     return record
 
