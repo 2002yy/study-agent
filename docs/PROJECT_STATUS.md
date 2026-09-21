@@ -3806,3 +3806,54 @@ search = characterization-only（不进入本轮优化）
 倾向 **A（或 A+B 组合）**：保留 retry 语义、只删"确定无收益的等待"，且可用同 schema 复测（退避 ms → 0、read 结果与成功率不变）。
 
 **注意**：本节只给出结论与候选，**未改动任何行为**；retry policy 仍为 §49 冻结形态。
+
+
+## §89 F2-O1b 实现与复测：A′ + B（`dcb4a057` → `841224ef`）
+
+### 89.1 实现（范围按裁决锁死）
+
+- **A′（纯 timing）**：第一次失败仍支付 §49 冻结的 1s backoff；当**下一次失败的规范化错误签名与上一次完全相同**时，其后的等待被抑制（attempt 仍会执行）。
+  - 签名 = `error_signature()`：保留失败种类标记 + 数字 errno/WinError（若存在），否则取消息首段；**不硬编码任何具体错误码**（无 `10054` 特判）。
+  - 上限即裁决修正后的 **2s/read**（首次失败无可比较对象）。
+- **B（deadline-preserving retry suppression）**：仅当 `planned_backoff + expected_fetch <= remaining_window` 才发起 retry；`expected_fetch` **复用上一次 attempt 自身耗时**（无新建 latency estimator），窗口来自 runtime 的 `research_seconds_left`。
+- **provenance 分离**：`backoff_suppressed_reason = repeated_error_signature`、`retry_suppressed_reason = insufficient_remaining_window`、`suppressed_backoff_ms`（per-read + aggregate）。
+- 未做 C；未改 retry ceiling / selector / read timeout / candidate / ranking；未加新 profiler。
+- 修掉实现中一个单位 bug（`fetch_ms` 内部为秒，B 的估算曾误除 1000）。
+
+### 89.2 in-situ 效果（2-retry 且签名相同的 read）
+
+| cohort | n | 实付 backoff | 抑制 backoff | attempts/retries |
+| --- | --- | --- | --- | --- |
+| before（O1/F2S1） | 7 | **12,000ms** | 0 | 3 / 2 |
+| after（O1b） | 6 | **6,000ms** | **6,000ms** | 3 / 2 |
+
+单 read 对照（字段齐全样本）：before = 3,000ms 实付；after = 1,000ms 实付 + 2,000ms 抑制 ⇒ **恰好 −2,000ms/read，与裁决修正的上限一致**，且 **attempt/retry 数不变**、read 结果不变（failed→failed、read→read）。
+
+### 89.3 等价性复测（同 schema）
+
+| 指标 | before（18 runs） | after（8 runs） |
+| --- | --- | --- |
+| read 成功 / 总 read | 21 / 45（0.47） | 7 / 11（0.64） |
+| eligible evidence 合计 | 34 | 8 |
+| gate=pass | 0 | 1 |
+| 实付 backoff 合计 | 3,000ms | 3,000ms |
+| 抑制 backoff 合计 | 0 | 6,000ms |
+
+⇒ **结果集合无恶化**（小样本比例更高，非退化）、admission 未恶化（`skipped_due_to_budget` 仍按原语义触发）、repeated-error idle 明显下降（−6,000ms）。
+
+**B 的 in-situ 触发**：本批复测未出现"sleep + 预计 fetch 超出剩余窗口"的样本（`window_suppressed=0`），因此 B 目前只有确定性测试覆盖（拒发/放行/估算来源三例）。记为待补的 in-situ 证据，不阻塞 O1 收口。
+
+### 89.4 §49 口径修正（落档，按裁决措辞）
+
+> 启用 §49 后聚合读成功率从 1/4 提高到 5/8；**新的 per-read provenance 表明当前可重建样本中没有失败 read 被 retry 转为成功**，因此旧实验不能把聚合提升**因果归于 same-read retry rescue**——提升可能来自候选集合/后续读取机会等其它机制。这不是推翻 §49，而是把相关性陈述降级为正确的因果口径。
+
+### 89.5 O1 收口判定
+
+| O1b 验收 | 结果 |
+| --- | --- |
+| 结果集合不变 | ✅（read 成功/失败集合与 before 同构，无退化） |
+| admission 不恶化 | ✅（窗口语义不变，`skipped_due_to_budget` 正常） |
+| repeated-error idle 明显下降 | ✅（−2s/read，实测 −6,000ms 合计） |
+| window-overrun retry 被正确抑制 | ✅ 确定性测试；in-situ 待补 |
+
+⇒ **F2-O1 CLOSED**（B 的 in-situ 触发记为待补证据）。下一刀：**F2-O2 selector 单调用延迟**（已知 calls 固定为 4、单次 687–1,750ms；先按 purpose/输入规模拆，判断是否本地可优化）。
