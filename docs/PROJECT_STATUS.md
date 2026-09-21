@@ -3857,3 +3857,72 @@ search = characterization-only（不进入本轮优化）
 | window-overrun retry 被正确抑制 | ✅ 确定性测试；in-situ 待补 |
 
 ⇒ **F2-O1 CLOSED**（B 的 in-situ 触发记为待补证据）。下一刀：**F2-O2 selector 单调用延迟**（已知 calls 固定为 4、单次 687–1,750ms；先按 purpose/输入规模拆，判断是否本地可优化）。
+
+
+## §90 F2-O2 selector 单次延迟可控性判定（characterization only，`1fad8d2`）
+
+**问题**：selector 的 687–1,750ms 波动，是"输入规模/调用位置导致"还是"外部 gateway/model latency 抖动"？
+
+**范围锁**：本刀**不改 selector 行为**；**不以"把 selector calls 从 4 降到 3"为目标**（§87 已证主要现象不是次数膨胀）。
+
+### 90.1 仪器（无 tokenizer、无新 profiler）
+
+`SelectionAuthorityDiagnostics` 增加单次调用的分解字段：`input_chars`（实际发出的字符数）、`response_chars`、`input_tokens`、`output_tokens`、`model_wait_ms`（gateway 调用本身）、`local_residual_ms`（wall − model wait）。
+- token **直接复用 gateway 既有 per-call audit**（provider 返回 usage 时），不引入 tokenizer；缺失时才退化到 chars。
+- 运行时记录经既有 `**diagnostics.to_dict()` 自动带出，无额外接线。
+- 分析器 `tools/run_f2_o2_selector_latency.py`（只读）：抽取 per-call 行（run/host/wave/position/purpose/candidates/sizes/tokens/wall/model wait/residual）并输出 `latency ~ input size`、`latency ~ position`、`latency ~ purpose` 与 residual 稳定性。
+
+### 90.2 样本（`O2.*`，6 runs / 33 次 selector 调用）
+
+| 维度 | 值 |
+| --- | --- |
+| wall latency | mean **848ms**，stdev **258ms**，min 406，max 1,593 |
+| model wait | mean **848ms**，stdev **258ms**（与 wall 完全相同） |
+| **local residual** | mean **0ms**，max **0ms**，`wall == wait` **33/33** |
+| 输入规模 | input_chars 764–2,051（mean ~1,500）；candidates 1–5；input_tokens 430–663 |
+| 输出规模 | response_chars 157–390；output_tokens 32–85 |
+
+**双仪器交叉验证**：per-call `model_wait_ms` 按 wave 求和，与独立 `TimedGateway` ledger 的 `model_wait_ms.selector` 在全部 **18 个 wave** 上一致（差 0–2ms）⇒ 两个独立测量互相印证，per-call 分解可信。
+
+### 90.3 三个关系
+
+| 关系 | Pearson | 斜率 | 判读 |
+| --- | --- | --- | --- |
+| latency ~ input_chars | **0.215** | 0.127 ms/char | 弱（≈5% 方差）；砍 1,600 字符才换 ~200ms |
+| latency ~ candidates | **0.217** | 35.9 ms/candidate | 弱；5 个候选差 ≈180ms |
+| latency ~ position | **−0.186** | −22.6 ms/位 | **无位置效应** |
+| latency ~ response_chars | **0.59** | 1.21 ms/char | **最强**；即输出长度（provider 生成时长） |
+
+按位置均值：828 / 974 / 898 / 893 / 505 / 942 / 703 / 789 ms ⇒ **无单调趋势**（位置 5/6 的 n 仅 3，不做结论）。
+按 host：current_policy 747ms（n=19）vs historical_current_mix 985ms（n=14），但 input_chars 均值也不同（1,430 vs 1,659），**混杂，不作为独立证据**。
+purpose：selector 记录只有 `research_selection_authority` 单一值（`research_domain_proposal` 属另一调用面，不在 O2 范围）。
+
+### 90.4 wall − model_wait 是否稳定
+
+**完全稳定**：33/33 次调用 residual = 0ms（毫秒分辨率），`Var(wall) = 66,354`、`Var(model_wait) = 66,354`、`Var(residual) = 0` ⇒ **波动 100% 来自外部 model/gateway 等待**，本地 selector 路径（payload 构造 + 序列化 + 派发）**亚毫秒级**。
+
+### 90.5 判定（按预设门）
+
+| 门 | 观测 | 结论 |
+| --- | --- | --- |
+| wall 波动随 model_wait 走、本地 residual 稳 | ✅ residual 33/33 = 0ms | **命中第一分支** |
+| latency 明显随 candidate/input size 增长 | ✗ r ≈ 0.22（弱） | 不进 O2b |
+| 某 position/purpose 稳定更慢 | ✗ 无单调趋势 | 不追路径 |
+| calls 固定但 residual 自身抖动 | ✗ residual 恒 0 | 不拆本地路径 |
+
+⇒ **判定：`external_latency_not_locally_recoverable`。F2-O2 CLOSED，不做优化。**
+
+**理由（非"无法优化"而是"优化不在本地"）**：selector 的 406–1,593ms 全部是外部模型/网关等待；本地路径 <1ms；唯一可解释项是输出长度（r=0.59，即 provider 生成时长），而输出仅 32–85 token（max_tokens 已 500），**没有可回收的本地余量**。缩 payload 的期望收益上界约 0.127 ms/字符，且 r=0.215 说明大部分输入规模差异并不转化为延迟。
+
+**唯一留档的观察（非行动项）**：host 间 747 vs 985ms 的差异与输入规模混杂，若将来要降低 selector 延迟，方向是**减少候选池规模（上游）**而非改 selector 代码；按 O2 边界**不作为默认目标**。
+
+### 90.6 路线状态
+
+```text
+F2-S1 ✅
+F2-O1 ✅   └─ B in-situ evidence debt（不阻塞）
+F2-O2 ✅   └─ external latency, not locally recoverable（本刀）
+F2-O3 ← 下一刀：read slow path
+F2-O4    └─ checkpoint
+F2 final validation
+```
