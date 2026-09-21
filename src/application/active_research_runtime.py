@@ -5308,6 +5308,7 @@ def _record_escalation_diagnostics(
                 "research_seconds_left_at_start"
             ),
             "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
+            "invocation_id": str(escalation.get("invocation_id") or ""),
         }
     )
     metrics["retrieval_attempts"] = rows[-60:]
