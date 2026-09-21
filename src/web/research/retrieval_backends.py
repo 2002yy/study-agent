@@ -76,6 +76,11 @@ RAW_READ_ARTIFACT_FIELDS = (
     "bytes",
     "rendered",
     "cache_hit",
+    # §94 P2-A0: canonical retrieval outcome (failure_taxonomy.RETRIEVAL_STATES)
+    # and the policy half of why the attempt did or did not run. Optional so
+    # existing backends and consumers keep working unchanged.
+    "retrieval_state",
+    "retrieval_policy",
 )
 
 # Names that must never appear as first-class contract fields: they belong to
@@ -181,11 +186,29 @@ class RawReadArtifact:
     # None means "no reliable backend signal" - never guessed from latency.
     rendered: bool | None = None
     cache_hit: bool | None = None
+    # §94 P2-A0: canonical outcome of this retrieval. Named ``retrieval_state``
+    # rather than ``failure_state`` because it also describes success. Empty
+    # means "not classified yet" - a backend that declares nothing is treated as
+    # unclassified, never as success.
+    retrieval_state: str = ""
+    # ``{"attempted", "skip_reason", "breaker_state", "backend"}`` from
+    # failure_taxonomy.RetrievalOutcome.to_policy_dict(). Empty for an ordinary
+    # attempted read.
+    retrieval_policy: Mapping[str, Any] = field(default_factory=dict)
     external_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def usable(self) -> bool:
         return bool(self.content.strip())
+
+    @property
+    def attempted(self) -> bool:
+        """False only when a policy skip is recorded (the URL was never read)."""
+
+        policy = self.retrieval_policy
+        if isinstance(policy, Mapping) and "attempted" in policy:
+            return bool(policy.get("attempted"))
+        return True
 
 
 class DiscoveryBackend(Protocol):
@@ -200,6 +223,46 @@ class ReadBackend(Protocol):
 
     def fetch(self, request: ReadRequest) -> RawReadArtifact:
         ...
+
+
+def validate_read_artifact(artifact: RawReadArtifact) -> None:
+    """Enforce the §94 A0 outcome contract on one read artifact.
+
+    A backend may declare ``retrieval_state`` freely, but whatever it declares
+    must be a canonical state, must not smuggle local authority, and a policy
+    skip must not claim anything about the URL. Unclassified (empty) is allowed:
+    it means "nobody said", which is never treated as success.
+    """
+
+    from src.web.research.failure_taxonomy import (
+        RETRIEVAL_STATES,
+        RetrievalOutcome,
+        assert_no_authority_fields,
+        assert_no_url_truth_from_skip,
+        assert_retrieval_outcome,
+    )
+
+    state = str(artifact.retrieval_state or "")
+    if state and state not in RETRIEVAL_STATES:
+        raise RetrievalContractError(f"unknown retrieval_state: {state!r}")
+    policy = artifact.retrieval_policy
+    if policy:
+        assert_no_authority_fields(policy)
+        assert_retrieval_outcome(
+            RetrievalOutcome(
+                state=state or "backend_failure",
+                attempted=bool(policy.get("attempted")),
+                skip_reason=str(policy.get("skip_reason") or ""),
+                breaker_state=str(policy.get("breaker_state") or ""),
+                backend=str(policy.get("backend") or artifact.backend),
+            )
+        )
+        assert_no_url_truth_from_skip(
+            RetrievalOutcome(
+                state=state or "backend_failure",
+                attempted=bool(policy.get("attempted")),
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -435,4 +498,5 @@ __all__ = [
     "retrieval_attempt_row",
     "retrieval_invocation_id",
     "validate_backend_payload",
+    "validate_read_artifact",
 ]
