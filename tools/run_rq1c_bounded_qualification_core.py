@@ -283,12 +283,40 @@ def _source_rows(selected_sources: list[dict[str, Any]]) -> list[dict[str, Any]]
                 # §71C-3a/B1: how this source was actually read (bounded
                 # provenance; the full ledger stays in metrics).
                 "escalation": _escalation_provenance(source.get("escalation")),
+                # F2-O1: per-read retry outcome, so "did a retry rescue this
+                # read" is answerable without another profiler.
+                "read_retry": _read_retry_provenance(source.get("read_retry")),
             }
         )
     return rows
 
 
 
+
+def _read_retry_provenance(raw: Any) -> dict[str, Any] | None:
+    """Bounded per-read retry diagnostics for one source row."""
+
+    if not isinstance(raw, Mapping):
+        return None
+    fields = (
+        "attempts",
+        "retries",
+        "skipped_due_to_budget",
+        "retry_reasons",
+        "admission_reasons",
+        "retry_fetch_ms",
+        "retry_backoff_ms",
+    )
+    projected: dict[str, Any] = {}
+    for key in fields:
+        value = raw.get(key)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            projected[key] = [str(item)[:160] for item in value][:4]
+        else:
+            projected[key] = value
+    return projected or None
 
 def _escalation_provenance(raw: Any) -> dict[str, Any] | None:
     """Bounded escalation provenance for one source row."""
