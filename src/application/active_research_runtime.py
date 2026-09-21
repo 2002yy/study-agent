@@ -168,6 +168,7 @@ from src.web.research.read_escalation import (
 )
 from src.web.research.timing_ledger import TimedGateway, TimingLedger
 from src.web.research.read_retry import (
+    error_signature,
     make_window_admission,
     read_retry_mode,
     read_with_bounded_retry,
@@ -1727,6 +1728,7 @@ class ActiveResearchRuntimeExecutor:
                     cursor = begin_external_attempt(cursor, marker)
                     checkpoint()
                     read_exception_type = ""
+                    read_started_ms = elapsed_ms()
                     try:
                         raw_read = gateway_read(candidate.url, max_chars=source_limit)
                     except Exception as exc:
@@ -1740,6 +1742,7 @@ class ActiveResearchRuntimeExecutor:
                     finally:
                         cursor = finish_external_attempt(cursor, call_id=marker.call_id)
                         checkpoint()
+                    read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
                     ensure_active()
                     content = str(raw_read.get("content") or raw_read.get("readme") or "")[:source_limit]
                     ok = bool(raw_read.get("ok") is True and content.strip())
@@ -1780,6 +1783,15 @@ class ActiveResearchRuntimeExecutor:
                         raw_read={**raw_read, "content": content, "status": "read" if ok else "failed"},
                     )
                     _upsert_source(selected_sources, record)
+                    _record_read_timing(
+                        context,
+                        candidate=candidate,
+                        wave_index=cursor.wave_index,
+                        status="success" if ok else "failed",
+                        wall_ms=read_wall_ms,
+                        chars=len(content),
+                        raw_read=raw_read,
+                    )
                     update_budget(reads_used=successful_reads)
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
                         outcome.to_dict() for outcome in cursor.read_outcomes
@@ -5215,6 +5227,62 @@ def _candidate_by_id(cursor: ResearchRuntimeCursor, candidate_id: str) -> Candid
         if item.id == candidate_id:
             return _candidate_item(item)
     raise ValueError(f"unknown runtime candidate: {candidate_id}")
+
+
+def _record_read_timing(
+    context: dict[str, Any],
+    *,
+    candidate: CandidatePoolItem,
+    wave_index: int,
+    status: str,
+    wall_ms: float,
+    chars: int,
+    raw_read: Mapping[str, Any],
+) -> None:
+    """F2-O3a: split one read's wall time into network wait, backoff and local work.
+
+    Observation only - it never feeds scheduling, admission or policy. The
+    network component is the retry loop's own fetch total when a retry happened
+    (its clock covers every attempt, first one included) and the whole read call
+    otherwise; ``local_ms`` is what remains after removing network wait and
+    backoff, i.e. decode/parse/bookkeeping inside the reader, plus the
+    escalation tier when it ran (which keeps its own ``escalation_ms``).
+    """
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    retry = raw_read.get("read_retry")
+    retry = retry if isinstance(retry, Mapping) else {}
+    escalation = raw_read.get("escalation")
+    escalation = escalation if isinstance(escalation, Mapping) else {}
+    fetch_ms = float(retry.get("retry_fetch_ms") or 0.0) if retry else float(wall_ms)
+    backoff_ms = float(retry.get("retry_backoff_ms") or 0.0)
+    entry = {
+        "candidate_id": candidate.id,
+        "host": str(candidate.url).split("//")[-1].split("/")[0][:120],
+        "wave_index": int(wave_index),
+        "status": str(status),
+        "wall_ms": round(float(wall_ms), 1),
+        "fetch_ms": round(fetch_ms, 1),
+        "backoff_ms": round(backoff_ms, 1),
+        "escalation_ms": round(float(escalation.get("latency_ms") or 0.0), 1),
+        "local_ms": round(max(0.0, float(wall_ms) - fetch_ms - backoff_ms), 1),
+        "attempts": int(retry.get("attempts") or 1),
+        "retries": int(retry.get("retries") or 0),
+        "chars": int(chars),
+        "error_signature": error_signature(raw_read),
+        "attempts_detail": [
+            dict(item)
+            for item in (retry.get("attempts_detail") or [])
+            if isinstance(item, Mapping)
+        ][:4],
+    }
+    timing = metrics.get("read_timing")
+    if not isinstance(timing, list):
+        timing = []
+    timing.append(entry)
+    metrics["read_timing"] = timing[-80:]
 
 
 def _source_record(

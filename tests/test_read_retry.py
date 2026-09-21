@@ -87,7 +87,13 @@ def test_fetch_failure_recovers_on_retry() -> None:
         "suppressed_backoff_ms": result["read_retry"]["suppressed_backoff_ms"],
         "backoff_suppressed_reason": result["read_retry"]["backoff_suppressed_reason"],
         "retry_suppressed_reason": result["read_retry"]["retry_suppressed_reason"],
+        "attempts_detail": result["read_retry"]["attempts_detail"],
     }
+    detail = result["read_retry"]["attempts_detail"]
+    assert [row["index"] for row in detail] == [1, 2]
+    assert [row["ok"] for row in detail] == [False, True]
+    assert all(row["fetch_ms"] >= 0 for row in detail)
+    assert detail[0]["signature"] and not detail[1]["signature"]
 
 
 def test_success_never_retries_even_when_text_is_short() -> None:
@@ -188,7 +194,9 @@ def test_admission_can_skip_the_retry() -> None:
         "suppressed_backoff_ms": result["read_retry"]["suppressed_backoff_ms"],
         "backoff_suppressed_reason": result["read_retry"]["backoff_suppressed_reason"],
         "retry_suppressed_reason": result["read_retry"]["retry_suppressed_reason"],
+        "attempts_detail": result["read_retry"]["attempts_detail"],
     }
+    assert [row["index"] for row in result["read_retry"]["attempts_detail"]] == [1]
 
 
 def test_admission_uses_the_retry_number() -> None:

@@ -250,6 +250,10 @@ def read_with_bounded_retry(
     last_signature = ""
     repeated_signature = False
     result: Mapping[str, Any] = {}
+    # F2-O3a: per-attempt provenance. Only emitted for reads that actually
+    # retried (or were refused a retry), so a clean single-attempt read keeps
+    # its exact previous payload shape.
+    attempts_detail: list[dict[str, Any]] = []
     while True:
         attempts += 1
         _attempt_started = clock()
@@ -261,7 +265,24 @@ def read_with_bounded_retry(
                 "error": f"{type(exc).__name__}: {exc}",
             }
         finally:
-            fetch_ms += max(0.0, clock() - _attempt_started)
+            attempt_ms = max(0.0, clock() - _attempt_started)
+            fetch_ms += attempt_ms
+        attempts_detail.append(
+            {
+                "index": attempts,
+                "fetch_ms": round(attempt_ms * 1000.0, 1),
+                "ok": result.get("ok") is True,
+                # only a failure has a signature; a successful attempt must not
+                # look like "the same failure again" to A'
+                "signature": error_signature(result)
+                if result.get("ok") is not True
+                else "",
+                "chars": len(
+                    str(result.get("text") or result.get("content") or "")
+                ),
+                "content_type": str(result.get("content_type") or "")[:60],
+            }
+        )
         if result.get("ok") is True:
             break
         if retried >= max(0, int(max_retries)):
@@ -335,6 +356,10 @@ def read_with_bounded_retry(
             "suppressed_backoff_ms": round(suppressed_backoff_ms * 1000.0, 1),
             "backoff_suppressed_reason": backoff_suppressed_reason,
             "retry_suppressed_reason": retry_suppressed_reason,
+            # F2-O3a: one row per attempt (index, fetch_ms, ok, signature,
+            # chars, content_type) so a slow read can be attributed to a single
+            # attempt rather than to the retry aggregate.
+            "attempts_detail": attempts_detail[:4],
         }
     return payload
 
