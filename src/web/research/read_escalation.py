@@ -42,12 +42,8 @@ from src.web.research.retrieval_backends import (
 ESCALATION_ENV = "RESEARCH_WIGOLO_ESCALATION"
 BROWSER_TIER_ENV = "WIGOLO_BROWSER_ESCALATION"
 
-# §71B2 candidate defaults (NOT frozen): two guards around the optional HTTP
-# fallback, both calibrated from the B1 distribution (per-attempt p50 ~47ms,
-# p95 ~1.5s; per-run total 0.06-1.64s).
-#
-# They are deliberately separate constants with separate semantics even though
-# both happen to be 3.0 today:
+# §71B2 FROZEN budget parameters (3.0s each), with separate semantics even
+# though the values coincide:
 #   - the hard-headroom gate asks "is an optional external retrieval still
 #     worth starting?" given what is left of the run;
 #   - the per-run envelope caps how much wall clock this optional fallback may
@@ -55,10 +51,17 @@ BROWSER_TIER_ENV = "WIGOLO_BROWSER_ESCALATION"
 #     accumulate into a budget breach.
 # Neither is a call-count cap: B1 showed failures cost 31-79ms, so refusing the
 # third attempt by count could reject a 40ms rescue for no reason.
+#
+# Evidence for 3.0s: measured cold HTTP on a healthy host ~1.0s (same-host
+# control fetch), historical cold 0.7-1.5s, warm/cache 15-80ms, worst observed
+# attempt now truncates at 3.03s (was 8.03s before the effective-timeout fix),
+# and useful rescues concentrate in the first one or two attempts. B2's own
+# scope is bounding this fallback - it does NOT own the run's 60s budget (that
+# long tail belongs to the wave/selector/admission distribution, see F2).
 HTTP_MIN_HARD_SECONDS_ENV = "RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT"
 HTTP_RUN_ENVELOPE_ENV = "RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS"
-HTTP_MIN_HARD_SECONDS_DEFAULT = 3.0
-HTTP_RUN_ENVELOPE_DEFAULT = 3.0
+HTTP_MIN_HARD_SECONDS_DEFAULT = 3.0  # FROZEN
+HTTP_RUN_ENVELOPE_DEFAULT = 3.0  # FROZEN
 # A request is not started unless it plausibly fits: an envelope with 0.4s left
 # must not launch a call that usually takes ~1s and then discover the breach.
 EFFECTIVE_TIMEOUT_FLOOR_SECONDS = 1.0
@@ -68,6 +71,8 @@ _HTTP_ENVELOPE: dict[str, float] = {"wigolo_http_spent_ms": 0.0}
 
 
 def http_min_hard_seconds() -> float:
+    """Frozen default 3.0; the env override exists for experiments only."""
+
     raw = os.getenv(HTTP_MIN_HARD_SECONDS_ENV)
     try:
         value = float(raw) if raw not in (None, "") else HTTP_MIN_HARD_SECONDS_DEFAULT
@@ -77,6 +82,8 @@ def http_min_hard_seconds() -> float:
 
 
 def http_run_envelope_seconds() -> float:
+    """Frozen default 3.0; the env override exists for experiments only."""
+
     raw = os.getenv(HTTP_RUN_ENVELOPE_ENV)
     try:
         value = float(raw) if raw not in (None, "") else HTTP_RUN_ENVELOPE_DEFAULT
