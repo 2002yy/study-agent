@@ -113,6 +113,11 @@ def load_runs(paths: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
                 "run": str(case.get("run") or os.path.basename(path)),
                 "host_case": str(case.get("category") or ""),
                 "elapsed_seconds": _num(case.get("elapsed_seconds")) or 0.0,
+                "unattributed_ms": sum(
+                    _num(entry.get("unattributed_ms")) or 0.0
+                    for entry in (metrics.get("wave_timeline") or [])
+                    if isinstance(entry, dict)
+                ),
                 "entries": entries,
             }
         )
@@ -144,6 +149,12 @@ def run_summary(run: dict[str, Any]) -> dict[str, Any]:
         "share_of_run": (
             round(sum(walls) / (run["elapsed_seconds"] * 1000.0), 3)
             if run["elapsed_seconds"]
+            else None
+        ),
+        "unattributed_ms": round(run["unattributed_ms"], 1),
+        "share_of_unattributed": (
+            round(sum(walls) / run["unattributed_ms"], 3)
+            if run["unattributed_ms"]
             else None
         ),
     }
@@ -181,10 +192,11 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
     by_phase: dict[str, dict[str, Any]] = {}
     for entry in entries:
         bucket = by_phase.setdefault(
-            entry["phase"] or "(none)", {"n": 0, "wall": [], "unchanged": []}
+            entry["phase"] or "(none)", {"n": 0, "wall": [], "bytes": [], "unchanged": []}
         )
         bucket["n"] += 1
         bucket["wall"].append(entry["wall_ms"])
+        bucket["bytes"].append(entry["bytes_total"])
         bucket["unchanged"].append(entry["unchanged_bytes"])
     total_bytes = sum(bytes_totals) or 0.0
     return {
@@ -207,6 +219,17 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "median": round(_median(writes), 1),
             "total": round(sum(writes), 1),
             "max": max(writes) if writes else None,
+            "p90": _percentile(writes, 0.90),
+            "p99": _percentile(writes, 0.99),
+            "over_50ms": sum(1 for value in writes if value > 50.0),
+            "over_50ms_share_of_write": (
+                round(
+                    sum(value for value in writes if value > 50.0) / sum(writes), 3
+                )
+                if sum(writes)
+                else None
+            ),
+            "top_1pct_share_of_write": _top_share(writes, 0.01),
         },
         "hash_ms_total": round(sum(hashes), 1),
         "share_of_wall": {
@@ -275,9 +298,10 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
             name: {
                 "n": value["n"],
                 "wall_mean": round(_mean(value["wall"]), 1),
+                "wall_total": round(sum(value["wall"]), 1),
                 "unchanged_share": (
-                    round(sum(value["unchanged"]) / sum(value["wall"]), 3)
-                    if sum(value["wall"])
+                    round(sum(value["unchanged"]) / sum(value["bytes"]), 3)
+                    if sum(value["bytes"])
                     else None
                 ),
             }
@@ -294,6 +318,16 @@ def _percentile(values: list[float], fraction: float) -> float | None:
     ordered = sorted(values)
     index = max(0, min(len(ordered) - 1, int(round(fraction * (len(ordered) - 1)))))
     return round(ordered[index], 1)
+
+
+def _top_share(values: list[float], fraction: float) -> float | None:
+    """Share of the total held by the slowest ``fraction`` of the samples."""
+
+    if not values or sum(values) == 0:
+        return None
+    ordered = sorted(values, reverse=True)
+    count = max(1, int(round(fraction * len(ordered))))
+    return round(sum(ordered[:count]) / sum(ordered), 3)
 
 
 def _round(value: float | None) -> float | None:
@@ -318,8 +352,22 @@ def verdict(analysis: dict[str, Any]) -> dict[str, Any]:
         call = "necessary_persistence_cost"
     else:
         call = "small_and_not_clearly_redundant"
+    write_stats = analysis["write_ms"]
+    write_jitter = bool(
+        (write_stats.get("max") or 0) >= 100.0
+        and (write_stats.get("median") or 0) > 0
+        and (write_stats.get("max") or 0) >= 10 * (write_stats.get("median") or 1)
+        and (corr_bytes or 0) < 0.3
+    )
     return {
         "call": call,
+        "write_jitter": write_jitter,
+        "write_ms_median": write_stats.get("median"),
+        "write_ms_max": write_stats.get("max"),
+        "write_ms_p99": write_stats.get("p99"),
+        "over_50ms": write_stats.get("over_50ms"),
+        "over_50ms_share_of_write": write_stats.get("over_50ms_share_of_write"),
+        "top_1pct_share_of_write": write_stats.get("top_1pct_share_of_write"),
         "serialize_share_of_wall": serial_share,
         "write_share_of_wall": write_share,
         "instrumentation_share_of_wall": share.get("instrumentation"),

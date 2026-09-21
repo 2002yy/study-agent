@@ -4014,3 +4014,84 @@ F2-O3 ✅   └─ O3a: network-dominated, local 0.8%；不做 O3b
 F2-O4 ← 下一刀：checkpoint
 F2 final validation
 ```
+
+
+## §92 F2-O4a checkpoint 成本分解：非体量驱动、无重复、写 I/O 长尾（`86cdcd9` → `3b9c6a1`）
+
+**冻结问题**：checkpoint 的 0.9–2.9s，是"每次都必须付的持久化成本"，还是"重复写 / 写得太频繁 / 可以合并"的成本？
+
+**范围锁（已遵守）**：**不允许以降低 durability / crash recovery 语义换性能**。本刀**未**改 checkpoint 频率、写格式、恢复语义；**未**做 debounce / coalescing / skip。
+
+### 92.1 仪器（只用既有边界，无新 profiler）
+
+- `WebLookupRepository.checkpoint` 新增**可选** `diagnostics` 汇（默认 `None` ⇒ 其它调用方行为完全不变），报告：`repo_ms`（方法整体）、`load_ms`（乐观并发读，含**写后重读**，每次都会反序列化上一版整行 JSON）、`serialize_ms`、`write_ms`（含 `sqlite3.connect()` + `execute` + commit 的整段）、`repo_other_ms`、每 section 序列化字节数 + 短身份哈希、`attempts` / `conflicts`、写目标数。循环不变量 section 改为**在重试循环外序列化一次**（原先每 attempt 重算）。
+- 运行时新增 `checkpoint_timing` 通道：`ordinal / wall_ms / caller / phase / stage / since_previous_ms / bytes_by_section / changed_sections / changed_bytes / unchanged_bytes / prep_ms`（= wall − repo 调用）。与上一次的比较**只按 section 身份哈希**，**不保存任何 checkpoint 内容**。
+- `TimingLedger.current_phase()` 暴露当前打开的最内层 phase。
+- 分析器 `tools/run_f2_o4_checkpoint_cost.py`（只读）。
+
+### 92.2 样本
+
+- 粗粒度：8 runs / **745 checkpoints**。
+- 完整分解（`3b9c6a1` 之后，含 `load/prep` 字段）：**4 runs / 327 checkpoints**。
+
+| artifact | ckpts | wall 总 | mean | median | max | write 总 | 字节总 | unchanged | 全重复 | 占 run |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| O4.docker.c | 76 | 3,560 | 47 | 16 | **1,141** | 2,139 | 6.57M | 724K | 0 | 11.4% |
+| O4.docker.d | 76 | 1,608 | 21 | 16 | 47 | 603 | 6.56M | 709K | 0 | 5.7% |
+| O4.node.c | 90 | 1,889 | 21 | 16 | 47 | 824 | 11.3M | 1.50M | 0 | 3.4% |
+| O4.node.d | 85 | 1,763 | 21 | 16 | 62 | 717 | 10.1M | 1.37M | 0 | 3.1% |
+
+### 92.3 分解（327 checkpoints，合计 8,820ms）
+
+| 组成 | 合计 | 占 wall |
+| --- | --- | --- |
+| `prep_ms`（executor 侧：budget 更新 / cursor 与 claim-engine 附加 / known-evidence 快照 / metrics 更新） | 1,252 | **14.2%** |
+| `load_ms`（乐观并发读 + 写后重读） | 2,903 | **32.9%** |
+| `serialize_ms` | 262 | **3.0%** |
+| `write_ms`（connect + UPDATE + commit） | 4,284 | **48.6%** |
+| `repo_other_ms` | 48 | 0.5% |
+| 仪器开销（`hash_ms`） | — | 0.4% |
+
+相关性：`wall~write = 0.975`、`wall~bytes = −0.057`、`serialize~bytes = 0.947`、`write~bytes = −0.097`。
+
+### 92.4 四个问题
+
+**1. wall 是否随 bytes 增长？** **否。** `wall~bytes = −0.057`。字节量只驱动序列化（`r=0.947`），而序列化仅占 3.0%。⇒ **不是体量成本**。
+
+**2. 相邻 checkpoint 是否大量重复？** **否。** 327 次中**全重复 = 0**；字节级 `unchanged_share = 12.4%` ⇒ **约 88% 的写入内容确实变了**。⇒ 没有可观的合并/增量空间。
+
+**3. 触发频率是否过高？** **频率确实高**（76–90 次/run；相邻间隔 median **31ms**、p10 **15ms**、min 0ms），**但每次内容确实变化**（见问题 2）⇒ 合并 = 丢弃真实状态变化 = **降低 durability**，被本刀冻结约束禁止。
+
+**4. 慢点在 serialize 还是真正 I/O？** **I/O + 读回**（write 48.6%、load 32.9%、serialize 3.0%）。**序列化不是慢点** ⇒ 不要优化对象构造/编码。
+
+### 92.5 写 I/O 长尾
+
+`write_ms`：median **7.8**、p90 9.7、p99 **16.0**、max **848.1**；仅 **2/327** 次 >50ms，而这 2 次占**全部写时间的 36.6%**。且 `write~bytes = −0.097`（与体量无关，内容规模稳定 ~106KB）⇒ **宿主/文件系统长尾，不是本地逻辑**。
+
+### 92.6 判定
+
+| 分支 | 观测 | 结论 |
+| --- | --- | --- |
+| 必要且体量驱动 | ✗ wall~bytes ≈ 0 | 否 |
+| 高重复 + 高频 | 高频 ✓ **但重复 ✗（0 全重复，88% 真变化）** | 否（且合并违反冻结约束） |
+| 单次 serialization 占比高 | ✗ 仅 3.0% | 否 |
+| 写 I/O 抖动但内容规模稳定 | ✅ median 7.8 / max 848 / 与体量无关 | **命中 → 宿主/FS 成本，非本地优化** |
+| 真实但贡献小且无明显重复 | ✅ 1.6–3.6s/run = **3.1–11.4% of run**；0 重复 | **命中 → 关闭 O4** |
+
+⇒ **判定：`small_and_not_clearly_redundant` + `write_jitter = true`。F2-O4 CLOSED，不做优化，不开启 O4b。**
+
+### 92.7 记录为债务（不作为行动项）
+
+1. **写 I/O 长尾**：2/327 次写占 36.6% 写时间、max 848ms，且与体量无关 ⇒ 宿主/文件系统层，不属于本地逻辑优化面。
+2. **写后重读**：`checkpoint` 末尾以 `self._required(run_id)` 重新读取并反序列化刚写入的整行（`load_ms` 32.9% 的一部分，约 4ms/次）。**理论上可回收**（可用刚写入的值直接构造返回值），但该路径是乐观并发/durability 敏感区，收益约 4% run 时间 ⇒ **记为债务，不动**。
+3. **高频 + 真变化**：合并 checkpoint 属于 durability 权衡，被冻结约束排除 ⇒ **显式非目标**。
+4. **新关联（重要）**：checkpoint wall 占 §87 `unattributed_ms` 的 **38.8%–66.4%**（0.664 / 0.525 / 0.405 / 0.388）⇒ §87 的 "unattributed 2.7–6.8s" **有相当一部分就是 checkpoint 持久化**，不是未知黑洞。且 **276/327（84%）的 checkpoint 发生在无打开 phase 的时刻**（wave 边界/span 之间），与其落在 unattributed 一致。
+
+### 92.8 路线状态
+
+```text
+F2-S1 ✅   F2-O1 ✅(B evidence debt)   F2-O2 ✅   F2-O3 ✅(O3a, 无 O3b)   F2-O4 ✅(O4a, 无 O4b)
+F2 final validation ← 下一刀
+↓
+P2-A external functionality / failure-policy / circuit-breaker
+```
