@@ -209,6 +209,13 @@ class TimingLedger:
         record.checkpoint_count += 1
         record.checkpoint_ms += max(0.0, float(ms))
 
+    def current_phase(self) -> str:
+        """Name of the innermost open phase (diagnostics only)."""
+
+        if not self._open_phases:
+            return ""
+        return str(next(reversed(self._open_phases)))
+
     # ---------------------------------------------------------------- output
     def to_metrics(self) -> dict[str, Any]:
         """Snapshot; also flushed into the run metrics by the runtime."""
