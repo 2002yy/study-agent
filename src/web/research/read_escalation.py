@@ -158,15 +158,19 @@ def escalate_read(
         status = str(preflight() or "")
         outcome.preflight = status
         if status != "ready":
-            # fail closed: a misconfigured daemon must not be "tried anyway"
-            outcome.reason = "misconfigured"
+            # fail closed: an unavailable or misconfigured daemon must never be
+            # "tried anyway" - the current read continues untouched.
+            outcome.reason = (
+                "backend_unavailable" if status == "unavailable" else "misconfigured"
+            )
+            outcome.state = "unsupported"
             _record_attempt(
                 metrics_provider,
                 outcome,
                 claim_id=claim_id,
                 wave_index=wave_index,
                 backend_name=str(getattr(backend, "name", "wigolo")),
-                state="skipped_no_budget" if status == "unavailable" else "blocked",
+                state="unsupported",
                 result_count=0,
                 bytes_=0,
             )
@@ -266,7 +270,13 @@ def _record_attempt(
             cache_hit=bool(outcome.cache_hit),
             escalation_reason=outcome.reason,
         )
-        | {"tier": outcome.tier or TIER_HTTP, "transition": _transition(outcome)}
+        | {
+            "tier": outcome.tier or TIER_HTTP,
+            "transition": _transition(outcome),
+            "preflight": outcome.preflight,
+            "state": outcome.state,
+            "max_chars_requested": outcome.max_chars_requested,
+        }
     )
     metrics["retrieval_attempts"] = rows[-60:]
 
