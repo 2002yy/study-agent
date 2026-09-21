@@ -3472,3 +3472,56 @@ B2   CLOSED（两层预算门 + envelope 记账 + 8 项验收）
 §71C-4 browser characterization → NOT STARTED
 F2    CHARACTERIZATION READY
 ```
+
+
+## §83 §71E 前 cold rescue 单点门：结果与两个新发现
+
+### 83.1 cold 通路已证明（对照抓取）
+
+`https://docs.astral.sh/uv/`（同宿主对照，未 cache-bust）：
+```text
+cache_hit = false（真 cold）
+retrieval_mode = http（无 browser）
+latency = 1,000ms
+chars = 7,266
+```
+⇒ **cold HTTP tier 的成本约 1s，3.0s envelope 足够覆盖**（与 §71 观察的 0.7–1.5s 一致）。
+
+### 83.2 但 cold **useful rescue** 本轮未能产出，原因已定位（非 B2 缺陷）
+
+| 候选（reader inadequate） | cold | Wigolo cold 结果 |
+| --- | --- | --- |
+| `docs.docker.com/reference/cli/docker/pull/`（reader short_doc 505） | ✅ | `http_error` @31–375ms（连试 3 次） |
+| `docs.docker.com/docker-hub/repos/` | ✅ | `http_error` |
+| `hub.docker.com/_/postgres` | ✅ | `timeout`（被 effective timeout 正确截断在 3.03s） |
+| `www.docker.com/products/docker-desktop/`、`/pricing/` | ✅ | `http_error` |
+| docs.astral.sh / node.org.cn / github / nodejs 各页 | — | reader 本就 adequate（正确不升级） |
+
+即：**唯一"reader inadequate + 可救援"的宿主类（docs.docker.com / hub.docker.com / www.docker.com）在本环境的当前窗口内正好不可达**（与 §47 已记录的宿主 flakiness 一致）；健康宿主上我们的 reader 本身 adequate，因此没有救援机会。daemon 日志显示这些失败是 `TypeError: fetch failed`（连接层），非参数或合同问题。
+
+**结论**：cold 通路的**成本**已证明（1s），cold **rescue** 样本受环境可达性阻塞，需在 docs.docker.com 可达时重取（不加 query 参数；该页失败不入 cache，仍为 cold）。
+
+### 83.3 本单点门顺带发现并修复的两个真 B2 缺陷（均已提交）
+
+1. **effective timeout 未被执行**（`4363048d`）：backend 忽略 `request.timeout_seconds`，只用自身 8s；cold hunt 实测 `hub.docker.com` 一次尝试耗时 **8,031ms**，而 envelope 为 3.0s ⇒ 单次调用穿透 envelope。修复为 `min(backend, request)`，复测同 URL 变为 **3,015–3,031ms**（正确截断），并加确定性测试（urlopen monkeypatch 断言 min 规则）。
+2. **单次 per-url timeout 会打开 circuit breaker**（`e60ffdc`）：一次慢请求后，同 run 后续 escalation 全部返回 `unsupported` 且不发出请求（false negative，可能掩盖后续 useful rescue）。修复：per-url timeout 只计入 envelope，不再触发 circuit；circuit 仅保留给系统性失败（preflight）与显式标记。
+
+### 83.4 §71E 裁决输入（待裁决）
+
+现有证据：
+```text
+cold HTTP 成本            ≈1.0s（对照抓取，真 cold）
+warm/cache 成本           15–80ms（多次）
+useful rescue（warm）     docker pulls / node.org.cn → 进入 eligible evidence，gate=pass
+envelope 执行             ✅ 已实测截断（3.03s，修复后）
+hard-headroom/拒绝语义    ✅ 确定性测试 + live 记录
+browser calls             0
+```
+
+缺项：**一个 cold 的 FAIL→PASS useful rescue 实例**（受宿主可达性阻塞，非设计问题）。
+
+两个可选路径：
+1. **等可达窗口补 cold rescue 后冻结**（最稳；§71E 推迟，可能数分钟到数小时不定）；
+2. **以现有证据冻结 defaults 并默认开启**，把 cold rescue 作为**开启后的线上观察项**（首次遇到 cold 救援时核对 envelope/provenance），理由是 cold 成本已被同宿主对照实测、envelope 已被实测截断、且 fail-closed 与预算语义均有确定性覆盖。
+
+倾向建议：**路径 1**（多一次抓取即可闭合，且能让 §71E 的证据链完整）；若你选择路径 2，建议同时约定"开启后第一个 cold rescue 必须回填证据"。
