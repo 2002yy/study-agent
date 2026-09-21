@@ -3569,3 +3569,53 @@ RESEARCH_WIGOLO_ESCALATION  off（pending §71E final gate）
 §71C-4 browser           deferred（等 HTTP 默认化稳定后，用真实剩余失败集做）
 F2                       CHARACTERIZATION READY（wave/selector/admission 长尾）
 ```
+
+
+## §85 F2 characterization 启动：离线时间账首版（`0c59bc79`）
+
+工具：`tools/run_f2_time_ledger.py`（纯离线观测，不改任何 counts/timeout/selector/retry 策略）。它把每次 run 的墙钟拆成命名段并从**现有 artifact** 读出：research window、search/assessment/read/extraction 四相（秒数 + 调用数）、B1 critical path（start/admission/segment）、late tail 成本、selector 延迟与调用数、retry/inventory 计数、answer stage，以及"命名段合计 vs 未归因"。
+
+### 85.1 六个样本的账（秒）
+
+| run | elapsed | research | search | assess | read | extract | selector | b1_adm | b1_seg | named | unattr |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| B2.docker.gate2b | 64.5 | 38.4 | 12.6 | 2.9 | 10.4 | 5.6 | 2.78 | 32.8 | 9.3 | 34.3 | 4.1 |
+| B2.node.gate2 | 66.3 | 41.9 | 12.5 | 4.2 | 8.8 | 8.1 | 3.31 | 34.0 | 8.4 | 37.0 | 4.9 |
+| B1.docker.r2 | 64.5 | 33.8 | 11.6 | 2.0 | 7.7 | 4.5 | 1.58 | 30.4 | 11.5 | 27.5 | 6.3 |
+| B1.docker.r5 | 54.4 | 30.1 | 11.4 | 2.5 | 8.6 | 1.2 | 1.30 | 27.8 | 12.3 | 25.0 | 5.1 |
+| A1.node.sanity5 | 54.3 | 49.5 | 12.9 | 6.6 | 9.3 | 6.7 | 7.17 | 35.6 | 8.2 | 42.6 | 6.9 |
+| F1c.node.f8 | 55.0 | 50.7 | 12.9 | 7.0 | 7.1 | 9.7 | 6.85 | 37.1 | 6.6 | 43.6 | 7.2 |
+
+fast（admission <35s）vs slow（>=35s）中位数 delta：
+
+```text
+search     +0.35      <- 网络相，稳定
+read       +0.46      <- 网络相，稳定
+selector   +4.39      <- 模型调用相
+assessment +4.10      <- 模型调用相
+extraction +4.09      <- 模型调用相
+B1 segment -3.30      <- 慢 run 的 B1 段反而更短
+unattributed +2.03
+named      +9.31
+```
+
+### 85.2 首轮（初步、非结论）观察
+
+1. **方差不在网络相**：search/read 几乎不动（+0.35/+0.46）⇒ 宿主/网络不是 admission 漂移的主因（与 §47/§70 记录一致）。
+2. **方差集中在模型调用相**：selector/assessment/extraction 各贡献约 +4.1~4.4s。但需区分"调用数变多"与"单次变慢"——ledger 已记录 calls，下一步按 calls 归一。
+3. **B1 自身不是主因**：慢 run 的 B1 段更短（-3.3s），说明 admission 晚是**前面阶段累积**的结果，而非 B1 内部变慢。
+4. `unattributed` 4.1-8.2s（约 research 的 13-18%）：主要应为 refresh/steering、checkpoint 持久化，以及 phase_seconds 覆盖不到的等待。
+
+### 85.3 按 §F2 完成门还缺什么
+
+| 门 | 现状 |
+| --- | --- |
+| >=3 fast + >=3 slow | 边界上（fast: r5/r2/gate2b；slow: sanity5/f8/node-gate2 约 34.0） |
+| >=80% 方差归因 | **未达**：命名相合计覆盖约 87%，但**调用数 vs 单次延迟**未分离，per-wave 归属缺失 |
+| 成本类别（CPU/模型/网络/宿主 retry） | 部分：模型相已命名；网络相稳定；retry 计数有、**retry 等待秒数缺失**；CPU 未测 |
+| 可回收时间测算 | 未做（需先分离 calls x latency） |
+| 不改任何策略 | 全程只读 |
+
+**下一步仪器（纯观测）**：
+- (a) 在 phase 上补 **model_wait 与 network_wait 分解** + **retry 等待秒数**（read_retry 增加延迟累计）；
+- (b) 补 **per-wave 时间线**（`metrics.wave_timeline[]`：wave_index/t_start/t_end 与各相耗时），用于区分"wave 1 拖长"与"wave 2 拖长"。
