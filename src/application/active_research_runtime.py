@@ -5187,6 +5187,26 @@ def _source_record(
         "read_status": read["status"],
         "evidence_state": "new" if read["status"] == "read" else "invalid_or_rejected",
     }
+    escalation = raw_read.get("escalation")
+    if isinstance(escalation, Mapping):
+        # §71C-3a: per-read escalation outcome (attempted false = adequate read
+        # or disabled mode), so the gate item "already-PASS -> 0 calls" is
+        # verifiable from the sources as well as the ledger.
+        record["escalation"] = {
+            "attempted": bool(escalation.get("attempted")),
+            "tier": str(escalation.get("tier") or ""),
+            "state": str(escalation.get("state") or ""),
+            "reason": str(escalation.get("reason") or ""),
+            "rescued": bool(escalation.get("rescued")),
+            "shape_before": str(escalation.get("shape_before") or ""),
+            "shape_after": str(escalation.get("shape_after") or ""),
+            "chars_before": int(escalation.get("chars_before") or 0),
+            "chars_after": int(escalation.get("chars_after") or 0),
+            "latency_ms": float(escalation.get("latency_ms") or 0.0),
+            "cache_hit": escalation.get("cache_hit"),
+            "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
+            "preflight": str(escalation.get("preflight") or ""),
+        }
     retry = raw_read.get("read_retry")
     if isinstance(retry, Mapping):
         # §48 diagnostics only: how many bounded fetch-layer retries the reader
@@ -5252,10 +5272,18 @@ def _record_escalation_diagnostics(
             wave_index=int(wave_index),
             latency_ms=float(escalation.get("latency_ms") or 0.0),
             result_count=1 if escalation.get("attempted") else 0,
+            bytes=int(escalation.get("chars_after") or 0),
             cache_hit=bool(escalation.get("cache_hit")),
             escalation_reason=str(escalation.get("reason") or ""),
         )
-        | {"tier": tier, "transition": str(escalation.get("shape_before") or "") + " -> " + str(escalation.get("shape_after") or "")}
+        | {
+            "tier": tier,
+            "transition": str(escalation.get("shape_before") or "")
+            + " -> "
+            + str(escalation.get("shape_after") or ""),
+            "preflight": str(escalation.get("preflight") or ""),
+            "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
+        }
     )
     metrics["retrieval_attempts"] = rows[-60:]
     if not escalation.get("attempted"):
