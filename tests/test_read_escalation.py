@@ -368,3 +368,53 @@ def test_adapter_default_mode_is_plain_delegation(
     assert backend.calls == []
     assert result["content"] == "short"
     assert "escalation" not in result
+
+def test_backend_enforces_the_binding_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """§71B2: a slow call must not punch through the caller's envelope."""
+
+    import json as _json
+    import urllib.request
+
+    from src.web.research.wigolo_backend import WigoloShadowReadBackend
+
+    seen: dict = {}
+
+    class _Response:
+        status = 200
+
+        def read(self) -> bytes:
+            return _json.dumps({"markdown": "x" * 900, "fetch_method": "http"}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def _fake_urlopen(request, timeout=None, **kwargs):
+        seen["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    backend = WigoloShadowReadBackend(tier="http", timeout_seconds=8.0)
+    backend._preflight_status = "ready"
+
+    # the caller's 3s envelope binds
+    artifact = backend.fetch(ReadRequest(url="https://x.example/", max_chars=100, timeout_seconds=3.0))
+    assert seen["timeout"] == 3.0
+    assert artifact.usable is True
+
+    # a caller requesting more than the backend cap stays capped at 8s
+    backend.fetch(ReadRequest(url="https://x.example/", max_chars=100, timeout_seconds=30.0))
+    assert seen["timeout"] == 8.0
+
+    # no caller value -> backend default
+    backend.fetch(ReadRequest(url="https://x.example/", max_chars=100))
+    assert seen["timeout"] == 8.0
+
+    # a tiny envelope is respected as-is (the escalation refuses below 1s first)
+    backend.fetch(ReadRequest(url="https://x.example/", max_chars=100, timeout_seconds=1.0))
+    assert seen["timeout"] == 1.0
+

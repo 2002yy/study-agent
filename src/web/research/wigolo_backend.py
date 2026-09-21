@@ -167,6 +167,13 @@ class WigoloShadowReadBackend:
             "render_js": self.render_js,
             "max_chars": self.max_chars,
         }
+        # §71B2: the effective timeout is the *bindings* value - the caller's
+        # envelope/hard-headroom cap must actually be enforced, otherwise a
+        # single slow call can punch through the per-run envelope.
+        timeout = self.timeout_seconds
+        requested_timeout = getattr(request, "timeout_seconds", None)
+        if isinstance(requested_timeout, (int, float)) and requested_timeout > 0:
+            timeout = min(timeout, float(requested_timeout))
         try:
             body = json.dumps(payload).encode("utf-8")
             http_request = urllib.request.Request(
@@ -176,7 +183,7 @@ class WigoloShadowReadBackend:
                 method="POST",
             )
             with urllib.request.urlopen(  # noqa: S310 - loopback only
-                http_request, timeout=self.timeout_seconds
+                http_request, timeout=timeout
             ) as response:
                 raw = response.read()
                 status = int(getattr(response, "status", 0) or 0)
