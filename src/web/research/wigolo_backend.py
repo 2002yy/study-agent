@@ -192,7 +192,11 @@ class WigoloShadowReadBackend:
                 request.url, started, state="http_error", detail=str(exc), tier=self.tier
             )
         except TimeoutError:
-            self.mark_circuit_open()
+            # §71B2: the per-run envelope already bounds the total cost, so one
+            # slow url must NOT trip the circuit and disable the fallback for
+            # the rest of the run (that would be a false negative for later
+            # useful rescues). The circuit stays reserved for systemic failures
+            # such as a misconfigured daemon (preflight) or an explicit mark.
             return self._failure(
                 request.url, started, state="timeout", detail="timeout", tier=self.tier
             )
