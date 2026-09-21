@@ -3764,3 +3764,45 @@ search = characterization-only（不进入本轮优化）
 即优化目标是 **消灭没有边际恢复价值的 backoff，而不是消灭 retry**。要回答：每次 attempt 的失败类型；第 N 次 retry 是否真的 rescue；retry 前后错误是否完全相同；对确定性/永久失败是否仍完整 sleep；backoff 是否已跨过剩余 deadline/budget；哪一级 retry 产生了 useful result。
 
 允许的 instrumentation 必须克制：**只记录 retry outcome/reason**，不再建设第二套 profiler；若现有日志已能回答则不加。
+
+
+## §88 F2-O1：retry/backoff 的"恢复收益 vs 纯等待成本"（`f92b48e8` → `abd50e68`）
+
+### 88.1 允许的克制仪器（按裁决：只记 retry outcome/reason）
+
+- qualification 工具新增 **per-read retry provenance** 投影（attempts/retries/skipped/reasons/fetch_ms/backoff_ms/admission_reasons）——此前该字段被投影丢弃，导致"哪一次 retry 救活"无法回答；
+- `_source_record` 的 per-read 副本补齐同样的成本字段；
+- `_accumulate_fetch_metrics` 汇总 `retry_backoff_ms` / `retry_fetch_ms`（此前汇总里恒为 0，属真实记账缺口）。
+- **没有**新建第二套 profiler；其余一律复用既有 ledger。
+
+### 88.2 结论（7 次 retry-bearing reads，per-read 归因）
+
+| 指标 | 值 |
+| --- | --- |
+| 有 retry 的读取 | 7 |
+| **retry 后成功（rescued）** | **0 / 7** |
+| retry 后仍失败 | **7 / 7** |
+| **错误签名完全相同**（前后都是 `URLError WinError 10054`） | **7 / 7** |
+| 退避总时长 | **12,000ms** |
+| **其中花在最终失败读取上的** | **12,000ms（100%）** |
+| 单次退避样本 | 3,000ms/read（1s+2s，命中 schedule 上限） |
+| 另见 | 一次 `retries=0, skipped=1, fetch_ms=11,031`（单次 11s 抓取，retry 被窗口门拒绝） |
+
+**回答 O1 的问题**：在本 cohort 中，**没有任何一次 retry 产生边际恢复价值**；每次 retry 都复现同一个确定性连接错误，而 **12.0s 退避全部支付在最终失败的读取上**。retry 的成本真实（≈3s/read 退避 + 1.7s 重取），恢复价值观测为零。
+
+### 88.3 必须同时记录的两个边界
+
+1. **样本偏向**：7 个 read 全部落在本环境当前不可达/不稳的宿主（docs.docker.com、www.docker.com、github.com）。在健康宿主上 retry 的恢复价值**未被本批否定**。
+2. **§49 需要重新解释**：§49 曾测得 retry 使读成功率 1/4 → 5/8。那是**聚合口径**；本次 per-read 归因显示"失败 read 从未被 retry 救活"，因此 §49 的改善很可能来自**不同候选**而非"retry 救活同一次读取"。记为对旧结论的口径修正（不是回归）。
+
+### 88.4 候选最小修法（待裁决，未实现）
+
+按 O1 的目标（"消灭没有边际恢复价值的 backoff，而不是消灭 retry"）：
+
+- **候选 A（最窄）**：当本次失败签名与上一次 attempt **完全相同**时，**跳过退避 sleep**（仍立即重试，attempt 次数与准入策略不变）⇒ 观测上可回收最多 3.0s/read，同时保留即时重试的恢复机会。
+- **候选 B**：把退避改为**窗口感知**（若 `sleep + 预计 fetch` 超过剩余窗口则直接跳过退避/跳过 retry）——与既有 window-aware admission 同族，但作用于 sleep 本身。
+- **候选 C**：确定性错误分类（如 `WinError 10054` 属"连接重置"）后**直接降低 retry 上限**（更激进，需更多证据）。
+
+倾向 **A（或 A+B 组合）**：保留 retry 语义、只删"确定无收益的等待"，且可用同 schema 复测（退避 ms → 0、read 结果与成功率不变）。
+
+**注意**：本节只给出结论与候选，**未改动任何行为**；retry policy 仍为 §49 冻结形态。
