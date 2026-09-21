@@ -5251,6 +5251,11 @@ def _record_escalation_diagnostics(
 ) -> None:
     """§71C-3a: one escalation outcome -> retrieval attempt + terminal invocation.
 
+    Order matters: the invocation is created (and its id mirrored into the
+    escalation payload) BEFORE the attempt row is appended, so the row carries
+    the same id the source provenance uses. Not-attempted escalations (already
+    adequate, disabled) never create an invocation.
+
     Reads carry no claim id (the source record keeps that link), so the ledger
     entry is wave-scoped and the funnel joins it per claim. Diagnostics only:
     the read payload already decided the outcome.
@@ -5258,6 +5263,7 @@ def _record_escalation_diagnostics(
 
     from src.web.research.retrieval_backends import (
         READ_OPERATION,
+        TERMINAL_RETRIEVAL_STATES,
         create_retrieval_invocation,
         finalize_retrieval_invocation,
         retrieval_attempt_row,
@@ -5269,33 +5275,29 @@ def _record_escalation_diagnostics(
 
     tier = str(escalation.get("tier") or "http")
     state = str(escalation.get("state") or "")
-    terminal = {
-        "ok",
-        "empty",
-        "timeout",
-        "http_error",
-        "transport_error",
-        "unsupported",
-        "blocked",
-        "aborted",
-        "skipped_no_budget",
-        "invalid_response",
-    }
-    state = state if state in terminal else "empty"
+    state = state if state in TERMINAL_RETRIEVAL_STATES else "empty"
+    attempted = bool(escalation.get("attempted"))
+    latency_ms = float(escalation.get("latency_ms") or 0.0)
+    chars_after = int(escalation.get("chars_after") or 0)
+
     metrics = context.get(ACTIVE_RESEARCH_METRICS_KEY)
     if not isinstance(metrics, dict):
         return
-    entry = create_retrieval_invocation(
-        _provider,
-        claim_id="read",
-        wave_index=int(wave_index),
-        backend="wigolo",
-        operation=READ_OPERATION,
-    )
-    entry["tier"] = tier
-    if isinstance(escalation, MutableMapping):
-        # B1: the source provenance links to the ledger by invocation_id
-        escalation["invocation_id"] = entry["invocation_id"]
+
+    entry: dict[str, Any] | None = None
+    if attempted:
+        entry = create_retrieval_invocation(
+            _provider,
+            claim_id="read",
+            wave_index=int(wave_index),
+            backend="wigolo",
+            operation=READ_OPERATION,
+        )
+        entry["tier"] = tier
+        if isinstance(escalation, MutableMapping):
+            # B1: the source provenance links to the ledger by invocation_id
+            escalation["invocation_id"] = entry["invocation_id"]
+
     rows = metrics.get("retrieval_attempts")
     if not isinstance(rows, list):
         rows = []
@@ -5305,9 +5307,9 @@ def _record_escalation_diagnostics(
             operation=READ_OPERATION,
             claim_id="",
             wave_index=int(wave_index),
-            latency_ms=float(escalation.get("latency_ms") or 0.0),
-            result_count=1 if escalation.get("attempted") else 0,
-            bytes=int(escalation.get("chars_after") or 0),
+            latency_ms=latency_ms,
+            result_count=1 if attempted else 0,
+            bytes=chars_after,
             cache_hit=bool(escalation.get("cache_hit")),
             escalation_reason=str(escalation.get("reason") or ""),
         )
@@ -5318,7 +5320,6 @@ def _record_escalation_diagnostics(
             + str(escalation.get("shape_after") or ""),
             "preflight": str(escalation.get("preflight") or ""),
             "max_chars_requested": int(escalation.get("max_chars_requested") or 0),
-            # §71B/B1: where and when the escalation happened
             "url": str(escalation.get("url") or ""),
             "attempt_seq": int(escalation.get("attempt_seq") or 0),
             "research_seconds_left_at_start": escalation.get(
@@ -5326,22 +5327,24 @@ def _record_escalation_diagnostics(
             ),
             "hard_seconds_left_at_start": escalation.get("hard_seconds_left_at_start"),
             "invocation_id": str(escalation.get("invocation_id") or ""),
+            "envelope_remaining_at_start_ms": escalation.get(
+                "envelope_remaining_at_start_ms"
+            ),
+            "effective_timeout_seconds": escalation.get("effective_timeout_seconds"),
         }
     )
     metrics["retrieval_attempts"] = rows[-60:]
-    if not escalation.get("attempted"):
-        return
-    finalize_retrieval_invocation(
-        _provider,
-        entry,
-        state=state,
-        result_count=1 if escalation.get("chars_after") else 0,
-        bytes=int(escalation.get("chars_after") or 0),
-        cache_hit=bool(escalation.get("cache_hit")),
-        escalation_reason=str(escalation.get("reason") or ""),
-        latency_ms=float(escalation.get("latency_ms") or 0.0),
-    )
-
+    if entry is not None:
+        finalize_retrieval_invocation(
+            _provider,
+            entry,
+            state=state,
+            result_count=1 if chars_after else 0,
+            bytes=chars_after,
+            cache_hit=bool(escalation.get("cache_hit")),
+            escalation_reason=str(escalation.get("reason") or ""),
+            latency_ms=latency_ms,
+        )
 
 def _inventory_fetch_with_retry(
     url: str,

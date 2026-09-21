@@ -309,6 +309,8 @@ def _escalation_provenance(raw: Any) -> dict[str, Any] | None:
         "rescued",
         "shape_before",
         "shape_after",
+        "envelope_remaining_at_start_ms",
+        "effective_timeout_seconds",
     )
     projected: dict[str, Any] = {}
     for key in fields:
