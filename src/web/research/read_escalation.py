@@ -41,6 +41,73 @@ from src.web.research.retrieval_backends import (
 
 ESCALATION_ENV = "RESEARCH_WIGOLO_ESCALATION"
 BROWSER_TIER_ENV = "WIGOLO_BROWSER_ESCALATION"
+
+# §71B2 candidate defaults (NOT frozen): two guards around the optional HTTP
+# fallback, both calibrated from the B1 distribution (per-attempt p50 ~47ms,
+# p95 ~1.5s; per-run total 0.06-1.64s).
+#
+# They are deliberately separate constants with separate semantics even though
+# both happen to be 3.0 today:
+#   - the hard-headroom gate asks "is an optional external retrieval still
+#     worth starting?" given what is left of the run;
+#   - the per-run envelope caps how much wall clock this optional fallback may
+#     consume across the whole run, so repeated inadequate reads cannot
+#     accumulate into a budget breach.
+# Neither is a call-count cap: B1 showed failures cost 31-79ms, so refusing the
+# third attempt by count could reject a 40ms rescue for no reason.
+HTTP_MIN_HARD_SECONDS_ENV = "RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT"
+HTTP_RUN_ENVELOPE_ENV = "RESEARCH_WIGOLO_HTTP_RUN_ENVELOPE_SECONDS"
+HTTP_MIN_HARD_SECONDS_DEFAULT = 3.0
+HTTP_RUN_ENVELOPE_DEFAULT = 3.0
+# A request is not started unless it plausibly fits: an envelope with 0.4s left
+# must not launch a call that usually takes ~1s and then discover the breach.
+EFFECTIVE_TIMEOUT_FLOOR_SECONDS = 1.0
+
+# Per-run spent ledger (scalars only, per the §71A-1 rule); reset at run start.
+_HTTP_ENVELOPE: dict[str, float] = {"wigolo_http_spent_ms": 0.0}
+
+
+def http_min_hard_seconds() -> float:
+    raw = os.getenv(HTTP_MIN_HARD_SECONDS_ENV)
+    try:
+        value = float(raw) if raw not in (None, "") else HTTP_MIN_HARD_SECONDS_DEFAULT
+    except (TypeError, ValueError):
+        value = HTTP_MIN_HARD_SECONDS_DEFAULT
+    return max(0.0, min(value, 120.0))
+
+
+def http_run_envelope_seconds() -> float:
+    raw = os.getenv(HTTP_RUN_ENVELOPE_ENV)
+    try:
+        value = float(raw) if raw not in (None, "") else HTTP_RUN_ENVELOPE_DEFAULT
+    except (TypeError, ValueError):
+        value = HTTP_RUN_ENVELOPE_DEFAULT
+    return max(0.0, min(value, 120.0))
+
+
+def reset_http_envelope() -> None:
+    """Called once per run so the envelope is per-run, not per-process."""
+
+    _HTTP_ENVELOPE["wigolo_http_spent_ms"] = 0.0
+
+
+def http_envelope_spent_ms() -> float:
+    return round(_HTTP_ENVELOPE["wigolo_http_spent_ms"], 1)
+
+
+def http_envelope_remaining_ms() -> float:
+    return round(
+        max(0.0, http_run_envelope_seconds() * 1000.0 - _HTTP_ENVELOPE["wigolo_http_spent_ms"]),
+        1,
+    )
+
+
+def charge_http_envelope(latency_ms: float) -> None:
+    """Charge the *actual* cost of one attempt (success or failure)."""
+
+    _HTTP_ENVELOPE["wigolo_http_spent_ms"] = round(
+        _HTTP_ENVELOPE["wigolo_http_spent_ms"] + max(0.0, float(latency_ms)), 1
+    )
 ESCALATION_OFF = "off"
 ESCALATION_HTTP = "http"
 ESCALATION_BROWSER = "browser"
@@ -90,6 +157,8 @@ class EscalationOutcome:
     attempt_seq: int = 0
     research_seconds_left_at_start: float | None = None
     hard_seconds_left_at_start: float | None = None
+    envelope_remaining_at_start_ms: float | None = None
+    effective_timeout_seconds: float | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -116,6 +185,8 @@ class EscalationOutcome:
             "attempt_seq": self.attempt_seq,
             "research_seconds_left_at_start": self.research_seconds_left_at_start,
             "hard_seconds_left_at_start": self.hard_seconds_left_at_start,
+            "envelope_remaining_at_start_ms": self.envelope_remaining_at_start_ms,
+            "effective_timeout_seconds": self.effective_timeout_seconds,
         }
         if self.extra:
             payload["extra"] = dict(self.extra)
@@ -175,6 +246,65 @@ def escalate_read(
         outcome.reason = "already_adequate"
         return current, outcome
 
+    # §71B2 two-layer admission, evaluated with the live scalars:
+    hard_headroom = _resolve_headroom(hard_seconds_left)
+    min_hard = http_min_hard_seconds()
+    if hard_headroom is not None and hard_headroom < min_hard:
+        outcome.reason = "hard_headroom_insufficient"
+        outcome.state = "unsupported"
+        _record_attempt(
+            metrics_provider,
+            outcome,
+            claim_id=claim_id,
+            wave_index=wave_index,
+            backend_name="wigolo",
+            state="skipped_no_budget",
+            result_count=0,
+            bytes_=0,
+        )
+        return current, outcome
+    envelope_remaining = http_envelope_remaining_ms()
+    outcome.envelope_remaining_at_start_ms = envelope_remaining
+    if envelope_remaining <= 0:
+        outcome.reason = "run_envelope_exhausted"
+        outcome.state = "skipped_no_budget"
+        _record_attempt(
+            metrics_provider,
+            outcome,
+            claim_id=claim_id,
+            wave_index=wave_index,
+            backend_name="wigolo",
+            state="skipped_no_budget",
+            result_count=0,
+            bytes_=0,
+        )
+        return current, outcome
+    # effective timeout: one call must not punch through the envelope or the
+    # remaining hard budget (B2: the envelope is executable, not descriptive).
+    effective_timeout = min(envelope_remaining / 1000.0, hard_headroom) if (
+        hard_headroom is not None
+    ) else envelope_remaining / 1000.0
+    if effective_timeout < EFFECTIVE_TIMEOUT_FLOOR_SECONDS:
+        outcome.reason = (
+            "hard_headroom_insufficient"
+            if hard_headroom is not None and hard_headroom < EFFECTIVE_TIMEOUT_FLOOR_SECONDS
+            else "run_envelope_exhausted"
+        )
+        outcome.state = "skipped_no_budget"
+        outcome.effective_timeout_seconds = round(effective_timeout, 3)
+        _record_attempt(
+            metrics_provider,
+            outcome,
+            claim_id=claim_id,
+            wave_index=wave_index,
+            backend_name="wigolo",
+            state="skipped_no_budget",
+            result_count=0,
+            bytes_=0,
+        )
+        return current, outcome
+    outcome.effective_timeout_seconds = round(effective_timeout, 3)
+
     backend = http_backend if http_backend is not None else (
         backend_factory(TIER_HTTP) if backend_factory is not None else None
     )
@@ -209,10 +339,19 @@ def escalate_read(
     outcome.tier = TIER_HTTP
     fetched: RawReadArtifact | None = None
     try:
-        fetched = backend.fetch(ReadRequest(url=url, max_chars=max_chars or 0))
+        fetched = backend.fetch(
+            ReadRequest(
+                url=url,
+                max_chars=max_chars or 0,
+                timeout_seconds=round(outcome.effective_timeout_seconds, 3)
+                if outcome.effective_timeout_seconds
+                else None,
+            )
+        )
     except Exception as exc:  # noqa: BLE001 - shadow/fallback must never raise
         outcome.state = "transport_error"
         outcome.reason = f"{type(exc).__name__}"
+        charge_http_envelope(outcome.latency_ms)
         _record_attempt(
             metrics_provider,
             outcome,
@@ -229,6 +368,7 @@ def escalate_read(
         outcome.reason = "no_artifact"
         return current, outcome
     artifact = fetched
+    charge_http_envelope(artifact.latency_ms)
     failure_state = str((artifact.external_metadata or {}).get("state") or "")
     # §78.2-1: provenance must carry the value the daemon actually received (the
     # frozen contract value), not the caller's read-window slice.

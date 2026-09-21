@@ -24,10 +24,20 @@ from src.web.research.read_escalation import (
     browser_tier_allowed,
     escalate_read,
     escalation_mode,
+    reset_http_envelope,
 )
 from src.web.research.retrieval_backends import RawReadArtifact, ReadRequest
 
 ADEQUATE_TEXT = "x" * (SHORT_CHAR_THRESHOLD + 200)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_envelope():
+    """Each test starts with a full per-run envelope."""
+
+    reset_http_envelope()
+    yield
+    reset_http_envelope()
 
 
 def _reader_ok(text: str = ADEQUATE_TEXT) -> dict[str, Any]:
@@ -177,6 +187,7 @@ def test_gate_4_escalation_failure_keeps_current_result(
         _FakeBackend(content=""),
         _FakeBackend(raise_error=TimeoutError("boom")),
     ):
+        reset_http_envelope()  # this test isolates failure isolation, not budget
         result, outcome = escalate_read(
             url="https://x.example/",
             current=current,

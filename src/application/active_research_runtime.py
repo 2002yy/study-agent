@@ -162,7 +162,10 @@ from src.web.research.domain_targeted import (
     rank_domain_urls,
     sitemap_urls,
 )
-from src.web.research.read_escalation import set_escalation_runtime_context
+from src.web.research.read_escalation import (
+    reset_http_envelope,
+    set_escalation_runtime_context,
+)
 from src.web.research.read_retry import (
     make_window_admission,
     read_retry_mode,
@@ -459,6 +462,9 @@ class ActiveResearchRuntimeExecutor:
                 reason=reason,
             )
             return late_ids
+
+        # §71B2: the HTTP envelope is per-run; a fresh run starts full.
+        reset_http_envelope()
 
         def remaining_timeout() -> float:
             return max(
