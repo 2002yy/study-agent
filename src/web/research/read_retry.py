@@ -185,6 +185,7 @@ def read_with_bounded_retry(
     sleep: Callable[[float], None] = time.sleep,
     admission: Callable[[int], Any] | None = None,
     diagnostics_key: str = "read_retry",
+    clock: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
     """Run one fetch with bounded fetch-layer retries and additive diagnostics.
 
@@ -205,9 +206,12 @@ def read_with_bounded_retry(
     admission_reasons: list[str] = []
     skipped_by_admission = 0
     retried = 0
+    fetch_ms = 0.0
+    backoff_ms = 0.0
     result: Mapping[str, Any] = {}
     while True:
         attempts += 1
+        _attempt_started = clock()
         try:
             result = read_fn(url) or {}
         except Exception as exc:  # transport exceptions count as fetch failures
@@ -215,6 +219,8 @@ def read_with_bounded_retry(
                 "ok": False,
                 "error": f"{type(exc).__name__}: {exc}",
             }
+        finally:
+            fetch_ms += max(0.0, clock() - _attempt_started)
         if result.get("ok") is True:
             break
         if retried >= max(0, int(max_retries)):
@@ -237,7 +243,10 @@ def read_with_bounded_retry(
         )
         retried += 1
         if backoff_seconds:
-            sleep(backoff_seconds[min(retried - 1, len(backoff_seconds) - 1)])
+            _backoff = backoff_seconds[min(retried - 1, len(backoff_seconds) - 1)]
+            _backoff_started = clock()
+            sleep(_backoff)
+            backoff_ms += max(0.0, clock() - _backoff_started)
     payload = dict(result)
     if retried or skipped_by_admission:
         payload[diagnostics_key] = {
@@ -247,6 +256,9 @@ def read_with_bounded_retry(
             "skipped_due_to_budget": skipped_by_admission,
             "retry_reasons": retry_reasons,
             "admission_reasons": admission_reasons,
+            # F2-S1: backoff waiting and real re-fetch time are separate costs
+            "retry_fetch_ms": round(fetch_ms, 1),
+            "retry_backoff_ms": round(backoff_ms, 1),
         }
     return payload
 

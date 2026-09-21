@@ -82,6 +82,8 @@ def test_fetch_failure_recovers_on_retry() -> None:
         "skipped_due_to_budget": 0,
         "retry_reasons": [FETCH_ERROR["error"]],
         "admission_reasons": [],
+        "retry_fetch_ms": result["read_retry"]["retry_fetch_ms"],
+        "retry_backoff_ms": result["read_retry"]["retry_backoff_ms"],
     }
 
 
@@ -171,6 +173,8 @@ def test_admission_can_skip_the_retry() -> None:
         "skipped_due_to_budget": 1,
         "retry_reasons": [],
         "admission_reasons": ["insufficient_window"],
+        "retry_fetch_ms": result["read_retry"]["retry_fetch_ms"],
+        "retry_backoff_ms": result["read_retry"]["retry_backoff_ms"],
     }
 
 

@@ -166,6 +166,7 @@ from src.web.research.read_escalation import (
     reset_http_envelope,
     set_escalation_runtime_context,
 )
+from src.web.research.timing_ledger import TimedGateway, TimingLedger
 from src.web.research.read_retry import (
     make_window_admission,
     read_retry_mode,
@@ -403,6 +404,14 @@ class ActiveResearchRuntimeExecutor:
 
         def checkpoint(*, stage: str | None = None) -> WebLookupRun:
             nonlocal context
+            _checkpoint_started = elapsed_ms()
+            try:
+                return _checkpoint_inner(stage=stage)
+            finally:
+                timing_ledger.record_checkpoint(elapsed_ms() - _checkpoint_started)
+
+        def _checkpoint_inner(*, stage: str | None = None) -> WebLookupRun:
+            nonlocal context
             if stage is not None and self._required(run_id).stage != stage:
                 self.repository.set_stage(
                     run_id,
@@ -438,10 +447,12 @@ class ActiveResearchRuntimeExecutor:
 
         def refresh_steering() -> None:
             nonlocal context
+            _refresh_started = elapsed_ms()
             context = merge_active_steering_context(
                 context,
                 self._required(run_id).research_context,
             )
+            timing_ledger.record_refresh(elapsed_ms() - _refresh_started)
 
         def apply_pending_steering(*, wave_index: int) -> tuple[str, ...]:
             nonlocal context, state
@@ -466,6 +477,11 @@ class ActiveResearchRuntimeExecutor:
         # §71B2: the HTTP envelope is per-run; a fresh run starts full.
         reset_http_envelope()
 
+        def _ledger_flush() -> None:
+            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            if isinstance(metrics, dict):
+                metrics.update(timing_ledger.to_metrics())
+
         def remaining_timeout() -> float:
             return max(
         1.0,
@@ -479,6 +495,10 @@ class ActiveResearchRuntimeExecutor:
             """Monotonic milliseconds since run start (diagnostics only)."""
 
             return round(elapsed() * 1000.0, 1)
+
+        # F2-S1: wave-scoped exclusive timing ledger (observation only).
+        timing_ledger = TimingLedger(elapsed_ms)
+        timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -963,6 +983,7 @@ class ActiveResearchRuntimeExecutor:
                         apply_pending_steering(wave_index=1)
                     checkpoint()
                 wave_id = f"research_wave:{run_id}:{cursor.wave_index}"
+                timing_ledger.start_wave(cursor.wave_index)
 
                 # A crash after gain/saturation persisted but before terminal
                 # settlement must not account the same wave twice.
@@ -1253,7 +1274,7 @@ class ActiveResearchRuntimeExecutor:
                         ),
                         trace=selection_trace,
                         context=context,
-                        model_gateway=self.model_gateway,
+                        model_gateway=timed_gateway,
                         run_id=run_id,
                         wave_index=cursor.wave_index,
                         timeout_seconds=remaining_timeout(),
@@ -1378,7 +1399,7 @@ class ActiveResearchRuntimeExecutor:
                             state=state,
                             claim=claim,
                             assessments=merged_assessments,
-                            model_gateway=self.model_gateway,
+                            model_gateway=timed_gateway,
                             read_fn=gateway_read,
                             context=context,
                             run_id=run_id,
@@ -1397,7 +1418,7 @@ class ActiveResearchRuntimeExecutor:
                             state=state,
                             claim=claim,
                             assessments=merged_assessments,
-                            model_gateway=self.model_gateway,
+                            model_gateway=timed_gateway,
                             fetch_text=fetch_text,
                             read_fn=gateway_read,
                             context=context,
@@ -2472,6 +2493,8 @@ class ActiveResearchRuntimeExecutor:
                 wave_metrics["wave_progress"] = wave_progress[-MAX_RESEARCH_WAVES:]
                 checkpoint()
                 record_research_window(exhausted=research_window_exhausted())
+                timing_ledger.end_wave()
+                _ledger_flush()
                 settled = settle_completed_wave(gate, brief)
                 if settled is not None:
                     return settled
@@ -2499,6 +2522,9 @@ class ActiveResearchRuntimeExecutor:
             # exhaustion) before the per-wave gating block, so record the
             # discovery funnel on this path too; it only joins metrics.
             _record_tier2_funnel(context, cursor, brief, selected_sources)
+            # F2-S1: close the open wave and publish the timeline
+            timing_ledger.end_wave()
+            _ledger_flush()
             checkpoint()
             # P1-C batch 3: the stop truth comes from the gate; the frozen
             # exception-path confidence ("partial" if evidence else "none")
