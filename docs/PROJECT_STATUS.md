@@ -3926,3 +3926,91 @@ F2-O3 ← 下一刀：read slow path
 F2-O4    └─ checkpoint
 F2 final validation
 ```
+
+
+## §91 F2-O3a read 延迟分解：网络主导，本地后处理 0.8%（`a3ec9e3`）
+
+**冻结问题**：`read 1.0–17.5s` 的 17× 方差，来自"做了更多 read 工作"还是"同样的 read 工作在网络/远端等待更久"？
+
+**范围锁**：characterization only。**未改** timeout、并发、reader、fallback、circuit breaker。
+
+### 91.1 仪器（复用现有 HTTP 边界，未重造 profiler）
+
+- `read_retry` 新增 **`attempts_detail`**（仅对发生 retry / 被拒 retry 的读取发出）：每 attempt 的 `index / fetch_ms / ok / signature / chars / content_type`。成功的 attempt **不带签名**（否则会被 A′ 误判为"同一失败再现"）。干净的单次成功读取**保持原 payload 形状不变**。
+- 运行时新增 **`read_timing`** 通道（独立诊断，不参与调度/准入/策略）：把一次 read 的 wall 拆成
+  `fetch_ms`（网络/远端等待：有 retry 时用 retry 循环自身的 fetch 总和（其时钟覆盖首次 attempt），否则用整次 read 调用）
+  + `backoff_ms` + `escalation_ms` + **`local_ms`**（decode/parse/bookkeeping 等读取后处理），并带 host/wave/status/attempts/retries/chars/error_signature。
+- 分析器 `tools/run_f2_o3_read_latency.py`（只读）。
+
+### 91.2 样本（6 runs / 19 reads；uv 两 run 因 0 read 被跳过）
+
+| artifact | reads | attempts | ok | wall 总 | fetch 总 | local 总 | retry_fetch | fetch 均值 | fetch 最大 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| O3.docker.a | 1 | 3 | 0 | 1,594 | 531 | 63 | 531 | 531 | 531 |
+| O3.docker.b | 1 | 2 | 1 | 2,547 | 1,531 | 16 | 1,531 | 1,531 | 1,531 |
+| O3.docker.c | 3 | 5 | 1 | 1,531 | 469 | 62 | 235 | 156 | 235 |
+| O3.docker.d | 2 | 4 | 2 | 2,344 | 1,313 | 31 | 1,282 | 656 | 1,282 |
+| O3.node.a | 5 | 5 | 4 | 5,953 | 5,953 | 0 | 0 | 1,191 | **3,672** |
+| O3.node.b | 7 | 7 | 6 | 6,626 | 6,626 | 0 | 0 | 947 | **3,750** |
+
+pooled（19 reads）：wall mean 1,084 / median 578 / max 3,750 / 总 20,595；**fetch 总 16,423（占 wall 79.7%）**；**local 总 172（占 0.8%，max 63）**；backoff 总 4,000（19.4%）。
+方差：`var_wall 1,360,374`、`var_fetch 1,162,059`（**85.4%**）、`var_local 333`（0.02%）；`corr(wall, fetch) = 0.928`、`corr(wall, local) = 0.228`。
+
+### 91.3 四个问题
+
+**1. read wall 是否主要跟 Σ fetch_ms 一起涨？** **是。** fetch 占 wall **79.7%**、占方差 **85.4%**、`r = 0.928` ⇒ 网络/远端等待主导。
+
+**2. fetch 接近但 read wall 差很多？** **否。** 19 次读取的 local 后处理**合计仅 172ms**（max 63ms，占 0.8%）。**不存在本地 parse/extraction 问题**，不值得继续拆本地路径。
+
+**3. slow 是"单个 read 特别慢"还是"read 数量更多"？** **两者分别成立，且按 host 分型：**
+- node 类 run：**read 数量**驱动（5 / 7 reads × 约 0.9–1.2s 均值）；
+- docker 类 run：**read 数量少（1–3）但 attempts 多（2–5）**，per-read 等待 + retry 驱动（retry_fetch 235–1,531ms）；
+- 单次 fetch 最大 **3,750ms**（nodejs.org，仅 1,497 字符）。
+
+**4. bytes 能否解释 latency？** **否。** `corr(fetch, chars) = 0.135`。反例：nodejs.org 1,497 字符 → 3,750ms；nodejs.cn 6,000 字符 → 969ms。
+
+### 91.4 集中度（host / 错误签名）
+
+| host | reads | 失败 | fetch 均值 | fetch 最大 |
+| --- | --- | --- | --- | --- |
+| **nodejs.org** | 2 | 0 | **3,711** | 3,750 |
+| www.docker.com | 5 | 3 | 738 | 1,531 |
+| nodejs.cn | 4 | 0 | 660 | 969 |
+| node.org.cn | 2 | 0 | 617 | 656 |
+| juejin.cn / www.runoob.com | 1 / 1 | 0 | 532 / 515 | — |
+| zhuanlan.zhihu.com | 2 | **2** | 118 | 125 |
+| docs.docker.com | 2 | 0 | 78 | 125 |
+
+**nodejs.org 用 10.5% 的读取占据 45.2% 的全部网络等待**（`top_host_fetch_share = 0.452`）。
+失败签名：`urlerror#10054`（n=3，均值 292ms）、`exception#403`（n=2，均值 118ms）。
+
+### 91.5 判定
+
+| 门 | 观测 | 结论 |
+| --- | --- | --- |
+| read wall 随 Σ fetch 涨 | ✅ 79.7% / 85.4% / r=0.928 | **网络主导** |
+| fetch 接近但 wall 差很多（本地问题） | ✗ local 仅 0.8% | 排除 |
+| bytes 解释 latency | ✗ r=0.135 | 排除 |
+| 需要 O3b（同 host 同 bytes 同 outcome 但 fetch 仍有巨大未解释方差） | ✗ 同 host 重复读数一致（nodejs.org 3,750 vs 3,672，差 78ms；nodejs.cn 594/660/969） | **不做 O3b** |
+
+⇒ **判定：`network_dominated`。**
+**结论一句话**：read 的 17× 方差**主要来自"同样的 read 工作在网络/远端等待更久"**，而不是"做了更多 read 工作"；本地读取后处理可忽略（0.8%，max 63ms）。
+
+**不做 O3b**：DNS/connect/TTFB/body 微观拆分的前提（同 host、同 bytes、同 outcome 仍有巨大未解释 fetch 方差）不成立——同 host 重复读数彼此接近，方差集中在 **host 身份**与**失败路径**上，而不是同一 host 内部的网络阶段噪声。
+
+### 91.6 对后续路线的含义（记录，非本刀行动）
+
+- 长尾是 **host 形状**的（少数不可达/不稳定 host + 403/WinError 10054 失败路径），**不是 reader 算法问题** ⇒ 与 §71C 系列一致，这属于 **failure-policy / timeout / circuit-breaker** 层，正是 **P2-A 外部功能接入改造**的范围。
+- 本刀**未调任何 timeout**，机制已认清：`read wall ≈ fetch`（local ≈ 0），所以"缩短 read 时间"只能通过**减少等待/提前放弃**实现，而不是通过优化本地代码。
+- 另一个可量化事实：docker 类 run 的 read 时间里 **19.4% 是 retry backoff**（4,000ms/19 reads），O1b 的 A′ 已回收其中一部分。
+
+### 91.7 路线状态
+
+```text
+F2-S1 ✅
+F2-O1 ✅   └─ B in-situ evidence debt（不阻塞）
+F2-O2 ✅   └─ external provider latency（selector）
+F2-O3 ✅   └─ O3a: network-dominated, local 0.8%；不做 O3b
+F2-O4 ← 下一刀：checkpoint
+F2 final validation
+```

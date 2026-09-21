@@ -268,6 +268,13 @@ def verdict(analysis: dict[str, Any]) -> dict[str, Any]:
         sum(v["fail"] for v in hosts.values()) / total >= 0.4
         or max(v["fetch_max"] for v in hosts.values()) >= 5000
     )
+    total_fetch = analysis["fetch_ms"]["total"] or 0.0
+    top_host_share = None
+    if total_fetch and hosts:
+        # ``by_host`` is sorted by descending mean fetch, so the first entry is
+        # the host holding the largest share of the run's network wait.
+        first = next(iter(hosts.values()))
+        top_host_share = round(first["fetch_mean"] * first["n"] / total_fetch, 3)
 
     if fetch_share >= 0.6 and (corr_wall_fetch or 0) >= 0.8:
         call = "network_dominated"
@@ -285,6 +292,7 @@ def verdict(analysis: dict[str, Any]) -> dict[str, Any]:
         "corr_wall_local": corr_wall_local,
         "corr_fetch_chars": corr_fetch_chars,
         "host_concentration": concentrated,
+        "top_host_fetch_share": top_host_share,
         "top_hosts": list(hosts)[:3],
         "top_failure_signatures": list(signatures)[:3],
     }
