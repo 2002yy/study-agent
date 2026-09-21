@@ -84,6 +84,9 @@ def test_fetch_failure_recovers_on_retry() -> None:
         "admission_reasons": [],
         "retry_fetch_ms": result["read_retry"]["retry_fetch_ms"],
         "retry_backoff_ms": result["read_retry"]["retry_backoff_ms"],
+        "suppressed_backoff_ms": result["read_retry"]["suppressed_backoff_ms"],
+        "backoff_suppressed_reason": result["read_retry"]["backoff_suppressed_reason"],
+        "retry_suppressed_reason": result["read_retry"]["retry_suppressed_reason"],
     }
 
 
@@ -112,10 +115,17 @@ def test_retries_are_capped_at_two_with_1s_2s_backoff() -> None:
         "https://x.example/a", read_fn=read_fn, sleep=slept.append
     )
     assert calls["count"] == 3
-    assert slept == [1.0, 2.0]
+    # F2-O1b A': the third attempt still happens, but the identical repeated
+    # signature makes its 2s wait pointless, so it is suppressed
+    assert slept == [1.0]
     assert result["ok"] is False
     assert result["read_retry"]["attempts"] == 3
     assert result["read_retry"]["retries"] == 2
+    assert result["read_retry"]["suppressed_backoff_ms"] == 2000.0
+    assert (
+        result["read_retry"]["backoff_suppressed_reason"]
+        == "repeated_error_signature"
+    )
 
 
 def test_transport_exception_is_retried() -> None:
@@ -175,6 +185,9 @@ def test_admission_can_skip_the_retry() -> None:
         "admission_reasons": ["insufficient_window"],
         "retry_fetch_ms": result["read_retry"]["retry_fetch_ms"],
         "retry_backoff_ms": result["read_retry"]["retry_backoff_ms"],
+        "suppressed_backoff_ms": result["read_retry"]["suppressed_backoff_ms"],
+        "backoff_suppressed_reason": result["read_retry"]["backoff_suppressed_reason"],
+        "retry_suppressed_reason": result["read_retry"]["retry_suppressed_reason"],
     }
 
 
@@ -196,3 +209,121 @@ def test_admission_uses_the_retry_number() -> None:
     assert seen == [1, 2]
     assert result["read_retry"]["skipped_by_admission"] == 1
     assert result["ok"] is False
+
+# ---------------------------------------------------------------------------
+# F2-O1b: repeated-signature backoff suppression (A') + window guard (B)
+# ---------------------------------------------------------------------------
+
+
+def test_signature_ignores_volatile_parts_but_separates_kinds() -> None:
+    from src.web.research.read_retry import error_signature
+
+    first = error_signature({"ok": False, "error": "URLError: [WinError 10054] reset a"})
+    second = error_signature({"ok": False, "error": "URLError: [WinError 10054] reset b"})
+    other = error_signature({"ok": False, "error": "URLError: timed out"})
+    assert first == second
+    assert first != other
+    assert error_signature({"ok": True}) == ""
+
+
+def test_first_backoff_is_always_paid_even_when_errors_repeat() -> None:
+    """A' only removes *subsequent* waits: the first failure keeps its 1s."""
+
+    read_fn, calls = _sequence([FETCH_ERROR, FETCH_ERROR, FETCH_ERROR, FETCH_ERROR])
+    slept: list[float] = []
+    result = read_with_bounded_retry(
+        "https://x.example/a", read_fn=read_fn, sleep=slept.append
+    )
+    assert calls["count"] == 3
+    assert slept == [1.0]
+    assert result["read_retry"]["suppressed_backoff_ms"] == 2000.0
+
+
+def test_different_signatures_keep_the_full_backoff_schedule() -> None:
+    """Only *identical* repeated failures suppress the wait."""
+
+    payloads = [
+        {"ok": False, "error": "URLError: [WinError 10054] reset"},
+        {"ok": False, "error": "URLError: timed out"},
+        {"ok": False, "error": "URLError: [WinError 10054] reset"},
+    ]
+    read_fn, calls = _sequence(payloads)
+    slept: list[float] = []
+    result = read_with_bounded_retry(
+        "https://x.example/a", read_fn=read_fn, sleep=slept.append
+    )
+    assert calls["count"] == 3
+    assert slept == [1.0, 2.0]
+    assert result["read_retry"]["backoff_suppressed_reason"] == ""
+
+
+def test_window_guard_suppresses_a_retry_that_cannot_fit() -> None:
+    """B: deadline-preserving retry suppression, recorded as its own reason."""
+
+    read_fn, calls = _sequence([FETCH_ERROR, FETCH_ERROR, FETCH_ERROR])
+    slept: list[float] = []
+    result = read_with_bounded_retry(
+        "https://x.example/a",
+        read_fn=read_fn,
+        sleep=slept.append,
+        remaining_seconds=lambda: 0.5,
+    )
+    assert calls["count"] == 1  # the retry never started
+    assert slept == []
+    diagnostics = result["read_retry"]
+    assert diagnostics["retry_suppressed_reason"] == "insufficient_remaining_window"
+    assert diagnostics["skipped_due_to_budget"] == 1
+    assert diagnostics["retries"] == 0
+
+
+def test_window_guard_allows_a_retry_that_fits() -> None:
+    read_fn, calls = _sequence([FETCH_ERROR, SHORT_OK])
+    result = read_with_bounded_retry(
+        "https://x.example/a",
+        read_fn=read_fn,
+        sleep=lambda seconds: None,
+        remaining_seconds=lambda: 30.0,
+    )
+    assert calls["count"] == 2
+    assert result["ok"] is True
+    assert result["read_retry"]["retry_suppressed_reason"] == ""
+
+
+def test_window_guard_uses_the_last_attempt_cost_as_its_estimate() -> None:
+    """No latency model: the previous attempt's own elapsed time is the bound."""
+
+    class _Clock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    def _run(remaining: float) -> dict:
+        clock = _Clock()
+
+        def read_fn(url: str):
+            del url
+            clock.value += 1.0  # every attempt costs exactly 1s
+            return dict(FETCH_ERROR)
+
+        return read_with_bounded_retry(
+            "https://x.example/a",
+            read_fn=read_fn,
+            sleep=lambda seconds: None,
+            clock=clock,
+            remaining_seconds=lambda: remaining,
+        )
+
+    # 1s backoff + 1s expected fetch = 2s: fits exactly
+    allowed = _run(2.0)
+    assert allowed["read_retry"]["attempts"] == 3
+    assert allowed["read_retry"]["retry_suppressed_reason"] == ""
+
+    # same estimate against a 1.5s window: the retry is refused
+    refused = _run(1.5)
+    assert refused["read_retry"]["attempts"] == 1
+    assert (
+        refused["read_retry"]["retry_suppressed_reason"]
+        == "insufficient_remaining_window"
+    )

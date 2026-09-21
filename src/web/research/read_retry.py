@@ -13,6 +13,7 @@ The retried read returns the final reader payload plus additive diagnostics
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
@@ -160,6 +161,40 @@ def make_window_admission(
     return admission
 
 
+REASON_REPEATED_SIGNATURE = "repeated_error_signature"
+REASON_INSUFFICIENT_WINDOW = "insufficient_remaining_window"
+
+
+def error_signature(result: Mapping[str, Any] | None) -> str:
+    """Coarse, host/url-independent signature of a failure.
+
+    Deliberately does not name any specific error code: it keeps the exception
+    class plus the numeric errno/winerror if one is present, and otherwise falls
+    back to a trimmed message. Two failures with the same signature are "the
+    same kind of failure happening again", which is all A' needs.
+    """
+
+    if not isinstance(result, Mapping):
+        return ""
+    text = " ".join(
+        str(result.get(key) or "")
+        for key in ("error", "reason", "status", "error_code")
+    ).strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    for marker in FETCH_FAILURE_MARKERS:
+        if marker in lowered:
+            kind = marker
+            break
+    else:
+        kind = lowered.split(":")[0][:40]
+    codes = re.findall(r"(?:winerror|errno|error)\s*[: ]?\s*(\d+)", lowered)
+    digits = re.findall(r"\b(\d{3,5})\b", lowered)
+    code = codes[0] if codes else (digits[0] if digits else "")
+    return f"{kind}#{code}" if code else kind
+
+
 def is_fetch_layer_failure(result: Mapping[str, Any] | None) -> bool:
     """True only when the read failed at the fetch/transport layer."""
 
@@ -186,6 +221,7 @@ def read_with_bounded_retry(
     admission: Callable[[int], Any] | None = None,
     diagnostics_key: str = "read_retry",
     clock: Callable[[], float] = time.monotonic,
+    remaining_seconds: Callable[[], float] | None = None,
 ) -> dict[str, Any]:
     """Run one fetch with bounded fetch-layer retries and additive diagnostics.
 
@@ -208,6 +244,11 @@ def read_with_bounded_retry(
     retried = 0
     fetch_ms = 0.0
     backoff_ms = 0.0
+    suppressed_backoff_ms = 0.0
+    backoff_suppressed_reason = ""
+    retry_suppressed_reason = ""
+    last_signature = ""
+    repeated_signature = False
     result: Mapping[str, Any] = {}
     while True:
         attempts += 1
@@ -227,6 +268,12 @@ def read_with_bounded_retry(
             break
         if not is_fetch_layer_failure(result):
             break
+        # F2-O1b A': a failure whose signature equals the previous attempt's is
+        # "the same failure happening again" - the next attempt may proceed, but
+        # the wait before it buys nothing and is suppressed.
+        signature = error_signature(result)
+        repeated_signature = bool(signature) and signature == last_signature
+        last_signature = signature or last_signature
         if admission is not None:
             decision = admission(retried + 1)
             if not bool(decision):
@@ -241,11 +288,34 @@ def read_with_bounded_retry(
         retry_reasons.append(
             str(result.get("error") or result.get("reason") or "")[:160]
         )
-        retried += 1
+        planned_backoff = 0.0
         if backoff_seconds:
-            _backoff = backoff_seconds[min(retried - 1, len(backoff_seconds) - 1)]
+            planned_backoff = backoff_seconds[min(retried, len(backoff_seconds) - 1)]
+        if repeated_signature and planned_backoff:
+            backoff_suppressed_reason = REASON_REPEATED_SIGNATURE
+            suppressed_backoff_ms += planned_backoff
+            planned_backoff = 0.0
+        # F2-O1b B (deadline-preserving retry suppression): the retry may only
+        # be issued when the wait *plus* a conservative estimate of the next
+        # fetch still fits the remaining window. The estimate reuses the last
+        # attempt's own elapsed time - no new latency model.
+        if remaining_seconds is not None:
+            # fetch_ms accumulates clock *seconds* here (converted to ms only
+            # in the diagnostics), so the estimate is used as-is.
+            expected_fetch = fetch_ms if attempts else 0.0
+            try:
+                remaining = float(remaining_seconds())
+            except Exception:
+                remaining = 0.0
+            if planned_backoff + expected_fetch > remaining:
+                retry_suppressed_reason = REASON_INSUFFICIENT_WINDOW
+                skipped_by_admission += 1
+                admission_reasons.append(REASON_INSUFFICIENT_WINDOW)
+                break
+        retried += 1
+        if planned_backoff:
             _backoff_started = clock()
-            sleep(_backoff)
+            sleep(planned_backoff)
             backoff_ms += max(0.0, clock() - _backoff_started)
     payload = dict(result)
     if retried or skipped_by_admission:
@@ -260,12 +330,20 @@ def read_with_bounded_retry(
             # (the clock is monotonic seconds; the ledger speaks milliseconds)
             "retry_fetch_ms": round(fetch_ms * 1000.0, 1),
             "retry_backoff_ms": round(backoff_ms * 1000.0, 1),
+            # F2-O1b: why idle waiting or a retry was removed - two distinct
+            # reasons, never a single opaque "skipped"
+            "suppressed_backoff_ms": round(suppressed_backoff_ms * 1000.0, 1),
+            "backoff_suppressed_reason": backoff_suppressed_reason,
+            "retry_suppressed_reason": retry_suppressed_reason,
         }
     return payload
 
 
 __all__ = [
     "FETCH_FAILURE_MARKERS",
+    "REASON_INSUFFICIENT_WINDOW",
+    "REASON_REPEATED_SIGNATURE",
+    "error_signature",
     "MAX_READ_RETRIES",
     "READ_RETRY_ATTEMPT_BUDGET_SECONDS",
     "READ_RETRY_BACKOFF_SECONDS",

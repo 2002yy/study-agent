@@ -641,6 +641,10 @@ class ActiveResearchRuntimeExecutor:
                     read_fn=_inner,
                     admission=admission,
                     diagnostics_key="read_retry",
+                    # F2-O1b B: deadline-preserving retry suppression - a retry
+                    # is only issued when its wait plus the last attempt's own
+                    # cost still fit the remaining research window.
+                    remaining_seconds=research_seconds_left,
                 )
                 _accumulate_fetch_metrics(
                     context, "read_retry", payload.get("read_retry")
