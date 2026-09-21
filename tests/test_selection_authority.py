@@ -224,9 +224,16 @@ def test_diagnostics_contract_fields_are_all_present() -> None:
         "fallback_picks",
         "final_picks",
         "selection_source",
-        "input_size",
-        "input_set",
-    }
+            "input_size",
+            "input_set",
+            # F2-O2 latency decomposition (characterisation only)
+            "input_chars",
+            "response_chars",
+            "input_tokens",
+            "output_tokens",
+            "model_wait_ms",
+            "local_residual_ms",
+        }
     assert payload["authority"] == "model_preference_with_legacy_fallback"
 
 
@@ -414,3 +421,52 @@ def test_runtime_unavailable_model_can_never_empty_the_window(
     assert record["unusable_reason"] == "call_unavailable"
     assert record["selection_source"] == "legacy_fallback"
     assert record["fallback_picks"]
+
+
+@dataclass
+class _UsageAudit:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    response_chars: int = 0
+    error_type: str = ""
+
+
+def test_latency_decomposition_separates_model_wait_from_local_residual() -> None:
+    """F2-O2: wall latency minus model wait is recorded per selector call."""
+
+    gateway = _FakeGateway(
+        result=_Result(
+            status="completed",
+                value=[TARGET],
+                audits=(_UsageAudit(input_tokens=11, output_tokens=7, response_chars=42),),
+        )
+    )
+    ticks = iter([0.0, 0.010, 0.200, 0.130])
+    picks, diagnostics = _select(gateway, monotonic=lambda: next(ticks))
+
+    assert picks == [TARGET]
+    assert diagnostics.elapsed_ms == 200
+    assert diagnostics.model_wait_ms == 120
+    assert diagnostics.local_residual_ms == 80
+    assert diagnostics.input_chars > 0
+    assert diagnostics.response_chars == 42
+    assert diagnostics.input_tokens == 11
+    assert diagnostics.output_tokens == 7
+    payload = diagnostics.to_dict()
+    assert payload["local_residual_ms"] == 80
+    assert payload["model_wait_ms"] == 120
+
+
+def test_latency_decomposition_survives_a_failed_call() -> None:
+    """F2-O2: the decomposition must not depend on a usable response."""
+
+    gateway = _FakeGateway(result=_Result(status="attempt_failed", value=None))
+    ticks = iter([0.0, 0.0, 0.050, 0.030])
+    picks, diagnostics = _select(gateway, monotonic=lambda: next(ticks))
+
+    assert picks == []
+    assert diagnostics.call_status == "attempt_failed"
+    assert diagnostics.elapsed_ms == 50
+    assert diagnostics.model_wait_ms == 30
+    assert diagnostics.local_residual_ms == 20
+

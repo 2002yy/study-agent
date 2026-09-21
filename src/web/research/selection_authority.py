@@ -70,6 +70,17 @@ class SelectionAuthorityDiagnostics:
     selection_source: str = ""
     input_size: int = 0
     input_set: list[str] = field(default_factory=list)
+    # F2-O2: per-call latency decomposition (characterization only). The wall
+    # value is ``elapsed_ms``; ``model_wait_ms`` is the gateway call itself and
+    # ``local_residual_ms`` is wall minus model wait. Sizes prefer the provider's
+    # own token counts when it returns usage, and fall back to characters; no
+    # tokenizer is introduced.
+    input_chars: int = 0
+    response_chars: int = 0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    model_wait_ms: int = 0
+    local_residual_ms: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +100,12 @@ class SelectionAuthorityDiagnostics:
             "selection_source": self.selection_source,
             "input_size": self.input_size,
             "input_set": list(self.input_set),
+            "input_chars": self.input_chars,
+            "response_chars": self.response_chars,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "model_wait_ms": self.model_wait_ms,
+            "local_residual_ms": self.local_residual_ms,
         }
 
 
@@ -187,6 +204,9 @@ def select_candidates_with_model(
         "max_urls": max(1, int(max_picks)),
         "candidates": candidate_payload(ordered),
     }
+    user_json = json.dumps(payload, ensure_ascii=False)
+    # F2-O2: the characters actually put on the wire, without a tokenizer.
+    diagnostics.input_chars = len(SELECTION_SYSTEM_PROMPT) + len(user_json)
     started = clock()
     # §43A: every structured research call disables provider-side thinking for
     # json_object providers; the selector must use the same transport contract
@@ -201,13 +221,14 @@ def select_candidates_with_model(
         extra_body = thinking_off
     except Exception:
         extra_body = None
+    model_started = clock()
     try:
         result = model_gateway.complete_structured(
             logical_call_id=logical_call_id,
             purpose="research_selection_authority",
             messages=[
                 {"role": "system", "content": SELECTION_SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                {"role": "user", "content": user_json},
             ],
             audit_payload=payload,
             response_schema_version=SELECTION_AUTHORITY_SCHEMA_VERSION,
@@ -220,10 +241,26 @@ def select_candidates_with_model(
     except Exception:  # diagnostics must never fail the run
         diagnostics.call_status = "exception"
         diagnostics.elapsed_ms = int((clock() - started) * 1000)
+        diagnostics.model_wait_ms = int((clock() - model_started) * 1000)
+        diagnostics.local_residual_ms = max(
+            0, diagnostics.elapsed_ms - diagnostics.model_wait_ms
+        )
         diagnostics.unusable_reason = UNUSABLE_CALL_UNAVAILABLE
         diagnostics.model_picks = []
         return [], diagnostics
     diagnostics.elapsed_ms = int((clock() - started) * 1000)
+    diagnostics.model_wait_ms = int((clock() - model_started) * 1000)
+    diagnostics.local_residual_ms = max(
+        0, diagnostics.elapsed_ms - diagnostics.model_wait_ms
+    )
+    audits = getattr(result, "audits", ()) or ()
+    if audits:
+        last = audits[-1]
+        diagnostics.input_tokens = getattr(last, "input_tokens", None)
+        diagnostics.output_tokens = getattr(last, "output_tokens", None)
+        response_chars = getattr(last, "response_chars", None)
+        if response_chars is not None:
+            diagnostics.response_chars = int(response_chars)
 
     status = str(getattr(result, "status", ""))
     diagnostics.call_status = status or "unknown"
