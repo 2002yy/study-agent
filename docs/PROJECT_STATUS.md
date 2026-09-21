@@ -3668,3 +3668,60 @@ model waits（calls x total）：docker 系 `selector 3–4 x 1.75–2.61s`（�
 | 不改任何策略 | ✅ 全程只读 |
 
 **下一步**：补跑到 admission 有值且覆盖 fast/slow 各 ≥3 的 cohort（预计 4–6 次 run），再出最终表并判断是否授权 F2 optimization。
+
+
+## §87 F2-S1 最终 cohort（13 runs @ `2163caa`，同 schema）
+
+补跑按裁决执行：4 次 + 允许的 2 次 = 6 次，全部冻结 `2163caa`（未改行为参数与 timing schema）。
+
+### 87.1 cohort 计数与门的判定
+
+```text
+fast (admission < 35s)  = 1   （docker.d 30.8s）
+slow (admission >= 35s) = 3   （node.b 44.6 / node.c 46.5 / node.e 46.6）
+no_admission            = 9
+```
+
+**门未满足**：fast 侧 1/3。原因已定位且是**外部条件**：B1 admission 需要 docs.docker.com 的 sitemap/验证读取成功，而该宿主在本环境持续不可达（与 §71E cold gate 同一阻塞）；最近 5 次 docker run 的 `domain_targeted` span 都执行了（3.5–7.9s）但未产生可 admission 的候选。
+
+### 87.2 fast vs slow（按已冻结定义，n=1 vs 3）
+
+| 指标 | fast median | slow median | Δ |
+| --- | --- | --- | --- |
+| read | 10.2s | **17.1s**（14.8–17.3） | **+6.9s** |
+| selector total | 2,423ms | **4,078ms**（3,922–4,110） | **+1,655ms** |
+| selector **max single** | 750ms | **1,296ms**（1,187–1,750） | **+546ms** |
+| selector calls | 4 | 4 | **0** |
+| extraction | 2.2s | 5.0s | +2.8s |
+| B1 domain_targeted | 2.9s | 5.6s | +2.7s |
+| search | 11.7s | 12.9s | +1.2s |
+| assessment | 3.4s | 3.2s | −0.2s |
+| retry backoff | 2ms | 0 | −2ms |
+| checkpoint | 2,312ms | 1,185ms | −1,127ms |
+| unattributed | 4.4s | 5.1s | +0.7s |
+
+**关键机制分离**：slow 侧 selector **调用数完全相同（4）**，但**单次更慢**（max +546ms，total +1.66s）⇒ node 的慢是**单调用延迟**而非次数膨胀（修正了 §86 的初步猜测——§86 看到的"6 calls"来自 docker.i 的偶发，不是 slow 侧特征）。
+
+### 87.3 全 cohort 结构结论（13 runs，不依赖 admission）
+
+| 成本源 | 观测 | 判断 |
+| --- | --- | --- |
+| `search` | 11.3–13.1s（极紧） | **固定税/floor**；非方差源 |
+| `read` | **1.0–17.5s（17×）** | **首要方差源**；与文档体量/宿主相关，尚不能称"可回收" |
+| selector 单次 | max 687–1,750ms（2.5×） | 结构性候选（**慢 run 是单次延迟问题**） |
+| retry backoff | 8 run 为 0；docker.f/h/k 分别 **9.0s / 3.0s / 7.0s** | **偶发但可完全回收**的独立成本类 |
+| B1 | 0.0–7.9s | 波动大；受宿主可达性支配 |
+| extraction | 0.0–7.5s | 与 read 量相关 |
+| checkpoint | 936–2,891ms | 真实稳定成本，非主矛盾 |
+| refresh / tier2 / late_tail / ranking / gating | ≈0 | **排除** |
+| unattributed | 2.7–11.4s（11.4 属 span 命名前样本；命名后 2.7–6.8s） | 已足够好；**不再为账本完美加仪器** |
+
+### 87.4 结论与待裁决
+
+1. **F2-S1 的仪器目标已达成**：把"慢"从单一 elapsed 拆成可操作结构，且已定位两类明确机制（read 方差、selector 单次延迟）+ 一类可回收成本（retry 退避 9s 级）。
+2. **统计门未完全满足**（fast 1/3），阻塞为外部宿主可达性，非仪器或行为问题。
+3. 两条路径（待裁决）：
+   - **(A) 等宿主恢复补 2 次 fast admission**（最严格；与 §71E 同一恢复窗口，可一并补）；
+   - **(B) 以 13-run 结构结论授权 F2 optimization**，把 fast/slow 中位数视为方向性证据（n=1 vs 3 已给出 read +6.9s / selector 单次 +546ms 的一致信号），并约定优化后回到同 schema 复测。
+4. 若授权优化，建议顺序（按可回收性与证据强度）：**retry/backoff 可回收性验证 → selector 单次延迟结构 → read 慢路径 → checkpoint；`search` 暂不碰**。
+5. **不授权**任何行为改动前，`§71E` 与 `F2 optimization` 均保持未开启。
