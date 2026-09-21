@@ -4173,3 +4173,143 @@ P2-A  处理真实互联网环境中的 timeout / circuit breaker / fallback /
 3. **写后重读**：`checkpoint` 末尾 `_required(run_id)` 重读反序列化刚写整行（~4ms/次，约 4% run）⇒ 并发/durability 敏感区，不动。
 4. **§71E natural-cold rescue 与 F2 fast-cohort 缺口**：同一 host availability 条件阻塞的**共享外部证据债务**，宿主恢复时共用窗口补。
 5. `sources[].read_retry` 不含 `attempts_detail`（设计选择，明细在 `metrics.read_timing[]`）。
+
+
+## §94 P2-A 冻结范围草案（Real-world Retrieval Layer）——**待裁决后实施**
+
+**状态**：草案。**本刀未改动任何生产代码**。A0 实施前需先解决 §94.9 的 4 个待裁决项。
+
+### 94.1 目标（冻结）
+
+> 把当前"正常网页能研究"的 retrieval/read runtime，升级为面对真实互联网异常时仍能**有界等待、明确降级、正确切换 backend、保留 provenance、不中断研究状态机**的外部访问层。
+
+P2-A **不负责提高答案质量本身**；它负责让后续 synthesis/auditor 能稳定获得"尽可能好的、来源明确的读取结果"。
+
+**证据依据（来自 F2）**：剩余主要成本 = **external wait + host failure shape**（§90 selector 100% 外部；§91 read 79.7% wall / 85.4% variance 在网络，本地 0.8%；§92 checkpoint 真实但小且无重复）。P2-A 围绕此证据收口，**不重开已被 F2 排除的本地优化面**。
+
+### 94.2 Frozen scope（5 个能力面）
+
+```text
+P2-A
+├─ A1 Failure taxonomy + backend state
+├─ A2 Timeout / circuit breaker
+├─ A3 Progressive Reader / fallback routing
+├─ A4 Browser backend
+└─ A5 External discovery/read provider integration
+```
+
+**A1 Failure taxonomy + backend state**：统一"失败是什么"。冻结 canonical 状态集：
+
+```text
+success · not_found · http_denied(401/403) · rate_limited(429) · connect_failure ·
+dns_failure · tls_failure · timeout · reset(如 10054) · invalid_content ·
+shell_page · js_required · login_required · anti_bot · backend_failure · budget_exhausted
+```
+
+硬要求：**不同 backend 对同一类失败必须投影为统一语义**；每次 read 仍保留 backend-specific raw provenance，但 runtime 决策只依赖 canonical state。这是 A2/A3 的地基。
+
+**A2 Timeout + circuit breaker**：承接 F2-O3。目标不是"把 timeout 调短"，而是**对已表现出稳定失败形状的 host/backend 减少重复支付长尾等待**。覆盖：per-attempt deadline、remaining research budget awareness、host/backend failure streak、`closed/open/half_open/cooldown` 状态、fail-open vs fail-closed 明确规则、breaker provenance。
+
+> **硬边界**：`host health ≠ URL truth`。**不能因一个 URL 失败就默认整个 domain 永久不可用**；breaker 只能影响"是否值得再付网络等待"，**不能把"没读取成功"伪装成"来源不存在"**。
+
+**A3 Progressive Reader**（核心）：读路径冻结成能力阶梯 —— `cheap/native HTTP → normal HTML extraction → alternate reader backend → rendered/browser read → explicit unrecoverable state`。**不是每个页面逐层全走**；routing 结合 failure taxonomy / content type / shell-page detection / JS-required / remaining budget / backend health / escalation history。
+
+保留 §71 原则：**外部 reader 只是 backend，不取得 Evidence Authority**。reader 只返回 `content / provenance / failure state / cost`；是否 usable evidence 仍由 Study Agent 判断。
+
+**A4 Browser backend**：收回此前后置的 §71C-4。浏览器**不是默认 reader，而是昂贵 escalation backend**。触发例：HTTP 返回 shell、JS 渲染后才有正文、需交互后出现结构、HTTP reader 无正文但 browser 有、允许范围内的 anti-bot/cookie 流程可恢复。**必须记录 `why_browser / browser_cost / browser_outcome / browser_content_gain`**，否则 browser 会退化成"读不到就开浏览器"。**默认仍 OFF**（延续 §71C-3b）。
+
+**A5 External providers**：Wigolo read、外部 Discovery backend、其它 Search/Reader provider **全部经统一接口** `DiscoveryBackend / ReadBackend / BrowserBackend`（承接 §71B）。**禁止 `if provider == "foo":` 式特殊逻辑散落 runtime**；provider 差异限制在 adapter 层。
+
+### 94.3 明确非范围（冻结，写进合同）
+
+P2-A **不做**：ResearchBrief 重构 · synthesis · final answer generation · citation prose polishing · Final Auditor · claim support 规则重写 · ranking 大改 · search strategy 大改 · selector 优化 · model provider latency 优化 · checkpoint 优化 · general cache optimization · "为了快"修改 durability · autonomous external agent 直接产最终答案。
+
+继续锁死：**外部 Agent/Search/Reader 可提供候选与内容，不能绕过 Study Agent 的 evidence/support/gate。**
+
+### 94.4 Cache 边界（冻结）
+
+**允许**（服务于 failure handling）：host/backend health cache · negative-result short TTL · 已读取 URL 的本 run reuse · browser escalation result reuse。
+
+**暂不做**（会成为另一个项目）：大型跨 run semantic cache · sophisticated invalidation · retrieval-result ranking cache 系统。
+
+### 94.5 实施顺序（冻结）
+
+```text
+P2-A0 Contract                      ← 下一刀
+  failure taxonomy / backend state / provenance schema
+P2-A1 Circuit breaker + deadline policy      （承接 F2-O3）
+P2-A2 Progressive Reader routing             （先用现有 HTTP/Wigolo backend）
+P2-A3 Browser characterization + escalation
+P2-A4 External provider normalization
+P2-A5 Integration / shadow validation
+```
+
+**顺序理由**：先接 browser/provider 再定义 failure contract，最终必然得到一堆 provider-specific if/else。
+
+### 94.6 验收门（6 类，冻结）
+
+| Gate | 内容 | 要求 |
+| --- | --- | --- |
+| **1 Failure correctness** | 200 正常 HTML / 404 / 403 / 429 / timeout / connection reset / JS shell / login wall / backend crash | canonical failure state 正确，**raw provenance 不丢** |
+| **2 Bounded latency** | 反复坏 host → breaker 最终打开 → 后续请求快速失败或切 backend → runtime 继续推进 | 证明**有界**（非绝对毫秒值） |
+| **3 Fallback correctness** | HTTP fail → alternate reader rescue；HTTP shell → browser rescue；**反例：HTTP 正常 → 不无谓启动 browser** | 正反例都要 |
+| **4 Evidence authority unchanged** | support semantics / gate semantics / claim binding / answer authority 全部保持 | 不因 provider 自称"可信"就晋级 evidence |
+| **5 Budget correctness** | 所有 escalation 尊重 research_seconds_left / attempt budget / model-tool budget / backend cost；browser 不突破全局预算 | 记账正确 |
+| **6 Live heterogeneous cohort** | docs/static · large docs · JS-rendered · 403/anti-bot-ish · PDF · login-required · unstable host | 成功时有证据，失败时有明确状态，**任何路径都不失控** |
+
+### 94.7 成功标准（三层指标，冻结）
+
+**不定义**为"网页读取成功率达到 X%"（真实互联网中有些页面本来就不应/不能读取）。冻结为：
+
+```text
+usable_read_rate
+  = 通过 ReadAdequacy 且 canonical state = success 的读取 / 全部尝试读取
+
+correct_failure_classification_rate
+  = canonical state 与 fixture/live 期望类别一致的失败读取 / 全部失败读取
+
+bounded_failure_rate
+  = 在 per-attempt deadline + breaker 行为约束内结束的失败读取 / 全部失败读取
+```
+
+> **成功就正确读取；救不了就正确失败；失败也不能拖死整个研究。**
+
+### 94.8 A0（下一刀）交付物草案
+
+**范围锁**：A0 **只做合同**——不改 timeout、不实施 breaker 强制、不接 browser、不加 provider。
+
+1. `src/web/research/failure_taxonomy.py`：canonical `FailureState` 枚举（16 态）+ `classify(...)`（由异常类型 / HTTP status / 内容形状映射）+ `from_read_adequacy()` 适配既有 §71C-3a 形状（`ok` / `read_failed` / `js_shell` / `anti_bot_or_error` / `short_doc`）+ **每 backend 映射表**。
+2. **backend state 模型**：`closed / open / half_open / cooldown` 状态与转移 + `failure_streak` 阈值**作为参数**（非魔数）+ provenance。
+3. **provenance schema（增量）**：`RawReadArtifact` 增 `failure_state`（canonical）与 `raw_backend_state`（backend-specific），保持 §71B 的 `FORBIDDEN_AUTHORITY_FIELDS` 语义；新增 `backend_health` metrics 通道。
+4. **合同测试**：同一失败在不同 backend 下投影一致；**未知失败必须落 `backend_failure`，绝不静默 `success`**；taxonomy 状态**永远不能设置 evidence/support/gate**。
+5. **既有可观测面对齐**（避免重做）：§91 已实测的 `urlerror#10054`（→ `reset`）、`exception#403`（→ `http_denied`）、§71C-3a 的 `js_shell`/`short_doc`/`anti_bot_or_error`、B2 的 `run_envelope_exhausted`/`hard_headroom_insufficient`（→ `budget_exhausted`）作为映射表首批输入。
+
+**A0 明确不做**：不调任何 timeout、不改变 read 结果语义、不新增 backend、不动 ranking/answer/gate。
+
+### 94.9 待裁决（实施前必须解决）
+
+1. **canonical state 的落点与兼容性**：新增独立模块 `failure_taxonomy.py` + `RawReadArtifact.failure_state` 采用**增量可选字段**（不破坏 §71B 既有 contract），映射表集中在 taxonomy 模块 —— 是否采纳？
+2. **breaker 状态的作用域与持久化**：A1 先做 **per-run 内存态**，跨 run 的 host/backend health cache 延后到 A2 并带 TTL —— 还是 A1 就要跨 run 持久化？
+3. **`host health ≠ URL truth` 的强制表达**：冻结"**被 breaker 跳过的读取永不得产出负面内容判断**"（记 `budget_exhausted` + breaker provenance，绝不记 `not_found`），并纳入 Gate 4 —— 是否采纳？
+4. **browser 成本的记账单位**：browser escalation 记为 `retrieval_attempt` 并携带 `cost` 子记录（seconds + bytes），**不新增第四本账** —— 是否采纳？
+
+### 94.10 当前项目位置（更新）
+
+```text
+P1 Research Core                ✅
+§71 Minimal external backend    ✅ / external evidence debt（宿主恢复窗口补）
+F2 Runtime characterization     ✅ CLOSED（O1 唯一本地收益；O2/O3/O4 证明本地 ROI 低）
+
+P2-A Real-world Retrieval       ← 当前
+  A0 Contract                   ← 下一刀（§94.8），需先裁决 §94.9
+  A1 Failure policy / breaker
+  A2 Progressive Reader
+  A3 Browser
+  A4 External providers
+  A5 Integration validation
+
+P2-B ResearchBrief / Synthesis
+P2-C Final Auditor
+Full-function Shadow
+Release benchmark
+```
