@@ -4520,3 +4520,96 @@ P2-A3 Browser bakeoff（Wigolo vs Crawl4AI）
 P2-A4 Discovery provider bakeoff（Agent Search MCP / AutoSearch / OpenSERP / [search2ai later]）
 A5 heterogeneous integration
 ```
+
+
+## §97 P2-A1a per-run health breaker + deadline preflight（`c2f081a` → `944ce69`）
+
+**目标（按裁决口径）**：在不改变 URL truth、Evidence Authority 与 retry 语义的前提下，让同一 run 内已表现出稳定失败的 `(backend, host)` 不再反复吞掉研究预算，并允许受控探测恢复。
+
+### 97.1 状态权威（最终实现）
+
+`src/web/research/health_breaker.py`：唯一权威 = `HealthKey = (backend, host)`，唯一状态机 = `closed / open / half_open / cooldown`。
+
+| 转移 | 触发 | 记录 |
+| --- | --- | --- |
+| `closed → open` | qualifying failure 达参数化阈值 | `failures_reached_threshold`（`opened_at_ms`、`eligible_probe_at_ms = now + open_seconds`） |
+| `open → half_open` | `open_seconds` 到期（惰性求值，无定时器） | `open_window_elapsed`（`probe_index += 1`、`probes_used = 0`） |
+| `half_open → closed` | probe 观测到非 health 失败（成功或内容判断） | `probe_succeeded`（failure counters 归零） |
+| `half_open → cooldown` | probe qualifying failure | `probe_failed`（`eligible_probe_at_ms = now + cooldown_seconds`） |
+| `cooldown → half_open` | `cooldown_seconds` 到期 | `cooldown_elapsed`（再次允许 probe） |
+
+- **`cooldown` 是真实状态**，不是 `open + timestamp`（按裁决）。
+- `half_open` 只放行 `half_open_probes` 次（默认 1）；未记录结果前不放大。
+- 阈值全部参数化（`BackendHealthPolicy`），env 仅作 harness 覆盖（`RESEARCH_BREAKER_FAILURE_THRESHOLD / OPEN_SECONDS / COOLDOWN_SECONDS / HALF_OPEN_PROBES`），**生产默认值未被修改**。
+- **会计口径**：一律经 `counts_towards_health(state, attempted=True)`；`attempted=False` 永不计数；`budget_exhausted` 不计 host 健康；`not_found` / `http_denied` / `invalid_content` / `shell_page` **默认不计**（内容判断不是后端病态）；**skip 永不计数**（否则 breaker 会互相喂养）。breaker 内部**不重新发明 taxonomy 判断**。
+- **跨 key 隔离**：`(native_http, bad)` 不影响 `(native_http, good)`，也不影响 `(browser, host)` —— 这是 A2 Progressive Reader 能否正确 fallback 的前提。
+- 作用域：**per-run 内存态**；跨 run health cache 未实现（A1b 未立项）。
+
+### 97.2 兼容壳落地
+
+`mark_circuit_open()` 无任何调用点（防御性接口）。按已冻结裁决：
+
+- `_circuit_open` **不再是状态权威**；旧接口转调同一 health model；
+- 无 host 时落到该 backend 的 **wildcard key**（`native_http::*`）——**仍是同一个模型，只是 key 更宽**，并标 `legacy=true`，provenance 可区分；
+- `allow()` 先查精确 key，再查该 backend 的 wildcard key；
+- 既有 `unsupported + detail=circuit_open` 外部形状**保持不变**（A0 桥接已覆盖，上游消费者无感）；
+- **没有第二套 breaker 状态**。
+
+### 97.3 deadline preflight（并修正一处自引入缺陷）
+
+- 最终实现**复用既有 deadline 政策**：唯一窗口门 = `research_seconds_left() < MIN_READ_SECONDS`，并以 A0 词汇记录（`attempted=false` / `retrieval_state=budget_exhausted` / `skip_reason=insufficient_remaining_window`）。该 skip **不进入 health 会计**。
+- **`944ce69` 修正**：初版把 `read_timeout_seconds() + READ_RETRY_RESERVE_SECONDS` 当作需求，但 `read_timeout_seconds()` 本身已是 `min(cap, research_seconds_left())` ⇒ 窗口小于 cap 时**恒拒**，等于引入第二个更严的窗口门。实测证据：node run `window_skips 1`、reads 由 5 降到 2；修正后 `window_skips 0`、reads 回到 4。
+- **未引入新 latency estimator，未改全局 read timeout，未改 retry ceiling。**
+
+### 97.4 测试 / 全量回归
+
+| 项 | 结果 |
+| --- | --- |
+| `tests/test_health_breaker.py` | **24 passed**（阈值开启、skip 拒发、skip 不自增、未到期继续 skip、到期 half_open、probe 次数上限、probe 成功关闭并归零、probe 失败进 cooldown、cooldown 未到期 skip、cooldown 到期再 probe、`budget_exhausted` 不计、URL truth 不计、健康观测归零、deadline skip 不计、跨 backend / 跨 host 隔离、key 归一化、legacy wildcard、legacy 带 host、legacy 到期 half_open、snapshot provenance、开关默认 off + 参数化） |
+| runtime 接线测试（追加于 `test_active_research_runtime.py`） | **3 passed**：breaker 开启后重复坏 host 变为快速 policy skip（`gateway.calls < 3`）、`backend_health` 落地、failure 行 `provider_code=circuit_open`；健康 host 不受影响（仍 `read`）；开关默认 off 时 `backend_health` 为空且每次读取照发 |
+| 受影响集合 | **224 passed**（8 个消费 §71B/A0/A1a 的测试文件） |
+| **full pytest @ `944ce69`** | **2243 passed / 3 failed**（731s）：2 个已知 Windows-local baseline 失败 + 1 个已知负载型闪失败（`test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes`，**单跑 1 passed**）⇒ **零新增失败** |
+| 对照 A0 baseline（`9334abd`：2217/2） | **+26 passed**（新增 27 项测试，1 项被闪失败抵消），失败族不变 |
+| Ruff | All checks passed |
+| tracked | clean |
+
+### 97.5 in-situ 证据（小样本，非 cohort；开关 ON，harness 阈值，生产默认未动）
+
+| artifact | 观测 |
+| --- | --- |
+| `A1A.docker.bad3`（`944ce69`） | **`native_http::docs.docker.com` → `open`，streak 1，转移 `failures_reached_threshold`** —— 真实不可达 host（WinError 10054）上的 `closed → open` |
+| `A1A.postgres.bad`（`944ce69`） | **负面对照**：`www.postgresql.org` = `invalid_content`、`baike.baidu.com` = `http_denied`、`www.runoob.com` = `success` ⇒ **全部 `closed` / streak 0**，即内容判断与 HTTP 拒绝**不触发熔断**；所有 attempted 读取都带 canonical `retrieval_state` |
+| `A1A.docker.bad2` / `A1A.node.good2` | 健康 host 全 `closed`；reads 4（与 A1a 前区间一致）；`window_skips 0`；`answer_status=available` |
+| `A1A.node.good` / `A1A.docker.bad`（`c2f081a`，修正前） | deadline 双计费的表现：`window_skips` 1/3、reads 2 —— **保留为缺陷证据** |
+| **未观测到** | **`circuit_open` 真实 skip**（需同一坏 host 在同一 run 内被尝试两次；本次样本未出现）与 **half-open 恢复** ⇒ **由确定性测试覆盖**（24 项状态机 + 3 项接线），按裁决不阻塞 |
+
+**成功标准（按裁决）**：不是"总 elapsed 降 X%"，而是 **重复不健康 host 的后续等待被有界抑制，同时健康 host、其它 backend、URL truth 与最终 evidence semantics 不变** —— 上表满足（`gate` 状态与 `answer_status` 未退化，负面对照证明内容判断不被污染）。
+
+### 97.6 会阻塞 A2 Progressive Reader 的语义问题（**必须在 A2 开工前裁决**）
+
+**发现**：`RuntimeCursor.completed_read_ids` 由**全部** `read_outcomes` 派生（`src/web/research/runtime.py:552-554`），而 breaker skip 也追加了一条 `RuntimeReadOutcome`（status=`failed`）⇒ **一次 policy skip 会把该 candidate 在本 run 内永久标记为"已完成"**，因此：
+
+- 后续 wave 不会重试它（`if candidate_id in cursor.completed_read_ids: continue`，runtime:1726）；
+- A2 的 fallback 候选集也会把它排除（`excluded = frozenset({*cursor.completed_read_ids, *already_ranked})`，runtime:3735）。
+
+**含义**：A1a 只负责"说这次不值得等"，但**当前实现把"没试"与"试过但失败"在候选生命周期上混为一谈**。A2 需要二者之一：
+
+1. **分离集合**：skip 记入独立的 `skipped_read_ids`，不进 `completed_read_ids`（候选保留给其它 backend / 后续 wave）；
+2. **选择期路由**：A2 在 read 计划生成前用 `state_for(backend, host)` 决定 backend，skip 不发生"消费"。
+
+**另需 A2 处理**：A1a 只对主 reader（`native_http`）咨询 breaker；`read_escalation` 内的 Wigolo 升级路径**尚未受 health 管辖**（A2 接线，非 A1a 缺陷）。health key 已按 backend 分离，A2 可直接查询另一 backend 的 health。
+
+### 97.7 范围合规
+
+未做：跨 run health cache · Progressive Reader fallback · browser · Wigolo/Crawl4AI 接线 · Discovery provider · 调 timeout 默认值 · 改 retry ceiling · general cache · ranking/selector/answer/evidence/support/gate 改动。**未接** `breaker open → 自动切 Wigolo`（明确属 A2）。
+
+### 97.8 路线
+
+```text
+P2-A0 ✅ CLOSED（9334abd，2217/2）
+P2-A1a ✅ 实现完成（944ce69；2243/3 = 2 known + 1 known flake）
+   ├─ 待补：`circuit_open` in-situ skip 与 half-open 恢复（确定性测试已覆盖，不阻塞）
+   └─ **A2 前置裁决：97.6 的 skip 是否应消费 candidate**
+P2-A1b cross-run health cache（未立项，收益证明后再决定）
+P2-A2 Progressive Reader ← 下一刀（需先裁决 97.6）
+```
