@@ -4450,9 +4450,10 @@ Read / Browser 主力
 
 ### 95.7 A0 当前状态
 
-- **合同已实现并提交**：`773e2c7`（`src/web/research/failure_taxonomy.py`、`retrieval_backends.py` 增量字段、`tests/test_failure_taxonomy.py`）。
-- focused：`test_failure_taxonomy` **63 passed**；`+test_retrieval_backends`/`test_read_escalation` 合计 **86 passed**；Ruff clean。
-- **候选 head 全量 pytest 尚未完成**（该次运行被中断）⇒ 作为 A0 收口门待补。
+- **合同已实现并提交**：`773e2c7`（`src/web/research/failure_taxonomy.py`、`retrieval_backends.py` 增量字段、`tests/test_failure_taxonomy.py`）；§95 记录与发现层澄清提交于 `8571f6b`。
+- focused：`test_failure_taxonomy` **64 passed**；含 `test_retrieval_backends` / `test_read_escalation` 合计 **88 passed**；**合同消费者测试集**（导入 §71B/A0 模块的全部 7 个测试文件）**154 passed**；Ruff clean；tracked clean。
+- **零生产接线（已验证）**：`validate_read_artifact` / `failure_taxonomy` 在 `src/` 中**仅被自身两个模块引用**，runtime / adapter / backend 均未调用 ⇒ A0 确实只定义合同，**未启用任何 breaker 行为**。
+- **候选 head 全量 pytest 待补**：该命令连续两次被中断（用户中止），未产出结果；A0 改动为**纯增量合同**（新增模块 + 两个默认空值字段），消费者测试集已全绿。
 - A0 **未改** timeout / breaker 行为 / retry policy / read 结果语义 / backend / ranking / answer / evidence / support / gate。
 
 ### 95.8 路线（冻结）
