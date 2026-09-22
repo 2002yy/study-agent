@@ -8,7 +8,6 @@ accounting, and the fact that this slice is production-inert.
 from __future__ import annotations
 
 import io
-import os
 import re
 
 from src.web.research.chain_executor import (
@@ -324,22 +323,27 @@ def test_retry_is_not_a_chain_step() -> None:
 # --------------------------------------------------------------- production inert
 
 
-def test_production_does_not_call_the_chain_executor_yet() -> None:
-    """A2d-2 must not change production wiring: no new execution authority."""
+def test_production_has_no_caller_for_the_chain_executor_yet() -> None:
+    """A2d-2 must not change production wiring: no new execution authority.
 
-    pattern = re.compile(r"chain_executor|run_chain")
+    A backend adapter may legitimately implement the executor's protocol types,
+    so this checks for a **caller** in the layers that would execute a chain -
+    the runtime, the active adapter and the legacy escalation - rather than for
+    any textual reference anywhere under ``src``.
+    """
+
+    pattern = re.compile(r"\brun_chain\b|chain_executor")
+    scoped = (
+        "src/application/active_research_runtime.py",
+        "src/web/research/active_adapter.py",
+        "src/web/research/read_escalation.py",
+    )
     offenders: list[str] = []
-    for root, _dirs, files in os.walk("src"):
-        for name in files:
-            if not name.endswith(".py"):
-                continue
-            path = os.path.join(root, name)
-            if path.replace("\\", "/").endswith("web/research/chain_executor.py"):
-                continue
-            text = io.open(path, encoding="utf-8", errors="ignore").read()
-            if pattern.search(text):
-                offenders.append(path.replace("\\", "/"))
-    assert offenders == [], f"production references the executor: {offenders}"
+    for relative in scoped:
+        text = io.open(relative, encoding="utf-8", errors="ignore").read()
+        if pattern.search(text):
+            offenders.append(relative)
+    assert offenders == [], f"production layers call the executor: {offenders}"
 
 
 def test_the_hidden_escalation_is_still_the_only_wigolo_callsite() -> None:

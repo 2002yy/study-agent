@@ -213,6 +213,109 @@ def _resolve_headroom(value: Any) -> float | None:
     except Exception:
         return None
 
+@dataclass(frozen=True)
+class WigoloHttpExecutionPlan:
+    """§103 A2d-3: the one budget truth for a Wigolo HTTP attempt.
+
+    Shared by the legacy hidden escalation and the explicit ``wigolo_http``
+    chain executor, so their allow/deny decisions cannot drift apart by
+    accident. It answers exactly the three B2 questions, in order:
+
+    1. is there enough remaining *hard* budget (``MIN_HARD_SECONDS_LEFT``)?
+    2. is there per-run envelope left?
+    3. what timeout may this single call actually use?
+
+    It decides nothing else: no mode check, no adequacy check, no preflight, no
+    network. Those stay with the caller.
+    """
+
+    allowed: bool
+    deny_reason: str
+    #: Which B2 layer refused: ``hard_headroom`` | ``envelope`` |
+    #: ``effective_timeout`` | ``""``. The legacy escalation maps the first to
+    #: ``unsupported`` and the others to ``skipped_no_budget``; the explicit
+    #: executor maps all of them to ``budget_exhausted``.
+    deny_layer: str
+    hard_headroom: float | None
+    min_hard_seconds: float
+    envelope_remaining_ms: float
+    effective_timeout_seconds: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowed": bool(self.allowed),
+            "deny_reason": self.deny_reason,
+            "deny_layer": self.deny_layer,
+            "hard_headroom": self.hard_headroom,
+            "min_hard_seconds": self.min_hard_seconds,
+            "envelope_remaining_ms": round(float(self.envelope_remaining_ms), 1),
+            "effective_timeout_seconds": round(
+                float(self.effective_timeout_seconds), 3
+            ),
+        }
+
+
+def wigolo_http_execution_plan(
+    *,
+    hard_seconds_left: float | None,
+    envelope_remaining_ms: float | None = None,
+    min_hard_seconds: float | None = None,
+) -> WigoloHttpExecutionPlan:
+    """Compute the B2 verdict for one Wigolo HTTP attempt.
+
+    The refusal reasons are frozen and identical to the legacy escalation's:
+    ``hard_headroom_insufficient`` then ``run_envelope_exhausted``, with the
+    effective-timeout floor keeping its original conditional reason.
+    """
+
+    headroom: float | None = (
+        None if hard_seconds_left is None else float(hard_seconds_left)
+    )
+    min_hard = (
+        http_min_hard_seconds()
+        if min_hard_seconds is None
+        else float(min_hard_seconds)
+    )
+    envelope = (
+        http_envelope_remaining_ms()
+        if envelope_remaining_ms is None
+        else float(envelope_remaining_ms)
+    )
+
+    def plan(
+        allowed: bool, reason: str, layer: str, effective: float
+    ) -> WigoloHttpExecutionPlan:
+        return WigoloHttpExecutionPlan(
+            allowed=allowed,
+            deny_reason=reason,
+            deny_layer=layer,
+            hard_headroom=headroom,
+            min_hard_seconds=min_hard,
+            envelope_remaining_ms=envelope,
+            effective_timeout_seconds=effective,
+        )
+
+    if headroom is not None and headroom < min_hard:
+        return plan(False, "hard_headroom_insufficient", "hard_headroom", 0.0)
+    if envelope <= 0:
+        return plan(False, "run_envelope_exhausted", "envelope", 0.0)
+    effective_timeout = (
+        min(envelope / 1000.0, headroom) if headroom is not None else envelope / 1000.0
+    )
+    if effective_timeout < EFFECTIVE_TIMEOUT_FLOOR_SECONDS:
+        if headroom is not None and headroom < EFFECTIVE_TIMEOUT_FLOOR_SECONDS:
+            return plan(
+                False,
+                "hard_headroom_insufficient",
+                "effective_timeout",
+                effective_timeout,
+            )
+        return plan(
+            False, "run_envelope_exhausted", "effective_timeout", effective_timeout
+        )
+    return plan(True, "", "", effective_timeout)
+
+
 def escalate_read(
     *,
     url: str,
@@ -253,12 +356,25 @@ def escalate_read(
         outcome.reason = "already_adequate"
         return current, outcome
 
-    # §71B2 two-layer admission, evaluated with the live scalars:
-    hard_headroom = _resolve_headroom(hard_seconds_left)
-    min_hard = http_min_hard_seconds()
-    if hard_headroom is not None and hard_headroom < min_hard:
-        outcome.reason = "hard_headroom_insufficient"
-        outcome.state = "unsupported"
+    # §71B2 / §103: the shared budget truth. Legacy and the explicit chain
+    # executor both ask this helper, so their verdicts cannot drift apart.
+    budget = wigolo_http_execution_plan(
+        hard_seconds_left=_resolve_headroom(hard_seconds_left),
+    )
+    outcome.envelope_remaining_at_start_ms = budget.envelope_remaining_ms
+    if not budget.allowed:
+        outcome.reason = budget.deny_reason
+        # Legacy state split, preserved exactly: a hard-headroom refusal was
+        # "unsupported", an envelope/floor refusal was "skipped_no_budget".
+        outcome.state = (
+            "unsupported"
+            if budget.deny_layer == "hard_headroom"
+            else "skipped_no_budget"
+        )
+        if budget.effective_timeout_seconds:
+            outcome.effective_timeout_seconds = round(
+                budget.effective_timeout_seconds, 3
+            )
         _record_attempt(
             metrics_provider,
             outcome,
@@ -270,47 +386,7 @@ def escalate_read(
             bytes_=0,
         )
         return current, outcome
-    envelope_remaining = http_envelope_remaining_ms()
-    outcome.envelope_remaining_at_start_ms = envelope_remaining
-    if envelope_remaining <= 0:
-        outcome.reason = "run_envelope_exhausted"
-        outcome.state = "skipped_no_budget"
-        _record_attempt(
-            metrics_provider,
-            outcome,
-            claim_id=claim_id,
-            wave_index=wave_index,
-            backend_name="wigolo",
-            state="skipped_no_budget",
-            result_count=0,
-            bytes_=0,
-        )
-        return current, outcome
-    # effective timeout: one call must not punch through the envelope or the
-    # remaining hard budget (B2: the envelope is executable, not descriptive).
-    effective_timeout = min(envelope_remaining / 1000.0, hard_headroom) if (
-        hard_headroom is not None
-    ) else envelope_remaining / 1000.0
-    if effective_timeout < EFFECTIVE_TIMEOUT_FLOOR_SECONDS:
-        outcome.reason = (
-            "hard_headroom_insufficient"
-            if hard_headroom is not None and hard_headroom < EFFECTIVE_TIMEOUT_FLOOR_SECONDS
-            else "run_envelope_exhausted"
-        )
-        outcome.state = "skipped_no_budget"
-        outcome.effective_timeout_seconds = round(effective_timeout, 3)
-        _record_attempt(
-            metrics_provider,
-            outcome,
-            claim_id=claim_id,
-            wave_index=wave_index,
-            backend_name="wigolo",
-            state="skipped_no_budget",
-            result_count=0,
-            bytes_=0,
-        )
-        return current, outcome
-    outcome.effective_timeout_seconds = round(effective_timeout, 3)
+    outcome.effective_timeout_seconds = round(budget.effective_timeout_seconds, 3)
 
     backend = http_backend if http_backend is not None else (
         backend_factory(TIER_HTTP) if backend_factory is not None else None
