@@ -260,16 +260,70 @@ def test_a_half_open_alternate_is_still_usable() -> None:
     assert decision.next_backend == "wigolo_http"
 
 
-def test_health_is_only_consulted_for_untried_capable_backends() -> None:
-    seen: list[str] = []
+def test_eligibility_precedence_is_capability_then_attempt_then_availability() -> None:
+    """One verdict per backend, with a documented reason precedence."""
 
-    def health(backend: str, host: str) -> str:
-        seen.append(backend)
-        return "closed"
+    from src.web.research.progressive_routing import (
+        REASON_ALREADY_ATTEMPTED,
+        REASON_NOT_CAPABLE,
+        REASON_PROVIDER_UNAVAILABLE,
+        REASON_UNHEALTHY,
+        BackendAvailability,
+        EligibilityInputs,
+        backend_eligibility,
+    )
 
-    route(_context("shell_page", host="x.example"), health_state_for=health)
-    assert "native_http" not in seen  # already tried
-    assert set(seen) <= {"wigolo_http", "wigolo_browser"}
+    open_health = lambda backend, host: "open"  # noqa: E731
+
+    # Capability outranks everything: a backend that can never do the job.
+    incapable = backend_eligibility(
+        EligibilityInputs(
+            backend="native_http",
+            required_capabilities=frozenset({CAP_JS_RENDER}),
+            attempted_backends=("native_http",),
+            host="x.example",
+        ),
+        health_state_for=open_health,
+    )
+    assert incapable.reason == REASON_NOT_CAPABLE
+
+    # Attempted, capable, unhealthy: the real blocker is that we already tried.
+    attempted = backend_eligibility(
+        EligibilityInputs(
+            backend="native_http",
+            attempted_backends=("native_http",),
+            host="x.example",
+        ),
+        health_state_for=open_health,
+    )
+    assert attempted.reason == REASON_ALREADY_ATTEMPTED
+    assert attempted.health_state == "open"  # still reported for provenance
+
+    # Capable, untried, provider down.
+    unavailable = backend_eligibility(
+        EligibilityInputs(
+            backend="wigolo_http",
+            host="x.example",
+            availability={
+                "wigolo_http": BackendAvailability(
+                    backend="wigolo_http", available=False, reason="daemon_down"
+                )
+            },
+        )
+    )
+    assert unavailable.reason == REASON_PROVIDER_UNAVAILABLE
+
+    # Capable, untried, target unhealthy.
+    unhealthy = backend_eligibility(
+        EligibilityInputs(backend="wigolo_http", host="x.example"),
+        health_state_for=open_health,
+    )
+    assert unhealthy.reason == REASON_UNHEALTHY
+
+    # And a clean backend is eligible.
+    assert backend_eligibility(
+        EligibilityInputs(backend="wigolo_http", host="x.example")
+    ).eligible is True
 
 
 # --------------------------------------------------------------- single decision

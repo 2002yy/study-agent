@@ -4614,10 +4614,15 @@ def _breaker_sources(completed: Any) -> list[dict[str, Any]]:
     ]
 
 
-def test_read_breaker_opens_and_fast_skips_a_repeatedly_unhealthy_host(
+def test_read_breaker_opens_and_the_scheduler_defers_instead_of_skipping(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """§96 A1a: repeated failures on one host become fast policy skips."""
+    """§96 A1a + §100 A2c: repeated failures stop being planned at all.
+
+    A1a opened the breaker; A2c makes the pre-attempt scheduler refuse to plan a
+    read for that host, so the run no longer produces a meaningless breaker-skip
+    read outcome every wave - the decision is scheduling provenance instead.
+    """
 
     monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
     monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
@@ -4648,8 +4653,20 @@ def test_read_breaker_opens_and_fast_skips_a_repeatedly_unhealthy_host(
     )
     assert record["state"] in {"open", "half_open", "cooldown"}
     assert record["failure_streak"] >= 1
-    assert record["transitions"]
 
+    # The repeated waits are bounded: fewer gateway calls than candidates.
+    assert gateway.calls < 3
+
+    # A2c: the refusal is a scheduling decision, not a read outcome.
+    scheduling = metrics.get("read_scheduling") or []
+    assert scheduling, "the scheduler must record why it did not plan a read"
+    deferred = [item for item in scheduling if item["action"] == "defer"]
+    assert deferred, "an unhealthy sole reader must defer, not skip"
+    assert any(
+        "native_http" in item["blocked_backends"] for item in deferred
+    )
+
+    # No policy-skip read outcome was manufactured for the deferred candidate.
     sources = _breaker_sources(completed)
     skipped = [
         item
@@ -4657,33 +4674,7 @@ def test_read_breaker_opens_and_fast_skips_a_repeatedly_unhealthy_host(
         if isinstance(item.get("retrieval_policy"), Mapping)
         and item["retrieval_policy"].get("attempted") is False
     ]
-    assert skipped, "the opened breaker must have skipped at least one read"
-    for item in skipped:
-        assert item["retrieval_policy"]["skip_reason"] == "circuit_open"
-        # A skip is not an observation about the URL.
-        assert item.get("retrieval_state") not in {
-            "not_found",
-            "http_denied",
-            "invalid_content",
-            "shell_page",
-            "js_required",
-            "login_required",
-            "anti_bot",
-        }
-        assert item["read_status"] == "failed"
-
-    # The repeated waits are bounded: fewer gateway calls than candidates.
-    assert gateway.calls < 3
-
-    cursor = ResearchRuntimeCursor.from_dict(
-        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
-    )
-    skipped_failures = [
-        item
-        for item in cursor.failures
-        if item.code == "read_failed" and item.provider_code == "circuit_open"
-    ]
-    assert skipped_failures, "a policy skip must be explainable from the failures"
+    assert skipped == []
 
 
 def test_read_breaker_leaves_a_healthy_host_untouched(

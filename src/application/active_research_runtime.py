@@ -549,6 +549,54 @@ class ActiveResearchRuntimeExecutor:
                 backend=NATIVE_HTTP_BACKEND, host=host_of(url)
             )
 
+        def schedule_read(url: str) -> Any:
+            """§100 A2c: pre-attempt scheduling for the reader chain.
+
+            The chain is the single reader the runtime has today, so this is
+            where a circuit-open backend stops being planned at all instead of
+            producing a meaningless skip every wave. It decides only; it never
+            executes and never records a read outcome.
+
+            Attempt history is **per candidate**: another candidate's read must
+            never make this one look already attempted.
+            """
+
+            from src.web.research.progressive_routing import (
+                SchedulingContext,
+                schedulable_now,
+            )
+
+            attempted = tuple(
+                dict.fromkeys(
+                    item.backend
+                    for item in cursor.read_outcomes
+                    if getattr(item, "candidate_id", "") == candidate_id
+                    and getattr(item, "backend", "")
+                )
+            )
+            decision = schedulable_now(
+                SchedulingContext(
+                    candidate_id=str(candidate_id),
+                    available_backends=(NATIVE_HTTP_BACKEND,),
+                    attempted_backends=attempted,
+                    host=host_of(url),
+                    remaining_seconds=research_seconds_left(),
+                ),
+                health_state_for=(
+                    (lambda backend, host: breaker.state_for(backend=backend, host=host))
+                    if breaker is not None
+                    else None
+                ),
+            )
+            metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            if isinstance(metrics, dict):
+                entries = metrics.get("read_scheduling")
+                if not isinstance(entries, list):
+                    entries = []
+                entries.append(decision.to_dict())
+                metrics["read_scheduling"] = entries[-60:]
+            return decision
+
         def finish_read_attempt(url: str, raw_read: Any) -> str:
             """§94/§96: attach the canonical outcome, and feed the breaker.
 
@@ -1774,6 +1822,13 @@ class ActiveResearchRuntimeExecutor:
                     ensure_budget()
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
+                    # §100 A2c: pre-attempt scheduling. A candidate whose only
+                    # reader is currently unavailable is not planned at all this
+                    # wave - no attempt, and no read outcome, because nothing was
+                    # read.
+                    scheduling = schedule_read(candidate.url)
+                    if scheduling is not None and not scheduling.executable:
+                        continue
                     breaker_decision = breaker_allow(candidate.url)
                     try:
                         attempt = _attempt_number(cursor, candidate_id)

@@ -119,6 +119,147 @@ def capability_registry(
 
 
 # ---------------------------------------------------------------------------
+# Backend availability (policy / provider) - NOT target health
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BackendAvailability:
+    """Whether a backend may be used at all right now.
+
+    Two distinct facts live here, and neither is about the target host:
+
+    * ``configured`` - the backend is enabled for this deployment (a switch);
+    * ``available`` - the provider itself can serve requests (a daemon that is
+      down, an unconfigured client, a missing capability).
+
+    A provider outage must **never** be recorded against
+    ``(backend, target_host)`` health: the target was never contacted. A2c
+    introduces availability only; provider-level health/breakers are deliberately
+    not built here.
+    """
+
+    backend: str
+    configured: bool = True
+    available: bool = True
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "backend": self.backend,
+            "configured": bool(self.configured),
+            "available": bool(self.available),
+            "reason": self.reason,
+        }
+
+
+REASON_NOT_CAPABLE = "capability_not_satisfied"
+REASON_ALREADY_ATTEMPTED = "already_attempted"
+REASON_DISABLED = "disabled"
+REASON_PROVIDER_UNAVAILABLE = "provider_unavailable"
+REASON_UNHEALTHY = "target_health_open"
+REASON_NOT_DECLARED = "backend_not_declared"
+
+
+@dataclass(frozen=True)
+class EligibilityInputs:
+    """Everything one eligibility verdict may depend on."""
+
+    backend: str
+    required_capabilities: frozenset[str] = frozenset()
+    attempted_backends: tuple[str, ...] = ()
+    #: The backend that just produced the outcome; never the "next" one.
+    current_backend: str = ""
+    host: str = ""
+    availability: Mapping[str, BackendAvailability] | None = None
+
+
+@dataclass(frozen=True)
+class BackendEligibility:
+    """One backend's verdict, with the reason it was refused."""
+
+    backend: str
+    eligible: bool
+    reason: str = ""
+    capability_ok: bool = True
+    already_attempted: bool = False
+    configured: bool = True
+    provider_available: bool = True
+    health_state: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "backend": self.backend,
+            "eligible": bool(self.eligible),
+            "reason": self.reason,
+            "capability_ok": bool(self.capability_ok),
+            "already_attempted": bool(self.already_attempted),
+            "configured": bool(self.configured),
+            "provider_available": bool(self.provider_available),
+            "health_state": self.health_state,
+        }
+
+
+def backend_eligibility(
+    inputs: EligibilityInputs,
+    *,
+    backends: Sequence[BackendCapability] | None = None,
+    health_state_for: Callable[[str, str], str] | None = None,
+) -> BackendEligibility:
+    """The single verdict on whether one backend may be used for one candidate.
+
+    Shared by :func:`route` (post-outcome) and :func:`schedulable_now`
+    (pre-attempt), so the two phases can never disagree about capability,
+    attempt history, availability or target health.
+    """
+
+    registry = capability_registry(backends)
+    declaration = registry.get(inputs.backend)
+    if declaration is None:
+        return BackendEligibility(
+            backend=inputs.backend, eligible=False, reason=REASON_NOT_DECLARED
+        )
+
+    capability_ok = declaration.supports(inputs.required_capabilities)
+
+    tried = set(inputs.attempted_backends)
+    if inputs.current_backend:
+        tried.add(inputs.current_backend)
+    already_attempted = inputs.backend in tried
+
+    availability = (inputs.availability or {}).get(inputs.backend)
+    configured = availability.configured if availability else True
+    provider_available = availability.available if availability else True
+
+    health_state = ""
+    if health_state_for is not None and inputs.host:
+        health_state = str(health_state_for(inputs.backend, inputs.host) or "")
+
+    reason = ""
+    if not capability_ok:
+        reason = REASON_NOT_CAPABLE
+    elif already_attempted:
+        reason = REASON_ALREADY_ATTEMPTED
+    elif not configured:
+        reason = REASON_DISABLED
+    elif not provider_available:
+        reason = REASON_PROVIDER_UNAVAILABLE
+    elif health_state in ("open", "cooldown"):
+        reason = REASON_UNHEALTHY
+
+    return BackendEligibility(
+        backend=inputs.backend,
+        eligible=not reason,
+        reason=reason,
+        capability_ok=capability_ok,
+        already_attempted=already_attempted,
+        configured=configured,
+        provider_available=provider_available,
+        health_state=health_state,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
 
@@ -264,29 +405,34 @@ def _eligible(
     required: frozenset[str],
     registry: Mapping[str, BackendCapability],
     health_state_for: Callable[[str, str], str] | None,
+    availability: Mapping[str, BackendAvailability] | None = None,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Split the untried chain into (capable and healthy, capable but unhealthy)."""
+    """Split the untried chain into (capable and healthy, capable but unavailable).
 
-    tried = set(context.attempted_backends)
-    # The current backend just produced this outcome - whether it was attempted
-    # or policy-skipped, it is not the *next* backend.
-    if context.current_backend:
-        tried.add(context.current_backend)
+    Delegates every per-backend question to :func:`backend_eligibility`, so the
+    post-outcome router and the pre-attempt scheduler can never disagree about
+    what "this backend is usable" means.
+    """
+
     capable: list[str] = []
     blocked: list[str] = []
     for backend in context.available_backends:
-        if backend in tried:
-            continue
-        declaration = registry.get(backend)
-        if declaration is None or not declaration.supports(required):
-            continue
-        state = ""
-        if health_state_for is not None and context.host:
-            state = str(health_state_for(backend, context.host) or "")
-        if state in ("open", "cooldown"):
-            blocked.append(backend)
-        else:
+        verdict = backend_eligibility(
+            EligibilityInputs(
+                backend=backend,
+                required_capabilities=required,
+                attempted_backends=context.attempted_backends,
+                current_backend=context.current_backend,
+                host=context.host,
+                availability=availability,
+            ),
+            backends=tuple(registry.values()),
+            health_state_for=health_state_for,
+        )
+        if verdict.eligible:
             capable.append(backend)
+        elif verdict.reason in (REASON_UNHEALTHY, REASON_PROVIDER_UNAVAILABLE):
+            blocked.append(backend)
     return tuple(capable), tuple(blocked)
 
 
@@ -419,11 +565,159 @@ def assert_no_authority_fields(payload: Mapping[str, Any]) -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# Pre-attempt scheduling
+# ---------------------------------------------------------------------------
+
+ACTION_SCHEDULE = "schedule"
+
+SCHEDULING_ACTIONS: tuple[str, ...] = (
+    ACTION_SCHEDULE,
+    ACTION_DEFER,
+    ACTION_BLOCK_RUN,
+    ACTION_EXHAUST,
+)
+
+
+@dataclass(frozen=True)
+class SchedulingContext:
+    """Pre-attempt inputs: no backend has produced an outcome yet.
+
+    This is deliberately a different shape from :class:`RoutingContext`: there is
+    no ``retrieval_state`` to interpret and no ``current_backend`` outcome. The
+    chain order expresses preference.
+    """
+
+    candidate_id: str
+    available_backends: tuple[str, ...] = ()
+    attempted_backends: tuple[str, ...] = ()
+    host: str = ""
+    run_blocked: bool = False
+    required_capabilities: frozenset[str] = frozenset()
+    availability: Mapping[str, BackendAvailability] | None = None
+    remaining_seconds: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "available_backends": list(self.available_backends),
+            "attempted_backends": list(self.attempted_backends),
+            "host": self.host,
+            "run_blocked": bool(self.run_blocked),
+            "required_capabilities": sorted(self.required_capabilities),
+            "remaining_seconds": self.remaining_seconds,
+        }
+
+
+@dataclass(frozen=True)
+class SchedulingDecision:
+    """What may be executed right now - never a read outcome.
+
+    ``defer``, ``block_run`` and ``exhaust`` mean no attempt happened, so they
+    must not create a ``RuntimeReadOutcome``; they are policy provenance only.
+    """
+
+    candidate_id: str
+    action: str
+    backend: str = ""
+    reason: str = ""
+    considered_backends: tuple[str, ...] = ()
+    blocked_backends: tuple[str, ...] = ()
+    verdicts: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def executable(self) -> bool:
+        return self.action == ACTION_SCHEDULE
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "action": self.action,
+            "backend": self.backend,
+            "reason": self.reason,
+            "considered_backends": list(self.considered_backends),
+            "blocked_backends": list(self.blocked_backends),
+            "verdicts": [dict(item) for item in self.verdicts],
+        }
+
+
+REASON_SCHEDULED = "first_eligible_backend"
+REASON_ALL_BLOCKED_SCHEDULING = "all_backends_unavailable"
+REASON_NO_ELIGIBLE = "no_eligible_backend"
+
+
+def schedulable_now(
+    context: SchedulingContext,
+    *,
+    backends: Sequence[BackendCapability] | None = None,
+    health_state_for: Callable[[str, str], str] | None = None,
+) -> SchedulingDecision:
+    """Pick the backend to execute now, or say why none can be.
+
+    Uses the same :func:`backend_eligibility` verdict as :func:`route`, so a
+    backend the router would consider is a backend the scheduler would consider.
+    """
+
+    if context.run_blocked:
+        return SchedulingDecision(
+            candidate_id=context.candidate_id,
+            action=ACTION_BLOCK_RUN,
+            reason=REASON_RUN_BLOCKED,
+        )
+
+    verdicts = tuple(
+        backend_eligibility(
+            EligibilityInputs(
+                backend=backend,
+                required_capabilities=context.required_capabilities,
+                attempted_backends=context.attempted_backends,
+                host=context.host,
+                availability=context.availability,
+            ),
+            backends=backends,
+            health_state_for=health_state_for,
+        )
+        for backend in context.available_backends
+    )
+    considered = tuple(item.backend for item in verdicts if item.eligible)
+    blocked = tuple(
+        item.backend
+        for item in verdicts
+        if item.reason in (REASON_UNHEALTHY, REASON_PROVIDER_UNAVAILABLE)
+    )
+    if considered:
+        return SchedulingDecision(
+            candidate_id=context.candidate_id,
+            action=ACTION_SCHEDULE,
+            backend=considered[0],
+            reason=REASON_SCHEDULED,
+            considered_backends=considered,
+            blocked_backends=blocked,
+            verdicts=tuple(item.to_dict() for item in verdicts),
+        )
+    if blocked:
+        # Something could serve this candidate later, but not now.
+        return SchedulingDecision(
+            candidate_id=context.candidate_id,
+            action=ACTION_DEFER,
+            reason=REASON_ALL_BLOCKED_SCHEDULING,
+            blocked_backends=blocked,
+            verdicts=tuple(item.to_dict() for item in verdicts),
+        )
+    return SchedulingDecision(
+        candidate_id=context.candidate_id,
+        action=ACTION_EXHAUST,
+        reason=REASON_NO_ELIGIBLE,
+        verdicts=tuple(item.to_dict() for item in verdicts),
+    )
+
+
 __all__ = [
     "ACTION_BLOCK_RUN",
     "ACTION_DEFER",
     "ACTION_EXHAUST",
     "ACTION_RESOLVE",
+    "ACTION_SCHEDULE",
     "ACTION_TRY_BACKEND",
     "ADEQUACY_CAPABILITY_REQUIREMENTS",
     "BACKEND_CAPABILITIES",
@@ -434,14 +728,25 @@ __all__ = [
     "CAP_PLAIN_HTTP",
     "CAP_SESSION",
     "DEFAULT_BACKENDS",
+    "REASON_ALL_BLOCKED_SCHEDULING",
+    "REASON_NO_ELIGIBLE",
+    "REASON_SCHEDULED",
     "ROUTING_ACTIONS",
+    "SCHEDULING_ACTIONS",
     "STATE_CAPABILITY_REQUIREMENTS",
     "TERMINAL_RESOURCE_STATES",
     "TRANSPORT_STATES",
+    "BackendAvailability",
     "BackendCapability",
+    "BackendEligibility",
+    "EligibilityInputs",
     "RoutingContext",
     "RoutingDecision",
+    "SchedulingContext",
+    "SchedulingDecision",
     "assert_no_authority_fields",
+    "backend_eligibility",
     "capability_registry",
     "route",
+    "schedulable_now",
 ]
