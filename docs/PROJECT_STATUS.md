@@ -5380,3 +5380,171 @@ A3  ⏳ Wigolo Browser vs Crawl4AI bakeoff
 ```
 
 **无阻塞 A2e 的工程问题。** 唯一外部 blocker 仍是宿主可达性（docs.docker.com 类宿主不可达 ⇒ cold rescue 样本稀缺），但它只影响 live 样本丰富度，不阻塞 A2e 的集成验证设计。
+
+
+## §106 A2d 封板 baseline 统一 + P2-A2e 冻结计划 + A3 方向锁定
+
+**本刀只记录，不执行。** 无 production 变更、无 A2e 实施、不安装/接入 Crawl4AI。
+
+### 106.1 A2d baseline 统一（消除 `fc99a0d` / `e0957c9` / `a9e5f41` 混用）
+
+A2d 收口跨了 5 个 commit，必须区分三个身份，A3 bisect 时以 **code baseline** 为准：
+
+| 身份 | SHA | 含义 |
+| --- | --- | --- |
+| **A2d code baseline（生产基线）** | **`fc99a0d`** | `feat(research): P2-A2d-4 atomic production cutover to the explicit reader chain`。**A2d 全部生产行为语义由它定义。A3 bisect / 对比 / 回退锚点用此 SHA。** |
+| A2d regression-tested head | `e0957c9` | 实际跑 full pytest 的 head（**2381 passed / 2 known Windows-local baseline failures**）。 |
+| A2d final/documentation head | `a9e5f41` | `docs: 105`。§105 记录所在 head。 |
+
+**已验证的关键事实**：`git diff --name-only fc99a0d..e0957c9` = 仅 `tests/test_rq1c_bounded_qualification.py` + `tools/run_rq1c_bounded_qualification_core.py` + `tools/run_selection_authority_runtime_probe.py`；**`fc99a0d..HEAD -- src` 为空**。
+
+⇒ `fc99a0d` 之后的三个 commit **零生产代码变更**（tools 投影 + test 期望 + docs）。
+⇒ **A2d 的生产基线唯一且明确 = `fc99a0d`**；`e0957c9` 只是"在该生产代码上跑过全套测试的 head"。
+
+**后续记录纪律**：凡提到 A2d 生产行为/回退/bisect，一律写 `fc99a0d`；提到测试证据写"@ `e0957c9`"；提到文档写对应 docs head。不再出现裸的 `A2d CLOSED（<sha>）` 单一 SHA 表述。
+
+### 106.2 A2d 正式状态
+
+```text
+P2-A2d-1 ✅  P2-A2d-2 ✅  P2-A2d-3 ✅  P2-A2d-4 ✅
+⇒ P2-A2d CLOSED（code baseline fc99a0d）
+```
+
+封板所满足的关键门：**唯一执行权威 + 预算语义保持 + attempt/source 分层 + live 明确 native→Wigolo + 零新增回归**。
+
+**A2 做对了的结构性标志**：此后**新增 Reader backend 不应再要求修改 candidate lifecycle、scheduler 或 router 的核心语义**。A2e 之后必须守住这条。
+
+### 106.3 P2-A2e 定位（冻结）
+
+A2e **不设计新架构、不优化性能、不新增 backend/预算策略**。它只回答：
+
+> 现在这套 Progressive Reader，在真实 heterogeneous conditions 下是否真的满足 A0→A2d 已冻结的 contract？
+
+即把 A0→A2d 串起来做**集成验收**，而非重跑 unit tests。
+
+### 106.4 A2e 六个 validation 维度（冻结）
+
+#### 维度 1 — Reader-chain correctness（完整 runtime path）
+
+```text
+native success                → terminal
+native not_found              → terminal，不 fallback
+native short_doc/invalid_content → Wigolo
+native transport failure      → Wigolo
+native http_denied            → Wigolo
+native circuit-open           → 不产生 native fake outcome，直接考虑 alternate
+Wigolo unavailable            → defer/exhaust，无死循环
+```
+
+#### 维度 2 — Candidate lifecycle correctness（A2a 最终验收）
+
+```text
+attempt history → 唯一 candidate resolution → 最多一个 source projection
+```
+
+- 每 `(candidate_id, backend)` **≤1** 个 `RuntimeReadOutcome`
+- 每 candidate **≤1** 个最终 source projection
+- attempt 数可 >1，**evidence/source 数不因多 backend attempt 膨胀**
+- `not_found` → terminal 且 unusable
+- `chain_exhausted` → terminal 且 unusable
+- `policy_deferred` → **非** terminal
+- candidate resolution 唯一
+
+#### 维度 3 — Budget / boundedness
+
+观察：B2 hard-seconds guard、envelope debit、effective timeout、breaker open、scheduler defer、chain exhaustion。
+
+成功标准**不是"快多少"**，而是：
+
+> 每条 candidate chain 都有明确上界；失败路径不会无限重试/无限升级。
+
+**重点专项**：`backend-local retry × reader-chain steps` **无组合爆炸**。
+
+#### 维度 4 — Failure semantics（真实 + fixture 混合）
+
+覆盖 canonical states：`403 / 404 / 429 / reset / timeout / invalid_content / shell(js_required) / anti_bot / provider unavailable / budget_exhausted`。
+
+要求：
+
+> canonical `retrieval_state` → routing decision → candidate lifecycle 三者**语义一致**。
+
+禁止出现例如 `retrieval_state=reset` 却 `resolution=resolved, usable=true` 的语义穿帮。
+
+#### 维度 5 — Provenance completeness
+
+每个 fallback candidate 至少能回答：native 为什么没解决 / 为什么选 Wigolo / Wigolo 是否真执行 / 花了多少 / 最终哪个 backend 产出 source / candidate 是否 usable。
+
+交叉核对字段：`RuntimeReadOutcome`、`read_timing`、`read_chain`、`sources[].retrieval_attempts[]`、`final_backend`、failure `attempt_id` —— 必须能互相串起来。
+
+**已接受的 bounded debt**：per-attempt marker 非 durable（durable 审计已由 outcome + chain + failure id 覆盖）。**A2e 不为此开新工程。**
+
+#### 维度 6 — Authority regression（最后一道门，最重要）
+
+Progressive Reader 只能改变**"怎么拿到内容"**，不得改变：Evidence Authority / support semantics / claim binding / gate / answer availability rules。
+
+做法：同一 candidate/evidence fixture，**旧单-reader-compatible case vs 新 progressive runtime**，确认在**无需 fallback** 的场景：
+
+> 新系统**退化为旧系统等价行为**，而非因为多了 routing/scheduling 就改变结果。
+
+### 106.5 A2e 样本规模（冻结，不追 N）
+
+- **deterministic fixtures**：覆盖全部语义边界（维度 1/2/4 的主体）。
+- **live cohort：6–10 runs**，强调**异质性**，至少含：
+  - 正常静态 docs
+  - short page
+  - 403
+  - 不可达 host
+  - slow host（Node/doc 类）
+  - ≥1 个 Wigolo **rescue**
+  - ≥1 个 Wigolo **attempted-but-failed**
+
+**docs.docker.com cold-rescue 缺口**：继续作为 **external evidence debt**，**不做无限 cold hunt**。
+
+### 106.6 A2e 成功指标（冻结，5 条）
+
+**不使用** "Wigolo rescue rate > X%"。使用：
+
+1. 正确路由
+2. 失败有界
+3. candidate lifecycle 正确
+4. provenance 完整
+5. authority 不变
+
+全绿 + full regression 无新增失败 ⇒ **P2-A2 Progressive Reader CLOSED**。
+
+### 106.7 A2e 收口后的路线
+
+```text
+A2d ✅ CLOSED（fc99a0d）
+A2e ← 当前阶段（本刀只记录，未开始实施）
+  ↓ 全绿
+P2-A2 Progressive Reader CLOSED
+  ↓
+P2-A3 Browser Backend Bakeoff — Wigolo Browser vs Crawl4AI
+```
+
+### 106.8 P2-A3 方向预锁（仅锁定，不在 A2e 实施）
+
+A3 **不再比较普通 HTTP reader**。它回答：
+
+> 当 Progressive Reader 已判定需要 **rendered/browser capability** 时，哪个 backend 最适合承担 `BrowserBackend` 角色。
+
+候选：`Wigolo Browser` vs `Crawl4AI`。
+
+比较维度（冻结）：JS-render success / anti-bot handling / session capability / PDF / latency / VRAM-RAM / daemon stability / provenance / integration complexity / license-maintenance。
+
+A3 目标**不是"选功能最多的"**，而是：
+
+> 选一个最适合成为 `BrowserBackend` 的实现。
+
+**本刀（含 A2e 期间）禁止提前安装或接入 Crawl4AI。**
+
+### 106.9 下一执行刀（明天）
+
+```text
+P2-A2e — Progressive Reader Integration Validation
+禁止：新增架构 / 优化 / backend / 预算策略
+只做：验证 A0→A2d 串联后的 production behavior 是否满足冻结合同
+```
+
+执行顺序建议：维度 6（authority regression，先钉死"不变"）→ 维度 1/2/4（fixture 语义边界）→ 维度 3（boundedness 专项）→ 维度 5（provenance 交叉核对）→ live cohort 6–10 runs → full regression → 收口。
