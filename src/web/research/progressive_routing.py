@@ -359,6 +359,9 @@ class RoutingContext:
     #: Informational only: window gating stays where it already lives (the
     #: runtime's deadline policy). The router never invents a threshold.
     remaining_seconds: float | None = None
+    #: Provider/policy availability, the same facts scheduling uses. Without
+    #: this the router would happily route to a backend whose provider is down.
+    availability: Mapping[str, BackendAvailability] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -516,7 +519,9 @@ def route(
         # A policy skip: the backend was never tried, so try another one.
         reason = REASON_POLICY_SKIP
 
-    capable, blocked = _eligible(context, required, registry, health_state_for)
+    capable, blocked = _eligible(
+        context, required, registry, health_state_for, context.availability
+    )
 
     # 5. Exhaustion versus deferral.
     if capable:
