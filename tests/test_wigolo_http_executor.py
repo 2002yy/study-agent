@@ -9,8 +9,6 @@ truth actually reaches both entry points identically.
 from __future__ import annotations
 
 import io
-import os
-import re
 from typing import Any
 
 import pytest
@@ -419,35 +417,35 @@ def test_the_executor_plugs_into_run_chain() -> None:
     assert {step.outer_attempt_number for step in run.steps} == {3}
 
 
-# --------------------------------------------------------------- production inert
+# --------------------------------------------------------------- production cutover
 
 
-def test_production_does_not_use_the_explicit_wigolo_executor_yet() -> None:
-    pattern = re.compile(r"wigolo_http_executor|WigoloHttpBackendExecutor")
-    offenders: list[str] = []
-    for root, _dirs, files in os.walk("src"):
-        for name in files:
-            if not name.endswith(".py"):
-                continue
-            path = os.path.join(root, name)
-            normalised = path.replace("\\", "/")
-            if normalised.endswith("web/research/wigolo_http_executor.py"):
-                continue
-            text = io.open(path, encoding="utf-8", errors="ignore").read()
-            if pattern.search(text):
-                offenders.append(normalised)
-    assert offenders == [], f"production references the executor: {offenders}"
+def test_production_runs_the_explicit_wigolo_executor() -> None:
+    """§105 A2d-4: the runtime wires the explicit executor into its chain."""
+
+    text = io.open(
+        "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
+    ).read()
+    assert "WigoloHttpBackendExecutor(" in text
+    assert "run_chain(" in text
 
 
-def test_the_legacy_escalation_is_still_the_production_wigolo_entry() -> None:
-    from src.web.research.read_escalation import escalate_read
+def test_the_legacy_escalation_is_no_longer_the_production_wigolo_entry() -> None:
+    """The hidden path is retired: production no longer calls ``escalate_read``."""
 
-    assert callable(escalate_read)
+    text = io.open(
+        "src/web/research/active_adapter.py", encoding="utf-8", errors="ignore"
+    ).read()
+    assert "escalate_read" not in text
 
 
-def test_the_active_chain_does_not_enable_wigolo_http_yet() -> None:
-    """A2d-4 owns the cutover; production still schedules native_http only."""
+def test_the_active_chain_enables_wigolo_http_but_not_the_browser() -> None:
+    """A2d-4 enables ``native_http -> wigolo_http``; the browser stays for A3."""
 
-    from src.web.research.candidate_resolution import DEFAULT_READER_CHAIN
-
-    assert DEFAULT_READER_CHAIN == ("native_http",)
+    text = io.open(
+        "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
+    ).read()
+    assert "ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)" in text
+    # the declared chain names exactly two backends; the browser is not one
+    chain = text.split("ACTIVE_READER_CHAIN = (", 1)[1].split(")", 1)[0]
+    assert "wigolo_browser" not in chain

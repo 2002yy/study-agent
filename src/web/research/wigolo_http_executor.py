@@ -107,7 +107,10 @@ class WigoloHttpBackendExecutor:
         return escalation_mode()
 
     def execute(self, request: ChainAttemptRequest) -> ChainStepResult:
-        backend_name = str(getattr(self.backend, "name", "") or self.name)
+        # §105 A2d-4: the chain backend name is the durable identity
+        # ``(candidate_id, backend)``; whatever the provider calls itself is
+        # metadata, never the identity.
+        backend_name = self.name
 
         # 1. Availability of the capability itself (configuration, not health).
         if self._mode() == ESCALATION_OFF:
@@ -231,21 +234,21 @@ class WigoloHttpBackendExecutor:
             "title": str(metadata.get("title") or ""),
             "url": artifact.url or request.url,
             "method": artifact.retrieval_mode,
-            "backend": artifact.backend,
+            "backend": str(self.name),
         }
         adequacy = classify_reader_result(payload)
         raw_state = str(metadata.get("state") or "")
         if artifact.usable:
-            outcome = from_read_adequacy(adequacy.shape, backend=artifact.backend)
+            outcome = from_read_adequacy(adequacy.shape, backend=str(self.name))
         else:
             outcome = from_invocation_state(
                 raw_state or "empty",
-                backend=artifact.backend,
+                backend=str(self.name),
                 detail=raw_state or "empty_content",
             )
         usable = bool(artifact.usable and adequacy.shape == ADEQUATE_SHAPE)
         return ChainStepResult(
-            backend=str(artifact.backend or self.name),
+            backend=str(self.name),
             retrieval_state=outcome.state,
             attempted=True,
             usable_content=usable,
@@ -260,12 +263,13 @@ class WigoloHttpBackendExecutor:
                 "effective_timeout_seconds": effective_timeout,
                 "preflight": preflight_status,
                 "raw_state": raw_state,
+                "provider_backend": str(artifact.backend or ""),
             },
             policy={
                 "attempted": True,
                 "skip_reason": "",
                 "breaker_state": "",
-                "backend": str(artifact.backend or self.name),
+                "backend": str(self.name),
             },
         )
 

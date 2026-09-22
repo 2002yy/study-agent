@@ -320,34 +320,41 @@ def test_retry_is_not_a_chain_step() -> None:
     assert len(executors[WIGOLO].requests) == 1
 
 
-# --------------------------------------------------------------- production inert
+# --------------------------------------------------------------- production cutover
 
 
-def test_production_has_no_caller_for_the_chain_executor_yet() -> None:
-    """A2d-2 must not change production wiring: no new execution authority.
+def test_the_runtime_is_the_chain_execution_authority() -> None:
+    """§105 A2d-4: the cutover is done - the runtime calls ``run_chain``.
 
-    A backend adapter may legitimately implement the executor's protocol types,
-    so this checks for a **caller** in the layers that would execute a chain -
-    the runtime, the active adapter and the legacy escalation - rather than for
-    any textual reference anywhere under ``src``.
+    Before the cutover this test asserted the opposite (production-inert). It is
+    inverted here because the atomic cutover makes the runtime the single
+    execution authority: ``run_chain`` schedules, executes, records and routes.
     """
 
-    pattern = re.compile(r"\brun_chain\b|chain_executor")
-    scoped = (
-        "src/application/active_research_runtime.py",
-        "src/web/research/active_adapter.py",
-        "src/web/research/read_escalation.py",
-    )
+    pattern = re.compile(r"\brun_chain\b")
+    text = io.open(
+        "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
+    ).read()
+    assert pattern.search(text), "the runtime must drive the reader chain"
+
+
+def test_the_adapter_no_longer_executes_wigolo() -> None:
+    """The hidden escalation is retired: the adapter never calls ``escalate_read``."""
+
+    pattern = re.compile(r"\bescalate_read\b|_escalate_if_inadequate")
     offenders: list[str] = []
-    for relative in scoped:
+    for relative in (
+        "src/web/research/active_adapter.py",
+        "src/application/active_research_runtime.py",
+    ):
         text = io.open(relative, encoding="utf-8", errors="ignore").read()
         if pattern.search(text):
             offenders.append(relative)
-    assert offenders == [], f"production layers call the executor: {offenders}"
+    assert offenders == [], f"production still escalates: {offenders}"
 
 
-def test_the_hidden_escalation_is_still_the_only_wigolo_callsite() -> None:
-    """The atomic cutover belongs to A2d-4, not here."""
+def test_the_hidden_escalation_keeps_only_its_signal_contract() -> None:
+    """``escalate_read`` survives as a compatibility function, not as a caller."""
 
     from src.web.research.read_escalation import escalate_read
 

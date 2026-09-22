@@ -184,51 +184,12 @@ class ActiveResearchGateway:
             )
         else:
             result = self._read_gateway.read(url, max_chars=max_chars)
-        # §71C-3a reader escalation (default off): the current reader always
-        # runs first and its result is only replaced when the escalated read is
-        # itself adequate. Any escalation failure leaves this payload untouched.
-        return self._escalate_if_inadequate(url, result, max_chars=max_chars)
-
-    def _escalate_if_inadequate(
-        self, url: str, result: Mapping[str, Any], *, max_chars: int
-    ) -> dict[str, Any]:
-        from src.web.research import read_escalation
-
-        _RUNTIME_CONTEXT = read_escalation._RUNTIME_CONTEXT
-        escalate_read = read_escalation.escalate_read
-        escalation_mode = read_escalation.escalation_mode
-
-        payload = dict(result or {})
-        if escalation_mode() == "off":
-            return payload
-        try:
-            escalated, outcome = escalate_read(
-                url=url,
-                current=payload,
-                http_backend=self.escalation_backend(),
-                backend_factory=self._build_escalation_backend,
-                max_chars=max_chars,
-                attempt_seq=_RUNTIME_CONTEXT.get("attempt_seq") or 0,
-                research_seconds_left=lambda: _RUNTIME_CONTEXT.get(
-                    "research_seconds_left"
-                ),
-                hard_seconds_left=lambda: _RUNTIME_CONTEXT.get("hard_seconds_left"),
-            )
-        except Exception as exc:  # noqa: BLE001 - never damage the current read
-            payload["escalation"] = {
-                "attempted": True,
-                "tier": "http",
-                "state": "transport_error",
-                "reason": f"adapter:{type(exc).__name__}",
-                "rescued": False,
-            }
-            return payload
-        payload["escalation"] = outcome.to_dict()
-        if escalated is not None and escalated is not payload:
-            escalated_payload = dict(escalated)
-            escalated_payload["escalation"] = outcome.to_dict()
-            return escalated_payload
-        return payload
+        # §105 A2d-4: escalation moved to the explicit reader chain. This is now
+        # a plain native delegation - it never performs a second backend call,
+        # and it never writes an ``escalation`` signal. The chain executor owns
+        # ``native_http -> wigolo_http``; the backend factory below stays only as
+        # the provider the runtime uses to build that chain's executor.
+        return dict(result or {})
 
     def escalation_backend(self) -> Any | None:
         """Lazily built Wigolo HTTP-tier backend (None when disabled)."""

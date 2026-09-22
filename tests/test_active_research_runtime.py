@@ -51,6 +51,9 @@ from src.web.research.model_gateway import ResearchModelGateway
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.gap_planner import GapSearchIntent
 from src.web.research.runtime import CLAIM_ENGINE_RUNTIME_CONTEXT_KEY, ResearchRuntimeCursor
+from src.web.research.read_adequacy import SHORT_CHAR_THRESHOLD
+from src.web.research.read_escalation import ESCALATION_ENV
+from src.web.research.retrieval_backends import RawReadArtifact
 from src.web.research.state import attach_claim_engine_state
 
 
@@ -4614,14 +4617,16 @@ def _breaker_sources(completed: Any) -> list[dict[str, Any]]:
     ]
 
 
-def test_read_breaker_opens_and_the_scheduler_defers_instead_of_skipping(
+def test_read_breaker_opens_and_the_scheduler_skips_the_unhealthy_reader(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """§96 A1a + §100 A2c: repeated failures stop being planned at all.
+    """§96 A1a + §100 A2c + §105 A2d-4: an unhealthy reader is not planned.
 
     A1a opened the breaker; A2c makes the pre-attempt scheduler refuse to plan a
     read for that host, so the run no longer produces a meaningless breaker-skip
-    read outcome every wave - the decision is scheduling provenance instead.
+    read outcome every wave - the decision is scheduling provenance instead. With
+    the explicit chain, an unhealthy ``native_http`` is recorded as blocked and
+    the chain falls through to the alternate reader instead of deferring.
     """
 
     monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
@@ -4657,14 +4662,15 @@ def test_read_breaker_opens_and_the_scheduler_defers_instead_of_skipping(
     # The repeated waits are bounded: fewer gateway calls than candidates.
     assert gateway.calls < 3
 
-    # A2c: the refusal is a scheduling decision, not a read outcome.
+    # A2c/A2d-4: the refusal is a scheduling decision, not a read outcome. The
+    # unhealthy native reader is blocked and the chain schedules the alternate.
     scheduling = metrics.get("read_scheduling") or []
     assert scheduling, "the scheduler must record why it did not plan a read"
-    deferred = [item for item in scheduling if item["action"] == "defer"]
-    assert deferred, "an unhealthy sole reader must defer, not skip"
+    scheduled = [item for item in scheduling if item["action"] == "schedule"]
+    assert scheduled, "the chain must still schedule its alternate reader"
     assert any(
-        "native_http" in item["blocked_backends"] for item in deferred
-    )
+        "native_http" in item.get("blocked_backends", ()) for item in scheduled
+    ), "the unhealthy native reader must be recorded as blocked"
 
     # No policy-skip read outcome was manufactured for the deferred candidate.
     sources = _breaker_sources(completed)
@@ -4749,3 +4755,287 @@ def test_read_breaker_switch_defaults_off(
     assert not metrics.get("backend_health")
     assert gateway.calls >= 2, "with the breaker off every read still goes out"
 
+# ---------------------------------------------------------------------------
+# §105 A2d-4: explicit reader chain cutover (native_http -> wigolo_http)
+# ---------------------------------------------------------------------------
+
+
+class _CutoverEscalationBackend:
+    """Deterministic stand-in for the Wigolo HTTP tier; never touches a daemon."""
+
+    name = "wigolo"
+
+    def __init__(
+        self,
+        content: str = "",
+        *,
+        latency_ms: float = 120.0,
+        preflight: str = "ready",
+    ) -> None:
+        self.content = content
+        self.latency_ms = latency_ms
+        self.preflight_status = preflight
+        self.calls: list[Any] = []
+
+    def preflight(self) -> str:
+        return self.preflight_status
+
+    def fetch(self, request: Any) -> RawReadArtifact:
+        self.calls.append(request)
+        return RawReadArtifact(
+            url=request.url,
+            content=self.content,
+            backend="wigolo",
+            latency_ms=self.latency_ms,
+            external_metadata={"state": "ok" if self.content else "empty"},
+        )
+
+
+class _ShortNativeReadGateway:
+    """A native reader that always returns an inadequate (short) document."""
+
+    def __init__(self, *, text: str = "tiny") -> None:
+        self.text = text
+        self.calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls += 1
+        return {
+            "ok": True,
+            "url": url,
+            "title": "short native read",
+            "content": self.text[:max_chars],
+        }
+
+
+def _cutover_service(
+    repository: WebLookupRepository,
+    client: _StructuredClient,
+    *,
+    read_gateway: Any,
+    escalation_backend: Any | None,
+) -> ClaimEngineDispatchWebLookupService:
+    gateway = ActiveResearchGateway(
+        search_backend=_SearchBackend(),
+        read_gateway=read_gateway,
+    )
+    if escalation_backend is not None:
+        gateway.set_escalation_backend(escalation_backend)
+
+    def gateway_factory() -> ActiveResearchGateway:
+        return gateway
+
+    def runtime_factory(
+        repo: WebLookupRepository,
+        active_gateway: ActiveResearchGateway,
+    ) -> ActiveResearchRuntimeExecutor:
+        model = ResearchModelGateway(
+            client=client,
+            model_name="test-model",
+            timeout_seconds=20,
+        )
+        return ActiveResearchRuntimeExecutor(
+            repo,
+            active_gateway,
+            model_gateway=model,
+            monotonic=perf_counter,
+        )
+
+    return ClaimEngineDispatchWebLookupService(
+        repository,
+        active_gateway_factory=gateway_factory,
+        active_runtime_factory=runtime_factory,
+    )
+
+
+def _cutover_run(repository: WebLookupRepository, run_id: str) -> WebLookupRun:
+    return repository.create(
+        WebLookupRun(
+            id=run_id,
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+
+
+def _chain_rows(completed: WebLookupRun) -> list[dict[str, Any]]:
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    return [
+        dict(item)
+        for item in (metrics.get("read_chain") or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def test_read_chain_falls_back_to_wigolo_without_inflating_sources(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§105: an inadequate native read escalates to an explicit Wigolo step.
+
+    One candidate, two backend attempts, still exactly one top-level source.
+    """
+
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    adequate = "y" * (SHORT_CHAR_THRESHOLD + 400)
+    backend = _CutoverEscalationBackend(adequate)
+    native = _ShortNativeReadGateway()
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover.sqlite"))
+    run = _cutover_run(repository, "run_cutover_fallback")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=native,
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    rows = _chain_rows(completed)
+    assert rows, "the chain must record its decision"
+    fallback_rows = [
+        row
+        for row in rows
+        if [step["backend"] for step in row["steps"]]
+        == ["native_http", "wigolo_http"]
+    ]
+    assert fallback_rows, "an inadequate native read must route to wigolo_http"
+    assert len(backend.calls) == len(fallback_rows)
+
+    sources = _breaker_sources(completed)
+    assert sources
+    # every candidate keeps exactly one top-level source, whatever the attempts
+    assert len(sources) == len({item["candidate_id"] for item in sources})
+    for item in sources:
+        attempts = item.get("retrieval_attempts") or []
+        assert len(attempts) <= 2
+        if attempts:
+            assert item["final_backend"] in {"native_http", "wigolo_http"}
+
+    # the fallback candidate's source carries both attempts and the winner
+    fallback = next(
+        item for item in sources if len(item.get("retrieval_attempts") or []) == 2
+    )
+    assert fallback["final_backend"] == "wigolo_http"
+    assert fallback["read_status"] == "read"
+    assert [step["backend"] for step in fallback["retrieval_attempts"]] == [
+        "native_http",
+        "wigolo_http",
+    ]
+
+
+def test_read_chain_does_not_run_wigolo_when_native_is_adequate(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    backend = _CutoverEscalationBackend("y" * 9000)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_ok.sqlite"))
+    run = _cutover_run(repository, "run_cutover_native_ok")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(
+            text="z" * (SHORT_CHAR_THRESHOLD + 400)
+        ),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert backend.calls == [], "an adequate native read must never call Wigolo"
+    for row in _chain_rows(completed):
+        assert [step["backend"] for step in row["steps"]] == ["native_http"]
+    for item in _breaker_sources(completed):
+        assert item["final_backend"] == "native_http"
+
+
+def test_read_chain_does_not_run_wigolo_when_the_tier_is_disabled(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ESCALATION_ENV, raising=False)
+    backend = _CutoverEscalationBackend("y" * 9000)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_off.sqlite"))
+    run = _cutover_run(repository, "run_cutover_disabled")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert backend.calls == []
+    for item in _breaker_sources(completed):
+        assert item["final_backend"] == "native_http"
+
+
+def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§105: the envelope is run-scoped - debits accumulate across candidates."""
+
+    from src.web.research.read_escalation import (
+        http_envelope_spent_ms,
+        reset_http_envelope,
+    )
+
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    reset_http_envelope()
+    backend = _CutoverEscalationBackend(
+        "y" * (SHORT_CHAR_THRESHOLD + 400), latency_ms=120.0
+    )
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_env.sqlite"))
+    run = _cutover_run(repository, "run_cutover_envelope")
+    _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert len(backend.calls) >= 2, "two candidates must both escalate"
+    # one debit per real call, accumulated over the whole run
+    assert http_envelope_spent_ms() == pytest.approx(
+        120.0 * len(backend.calls), abs=1.0
+    )
+
+
+def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    backend = _CutoverEscalationBackend("y" * (SHORT_CHAR_THRESHOLD + 400))
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_uniq.sqlite"))
+    run = _cutover_run(repository, "run_cutover_unique")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    keys = [(item.candidate_id, item.backend) for item in cursor.read_outcomes]
+    assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
+    # both backends really ran, so the fallback pairs exist
+    assert "wigolo_http" in {item.backend for item in cursor.read_outcomes}
+    assert len(backend.calls) == sum(
+        1 for item in cursor.read_outcomes if item.backend == "wigolo_http"
+    ), "exactly one Wigolo call per recorded Wigolo outcome (no double call)"
+
+    timing = (
+        completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    ).get("read_timing") or []
+    backends = {row.get("backend") for row in timing}
+    assert {"native_http", "wigolo_http"} <= backends
+    for row in timing:
+        # legacy-only on the explicit chain: the second backend owns its own row
+        assert row.get("escalation_ms", 0.0) == 0.0

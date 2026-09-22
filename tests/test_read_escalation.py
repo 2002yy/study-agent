@@ -315,9 +315,16 @@ def test_outcome_serialization_has_no_authority_fields() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_adapter_escalates_only_when_the_reader_is_inadequate(
+def test_adapter_never_escalates_even_when_the_mode_allows_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """§105 A2d-4: the reader chain owns escalation, the adapter never does.
+
+    Before the cutover this asserted the adapter *did* escalate. It is inverted
+    here because the hidden path is retired: even with ``ESCALATION_ENV=http``
+    the adapter is a plain native delegation.
+    """
+
     from src.web.research.active_adapter import ActiveResearchGateway
 
     class _Inner:
@@ -337,18 +344,10 @@ def test_adapter_escalates_only_when_the_reader_is_inadequate(
     gateway.set_escalation_backend(backend)
     result = gateway.read("https://x.example/", max_chars=20000)
     assert inner.calls == 1
-    assert len(backend.calls) == 1
-    assert len(result["content"]) == 9000
-    assert result["escalation"]["rescued"] is True
-
-    inner_ok = _Inner(_reader_ok())
-    gateway_ok = ActiveResearchGateway(read_gateway=inner_ok)
-    gateway_ok.set_escalation_backend(_FakeBackend(content=ADEQUATE_TEXT))
-    result_ok = gateway_ok.read("https://x.example/", max_chars=20000)
-    assert result_ok["content"] == ADEQUATE_TEXT
-    # adequate reads are untouched and the reason is recorded, not a call
-    assert result_ok["escalation"]["attempted"] is False
-    assert result_ok["escalation"]["reason"] == "already_adequate"
+    # the backend is never executed and no escalation signal is written
+    assert backend.calls == []
+    assert len(result["content"]) == 120
+    assert "escalation" not in result
 
 
 def test_adapter_default_mode_is_plain_delegation(

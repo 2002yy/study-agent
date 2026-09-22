@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from math import ceil, isfinite
 import re
@@ -164,6 +164,7 @@ from src.web.research.domain_targeted import (
     sitemap_urls,
 )
 from src.web.research.read_escalation import (
+    charge_http_envelope,
     reset_http_envelope,
     set_escalation_runtime_context,
 )
@@ -177,11 +178,19 @@ from src.web.research.health_breaker import (
     read_breaker_enabled,
 )
 from src.web.research.failure_taxonomy import (
-    UNKNOWN_STATE,
     classify,
 )
 from src.web.research.candidate_resolution import resolution_summary
-from src.web.research.read_adequacy import classify_reader_result
+from src.web.research.chain_executor import (
+    ChainAttemptRequest,
+    ChainStepResult,
+    run_chain,
+)
+from src.web.research.wigolo_http_executor import (
+    WIGOLO_HTTP_BACKEND,
+    WigoloHttpBackendExecutor,
+)
+from src.web.research.read_adequacy import ADEQUATE_SHAPE, classify_reader_result
 from src.web.research.read_retry import (
     error_signature,
     make_window_admission,
@@ -542,13 +551,6 @@ class ActiveResearchRuntimeExecutor:
             else None
         )
 
-        def breaker_allow(url: str) -> Any:
-            if breaker is None:
-                return None
-            return breaker.allow(
-                backend=NATIVE_HTTP_BACKEND, host=host_of(url)
-            )
-
         def schedule_read(url: str) -> Any:
             """§100 A2c: pre-attempt scheduling for the reader chain.
 
@@ -577,7 +579,7 @@ class ActiveResearchRuntimeExecutor:
             decision = schedulable_now(
                 SchedulingContext(
                     candidate_id=str(candidate_id),
-                    available_backends=(NATIVE_HTTP_BACKEND,),
+                    available_backends=ACTIVE_READER_CHAIN,
                     attempted_backends=attempted,
                     host=host_of(url),
                     remaining_seconds=research_seconds_left(),
@@ -597,30 +599,181 @@ class ActiveResearchRuntimeExecutor:
                 metrics["read_scheduling"] = entries[-60:]
             return decision
 
-        def finish_read_attempt(url: str, raw_read: Any) -> str:
-            """§94/§96: attach the canonical outcome, and feed the breaker.
+        # §105 A2d-4: the explicit reader chain is now the only authority that
+        # may execute a reader. ``native_http`` runs the plain read (the adapter
+        # no longer escalates); ``wigolo_http`` is the A2d-3 executor carrying
+        # the shared B2 guards. ``wigolo_browser`` is deliberately not enabled.
+        ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
 
-            Classification is always on (it is pure and cheap) so provenance is
-            uniform; the breaker itself stays behind its switch. A skipped read
-            keeps the policy values its payload already carries. Returns the
-            canonical state so the caller can record the attempt fact.
+        def read_chain_attempted_backends(target_candidate_id: str) -> tuple[str, ...]:
+            """Attempt history for one candidate; another candidate never counts."""
+
+            return tuple(
+                dict.fromkeys(
+                    item.backend
+                    for item in cursor.read_outcomes
+                    if getattr(item, "candidate_id", "") == target_candidate_id
+                    and getattr(item, "backend", "")
+                )
+            )
+
+        def read_chain_health_state_for(backend: str, host: str) -> str:
+            if breaker is None:
+                return ""
+            return breaker.state_for(backend=backend, host=host)
+
+        def read_chain_executors(source_limit: int) -> dict[str, Any]:
+            """One executor per enabled backend; the chain decides who runs."""
+
+            def _native(target: str) -> Mapping[str, Any]:
+                return gateway_read(target, max_chars=source_limit)
+
+            escalation_backend = (
+                self.gateway.escalation_backend()
+                if hasattr(self.gateway, "escalation_backend")
+                else None
+            )
+            return {
+                NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native),
+                WIGOLO_HTTP_BACKEND: WigoloHttpBackendExecutor(
+                    backend=escalation_backend,
+                    max_chars=source_limit,
+                    hard_seconds_left=lambda: (
+                        state.budget.hard_timeout_seconds - elapsed()
+                    ),
+                    charge_envelope=charge_http_envelope,
+                ),
+            }
+
+        def record_read_chain_attempt(
+            candidate: CandidatePoolItem,
+            step: ChainStepResult,
+            *,
+            wave_index: int,
+        ) -> None:
+            """§104: one real attempt -> durable outcome + timing + health.
+
+            This is the *attempt history* layer. It never materialises a
+            ``sources[]`` record: the candidate-level projection is written once,
+            at the resolution boundary.
             """
 
-            outcome = _classify_read_outcome(raw_read)
-            if isinstance(raw_read, dict):
-                raw_read.setdefault("retrieval_state", outcome.state)
-            if breaker is None:
-                return outcome.state
-            decision = breaker.record(
-                backend=NATIVE_HTTP_BACKEND,
-                host=host_of(url),
-                state=outcome.state,
-                attempted=True,
+            nonlocal cursor
+            ok = bool(step.usable_content)
+            cursor = replace(
+                cursor,
+                read_outcomes=(
+                    *cursor.read_outcomes,
+                    RuntimeReadOutcome(
+                        candidate_id=candidate.id,
+                        status="success" if ok else "failed",
+                        content_chars=len(step.content) if ok else 0,
+                        error_code="" if ok else "read_failed",
+                        backend=step.backend,
+                        retrieval_state=step.retrieval_state,
+                    ),
+                ),
             )
-            if isinstance(raw_read, dict):
-                raw_read.setdefault("retrieval_policy", decision.to_policy_dict())
-            _record_backend_health(context, breaker)
-            return outcome.state
+            if breaker is not None:
+                breaker.record(
+                    backend=step.backend,
+                    host=host_of(candidate.url),
+                    state=step.retrieval_state,
+                    attempted=True,
+                )
+                _record_backend_health(context, breaker)
+            cost = step.cost if isinstance(step.cost, Mapping) else {}
+            _record_read_timing(
+                context,
+                candidate=candidate,
+                wave_index=wave_index,
+                status="success" if ok else "failed",
+                wall_ms=float(cost.get("latency_ms") or 0.0),
+                chars=int(cost.get("chars") or len(step.content or "")),
+                raw_read={
+                    "read_retry": {
+                        "retry_fetch_ms": cost.get("fetch_ms"),
+                        "retry_backoff_ms": cost.get("backoff_ms"),
+                        "attempts": cost.get("attempts"),
+                        "retries": cost.get("retries"),
+                        "attempts_detail": cost.get("attempts_detail"),
+                    },
+                    "retrieval_state": step.retrieval_state,
+                    "retrieval_policy": dict(step.policy)
+                    if isinstance(step.policy, Mapping)
+                    else {},
+                    "error": "" if ok else step.adequacy_reason,
+                },
+                backend=str(step.backend),
+            )
+
+        def record_read_chain_escalation_signal(
+            candidate: CandidatePoolItem,
+            native_step: ChainStepResult | None,
+            wigolo_step: ChainStepResult | None,
+        ) -> None:
+            """§71C-3a signal, now derived from the explicit chain (superset).
+
+            The adapter no longer emits an ``escalation`` payload, so the runtime
+            rebuilds the same diagnostics signal from the chain's second step. A
+            real Wigolo attempt reports itself; an adequate native read reports
+            the legacy ``already_adequate`` no-call row.
+            """
+
+            if wigolo_step is not None and wigolo_step.attempted:
+                cost = wigolo_step.cost if isinstance(wigolo_step.cost, Mapping) else {}
+                signal: dict[str, Any] = {
+                    "attempted": True,
+                    "tier": "http",
+                    "state": str(wigolo_step.retrieval_state),
+                    "reason": str(wigolo_step.adequacy_reason),
+                    "rescued": bool(wigolo_step.usable_content),
+                    "shape_before": str(
+                        native_step.adequacy_reason if native_step is not None else ""
+                    ),
+                    "shape_after": str(wigolo_step.adequacy_reason),
+                    "chars_before": int(
+                        native_step.cost.get("chars") or 0
+                        if native_step is not None
+                        and isinstance(native_step.cost, Mapping)
+                        else 0
+                    ),
+                    "chars_after": len(wigolo_step.content or ""),
+                    "latency_ms": float(cost.get("latency_ms") or 0.0),
+                    "cache_hit": cost.get("cache_hit"),
+                    "max_chars_requested": int(cost.get("max_chars_requested") or 0),
+                    "preflight": str(cost.get("preflight") or ""),
+                    "url": candidate.url,
+                    "attempt_seq": int(
+                        context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {}).get(
+                            "retrieval_attempt_seq"
+                        )
+                        or 0
+                    ),
+                    "research_seconds_left_at_start": research_seconds_left(),
+                    "hard_seconds_left_at_start": (
+                        state.budget.hard_timeout_seconds - elapsed()
+                    ),
+                    "envelope_remaining_at_start_ms": cost.get(
+                        "envelope_remaining_at_start_ms"
+                    ),
+                    "effective_timeout_seconds": cost.get("effective_timeout_seconds"),
+                }
+            elif native_step is not None and native_step.usable_content:
+                signal = {
+                    "attempted": False,
+                    "tier": "http",
+                    "state": "ok",
+                    "reason": "already_adequate",
+                    "rescued": False,
+                    "shape_before": str(native_step.adequacy_reason),
+                    "shape_after": str(native_step.adequacy_reason),
+                }
+            else:
+                return
+            _record_escalation_diagnostics(
+                context, signal, wave_index=int(cursor.wave_index)
+            )
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -1829,7 +1982,10 @@ class ActiveResearchRuntimeExecutor:
                     scheduling = schedule_read(candidate.url)
                     if scheduling is not None and not scheduling.executable:
                         continue
-                    breaker_decision = breaker_allow(candidate.url)
+                    # §105 A2d-4: one candidate, one outer read-slot, an explicit
+                    # chain of backends. ``run_chain`` schedules, executes, records
+                    # each real attempt and routes; the runtime only projects the
+                    # result. Nothing here escalates behind the chain's back.
                     try:
                         attempt = _attempt_number(cursor, candidate_id)
                     except _ExternalAttemptBudgetExhausted:
@@ -1870,137 +2026,154 @@ class ActiveResearchRuntimeExecutor:
                         ]
                         checkpoint()
                         continue
-                    breaker_skipped = bool(
-                        breaker_decision is not None and not breaker_decision.allowed
+                    executors = read_chain_executors(source_limit)
+                    chain_steps: list[ChainStepResult] = []
+                    chain_run = run_chain(
+                        candidate_id=candidate_id,
+                        url=candidate.url,
+                        host=host_of(candidate.url),
+                        outer_attempt_number=attempt,
+                        chain=ACTIVE_READER_CHAIN,
+                        executors=executors,
+                        record_outcome=chain_steps.append,
+                        attempted_backends=read_chain_attempted_backends(candidate_id),
+                        health_state_for=read_chain_health_state_for,
                     )
-                    if breaker_skipped:
-                        # §96 A1a: the URL is never read, so this is a policy
-                        # skip - never a content judgement about it - and it must
-                        # not feed breaker health. The one-level failure code
-                        # stays ``read_failed`` (frozen catalog); the policy
-                        # reason belongs in provider_code/detail.
-                        raw_read = _breaker_skip_payload(
-                            candidate.url, breaker_decision
+                    # §105 A2d-4: the chain's own decision, recorded even when it
+                    # executed nothing (a scheduling/policy skip), so the
+                    # explicit path is observable without a new ledger.
+                    chain_metrics = context.setdefault(
+                        ACTIVE_RESEARCH_METRICS_KEY, {}
+                    )
+                    if isinstance(chain_metrics, dict):
+                        chain_entries = chain_metrics.get("read_chain")
+                        if not isinstance(chain_entries, list):
+                            chain_entries = []
+                        chain_entries.append(
+                            {
+                                "candidate_id": candidate_id,
+                                "action": str(chain_run.action),
+                                "reason": str(chain_run.reason),
+                                "attempted_backends": list(chain_run.attempted_backends),
+                                "steps": [item.to_dict() for item in chain_steps],
+                            }
                         )
-                        marker_call_id = (
-                            f"research_read:{run_id}:{candidate_id}:circuit_open"
-                        )
-                        read_exception_type = ""
-                        read_wall_ms = 0.0
+                        chain_metrics["read_chain"] = chain_entries[-60:]
+                    if not chain_steps:
+                        # A policy/scheduling skip: no backend ran, so there is no
+                        # attempt, no outcome and no source - only the scheduling
+                        # provenance the metrics already carry (§104).
                         selection_trace.note_read(
                             candidate.canonical_url, dispatched=False
                         )
-                        _record_backend_health(context, breaker)
-                    else:
+                        continue
+                    native_step = next(
+                        (
+                            item
+                            for item in chain_steps
+                            if item.backend == NATIVE_HTTP_BACKEND
+                        ),
+                        None,
+                    )
+                    wigolo_step = next(
+                        (
+                            item
+                            for item in chain_steps
+                            if item.backend == WIGOLO_HTTP_BACKEND
+                        ),
+                        None,
+                    )
+                    selection_trace.note_read(candidate.canonical_url, dispatched=True)
+                    dispatched_read_ids.add(candidate_id)
+                    ensure_active()
+                    for step in chain_steps:
+                        # §104: one marker per real backend attempt (audit grain),
+                        # all sharing this candidate's single outer read-slot.
                         marker = RuntimeExternalAttemptStart(
                             call_id=(
-                                f"research_read:{run_id}:{candidate_id}:attempt:{attempt}"
+                                f"research_read:{run_id}:{candidate_id}"
+                                f":attempt:{attempt}:{step.backend}"
                             ),
                             purpose="read",
                             item_id=candidate_id,
                             attempt=attempt,
                             started_at=self.utc_now(),
                         )
-                        marker_call_id = marker.call_id
-                        selection_trace.note_read(
-                            candidate.canonical_url, dispatched=True
-                        )
-                        dispatched_read_ids.add(candidate_id)
                         cursor = begin_external_attempt(cursor, marker)
-                        checkpoint()
-                        read_exception_type = ""
-                        read_started_ms = elapsed_ms()
-                        try:
-                            raw_read = gateway_read(
-                                candidate.url, max_chars=source_limit
-                            )
-                        except Exception as exc:
-                            read_exception_type = type(exc).__name__
-                            raw_read = {
-                                "ok": False,
-                                "status": "failed",
-                                "url": candidate.url,
-                                "error": type(exc).__name__,
-                            }
-                        finally:
-                            cursor = finish_external_attempt(
-                                cursor, call_id=marker.call_id
-                            )
-                            checkpoint()
-                        read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
-                        canonical_state = finish_read_attempt(candidate.url, raw_read)
-                    ensure_active()
-                    content = str(raw_read.get("content") or raw_read.get("readme") or "")[:source_limit]
-                    ok = bool(raw_read.get("ok") is True and content.strip())
-                    status = "success" if ok else "failed"
-                    if breaker_skipped:
-                        canonical_state = str(
-                            raw_read.get("retrieval_state") or UNKNOWN_STATE
+                        cursor = finish_external_attempt(cursor, call_id=marker.call_id)
+                        record_read_chain_attempt(
+                            candidate, step, wave_index=cursor.wave_index
                         )
-                    if not ok:
-                        _append_failure(
-                            "read_failed",
-                            "reading",
-                            logical_call_id=marker_call_id,
-                            item_id=candidate_id,
-                            detail=_bounded_text(
-                                raw_read.get("error") or "read_failed", 2000
-                            ),
-                            provider_code=_bounded_text(
-                                raw_read.get("error_code")
-                                or (
-                                    str(
-                                        (raw_read.get("retrieval_policy") or {}).get(
-                                            "skip_reason"
-                                        )
-                                        or ""
-                                    )
-                                    if breaker_skipped
-                                    else ""
+                        if not step.usable_content:
+                            step_cost = (
+                                step.cost if isinstance(step.cost, Mapping) else {}
+                            )
+                            step_error = str(
+                                step_cost.get("error")
+                                or step_cost.get("error_type")
+                                or ""
+                            )
+                            _append_failure(
+                                "read_failed",
+                                "reading",
+                                logical_call_id=marker.call_id,
+                                item_id=candidate_id,
+                                detail=_bounded_text(
+                                    step_error or step.adequacy_reason or "read_failed",
+                                    2000,
                                 ),
-                                200,
-                            ),
-                            exception_type=read_exception_type,
-                            attempt_id=marker_call_id,
-                        )
+                                provider_code=_bounded_text(
+                                    str(step.policy.get("skip_reason") or "")
+                                    if isinstance(step.policy, Mapping)
+                                    else "",
+                                    200,
+                                ),
+                                exception_type=step_error,
+                                attempt_id=marker.call_id,
+                            )
+                    record_read_chain_escalation_signal(
+                        candidate, native_step, wigolo_step
+                    )
+                    ensure_active()
+                    # The candidate has content if *any* backend produced a
+                    # usable read. Prefer the adequate attempt (the legacy
+                    # escalation replaced a short read with the adequate one),
+                    # else the last non-empty attempt.
+                    usable_step = next(
+                        (
+                            item
+                            for item in chain_steps
+                            if item.usable_content
+                            and item.adequacy_reason == ADEQUATE_SHAPE
+                        ),
+                        None,
+                    ) or next(
+                        (item for item in chain_steps if item.usable_content), None
+                    )
+                    ok = usable_step is not None
+                    content = (
+                        str(usable_step.content or "")[:source_limit] if ok else ""
+                    )
+                    final_step = usable_step or chain_steps[-1]
                     if ok:
                         successful_reads += 1
                         used_chars += len(content)
-                    if not breaker_skipped:
-                        # §98 A2a: a policy skip records **no read outcome**. The
-                        # cursor keeps one outcome per candidate (a real attempt
-                        # fact); the skip lives in read_timing, the source
-                        # provenance and the failure row. This is what keeps a
-                        # skipped candidate from being consumed by the run.
-                        cursor = replace(
-                            cursor,
-                            read_outcomes=(
-                                *cursor.read_outcomes,
-                                RuntimeReadOutcome(
-                                    candidate_id=candidate_id,
-                                    status=status,
-                                    content_chars=len(content) if ok else 0,
-                                    error_code="" if ok else "read_failed",
-                                    backend=NATIVE_HTTP_BACKEND,
-                                    retrieval_state=canonical_state,
-                                ),
-                            ),
-                        )
                     record = _source_record(
                         candidate,
                         plan_item,
-                        raw_read={**raw_read, "content": content, "status": "read" if ok else "failed"},
+                        raw_read={
+                            "ok": ok,
+                            "status": "read" if ok else "failed",
+                            "url": candidate.url,
+                            "content": content,
+                            "retrieval_state": str(
+                                final_step.retrieval_state if final_step else ""
+                            ),
+                        },
+                        final_backend=str(final_step.backend) if final_step else "",
+                        retrieval_attempts=[item.to_dict() for item in chain_steps],
                     )
                     _upsert_source(selected_sources, record)
-                    _record_read_timing(
-                        context,
-                        candidate=candidate,
-                        wave_index=cursor.wave_index,
-                        status="success" if ok else "failed",
-                        wall_ms=read_wall_ms,
-                        chars=len(content),
-                        raw_read=raw_read,
-                    )
                     update_budget(reads_used=successful_reads)
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
                         outcome.to_dict() for outcome in cursor.read_outcomes
@@ -5545,6 +5718,83 @@ def _checkpoint_now_ms() -> float:
     return round(time.monotonic() * 1000.0, 1)
 
 
+def _native_monotonic_ms() -> float:
+    return time.monotonic() * 1000.0
+
+
+@dataclass
+class NativeHttpBackendExecutor:
+    """§105 A2d-4 explicit ``native_http`` chain step: a plain read, no escalation.
+
+    It is the first reader in the active chain and it deliberately does **not**
+    escalate: the adapter it calls is a plain delegation and the second backend
+    is a separate chain step the executor has no knowledge of. It performs one
+    attempt, reports it as a :class:`ChainStepResult` and never writes an
+    outcome, lifecycle or evidence.
+    """
+
+    read_fn: Any = None
+    now_ms: Callable[[], float] = _native_monotonic_ms
+    name: str = NATIVE_HTTP_BACKEND
+    calls: int = field(default=0, init=False)
+
+    def execute(self, request: ChainAttemptRequest) -> ChainStepResult:
+        started = self.now_ms()
+        try:
+            payload = self.read_fn(request.url)
+        except Exception as exc:  # noqa: BLE001 - a backend never raises upward
+            payload = {"ok": False, "error": type(exc).__name__, "content": ""}
+        wall_ms = max(0.0, self.now_ms() - started)
+        payload = payload if isinstance(payload, Mapping) else {}
+        self.calls += 1
+        return _project_native_step(payload, wall_ms)
+
+
+def _project_native_step(payload: Mapping[str, Any], wall_ms: float) -> ChainStepResult:
+    """Canonical projection of one native read payload (no authority)."""
+
+    outcome = _classify_read_outcome(payload)
+    adequacy = classify_reader_result(payload)
+    raw_content = str(payload.get("content") or "")
+    # Parity with the legacy read: "usable" is a non-empty successful read, not
+    # the adequacy shape. The shape only decides whether to try another backend.
+    usable = bool(payload.get("ok") is True and raw_content.strip())
+    retry = payload.get("read_retry")
+    retry = retry if isinstance(retry, Mapping) else {}
+    fetch_ms = (
+        float(retry.get("retry_fetch_ms") or 0.0) if retry else float(wall_ms)
+    )
+    return ChainStepResult(
+        backend=NATIVE_HTTP_BACKEND,
+        retrieval_state=outcome.state,
+        attempted=True,
+        usable_content=usable,
+        content=raw_content if usable else "",
+        adequacy_reason=adequacy.shape,
+        cost={
+            "latency_ms": round(float(wall_ms), 1),
+            "fetch_ms": round(fetch_ms, 1),
+            "backoff_ms": round(float(retry.get("retry_backoff_ms") or 0.0), 1),
+            "attempts": int(retry.get("attempts") or 1),
+            "retries": int(retry.get("retries") or 0),
+            "attempts_detail": [
+                dict(item)
+                for item in (retry.get("attempts_detail") or [])
+                if isinstance(item, Mapping)
+            ][:4],
+            "chars": len(str(payload.get("content") or "")),
+            "error_signature": error_signature(payload),
+            "error": str(payload.get("error") or payload.get("error_code") or ""),
+            "raw_state": str(outcome.state),
+        },
+        policy={
+            "attempted": True,
+            "skip_reason": "",
+            "backend": NATIVE_HTTP_BACKEND,
+        },
+    )
+
+
 def _classify_read_outcome(raw_read: Mapping[str, Any]) -> Any:
     """§94 A0: canonical state for one production reader payload.
 
@@ -5569,24 +5819,6 @@ def _classify_read_outcome(raw_read: Mapping[str, Any]) -> Any:
         http_status=http_status,
         adequacy_shape=adequacy.shape,
     )
-
-
-def _breaker_skip_payload(url: str, decision: Any) -> dict[str, Any]:
-    """Reader-shaped payload for a read that was never issued.
-
-    Deliberately carries no content and no content judgement: the URL was not
-    read, so the only truthful statement is the policy skip itself.
-    """
-
-    return {
-        "ok": False,
-        "status": "failed",
-        "url": url,
-        "error": "circuit_open",
-        "content": "",
-        "retrieval_state": UNKNOWN_STATE,
-        "retrieval_policy": decision.to_policy_dict(),
-    }
 
 
 def _deadline_skip_payload(url: str, decision: Any) -> dict[str, Any]:
@@ -5665,6 +5897,7 @@ def _record_read_timing(
     wall_ms: float,
     chars: int,
     raw_read: Mapping[str, Any],
+    backend: str = NATIVE_HTTP_BACKEND,
 ) -> None:
     """F2-O3a: split one read's wall time into network wait, backoff and local work.
 
@@ -5687,6 +5920,7 @@ def _record_read_timing(
     backoff_ms = float(retry.get("retry_backoff_ms") or 0.0)
     entry = {
         "candidate_id": candidate.id,
+        "backend": str(backend),
         "host": str(candidate.url).split("//")[-1].split("/")[0][:120],
         "wave_index": int(wave_index),
         "status": str(status),
@@ -5719,6 +5953,8 @@ def _source_record(
     plan: Mapping[str, str],
     *,
     raw_read: Mapping[str, Any],
+    final_backend: str = "",
+    retrieval_attempts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     read = {
         "ok": raw_read.get("ok") is True,
@@ -5755,6 +5991,14 @@ def _source_record(
         # §94 A0 canonical outcome; §96 A1a adds the policy half. Absent for
         # unclassified reads, which are never treated as success.
         record["retrieval_state"] = retrieval_state
+    if final_backend:
+        # §104: one candidate / URL has at most one top-level source. The backend
+        # that produced the final projection is recorded here; the per-backend
+        # attempt history lives in ``retrieval_attempts`` and never inflates the
+        # source or evidence count.
+        record["final_backend"] = str(final_backend)
+    if retrieval_attempts:
+        record["retrieval_attempts"] = [dict(item) for item in retrieval_attempts]
     policy = _bounded_retrieval_policy(raw_read)
     if policy:
         record["retrieval_policy"] = policy
