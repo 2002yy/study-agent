@@ -125,6 +125,19 @@ def _capture_source_reads(repository: Any, case_id: str) -> list[dict[str, Any]]
                     if isinstance(source.get("read_retry"), Mapping)
                     else {}
                 ),
+                # §105 A2d-4: the explicit reader chain. The candidate still has
+                # exactly one source row; the per-backend attempts are nested.
+                "final_backend": str(source.get("final_backend") or ""),
+                "retrieval_attempts": [
+                    {
+                        "backend": str(item.get("backend") or ""),
+                        "retrieval_state": str(item.get("retrieval_state") or ""),
+                        "attempted": bool(item.get("attempted")),
+                        "usable_content": bool(item.get("usable_content")),
+                    }
+                    for item in (source.get("retrieval_attempts") or [])
+                    if isinstance(item, Mapping)
+                ][:4],
             }
         )
     return rows[:12]
