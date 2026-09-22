@@ -4707,3 +4707,125 @@ A2d Existing Wigolo escalation wiring
 A2e integration / live validation
 A3 Browser bakeoff → A4 Discovery bakeoff → A5
 ```
+
+
+## §99 P2-A2b Progressive Routing Authority（`31b0800`）
+
+**设计原则（按裁决）**：从 A2b 起，Progressive Reader **只有一个"下一步读什么"的路由权威**。§71C-3a 旧 escalation、A2a 默认 fallback 集、breaker skip **只能提供事实/信号，不能各自决定升级**。
+
+**基线口径（按裁决明确区分，避免 bisect 混淆）**：
+
+```text
+A2a code/test baseline        = 5690c52
+A2a final/documentation head  = 8caf6e9
+A2b code/test baseline        = 31b0800
+```
+
+### 99.1 routing authority 最终数据模型
+
+`src/web/research/progressive_routing.py`（**纯决策层**：不执行网络、不改 evidence/support/gate、无 ledger、无状态）：
+
+**输入 `RoutingContext`**：`candidate_id` · `current_backend` · `retrieval_state`（canonical）· `adequacy_reason` · `attempted`（本次是否真的发过请求）· `attempted_backends` · `available_backends`（chain）· `host` · `remaining_seconds`（**仅供 A2c 参考；路由不自行发明窗口阈值**，窗口门仍在 runtime 既有 deadline policy）。
+
+**输出 `RoutingDecision`（恰好一个 action）**：
+
+```text
+resolve            已终局（usable content，或 terminal resource outcome 如 not_found）
+try_backend(name)  交给该 backend
+defer              当前无可执行 backend，但 candidate 未完成（如 alternate 全被 health 阻塞）
+block_run          run 已无法调度（窗口/预算）
+exhaust            所有允许的 reader 已试过或不具备所需能力
+```
+
+字段：`candidate_id / action / next_backend / reason / required_capabilities / terminal / usable_content / considered_backends`。`terminal` 与 `usable_content` **正交**。
+
+**纯度**：同一 context 重复调用结果完全一致（有测试）。
+
+### 99.2 route matrix（显式，冻结）
+
+| canonical outcome | 默认下一步 | reason |
+| --- | --- | --- |
+| `success` | `resolve`（`usable_content=true`） | `usable_content` |
+| `not_found` | `resolve`（**`terminal=true` 但 `usable_content=false`**） | `terminal_resource_outcome` |
+| `reset` / `connect_failure` / `dns_failure` / `tls_failure` / `timeout` / `backend_failure` | `try_backend`（alternate） | `transport_failure_alternate` |
+| `shell_page` / `js_required` | `try_backend`（**要求 `js_render`**） | `rendered_backend_required` |
+| `anti_bot` | `try_backend`（**要求 `anti_bot_recovery`**） | `anti_bot_backend_required` |
+| `login_required` | `try_backend`（**要求 `session`**；普通 HTTP reader 不被提供） | `session_backend_required` |
+| `http_denied` | `try_backend`（alternate，`plain_http` 即可） | `access_denied_alternate` |
+| `rate_limited` | `try_backend`（alternate；**health 归属仍由 breaker 决定**，路由不碰） | `rate_limited_alternate` |
+| `invalid_content` | **由 adequacy reason 细化** | `adequacy_reason_routed` |
+| `budget_exhausted` | `block_run` | `run_blocked` |
+| policy `circuit_open`（`attempted=false`） | `try_backend`（跳过当前 backend，candidate **不 terminal**） | `policy_skip_other_backend` |
+| 无可用且有能力者但被 health 阻塞 | `defer` | `all_capable_backends_unhealthy` |
+| 全部试过 | `exhaust`（terminal） | `all_backends_tried` |
+| 仍有未试 backend 但都不具所需能力 | `exhaust`（terminal） | `no_capable_backend` |
+
+**`invalid_content` 的 adequacy 细化**（消除"过粗万能 fallback 信号"）：
+
+| adequacy reason | 要求能力 | 结果 |
+| --- | --- | --- |
+| `short_doc` | `content_extraction` | alternate reader |
+| `js_shell` | `js_render` | rendered backend |
+| `anti_bot_or_error` | `anti_bot_recovery` | anti-bot backend |
+| `malformed_binary` | — | **`exhaust` + `unsupported_content`（terminal，不可救）** |
+
+### 99.3 backend capability 模型
+
+不再靠名称判断（禁止 `if backend == "wigolo"`）。能力词表（冻结）：
+
+```text
+plain_http · content_extraction · js_render · session · anti_bot_recovery · pdf
+```
+
+当前声明（今日存在的 backend）：
+
+| backend | capabilities |
+| --- | --- |
+| `native_http` | `plain_http`, `content_extraction` |
+| `wigolo_http` | `plain_http`, `content_extraction`, `js_render` |
+| `wigolo_browser` | `plain_http`, `content_extraction`, `js_render`, `session`, `anti_bot_recovery`, `pdf` |
+
+⇒ `login_required` 只会选 `session`-capable；`shell_page` 只会选 `js_render`-capable。**A3 的 Crawl4AI/browser 只需在 `DEFAULT_BACKENDS` 声明能力即可接入矩阵**（有测试用 `future_browser` 证明"新增 backend 无需改矩阵"）。
+
+### 99.4 §71C legacy escalation 如何降级为 signal-only
+
+- **本刀未改 `read_escalation` 行为**（裁决明令禁止）。A2b 完成的是**信号契约与唯一决策点的建立**：
+  - 路由输入所需的 `adequacy_reason` 直接来自既有 §71C-3a adequacy 形状（`classify_reader_result(raw).shape` → `short_doc` / `js_shell` / `anti_bot_or_error`），**无需新检测器**；
+  - `retrieval_state` 来自 A0 `classify()`。
+- **A2d 才执行真正的降级**：把 `read_escalation` 内部"直接调用 Wigolo"改为**只产出 adequacy/escalation signal**，由 chain step 消费路由决定。
+- **当前无双升级风险**：authority 尚未被任何执行路径消费（inert），且 `read_escalation` 行为未变 ⇒ 现在不存在两条路径各升级一次。
+- **A2d 的硬要求（已记录）**：接线 chain step 的**同一次改动**必须移除 read 内的 escalation 执行，否则立即产生双升级。
+
+### 99.5 tests / regression
+
+| 项 | 结果 |
+| --- | --- |
+| `tests/test_progressive_routing.py` | **35 passed**（success→resolve+usable、not_found→terminal 且 **usable=false**、terminal 不再路由、6 类 transport→alternate、attempted backend 不重复选、shell/js_required 要求 `js_render`、**plain-HTTP-only chain 对 shell → `exhaust`/`no_capable_backend`**、anti_bot 要求 `anti_bot_recovery`、**login_required 不路由到普通 HTTP**（只有 plain alternates 时 `exhaust`）、http_denied/rate_limited 显式 policy、**同一 `invalid_content` 因 adequacy 不同而路由不同**、`malformed_binary` 不可救、circuit skip 跳过当前 backend 且不 terminal、budget_exhausted→block_run、全试过→exhaust、health 阻塞→defer、half_open 仍可用、health 只对未试且有能力者咨询、**每 decision 恰好一个 action**、纯函数可重复、能力声明、**新 backend 无需改矩阵**、payload 无 authority 字段、context 可序列化） |
+| `tests/test_candidate_resolution.py` | **32 passed**（新增 `resolved ≠ usable_content`：`success`→usable true，`not_found`→terminal 但 usable false） |
+| 受影响集合 | **234 passed** |
+| **full pytest @ `31b0800`** | **2310 passed / 3 failed**（749s）：2 已知 Windows-local baseline + 1 已知负载闪失败（**单跑 1 passed**）⇒ **零新增失败** |
+| 对照 A2a（2274/3） | **+36 passed**，失败族不变 |
+| Ruff / `git diff --check` / tracked | 全 clean |
+
+### 99.6 会阻塞 A2c / A2d 的语义问题（**需裁决**）
+
+1. **`schedulable_now()` 需要显式入口，而不是复用空状态的 `route()`**：A2c 要在**尝试前**问"这个 candidate 现在还有可执行 backend 吗"。用 `route()` 传空 `retrieval_state` 可以工作（无 fact ⇒ `required={}` ⇒ 选第一个 capable backend），但这是**隐式用法**。建议 A2c 增加显式 `next_executable_backend(context)`，避免把"查询可调度性"与"处理一个 outcome"混成一个 API。
+2. **A2d 必须把 B2 预算策略一起搬过去**：现有 Wigolo HTTP 升级带自己的准入（`RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT`、per-run envelope、effective timeout）。一旦升级变成 chain step，**这些预算守卫必须随 step 移动或被路由咨询**，否则 chain step 会绕过 §82 的预算定价（那正是 B2 存在的理由）。**这是 A2d 的硬前置**。
+3. **escalation 的 `preflight`/`disabled` skip 语义**：Wigolo daemon 不可用时 `read_escalation` 产出 `attempted=false` + `preflight`/`backend_unavailable`。路由会把它当作 policy skip → 尝试下一 backend。需要确认 A2d 是否希望"daemon 不可用"在 chain 内继续向后走（当前语义：向后走会耗尽 chain → `exhaust`），以及是否要单独记 provider-level health。
+4. **`rate_limited` 的 health 归属**：裁决说"该 provider/host health 单独处理"。A1a 的 `counts_towards_health` **当前不计** `rate_limited`（它在 `CONTENT_JUDGEMENT_STATES` 里，按"内容判断不计"处理）。⇒ A2c/A2d 若要让 429 影响 provider health，必须**显式改 `counts_towards_health`**，不能在路由里另起一套判断。
+
+### 99.7 范围合规
+
+未做：真正执行 Wigolo fallback · health-aware scheduler 接线 · Crawl4AI/browser · A1b cross-run cache · 改 retry/timeout · Discovery provider · Evidence/Support/Gate/Answer · 新 ledger。**未改 `read_escalation` 行为**。
+
+### 99.8 路线
+
+```text
+A0 ✅  A1a ✅  A2a ✅（baseline 5690c52 / doc 8caf6e9）
+A2b ✅ 实现完成（31b0800；2310/3 = 2 known + 1 known flake）
+   └─ 待裁决 §99.6 四项
+A2c Health-aware scheduling ← 下一刀
+A2d Existing Wigolo escalation wiring（含 §99.6-2 的预算守卫搬迁）
+A2e integration / live validation
+A3 Browser bakeoff（Wigolo vs Crawl4AI）→ A4 Discovery bakeoff → A5
+```
