@@ -5148,3 +5148,119 @@ A2d-4 ⏳ ATOMIC CUTOVER：启用 explicit chain + 退役 hidden escalation + pa
 A2e    Progressive Reader integration validation
 A3     Wigolo Browser vs Crawl4AI bakeoff
 ```
+
+
+## §104 P2-A2d-4 裁决冻结 + 执行计划（**未开始**）
+
+**状态**：A2d-1/2/3 已完成并提交；**A2d-4 尚未开始**。本刀是**原子 production cutover**（裁决明确：A2d-2/3 可 inert 分步，cutover 只在 A2d-4），因此**不做 inert 预切片**，必须一次完成并验证。
+
+**基线**：`A2d-3 code = 6b9ebc5`；`A2d-3 doc = 0613732`；full pytest = **2375 passed / 2 known failed**。
+
+### 104.1 三层数据模型（冻结）
+
+> **backend attempt 历史 · candidate 最终 source · 外部调用审计 marker 分成三层。一个 candidate 可有多次 backend attempt，但只能有一个 candidate-level 最终投影。**
+
+```text
+2 backend attempts  !=  2 sources  !=  2 pieces of evidence
+```
+
+| 层 | 载体 | 粒度 |
+| --- | --- | --- |
+| 1. attempt history | `RuntimeReadOutcome` | **一个真实 backend attempt 一条**（`(candidate, backend)`） |
+| 2. candidate 最终投影 | `sources[]` | **每 candidate / URL 最多一条顶层 source** |
+| 3. Evidence | 既有 evidence 链 | 只消费最终 candidate source / usable result |
+
+**source 记录形状（冻结）**：
+
+```text
+source
+├─ final_backend / retrieval_state / usable content
+├─ terminal（chain_exhausted 等）
+└─ retrieval_attempts[]        ← 嵌套 attempt 明细
+   ├─ native_http → shell_page
+   └─ wigolo_http → success
+```
+
+`source` 投影规则（按裁决逐例）：
+
+| 情形 | source |
+| --- | --- |
+| native 直接成功 | `final_backend=native_http`、success、attempts=[native success] |
+| native short → Wigolo success | `final_backend=wigolo_http`、success、attempts=[native invalid_content/short_doc, wigolo success] |
+| native 404 | `final_backend=native_http`、`not_found`、`usable=false`、attempts=[native not_found] |
+| 两 reader 均失败 | `terminal=chain_exhausted`、`usable=false`、attempts=[native failure, wigolo failure] |
+| **只有 policy skip，无真实 attempt** | **不制造 source read**（provenance 留在 metrics/policy 通道） |
+
+**`sources[].escalation` 降级为 legacy-only**：历史可读；新 explicit-chain source **为空/缺省**；真实历史进 `retrieval_attempts[]`（避免未来 A3 第三 reader 时扩出 `escalation2/3`）。
+
+### 104.2 marker / read-slot 分离（冻结）
+
+```text
+outer_attempt_number = candidate/read-chain invocation   （预算粒度，chain 内共享）
+external-attempt marker = 每个真实 backend attempt 一个    （审计/trace 粒度）
+```
+
+- `native_http → wigolo_http` **共享同一个 outer attempt number**，**不额外消费 read-slot**。
+- **冻结**：`external_attempt_count != read_slot_count` 是**预期行为**。
+- **不产生 marker**：circuit-open skip · disabled · provider-unavailable preflight · budget guard deny · scheduler defer · route exhaust（无真实外部调用）。
+- backend 内部 retry **不升级**为 chain-level marker（仍在 `attempts_detail`）。
+
+### 104.3 timing 与成本守恒（冻结）
+
+- 新 explicit chain：`native_http` 与 `wigolo_http` **各一条 `read_timing`**（`backend=wigolo_http`、`fetch_ms=cost.latency_ms`）。
+- **新路径不再把 Wigolo 成本写进 `escalation_ms`**：新 explicit rows 该字段为 **0 或缺省→0**，标注 **legacy-only**；历史记录原值不动。**绝不出现 `native.escalation_ms = wigolo fetch`**（双重计量）。
+- **timing accounting parity**：`legacy(native + escalation) ≈ new(native + wigolo)` —— 要求**总成本守恒（不漏记、不双记）**，不要求逐字段相等（schema 已合理升级）。
+
+### 104.4 envelope run-scope（冻结）
+
+- `reset_http_envelope()` **每 research run exactly once**；**禁止**在 candidate / wave / chain / executor 构造时 reset（否则 per-run envelope 直接失效）。
+- charge 规则保持旧语义：真实 Wigolo call → 按旧规则 charge；preflight deny / disabled / provider unavailable / policy skip → **0 debit**。
+- **必须测**：多 candidate 连续 Wigolo attempt 的 debit **累积**，并能触发与 legacy 一致的 envelope deny（run-scope parity，比单次 parity 更重要）。
+
+### 104.5 recorder 职责边界（冻结）
+
+```text
+record_attempt_outcome()          ← 每真实 attempt 立即
+├─ RuntimeReadOutcome
+├─ backend-specific read_timing
+├─ backend health accounting
+└─ attempt provenance accumulator
+
+run_chain terminal/defer/block/exhaust
+        ↓
+finalize_candidate_projection()   ← resolution 边界
+        ↓
+sources[] 最多一条 candidate source
+```
+
+理由：若 native `short_doc` 一写完就当顶层 source 发布、随后 Wigolo success 再覆盖，会出现**重复 source / 中间 failure 被 evidence 误读 / source count 短暂膨胀 / checkpoint 持久化半成品 source**。⇒ **attempt 立即落历史；candidate source 在 resolution 边界统一 materialize**。durability 要求每 step checkpoint 时，**保存 attempt history 即可**，不必提前宣布 candidate 已完成。
+
+### 104.6 hidden escalation 退役（冻结）
+
+最终 production head：`read_escalation` **只剩 adequacy/escalation signal**，**再无 Wigolo 执行权限**。禁止 hidden + explicit 同时活跃、禁止双 Wigolo call、**禁止 feature flag 形成两套 production authority**。
+
+### 104.7 A2d-4 执行计划（建议顺序，单刀内完成）
+
+1. runtime 新增 `record_attempt_outcome` / `finalize_candidate_projection`（三层模型落地）。
+2. runtime 构造 active chain registry（`native_http` + `wigolo_http`）与两个 executor；**不启用 `wigolo_browser`**。
+3. read loop 由单次 attempt 改为 `run_chain(...)`；`record_outcome` 接 1 的 recorder；每 chain step 一个 external marker（共享 outer read-slot）。
+4. 删除 read 路径内的 `escalate_read` 调用；`read_escalation` 保留 signal 逻辑。
+5. source 投影改为 candidate-level（嵌套 `retrieval_attempts[]`）；`escalation` 字段 legacy-only。
+6. `read_timing` 按 backend 分行；`escalation_ms` 归 0/缺省。
+7. 跑 §104.8 全部门禁。
+
+### 104.8 A2d-4 验收门（19 + 5，冻结）
+
+**基础 19 项**：native success 无 Wigolo · not_found 无 Wigolo · short_doc → explicit Wigolo → success · transport failure → Wigolo fallback · circuit-open native 可直接 Wigolo · Wigolo disabled/provider unavailable · B2 hard-headroom deny · per-run envelope deny/累积 debit · effective timeout parity · 无双 Wigolo call · retry semantics 不变 · outer read-slot 不变 · fallback case marker=2 且 outer slot=1 · 每 `(candidate, backend)` outcome ≤1 · candidate terminal resolution 唯一 · **`sources[]` 每 candidate ≤1** · **evidence/source count 不因 fallback 膨胀** · timing 成本守恒 · old cursor compatibility · resume 后 native 不重复 attempt · answer/evidence/support/gate 非回归。
+
+**追加 5 项（按裁决）**：①source cardinality parity ②timing conservation ③marker vs budget separation ④run envelope accumulation（reset 每 run 恰好一次）⑤**durable resume：native 已完成、Wigolo 未完成时 checkpoint/resume，scheduler 不重复 native，从 Wigolo 继续**（A2d-1 multi-outcome cursor 的核心价值所在）。
+
+**live evidence**：至少一条真实 `native_http → routing decision → wigolo_http`，证明 explicit chain 真执行、B2 guard 在新路径生效、两 backend outcome 可审计、source 仍只有一个、Wigolo 成本进独立 timing、hidden escalation 未执行、无 double call。若 docs.docker.com 仍阻塞导致 rescue 失败，可接受"explicit fallback attempted but failed"，但最好另找一个能产生 useful rescue 的 live case；**不得为 live gate 改 production policy**。
+
+### 104.9 路线
+
+```text
+A2d-1 ✅  A2d-2 ✅  A2d-3 ✅（6b9ebc5）
+A2d-4 ⏳ ATOMIC CUTOVER（§104 裁决已冻结，未开始）
+A2d CLOSED（A2d-4 全绿后）→ A2e Progressive Reader integration validation → A3
+```
