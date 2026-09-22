@@ -136,6 +136,10 @@ class CandidateResolution:
     last_state: str = ""
     last_backend: str = ""
     skip_reason: str = ""
+    #: ``resolved`` covers a terminal *resource* outcome too (``not_found``), so
+    #: it must never be read as "we obtained usable content". A5's success
+    #: metrics must count this, not ``terminal``, or 404s pollute the rate.
+    usable_content: bool = False
 
     @property
     def terminal(self) -> bool:
@@ -159,6 +163,7 @@ class CandidateResolution:
             "state": self.state,
             "terminal": self.terminal,
             "reschedulable": self.reschedulable,
+            "usable_content": bool(self.usable_content),
             "attempted_backends": list(self.attempted_backends),
             "remaining_backends": list(self.remaining_backends),
             "last_state": self.last_state,
@@ -237,6 +242,9 @@ def resolve_candidate(
                 remaining_backends=remaining,
                 last_state=fact.retrieval_state,
                 last_backend=fact.backend,
+                # ``not_found`` is terminal for the resource but produced no
+                # content: resolved must not be read as a usable read.
+                usable_content=fact.retrieval_state == "success",
             )
 
     last = facts[-1] if facts else None

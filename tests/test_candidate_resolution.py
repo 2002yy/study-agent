@@ -287,12 +287,23 @@ def test_resolutions_are_serialisable_without_authority_fields() -> None:
         "state",
         "terminal",
         "reschedulable",
+        "usable_content",
         "attempted_backends",
         "remaining_backends",
         "last_state",
         "last_backend",
         "skip_reason",
     }
+
+
+def test_resolved_does_not_imply_usable_content() -> None:
+    """``not_found`` is a terminal resource outcome, not a successful read."""
+
+    resolved = resolve_candidate("c1", [_fact("success")])
+    missing = resolve_candidate("c2", [_fact("not_found")])
+    assert resolved.terminal is True and resolved.usable_content is True
+    assert missing.terminal is True and missing.usable_content is False
+    assert missing.to_dict()["usable_content"] is False
 
 
 # ----------------------------------------------------------- cursor codec
