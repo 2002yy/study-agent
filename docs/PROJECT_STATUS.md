@@ -5264,3 +5264,119 @@ A2d-1 ✅  A2d-2 ✅  A2d-3 ✅（6b9ebc5）
 A2d-4 ⏳ ATOMIC CUTOVER（§104 裁决已冻结，未开始）
 A2d CLOSED（A2d-4 全绿后）→ A2e Progressive Reader integration validation → A3
 ```
+
+
+## §105 P2-A2d-4 ATOMIC PRODUCTION CUTOVER — CLOSED（code `fc99a0d`；tools `dba7b19`/`01b14b4`；test `e0957c9`）
+
+**结果**：A2d-1/2/3 的 inert 部件在**一刀内**切换为 production authority，hidden escalation **同刀退役**。Progressive Reader 首次真正运行在 production。
+
+### 105.1 final production execution authority
+
+```text
+Runtime read loop
+      ↓
+ACTIVE_READER_CHAIN = ("native_http", "wigolo_http")
+      ↓
+run_chain   ← 唯一 reader-chain execution authority
+      ├─ schedulable_now   （首个可执行 backend）
+      ├─ NativeHttpBackendExecutor    （plain read，绝不 escalate）
+      ├─ WigoloHttpBackendExecutor    （共享 B2 guards；identity = self.name）
+      ├─ route             （下一个 backend / terminal）
+      └─ finalize candidate projection
+```
+
+- **`run_chain` 是唯一能执行 reader 的权威**；`wigolo_browser` 未启用（A3）。
+- **`read_escalation` 只剩 signal/compatibility**：`escalate_read` 保留为兼容函数（仍有单测），**任何 production 层都不再调用**。
+- **无双 authority、无 feature flag**：`active_adapter.read()` 已是纯 native 委派，`_escalate_if_inadequate` 与 hidden `escalate_read` 调用被删除；adapter 只保留 backend factory（供 runtime 构建 chain executor）。
+
+### 105.2 三层最终模型（落地，非纸面）
+
+| 层 | 载体 | 粒度 | 实现位置 |
+| --- | --- | --- | --- |
+| attempt history | `RuntimeReadOutcome` | 每真实 `(candidate_id, backend)` 一条 | `record_read_chain_attempt` |
+| candidate 投影 | `sources[]` | **每 candidate ≤1 条**，含 `final_backend` + 嵌套 `retrieval_attempts[]` | `_source_record(..., final_backend=, retrieval_attempts=)` |
+| Evidence | 既有链路 | 只消费最终 candidate source | 未触碰 |
+
+- `2 backend attempts ≠ 2 sources ≠ 2 evidences`：实测 5 candidates → 5 source rows（0 重复），其中一条含 2 个 attempt。
+- **attempt 立即落历史；candidate source 在 resolution 边界统一 materialize**（`record_read_chain_attempt` 只写 outcome/timing/health，绝不写 `sources[]`）。
+- 纯 policy/scheduling skip（无真实调用）**不产生 outcome、不产生 source**，provenance 留在 `read_scheduling` / `read_chain`。
+- `sources[].escalation` 降级 legacy-only；新路径的真实历史进 `retrieval_attempts[]`。
+
+### 105.3 marker / read-slot 分离
+
+- 每个真实 backend attempt 一个 marker call_id（`research_read:{run}:{candidate}:attempt:{n}:{backend}`），全部共享该 candidate 的**单一 outer read-slot**（`_attempt_number` 未变）。
+- `external_attempt_count != read_slot_count` 为预期。
+- **诚实记录（bounded limitation）**：`RuntimeExternalAttemptStart` 在 cursor 中只保留 inflight 一个，begin/finish 成对执行后**不留 durable 记录**。因此 per-attempt 的**durable 审计粒度**实际是 `RuntimeReadOutcome(backend=…)` + `read_chain.steps` + failure 行的 `attempt_id`，而非 cursor 里的 marker。marker 调用保留以维持 inflight 不变量。
+
+### 105.4 timing / accounting
+
+- 每个 backend **独立 `read_timing` 行**（新增 `backend` 字段）；Wigolo 成本进自身行（`fetch_ms`）。
+- 新 explicit 行 `escalation_ms = 0`（legacy-only）；**live 实测 7 行、0 个非零 `escalation_ms`**。
+- 无双计：legacy `native + escalation` ↔ new `native + wigolo`，成本分别落在两行。
+- 新增有界 `read_chain` metrics 通道（≤60 条），记录 chain 的 action/reason/attempted_backends/steps，**包括执行了 0 次的纯 skip**。未建新 ledger。
+
+### 105.5 envelope run-scope
+
+- `reset_http_envelope()` 每 run 恰好一次（run 入口），**不在 candidate/wave/chain/executor 构造时 reset**。
+- 每个真实 Wigolo call 按旧规则 charge；preflight deny / disabled / provider unavailable / policy skip → **0 debit**。
+- 实测：多 candidate 连续 Wigolo 的 debit 累积（`http_envelope_spent_ms() == latency × calls`），并有单测锁定。
+
+### 105.6 退役证明（扫描 + 行为）
+
+| 断言 | 结果 |
+| --- | --- |
+| `run_chain` 出现在 runtime | ✅（cutover guard） |
+| `WigoloHttpBackendExecutor(` 出现在 runtime | ✅ |
+| `escalate_read` / `_escalate_if_inadequate` 在 adapter 与 runtime | **零引用** ✅ |
+| `ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)` | ✅ 且 chain 内无 `wigolo_browser` |
+| 死代码清理 | `breaker_allow` / `finish_read_attempt` / `_breaker_skip_payload` 已删除 |
+
+### 105.7 focused / full regression
+
+| 项 | 结果 |
+| --- | --- |
+| `test_active_research_runtime` | **60 passed**（含 5 项新 cutover 集成测试） |
+| A0/A1a/A2a/A2b/A2c/A2d-1/2/3 套件（9 文件） | **244 passed** |
+| qualification/probe 套件 | 98 passed（修正 1 处 source 投影键期望） |
+| **full pytest @ `e0957c9`** | **2381 passed / 2 failed**（728s）——**仅 2 个已知 Windows-local baseline 失败** |
+| 对照 A2d-3（2375/2） | **+6 passed**，失败族不变 ⇒ **零新增回归** |
+| Ruff / `git diff --check` / tracked clean | clean |
+
+### 105.8 live explicit `native_http → wigolo_http` evidence
+
+`docs/research_quality/A2D4.live.r3.json`（`RESEARCH_WIGOLO_ESCALATION=http`，真实 Bing RSS + 真实 native read + 真实 Wigolo daemon，git_sha `01b14b4`）：
+
+| candidate source | `final_backend` | attempts |
+| --- | --- | --- |
+| 1 | `native_http` | `[(native_http, success, usable)]` |
+| 2 | **`wigolo_http`** | `[(native_http, invalid_content, usable), (wigolo_http, success, usable)]` |
+| 3 | `native_http` | `[(native_http, success, usable)]` |
+| 4 | `wigolo_http` | `[(native_http, http_denied, unusable), (wigolo_http, invalid_content, unusable)]` |
+| 5 | `native_http` | `[(native_http, success, usable)]` |
+
+- **explicit chain 真执行**：`read_chain` 5 组、每组恰好一次 chain invocation；1 组 `exhaust/all_backends_tried`，其余 `resolve/usable_content`。
+- **B2 guard 在新路径生效**：Wigolo 只在 native inadequate 时被选为下一 backend。
+- **两 backend outcome 可审计**：`read_timing` 7 行含两种 backend，2 行 `wigolo_http`。
+- **source 仍只有一个**：5 sources / 5 unique candidates。
+- **无 double Wigolo**：2 次真实 Wigolo call ↔ 2 条 wigolo outcome ↔ 2 条 wigolo timing。
+- **hidden escalation 未执行**：adapter 零 `escalate_read`；`escalation_ms` 全 0。
+- 第 4 例即裁决允许的 "explicit fallback attempted but failed"（docs.docker.com 类宿主仍不可达）。
+
+### 105.9 已知 bounded 变化（非回归，已冻结）
+
+1. **A1a breaker `allow()` 在 runtime 退役**：调度改由 `state_for`（eligibility）+ `record`（状态转移）承担；`half_open → closed` 仍由成功 record 驱动，但 `allow()` 的 `probe_index`/`is_probe` 逐次记账不再写入 read_timing。A1a 为默认 OFF 诊断；`allow()` 本身仍有单测。
+2. **per-attempt marker 非 durable**（见 105.3）。
+3. **`not_found` 不再二次 backend**（A2b 冻结语义）：native 404 → terminal，不再产生 legacy 的 "attempted=True, rescued=False" escalation 行。
+4. **`_record_read_timing` 新增 `backend` 键**（additive）；旧行缺省按 `native_http`。
+
+### 105.10 A2d CLOSED 与路线
+
+```text
+A2d-1 ✅ outcome identity          A2d-2 ✅ chain executor
+A2d-3 ✅ explicit wigolo_http      A2d-4 ✅ ATOMIC CUTOVER（fc99a0d）
+⇒ A2d CLOSED
+A2e ⏳ Progressive Reader integration validation
+A3  ⏳ Wigolo Browser vs Crawl4AI bakeoff
+```
+
+**无阻塞 A2e 的工程问题。** 唯一外部 blocker 仍是宿主可达性（docs.docker.com 类宿主不可达 ⇒ cold rescue 样本稀缺），但它只影响 live 样本丰富度，不阻塞 A2e 的集成验证设计。
