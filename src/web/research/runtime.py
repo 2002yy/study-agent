@@ -1013,8 +1013,19 @@ def _validate_cursor_links(cursor: ResearchRuntimeCursor) -> None:
         raise ValueError("runtime read plan references unknown candidate")
     if any(item.candidate_id not in candidate_set for item in cursor.read_outcomes):
         raise ValueError("runtime read outcome references unknown candidate")
-    if len(cursor.completed_read_ids) != len(cursor.read_outcomes):
-        raise ValueError("runtime read outcomes must be unique per candidate")
+    # §101 A2d-1: one outcome per (candidate, backend) attempt, not one per
+    # candidate. A candidate may legitimately have several attempt outcomes once
+    # more than one reader exists (native_http then wigolo_http); network retries
+    # inside one attempt stay in that attempt's own detail, so a second outcome
+    # for the same backend is still a bug.
+    outcome_keys = [
+        (item.candidate_id, item.backend or "native_http")
+        for item in cursor.read_outcomes
+    ]
+    if len(outcome_keys) != len(set(outcome_keys)):
+        raise ValueError(
+            "runtime read outcomes must be unique per candidate and backend"
+        )
 
     call_ids = [item.call_id for item in cursor.model_calls]
     if len(call_ids) != len(set(call_ids)):

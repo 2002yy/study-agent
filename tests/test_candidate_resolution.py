@@ -367,3 +367,114 @@ def test_run_entity_is_untouched_by_resolution() -> None:
     )
     resolve_candidate("c1", [_fact("shell_page")])
     assert run.status == "running"
+
+
+# ------------------------------------------------- §101 A2d-1 outcome identity
+
+
+def _cursor_dict(read_outcomes: list[dict]) -> dict:
+    return {
+        "schema_version": "research-runtime-v2",
+        "round_index": 1,
+        "phase": "reading",
+        "planned_queries": [],
+        "query_outcomes": [],
+        "candidates": [
+            {
+                "id": "c1",
+                "url": "https://example.test/a",
+                "title": "A",
+                "snippet": "",
+                "source": "",
+                "published_at": "",
+                "query_ids": [],
+                "intents": [],
+                "providers": [],
+                "first_seen_rank": 1,
+            }
+        ],
+        "planned_read_ids": ["c1"],
+        "read_outcomes": read_outcomes,
+        "model_calls": [],
+        "inflight_model_call": None,
+        "failures": [],
+    }
+
+
+def test_two_backends_may_each_record_one_outcome_for_a_candidate() -> None:
+    """The multi-reader case the old one-outcome rule would have forbidden."""
+
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        _cursor_dict(
+            [
+                _outcome("c1", "shell_page", status="failed").to_dict(),
+                _outcome(
+                    "c1", "success", backend="wigolo_http", status="success"
+                ).to_dict(),
+            ]
+        )
+    )
+    assert len(cursor.read_outcomes) == 2
+    # Terminal state is still derived once, from the whole attempt history.
+    resolutions = cursor.read_resolutions()
+    assert set(resolutions) == {"c1"}
+    assert resolutions["c1"].state == RESOLVED
+    assert resolutions["c1"].usable_content is True
+    assert cursor.completed_read_ids == ("c1",)
+
+
+def test_a_second_outcome_for_the_same_backend_is_still_rejected() -> None:
+    """Network retries belong inside one attempt, not in a second outcome."""
+
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    with pytest.raises(ValueError):
+        ResearchRuntimeCursor.from_dict(
+            _cursor_dict(
+                [
+                    _outcome("c1", "reset", status="failed").to_dict(),
+                    _outcome("c1", "timeout", status="failed").to_dict(),
+                ]
+            )
+        )
+
+
+def test_legacy_outcomes_without_a_backend_key_as_native_http() -> None:
+    """Pre-A2d rows carry no backend; two of them for one candidate stay illegal."""
+
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    legacy = {
+        "candidate_id": "c1",
+        "status": "failed",
+        "evidence_id": "",
+        "content_chars": 0,
+        "error_code": "read_failed",
+    }
+    cursor = ResearchRuntimeCursor.from_dict(_cursor_dict([legacy]))
+    assert cursor.read_outcomes[0].backend == ""
+    with pytest.raises(ValueError):
+        ResearchRuntimeCursor.from_dict(_cursor_dict([legacy, dict(legacy)]))
+
+
+def test_resolution_ignores_a_later_failure_after_a_settled_attempt() -> None:
+    """History may grow; the derived terminal answer must not wobble."""
+
+    from src.web.research.candidate_resolution import (
+        group_facts_by_candidate,
+        resolve_candidates,
+    )
+
+    facts = group_facts_by_candidate(
+        [
+            _outcome("c1", "success", status="success"),
+            _outcome("c1", "reset", backend="wigolo_http", status="failed"),
+        ]
+    )
+    resolution = resolve_candidates(facts)["c1"]
+    assert resolution.state == RESOLVED
+    assert resolution.usable_content is True
+    assert resolution.attempted_backends == ("native_http", "wigolo_http")
+
