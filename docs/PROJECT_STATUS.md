@@ -5048,3 +5048,103 @@ A2d-3 ⏳ explicit Wigolo executor + B2 guards parity（TESTABLE, PRODUCTION-INE
 A2d-4 ⏳ ATOMIC CUTOVER：启用 explicit chain + 退役 hidden escalation + parity/live
 A2e    Progressive Reader integration validation
 ```
+
+
+## §103 P2-A2d-3 explicit wigolo_http executor + B2 parity（`6b9ebc5`；TESTABLE, PRODUCTION-INERT）
+
+**目标（按裁决）**：把 hidden `read_escalation` 内 Wigolo HTTP 执行抽成显式 `wigolo_http` backend executor，完整迁入/复用 B2 三项守卫，证明 old/new 执行语义等价。**不做 production cutover。**
+
+### 103.1 explicit executor 最终形状
+
+`src/web/research/wigolo_http_executor.py`：`WigoloHttpBackendExecutor` 实现 A2d-2 的 `BackendExecutor` 协议（`execute(ChainAttemptRequest) -> ChainStepResult`）。
+
+执行顺序（冻结）：**mode/availability → execution-time B2 plan → preflight → 一次真实 fetch → charge envelope → canonical 投影 → `ChainStepResult`**。
+
+- 输入只有执行真正需要的：`backend` / `max_chars` / `hard_seconds_left` / `charge_envelope` / `mode`；**不重新知道整个 runtime**。
+- 输出 `ChainStepResult`（含 `retrieval_state` / `usable_content` / `content` / `adequacy_reason` / `cost` / `policy`），可直接投影为 `RuntimeReadOutcome` / `read_timing` / source provenance。
+- **executor 自身不写 outcome、不改 candidate lifecycle、不调 `route()`、不写 Evidence/Support/Gate**；`execute → record_outcome → route` 顺序仍由 chain executor 掌控。
+
+### 103.2 B2 guard：共享 helper，不是两份逻辑
+
+`read_escalation` 新增 **`wigolo_http_execution_plan(hard_seconds_left, envelope_remaining_ms, min_hard_seconds) -> WigoloHttpExecutionPlan`**，统一回答三项：
+
+```text
+allowed / deny_reason / deny_layer
+hard_headroom · min_hard_seconds · envelope_remaining_ms · effective_timeout_seconds
+```
+
+- **legacy `escalate_read` 与 new executor 都调用它** ⇒ parity 不是"两段代码恰好算得一样"，而是**两条入口共享同一预算真值**；A2d-4 删除 hidden execution 后该 helper 直接保留。
+- **拒绝顺序/阈值/默认值/拒绝条件完全未改**：`hard_headroom_insufficient` → `run_envelope_exhausted` → effective-timeout floor（其 reason 保持原条件分支）。
+- 新增 `deny_layer`（`hard_headroom` / `envelope` / `effective_timeout`）仅用于**忠实复现 legacy 的状态分派**：legacy 把 hard-headroom 拒绝记为 `unsupported`、其余记为 `skipped_no_budget`；canonical executor 一律记为 `budget_exhausted`。
+- **execution-time preflight 仍拥有最终预算权威**：executor 在真正调用前重新计算 plan（scheduler 早先的 eligibility 不具权威）。
+
+### 103.3 old/new parity 结果（表驱动，`tests/test_wigolo_http_executor.py` 20 项）
+
+| 维度 | 结果 |
+| --- | --- |
+| eligibility / attempted | 一致 |
+| MIN_HARD allow/deny + reason | 一致（`hard_headroom_insufficient`） |
+| envelope allow/deny + reason | 一致（`run_envelope_exhausted`） |
+| **envelope debit** | 一致（success 120ms 双方相同；拒绝时 0 消耗） |
+| **effective timeout** | 一致（envelope clamp 1.5s；hard clamp 2.0s） |
+| **actual request args** | 一致（url / max_chars / timeout_seconds） |
+| success content / usable | 一致 |
+| bytes / content_type | 一致（新侧 `cost` 携带） |
+| cache_hit / rendered | 一致（保留） |
+| failure 投影 | 语义一致（legacy `transport_error` ↔ canonical `timeout`） |
+| provider unavailable | legacy `backend_unavailable` ↔ A0 `preflight` skip + detail |
+| disabled capability | legacy `disabled` ↔ A0 `disabled` skip |
+| short/empty response | 一致（不可用；canonical `invalid_content` + `short_doc`） |
+| **outer attempt / read-slot** | 不变（chain 内恒定，见 A2d-2 测试） |
+| retry semantics | 未触碰（仍在 backend 内部） |
+
+**对照器做语义归一**（不是字符串相等）：legacy 说 §71B 词表（`ok`/`unsupported`），新侧说 A0 canonical（`success`/`budget_exhausted`）——这是**刻意的接口变更**，不是行为差异；测试显式记录该映射。
+
+另有：`test_the_executor_plugs_into_run_chain` 证明 A2d-2 骨架能以 `native_http → wigolo_http` 驱动它（`chain_step 0/1`、outer attempt 恒定 3、两条 outcome、`resolve`）。
+
+### 103.4 timing / provenance 投影
+
+新 executor 的 `cost` 携带：`latency_ms`（= Wigolo 自身网络/执行时间）· `bytes` · `content_type` · `cache_hit` · `rendered` · `effective_timeout_seconds` · `preflight` · `raw_state`；`policy` 携带 `attempted`/`skip_reason`/`backend`。
+
+**`escalation_ms` 的命运（本刀定调，A2d-4 执行）**：
+
+- 新 explicit Wigolo **不再把自身 wall time 伪装成 `escalation_ms`**；它是**独立 backend attempt**，其成本进入自身 `fetch_ms`。
+- 旧字段**保留兼容**（不删），但明确为 **legacy-only**：hidden escalation 退役后 `raw_read["escalation"]` 自然消失 ⇒ `escalation_ms` 归 0，**不再作为新 chain 的成本主字段**。
+- **未新建 ledger**；投影继续复用 `RuntimeReadOutcome` / `read_timing` / `sources[]`。
+
+### 103.5 focused / full regression
+
+| 项 | 结果 |
+| --- | --- |
+| `test_wigolo_http_executor` | **20 passed**（parity 矩阵 + 共享 plan + 不碰 outcome/lifecycle + 可被 `run_chain` 驱动） |
+| `test_chain_executor` | **18 passed**（production-caller 扫描已收窄为"runtime/adapter/escalation 无调用方"） |
+| 受影响集合 | **219 passed**（含 `test_read_escalation` 15 项 legacy 回归全绿 ⇒ helper 提炼零行为变化） |
+| **full pytest @ `6b9ebc5`** | **2375 passed / 2 failed**（765s）：**仅 2 个已知 Windows-local baseline 失败** ⇒ **零新增失败** |
+| 对照 A2d-2（2357/2） | **+18 passed**，失败族不变 |
+| Ruff / tracked | clean |
+
+### 103.6 production-inert 扫描证明
+
+1. **无生产调用方**：`test_production_has_no_caller_for_the_chain_executor_yet` 断言 `run_chain|chain_executor` 在 `src/application/active_research_runtime.py`、`src/web/research/active_adapter.py`、`src/web/research/read_escalation.py` **零引用**（收窄理由：backend adapter 实现协议类型是合法的，不能按"文本引用"判罚）。
+2. `test_production_does_not_use_the_explicit_wigolo_executor_yet`：`src/` 全域（排除模块自身）**零引用** `WigoloHttpBackendExecutor`。
+3. `read_escalation.escalate_read` **仍是 production 唯一 Wigolo execution 入口**。
+4. `DEFAULT_READER_CHAIN == ("native_http",)` ⇒ **active production chain 尚未启用 `wigolo_http`**；`wigolo_browser` 未启用。
+
+### 103.7 阻塞 A2d-4 atomic cutover 的问题（**需裁决**）
+
+1. **read loop 必须换成 `run_chain`**：现在每候选每 wave 只做一次 attempt；A2d-4 要用 chain executor 取代，并由 runtime 提供 `record_outcome`（写 `RuntimeReadOutcome` + `read_timing` + `sources[]`）。这是 wiring 主体。
+2. **`_attempt_number` 与 external-attempt marker**：chain 内两个 backend 共享一个 outer read-slot（裁决已冻结），但 `begin/finish_external_attempt` 目前是**每次读取一个 marker**。A2d-4 必须明确：**每个 chain step 各一个 marker（可审计）但不额外消耗 read-slot**。
+3. **`escalation_ms` 落地**：A2d-4 删除 hidden escalation 后，`raw_read["escalation"]` 消失 ⇒ 该字段自然归 0；同时新 `wigolo_http` attempt 需要**自己的 `read_timing` 行**（`backend=wigolo_http`、`fetch_ms=cost.latency_ms`、`local_ms=投影耗时`），否则成本会丢。
+4. **`sources[]` 投影**：一个候选两条 attempt 时，source 记录如何承载（保留最终 + 两条 attempt 明细，或最后一条覆盖）需要明确；`sources[].escalation`（§71C-3a 字段）随之成为 legacy。
+5. **envelope 生命周期**：`reset_http_envelope()` 目前由 runtime 每 run 调用；cutover 后必须确保新 executor 的 `charge_envelope` 与 per-run reset 仍成对，否则 envelope 语义漂移。
+
+### 103.8 路线
+
+```text
+A2d-1 ✅ outcome identity（0301dec）
+A2d-2 ✅ bounded chain executor（3f286cd）
+A2d-3 ✅ explicit wigolo_http executor + B2 parity（6b9ebc5）—— PRODUCTION-INERT
+A2d-4 ⏳ ATOMIC CUTOVER：启用 explicit chain + 退役 hidden escalation + parity/live（待裁决 §103.7）
+A2e    Progressive Reader integration validation
+A3     Wigolo Browser vs Crawl4AI bakeoff
+```
