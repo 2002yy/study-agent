@@ -286,9 +286,37 @@ def _source_rows(selected_sources: list[dict[str, Any]]) -> list[dict[str, Any]]
                 # F2-O1: per-read retry outcome, so "did a retry rescue this
                 # read" is answerable without another profiler.
                 "read_retry": _read_retry_provenance(source.get("read_retry")),
+                # §105 A2d-4: the explicit reader chain. One source per candidate
+                # still, with the winning backend and the per-backend attempts.
+                "final_backend": _bounded(source.get("final_backend"), 80),
+                "retrieval_attempts": _retrieval_attempt_provenance(
+                    source.get("retrieval_attempts")
+                ),
             }
         )
     return rows
+
+
+
+
+def _retrieval_attempt_provenance(raw: Any) -> list[dict[str, Any]] | None:
+    """Bounded per-backend attempt history for one source row (explicit chain)."""
+
+    if not isinstance(raw, list):
+        return None
+    rows: list[dict[str, Any]] = []
+    for item in raw[:4]:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "backend": _bounded(item.get("backend"), 80),
+                "retrieval_state": _bounded(item.get("retrieval_state"), 80),
+                "attempted": bool(item.get("attempted")),
+                "usable_content": bool(item.get("usable_content")),
+            }
+        )
+    return rows or None
 
 
 
