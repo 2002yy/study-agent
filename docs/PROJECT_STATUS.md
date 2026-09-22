@@ -4829,3 +4829,110 @@ A2d Existing Wigolo escalation wiring（含 §99.6-2 的预算守卫搬迁）
 A2e integration / live validation
 A3 Browser bakeoff（Wigolo vs Crawl4AI）→ A4 Discovery bakeoff → A5
 ```
+
+
+## §100 P2-A2c Health-aware Scheduling（`d9b8dd8`）
+
+**目标（按裁决）**：在真正发 attempt 前建立显式 scheduler，选择"当前可执行的 backend"，避免 circuit-open backend 在后续 wave 被反复规划，同时保持 candidate lifecycle 正确。**A2c 还不新增第二个 reader**（Wigolo chain execution 仍等 A2d）。
+
+**基线口径**：`A2c code/test baseline = d9b8dd8`。
+
+### 100.1 scheduling authority 数据模型
+
+`progressive_routing.py` 新增 **pre-attempt** 阶段（与 post-outcome `route()` **明确分离**）：
+
+**输入 `SchedulingContext`**：`candidate_id` · `available_backends`（chain，顺序即偏好）· `attempted_backends`（**per candidate**）· `host` · `run_blocked` · `required_capabilities` · `availability`（provider/policy）· `remaining_seconds`（仅参考）。
+
+**输出 `SchedulingDecision`**：`action ∈ {schedule, defer, block_run, exhaust}` + `backend` / `reason` / `considered_backends` / `blocked_backends` / `verdicts`（每 backend 的 eligibility 明细）。
+
+- **不是 bool**：`defer`（暂时不可执行但 candidate 未终局）与 `exhaust`（无可执行者）必须可区分 —— 这正是 A2a lifecycle 的对应关系。
+- **不产生 read outcome**：`defer / block_run / exhaust` 只写 `metrics.read_scheduling` provenance，因为**没有真正读取**。
+- **纯函数**：不修改 context（有测试）。
+
+### 100.2 shared backend-eligibility primitive
+
+**唯一判定** `backend_eligibility(inputs)`，两个阶段共用，避免复制 capability/health/attempted 判断：
+
+| 顺序 | 判定 | reason |
+| --- | --- | --- |
+| 1 | capability 是否满足 | `capability_not_satisfied` |
+| 2 | 是否已 attempted（含 current_backend） | `already_attempted` |
+| 3 | `configured`（部署开关） | `disabled` |
+| 4 | provider `available` | `provider_unavailable` |
+| 5 | `(backend, host)` health ∈ {open, cooldown} | `target_health_open` |
+| — | 全部通过 | eligible |
+
+`BackendEligibility` 仍**报告** `health_state`（即使已因更早原因被拒），便于 provenance。
+
+### 100.3 policy/provider availability 与 target health 分离（按裁决）
+
+- `BackendAvailability{backend, configured, available, reason}`：**provider/policy 层**。
+- **`disabled`**：`attempted=false`、**不计 health**、不产生 URL truth；scheduler 直接换下一 backend（有测试：disabled 不进 `blocked_backends`）。
+- **provider 不可用**（如 Wigolo daemon down）：记为 `provider_unavailable`，**绝不写进目标 `(backend, target_host)` health** —— 目标 URL 根本没被访问。有测试断言此时 `health_state == ""` 且 reason ≠ `target_health_open`。
+- **本刀不建立 provider-level breaker**（裁决：等 A2d live evidence 出现 backend-wide 重复浪费再立项）。
+- **未修改 `counts_towards_health()`**：429 仍**不进入** A1a target-host breaker，仍允许 routing 尝试 alternate；未来若要影响 health，**必须显式改该唯一 health-accounting 路径**（不能在 router 另起判断）。
+
+### 100.4 runtime 调度点如何改为 health-aware
+
+`execute()` 内新增 `schedule_read(url)`（在 read loop 中于 `breaker_allow` **之前**调用）：
+
+```text
+candidate
+  ↓
+scheduler（chain / attempted(per candidate) / host / health）
+  ├─ schedule → breaker allow → gateway read（原路径）
+  └─ defer / block_run / exhaust → continue（不 attempt、不产出 read outcome）
+```
+
+- **attempted 历史按 candidate 过滤**（`cursor.read_outcomes` 中同 `candidate_id` 的 `backend`）—— 这是实现中被测试抓到的关键 bug：初版按全局 outcome 计算，导致首个 read 后所有候选都被判 `exhaust`（11 项测试失败），已修。
+- `breaker_allow()` **保留**作为 attempt 前的纵深防御。
+- 非可执行决策只写 `metrics.read_scheduling`（有界 60 条）。
+- **A1a 的 breaker-skip read outcome 路径在生产中不再被触发**（scheduler 先 defer）⇒ A1a 的 runtime 测试已按新语义更新：不健康且唯一 reader 时产出 **defer + blocked_backends**，而非 skip outcome。
+
+### 100.5 是否彻底消除了重复 circuit-open planning
+
+**是（in-situ 已验证）**：`A2C.docker.b`（`www.docker.com` 失败 1 次 → breaker **open**）：
+
+```text
+scheduling: {schedule: 1, defer: 2}   read outcomes: 1   （而非 3 个 skip outcome）
+defer reason = all_backends_unavailable, blocked = ['native_http']
+health: native_http::www.docker.com = open (streak 1)
+```
+
+⇒ 后续候选**不再被规划**（无 attempt、无 skip outcome、无重复等待），provenance 落在 `read_scheduling`。健康路径不受影响：`A2C.docker.a` / `A2C.node` 均为 `{schedule: 4}`、4 个 read outcome，node `gate=pass`；三次运行 `answer_status=available`。
+
+### 100.6 tests / regression
+
+| 项 | 结果 |
+| --- | --- |
+| `tests/test_scheduling.py` | **26 passed**（native closed→schedule；**native open + alternate eligible → 直接选 alternate**；**唯一 open reader → defer 且 `blocked_backends`**；half_open 可调度；**backend health 不跨 backend 泄漏**；**host health 不跨 host 泄漏**；disabled 不调度且**不算 health**；**provider unavailable 不污染 target health**（verdict `health_state==""`）；attempted 不再调度；capability 不足不调度；无可用→exhaust；run_blocked→block_run；**eligibility 优先级**；**scheduling 与 routing 共用同一 primitive 且结论一致**；**scheduling ≠ read outcome**（payload 无 `retrieval_state`/`status`）；动作集封闭；无 authority 字段；纯函数可重复；不改 context） |
+| `tests/test_progressive_routing.py` | **35 passed**（router 已重构为共用 primitive，行为不变） |
+| `tests/test_candidate_resolution.py` | **32 passed** |
+| 受影响集合 | **168 passed**（active runtime / scheduling / routing / resolution / breaker） |
+| **full pytest @ `d9b8dd8`** | **2333 passed / 2 failed**（704s）：**仅 2 个已知 Windows-local baseline 失败**（负载闪失败本次未出现）⇒ **零新增失败** |
+| 对照 A2b（2310/3） | **+23 passed**，失败数 3→2（闪失败未触发） |
+| Ruff / `git diff --check` / tracked | 全 clean |
+
+### 100.7 阻塞 A2d 原子 Wigolo 迁移的问题（**需裁决**）
+
+1. **chain 目前硬编码为 `(native_http,)`**：A2d 必须让 `available_backends` 动态化（读 provider availability + 配置），并且**同时开始消费 `route()`**（今天 `route()` 仍未被生产消费）。
+2. **B2 预算守卫搬迁（§99.6-2 仍是硬门）**：`RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT`、per-run envelope、effective timeout 必须随 chain step 原子迁移；**不得出现"chain 已能调 Wigolo 但 guard 还在旧 escalation 内"的中间生产状态**。
+3. **新发现：read loop 目前每个候选每 wave 只做一次 attempt**。Progressive Reader 需要"attempt → route → 可能再 attempt"（有界）⇒ A2d 必须把 read loop 改为**有界的多步 chain 执行**，而不是单次 attempt。
+4. **新发现：attempt 预算与 outcome 唯一性**：`_attempt_number` / external-attempt 预算按 candidate 计数，而 cursor 强制**每 candidate 唯一 read outcome**。A2d 必须明确：第二个 backend 的 attempt 是否消耗同一预算，以及**多 backend 尝试如何与唯一 outcome 共存**（例如 outcome 记最终结果、attempt 明细进 `read_timing`）。
+5. **A2d parity gate（裁决已冻结）**：旧 hidden escalation vs 新 explicit chain step 在相同 fixture 下必须一致：escalation eligibility / B2 budget decision / effective timeout / result projection / provenance 为超集不丢旧字段 / **无双调用** / candidate outcome 唯一性保持。**不允许借架构迁移调整这些阈值。**
+
+### 100.8 范围合规
+
+未做：真正接 Wigolo chain execution · 移除旧 `read_escalation` · 搬迁 B2 budget guards · provider-level breaker · A1b cross-run cache · browser/Crawl4AI · Discovery provider · timeout/retry 调参 · Evidence/Support/Gate/Answer · 新 ledger。
+
+### 100.9 路线（三层模型已闭合）
+
+```text
+A0 ✅  A1a ✅  A1b ⏸ evidence-triggered
+A2a ✅ lifecycle   —— 这个候选结束了吗？
+A2b ✅ routing     —— 调用完以后下一步是什么？
+A2c ✅ scheduling  —— 现在该调用谁？        （baseline d9b8dd8；2333/2）
+A2d    explicit Wigolo + B2 budget 原子迁移（待裁决 §100.7）
+A2e    Progressive Reader integration validation
+A3     Browser bakeoff（Wigolo vs Crawl4AI）→ A4 Discovery bakeoff → A5
+```
