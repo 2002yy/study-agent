@@ -182,7 +182,6 @@ from src.web.research.failure_taxonomy import (
 )
 from src.web.research.read_adequacy import classify_reader_result
 from src.web.research.read_retry import (
-    READ_RETRY_RESERVE_SECONDS,
     error_signature,
     make_window_admission,
     read_retry_mode,
@@ -549,16 +548,27 @@ class ActiveResearchRuntimeExecutor:
                 backend=NATIVE_HTTP_BACKEND, host=host_of(url)
             )
 
-        def breaker_record(url: str, raw_read: Mapping[str, Any]) -> None:
+        def finish_read_attempt(url: str, raw_read: Any) -> None:
+            """§94/§96: attach the canonical outcome, and feed the breaker.
+
+            Classification is always on (it is pure and cheap) so provenance is
+            uniform; the breaker itself stays behind its switch. A skipped read
+            keeps the policy values its payload already carries.
+            """
+
+            outcome = _classify_read_outcome(raw_read)
+            if isinstance(raw_read, dict):
+                raw_read.setdefault("retrieval_state", outcome.state)
             if breaker is None:
                 return
-            outcome = _classify_read_outcome(raw_read)
-            breaker.record(
+            decision = breaker.record(
                 backend=NATIVE_HTTP_BACKEND,
                 host=host_of(url),
                 state=outcome.state,
                 attempted=True,
             )
+            if isinstance(raw_read, dict):
+                raw_read.setdefault("retrieval_policy", decision.to_policy_dict())
             _record_backend_health(context, breaker)
 
         def research_seconds_left() -> float:
@@ -1728,41 +1738,39 @@ class ActiveResearchRuntimeExecutor:
                     if research_seconds_left() < MIN_READ_SECONDS:
                         # The window cannot absorb a useful read; stop starting
                         # reads instead of overrunning the finalization reserve.
+                        # §96 A1a: this single gate is also recorded in the A0
+                        # vocabulary (a policy skip that is never a judgement
+                        # about the URL and never feeds breaker health). The
+                        # reader's own timeout is already window-capped, so no
+                        # second, stricter requirement is added here.
                         read_loop_stop_reason = "research_window_closed"
                         record_research_window_skip(
                             "read_skipped_insufficient_research_window"
                         )
-                        break
-                    ensure_budget()
-                    candidate = _candidate_by_id(cursor, candidate_id)
-                    source_limit = min(6000, state.budget.max_total_chars - used_chars)
-                    # §96 A1a: per-attempt deadline preflight, reusing the
-                    # existing timeout and reserve (no new latency estimator).
-                    deadline_decision = deadline_preflight(
-                        remaining_seconds=research_seconds_left(),
-                        timeout_seconds=read_timeout_seconds(),
-                        reserve_seconds=READ_RETRY_RESERVE_SECONDS,
-                    )
-                    if not deadline_decision.allowed:
-                        # Policy skip: the URL is never read, so this records the
-                        # window - not any judgement about the resource - and it
-                        # never feeds breaker health.
-                        read_loop_stop_reason = "research_window_closed"
-                        record_research_window_skip(
-                            "read_skipped_insufficient_research_window"
-                        )
+                        try:
+                            _deadline_candidate = _candidate_by_id(cursor, candidate_id)
+                        except ValueError:
+                            break
                         _record_read_timing(
                             context,
-                            candidate=candidate,
+                            candidate=_deadline_candidate,
                             wave_index=cursor.wave_index,
                             status="skipped",
                             wall_ms=0.0,
                             chars=0,
                             raw_read=_deadline_skip_payload(
-                                candidate.url, deadline_decision
+                                _deadline_candidate.url,
+                                deadline_preflight(
+                                    remaining_seconds=research_seconds_left(),
+                                    timeout_seconds=MIN_READ_SECONDS,
+                                    reserve_seconds=0.0,
+                                ),
                             ),
                         )
                         break
+                    ensure_budget()
+                    candidate = _candidate_by_id(cursor, candidate_id)
+                    source_limit = min(6000, state.budget.max_total_chars - used_chars)
                     breaker_decision = breaker_allow(candidate.url)
                     try:
                         attempt = _attempt_number(cursor, candidate_id)
@@ -1862,7 +1870,7 @@ class ActiveResearchRuntimeExecutor:
                             )
                             checkpoint()
                         read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
-                        breaker_record(candidate.url, raw_read)
+                        finish_read_attempt(candidate.url, raw_read)
                     ensure_active()
                     content = str(raw_read.get("content") or raw_read.get("readme") or "")[:source_limit]
                     ok = bool(raw_read.get("ok") is True and content.strip())
