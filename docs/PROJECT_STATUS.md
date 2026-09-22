@@ -4980,3 +4980,71 @@ A2d    ← 进行中
 A2e    Progressive Reader integration validation
 A3     Wigolo Browser vs Crawl4AI bakeoff
 ```
+
+
+## §102 P2-A2d-2 bounded chain executor（`3f286cd`；TESTABLE, PRODUCTION-INERT）
+
+**口径（按裁决）**：A2d-2/A2d-3 可分别提交，但**都必须保持 production inert**；真正的原子 cutover 只发生在 **A2d-4**。
+
+### 102.1 executor 形状
+
+`src/web/research/chain_executor.py`：
+
+```text
+run_chain(candidate_id, url, host, outer_attempt_number,
+          chain, executors, record_outcome,
+          attempted_backends, health_state_for, availability, backends, run_blocked)
+```
+
+流程：`schedulable_now()`（Phase 1：首个 backend）→ **execute** → `record_outcome`（**先落历史**）→ `route()`（Phase 2：下一步）→ `try_backend` 则继续，`resolve/block_run/defer/exhaust` 则停止。
+
+数据模型：`ChainAttemptRequest`（invocation-local：candidate/url/host/backend/`chain_step`/`outer_attempt_number`）· `ChainStepResult`（backend/retrieval_state/attempted/usable_content/content/adequacy_reason/cost/policy）· `ChainStep`（`chain_step`/`outer_attempt_number`/backend/state/attempted/usable）· `ChainRun`（steps/action/reason/final_state/terminal/usable_content/attempted_backends/content）。
+
+**两阶段保持分离**：`schedulable_now` 决定第一个 backend，`route` 决定每一个后续 backend；二者共用 `backend_eligibility`。executor **只执行与记录**，不写 Evidence/Support/Gate、无自有持久状态、不建 ledger。
+
+**本切片顺带修掉一个真实缺口**：`RoutingContext` 此前**不带 availability** ⇒ `route()` 会把 provider 已下线的 backend 照常路由出去（`_eligible` 的 availability 形参从未被 `route` 传入）。现已让 availability 与 scheduling 一致地贯穿 routing。
+
+### 102.2 loop 终止不变量（无魔数）
+
+- **一个 backend 对同 candidate 最多真实 attempt 一次** ⇒ 天然上界 `len(chain)`；**不引入 `MAX_CHAIN_STEPS`**。
+- `attempted_backends` **在 loop 内每步即时更新**（不是进入前算一次），因此 router **不可能**重新选择本次 invocation 刚执行过的 backend。
+- `visited` 额外记录"作为当前步骤出现过"的 backend（含 policy skip），重复即停止并报 `router_repeated_backend`。
+- 循环上界 `len(chain) + 1` **仅作安全网**（防契约违规的 router），命中报 `step_bound_reached`，不静默重试。
+- 终止条件来自数据：`next ∉ attempted/visited` ∧ chain 有限。
+- **retry 不是 chain step**：网络 retry 留在 backend 内部。
+
+### 102.3 `_attempt_number` / `chain_step` 会计
+
+- `outer_attempt_number` = 原 read-slot，**全链恒定**（测试断言两 step 都是 17）。
+- `chain_step` = **invocation-local ordinal**（0,1,…），**不是 durable identity**；`ChainRun.to_dict()` 顶层不含 `chain_step`。
+- durable identity 仍是 **`(candidate_id, backend)`**。
+- 因此 Wigolo 显式化**不凭空多消费 read-slot**（迁移 parity 的一部分）。
+
+### 102.4 focused tests（20 项，全部覆盖裁决的 13 条）
+
+`tests/test_chain_executor.py`：native success → 一步结束；`not_found` → 不升级；fallback state → 进入下一 backend 并 `resolve`；**两条 `(candidate, backend)` outcome 共存**；同 backend 永不执行两次；chain 长度 1 不可能成环；**`outer_attempt_number` 全链恒定**；`chain_step = 0/1` 且非 durable；**policy skip 不产生 outcome**；provider 不可用 → `defer` 且**不执行**该 backend；health open → `defer`；budget block → 未 attempt 即停止；缺 executor → `no_executor` 且不重试；已 durable-attempted 不再调度；**契约违规 router 被安全停止**（不 spin）；不写 authority 字段；**retry 不是 chain step**（`"retry" not in ROUTING_ACTIONS`，每 backend 仅 1 次请求）；decision 可序列化。
+
+### 102.5 "production 仍 inert" 的证明
+
+1. **扫描测试** `test_production_does_not_call_the_chain_executor_yet`：遍历 `src/`（排除 `chain_executor.py` 自身）断言 **`chain_executor|run_chain` 零引用** ⇒ runtime/adapter/backend 均未接线。
+2. `test_the_hidden_escalation_is_still_the_only_wigolo_callsite`：`read_escalation.escalate_read` 仍是唯一 Wigolo 执行入口。
+3. 该切片**未改** runtime read loop、未改 `read_escalation`、未启用 `wigolo_browser`。
+
+### 102.6 回归
+
+| 项 | 结果 |
+| --- | --- |
+| focused | `test_chain_executor` **20 passed**；受影响集合 **168 passed** |
+| **full pytest @ `3f286cd`** | **2357 passed / 2 failed**（768s）：**仅 2 个已知 Windows-local baseline 失败** ⇒ **零新增失败** |
+| 对照 A2c（2333/2） | **+24 passed**（A2d-1 的 4 项 identity + A2d-2 的 20 项），失败族不变 |
+| Ruff / tracked | clean |
+
+### 102.7 剩余切片
+
+```text
+A2d-1 ✅ outcome identity（0301dec）
+A2d-2 ✅ bounded chain executor（3f286cd）—— TESTABLE, PRODUCTION-INERT
+A2d-3 ⏳ explicit Wigolo executor + B2 guards parity（TESTABLE, PRODUCTION-INERT）
+A2d-4 ⏳ ATOMIC CUTOVER：启用 explicit chain + 退役 hidden escalation + parity/live
+A2e    Progressive Reader integration validation
+```
