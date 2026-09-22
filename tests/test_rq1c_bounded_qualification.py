@@ -270,12 +270,15 @@ def test_source_projection_reads_nested_production_item_and_assessment() -> None
             "source_role": "primary",
             "cluster_id": "cluster-a",
             "extraction_statuses": ["eligible", "rejected"],
-            # §71C-3a/§88: per-source read provenance is always projected; it is
-            # ``None`` when the source carried none.
-            "escalation": None,
-            "read_retry": None,
-        }
-    ]
+                # §71C-3a/§88: per-source read provenance is always projected; it is
+                # ``None`` when the source carried none.
+                "escalation": None,
+                "read_retry": None,
+                # §105 A2d-4: explicit-chain projection, always present.
+                "final_backend": "",
+                "retrieval_attempts": None,
+            }
+        ]
 
 
 def test_evidence_projection_uses_actual_brief_fields_not_summary_or_excerpt() -> None:
