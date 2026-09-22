@@ -259,6 +259,13 @@ class RuntimeReadOutcome:
     evidence_id: str = ""
     content_chars: int = 0
     error_code: str = ""
+    # §98 P2-A2a: one durable attempt fact. ``retrieval_state`` is the canonical
+    # outcome (empty on legacy rows) and ``backend`` names who produced it. A
+    # policy skip never records an outcome at all, so every row here is a real
+    # attempt; neither field decides candidate lifecycle - that belongs to
+    # candidate_resolution.
+    backend: str = ""
+    retrieval_state: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -267,13 +274,29 @@ class RuntimeReadOutcome:
             "evidence_id": self.evidence_id,
             "content_chars": self.content_chars,
             "error_code": self.error_code,
+            "backend": self.backend,
+            "retrieval_state": self.retrieval_state,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "RuntimeReadOutcome":
+        # §98 A2a added the attempt-fact fields. Pre-A2a cursors have none of
+        # them; accept only those absent fields so durable checkpoints survive
+        # the upgrade (the same shim pattern B5 and P1-C batch 2 used).
+        compatible = dict(raw)
+        compatible.setdefault("backend", "")
+        compatible.setdefault("retrieval_state", "")
         data = _strict_mapping(
-            raw,
-            {"candidate_id", "status", "evidence_id", "content_chars", "error_code"},
+            compatible,
+            {
+                "candidate_id",
+                "status",
+                "evidence_id",
+                "content_chars",
+                "error_code",
+                "backend",
+                "retrieval_state",
+            },
             "runtime read outcome",
         )
         status = _required_text(data.get("status"), 50, "read status")
@@ -289,6 +312,8 @@ class RuntimeReadOutcome:
                 data.get("content_chars"), 0, 10_000_000, "content_chars"
             ),
             error_code=_optional_text(data.get("error_code"), 200),
+            backend=_optional_text(data.get("backend"), 120),
+            retrieval_state=_optional_text(data.get("retrieval_state"), 80),
         )
 
 
@@ -551,7 +576,26 @@ class ResearchRuntimeCursor:
 
     @property
     def completed_read_ids(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(item.candidate_id for item in self.read_outcomes))
+        """Candidates whose **reader chain has ended** (§98 A2a).
+
+        This used to be "any candidate with a read outcome", which conflated a
+        policy skip or a retriable failure with a finished candidate. The single
+        authority is :mod:`candidate_resolution`; this property only asks it.
+        """
+
+        from src.web.research.candidate_resolution import terminal_candidate_ids
+
+        return terminal_candidate_ids(self.read_outcomes)
+
+    def read_resolutions(self) -> dict[str, Any]:
+        """Per-candidate lifecycle, for diagnostics and scheduling (§98 A2a)."""
+
+        from src.web.research.candidate_resolution import (
+            group_facts_by_candidate,
+            resolve_candidates,
+        )
+
+        return resolve_candidates(group_facts_by_candidate(self.read_outcomes))
 
     def to_dict(self) -> dict[str, Any]:
         # The cursor serializer never fails open on an unknown schema version:

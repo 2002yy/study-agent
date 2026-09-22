@@ -180,6 +180,7 @@ from src.web.research.failure_taxonomy import (
     UNKNOWN_STATE,
     classify,
 )
+from src.web.research.candidate_resolution import resolution_summary
 from src.web.research.read_adequacy import classify_reader_result
 from src.web.research.read_retry import (
     error_signature,
@@ -548,19 +549,20 @@ class ActiveResearchRuntimeExecutor:
                 backend=NATIVE_HTTP_BACKEND, host=host_of(url)
             )
 
-        def finish_read_attempt(url: str, raw_read: Any) -> None:
+        def finish_read_attempt(url: str, raw_read: Any) -> str:
             """§94/§96: attach the canonical outcome, and feed the breaker.
 
             Classification is always on (it is pure and cheap) so provenance is
             uniform; the breaker itself stays behind its switch. A skipped read
-            keeps the policy values its payload already carries.
+            keeps the policy values its payload already carries. Returns the
+            canonical state so the caller can record the attempt fact.
             """
 
             outcome = _classify_read_outcome(raw_read)
             if isinstance(raw_read, dict):
                 raw_read.setdefault("retrieval_state", outcome.state)
             if breaker is None:
-                return
+                return outcome.state
             decision = breaker.record(
                 backend=NATIVE_HTTP_BACKEND,
                 host=host_of(url),
@@ -570,6 +572,7 @@ class ActiveResearchRuntimeExecutor:
             if isinstance(raw_read, dict):
                 raw_read.setdefault("retrieval_policy", decision.to_policy_dict())
             _record_backend_health(context, breaker)
+            return outcome.state
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -1870,11 +1873,15 @@ class ActiveResearchRuntimeExecutor:
                             )
                             checkpoint()
                         read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
-                        finish_read_attempt(candidate.url, raw_read)
+                        canonical_state = finish_read_attempt(candidate.url, raw_read)
                     ensure_active()
                     content = str(raw_read.get("content") or raw_read.get("readme") or "")[:source_limit]
                     ok = bool(raw_read.get("ok") is True and content.strip())
                     status = "success" if ok else "failed"
+                    if breaker_skipped:
+                        canonical_state = str(
+                            raw_read.get("retrieval_state") or UNKNOWN_STATE
+                        )
                     if not ok:
                         _append_failure(
                             "read_failed",
@@ -1904,18 +1911,26 @@ class ActiveResearchRuntimeExecutor:
                     if ok:
                         successful_reads += 1
                         used_chars += len(content)
-                    cursor = replace(
-                        cursor,
-                        read_outcomes=(
-                            *cursor.read_outcomes,
-                            RuntimeReadOutcome(
-                                candidate_id=candidate_id,
-                                status=status,
-                                content_chars=len(content) if ok else 0,
-                                error_code="" if ok else "read_failed",
+                    if not breaker_skipped:
+                        # §98 A2a: a policy skip records **no read outcome**. The
+                        # cursor keeps one outcome per candidate (a real attempt
+                        # fact); the skip lives in read_timing, the source
+                        # provenance and the failure row. This is what keeps a
+                        # skipped candidate from being consumed by the run.
+                        cursor = replace(
+                            cursor,
+                            read_outcomes=(
+                                *cursor.read_outcomes,
+                                RuntimeReadOutcome(
+                                    candidate_id=candidate_id,
+                                    status=status,
+                                    content_chars=len(content) if ok else 0,
+                                    error_code="" if ok else "read_failed",
+                                    backend=NATIVE_HTTP_BACKEND,
+                                    retrieval_state=canonical_state,
+                                ),
                             ),
-                        ),
-                    )
+                        )
                     record = _source_record(
                         candidate,
                         plan_item,
@@ -1935,6 +1950,11 @@ class ActiveResearchRuntimeExecutor:
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
                         outcome.to_dict() for outcome in cursor.read_outcomes
                     ]
+                    # §98 A2a: the single lifecycle view (diagnostics only; the
+                    # authority itself is candidate_resolution).
+                    context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
+                        "candidate_resolution"
+                    ] = resolution_summary(cursor.read_outcomes)
                     checkpoint()
 
                 if read_loop_stop_reason:
