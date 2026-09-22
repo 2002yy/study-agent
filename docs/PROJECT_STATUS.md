@@ -4936,3 +4936,47 @@ A2d    explicit Wigolo + B2 budget 原子迁移（待裁决 §100.7）
 A2e    Progressive Reader integration validation
 A3     Browser bakeoff（Wigolo vs Crawl4AI）→ A4 Discovery bakeoff → A5
 ```
+
+
+## §101 P2-A2d 进行中：A2d-1 outcome identity 迁移完成（`0301dec`）
+
+**本刀按裁决拆 4 个内部切片，要求最终 production head 只存在一条执行权威、不得暴露半迁移状态。** 当前进度：**A2d-1 完成并提交；A2d-2/3/4 未开始。**
+
+### 101.1 已完成的切片
+
+**A2d-1（`0301dec`）—— 废除"每 candidate 唯一 RuntimeReadOutcome"**
+
+- 旧不变量（`runtime.py` 校验）：`len(completed_read_ids) != len(read_outcomes)` → 报错。
+- **新不变量**：**每 `(candidate_id, backend)` 最多一个 outcome**；`backend` 为空的历史行按 `native_http` 参与 key。
+- 理由（按裁决）：outcome = **一个真实 backend attempt 的历史事实**；candidate completion = **reader-chain 层面的派生事实**（仍由 `candidate_resolution` 从完整 attempt 历史派生，唯一）。同 backend 的网络 retry 仍留在该 attempt 自身明细（`read_retries.attempts_detail`），不产生第二条顶层 outcome。
+- 兼容性：pre-A2d 单 outcome cursor 继续可加载；**同一 candidate 的两条 legacy outcome 仍被拒绝**（与旧行为一致）。
+- 测试（`tests/test_candidate_resolution.py` 追加 4 项）：两 backend 各一条 outcome 可共存且派生唯一 terminal resolution；同 backend 第二条被拒；legacy 行按 `native_http` 参与 key 且重复仍被拒；历史增长后 derived terminal 不摇摆。
+- 该切片**零行为变化**（当前只有 `native_http` 写 outcome），因此不会暴露半迁移执行权威。
+
+### 101.2 剩余切片（未开始，按裁决顺序）
+
+| 切片 | 内容 | 关键约束 |
+| --- | --- | --- |
+| **A2d-2** | **bounded chain executor**：把 read loop 从"每候选每 wave 单次 attempt"升级为"attempt → route → next backend"的**显式有限 loop**，天然上界 = active chain 中 eligible unique backend 数（**不新增 `MAX_CHAIN_STEPS` 魔数**）；每步必须把 backend 记入 attempted，结构上不可能成环；**retry 不算 chain step** | 用 `chain_step` + outer attempt number 双标识 |
+| **A2d-3** | **Wigolo B2 guards + executor 原子迁移**：`RESEARCH_WIGOLO_HTTP_MIN_HARD_SECONDS_LEFT`、per-run envelope、effective timeout 随 Wigolo 执行一起搬；**执行前必须重做 execution-time preflight**（scheduler 早先 eligibility ≠ 执行时预算权威） | 不允许借迁移调任何阈值 |
+| **A2d-4** | **hidden escalation 退役 + parity/live validation**：`read_escalation` 只产 adequacy signal，不再内部调用 Wigolo；最终 head 只能有一条 next-backend execution authority | 禁止 old hidden + new explicit 并存 |
+
+**chain 口径（冻结）**：A2d production 只启用 `native_http → wigolo_http`；**`wigolo_browser` 不启用**（留给 A3 bakeoff）。`DEFAULT_READER_CHAIN` 仅作 legacy fixture/tests/兼容回退，production 必须显式传当前 chain。
+
+**`_attempt_number` 口径（冻结）**：保持旧 candidate/read-chain invocation 口径；Wigolo 显式化**不得凭空多消费一个旧 read-slot**（迁移 parity 的一部分）；Wigolo 自身 per-run envelope/timeout 照旧；**不发明新的全局 backend-call budget**。
+
+**parity gate（冻结，已按裁决修正）**：escalation eligibility · B2 MIN_HARD · per-run envelope · effective timeout · final candidate result projection · usable content · provenance（只允许超集）· 无双调用 · retry policy 不变 · outer read-slot/attempt budget 不变 · 每 `(candidate, backend)` outcome 不重复 · candidate resolution 唯一 · evidence/support/gate/answer 不变。**RuntimeReadOutcome 行数增加是预期，不视为 regression。**
+
+### 101.3 路线
+
+```text
+A0 ✅  A1a ✅  A1b ⏸
+A2a ✅ lifecycle   A2b ✅ routing   A2c ✅ scheduling（d9b8dd8）
+A2d    ← 进行中
+  A2d-1 ✅ outcome identity（0301dec）
+  A2d-2 ⏳ bounded chain executor
+  A2d-3 ⏳ B2 guards 原子迁移
+  A2d-4 ⏳ hidden escalation 退役 + parity/live
+A2e    Progressive Reader integration validation
+A3     Wigolo Browser vs Crawl4AI bakeoff
+```
