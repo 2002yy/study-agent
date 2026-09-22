@@ -168,7 +168,21 @@ from src.web.research.read_escalation import (
     set_escalation_runtime_context,
 )
 from src.web.research.timing_ledger import TimedGateway, TimingLedger
+from src.web.research.health_breaker import (
+    NATIVE_HTTP_BACKEND,
+    PerRunBreaker,
+    breaker_policy_from_env,
+    deadline_preflight,
+    host_of,
+    read_breaker_enabled,
+)
+from src.web.research.failure_taxonomy import (
+    UNKNOWN_STATE,
+    classify,
+)
+from src.web.research.read_adequacy import classify_reader_result
 from src.web.research.read_retry import (
+    READ_RETRY_RESERVE_SECONDS,
     error_signature,
     make_window_admission,
     read_retry_mode,
@@ -518,6 +532,34 @@ class ActiveResearchRuntimeExecutor:
         # F2-S1: wave-scoped exclusive timing ledger (observation only).
         timing_ledger = TimingLedger(elapsed_ms)
         timed_gateway = TimedGateway(self.model_gateway, timing_ledger, elapsed_ms)
+
+        # §96 A1a: per-run (backend, host) health breaker. Diagnostic switch,
+        # off by default, so the A0/F2 baselines stay valid. It never switches
+        # backends, never changes a timeout and never touches retry policy.
+        breaker = (
+            PerRunBreaker(policy=breaker_policy_from_env())
+            if read_breaker_enabled()
+            else None
+        )
+
+        def breaker_allow(url: str) -> Any:
+            if breaker is None:
+                return None
+            return breaker.allow(
+                backend=NATIVE_HTTP_BACKEND, host=host_of(url)
+            )
+
+        def breaker_record(url: str, raw_read: Mapping[str, Any]) -> None:
+            if breaker is None:
+                return
+            outcome = _classify_read_outcome(raw_read)
+            breaker.record(
+                backend=NATIVE_HTTP_BACKEND,
+                host=host_of(url),
+                state=outcome.state,
+                attempted=True,
+            )
+            _record_backend_health(context, breaker)
 
         def research_seconds_left() -> float:
             """Seconds left in the research window (finalization reserve kept)."""
@@ -1694,6 +1736,34 @@ class ActiveResearchRuntimeExecutor:
                     ensure_budget()
                     candidate = _candidate_by_id(cursor, candidate_id)
                     source_limit = min(6000, state.budget.max_total_chars - used_chars)
+                    # §96 A1a: per-attempt deadline preflight, reusing the
+                    # existing timeout and reserve (no new latency estimator).
+                    deadline_decision = deadline_preflight(
+                        remaining_seconds=research_seconds_left(),
+                        timeout_seconds=read_timeout_seconds(),
+                        reserve_seconds=READ_RETRY_RESERVE_SECONDS,
+                    )
+                    if not deadline_decision.allowed:
+                        # Policy skip: the URL is never read, so this records the
+                        # window - not any judgement about the resource - and it
+                        # never feeds breaker health.
+                        read_loop_stop_reason = "research_window_closed"
+                        record_research_window_skip(
+                            "read_skipped_insufficient_research_window"
+                        )
+                        _record_read_timing(
+                            context,
+                            candidate=candidate,
+                            wave_index=cursor.wave_index,
+                            status="skipped",
+                            wall_ms=0.0,
+                            chars=0,
+                            raw_read=_deadline_skip_payload(
+                                candidate.url, deadline_decision
+                            ),
+                        )
+                        break
+                    breaker_decision = breaker_allow(candidate.url)
                     try:
                         attempt = _attempt_number(cursor, candidate_id)
                     except _ExternalAttemptBudgetExhausted:
@@ -1734,33 +1804,65 @@ class ActiveResearchRuntimeExecutor:
                         ]
                         checkpoint()
                         continue
-                    marker = RuntimeExternalAttemptStart(
-                        call_id=f"research_read:{run_id}:{candidate_id}:attempt:{attempt}",
-                        purpose="read",
-                        item_id=candidate_id,
-                        attempt=attempt,
-                        started_at=self.utc_now(),
+                    breaker_skipped = bool(
+                        breaker_decision is not None and not breaker_decision.allowed
                     )
-                    selection_trace.note_read(candidate.canonical_url, dispatched=True)
-                    dispatched_read_ids.add(candidate_id)
-                    cursor = begin_external_attempt(cursor, marker)
-                    checkpoint()
-                    read_exception_type = ""
-                    read_started_ms = elapsed_ms()
-                    try:
-                        raw_read = gateway_read(candidate.url, max_chars=source_limit)
-                    except Exception as exc:
-                        read_exception_type = type(exc).__name__
-                        raw_read = {
-                            "ok": False,
-                            "status": "failed",
-                            "url": candidate.url,
-                            "error": type(exc).__name__,
-                        }
-                    finally:
-                        cursor = finish_external_attempt(cursor, call_id=marker.call_id)
+                    if breaker_skipped:
+                        # §96 A1a: the URL is never read, so this is a policy
+                        # skip - never a content judgement about it - and it must
+                        # not feed breaker health. The one-level failure code
+                        # stays ``read_failed`` (frozen catalog); the policy
+                        # reason belongs in provider_code/detail.
+                        raw_read = _breaker_skip_payload(
+                            candidate.url, breaker_decision
+                        )
+                        marker_call_id = (
+                            f"research_read:{run_id}:{candidate_id}:circuit_open"
+                        )
+                        read_exception_type = ""
+                        read_wall_ms = 0.0
+                        selection_trace.note_read(
+                            candidate.canonical_url, dispatched=False
+                        )
+                        _record_backend_health(context, breaker)
+                    else:
+                        marker = RuntimeExternalAttemptStart(
+                            call_id=(
+                                f"research_read:{run_id}:{candidate_id}:attempt:{attempt}"
+                            ),
+                            purpose="read",
+                            item_id=candidate_id,
+                            attempt=attempt,
+                            started_at=self.utc_now(),
+                        )
+                        marker_call_id = marker.call_id
+                        selection_trace.note_read(
+                            candidate.canonical_url, dispatched=True
+                        )
+                        dispatched_read_ids.add(candidate_id)
+                        cursor = begin_external_attempt(cursor, marker)
                         checkpoint()
-                    read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
+                        read_exception_type = ""
+                        read_started_ms = elapsed_ms()
+                        try:
+                            raw_read = gateway_read(
+                                candidate.url, max_chars=source_limit
+                            )
+                        except Exception as exc:
+                            read_exception_type = type(exc).__name__
+                            raw_read = {
+                                "ok": False,
+                                "status": "failed",
+                                "url": candidate.url,
+                                "error": type(exc).__name__,
+                            }
+                        finally:
+                            cursor = finish_external_attempt(
+                                cursor, call_id=marker.call_id
+                            )
+                            checkpoint()
+                        read_wall_ms = max(0.0, elapsed_ms() - read_started_ms)
+                        breaker_record(candidate.url, raw_read)
                     ensure_active()
                     content = str(raw_read.get("content") or raw_read.get("readme") or "")[:source_limit]
                     ok = bool(raw_read.get("ok") is True and content.strip())
@@ -1769,16 +1871,27 @@ class ActiveResearchRuntimeExecutor:
                         _append_failure(
                             "read_failed",
                             "reading",
-                            logical_call_id=marker.call_id,
+                            logical_call_id=marker_call_id,
                             item_id=candidate_id,
                             detail=_bounded_text(
                                 raw_read.get("error") or "read_failed", 2000
                             ),
                             provider_code=_bounded_text(
-                                raw_read.get("error_code"), 200
+                                raw_read.get("error_code")
+                                or (
+                                    str(
+                                        (raw_read.get("retrieval_policy") or {}).get(
+                                            "skip_reason"
+                                        )
+                                        or ""
+                                    )
+                                    if breaker_skipped
+                                    else ""
+                                ),
+                                200,
                             ),
                             exception_type=read_exception_type,
-                            attempt_id=marker.call_id,
+                            attempt_id=marker_call_id,
                         )
                     if ok:
                         successful_reads += 1
@@ -5349,6 +5462,117 @@ def _checkpoint_now_ms() -> float:
     return round(time.monotonic() * 1000.0, 1)
 
 
+def _classify_read_outcome(raw_read: Mapping[str, Any]) -> Any:
+    """§94 A0: canonical state for one production reader payload.
+
+    The §71C-3a adequacy shape carries the content-level truth, while the raw
+    error string carries the transport truth; ``classify`` decides precedence, so
+    the runtime never re-derives taxonomy here.
+    """
+
+    payload = raw_read if isinstance(raw_read, Mapping) else {}
+    adequacy = classify_reader_result(payload)
+    detail = str(payload.get("error") or payload.get("error_code") or "")
+    escalation = payload.get("escalation")
+    http_status = None
+    if isinstance(escalation, Mapping):
+        candidate = escalation.get("http_status")
+        if isinstance(candidate, int):
+            http_status = candidate
+    return classify(
+        backend=NATIVE_HTTP_BACKEND,
+        raw_state="ok" if payload.get("ok") is True else "read_failed",
+        detail=detail,
+        http_status=http_status,
+        adequacy_shape=adequacy.shape,
+    )
+
+
+def _breaker_skip_payload(url: str, decision: Any) -> dict[str, Any]:
+    """Reader-shaped payload for a read that was never issued.
+
+    Deliberately carries no content and no content judgement: the URL was not
+    read, so the only truthful statement is the policy skip itself.
+    """
+
+    return {
+        "ok": False,
+        "status": "failed",
+        "url": url,
+        "error": "circuit_open",
+        "content": "",
+        "retrieval_state": UNKNOWN_STATE,
+        "retrieval_policy": decision.to_policy_dict(),
+    }
+
+
+def _deadline_skip_payload(url: str, decision: Any) -> dict[str, Any]:
+    """Reader-shaped payload for a read refused by the remaining window."""
+
+    return {
+        "ok": False,
+        "status": "failed",
+        "url": url,
+        "error": "insufficient_remaining_window",
+        "content": "",
+        "retrieval_state": "budget_exhausted",
+        "retrieval_policy": decision.to_policy_dict(),
+    }
+
+
+def _record_backend_health(context: dict[str, Any], breaker: Any) -> None:
+    """Flush the per-run breaker snapshot into the run metrics (no new ledger)."""
+
+    if breaker is None:
+        return
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if not isinstance(metrics, dict):
+        return
+    metrics["backend_health"] = breaker.snapshot()
+
+
+def _bounded_retrieval_policy(raw_read: Mapping[str, Any]) -> dict[str, Any]:
+    """§96 A1a: the policy half of a read outcome, bounded for the artifact.
+
+    Answers, after the fact: which (backend, host) key, what the health state
+    was before and after, the failure streak, whether this was a probe, why the
+    attempt was allowed or refused, and when a probe becomes eligible again.
+    """
+
+    policy = raw_read.get("retrieval_policy")
+    if not isinstance(policy, Mapping):
+        return {}
+    keys = (
+        "attempted",
+        "skip_reason",
+        "breaker_state",
+        "backend",
+        "health_key",
+        "breaker_state_before",
+        "breaker_state_after",
+        "probe_index",
+        "is_probe",
+        "legacy",
+    )
+    bounded: dict[str, Any] = {}
+    for key in keys:
+        if key not in policy:
+            continue
+        value = policy[key]
+        if isinstance(value, bool) or value is None:
+            bounded[key] = value
+        elif isinstance(value, (int, float)):
+            bounded[key] = value
+        else:
+            bounded[key] = _bounded_text(value, 120)
+    if "failure_streak" in policy:
+        bounded["failure_streak"] = int(policy.get("failure_streak") or 0)
+    eligible = policy.get("eligible_probe_at_ms")
+    if isinstance(eligible, (int, float)):
+        bounded["eligible_probe_at_ms"] = round(float(eligible), 1)
+    return bounded
+
+
 def _record_read_timing(
     context: dict[str, Any],
     *,
@@ -5392,6 +5616,8 @@ def _record_read_timing(
         "retries": int(retry.get("retries") or 0),
         "chars": int(chars),
         "error_signature": error_signature(raw_read),
+        "retrieval_state": str(raw_read.get("retrieval_state") or ""),
+        "retrieval_policy": _bounded_retrieval_policy(raw_read),
         "attempts_detail": [
             dict(item)
             for item in (retry.get("attempts_detail") or [])
@@ -5441,6 +5667,14 @@ def _source_record(
         "read_status": read["status"],
         "evidence_state": "new" if read["status"] == "read" else "invalid_or_rejected",
     }
+    retrieval_state = str(raw_read.get("retrieval_state") or "")
+    if retrieval_state:
+        # §94 A0 canonical outcome; §96 A1a adds the policy half. Absent for
+        # unclassified reads, which are never treated as success.
+        record["retrieval_state"] = retrieval_state
+    policy = _bounded_retrieval_policy(raw_read)
+    if policy:
+        record["retrieval_policy"] = policy
     escalation = raw_read.get("escalation")
     if isinstance(escalation, Mapping):
         # §71C-3a: per-read escalation outcome (attempted false = adequate read

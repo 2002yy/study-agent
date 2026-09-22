@@ -4525,3 +4525,236 @@ def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
     assert window.get("exhausted") is True
     assert float(window.get("remaining_after_research_seconds") or 0) > 0
     assert completed.stop_reason == "evidence_budget_exhausted"
+
+
+class _SameHostSearchBackend:
+    """Several candidates on one host, so a single health key covers them all."""
+
+    def __init__(self, host: str = "flaky.example") -> None:
+        self.host = host
+        self.calls = 0
+
+    def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
+        del query, max_results
+        self.calls += 1
+        return {
+            "status": "ok",
+            "reason": "results_found",
+            "results": [
+                {
+                    "title": f"Flaky source {index}",
+                    "url": f"https://{self.host}/page{index}",
+                    "snippet": "candidate on the same host",
+                    "published_at": "2026-08-01",
+                    "provider": "searxng",
+                }
+                for index in range(3)
+            ],
+            "providers_attempted": ["searxng"],
+            "provider_errors": [],
+            "provider_audits": [],
+            "provider_outcomes": [],
+            "searched_at": "2026-08-27T00:00:00+00:00",
+        }
+
+
+class _CountingFailingReadGateway:
+    """Fails every read with a transport-shaped error, counting the attempts."""
+
+    def __init__(self, error: str = "URLError: <urlopen error [WinError 10054]>") -> None:
+        self.error = error
+        self.calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        del max_chars
+        self.calls += 1
+        return {
+            "ok": False,
+            "status": "failed",
+            "url": url,
+            "error": self.error,
+            "content": "",
+        }
+
+
+class _MixedHostReadGateway:
+    """Fails one host, serves another, so isolation can be asserted."""
+
+    def __init__(self, bad_host: str = "flaky.example") -> None:
+        self.bad_host = bad_host
+        self.calls = 0
+        self.bad_calls = 0
+        self.good_calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls += 1
+        if self.bad_host in url:
+            self.bad_calls += 1
+            return {
+                "ok": False,
+                "status": "failed",
+                "url": url,
+                "error": "URLError: <urlopen error [WinError 10054]>",
+                "content": "",
+            }
+        self.good_calls += 1
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Healthy source",
+            "content": "Verified fact: the release date is 2026-08-01."[:max_chars],
+        }
+
+
+def _breaker_sources(completed: Any) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (completed.selected_sources or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def test_read_breaker_opens_and_fast_skips_a_repeatedly_unhealthy_host(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§96 A1a: repeated failures on one host become fast policy skips."""
+
+    monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+    monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker",
+            query="Research an unhealthy host",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _CountingFailingReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    health = metrics.get("backend_health") or []
+    assert health, "the breaker must publish its per-run state"
+    record = next(
+        item for item in health if item["health_key"] == "native_http::flaky.example"
+    )
+    assert record["state"] in {"open", "half_open", "cooldown"}
+    assert record["failure_streak"] >= 1
+    assert record["transitions"]
+
+    sources = _breaker_sources(completed)
+    skipped = [
+        item
+        for item in sources
+        if isinstance(item.get("retrieval_policy"), Mapping)
+        and item["retrieval_policy"].get("attempted") is False
+    ]
+    assert skipped, "the opened breaker must have skipped at least one read"
+    for item in skipped:
+        assert item["retrieval_policy"]["skip_reason"] == "circuit_open"
+        # A skip is not an observation about the URL.
+        assert item.get("retrieval_state") not in {
+            "not_found",
+            "http_denied",
+            "invalid_content",
+            "shell_page",
+            "js_required",
+            "login_required",
+            "anti_bot",
+        }
+        assert item["read_status"] == "failed"
+
+    # The repeated waits are bounded: fewer gateway calls than candidates.
+    assert gateway.calls < 3
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    skipped_failures = [
+        item
+        for item in cursor.failures
+        if item.code == "read_failed" and item.provider_code == "circuit_open"
+    ]
+    assert skipped_failures, "a policy skip must be explainable from the failures"
+
+
+def test_read_breaker_leaves_a_healthy_host_untouched(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§96 A1a: one unhealthy host must not poison a healthy one."""
+
+    monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+    monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-mixed.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker_mixed",
+            query="Research two hosts",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _MixedHostReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(host="healthy.example"),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    health = metrics.get("backend_health") or []
+    healthy_keys = [
+        item for item in health if item["health_key"] == "native_http::healthy.example"
+    ]
+    # Either the healthy host never recorded a failure, or it is still closed.
+    assert all(item["state"] == "closed" for item in healthy_keys)
+    assert all(item["failure_streak"] == 0 for item in healthy_keys)
+
+    sources = _breaker_sources(completed)
+    healthy_reads = [
+        item for item in sources if "healthy.example" in str(item.get("item", {}).get("url", ""))
+    ]
+    assert healthy_reads, "the healthy host must still be read"
+    assert any(item.get("read_status") == "read" for item in healthy_reads)
+
+
+def test_read_breaker_switch_defaults_off(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The switch stays off by default, so the A0/F2 baselines stay valid."""
+
+    monkeypatch.delenv("RESEARCH_READ_BREAKER", raising=False)
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-off.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker_off",
+            query="Research with the breaker off",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _CountingFailingReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    assert not metrics.get("backend_health")
+    assert gateway.calls >= 2, "with the breaker off every read still goes out"
+
