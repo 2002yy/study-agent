@@ -4613,3 +4613,97 @@ P2-A1a ✅ 实现完成（944ce69；2243/3 = 2 known + 1 known flake）
 P2-A1b cross-run health cache（未立项，收益证明后再决定）
 P2-A2 Progressive Reader ← 下一刀（需先裁决 97.6）
 ```
+
+
+## §98 P2-A2a Candidate Resolution Contract（`5690c52`）
+
+**裁决落地**：§97.6 采用方案 1，但升级为 **candidate lifecycle 语义修复**；A2 仍须在计划生成前读取 `(backend, host)` health 做路由 —— **语义修复 + 提前避免无效 attempt 两者都做**（后者属 A2c）。
+
+### 98.1 根因与冻结语义
+
+```text
+read_outcome exists  !=  candidate completed
+```
+
+- **`read_outcome` = 一次 backend attempt / policy decision 的历史事实**（只回答"某个 backend 对这个 candidate 做过什么"）。
+- **`completed` = 整条 reader chain 已达到终局**。
+- policy skip / retriable failure / escalation-needed outcome **不得自动消费 candidate**。
+
+### 98.2 candidate resolution authority 最终形状
+
+`src/web/research/candidate_resolution.py`（**纯函数，无状态、无 ledger、不碰 evidence/support/gate**）：
+
+```text
+resolved         某个 backend 产出可用结果，或资源本身已终局（not_found）
+fallback_pending 本 backend 未解决，chain 中仍有其它 backend 可试
+policy_deferred  本 backend 未被尝试（circuit open / backend disabled），candidate 未被消费
+run_blocked      run 已无法调度（窗口/预算）；不是 URL 内容事实，也绝不伪装成完成
+chain_exhausted  所有允许的 reader 都试过且都未解决
+```
+
+- `CandidateResolution.terminal` = `resolved | chain_exhausted`（即旧 `completed` 语义）。
+- `reschedulable` = `fallback_pending | policy_deferred`；`may_try_another_backend` = `fallback_pending`。
+- 输入：`AttemptFact`（backend / retrieval_state / attempted / status）+ `backend_chain` + 可选 `health_state_for(backend, host)`（A2c 提供；A2a 不据此做调度决策，只报告"仍合法可用"的 backend）。
+- `terminal_candidate_ids(outcomes)` 是**唯一**的"完成"定义；`resolution_summary()` 提供诊断。
+- **`DEFAULT_READER_CHAIN = ("native_http",)`** ⇒ A2a **不改变现有行为**，A2b/A2d 扩展 chain 后语义自动生效。
+- 判定顺序：`settled` 尝试优先（不会被后续 unsettle）→ `run_blocked` → `needs_alternate`（有可用 backend → fallback_pending，否则 chain_exhausted）→ policy skip（有可用 backend → fallback_pending；仅被 health 阻塞 → **policy_deferred**；chain 空 → chain_exhausted）。
+- 分类集合：`TERMINAL_STATES = {success, not_found}`；`ALTERNATE_ELIGIBLE_STATES = {shell_page, js_required, anti_bot, login_required, http_denied, rate_limited, invalid_content, connect_failure, dns_failure, tls_failure, timeout, reset, backend_failure}`；`RUN_BLOCKED_STATE = budget_exhausted`。
+
+### 98.3 三个 runtime 调用点如何统一
+
+| 位置 | 处理 |
+| --- | --- |
+| `runtime.py` `completed_read_ids`（旧 `:552-554`，由全部 outcome 派生） | **改为委托 authority**：`terminal_candidate_ids(self.read_outcomes)`；本属性不再自行解释 outcome。新增 `read_resolutions()` 暴露 per-candidate 视图 |
+| `runtime.py:1726`（read loop 跳过已完成 candidate） | 继续消费该属性 ⇒ 自动获得新语义，无需各自解释 |
+| `runtime.py:3735`（`excluded = {*completed_read_ids, *already_ranked}`） | 同上 |
+| 附带 | `RuntimeCursor` 其余 `completed_read_ids` 消费点（1356/1578/1651/1948/1982/4157/4824…）**全部继承同一权威**，未新增任何本地解释 |
+
+**关键设计发现**：cursor 强制 **每 candidate 唯一 read outcome**（`runtime.py:1021` 校验）。因此 **policy skip 现在根本不产生 read outcome** —— skip 不是一次读取。它的 provenance 完整保留在 `metrics.read_timing`、`sources[].retrieval_policy` 与 failure 行（`code=read_failed` + `provider_code=circuit_open`）。这既满足"skip 不得消费 candidate"，又不破坏唯一性不变量。
+
+### 98.4 持久化面（compatibility）
+
+- `RuntimeReadOutcome` 增量字段：**`backend`** + **`retrieval_state`**（canonical），使用既有 `setdefault` 垫片模式（B5 / P1-C batch 2 / Slice 1 先例）⇒ **pre-A2a 持久 cursor 仍可加载**（缺失字段补默认）。
+- 真实 attempt 的 `retrieval_state` 由 A0 `classify()` 得出并随 outcome 持久化 ⇒ lifecycle 能区分**终局 `not_found`** 与**可 fallback 的 `reset`**（A2b route matrix 的前提）。
+- 唯一性不变量未改；`error_code` 对真实失败仍为 `read_failed`（冻结字面量不变）。
+
+### 98.5 tests / regression
+
+| 项 | 结果 |
+| --- | --- |
+| `tests/test_candidate_resolution.py` | **31 passed**（success→resolved、not_found→terminal、settled 优先、shell/js_required/anti_bot→fallback_pending、transport failure + 有 alternate→fallback_pending、无 alternate→chain_exhausted、全 backend 耗尽→terminal、**policy skip 不 completed**、**health-blocked→policy_deferred**、health-blocked 的 alternate 不被提供、half_open 仍被提供、空 chain→exhausted、budget_exhausted→run_blocked 且不成为 URL 事实、词表封闭、outcome 历史完整保留、legacy outcome 视为 attempt、terminal_ids 单一完成定义、skip 不在历史中、summary 计数、无 authority 字段、codec 往返、legacy codec 兼容、cursor 空态、run entity 不被修改） |
+| 受影响集合 | **248 passed**（active runtime / health breaker / candidate resolution / failure contracts / foundation / taxonomy / escalation / backends） |
+| **full pytest @ `5690c52`** | **2274 passed / 3 failed**（683s）：2 已知 Windows-local baseline + 1 已知负载闪失败（**单跑 1 passed**）⇒ **零新增失败** |
+| 对照 A1a（2243/3） | **+31 passed**（新增测试），失败族不变 |
+| Ruff / `git diff --check` / tracked | 全 clean |
+
+### 98.6 in-situ（`A2A.node.json` @ `5690c52`，breaker ON / harness 阈值）
+
+- `gate=pass`；5 个 read outcome **全部带 `backend=native_http` + canonical `retrieval_state`**（4×`success`、1×`invalid_content`）。
+- `metrics.candidate_resolution` = `{candidates: 5, resolved: 4, chain_exhausted: 1}` —— 那个 `chain_exhausted` 正是 `invalid_content`（393 字符 short_doc）且 chain 只有 `native_http` ⇒ **与 A2a 前行为一致**（证明"零行为变化"）。
+- `read_timing` 每行带 `retrieval_state` + `retrieval_policy.attempted=true`。
+- `answer_status=unavailable / reason=production_chat_failed`，但 `gate=pass` 且 **eligible evidence = 6** ⇒ 该失败是**模型侧瞬时失败**（与 A1a 批次中出现过一次的同一族），**与 A2a 无关**（A2a 只动 read lifecycle）。
+
+### 98.7 会阻塞 A2b routing matrix 的歧义（**需裁决**）
+
+1. **escalation 是 chain step 还是 native read 的子步骤？** 今天 Wigolo 升级在 `read_escalation` 内部作为 `native_http` 读取的**子步骤**触发，不是独立 chain step。而 A2b 要求的矩阵形如 `native_http shell_page → eligible alternate reader`。⇒ A2b/A2d 必须先把 escalation 提升为显式 chain step（或让 chain 建模嵌套步骤），否则 route matrix 无法表达。
+2. **`http_denied` / `rate_limited` / `login_required` 的 fallback 归属**：裁决说"`http_denied` 是否 fallback 由 route policy 决定"，但 A2a 已把它们放入 `ALTERNATE_ELIGIBLE_STATES`（默认可 fallback）。⇒ A2b 必须显式接管这三类的路由决定，不能让 A2a 的默认值成为隐式 policy。
+3. **`invalid_content` 与既有 adequacy 升级的双重处理风险**：`invalid_content`（short_doc）在 A2a 里可 fallback，而 §71C-3a 的 escalation 也会对 `short_doc`/`js_shell`/`anti_bot_or_error` 升级 ⇒ 一次读取可能被**两条路径各升级一次**。A2b/A2d 必须合并为一个决策点。
+4. **重调度语义**：`policy_deferred`/`fallback_pending` 为 `reschedulable`，即后续 wave 可重新规划该 candidate（skip 不再终局）。这**是裁决要的**，但意味着 skip 会在后续 wave 重复出现（每次都是快速 skip，受 wave 上限约束）。A2c 的 health-aware 调度应负责提前避免无效 attempt。
+
+### 98.8 兼容债务（延续）
+
+- `mark_circuit_open()` → `native_http::*` wildcard health key：**仅 legacy compatibility debt**，当前无调用点；**A2 及之后任何新 production 路径禁止产生 wildcard health key**。
+- 未接 Wigolo fallback、未改 escalation 行为、未加 browser/Crawl4AI、未改 timeout/retry、未做 A1b cache、未加 Discovery provider、未碰 Evidence/Support/Gate/Answer、未建新 ledger。
+
+### 98.9 路线
+
+```text
+A0 ✅ CLOSED      A1a ✅ CLOSED      A1b ⏸ evidence-triggered only
+A2a ✅ 实现完成（5690c52；2274/3 = 2 known + 1 known flake）
+   └─ 待裁决 §98.7 的 4 项歧义
+A2b Progressive routing matrix ← 下一刀（需先裁决 §98.7）
+A2c Health-aware scheduling
+A2d Existing Wigolo escalation wiring
+A2e integration / live validation
+A3 Browser bakeoff → A4 Discovery bakeoff → A5
+```
