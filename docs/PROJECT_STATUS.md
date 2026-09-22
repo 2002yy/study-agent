@@ -4474,3 +4474,49 @@ P2-E Artifact / Publication Audit
 Full-function Shadow
 Release benchmark
 ```
+
+
+## §96 P2-A0 CLOSED — Retrieval Outcome Contract（final head `9334abd`）
+
+### 96.1 收口门禁（补跑完成）
+
+| 门 | 结果 |
+| --- | --- |
+| full pytest | **2217 passed / 2 failed**（706s，head `9334abd`） |
+| 失败 1、2 | `test_rq1c_impl_entrypoints::…exact_head_guard[run_rq1c_protocol_probes_core.py]`、`test_rq1c_protocol_probes::…deterministic_protocol_runner_exercises_all_required_probes` —— **已知 Windows-local baseline 失败**（与 `fc50845` / `480cd4e` / `eb120930` 同类），**零新增失败** |
+| Ruff（src/tests/tools） | All checks passed（此前已绿，head 未变不重跑） |
+| `git diff --check` | clean |
+| tracked 工作树 | clean |
+| 合同消费者测试集 | 7 文件 **154 passed**（`test_failure_taxonomy` 64 项在内，合计 88 focused） |
+| 生产接线 | **零**（`failure_taxonomy` / `validate_read_artifact` 仅被自身模块引用，已扫描验证） |
+
+**状态：`P2-A0 implementation complete → final regression green → P2-A0 CLOSED`。**
+A0 未改 timeout / breaker 行为 / retry policy / read 结果语义 / backend / ranking / answer / evidence / support / gate。
+
+### 96.2 A0 baseline 固化
+
+- **P2-A0 final head：`9334abd`**（合同 `773e2c7` → §95 方向与发现层澄清 `8571f6b` → 状态订正 `9334abd`）。
+- **全量基线：2217 passed / 2 known failed @ `9334abd`**（A1 起任何全量异常先与此对照）。
+- 与 F2 终点基线（`eb120930`，2152/2）相比：**+65 passed / 同 2 known failures**，全部来自 A0 新增合同测试与 §95 前向映射核对测试。
+
+### 96.3 A1 前置裁决（已冻结，不改生产代码）
+
+> **既有 `mark_circuit_open()` 单布尔在 A1 中降级为兼容壳；新的唯一状态权威改为 `(backend, host)` health model。新旧 breaker state 不得双权威并存。**
+
+落地含义（A1 实施时执行）：
+1. `WigoloShadowReadBackend._circuit_open` 保留方法签名与行为（兼容），但内部**转调**新的 health model（`backend="wigolo_http"` + 请求 host）；
+2. 状态查询/记录只读 `(backend, host)` 权威，单布尔不再单独持有真值；
+3. `unsupported + detail=circuit_open` 的现有形状**不变**（A0 桥接已覆盖该形状），因此上游消费者无感；
+4. 失败计数只统计 `counts_towards_health(state, attempted=True)`（A0 已冻结：skip 不喂 breaker、内容判断不喂 breaker）。
+
+### 96.4 路线
+
+```text
+P2-A0 ✅ CLOSED（9334abd，2217/2 baseline）
+P2-A1a per-run breaker / deadline policy   ← 下一刀（待开工指令）
+   └─ A1b cross-run health cache（暂不做，收益证明后再立项）
+P2-A2 Progressive Reader
+P2-A3 Browser bakeoff（Wigolo vs Crawl4AI）
+P2-A4 Discovery provider bakeoff（Agent Search MCP / AutoSearch / OpenSERP / [search2ai later]）
+A5 heterogeneous integration
+```
