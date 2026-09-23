@@ -6391,3 +6391,118 @@ verdict                  ⏳
 ```
 
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，**未触 production 代码**，按 Staged Policy 无需 L1/L2。
+
+
+## §114 P2-A3-2 Step 0 裁决 + A3-2a warm transport（**无 verdict；adapter 待做**）
+
+### 114.1 Step 0 — 冻结合同机械检查：**裁决 B（类失败只报告，不淘汰）**
+
+代码事实（`browser_bakeoff.py`，非印象）：
+
+```text
+REQUIRED_DIMENSIONS : session_capability, document_support, failure_transparency,
+                      provenance_completeness, budget_boundedness, static_control_silence
+   anti_bot_recovery ∈ required?   False     任何 anti_bot 维度?  NONE
+DISQUALIFIERS       : browser_started_on_static_control / budget_exceeded /
+                      missing_canonical_retrieval_state / provenance_incomplete /
+                      requires_core_semantics_change / chain_longer_than_max
+   missing_required_capability?    False     任何 class-failure 条目?  NONE
+anti_bot class      : demand = anti_bot_recovery, expect_browser_call = True
+   success_definition: {browser_invocation: required_once, usable_content_required: TRUE,
+                        canonical_state_required: True,
+                        notes: "Recovery is the point of the class; a denial is a miss."}
+```
+
+**裁决（用户）**：硬门以 `REQUIRED_DIMENSIONS + DISQUALIFIERS` 为准。事后把"类 success definition"追认成 disqualifier 属于**事后加强 gate**，破坏预注册原则。
+
+```text
+Crawl4AI anti_bot class        = FAIL（报告，不淘汰）
+anti_bot_recovery capability   = 不声明
+qualification disqualifier     = NO
+```
+
+**A3-3 verdict 必须显式写明**：Crawl4AI 未通过 anti_bot recovery class；production `BrowserBackend` **不提供** `anti_bot_recovery` capability；遇到 anti-bot demand **不得调度 Crawl4AI 作为 recovery backend**。
+
+**登记 contract defect（design debt，本轮不修、不重跑、不追溯）**：
+
+```text
+A3-0 anti_bot class 要求 recovery（usable_content_required=True），
+但 anti_bot_recovery 未进入 REQUIRED_DIMENSIONS / DISQUALIFIERS。
+下一版 bakeoff 若要把 anti-bot recovery 设为资格硬门，
+必须在测试任何候选之前正式加入 required/disqualifier。
+```
+
+### 114.2 A3-2a warm isolated worker — 架构
+
+```text
+Study Agent (main venv)
+   │  stdin/stdout 逐行 JSON（-u，逐行 flush）
+   ▼
+isolated Crawl4AI worker（隔离 venv，长驻）
+   │  per-(session, mode) AsyncWebCrawler
+   ▼
+persistent browser runtime
+```
+
+worker 只拥有 **provider execution**：无 routing / lifecycle / budget / Evidence-Support-Gate authority。`mode=pdf` → provider-native PDF strategies；其余 → browser path（backend execution strategy，非第二套路由权威）。
+
+**crawler 分键**：`(session_id, mode)`。第一版只按 session 分键，导致 PDF 请求复用了 browser crawler（`chars=0` + internal error）；修正后 PDF 正常（309 字符）。
+
+### 114.3 warm E2E（qualification 数字 = request sent → response received）
+
+| 步骤 | wall | ipc | provider | chars | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| READY | — | — | — | — | `startup_ms=3782.9`（另一次 3265.4） |
+| STATIC | 2032.5ms | 922.4 | 1110.1 | 166 | ✅ ≤3000 |
+| **SPA**（delay 1200ms） | **1383.6ms** | 14.0 | 1369.6 | **5125** | ✅ **真渲染** |
+| **PDF** | **267.8ms** | 218.7 | 49.1 | **309** | ✅ **真 PDF 正文** |
+
+⇒ **warm transport 三类全部落在冻结 3.0s browser budget 内**（对比 cold per-call subprocess §113.5：1.2–1.7s 纯开销、SPA 3.78s 超标）。**未调任何冻结数值。**
+
+**operational startup 单独记账**：worker import + 首个 crawler 启动 ≈ **3.27–3.78s**。按裁决要求：**production 必须只有 worker `READY` 之后 backend 才允许 `availability=true`**，否则等于把 cold-start 偷出预算。
+
+### 114.4 session cross-candidate 隔离 —— **HARD CHECK PASS**
+
+| 请求 | HTTP | 判定 |
+| --- | --- | --- |
+| A `/session/start`（`session_id=A`） | 200 | 写 cookie |
+| A `/session/check`（**同 A**） | **200** | **SESSION OK** ✅ |
+| B `/session/check`（`session_id=B`） | **401** | NO SESSION ✅ |
+| 匿名 `/session/check`（无 session） | **401** | NO SESSION ✅ |
+
+⇒ **进程常驻 ≠ 状态常驻**：长驻 worker + per-`(session, mode)` crawler 保证 candidate A 的 cookie/localStorage **不会**泄漏给 B 或匿名请求。这正面回应了 §113.1 发现的"同一 crawler 内换 `session_id` 仍共享 storage"。
+
+### 114.5 ❌ deadline boundedness —— **未通过（真缺口，待修）**
+
+```text
+request: timeout_ms=1500, delay_ms=4000
+结果:    wall=4511ms（harness watchdog 4.5s 触发），provider_ms=0.0
+```
+
+- 语义区分已按裁决落地：**provider budget = 3.0s（资格判定）** vs **harness watchdog = 4.5s（仅防测试挂死）**；watchdog 触发即判 **FAIL**，不把那 1.5s 算给 Crawl4AI。
+- 根因：`delay_before_return_html` **不受 `page_timeout` 约束**，且当前 worker **没有从主进程传播 deadline 的取消路径** ⇒ 主进程超时后 provider 仍在跑。
+- **这是 qualification failure 的一种，不是测试工具问题**：adapter 设计必须提供 worker 级取消/任务级 timeout，使 deadline 真正向下传播。**不得靠调预算掩盖。**
+
+### 114.6 观测方法教训（已固化）
+
+- `Select-Object -Last N` 会缓冲到进程结束 ⇒ 表现为"假卡住"。改用 `-u` + `Tee-Object` 实时输出。
+- worker 必须**逐行 flush**，且以 `-u` 启动；harness 每一步打印 `BEGIN/END`，最后一行即故障位置。
+- harness 需要**独立 watchdog**，否则 deadline 测试会把整个 probe 挂死。
+- 探针自身 bug 两个（crawler 未按 mode 分键、session 行未打印 error）已修；修复前后对比见 114.2/114.3。
+
+### 114.7 状态与下一刀
+
+```text
+Step 0 冻结合同机械检查     ✅ 裁决 B（class FAIL，不淘汰）+ contract defect 登记
+Step 1 warm worker          ✅ READY 握手 + operational startup 记账
+Step 2 warm E2E             ✅ static/SPA/PDF 全 ≤3000ms
+Step 3 deadline boundedness ❌ 未通过（需 worker 级取消）
+Step 4 session isolation    ✅ HARD CHECK PASS
+Step 5 capability 广告      ⏳ 仅 js_render / pdf / session（provider truth 的子集）
+Step 6 adapter + cohort     ⏳
+verdict                     ⏳
+```
+
+**下一刀**：修 deadline 传播（worker 级 task timeout / 取消），复验 Step 3；然后实现 `Crawl4AIBrowserBackendExecutor`（`CacheMode.BYPASS` + PDF native strategy + 主进程 frozen honesty 层 + `provider_state` 与 `canonical_retrieval_state` 双层 provenance + **仅广告 `js_render`/`pdf`/`session`**），跑 A3-0 原封六类 cohort，出最终 verdict。
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，未触 production 代码，按 Staged Policy 无需 L1/L2。
