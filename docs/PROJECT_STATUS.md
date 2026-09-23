@@ -6055,3 +6055,127 @@ A3-3 ⏳ 对照 —— 在 110.4 解决前不可信
 ```
 
 **A3-1 不进入 production，不标记 CLOSED。** 下一刀建议：**先裁决 110.4**（daemon cache key / bypass 路径 / 链级策略），再决定 A3-2 是否/如何继续——否则 Crawl4AI 一侧会用同样的方式被污染，对照变成"谁先写缓存"。
+
+
+## §111 P2-A3-1R WIGOLO BROWSER QUALIFICATION REMEDIATION — VERDICT: **DISQUALIFIED**（code `8b4f000`）
+
+**结果**：三个 qualification blocker 中，**两个已用 provider-native 方案解决并实测有效**，第三个（PDF/document）**provider 层面确实做不到**。按 §110 裁决规则，required gate 失败 ⇒ **Wigolo Browser DISQUALIFIED**，不再迭代。
+
+### 111.1 blocker ①（cache 污染）—— **已解决，provider-native**
+
+A3-1 的探测用错了 flag 名。查 `wigolo fetch --help` 后找到官方参数：
+
+```text
+--force-refresh        Bypass cache and fetch fresh content from the network.
+--mode=cache|default|stealth   cache=HTTP-only；default=standard；stealth=full browser render
+```
+
+**实测（决定性）**：
+
+| 请求 | method | cached | 结果 |
+| --- | --- | --- | --- |
+| 先 `render_js=never` 预热 | http | False | 未渲染 10B |
+| 再 `render_js=always` | **cache** | **True** | 仍是未渲染 10B（A3-1 的问题） |
+| `always` + **`force_refresh`** | **browser** | **False** | **5165B 已渲染** ✅ |
+| `always` + **`mode=stealth`** | **browser** | **False** | **5165B 已渲染** ✅（可重复，不吃缓存） |
+
+**采用的解**：browser tier 的 `WigoloShadowReadBackend` 默认 `mode="stealth"` + `force_refresh=True`（两者都是 provider 原生、有文档、**不改写 URL**）。http tier 行为不变。
+
+**复核（A3-1R cohort）**：每个 `wigolo_browser` 步现在都是 `cache=False`，`wigolo_http` 同 URL 仍是 `cache=True, rend=False` ⇒ **两个 tier 的缓存已隔离**。
+
+**新增硬门**：`WigoloBrowserBackendExecutor` 遇到 `cache_hit=True` 的 browser 尝试时**fail closed**（`adequacy_reason="browser_cache_not_isolated"`、`usable=False`）——不允许 HTTP 缓存内容冒充 browser result。
+
+### 111.2 blocker ②（capability truth）—— **已修正**
+
+`wigolo_http` 以 `render_js="never"` 运行，**从不渲染**，因此从 `DEFAULT_BACKENDS` 移除其 `js_render`：
+
+```text
+wigolo_http    = {plain_http, content_extraction}          ← 修正
+wigolo_browser = {plain_http, content_extraction, js_render, session, anti_bot_recovery, pdf}
+```
+
+- **未新增 capability 词**，未改 `route()` / `schedulable_now()` / lifecycle / taxonomy。
+- 后果（预期且已测）：`shell_page` / `js_required` 不再被送给不能渲染的 http tier，而是**终止**（production chain 尚无 browser tier）⇒ `exhaust / no_capable_backend`。这正是"不再因为错误 capability 把 JS page 送给 `wigolo_http`"。
+- 受影响测试按修正后的真值更新：`test_progressive_routing` / `test_scheduling` / `test_chain_executor`（6 处 state 由 `shell_page` 改为 http tier 真正能服务的 `reset`）/ `test_wigolo_http_executor` / A2e 的 `shell_page` 两行（→ `exhaust`）。
+
+### 111.3 blocker ③（envelope 饿死）—— **已按 tier 分离**
+
+```text
+wigolo_http   envelope = 3.0s / run   （数值不变）
+browser tier  envelope = 3.0s / run   （独立 accounting domain）
+两者共同受 research_seconds_left 全局约束
+```
+
+实现：`read_escalation` 的 ledger 改为 **按 tier 键控**（`reset_run_envelope(tier)` / `charge_run_envelope(ms, tier)` / `run_envelope_spent_ms(tier)` / `run_envelope_remaining_ms(tier)`）；原 `*_http_envelope*` 保留为 `TIER_HTTP` 薄封装（生产调用面不变）。browser executor 用 `TIER_BROWSER` 的 envelope 计算 B2 plan；runtime **每 run 重置两个 tier 各一次**。**没有新增全局 ledger，没有改任何冻结数值。**
+
+### 111.4 A3-1R 六类复测（`BROWSER_BAKEOFF.wigolo_browser.a3-1r.json`）
+
+| 类 | browser_called | browser_state | rendered | cache | usable | 判定 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `static_control` ×3 | **False** | — | — | — | — | ✅ guard 成立 |
+| `js_shell` ×2 | True | `timeout` | — | False | False | ⚠️ 见 111.5 |
+| `spa_delayed_render` ×2 | True | **`success`** | **True** | False | **True** | ✅ **真实 browser rescue** |
+| `anti_bot` ×2 | True | **`anti_bot`** | True | False | False | ✅ 诚实失败 |
+| `session_required` | True | **`login_required`** | True | False | False | ✅ 诚实失败 |
+| `document_heavy`（pdf） | True | `backend_failure` | — | False | False | ❌ **required gate 失败** |
+| `document_heavy`（mixed html） | True | `invalid_content` | True | False | False | ⚠️ |
+
+`provenance_complete` = True（全部 12 行）。`budget_respected` 仅 `js_shell` 两行为 False（见 111.6）。
+
+### 111.5 新增能力证明：browser 真的做了只有 browser 能做的事
+
+`spa_delayed_render` 是决定性证据：native 失败、`wigolo_http` 只拿到 `Loading...`（10B, cache hit）、**browser 步 `rend=True, cache=False, 5165B` 且 `usable=True`**。延迟注入的 SPA 正文只有渲染后才存在 ⇒ 这是**独立 browser rescue**，不是 HTTP 结果冒充。
+
+### 111.6 次级观察（非 disqualifier）
+
+1. **`js_shell` 在 3.0s effective timeout 下超时**（3015/3031ms）。直接探测显示同一页面 `mode=stealth` 渲染需 **~6.2s**（loopback）。⇒ **3.0s effective timeout 对真实 browser render 偏紧**；js_shell 的诚实判定本应是 `shell_page`（该 fixture 页即使渲染也无正文）。**按裁决不调数值**，作为 activation 前必须裁决的 timeout 策略问题记录。
+2. **envelope 有界溢出 +0.5%**：js_shell 两行 debit = 3015/3031ms vs 3000ms envelope。来自"调用前按 envelope 判 deny + 调用时 timeout 上限"的自然余量；harness 的 `budget_respected` 容差仅 1ms，故判 False。**有界**，非无界超支。
+
+### 111.7 ❌ DISQUALIFIER：`document_support`（required）失败
+
+**决定性探测**（provider 直接调用，非推断）：
+
+```text
+local  /report.pdf   + mode=stealth → HTTP 500 playwright_fetch_failed
+                                      "page.goto: Download is starting"
+public w3c dummy.pdf + mode=stealth → HTTP 500 playwright_fetch_failed（同一错误）
+local  /report.pdf   + mode=default → method=browser, 16 字符 "  -- 1 of 1 --  "（viewer 外壳，无正文）
+```
+
+⇒ **browser tier 的 Playwright 路径无法处理 PDF**（导航被下载中断），`default` 路径只回 viewer 外壳。**两个不同 PDF 复现，排除 fixture 偶然性。**
+
+A3-0 把 `document_support` 定为 **required** 维度：required 未达标 ⇒ 任何 rate 比较都无意义。按 §110 裁决："如果 provider 本身无法提供 → 作为 bakeoff disqualifier，而不是在 Study Agent 核心里打补丁绕过去"。
+
+**⇒ `Wigolo Browser DISQUALIFIED`（disqualifier = `document_support_failed`）。**
+
+**连带记录（第二个不实声明）**：`wigolo_browser` 在 `DEFAULT_BACKENDS` 中声明了 `pdf`，而它实际做不到——与 `wigolo_http`/`js_render` 同类的 capability truth 问题。**本刀不改**（A3-0 测量面，且候选已被淘汰）；**若 Wigolo Browser 日后被重新考虑，必须先移除 `pdf` 声明再重新测量。**
+
+### 111.8 门禁（Staged Regression Policy：L0 + L1 + **L2**）
+
+| 层 | 结果 |
+| --- | --- |
+| L0 | Ruff clean；`git diff --check` clean；tracked clean |
+| L1（`a3_browser` + routing/scheduling/chain/runtime 相关） | 全绿（见 L2 覆盖） |
+| **L2 `p2-a-retrieval-stack`** | **465 passed / 226s**（修正前为 448 passed / 13 failed；13 项失败全部是两处有意语义修正的预期后果，已逐一按新真值更新） |
+| **L3 full pytest** | **未跑**（未改 A2 共享核心数据模型 / authority / schema；capability metadata 与 tier-scoped envelope accounting 均在 L2 检索栈内可证局部收敛；符合 §109） |
+
+`wigolo_http` 的 production capability metadata 被修正，故 L2 是必需的（本刀已跑）。未安装/接入 Crawl4AI。
+
+### 111.9 路线
+
+```text
+A3-0 ✅ CLOSED
+A3-1 ⚠️ DELIVERED → A3-1R ❌ DISQUALIFIED（document_support）
+A3-2 ← 下一刀：Crawl4AI adapter
+       （必须独立达到同一 A3-0 required gates；不是"因为分高而赢"）
+A3-3 Head-to-head
+```
+
+**A3-3 仍然有意义**：Wigolo Browser 因 required gate 失败先被淘汰；Crawl4AI 仍须独立通过 A3-0 六类与 required 维度，才算 production-qualified。
+
+**给 A3-2 的既有约束（本刀产出）**：
+1. browser tier **必须**用 provider-native cache 隔离（`mode=stealth` / `force_refresh` 或等价），不得靠 URL 变形；
+2. **capability 声明必须为真**——声明前先验证该 backend 真的具备；
+3. browser tier **用自己的 envelope**，不与 http tier 共享 accounting；
+4. browser 尝试若返回 `cache_hit` ⇒ 不得当作 browser result；
+5. `document_support` 是 required gate：Crawl4AI 必须先证明 PDF 能力，否则同样被淘汰。
