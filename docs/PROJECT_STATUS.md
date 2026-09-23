@@ -5835,3 +5835,103 @@ P2-A3-1 — Wigolo Browser adapter
 ⇒ **零新增回归。** A3-0 为纯增量（新 production-inert 模块 + fixture + 测试），未触碰任何 A2 production 文件（`git diff --name-only` 中 `src/` 仅新增 `browser_bakeoff.py`）。
 
 **A3-0 CLOSED。** 下一刀 **A3-1 Wigolo Browser adapter**（禁止接入 Crawl4AI；禁止改 A2 核心语义）。
+
+
+## §109 STAGED REGRESSION POLICY (L0–L3) — FROZEN（code `16cdfa8`）
+
+**结果**：项目已过早期高风险阶段，"每个小切片都跑 10–15 分钟全量 pytest" 的 ROI 已明显下降。测试门禁正式改为 **分层门禁**，从 **P2-A3 起生效**，取代此前的"每 candidate head 全量 pytest"默认。
+
+规范 owner：**`AGENTS.md` §4（Test execution policy — Staged Regression Policy）**。本节是状态记录与理由，不与其冲突。
+
+### 109.1 四层
+
+| 层级 | 何时跑 | 内容 |
+| --- | --- | --- |
+| **L0 快速门** | 每个小提交 | Ruff + `git diff --check` + tracked worktree clean |
+| **L1 Focused** | 每个实现切片 | 该切片的 **impact set**（自身模块测试 + 所有直接受影响测试 + 下一层） |
+| **L2 阶段集成门** | 每个子阶段收口（Ax / Bx / Cx） | 该子阶段整套 stack + 相邻合同测试 + 关键 regression |
+| **L3 Full regression** | 大阶段封板（P2-A / P2-B / …）、production cutover、发布前 | 全量 `pytest tests` |
+
+默认节奏：**小刀 focused，子阶段 integration，大阶段 full。**
+
+### 109.2 L1 不是"只跑一个测试文件"
+
+每个切片声明 **impact set**，派生规则：
+
+> 该切片自身测试文件 + 所有引用了该切片改动符号的测试 + 其**正下方那一层**。
+
+命名集合落在 `tests/stage_gates.json`。例（A3 browser adapter）：`test_browser_backend.py` + `test_progressive_routing.py` + `test_scheduling.py` + `test_candidate_resolution.py` + `test_active_research_runtime.py` 的 browser/fallback 子集。
+
+### 109.3 L2 阶段集成门（P2-A retrieval subsystem regression）
+
+命名门 `p2-a-retrieval-stack` = **A0 taxonomy + A1 breaker + A2 lifecycle/routing/scheduling/chain + A3 browser** 整条检索栈。**不含** synthesis、agent loop 及其它无关模块。
+
+固定命令（避免手打参数列表漂移）：
+
+```bash
+python tools/run_stage_gate.py --list
+python tools/run_stage_gate.py --impact-set a3_browser
+python tools/run_stage_gate.py --stage p2-a-retrieval-stack
+python tools/run_stage_gate.py --stage p2-a-retrieval-stack --print-paths
+```
+
+`tools/run_stage_gate.py` 只是 manifest reader（约 80 行），**不是框架**：读 `tests/stage_gates.json` → 校验路径存在 → 交给 pytest。
+
+**实测（`16cdfa8`）**：`--stage p2-a-retrieval-stack` = **400 passed / 201s（3m21s）**，对照全量 14–15 分钟。
+
+### 109.4 必须提前触发 L3 的情况
+
+即使未到阶段封板，以下**强制 L3**：
+
+1. 改**共享核心数据模型** — `RuntimeReadOutcome`、candidate lifecycle、routing/scheduling contract、Evidence/Support/Gate；
+2. **production authority cutover**（如 A2d-4 的唯一执行权威切换）；
+3. **持久化 schema / cursor compatibility**；
+4. 大范围**跨层 refactor**；
+5. focused test 出现**未知原因**失败；
+6. **行为语义漂移**，无法证明只局部影响。
+
+普通 adapter、instrumentation、fixture、provider 接入**不**触发 L3。
+
+### 109.5 L3 规则（沿用）
+
+每个 candidate head 跑一次全量；仅当此后 production code / runtime behaviour / 序列化契约 / 大范围 test infra / 影响运行时的依赖配置发生变化时，才允许第二次全量。docs / PR 文本 / 注释 / 纯格式 / 测试名清理**不**需要重跑。
+
+### 109.6 门禁顺序
+
+```text
+L0 + L1（每切片默认）：Ruff → 受影响 focused → git diff --check → worktree clean → diff-scope audit
+L2（子阶段收口）：L0 + L1 + 命名 stage gate
+L3（大阶段封板 / cutover / 发布前）：L0 + L1 + L2 + full pytest，再 Ruff → diff --check → worktree clean → diff-scope audit
+```
+
+mypy 仅在本仓库声明 baseline/config 时运行；本仓库未声明，故**不在门禁内**（与 A2d/A2e/A3-0 实际做法一致）。
+
+### 109.7 A3 起的应用
+
+```text
+A3-0 contract          → L0 + L1（已完成；因新模块为 production-inert，未强制 L3）
+A3-1 Wigolo Browser    → L0 + L1
+A3-2 Crawl4AI          → L0 + L1
+A3-3 bakeoff / winner  → L0 + L1 + L2
+P2-A3 CLOSED           → L3 full pytest 一次
+```
+
+**A3 内部不再每刀跑 full pytest。** A4、A5 同理。
+若 A3-3 仅为 bakeoff、未改 production chain，则可将 L3 推迟到**真正的 production activation**。
+
+### 109.8 retro-application（不改写历史）
+
+按本策略：**A2d-1 / A2d-2 / A2d-3 / A3-0 本不需要 L3**；**A2d-4（authority cutover）与 A2e（子阶段收口）需要**。
+已执行过的全量运行仍是有效证据，**不为了"合规"重跑**。
+
+### 109.9 防漂移
+
+`tests/test_stage_gates_policy.py`（10 项）锁定：
+
+- manifest schema / owner / `applies_from` / 四层齐备；
+- 每个 impact set 与 stage gate **非空且路径真实存在**（重命名测试文件而不更新策略 → 直接失败）；
+- `p2-a-retrieval-stack` **精确等于**九个 retrieval impact set 的并集（L2 不得静默漏掉一层）；
+- L2 **排除**无关子系统（synthesis / answer streaming / RQCE runner）；
+- L3 触发条件与"不触发"清单冻结；
+- retro-application 与本节一致；
+- runner 拒绝歧义与未知选择。
