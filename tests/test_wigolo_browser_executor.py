@@ -28,9 +28,15 @@ from src.web.research.read_adequacy import SHORT_CHAR_THRESHOLD
 from src.web.research.read_escalation import (
     ESCALATION_BROWSER,
     ESCALATION_OFF,
+    TIER_BROWSER,
+    TIER_HTTP,
     charge_http_envelope,
+    charge_run_envelope,
     http_envelope_spent_ms,
     reset_http_envelope,
+    reset_run_envelope,
+    run_envelope_remaining_ms,
+    run_envelope_spent_ms,
 )
 from src.web.research.retrieval_backends import RawReadArtifact
 from src.web.research.wigolo_browser_executor import (
@@ -110,11 +116,13 @@ def _request(url: str = "https://example.test/page") -> ChainAttemptRequest:
 
 @pytest.fixture(autouse=True)
 def _fresh_envelope() -> Any:
-    """The envelope is a run-scoped module global; isolate every test from it."""
+    """Both envelopes are run-scoped module globals; isolate every test."""
 
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
+    reset_run_envelope(TIER_BROWSER)
     yield
-    reset_http_envelope()
+    reset_run_envelope(TIER_HTTP)
+    reset_run_envelope(TIER_BROWSER)
 
 
 def _executor(backend: Any = None, **kwargs: Any) -> WigoloBrowserBackendExecutor:
@@ -224,6 +232,34 @@ def test_a_normal_rendered_page_is_usable() -> None:
     assert result.usable_content is True
     assert result.content.startswith("release date")
     assert result.cost["honesty_downgrade"] == ""
+    assert result.cost["cache_not_isolated"] is False
+
+
+def test_a_cache_hit_is_not_accepted_as_a_browser_render() -> None:
+    """§111 A3-1R: the daemon cache is URL-keyed, so a cache hit is the http
+    tier's un-rendered body. Reporting it as a browser result would be a lie."""
+
+    backend = _FakeBrowserBackend(cache_hit=True)
+    result = _executor(backend).execute(_request())
+
+    assert result.attempted is True
+    assert result.usable_content is False
+    assert result.content == ""
+    assert result.adequacy_reason == "browser_cache_not_isolated"
+    assert result.cost["cache_not_isolated"] is True
+    assert result.retrieval_state in RETRIEVAL_STATES
+    assert result.retrieval_state != "success"
+
+
+def test_the_browser_tier_asks_the_provider_for_cache_isolation() -> None:
+    """The isolation must be provider-native, not a URL rewrite."""
+
+    source = Path("src/web/research/wigolo_backend.py").read_text(encoding="utf-8")
+    assert "force_refresh" in source
+    assert "_BROWSER_MODE" in source
+    # no URL mangling: no cache-busting query or fragment anywhere
+    assert "cachebust" not in source.lower()
+    assert "?t=" not in source
 
 
 # ---------------------------------------------------------------------------
@@ -269,8 +305,8 @@ def test_insufficient_hard_headroom_is_a_budget_skip() -> None:
 
 
 def test_exhausted_envelope_is_a_budget_skip() -> None:
-    reset_http_envelope()
-    charge_http_envelope(3_000.0)
+    reset_run_envelope(TIER_BROWSER)
+    charge_run_envelope(3_000.0, TIER_BROWSER)
     backend = _FakeBrowserBackend()
     result = _executor(backend, hard_seconds_left=lambda: 30.0).execute(_request())
 
@@ -278,6 +314,28 @@ def test_exhausted_envelope_is_a_budget_skip() -> None:
     assert result.retrieval_state == "budget_exhausted"
     assert result.cost["deny_layer"] == "envelope"
     assert backend.calls == []
+
+
+def test_the_browser_envelope_is_independent_of_the_http_envelope() -> None:
+    """§111 A3-1R: a spent http envelope must not starve the browser tier."""
+
+    reset_run_envelope(TIER_HTTP)
+    reset_run_envelope(TIER_BROWSER)
+    charge_run_envelope(3_000.0, TIER_HTTP)
+    assert run_envelope_remaining_ms(TIER_HTTP) == 0.0
+    assert run_envelope_remaining_ms(TIER_BROWSER) == 3_000.0
+
+    backend = _FakeBrowserBackend()
+    result = _executor(
+        backend,
+        hard_seconds_left=lambda: 30.0,
+        charge_envelope=lambda ms: charge_run_envelope(ms, TIER_BROWSER),
+    ).execute(_request())
+
+    assert result.attempted is True
+    assert result.usable_content is True
+    assert run_envelope_spent_ms(TIER_BROWSER) == pytest.approx(850.0, abs=1.0)
+    assert run_envelope_spent_ms(TIER_HTTP) == 3_000.0
 
 
 # ---------------------------------------------------------------------------

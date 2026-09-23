@@ -63,12 +63,19 @@ from src.web.research.failure_taxonomy import (
 from src.web.research.read_adequacy import ADEQUATE_SHAPE, classify_reader_result
 from src.web.research.read_escalation import (
     ESCALATION_BROWSER,
+    TIER_BROWSER,
     escalation_mode,
+    run_envelope_remaining_ms,
     wigolo_http_execution_plan,
 )
 from src.web.research.retrieval_backends import RawReadArtifact, ReadRequest
 
 WIGOLO_BROWSER_BACKEND = "wigolo_browser"
+
+#: §111 A3-1R: a browser attempt that comes back as a cache hit is not a
+#: browser result - the daemon's cache is URL-keyed, so it would be the http
+#: tier's un-rendered body. Fail closed instead of reporting it as a render.
+CACHE_NOT_ISOLATED = "browser_cache_not_isolated"
 
 #: How much of the rendered text the honesty check may look at. A wall or
 #: interstitial announces itself at the top; scanning the whole document would
@@ -144,6 +151,9 @@ class WigoloBrowserBackendExecutor:
     hard_seconds_left: Callable[[], float] | None = None
     charge_envelope: Callable[[float], None] | None = None
     mode: Callable[[], str] | None = None
+    #: §111 A3-1R: the browser tier has its own run envelope, so a slow http
+    #: step cannot starve it. Same frozen numbers, different accounting domain.
+    envelope_tier: str = TIER_BROWSER
     name: str = WIGOLO_BROWSER_BACKEND
     calls: int = field(default=0, init=False)
 
@@ -179,7 +189,8 @@ class WigoloBrowserBackendExecutor:
         plan = wigolo_http_execution_plan(
             hard_seconds_left=(
                 self.hard_seconds_left() if self.hard_seconds_left else None
-            )
+            ),
+            envelope_remaining_ms=run_envelope_remaining_ms(self.envelope_tier),
         )
         if not plan.allowed:
             return _skip_result(
@@ -287,9 +298,24 @@ class WigoloBrowserBackendExecutor:
         adequacy = classify_reader_result(payload)
         raw_state = str(metadata.get("state") or "")
 
+        # §111 A3-1R: a cache hit is not a browser render. The daemon's cache is
+        # keyed by URL only, so this body belongs to whichever tier fetched
+        # first; reporting it as a browser result would be a silent lie.
+        not_isolated = artifact.cache_hit is True
+
         # Honest failure first: a rendered wall is not content.
-        judgement = rendered_content_judgement(artifact.content) if artifact.usable else ""
-        if judgement:
+        judgement = (
+            rendered_content_judgement(artifact.content)
+            if artifact.usable and not not_isolated
+            else ""
+        )
+        if not_isolated:
+            outcome = classify(
+                backend=str(self.name),
+                raw_state="unsupported",
+                detail=CACHE_NOT_ISOLATED,
+            )
+        elif judgement:
             outcome = classify(
                 backend=str(self.name),
                 raw_state="",
@@ -309,6 +335,7 @@ class WigoloBrowserBackendExecutor:
             artifact.usable
             and adequacy.shape == ADEQUATE_SHAPE
             and not judgement
+            and not not_isolated
         )
         return ChainStepResult(
             backend=str(self.name),
@@ -316,7 +343,7 @@ class WigoloBrowserBackendExecutor:
             attempted=True,
             usable_content=usable,
             content=artifact.content if usable else "",
-            adequacy_reason=judgement or adequacy.shape,
+            adequacy_reason=(CACHE_NOT_ISOLATED if not_isolated else (judgement or adequacy.shape)),
             cost={
                 "latency_ms": round(float(artifact.latency_ms or 0.0), 1),
                 # The whole call is network/render wait, not local work (§107).
@@ -335,6 +362,7 @@ class WigoloBrowserBackendExecutor:
                 "cold_start_ms": metadata.get("cold_start_ms"),
                 "render_ms": metadata.get("render_ms"),
                 "honesty_downgrade": judgement,
+                "cache_not_isolated": not_isolated,
             },
             policy={
                 "attempted": True,
@@ -346,6 +374,7 @@ class WigoloBrowserBackendExecutor:
 
 
 __all__ = [
+    "CACHE_NOT_ISOLATED",
     "HONESTY_DETAIL",
     "HONESTY_DOWNGRADES",
     "HONESTY_PREFIX_CHARS",

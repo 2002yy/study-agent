@@ -368,7 +368,13 @@ def test_backends_declare_capabilities_rather_than_names() -> None:
     assert registry["native_http"].capabilities == frozenset(
         {"plain_http", "content_extraction"}
     )
-    assert CAP_JS_RENDER in registry["wigolo_http"].capabilities
+    # §111 A3-1R capability truth: ``wigolo_http`` runs render_js="never", so it
+    # never renders and must not claim js_render.
+    assert CAP_JS_RENDER not in registry["wigolo_http"].capabilities
+    assert registry["wigolo_http"].capabilities == frozenset(
+        {"plain_http", "content_extraction"}
+    )
+    assert CAP_JS_RENDER in registry["wigolo_browser"].capabilities
     assert CAP_SESSION in registry["wigolo_browser"].capabilities
 
 

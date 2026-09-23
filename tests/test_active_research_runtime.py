@@ -5275,10 +5275,13 @@ _A2E_CHAIN_CASES: tuple[tuple[str, Mapping[str, Any], tuple[str, ...], str, bool
     (
         "native_shell_page",
         {"ok": True, "content": "Please enable JavaScript to continue"},
-        ("native_http", "wigolo_http"),
-        "wigolo_http",
+        # §111 A3-1R: js_render is the browser tier's capability, and the
+        # production chain has no browser tier yet - so a shell page terminates
+        # instead of being sent to the non-rendering http tier.
+        ("native_http",),
+        "native_http",
         True,
-        "resolve",
+        "exhaust",
     ),
     (
         "native_anti_bot",
@@ -5666,7 +5669,7 @@ def test_a2e_wigolo_envelope_is_run_scoped_and_bounded(
             "shell_page",
             {"ok": True, "content": "Please enable JavaScript to continue"},
             "shell_page",
-            "wigolo_http",
+            "native_http",
             True,
         ),
         (
@@ -5723,7 +5726,9 @@ def test_a2e_failure_state_routing_and_lifecycle_agree(
     # The routing action never contradicts the state's capability requirement:
     # a state needing a capability this chain lacks must not call the alternate.
     for row in _chain_rows(completed):
-        if expected_state in {"anti_bot", "login_required"}:
+        if expected_state in {"anti_bot", "login_required", "shell_page"}:
+            # §111 A3-1R: shell_page needs js_render, which only a browser tier
+            # has - the production chain has none, so it terminates.
             assert row["action"] == "exhaust"
             assert row["reason"] == "no_capable_backend"
         elif expected_state == "not_found":

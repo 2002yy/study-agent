@@ -128,7 +128,7 @@ def test_a_terminal_resource_outcome_does_not_escalate() -> None:
 
 def test_a_fallback_state_moves_to_the_next_backend() -> None:
     run, recorder, executors = _run(
-        native=_result(NATIVE, "shell_page"),
+        native=_result(NATIVE, "reset"),
         wigolo=_result(WIGOLO, "success", usable=True, content="real text"),
     )
     assert [step.backend for step in run.steps] == [NATIVE, WIGOLO]
@@ -177,7 +177,7 @@ def test_outer_attempt_number_is_constant_across_the_chain() -> None:
     """The chain does not consume extra read-slots (§101 accounting rule)."""
 
     run, _, _ = _run(
-        native=_result(NATIVE, "shell_page"),
+        native=_result(NATIVE, "reset"),
         wigolo=_result(WIGOLO, "success", usable=True),
         outer_attempt_number=17,
     )
@@ -187,7 +187,7 @@ def test_outer_attempt_number_is_constant_across_the_chain() -> None:
 
 def test_chain_step_is_invocation_local_and_not_durable() -> None:
     run, _, _ = _run(
-        native=_result(NATIVE, "shell_page"),
+        native=_result(NATIVE, "reset"),
         wigolo=_result(WIGOLO, "success", usable=True),
     )
     payload = run.to_dict()
@@ -254,7 +254,7 @@ def test_a_blocked_run_stops_before_any_attempt() -> None:
 
 def test_a_missing_executor_is_reported_not_retried() -> None:
     run, recorder, _ = _run(
-        native=_result(NATIVE, "shell_page"), chain=(NATIVE, WIGOLO)
+        native=_result(NATIVE, "reset"), chain=(NATIVE, WIGOLO)
     )
     assert run.action == ACTION_EXHAUST
     assert run.reason == REASON_NO_EXECUTOR
@@ -293,7 +293,7 @@ def test_a_router_that_repeats_a_backend_is_stopped_safely() -> None:
 
 def test_the_executor_writes_no_evidence_authority() -> None:
     run, _, _ = _run(
-        native=_result(NATIVE, "shell_page"),
+        native=_result(NATIVE, "reset"),
         wigolo=_result(WIGOLO, "success", usable=True),
     )
     from src.web.research.retrieval_backends import FORBIDDEN_AUTHORITY_FIELDS
@@ -363,7 +363,7 @@ def test_the_hidden_escalation_keeps_only_its_signal_contract() -> None:
 
 def test_executor_decisions_are_serialisable() -> None:
     run, _, _ = _run(
-        native=_result(NATIVE, "shell_page"),
+        native=_result(NATIVE, "reset"),
         wigolo=_result(WIGOLO, "success", usable=True),
     )
     payload = run.to_dict()

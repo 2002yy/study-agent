@@ -85,8 +85,11 @@ class BackendCapability:
         return {"backend": self.name, "capabilities": sorted(self.capabilities)}
 
 
-#: The backends that exist today. A3 will declare a browser/extraction backend
-#: here; nothing in the matrix changes because of it.
+#: The backends that exist today, with the capabilities each one **really**
+#: exercises. A3-1R corrected ``wigolo_http``: it runs ``render_js="never"``, so
+#: it never renders and must not claim ``js_render`` - otherwise a shell page
+#: would be routed to a reader that cannot serve it, wasting a step and (with a
+#: URL-keyed provider cache) poisoning the URL for the browser tier.
 DEFAULT_BACKENDS: tuple[BackendCapability, ...] = (
     BackendCapability(
         name="native_http",
@@ -94,7 +97,7 @@ DEFAULT_BACKENDS: tuple[BackendCapability, ...] = (
     ),
     BackendCapability(
         name="wigolo_http",
-        capabilities=frozenset({CAP_PLAIN_HTTP, CAP_CONTENT_EXTRACTION, CAP_JS_RENDER}),
+        capabilities=frozenset({CAP_PLAIN_HTTP, CAP_CONTENT_EXTRACTION}),
     ),
     BackendCapability(
         name="wigolo_browser",

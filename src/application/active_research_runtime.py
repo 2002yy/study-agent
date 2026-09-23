@@ -164,8 +164,10 @@ from src.web.research.domain_targeted import (
     sitemap_urls,
 )
 from src.web.research.read_escalation import (
+    TIER_BROWSER,
     charge_http_envelope,
     reset_http_envelope,
+    reset_run_envelope,
     set_escalation_runtime_context,
 )
 from src.web.research.timing_ledger import TimedGateway, TimingLedger
@@ -518,6 +520,11 @@ class ActiveResearchRuntimeExecutor:
 
         # §71B2: the HTTP envelope is per-run; a fresh run starts full.
         reset_http_envelope()
+        # §111 A3-1R: each active execution tier gets its own run-scoped
+        # envelope, reset exactly once per run. The browser tier is reset even
+        # though it is not in the active chain yet, so activation cannot
+        # inherit a spent ledger.
+        reset_run_envelope(TIER_BROWSER)
 
         def _ledger_flush() -> None:
             metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})

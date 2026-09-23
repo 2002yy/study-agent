@@ -322,7 +322,9 @@ def test_scheduling_and_routing_share_the_eligibility_primitive() -> None:
         health_state_for=_closed,
     )
     assert routed.action == ACTION_TRY_BACKEND
-    assert routed.next_backend == "wigolo_http"
+    # §111 A3-1R: a shell page needs js_render, which only the browser tier
+    # really has; routing must not send it to the non-rendering http tier.
+    assert routed.next_backend == "wigolo_browser"
 
 
 def test_scheduling_is_a_different_phase_from_routing() -> None:

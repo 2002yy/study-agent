@@ -55,6 +55,9 @@ TIER_HTTP = "http"
 TIER_BROWSER = "browser"
 _HTTP_RENDER_MODE = "never"
 _BROWSER_RENDER_MODE = "always"
+#: §111 A3-1R: the daemon's ``stealth`` mode is "full browser render" - the
+#: browser tier's own execution mode, distinct from the http tier's routing.
+_BROWSER_MODE = "stealth"
 
 RERANKER_ENV = "WIGOLO_RERANKER"
 PREFLIGHT_READY = "ready"
@@ -92,6 +95,8 @@ class WigoloShadowReadBackend:
         tier: str = TIER_HTTP,
         max_chars: int = WIGOLO_FETCH_MAX_CHARS,
         render_js: str | None = None,
+        mode: str | None = None,
+        force_refresh: bool | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = float(timeout_seconds)
@@ -103,6 +108,19 @@ class WigoloShadowReadBackend:
             self.render_js = _BROWSER_RENDER_MODE
         else:
             self.render_js = _HTTP_RENDER_MODE
+        # §111 A3-1R: the browser tier must not consume an http-tier cache
+        # entry. The daemon's cache is keyed by URL only, so a browser request
+        # for a URL the http tier already fetched would otherwise return the
+        # *un-rendered* body. Both options below are provider-native (see
+        # ``wigolo fetch --help``); neither rewrites the URL.
+        if mode is not None:
+            self.mode = str(mode)
+        else:
+            self.mode = _BROWSER_MODE if self.tier == TIER_BROWSER else ""
+        if force_refresh is not None:
+            self.force_refresh = bool(force_refresh)
+        else:
+            self.force_refresh = self.tier == TIER_BROWSER
         self._circuit_open = False
         self._preflight_status = ""
 
@@ -167,6 +185,11 @@ class WigoloShadowReadBackend:
             "render_js": self.render_js,
             "max_chars": self.max_chars,
         }
+        # §111 A3-1R: provider-native cache isolation for the browser tier.
+        if self.mode:
+            payload["mode"] = self.mode
+        if self.force_refresh:
+            payload["force_refresh"] = True
         # §71B2: the effective timeout is the *bindings* value - the caller's
         # envelope/hard-headroom cap must actually be enforced, otherwise a
         # single slow call can punch through the per-run envelope.

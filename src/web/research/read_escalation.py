@@ -66,8 +66,69 @@ HTTP_RUN_ENVELOPE_DEFAULT = 3.0  # FROZEN
 # must not launch a call that usually takes ~1s and then discover the breach.
 EFFECTIVE_TIMEOUT_FLOOR_SECONDS = 1.0
 
+# Execution tiers. Declared here because the envelope ledger is keyed by tier.
+ESCALATION_OFF = "off"
+ESCALATION_HTTP = "http"
+ESCALATION_BROWSER = "browser"
+TIER_HTTP = "http"
+TIER_BROWSER = "browser"
+
 # Per-run spent ledger (scalars only, per the §71A-1 rule); reset at run start.
-_HTTP_ENVELOPE: dict[str, float] = {"wigolo_http_spent_ms": 0.0}
+#
+# §111 A3-1R: the envelope is keyed by **execution tier**, not by provider. The
+# http reader and the browser reader are different cost/capability classes, so a
+# slow HTTP step must not be able to starve the browser tier. The numbers are
+# unchanged (3.0s each); only the accounting domain changed, and the global
+# ``research_seconds_left`` remains the real upper bound.
+_RUN_ENVELOPE: dict[str, float] = {TIER_HTTP: 0.0, TIER_BROWSER: 0.0}
+
+
+def _envelope_key(tier: str) -> str:
+    key = str(tier or TIER_HTTP).strip().lower()
+    return key if key in _RUN_ENVELOPE else TIER_HTTP
+
+
+def reset_run_envelope(tier: str = TIER_HTTP) -> None:
+    """Called once per run, per active tier, so the envelope is per-run."""
+
+    _RUN_ENVELOPE[_envelope_key(tier)] = 0.0
+
+
+def run_envelope_spent_ms(tier: str = TIER_HTTP) -> float:
+    return round(_RUN_ENVELOPE[_envelope_key(tier)], 1)
+
+
+def run_envelope_remaining_ms(tier: str = TIER_HTTP) -> float:
+    return round(
+        max(0.0, http_run_envelope_seconds() * 1000.0 - _RUN_ENVELOPE[_envelope_key(tier)]),
+        1,
+    )
+
+
+def charge_run_envelope(latency_ms: float, tier: str = TIER_HTTP) -> None:
+    """Charge the *actual* cost of one attempt (success or failure) to its tier."""
+
+    key = _envelope_key(tier)
+    _RUN_ENVELOPE[key] = round(
+        _RUN_ENVELOPE[key] + max(0.0, float(latency_ms)), 1
+    )
+
+
+# Back-compat shims: the http tier keeps its original call surface.
+def reset_http_envelope() -> None:
+    reset_run_envelope(TIER_HTTP)
+
+
+def http_envelope_spent_ms() -> float:
+    return run_envelope_spent_ms(TIER_HTTP)
+
+
+def http_envelope_remaining_ms() -> float:
+    return run_envelope_remaining_ms(TIER_HTTP)
+
+
+def charge_http_envelope(latency_ms: float) -> None:
+    charge_run_envelope(latency_ms, TIER_HTTP)
 
 
 def http_min_hard_seconds() -> float:
@@ -92,29 +153,6 @@ def http_run_envelope_seconds() -> float:
     return max(0.0, min(value, 120.0))
 
 
-def reset_http_envelope() -> None:
-    """Called once per run so the envelope is per-run, not per-process."""
-
-    _HTTP_ENVELOPE["wigolo_http_spent_ms"] = 0.0
-
-
-def http_envelope_spent_ms() -> float:
-    return round(_HTTP_ENVELOPE["wigolo_http_spent_ms"], 1)
-
-
-def http_envelope_remaining_ms() -> float:
-    return round(
-        max(0.0, http_run_envelope_seconds() * 1000.0 - _HTTP_ENVELOPE["wigolo_http_spent_ms"]),
-        1,
-    )
-
-
-def charge_http_envelope(latency_ms: float) -> None:
-    """Charge the *actual* cost of one attempt (success or failure)."""
-
-    _HTTP_ENVELOPE["wigolo_http_spent_ms"] = round(
-        _HTTP_ENVELOPE["wigolo_http_spent_ms"] + max(0.0, float(latency_ms)), 1
-    )
 ESCALATION_OFF = "off"
 ESCALATION_HTTP = "http"
 ESCALATION_BROWSER = "browser"

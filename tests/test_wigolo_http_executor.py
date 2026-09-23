@@ -388,8 +388,10 @@ def test_the_executor_plugs_into_run_chain() -> None:
         name = "native_http"
 
         def execute(self, request: ChainAttemptRequest) -> ChainStepResult:
+            # §111 A3-1R: a transport-shaped state the plain http tier can serve
+            # (shell_page needs js_render, which it no longer claims).
             return ChainStepResult(
-                backend="native_http", retrieval_state="shell_page"
+                backend="native_http", retrieval_state="reset"
             )
 
     reset_http_envelope()

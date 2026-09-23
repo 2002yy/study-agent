@@ -196,10 +196,12 @@ def test_static_control_does_not_start_the_browser_even_on_a_bad_native_read() -
 # ---------------------------------------------------------------------------
 
 
-def test_js_shell_reaches_the_browser_only_after_the_http_tier_fails() -> None:
+def test_a_transport_failure_uses_the_http_tier_before_the_browser() -> None:
+    """A state the plain http tier *can* serve still goes through it first."""
+
     row, executors = _measure(
         CLASS_JS_SHELL,
-        native=_step(NATIVE_HTTP, "shell_page", usable=True, content="enable javascript", adequacy="js_shell"),
+        native=_step(NATIVE_HTTP, "reset"),
         http=_step(WIGOLO_HTTP, "connect_failure"),
         browser=_step(WIGOLO_BROWSER_BACKEND, "success", usable=True, content=ADEQUATE, adequacy=ADEQUATE_SHAPE),
     )
@@ -215,6 +217,24 @@ def test_js_shell_reaches_the_browser_only_after_the_http_tier_fails() -> None:
     assert row["outcome_state"] == "success"
     assert row["browser_state"] == "success"
     assert row["browser_usable"] is True
+
+
+def test_a_shell_page_skips_the_non_rendering_http_tier() -> None:
+    """§111 A3-1R capability truth: js_render is the browser tier's alone."""
+
+    row, executors = _measure(
+        CLASS_JS_SHELL,
+        native=_step(NATIVE_HTTP, "shell_page", usable=True, content="enable javascript", adequacy="js_shell"),
+        browser=_step(WIGOLO_BROWSER_BACKEND, "success", usable=True, content=ADEQUATE, adequacy=ADEQUATE_SHAPE),
+    )
+
+    assert executors[WIGOLO_HTTP].calls == [], (
+        "a js_render demand must not be sent to a reader that never renders"
+    )
+    assert [step["backend"] for step in row["attempts"]] == [
+        NATIVE_HTTP,
+        WIGOLO_BROWSER_BACKEND,
+    ]
 
 
 def test_anti_bot_skips_the_http_tier_it_cannot_serve() -> None:
@@ -315,7 +335,7 @@ def test_session_required_accepts_an_honest_login_required() -> None:
 def test_measured_row_carries_the_fields_a3_3_compares() -> None:
     row, _ = _measure(
         CLASS_JS_SHELL,
-        native=_step(NATIVE_HTTP, "shell_page", usable=True, adequacy="js_shell", latency_ms=40.0),
+        native=_step(NATIVE_HTTP, "reset", latency_ms=40.0),
         http=_step(WIGOLO_HTTP, "invalid_content", usable=True, adequacy="short_doc", latency_ms=300.0),
         browser=_step(WIGOLO_BROWSER_BACKEND, "success", usable=True, content=ADEQUATE, adequacy=ADEQUATE_SHAPE, latency_ms=900.0),
     )
