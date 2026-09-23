@@ -5548,3 +5548,138 @@ P2-A2e — Progressive Reader Integration Validation
 ```
 
 执行顺序建议：维度 6（authority regression，先钉死"不变"）→ 维度 1/2/4（fixture 语义边界）→ 维度 3（boundedness 专项）→ 维度 5（provenance 交叉核对）→ live cohort 6–10 runs → full regression → 收口。
+
+
+## §107 P2-A2e PROGRESSIVE READER INTEGRATION VALIDATION — CLOSED（validation head `b1a5d24`）
+
+**结果**：A0→A2d 串联后的 production behaviour 通过六个冻结维度的验收。**P2-A2 Progressive Reader CLOSED。**
+
+本阶段未新增架构、backend、预算策略或优化。唯一 production 变更是一处由验收发现的 **timing 归因缺陷修复**（见 107.4），属 §104 合同要求的修正，不是新能力。
+
+### 107.1 baseline 记账（承接 §106.1 纪律）
+
+| 身份 | SHA | 含义 |
+| --- | --- | --- |
+| A2d code baseline | `fc99a0d` | A2d 生产语义（未变） |
+| **A2e validation head（新生产基线）** | **`b1a5d24`** | A2e 测试 + `wigolo_http_executor` timing 修复。**A3 bisect 用此 SHA。** |
+| A2e regression-tested head | `b1a5d24` | full pytest 两次（见 107.6） |
+| A2e 文档 head | 本 §107 commit | |
+
+⇒ **`fc99a0d` 与 `b1a5d24` 的生产差异仅一处**：`WigoloHttpBackendExecutor._project` 的 `cost` 增加 `fetch_ms`（外加异常路径补 `fetch_ms: 0.0`）。无行为语义变更（`read_timing` 为 observation-only 通道）。
+
+### 107.2 六维度验收结果
+
+新增 `tests/test_active_research_runtime.py` §107 区块，**28 项**集成测试，全部走真实 runtime read loop。
+
+| 维度 | 验收 | 结果 |
+| --- | --- | --- |
+| 1 Reader-chain correctness | 10 组表驱动（success / not_found / short_doc / reset / timeout / 403 / 429 / shell_page / anti_bot / login_required）+ circuit-open + alternate-unavailable | ✅ |
+| 2 Candidate lifecycle | 每 `(candidate, backend)` 唯一 outcome；每 candidate 唯一 source；attempt 数 >1 不膨胀 source/evidence；not_found / chain_exhausted terminal 且 unusable；deferred 非 terminal 且无 outcome/source | ✅ |
+| 3 Boundedness | backend-local retry × chain steps 无组合爆炸；envelope run-scoped 且 ≤ 3s 上界；每真实 call 一条 timing；breaker open → defer，native 只被规划一次 | ✅ |
+| 4 Failure semantics | 8 状态表：`retrieval_state → routing decision → lifecycle` 三方一致；`final_backend` 永远指向产出内容的 attempt | ✅ |
+| 5 Provenance | outcome ↔ read_timing ↔ read_chain ↔ `sources[].retrieval_attempts[]` ↔ `final_backend` ↔ failure `attempt_id` 可互串 | ✅（发现并修复 107.4） |
+| 6 Authority regression | `ESCALATION_ENV` off vs on（native 充足、alternate 从未被调用）→ **authority artifacts 逐字段相等** | ✅ |
+
+### 107.3 维度 1 冻结路由（实测，非推断）
+
+| native 状态 | chain 决策 | steps | 调用 alternate | final_backend | read_status |
+| --- | --- | --- | --- | --- | --- |
+| success | resolve / usable_content | native | 否 | native_http | read |
+| not_found | resolve / terminal_resource_outcome | native | **否** | native_http | failed |
+| invalid_content (short_doc) | resolve / usable_content | native + wigolo | 是 | wigolo_http | read |
+| reset / timeout | resolve / usable_content | native + wigolo | 是 | wigolo_http | read |
+| http_denied (403) / rate_limited (429) | resolve / usable_content | native + wigolo | 是 | wigolo_http | read |
+| shell_page | resolve / usable_content | native + wigolo | 是 | wigolo_http | read |
+| anti_bot / login_required | **exhaust / no_capable_backend** | native | **否** | native_http | failed |
+| circuit-open (native unhealthy) | schedule → alternate；native 记为 blocked | — | 视 alternate 可用性 | — | — |
+| alternate unavailable | **exhaust / all_backends_tried** | native（skip 不入 attempt） | 否（0 次 fetch） | native_http | 按 native 结果 |
+
+- **anti_bot / login_required 在当前链是 terminal exhaust**（需要 `anti_bot_recovery` / `session`，`wigolo_http` 不具备）——这正是 A3 browser tier 的入口，不是缺陷。
+- **policy-skipped step 不进入 `read_chain.steps`，也不进入 `sources[].retrieval_attempts[]`**，且不产生 outcome：provenance 只记录**真实 attempt**。
+
+### 107.4 A2e 唯一 production 修复：alternate 的 `fetch_ms` 归因
+
+**发现**：维度 5 交叉核对时，`wigolo_http` 的 `read_timing` 行 `fetch_ms = 0.0`，整段调用延迟被计入 `local_ms`。
+
+**根因**：`record_read_chain_attempt` 从 `cost["fetch_ms"]` 取网络耗时；native executor 的 cost 含 `fetch_ms`，而 `WigoloHttpBackendExecutor._project` 的 cost **没有** `fetch_ms`，于是 `retry_fetch_ms=None → 0.0`。
+
+**违反的冻结条款**：§104「每 backend 一条 `read_timing`（`backend=wigolo_http`、`fetch_ms = cost.latency_ms`）」与 F2-O3a「`local_ms` = 去掉网络等待与 backoff 后的剩余」。
+
+**影响面**：仅 observation-only 的 `read_timing` 通道；**不进入调度、admission、breaker 或 policy**，`wall_ms` 与 envelope debit 本就正确 ⇒ 无行为影响，但成本守恒（不漏记）被破坏。
+
+**修复**（`src/web/research/wigolo_http_executor.py`）：`_project` 的 cost 增加 `fetch_ms = artifact.latency_ms`；异常路径补 `fetch_ms: 0.0` 以保持形状一致。native 路径不变（其 cost 本就有 `fetch_ms`）。
+
+**回归锁定**：维度 5 测试断言 alternate 行 `fetch_ms > 0`；live cohort 复检 `wigolo_http` timing 行 `fetch_ms ≤ 0` 计数 = **0**。
+
+### 107.5 live cohort（8 runs，异质性优先）
+
+`RESEARCH_WIGOLO_ESCALATION=http`、`WIGOLO_RERANKER=off`、真实 Bing RSS + 真实 native read + 真实 Wigolo daemon（`/health` = healthy, browsers ready）。产物在 `%TEMP%\opencode\a2e_live\*.json`（未跟踪）。
+
+| 指标 | 值 |
+| --- | --- |
+| runs | 8（6 个真正进入 reader 层；`simple-license-uv` / `numeric-uk-bank-rate` 未产生 read plan，**无 reader 层信号**，属上游 search/assessment 结果） |
+| sources | 21，**0 重复 candidate** |
+| chain shapes | `(native_http,)` ×11、`(native_http, wigolo_http)` ×10；**无其他形状、无 loop、无 wigolo-only** |
+| chain reasons | `usable_content` ×11、`all_backends_tried` ×5、`run_blocked` ×1 |
+| **Wigolo rescue** | **5**（native 不足 → alternate 产出可用内容） |
+| **Wigolo attempted-but-failed** | **5** |
+| native attempt states | success 10、invalid_content 7、**http_denied 2（403）**、**reset 1（不可达 host）**、timeout 1 |
+| wigolo attempt states | success 5、invalid_content 2、timeout 3 |
+| `final_backend` 分布 | native_http 12、**wigolo_http 9** |
+| hosts | 16 个（含 nodejs.org / node.org.cn / nodejs.cn 慢宿主族、www.docker.com、github.com、python.org、postgresql.org、zhihu / csdn / runoob） |
+| **provenance/timing 违规** | **0** |
+| **缺失 `final_backend` 的 source** | **0** |
+
+**异质性清单对照 §106.5**：正常静态 docs ✅ / short page ✅ / 403 ✅ / 不可达 host ✅ / 慢宿主（Node 族）✅ / Wigolo rescue ✅ / Wigolo attempted-but-failed ✅。
+
+**docs.docker.com**：本 cohort 中 `www.docker.com` 有 1 条 source，仍不构成 cold-rescue 证据；该缺口**继续作为 external evidence debt**，不再无限 hunt（§106.5）。
+
+### 107.6 full regression（两个候选 head 运行）
+
+| run | 结果 | 失败明细 |
+| --- | --- | --- |
+| #1 @ `b1a5d24` | **2407 passed / 4 failed** | 2 已知 Windows-local baseline + 2 负载型 flake |
+| #2 @ `b1a5d24` | **2408 passed / 3 failed** | 2 已知 baseline + 1 已知 flake |
+
+**两个 flake 的定性与证据**：
+
+1. `test_cross_layer_regression::test_news_query_change_invalidates_downstream_stages`（`/news/runs/{id}/search` → 502）
+   - 单独跑通过；与 `test_agent_loop_prototype.py` 同批跑复现 502。
+   - **决定性证据**：在 `git worktree` @ `eaf0a97`（A2e 之前，production == `fc99a0d`）以**相同两文件顺序**运行，**同样复现** ⇒ **pre-existing 测试顺序/环境 flake，与 A2e 无关**。
+2. `test_agent_loop_prototype::test_same_inputs_produce_identical_outcomes`（断言 `elapsed_seconds` 相等，实测 `0.0 != 0.016`）
+   - 纯 wall-clock 抖动断言，负载敏感；单独跑与两文件跑均通过。
+
+⇒ **本 head 的 full-suite 失败集 = 已知 baseline 族 + 已知 flake，零新增回归。**
+⇒ 候选 head 计数对照：A2d-4 = 2383 collected（2381 pass）→ A2e = **2411 collected（+28，全部为新增 A2e 测试）**。
+
+### 107.7 A2e 成功指标（§106.6 五条）
+
+| 指标 | 结论 |
+| --- | --- |
+| 正确路由 | ✅ 10 组表驱动 + live 21 条 source 形状全部符合冻结矩阵 |
+| 失败有界 | ✅ retry×chain 无组合爆炸；envelope ≤ 3s；breaker open → defer；native 只规划一次 |
+| candidate lifecycle 正确 | ✅ 唯一 outcome / 唯一 source / terminal 语义正确 |
+| provenance 完整 | ✅ 六个 artifact 互串；0 违规；1 处归因缺陷已修复并锁定 |
+| authority 不变 | ✅ off/on 逐字段相等（D6） |
+
+**⇒ P2-A2 Progressive Reader CLOSED。**
+
+### 107.8 已知 bounded debt（继承，不在 A2e 修）
+
+1. per-attempt marker 非 durable（§105.3）——durable 审计由 outcome + chain + failure `attempt_id` 覆盖。
+2. A1a `breaker.allow()` 在 runtime 退役（§105.9）。
+3. `not_found` 不再二次 backend（A2b 冻结语义）。
+4. docs.docker.com cold-rescue 缺口 = external evidence debt。
+5. `anti_bot` / `login_required` 在当前链为 terminal exhaust —— 由 A3 提供 browser/session 能力。
+6. 两个负载型 flake（107.6）为仓库既有测试债务，非 A2e 引入。
+
+### 107.9 路线
+
+```text
+A2d ✅ CLOSED（code baseline fc99a0d）
+A2e ✅ CLOSED（validation head b1a5d24）
+⇒ P2-A2 Progressive Reader CLOSED
+A3 ← 下一阶段：Browser Backend Bakeoff — Wigolo Browser vs Crawl4AI
+```
+
+**A3 启动前的硬约束**：新增 Reader backend **不得要求修改 candidate lifecycle、scheduler 或 router 的核心语义**（§106.2）。A3 只在既有 capability 词表（`js_render` / `anti_bot_recovery` / `session` / `pdf`）内注册新的 `BackendCapability` 并接入 `ACTIVE_READER_CHAIN`。**A3 尚未开始，禁止提前安装/接入 Crawl4AI。**
