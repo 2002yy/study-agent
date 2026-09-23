@@ -27,12 +27,18 @@ RENDERED_BODY = (
     + "</article>"
 )
 
-_PDF_LINES = (
-    "Release notes: the verified release date is 2026-08-01.",
-    "This document is a controlled fixture for the browser bakeoff.",
-    "It contains real extractable text so a PDF extractor must return it.",
-    "Section 2: current module guidance differs from the older CommonJS guidance.",
-    "Section 3: the document ends here.",
+#: §119 1(a): a document_heavy fixture must actually be document-heavy. The
+#: earlier 309-char body was below the frozen adequacy threshold (800), so the
+#: frozen layer correctly classified it short_doc - the fixture was wrong, not
+#: the contract. This body is deliberately well clear of the boundary.
+_PDF_LINES = tuple(
+    [f"Section {n}: the verified release date is 2026-08-01." for n in range(1, 3)]
+    + [
+        f"Paragraph {n}: current module guidance differs from the older "
+        "CommonJS guidance, and this controlled fixture carries real "
+        "extractable prose so a PDF extractor must return a substantial body."
+        for n in range(1, 31)
+    ]
 )
 
 
@@ -128,12 +134,21 @@ def session_check_body(cookie_header: str) -> tuple[int, str]:
     return 401, "<html><body><h1>NO SESSION</h1><p>cookie missing</p></body></html>"
 
 PAGES: dict[str, tuple[int, str, bytes]] = {
+    # §119 2(a): a real JS shell. The initial DOM is a shell; a timer then
+    # writes deterministic prose into #root. Without the script there is
+    # nothing to rescue, which is what the previous fixture accidentally tested.
     "/js-shell.html": (
         200,
         "text/html; charset=utf-8",
-        b"<html><head><title>App</title></head><body>"
-        b"<noscript>Please enable JavaScript to view this page.</noscript>"
-        b"<div id='root'></div></body></html>",
+        (
+            "<html><head><title>App</title></head><body>"
+            "<noscript>Please enable JavaScript to view this page.</noscript>"
+            "<div id='root'>Loading...</div>"
+            "<script>setTimeout(function(){"
+            "document.getElementById('root').innerHTML="
+            f"'{RENDERED_BODY}';"
+            "},100);</script></body></html>"
+        ).encode("utf-8"),
     ),
     "/js-shell-nested.html": (
         200,

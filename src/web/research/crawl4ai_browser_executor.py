@@ -301,6 +301,40 @@ class Crawl4AIBrowserBackendExecutor:
         provider_ok = bool(observation.get("provider_success"))
         provider_error = str(observation.get("error_message") or "")
 
+        # §119 3: a bridge read timeout means the provider never produced an
+        # observation. That is a bounded deadline failure, NOT invalid_content -
+        # invalid_content claims "content was obtained and was inadequate".
+        bridge_error = str(observation.get("error") or "")
+        if bridge_error in {"bridge_read_timeout", "worker_eof", "empty_line"} or bridge_error.startswith("bad_json"):
+            outcome = classify(
+                backend=backend_name,
+                raw_state="",
+                detail="insufficient_remaining_window",
+                skip_reason=SKIP_REASON_INSUFFICIENT_WINDOW,
+                attempted=True,
+            )
+            return ChainStepResult(
+                backend=backend_name,
+                retrieval_state=outcome.state,
+                attempted=True,
+                usable_content=False,
+                content="",
+                adequacy_reason=f"bridge_failure:{bridge_error}",
+                cost={
+                    "latency_ms": wall_ms,
+                    "fetch_ms": wall_ms,
+                    "deadline_ms": deadline_ms,
+                    "bridge_error": bridge_error,
+                    "provider_state": "failure",
+                },
+                policy={
+                    "attempted": True,
+                    "skip_reason": "",
+                    "breaker_state": "",
+                    "backend": backend_name,
+                },
+            )
+
         # §115: a deadline that expired is a bounded failure, never a success.
         if observation.get("deadline_hit") or cancellation.get("provider_cancelled"):
             outcome = classify(

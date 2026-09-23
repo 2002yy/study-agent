@@ -28,6 +28,33 @@ T0 = time.perf_counter()
 CANCEL_GRACE_MS = 800
 
 
+def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
+    """Download a PDF with a real connect/read deadline; return a local path.
+
+    Returns the original url unchanged when it is already local, or when the
+    download fails - the strategy then reports the failure itself.
+    """
+
+    if not url.startswith(("http://", "https://")):
+        return url
+    import tempfile
+    import urllib.error
+    import urllib.request
+
+    deadline = max(1.0, timeout_ms / 1000.0)
+    try:
+        with urllib.request.urlopen(url, timeout=deadline) as response:  # noqa: S310
+            data = response.read()
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return url
+    handle = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    try:
+        handle.write(data)
+    finally:
+        handle.close()
+    return handle.name
+
+
 def emit(payload):
     sys.stdout.write(json.dumps(payload) + "\n")
     sys.stdout.flush()
@@ -88,11 +115,17 @@ class Worker:
         if mode == "pdf":
             from crawl4ai.processors.pdf import PDFContentScrapingStrategy
 
+            # §119 4: the provider's PDF strategy downloads inside a blocking
+            # thread whose cancellation does not stop the socket, so the worker
+            # fetches with its own deadline-bounded client first and hands the
+            # strategy a local path. Provider-native extraction is unchanged.
+            local = await asyncio.to_thread(_bounded_pdf_fetch, url, timeout_ms)
             config = CrawlerRunConfig(
                 scraping_strategy=PDFContentScrapingStrategy(),
                 cache_mode=getattr(CacheMode, cache_mode),
                 page_timeout=timeout_ms,
             )
+            url = local
         else:
             kwargs = {
                 "cache_mode": getattr(CacheMode, cache_mode),
