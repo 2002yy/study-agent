@@ -6303,3 +6303,91 @@ final verdict                 ⏳ 未出
 然后跑 A3-0 同一 manifest 的六类 cohort，出 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
 
 **当前无任何 production 改动**：`ACTIVE_READER_CHAIN` 未动，Crawl4AI 未注册进 `DEFAULT_BACKENDS`，未同时启用两个 BrowserBackend。
+
+
+## §113 P2-A3-2 Phase 1.5 capability truth + A3-2a transport cost（**无 verdict；adapter 与 cohort 待做**）
+
+### 113.1 Phase 1.5A — `session`：**真实能力，PASS**
+
+fixture 新增服务端权威 session 端点（cookie + localStorage）：`/session/start` 写 cookie 与 localStorage，`/session/check` **仅凭 cookie 判定**（避免依赖 provider 自己的页面启发式）。
+
+| 请求 | HTTP | 判定 | 证据 |
+| --- | --- | --- | --- |
+| req1 `/session/start`（`session_id=A`） | 200 | — | `cookiesEnabled=true`，`bakeoff_sid=sess-truth-2026`，localStorage 写入 |
+| req2 `/session/check`（**同 `session_id=A`**） | **200** | **SESSION OK** | 服务端接受 cookie ⇒ **前一请求状态被消费** |
+| req3 `/session/check`（**独立 crawler**） | **401** | NO SESSION | 反证成立 |
+
+⇒ **`session` 可声明**。注意方法论修正：第一次探针的反证失败（换 `session_id` 仍带状态），说明**同一 crawler 内 storage 是共享的**，`session_id` 的作用域要靠独立实例才测得准；`kill_session` 在 0.9.4 不存在。
+
+### 113.2 Phase 1.5B — `anti_bot_recovery`：**未成立，不声明**
+
+| 配置 | `anti_bot_challenge` | `anti_bot_soft_403` |
+| --- | --- | --- |
+| default browser | `success=true`，99 字符 = **挑战页正文** | 403，blocked，64 字符挑战文本 |
+| `enable_stealth=True` | 同左 | 同左 |
+
+`ANTIBOT_RECOVERY_DEFAULT=False` / `ANTIBOT_RECOVERY_STEALTH=False` / `ANTIBOT_RECOVERY_SOFT403_STEALTH=False`。
+
+⇒ 观察到的只有 **detection**，没有 **rescue**（fixture 是静态墙，本就无物可解）。按裁决规则：**不声明 `anti_bot_recovery`**；保留诚实 `anti_bot` / `usable=false`（正确 failure semantics ≠ recovery capability）。
+附带：`enable_stealth` **也没有修掉**小页面误判（见 113.4）。
+
+### 113.3 Crawl4AI capability truth 表（唯一允许声明集合）
+
+| capability | 真值 | 证据 |
+| --- | --- | --- |
+| `plain_http` / `content_extraction` | ✅ | example.com / 静态页 |
+| `js_render` | ✅ | `spa_delayed` 1346ms、`spa_xhr` 211ms（正文仅 JS 后存在） |
+| `pdf` | ✅ | 本地 file/http + 公网 PDF，provider-native PDF strategy，真实正文 |
+| `session` | ✅ | §113.1 |
+| **`anti_bot_recovery`** | ❌ **不声明** | §113.2 |
+| `pdf` 之外的 document 变体 | 未测 | 不声明 |
+
+⇒ 注册时只允许声明 **`plain_http` / `content_extraction` / `js_render` / `pdf` / `session`** 五项。
+
+### 113.4 transparency debt（不修 provider，必须双层保留）
+
+Crawl4AI **自身 anti-bot 检测器对任何小页面系统性误报**，已三例同源：
+
+```text
+js_shell.html        → "Structural: minimal_text, no_content_elements"
+/session/check 200   → "Near-empty content (80 bytes) with HTTP 200"
+/session/check 401   → "Structural: minimal_text on small page"
+```
+
+⇒ cohort 必须同时保存 **`provider_state`（原始判断）** 与 **`canonical_retrieval_state`（冻结 honesty 层重判）**，例如 `provider=anti_bot` / `canonical=shell_page`。这是 provenance，不是 authority。
+
+### 113.5 A3-2a transport cost（cold per-call subprocess）——**正式测量项**
+
+极薄 worker（`stdin` 一个 JSON 请求 → `stdout` 一个 JSON 响应；只有执行参数，**无 routing/lifecycle/budget/Evidence authority**；`mode=pdf` 走 provider-native PDF strategy，其余走 browser path）。
+
+| target | mode | wall_ms ×3 | spawn+IPC | crawl | import+init（推算） |
+| --- | --- | --- | --- | --- | --- |
+| `spa_delayed` | browser | **3784 / 2359 / 2311** | 345–380 | 2127/1114/1060 | 1301/900/871 |
+| `example.com` | browser | 2754 / 2729 / 2693 | 336–417 | ~1400–1490 | ~920–1000 |
+| `report.pdf` | pdf | 1369 / 1442 / 1628 | 287–414 | 196–259 | ~870–960 |
+
+**结论（不调预算）**：
+- **纯 transport+init 开销 ≈ 1.2–1.7s**（spawn+IPC ~0.3–0.4s ＋ provider import/init ~0.9–1.3s），在冻结 3.0s browser envelope 内只剩 **~1.3–1.8s 给真正的 crawl**。
+- 静态页 **勉强落在 3.0s 内**（2.69–2.75s）；**真实 render 会超**（SPA run1 = 3.78s）。
+- ⇒ 记录：**per-call subprocess transport 与冻结 browser budget 不兼容（marginal→over）**。**不因此调整 `min hard / envelope / timeout floor / max chars`。**
+- 该次 SPA 只回 11 字符（`Loading...`）：worker 漏了 `delay_before_return_html`，故该行**不是**真实 render 耗时；即使如此 wall 已 3.78s。
+
+**下一刀（A3-2a 续）**：bounded **warm worker probe** —— 同一隔离 venv 下的**长驻 worker + 常驻浏览器**，比较 `warm IPC + crawl` 是否进入 3.0s；A3-3 再决定最终 deployment 是 per-call subprocess / long-lived sidecar / 或无合格 transport。**不引入 Docker**，除非前两者均不可行且确有必要。
+
+### 113.6 状态
+
+```text
+Gate 0 install/runtime   ✅ PASS（HEAVY penalty）
+Gate 1 PDF (required)    ✅ PASS
+Gate 2 JS render         ✅ PASS
+Cache isolation          ✅ PASS（CacheMode.BYPASS）
+Phase 1.5A session       ✅ PASS（可声明）
+Phase 1.5B anti_bot_rec  ❌ 未成立（不声明）
+A3-2a cold transport     ⚠️ 与 3.0s 不兼容（已记录，未调预算）
+warm worker probe        ⏳
+adapter                  ⏳
+六类 frozen cohort       ⏳
+verdict                  ⏳
+```
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，**未触 production 代码**，按 Staged Policy 无需 L1/L2。

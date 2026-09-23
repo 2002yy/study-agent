@@ -89,8 +89,45 @@ def build_text_pdf(lines: tuple[str, ...]) -> bytes:
 
 _PDF_BYTES = build_text_pdf(_PDF_LINES)
 
+#: §113 A3-2 Phase 1.5A: a real session fixture.
+#:
+#: ``/session/start`` sets a cookie *and* writes localStorage; ``/session/check``
+#: consumes both. A backend only has a real ``session`` capability if request 2
+#: sees request 1's state - recognising a login wall is not the same thing.
+SESSION_COOKIE = "bakeoff_sid"
+SESSION_TOKEN = "sess-truth-2026"
+
+_SESSION_START = (
+    "<html><body><h1>Session start</h1><p id='out'>pending</p>"
+    "<script>"
+    "localStorage.setItem('bakeoff_sid', '" + SESSION_TOKEN + "');"
+    "document.getElementById('out').textContent = "
+    "'cookie=' + document.cookie + ' local=' + localStorage.getItem('bakeoff_sid');"
+    "</script></body></html>"
+)
+
+_SESSION_CHECK = (
+    "<html><body><h1>Session check</h1><p id='out'>pending</p>"
+    "<script>"
+    "document.getElementById('out').textContent = "
+    "'local=' + (localStorage.getItem('bakeoff_sid') || 'MISSING');"
+    "</script></body></html>"
+)
+
+
+def session_check_body(cookie_header: str) -> tuple[int, str]:
+    """Server-authoritative session verdict from the cookie alone.
+
+    The body-localStorage echo is a client hint; this function is what decides,
+    so the probe does not depend on the provider's own page heuristics.
+    """
+
+    present = f"{SESSION_COOKIE}={SESSION_TOKEN}" in str(cookie_header or "")
+    if present:
+        return 200, "<html><body><h1>SESSION OK</h1><p>cookie accepted</p></body></html>"
+    return 401, "<html><body><h1>NO SESSION</h1><p>cookie missing</p></body></html>"
+
 PAGES: dict[str, tuple[int, str, bytes]] = {
-    # (status, content-type, body)
     "/js-shell.html": (
         200,
         "text/html; charset=utf-8",
@@ -149,6 +186,14 @@ PAGES: dict[str, tuple[int, str, bytes]] = {
         b"<a href='/report.pdf'>report.pdf</a></body></html>",
     ),
     "/report.pdf": (200, "application/pdf", _PDF_BYTES),
+    # §113 A3-2 Phase 1.5A: real session endpoints (cookie + localStorage).
+    "/session/start": (200, "text/html; charset=utf-8", _SESSION_START.encode("utf-8")),
+    "/session/check": (200, "text/html; charset=utf-8", _SESSION_CHECK.encode("utf-8")),
+}
+
+#: Extra response headers per path (the session cookie is set here, not in the body).
+PAGE_HEADERS: dict[str, tuple[tuple[str, str], ...]] = {
+    "/session/start": (("Set-Cookie", f"{SESSION_COOKIE}={SESSION_TOKEN}; Path=/"),),
 }
 
 
@@ -157,6 +202,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = self.path.split("?", 1)[0]
+        if path == "/session/check":
+            status, body = session_check_body(self.headers.get("Cookie", ""))
+            payload = body.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         entry = PAGES.get(path)
         if entry is None:
             self.send_response(404)
@@ -169,6 +224,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for header, value in PAGE_HEADERS.get(path, ()):
+            self.send_header(header, value)
         self.end_headers()
         self.wfile.write(body)
 
