@@ -39,9 +39,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
+from src.web.research.failure_taxonomy import RETRIEVAL_STATES
 from src.web.research.progressive_routing import (
+    ACTION_BLOCK_RUN,
     ACTION_DEFER,
     ACTION_EXHAUST,
     ACTION_RESOLVE,
@@ -307,7 +309,13 @@ ALLOWED_ADAPTER_SURFACE: tuple[str, ...] = (
 )
 
 ROUTING_ACTIONS: frozenset[str] = frozenset(
-    {ACTION_RESOLVE, ACTION_TRY_BACKEND, ACTION_DEFER, ACTION_EXHAUST}
+    {
+        ACTION_RESOLVE,
+        ACTION_TRY_BACKEND,
+        ACTION_DEFER,
+        ACTION_BLOCK_RUN,
+        ACTION_EXHAUST,
+    }
 )
 
 FROZEN_CAPABILITIES: frozenset[str] = frozenset(
@@ -325,7 +333,7 @@ TARGET_KINDS: frozenset[str] = frozenset({"public_url", "synthetic_local"})
 
 
 class BrowserBakeoffContractError(ValueError):
-    """A manifest that violates the frozen A3-0 contract."""
+    """A manifest or result that violates the frozen A3 contract."""
 
 
 def _require(condition: bool, message: str) -> None:
@@ -463,6 +471,201 @@ def required_dimension_keys() -> tuple[str, ...]:
     return REQUIRED_DIMENSIONS
 
 
+# ---------------------------------------------------------------------------
+# §110 P2-A3-1: the bakeoff result artifact
+# ---------------------------------------------------------------------------
+
+RESULT_SCHEMA_VERSION = "browser-bakeoff-result-v1"
+
+#: Fields a single measured (backend, fixture) row must carry. This is a
+#: bakeoff artifact, **not** a production ledger: nothing in the runtime reads
+#: it and it grants no authority.
+RESULT_FIELDS: tuple[str, ...] = (
+    "backend",
+    "fixture_id",
+    "category",
+    "required_capabilities",
+    "browser_called",
+    "browser_state",
+    "browser_usable",
+    "outcome_state",
+    "usable_content",
+    "chain_action",
+    "chain_reason",
+    "attempts",
+    "wall_ms",
+    "fetch_ms",
+    "cold",
+    "bytes",
+    "content_type",
+    "rendered",
+    "cache_hit",
+    "failure_reason",
+    "provenance_complete",
+    "budget_respected",
+)
+
+#: States that must never be reported as usable content.
+NON_USABLE_STATES: frozenset[str] = frozenset(
+    {"login_required", "anti_bot", "shell_page"}
+)
+
+
+def build_bakeoff_result(
+    *,
+    backend: str,
+    fixture_id: str,
+    category: str,
+    required_capabilities: Sequence[str],
+    browser_called: bool,
+    browser_state: str,
+    browser_usable: bool,
+    outcome_state: str,
+    usable_content: bool,
+    chain_action: str,
+    chain_reason: str,
+    attempts: Sequence[Mapping[str, Any]],
+    wall_ms: float,
+    fetch_ms: float,
+    cold: bool,
+    bytes: int,
+    content_type: str,
+    rendered: bool | None,
+    cache_hit: bool | None,
+    failure_reason: str,
+    provenance_complete: bool,
+    budget_respected: bool,
+) -> dict[str, Any]:
+    """One measured row, in the shape A3-3 compares.
+
+    ``browser_state`` / ``browser_usable`` are the browser step's **own**
+    verdict, kept separate from the chain-level ``outcome_state``. Without them
+    a fixture where the browser honestly reported ``login_required`` and a later
+    step failed differently could not be scored on the browser's honesty.
+    """
+
+    result = {
+        "backend": str(backend),
+        "fixture_id": str(fixture_id),
+        "category": str(category),
+        "required_capabilities": sorted(str(item) for item in required_capabilities),
+        "browser_called": bool(browser_called),
+        "browser_state": str(browser_state),
+        "browser_usable": bool(browser_usable),
+        "outcome_state": str(outcome_state),
+        "usable_content": bool(usable_content),
+        "chain_action": str(chain_action),
+        "chain_reason": str(chain_reason),
+        "attempts": [dict(item) for item in attempts],
+        "wall_ms": round(float(wall_ms), 1),
+        "fetch_ms": round(float(fetch_ms), 1),
+        "cold": bool(cold),
+        "bytes": int(bytes),
+        "content_type": str(content_type),
+        "rendered": rendered,
+        "cache_hit": cache_hit,
+        "failure_reason": str(failure_reason),
+        "provenance_complete": bool(provenance_complete),
+        "budget_respected": bool(budget_respected),
+    }
+    validate_bakeoff_result(result)
+    return result
+
+
+def validate_bakeoff_result(result: Mapping[str, Any]) -> None:
+    """Fail-closed validation of one bakeoff result row."""
+
+    _require(isinstance(result, Mapping), "result must be a mapping")
+    missing = [field for field in RESULT_FIELDS if field not in result]
+    _require(not missing, f"result is missing fields: {missing}")
+    _require(
+        result.get("backend") in CANDIDATE_BACKENDS,
+        f"backend must be one of {CANDIDATE_BACKENDS!r}",
+    )
+    category = str(result.get("category") or "")
+    _require(category in BAKEOFF_CLASSES, f"unknown fixture class: {category!r}")
+    demand = frozenset(result.get("required_capabilities") or ())
+    _require(
+        demand <= FROZEN_CAPABILITIES,
+        "required_capabilities leaves the frozen vocabulary",
+    )
+    _require(
+        demand == CLASS_CAPABILITY_DEMAND[category],
+        f"{category}: required_capabilities must equal the contract",
+    )
+    state = str(result.get("outcome_state") or "")
+    _require(state in RETRIEVAL_STATES, f"outcome_state {state!r} is not canonical")
+    browser_state = str(result.get("browser_state") or "")
+    _require(
+        browser_state == "" or browser_state in RETRIEVAL_STATES,
+        f"browser_state {browser_state!r} is not canonical",
+    )
+    _require(
+        str(result.get("chain_action") or "") in ROUTING_ACTIONS,
+        "chain_action must be a routing action",
+    )
+    # The honesty guard: a wall or interstitial is never content - neither at
+    # the chain level nor as the browser's own verdict.
+    if state in NON_USABLE_STATES:
+        _require(
+            result.get("usable_content") is False,
+            f"{state} must never be reported as usable content",
+        )
+    if browser_state in NON_USABLE_STATES:
+        _require(
+            result.get("browser_usable") is False,
+            f"the browser reported {browser_state}; that is never usable content",
+        )
+    if result.get("browser_usable") is True:
+        _require(
+            browser_state == "success",
+            "only a success may be the browser's usable verdict",
+        )
+    if result.get("usable_content") is True:
+        _require(state == "success", "only a success may be usable content")
+    # A browser verdict requires a browser call, and vice versa.
+    if result.get("browser_called") is True:
+        _require(browser_state != "", "a called browser must report a canonical state")
+    else:
+        _require(
+            browser_state == "" and result.get("browser_usable") is False,
+            "an uncalled browser must report no verdict",
+        )
+    # The static-control guard, restated for the result artifact.
+    if category == CLASS_STATIC_CONTROL:
+        _require(
+            result.get("browser_called") is False,
+            "static_control must never start a browser",
+        )
+    _require(
+        isinstance(result.get("provenance_complete"), bool),
+        "provenance_complete must be a bool",
+    )
+    _require(
+        isinstance(result.get("budget_respected"), bool),
+        "budget_respected must be a bool",
+    )
+    _require(isinstance(result.get("cold"), bool), "cold must be a bool")
+
+
+def bakeoff_result_document(
+    results: Sequence[Mapping[str, Any]], *, backend: str
+) -> dict[str, Any]:
+    """The artifact written by the harness: one backend's whole fixture run."""
+
+    rows = [dict(item) for item in results]
+    for row in rows:
+        validate_bakeoff_result(row)
+    return {
+        "schema_version": RESULT_SCHEMA_VERSION,
+        "bakeoff_version": BAKEOFF_VERSION,
+        "backend": str(backend),
+        "manifest_schema": SCHEMA_VERSION,
+        "budget": dict(BAKEOFF_UNIFIED_BUDGET),
+        "results": rows,
+    }
+
+
 __all__ = [
     "ALLOWED_ADAPTER_SURFACE",
     "BAKEOFF_CLASSES",
@@ -484,16 +687,22 @@ __all__ = [
     "CLASS_SUCCESS_DEFINITION",
     "FORBIDDEN_CORE_CHANGES",
     "FROZEN_CAPABILITIES",
+    "NON_USABLE_STATES",
     "PRODUCTION_CHAIN_AT_A3_0",
     "PROVENANCE_REQUIREMENTS",
     "REQUIRED_DIMENSIONS",
+    "RESULT_FIELDS",
+    "RESULT_SCHEMA_VERSION",
     "ROUTING_ACTIONS",
     "SCHEMA_VERSION",
     "TARGET_KINDS",
     "WINNER_CRITERIA",
+    "bakeoff_result_document",
+    "build_bakeoff_result",
     "dimension_keys",
     "intended_browser_chain",
     "load_browser_bakeoff_manifest",
     "required_dimension_keys",
+    "validate_bakeoff_result",
     "validate_browser_bakeoff_manifest",
 ]

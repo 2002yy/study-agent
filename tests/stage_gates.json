@@ -52,7 +52,9 @@
       "tests/test_read_retry.py"
     ],
     "a3_browser": [
-      "tests/test_browser_bakeoff_contract.py"
+      "tests/test_browser_bakeoff_contract.py",
+      "tests/test_browser_bakeoff_harness.py",
+      "tests/test_wigolo_browser_executor.py"
     ],
     "read_adequacy": [
       "tests/test_read_adequacy_probe.py"
@@ -77,6 +79,8 @@
       "tests/test_read_retry.py",
       "tests/test_read_adequacy_probe.py",
       "tests/test_browser_bakeoff_contract.py",
+      "tests/test_browser_bakeoff_harness.py",
+      "tests/test_wigolo_browser_executor.py",
       "tests/test_active_research_runtime.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
