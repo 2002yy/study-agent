@@ -217,6 +217,25 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = self.path.split("?", 1)[0]
+        if path == "/slow-report.pdf":
+            # §120 gate C: trickle a PDF so each read is small but the total
+            # wall time far exceeds the browser budget.
+            import time as _time
+
+            body = _PDF_BYTES
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            for offset in range(0, len(body), 256):
+                try:
+                    self.wfile.write(body[offset:offset + 256])
+                    self.wfile.flush()
+                except Exception:
+                    return
+                _time.sleep(0.25)
+            return
         if path == "/session/check":
             status, body = session_check_body(self.headers.get("Cookie", ""))
             payload = body.encode("utf-8")

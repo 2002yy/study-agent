@@ -28,31 +28,79 @@ T0 = time.perf_counter()
 CANCEL_GRACE_MS = 800
 
 
-def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
-    """Download a PDF with a real connect/read deadline; return a local path.
+class PdfDownloadDeadline(RuntimeError):
+    """The absolute download budget expired mid-transfer."""
 
-    Returns the original url unchanged when it is already local, or when the
-    download fails - the strategy then reports the failure itself.
+
+#: Hard cap so a hostile server cannot stream forever inside the budget.
+MAX_PDF_BYTES = 100 * 1024 * 1024
+
+
+def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
+    """Download a PDF under an **absolute** deadline; return a local path.
+
+    The budget is ``deadline_at = now + timeout_ms`` and is re-checked before
+    every chunk, so a slow-but-steady server cannot outlive it. The socket
+    timeout is additionally pinned to the remaining budget when reachable, which
+    bounds a single stalled read too.
+
+    Raises :class:`PdfDownloadDeadline` on expiry so the worker can report a
+    canonical bounded failure instead of pretending it got content.
     """
 
     if not url.startswith(("http://", "https://")):
         return url
     import tempfile
+    import time as _time
     import urllib.error
     import urllib.request
 
-    deadline = max(1.0, timeout_ms / 1000.0)
-    try:
-        with urllib.request.urlopen(url, timeout=deadline) as response:  # noqa: S310
-            data = response.read()
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return url
+    deadline_at = _time.monotonic() + max(0.5, timeout_ms / 1000.0)
+
+    def _remaining() -> float:
+        return deadline_at - _time.monotonic()
+
     handle = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
     try:
-        handle.write(data)
-    finally:
+        try:
+            request = urllib.request.Request(url)
+            with urllib.request.urlopen(  # noqa: S310
+                request, timeout=max(0.5, _remaining())
+            ) as response:
+                total = 0
+                while True:
+                    remaining = _remaining()
+                    if remaining <= 0:
+                        raise PdfDownloadDeadline("pdf_download_deadline")
+                    # pin the socket to what is actually left, when reachable
+                    try:
+                        response.fp.raw._sock.settimeout(remaining)  # type: ignore[union-attr]
+                    except Exception:
+                        pass
+                    chunk = response.read(65536)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > MAX_PDF_BYTES:
+                        raise PdfDownloadDeadline("pdf_download_too_large")
+                    handle.write(chunk)
+        except PdfDownloadDeadline:
+            handle.close()
+            import os as _os
+
+            _os.unlink(handle.name)
+            raise
+        except (urllib.error.URLError, TimeoutError, OSError):
+            # a transport failure is the provider strategy's business, not ours
+            handle.close()
+            import os as _os
+
+            _os.unlink(handle.name)
+            return url
         handle.close()
-    return handle.name
+        return handle.name
+    except PdfDownloadDeadline:
+        raise
 
 
 def emit(payload):
@@ -119,7 +167,18 @@ class Worker:
             # thread whose cancellation does not stop the socket, so the worker
             # fetches with its own deadline-bounded client first and hands the
             # strategy a local path. Provider-native extraction is unchanged.
-            local = await asyncio.to_thread(_bounded_pdf_fetch, url, timeout_ms)
+            try:
+                local = await asyncio.to_thread(_bounded_pdf_fetch, url, timeout_ms)
+            except PdfDownloadDeadline as exc:
+                return {
+                    "provider_success": False,
+                    "status_code": None,
+                    "content": "",
+                    "content_chars": 0,
+                    "error_message": str(exc),
+                    "session_key": key,
+                    "deadline_hit": True,
+                }
             config = CrawlerRunConfig(
                 scraping_strategy=PDFContentScrapingStrategy(),
                 cache_mode=getattr(CacheMode, cache_mode),
