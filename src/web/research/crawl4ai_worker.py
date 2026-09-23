@@ -282,6 +282,7 @@ class Worker:
 
     async def handle(self, request):
         timeout_ms = int(request.get("timeout_ms") or 30000)
+        request_id = str(request.get("request_id") or "")
         session_id = request.get("session_id") or None
         mode = str(request.get("mode") or "browser")
         key = self.key_for(session_id, mode)
@@ -335,6 +336,8 @@ class Worker:
 
         self.completed += 1
         actual_ms = round((time.perf_counter() - started) * 1000.0, 1)
+        # §123: echo the correlation id so the bridge never pairs by line order
+        payload["request_id"] = request_id
         _tl("T7_response_written")
         payload["cancellation"] = {
             "requested_deadline_ms": timeout_ms,

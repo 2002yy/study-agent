@@ -96,10 +96,17 @@ class Crawl4AIBridge:
     python: str = ""
     worker: Path = DEFAULT_WORKER
     _proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
-    _lines: Any = field(default=None, init=False, repr=False)
+    #: request_id -> queue the persistent reader resolves; a caller timeout only
+    #: abandons its own entry, never the pipe reader.
+    _pending: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _pending_lock: Any = field(default=None, init=False, repr=False)
+    _counter: int = field(default=0, init=False, repr=False)
     startup_ms: float | None = field(default=None, init=False)
     cancel_grace_ms: int | None = field(default=None, init=False)
     restarts: int = field(default=0, init=False)
+    late_responses: int = field(default=0, init=False)
+    malformed_lines: int = field(default=0, init=False)
+    reader_alive: bool = field(default=False, init=False)
 
     def start(self, *, timeout_ms: float = 60000.0) -> None:
         if not self.python:
@@ -114,7 +121,9 @@ class Crawl4AIBridge:
             errors="replace",
             bufsize=1,
         )
-        self._lines = queue.Queue()
+        self._pending = {}
+        self._pending_lock = threading.Lock()
+        self.reader_alive = True
         threading.Thread(target=self._pump, daemon=True).start()
         hello = self._next(timeout_ms)
         if hello.get("event") != "READY":
@@ -123,23 +132,58 @@ class Crawl4AIBridge:
         self.cancel_grace_ms = hello.get("cancel_grace_ms")
 
     def _pump(self) -> None:
+        """The ONE stdout reader for this worker's lifetime.
+
+        It parses each protocol line and hands it to the request that owns it.
+        It is never cancelled by a caller timeout, so the pipe can never be read
+        by two different readers racing for the same line.
+        """
+
         for line in self._proc.stdout:  # type: ignore[union-attr]
-            self._lines.put(line)
-        self._lines.put(None)
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except Exception:
+                self.malformed_lines += 1
+                continue
+            request_id = str(payload.get("request_id") or "")
+            if not request_id:
+                # READY / BYE / STATS style events
+                self._broadcast(payload)
+                continue
+            with self._pending_lock:
+                box = self._pending.pop(request_id, None)
+            if box is None:
+                # late response for an abandoned request: record and discard,
+                # never hand it to a later caller
+                self.late_responses += 1
+                continue
+            box.put(payload)
+        self.reader_alive = False
+        self._fail_all_pending("worker_eof")
+
+    def _broadcast(self, payload: dict[str, Any]) -> None:
+        """Non-request events (READY/BYE/STATS) go to a shared inbox."""
+
+        if not hasattr(self, "_events"):
+            self._events = queue.Queue()
+        self._events.put(payload)
+
+    def _fail_all_pending(self, reason: str) -> None:
+        with self._pending_lock:
+            boxes = list(self._pending.values())
+            self._pending.clear()
+        for box in boxes:
+            box.put({"error": reason})
 
     def _next(self, timeout_ms: float) -> dict[str, Any]:
+        if not hasattr(self, "_events"):
+            self._events = queue.Queue()
         try:
-            line = self._lines.get(timeout=timeout_ms / 1000.0)
+            return self._events.get(timeout=timeout_ms / 1000.0)
         except queue.Empty:
             return {"error": "bridge_read_timeout"}
-        if line is None:
-            return {"error": "worker_eof"}
-        if not line.strip():
-            return {"error": "empty_line"}
-        try:
-            return json.loads(line)
-        except Exception as exc:  # noqa: BLE001
-            return {"error": f"bad_json: {exc}"}
 
     @property
     def ready(self) -> bool:
@@ -152,12 +196,27 @@ class Crawl4AIBridge:
     def request(self, *, timeout_ms: float, **payload: Any) -> dict[str, Any]:
         if not self.ready:
             raise WorkerUnavailable("worker is not running")
+        self._counter += 1
+        request_id = f"r{self._counter}"
+        box: Any = queue.Queue()
+        with self._pending_lock:
+            self._pending[request_id] = box
+        payload["request_id"] = request_id
         try:
             self._proc.stdin.write(json.dumps(payload) + "\n")  # type: ignore[union-attr]
             self._proc.stdin.flush()  # type: ignore[union-attr]
         except Exception as exc:  # noqa: BLE001
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
             raise WorkerUnavailable(f"write failed: {exc}") from exc
-        return self._next(timeout_ms + BRIDGE_READ_SLACK_MS)
+        try:
+            return box.get(timeout=(timeout_ms + BRIDGE_READ_SLACK_MS) / 1000.0)
+        except queue.Empty:
+            # abandon only THIS request; the reader keeps the pipe and will
+            # discard the late response by request_id
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
+            return {"error": "bridge_read_timeout", "request_id": request_id}
 
     def stop(self) -> None:
         if self._proc is None:
@@ -170,6 +229,7 @@ class Crawl4AIBridge:
             pass
         self._proc.terminate()
         self._proc = None
+        self._fail_all_pending("worker_stopped")
 
 
 def _skip_result(

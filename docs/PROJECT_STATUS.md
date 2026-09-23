@@ -7031,3 +7031,58 @@ focused 四门 / 12-row cohort / L1 / verdict  ⏳ / ⏳ / ⏳ / ❌
 `
 
 **不要再修改 _bounded_pdf_fetch。** A3-2 verdict = PENDING。已登记的 docs trailing whitespace（§120）在下个 close head 前清理。
+
+
+## §122 A3-2d Bridge IPC protocol closure — 补丁已应用，**但新 reader 层未工作（我引入的 bug）**
+
+### 122.1 根因（已确认）
+
+wait_for(readline) 在 Windows 上**不是可取消的 pipe read**：caller 超时后底层 blocking read 仍存活，与下一请求竞争同一行 ⇒ **IPC 失步**（§121 已实证：超时后 NEXT 读到上一条残留响应）。
+
+### 122.2 已实现（协议层）
+
+| 项 | 实现 |
+| --- | --- |
+| 
+equest_id | bridge 每请求生成 
+N，worker **原样 echo**；不再依赖 stdout 行顺序配对 |
+| 单一 persistent stdout reader | _pump 成为 worker 生命周期内**唯一** reader，按 
+equest_id 分发到 _pending[request_id] |
+| late response | pending 中已无该 id ⇒ 计 late_responses 并**丢弃**，绝不交给后续请求 |
+| 事件通道 | 无 
+equest_id 的 READY/BYE/STATS 走独立 _events 队列 |
+| worker 侧 | 所有诊断已改到 **stderr**（_tl / [pdf]），stdout 仅协议 |
+
+### 122.3 ❌ 实测失败（IPC_ALL_PASS=False）
+
+`	ext
+READY startup_ms=2280.0
+A (short wait)  wall=2813ms  err=bridge_read_timeout   <- caller 按时放弃 OK
+late_responses=0  malformed=0                          <- A 的迟到响应从未被 reader 看到
+B               wall=5000ms  provider_success=None     <- B 也超时
+C               wall=5016ms  deadline_hit=None         <- C 也超时
+`
+
+**判定**：新的 persistent reader **完全没有投递任何响应**（late_responses=0 说明连 A 的迟到行都没被解析到），因此 B/C 全部 ridge_read_timeout。**这是我这次引入的 bug，不是旧问题的残留**——旧的每请求 readline 至少能读到第一行。
+
+**首要嫌疑（下刀第一件事）**：_pump / _broadcast / _events 的接线。具体：
+- _broadcast 与 _next 都用 if not hasattr(self, _events) 惰性创建 _events，dataclass 上未声明该字段；reader 线程与主线程可能各建一个，导致 READY 之外的投递路径异常；
+- 需确认 _pump 线程是否在第一次迭代就异常退出（未捕获异常会静默终止线程，
+eader_alive 仍为 True）。
+- 建议下刀：把 _events 显式声明为 dataclass 字段（init=False），并给 _pump 加 try/except 记录 
+eader_error，先证明 reader 活着。
+
+### 122.4 状态
+
+`	ext
+Provider capability              ✅
+PDF absolute I/O                 ✅ CLOSED
+Warm worker                      ✅
+Deadline cancellation            ✅
+Session isolation                ✅
+Post-timeout worker health       ✅
+Bridge request/response protocol ❌ 协议已重写，但新 reader 未工作（本次引入）
+A3-2 verdict                     PENDING
+`
+
+**未跑**：focused 四门 / 12-row cohort / L1 / verdict。**production-inert 未变**。hygiene 待办：§120 的 docs trailing whitespace；git ls-files docs/research_quality 必须保持为空（上次 git add -A 误跟踪已用 317f0fe 纠正，勿重犯）。
