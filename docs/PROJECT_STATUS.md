@@ -6869,3 +6869,48 @@ verdict                    ❌ 未出（不得在 required 维度失败时判 QU
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 BrowserBackend。
 
 **已登记债务**（A3-2 不修）：① production browser-demand generation / reachability debt；② `A2_NO_PDF_DEMAND_DERIVATION`；③ 新增 **document-length vs adequacy-threshold mismatch**（118.3）。
+
+
+## §119 A3-2 fix candidate `2758800` + focused 四门 — **gate C 失败，未跑 cohort**
+
+### 119.1 已应用修复（均不触 A0/A2/A3-0 冻结语义）
+
+| # | 项 | 性质 | 状态 |
+| --- | --- | --- | --- |
+| 1(a) | `document_heavy` fixture 309 → **5794 字符**（远离 800 边界） | fixture 保真度缺陷 | ✅ 已修并独立验证 |
+| 2(a) | `js_shell` fixture 加真实 `setTimeout` DOM 注入 | fixture 保真度缺陷 | ✅ 已修并独立验证 |
+| 3 | bridge 读超时投影 → **canonical bounded failure** | adapter correctness bug | ✅ 已修（实证 `budget_exhausted` + `bridge_failure:bridge_read_timeout`） |
+| 4 | PDF I/O：自有有界 transport 下载后再交 provider-native PDF strategy | adapter correctness bug | ⚠️ **部分**（见 119.3） |
+
+新增 `tools/run_crawl4ai_qualification.py`（**自管理生命周期**：fixture server + warm worker + gates + cohort，单前台 Python，无 `Start-Process`/管线）与 `/slow-report.pdf` forced-slow 端点（256B/0.25s 涓流）。
+
+### 119.2 focused 四门
+
+| gate | 结果 | 判定 |
+| --- | --- | --- |
+| A js_shell real JS rescue | `success` / `usable=true` / **5125 chars** / 2247ms | ✅ |
+| B document_heavy real PDF | `success` / `usable=true` / **5804 chars** / 171ms | ✅ |
+| C forced-slow PDF | `budget_exhausted`（**非 invalid_content**）/ wall **5006.8ms** | ❌ |
+| D static silence | bridge available（cohort 断言 0 调用） | ✅ |
+
+```text
+FOCUSED_FAILED - cohort not run
+```
+
+### 119.3 ❌ gate C：下载层 absolute deadline 未生效
+
+- **投影语义已正确**：`budget_exhausted` + `bridge_failure:bridge_read_timeout` ⇒ 满足"绝不 invalid_content"。
+- **有界性未达成**：wall 恰为 `deadline(3000) + bridge slack(2000) = 5006.8ms` ⇒ **worker 未在 3s 返回**，是 bridge 先放弃。slow PDF 约需 5.7s，本应在 3s 被 `PdfDownloadDeadline` 中断。
+- **审计点确认**：原实现只是固定 `urlopen(timeout=N)`；本刀已改为 `deadline_at` + 每次 read 前检查 + socket timeout 按剩余预算 pin，**但实测未触发**。最可能是带 `Content-Length` 的 HTTP/1.1 响应上 `response.read(65536)` 未按预期增量返回（或 socket pinning 静默失败），使 3s 检查点未被走到。
+- **下一步（最小复现）**：直接对 `/slow-report.pdf` 计时调用 `_bounded_pdf_fetch`，确认 chunk 增量与检查点命中；据此改用分块 `readinto` / 显式 `Content-Length` 循环或 `http.client` 逐块读。
+- **按裁决不跑完整 cohort**（四门任一失败先修）。
+
+### 119.4 状态
+
+```text
+1(a) fixture ✅   2(a) fixture ✅   3 投影 ✅   4 PDF I/O ⚠️ 部分
+focused 四门 ❌ gate C        12-row cohort ⏳ 未跑（按规则）
+L1 tests ⏳ 未写              verdict ❌ 未出
+```
+
+`2758800` = **fix candidate head**；最终资格取决于 gate C 修复 + 12-row cohort + L1。**production-inert 未变**。已登记债务：① reachability debt；② `A2_NO_PDF_DEMAND_DERIVATION`；③ document-length vs adequacy（已归因 fixture 缺陷）。
