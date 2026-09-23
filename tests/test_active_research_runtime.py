@@ -5039,3 +5039,891 @@ def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
     for row in timing:
         # legacy-only on the explicit chain: the second backend owns its own row
         assert row.get("escalation_ms", 0.0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# §107 P2-A2e: Progressive Reader integration validation
+#
+# Six frozen dimensions (PROJECT_STATUS §106.4). This section validates the
+# A0->A2d stack end-to-end through the real runtime read loop. It adds no
+# architecture, no backend, no budget policy and no new ledger.
+# ---------------------------------------------------------------------------
+
+#: An adequate native document. The extractor anchors on "release date", so a
+#: validated run must keep that phrase in the body.
+_A2E_ADEQUATE = "release date " + ("y" * (SHORT_CHAR_THRESHOLD + 400))
+
+#: An adequate alternate document (content only; anchors are irrelevant here).
+_A2E_ALT_OK = "z" * (SHORT_CHAR_THRESHOLD + 400)
+
+
+class _ScriptedNativeReadGateway:
+    """A native reader whose payload is chosen per URL (A2e validation only)."""
+
+    def __init__(
+        self,
+        payload: Mapping[str, Any] | None = None,
+        *,
+        by_url: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> None:
+        self.payload = dict(payload or {})
+        self.by_url = {
+            str(key): dict(value) for key, value in (by_url or {}).items()
+        }
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        base = dict(self.by_url.get(url, self.payload))
+        base.setdefault("url", url)
+        content = base.get("content")
+        if isinstance(content, str):
+            base["content"] = content[:max_chars]
+        return base
+
+
+def _a2e_service(
+    repository: WebLookupRepository,
+    client: _StructuredClient,
+    *,
+    read_gateway: Any,
+    escalation_backend: Any | None,
+    search_backend: Any | None = None,
+) -> ClaimEngineDispatchWebLookupService:
+    gateway = ActiveResearchGateway(
+        search_backend=search_backend or _SearchBackend(),
+        read_gateway=read_gateway,
+    )
+    if escalation_backend is not None:
+        gateway.set_escalation_backend(escalation_backend)
+
+    def gateway_factory() -> ActiveResearchGateway:
+        return gateway
+
+    def runtime_factory(
+        repo: WebLookupRepository,
+        active_gateway: ActiveResearchGateway,
+    ) -> ActiveResearchRuntimeExecutor:
+        model = ResearchModelGateway(
+            client=client,
+            model_name="test-model",
+            timeout_seconds=20,
+        )
+        return ActiveResearchRuntimeExecutor(
+            repo,
+            active_gateway,
+            model_gateway=model,
+            monotonic=perf_counter,
+        )
+
+    return ClaimEngineDispatchWebLookupService(
+        repository,
+        active_gateway_factory=gateway_factory,
+        active_runtime_factory=runtime_factory,
+    )
+
+
+def _a2e_run(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str,
+    native: Any,
+    wigolo: Any | None = None,
+    search_backend: Any | None = None,
+    escalation: str | None = "http",
+    breaker: bool = False,
+    breaker_threshold: int = 1,
+) -> Any:
+    """One deterministic end-to-end run through the real read loop."""
+
+    if escalation is None:
+        monkeypatch.delenv(ESCALATION_ENV, raising=False)
+    else:
+        monkeypatch.setenv(ESCALATION_ENV, escalation)
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    if breaker:
+        monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+        monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", str(breaker_threshold))
+    else:
+        monkeypatch.delenv("RESEARCH_READ_BREAKER", raising=False)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / f"{name}.sqlite"))
+    run = _cutover_run(repository, f"run_{name}")
+    return _a2e_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=native,
+        escalation_backend=wigolo,
+        search_backend=search_backend,
+    ).execute(run.id, raise_on_error=True)
+
+
+def _a2e_sources(completed: Any) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (completed.selected_sources or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def _a2e_metrics(completed: Any) -> dict[str, Any]:
+    return completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+
+
+def _a2e_cursor(completed: Any) -> ResearchRuntimeCursor:
+    return ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+
+
+def _a2e_attempt_tuples(source: Mapping[str, Any]) -> list[tuple[str, str, bool, bool]]:
+    return [
+        (
+            str(item.get("backend") or ""),
+            str(item.get("retrieval_state") or ""),
+            bool(item.get("attempted")),
+            bool(item.get("usable_content")),
+        )
+        for item in (source.get("retrieval_attempts") or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# D1: reader-chain correctness (the full runtime path, not the unit contract)
+# ---------------------------------------------------------------------------
+
+#: native payload -> (expected chain steps, expected final backend, expected
+#: usable read, expected chain action)
+_A2E_CHAIN_CASES: tuple[tuple[str, Mapping[str, Any], tuple[str, ...], str, bool, str], ...] = (
+    (
+        "native_success",
+        {"ok": True, "content": _A2E_ADEQUATE},
+        ("native_http",),
+        "native_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_not_found",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 404 Not Found",
+            "escalation": {"http_status": 404},
+        },
+        ("native_http",),
+        "native_http",
+        False,
+        "resolve",
+    ),
+    (
+        "native_short_doc",
+        {"ok": True, "content": "tiny"},
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_transport_reset",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "URLError: <urlopen error [WinError 10054]> connection reset by peer",
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_timeout",
+        {"ok": False, "status": "failed", "error": "urlopen error timed out"},
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_http_denied",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 403 Forbidden",
+            "escalation": {"http_status": 403},
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_rate_limited",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 429 Too Many Requests",
+            "escalation": {"http_status": 429},
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_shell_page",
+        {"ok": True, "content": "Please enable JavaScript to continue"},
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_anti_bot",
+        {"ok": False, "status": "failed", "error": "captcha challenge detected"},
+        ("native_http",),
+        "native_http",
+        False,
+        "exhaust",
+    ),
+    (
+        "native_login_required",
+        {"ok": False, "status": "failed", "error": "login required to view"},
+        ("native_http",),
+        "native_http",
+        False,
+        "exhaust",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("case", "payload", "expected_steps", "expected_final", "expected_usable", "expected_action"),
+    _A2E_CHAIN_CASES,
+    ids=[row[0] for row in _A2E_CHAIN_CASES],
+)
+def test_a2e_reader_chain_correctness(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    payload: Mapping[str, Any],
+    expected_steps: tuple[str, ...],
+    expected_final: str,
+    expected_usable: bool,
+    expected_action: str,
+) -> None:
+    """D1: every frozen native outcome routes to the frozen chain decision."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(payload)
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name=f"a2e_chain_{case}", native=native, wigolo=wigolo
+    )
+
+    rows = _chain_rows(completed)
+    assert rows, "the chain must record its decision"
+    for row in rows:
+        assert [step["backend"] for step in row["steps"]] == list(expected_steps)
+        assert row["action"] == expected_action
+
+    sources = _a2e_sources(completed)
+    assert sources
+    assert len(sources) == len({item["candidate_id"] for item in sources})
+    for item in sources:
+        assert item["final_backend"] == expected_final
+        assert (item["read_status"] == "read") is expected_usable
+        assert [a[0] for a in _a2e_attempt_tuples(item)] == list(expected_steps)
+
+    # The alternate runs exactly when the frozen routing asked it to.
+    expect_wigolo = "wigolo_http" in expected_steps
+    assert bool(wigolo.calls) is expect_wigolo
+
+
+def test_a2e_circuit_open_native_is_never_faked_as_an_outcome(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D1: an unhealthy native reader is skipped, never manufactured."""
+
+    native = _CountingFailingReadGateway()
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    completed = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_circuit_open",
+        native=native,
+        wigolo=wigolo,
+        search_backend=_SameHostSearchBackend(),
+        escalation=None,
+        breaker=True,
+    )
+
+    metrics = _a2e_metrics(completed)
+    # The unhealthy native reader is refused by the pre-attempt scheduler...
+    scheduling = metrics.get("read_scheduling") or []
+    blocked = [
+        item
+        for item in scheduling
+        if "native_http" in tuple(item.get("blocked_backends") or ())
+    ]
+    assert blocked, "an open native circuit must be recorded as blocked"
+    # ...and the alternate is still considered, never the blocked reader.
+    assert any(item.get("backend") == "wigolo_http" for item in blocked)
+
+    # No read outcome and no source was minted for a reader that never ran.
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes, "the first candidate still ran"
+    assert all(item.backend == "native_http" for item in outcomes)
+    assert native.calls == 1, "bounded: the blocked reader is not re-planned"
+
+    # Deferred candidates leave no source and are not terminal.
+    deferred = [row for row in _chain_rows(completed) if row["action"] == "defer"]
+    assert deferred, "a candidate whose only capable reader is unhealthy defers"
+    for row in deferred:
+        assert row["steps"] == []
+    assert len(_a2e_sources(completed)) == 1
+
+
+def test_a2e_unavailable_alternate_exhausts_without_looping(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D1: an alternate that cannot run is a policy skip, not a loop."""
+
+    wigolo = _CutoverEscalationBackend("", preflight="unavailable")
+    native = _ScriptedNativeReadGateway(
+        {"ok": False, "status": "failed", "error": "urlopen error timed out"}
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_unavailable_alt", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "an unavailable alternate must not be fetched"
+    for row in _chain_rows(completed):
+        # Only the real attempt is recorded; the skip is not an attempt.
+        assert [step["backend"] for step in row["steps"]] == ["native_http"]
+        assert row["action"] == "exhaust"
+        assert row["reason"] == "all_backends_tried"
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes
+    assert all(item.backend == "native_http" for item in outcomes)
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+        assert item["final_backend"] == "native_http"
+
+
+# ---------------------------------------------------------------------------
+# D2: candidate lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_candidate_lifecycle_is_one_source_per_candidate(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: many attempts, one resolution, at most one source, no evidence bloat."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_lifecycle", native=native, wigolo=wigolo
+    )
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    keys = [(item.candidate_id, item.backend) for item in outcomes]
+    assert keys, "the fallback path must produce attempts"
+    assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
+
+    sources = _a2e_sources(completed)
+    candidate_ids = [item["candidate_id"] for item in sources]
+    assert len(candidate_ids) == len(set(candidate_ids)), "one source per candidate"
+
+    # Two backend attempts per candidate, still exactly one source each.
+    fallback = [item for item in sources if len(_a2e_attempt_tuples(item)) == 2]
+    assert fallback, "the inadequate native read must escalate"
+    assert len(sources) == len(outcomes) // 2
+
+    # Evidence is not inflated by the extra backend attempt: the candidate set
+    # the extractor saw equals the candidate set the chain produced.
+    assert len(sources) == _a2e_metrics(completed).get("candidate_count")
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("resolved") == len(sources)
+    assert resolution.get("counts", {}).get("chain_exhausted") == 0
+    assert resolution.get("counts", {}).get("fallback_pending") == 0
+
+
+def test_a2e_not_found_is_terminal_but_unusable(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: a terminal resource outcome settles the candidate without content."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 404 Not Found",
+            "escalation": {"http_status": 404},
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_not_found", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "not_found is terminal and must not escalate"
+    for row in _chain_rows(completed):
+        assert row["action"] == "resolve"
+        assert row["reason"] == "terminal_resource_outcome"
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes
+    assert all(item.status == "failed" for item in outcomes)
+    assert all(item.retrieval_state == "not_found" for item in outcomes)
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("resolved") == len(outcomes)
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+
+
+def test_a2e_chain_exhausted_is_terminal_but_unusable(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: no capable backend is terminal, and it produced no content."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {"ok": False, "status": "failed", "error": "captcha challenge detected"}
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_exhausted", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "anti_bot needs a capability this chain lacks"
+    for row in _chain_rows(completed):
+        assert row["action"] == "exhaust"
+        assert row["reason"] == "no_capable_backend"
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("chain_exhausted") == len(
+        _a2e_sources(completed)
+    )
+    assert resolution.get("counts", {}).get("resolved") == 0
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# D3: budget / boundedness
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_retry_stays_inside_the_backend_and_the_chain_stays_bounded(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D3: backend-local retry x reader-chain steps must not blow up."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": True,
+            "content": "tiny",
+            "read_retry": {
+                "attempts": 3,
+                "retries": 2,
+                "retry_fetch_ms": 45.0,
+                "retry_backoff_ms": 12.0,
+            },
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_retry", native=native, wigolo=wigolo
+    )
+
+    rows = _chain_rows(completed)
+    assert rows
+    # A backend may really run at most once per candidate: 3 network attempts
+    # stayed inside the native backend and never became chain steps.
+    assert len(native.calls) == len(rows)
+    assert len(wigolo.calls) == len(rows)
+    for row in rows:
+        assert len(row["steps"]) == 2
+
+    # The backend-local retry count is still observable in the attempt cost.
+    for item in _a2e_sources(completed):
+        native_attempt = next(
+            a for a in (item.get("retrieval_attempts") or []) if a["backend"] == "native_http"
+        )
+        assert native_attempt["cost"]["attempts"] == 3
+        assert native_attempt["cost"]["retries"] == 2
+
+    # Timing records the native fetch as one row, not as three chain attempts.
+    timing = _a2e_metrics(completed).get("read_timing") or []
+    native_rows = [row for row in timing if row.get("backend") == "native_http"]
+    assert len(native_rows) == len(rows)
+
+
+def test_a2e_wigolo_envelope_is_run_scoped_and_bounded(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D3: the alternate's budget is a single run-scoped, bounded envelope."""
+
+    from src.web.research.read_escalation import (
+        http_envelope_spent_ms,
+        reset_http_envelope,
+    )
+
+    reset_http_envelope()
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK, latency_ms=120.0)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_envelope", native=native, wigolo=wigolo
+    )
+
+    assert len(wigolo.calls) >= 2, "both candidates must escalate"
+    spent = http_envelope_spent_ms()
+    assert spent == pytest.approx(120.0 * len(wigolo.calls), abs=1.0)
+    # Bounded: the run can never debit more than the frozen envelope.
+    assert spent <= 3000.0 + 1.0
+
+    # One Wigolo timing row per real call; nothing double-counted.
+    timing = _a2e_metrics(completed).get("read_timing") or []
+    wigolo_rows = [row for row in timing if row.get("backend") == "wigolo_http"]
+    assert len(wigolo_rows) == len(wigolo.calls)
+
+
+# ---------------------------------------------------------------------------
+# D4: failure semantics (state -> routing -> lifecycle must agree)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("case", "payload", "expected_state", "expected_final", "expected_usable"),
+    [
+        (
+            "http_denied",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 403 Forbidden",
+                "escalation": {"http_status": 403},
+            },
+            "http_denied",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "not_found",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 404 Not Found",
+                "escalation": {"http_status": 404},
+            },
+            "not_found",
+            "native_http",
+            False,
+        ),
+        (
+            "rate_limited",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 429 Too Many Requests",
+                "escalation": {"http_status": 429},
+            },
+            "rate_limited",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "reset",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "URLError: <urlopen error [WinError 10054]>",
+            },
+            "reset",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "timeout",
+            {"ok": False, "status": "failed", "error": "urlopen error timed out"},
+            "timeout",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "anti_bot",
+            {"ok": False, "status": "failed", "error": "captcha challenge detected"},
+            "anti_bot",
+            "native_http",
+            False,
+        ),
+        (
+            "shell_page",
+            {"ok": True, "content": "Please enable JavaScript to continue"},
+            "shell_page",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "login_required",
+            {"ok": False, "status": "failed", "error": "login required to view"},
+            "login_required",
+            "native_http",
+            False,
+        ),
+    ],
+    ids=[
+        "http_denied",
+        "not_found",
+        "rate_limited",
+        "reset",
+        "timeout",
+        "anti_bot",
+        "shell_page",
+        "login_required",
+    ],
+)
+def test_a2e_failure_state_routing_and_lifecycle_agree(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    payload: Mapping[str, Any],
+    expected_state: str,
+    expected_final: str,
+    expected_usable: bool,
+) -> None:
+    """D4: canonical state, routing decision and lifecycle must not contradict."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(payload)
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name=f"a2e_failure_{case}", native=native, wigolo=wigolo
+    )
+
+    for item in _a2e_sources(completed):
+        attempts = _a2e_attempt_tuples(item)
+        native_attempt = next(a for a in attempts if a[0] == "native_http")
+        # The canonical state is carried by the attempt, not re-derived later.
+        assert native_attempt[1] == expected_state
+
+        # A usable read always names the attempt that actually produced content;
+        # an unusable one never does.
+        assert (item["read_status"] == "read") is expected_usable
+        assert item["final_backend"] == expected_final
+        winner = next(a for a in attempts if a[0] == item["final_backend"])
+        assert winner[3] is expected_usable, (
+            "final_backend must name the content-producing attempt, never a failed one"
+        )
+
+    # The routing action never contradicts the state's capability requirement:
+    # a state needing a capability this chain lacks must not call the alternate.
+    for row in _chain_rows(completed):
+        if expected_state in {"anti_bot", "login_required"}:
+            assert row["action"] == "exhaust"
+            assert row["reason"] == "no_capable_backend"
+        elif expected_state == "not_found":
+            assert row["action"] == "resolve"
+        else:
+            assert row["action"] == "resolve"
+
+
+# ---------------------------------------------------------------------------
+# D5: provenance completeness
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_provenance_links_outcome_timing_chain_and_source(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D5: a fallback candidate's story is reconstructable from the artifacts."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_provenance", native=native, wigolo=wigolo
+    )
+
+    metrics = _a2e_metrics(completed)
+    outcomes = _a2e_cursor(completed).read_outcomes
+    outcome_keys = {(item.candidate_id, item.backend) for item in outcomes}
+    chain_by_candidate = {
+        row["candidate_id"]: row for row in (metrics.get("read_chain") or [])
+    }
+    timing = metrics.get("read_timing") or []
+
+    for item in _a2e_sources(completed):
+        candidate_id = item["candidate_id"]
+        attempts = _a2e_attempt_tuples(item)
+        assert len(attempts) == 2, "why native failed and whether Wigolo ran"
+
+        # 1. the attempt history matches the source's nested attempts exactly
+        assert {(candidate_id, a[0]) for a in attempts} <= outcome_keys
+
+        # 2. the chain row for this candidate carries the same steps
+        row = chain_by_candidate[candidate_id]
+        assert [step["backend"] for step in row["steps"]] == [a[0] for a in attempts]
+
+        # 3. the winner is the second (adequate) attempt
+        assert item["final_backend"] == "wigolo_http"
+        assert attempts[0] == ("native_http", "invalid_content", True, True)
+        assert attempts[1][0] == "wigolo_http" and attempts[1][3] is True
+
+        # 4. cost is attributable: one timing row per backend, Wigolo fetch cost
+        for backend in ("native_http", "wigolo_http"):
+            rows = [
+                r
+                for r in timing
+                if r.get("backend") == backend and r.get("candidate_id") == candidate_id
+            ]
+            assert len(rows) == 1, f"exactly one {backend} timing row per candidate"
+        wigolo_row = next(
+            r
+            for r in timing
+            if r.get("backend") == "wigolo_http" and r.get("candidate_id") == candidate_id
+        )
+        assert float(wigolo_row.get("fetch_ms") or 0.0) > 0.0
+
+        # 5. usability is answerable without re-reading anything
+        assert item["read_status"] == "read"
+
+
+def test_a2e_failure_records_carry_the_attempt_id_of_the_failed_step(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D5: a failed attempt is durably auditable via outcome + failure id."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 403 Forbidden",
+            "escalation": {"http_status": 403},
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_failure_id", native=native, wigolo=wigolo
+    )
+
+    cursor = _a2e_cursor(completed)
+    read_failures = [
+        failure
+        for failure in cursor.failures
+        if getattr(failure, "code", "") == "read_failed"
+    ]
+    assert read_failures, "an unusable attempt must leave a failure record"
+    failed_ids = {failure.item_id for failure in read_failures}
+    assert failed_ids == {item["candidate_id"] for item in _a2e_sources(completed)}
+
+    # The durable failure carries the attempt id of the step that failed, so the
+    # per-attempt marker's non-durability does not hide the audit trail.
+    for failure in read_failures:
+        assert failure.attempt_id.startswith("research_read:")
+        assert ":native_http" in failure.attempt_id
+    # The successful Wigolo attempt leaves no read_failed record.
+    assert all(
+        item.backend == "native_http"
+        for item in cursor.read_outcomes
+        if item.status == "failed"
+    )
+
+
+# ---------------------------------------------------------------------------
+# D6: authority regression
+# ---------------------------------------------------------------------------
+
+
+def _a2e_normalise_ids(value: Any) -> Any:
+    """Erase run-scoped minted ids; they are identifiers, not authority."""
+
+    import re
+
+    pattern = re.compile(r"(?:claim|web|ev|question|gap)_[0-9a-f]{6,}")
+    if isinstance(value, str):
+        return pattern.sub("<id>", value)
+    if isinstance(value, Mapping):
+        return {key: _a2e_normalise_ids(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_a2e_normalise_ids(item) for item in value]
+    return value
+
+
+def _a2e_authority_view(completed: Any) -> dict[str, Any]:
+    """The authority artifacts Progressive Reader must never influence.
+
+    Run-scoped minted ids (claim/evidence/gap) are normalised out: two runs of
+    the same deterministic fixture legitimately mint different ids, while the
+    *decisions* over them must be identical.
+    """
+
+    brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    return {
+        "status": completed.status,
+        "provider_status": completed.provider_status,
+        "stop_reason": completed.stop_reason,
+        "gate_status": brief.get("gate_status"),
+        "conditional_wording_required": brief.get("conditional_wording_required"),
+        "eligible_evidence": _a2e_normalise_ids(brief.get("eligible_evidence")),
+        "open_critical_claim_ids": _a2e_normalise_ids(
+            brief.get("open_critical_claim_ids")
+        ),
+        "source_block": _a2e_normalise_ids(completed.source_block),
+        "item_count": len(completed.items or []),
+        "sources": [
+            (
+                item["candidate_id"],
+                item["read_status"],
+                item.get("content"),
+                (item.get("extraction") or {}).get("status"),
+            )
+            for item in _a2e_sources(completed)
+        ],
+    }
+
+
+def test_a2e_authority_is_unchanged_when_no_fallback_is_needed(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D6: with an adequate native read the progressive chain degrades to the
+    single-reader behaviour, byte for byte, on every authority artifact."""
+
+    native_payload = {"ok": True, "content": _A2E_ADEQUATE}
+
+    single = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_authority_off",
+        native=_ScriptedNativeReadGateway(native_payload),
+        wigolo=_CutoverEscalationBackend(_A2E_ALT_OK),
+        escalation=None,
+    )
+    progressive = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_authority_on",
+        native=_ScriptedNativeReadGateway(native_payload),
+        wigolo=_CutoverEscalationBackend(_A2E_ALT_OK),
+        escalation="http",
+    )
+
+    assert _a2e_authority_view(single) == _a2e_authority_view(progressive)
+
+    # The progressive run really had the alternate available but never needed it.
+    for completed in (single, progressive):
+        for item in _a2e_sources(completed):
+            assert item["final_backend"] == "native_http"
+            assert _a2e_attempt_tuples(item) == [
+                ("native_http", "success", True, True)
+            ]
+        backends = {
+            row.get("backend") for row in (_a2e_metrics(completed).get("read_timing") or [])
+        }
+        assert backends == {"native_http"}
+        for row in _chain_rows(completed):
+            assert [step["backend"] for step in row["steps"]] == ["native_http"]
+            assert row["action"] == "resolve"

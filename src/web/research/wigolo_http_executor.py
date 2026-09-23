@@ -193,6 +193,9 @@ class WigoloHttpBackendExecutor:
                     "effective_timeout_seconds": effective_timeout,
                     "preflight": preflight_status,
                     "error_type": type(exc).__name__,
+                    # §107 A2e: same shape as the success path so the timing row
+                    # never falls back to charging the failure as local work.
+                    "fetch_ms": 0.0,
                 },
                 policy={"attempted": True, "skip_reason": "", "backend": backend_name},
             )
@@ -256,6 +259,10 @@ class WigoloHttpBackendExecutor:
             adequacy_reason=adequacy.shape,
             cost={
                 "latency_ms": round(float(artifact.latency_ms or 0.0), 1),
+                # §107 A2e: the alternate's latency is *network fetch*, not local
+                # work. Without this the read_timing row misattributes the whole
+                # call to ``local_ms`` (§104 requires ``fetch_ms = cost.latency_ms``).
+                "fetch_ms": round(float(artifact.latency_ms or 0.0), 1),
                 "bytes": int(artifact.bytes or 0),
                 "content_type": str(artifact.content_type or ""),
                 "cache_hit": artifact.cache_hit,
