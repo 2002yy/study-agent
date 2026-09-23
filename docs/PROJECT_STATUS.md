@@ -6506,3 +6506,92 @@ verdict                     ⏳
 **下一刀**：修 deadline 传播（worker 级 task timeout / 取消），复验 Step 3；然后实现 `Crawl4AIBrowserBackendExecutor`（`CacheMode.BYPASS` + PDF native strategy + 主进程 frozen honesty 层 + `provider_state` 与 `canonical_retrieval_state` 双层 provenance + **仅广告 `js_render`/`pdf`/`session`**），跑 A3-0 原封六类 cohort，出最终 verdict。
 
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，未触 production 代码，按 Staged Policy 无需 L1/L2。
+
+
+## §115 P2-A3-2b Worker Deadline / Cancellation Closure — **7/8 PASS，1 项有界 FAIL 已如实记录**
+
+### 115.1 cancellation 语义（已实现）
+
+每个 IPC request 建独立 task；deadline 到期 → `task.cancel()` → **bounded cancellation grace 800ms** → 返回 canonical timeout。
+
+**timeout 即视为 potentially contaminated**：销毁该 `(session, mode)` 的 crawler，后续请求按需重建。**不重启整个 worker**（否则退回 cold transport）。记入 provenance：`requested_deadline_ms` / `cancel_grace_ms` / `actual_return_ms` / `provider_cancelled` / `provider_task_done` / `crawler_invalidated`。
+
+**4.5s harness watchdog 仅作保险丝**（本轮实际用 12s），**不是**通过标准；判据是 `deadline + grace`。
+
+### 115.2 HARD recovery sequence 结果（8 步）
+
+| 步 | 内容 | 结果 |
+| --- | --- | --- |
+| 1 | normal SPA | wall 2442.5ms / 5125 chars ✅ PASS |
+| 2 | forced deadline（1500/4000） | wall **1882.7** ≤ 1500+800=2300；`deadline_hit=True`、`cancelled=True`、`task_done=True`、`invalidated=True` ✅ PASS |
+| 3 | **immediately STATIC** | wall **3561.7ms** / 166 chars（内容正确） ❌ **FAIL（超 3.0s）** |
+| 4 | immediately SPA | wall 1473.8ms / 5125 chars ✅ PASS |
+| 5 | session A 建状态 | A.start 200 → A.check **200 SESSION OK** ✅ PASS |
+| 6 | A 内强制 timeout | wall 1887.3 ≤ 2300；`invalidated=True` ✅ PASS |
+| 7 | unrelated B / anonymous | B **401**、anon **401**，无 A 状态 ✅ PASS |
+| 8 | worker health + 再服务 | `stats: completed=9 timeouts=2 invalidations=2`；final STATIC 234.0ms ✅ PASS |
+
+**三条件同时成立**（非"caller 提前返回"）：caller 在 `deadline+grace` 内返回 ＋ `provider_task_done=True`（任务真的停） ＋ worker 之后仍正常服务（步 4/8）。超时 crawler 被销毁（步 2/6），且**未重启 worker**。
+
+### 115.3 Step 3 的 FAIL：形状有界，如实记录
+
+Step 2 超时销毁了 `anon|browser`；Step 3 是**同键**请求，必须**重建 browser context** ⇒ 3561.7ms（超 3.0s 约 **0.56s**）。Step 4 同键已回暖 ⇒ 1473.8ms。
+
+```text
+惩罚对象：timeout 之后、同一 (session, mode) 的【第一个】请求
+惩罚次数：一次
+后续请求：回到 3.0s 内
+```
+
+**这是 §115.1 销毁策略的必然账单**，也是"boundedness/correctness 高于 session continuity"的真实代价。**不调预算、不靠 pre-warm 掩盖**（pre-warm 会反向拉长超时路径，且把成本藏进 timeout 分支）。
+
+**留给 A3-3 / adapter 的决策项（本刀不决）**：
+1. 接受该 0.56s 越界，让重建请求**fail closed 为 `budget_exhausted`**（与"boundedness 优先"一致）；
+2. 或为重建请求预留独立的一次性重建 allowance（需作为**新冻结项**正式登记，不得偷偷改 3.0s）；
+3. 或在 worker 内维护**备用热 context 池**（成本前移到 idle 时间，需评估 RAM）。
+
+### 115.4 capability advertisement 冻结（本轮记录，Step 5）
+
+Crawl4AI BrowserBackend production role **只广告**：
+
+```text
+js_render
+pdf
+session
+```
+
+**明确不广告**：`anti_bot_recovery`（未实证）、`plain_http` / `content_extraction`（provider 真会，但**不是** BrowserBackend 的 production 角色；广告它会让普通 transport failure 无意义升级到昂贵浏览器）。
+
+⇒ routing 结果：JS demand → eligible；PDF demand → eligible；session demand → eligible；**anti_bot_recovery demand → NOT eligible（`no_capable_backend`）**。
+
+provider truth 与 routing-advertised 分离，后者是前者的**子集**且必须真实。
+
+### 115.5 anti_bot class 口径（承接 §114.1 裁决 B）
+
+```text
+provider qualification observation : Crawl4AI 曾真实尝试 anti-bot → 未 rescue
+production routing truth           : anti_bot_recovery 不在 advertised capabilities
+                                     ⇒ 不应被调度
+anti_bot class                     : FAIL（报告）
+disqualifier                       : NO
+```
+
+六类 cohort **同时保留两个视角**，不得为了跑 manifest 而制造一个 production 永远不会发生的调用路径。
+
+### 115.6 状态与下一刀
+
+```text
+Step 0 冻结合同机械检查   ✅ 裁决 B + contract defect 登记
+Step 1 warm worker       ✅ READY + startup 记账（≈3.3–3.8s）
+Step 2 warm E2E          ✅ static/SPA/PDF 全 ≤3000ms
+Step 3 deadline closure  ✅ 7/8；1 项有界 FAIL（同键重建 0.56s）已记录
+Step 4 session isolation ✅ 含 timeout 后隔离
+Step 5 capability 广告    ✅ 冻结（js_render/pdf/session）
+Step 6 adapter + cohort  ⏳      verdict ⏳
+```
+
+**worker 启动与 availability 契约（已冻结口径）**：`startup ≈ 3.3–3.8s` 属 operational cost，**只有 worker `READY` 之后 backend 才允许 `availability=true`**；crash/restart 期间回到 `availability=false`。**不得边启动边投喂第一个 candidate 再说那 3.8s 不算。**
+
+**下一刀**：实现 `Crawl4AIBrowserBackendExecutor`（A2 router/scheduler → adapter → warm isolated worker → provider observation → 主进程 frozen honesty 层 → `ChainStepResult`；`CacheMode.BYPASS`；PDF native strategy；per-`(session, mode)` 隔离；`provider_state` + `canonical_retrieval_state` 双层 provenance；browser tier 3.0s envelope），然后跑 A3-0 frozen 六类 cohort，出最终 verdict。
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，未触 production 代码，按 Staged Policy 无需 L1/L2。
