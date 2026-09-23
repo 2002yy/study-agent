@@ -5819,3 +5819,19 @@ P2-A3-1 — Wigolo Browser adapter
 - 必须对 A3-0 contract 的 6 类给出可复算结果，并保留 A2 六个 provenance artifact
 - static_control 必须零启动
 ```
+
+
+### 108.12 A3-0 门禁证据
+
+| 项 | 结果 |
+| --- | --- |
+| 合同测试 `tests/test_browser_bakeoff_contract.py` | **28 passed**（含 11 项 fail-closed 负向控制 + production-inert 扫描） |
+| Ruff | clean |
+| `git diff --check` / tracked clean | clean |
+| **full pytest @ `af71a6f`** | **2436 passed / 3 failed**（877s） |
+| 失败明细 | 2 已知 Windows-local baseline + 1 已在 §107.6 定性的 pre-existing flake（`test_cross_layer_regression::test_news_query_change_invalidates_downstream_stages`，在 `eaf0a97` 已复现） |
+| collected 对照 | A2e 2411 → **A3-0 2439（+28，全部为新增合同测试）** |
+
+⇒ **零新增回归。** A3-0 为纯增量（新 production-inert 模块 + fixture + 测试），未触碰任何 A2 production 文件（`git diff --name-only` 中 `src/` 仅新增 `browser_bakeoff.py`）。
+
+**A3-0 CLOSED。** 下一刀 **A3-1 Wigolo Browser adapter**（禁止接入 Crawl4AI；禁止改 A2 核心语义）。
