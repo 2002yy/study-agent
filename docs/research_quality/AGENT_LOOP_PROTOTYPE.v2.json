@@ -1,0 +1,404 @@
+{
+  "assumptions": {
+    "claim": "one factual claim per case (the case question)",
+    "note": "prototype simplification; do not compare relation semantics against the production assessment-assigned roles",
+    "source_cluster_id": "single_constant_cluster",
+    "source_role": "primary_for_every_selector_chosen_page"
+  },
+  "cases": [
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "elapsed_seconds": 24.969,
+      "extractor_calls": 0,
+      "model_calls": [
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:1",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:1",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:2",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:2",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:3",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:3",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:4",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:4",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        }
+      ],
+      "planner_calls": 4,
+      "planner_failures": 0,
+      "queries": [
+        "Docker Hub pull rate limit unauthenticated users authenticated Personal account docs.docker.com",
+        "site:docs.docker.com Docker Hub usage and limits pull rate limit unauthenticated Personal",
+        "docs.docker.com \"Docker Hub\" usage and limits pull rate limit 100 unauthenticated 200 authenticated Personal per 6 hours",
+        "site:docs.docker.com \"Docker Hub usage and limits\" \"pull rate limit\" unauthenticated Personal"
+      ],
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "read_urls": [],
+      "reads": 0,
+      "relation_counts": {},
+      "relations": [],
+      "results_seen": [
+        {
+          "canonical_url": "https://www.docker.com/",
+          "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+          "title": "Docker: Accelerated Container Application Development"
+        },
+        {
+          "canonical_url": "https://docker.github.net.cn/",
+          "snippet": "社区资源 寻找 Docker 爱好者，参与富有洞察力的讨论，分享知识并就项目进行协作。 我们的社区为开发人员提供丰富的在线体验，以建立具有挑战性和启发性的有价值的联系！",
+          "title": "Docker中文网"
+        },
+        {
+          "canonical_url": "https://www.runoob.com/docker/docker-tutorial.html",
+          "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+          "title": "Docker 教程 | 菜鸟教程"
+        },
+        {
+          "canonical_url": "https://zhuanlan.zhihu.com/p/1892960016316748037",
+          "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+          "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ..."
+        },
+        {
+          "canonical_url": "https://blog.csdn.net/weixin_52286364/article/details/150379121",
+          "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+          "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）"
+        },
+        {
+          "canonical_url": "https://docs.qq.com/",
+          "snippet": "腾讯文档是一款可多人协作的在线文档，可同时编辑Word、Excel和PPT文档，云端实时保存。可针对QQ、微信好友设置文档访问、编辑权限，支持多种版本Word、Excel和PPT文档模板。",
+          "title": "腾讯文档-官方网站-支持多人在线编辑Word、Excel和PPT文档"
+        },
+        {
+          "canonical_url": "https://app.docs.google.com/",
+          "snippet": "Not your computer? Use a private browsing window to sign in. Learn more about using Guest mode",
+          "title": "Sign in - Google Accounts"
+        },
+        {
+          "canonical_url": "https://www.about.google/intl/zh-CN/docs/about/",
+          "snippet": "Google Docs 可巧妙地连接到您喜欢的其他 Google 应用，为您节省时间。 您可以直接在 Gmail 中回复评论，嵌入 Google Sheets 中的图表，并轻松通过 Google Meet 进行分享。 您甚至可以直接在 Google Docs 中搜索网络和 Google 云端硬盘中的内容，以查找相关内容和图片。",
+          "title": "Google 文档：在线文档编辑器 | Google Workspace"
+        },
+        {
+          "canonical_url": "https://www.about.google/docs/about/",
+          "snippet": "Use Google Docs to create, and collaborate on online documents. Edit together with secure sharing in real-time and from any device.",
+          "title": "Google Docs: Online Document Editor | Google Workspace"
+        },
+        {
+          "canonical_url": "https://docs.feishu.cn/",
+          "snippet": "飞书文档作为新一代高效协作工具，融合了在线文档和协同文档的所有功能，不仅能插入在线表格，将数据表转换成看板，还能用思维笔记，将思考路径可视化，更有丰富模板满足多场景创作需求。用飞书文档，共创无限可能。",
+          "title": "飞书文档-可多人实时编辑的在线文档（文档、表格、思维笔记 ..."
+        }
+      ],
+      "search_steps": [
+        {
+          "provider_errors": [
+            "searxng:url_error",
+            "duckduckgo_html:wallclock_timeout"
+          ],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "Docker Hub pull rate limit unauthenticated users authenticated Personal account docs.docker.com",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "site:docs.docker.com Docker Hub usage and limits pull rate limit unauthenticated Personal",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "docs.docker.com \"Docker Hub\" usage and limits pull rate limit 100 unauthenticated 200 authenticated Personal per 6 hours",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "site:docs.docker.com \"Docker Hub usage and limits\" \"pull rate limit\" unauthenticated Personal",
+          "result_count": 5,
+          "status": "partial"
+        }
+      ],
+      "searches": 4,
+      "selector_calls": 4,
+      "selector_failures": 4,
+      "selector_steps": [
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "Docker Hub pull rate limit unauthenticated users authenticated Personal account docs.docker.com",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "site:docs.docker.com Docker Hub usage and limits pull rate limit unauthenticated Personal",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "docs.docker.com \"Docker Hub\" usage and limits pull rate limit 100 unauthenticated 200 authenticated Personal per 6 hours",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "site:docs.docker.com \"Docker Hub usage and limits\" \"pull rate limit\" unauthenticated Personal",
+          "raw": [],
+          "rejected": []
+        }
+      ],
+      "status": "completed",
+      "stop_reason": "search_budget_exhausted",
+      "supports": 0
+    },
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-historical-current-node-modules",
+      "category": "historical_current_mix",
+      "elapsed_seconds": 14.718,
+      "extractor_calls": 0,
+      "model_calls": [
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-historical-current-node-modules:1",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_selector:rq1c-historical-current-node-modules:1",
+          "purpose": "selector",
+          "reason": "model_call_attempts_exhausted",
+          "status": "unavailable"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-historical-current-node-modules:2",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-historical-current-node-modules:2",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_planner:rq1c-historical-current-node-modules:3",
+          "purpose": "planner",
+          "reason": "model_call_attempts_exhausted",
+          "status": "unavailable"
+        }
+      ],
+      "planner_calls": 3,
+      "planner_failures": 1,
+      "queries": [
+        "Node.js official documentation modules CommonJS ECMAScript modules support",
+        "site:nodejs.org/api modules CommonJS ECMAScript modules Node.js documentation"
+      ],
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "read_urls": [],
+      "reads": 0,
+      "relation_counts": {},
+      "relations": [],
+      "results_seen": [
+        {
+          "canonical_url": "https://nodejs.org/",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+          "title": "Node.js — Run JavaScript Everywhere"
+        },
+        {
+          "canonical_url": "https://node.org.cn/",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境"
+        },
+        {
+          "canonical_url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+          "title": "Node.js 教程 | 菜鸟教程"
+        },
+        {
+          "canonical_url": "https://nodejs.cn/en/download/current",
+          "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+          "title": "Node.js 中文网 — 下载 Node.js"
+        },
+        {
+          "canonical_url": "https://nodejs.cn/",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+          "title": "Node.js 中文网"
+        },
+        {
+          "canonical_url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/module",
+          "snippet": "The full computer program is made up of several modules (= small programs) which should be individually tested before being integrated. 计算机的全套程序由几个模块组成，它们在整合之前须进行单独测试。",
+          "title": "MODULE中文 (简体)翻译：剑桥词典"
+        },
+        {
+          "canonical_url": "https://blog.csdn.net/Bit_Coders/article/details/119318000",
+          "snippet": "尤其是Modules（模块）和Packages（包），在import引用时很容易混淆出错。 实际上，Python中的函数 (Function)、类 (Class)、模块 (Module)、包库 (Package)，都是为了实现 模块化引用，让程序的组织更清晰有条理。 1",
+          "title": "详解Python模块化——模块（Modules）和包（Packages ..."
+        },
+        {
+          "canonical_url": "https://baike.baidu.com/item/module/7488800",
+          "snippet": "1. In software engineering, an individual unit or module that is utilized by higher-level programs or modules. 在 软件工程 中，指较高一级程序或模块使用的一个单元或模块。 2. Object repository support for creating shared, reusable form and data module.",
+          "title": "module - 百度百科"
+        },
+        {
+          "canonical_url": "https://www.iciba.com/word?w=module",
+          "snippet": "The course consists of three modules, and each module spans four weeks within a twelve-week period. 该课程包含三个模块，每个模块在十二周的时间内持续四周。 金山词霸",
+          "title": "module是什么意思_module的翻译_音标_读音_用法_例句_爱 ..."
+        },
+        {
+          "canonical_url": "https://www.runoob.com/go/go-modules.html",
+          "snippet": "Go Modules Go Modules 是 Go 语言的官方依赖管理工具，自 Go 1.11 版本开始引入，在 Go 1.16 版本成为默认的依赖管理模式。 Go Modules 解决了 Go 语言长期以来在依赖管理方面的痛点，为开发者提供了版本控制、依赖隔离和可重复构建等核心功能。",
+          "title": "Go Modules - 菜鸟教程"
+        }
+      ],
+      "search_steps": [
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "Node.js official documentation modules CommonJS ECMAScript modules support",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "site:nodejs.org/api modules CommonJS ECMAScript modules Node.js documentation",
+          "result_count": 5,
+          "status": "partial"
+        }
+      ],
+      "searches": 2,
+      "selector_calls": 2,
+      "selector_failures": 2,
+      "selector_steps": [
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "Node.js official documentation modules CommonJS ECMAScript modules support",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "site:nodejs.org/api modules CommonJS ECMAScript modules Node.js documentation",
+          "raw": [],
+          "rejected": []
+        }
+      ],
+      "status": "completed",
+      "stop_reason": "planner_no_query",
+      "supports": 0
+    }
+  ],
+  "completed_at": "2026-09-18T18:10:56.108750+00:00",
+  "diagnostic_only": true,
+  "git_sha": "0b61afde4f143810c5e4d2834f6acedbcf682a8a",
+  "limits": {
+    "case_timeout_seconds": 60.0,
+    "max_reads": 6,
+    "max_searches": 4,
+    "read_chars": 6000,
+    "results_per_query": 5
+  },
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "schema_version": "agent-loop-prototype-v1",
+  "started_at": "2026-09-18T18:10:16.428621+00:00",
+  "summary": {
+    "budget_violation_cases": 0,
+    "case_count": 2,
+    "reads_total": 0,
+    "searches_total": 6,
+    "supports_cases": 0,
+    "supports_total": 0,
+    "total_elapsed_seconds": 39.687
+  }
+}

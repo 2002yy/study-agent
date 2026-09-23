@@ -1,0 +1,26 @@
+{
+ "probe": "cold-rescue",
+ "url": "https://docs.docker.com/docker-hub/repos/",
+ "result": {
+  "attempted": true,
+  "tier": "http",
+  "state": "http_error",
+  "reason": "http_error",
+  "shape_before": "read_failed",
+  "shape_after": "read_failed",
+  "chars_before": 0,
+  "chars_after": 0,
+  "latency_ms": 62.0,
+  "cache_hit": null,
+  "retrieval_mode": "unknown",
+  "max_chars_requested": 20000,
+  "preflight": "ready",
+  "rescued": false,
+  "url": "https://docs.docker.com/docker-hub/repos/",
+  "attempt_seq": 1,
+  "research_seconds_left_at_start": 40.0,
+  "hard_seconds_left_at_start": 45.0,
+  "envelope_remaining_at_start_ms": 3000.0,
+  "effective_timeout_seconds": 3.0
+ }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "rq1c-frozen-answer-ab-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "started_at": "2026-09-14T16:15:49.226796+00:00",
+  "completed_at": "2026-09-14T16:15:49.226796+00:00",
+  "frozen_input": {
+    "artifact_path": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+    "artifact_sha256": "a0a89efd5c9935be4de6404225fa7ddfae2abc086771f26b572162202682785d",
+    "artifact_git_sha": "4d1ed678914f30694c25c762a55d9b7f2c3dacb0",
+    "case_id": "rq1c-historical-current-node-modules",
+    "question_sha256": "c6029bc6442fe241b0f9b4d8eef0b3ec4e09f8eedd7f2c343f236c154eeaaef7"
+  },
+  "classification": {
+    "gate_status": "partial",
+    "eligible_evidence_count": 2,
+    "binding_row_count": 0,
+    "lead_row_count": 2,
+    "answer_input_class": "blocked_no_binding_rows",
+    "published_answer_chars": 32,
+    "binding_outcome": "rejected"
+  },
+  "web_context_source": "reconstructed_from_bounded_sources",
+  "web_context_fidelity_note": "the artifact stores bounded source rows, not page bodies, so a reconstructed web_context is not byte-identical to the original run; quality comparisons are diagnostic, never qualification evidence",
+  "repeats": 5,
+  "arms": {},
+  "status": "refused_not_substantive",
+  "refusal_reason": "no eligible evidence row with relation='supports' exists, so the release gate would replace any generated text with the fail-closed copy; running an A/B here would only re-measure the BLOCK policy"
+}

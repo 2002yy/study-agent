@@ -1,0 +1,2090 @@
+{
+  "schema_version": "selection-authority-runtime-probe-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "qualification_guard_bypassed": true,
+  "guard_bypass_reason": "the six-call research cap starves per-wave selection calls; the raw driver keeps the runtime's production budgets but has no overlay",
+  "selector_accounting_caveat": "selection-authority model calls are recorded in metrics.selection_authority but do not pass through the runtime's durable model-attempt ledger, so the runtime's own model budget does not count them",
+  "git_sha": "43ed9263d4dc581e87b3e1a27c29b08c9eaedfc8",
+  "started_at": "2026-09-20T17:16:45.502902Z",
+  "completed_at": "2026-09-20T17:17:30.242485Z",
+  "manifest": {
+    "path": "C:/Users/Zhang/Desktop/study agent/tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "case_count": 1
+  },
+  "selection_authority_mode": "model",
+  "cases": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "reference_date": "2026-09-20",
+      "elapsed_seconds": 44.547,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-current-policy-container-registry",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "9ce6565e51762c3334ef51cdb26434bdd38346fd08ee4fc74bcdaacab039cdf6",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 4,
+        "audits": [
+          {
+            "query_sha256": "dc6dd1c540f9294126aa4912a98d1f3c29250461e691ebd90551752f1f3c81d0",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "url_error",
+                "attempts": 2,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "8065bef48459441780abb1b24b6d3eb515d50a24eb6e2246b6d34bcc0cd23242",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "f9c05c92cf9cfbc23208c8e00ca9e4ac1b6c9389a80595b658e480391236301f",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "adfce575e61e11610ba1b0590f5a71c3d2a363444c09ab6fb7c3f00272168b63",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 23,
+        "read_count": 1,
+        "read_attempt_count": 1,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 44.547
+      },
+      "budget_contract_violations": [
+        "candidate_budget_exceeded",
+        "model_call_budget_exceeded"
+      ],
+      "sources": [
+        {
+          "candidate_id": "candidate_cbd368381350299b",
+          "title": "https://docs.docker.com/docker-hub/usage/pulls",
+          "url": "https://docs.docker.com/docker-hub/usage/pulls",
+          "source": "domain_targeted",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_c76dc1651788a7e2",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_c76dc1651788a7e2"
+      ],
+      "finalization_breakdown": {
+        "research_seconds": 38.922,
+        "post_research_projection_seconds": 0.0,
+        "answer_stage_seconds": 5.625,
+        "total_seconds": 44.547
+      },
+      "gate": {
+        "status": "partial",
+        "open_critical_claim_ids": [
+          "claim_4bbfa56e3fbe8612b74fa7d8"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "budget:hard_exhausted_with_open_critical_claims",
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:eligible_support_clusters=0/1",
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:primary_required"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_cbd368381350299b9b0de637",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "relation": "lead",
+            "strength": 0.05,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_c76dc1651788a7e2",
+            "url": "https://docs.docker.com/docker-hub/usage/pulls",
+            "title": "https://docs.docker.com/docker-hub/usage/pulls",
+            "published_at": "",
+            "locator": "Docker Hub pull usage and limits | Docker Docs",
+            "anchored_spans": [],
+            "caveats": [
+              "The supplied excerpt is only navigation and assistant boilerplate; it contains no information about pull-rate limits for unauthenticated or authenticated Personal users."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_16a80be314575cf7e2349792"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "atomic_routing": [],
+        "b1_critical_path": [
+          {
+            "admission_seconds": 31.422,
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "critical_path_ms": 14454.0,
+            "deadline_seconds": 48.0,
+            "gate_seconds": 32.516,
+            "headroom_at_admission_seconds": 16.578,
+            "headroom_at_gate_seconds": 15.484,
+            "t_admitted_ms": 31422.0,
+            "t_started_ms": 18062.0,
+            "t_tail_gate_ms": 32516.0,
+            "t_tail_selected_ms": 31422.0,
+            "wave_index": 2
+          }
+        ],
+        "candidate_count": 23,
+        "cluster_count": 1,
+        "deeper_targeting": {
+          "gap_unavailable": 0,
+          "page_intent_counts": {
+            "limit_policy": 1
+          },
+          "recent": [
+            {
+              "followup_reason": "missing_target_fact",
+              "gap_hint": {
+                "anchors": [],
+                "caveat": "The supplied excerpt is only navigation and assistant boilerplate; it contains no information about pull-rate limits for unauthenticated or authenticated Personal users.",
+                "locator": "Docker Hub pull usage and limits | Docker Docs",
+                "missing_fact_terms": [
+                  "information",
+                  "pull-rate",
+                  "limits",
+                  "unauthenticated",
+                  "authenticated",
+                  "personal"
+                ],
+                "relation": "lead",
+                "source_authority_class": "official",
+                "source_url": "https://docs.docker.com/docker-hub/usage/pulls",
+                "targeting_strategy": "same_official_domain_deep_page"
+              },
+              "page_intent": {
+                "kind": "limit_policy",
+                "matched_terms": [
+                  "limits",
+                  "pull-rate"
+                ],
+                "path_terms": [
+                  "limits",
+                  "rate-limit",
+                  "usage",
+                  "policy",
+                  "fair-use"
+                ]
+              },
+              "query_variants": [
+                "pull-rate limits apply information unauthenticated authenticated personal",
+                "pull-rate limits apply information unauthenticated authenticated personal rate-limit",
+                "pull-rate limits apply information unauthenticated authenticated personal docs"
+              ],
+              "selected_candidate_depth": 0,
+              "selected_candidate_url": "",
+              "selected_query_variant": "pull-rate limits apply information unauthenticated authenticated personal",
+              "selection_reason": "page_intent_match",
+              "source_authority_class": "official",
+              "source_candidate_url": "https://docs.docker.com/docker-hub/usage/pulls",
+              "targeting_strategy": "same_official_domain_deep_page"
+            }
+          ],
+          "strategy_counts": {
+            "same_official_domain_deep_page": 1
+          }
+        },
+        "discovery_funnel": {
+          "assessed_answer_relevant": 0,
+          "by_discovery_method": {
+            "domain_targeted": 3
+          },
+          "extracted_supports": 0,
+          "gate_eligible": 1,
+          "proposed_candidates": 3,
+          "read": 1,
+          "rows": [
+            {
+              "assessed_answer_relevant": false,
+              "candidate_id": "candidate_cbd368381350299b",
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "discovery_method": "domain_targeted",
+              "extraction_relations": [
+                "lead"
+              ],
+              "gate_eligible": true,
+              "proposed": true,
+              "read": true
+            },
+            {
+              "assessed_answer_relevant": false,
+              "candidate_id": "candidate_c005e0d80440ca34",
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "discovery_method": "domain_targeted",
+              "extraction_relations": [],
+              "gate_eligible": false,
+              "proposed": true,
+              "read": false
+            },
+            {
+              "assessed_answer_relevant": false,
+              "candidate_id": "candidate_f43cf99b7e85d076",
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "discovery_method": "domain_targeted",
+              "extraction_relations": [],
+              "gate_eligible": false,
+              "proposed": true,
+              "read": false
+            }
+          ]
+        },
+        "domain_targeted": [
+          {
+            "added_candidate_ids": [
+              "candidate_cbd368381350299b",
+              "candidate_c005e0d80440ca34",
+              "candidate_f43cf99b7e85d076"
+            ],
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domains": [
+              "docs.docker.com"
+            ],
+            "dropped": [
+              {
+                "reason": "candidate_cap",
+                "url": "https://docs.docker.com/docker-hub/mcp-server"
+              },
+              {
+                "reason": "candidate_cap",
+                "url": "https://docs.docker.com/docker-hub/quickstart"
+              }
+            ],
+            "inventory_kind": "urlset",
+            "inventory_locations": 1811,
+            "links_found": [
+              "https://docs.docker.com/docker-hub/usage/pulls",
+              "https://docs.docker.com/docker-hub",
+              "https://docs.docker.com/docker-hub/image-library",
+              "https://docs.docker.com/docker-hub/mcp-server",
+              "https://docs.docker.com/docker-hub/quickstart"
+            ],
+            "rejected_targets": [],
+            "search_urls": [
+              "https://docs.docker.com/sitemap.xml"
+            ],
+            "stages": {
+              "candidate_admitted": 3,
+              "domain_proposed": 1,
+              "inventory_fetched": 1,
+              "links_ranked": 5,
+              "verification_attempted": 3,
+              "verification_succeeded": 3
+            },
+            "t_admitted_ms": 31422.0,
+            "t_proposal_ms": 18969.0,
+            "t_started_ms": 18062.0,
+            "targets": [
+              {
+                "accepted": true,
+                "host": "docs.docker.com",
+                "proposed_domain_role": "official",
+                "reject_reason": "",
+                "scope": "https://docs.docker.com/docker-hub/"
+              }
+            ],
+            "tier1_miss_reason": "no_viable_read_path",
+            "verification_reads": 3,
+            "verified": [
+              "https://docs.docker.com/docker-hub/usage/pulls",
+              "https://docs.docker.com/docker-hub",
+              "https://docs.docker.com/docker-hub/image-library"
+            ],
+            "wave_index": 2
+          }
+        ],
+        "inventory_fetch": {
+          "admission_reasons": [
+            "allowed"
+          ],
+          "attempts": 2,
+          "fetches": 1,
+          "retries": 1,
+          "retry_reasons": [
+            "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>"
+          ],
+          "skipped_due_to_budget": 0
+        },
+        "late_assessment_tail": [
+          {
+            "assessed_ids": [
+              "candidate_c005e0d80440ca34",
+              "candidate_cbd368381350299b"
+            ],
+            "assessment_calls": 1,
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "floor_seconds": 4.0,
+            "headroom_at_admission_seconds": 16.578,
+            "headroom_at_gate_seconds": 15.484,
+            "late_candidate_ids": [
+              "candidate_cbd368381350299b",
+              "candidate_c005e0d80440ca34",
+              "candidate_f43cf99b7e85d076"
+            ],
+            "ranked_after": 6,
+            "seconds_left": 16.578,
+            "selected_ids": [
+              "candidate_cbd368381350299b",
+              "candidate_c005e0d80440ca34"
+            ],
+            "selector_calls": 0,
+            "skipped_reason": "",
+            "t_admitted_ms": 31422.0,
+            "t_proposal_ms": 18969.0,
+            "t_started_ms": 18062.0,
+            "t_tail_gate_ms": 32516.0,
+            "t_tail_selected_ms": 31422.0,
+            "wave_index": 2
+          }
+        ],
+        "late_tail_invocations": [
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 0,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:1:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@2b5adda7780",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@2b5adda7780",
+            "wave_index": 1
+          },
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 1,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:2:1",
+            "late_ids": 3,
+            "metrics_identity": "dict@2b5adedf000",
+            "metrics_identity_changed": true,
+            "outcome": "assessed:2",
+            "phase": "stored",
+            "store_metrics_identity": "dict@2b5ae83ee00",
+            "wave_index": 2
+          },
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 1,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:3:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@2b5b1360f80",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@2b5b1360f80",
+            "wave_index": 3
+          },
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 1,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:4:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@2b5adde2d00",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@2b5adde2d00",
+            "wave_index": 4
+          }
+        ],
+        "lead_discovery": {
+          "deeper_targeting_same_official_domain_deep_page": 1,
+          "evidence_lead_followup_started": 1,
+          "evidence_lead_no_deeper_url": 1,
+          "no_lead_candidate": 4
+        },
+        "open_critical_gap_count": 1,
+        "orchestration_model_calls": 5,
+        "orchestration_model_calls_by_purpose": {
+          "research_domain_proposal": 1,
+          "research_selection_authority": 4
+        },
+        "phase": "unavailable",
+        "phase_seconds": {
+          "assessment": {
+            "calls": 5,
+            "seconds": 5.219
+          },
+          "extraction": {
+            "calls": 1,
+            "seconds": 1.313
+          },
+          "read": {
+            "calls": 4,
+            "seconds": 9.625
+          },
+          "search": {
+            "calls": 4,
+            "seconds": 11.282
+          }
+        },
+        "read_count": 1,
+        "read_reserve": {
+          "configured": 3,
+          "hard_cap": 8,
+          "reads_used": 1,
+          "reclaim_reason": "no_open_conflicts",
+          "reclaimed": 3
+        },
+        "read_retry": {
+          "admission_reasons": [
+            "allowed",
+            "allowed",
+            "allowed"
+          ],
+          "attempts": 5,
+          "fetches": 2,
+          "retries": 3,
+          "retry_reasons": [
+            "exception:URLError:<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+            "exception:URLError:<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+            "exception:URLError:<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>"
+          ],
+          "skipped_due_to_budget": 0
+        },
+        "reads": [
+          {
+            "candidate_id": "candidate_cbd368381350299b",
+            "content_chars": 520,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "research_window": {
+          "deadline_elapsed": 48.0,
+          "exhausted": false,
+          "hard_seconds": 60.0,
+          "remaining_after_research_seconds": 21.188,
+          "research_elapsed_seconds": 38.812,
+          "reserve_seconds": 12.0
+        },
+        "search_discovery": {
+          "outcome": "observability_only",
+          "queries": [
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 78,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal",
+              "query_sha256": "dc6dd1c540f9294126aa4912a98d1f3c29250461e691ebd90551752f1f3c81d0",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "哔哩哔哩（bilibili.com)是国内知名的视频弹幕网站，这里有及时的动漫新番，活跃的ACG氛围，有创意的Up主。大家可以在这里找到许多欢乐。",
+                  "title": "哔哩哔哩 (゜-゜)つロ 干杯~-bilibili",
+                  "url": "https://www.bilibili.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "哔哩哔哩下载中心提供APP和PC客户端的免费下载入口，轻松畅享弹幕视频、直播等多种内容。",
+                  "title": "哔哩哔哩下载中心",
+                  "url": "https://app.bilibili.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "哔哩哔哩正版漫画阅读平台, 海量官方漫画连载在线观看, 二次元动漫迷的追漫神器.",
+                  "title": "哔哩哔哩漫画 - bilibili 正版漫画平台",
+                  "url": "https://manga.bilibili.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "哔哩哔哩周边 联系我们 加入我们 bilibili直播服务协议 帮助中心 工具使用教程 如何成为主播 公会中心 广播电视节目制作经营许可证： (沪) 字第 1248 号 网络文化经营许可证：沪网文 [2013]0480-056 号 信息网络传播视听节目许可证：0910417 互联网 ICP 备案：沪 ICP 备 ...",
+                  "title": "哔哩哔哩直播，二次元弹幕直播平台",
+                  "url": "https://live.bilibili.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "集成关注UP主的直播、小视频、图文最新动态，轻松发现哔哩哔哩 UP主的精彩日常 一键开播功能，登录后可直接推流至哔哩哔哩直播间，无需网页上进行操作",
+                  "title": "哔哩哔哩直播姬下载",
+                  "url": "https://link.bilibili.com/p/eden/download"
+                }
+              ],
+              "slot_index": 1,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 92,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal official docs",
+              "query_sha256": "8065bef48459441780abb1b24b6d3eb515d50a24eb6e2246b6d34bcc0cd23242",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "重庆商务职业学院欢迎您！ 不积跬步，无以至千里。 永远向上，成长。 术业有专攻。 需要将专业精神发挥到极致。 教学相长，寓教于乐。 乐享课堂。 明日，缙云神韵伴你梦乡。 世世代代，造福社会。 它浸润在学校文化里。 精致，大气。 不以规矩，不能成方圆。 重庆商务职业学院成功入选“教育部职业... 红韵传思践初心 移风易俗树新风学校师......",
+                  "title": "重庆商务职业学院官方门户网站",
+                  "url": "https://www.cqbvc.edu.cn/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "我校龙忠敏老师荣获重庆市岗位学雷锋标兵称号 2016-03-24 我校召开第一届教代会第五次会议 2016-01-19 校领导放假前深入一线检查安全工作 2016-01-22 学校深化综合改革领导小组召开第一次会议 2016-01-22 我校召开退休职工迎春座谈会 2016-01-28 学校召开新学期学生工作会议",
+                  "title": "重庆商务职业学院官方门户网站",
+                  "url": "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "2026年学生手册 重庆商务职业学院寝室调整申请表 学生勤工助学管理办法（修订）（2024年最新版） 学生临时困难资助管理办法（修订）（2024最新版） “绿色通道”管理实施办法（修订）（2024最新版） 特困学生学费减免实施办法（修订）（2024最新版）",
+                  "title": "重庆商务职业学院学工网",
+                  "url": "http://xgxlsg.cqbvc.edu.cn:17535/website"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "重庆商务职业学院欢迎您！ 不积跬步，无以至千里。 永远向上，成长。 术业有专攻。 需要将专业精神发挥到极致。 教学相长，寓教于乐。 乐享课堂。 明日，缙云神韵伴你梦乡。 世世代代，造福社会。 它浸润在学校文化里。 精致，大气。 不以规矩，不能成方圆。",
+                  "title": "招生简章形象宣传-重庆商务职业学院官方门户网站",
+                  "url": "https://www.cqswxy.cn/xywh/zsjzxxxc.htm"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "学工动态 更多 关于2026—2027学年第一学期心理健康中心开放的通知 “心” 启新篇，向阳而行｜秋季学期大学生心理调适指南 阳光心灵进社区——建筑工程学院开展期末减压团体辅导活动 阳光心灵进社区——文化旅游学院开展心理科普互动主题活动",
+                  "title": "重庆商务职业学院学工网",
+                  "url": "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index"
+                }
+              ],
+              "slot_index": 2,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 91,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal announcement",
+              "query_sha256": "f9c05c92cf9cfbc23208c8e00ca9e4ac1b6c9389a80595b658e480391236301f",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "介绍：单田芳播讲的红色历史评书，讲述了在解放战争过程中的九一九事件，全书围绕我党召开的回忆和毛泽东的指示文件为中心展开叙述，单田芳将为您揭开那段历史故事中的谜团。 这部书说的是清朝康熙年间新科进士彭朋任三河县令，缉拿皇粮庄头武文华被参丢官，三河县当地大侠白马李七侯为彭公凑银子，巧遇黄三太，季全指镖借银为彭朋复官，得罪了连环套大寨主窦尔敦，李家店比武黄三太甩头一子打伤窦尔敦，彭朋官复原职。 黄三太大红门镖打猛虎救圣驾，赏赐黄马褂，杨香武畅春园盗九龙玉杯，黄三太英雄. 秦末，沛公",
+                  "title": "评书大全免费全部在线收听 - 娓雅评书网",
+                  "url": "https://www.wpingshu.com/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "田连元大话成语简介：田连元大话成语300回…001_牛溲马勃+牛衣对泣,002_爱鹤失众+断鹤续凫,003_佝偻成蜩+磨杵成针+羊质虎皮,004_前倨后恭+米珠薪桂,005_牛鼎烹鸡+千头木奴,006_千金买赋+金屋藏娇+千金买邻,007_精卫填海+夸父逐日,008_绿珠坠楼+千里命驾.",
+                  "title": "大话成语评书_田连元_在线免费全集收听",
+                  "url": "https://www.wpingshu.com/tlyps/dhcy300h/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "娓雅评书网提供最近最新阅读的免费评书全部列表大全敬请观看.",
+                  "title": "娓雅评书网最近阅读的评书全部列表",
+                  "url": "https://www.wpingshu.com/history.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "书中塑造了一批聚义江湖、行侠仗义的绿林好汉独特的性格和被逼上梁山的成长道路；其后宋江等梁山泊好汉受朝廷招安，适逢辽兵入侵，在朝廷主战派的支持下全体上阵。 然而主和派奸臣投降卖国，割地赔款，使梁山泊好汉倍受打击。",
+                  "title": "田连元评书大全在线免费听_田连元评书网",
+                  "url": "https://www.wpingshu.com/tlyps/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "大话成语060枕戈待旦先我着鞭面无人色 大话成语061移花接木 大话成语062噤若寒蝉白驹过隙 大话成语063龙泉太阿青鸟使者 大话成语064绠短汲深暗渡陈仓 大话成语065九牛一毛白云苍狗 大话成语066沧海疑珠国士无双 大话成语067居官守法忠言逆耳",
+                  "title": "大话成语299伯仁由我而死田连元评书在线全集免费收听",
+                  "url": "https://www.wpingshu.com/tlyps/dhcy300h/32076.html"
+                }
+              ],
+              "slot_index": 3,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 103,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal independent verification",
+              "query_sha256": "adfce575e61e11610ba1b0590f5a71c3d2a363444c09ab6fb7c3f00272168b63",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "大事记 字节跳动公司注册成立 2016年10月 投资印度最大的内容聚合平台Dailyhunt 2016年12月 控股印尼新闻推荐阅读平台BABE 2017年5月 火山小视频宣布10亿元补贴UGC小视频",
+                  "title": "字节跳动 - ByteDance",
+                  "url": "https://www.bytedance.com/zh/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "字节（Byte）是计算机信息中用于描述存储容量和传输容量的一种计量单位，是计算机的基本存储单位。 一个字节由8个相邻的二进制位组成，每个位由0或1组成。 字节是计算机技术中最小的可操作存储单位。",
+                  "title": "字节_百度百科",
+                  "url": "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "字节跳动在全球推出了多款有影响力的产品，包括今日头条、抖音、西瓜视频、飞书等。 业务覆盖150个国家和地区，旗下产品全球月活跃用户数超19亿。 加入我们，和优秀的人，做有挑战的事！",
+                  "title": "字节跳动招聘官网｜字节跳动社招",
+                  "url": "https://jobs.bytedance.com/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "结合抖音、今日头条、西瓜视频等字节产品特色，通过公益信息的传递，高效率连接公益信息与社会资源，让人人能够便捷参与公益的平台。 通过字节跳动公益平台，公益机构可以在抖音、今日头条、西瓜视频上筹款，来开展公益项目、解决社会问题。",
+                  "title": "字节跳动 - ByteDance",
+                  "url": "https://www.bytedance.com/zh/corporate"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "其中1024=210。 1B（byte，字节）= 8 bit（见下文）； 1KiB（Kibibyte， 千字节）=1024B= 2^10 B； 1 MiB （Mebibyte， 兆字节，百万字节，简称“兆”）=1024KB= 2^20 B； 1 GiB （Gibibyte， 吉字节，十亿字节，又称“千兆”）=1024MB= 2^30 B； 1TiB（Tebibyte，万亿字节， 太字节）=1024GB= 2^40 ...",
+                  "title": "bit、byte、KB、B、字节、位、字符之间关系详解 - CSDN博客",
+                  "url": "https://blog.csdn.net/qq_41675254/article/details/86481615"
+                }
+              ],
+              "slot_index": 4,
+              "variant_matches": []
+            }
+          ],
+          "schema_version": "rq1c-search-discovery-v1"
+        },
+        "selection_authority": [
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 1125,
+            "enabled": true,
+            "excluded_fingerprint": "da39a3ee5e6b4b0d",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://www.cqbvc.edu.cn/",
+              "https://www.bilibili.com/"
+            ],
+            "final_picks": [
+              "https://www.cqbvc.edu.cn/",
+              "https://www.bilibili.com/"
+            ],
+            "input_changed": true,
+            "input_fingerprint": "2644e45ede61224c",
+            "input_ids": [
+              "candidate_0eaf494b86e08567",
+              "candidate_11c93c4bd46853ad",
+              "candidate_13dd9ee2bcc2fd69",
+              "candidate_1fb47592b50f7a1b",
+              "candidate_20da1eb1972c76ea",
+              "candidate_362675e886d056b9",
+              "candidate_3b0af7d545547917",
+              "candidate_3ec3b79782e922f9",
+              "candidate_444056c1a58c7fc6",
+              "candidate_46ad4767633d879c",
+              "candidate_4f007b5c38923148",
+              "candidate_527867928cbcc84b",
+              "candidate_58586c466aa02a4f",
+              "candidate_90cd8d75ed29b94f",
+              "candidate_9332097bbdb91193",
+              "candidate_a561bc84753ba2b8",
+              "candidate_b12964d8c1b1053a",
+              "candidate_b724ce189ea2b833",
+              "candidate_ea1ed678c39ef5c0",
+              "candidate_fa1e5fca2ed04d02"
+            ],
+            "input_set": [
+              "https://www.cqbvc.edu.cn/",
+              "https://www.bilibili.com/",
+              "https://www.wpingshu.com/",
+              "https://www.bytedance.com/zh/",
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318",
+              "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079",
+              "https://www.wpingshu.com/tlyps/dhcy300h/",
+              "https://www.wpingshu.com/history.html",
+              "http://xgxlsg.cqbvc.edu.cn:17535/website",
+              "https://jobs.bytedance.com/",
+              "https://manga.bilibili.com/",
+              "https://live.bilibili.com/",
+              "https://www.wpingshu.com/tlyps/",
+              "https://www.bytedance.com/zh/corporate",
+              "https://www.cqswxy.cn/xywh/zsjzxxxc.htm",
+              "https://blog.csdn.net/qq_41675254/article/details/86481615",
+              "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index",
+              "https://link.bilibili.com/p/eden/download",
+              "https://www.wpingshu.com/tlyps/dhcy300h/32076.html"
+            ],
+            "input_size": 20,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "new_candidate_count": 20,
+            "orchestration_model_call": 1,
+            "previous_input_fingerprint": "",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 0,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 14547.0,
+            "t_started_ms": 14547.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 1,
+            "window_limit": 2
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 984,
+            "enabled": true,
+            "excluded_fingerprint": "7d4292347c1a608b",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://www.wpingshu.com/",
+              "https://www.bytedance.com/zh/"
+            ],
+            "final_picks": [
+              "https://www.wpingshu.com/",
+              "https://www.bytedance.com/zh/"
+            ],
+            "input_changed": true,
+            "input_fingerprint": "088cb7bb7b006a34",
+            "input_ids": [
+              "candidate_0eaf494b86e08567",
+              "candidate_11c93c4bd46853ad",
+              "candidate_13dd9ee2bcc2fd69",
+              "candidate_1fb47592b50f7a1b",
+              "candidate_20da1eb1972c76ea",
+              "candidate_362675e886d056b9",
+              "candidate_3b0af7d545547917",
+              "candidate_3ec3b79782e922f9",
+              "candidate_444056c1a58c7fc6",
+              "candidate_46ad4767633d879c",
+              "candidate_4f007b5c38923148",
+              "candidate_527867928cbcc84b",
+              "candidate_58586c466aa02a4f",
+              "candidate_90cd8d75ed29b94f",
+              "candidate_a561bc84753ba2b8",
+              "candidate_b724ce189ea2b833",
+              "candidate_ea1ed678c39ef5c0",
+              "candidate_fa1e5fca2ed04d02"
+            ],
+            "input_set": [
+              "https://www.wpingshu.com/",
+              "https://www.bytedance.com/zh/",
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318",
+              "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079",
+              "https://www.wpingshu.com/tlyps/dhcy300h/",
+              "https://www.wpingshu.com/history.html",
+              "http://xgxlsg.cqbvc.edu.cn:17535/website",
+              "https://jobs.bytedance.com/",
+              "https://manga.bilibili.com/",
+              "https://live.bilibili.com/",
+              "https://www.wpingshu.com/tlyps/",
+              "https://www.bytedance.com/zh/corporate",
+              "https://www.cqswxy.cn/xywh/zsjzxxxc.htm",
+              "https://blog.csdn.net/qq_41675254/article/details/86481615",
+              "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index",
+              "https://link.bilibili.com/p/eden/download",
+              "https://www.wpingshu.com/tlyps/dhcy300h/32076.html"
+            ],
+            "input_size": 18,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "new_candidate_count": 0,
+            "orchestration_model_call": 1,
+            "previous_input_fingerprint": "2644e45ede61224c",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 2,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 17031.0,
+            "t_started_ms": 17031.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 2,
+            "window_limit": 2
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 1155,
+            "enabled": true,
+            "excluded_fingerprint": "ab1c09405d422fb3",
+            "fallback_invoked": false,
+            "fallback_picks": [],
+            "final_picks": [
+              "https://docs.docker.com/docker-hub",
+              "https://docs.docker.com/docker-hub/image-library"
+            ],
+            "input_changed": true,
+            "input_fingerprint": "4d737381c0c29948",
+            "input_ids": [
+              "candidate_0eaf494b86e08567",
+              "candidate_11c93c4bd46853ad",
+              "candidate_13dd9ee2bcc2fd69",
+              "candidate_1fb47592b50f7a1b",
+              "candidate_20da1eb1972c76ea",
+              "candidate_362675e886d056b9",
+              "candidate_3b0af7d545547917",
+              "candidate_3ec3b79782e922f9",
+              "candidate_444056c1a58c7fc6",
+              "candidate_46ad4767633d879c",
+              "candidate_4f007b5c38923148",
+              "candidate_527867928cbcc84b",
+              "candidate_58586c466aa02a4f",
+              "candidate_90cd8d75ed29b94f",
+              "candidate_a561bc84753ba2b8",
+              "candidate_c005e0d80440ca34",
+              "candidate_ea1ed678c39ef5c0",
+              "candidate_f43cf99b7e85d076"
+            ],
+            "input_set": [
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318",
+              "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079",
+              "https://www.wpingshu.com/tlyps/dhcy300h/",
+              "https://www.wpingshu.com/history.html",
+              "http://xgxlsg.cqbvc.edu.cn:17535/website",
+              "https://jobs.bytedance.com/",
+              "https://manga.bilibili.com/",
+              "https://live.bilibili.com/",
+              "https://www.wpingshu.com/tlyps/",
+              "https://www.bytedance.com/zh/corporate",
+              "https://www.cqswxy.cn/xywh/zsjzxxxc.htm",
+              "https://blog.csdn.net/qq_41675254/article/details/86481615",
+              "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index",
+              "https://link.bilibili.com/p/eden/download",
+              "https://www.wpingshu.com/tlyps/dhcy300h/32076.html",
+              "https://docs.docker.com/docker-hub",
+              "https://docs.docker.com/docker-hub/image-library"
+            ],
+            "input_size": 18,
+            "model": "deepseek-flash",
+            "model_picks": [
+              "https://docs.docker.com/docker-hub",
+              "https://docs.docker.com/docker-hub/image-library"
+            ],
+            "new_candidate_count": 2,
+            "orchestration_model_call": 1,
+            "previous_input_fingerprint": "088cb7bb7b006a34",
+            "raw_pick_count": 2,
+            "removed_candidate_count": 2,
+            "selection_source": "model",
+            "t_ended_ms": 35359.0,
+            "t_started_ms": 35359.0,
+            "unusable_reason": "",
+            "usable": true,
+            "valid_pick_count": 2,
+            "wave_index": 3,
+            "window_limit": 2
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 937,
+            "enabled": true,
+            "excluded_fingerprint": "a5648067648d6082",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318"
+            ],
+            "final_picks": [
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318"
+            ],
+            "input_changed": true,
+            "input_fingerprint": "a820101ec0c56ee3",
+            "input_ids": [
+              "candidate_0eaf494b86e08567",
+              "candidate_11c93c4bd46853ad",
+              "candidate_13dd9ee2bcc2fd69",
+              "candidate_1fb47592b50f7a1b",
+              "candidate_20da1eb1972c76ea",
+              "candidate_362675e886d056b9",
+              "candidate_3b0af7d545547917",
+              "candidate_3ec3b79782e922f9",
+              "candidate_444056c1a58c7fc6",
+              "candidate_46ad4767633d879c",
+              "candidate_4f007b5c38923148",
+              "candidate_527867928cbcc84b",
+              "candidate_58586c466aa02a4f",
+              "candidate_90cd8d75ed29b94f",
+              "candidate_a561bc84753ba2b8",
+              "candidate_ea1ed678c39ef5c0"
+            ],
+            "input_set": [
+              "https://app.bilibili.com/",
+              "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318",
+              "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079",
+              "https://www.wpingshu.com/tlyps/dhcy300h/",
+              "https://www.wpingshu.com/history.html",
+              "http://xgxlsg.cqbvc.edu.cn:17535/website",
+              "https://jobs.bytedance.com/",
+              "https://manga.bilibili.com/",
+              "https://live.bilibili.com/",
+              "https://www.wpingshu.com/tlyps/",
+              "https://www.bytedance.com/zh/corporate",
+              "https://www.cqswxy.cn/xywh/zsjzxxxc.htm",
+              "https://blog.csdn.net/qq_41675254/article/details/86481615",
+              "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index",
+              "https://link.bilibili.com/p/eden/download",
+              "https://www.wpingshu.com/tlyps/dhcy300h/32076.html"
+            ],
+            "input_size": 16,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "new_candidate_count": 0,
+            "orchestration_model_call": 1,
+            "previous_input_fingerprint": "4d737381c0c29948",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 2,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 37719.0,
+            "t_started_ms": 37719.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 4,
+            "window_limit": 2
+          }
+        ],
+        "selection_trace": {
+          "candidate_count": 23,
+          "entries": [
+            {
+              "candidate_pool_class": "candidate_cluster_538b0eae3f6bd7e7",
+              "canonical_url": "https://www.bilibili.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_ccd718e8cfe43ac5",
+              "canonical_url": "https://app.bilibili.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 7,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_d945280f008d6d4b",
+              "canonical_url": "https://manga.bilibili.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_3340964d61311283",
+              "canonical_url": "https://live.bilibili.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_f43830c1f8145b81",
+              "canonical_url": "https://link.bilibili.com/p/eden/download",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_a413d6f481ed0466",
+              "canonical_url": "https://www.cqbvc.edu.cn/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_a413d6f481ed0466",
+              "canonical_url": "https://www.cqbvc.edu.cn/ssjgy.jsp?wbtreeid=1079",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_b5f8b132f30ab98f",
+              "canonical_url": "http://xgxlsg.cqbvc.edu.cn:17535/website",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_faa896d40beccb94",
+              "canonical_url": "https://www.cqswxy.cn/xywh/zsjzxxxc.htm",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_b5f8b132f30ab98f",
+              "canonical_url": "http://xgxlsg.cqbvc.edu.cn:17535/Website/Home/Index",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_5c22b0ac280625fa",
+              "canonical_url": "https://www.wpingshu.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 3,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_5c22b0ac280625fa",
+              "canonical_url": "https://www.wpingshu.com/tlyps/dhcy300h/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_5c22b0ac280625fa",
+              "canonical_url": "https://www.wpingshu.com/history.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_5c22b0ac280625fa",
+              "canonical_url": "https://www.wpingshu.com/tlyps/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_5c22b0ac280625fa",
+              "canonical_url": "https://www.wpingshu.com/tlyps/dhcy300h/32076.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_c47947388831ed41",
+              "canonical_url": "https://www.bytedance.com/zh/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 4,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_6c21a91aef1e8b42",
+              "canonical_url": "https://baike.baidu.com/item/%E5%AD%97%E8%8A%82/1096318",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 8,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_d66d12a1a8364fc8",
+              "canonical_url": "https://jobs.bytedance.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_c47947388831ed41",
+              "canonical_url": "https://www.bytedance.com/zh/corporate",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_e75482c18fff4605",
+              "canonical_url": "https://blog.csdn.net/qq_41675254/article/details/86481615",
+              "deduped_survivor": true,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_c76dc1651788a7e2",
+              "canonical_url": "https://docs.docker.com/docker-hub/usage/pulls",
+              "deduped_survivor": false,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": false,
+              "normalized": false,
+              "observed_drops": [],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": false,
+              "terminal_reason": ""
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_c76dc1651788a7e2",
+              "canonical_url": "https://docs.docker.com/docker-hub",
+              "deduped_survivor": false,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "covered_cluster",
+              "materialized": false,
+              "normalized": false,
+              "observed_drops": [
+                "scheduler_not_selected"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "rejected",
+              "scheduler_rank": 2,
+              "scheduler_reason": "covered_cluster",
+              "seen_in_provider": false,
+              "terminal_reason": "scheduler_not_selected"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_c76dc1651788a7e2",
+              "canonical_url": "https://docs.docker.com/docker-hub/image-library",
+              "deduped_survivor": false,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "covered_cluster",
+              "materialized": false,
+              "normalized": false,
+              "observed_drops": [
+                "scheduler_not_selected"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "rejected",
+              "scheduler_rank": 2,
+              "scheduler_reason": "covered_cluster",
+              "seen_in_provider": false,
+              "terminal_reason": "scheduler_not_selected"
+            }
+          ],
+          "schema_version": "research-selection-trace-v1",
+          "terminal_reasons": [
+            "not_materialized",
+            "canonical_duplicate",
+            "authority_or_policy_filter",
+            "candidate_pool_excluded",
+            "scheduler_not_selected",
+            "read_budget_exhausted",
+            "already_read",
+            "unsupported_url",
+            "other_observed_reason",
+            "unobserved"
+          ]
+        },
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": true,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 4
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 2,
+          "rejected": 6
+        },
+        "relevance": {
+          "topic_only": 2,
+          "off_target": 6
+        },
+        "source_role": {
+          "authoritative_secondary": 2,
+          "unknown": 2,
+          "aggregator": 4
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      }
+    }
+  ],
+  "summary": {
+    "selection_authority_records": 4,
+    "selector_completed_calls": 0,
+    "fallback_records": 0,
+    "targets_in_selector_input": [],
+    "reads": 1,
+    "gate_status": "partial",
+    "answer_status": "available"
+  },
+  "claims": [
+    {
+      "id": "claim_1bac48dbf6949c81acde94af",
+      "text": "According to Docker's current official documentation",
+      "kind": "factual",
+      "priority": "major",
+      "state": "pending",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:official_statement",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 1,
+        "requires_dated_evidence": false,
+        "requires_primary_source": true,
+        "requires_successful_read": true,
+        "source_roles": [
+          "primary"
+        ]
+      }
+    },
+    {
+      "id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "text": "what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "kind": "factual",
+      "priority": "critical",
+      "state": "unresolved",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:official_statement",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 1,
+        "requires_dated_evidence": false,
+        "requires_primary_source": true,
+        "requires_successful_read": true,
+        "source_roles": [
+          "primary"
+        ]
+      }
+    }
+  ],
+  "source_reads": [
+    {
+      "candidate_id": "candidate_cbd368381350299b",
+      "url": "https://docs.docker.com/docker-hub/usage/pulls",
+      "title": "https://docs.docker.com/docker-hub/usage/pulls",
+      "source_role": "primary",
+      "cluster_id": "candidate_cluster_c76dc1651788a7e2",
+      "owner_claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "published_at": "",
+      "read_status": "read",
+      "content_chars": 520,
+      "content_sha256": "de490fe7b4f59e7d4958da1455f0da9fda152ba55065dad0f91ff64e6bd97c84",
+      "content": "Docker Hub pull usage and limits | Docker Docs Start a new chat What can I help you with? I'm Gordon, your AI assistant for Docker and documentation questions. Try asking Get started with Docker Docker Hardened Images MCP Toolkit Create an org Was this helpful? Helpful Not quite Copy remaining in this thread. You've reached the maximum of questions per thread. For better answer quality, start a new thread. Start a new thread Answers are generated based on the documentation. Back Manuals Get started Guides Reference",
+      "extractions": {
+        "claim_4bbfa56e3fbe8612b74fa7d8": {
+          "status": "eligible",
+          "reason": "",
+          "relation": "lead",
+          "source_cluster_id": "candidate_cluster_c76dc1651788a7e2"
+        }
+      },
+      "read_retry": {}
+    }
+  ]
+}

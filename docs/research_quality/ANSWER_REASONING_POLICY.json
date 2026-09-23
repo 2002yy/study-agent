@@ -1,0 +1,1155 @@
+{
+  "schema_version": "rq1c-answer-reasoning-policy-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "git_sha": "2e46fe02f515c168963fa4dc1468b81a24cb180a",
+  "started_at": "2026-09-14T12:12:12.314721+00:00",
+  "completed_at": "2026-09-14T12:23:40.706118+00:00",
+  "diagnostic_limits": {
+    "deadline_seconds": 240.0,
+    "answer_timeout_seconds": 90.0
+  },
+  "variants": [
+    "A_production",
+    "A_sdk_default",
+    "B_sdk_disabled"
+  ],
+  "cases": [
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "category_hint": "current_numeric_primary",
+      "gate_status": "block",
+      "policy_category": "block",
+      "research_seconds": 27.265,
+      "research_status": "partial",
+      "evidence_row_count": 0,
+      "source_block_chars": 724,
+      "prompt_sha256": "f453ae626cd2a5333cc8117e588883802c8d2e0afe074c7cc1955bef39bf1f84",
+      "prompt_message_chars": 3950,
+      "variants": {
+        "A_production": [
+          {
+            "variant": "A_production",
+            "outcome": "ok",
+            "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+            "answer_status": "available",
+            "answer_reason": "",
+            "binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            },
+            "elapsed_seconds": 23.094,
+            "call": {
+              "phase": "answer_generation",
+              "elapsed_seconds": 22.609,
+              "outcome": "ok",
+              "timeout_seconds": 90.0,
+              "remaining_after_call_seconds": 189.656,
+              "remaining_at_dispatch_seconds": 212.265,
+              "message_count": 2,
+              "message_chars": 3950,
+              "request_max_retries": 0
+            },
+            "quality": {
+              "chars": 32,
+              "sentences": 1,
+              "numbers": [],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "未能"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ],
+        "A_sdk_default": [
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "直接说结论：**本轮会话中，我无法给出一份经核验的“最新 CPI 12 个月通胀率 + 对应月份”**，因为当前研究证据未通过校验，不能凭模型记忆补出一个具体数字。\n\n本质上是证据链缺了两环：\n\n- 问题需要的结构：**ONS 最新 CPI 公报 → 数据表 → 12-month rate 与覆盖月份**\n- 当前实际读取到的：只有 GOV.UK 的 cookie 提示片段，**不包含 ONS 通胀数据**\n- 证据门状态：**block**，没有可披露的数值或月份\n\n所以要得到可引用答案，需要继续读取 ONS 官方发布的 **“Consumer price inflation, UK: [月份 年份]”** 公报，并从中提取：\n\n1. 覆盖月份；\n2. CPI 12-month rate。\n\n在本轮证据范围内，这个具体数值和月份只能标记为**未闭合缺口**，不能作为已确认结论输出。若你允许我继续检索并读取 ONS 公报正文，我可以接着完成提取。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1542,
+            "completion_tokens": 1247,
+            "reasoning_tokens": 1020,
+            "elapsed_seconds": 27.031,
+            "repeat": 1,
+            "quality": {
+              "chars": 429,
+              "sentences": 10,
+              "numbers": [
+                "1",
+                "12",
+                "2"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "12",
+                "2"
+              ],
+              "unsupported_number_count": 3,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "I can’t give you a verified latest figure in this session. The evidence currently available to me is gated/incomplete—it only contains a GOV.UK cookie notice, not the actual ONS CPI release—so any specific 12-month inflation rate or coverage month would be unverified.\n\nTo get the confirmed number, check the ONS release:\n\n**“Consumer price inflation, UK”** — the latest bulletin states the 12-month CPI rate and the reference month, for example in the form:\n\n> “CPI rose by X% in the 12 months to [month year].”\n\nThat is the authoritative place to confirm both the current rate and the month it covers.",
+            "finish_reason": "stop",
+            "prompt_tokens": 1542,
+            "completion_tokens": 1013,
+            "reasoning_tokens": 874,
+            "elapsed_seconds": 20.235,
+            "repeat": 2,
+            "quality": {
+              "chars": 603,
+              "sentences": 5,
+              "numbers": [
+                "12"
+              ],
+              "unsupported_numbers": [
+                "12"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [],
+              "conditional_wording": false,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "I can’t give you a trustworthy figure from the material currently available to me.\n\nWhat’s missing:\n\n- **Requested data:** latest UK CPI 12-month inflation rate and the month it covers.\n- **Evidence state:** the only retrieved items are two cookie-banner fragments from the GOV.UK homepage. They contain no ONS CPI release, no rate, and no coverage month.\n- **Gate status:** not passed, so I can’t treat this as a verified research result.\n\nSo I won’t fill the gap with a remembered number or a likely-sounding date.\n\nTo close this properly, the needed source would be an ONS statistical bulletin such as **“Consumer price inflation, UK”**, specifically the table or summary line giving the **CPI 12-month rate** and its **reference month**. If you can bring that page into the evidence set, I can extract and verify the figure directly.",
+            "finish_reason": "stop",
+            "prompt_tokens": 1542,
+            "completion_tokens": 1077,
+            "reasoning_tokens": 889,
+            "elapsed_seconds": 20.734,
+            "repeat": 3,
+            "quality": {
+              "chars": 837,
+              "sentences": 7,
+              "numbers": [
+                "12"
+              ],
+              "unsupported_numbers": [
+                "12"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [],
+              "conditional_wording": false,
+              "fail_closed_ok": false
+            }
+          }
+        ],
+        "B_sdk_disabled": [
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "I can't give you a verified figure for the latest UK CPI 12-month rate right now.\n\nWhat I can say structurally:\n\n- **The number you're asking for has two parts**: the rate itself, and the reference month it covers. These are published together by the ONS in its monthly consumer price inflation release.\n- **The ONS release is point-in-time data**: the \"latest\" figure changes every month, so any answer I gave from memory could be stale.\n\nOn the research side, my evidence gate is currently **blocked** — I retrieved only a GOV.UK landing page snippet about cookie settings, not the actual ONS statistical bulletin. That means I don't have an eligible source to quote a specific figure or month from.\n\nTo get the verified answer, the cleanest path is:\n\n1. Go to the ONS release: *Consumer price inflation, UK* (published monthly on the ONS website).\n2. Look for the **CPIH 12-month rate** or **CPI 12-month rate** in the headline summary — the release always states which month it covers, e.g. \"CPI rose by X% in the 12 months to [Month Year].\"\n3. Check the **release date**, since the latest bulletin may cover the previous month.\n\nIf you want, I can help you read and interpret the ONS bulletin once you have it open — or I can re-run the research with a direct attempt at the ONS publication page rather than the general GOV.UK landing page.",
+            "finish_reason": "stop",
+            "prompt_tokens": 1463,
+            "completion_tokens": 310,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 6.938,
+            "repeat": 1,
+            "quality": {
+              "chars": 1345,
+              "sentences": 10,
+              "numbers": [
+                "1",
+                "12",
+                "2",
+                "3"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "12",
+                "2",
+                "3"
+              ],
+              "unsupported_number_count": 4,
+              "conditional_markers": [],
+              "conditional_wording": false,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "我目前无法给出这个数字，因为本轮研究没有取得任何已读取、可核验的一手证据。\n\n现状是：检索到的材料只停留在来源页面本身，没有进入可引用的正文内容。因此我不能依据摘要或既有知识直接报出“最新 CPI 同比涨幅”和“对应月份”——那会变成未经核验的结论。\n\n要得到可靠答案，需要先读取 ONS 官方发布页（通常是“Consumer price inflation, UK”月度公告）的正文，确认：\n\n- 发布的是哪个月的数据（例如“2025 年某月”）\n- 该月 CPI 12 个月同比涨幅的具体数值\n- 是否属于最新一期发布\n\n如果你希望我继续，我可以重新检索并优先读取 ONS 官方公告页正文，而不是停留在搜索摘要层。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1463,
+            "completion_tokens": 170,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 4.39,
+            "repeat": 2,
+            "quality": {
+              "chars": 309,
+              "sentences": 8,
+              "numbers": [
+                "12",
+                "2025"
+              ],
+              "unsupported_numbers": [
+                "12",
+                "2025"
+              ],
+              "unsupported_number_count": 2,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "根据当前可用的研究证据，我无法给出一个确定的答案。\n\n本轮检索到的材料仅包含 GOV.UK 首页的片段（关于 cookie 设置的提示），没有读取到英国国家统计局（ONS）发布的最新 CPI 12 个月通胀率的具体数值或对应月份。证据核验状态也未通过，因此不能依据搜索摘要或模型既有知识输出具体数字。\n\n如果你需要，我可以帮你进一步检索 ONS 官网的 CPI 发布页面，或说明你想了解的是哪一段时期的通胀数据。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1463,
+            "completion_tokens": 106,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 3.188,
+            "repeat": 3,
+            "quality": {
+              "chars": 206,
+              "sentences": 4,
+              "numbers": [
+                "12"
+              ],
+              "unsupported_numbers": [
+                "12"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          }
+        ]
+      },
+      "summaries": {
+        "A_production": {
+          "count": 1,
+          "ok": 1,
+          "p50_seconds": 23.094,
+          "p90_seconds": 23.094,
+          "max_seconds": 23.094,
+          "reasoning_tokens": null,
+          "chars": [
+            32
+          ]
+        },
+        "A_sdk_default": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 20.734,
+          "p90_seconds": 27.031,
+          "max_seconds": 27.031,
+          "reasoning_tokens": [
+            1020,
+            874,
+            889
+          ],
+          "chars": [
+            429,
+            603,
+            837
+          ]
+        },
+        "B_sdk_disabled": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 4.39,
+          "p90_seconds": 6.938,
+          "max_seconds": 6.938,
+          "reasoning_tokens": null,
+          "chars": [
+            1345,
+            309,
+            206
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "category_hint": "provenance_duplicate",
+      "gate_status": "block",
+      "policy_category": "block",
+      "research_seconds": 38.297,
+      "research_status": "partial",
+      "evidence_row_count": 0,
+      "source_block_chars": 1053,
+      "prompt_sha256": "e2ab0e6cc6d9b5188151b2970f06be4f3379a58fc753dc90704ce43ba4e099cc",
+      "prompt_message_chars": 4646,
+      "variants": {
+        "A_production": [
+          {
+            "variant": "A_production",
+            "outcome": "ok",
+            "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+            "answer_status": "available",
+            "answer_reason": "",
+            "binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            },
+            "elapsed_seconds": 31.359,
+            "call": {
+              "phase": "answer_generation",
+              "elapsed_seconds": 31.266,
+              "outcome": "ok",
+              "timeout_seconds": 90.0,
+              "remaining_after_call_seconds": 170.359,
+              "remaining_at_dispatch_seconds": 201.625,
+              "message_count": 2,
+              "message_chars": 4646,
+              "request_max_retries": 0
+            },
+            "quality": {
+              "chars": 32,
+              "sentences": 1,
+              "numbers": [],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "未能"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ],
+        "A_sdk_default": [
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "直接结论：**当前无法可靠回答“哪些是一手、哪些是二手”**，因为本轮没有取得任何已读取正文或结构化一手证据。\n\n- **研究状态**：未完成。证据门未通过，检索结果只停留在候选摘要阶段。\n- **候选数量**：目前仅有 2 个不同候选 URL，且均未完成正文提取与核验。\n- **读取缺口**：缺少上游公告全文、漏洞发现者原始报告、补丁/commit diff、发行版安全公告等可以直接判定披露层级的一手材料。\n\n因此，现在如果列出具体来源并标注“一手/二手”，只会是基于未验证信息或既有印象的判断，不能作为研究结论输出。需要先补全上述证据，再按“是否包含原始技术细节、是否可追溯到首次披露、是否有独立分析”来分类。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1816,
+            "completion_tokens": 1942,
+            "reasoning_tokens": 1766,
+            "elapsed_seconds": 36.735,
+            "repeat": 1,
+            "quality": {
+              "chars": 309,
+              "sentences": 7,
+              "numbers": [
+                "2"
+              ],
+              "unsupported_numbers": [
+                "2"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "在当前证据门禁下，这个研究问题还无法闭合。我不能给出无保留的一手/二手来源清单。\n\n**现状**\n- 证据门禁为 `block`：本轮没有取得任何与 CVE-2024-3094 直接相关的一手技术披露正文。\n- 现有候选仅有 [web-1] 中几条低强度线索，涉及 XZ Utils 首页、.xz 格式说明，以及一处关于 Cantina/Apex 的模糊提及。\n- 这些候选都不是可用于判断“原始披露 vs 转载”的直接证据，强度不足以支撑结论。\n\n**候选数量**\n- 与 CVE-2024-3094 披露来源直接相关的合格证据：**0 条**。\n- 当前可读取但与问题基本无关的候选：**3 条**，均来自 [web-1]。\n\n**读取缺口**\n要回答“哪些是一手技术披露、哪些是广泛转载的二手报道”，至少还需要取得并核验：\n1. 上游项目或维护者的原始公告、提交、补丁或说明；\n2. 最初发现者/研究方的技术分析原文；\n3. 权威漏洞库或发行版安全公告；\n4. 对应的转载媒体、聚合报道，用于与上述原始载体对比。\n\n在这些材料进入可核验证据集之前，我不能基于搜索摘要或既有印象直接列出具体来源。当前能确认的只是：研究尚未完成，来源层级尚未建立。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1816,
+            "completion_tokens": 2221,
+            "reasoning_tokens": 1917,
+            "elapsed_seconds": 41.328,
+            "repeat": 2,
+            "quality": {
+              "chars": 525,
+              "sentences": 17,
+              "numbers": [
+                "0",
+                "1",
+                "2",
+                "2024",
+                "3",
+                "3094",
+                "4"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "2",
+                "2024",
+                "3094"
+              ],
+              "unsupported_number_count": 4,
+              "conditional_markers": [
+                "不足",
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "这件事的本质是：**“一手”不是“最早的新闻”，而是“第一次给出可核验技术细节的原始载体”。**\n\n但在我当前会话里，证据门控是 **block**，而且本轮拿到的可披露证据只有：\n\n- XZ Utils 官网主页（[web-1]）\n- 一篇 CSDN 的 `xz` 命令用法文章（[web-1]）\n\n它们都不覆盖 CVE-2024-3094 的技术披露链条。因此我不能依据模型记忆或搜索摘要，给你一个“哪些是一手、哪些是二手”的闭合名单。\n\n我能给的，是一个以后可用于核验的**来源分级框架**：\n\n- **一手 / 原始技术披露**  \n  通常指：漏洞发现者或维护者首次公开的原始邮件、上游 Git 提交/回滚、发行版安全公告、首次发表完整技术分析的第一发布者。  \n  判断标准：它是否第一次披露了可核验的关键技术细节，而不是转述别人。\n\n- **二手 / 转载 / 再发布**  \n  通常指：新闻稿、博客汇总、论坛转帖、聚合站、其他语言翻译。  \n  判断标准：它没有增加新的技术事实，只是复述或翻译已经公开的内容。\n\n- **中间层**  \n  CVE/NVD 之类的编号条目更像“索引登记”，不是原始技术披露，但可以作为定位一手的入口。\n\n当前缺口在于：我没有读到任何发行版安全公告、邮件列表原始帖、上游提交或完整的二手报道。  \n所以现在结论只能停在：**研究未完成，候选簇不相关，无法判断具体来源的一手/二手性质。**\n\n如果你希望我继续，可以打开证据读取通道，把相关的 oss-security 原始邮件、发行版公告和几篇广泛传播的报道作为候选读进来；然后我就能按上面的框架，逐条给你标出“原始披露 / 二手转载 / 索引入口”。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1816,
+            "completion_tokens": 1954,
+            "reasoning_tokens": 1546,
+            "elapsed_seconds": 36.797,
+            "repeat": 3,
+            "quality": {
+              "chars": 726,
+              "sentences": 20,
+              "numbers": [
+                "1",
+                "2024",
+                "3094"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "2024",
+                "3094"
+              ],
+              "unsupported_number_count": 3,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          }
+        ],
+        "B_sdk_disabled": [
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "根据当前证据状态，我无法给出你想要的分类结论。\n\n原因很直接：本轮研究没有取得任何已读取的正文或结构化一手证据。我手头只有候选来源的标题和锚文本片段，这些不足以判断哪个来源是原始技术披露、哪个是转载或二手报道。\n\n要做这个分类，至少需要：\n\n- 各来源的**发布时间**与**首次披露时间线**\n- 披露内容的**技术深度**（是完整的机制分析，还是摘要式转述）\n- 来源的**作者身份**（是发现者本人/项目维护者，还是媒体或聚合站）\n- 各报道之间的**引用关系**\n\n目前这些信息都缺失。基于搜索摘要或模型既有印象给结论，属于超出证据的推断，我不能这样做。\n\n**当前能确认的只有：**\n\n1. 候选来源中存在 `tukaani.org/xz/`（XZ Utils 项目主页）——这通常是一手披露的可能位置，但本轮未读取其正文，无法确认它是否实际发布了该 CVE 的技术细节。\n2. 另一个候选是 CSDN 上关于 xz 命令用法的博客——从标题看更像是通用教程，与 CVE-2024-3094 的技术披露可能无关，但同样未读取正文，不能下定论。\n3. 有一个未闭合的关键结论（claim_5c08de143345ae3ba01b8be7），指向某个来源，但证据强度很低（0.15），且未通过核验。\n\n**结论：研究未完成，分类无法给出。**\n\n如果你需要继续，下一步应该做的是：读取候选来源的正文，尤其是 `tukaani.org/xz/` 的安全相关页面，以及任何标注了首次披露时间或作者身份的页面。有了这些，我才能把\"一手 / 二手\"这条线画清楚。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1737,
+            "completion_tokens": 388,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 7.968,
+            "repeat": 1,
+            "quality": {
+              "chars": 680,
+              "sentences": 18,
+              "numbers": [
+                "0.15",
+                "01",
+                "08",
+                "1",
+                "143345",
+                "2",
+                "2024",
+                "3",
+                "3094",
+                "5",
+                "7",
+                "8"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "2",
+                "2024",
+                "3094"
+              ],
+              "unsupported_number_count": 4,
+              "conditional_markers": [
+                "不足",
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "这是一个关于信源分层的问题，恰好可以用一个结构来回答：**一手披露是“谁先证明了机制”，二手报道是“谁在传播结论”**。\n\n不过需要先说明当前研究的实际状态：本轮没有取得任何已读取的正文或结构化一手证据，只有候选信源和未闭合的结论。因此下面只能给出**条件化的分层框架**，不能输出无保留的最终判定。\n\n---\n\n## 分层框架\n\n### 一手技术披露的候选特征\n\n一手披露通常具备以下结构特征，而不是“名气大”或“转载多”：\n\n- **包含可复现的技术机制**：具体的投毒路径、触发条件、注入的载荷位置、涉及的构建环节。\n- **给出原始分析产物**：如反汇编片段、构建脚本差异、时间线还原、涉及的提交或 tarball 对比。\n- **由实际完成分析的一方首次发布**：通常是发现者本人或其所属团队，而不是转述者。\n\n就 CVE-2024-3094 而言，符合这类特征的候选通常指向：\n\n- 最初发现并分析该问题的人员或团队的**原始公告或技术报告**；\n- 上游项目或发行版安全团队发布的**初始安全通告**，如果其中包含机制性说明而非仅转载结论。\n\n### 二手或转载报道的特征\n\n二手报道的典型结构是：\n\n- **结论在前，机制缺失或简化**：只说明“存在后门”“影响 sshd”等结论，不给出可复现的技术链条。\n- **信息源指向其他报道**：文中引用的是一手公告的二手转述，而非原始分析。\n- **聚合或新闻属性强**：科技媒体、安全资讯站、论坛整理帖，通常属于这一层。\n\n---\n\n## 当前无法完成的部分\n\n要具体判定“哪些来源是一手、哪些是二手”，需要比对以下证据，而本轮**尚未取得**：\n\n- 原始分析报告的正文内容；\n- 各候选来源的发布时间与引用关系；\n- 是否包含可复现的技术细节，而非仅结论。\n\n因此，目前只能确认：**候选信源存在，但未通过完整证据核验**。在取得并比对原始披露内容之前，不宜对任何具体来源作出一手或二手的确定性归类。\n\n如果你希望继续推进，下一步可以优先获取**最早的技术分析原文**，再以其为基准，反推其他报道是引用还是独立分析。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1737,
+            "completion_tokens": 504,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 11.907,
+            "repeat": 2,
+            "quality": {
+              "chars": 892,
+              "sentences": 27,
+              "numbers": [
+                "2024",
+                "3094"
+              ],
+              "unsupported_numbers": [
+                "2024",
+                "3094"
+              ],
+              "unsupported_number_count": 2,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "基于当前研究状态，我无法给出确定性的来源分级结论。\n\n## 当前证据状态\n\n检索到的材料只有 3 条候选线索，且全部未通过完整证据核验：\n\n- 1 条来自 CSDN 博客（关于 xz 命令用法）\n- 2 条来自 tukaani.org/xz/（XZ Utils 官网）\n\n这些候选与 CVE-2024-3094 的关联强度均很低（0.1–0.2），且没有一条已读取的正文内容涉及该漏洞的技术披露本身。\n\n## 结论约束\n\n研究尚未通过完整证据核验。因此，我**不能**基于搜索摘要或既有知识输出：\n\n- 哪些来源是\"原始技术披露\"\n- 哪些是\"二手或转载报道\"\n- 任何来源之间的优先级比较\n- 具体作者、日期、平台或披露渠道的确定性判断\n\n## 未闭合的关键结论\n\n研究目标（区分一手与二手来源）尚未闭合。要继续推进，需要先补足以下读取缺口：\n\n1. 读取 CVE-2024-3094 的权威记录（如 NVD、MITRE、发行版安全公告）\n2. 读取被广泛引用的原始分析报告（如发现者的技术分析）\n3. 对候选材料做正文级提取与校验，确认其是否实际包含该漏洞的技术披露内容\n\n在证据门禁未通过之前，任何来源分级都只能停留在\"待验证\"状态。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1737,
+            "completion_tokens": 311,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 5.984,
+            "repeat": 3,
+            "quality": {
+              "chars": 520,
+              "sentences": 20,
+              "numbers": [
+                "0.1",
+                "0.2",
+                "1",
+                "2",
+                "2024",
+                "3",
+                "3094"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "2",
+                "2024",
+                "3094"
+              ],
+              "unsupported_number_count": 4,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          }
+        ]
+      },
+      "summaries": {
+        "A_production": {
+          "count": 1,
+          "ok": 1,
+          "p50_seconds": 31.359,
+          "p90_seconds": 31.359,
+          "max_seconds": 31.359,
+          "reasoning_tokens": null,
+          "chars": [
+            32
+          ]
+        },
+        "A_sdk_default": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 36.797,
+          "p90_seconds": 41.328,
+          "max_seconds": 41.328,
+          "reasoning_tokens": [
+            1766,
+            1917,
+            1546
+          ],
+          "chars": [
+            309,
+            525,
+            726
+          ]
+        },
+        "B_sdk_disabled": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 7.968,
+          "p90_seconds": 11.907,
+          "max_seconds": 11.907,
+          "reasoning_tokens": null,
+          "chars": [
+            680,
+            892,
+            520
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "category_hint": "current_support_policy",
+      "gate_status": "block",
+      "policy_category": "block",
+      "research_seconds": 46.203,
+      "research_status": "partial",
+      "evidence_row_count": 0,
+      "source_block_chars": 1314,
+      "prompt_sha256": "abe9dbf6c9605f20ada236acf0e34eeb08f687cfd5bdebf9c329379ba1e3e973",
+      "prompt_message_chars": 5144,
+      "variants": {
+        "A_production": [
+          {
+            "variant": "A_production",
+            "outcome": "ok",
+            "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+            "answer_status": "available",
+            "answer_reason": "",
+            "binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            },
+            "elapsed_seconds": 16.14,
+            "call": {
+              "phase": "answer_generation",
+              "elapsed_seconds": 16.047,
+              "outcome": "ok",
+              "timeout_seconds": 90.0,
+              "remaining_after_call_seconds": 177.672,
+              "remaining_at_dispatch_seconds": 193.719,
+              "message_count": 2,
+              "message_chars": 5144,
+              "request_max_retries": 0
+            },
+            "quality": {
+              "chars": 32,
+              "sentences": 1,
+              "numbers": [],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "未能"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ],
+        "A_sdk_default": [
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "先把问题拆成两层：  \n1. 当前由 PostgreSQL 项目官方支持的大版本有哪些；  \n2. 其中最老的大版本何时 EOL。\n\n目前这两层都无法给出确定结论。\n\n本轮只检索到 1 条候选片段（[web-1]），但它只是文档入口级信息，证据门未通过，不能作为官方支持范围的完整依据；并且它没有覆盖最老支持版本的 EOL 日期。\n\n读取缺口主要是：  \n- PostgreSQL 官方版本支持政策页 / Versioning Policy；  \n- PostgreSQL 13 或对应最老支持版本的官方 EOL 公告。\n\n所以要回答“目前支持哪些版本、最老版本何时停止支持”，还需要重新读取可核验的一手页面。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1950,
+            "completion_tokens": 2236,
+            "reasoning_tokens": 2083,
+            "elapsed_seconds": 37.016,
+            "repeat": 1,
+            "quality": {
+              "chars": 305,
+              "sentences": 9,
+              "numbers": [
+                "1",
+                "13",
+                "2"
+              ],
+              "unsupported_numbers": [
+                "1"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "一句话：目前只能给你“待核验”状态，不能给出已确认的版本清单和 EOL 日期。\n\n- 已检索到的候选片段显示，PostgreSQL 当前文档页列出“支持版本：当前（18）/ 17 / 16 / 15 / 14 / 13”[web-1]。  \n  这提示当前可能仍在支持窗口内的主版本是 13–18，但该片段尚未通过完整证据核验，因此只能算候选线索，不能作为官方支持范围的确定结论。\n\n- 关键缺口：  \n  1. 官方版本支持政策页、EOL 规则未读取；  \n  2. 最老受支持主版本若为 13，其具体 EOL 日期没有出现在已读取材料中。\n\n所以，关于“最老当前支持版本何时 EOL”，我现在不能给你可靠日期。需要进一步读取 PostgreSQL 官方的 versioning policy / release roadmap 才能闭合结论。",
+            "finish_reason": "stop",
+            "prompt_tokens": 1950,
+            "completion_tokens": 1912,
+            "reasoning_tokens": 1712,
+            "elapsed_seconds": 31.047,
+            "repeat": 2,
+            "quality": {
+              "chars": 373,
+              "sentences": 8,
+              "numbers": [
+                "1",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "2"
+              ],
+              "unsupported_numbers": [
+                "1"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [],
+              "conditional_wording": false,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "Based on the only eligible retrieved snippet, the PostgreSQL 18.0 documentation page lists supported versions as:\n\n**当前（18）/ 17 / 16 / 15 / 14 / 13**  \nSource: PostgreSQL 18.0 documentation index (`web:1`)\n\nSo, if that page reflects the current official support list, the currently supported major versions are **18, 17, 16, 15, 14, 13**, and the oldest currently supported major version would be **PostgreSQL 13**.\n\nHowever, the retrieved evidence does **not** include the end-of-life date or the versioning policy. Therefore I cannot reliably answer when PostgreSQL 13 reaches end of life from the available material. To determine that, we would need the official PostgreSQL versioning policy page or the release/end-of-life schedule, which was not successfully read in this research pass.",
+            "finish_reason": "stop",
+            "prompt_tokens": 1950,
+            "completion_tokens": 1524,
+            "reasoning_tokens": 1343,
+            "elapsed_seconds": 25.016,
+            "repeat": 3,
+            "quality": {
+              "chars": 791,
+              "sentences": 5,
+              "numbers": [
+                "1",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "18.0"
+              ],
+              "unsupported_numbers": [
+                "1"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [
+                "cannot"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          }
+        ],
+        "B_sdk_disabled": [
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "根据现有证据，我无法给出确定的答案。\n\n目前检索到的材料中，只有一处候选证据显示 PostgreSQL 文档页列出了支持版本为 18、17、16、15、14、13，但这只是未完成校验的线索，证据强度很低，且没有通过完整核验。因此我不能据此下结论说这就是当前官方支持范围。\n\n关于\"最老的支持版本何时停止支持\"，检索结果中没有任何材料涉及具体的终止日期或支持周期政策。这是一个明确的证据缺口。\n\n要把这个问题查实，需要：\n1. 找到 PostgreSQL 官方的版本支持政策页面，确认当前支持哪些大版本；\n2. 确认每个版本的 EOL 日期，特别是最老的那个。\n\n你想让我继续按这个方向检索官方页面吗？",
+            "finish_reason": "stop",
+            "prompt_tokens": 1871,
+            "completion_tokens": 156,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 4.078,
+            "repeat": 1,
+            "quality": {
+              "chars": 300,
+              "sentences": 9,
+              "numbers": [
+                "1",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "2"
+              ],
+              "unsupported_numbers": [
+                "1"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "这个问题的本质是：**“当前支持”不是一个静态标签，而是一个随时间滑动的窗口。** 要回答它，需要同时锁定两个坐标——窗口的边界（哪些版本在内）和窗口的滑动规则（每个版本何时滑出）。\n\n不过，就本轮的研究状态而言，我需要先说明一个限制：目前没有取得已读取的正文或结构化一手证据，只有搜索摘要级别的候选线索，因此不能给出无保留的确定结论。以下只能以条件化措辞说明研究缺口和可核验的方向。\n\n## 研究状态\n\n**已取得的线索（未经完整核验）：**\n- 一份 PostgreSQL 文档页的摘要显示“支持版本”列举为：18（当前）/ 17 / 16 / 15 / 14 / 13。\n- 这条线索来自中文文档镜像（postgres.ac.cn），强度标注很低，且未读取正文，无法确认其时效性、准确性或是否与官方版本支持政策一致。\n\n**未闭合的关键结论：**\n- “当前究竟支持哪些大版本”这一结论尚未通过完整证据核验。\n\n## 缺口所在\n\n要真正回答你这个问题，需要补上两类证据，而它们恰恰是摘要里没有的：\n\n1. **官方版本支持政策页**（通常列明每个大版本的 EOL 日期或“支持到发布后 N 年”的规则）。这是判断“何时结束支持”的唯一可靠依据。\n2. **官方文档的“支持版本”列表正文**，而不是搜索摘要的锚文本。\n\n没有这两者，任何“13 在 2025 年某月 EOL”之类的具体日期都只是模型既有知识，不能作为本轮研究结论输出。\n\n## 可行的下一步\n\n如果你希望我把这个问题真正闭合，我可以继续去读取官方版本支持政策页的正文，并核验下列结构：\n\n- 当前窗口内的大版本列表；\n- 每个版本对应的 EOL 日期或规则；\n- “最老仍在支持的大版本”具体是哪一个，以及它距离 EOL 还有多久。\n\n这本质上是一个**版本生命周期模型**的问题：PostgreSQL 社区采用的是“滚动式支持窗口”——每年发布一个新大版本，同时让最老的那个版本退出支持。所以“最老版本何时 EOL”和“当前支持哪些版本”其实是同一个窗口的两端。把两端都锁定，问题就闭合了。\n\n要我现在继续去取官方政策页的正文来完成核验吗？",
+            "finish_reason": "stop",
+            "prompt_tokens": 1871,
+            "completion_tokens": 509,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 10.781,
+            "repeat": 2,
+            "quality": {
+              "chars": 907,
+              "sentences": 25,
+              "numbers": [
+                "1",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "2",
+                "2025"
+              ],
+              "unsupported_numbers": [
+                "1",
+                "2025"
+              ],
+              "unsupported_number_count": 2,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": false
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "基于当前检索到的证据，我可以给你一个结构化的判断，但需要先说明证据状态：\n\n**证据状态**\n\n检索到的资料指向 PostgreSQL 官方文档页面，其中包含一行关键信息：\n\n> 支持版本：当前（18）/ 17 / 16 / 15 / 14 / 13 [web-1]\n\n这行内容来自 `postgres.ac.cn`（PostgreSQL 中文文档镜像），它列出了当前文档中标注的受支持版本范围。\n\n**能得出的结论**\n\n- 根据这条证据，PostgreSQL 项目当前支持的版本序列是 **18、17、16、15、14、13**，其中 18 是当前最新版本 [web-1]。\n- 由此可以推断，**最老的受支持主版本是 13**。\n\n**尚未闭合的部分**\n\n关于\"PostgreSQL 13 具体何时到达生命周期终点（EOL）\"，本轮检索到的证据**没有包含任何日期信息**。证据中只有版本列表，没有 EOL 时间表。\n\n因此，关于 EOL 日期，我不能给出一个确凿的答案。证据门控状态为 `unavailable`，关键结论尚未通过完整核验，我只能给出上述条件化判断，而不能输出无保留的强结论。\n\n**如果要补全这个答案，还缺什么**\n\n需要一份 PostgreSQL 官方的版本支持政策页面（Versioning Policy），其中会明确每个主版本的\"最后小版本发布日期\"和\"EOL 日期\"。目前检索到的证据没有覆盖这一部分。\n\n一句话概括当前状态：**版本列表已经有了，EOL 日期还是缺口。**",
+            "finish_reason": "stop",
+            "prompt_tokens": 1871,
+            "completion_tokens": 332,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 6.656,
+            "repeat": 3,
+            "quality": {
+              "chars": 655,
+              "sentences": 18,
+              "numbers": [
+                "1",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18"
+              ],
+              "unsupported_numbers": [
+                "1"
+              ],
+              "unsupported_number_count": 1,
+              "conditional_markers": [],
+              "conditional_wording": false,
+              "fail_closed_ok": false
+            }
+          }
+        ]
+      },
+      "summaries": {
+        "A_production": {
+          "count": 1,
+          "ok": 1,
+          "p50_seconds": 16.14,
+          "p90_seconds": 16.14,
+          "max_seconds": 16.14,
+          "reasoning_tokens": null,
+          "chars": [
+            32
+          ]
+        },
+        "A_sdk_default": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 31.047,
+          "p90_seconds": 37.016,
+          "max_seconds": 37.016,
+          "reasoning_tokens": [
+            2083,
+            1712,
+            1343
+          ],
+          "chars": [
+            305,
+            373,
+            791
+          ]
+        },
+        "B_sdk_disabled": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 6.656,
+          "p90_seconds": 10.781,
+          "max_seconds": 10.781,
+          "reasoning_tokens": null,
+          "chars": [
+            300,
+            907,
+            655
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "category_hint": "historical_current_mix",
+      "gate_status": "block",
+      "policy_category": "block",
+      "research_seconds": 32.953,
+      "research_status": "partial",
+      "evidence_row_count": 0,
+      "source_block_chars": 1388,
+      "prompt_sha256": "5cd4793e28e4d93456b7cd2a0ddea9b5031ff217fd7d4817cc23e4dfaff611e6",
+      "prompt_message_chars": 5262,
+      "variants": {
+        "A_production": [
+          {
+            "variant": "A_production",
+            "outcome": "ok",
+            "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+            "answer_status": "available",
+            "answer_reason": "",
+            "binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            },
+            "elapsed_seconds": 25.672,
+            "call": {
+              "phase": "answer_generation",
+              "elapsed_seconds": 25.562,
+              "outcome": "ok",
+              "timeout_seconds": 90.0,
+              "remaining_after_call_seconds": 181.406,
+              "remaining_at_dispatch_seconds": 206.968,
+              "message_count": 2,
+              "message_chars": 5262,
+              "request_max_retries": 0
+            },
+            "quality": {
+              "chars": 32,
+              "sentences": 1,
+              "numbers": [],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "未能"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ],
+        "A_sdk_default": [
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "一句话看结构：你问的是两层问题——「当前官方支持哪些模块系统」和「新旧指导的差异是什么」。但这一轮检索没有通过证据核验，我不能给你确定性结论。\n\n目前能确认的材料只到标题/摘要级：Node.js 是开源、跨平台的 JavaScript 运行时环境[web-1]；有一个背景片段提到 ES Module 出现前 CommonJS 是主流模块化规范，但这既不是当前官方立场，也不足以推出现在的支持状态。关于 CommonJS、ES Modules、互操作方式、默认行为是否变化，都没有可核验的正文证据。\n\n所以要回答你，至少还缺两类材料：\n\n- 当前 Node.js 官方文档对 CommonJS 和 ES Modules 的支持声明，以及二者是否仍并列、如何切换、互操作边界是什么；\n- 版本变更说明或官方指南中，是否已经从「ESM 取代 CJS」的旧表述，转向「两者长期共存」的当前表述。\n\n在没有这些证据前，我不会凭记忆替你补全模块系统列表，否则会把「已知」和「已验证」混在一起。下一步建议是继续读取 Node.js 官方模块文档和版本发布说明，读完再给你一张结构化的对比。",
+            "finish_reason": "stop",
+            "prompt_tokens": 2094,
+            "completion_tokens": 1802,
+            "reasoning_tokens": 1547,
+            "elapsed_seconds": 34.547,
+            "repeat": 1,
+            "quality": {
+              "chars": 488,
+              "sentences": 9,
+              "numbers": [
+                "1"
+              ],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "不足"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "证据不足时，最清晰的结论就是：**这个问题目前不能给出确证答案**。\n\n当前研究状态是：\n\n- 检索到 **5 条候选材料**，但全部只是标题或摘要，**没有已读取的正文**。\n- 关键结论 `claim_12f2e27e721cd432efe9a19e` **未闭合**。\n- 证据门状态为 **block**。\n\n因此，关于“当前 Node.js 官方支持哪些模块系统”以及“新旧 CommonJS vs ES modules 指导有何不同”，我不能基于现有证据输出具体事实或比较结论。\n\n仅有的条件化线索是：候选摘要提到 Node.js 是 JavaScript 运行时、有 `import { } from 'node:http'` 示例，以及 ES Module 出现前 CommonJS 是主流模块规范。但这些材料强度低，且没有正文支撑，不足以确认官方支持矩阵或指导变化。\n\n要闭合这个问题，需要读取 Node.js 官方文档中的 modules 与 esm 相关页面，以及对应版本变更记录。",
+            "finish_reason": "stop",
+            "prompt_tokens": 2094,
+            "completion_tokens": 1612,
+            "reasoning_tokens": 1392,
+            "elapsed_seconds": 29.281,
+            "repeat": 2,
+            "quality": {
+              "chars": 452,
+              "sentences": 9,
+              "numbers": [
+                "12",
+                "19",
+                "2",
+                "27",
+                "432",
+                "5",
+                "721",
+                "9"
+              ],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "不足"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          },
+          {
+            "variant": "A_sdk_default",
+            "outcome": "ok",
+            "text": "Under the current evidence gate, I can’t give a verified complete answer yet.\n\nThe retrieved material only contains candidate snippets, not the full current Node.js official module documentation. What is visible in the snippets:\n\n- One Node.js official page example uses `import { } from 'node:http'`, which is ES module syntax.\n- A background snippet states that before ES modules appeared, CommonJS was the mainstream module specification.\n\nThat is not enough to establish:\n\n- the complete list of module systems current Node.js officially supports;\n- how current official guidance differs from the older CommonJS-vs-ES-modules framing.\n\nSo I can’t responsibly assert a conclusion here. To answer this properly, the next step should be to read the current Node.js docs on **CommonJS** and **ECMAScript modules**, then compare their present guidance against older guidance.",
+            "finish_reason": "stop",
+            "prompt_tokens": 2094,
+            "completion_tokens": 1505,
+            "reasoning_tokens": 1330,
+            "elapsed_seconds": 27.469,
+            "repeat": 3,
+            "quality": {
+              "chars": 874,
+              "sentences": 8,
+              "numbers": [],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "not enough"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ],
+        "B_sdk_disabled": [
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "基于现有证据，我无法给出完整、确定的答案。\n\n目前检索到的材料只包含 Node.js 官方站点与教程类页面的摘要信息，证据门处于 block 状态，没有已读取并校验通过的一手正文。因此，关于当前 Node.js 官方支持哪些模块系统、以及现行官方指引与早期 CommonJS 与 ES Modules 二分指引的具体差异，我不能依据摘要或既有知识输出确定性结论。\n\n可以确认的只有两点：\n\n- 证据显示 Node.js 官方站点示例中出现 `import { } from 'node:http'` 这类 ESM 风格导入，但这只能说明 ESM 在官方材料中被使用，不足以证明“仅支持 ESM”或“官方已放弃 CommonJS”。\n- 背景材料提到，在 ES6 的 ES Module 出现之前，CommonJS 一直是主流模块化规范；这属于历史背景，不能直接推出当前官方立场。\n\n要回答你的问题，需要进一步读取并核验以下来源的正文：\n\n- Node.js 官方文档中关于 Modules 的现行说明，尤其是 CommonJS 与 ECMAScript modules 的定位、互操作限制和推荐用法；\n- 官方对 `\"type\": \"module\"`、`.mjs` / `.cjs` 扩展名、以及 `require()` 与 `import` 共存规则的现行表述；\n- 是否有官方迁移建议或“新项目默认使用 ESM”之类的明确指引。\n\n目前研究尚未完成，关键结论未闭合，因此只能给出条件化表述，不能输出无保留结论。",
+            "finish_reason": "stop",
+            "prompt_tokens": 2015,
+            "completion_tokens": 324,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 6.656,
+            "repeat": 1,
+            "quality": {
+              "chars": 657,
+              "sentences": 11,
+              "numbers": [
+                "6"
+              ],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "不足",
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "根据本轮研究证据，我无法给出完整、确定的结论。\n\n目前检索到的材料只包含候选来源的标题和摘要片段，没有通过证据核验的正文内容。这些片段仅能说明：\n\n- Node.js 被描述为 JavaScript 运行时环境（多个候选来源，强度很低）\n- 有背景材料提到\"在 ES6 的 ES Module 出现之前，CommonJS 一直是主流的模块化规范\"\n\n但关于\"当前 Node.js 官方支持哪些模块系统\"以及\"现行指南与旧的 CommonJS 对 ES modules 指南有何差异\"这两个具体问题，本轮没有取得可用的结构化证据。\n\n研究状态：未闭合。\n\n如果你希望我继续，下一步需要读取 Node.js 官方文档中关于模块系统的具体页面，并核验其中关于 CommonJS 与 ES modules 的现行说明。",
+            "finish_reason": "stop",
+            "prompt_tokens": 2015,
+            "completion_tokens": 173,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 3.891,
+            "repeat": 2,
+            "quality": {
+              "chars": 355,
+              "sentences": 8,
+              "numbers": [
+                "6"
+              ],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          },
+          {
+            "variant": "B_sdk_disabled",
+            "outcome": "ok",
+            "text": "基于当前可用的研究证据，我无法给出完整、确定的结论。\n\n**研究状态说明：**\n\n本轮检索到的都是候选来源的摘要信息，尚未通过完整证据核验。目前只看到：\n\n- 多个来源确认 Node.js 是 JavaScript 运行时环境（但这是背景性信息，不直接回答模块系统问题）\n- 一条背景材料提到\"在 ES6 的 ES Module 出现之前，CommonJS 一直是主流的模块化规范\"（来源：掘金文章，强度 0.3，属于历史背景而非当前官方立场）\n\n**关键的证据缺口：**\n\n1. 没有获取 Node.js 官方文档中关于模块系统的当前说明正文\n2. 没有关于 `node:` 前缀导入、`.mjs`/`.cjs` 扩展名、`package.json` 中 `\"type\"` 字段等现行机制的已校验证据\n3. 没有关于官方对\"新项目应优先采用哪种模块系统\"的现行指导的可靠来源\n\n**因此我只能给出条件化说明：**\n\n- 基于历史背景，CommonJS 曾是主流规范，ES Module 是后来引入的——但这不构成对\"当前官方支持什么\"的结论\n- 关于现行官方立场与旧有\"CJS vs ESM 二选一\"指导之间的差异，本轮证据不足以支撑任何确定性表述\n\n**建议的下一步：**\n\n如果你需要确切答案，我可以重新发起一轮研究，目标锁定在 Node.js 官方文档的模块系统章节（nodejs.org 的 API 文档与 guides），以获取可核验的现行说明。是否继续？",
+            "finish_reason": "stop",
+            "prompt_tokens": 2015,
+            "completion_tokens": 338,
+            "reasoning_tokens": null,
+            "elapsed_seconds": 6.859,
+            "repeat": 3,
+            "quality": {
+              "chars": 634,
+              "sentences": 16,
+              "numbers": [
+                "0.3",
+                "1",
+                "2",
+                "3",
+                "6"
+              ],
+              "unsupported_numbers": [],
+              "unsupported_number_count": 0,
+              "conditional_markers": [
+                "不足",
+                "无法"
+              ],
+              "conditional_wording": true,
+              "fail_closed_ok": true
+            }
+          }
+        ]
+      },
+      "summaries": {
+        "A_production": {
+          "count": 1,
+          "ok": 1,
+          "p50_seconds": 25.672,
+          "p90_seconds": 25.672,
+          "max_seconds": 25.672,
+          "reasoning_tokens": null,
+          "chars": [
+            32
+          ]
+        },
+        "A_sdk_default": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 29.281,
+          "p90_seconds": 34.547,
+          "max_seconds": 34.547,
+          "reasoning_tokens": [
+            1547,
+            1392,
+            1330
+          ],
+          "chars": [
+            488,
+            452,
+            874
+          ]
+        },
+        "B_sdk_disabled": {
+          "count": 3,
+          "ok": 3,
+          "p50_seconds": 6.656,
+          "p90_seconds": 6.859,
+          "max_seconds": 6.859,
+          "reasoning_tokens": null,
+          "chars": [
+            657,
+            355,
+            634
+          ]
+        }
+      }
+    }
+  ],
+  "policy_categories": {
+    "block": 4,
+    "partial": 0,
+    "pass": 0
+  }
+}

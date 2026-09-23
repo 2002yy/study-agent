@@ -1,0 +1,613 @@
+{
+  "schema_version": "rq1c-discovery-annotation-v1",
+  "mode": "merge",
+  "candidate_count": 75,
+  "classification_exact_agreement": 1.0,
+  "presence_exact_agreement": 1.0,
+  "likely_target_disagreements": [],
+  "disagreements": [],
+  "merged": [
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://baike.baidu.com/item/attention/52695345",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://blog.csdn.net/weixin_42475060/article/details/121101749",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://global.bing.com/dict/search?cc=cn&FORM=BDVSP6&q=attention",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://www.iciba.com/word?w=attention",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://www.runoob.com/pytorch/transformer-model.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://www.zhihu.com/tardis/zm/art/600773858",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/1995435550648325668",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/338817680",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/609523552",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/91839581",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://baike.baidu.com/item/6%E6%9C%88/7309259",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://baike.baidu.com/item/Cloudflare/17359757",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://baike.baidu.com/item/june/5452619",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://blog.csdn.net/techshrimp/article/details/139684106",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/june",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://global.bing.com/dict/search?cc=cn&FORM=BDVSP6&q=June",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://www.cloudflare-cn.com/application-services/products/china-network/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://www.cloudflare-cn.com/enterprise/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://www.cloudflare.net/home/default.aspx",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/670742542",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "canonical_url": "https://rust-lang.org/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "canonical_url": "https://rust-lang.org/zh-CN/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "canonical_url": "https://rust.facepunch.com/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "canonical_url": "https://segmentfault.com/a/1190000047735055",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "canonical_url": "https://www.runoob.com/rust/rust-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "canonical_url": "https://pythonlang.cn/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "canonical_url": "https://www.liaoxuefeng.com/wiki/1016959663602400",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "canonical_url": "https://www.python.org/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "canonical_url": "https://www.python.org/downloads/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "canonical_url": "https://www.runoob.com/python/python-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "canonical_url": "https://blog.csdn.net/weixin_52286364/article/details/150379121",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "canonical_url": "https://docker.github.net.cn/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "canonical_url": "https://www.docker.com/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "canonical_url": "https://www.runoob.com/docker/docker-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/1892960016316748037",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "canonical_url": "https://baike.baidu.com/item/PostgreSQL/530240",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "canonical_url": "https://postgres.ac.cn/docs/current/index.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "canonical_url": "https://www.postgresql.org/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "canonical_url": "https://www.postgresql.org/download/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "canonical_url": "https://www.runoob.com/postgresql/postgresql-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://blog.csdn.net/jongden/article/details/154949610",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://juejin.cn/post/7108410887052427301",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://node.org.cn/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://node.org.cn/api/modules.html",
+      "pass_a": "likely_target",
+      "pass_b": "likely_target",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://nodejs.cn/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://nodejs.cn/api/modules.html",
+      "pass_a": "likely_target",
+      "pass_b": "likely_target",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://nodejs.cn/en/download/prebuilt-installer",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://nodejs.org/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "canonical_url": "http://www.jx-bank.com/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "canonical_url": "https://baike.baidu.com/item/Bank/16848826",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "canonical_url": "https://www.abchina.com/cn/branch/jx/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "canonical_url": "https://www.boc.cn/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "canonical_url": "https://www.jx-bank.com/col8/index.html",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "canonical_url": "https://visituk.cn/uk-info/details.asp?id=1",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "canonical_url": "https://www.britannica.com/place/United-Kingdom",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "canonical_url": "https://www.gov.uk/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "canonical_url": "https://www.gov.uk/browse/visas-immigration",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "canonical_url": "https://www.visitbritain.com/en",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "canonical_url": "https://blog.csdn.net/weixin_44799217/article/details/127937561",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "canonical_url": "https://developer.aliyun.com/article/1488009",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "canonical_url": "https://github.com/tukaani-project/xz",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "canonical_url": "https://xzphotos.cn/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "canonical_url": "https://zhuanlan.zhihu.com/p/137121638",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "canonical_url": "https://astral.fan/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "canonical_url": "https://astral.fan/getting-started/download/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "canonical_url": "https://github.com/ldoubil/astral/releases",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "canonical_url": "https://next.astral.fan/download/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "canonical_url": "https://next.astral.fan/game/",
+      "pass_a": "irrelevant",
+      "pass_b": "irrelevant",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "canonical_url": "https://pythonlang.cn/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "canonical_url": "https://www.liaoxuefeng.com/wiki/1016959663602400",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "canonical_url": "https://www.python.org/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "canonical_url": "https://www.python.org/downloads/",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "canonical_url": "https://www.runoob.com/python/python-tutorial.html",
+      "pass_a": "near_hit",
+      "pass_b": "near_hit",
+      "presence_a": "unobserved",
+      "presence_b": "unobserved"
+    }
+  ],
+  "generated_at": "2026-09-18T17:09:26.636162+00:00",
+  "reviewer_note": "model-assisted annotation: rates derived from this merge are model_* rates, never human_* rates"
+}

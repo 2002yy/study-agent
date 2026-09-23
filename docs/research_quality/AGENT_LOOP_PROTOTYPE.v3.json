@@ -1,0 +1,377 @@
+{
+  "assumptions": {
+    "claim": "one factual claim per case (the case question)",
+    "note": "prototype simplification; do not compare relation semantics against the production assessment-assigned roles",
+    "source_cluster_id": "single_constant_cluster",
+    "source_role": "primary_for_every_selector_chosen_page"
+  },
+  "cases": [
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "elapsed_seconds": 36.875,
+      "extractor_calls": 0,
+      "model_calls": [
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:1",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:1",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:2",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:2",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:3",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:3",
+          "purpose": "selector",
+          "reason": "model_call_attempts_exhausted",
+          "status": "unavailable"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_planner:rq1c-current-policy-container-registry:4",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_selector:rq1c-current-policy-container-registry:4",
+          "purpose": "selector",
+          "reason": "",
+          "status": "completed"
+        }
+      ],
+      "planner_calls": 4,
+      "planner_failures": 0,
+      "queries": [
+        "Docker Hub pull rate limit unauthenticated Personal",
+        "\"pull rate limit\" Docker Hub Personal",
+        "\"Docker Hub usage and limits\" pull rate",
+        "\"200 pulls\" Docker Hub limit"
+      ],
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "read_urls": [
+        "https://www.docker.com/"
+      ],
+      "reads": 1,
+      "relation_counts": {},
+      "relations": [],
+      "results_seen": [
+        {
+          "canonical_url": "https://www.docker.com/",
+          "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+          "title": "Docker: Accelerated Container Application Development"
+        },
+        {
+          "canonical_url": "https://docker.github.net.cn/",
+          "snippet": "社区资源 寻找 Docker 爱好者，参与富有洞察力的讨论，分享知识并就项目进行协作。 我们的社区为开发人员提供丰富的在线体验，以建立具有挑战性和启发性的有价值的联系！",
+          "title": "Docker中文网"
+        },
+        {
+          "canonical_url": "https://www.runoob.com/docker/docker-tutorial.html",
+          "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+          "title": "Docker 教程 | 菜鸟教程"
+        },
+        {
+          "canonical_url": "https://zhuanlan.zhihu.com/p/1892960016316748037",
+          "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+          "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ..."
+        },
+        {
+          "canonical_url": "https://blog.csdn.net/weixin_52286364/article/details/150379121",
+          "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+          "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）"
+        },
+        {
+          "canonical_url": "https://www.iciba.com/word?w=pull",
+          "snippet": "Determined to pull the title back, all teammates persistently motivate each other with resolute spirit. 为了夺回冠军，全体队员都以坚定的精神持续激励彼此。 金山词霸",
+          "title": "pull是什么意思_pull的翻译_音标_读音_用法_例句_爱词霸 ..."
+        },
+        {
+          "canonical_url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/pull",
+          "snippet": "I managed to pull the splinter out with a pair of tweezers. She used a pair of pliers to pull out the nails. I pulled up all my old raspberry canes. We used ropes and crampons to pull ourselves up the mountain. I quickly pulled off my clothes.",
+          "title": "PULL中文 (简体)翻译：剑桥词典"
+        },
+        {
+          "canonical_url": "https://baike.baidu.com/item/pull/4346871",
+          "snippet": "pull，英文单词，及物动词、不及物动词、名词，作及物动词时意为“拉；拔；拖”，作不及物动词时意为“拉，拖；拔”，作名词时意为“拉，拉绳；拉力，牵引力；拖，人名； (法)皮尔； (德、瑞典)普尔”。",
+          "title": "pull_百度百科"
+        },
+        {
+          "canonical_url": "https://global.bing.com/dict/search?cc=cn&FORM=BDVSP6&q=Pull",
+          "snippet": "pull sth / a rabbit out of the hat (informal) 突然提出解决方法； 突施妙计 to suddenly produce sth as a solution to a problem pull rank (on sb) 凭借地位指使 （某人）； 弄权 to make use of your place or status in society or at work to make sb do what you want pull the rug (out) from under sbs feet (informal)",
+          "title": "Pull - 搜索 词典"
+        },
+        {
+          "canonical_url": "https://www.pullandbear.com/",
+          "snippet": "Choose your market and language to visit the PULL&BEAR website. Discover the latest trends in fashion for modern women and men. #freshonline",
+          "title": "PULL&BEAR - Official Website"
+        },
+        {
+          "canonical_url": "https://blog.csdn.net/Mr_Bobcp/article/details/112260878",
+          "snippet": "200 – 服务器成功返回网页 404 – 请求的网页不存在 503 – 服务器超时 下面提供 HTTP 状态码的完整列表。 点击链接可了解详情。 您也可以访问 HTTP 状态码上的 W3C 页获取更多信息。 1xx（临时响应） 表示临时响应并需要请求者继续执行操作的状态码。",
+          "title": "HTTP中200、302、304、404和500等响应状态码含义"
+        },
+        {
+          "canonical_url": "https://wise.com/zh-cn/currency-converter/usd-to-cny-rate?amount=200",
+          "snippet": "使用 Wise 汇率换算器查看汇率并将 200 USD 兑换为 CNY。分析历史汇率图表获取美元兑人民币的实时汇率，并通过电子邮件免费接收汇率提醒。",
+          "title": "200 美元 兑人民币 汇率。将 USD 兑换成 CNY - Wise"
+        },
+        {
+          "canonical_url": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Reference/Status/200",
+          "snippet": "200 OK HTTP 200 OK 成功响应 状态码表明请求已经成功。 默认情况下 200 OK 的响应可以被缓存。 根据 HTTP 请求方法的不同， 200 OK 响应的含义和格式也有所不同。 以下是不同请求方法的具体区别： GET：已经取得资源，并将资源添加到响应主体中。",
+          "title": "200 OK - HTTP | MDN"
+        },
+        {
+          "canonical_url": "https://baike.baidu.com/item/200%E7%94%B5%E8%AF%9D%E5%8D%A1/4682806",
+          "snippet": "该卡具备余额转移功能（5元（不含5元）以下可转移至同前缀卡号），并支持缩位账号拨号及通话后连续拨打操作。 专用200电话机可安装于宿舍、病房等场所，无月租费且接听免费，但不得用于办公场所。",
+          "title": "200电话卡_百度百科"
+        },
+        {
+          "canonical_url": "https://freeunitconvert.com/cn/length/mm-to-cm/200/",
+          "snippet": "200毫米等于多少厘米？ 200毫米等于多少厘米？ 毫米 （或称“毫米”，单位符号是：mm）和 厘米 （单位符号是：cm）是长度单位，它们之间的换算关系是：1毫米等于0.1厘米。 要将200毫米转换为厘米，我们可以通过毫米与厘米换算比率来计算：",
+          "title": "200毫米等于多少厘米？ - 200毫米 (mm)换算厘米 (cm ..."
+        }
+      ],
+      "search_steps": [
+        {
+          "provider_errors": [
+            "searxng:url_error",
+            "duckduckgo_html:wallclock_timeout"
+          ],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "Docker Hub pull rate limit unauthenticated Personal",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "\"pull rate limit\" Docker Hub Personal",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "\"Docker Hub usage and limits\" pull rate",
+          "result_count": 5,
+          "status": "partial"
+        },
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "\"200 pulls\" Docker Hub limit",
+          "result_count": 5,
+          "status": "partial"
+        }
+      ],
+      "searches": 4,
+      "selector_calls": 4,
+      "selector_failures": 3,
+      "selector_steps": [
+        {
+          "candidate_count": 5,
+          "chosen": [
+            "https://www.docker.com/"
+          ],
+          "query": "Docker Hub pull rate limit unauthenticated Personal",
+          "raw": [
+            "https://www.docker.com/"
+          ],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "\"pull rate limit\" Docker Hub Personal",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 4,
+          "chosen": [],
+          "query": "\"Docker Hub usage and limits\" pull rate",
+          "raw": [],
+          "rejected": []
+        },
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "\"200 pulls\" Docker Hub limit",
+          "raw": [],
+          "rejected": []
+        }
+      ],
+      "status": "completed",
+      "stop_reason": "search_budget_exhausted",
+      "supports": 0
+    },
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-historical-current-node-modules",
+      "category": "historical_current_mix",
+      "elapsed_seconds": 12.172,
+      "extractor_calls": 0,
+      "model_calls": [
+        {
+          "attempts": 1,
+          "logical_call_id": "agent_loop_planner:rq1c-historical-current-node-modules:1",
+          "purpose": "planner",
+          "reason": "",
+          "status": "completed"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_selector:rq1c-historical-current-node-modules:1",
+          "purpose": "selector",
+          "reason": "model_call_attempts_exhausted",
+          "status": "unavailable"
+        },
+        {
+          "attempts": 2,
+          "logical_call_id": "agent_loop_planner:rq1c-historical-current-node-modules:2",
+          "purpose": "planner",
+          "reason": "model_call_attempts_exhausted",
+          "status": "unavailable"
+        }
+      ],
+      "planner_calls": 2,
+      "planner_failures": 1,
+      "queries": [
+        "Node.js documentation ECMAScript modules CommonJS"
+      ],
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "read_urls": [],
+      "reads": 0,
+      "relation_counts": {},
+      "relations": [],
+      "results_seen": [
+        {
+          "canonical_url": "https://nodejs.org/",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+          "title": "Node.js — Run JavaScript Everywhere"
+        },
+        {
+          "canonical_url": "https://node.org.cn/",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境"
+        },
+        {
+          "canonical_url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+          "title": "Node.js 教程 | 菜鸟教程"
+        },
+        {
+          "canonical_url": "https://nodejs.cn/en/download/current",
+          "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+          "title": "Node.js 中文网 — 下载 Node.js"
+        },
+        {
+          "canonical_url": "https://nodejs.cn/",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+          "title": "Node.js 中文网"
+        }
+      ],
+      "search_steps": [
+        {
+          "provider_errors": [],
+          "providers_attempted": [
+            "searxng",
+            "bing_rss",
+            "duckduckgo_html"
+          ],
+          "query": "Node.js documentation ECMAScript modules CommonJS",
+          "result_count": 5,
+          "status": "partial"
+        }
+      ],
+      "searches": 1,
+      "selector_calls": 1,
+      "selector_failures": 1,
+      "selector_steps": [
+        {
+          "candidate_count": 5,
+          "chosen": [],
+          "query": "Node.js documentation ECMAScript modules CommonJS",
+          "raw": [],
+          "rejected": []
+        }
+      ],
+      "status": "completed",
+      "stop_reason": "planner_no_query",
+      "supports": 0
+    }
+  ],
+  "completed_at": "2026-09-18T18:13:45.816886+00:00",
+  "diagnostic_only": true,
+  "git_sha": "9ddfd7df88e7d9d2a5d6d5f759b58eb61113178d",
+  "limits": {
+    "case_timeout_seconds": 60.0,
+    "max_reads": 6,
+    "max_searches": 4,
+    "read_chars": 6000,
+    "results_per_query": 5
+  },
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "schema_version": "agent-loop-prototype-v1",
+  "started_at": "2026-09-18T18:12:56.763745+00:00",
+  "summary": {
+    "budget_violation_cases": 0,
+    "case_count": 2,
+    "reads_total": 1,
+    "searches_total": 5,
+    "supports_cases": 0,
+    "supports_total": 0,
+    "total_elapsed_seconds": 49.047
+  }
+}

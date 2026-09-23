@@ -1,0 +1,5060 @@
+{
+  "schema_version": "selection-authority-runtime-probe-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "qualification_guard_bypassed": true,
+  "guard_bypass_reason": "the six-call research cap starves per-wave selection calls; the raw driver keeps the runtime's production budgets but has no overlay",
+  "selector_accounting_caveat": "selection-authority model calls are recorded in metrics.selection_authority but do not pass through the runtime's durable model-attempt ledger, so the runtime's own model budget does not count them",
+  "git_sha": "3b9c6a1ff8f054a8c56df861fcd6271612acf15a",
+  "started_at": "2026-09-21T17:48:43.659494Z",
+  "completed_at": "2026-09-21T17:49:12.055120Z",
+  "manifest": {
+    "path": "C:/Users/Zhang/Desktop/study agent/tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "case_count": 1
+  },
+  "selection_authority_mode": "model",
+  "cases": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "reference_date": "2026-09-21",
+      "elapsed_seconds": 28.203,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-current-policy-container-registry",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "6e3a1d8d1531ef3dfc488ab44d784eb475d5c47aba95573039b6b24f8448ebd2",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 5,
+        "audits": [
+          {
+            "query_sha256": "dc6dd1c540f9294126aa4912a98d1f3c29250461e691ebd90551752f1f3c81d0",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "url_error",
+                "attempts": 2,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "8065bef48459441780abb1b24b6d3eb515d50a24eb6e2246b6d34bcc0cd23242",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "f9c05c92cf9cfbc23208c8e00ca9e4ac1b6c9389a80595b658e480391236301f",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "adfce575e61e11610ba1b0590f5a71c3d2a363444c09ab6fb7c3f00272168b63",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "23d8b4bde54f51829e689704f01cb128ef4c98cffa1afa6eda4a1214b9102434",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 5,
+        "read_count": 1,
+        "read_attempt_count": 1,
+        "research_model_call_count": 5,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 6,
+        "elapsed_seconds": 28.203
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_c54944ac30ee3982",
+          "title": "Docker: Accelerated Container Application Development",
+          "url": "https://www.docker.com/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_1745d16bcdad18b4",
+          "extraction_statuses": [
+            "eligible"
+          ],
+          "escalation": null,
+          "read_retry": null
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_1745d16bcdad18b4"
+      ],
+      "finalization_breakdown": {
+        "research_seconds": 22.641,
+        "post_research_projection_seconds": 0.0,
+        "answer_stage_seconds": 5.562,
+        "total_seconds": 28.203
+      },
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_4bbfa56e3fbe8612b74fa7d8"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:eligible_support_clusters=0/1",
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:primary_required"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_c54944ac30ee3982ff793b0d",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "relation": "lead",
+            "strength": 0.1,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_1745d16bcdad18b4",
+            "url": "https://www.docker.com/",
+            "title": "Docker: Accelerated Container Application Development",
+            "published_at": "",
+            "locator": "20B+ pulls a month on Docker Hub",
+            "anchored_spans": [
+              "20B+ pulls a month on Docker Hub"
+            ],
+            "caveats": [
+              "The excerpt mentions total Docker Hub pull volume but does not state any pull-rate limits for unauthenticated or authenticated Personal users."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_16a80be314575cf7e2349792"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "atomic_routing": [
+          {
+            "candidate_claim_ids": [
+              "claim_4bbfa56e3fbe8612b74fa7d8"
+            ],
+            "origin_claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "read_artifact_id": "candidate_c54944ac30ee3982",
+            "routed_claim_ids": [],
+            "routes": [],
+            "skips": [
+              {
+                "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+                "reason": "origin_claim"
+              }
+            ],
+            "wave_index": 2
+          },
+          {
+            "candidate_claim_ids": [
+              "claim_4bbfa56e3fbe8612b74fa7d8"
+            ],
+            "origin_claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "read_artifact_id": "candidate_c54944ac30ee3982",
+            "routed_claim_ids": [],
+            "routes": [],
+            "skips": [
+              {
+                "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+                "reason": "origin_claim"
+              }
+            ],
+            "wave_index": 3
+          },
+          {
+            "candidate_claim_ids": [
+              "claim_4bbfa56e3fbe8612b74fa7d8"
+            ],
+            "origin_claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "read_artifact_id": "candidate_c54944ac30ee3982",
+            "routed_claim_ids": [],
+            "routes": [],
+            "skips": [
+              {
+                "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+                "reason": "origin_claim"
+              }
+            ],
+            "wave_index": 4
+          }
+        ],
+        "candidate_count": 5,
+        "checkpoint_timing": [
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 1486,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 1496,
+            "caller": "execute",
+            "changed_bytes": 1496,
+            "changed_sections": [
+              "research_context",
+              "query_attempts",
+              "selected_sources",
+              "rejected_sources",
+              "items",
+              "warnings"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.0,
+            "ordinal": 1,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 0.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "03af49fcccb1d06a",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": null,
+            "stage": "",
+            "t_end_ms": 3688671.0,
+            "unchanged_bytes": 0,
+            "wall_ms": 0.0,
+            "write_ms": 6.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 2413,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 2423,
+            "caller": "execute",
+            "changed_bytes": 2413,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 4.4,
+            "ordinal": 2,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 0.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "9f36a76bc8c503c7",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 16.0,
+            "stage": "planned",
+            "t_end_ms": 3688687.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 6.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 4201,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 4211,
+            "caller": "on_model_started",
+            "changed_bytes": 4201,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 3.5,
+            "ordinal": 3,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.0,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "ea7c1ebe100aa3fb",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3688703.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 2.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 7088,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 7098,
+            "caller": "execute",
+            "changed_bytes": 7088,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 4.1,
+            "ordinal": 4,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.0,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "38beeaca7531f732",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 1172.0,
+            "stage": "",
+            "t_end_ms": 3689875.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 8.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 7903,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 7913,
+            "caller": "execute",
+            "changed_bytes": 7903,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 4.0,
+            "ordinal": 5,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "8d634ab5ef9ad57b",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3689890.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 15.0,
+            "write_ms": 7.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 11024,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 11034,
+            "caller": "execute",
+            "changed_bytes": 11024,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 3.9,
+            "ordinal": 6,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "8500ef19e10fcd86",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3689906.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 7.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 13027,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 13037,
+            "caller": "execute",
+            "changed_bytes": 13027,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.0,
+            "ordinal": 7,
+            "phase": "",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "8cd7413faa7eef40",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 31.0,
+            "stage": "searching",
+            "t_end_ms": 3689937.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 31.0,
+            "write_ms": 6.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 14124,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 14134,
+            "caller": "execute",
+            "changed_bytes": 14124,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 3.7,
+            "ordinal": 8,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "edbaad40f731c10e",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.1,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3689953.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 7.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2,
+              "rejected_sources": 2,
+              "research_context": 18638,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 18648,
+            "caller": "execute",
+            "changed_bytes": 18638,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 8.0,
+            "ordinal": 9,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "97d170e1550eee4a",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "cccc27e2bf885a6d",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.2,
+            "since_previous_ms": 10453.0,
+            "stage": "",
+            "t_end_ms": 3700406.0,
+            "unchanged_bytes": 10,
+            "wall_ms": 16.0,
+            "write_ms": 7.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2169,
+              "rejected_sources": 2,
+              "research_context": 22398,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 24575,
+            "caller": "execute",
+            "changed_bytes": 24567,
+            "changed_sections": [
+              "research_context",
+              "query_attempts"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.2,
+            "ordinal": 10,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "c07420f331d44214",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "28ba306e1ec27460",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.2,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3700421.0,
+            "unchanged_bytes": 8,
+            "wall_ms": 15.0,
+            "write_ms": 7.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2169,
+              "rejected_sources": 2,
+              "research_context": 23475,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 25652,
+            "caller": "execute",
+            "changed_bytes": 23475,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.0,
+            "load_ms": 4.5,
+            "ordinal": 11,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "c07420f331d44214",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "8d688629612a75a2",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.2,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3700437.0,
+            "unchanged_bytes": 2177,
+            "wall_ms": 16.0,
+            "write_ms": 7.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 2169,
+              "rejected_sources": 2,
+              "research_context": 27850,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 30027,
+            "caller": "execute",
+            "changed_bytes": 27850,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.3,
+            "ordinal": 12,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "c07420f331d44214",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "b98d4fe2e59058d5",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.2,
+            "since_previous_ms": 344.0,
+            "stage": "",
+            "t_end_ms": 3700781.0,
+            "unchanged_bytes": 2177,
+            "wall_ms": 16.0,
+            "write_ms": 7.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 4054,
+              "rejected_sources": 2,
+              "research_context": 29101,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 33163,
+            "caller": "execute",
+            "changed_bytes": 33155,
+            "changed_sections": [
+              "research_context",
+              "query_attempts"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.0,
+            "ordinal": 13,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "40bf9f0f925f78e9",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "1e8b51ae9c2108b6",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3700796.0,
+            "unchanged_bytes": 8,
+            "wall_ms": 15.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 4054,
+              "rejected_sources": 2,
+              "research_context": 30185,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 34247,
+            "caller": "execute",
+            "changed_bytes": 30185,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.1,
+            "ordinal": 14,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "40bf9f0f925f78e9",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "0bc78d2920d7ff14",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3700812.0,
+            "unchanged_bytes": 4062,
+            "wall_ms": 16.0,
+            "write_ms": 7.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 4054,
+              "rejected_sources": 2,
+              "research_context": 34552,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 38614,
+            "caller": "execute",
+            "changed_bytes": 34552,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.7,
+            "ordinal": 15,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "40bf9f0f925f78e9",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "2d07dc81dc3d9e08",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 328.0,
+            "stage": "",
+            "t_end_ms": 3701140.0,
+            "unchanged_bytes": 4062,
+            "wall_ms": 15.0,
+            "write_ms": 14.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 5944,
+              "rejected_sources": 2,
+              "research_context": 35837,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 41789,
+            "caller": "execute",
+            "changed_bytes": 41781,
+            "changed_sections": [
+              "research_context",
+              "query_attempts"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.0,
+            "ordinal": 16,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "aecafd9c8a00a470",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "b39443b0cd044534",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3701156.0,
+            "unchanged_bytes": 8,
+            "wall_ms": 16.0,
+            "write_ms": 7.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 5944,
+              "rejected_sources": 2,
+              "research_context": 36937,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 42889,
+            "caller": "execute",
+            "changed_bytes": 36937,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 4.7,
+            "ordinal": 17,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "aecafd9c8a00a470",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "39b05673e7378deb",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3701171.0,
+            "unchanged_bytes": 5952,
+            "wall_ms": 15.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 5944,
+              "rejected_sources": 2,
+              "research_context": 41301,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 47253,
+            "caller": "execute",
+            "changed_bytes": 41301,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.9,
+            "ordinal": 18,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "aecafd9c8a00a470",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "f7404eaea86d8bbe",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 360.0,
+            "stage": "",
+            "t_end_ms": 3701531.0,
+            "unchanged_bytes": 5952,
+            "wall_ms": 16.0,
+            "write_ms": 7.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 42607,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 50468,
+            "caller": "execute",
+            "changed_bytes": 50460,
+            "changed_sections": [
+              "research_context",
+              "query_attempts"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.3,
+            "ordinal": 19,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "538a57ed6db064c7",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3701546.0,
+            "unchanged_bytes": 8,
+            "wall_ms": 15.0,
+            "write_ms": 5.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 43444,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 51305,
+            "caller": "execute",
+            "changed_bytes": 43444,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.2,
+            "ordinal": 20,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "d14aae324161cffe",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.3,
+            "since_previous_ms": 32.0,
+            "stage": "assessing",
+            "t_end_ms": 3701578.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 32.0,
+            "write_ms": 7.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 47136,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 54997,
+            "caller": "on_model_started",
+            "changed_bytes": 47136,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.1,
+            "ordinal": 21,
+            "phase": "assessment",
+            "prep_ms": 0.0,
+            "repo_call_ms": 31.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "ec85a5bb11968e7c",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 609.0,
+            "stage": "",
+            "t_end_ms": 3702187.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 31.0,
+            "write_ms": 14.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 51581,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 59442,
+            "caller": "execute",
+            "changed_bytes": 51581,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.1,
+            "ordinal": 22,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "f2b3e451e7e0ebe1",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 516.0,
+            "stage": "",
+            "t_end_ms": 3702703.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 16.0,
+            "write_ms": 13.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 52401,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 60262,
+            "caller": "execute",
+            "changed_bytes": 52401,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 9.0,
+            "ordinal": 23,
+            "phase": "ranking",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "b98ac6892fc4dbbf",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 31.0,
+            "stage": "assessing",
+            "t_end_ms": 3702734.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 31.0,
+            "write_ms": 7.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 53908,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 61769,
+            "caller": "execute",
+            "changed_bytes": 53908,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.1,
+            "ordinal": 24,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "6ca7d0abef70e820",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 31.0,
+            "stage": "reading",
+            "t_end_ms": 3702765.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 31.0,
+            "write_ms": 7.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 54967,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 62828,
+            "caller": "execute",
+            "changed_bytes": 54967,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.8,
+            "ordinal": 25,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "2c9d4b98160db3f7",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.4,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3702781.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 16.0,
+            "write_ms": 8.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 55628,
+              "selected_sources": 2,
+              "warnings": 2
+            },
+            "bytes_total": 63489,
+            "caller": "execute",
+            "changed_bytes": 55628,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.3,
+            "ordinal": 26,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "58f85ad6c5d2618c",
+              "selected_sources": "97d170e1550eee4a",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 812.0,
+            "stage": "",
+            "t_end_ms": 3703593.0,
+            "unchanged_bytes": 7861,
+            "wall_ms": 15.0,
+            "write_ms": 5.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 57032,
+              "selected_sources": 2653,
+              "warnings": 2
+            },
+            "bytes_total": 67544,
+            "caller": "execute",
+            "changed_bytes": 59685,
+            "changed_sections": [
+              "research_context",
+              "selected_sources"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.0,
+            "ordinal": 27,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "0f0af33ed2b3d9ee",
+              "selected_sources": "26de8d35d76f559e",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.5,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3703609.0,
+            "unchanged_bytes": 7859,
+            "wall_ms": 16.0,
+            "write_ms": 7.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 61168,
+              "selected_sources": 2653,
+              "warnings": 2
+            },
+            "bytes_total": 71680,
+            "caller": "execute",
+            "changed_bytes": 61168,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.7,
+            "ordinal": 28,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "0fcfbc14c89bedc7",
+              "selected_sources": "26de8d35d76f559e",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.5,
+            "since_previous_ms": 16.0,
+            "stage": "reading",
+            "t_end_ms": 3703625.0,
+            "unchanged_bytes": 10512,
+            "wall_ms": 16.0,
+            "write_ms": 7.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 2,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 63424,
+              "selected_sources": 2672,
+              "warnings": 2
+            },
+            "bytes_total": 73955,
+            "caller": "on_model_started",
+            "changed_bytes": 66096,
+            "changed_sections": [
+              "research_context",
+              "selected_sources"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.7,
+            "ordinal": 29,
+            "phase": "extraction",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "97d170e1550eee4a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "5693c93d477a870a",
+              "selected_sources": "8370b8434f66d749",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.5,
+            "since_previous_ms": 31.0,
+            "stage": "",
+            "t_end_ms": 3703656.0,
+            "unchanged_bytes": 7859,
+            "wall_ms": 16.0,
+            "write_ms": 7.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 65529,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 77196,
+            "caller": "execute",
+            "changed_bytes": 69339,
+            "changed_sections": [
+              "research_context",
+              "selected_sources",
+              "items"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.7,
+            "ordinal": 30,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "1a35a1a36062428d",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 734.0,
+            "stage": "",
+            "t_end_ms": 3704390.0,
+            "unchanged_bytes": 7857,
+            "wall_ms": 15.0,
+            "write_ms": 7.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 68259,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 79926,
+            "caller": "execute",
+            "changed_bytes": 68259,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.8,
+            "ordinal": 31,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "c878676929dff5e6",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.5,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3704406.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 16.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 69066,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 80733,
+            "caller": "execute",
+            "changed_bytes": 69066,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.0,
+            "ordinal": 32,
+            "phase": "gating",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "9038246bf7dc983e",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.5,
+            "since_previous_ms": 31.0,
+            "stage": "gating",
+            "t_end_ms": 3704437.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 31.0,
+            "write_ms": 7.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 72062,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 83729,
+            "caller": "execute",
+            "changed_bytes": 72062,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.0,
+            "ordinal": 33,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "c506c97ac0ebb321",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3704453.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 16.0,
+            "write_ms": 7.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 73478,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 85145,
+            "caller": "execute",
+            "changed_bytes": 73478,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 8.7,
+            "ordinal": 34,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "0a773276c81f6e0c",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3704468.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 15.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 74500,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 86167,
+            "caller": "record_research_window",
+            "changed_bytes": 74500,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.8,
+            "ordinal": 35,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "0ba8b5c64f083f6c",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3704484.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 16.0,
+            "write_ms": 7.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 75923,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 87590,
+            "caller": "settle_completed_wave",
+            "changed_bytes": 75923,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.8,
+            "ordinal": 36,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "24a5689319a61910",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3704500.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 16.0,
+            "write_ms": 7.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 77899,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 89566,
+            "caller": "execute",
+            "changed_bytes": 77899,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.2,
+            "ordinal": 37,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "338eb217cdebf109",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3704515.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 15.0,
+            "write_ms": 7.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 79038,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 90705,
+            "caller": "execute",
+            "changed_bytes": 79038,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.3,
+            "ordinal": 38,
+            "phase": "",
+            "prep_ms": 31.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "05992a92eaae8b53",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 47.0,
+            "stage": "searching",
+            "t_end_ms": 3704562.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 47.0,
+            "write_ms": 8.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 80147,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 91814,
+            "caller": "execute",
+            "changed_bytes": 80147,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 5.9,
+            "ordinal": 39,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "c1b1f9b47124e2c1",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.6,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3704578.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 16.0,
+            "write_ms": 8.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 7853,
+              "rejected_sources": 2,
+              "research_context": 84893,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 96560,
+            "caller": "execute",
+            "changed_bytes": 84893,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 5.9,
+            "ordinal": 40,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "f5f8d5fc5f23d2e1",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "9c703ac1a1e00872",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 343.0,
+            "stage": "",
+            "t_end_ms": 3704921.0,
+            "unchanged_bytes": 11667,
+            "wall_ms": 15.0,
+            "write_ms": 7.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 86136,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 99703,
+            "caller": "execute",
+            "changed_bytes": 95889,
+            "changed_sections": [
+              "research_context",
+              "query_attempts"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 44.7,
+            "ordinal": 41,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 47.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "26d183e191f89982",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 47.0,
+            "stage": "",
+            "t_end_ms": 3704968.0,
+            "unchanged_bytes": 3814,
+            "wall_ms": 47.0,
+            "write_ms": 8.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 86994,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 100561,
+            "caller": "execute",
+            "changed_bytes": 86994,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.9,
+            "ordinal": 42,
+            "phase": "",
+            "prep_ms": 32.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "624e28363aa7e503",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 47.0,
+            "stage": "assessing",
+            "t_end_ms": 3705015.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 47.0,
+            "write_ms": 8.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 90479,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 104046,
+            "caller": "on_model_started",
+            "changed_bytes": 90479,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.4,
+            "ordinal": 43,
+            "phase": "assessment",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "5c4e90802c6d9b85",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 656.0,
+            "stage": "",
+            "t_end_ms": 3705671.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 7.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 96445,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 110012,
+            "caller": "execute",
+            "changed_bytes": 96445,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 10.0,
+            "ordinal": 44,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "df98095e2443c7a4",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 3532.0,
+            "stage": "",
+            "t_end_ms": 3709203.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.4,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 97273,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 110840,
+            "caller": "execute",
+            "changed_bytes": 97273,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.9,
+            "ordinal": 45,
+            "phase": "ranking",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "712b3b7b0e3d3a9f",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 15.0,
+            "stage": "assessing",
+            "t_end_ms": 3709218.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 8.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 98293,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 111860,
+            "caller": "execute",
+            "changed_bytes": 98293,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 6.8,
+            "ordinal": 46,
+            "phase": "",
+            "prep_ms": 32.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "4613d002a4323002",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.0,
+            "since_previous_ms": 47.0,
+            "stage": "reading",
+            "t_end_ms": 3709265.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 47.0,
+            "write_ms": 8.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 99177,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 112744,
+            "caller": "execute",
+            "changed_bytes": 99177,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 9.2,
+            "ordinal": 47,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "e2cc199250a66e24",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 16.0,
+            "stage": "reading",
+            "t_end_ms": 3709281.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 6.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 99994,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 113561,
+            "caller": "execute",
+            "changed_bytes": 99994,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.7,
+            "ordinal": 48,
+            "phase": "gating",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "af68d63b74fd5081",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 31.0,
+            "stage": "gating",
+            "t_end_ms": 3709312.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 7.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 101023,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 114590,
+            "caller": "execute",
+            "changed_bytes": 101023,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 7.8,
+            "ordinal": 49,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "89c37c564bb45ee1",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.7,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3709328.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 7.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 102385,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 115952,
+            "caller": "execute",
+            "changed_bytes": 102385,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 8.4,
+            "ordinal": 50,
+            "phase": "",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "1be21739926de5a4",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 31.0,
+            "stage": "",
+            "t_end_ms": 3709359.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 8.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 103217,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 116784,
+            "caller": "record_research_window",
+            "changed_bytes": 103217,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 9.2,
+            "ordinal": 51,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "433e99e74c8f2fbd",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.1,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3709375.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 104590,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 118157,
+            "caller": "settle_completed_wave",
+            "changed_bytes": 104590,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 8.1,
+            "ordinal": 52,
+            "phase": "",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "edfbcc4c38add01e",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 2.0,
+            "since_previous_ms": 31.0,
+            "stage": "",
+            "t_end_ms": 3709406.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 10.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 105526,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 119093,
+            "caller": "execute",
+            "changed_bytes": 105526,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 8.1,
+            "ordinal": 53,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "32e9cb358e8c99ff",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.0,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3709421.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 106357,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 119924,
+            "caller": "execute",
+            "changed_bytes": 106357,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.9,
+            "ordinal": 54,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "c4be03ff1d631d01",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 32.0,
+            "stage": "searching",
+            "t_end_ms": 3709453.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 32.0,
+            "write_ms": 7.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 107198,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 120765,
+            "caller": "execute",
+            "changed_bytes": 107198,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.0,
+            "ordinal": 55,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "d672296a50ae235b",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 47.0,
+            "stage": "assessing",
+            "t_end_ms": 3709500.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 32.0,
+            "write_ms": 8.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 110447,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 124014,
+            "caller": "on_model_started",
+            "changed_bytes": 110447,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.2,
+            "ordinal": 56,
+            "phase": "assessment",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "6a3424fd20523091",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 640.0,
+            "stage": "",
+            "t_end_ms": 3710140.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 7.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 113321,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 126888,
+            "caller": "execute",
+            "changed_bytes": 113321,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.7,
+            "ordinal": 57,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "88ce2d1b91ff8108",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 625.0,
+            "stage": "",
+            "t_end_ms": 3710765.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 13.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 114150,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 127717,
+            "caller": "execute",
+            "changed_bytes": 114150,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.9,
+            "ordinal": 58,
+            "phase": "ranking",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "c8ab4c3f31695289",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 16.0,
+            "stage": "assessing",
+            "t_end_ms": 3710781.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 115302,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 128869,
+            "caller": "execute",
+            "changed_bytes": 115302,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.5,
+            "ordinal": 59,
+            "phase": "",
+            "prep_ms": 31.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "1951a3e40c684679",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 47.0,
+            "stage": "reading",
+            "t_end_ms": 3710828.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 47.0,
+            "write_ms": 7.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 116143,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 129710,
+            "caller": "execute",
+            "changed_bytes": 116143,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.7,
+            "ordinal": 60,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "750450c6ff944535",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 15.0,
+            "stage": "reading",
+            "t_end_ms": 3710843.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 9.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 116972,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 130539,
+            "caller": "execute",
+            "changed_bytes": 116972,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.3,
+            "ordinal": 61,
+            "phase": "gating",
+            "prep_ms": 32.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "34ae5703240517da",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 47.0,
+            "stage": "gating",
+            "t_end_ms": 3710890.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 47.0,
+            "write_ms": 5.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 117827,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 131394,
+            "caller": "execute",
+            "changed_bytes": 117827,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.2,
+            "ordinal": 62,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "db82987d5324d951",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3710906.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 119122,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 132689,
+            "caller": "execute",
+            "changed_bytes": 119122,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.8,
+            "ordinal": 63,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "63c2fc4edc152227",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3710921.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 7.7,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 119938,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 133505,
+            "caller": "record_research_window",
+            "changed_bytes": 119938,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 9.9,
+            "ordinal": 64,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "383ebf51d001f359",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3710937.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 9.0,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 121260,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 134827,
+            "caller": "settle_completed_wave",
+            "changed_bytes": 121260,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.9,
+            "ordinal": 65,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "d90fa6113e1eae94",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.2,
+            "since_previous_ms": 31.0,
+            "stage": "",
+            "t_end_ms": 3710968.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 8.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 122195,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 135762,
+            "caller": "execute",
+            "changed_bytes": 122195,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 9.3,
+            "ordinal": 66,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "6d1afcd5e59f1cd2",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.8,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3710984.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 123025,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 136592,
+            "caller": "execute",
+            "changed_bytes": 123025,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.0,
+            "ordinal": 67,
+            "phase": "",
+            "prep_ms": 16.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "3993c9c109a08bda",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.1,
+            "since_previous_ms": 31.0,
+            "stage": "searching",
+            "t_end_ms": 3711015.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 6.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 123855,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 137422,
+            "caller": "execute",
+            "changed_bytes": 123855,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.8,
+            "ordinal": 68,
+            "phase": "",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "ee6be81b1ad2889d",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.0,
+            "since_previous_ms": 47.0,
+            "stage": "assessing",
+            "t_end_ms": 3711062.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 6.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 125623,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 139190,
+            "caller": "execute",
+            "changed_bytes": 125623,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 6.8,
+            "ordinal": 69,
+            "phase": "ranking",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "6e63db67545e1117",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.0,
+            "since_previous_ms": 16.0,
+            "stage": "assessing",
+            "t_end_ms": 3711078.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 7.1,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 126774,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 140341,
+            "caller": "execute",
+            "changed_bytes": 126774,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 8.3,
+            "ordinal": 70,
+            "phase": "",
+            "prep_ms": 15.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "b863d3e125d6d8b8",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.4,
+            "since_previous_ms": 31.0,
+            "stage": "reading",
+            "t_end_ms": 3711109.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 31.0,
+            "write_ms": 7.6,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 127618,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 141185,
+            "caller": "execute",
+            "changed_bytes": 127618,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 7.1,
+            "ordinal": 71,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "03be980563282d84",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 31.0,
+            "stage": "reading",
+            "t_end_ms": 3711140.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 8.8,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 128449,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 142016,
+            "caller": "execute",
+            "changed_bytes": 128449,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.1,
+            "ordinal": 72,
+            "phase": "gating",
+            "prep_ms": 16.0,
+            "repo_call_ms": 31.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "4c6c4b354b4c81ff",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.1,
+            "since_previous_ms": 47.0,
+            "stage": "gating",
+            "t_end_ms": 3711187.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 47.0,
+            "write_ms": 7.5,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 129294,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 142861,
+            "caller": "execute",
+            "changed_bytes": 129294,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.2,
+            "load_ms": 8.9,
+            "ordinal": 73,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.3,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "88c9bf7469ada12b",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3711203.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 7.3,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 130588,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 144155,
+            "caller": "execute",
+            "changed_bytes": 130588,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 8.1,
+            "ordinal": 74,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "607f779f926adb52",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.1,
+            "since_previous_ms": 15.0,
+            "stage": "",
+            "t_end_ms": 3711218.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 7.9,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 131421,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 144988,
+            "caller": "record_research_window",
+            "changed_bytes": 131421,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.7,
+            "ordinal": 75,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 16.0,
+            "repo_other_ms": 0.2,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "e02bc077b0e874f2",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 1.0,
+            "since_previous_ms": 16.0,
+            "stage": "",
+            "t_end_ms": 3711234.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 16.0,
+            "write_ms": 8.2,
+            "write_targets": 1
+          },
+          {
+            "attempts": 1,
+            "bytes_by_section": {
+              "items": 144,
+              "query_attempts": 9753,
+              "rejected_sources": 2,
+              "research_context": 132687,
+              "selected_sources": 3666,
+              "warnings": 2
+            },
+            "bytes_total": 146254,
+            "caller": "settle_completed_wave",
+            "changed_bytes": 132687,
+            "changed_sections": [
+              "research_context"
+            ],
+            "conflicts": 0,
+            "files": 0,
+            "hash_ms": 0.1,
+            "load_ms": 7.7,
+            "ordinal": 76,
+            "phase": "",
+            "prep_ms": 0.0,
+            "repo_call_ms": 15.0,
+            "repo_other_ms": 0.1,
+            "section_hashes": {
+              "items": "04f7ef6cc048914a",
+              "query_attempts": "a413588bc4d91868",
+              "rejected_sources": "97d170e1550eee4a",
+              "research_context": "6543e172b26b6937",
+              "selected_sources": "8f135843e7ec8b64",
+              "warnings": "97d170e1550eee4a"
+            },
+            "serialize_ms": 0.9,
+            "since_previous_ms": 31.0,
+            "stage": "",
+            "t_end_ms": 3711265.0,
+            "unchanged_bytes": 13567,
+            "wall_ms": 15.0,
+            "write_ms": 8.7,
+            "write_targets": 1
+          }
+        ],
+        "cluster_count": 1,
+        "deeper_targeting": {
+          "gap_unavailable": 0,
+          "page_intent_counts": {
+            "limit_policy": 1
+          },
+          "recent": [
+            {
+              "followup_reason": "missing_target_fact",
+              "gap_hint": {
+                "anchors": [
+                  "20B+ pulls a month on Docker Hub"
+                ],
+                "caveat": "The excerpt mentions total Docker Hub pull volume but does not state any pull-rate limits for unauthenticated or authenticated Personal users.",
+                "locator": "20B+ pulls a month on Docker Hub",
+                "missing_fact_terms": [
+                  "pull-rate",
+                  "limits",
+                  "unauthenticated",
+                  "authenticated",
+                  "personal",
+                  "users"
+                ],
+                "relation": "lead",
+                "source_authority_class": "official",
+                "source_url": "https://www.docker.com/",
+                "targeting_strategy": "root_or_landing_page"
+              },
+              "page_intent": {
+                "kind": "limit_policy",
+                "matched_terms": [
+                  "limits",
+                  "pull-rate"
+                ],
+                "path_terms": [
+                  "limits",
+                  "rate-limit",
+                  "usage",
+                  "policy",
+                  "fair-use"
+                ]
+              },
+              "query_variants": [
+                "pull-rate limits apply unauthenticated authenticated personal users",
+                "pull-rate limits apply unauthenticated authenticated personal users rate-limit",
+                "pull-rate limits apply unauthenticated authenticated personal users docs"
+              ],
+              "selected_candidate_depth": 0,
+              "selected_candidate_url": "",
+              "selected_query_variant": "pull-rate limits apply unauthenticated authenticated personal users",
+              "selection_reason": "page_intent_match",
+              "source_authority_class": "official",
+              "source_candidate_url": "https://www.docker.com/",
+              "targeting_strategy": "root_or_landing_page"
+            }
+          ],
+          "strategy_counts": {
+            "root_or_landing_page": 1
+          }
+        },
+        "discovery_funnel": {
+          "assessed_answer_relevant": 0,
+          "by_discovery_method": {},
+          "extracted_supports": 0,
+          "gate_eligible": 0,
+          "proposed_candidates": 0,
+          "read": 0,
+          "rows": []
+        },
+        "domain_targeted": [
+          {
+            "added_candidate_ids": [],
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domains": [
+              "docs.docker.com"
+            ],
+            "dropped": [
+              {
+                "detail": "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+                "reason": "inventory_fetch_failed",
+                "url": "https://docs.docker.com/sitemap.xml"
+              },
+              {
+                "detail": "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+                "reason": "inventory_fetch_failed",
+                "url": "https://docs.docker.com/sitemap_index.xml"
+              }
+            ],
+            "links_found": [],
+            "rejected_targets": [],
+            "search_urls": [
+              "https://docs.docker.com/sitemap.xml",
+              "https://docs.docker.com/sitemap_index.xml"
+            ],
+            "stages": {
+              "candidate_admitted": 0,
+              "domain_proposed": 1,
+              "inventory_fetched": 2,
+              "links_ranked": 0,
+              "verification_attempted": 0,
+              "verification_succeeded": 0
+            },
+            "t_admitted_ms": null,
+            "t_proposal_ms": 18235.0,
+            "t_started_ms": 17704.0,
+            "targets": [
+              {
+                "accepted": true,
+                "host": "docs.docker.com",
+                "proposed_domain_role": "official",
+                "reject_reason": "",
+                "scope": "https://docs.docker.com/docker-hub/"
+              }
+            ],
+            "tier1_miss_reason": "no_answer_relevant_candidate",
+            "verification_reads": 0,
+            "verified": [],
+            "wave_index": 2
+          }
+        ],
+        "inventory_fetch": {
+          "admission_reasons": [
+            "allowed",
+            "allowed",
+            "allowed",
+            "allowed"
+          ],
+          "attempts": 6,
+          "fetches": 2,
+          "retries": 4,
+          "retry_backoff_ms": 2000.0,
+          "retry_fetch_ms": 281.0,
+          "retry_reasons": [
+            "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+            "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+            "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+            "URLError: <urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>"
+          ],
+          "skipped_due_to_budget": 0
+        },
+        "late_tail_invocations": [
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 0,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:1:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@1c2a9299980",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@1c2a9299980",
+            "wave_index": 1
+          },
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 1,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:2:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@1c2a9e37080",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@1c2a9e37080",
+            "wave_index": 2
+          },
+          {
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "domain_records": 1,
+            "invocation_id": "claim_4bbfa56e3fbe8612b74fa7d8:3:1",
+            "late_ids": 0,
+            "metrics_identity": "dict@1c2a9cda440",
+            "metrics_identity_changed": false,
+            "outcome": "no_late_ids",
+            "phase": "stored",
+            "store_metrics_identity": "dict@1c2a9cda440",
+            "wave_index": 3
+          }
+        ],
+        "lead_discovery": {
+          "deeper_targeting_root_or_landing_page": 1,
+          "evidence_lead_followup_started": 1,
+          "evidence_lead_no_deeper_url": 1,
+          "no_lead_candidate": 4
+        },
+        "open_critical_gap_count": 1,
+        "orchestration_model_calls": 4,
+        "orchestration_model_calls_by_purpose": {
+          "research_domain_proposal": 1,
+          "research_selection_authority": 3
+        },
+        "phase": "unavailable",
+        "phase_seconds": {
+          "assessment": {
+            "calls": 3,
+            "seconds": 1.875
+          },
+          "domain_targeted": {
+            "calls": 3,
+            "seconds": 2.812
+          },
+          "extraction": {
+            "calls": 1,
+            "seconds": 0.75
+          },
+          "gating": {
+            "calls": 4,
+            "seconds": 0.156
+          },
+          "late_tail": {
+            "calls": 3,
+            "seconds": 0.0
+          },
+          "ranking": {
+            "calls": 4,
+            "seconds": 0.078
+          },
+          "read": {
+            "calls": 1,
+            "seconds": 0.797
+          },
+          "search": {
+            "calls": 5,
+            "seconds": 11.734
+          },
+          "tier2_proposal": {
+            "calls": 3,
+            "seconds": 0.0
+          }
+        },
+        "read_count": 1,
+        "read_reserve": {
+          "configured": 3,
+          "hard_cap": 8,
+          "reads_used": 1,
+          "reclaim_reason": "no_open_conflicts",
+          "reclaimed": 3
+        },
+        "read_timing": [
+          {
+            "attempts": 1,
+            "attempts_detail": [],
+            "backoff_ms": 0.0,
+            "candidate_id": "candidate_c54944ac30ee3982",
+            "chars": 1922,
+            "error_signature": "",
+            "escalation_ms": 0.0,
+            "fetch_ms": 812.0,
+            "host": "www.docker.com",
+            "local_ms": 0.0,
+            "retries": 0,
+            "status": "success",
+            "wall_ms": 812.0,
+            "wave_index": 1
+          }
+        ],
+        "reads": [
+          {
+            "candidate_id": "candidate_c54944ac30ee3982",
+            "content_chars": 1922,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "research_window": {
+          "deadline_elapsed": 48.0,
+          "exhausted": false,
+          "hard_seconds": 60.0,
+          "remaining_after_research_seconds": 37.453,
+          "research_elapsed_seconds": 22.547,
+          "reserve_seconds": 12.0
+        },
+        "retrieval_attempt_seq": 1,
+        "search_discovery": {
+          "outcome": "observability_only",
+          "queries": [
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 78,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal",
+              "query_sha256": "dc6dd1c540f9294126aa4912a98d1f3c29250461e691ebd90551752f1f3c81d0",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+                  "title": "Docker: Accelerated Container Application Development",
+                  "url": "https://www.docker.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+                  "title": "Docker 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/docker/docker-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker Desktop is collaborative containerization software for developers. Get started and download Docker Desktop today on Mac, Windows, or Linux.",
+                  "title": "Docker Desktop: The #1 Containerization Tool for Developers | Docker",
+                  "url": "https://www.docker.com/products/docker-desktop/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+                  "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+                  "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+                  "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+                  "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+                }
+              ],
+              "slot_index": 1,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 92,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal official docs",
+              "query_sha256": "8065bef48459441780abb1b24b6d3eb515d50a24eb6e2246b6d34bcc0cd23242",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+                  "title": "Docker: Accelerated Container Application Development",
+                  "url": "https://www.docker.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+                  "title": "Docker 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/docker/docker-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker Desktop is collaborative containerization software for developers. Get started and download Docker Desktop today on Mac, Windows, or Linux.",
+                  "title": "Docker Desktop: The #1 Containerization Tool for Developers | Docker",
+                  "url": "https://www.docker.com/products/docker-desktop/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+                  "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+                  "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+                  "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+                  "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+                }
+              ],
+              "slot_index": 2,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 91,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal announcement",
+              "query_sha256": "f9c05c92cf9cfbc23208c8e00ca9e4ac1b6c9389a80595b658e480391236301f",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+                  "title": "Docker: Accelerated Container Application Development",
+                  "url": "https://www.docker.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+                  "title": "Docker 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/docker/docker-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker Desktop is collaborative containerization software for developers. Get started and download Docker Desktop today on Mac, Windows, or Linux.",
+                  "title": "Docker Desktop: The #1 Containerization Tool for Developers | Docker",
+                  "url": "https://www.docker.com/products/docker-desktop/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+                  "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+                  "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+                  "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+                  "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+                }
+              ],
+              "slot_index": 3,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 103,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal independent verification",
+              "query_sha256": "adfce575e61e11610ba1b0590f5a71c3d2a363444c09ab6fb7c3f00272168b63",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+                  "title": "Docker: Accelerated Container Application Development",
+                  "url": "https://www.docker.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+                  "title": "Docker 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/docker/docker-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker Desktop is collaborative containerization software for developers. Get started and download Docker Desktop today on Mac, Windows, or Linux.",
+                  "title": "Docker Desktop: The #1 Containerization Tool for Developers | Docker",
+                  "url": "https://www.docker.com/products/docker-desktop/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+                  "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+                  "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+                  "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+                  "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+                }
+              ],
+              "slot_index": 4,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+              "generated_query_variants": [
+                "pull-rate limits apply unauthenticated authenticated personal users",
+                "pull-rate limits apply unauthenticated authenticated personal users rate-limit",
+                "pull-rate limits apply unauthenticated authenticated personal users docs"
+              ],
+              "hint_terms": [
+                "pull-rate",
+                "limits"
+              ],
+              "page_intent": {
+                "kind": "limit_policy",
+                "matched_terms": [
+                  "limits",
+                  "pull-rate"
+                ],
+                "path_terms": [
+                  "limits",
+                  "rate-limit",
+                  "usage",
+                  "policy",
+                  "fair-use"
+                ]
+              },
+              "query_chars": 98,
+              "query_excerpt": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal site:www.docker.com",
+              "query_sha256": "23d8b4bde54f51829e689704f01cb128ef4c98cffa1afa6eda4a1214b9102434",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker is a platform designed to help developers build, share, and run container applications. We handle the tedious setup, so you can focus on the code.",
+                  "title": "Docker: Accelerated Container Application Development",
+                  "url": "https://www.docker.com/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker 教程 Docker 是一个开源的应用容器引擎，基于 Go 语言 并遵从 Apache2.0 协议开源。 Docker 可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的 Linux 机器上，也可以实现虚拟化。",
+                  "title": "Docker 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/docker/docker-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker Desktop is collaborative containerization software for developers. Get started and download Docker Desktop today on Mac, Windows, or Linux.",
+                  "title": "Docker Desktop: The #1 Containerization Tool for Developers | Docker",
+                  "url": "https://www.docker.com/products/docker-desktop/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Docker入门教程（非常详细）从零基础入门到精通，看完这一篇就够了一、Docker概述1.1 Docker 为什么出现？ 个人理解： 开发了一个项目 可以在本机运行 但是如果版本更新 可能就会导致服务不可使用 后期我们维护起…",
+                  "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+                  "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "本文提供Windows系统安装Docker的详细图文教程，适用于Win10/11专业版/企业版（家庭版需启用WSL2）。 主要内容包括：1) 检查系统版本和虚拟化支持；2) 下载安装Docker Desktop并配置WSL2（针对家庭版用户）；3) 验证安装和运行测试容器；4) 常见问题解决方案。",
+                  "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+                  "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+                }
+              ],
+              "slot_index": 5,
+              "variant_matches": [
+                0,
+                1,
+                2
+              ]
+            }
+          ],
+          "schema_version": "rq1c-search-discovery-v1"
+        },
+        "selection_authority": [
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 577,
+            "enabled": true,
+            "excluded_fingerprint": "da39a3ee5e6b4b0d",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://www.docker.com/",
+              "https://www.runoob.com/docker/docker-tutorial.html"
+            ],
+            "final_picks": [
+              "https://www.docker.com/",
+              "https://www.runoob.com/docker/docker-tutorial.html"
+            ],
+            "input_changed": true,
+            "input_chars": 2051,
+            "input_fingerprint": "3fd20764becac7ac",
+            "input_ids": [
+              "candidate_3c4e7b07f06e3143",
+              "candidate_46172c4dc176a514",
+              "candidate_a9ba7cbb94db2018",
+              "candidate_be1520ef8743bb91",
+              "candidate_c54944ac30ee3982"
+            ],
+            "input_set": [
+              "https://www.docker.com/",
+              "https://www.runoob.com/docker/docker-tutorial.html",
+              "https://www.docker.com/products/docker-desktop/",
+              "https://zhuanlan.zhihu.com/p/1892960016316748037",
+              "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+            ],
+            "input_size": 5,
+            "input_tokens": 663,
+            "local_residual_ms": 0,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "model_wait_ms": 577,
+            "new_candidate_count": 5,
+            "orchestration_model_call": 1,
+            "output_tokens": 43,
+            "previous_input_fingerprint": "",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 0,
+            "response_chars": 216,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 13485.0,
+            "t_started_ms": 13485.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 1,
+            "window_limit": 2
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 625,
+            "enabled": true,
+            "excluded_fingerprint": "18ebd58d1a0c6fca",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://www.docker.com/products/docker-desktop/",
+              "https://zhuanlan.zhihu.com/p/1892960016316748037"
+            ],
+            "final_picks": [
+              "https://www.docker.com/products/docker-desktop/",
+              "https://zhuanlan.zhihu.com/p/1892960016316748037"
+            ],
+            "input_changed": true,
+            "input_chars": 1545,
+            "input_fingerprint": "28255ac399ace521",
+            "input_ids": [
+              "candidate_3c4e7b07f06e3143",
+              "candidate_46172c4dc176a514",
+              "candidate_be1520ef8743bb91"
+            ],
+            "input_set": [
+              "https://www.docker.com/products/docker-desktop/",
+              "https://zhuanlan.zhihu.com/p/1892960016316748037",
+              "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+            ],
+            "input_size": 3,
+            "input_tokens": 498,
+            "local_residual_ms": 0,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "model_wait_ms": 625,
+            "new_candidate_count": 0,
+            "orchestration_model_call": 1,
+            "output_tokens": 41,
+            "previous_input_fingerprint": "3fd20764becac7ac",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 2,
+            "response_chars": 215,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 16969.0,
+            "t_started_ms": 16969.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 2,
+            "window_limit": 2
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 625,
+            "enabled": true,
+            "excluded_fingerprint": "5d6636ff347c4b14",
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+            ],
+            "final_picks": [
+              "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+            ],
+            "input_changed": true,
+            "input_chars": 1007,
+            "input_fingerprint": "e5a2a0f8a4535101",
+            "input_ids": [
+              "candidate_be1520ef8743bb91"
+            ],
+            "input_set": [
+              "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+            ],
+            "input_size": 1,
+            "input_tokens": 315,
+            "local_residual_ms": 0,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "model_wait_ms": 625,
+            "new_candidate_count": 0,
+            "orchestration_model_call": 1,
+            "output_tokens": 37,
+            "previous_input_fingerprint": "28255ac399ace521",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 2,
+            "response_chars": 188,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 21454.0,
+            "t_started_ms": 21454.0,
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 3,
+            "window_limit": 1
+          },
+          {
+            "assessment_state_changed": true,
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "",
+            "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+            "elapsed_ms": 0,
+            "enabled": true,
+            "excluded_fingerprint": "11e1bd0fd5543738",
+            "fallback_invoked": true,
+            "fallback_picks": [],
+            "final_picks": [],
+            "input_changed": true,
+            "input_chars": 0,
+            "input_fingerprint": "da39a3ee5e6b4b0d",
+            "input_ids": [],
+            "input_set": [],
+            "input_size": 0,
+            "input_tokens": null,
+            "local_residual_ms": 0,
+            "model": "",
+            "model_picks": [],
+            "model_wait_ms": 0,
+            "new_candidate_count": 0,
+            "orchestration_model_call": 0,
+            "output_tokens": null,
+            "previous_input_fingerprint": "e5a2a0f8a4535101",
+            "raw_pick_count": 0,
+            "removed_candidate_count": 1,
+            "response_chars": 0,
+            "selection_source": "legacy_fallback",
+            "t_ended_ms": 22391.0,
+            "t_started_ms": 22391.0,
+            "unusable_reason": "",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 4,
+            "window_limit": 0
+          }
+        ],
+        "selection_trace": {
+          "candidate_count": 5,
+          "entries": [
+            {
+              "candidate_pool_class": "candidate_cluster_1745d16bcdad18b4",
+              "canonical_url": "https://www.docker.com/",
+              "deduped_survivor": true,
+              "duplicate_merges": 4,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": ""
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_d52330e5d96907a9",
+              "canonical_url": "https://www.runoob.com/docker/docker-tutorial.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 4,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_1745d16bcdad18b4",
+              "canonical_url": "https://www.docker.com/products/docker-desktop/",
+              "deduped_survivor": true,
+              "duplicate_merges": 4,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded",
+                "scheduler_not_selected"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "rejected",
+              "scheduler_rank": 2,
+              "scheduler_reason": "covered_cluster",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_6f577824f2fb7c90",
+              "canonical_url": "https://zhuanlan.zhihu.com/p/1892960016316748037",
+              "deduped_survivor": true,
+              "duplicate_merges": 4,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 3,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_e75482c18fff4605",
+              "canonical_url": "https://blog.csdn.net/weixin_52286364/article/details/150379121",
+              "deduped_survivor": true,
+              "duplicate_merges": 4,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            }
+          ],
+          "schema_version": "research-selection-trace-v1",
+          "terminal_reasons": [
+            "not_materialized",
+            "canonical_duplicate",
+            "authority_or_policy_filter",
+            "candidate_pool_excluded",
+            "scheduler_not_selected",
+            "read_budget_exhausted",
+            "already_read",
+            "unsupported_url",
+            "other_observed_reason",
+            "unobserved"
+          ]
+        },
+        "timing_schema": "f2-wave-timeline-v1",
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": true,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 4
+          }
+        ],
+        "wave_timeline": [
+          {
+            "checkpoint_count": 30,
+            "checkpoint_ms": 563.0,
+            "covered_ms": 13562.0,
+            "duration_ms": 14594.0,
+            "model_calls": {
+              "selector": 1
+            },
+            "model_wait_max_ms": {
+              "selector": 578.0
+            },
+            "model_wait_ms": {
+              "selector": 578.0
+            },
+            "refresh_steering_count": 0,
+            "refresh_steering_ms": 0.0,
+            "retry_count": 0,
+            "retry_fetch_ms": 0.0,
+            "retry_wait_ms": 0.0,
+            "spans_ms": {
+              "assessment": 531.0,
+              "domain_targeted": 0.0,
+              "extraction": 750.0,
+              "gating": 31.0,
+              "late_tail": 0.0,
+              "ranking": 31.0,
+              "read": 797.0,
+              "search": 11422.0,
+              "tier2_proposal": 0.0
+            },
+            "t_end_ms": 15813.0,
+            "t_start_ms": 1219.0,
+            "unattributed_ms": 1032.0,
+            "wave_index": 1
+          },
+          {
+            "checkpoint_count": 15,
+            "checkpoint_ms": 390.0,
+            "covered_ms": 3905.0,
+            "duration_ms": 4875.0,
+            "model_calls": {
+              "other": 1,
+              "selector": 1
+            },
+            "model_wait_max_ms": {
+              "other": 531.0,
+              "selector": 625.0
+            },
+            "model_wait_ms": {
+              "other": 531.0,
+              "selector": 625.0
+            },
+            "refresh_steering_count": 0,
+            "refresh_steering_ms": 0.0,
+            "retry_count": 0,
+            "retry_fetch_ms": 0.0,
+            "retry_wait_ms": 0.0,
+            "spans_ms": {
+              "assessment": 735.0,
+              "domain_targeted": 2812.0,
+              "gating": 31.0,
+              "late_tail": 0.0,
+              "ranking": 15.0,
+              "search": 312.0,
+              "tier2_proposal": 0.0
+            },
+            "t_end_ms": 20704.0,
+            "t_start_ms": 15829.0,
+            "unattributed_ms": 970.0,
+            "wave_index": 2
+          },
+          {
+            "checkpoint_count": 12,
+            "checkpoint_ms": 281.0,
+            "covered_ms": 672.0,
+            "duration_ms": 1531.0,
+            "model_calls": {
+              "selector": 1
+            },
+            "model_wait_max_ms": {
+              "selector": 625.0
+            },
+            "model_wait_ms": {
+              "selector": 625.0
+            },
+            "refresh_steering_count": 0,
+            "refresh_steering_ms": 0.0,
+            "retry_count": 0,
+            "retry_fetch_ms": 0.0,
+            "retry_wait_ms": 0.0,
+            "spans_ms": {
+              "assessment": 609.0,
+              "domain_targeted": 0.0,
+              "gating": 47.0,
+              "late_tail": 0.0,
+              "ranking": 16.0,
+              "tier2_proposal": 0.0
+            },
+            "t_end_ms": 22266.0,
+            "t_start_ms": 20735.0,
+            "unattributed_ms": 859.0,
+            "wave_index": 3
+          },
+          {
+            "checkpoint_count": 10,
+            "checkpoint_ms": 234.0,
+            "covered_ms": 63.0,
+            "duration_ms": 266.0,
+            "model_calls": {},
+            "model_wait_max_ms": {},
+            "model_wait_ms": {},
+            "refresh_steering_count": 0,
+            "refresh_steering_ms": 0.0,
+            "retry_count": 0,
+            "retry_fetch_ms": 0.0,
+            "retry_wait_ms": 0.0,
+            "spans_ms": {
+              "gating": 47.0,
+              "ranking": 16.0
+            },
+            "t_end_ms": 22563.0,
+            "t_start_ms": 22297.0,
+            "unattributed_ms": 203.0,
+            "wave_index": 4
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 1,
+          "rejected": 4
+        },
+        "relevance": {
+          "topic_only": 1,
+          "off_target": 4
+        },
+        "source_role": {
+          "primary": 1,
+          "aggregator": 2,
+          "community": 1,
+          "independent_secondary": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      }
+    }
+  ],
+  "summary": {
+    "selection_authority_records": 4,
+    "selector_completed_calls": 0,
+    "fallback_records": 0,
+    "targets_in_selector_input": [],
+    "reads": 1,
+    "gate_status": "block",
+    "answer_status": "available"
+  },
+  "claims": [
+    {
+      "id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "text": "what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "kind": "factual",
+      "priority": "critical",
+      "state": "unresolved",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:official_statement",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 1,
+        "requires_dated_evidence": false,
+        "requires_primary_source": true,
+        "requires_successful_read": true,
+        "source_roles": [
+          "primary"
+        ]
+      }
+    }
+  ],
+  "source_reads": [
+    {
+      "candidate_id": "candidate_c54944ac30ee3982",
+      "url": "https://www.docker.com/",
+      "title": "Docker: Accelerated Container Application Development",
+      "source_role": "primary",
+      "cluster_id": "candidate_cluster_1745d16bcdad18b4",
+      "owner_claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "published_at": "",
+      "read_status": "read",
+      "content_chars": 1922,
+      "content_sha256": "603bc2e630aa6fbf2f24ffb8890467f63cf4b12812db0de28464946f96c63a7a",
+      "content": "Docker Sandboxes MicroVM isolation for every agent session. Network and filesystem locked down at the runtime. Docker AI Governance One console for sandbox and MCP policy. Identity-bound audit logs. Zero per-machine setup. Docker Hardened Images Minimal, signed, continuously patched images and MCP servers. SLSA Level 3. Audit-ready by default. Invisible to developers. Total control for security. The runtime under every agent Same guarantees. Same stack. Isolation you can trust Containers proved isolation is the foundation of safe execution. microVMs extends that trust to every agent. Secure by default. Scoped by design. Nothing to rip and replace Your images, registries, and CI already power your AI stack. No new ecosystem. No migration. The trust chain extends to agents on the same rails. Start local. Scale anywhere. Agents start where developers work, on the laptop. Docker has always been that environment. Now it's purpose-built for what runs on it. No lock-in. Ever. Built on open standards from day one. OCI-compliant, platform-independent. That’s not changing for agents. Unlock the Autonomy of Agents, Safely Lower cost through trusted autonomy. Autonomy only saves money when agents can be trusted to act alone. Built-in isolation, signed components, and runtime policy mean agents do the work, and you don't pay for the cleanup. Ship faster. Without the breach. Every engineer can run agents and Claude at full speed, without the business inheriting the risk. Output goes up. Audit gaps go to zero. Engineering focuses on product, not plumbing. Compliant by default. Identity-bound audit. Policy enforced at every step, with every action signed and documented. Evidence your auditors will actually appreciate. From the company that secured the developer laptop for the enterprise. 91% of the Fortune 100 already run on Docker 20B+ pulls a month on Docker Hub 20M+ developers build on Docker every day",
+      "extractions": {
+        "claim_4bbfa56e3fbe8612b74fa7d8": {
+          "status": "eligible",
+          "reason": "",
+          "relation": "lead",
+          "source_cluster_id": "candidate_cluster_1745d16bcdad18b4"
+        }
+      },
+      "read_retry": {}
+    }
+  ]
+}

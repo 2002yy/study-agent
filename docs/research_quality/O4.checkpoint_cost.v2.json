@@ -1,0 +1,239 @@
+{
+  "schema": "f2-o4a-checkpoint-cost-v1",
+  "artifacts": [
+    "O4.docker.c.json",
+    "O4.docker.d.json",
+    "O4.node.c.json",
+    "O4.node.d.json"
+  ],
+  "skipped": [],
+  "runs": [
+    {
+      "artifact": "O4.docker.c.json",
+      "checkpoints": 76,
+      "wall_total_ms": 3560.0,
+      "wall_mean_ms": 46.8,
+      "wall_median_ms": 16.0,
+      "wall_max_ms": 1141.0,
+      "serialize_total_ms": 46.8,
+      "write_total_ms": 2139.0,
+      "bytes_total": 6567483,
+      "bytes_mean": 86414,
+      "changed_bytes_total": 5842913,
+      "unchanged_bytes_total": 724570,
+      "fully_repeated": 0,
+      "partially_repeated": 75,
+      "conflicts": 0,
+      "share_of_run": 0.114,
+      "unattributed_ms": 5360.0,
+      "share_of_unattributed": 0.664
+    },
+    {
+      "artifact": "O4.docker.d.json",
+      "checkpoints": 76,
+      "wall_total_ms": 1608.0,
+      "wall_mean_ms": 21.2,
+      "wall_median_ms": 16.0,
+      "wall_max_ms": 47.0,
+      "serialize_total_ms": 49.2,
+      "write_total_ms": 603.0,
+      "bytes_total": 6564583,
+      "bytes_mean": 86376,
+      "changed_bytes_total": 5855646,
+      "unchanged_bytes_total": 708937,
+      "fully_repeated": 0,
+      "partially_repeated": 75,
+      "conflicts": 0,
+      "share_of_run": 0.057,
+      "unattributed_ms": 3064.0,
+      "share_of_unattributed": 0.525
+    },
+    {
+      "artifact": "O4.node.c.json",
+      "checkpoints": 90,
+      "wall_total_ms": 1889.0,
+      "wall_mean_ms": 21.0,
+      "wall_median_ms": 16.0,
+      "wall_max_ms": 47.0,
+      "serialize_total_ms": 87.8,
+      "write_total_ms": 824.3,
+      "bytes_total": 11312516,
+      "bytes_mean": 125694,
+      "changed_bytes_total": 9815096,
+      "unchanged_bytes_total": 1497420,
+      "fully_repeated": 0,
+      "partially_repeated": 89,
+      "conflicts": 0,
+      "share_of_run": 0.034,
+      "unattributed_ms": 4668.0,
+      "share_of_unattributed": 0.405
+    },
+    {
+      "artifact": "O4.node.d.json",
+      "checkpoints": 85,
+      "wall_total_ms": 1763.0,
+      "wall_mean_ms": 20.7,
+      "wall_median_ms": 16.0,
+      "wall_max_ms": 62.0,
+      "serialize_total_ms": 78.5,
+      "write_total_ms": 717.4,
+      "bytes_total": 10142030,
+      "bytes_mean": 119318,
+      "changed_bytes_total": 8771657,
+      "unchanged_bytes_total": 1370373,
+      "fully_repeated": 0,
+      "partially_repeated": 84,
+      "conflicts": 0,
+      "share_of_run": 0.031,
+      "unattributed_ms": 4545.0,
+      "share_of_unattributed": 0.388
+    }
+  ],
+  "analysis": {
+    "checkpoints": 327,
+    "wall_ms": {
+      "mean": 27.0,
+      "median": 16.0,
+      "stdev": 73.9,
+      "min": 0.0,
+      "max": 1141.0,
+      "total": 8820.0
+    },
+    "serialize_ms": {
+      "mean": 0.8,
+      "median": 0.8,
+      "total": 262.3
+    },
+    "write_ms": {
+      "mean": 13.1,
+      "median": 7.8,
+      "total": 4283.7,
+      "max": 848.1,
+      "p90": 9.7,
+      "p99": 16.0,
+      "over_50ms": 2,
+      "over_50ms_share_of_write": 0.366,
+      "top_1pct_share_of_write": 0.369
+    },
+    "hash_ms_total": 39.3,
+    "share_of_wall": {
+      "serialize": 0.03,
+      "write": 0.486,
+      "load": 0.329,
+      "repo_other": 0.005,
+      "prep": 0.142,
+      "instrumentation": 0.004
+    },
+    "decomposition_ms": {
+      "total_wall": 8820.0,
+      "prep_total": 1252.0,
+      "repo_total": 7568.0,
+      "load_total": 2902.8,
+      "serialize_total": 262.3,
+      "write_total": 4283.7,
+      "repo_other_total": 48.0
+    },
+    "bytes": {
+      "mean": 105769.5,
+      "median": 108984.0,
+      "max": 236523.0,
+      "total": 34586612
+    },
+    "changed_vs_previous": {
+      "changed_bytes_total": 30285312,
+      "unchanged_bytes_total": 4301300,
+      "unchanged_share": 0.124,
+      "fully_repeated_checkpoints": 0,
+      "fully_repeated_share": 0.0
+    },
+    "gaps_ms": {
+      "mean": 373.4,
+      "median": 31.0,
+      "min": 0.0,
+      "p10": 15.0
+    },
+    "correlations": {
+      "wall~bytes": -0.057,
+      "wall~serialize": -0.047,
+      "wall~write": 0.975,
+      "serialize~bytes": 0.947,
+      "write~bytes": -0.097
+    },
+    "by_caller": {
+      "execute": {
+        "n": 272,
+        "wall_mean": 28.8,
+        "wall_total": 7822.0,
+        "unchanged_share": 0.123
+      },
+      "on_model_started": {
+        "n": 31,
+        "wall_mean": 17.6,
+        "wall_total": 546.0,
+        "unchanged_share": 0.131
+      },
+      "record_research_window": {
+        "n": 12,
+        "wall_mean": 19.5,
+        "wall_total": 234.0,
+        "unchanged_share": 0.132
+      },
+      "settle_completed_wave": {
+        "n": 12,
+        "wall_mean": 18.2,
+        "wall_total": 218.0,
+        "unchanged_share": 0.131
+      }
+    },
+    "by_phase": {
+      "(none)": {
+        "n": 276,
+        "wall_mean": 27.3,
+        "wall_total": 7525.0,
+        "unchanged_share": 0.123
+      },
+      "assessment": {
+        "n": 16,
+        "wall_mean": 19.3,
+        "wall_total": 309.0,
+        "unchanged_share": 0.15
+      },
+      "ranking": {
+        "n": 12,
+        "wall_mean": 23.4,
+        "wall_total": 281.0,
+        "unchanged_share": 0.126
+      },
+      "gating": {
+        "n": 12,
+        "wall_mean": 40.3,
+        "wall_total": 484.0,
+        "unchanged_share": 0.137
+      },
+      "extraction": {
+        "n": 11,
+        "wall_mean": 20.1,
+        "wall_total": 221.0,
+        "unchanged_share": 0.111
+      }
+    }
+  },
+  "verdict": {
+    "call": "small_and_not_clearly_redundant",
+    "write_jitter": true,
+    "write_ms_median": 7.8,
+    "write_ms_max": 848.1,
+    "write_ms_p99": 16.0,
+    "over_50ms": 2,
+    "over_50ms_share_of_write": 0.366,
+    "top_1pct_share_of_write": 0.369,
+    "serialize_share_of_wall": 0.03,
+    "write_share_of_wall": 0.486,
+    "instrumentation_share_of_wall": 0.004,
+    "wall~bytes": -0.057,
+    "unchanged_bytes_share": 0.124,
+    "fully_repeated_checkpoint_share": 0.0,
+    "median_gap_ms": 31.0,
+    "p10_gap_ms": 15.0
+  }
+}

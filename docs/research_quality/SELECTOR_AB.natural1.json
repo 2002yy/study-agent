@@ -1,0 +1,54 @@
+{
+  "schema_version": "selector-ab-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "source_probe": "None",
+  "generated_at": "2026-09-19T11:45:48.232368+00:00",
+  "pools": [
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "pool_source": "natural",
+      "pool_class": "A_recovery",
+      "pool_size": 10,
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "legacy_picks": [
+        "https://nodejs.org/",
+        "https://node.org.cn/"
+      ],
+      "hybrid_picks": [
+        "https://nodejs.org/",
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "hybrid_source": "model",
+      "hybrid_reason": "",
+      "legacy_hit": false,
+      "hybrid_hit": true,
+      "replacement_loss": false,
+      "target_read_legacy": "",
+      "target_read_hybrid": "ok",
+      "selector_calls": 1,
+      "outcome": "win"
+    }
+  ],
+  "summary": {
+    "pools": 1,
+    "pool_classes": {
+      "A_recovery": 1,
+      "B_preservation": 0
+    },
+    "conditional_target_selection_rate_legacy": 0.0,
+    "conditional_target_selection_rate_hybrid": 1.0,
+    "legacy_target_hits": 0,
+    "hybrid_target_hits": 1,
+    "wins": 1,
+    "ties": 0,
+    "losses": 0,
+    "replacement_losses": 0,
+    "selector_caused_losses": 0,
+    "orchestration_model_calls": 1,
+    "incremental_target_reads": 1,
+    "incremental_target_reads_per_selector_call": 1.0
+  }
+}

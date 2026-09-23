@@ -1,0 +1,390 @@
+{
+ "schema_version": "wigolo-shadow-bakeoff-v1",
+ "diagnostic_only": true,
+ "qualification_evidence": false,
+ "generated_at": "2026-09-20T18:48:18Z",
+ "pass": "cold",
+ "base_url": "http://127.0.0.1:3333",
+ "rows": [
+  {
+   "url": "https://docs.docker.com/docker-hub/usage/pulls/",
+   "request_url": "https://docs.docker.com/docker-hub/usage/pulls/?shadowcb=20260921024456",
+   "class": "A_known_thin",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 2672.0,
+    "ok": true,
+    "chars": 520,
+    "html_chars": 349998,
+    "classification": "short_doc",
+    "method": "local_fallback_parser",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 281.0,
+    "chars": 0,
+    "bytes": 0,
+    "retrieval_mode": "unknown",
+    "rendered": null,
+    "cache_hit": null,
+    "classification": "short_doc",
+    "heading_recall": 0.0,
+    "failure_state": "http_error",
+    "http_status": null
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": true,
+    "wigolo_failed": true,
+    "useful_char_gain": 0,
+    "added_latency_ms": -2391.0
+   }
+  },
+  {
+   "url": "https://docs.docker.com/",
+   "request_url": "https://docs.docker.com/?shadowcb=20260921024456",
+   "class": "A_known_thin",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 1782.0,
+    "ok": true,
+    "chars": 2048,
+    "html_chars": 187069,
+    "classification": "ok",
+    "method": "local_trafilatura",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 1031.0,
+    "chars": 3020,
+    "bytes": 3020,
+    "retrieval_mode": "http",
+    "rendered": false,
+    "cache_hit": false,
+    "classification": "ok",
+    "heading_recall": 0.5,
+    "failure_state": "",
+    "http_status": 200
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": false,
+    "wigolo_failed": false,
+    "useful_char_gain": 972,
+    "added_latency_ms": -751.0
+   }
+  },
+  {
+   "url": "https://hub.docker.com/",
+   "request_url": "https://hub.docker.com/?shadowcb=20260921024456",
+   "class": "B_js_heavy",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 44047.0,
+    "ok": false,
+    "chars": 0,
+    "html_chars": 0,
+    "classification": "fetch_failed",
+    "method": "",
+    "error": "exception:URLError:<urlopen error timed out>",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 38781.0,
+    "chars": 5030,
+    "bytes": 5038,
+    "retrieval_mode": "browser",
+    "rendered": true,
+    "cache_hit": false,
+    "classification": "ok",
+    "heading_recall": 1.0,
+    "failure_state": "",
+    "http_status": 200
+   },
+   "delta": {
+    "adequacy_rescued": true,
+    "current_failed": true,
+    "wigolo_failed": false,
+    "useful_char_gain": 5030,
+    "added_latency_ms": -5266.0
+   }
+  },
+  {
+   "url": "https://docs.docker.com/search/?q=pull+rate+limits",
+   "request_url": "https://docs.docker.com/search/?q=pull+rate+limits&shadowcb=20260921024456",
+   "class": "B_js_heavy",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 1297.0,
+    "ok": false,
+    "chars": 0,
+    "html_chars": 0,
+    "classification": "fetch_failed",
+    "method": "",
+    "error": "exception:URLError:<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 47.0,
+    "chars": 0,
+    "bytes": 0,
+    "retrieval_mode": "unknown",
+    "rendered": null,
+    "cache_hit": null,
+    "classification": "short_doc",
+    "heading_recall": 0.0,
+    "failure_state": "http_error",
+    "http_status": null
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": true,
+    "wigolo_failed": true,
+    "useful_char_gain": 0,
+    "added_latency_ms": -1250.0
+   }
+  },
+  {
+   "url": "https://nodejs.org/api/modules.html",
+   "request_url": "https://nodejs.org/api/modules.html?shadowcb=20260921024456",
+   "class": "C_already_pass",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 2109.0,
+    "ok": true,
+    "chars": 6000,
+    "html_chars": 161237,
+    "classification": "ok",
+    "method": "local_trafilatura",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 1125.0,
+    "chars": 20000,
+    "bytes": 20000,
+    "retrieval_mode": "http",
+    "rendered": false,
+    "cache_hit": false,
+    "classification": "ok",
+    "heading_recall": 1.0,
+    "failure_state": "",
+    "http_status": 200
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": false,
+    "wigolo_failed": false,
+    "useful_char_gain": 14000,
+    "added_latency_ms": -984.0
+   }
+  },
+  {
+   "url": "https://www.postgresql.org/support/versioning/",
+   "request_url": "https://www.postgresql.org/support/versioning/?shadowcb=20260921024456",
+   "class": "C_already_pass",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 1703.0,
+    "ok": true,
+    "chars": 2384,
+    "html_chars": 12737,
+    "classification": "ok",
+    "method": "local_trafilatura",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 922.0,
+    "chars": 4782,
+    "bytes": 4782,
+    "retrieval_mode": "http",
+    "rendered": false,
+    "cache_hit": false,
+    "classification": "ok",
+    "heading_recall": 1.0,
+    "failure_state": "",
+    "http_status": 200
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": false,
+    "wigolo_failed": false,
+    "useful_char_gain": 2398,
+    "added_latency_ms": -781.0
+   }
+  },
+  {
+   "url": "https://redis.io/docs/latest/",
+   "request_url": "https://redis.io/docs/latest/?shadowcb=20260921024456",
+   "class": "C_already_pass",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 1828.0,
+    "ok": true,
+    "chars": 1318,
+    "html_chars": 119457,
+    "classification": "ok",
+    "method": "local_trafilatura",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 1344.0,
+    "chars": 4048,
+    "bytes": 4098,
+    "retrieval_mode": "http",
+    "rendered": false,
+    "cache_hit": false,
+    "classification": "ok",
+    "heading_recall": 1.0,
+    "failure_state": "",
+    "http_status": 200
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": false,
+    "wigolo_failed": false,
+    "useful_char_gain": 2730,
+    "added_latency_ms": -484.0
+   }
+  },
+  {
+   "url": "https://github.com/astral-sh/uv",
+   "request_url": "https://github.com/astral-sh/uv?shadowcb=20260921024456",
+   "class": "D_spa_shell",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 14875.0,
+    "ok": true,
+    "chars": 0,
+    "html_chars": 0,
+    "classification": "short_doc",
+    "method": "",
+    "error": "",
+    "heading_recall": 0.0
+   },
+   "wigolo": {
+    "latency_ms": 32141.0,
+    "chars": 0,
+    "bytes": 0,
+    "retrieval_mode": "unknown",
+    "rendered": null,
+    "cache_hit": null,
+    "classification": "short_doc",
+    "heading_recall": 0.0,
+    "failure_state": "http_error",
+    "http_status": null
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": true,
+    "wigolo_failed": true,
+    "useful_char_gain": 0,
+    "added_latency_ms": 17266.0
+   }
+  },
+  {
+   "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+   "request_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf?shadowcb=20260921024456",
+   "class": "E_complex_body",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 1000.0,
+    "ok": false,
+    "chars": 0,
+    "html_chars": 0,
+    "classification": "fetch_failed",
+    "method": "",
+    "error": "non_html_resource",
+    "heading_recall": null
+   },
+   "wigolo": {
+    "latency_ms": 562.0,
+    "chars": 59,
+    "bytes": 59,
+    "retrieval_mode": "http",
+    "rendered": false,
+    "cache_hit": false,
+    "classification": "anti_bot_or_error",
+    "heading_recall": null,
+    "failure_state": "",
+    "http_status": 403
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": true,
+    "wigolo_failed": true,
+    "useful_char_gain": 59,
+    "added_latency_ms": -438.0
+   }
+  },
+  {
+   "url": "https://github.com/sitemap.xml",
+   "request_url": "https://github.com/sitemap.xml?shadowcb=20260921024456",
+   "class": "F_blocked",
+   "pass": "cold",
+   "cache_busted": true,
+   "current": {
+    "latency_ms": 22000.0,
+    "ok": false,
+    "chars": 0,
+    "html_chars": 0,
+    "classification": "fetch_failed",
+    "method": "",
+    "error": "exception:URLError:<urlopen error timed out>",
+    "heading_recall": null
+   },
+   "wigolo": {
+    "latency_ms": 32188.0,
+    "chars": 0,
+    "bytes": 0,
+    "retrieval_mode": "unknown",
+    "rendered": null,
+    "cache_hit": null,
+    "classification": "short_doc",
+    "heading_recall": null,
+    "failure_state": "http_error",
+    "http_status": null
+   },
+   "delta": {
+    "adequacy_rescued": false,
+    "current_failed": true,
+    "wigolo_failed": true,
+    "useful_char_gain": 0,
+    "added_latency_ms": 10188.0
+   }
+  }
+ ],
+ "summary": {
+  "pass": "cold",
+  "urls": 10,
+  "current_failed": 6,
+  "rescued": 1,
+  "rescue_rate": 0.167,
+  "already_adequate": 4,
+  "false_escalation_value": 4,
+  "added_latency_ms_median_all": -751.0,
+  "added_latency_ms_median_rescued": -5266.0,
+  "wigolo_failure_states": [
+   "http_error"
+  ],
+  "wigolo_cache_hits": 0,
+  "wigolo_modes": [
+   "browser",
+   "http",
+   "unknown"
+  ]
+ }
+}

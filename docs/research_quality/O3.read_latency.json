@@ -1,0 +1,329 @@
+{
+  "schema": "f2-o3a-read-latency-v1",
+  "artifacts": [
+    "O3.docker.a.json",
+    "O3.docker.b.json",
+    "O3.docker.c.json",
+    "O3.docker.d.json",
+    "O3.node.a.json",
+    "O3.node.b.json",
+    "O3.read_latency.json",
+    "O3.uv.a.json",
+    "O3.uv.b.json"
+  ],
+  "skipped": [
+    "O3.read_latency.json",
+    "O3.uv.a.json",
+    "O3.uv.b.json"
+  ],
+  "runs": [
+    {
+      "artifact": "O3.docker.a.json",
+      "reads": 1,
+      "attempts": 3,
+      "success": 0,
+      "wall_total_ms": 1594.0,
+      "fetch_total_ms": 531.0,
+      "local_total_ms": 63.0,
+      "retry_fetch_total_ms": 531.0,
+      "fetch_mean_ms": 531.0,
+      "fetch_median_ms": 531.0,
+      "fetch_max_ms": 531.0,
+      "wall_max_ms": 1594.0,
+      "local_max_ms": 63.0
+    },
+    {
+      "artifact": "O3.docker.b.json",
+      "reads": 1,
+      "attempts": 2,
+      "success": 1,
+      "wall_total_ms": 2547.0,
+      "fetch_total_ms": 1531.0,
+      "local_total_ms": 16.0,
+      "retry_fetch_total_ms": 1531.0,
+      "fetch_mean_ms": 1531.0,
+      "fetch_median_ms": 1531.0,
+      "fetch_max_ms": 1531.0,
+      "wall_max_ms": 2547.0,
+      "local_max_ms": 16.0
+    },
+    {
+      "artifact": "O3.docker.c.json",
+      "reads": 3,
+      "attempts": 5,
+      "success": 1,
+      "wall_total_ms": 1531.0,
+      "fetch_total_ms": 469.0,
+      "local_total_ms": 62.0,
+      "retry_fetch_total_ms": 235.0,
+      "fetch_mean_ms": 156.3,
+      "fetch_median_ms": 125.0,
+      "fetch_max_ms": 235.0,
+      "wall_max_ms": 1281.0,
+      "local_max_ms": 46.0
+    },
+    {
+      "artifact": "O3.docker.d.json",
+      "reads": 2,
+      "attempts": 4,
+      "success": 2,
+      "wall_total_ms": 2344.0,
+      "fetch_total_ms": 1313.0,
+      "local_total_ms": 31.0,
+      "retry_fetch_total_ms": 1282.0,
+      "fetch_mean_ms": 656.5,
+      "fetch_median_ms": 656.5,
+      "fetch_max_ms": 1282.0,
+      "wall_max_ms": 2313.0,
+      "local_max_ms": 31.0
+    },
+    {
+      "artifact": "O3.node.a.json",
+      "reads": 5,
+      "attempts": 5,
+      "success": 4,
+      "wall_total_ms": 5953.0,
+      "fetch_total_ms": 5953.0,
+      "local_total_ms": 0.0,
+      "retry_fetch_total_ms": 0,
+      "fetch_mean_ms": 1190.6,
+      "fetch_median_ms": 656.0,
+      "fetch_max_ms": 3672.0,
+      "wall_max_ms": 3672.0,
+      "local_max_ms": 0.0
+    },
+    {
+      "artifact": "O3.node.b.json",
+      "reads": 7,
+      "attempts": 7,
+      "success": 6,
+      "wall_total_ms": 6626.0,
+      "fetch_total_ms": 6626.0,
+      "local_total_ms": 0.0,
+      "retry_fetch_total_ms": 0,
+      "fetch_mean_ms": 946.6,
+      "fetch_median_ms": 547.0,
+      "fetch_max_ms": 3750.0,
+      "wall_max_ms": 3750.0,
+      "local_max_ms": 0.0
+    }
+  ],
+  "analysis": {
+    "calls": 19,
+    "wall_ms": {
+      "mean": 1083.9,
+      "median": 578.0,
+      "stdev": 1166.4,
+      "min": 31.0,
+      "max": 3750.0,
+      "total": 20595.0
+    },
+    "fetch_ms": {
+      "mean": 864.4,
+      "median": 532.0,
+      "stdev": 1078.0,
+      "min": 31.0,
+      "max": 3750.0,
+      "total": 16423.0
+    },
+    "local_ms": {
+      "mean": 9.1,
+      "median": 0.0,
+      "stdev": 18.3,
+      "max": 63.0,
+      "total": 172.0
+    },
+    "backoff_ms_total": 4000.0,
+    "share_of_wall": {
+      "fetch": 0.797,
+      "local": 0.008,
+      "backoff": 0.194
+    },
+    "variance": {
+      "var_wall": 1360374.2,
+      "var_fetch": 1162058.9,
+      "var_local": 333.4,
+      "corr_wall_fetch": 0.928,
+      "corr_wall_local": 0.228,
+      "corr_fetch_chars": 0.135
+    },
+    "by_host": {
+      "nodejs.org": {
+        "n": 2,
+        "fail": 0,
+        "fetch_mean": 3711.0,
+        "fetch_max": 3750.0,
+        "wall_mean": 3711.0,
+        "local_mean": 0.0
+      },
+      "www.docker.com": {
+        "n": 5,
+        "fail": 3,
+        "fetch_mean": 737.6,
+        "fetch_max": 1531.0,
+        "wall_mean": 1572.0,
+        "local_mean": 34.4
+      },
+      "nodejs.cn": {
+        "n": 4,
+        "fail": 0,
+        "fetch_mean": 660.2,
+        "fetch_max": 969.0,
+        "wall_mean": 660.2,
+        "local_mean": 0.0
+      },
+      "node.org.cn": {
+        "n": 2,
+        "fail": 0,
+        "fetch_mean": 617.0,
+        "fetch_max": 656.0,
+        "wall_mean": 617.0,
+        "local_mean": 0.0
+      },
+      "juejin.cn": {
+        "n": 1,
+        "fail": 0,
+        "fetch_mean": 532.0,
+        "fetch_max": 532.0,
+        "wall_mean": 532.0,
+        "local_mean": 0.0
+      },
+      "www.runoob.com": {
+        "n": 1,
+        "fail": 0,
+        "fetch_mean": 515.0,
+        "fetch_max": 515.0,
+        "wall_mean": 515.0,
+        "local_mean": 0.0
+      },
+      "zhuanlan.zhihu.com": {
+        "n": 2,
+        "fail": 2,
+        "fetch_mean": 117.5,
+        "fetch_max": 125.0,
+        "wall_mean": 117.5,
+        "local_mean": 0.0
+      },
+      "docs.docker.com": {
+        "n": 2,
+        "fail": 0,
+        "fetch_mean": 78.0,
+        "fetch_max": 125.0,
+        "wall_mean": 78.0,
+        "local_mean": 0.0
+      }
+    },
+    "failures_by_signature": {
+      "urlerror#10054": {
+        "n": 3,
+        "fetch_mean": 291.7
+      },
+      "exception#403": {
+        "n": 2,
+        "fetch_mean": 117.5
+      }
+    },
+    "slowest_reads": [
+      {
+        "host": "nodejs.org",
+        "status": "success",
+        "fetch_ms": 3750.0,
+        "wall_ms": 3750.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 1497.0,
+        "signature": ""
+      },
+      {
+        "host": "nodejs.org",
+        "status": "success",
+        "fetch_ms": 3672.0,
+        "wall_ms": 3672.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 1497.0,
+        "signature": ""
+      },
+      {
+        "host": "www.docker.com",
+        "status": "success",
+        "fetch_ms": 1531.0,
+        "wall_ms": 2547.0,
+        "local_ms": 16.0,
+        "attempts": 2.0,
+        "chars": 1922.0,
+        "signature": ""
+      },
+      {
+        "host": "www.docker.com",
+        "status": "success",
+        "fetch_ms": 1282.0,
+        "wall_ms": 2313.0,
+        "local_ms": 31.0,
+        "attempts": 3.0,
+        "chars": 1922.0,
+        "signature": ""
+      },
+      {
+        "host": "nodejs.cn",
+        "status": "success",
+        "fetch_ms": 969.0,
+        "wall_ms": 969.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 6000.0,
+        "signature": ""
+      },
+      {
+        "host": "node.org.cn",
+        "status": "success",
+        "fetch_ms": 656.0,
+        "wall_ms": 656.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 393.0,
+        "signature": ""
+      },
+      {
+        "host": "nodejs.cn",
+        "status": "success",
+        "fetch_ms": 594.0,
+        "wall_ms": 594.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 1288.0,
+        "signature": ""
+      },
+      {
+        "host": "node.org.cn",
+        "status": "success",
+        "fetch_ms": 578.0,
+        "wall_ms": 578.0,
+        "local_ms": 0.0,
+        "attempts": 1.0,
+        "chars": 393.0,
+        "signature": ""
+      }
+    ]
+  },
+  "verdict": {
+    "call": "network_dominated",
+    "fetch_share_of_wall": 0.797,
+    "local_share_of_wall": 0.008,
+    "backoff_share_of_wall": 0.194,
+    "corr_wall_fetch": 0.928,
+    "corr_wall_local": 0.228,
+    "corr_fetch_chars": 0.135,
+    "host_concentration": false,
+    "top_host_fetch_share": 0.452,
+    "top_hosts": [
+      "nodejs.org",
+      "www.docker.com",
+      "nodejs.cn"
+    ],
+    "top_failure_signatures": [
+      "urlerror#10054",
+      "exception#403"
+    ]
+  }
+}

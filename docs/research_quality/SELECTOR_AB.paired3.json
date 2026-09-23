@@ -1,0 +1,118 @@
+{
+  "schema_version": "selector-ab-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "source_probe": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/SEARCH_DISCOVERY_PROBE.json",
+  "generated_at": "2026-09-19T11:28:35.017040+00:00",
+  "pools": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "pool_source": "injected",
+      "pool_size": 6,
+      "targets": [
+        "https://docs.docker.com/docker-hub/usage/pulls/"
+      ],
+      "legacy_picks": [
+        "https://www.docker.com/",
+        "https://docker.github.net.cn/"
+      ],
+      "hybrid_picks": [
+        "https://docs.docker.com/docker-hub/usage/pulls/"
+      ],
+      "hybrid_source": "model",
+      "hybrid_reason": "",
+      "legacy_hit": false,
+      "hybrid_hit": true,
+      "target_read_legacy": "",
+      "target_read_hybrid": "",
+      "selector_calls": 1,
+      "outcome": "win"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "pool_source": "injected",
+      "pool_size": 6,
+      "targets": [
+        "https://www.postgresql.org/support/versioning/"
+      ],
+      "legacy_picks": [
+        "https://www.postgresql.org/",
+        "https://www.runoob.com/postgresql/postgresql-tutorial.html"
+      ],
+      "hybrid_picks": [
+        "https://www.postgresql.org/",
+        "https://www.postgresql.org/support/versioning/"
+      ],
+      "hybrid_source": "model",
+      "hybrid_reason": "",
+      "legacy_hit": false,
+      "hybrid_hit": true,
+      "target_read_legacy": "",
+      "target_read_hybrid": "",
+      "selector_calls": 1,
+      "outcome": "win"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "pool_source": "injected",
+      "pool_size": 6,
+      "targets": [
+        "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT"
+      ],
+      "legacy_picks": [
+        "https://astral.fan/",
+        "https://next.astral.fan/download/"
+      ],
+      "hybrid_picks": [
+        "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT"
+      ],
+      "hybrid_source": "model",
+      "hybrid_reason": "",
+      "legacy_hit": false,
+      "hybrid_hit": true,
+      "target_read_legacy": "",
+      "target_read_hybrid": "",
+      "selector_calls": 1,
+      "outcome": "win"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "pool_source": "annotated",
+      "pool_size": 10,
+      "targets": [
+        "https://node.org.cn/api/modules.html",
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "legacy_picks": [
+        "https://nodejs.org/",
+        "https://node.org.cn/"
+      ],
+      "hybrid_picks": [
+        "https://nodejs.cn/api/modules.html",
+        "https://node.org.cn/api/modules.html"
+      ],
+      "hybrid_source": "model",
+      "hybrid_reason": "",
+      "legacy_hit": false,
+      "hybrid_hit": true,
+      "target_read_legacy": "",
+      "target_read_hybrid": "",
+      "selector_calls": 1,
+      "outcome": "win"
+    }
+  ],
+  "summary": {
+    "pools": 4,
+    "conditional_target_selection_rate_legacy": 0.0,
+    "conditional_target_selection_rate_hybrid": 1.0,
+    "legacy_target_hits": 0,
+    "hybrid_target_hits": 4,
+    "wins": 4,
+    "ties": 0,
+    "losses": 0,
+    "selector_caused_losses": 0,
+    "orchestration_model_calls": 4,
+    "incremental_target_reads": 4,
+    "incremental_target_reads_per_selector_call": 1.0
+  }
+}

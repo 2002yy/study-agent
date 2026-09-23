@@ -1,0 +1,95 @@
+{
+  "annotations": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/ANNOTATIONS_MERGED.json",
+  "assumptions": {
+    "claim": "one factual claim per case (the case question)",
+    "note": "prototype simplification; relation semantics are the frozen extractor's own output, but cluster independence is not modelled",
+    "source_cluster_id": "single_constant_cluster",
+    "source_role": "primary_for_every_selected_page"
+  },
+  "chain": {
+    "case_id": "rq1c-historical-current-node-modules",
+    "extractions": [
+      {
+        "caveat": "Excerpt is from a Chinese-localized Node.js v26 documentation page; it states current support for both module systems but does not explicitly contrast with older guidance.",
+        "relation": "supports",
+        "url": "https://nodejs.cn/api/modules.html"
+      },
+      {
+        "caveat": "Excerpt is a Chinese translation of Node.js docs and does not explicitly contrast current guidance with older CommonJS-versus-ESM guidance.",
+        "relation": "supports",
+        "url": "https://node.org.cn/api/modules.html"
+      }
+    ],
+    "picks": [
+      "https://nodejs.cn/api/modules.html",
+      "https://node.org.cn/api/modules.html"
+    ],
+    "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+    "reads": [
+      {
+        "content_chars": 6000,
+        "error": "",
+        "ok": true,
+        "url": "https://nodejs.cn/api/modules.html"
+      },
+      {
+        "content_chars": 6000,
+        "error": "",
+        "ok": true,
+        "url": "https://node.org.cn/api/modules.html"
+      }
+    ],
+    "selection_authority": "model",
+    "selector_attempts": [
+      {
+        "empty_output": false,
+        "output_count": 2,
+        "reason": "",
+        "status": "completed"
+      }
+    ],
+    "selector_input_candidate_set": [
+      "https://nodejs.org/",
+      "https://node.org.cn/",
+      "https://nodejs.cn/en/download/prebuilt-installer",
+      "https://nodejs.cn/",
+      "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+      "https://juejin.cn/post/7108410887052427301",
+      "https://zhuanlan.zhihu.com/p/1941939074337310389",
+      "https://nodejs.cn/api/modules.html",
+      "https://blog.csdn.net/jongden/article/details/154949610",
+      "https://node.org.cn/api/modules.html"
+    ],
+    "selector_input_size": 10,
+    "selector_output_urls": [
+      "https://nodejs.cn/api/modules.html",
+      "https://node.org.cn/api/modules.html"
+    ],
+    "supports": 2,
+    "target_fact_present": true,
+    "target_fact_relation": "supports",
+    "target_read": true,
+    "target_selected": true,
+    "targets": [
+      "https://node.org.cn/api/modules.html",
+      "https://nodejs.cn/api/modules.html"
+    ]
+  },
+  "diagnostic_only": true,
+  "generated_at": "2026-09-18T18:44:20.365156+00:00",
+  "max_attempts": 3,
+  "max_picks": 2,
+  "model_name": "deepseek-flash",
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "read_chars": 6000,
+  "rule_picks": [
+    "https://nodejs.org/",
+    "https://node.org.cn/",
+    "https://juejin.cn/post/7108410887052427301"
+  ],
+  "schema_version": "hybrid-selection-chain-v1",
+  "source_probe": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/SEARCH_DISCOVERY_PROBE.json",
+  "thinking_mode": "disabled_for_structured_research_calls"
+}

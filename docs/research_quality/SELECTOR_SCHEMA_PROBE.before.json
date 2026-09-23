@@ -1,0 +1,152 @@
+{
+  "schema_version": "selector-schema-probe-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "generated_at": "2026-09-19T10:55:29.129238+00:00",
+  "sample_count": 20,
+  "shape_counts": {
+    "contract_shape": 20
+  },
+  "samples": [
+    {
+      "sample": 1,
+      "shape": "contract_shape",
+      "chars": 373,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules (v26), which "
+    },
+    {
+      "sample": 2,
+      "shape": "contract_shape",
+      "chars": 449,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 3,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 4,
+      "shape": "contract_shape",
+      "chars": 500,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 5,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 6,
+      "shape": "contract_shape",
+      "chars": 422,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two are the official Node.js documentation pages for CommonJS modules (v26), which directly st"
+    },
+    {
+      "sample": 7,
+      "shape": "contract_shape",
+      "chars": 526,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 8,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 9,
+      "shape": "contract_shape",
+      "chars": 490,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 10,
+      "shape": "contract_shape",
+      "chars": 375,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 11,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 12,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 13,
+      "shape": "contract_shape",
+      "chars": 517,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 14,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 15,
+      "shape": "contract_shape",
+      "chars": 376,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 16,
+      "shape": "contract_shape",
+      "chars": 378,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 17,
+      "shape": "contract_shape",
+      "chars": 397,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two are the official Node.js documentation pages for CommonJS modules (v26), which directly st"
+    },
+    {
+      "sample": 18,
+      "shape": "contract_shape",
+      "chars": 519,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for modules (CommonJS modules), wh"
+    },
+    {
+      "sample": 19,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    },
+    {
+      "sample": 20,
+      "shape": "contract_shape",
+      "chars": 371,
+      "picks": 2,
+      "excerpt": "{\"urls\": [\"https://nodejs.cn/api/modules.html\", \"https://node.org.cn/api/modules.html\"], \"reason\": \"These two candidates are the official Node.js documentation pages for CommonJS modules, which direct"
+    }
+  ]
+}

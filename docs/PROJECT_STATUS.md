@@ -6966,3 +6966,68 @@ L1 tests / verdict                 ⏳ / ❌
 `
 
 Crawl4AI provider capability 未变（PDF ✅ / JS render ✅ / session ✅ / anti_bot recovery ❌）；warm transport 正常请求与 session 隔离 ✅。**当前唯一 blocker 是 worker 侧取消包装交互。** A3-2 verdict = PENDING。
+
+
+## §121 worker 超时路径时间线（T0-T7）— **worker 侧正常，5s 在 bridge 侧**
+
+### 121.1 结论：形状 1（deadline race），且 cleanup 不是元凶
+
+单请求前台最小复现（mode=pdf → /slow-report.pdf → deadline=3000ms，stderr 继承以看见时间线）：
+
+`	ext
+T0_request_begin          = +0ms
+T1_task_created           = +0ms
+[pdf] trickle 每 250ms，remaining 2969 -> 203ms
+T3_outer_wait_for_fired   = +3015ms
+T4_task_cancelled_or_done = +3015ms
+T5_invalidate_begin       = +3015ms
+T6_invalidate_end         = +3015ms      <- invalidation 耗时 0ms
+T7_response_written       = +3015ms
+RESPONSE wall = 3015.0ms  deadline_hit=true  error_message=deadline_expired
+NEXT     wall =  188.0ms  provider_success=true（真实 PDF 正文）
+`
+
+对照预判的三种形状：
+
+| 形状 | 是否成立 | 证据 |
+| --- | --- | --- |
+| 1 deadline race（外层 wait_for 抢在 primitive 前） | ✅ **成立** | T3 = 3015ms；primitive 最后 read 在 t=2797ms（remaining 203ms），两者在同一点竞争 |
+| 2 cleanup 拖死（invalidate/close） | ❌ 不成立 | T5→T6 = 0ms |
+| 3 task cancellation 不收敛 | ❌ 不成立 | 	ask.done() 于 3015ms 立即完成 |
+
+### 121.2 worker 侧正确；5s 在 bridge 侧
+
+- **worker 在 3015ms 返回正确的 canonical bounded failure**（deadline_expired / deadline_hit=true），**且随后请求正常**（188ms，真实 PDF 正文）。
+- 因此 bridge 路径的 5006ms **不是 worker 未返回**，而是 **bridge 没有读到那个响应**（响应早于 bridge 的 deadline+2000ms=5000ms 窗口到达）。
+- **附带缺陷**：bridge 读超时后 **IPC 通道失步** —— 上一次运行中 NEXT 请求读到的是上一条残留响应（ridge_failure:bridge_read_timeout），说明超时后没有丢弃/重新同步通道。
+
+### 121.3 修复方向（下一刀，未实施）
+
+1. **PDF path 不再与外层 wait_for(shield(task)) 同点竞争**：PDF 已有可证明的 absolute-deadline primitive，应让它自己结束；外层只保留 contract watchdog（bridge 的 +2000ms，不得在正常路径触发）。
+2. **PDF timeout 不走 crawler invalidation**：PDF 下载阶段没有受污染的 browser context（实测 invalidation 也确实是 0ms，但语义上不应调用）。
+3. **PdfDownloadDeadline 直接 canonicalize**：udget_exhausted + dequacy_reason=pdf_download_deadline，而不是 ridge_failure:bridge_read_timeout。
+4. **bridge 读超时后重新同步 IPC**（丢弃残留行 / 重启 worker），否则超时一次会污染后续请求。
+5. **PDF 总预算含 parse**：etch(deadline_at) 后检查 remaining 再 parse，保证 fetch+parse+projection 整体不超 3.0s。
+
+### 121.4 Gate C 的 PASS 条件（钉死）
+
+`	ext
+canonical_state = budget_exhausted
+adequacy_reason = pdf_download_deadline（或等价明确原因）
+invalid_content = NO
+provider/download stopped = YES
+temp artifact leaked = NO
+worker 在自己 deadline 路径返回（不是 bridge 5s watchdog）
+next normal request = PASS
+`
+
+### 121.5 状态
+
+`	ext
+PDF primitive (absolute deadline)  ✅ CLOSED（repro 3/3：fast / trickle@3000 / stalled@3000）
+worker 超时路径                    ✅ 正确（3015ms bounded，invalidate 0ms，后续正常）
+bridge 侧读取/重同步               ❌ 未闭合（当前唯一 blocker）
+focused 四门 / 12-row cohort / L1 / verdict  ⏳ / ⏳ / ⏳ / ❌
+`
+
+**不要再修改 _bounded_pdf_fetch。** A3-2 verdict = PENDING。已登记的 docs trailing whitespace（§120）在下个 close head 前清理。

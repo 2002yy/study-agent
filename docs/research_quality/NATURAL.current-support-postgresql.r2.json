@@ -1,0 +1,1423 @@
+{
+  "schema_version": "selection-authority-runtime-probe-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "qualification_guard_bypassed": true,
+  "guard_bypass_reason": "the six-call research cap starves per-wave selection calls; the raw driver keeps the runtime's production budgets but has no overlay",
+  "selector_accounting_caveat": "selection-authority model calls are recorded in metrics.selection_authority but do not pass through the runtime's durable model-attempt ledger, so the runtime's own model budget does not count them",
+  "git_sha": "16ed41c56c5e148b2843eadb0bb360cc45634911",
+  "started_at": "2026-09-19T11:43:28.980932Z",
+  "completed_at": "2026-09-19T11:44:19.264564Z",
+  "manifest": {
+    "path": "C:/Users/Zhang/Desktop/study agent/tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "case_count": 1
+  },
+  "selection_authority_mode": "rules",
+  "cases": [
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "category": "current_support_policy",
+      "question": "Which PostgreSQL major versions are currently supported by the PostgreSQL project, and when does the oldest currently supported major version reach end of life?",
+      "reference_date": "2026-09-19",
+      "elapsed_seconds": 49.875,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-current-support-postgresql",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "a05d0714b255c3d3ea8247ab8d3fd84e2844af3788b0f199367264788d6aaccb",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 10,
+        "audits": [
+          {
+            "query_sha256": "2e9fbd2740152b072c2768a3ce8293ee526e0fc94d96e123702f296581bebd43",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "url_error",
+                "attempts": 2,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "280e09a971a1de7551523021237ab3f18ec5badc29d8ea9a06c27bec3da77cde",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "7605d00116baaad9c720c8241f316e6a375330154a8bb56a149ab64d0261edb4",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "776d3727ede0c27336464e11966e1d64509eeba3bc5762b79f925b9b094a3fa3",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "19fc02c8d7366bb4b994b2abc51959b93012112dc76da1bae68ee9997ae12727",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3c0ce36a9b5a90f0394828d0e0413a5807e676595f2453d3c34b59a011b2d3cd",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "ccce66df79e65b6c910d17cd998978c2f6966f8e7d59d337e8c81100436775d7",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d692a196fc96cbcd5b78ca2eff5b8d158ada86c6ea14f3145327c3f3913032a0",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "a40e19311afe51a7ecee7d85a9da5cfefd5b7f49a43d1b52d65163ffbabf6cb2",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "c77992c8b350b742510e442d2ee55b570be5d50e6a97f28641edb19c74ca642e",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 6,
+        "read_count": 3,
+        "read_attempt_count": 3,
+        "research_model_call_count": 9,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 10,
+        "elapsed_seconds": 49.875
+      },
+      "budget_contract_violations": [
+        "model_call_budget_exceeded"
+      ],
+      "sources": [
+        {
+          "candidate_id": "candidate_71266c81157df786",
+          "title": "PostgreSQL: The world's most advanced open source database",
+          "url": "https://www.postgresql.org/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_abbdcccad3c6501f",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        },
+        {
+          "candidate_id": "candidate_7381adc5cd8eff69",
+          "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+          "url": "https://postgres.ac.cn/docs/current/index.html",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "authoritative_secondary",
+          "cluster_id": "candidate_cluster_13ee24a6477a7db2",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        },
+        {
+          "candidate_id": "candidate_26f410eb2418470f9441b8c2715e5dc4",
+          "title": "https://git.postgresql.org/",
+          "url": "https://git.postgresql.org/",
+          "source": "lead_discovery",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_ab4684412b8768b2",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_13ee24a6477a7db2",
+        "candidate_cluster_ab4684412b8768b2",
+        "candidate_cluster_abbdcccad3c6501f"
+      ],
+      "finalization_breakdown": {
+        "research_seconds": 45.891,
+        "post_research_projection_seconds": 0.0,
+        "answer_stage_seconds": 3.984,
+        "total_seconds": 49.875
+      },
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_e68413b832ef784eb003fbed"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_e68413b832ef784eb003fbed:eligible_support_clusters=1/2"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_71266c81157df78676ca4e6c",
+            "claim_id": "claim_e68413b832ef784eb003fbed",
+            "relation": "lead",
+            "strength": 0.05,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_abbdcccad3c6501f",
+            "url": "https://www.postgresql.org/",
+            "title": "PostgreSQL: The world's most advanced open source database",
+            "published_at": "",
+            "locator": "PostgreSQL is a powerful, open source object-relational database system",
+            "anchored_spans": [
+              "PostgreSQL is a powerful, open source object-relational database system"
+            ],
+            "caveats": [
+              "The excerpt does not mention any PostgreSQL major versions or support policy."
+            ]
+          },
+          {
+            "evidence_id": "web_7381adc5cd8eff69ab464a95",
+            "claim_id": "claim_e68413b832ef784eb003fbed",
+            "relation": "supports",
+            "strength": 0.9,
+            "source_role": "authoritative_secondary",
+            "source_cluster_id": "candidate_cluster_13ee24a6477a7db2",
+            "url": "https://postgres.ac.cn/docs/current/index.html",
+            "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+            "published_at": "",
+            "locator": "支持版本： 当前 （ 18 ）/ 17 / 16 / 15 / 14 / 13",
+            "anchored_spans": [
+              "支持版本： 当前 （ 18 ）/ 17 / 16 / 15 / 14 / 13",
+              "不支持的版本： 12 / 11 / 10 / 9.6 / 9.5 / 9.4 / 9.3 / 9.2 / 9.1 / 9.0 / 8.4 / 8.3 / 8.2 / 8.1 / 8.0 / 7.4 / 7.3 / 7.2"
+            ],
+            "caveats": [
+              "The excerpt is a Chinese-language mirror of PostgreSQL documentation; supported-version list reflects the page's snapshot (PostgreSQL 18 released 2025-09-25) and may not reflect the current live support matrix."
+            ]
+          },
+          {
+            "evidence_id": "web_969aba534393cd55acffff16",
+            "claim_id": "claim_e68413b832ef784eb003fbed",
+            "relation": "lead",
+            "strength": 0.05,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_ab4684412b8768b2",
+            "url": "https://git.postgresql.org/",
+            "title": "https://git.postgresql.org/",
+            "published_at": "",
+            "locator": "Welcome to PostgreSQL's git repository!",
+            "anchored_spans": [
+              "Welcome to PostgreSQL's git repository!"
+            ],
+            "caveats": [
+              "The excerpt describes the git repository hosting site and does not mention supported PostgreSQL major versions."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_cded581f77169537ec639490"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 6,
+        "cluster_count": 3,
+        "deeper_targeting": {
+          "gap_unavailable": 0,
+          "page_intent_counts": {
+            "support_lifecycle": 1
+          },
+          "recent": [
+            {
+              "followup_reason": "missing_target_fact",
+              "gap_hint": {
+                "anchors": [
+                  "PostgreSQL is a powerful, open source object-relational database system"
+                ],
+                "caveat": "The excerpt does not mention any PostgreSQL major versions or support policy.",
+                "locator": "PostgreSQL is a powerful, open source object-relational database system",
+                "missing_fact_terms": [
+                  "postgresql",
+                  "major",
+                  "versions",
+                  "support",
+                  "policy"
+                ],
+                "relation": "lead",
+                "source_authority_class": "official",
+                "source_url": "https://www.postgresql.org/",
+                "targeting_strategy": "root_or_landing_page"
+              },
+              "page_intent": {
+                "kind": "support_lifecycle",
+                "matched_terms": [
+                  "support",
+                  "supported"
+                ],
+                "path_terms": [
+                  "support",
+                  "versioning",
+                  "lifecycle",
+                  "releases",
+                  "eol"
+                ]
+              },
+              "query_variants": [
+                "postgresql major versions support policy",
+                "postgresql major versions support policy versioning",
+                "postgresql major versions support policy docs"
+              ],
+              "selected_candidate_depth": 0,
+              "selected_candidate_url": "",
+              "selected_query_variant": "postgresql major versions support policy",
+              "selection_reason": "page_intent_match",
+              "source_authority_class": "official",
+              "source_candidate_url": "https://www.postgresql.org/",
+              "targeting_strategy": "root_or_landing_page"
+            }
+          ],
+          "strategy_counts": {
+            "root_or_landing_page": 1
+          }
+        },
+        "lead_discovered_candidate_ids": [
+          "candidate_26f410eb2418470f9441b8c2715e5dc4"
+        ],
+        "lead_discovery": {
+          "deeper_targeting_root_or_landing_page": 1,
+          "discovered_candidate_added": 1,
+          "duplicate_url_rejected": 1,
+          "evidence_lead_followup_skipped_insufficient_budget": 1,
+          "evidence_lead_followup_started": 1,
+          "evidence_lead_no_deeper_url": 1,
+          "lead_discovery_succeeded": 1,
+          "lead_read_started": 1,
+          "no_lead_candidate": 6
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "phase_seconds": {
+          "assessment": {
+            "calls": 4,
+            "seconds": 3.062
+          },
+          "discovery": {
+            "calls": 1,
+            "seconds": 1.062
+          },
+          "extraction": {
+            "calls": 3,
+            "seconds": 3.484
+          },
+          "read": {
+            "calls": 4,
+            "seconds": 15.061
+          },
+          "search": {
+            "calls": 10,
+            "seconds": 17.047
+          }
+        },
+        "read_count": 3,
+        "read_reserve": {
+          "configured": 3,
+          "hard_cap": 8,
+          "reads_used": 4,
+          "reclaim_reason": "no_open_conflicts",
+          "reclaimed": 3
+        },
+        "reads": [
+          {
+            "candidate_id": "candidate_71266c81157df786",
+            "content_chars": 524,
+            "error_code": "",
+            "evidence_id": "web_71266c81157df78676ca4e6c",
+            "status": "success"
+          },
+          {
+            "candidate_id": "candidate_7381adc5cd8eff69",
+            "content_chars": 1649,
+            "error_code": "",
+            "evidence_id": "web_7381adc5cd8eff69ab464a95",
+            "status": "success"
+          },
+          {
+            "candidate_id": "candidate_26f410eb2418470f9441b8c2715e5dc4",
+            "content_chars": 655,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "research_window": {
+          "deadline_elapsed": 48.0,
+          "exhausted": false,
+          "hard_seconds": 60.0,
+          "remaining_after_research_seconds": 14.25,
+          "research_elapsed_seconds": 45.75,
+          "reserve_seconds": 12.0
+        },
+        "search_discovery": {
+          "outcome": "observability_only",
+          "queries": [
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 43,
+              "query_excerpt": "PostgreSQL major versions supported project",
+              "query_sha256": "2e9fbd2740152b072c2768a3ce8293ee526e0fc94d96e123702f296581bebd43",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "The PostgreSQL Global Development Group has released an update to all supported versions of PostgreSQL, including 19 Beta 3, 18.6, 17.11, 16.15, 15.19 and 14.24.",
+                  "title": "PostgreSQL: The world's most advanced open source database",
+                  "url": "https://www.postgresql.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL is available for download as ready-to-use packages or installers for various platforms, as well as a source code archive if you want to build it yourself.",
+                  "title": "PostgreSQL: Downloads",
+                  "url": "https://www.postgresql.org/download/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL 教程 PostgreSQL 是一个免费的对象-关系数据库服务器 (ORDBMS)，在灵活的BSD许可证下发行。 PostgreSQL 开发者把它念作 post-gress-Q-L。 PostgreSQL 的 Slogan 是 \"世界上最先进的开源关系型数据库\"。 参考内容： PostgreSQL 10.1 手册",
+                  "title": "PostgreSQL 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/postgresql/postgresql-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL支持大部分的SQL标准并且提供了很多其他现代特性，如复杂查询、外键、触发器、视图、事务完整性、多版本并发控制等。 同样，PostgreSQL也可以用许多方法扩展，例如通过增加新的数据类型、函数、操作符、聚集函数、索引方法、过程语言等。",
+                  "title": "PostgreSQL_百度百科",
+                  "url": "https://baike.baidu.com/item/PostgreSQL/530240"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "版权所有 © 1996–2025 PostgreSQL 全球开发组 法律声明 目录 前言 1. 什么是 PostgreSQL？ 2. PostgreSQL 简史 3. 约定 4. 更多信息 5. 错误报告指南 I. 教程 1. 入门 2. The SQL 语言 3. 高级特性 II. SQL 语言 4. SQL 语法 5. 数据定义 6. 数据操作 7. 查询 8. 数据类型 9. 函数和运算符 10 ...",
+                  "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+                  "url": "https://postgres.ac.cn/docs/current/index.html"
+                }
+              ],
+              "slot_index": 1,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 57,
+              "query_excerpt": "PostgreSQL major versions supported project official docs",
+              "query_sha256": "280e09a971a1de7551523021237ab3f18ec5badc29d8ea9a06c27bec3da77cde",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "The PostgreSQL Global Development Group has released an update to all supported versions of PostgreSQL, including 19 Beta 3, 18.6, 17.11, 16.15, 15.19 and 14.24.",
+                  "title": "PostgreSQL: The world's most advanced open source database",
+                  "url": "https://www.postgresql.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL is available for download as ready-to-use packages or installers for various platforms, as well as a source code archive if you want to build it yourself.",
+                  "title": "PostgreSQL: Downloads",
+                  "url": "https://www.postgresql.org/download/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL 教程 PostgreSQL 是一个免费的对象-关系数据库服务器 (ORDBMS)，在灵活的BSD许可证下发行。 PostgreSQL 开发者把它念作 post-gress-Q-L。 PostgreSQL 的 Slogan 是 \"世界上最先进的开源关系型数据库\"。 参考内容： PostgreSQL 10.1 手册",
+                  "title": "PostgreSQL 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/postgresql/postgresql-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "PostgreSQL支持大部分的SQL标准并且提供了很多其他现代特性，如复杂查询、外键、触发器、视图、事务完整性、多版本并发控制等。 同样，PostgreSQL也可以用许多方法扩展，例如通过增加新的数据类型、函数、操作符、聚集函数、索引方法、过程语言等。",
+                  "title": "PostgreSQL_百度百科",
+                  "url": "https://baike.baidu.com/item/PostgreSQL/530240"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "版权所有 © 1996–2025 PostgreSQL 全球开发组 法律声明 目录 前言 1. 什么是 PostgreSQL？ 2. PostgreSQL 简史 3. 约定 4. 更多信息 5. 错误报告指南 I. 教程 1. 入门 2. The SQL 语言 3. 高级特性 II. SQL 语言 4. SQL 语法 5. 数据定义 6. 数据操作 7. 查询 8. 数据类型 9. 函数和运算符 10 ...",
+                  "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+                  "url": "https://postgres.ac.cn/docs/current/index.html"
+                }
+              ],
+              "slot_index": 2,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 56,
+              "query_excerpt": "PostgreSQL major versions supported project announcement",
+              "query_sha256": "7605d00116baaad9c720c8241f316e6a375330154a8bb56a149ab64d0261edb4",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 3,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 68,
+              "query_excerpt": "PostgreSQL major versions supported project independent verification",
+              "query_sha256": "776d3727ede0c27336464e11966e1d64509eeba3bc5762b79f925b9b094a3fa3",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 4,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_8b92530d12e024f4f6f19602",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 56,
+              "query_excerpt": "PostgreSQL oldest supported major version reach end life",
+              "query_sha256": "19fc02c8d7366bb4b994b2abc51959b93012112dc76da1bae68ee9997ae12727",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 5,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_8b92530d12e024f4f6f19602",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 70,
+              "query_excerpt": "PostgreSQL oldest supported major version reach end life official docs",
+              "query_sha256": "3c0ce36a9b5a90f0394828d0e0413a5807e676595f2453d3c34b59a011b2d3cd",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 6,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_8b92530d12e024f4f6f19602",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 69,
+              "query_excerpt": "PostgreSQL oldest supported major version reach end life announcement",
+              "query_sha256": "ccce66df79e65b6c910d17cd998978c2f6966f8e7d59d337e8c81100436775d7",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 7,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_8b92530d12e024f4f6f19602",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 81,
+              "query_excerpt": "PostgreSQL oldest supported major version reach end life independent verification",
+              "query_sha256": "d692a196fc96cbcd5b78ca2eff5b8d158ada86c6ea14f3145327c3f3913032a0",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 8,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [
+                "postgresql major versions support policy",
+                "postgresql major versions support policy versioning",
+                "postgresql major versions support policy docs"
+              ],
+              "hint_terms": [
+                "postgresql",
+                "major"
+              ],
+              "page_intent": {
+                "kind": "support_lifecycle",
+                "matched_terms": [
+                  "support",
+                  "supported"
+                ],
+                "path_terms": [
+                  "support",
+                  "versioning",
+                  "lifecycle",
+                  "releases",
+                  "eol"
+                ]
+              },
+              "query_chars": 67,
+              "query_excerpt": "PostgreSQL major versions supported project site:www.postgresql.org",
+              "query_sha256": "a40e19311afe51a7ecee7d85a9da5cfefd5b7f49a43d1b52d65163ffbabf6cb2",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 9,
+              "variant_matches": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "claim_id": "claim_e68413b832ef784eb003fbed",
+              "generated_query_variants": [
+                "postgresql major versions support policy",
+                "postgresql major versions support policy versioning",
+                "postgresql major versions support policy docs"
+              ],
+              "hint_terms": [
+                "PostgreSQL Global Development Group",
+                "PostgreSQL source code repository",
+                "PostgreSQL documentation building from source",
+                "PostgreSQL Software Catalogue",
+                "PostgreSQL File Browser mirror",
+                "postgresql"
+              ],
+              "page_intent": {
+                "kind": "support_lifecycle",
+                "matched_terms": [
+                  "support",
+                  "supported"
+                ],
+                "path_terms": [
+                  "support",
+                  "versioning",
+                  "lifecycle",
+                  "releases",
+                  "eol"
+                ]
+              },
+              "query_chars": 88,
+              "query_excerpt": "PostgreSQL major versions supported project site:postgresql.org Global Development Group",
+              "query_sha256": "c77992c8b350b742510e442d2ee55b570be5d50e6a97f28641edb19c74ca642e",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 10,
+              "variant_matches": [
+                0,
+                1,
+                2
+              ]
+            }
+          ],
+          "schema_version": "rq1c-search-discovery-v1"
+        },
+        "selection_trace": {
+          "candidate_count": 6,
+          "entries": [
+            {
+              "candidate_pool_class": "candidate_cluster_abbdcccad3c6501f",
+              "canonical_url": "https://www.postgresql.org/",
+              "deduped_survivor": true,
+              "duplicate_merges": 1,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": ""
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_abbdcccad3c6501f",
+              "canonical_url": "https://www.postgresql.org/download/",
+              "deduped_survivor": true,
+              "duplicate_merges": 1,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:cluster_represented_by_earlier_candidate",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded",
+                "scheduler_not_selected"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "rejected",
+              "scheduler_rank": 2,
+              "scheduler_reason": "covered_cluster",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_d52330e5d96907a9",
+              "canonical_url": "https://www.runoob.com/postgresql/postgresql-tutorial.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 1,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_6c21a91aef1e8b42",
+              "canonical_url": "https://baike.baidu.com/item/PostgreSQL/530240",
+              "deduped_survivor": true,
+              "duplicate_merges": 1,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 4,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_13ee24a6477a7db2",
+              "canonical_url": "https://postgres.ac.cn/docs/current/index.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 1,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 3,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": ""
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_ab4684412b8768b2",
+              "canonical_url": "https://git.postgresql.org/",
+              "deduped_survivor": false,
+              "duplicate_merges": 0,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": false,
+              "normalized": false,
+              "observed_drops": [],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 3,
+              "scheduler_reason": "",
+              "seen_in_provider": false,
+              "terminal_reason": ""
+            }
+          ],
+          "schema_version": "research-selection-trace-v1",
+          "terminal_reasons": [
+            "not_materialized",
+            "canonical_duplicate",
+            "authority_or_policy_filter",
+            "candidate_pool_excluded",
+            "scheduler_not_selected",
+            "read_budget_exhausted",
+            "already_read",
+            "unsupported_url",
+            "other_observed_reason",
+            "unobserved"
+          ]
+        },
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": true,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 1,
+            "discovery_progress": true,
+            "evidence_progress": false,
+            "no_gain_incremented": false,
+            "wave_index": 4
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 5
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 6
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 7
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "eligible": 1,
+          "lead_only": 3,
+          "rejected": 2
+        },
+        "relevance": {
+          "answer_relevant": 1,
+          "topic_only": 3,
+          "off_target": 2
+        },
+        "source_role": {
+          "primary": 3,
+          "authoritative_secondary": 1,
+          "independent_secondary": 1,
+          "aggregator": 1
+        },
+        "lead_read_ids": [
+          "candidate_b87f957780883c46"
+        ],
+        "lead_discovery_count": 1,
+        "lead_discovered_candidates": [
+          {
+            "id": "candidate_26f410eb2418470f9441b8c2715e5dc4",
+            "parent_lead_candidate_id": "candidate_b87f957780883c46",
+            "discovery_method": "lead_url",
+            "discovery_depth": 1
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "selection_authority_records": 0,
+    "selector_completed_calls": 0,
+    "fallback_records": 0,
+    "targets_in_selector_input": [],
+    "reads": 3,
+    "gate_status": "block",
+    "answer_status": "available"
+  },
+  "claims": [
+    {
+      "id": "claim_8b92530d12e024f4f6f19602",
+      "text": "when does the oldest currently supported major version reach end of life?",
+      "kind": "factual",
+      "priority": "major",
+      "state": "pending",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:current_fact",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 1,
+        "requires_dated_evidence": false,
+        "requires_primary_source": false,
+        "requires_successful_read": true,
+        "source_roles": [
+          "authoritative_secondary",
+          "independent_secondary",
+          "primary"
+        ]
+      }
+    },
+    {
+      "id": "claim_e68413b832ef784eb003fbed",
+      "text": "Which PostgreSQL major versions are currently supported by the PostgreSQL project",
+      "kind": "factual",
+      "priority": "critical",
+      "state": "unresolved",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:current_fact",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 2,
+        "requires_dated_evidence": false,
+        "requires_primary_source": false,
+        "requires_successful_read": true,
+        "source_roles": [
+          "authoritative_secondary",
+          "independent_secondary",
+          "primary"
+        ]
+      }
+    }
+  ],
+  "source_reads": [
+    {
+      "candidate_id": "candidate_71266c81157df786",
+      "url": "https://www.postgresql.org/",
+      "title": "PostgreSQL: The world's most advanced open source database",
+      "source_role": "primary",
+      "cluster_id": "candidate_cluster_abbdcccad3c6501f",
+      "owner_claim_id": "claim_e68413b832ef784eb003fbed",
+      "published_at": "",
+      "read_status": "read",
+      "content_chars": 524,
+      "content_sha256": "ef3147abcacc1fe9a1c0879b634f44ed8f8264e642c72234e393ad38475be955",
+      "content": "PostgreSQL is a powerful, open source object-relational database system with over 35 years of active development that has earned it a strong reputation for reliability, feature robustness, and performance. There is a wealth of information to be found describing how to install and use PostgreSQL through the official documentation. The open source community provides many helpful places to become familiar with PostgreSQL, discover how it works, and find career opportunities. Learn more on how to engage with the community.",
+      "extractions": {
+        "claim_e68413b832ef784eb003fbed": {
+          "status": "eligible",
+          "reason": "",
+          "relation": "lead",
+          "source_cluster_id": "candidate_cluster_abbdcccad3c6501f"
+        }
+      }
+    },
+    {
+      "candidate_id": "candidate_7381adc5cd8eff69",
+      "url": "https://postgres.ac.cn/docs/current/index.html",
+      "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+      "source_role": "authoritative_secondary",
+      "cluster_id": "candidate_cluster_13ee24a6477a7db2",
+      "owner_claim_id": "claim_e68413b832ef784eb003fbed",
+      "published_at": "",
+      "read_status": "read",
+      "content_chars": 1649,
+      "content_sha256": "916cb8a2786b1d22df940ff219c040f77b484cd4f516b74700727abaa71e0945",
+      "content": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 - PostgreSQL 数据库 2025年9月25日: PostgreSQL 18 发布！ 文档 → PostgreSQL 18 支持版本： 当前 （ 18 ）/ 17 / 16 / 15 / 14 / 13 开发版本： devel 不支持的版本： 12 / 11 / 10 / 9.6 / 9.5 / 9.4 / 9.3 / 9.2 / 9.1 / 9.0 / 8.4 / 8.3 / 8.2 / 8.1 / 8.0 / 7.4 / 7.3 / 7.2 PostgreSQL 18.0 文档 下一步 PostgreSQL 18.0 文档 PostgreSQL 全球开发组 版权所有 © 1996–2025 PostgreSQL 全球开发组 法律声明 目录 前言 1. 什么是 PostgreSQL ？ 2. PostgreSQL 简史 3. 约定 4. 更多信息 5. 错误报告指南 I. 教程 1. 入门 2. The SQL 语言 3. 高级特性 II. SQL 语言 4. SQL 语法 5. 数据定义 6. 数据操作 7. 查询 8. 数据类型 9. 函数和运算符 10. 类型转换 11. 索引 12. 全文搜索 13. 并发控制 14. 性能提示 15. 并行查询 III. 服务器管理 16. 二进制安装 17. 源码安装 18. 服务器设置与操作 19. 服务器配置 20. 客户端认证 21. 数据库角色 22. 管理数据库 23. 本地化 24. 例行数据库维护任务 25. 备份与恢复 26. 高可用性、负载均衡和复制 27. 监控数据库活动 28. 可靠性与预写日志 29. 逻辑复制 30. 即时编译（ JIT ) 31. 回归测试 IV. 客户端接口 32. libpq — C 库 33. 大对象 34. ECPG — 嵌入式 SQL 在 C 中 35. 信息模式 V. 服务器编程 36. 扩展 SQL 37. 触发器 38. 事件触发器 39. 规则系统 40. 过程语言 41. PL/pgSQL — SQL 过程语言 42. PL/Tcl — Tcl 过程语言 43. PL/Perl — Perl 过程语言 44. PL/Python — Python 过程语言 45. 服务器编程接口 46. 后台工作进程 47. 逻辑解码 48. 复制进度跟踪 49. 归档模块 50. OAuth 验证模块 VI. 参考 I. SQL 命令 II. PostgreSQL 客户端应用程序 III. PostgreSQL 服务器应用程序 VII. 内部结构 51. PostgreSQL 内部结构概述 52. 系统目录 53. 系统视图 54. 前端/后端协议 55. PostgreSQL 编码约定 56. 原生语言支持 57. 编写过程语言处理器 58. 编写外部数据封装器 59. 编写表采样方法 60. 编写自定义扫描提供程序 61. 遗传查询优化器 62. 表访问方法接口定义 63. 索引访问方法接口定义 64. 扩展的预写日志 65. 内置索引访问方法 66. 数据库物理存储 67. 事务处理 68. 系统目录声明及初始内容 69. 优化器如何使用统计信息 70. 备份清单格式 VIII. 附录 A. PostgreSQL 错误代码 B. 日期/时间支持 C. SQL 关键字 D. SQL 符合性 E. 发布说明 F. 附加提供的模块和扩展 G. 附加提供的程序 H. 外部项目 I. 源代码仓库 J. 文档 K. PostgreSQL 限制 L. 缩略语 M. 术语表 N. 颜色支持 O. 已弃用或重命名特性 参考文献 索引 下一步 前言 提交更正 如果您在文档中发现任何不正确、与您在使用特定功能时的实际体验不符，或需要进一步澄清的内容，请使用 此表单 报告文档问题。",
+      "extractions": {
+        "claim_e68413b832ef784eb003fbed": {
+          "status": "eligible",
+          "reason": "",
+          "relation": "supports",
+          "source_cluster_id": "candidate_cluster_13ee24a6477a7db2"
+        }
+      }
+    },
+    {
+      "candidate_id": "candidate_26f410eb2418470f9441b8c2715e5dc4",
+      "url": "https://git.postgresql.org/",
+      "title": "https://git.postgresql.org/",
+      "source_role": "primary",
+      "cluster_id": "candidate_cluster_ab4684412b8768b2",
+      "owner_claim_id": "claim_e68413b832ef784eb003fbed",
+      "published_at": "",
+      "read_status": "read",
+      "content_chars": 655,
+      "content_sha256": "cf7dcc3cddd6cf44a1f47917a897daf6a34850c18dc5bbd6aca645913d558c3e",
+      "content": "Welcome to PostgreSQL's git repository! It serves mirrors of selected projects as Git pull and web access, and it offers project hosting with push access as well as user branch hosting. You can find more user branches at the postgres organization account on Github. This repository also contains the public repository for PostgreSQL itself. It is updated within minutes of each commit from the master repository. You can find out the URL for each project at the project's summary page. You can find some help on how to use this site here. You can create and manage your repositories here. Please contact the web team to report any problems with this site.",
+      "extractions": {
+        "claim_e68413b832ef784eb003fbed": {
+          "status": "eligible",
+          "reason": "",
+          "relation": "lead",
+          "source_cluster_id": "candidate_cluster_ab4684412b8768b2"
+        }
+      }
+    }
+  ]
+}

@@ -89,6 +89,7 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
                 print(
                     f"[pdf] start remaining={_remaining() * 1000:.0f}ms "
                     f"content_length={expected}",
+                    file=sys.stderr,
                     flush=True,
                 )
             while True:
@@ -112,6 +113,7 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
                     print(
                         f"[pdf] t={(_time.monotonic() - started) * 1000:.0f}ms "
                         f"remaining={_remaining() * 1000:.0f}ms got={len(chunk)}",
+                        file=sys.stderr,
                         flush=True,
                     )
                 if not chunk:
@@ -154,6 +156,23 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
     handle.close()
     return path
 
+
+
+DIAG_ENV = "CRAWL4AI_TIMEOUT_DIAG"
+_TL: dict[str, float] = {}
+
+
+def _tl(mark: str) -> None:
+    """Record a monotonic timeline mark (diagnostics only)."""
+
+    import os as _os
+    import time as _t
+
+    if _os.getenv(DIAG_ENV):
+        _TL[mark] = _t.monotonic()
+        base = _TL.get("T0_request_begin", _TL[mark])
+        # print EVERY mark immediately, to stderr (stdout is the JSON IPC channel)
+        print(f"[tl] {mark}=+{(_TL[mark] - base) * 1000:.0f}ms", file=sys.stderr, flush=True)
 
 
 def emit(payload):
@@ -223,6 +242,7 @@ class Worker:
             try:
                 local = await asyncio.to_thread(_bounded_pdf_fetch, url, timeout_ms)
             except PdfDownloadDeadline as exc:
+                _tl("T2_pdf_deadline_raised")
                 return {
                     "provider_success": False,
                     "status_code": None,
@@ -267,7 +287,10 @@ class Worker:
         key = self.key_for(session_id, mode)
 
         started = time.perf_counter()
+        _TL.clear()
+        _tl("T0_request_begin")
         task = asyncio.create_task(self.execute(request))
+        _tl("T1_task_created")
         provider_cancelled = False
         crawler_invalidated = False
         provider_stopped = True
@@ -276,16 +299,20 @@ class Worker:
             payload = await asyncio.wait_for(asyncio.shield(task), timeout_ms / 1000.0)
             payload["deadline_hit"] = False
         except asyncio.TimeoutError:
+            _tl("T3_outer_wait_for_fired")
             self.timeouts += 1
             task.cancel()
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=CANCEL_GRACE_MS / 1000.0)
             except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
                 pass
+            _tl("T4_task_cancelled_or_done")
             provider_cancelled = True
             provider_stopped = task.done()
             # potentially contaminated: never reuse this crawler
+            _tl("T5_invalidate_begin")
             crawler_invalidated = await self.invalidate(key)
+            _tl("T6_invalidate_end")
             payload = {
                 "provider_success": False,
                 "status_code": None,
@@ -308,6 +335,7 @@ class Worker:
 
         self.completed += 1
         actual_ms = round((time.perf_counter() - started) * 1000.0, 1)
+        _tl("T7_response_written")
         payload["cancellation"] = {
             "requested_deadline_ms": timeout_ms,
             "cancel_grace_ms": CANCEL_GRACE_MS,

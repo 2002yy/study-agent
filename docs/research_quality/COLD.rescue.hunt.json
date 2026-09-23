@@ -1,0 +1,61 @@
+{
+ "probe": "cold-rescue-hunt",
+ "rows": [
+  {
+   "url": "https://node.org.cn/api/fs.html",
+   "current_shape": "ok",
+   "current_chars": 3864,
+   "current_adequate": true
+  },
+  {
+   "url": "https://node.org.cn/api/path.html",
+   "current_shape": "ok",
+   "current_chars": 6000,
+   "current_adequate": true
+  },
+  {
+   "url": "https://node.org.cn/docs/",
+   "current_shape": "ok",
+   "current_chars": 6000,
+   "current_adequate": true
+  },
+  {
+   "url": "https://docs.docker.com/docker-hub/repos/",
+   "current_shape": "ok",
+   "current_chars": 2827,
+   "current_adequate": true
+  },
+  {
+   "url": "https://docs.docker.com/reference/cli/docker/pull/",
+   "current_shape": "short_doc",
+   "current_chars": 505,
+   "current_adequate": false,
+   "wigolo_shape": "read_failed",
+   "wigolo_chars": 0,
+   "mode": "unknown",
+   "cache_hit": null,
+   "latency_ms": 375.0,
+   "rescued": false,
+   "state": "http_error",
+   "cold": true,
+   "envelope_after_ms": 2625.0,
+   "returned_chars": 505
+  },
+  {
+   "url": "https://www.docker.com/products/docker-desktop/",
+   "current_shape": "read_failed",
+   "current_chars": 0,
+   "current_adequate": false,
+   "wigolo_shape": "read_failed",
+   "wigolo_chars": 0,
+   "mode": "unknown",
+   "cache_hit": null,
+   "latency_ms": 78.0,
+   "rescued": false,
+   "state": "http_error",
+   "cold": true,
+   "envelope_after_ms": 2922.0,
+   "returned_chars": 0
+  }
+ ]
+}

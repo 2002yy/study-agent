@@ -1,0 +1,515 @@
+{
+  "annotations": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/ANNOTATIONS_MERGED.json",
+  "cases": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Docker: Accelerated Container Application Development",
+          "url": "https://www.docker.com/"
+        },
+        {
+          "title": "Docker中文网",
+          "url": "https://docker.github.net.cn/"
+        },
+        {
+          "title": "Docker 教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/docker/docker-tutorial.html"
+        },
+        {
+          "title": "Docker入门教程（非常详细）从零基础入门到精通，看完这 ...",
+          "url": "https://zhuanlan.zhihu.com/p/1892960016316748037"
+        },
+        {
+          "title": "Windows 环境下安装 Docker 的详细教程（超详细图文）",
+          "url": "https://blog.csdn.net/weixin_52286364/article/details/150379121"
+        }
+      ],
+      "pool_size": 5,
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "model_error": "",
+      "model_picks": [
+        "https://www.postgresql.org/"
+      ],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "PostgreSQL: The world's most advanced open source database",
+          "url": "https://www.postgresql.org/"
+        },
+        {
+          "title": "PostgreSQL: Downloads",
+          "url": "https://www.postgresql.org/download/"
+        },
+        {
+          "title": "PostgreSQL 教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/postgresql/postgresql-tutorial.html"
+        },
+        {
+          "title": "PostgreSQL_百度百科",
+          "url": "https://baike.baidu.com/item/PostgreSQL/530240"
+        },
+        {
+          "title": "PostgreSQL：文档：18：PostgreSQL 18.0 文档 ...",
+          "url": "https://postgres.ac.cn/docs/current/index.html"
+        }
+      ],
+      "pool_size": 5,
+      "question": "Which PostgreSQL major versions are currently supported by the PostgreSQL project, and when does the oldest currently supported major version reach end of life?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "江西银行",
+          "url": "http://www.jx-bank.com/"
+        },
+        {
+          "title": "中国银行网站_全球门户首页",
+          "url": "https://www.boc.cn/"
+        },
+        {
+          "title": "江西银行 电子银行",
+          "url": "https://www.jx-bank.com/col8/index.html"
+        },
+        {
+          "title": "Bank（英文单词）_百度百科",
+          "url": "https://baike.baidu.com/item/Bank/16848826"
+        },
+        {
+          "title": "首页_江西分行",
+          "url": "https://www.abchina.com/cn/branch/jx/"
+        }
+      ],
+      "pool_size": 5,
+      "question": "What Bank Rate was set at the most recent Bank of England Monetary Policy Committee decision, and on what date was that decision announced?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Welcome to GOV.UK",
+          "url": "https://www.gov.uk/"
+        },
+        {
+          "title": "The Official Website For UK Tourism | VisitBritain",
+          "url": "https://www.visitbritain.com/en"
+        },
+        {
+          "title": "Visas and immigration - GOV.UK",
+          "url": "https://www.gov.uk/browse/visas-immigration"
+        },
+        {
+          "title": "United Kingdom | History, Population, Map, Flag, Capital, & Facts ...",
+          "url": "https://www.britannica.com/place/United-Kingdom"
+        },
+        {
+          "title": "英国概况 United Kingdom | 英国概况和城市介绍 | | Visit UK",
+          "url": "https://visituk.cn/uk-info/details.asp?id=1"
+        }
+      ],
+      "pool_size": 5,
+      "question": "What is the latest UK Consumer Prices Index (CPI) 12-month inflation rate published by the Office for National Statistics, and which month does it cover?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Astral",
+          "url": "https://astral.fan/"
+        },
+        {
+          "title": "下载 · Astral",
+          "url": "https://next.astral.fan/download/"
+        },
+        {
+          "title": "Releases · ldoubil/astral - GitHub",
+          "url": "https://github.com/ldoubil/astral/releases"
+        },
+        {
+          "title": "Astral Game · 游戏版 · Astral",
+          "url": "https://next.astral.fan/game/"
+        },
+        {
+          "title": "⬇️ 下载 | AstralGame",
+          "url": "https://astral.fan/getting-started/download/"
+        }
+      ],
+      "pool_size": 5,
+      "question": "What open-source license does Astral's uv project use according to its official repository?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "model_error": "",
+      "model_picks": [
+        "https://zhuanlan.zhihu.com/p/338817680",
+        "https://blog.csdn.net/weixin_42475060/article/details/121101749"
+      ],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Transformer模型详解（图解最完整版） - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/338817680"
+        },
+        {
+          "title": "【超详细】【原理篇&实战篇】一文读懂Transformer-CSDN博客",
+          "url": "https://blog.csdn.net/weixin_42475060/article/details/121101749"
+        },
+        {
+          "title": "Transformer 模型 - 菜鸟教程",
+          "url": "https://www.runoob.com/pytorch/transformer-model.html"
+        },
+        {
+          "title": "一文了解Transformer全貌（图解Transformer）",
+          "url": "https://www.zhihu.com/tardis/zm/art/600773858"
+        },
+        {
+          "title": "（通俗版）Transformer到底是什么？一篇给你讲得明明白白",
+          "url": "https://zhuanlan.zhihu.com/p/1995435550648325668"
+        },
+        {
+          "title": "Attention 和 Self-Attention [一万字拆解 Attention，全网最 ...",
+          "url": "https://zhuanlan.zhihu.com/p/609523552"
+        },
+        {
+          "title": "attention（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/attention/52695345"
+        },
+        {
+          "title": "一文看懂 Attention（本质原理+3大优点+5大类型）",
+          "url": "https://zhuanlan.zhihu.com/p/91839581"
+        },
+        {
+          "title": "attention - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?cc=cn&FORM=BDVSP6&q=attention"
+        },
+        {
+          "title": "attention是什么意思_attention的翻译_音标_读音_用法_例句 ...",
+          "url": "https://www.iciba.com/word?w=attention"
+        }
+      ],
+      "pool_size": 10,
+      "question": "In the original 'Attention Is All You Need' paper, which optimizer and learning-rate schedule were used to train the Transformer?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "model_error": "",
+      "model_picks": [
+        "https://github.com/tukaani-project/xz"
+      ],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "在Linux中如何解压 .xz 和 tar.xz 文件？-阿里云开发者社区",
+          "url": "https://developer.aliyun.com/article/1488009"
+        },
+        {
+          "title": "Linux系统中xz命令用法详解（压缩和解压缩）_linux xz ...",
+          "url": "https://blog.csdn.net/weixin_44799217/article/details/127937561"
+        },
+        {
+          "title": "GitHub - tukaani-project/xz: XZ Utils",
+          "url": "https://github.com/tukaani-project/xz"
+        },
+        {
+          "title": "️ XZPhotos - 为航摄爱好者提供更多传图选择",
+          "url": "https://xzphotos.cn/"
+        },
+        {
+          "title": "如何解压缩 tar.xz 文件 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/137121638"
+        }
+      ],
+      "pool_size": 5,
+      "question": "For CVE-2024-3094 in XZ Utils, which sources constitute original or primary technical disclosure, and which widely circulated reports are secondary or republished accounts?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "model_error": "",
+      "model_picks": [
+        "https://www.python.org/",
+        "https://www.python.org/downloads/"
+      ],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Welcome to Python.org",
+          "url": "https://www.python.org/"
+        },
+        {
+          "title": "Download Python | Python.org",
+          "url": "https://www.python.org/downloads/"
+        },
+        {
+          "title": "欢迎来到 Python.org - Python 编程语言",
+          "url": "https://pythonlang.cn/"
+        },
+        {
+          "title": "Python 基础教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/python/python-tutorial.html"
+        },
+        {
+          "title": "简介 - Python教程 - 廖雪峰的官方网站",
+          "url": "https://www.liaoxuefeng.com/wiki/1016959663602400"
+        }
+      ],
+      "pool_size": 5,
+      "question": "What is the current status of free-threaded Python in the latest stable Python release, and how should older official descriptions of it as experimental be interpreted today?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Rust Programming Language",
+          "url": "https://rust-lang.org/"
+        },
+        {
+          "title": "Rust 程序设计语言",
+          "url": "https://rust-lang.org/zh-CN/"
+        },
+        {
+          "title": "Rust 教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/rust/rust-tutorial.html"
+        },
+        {
+          "title": "Rust — Explore, Build and Survive",
+          "url": "https://rust.facepunch.com/"
+        },
+        {
+          "title": "后端 - 2026 年，为什么我劝你学 Rust？生态全景 + Tauri ...",
+          "url": "https://segmentfault.com/a/1190000047735055"
+        }
+      ],
+      "pool_size": 5,
+      "question": "What benefits and recurring pain points do Rust developers currently report when using async Rust in production, and which parts are community experience rather than official language guarantees?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "十二个月份的英文你记得吗？星期？ - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/670742542"
+        },
+        {
+          "title": "june（英文单词）_百度百科",
+          "url": "https://baike.baidu.com/item/june/5452619"
+        },
+        {
+          "title": "June - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?cc=cn&FORM=BDVSP6&q=June"
+        },
+        {
+          "title": "June中文 (简体)翻译：剑桥词典 - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/june"
+        },
+        {
+          "title": "6月（日历中的第6个月）_百度百科",
+          "url": "https://baike.baidu.com/item/6%E6%9C%88/7309259"
+        },
+        {
+          "title": "中国网络性能安全服务 | Cloudflare 中国官网",
+          "url": "https://www.cloudflare-cn.com/application-services/products/china-network/"
+        },
+        {
+          "title": "Cloudflare, Inc. - Investor Relations",
+          "url": "https://www.cloudflare.net/home/default.aspx"
+        },
+        {
+          "title": "Cloudflare 企业解决方案",
+          "url": "https://www.cloudflare-cn.com/enterprise/"
+        },
+        {
+          "title": "Cloudflare浑身都是宝，普通用户能白嫖多少服务？盘点 ...",
+          "url": "https://blog.csdn.net/techshrimp/article/details/139684106"
+        },
+        {
+          "title": "Cloudflare_百度百科",
+          "url": "https://baike.baidu.com/item/Cloudflare/17359757"
+        }
+      ],
+      "pool_size": 10,
+      "question": "According to Cloudflare's primary postmortem and independent technical reporting, what directly triggered the June 12, 2025 Cloudflare outage, and what contributing factors made the incident broader or harder to recover from?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Node.js — Run JavaScript Everywhere",
+          "url": "https://nodejs.org/"
+        },
+        {
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "url": "https://node.org.cn/"
+        },
+        {
+          "title": "Node.js 中文网 — 下载 Node.js®",
+          "url": "https://nodejs.cn/en/download/prebuilt-installer"
+        },
+        {
+          "title": "Node.js 中文网",
+          "url": "https://nodejs.cn/"
+        },
+        {
+          "title": "Node.js 教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html"
+        },
+        {
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "url": "https://juejin.cn/post/7108410887052427301"
+        },
+        {
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389"
+        },
+        {
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "url": "https://nodejs.cn/api/modules.html"
+        },
+        {
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "url": "https://blog.csdn.net/jongden/article/details/154949610"
+        },
+        {
+          "title": "模块：CommonJS 模块 | Node.js v26.0.0 文档 - Node.js ...",
+          "url": "https://node.org.cn/api/modules.html"
+        }
+      ],
+      "pool_size": 10,
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": [
+        "https://node.org.cn/api/modules.html",
+        "https://nodejs.cn/api/modules.html"
+      ]
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "model_error": "",
+      "model_picks": [],
+      "model_target_hits": [],
+      "model_target_rank": null,
+      "pool_head": [
+        {
+          "title": "Welcome to Python.org",
+          "url": "https://www.python.org/"
+        },
+        {
+          "title": "Download Python | Python.org",
+          "url": "https://www.python.org/downloads/"
+        },
+        {
+          "title": "欢迎来到 Python.org - Python 编程语言",
+          "url": "https://pythonlang.cn/"
+        },
+        {
+          "title": "Python 基础教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/python/python-tutorial.html"
+        },
+        {
+          "title": "简介 - Python教程 - 廖雪峰的官方网站",
+          "url": "https://www.liaoxuefeng.com/wiki/1016959663602400"
+        }
+      ],
+      "pool_size": 5,
+      "question": "Which exact vulnerabilities will be fixed in the next Python security release before the Python Security Response Team publicly announces them?",
+      "rule_picks": [],
+      "rule_reasons": {},
+      "rule_target_hits": [],
+      "targets": []
+    }
+  ],
+  "diagnostic_only": true,
+  "generated_at": "2026-09-18T18:25:42.117986+00:00",
+  "max_picks": 2,
+  "model_name": "deepseek-flash",
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "schema_version": "selector-replay-v1",
+  "source_probe": "C:/Users/Zhang/Desktop/study agent/docs/research_quality/SEARCH_DISCOVERY_PROBE.json",
+  "summary": {
+    "cases": 12,
+    "cases_with_targets": 1,
+    "model_errors": 0,
+    "model_target_hits": 0,
+    "rule_target_hits": 0
+  },
+  "thinking_mode": "disabled_for_structured_research_calls"
+}

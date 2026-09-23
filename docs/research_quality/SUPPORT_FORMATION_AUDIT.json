@@ -1,0 +1,975 @@
+{
+  "schema_version": "rq1c-support-formation-audit-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "generated_at": "2026-09-18T09:13:28.662398+00:00",
+  "source_artifacts": [
+    "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+    "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+    "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.fd4295e.json"
+  ],
+  "method_note": "verdicts are the stored extractor output; page bodies are re-fetched with the production reader and may have changed since the original run; human_classification must be filled by a human reviewer with lead_because_page_lacks_fact or false_lead",
+  "row_count": 27,
+  "relation_counts": {
+    "lead": 24,
+    "qualifies": 2,
+    "background": 1
+  },
+  "rows": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "gate_status": "block",
+      "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "url": "https://www.docker.com/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "20B+ pulls a month on Docker Hub",
+      "anchored_spans": [
+        "20B+ pulls a month on Docker Hub"
+      ],
+      "caveats": [
+        "The excerpt mentions Docker Hub pull volume but does not state any pull-rate limits for unauthenticated or authenticated Personal users."
+      ],
+      "source_role": "primary",
+      "title": "Docker: Accelerated Container Application Development",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "20"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 1922,
+        "content_sha256": "603bc2e630aa6fbf",
+        "error_type": ""
+      },
+      "page_excerpt": "the business inheriting the risk. Output goes up. Audit gaps go to zero. Engineering focuses on product, not plumbing. Compliant by default. Identity-bound audit. Policy enforced at every step, with every action signed and documented. Evidence your auditors will actually appreciate. From the company that secured the developer laptop for the enterprise. 91% of the Fortune 100 already run on Docker 20B+ pulls a month on Docker Hub 20M+ developers build on Docker every day"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "gate_status": "block",
+      "claim_id": "claim_e68413b832ef784eb003fbed",
+      "url": "https://www.postgresql.org/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "PostgreSQL is a powerful, open source object-relational database system",
+      "anchored_spans": [
+        "PostgreSQL is a powerful, open source object-relational database system"
+      ],
+      "caveats": [
+        "The excerpt does not mention any PostgreSQL version numbers or support policy."
+      ],
+      "source_role": "primary",
+      "title": "PostgreSQL: The world's most advanced open source database",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 524,
+        "content_sha256": "ef3147abcacc1fe9",
+        "error_type": ""
+      },
+      "page_excerpt": "PostgreSQL is a powerful, open source object-relational database system with over 35 years of active development that has earned it a strong reputation for reliability, feature robustness, and performance. There is a wealth of information to be found describing how to install and use PostgreSQL through the official documentation. The open source community provides many helpful places to become familiar with PostgreSQL, discover how it works, and find career opportunities. Learn more on how to engage with the community."
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "gate_status": "block",
+      "claim_id": "claim_8cfbaad64efd391a10446baf",
+      "url": "https://www.gov.uk/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "We’d like to set additional cookies to understand how you use GOV.UK",
+      "anchored_spans": [
+        "We’d like to set additional cookies to understand how you use GOV.UK"
+      ],
+      "caveats": [
+        "The excerpt is a cookie-consent notice and contains no CPI or inflation data."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Welcome to GOV.UK",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 125,
+        "content_sha256": "f845cecad89fa81e",
+        "error_type": ""
+      },
+      "page_excerpt": "We’d like to set additional cookies to understand how you use GOV.UK, remember your settings and improve government services."
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_1e653c7a79424be5baec50c1",
+      "url": "https://blog.csdn.net/weixin_42475060/article/details/121101749",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构",
+      "anchored_spans": [
+        "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构"
+      ],
+      "caveats": [
+        "The excerpt describes the Transformer architecture but does not mention the optimizer or learning-rate schedule used for training."
+      ],
+      "source_role": "community",
+      "title": "【超详细】【原理篇&实战篇】一文读懂Transformer-CSDN博客",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 6000,
+        "content_sha256": "0779c44f41fc65b2",
+        "error_type": ""
+      },
+      "page_excerpt": "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构，它在2017年由Vaswani等人首次提出。Transformer架构引入了自注意力机制（self-attention mechanism），这是一个关键的创新，使其在处理序列数据时表现出色。 Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构，它在2017年由Vaswani等人首次提出。Transformer架构引入了自注意力机制（self-attention mechanism），这是一个关键的创新，使其在处理序列数据时表现出色。 以下是Transformer的一些重要组成部分和特点： - 自注意力机制（Self-Attention）：这是Transformer的核心概念之一，它使模型能够同时考虑输入序列中的所有位置，而不是像循环神经网络（RNN）或卷积神经网络（CNN）一样逐步处理。自注意力机制允许模型根据输入序列中的不同部分来赋予不同的注意权重，从而更好地捕捉语义关系。 - 多头注意力（Multi-Head Attention）：Transformer中的自注意力机制被扩展为多个注意力头，每个头可以学习不同的注意权重，以更好地捕捉不同类型的关系。多头注意力允许模型并行处理不同的信息子空间。 - 堆叠层（Stacked Layers）：Transformer通常由多个相同的编码器和解码器层堆叠而成。这些堆叠的层有助于模型学习复杂的特征表示和语义。 - 位置编码（Positional Encoding）：由于Transformer没有内置的序列位置信息，它需要额外的位置编码来表达输入序列中单词的位置顺序。 - 残差连接和层归一化（Residual Connections and Layer Normalization）：这些技术有助于减轻训练过程中的梯度消失和爆炸问题，使模型更容易训练。 - 编码器和解码器：Transformer通常包括一个编码器用于处理输入序列和一个解码器用于生成输出序列，这使其适用于序列到序列的任务，如机器翻译。 Nx = 6，Encoder block由6个encoder堆叠而成，图中的一个框代表的是一个encoder的内部结构，一个Encoder是由Multi-Head Attention和全连接神经网络Feed Forward Network构成。如下图所示： 简略结构（每一个编码器都对应上图的一个encoder结构）： Transformer的编码组件是由6个编码器叠加在一起组成的，解码器同样如此。所有的编码器在结构上是相同的，但是它们之间并没有共享参数。编码器的简略结构如下： 从编码器输入的句子首先会经"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_1e653c7a79424be5baec50c1",
+      "url": "https://www.runoob.com/pytorch/transformer-model.html",
+      "relation": "qualifies",
+      "strength": 0.4,
+      "locator": "optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器",
+      "anchored_spans": [
+        "optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器",
+        "调整学习率调度策略（原论文用 Warmup）"
+      ],
+      "caveats": [
+        "The excerpt describes a PyTorch tutorial example using Adam with lr=0.001, not the original Transformer training setup.",
+        "The learning-rate schedule is only mentioned as 'Warmup' in a note about the original paper, without specifying the optimizer used in the original paper."
+      ],
+      "source_role": "independent_secondary",
+      "title": "Transformer 模型 - 菜鸟教程",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 2,
+        "anchor_hits": 2,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "0.001"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 5708,
+        "content_sha256": "96fc9476a9b0491f",
+        "error_type": ""
+      },
+      "page_excerpt": " = self.fc(transformer_output) return output # --- 超参数设置 --- input_dim = 10000 # 词汇表大小（共有多少个不同的词） model_dim = 512 # 每个词的向量维度（原论文使用 512） num_heads = 8 # 多头注意力头数（需能整除 model_dim） num_layers = 6 # 编码器/解码器层数（原论文使用 6） output_dim = 10000 # 输出维度（与词汇表大小相同） # --- 初始化模型、损失函数和优化器 --- model = TransformerModel(input_dim, model_dim, num_heads, num_layers, output_dim) criterion = nn.CrossEntropyLoss() # 多分类交叉熵损失 optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器 # --- 构造示例数据（实际使用时换成真实语料） --- # src: 源序列（如中文），shape = (序列长度=10, 批量大小=32) src = torch.randint(0, input_dim, (10, 32)) # tgt: 目标序列（如英文），shape = (序列长度=20, 批量大小=32) tgt = torch.randint(0, input_dim, (20, 32)) # --- 前向传播 --- output = model(src, tgt) # output.shape = (20, 32, 10000)：每个位置对词汇表的预测分布 # --- 计算损失 --- # view(-1, output_dim) 将 (20,32,10000) 展平为 (640, 10000) loss = criterion(output.view(-1, output_dim), tgt.view(-1)) # --- 反向传播 + 更新权重 --- optimizer.zero_grad() # 清空上一步的梯度 loss.backward() # 计算梯度 optimizer.step() # 更新参数 print(f\"损失值: {loss.item():.4f}\") 上面的代码使用随机数据只是为了演示流程。实际训练时需要： - 1) 准备真实的平行语料（如中英翻译对）； - 2) 做好分词和词汇表构建； - 3) 实现 Decoder 的逐步推理（自回归生成）； - 4) 调整学习率调度策略（原论文用 Warmup）。 总结 从 RNN 到 Transformer 的演进，代表了深度学习领域一次重要的范式转变。 Tr"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_1e653c7a79424be5baec50c1",
+      "url": "https://www.zhihu.com/tardis/zm/art/600773858",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的",
+      "anchored_spans": [
+        "Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的"
+      ],
+      "caveats": [
+        "Excerpt does not mention optimizer or learning-rate schedule; only general architecture and training-free details are discussed."
+      ],
+      "source_role": "community",
+      "title": "一文了解Transformer全貌（图解Transformer）",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "2017"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 3636,
+        "content_sha256": "070bb49aee4d6d2c",
+        "error_type": ""
+      },
+      "page_excerpt": "打个小广告 ☻，知乎专栏《大模型前沿应用》的内容已经收录在新书《揭秘大模型：从原理到实战》中。感兴趣的朋友可以购买，多谢支持！♥♥ 自2017年Google推出Transformer以来，基于其架构的语言模型便如雨后春笋般涌现，其中Bert、T5等备受瞩目，而近期风靡全球的大模型ChatGPT和LLaMa更是大放异彩。网络上关于Transformer的解析文章非常大，但本文将力求用浅显易懂的语言，为大家深入解析Transformer的技术内核。 Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的，用于NLP的各项任务，现在是谷歌云TPU推荐的参考模型。网上有关Transformer原理的介绍很多，在本文中我们将尽量模型简化，让普通读者也能轻松理解。 在机器翻译中，Transformer可以将一种语言翻译成另一种语言，如果把Transformer看成一个黑盒，那么其结构如下图所示： 那么拆开这个黑盒，那么可以看到Transformer由若干个编码器和解码器组成，如下图所示： 继续将Encoder和Decoder拆开，可以看到完整的结构，如下图所示： 可以看到Encoder包含一个Muti-Head Attention模块，是由多个Self-Attention组成，而Decoder包含两个Muti-Head Attention。Muti-Head Attention上方还包括一个 Add & Norm 层，Add 表示残差连接 (Residual Connection) 用于防止网络退化，Norm 表示 Layer Normalization，用于对每一层的激活值进行归一化。 假设我们的输入包含两个单词，我们看一下Transformer的整体结构： 为了能够对Transformer的流程有个大致的了解，我们举一个简单的例子，还是以之前的为例，将法语\"Je suis etudiant\"翻译成英文。 上图Decoder接收了Encoder的编码矩阵，然后首先输入一个开始符 \"<Begin>\"，预测第一个单词，输出为\"I\"；然后输入翻译开始符 \"<Begin>\" 和单词 \"I\"，预测第二个单词，输出为\"am\"，以此类推。这是Transformer的大致流程，接下来介绍里面各个部分的细节。 Transformer中单词的输入表示由单词Embedding和位置Embedding（Positional Encoding）相加得到。 单词的Embedding可以通过Word2vec等模型预训练得到，可以在Transformer中加入Embedding层。 Transformer 中除了单词的Embedding，还需要使用位置Embedding 表示单词出现在句子中的位置。因为 Transformer不采用RNN结构，而"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "gate_status": "block",
+      "claim_id": "claim_73a91aa26c0bfdbf937663a0",
+      "url": "https://www.python.org/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Latest: Python 3.14.7",
+      "anchored_spans": [
+        "Latest: Python 3.14.7"
+      ],
+      "caveats": [
+        "Excerpt only states the latest Python version; it does not mention free-threaded Python or its status."
+      ],
+      "source_role": "primary",
+      "title": "Welcome to Python.org",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 0,
+        "locator_hit": false,
+        "anchor_numbers": [
+          "3.14",
+          "7"
+        ],
+        "anchor_numbers_missing_from_page": [
+          "3.14"
+        ],
+        "hint": "recorded_anchors_absent_from_page"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 594,
+        "content_sha256": "f3470fc7ecb3c304",
+        "error_type": ""
+      },
+      "page_excerpt": "}rFG;`Z EJV%Ψ/նIH E{vl;_fUjEܪ2ri`'1sD۳E3<˟gL%Qo t; c̜\\1y62ڶr8/qo/cr͗/n+46˜K{*Y~?ŗ>-$˷Uq?}p}n\\^`M~& qCW1^I,^XQ$ǽ4~F_HEX΅uӟsЍvX7I<:j0Gt}c=.Cىy?0}k0\\J7Nϰ?q|, '1p|LL4d&nݯ IJX'B+ϲ/r0m4YO+bp}7q-όms5gZS[txבSo51J/fAs$M3}8b8~-ס|t bL]$̫G7=@@{CaMd0du܋/i:=n|'W}{\":ݝc?gOoL}hF9q'_}pNއ0Ԏ3?R;#^2|w/_>g7'7WO^/˛?|ףּ{aϽ˧n7~?\"w ȝ_-4ĥFHϵZ_S'/Q-aN\"X5^8NElwęLwv>ͼ'g=%M2x-Xzc^~[{3Ǳֱ$FnIdlr:m#,R`e ȴ8X:l='1rH^+]Gjw3d,L2Ċ]\\5Қ;S+NKP\"9dq gýʷ=~U^nn)uT6aV-2MU2GS/M(A8rG6Mz&qb葦YUݼ Һk=E m͘x:$MԪ\\ƿ:1Ux+zB:ǅckCj.X߲I, 摵o@*f.uMKje iԀL. @Ԁbe t|#<ڊǎ?]p%^\\[VEzd{0?$9?$|FSx~ZOY,SRk'ۍO\\ p2FC|B(hgq0v4r>uFiLku)^JJ,n.-?'7Iݻ^HDc>(Y暉X+a6ĦК"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "gate_status": "block",
+      "claim_id": "claim_01c024d857db1c8f2c898070",
+      "url": "https://rust-lang.org/zh-CN/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Rust 速度惊人且内存利用率极高",
+      "anchored_spans": [
+        "Rust 速度惊人且内存利用率极高",
+        "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全"
+      ],
+      "caveats": [
+        "The excerpt is a general Rust language overview and does not mention async Rust or production usage."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Rust 程序设计语言",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 2,
+        "anchor_hits": 2,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 433,
+        "content_sha256": "4944a53522fe8c40",
+        "error_type": ""
+      },
+      "page_excerpt": "高性能 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 可靠性 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 生产力 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "gate_status": "block",
+      "claim_id": "claim_f4425b3362e90a42e1c7e29d",
+      "url": "https://rust-lang.org/zh-CN/",
+      "relation": "lead",
+      "strength": 0.2,
+      "locator": "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全",
+      "anchored_spans": [
+        "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全"
+      ],
+      "caveats": [
+        "The excerpt is a high-level marketing overview and does not distinguish official language guarantees from community experience."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Rust 程序设计语言",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 433,
+        "content_sha256": "4944a53522fe8c40",
+        "error_type": ""
+      },
+      "page_excerpt": "高性能 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 可靠性 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 生产力 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "gate_status": "partial",
+      "claim_id": "claim_12f2e27e721cd432efe9a19e",
+      "url": "https://node.org.cn/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境",
+      "anchored_spans": [
+        "Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境"
+      ],
+      "caveats": [
+        "The excerpt describes Node.js generally and does not mention module systems or their official support status."
+      ],
+      "source_role": "independent_secondary",
+      "title": "Node.js — 在任何地方运行 JavaScript - Node.js 运行环境",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 393,
+        "content_sha256": "932cd2721f31b8d9",
+        "error_type": ""
+      },
+      "page_excerpt": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。 // server.mjs import { } from 'node:http'; const = ((, ) => { .(200, { 'Content-Type': 'text/plain' }); .('Hello World!\\n'); }); // starts a simple http server locally on port 3000 .(3000, '127.0.0.1', () => { .('Listening on 127.0.0.1:3000'); }); // run with `node server.mjs` 通过我们的学习资料了解更多关于 Node.js 的功能。"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "gate_status": "partial",
+      "claim_id": "claim_12f2e27e721cd432efe9a19e",
+      "url": "https://nodejs.org/zh-cn",
+      "relation": "lead",
+      "strength": 0.2,
+      "locator": "import { } from 'node:http';",
+      "anchored_spans": [
+        "import { } from 'node:http';",
+        "import from 'node:assert';",
+        "import { } from 'node:crypto';"
+      ],
+      "caveats": [
+        "The excerpt shows ES module syntax examples but does not explicitly state which module systems Node.js officially supports."
+      ],
+      "source_role": "primary",
+      "title": "Node.js — 在任何地方运行 JavaScript",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.4d1ed67.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 3,
+        "anchor_hits": 3,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 1356,
+        "content_sha256": "b11ac32d05f6448b",
+        "error_type": ""
+      },
+      "page_excerpt": "在任何地方运行 JavaScript Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，它让开发人员能够创建服务器、 Web 应用、命令行工具和脚本。 // server.mjs import { } from 'node:http'; const = ((, ) => { .(200, { 'Content-Type': 'text/plain' }); .('Hello World!\\n'); }); // starts a simple http server locally on port 3000 .(3000, '127.0.0.1', () => { .('Listening on 127.0.0.1:3000'); }); // run with `node server.mjs` // tests.mjs import from 'node:assert'; import from 'node:test'; ('that 1 is equal 1', () => { .(1, 1); }); ('that throws as 1 is not equal 2', () => { // throws an exception because 1 != 2 .(1, 2); }); // run with `node tests.mjs` // crypto.mjs import { } from 'node:crypto'; import { } from 'node:fs/promises'; const = ('sha1'); .('hex'); // ensure you have a `package.json` file for this test! .(await ('package.json')); .(); const = .(); // run with `node crypto.mjs` // streams.mjs import { , } from 'node:fs'; import { } from 'node:stream/promises'; import { } from 'node:zlib'; // ensure you have a `package.json` file for this test! await ( ('package.json'), (), ('package.json.gz') ); // run with `node streams.mjs` // threads.mjs import { , , , } from 'node:worker_threads'; if () { const = 'some data'; const = new (impo"
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "gate_status": "block",
+      "claim_id": "claim_4bbfa56e3fbe8612b74fa7d8",
+      "url": "https://docker.github.net.cn/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "Docker中心 查找并共享容器映像和其他工件。",
+      "anchored_spans": [
+        "Docker中心 查找并共享容器映像和其他工件。"
+      ],
+      "caveats": [
+        "Excerpt only lists Docker Hub as a product; it does not mention pull-rate limits, unauthenticated users, or authenticated Personal users."
+      ],
+      "source_role": "independent_secondary",
+      "title": "Docker中文网",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 261,
+        "content_sha256": "f65489a2abf29a59",
+        "error_type": ""
+      },
+      "page_excerpt": "按部分浏览 Docker 桌面 直接从您的计算机管理容器、应用程序和映像。 Docker引擎 权威的开源容器客户端和运行时。 Docker 构建 打包、测试并交付您的应用程序。 Docker 组合 使用 Docker 定义和运行多容器应用程序。 Docker中心 查找并共享容器映像和其他工件。 Docker Scout 使用 Docker Scout 加强您的软件供应链。 可信内容 来自 Docker 和经过验证的合作伙伴的高质量、安全映像。 行政 管理公司和组织用户、权限等。 安全 为管理员和开发人员提供安全护栏。"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "gate_status": "block",
+      "claim_id": "claim_e68413b832ef784eb003fbed",
+      "url": "https://www.postgresql.org/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "PostgreSQL is a powerful, open source object-relational database system",
+      "anchored_spans": [
+        "PostgreSQL is a powerful, open source object-relational database system"
+      ],
+      "caveats": [
+        "The excerpt does not mention any PostgreSQL version numbers or support policy."
+      ],
+      "source_role": "primary",
+      "title": "PostgreSQL: The world's most advanced open source database",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 524,
+        "content_sha256": "ef3147abcacc1fe9",
+        "error_type": ""
+      },
+      "page_excerpt": "PostgreSQL is a powerful, open source object-relational database system with over 35 years of active development that has earned it a strong reputation for reliability, feature robustness, and performance. There is a wealth of information to be found describing how to install and use PostgreSQL through the official documentation. The open source community provides many helpful places to become familiar with PostgreSQL, discover how it works, and find career opportunities. Learn more on how to engage with the community."
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "gate_status": "block",
+      "claim_id": "claim_e68413b832ef784eb003fbed",
+      "url": "https://www.runoob.com/postgresql/postgresql-tutorial.html",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "PostgreSQL 10.1 手册",
+      "anchored_spans": [
+        "PostgreSQL 10.1 手册"
+      ],
+      "caveats": [
+        "The excerpt only references a PostgreSQL 10.1 manual and does not state which major versions are currently supported."
+      ],
+      "source_role": "independent_secondary",
+      "title": "PostgreSQL 教程 | 菜鸟教程",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "10.1"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 1883,
+        "content_sha256": "297d3c6b28ab9e08",
+        "error_type": ""
+      },
+      "page_excerpt": "PostgreSQL 教程 PostgreSQL 是一个免费的对象-关系数据库服务器(ORDBMS)，在灵活的BSD许可证下发行。 PostgreSQL 开发者把它念作 post-gress-Q-L。 PostgreSQL 的 Slogan 是 \"世界上最先进的开源关系型数据库\"。 参考内容：PostgreSQL 10.1 手册 什么是数据库？ 数据库（Database）是按照数据结构来组织、存储和管理数据的仓库。 每个数据库都有一个或多个不同的 API 用于创建，访问，管理，搜索和复制所保存的数据。 我们也可以将数据存储在文件中，但是在文件中读写数据速度相对较慢。 所以，现在我们使用关系型数据库管理系统（RDBMS）来存储和管理的大数据量。所谓的关系型数据库，是建立在关系模型基础上的数据库，借助于集合代数等数学概念和方法来处理数据库中的数据。 ORDBMS（对象关系数据库系统）是面向对象技术与传统的关系数据库相结合的产物，查询处理是 ORDBMS 的重要组成部分，它的性能优劣将直接影响到 DBMS 的性能。 ORDBMS 在原来关系数据库的基础上，增加了一些新的特性。 RDBMS 是关系数据库管理系统，是建立实体之间的联系，最后得到的是关系表。 OODBMS（object-oriented database management system） 面向对象数据库管理系统，将所有实体都看成对象，并将这些对象类进行封装，对象之间的通信通过消息 OODBMS 对象关系数据库在实质上还是关系数据库 。 ORDBMS 术语 在我们开始学习 PostgreSQL 数据库前，让我们先了解下 ORDBMS 的一些术语： - 数据库: 数据库是一些关联表的集合。 - 数据表: 表是数据的矩阵。在一个数据库中的表看起来像一个简单的电子表格。 - 列: 一列(数据元素) 包含了相同的数据, 例如邮政编码的数据。 - 冗余：存储两倍数据，冗余降低了性能，但提高了数据的安全性。 - 主键：主键是唯一的。一个数据表中只能包含一个主键。你可以使用主键来查询数据。 - 外键：外键用于关联两个表。 - 复合键：复合键（组合键）将多个列作为一个索引键，一般用于复合索引。 - 索引：使用索引可快速访问数据库表中的特定信息。索引是对数据库表中一列或多列的值进行排序的一种结构。类似于书籍的目录。 - 参照完整性: 参照的完整性要求关系中不允许引用不存在的实体。与实体完整性是关系模型必须满足的完整性约束条件，目的是保证数据的一致性。 PostgreSQL 特征 - 函数：通过函数，可以在数据库服务器端执行指令程序。 - 索引：用户可以自定义索引方法，或使用内置的 B 树，哈希表与 GiST 索引。 - 触发器：触发器是由SQL语句查询所触发的事件。如：一个INSERT语句可能触发一个检查数据完整性的触"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "gate_status": "block",
+      "claim_id": "claim_8cfbaad64efd391a10446baf",
+      "url": "https://www.gov.uk/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "We’d like to set additional cookies to understand how you use GOV.UK",
+      "anchored_spans": [
+        "We’d like to set additional cookies to understand how you use GOV.UK"
+      ],
+      "caveats": [
+        "The excerpt is a cookie-consent notice and contains no CPI or inflation data."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Welcome to GOV.UK",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 125,
+        "content_sha256": "f845cecad89fa81e",
+        "error_type": ""
+      },
+      "page_excerpt": "We’d like to set additional cookies to understand how you use GOV.UK, remember your settings and improve government services."
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_f1670c6f8e1482c08cc2ba39",
+      "url": "https://blog.csdn.net/weixin_42475060/article/details/121101749",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构",
+      "anchored_spans": [
+        "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构"
+      ],
+      "caveats": [
+        "The excerpt does not mention the optimizer or learning-rate schedule used to train the Transformer."
+      ],
+      "source_role": "community",
+      "title": "【超详细】【原理篇&实战篇】一文读懂Transformer-CSDN博客",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 6000,
+        "content_sha256": "0779c44f41fc65b2",
+        "error_type": ""
+      },
+      "page_excerpt": "Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构，它在2017年由Vaswani等人首次提出。Transformer架构引入了自注意力机制（self-attention mechanism），这是一个关键的创新，使其在处理序列数据时表现出色。 Transformer是一种用于自然语言处理（NLP）和其他序列到序列（sequence-to-sequence）任务的深度学习模型架构，它在2017年由Vaswani等人首次提出。Transformer架构引入了自注意力机制（self-attention mechanism），这是一个关键的创新，使其在处理序列数据时表现出色。 以下是Transformer的一些重要组成部分和特点： - 自注意力机制（Self-Attention）：这是Transformer的核心概念之一，它使模型能够同时考虑输入序列中的所有位置，而不是像循环神经网络（RNN）或卷积神经网络（CNN）一样逐步处理。自注意力机制允许模型根据输入序列中的不同部分来赋予不同的注意权重，从而更好地捕捉语义关系。 - 多头注意力（Multi-Head Attention）：Transformer中的自注意力机制被扩展为多个注意力头，每个头可以学习不同的注意权重，以更好地捕捉不同类型的关系。多头注意力允许模型并行处理不同的信息子空间。 - 堆叠层（Stacked Layers）：Transformer通常由多个相同的编码器和解码器层堆叠而成。这些堆叠的层有助于模型学习复杂的特征表示和语义。 - 位置编码（Positional Encoding）：由于Transformer没有内置的序列位置信息，它需要额外的位置编码来表达输入序列中单词的位置顺序。 - 残差连接和层归一化（Residual Connections and Layer Normalization）：这些技术有助于减轻训练过程中的梯度消失和爆炸问题，使模型更容易训练。 - 编码器和解码器：Transformer通常包括一个编码器用于处理输入序列和一个解码器用于生成输出序列，这使其适用于序列到序列的任务，如机器翻译。 Nx = 6，Encoder block由6个encoder堆叠而成，图中的一个框代表的是一个encoder的内部结构，一个Encoder是由Multi-Head Attention和全连接神经网络Feed Forward Network构成。如下图所示： 简略结构（每一个编码器都对应上图的一个encoder结构）： Transformer的编码组件是由6个编码器叠加在一起组成的，解码器同样如此。所有的编码器在结构上是相同的，但是它们之间并没有共享参数。编码器的简略结构如下： 从编码器输入的句子首先会经"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_f1670c6f8e1482c08cc2ba39",
+      "url": "https://www.runoob.com/pytorch/transformer-model.html",
+      "relation": "qualifies",
+      "strength": 0.4,
+      "locator": "optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器",
+      "anchored_spans": [
+        "optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器",
+        "调整学习率调度策略（原论文用 Warmup）"
+      ],
+      "caveats": [
+        "The excerpt describes a PyTorch tutorial example using Adam with lr=0.001, not necessarily the original Transformer training setup.",
+        "The mention of Warmup is only a brief note in a checklist, not a detailed description of the original learning-rate schedule."
+      ],
+      "source_role": "aggregator",
+      "title": "Transformer 模型 - 菜鸟教程",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 2,
+        "anchor_hits": 2,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "0.001"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 5708,
+        "content_sha256": "96fc9476a9b0491f",
+        "error_type": ""
+      },
+      "page_excerpt": " = self.fc(transformer_output) return output # --- 超参数设置 --- input_dim = 10000 # 词汇表大小（共有多少个不同的词） model_dim = 512 # 每个词的向量维度（原论文使用 512） num_heads = 8 # 多头注意力头数（需能整除 model_dim） num_layers = 6 # 编码器/解码器层数（原论文使用 6） output_dim = 10000 # 输出维度（与词汇表大小相同） # --- 初始化模型、损失函数和优化器 --- model = TransformerModel(input_dim, model_dim, num_heads, num_layers, output_dim) criterion = nn.CrossEntropyLoss() # 多分类交叉熵损失 optimizer = optim.Adam(model.parameters(), lr=0.001) # Adam 优化器 # --- 构造示例数据（实际使用时换成真实语料） --- # src: 源序列（如中文），shape = (序列长度=10, 批量大小=32) src = torch.randint(0, input_dim, (10, 32)) # tgt: 目标序列（如英文），shape = (序列长度=20, 批量大小=32) tgt = torch.randint(0, input_dim, (20, 32)) # --- 前向传播 --- output = model(src, tgt) # output.shape = (20, 32, 10000)：每个位置对词汇表的预测分布 # --- 计算损失 --- # view(-1, output_dim) 将 (20,32,10000) 展平为 (640, 10000) loss = criterion(output.view(-1, output_dim), tgt.view(-1)) # --- 反向传播 + 更新权重 --- optimizer.zero_grad() # 清空上一步的梯度 loss.backward() # 计算梯度 optimizer.step() # 更新参数 print(f\"损失值: {loss.item():.4f}\") 上面的代码使用随机数据只是为了演示流程。实际训练时需要： - 1) 准备真实的平行语料（如中英翻译对）； - 2) 做好分词和词汇表构建； - 3) 实现 Decoder 的逐步推理（自回归生成）； - 4) 调整学习率调度策略（原论文用 Warmup）。 总结 从 RNN 到 Transformer 的演进，代表了深度学习领域一次重要的范式转变。 Tr"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "gate_status": "block",
+      "claim_id": "claim_f1670c6f8e1482c08cc2ba39",
+      "url": "https://www.zhihu.com/tardis/zm/art/600773858",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的",
+      "anchored_spans": [
+        "Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的"
+      ],
+      "caveats": [
+        "The excerpt does not mention the optimizer or learning-rate schedule used to train the Transformer."
+      ],
+      "source_role": "community",
+      "title": "一文了解Transformer全貌（图解Transformer）",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "2017"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 3636,
+        "content_sha256": "070bb49aee4d6d2c",
+        "error_type": ""
+      },
+      "page_excerpt": "打个小广告 ☻，知乎专栏《大模型前沿应用》的内容已经收录在新书《揭秘大模型：从原理到实战》中。感兴趣的朋友可以购买，多谢支持！♥♥ 自2017年Google推出Transformer以来，基于其架构的语言模型便如雨后春笋般涌现，其中Bert、T5等备受瞩目，而近期风靡全球的大模型ChatGPT和LLaMa更是大放异彩。网络上关于Transformer的解析文章非常大，但本文将力求用浅显易懂的语言，为大家深入解析Transformer的技术内核。 Transformer是谷歌在2017年的论文《Attention Is All You Need》中提出的，用于NLP的各项任务，现在是谷歌云TPU推荐的参考模型。网上有关Transformer原理的介绍很多，在本文中我们将尽量模型简化，让普通读者也能轻松理解。 在机器翻译中，Transformer可以将一种语言翻译成另一种语言，如果把Transformer看成一个黑盒，那么其结构如下图所示： 那么拆开这个黑盒，那么可以看到Transformer由若干个编码器和解码器组成，如下图所示： 继续将Encoder和Decoder拆开，可以看到完整的结构，如下图所示： 可以看到Encoder包含一个Muti-Head Attention模块，是由多个Self-Attention组成，而Decoder包含两个Muti-Head Attention。Muti-Head Attention上方还包括一个 Add & Norm 层，Add 表示残差连接 (Residual Connection) 用于防止网络退化，Norm 表示 Layer Normalization，用于对每一层的激活值进行归一化。 假设我们的输入包含两个单词，我们看一下Transformer的整体结构： 为了能够对Transformer的流程有个大致的了解，我们举一个简单的例子，还是以之前的为例，将法语\"Je suis etudiant\"翻译成英文。 上图Decoder接收了Encoder的编码矩阵，然后首先输入一个开始符 \"<Begin>\"，预测第一个单词，输出为\"I\"；然后输入翻译开始符 \"<Begin>\" 和单词 \"I\"，预测第二个单词，输出为\"am\"，以此类推。这是Transformer的大致流程，接下来介绍里面各个部分的细节。 Transformer中单词的输入表示由单词Embedding和位置Embedding（Positional Encoding）相加得到。 单词的Embedding可以通过Word2vec等模型预训练得到，可以在Transformer中加入Embedding层。 Transformer 中除了单词的Embedding，还需要使用位置Embedding 表示单词出现在句子中的位置。因为 Transformer不采用RNN结构，而"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "gate_status": "block",
+      "claim_id": "claim_5c08de143345ae3ba01b8be7",
+      "url": "https://developer.aliyun.com/article/1488009",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "XZ Utils是一个开源的压缩和解压缩工具集",
+      "anchored_spans": [
+        "XZ Utils是一个开源的压缩和解压缩工具集"
+      ],
+      "caveats": [
+        "The page is a general how-to guide and does not address which sources constitute original or primary technical disclosure."
+      ],
+      "source_role": "community",
+      "title": "在Linux中如何解压 .xz 和 tar.xz 文件？-阿里云开发者社区",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 2489,
+        "content_sha256": "6e24d41ea6338b61",
+        "error_type": ""
+      },
+      "page_excerpt": "在Linux中如何解压 .xz 文件 在开始解压 .xz 文件之前，我们需要确保系统已经安装了XZ Utils软件包。XZ Utils是一个开源的压缩和解压缩工具集，它提供了处理 .xz 文件的命令行工具。通常情况下，大多数主流的Linux发行版都会预装XZ Utils软件包，但是为了确保，我们可以执行以下命令来检查系统中是否已安装： xz --version 如果系统已经安装了XZ Utils，会显示XZ版本信息。如果没有安装，我们需要通过系统的包管理器来安装它。例如，在Debian/Ubuntu系统上，可以使用以下命令安装： sudo apt-get install xz-utils 在CentOS/RHEL系统上，可以使用以下命令安装： sudo yum install xz-utils 解压 .xz 文件 一旦确认系统已经安装了XZ Utils，我们就可以开始解压 .xz 文件了。解压操作非常简单，只需要使用 xz 命令并指定要解压的文件即可。例如，假设我们有一个名为 file.xz 的 .xz 文件，要解压它，可以使用以下命令： xz -d file.xz 这条命令会将 file.xz 解压缩，并将解压后的文件保存在当前目录中。如果你想要保留原始的 .xz 文件，可以使用 -k 或 --keep 选项： xz -dk file.xz 这将会解压 file.xz 文件，并保留原始的 .xz 文件。 指定解压后的文件名 有时候，我们可能想要指定解压后的文件名，而不是使用原始文件名。我们可以通过使用 -c 选项将解压后的内容发送到标准输出，然后使用重定向来指定新文件名。例如： xz -dc file.xz > new_file 这条命令将会将 file.xz 解压后的内容保存到名为 new_file 的文件中。 解压多个文件 如果你有多个 .xz 文件需要解压，你可以简单地列出它们的文件名，并将其作为 xz 命令的参数。例如： xz -d file1.xz file2.xz file3.xz 这条命令将同时解压 file1.xz 、file2.xz 和 file3.xz 文件。 使用压缩级别选项 XZ压缩工具允许用户指定压缩级别，以在压缩速度和压缩比之间进行权衡。压缩级别范围从0到9，级别越高，压缩比越高，但压缩速度会相应减慢。在解压缩过程中，我们无需指定压缩级别，但在压缩文件时，我们可以使用 -9 或 --best 选项来指定最高级别的压缩，例如： xz -9 file.txt 使用其他选项 除了上述提到的选项外，XZ工具还提供了一些其他选项，可以用于控制解压缩行为。例如： -k 或--keep ：保留原始文件。-q 或--quiet ：在执行过程中不显示任何信息。-t 或--test ：测试压缩文件的完整性，而不解压缩它。 好的，让我们开始撰写关于如"
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "gate_status": "block",
+      "claim_id": "claim_73a91aa26c0bfdbf937663a0",
+      "url": "https://www.python.org/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Latest: Python 3.14.7",
+      "anchored_spans": [
+        "Latest: Python 3.14.7"
+      ],
+      "caveats": [
+        "Excerpt only states the latest Python version; it does not mention free-threaded Python or its status."
+      ],
+      "source_role": "primary",
+      "title": "Welcome to Python.org",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 0,
+        "locator_hit": false,
+        "anchor_numbers": [
+          "3.14",
+          "7"
+        ],
+        "anchor_numbers_missing_from_page": [
+          "3.14"
+        ],
+        "hint": "recorded_anchors_absent_from_page"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 594,
+        "content_sha256": "f3470fc7ecb3c304",
+        "error_type": ""
+      },
+      "page_excerpt": "}rFG;`Z EJV%Ψ/նIH E{vl;_fUjEܪ2ri`'1sD۳E3<˟gL%Qo t; c̜\\1y62ڶr8/qo/cr͗/n+46˜K{*Y~?ŗ>-$˷Uq?}p}n\\^`M~& qCW1^I,^XQ$ǽ4~F_HEX΅uӟsЍvX7I<:j0Gt}c=.Cىy?0}k0\\J7Nϰ?q|, '1p|LL4d&nݯ IJX'B+ϲ/r0m4YO+bp}7q-όms5gZS[txבSo51J/fAs$M3}8b8~-ס|t bL]$̫G7=@@{CaMd0du܋/i:=n|'W}{\":ݝc?gOoL}hF9q'_}pNއ0Ԏ3?R;#^2|w/_>g7'7WO^/˛?|ףּ{aϽ˧n7~?\"w ȝ_-4ĥFHϵZ_S'/Q-aN\"X5^8NElwęLwv>ͼ'g=%M2x-Xzc^~[{3Ǳֱ$FnIdlr:m#,R`e ȴ8X:l='1rH^+]Gjw3d,L2Ċ]\\5Қ;S+NKP\"9dq gýʷ=~U^nn)uT6aV-2MU2GS/M(A8rG6Mz&qb葦YUݼ Һk=E m͘x:$MԪ\\ƿ:1Ux+zB:ǅckCj.X߲I, 摵o@*f.uMKje iԀL. @Ԁbe t|#<ڊǎ?]p%^\\[VEzd{0?$9?$|FSx~ZOY,SRk'ۍO\\ p2FC|B(hgq0v4r>uFiLku)^JJ,n.-?'7Iݻ^HDc>(Y暉X+a6ĦК"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "gate_status": "block",
+      "claim_id": "claim_01c024d857db1c8f2c898070",
+      "url": "https://rust-lang.org/zh-CN/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Rust 速度惊人且内存利用率极高",
+      "anchored_spans": [
+        "Rust 速度惊人且内存利用率极高",
+        "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全"
+      ],
+      "caveats": [
+        "The excerpt is a general marketing overview of Rust and does not mention async Rust, production use, or developer-reported pain points."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Rust 程序设计语言",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 2,
+        "anchor_hits": 2,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 433,
+        "content_sha256": "4944a53522fe8c40",
+        "error_type": ""
+      },
+      "page_excerpt": "高性能 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 可靠性 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 生产力 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。"
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "gate_status": "block",
+      "claim_id": "claim_f4425b3362e90a42e1c7e29d",
+      "url": "https://rust-lang.org/zh-CN/",
+      "relation": "lead",
+      "strength": 0.2,
+      "locator": "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全",
+      "anchored_spans": [
+        "Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全"
+      ],
+      "caveats": [
+        "The excerpt is a high-level marketing overview and does not distinguish official language guarantees from community experience."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Rust 程序设计语言",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 433,
+        "content_sha256": "4944a53522fe8c40",
+        "error_type": ""
+      },
+      "page_excerpt": "高性能 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 可靠性 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 生产力 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。 Rust 速度惊人且内存利用率极高。由于没有运行时和垃圾回收，它能够胜任对性能要求特别高的服务，可以在嵌入式设备上运行，还能轻松和其他语言集成。 Rust 丰富的类型系统和所有权模型保证了内存安全和线程安全，让您在编译期就能够消除各种各样的错误。 Rust 拥有出色的文档、友好的编译器和清晰的错误提示信息， 还集成了一流的工具——包管理器和构建工具， 智能地自动补全和类型检验的多编辑器支持， 以及自动格式化代码等等。"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "gate_status": "block",
+      "claim_id": "claim_12f2e27e721cd432efe9a19e",
+      "url": "https://node.org.cn/",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境",
+      "anchored_spans": [
+        "Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境"
+      ],
+      "caveats": [
+        "The excerpt describes Node.js generally but does not enumerate or discuss its supported module systems."
+      ],
+      "source_role": "independent_secondary",
+      "title": "Node.js — 在任何地方运行 JavaScript - Node.js 运行环境",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 393,
+        "content_sha256": "932cd2721f31b8d9",
+        "error_type": ""
+      },
+      "page_excerpt": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。 // server.mjs import { } from 'node:http'; const = ((, ) => { .(200, { 'Content-Type': 'text/plain' }); .('Hello World!\\n'); }); // starts a simple http server locally on port 3000 .(3000, '127.0.0.1', () => { .('Listening on 127.0.0.1:3000'); }); // run with `node server.mjs` 通过我们的学习资料了解更多关于 Node.js 的功能。"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "gate_status": "block",
+      "claim_id": "claim_12f2e27e721cd432efe9a19e",
+      "url": "https://nodejs.org/",
+      "relation": "lead",
+      "strength": 0.2,
+      "locator": "import { } from 'node:http'",
+      "anchored_spans": [
+        "import { } from 'node:http'",
+        "import from 'node:assert'",
+        "import { } from 'node:crypto'"
+      ],
+      "caveats": [
+        "The excerpt shows only ESM-style import syntax in .mjs examples and does not explicitly enumerate or describe Node.js's officially supported module systems (e.g., CommonJS vs. ECMAScript modules)."
+      ],
+      "source_role": "primary",
+      "title": "Node.js — Run JavaScript Everywhere",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 3,
+        "anchor_hits": 3,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 1497,
+        "content_sha256": "be45b3c4b7c9fbb9",
+        "error_type": ""
+      },
+      "page_excerpt": "Run JavaScript Everywhere Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts. // server.mjs import { } from 'node:http'; const = ((, ) => { .(200, { 'Content-Type': 'text/plain' }); .('Hello World!\\n'); }); // starts a simple http server locally on port 3000 .(3000, '127.0.0.1', () => { .('Listening on 127.0.0.1:3000'); }); // run with `node server.mjs` // tests.mjs import from 'node:assert'; import from 'node:test'; ('that 1 is equal 1', () => { .(1, 1); }); ('that throws as 1 is not equal 2', () => { // throws an exception because 1 != 2 .(1, 2); }); // run with `node tests.mjs` // crypto.mjs import { } from 'node:crypto'; import { } from 'node:fs/promises'; const = ('sha1'); .('hex'); // ensure you have a `package.json` file for this test! .(await ('package.json')); .(); const = .(); // run with `node crypto.mjs` // streams.mjs import { , } from 'node:fs'; import { } from 'node:stream/promises'; import { } from 'node:zlib'; // ensure you have a `package.json` file for this test! await ( ('package.json'), (), ('package.json.gz') ); // run with `node streams.mjs` // threads.mj"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "gate_status": "block",
+      "claim_id": "claim_7287847299f62bc2043c24ea",
+      "url": "https://juejin.cn/post/7108410887052427301",
+      "relation": "background",
+      "strength": 0.2,
+      "locator": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范",
+      "anchored_spans": [
+        "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范",
+        "现在主流的两种模块化规范是CommonJS 和ES Module"
+      ],
+      "caveats": [
+        "Excerpt is a historical/background overview of CommonJS and does not directly compare current guidance with older CommonJS-vs-ESM guidance."
+      ],
+      "source_role": "community",
+      "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.7b6f4aa.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 2,
+        "anchor_hits": 2,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "6"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 6000,
+        "content_sha256": "5a7ed34a75a98528",
+        "error_type": ""
+      },
+      "page_excerpt": "前言 大家好，我是一知。 在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此我们仍然有必要对 CommonJS 有一定的了解。 1. 什么是模块（化）？ 模块，是能够单独命名并独立地完成一定功能的程序语句的集合（即程序代码和数据结构的集合体）。比如我们开发的一个应用程序通常是由不同的小模块组成的，每个小模块都可以单独实现某些逻辑，在使用时，我们通常可以不必关注其内部具体的实现细节，只需要通过它对外暴露的接口进行交互。 2. 为什么需要模块化（解决了什么问题）？ 在 JavaScript 发展早期，是没有使用模块化的，我们在开发一个网页时可能会存在引入多个 js 文件的情况，比如： <body> <script src=\"./a.js\"></script> <script src=\"./b.js\"></script> <script src=\"./c.js\"></script> ... </body> 如上，在没有使用模块化的情况下，我们虽然可以将应用中的逻辑拆分到了不同的 js 文件中，但实际上在每个 js 文件中的代码运行时的顶层作用域都是同一个全局作用域（此处是 window ），与将所有代码写在同一个 js 文件中无异。这样的方式会造成全局变量污染以及依赖管理混乱等问题，尤其是在多人协作开发以及应用程序较复杂时，这种问题会变得更加棘手。 2.1 全局变量污染 拿上面这种情况来举例，假如a.js 是由我开发的： // a.js var someName = '一知' setTimeout(() => { console.log(someName) }, 2000) 然后b.js 是团队里的张三开发的： // b.js function someName(// ... } 如上代码，我在a.js 中声明了一个叫someName 的字符串变量，并且在 2 秒种后打印它的值，而张三在不知情的情况下在b.js 中声明了一个叫someName 的函数，这将导致在 2 秒钟后打印的someName 其实是张三在b.js 中声明的函数，而不是我预期的在a.js 中声明的字符串。这仅仅是一个简单的 demo，真实的开发场景远比这个复杂得多，如果也碰到这种变量污染的情况，排查起来简直是噩梦。 当然，这个问题可以通过自执行的匿名函数来曲线救国，比如这样： // a.js (function(var someName = '一知' setTimeout(() => { console.log(someName) }"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "gate_status": "partial",
+      "claim_id": "claim_cd0bc189a276184a4120284a",
+      "url": "https://www.163.com/dy/article/JP5OC3950543IAM2.html",
+      "relation": "lead",
+      "strength": 0.1,
+      "locator": "近日，哪吒2的成功",
+      "anchored_spans": [
+        "近日，哪吒2的成功"
+      ],
+      "caveats": [
+        "The excerpt does not state any specific announcement date; it only uses the vague time reference '近日' (recently)."
+      ],
+      "source_role": "community",
+      "title": "移居美国多年，68岁孙海英再起争议言论，微博曾遭央视封停 ...",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.fd4295e.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [
+          "2"
+        ],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 1915,
+        "content_sha256": "94f7b7d430b66cc6",
+        "error_type": ""
+      },
+      "page_excerpt": "明明作为影视圈内的前辈，可以为新生代演员做出榜样，但是却偏偏频繁发出惹人争议的言论，引起风波。 孙海英的演技，从来没有人质疑，但是在戏外，他受到的争议就不小了，早在十几年前，他就因为出口狂言，引发了和知名导演之间的骂战。 近日，哪吒2的成功，成为了国内影坛的一个奇迹，哪吒2中的内容走向世界，毫无疑问是文化自信的体现。而这部电影进入了影史前十，也无疑表明着它的成功。 但是，孙海英却口出狂言： “哪吒的传说只不过是对耶稣的模仿，而耶稣是真实存在的！” 这段话常人看来是十分荒谬的，从中西文化上来看，孙海英无疑是在崇洋媚外。 移居美国多年的孙海英，似乎已经被洗脑了，如今的他，距离我们印象中的老戏骨，或许已经越来越远了。 崇洋媚外的他难道是想重回国内发展？引起众怒的他只怕很难让大家买他的账了。 孙海英出生于1956年的辽宁沈阳，从小，他就立志要当一名演员，而他的家庭也是个艺术之家，这样的环境也正好能满足他的梦想。 后来的他，多次进入话剧团，分别在西藏军区话剧团、福建军区话剧团、沈阳话剧团都留下过足迹。 而他在沈阳话剧团中获得的成就是最耀眼的，由于前几次入团为他打下了厚实的基础，他刚进来就能适应团内的环境，同时他也在这里接到了主演的机会，在《喧闹的夏天》中担任主演。 之后的孙海英，便来到了事业的上升时期，一部《双旗镇刀客》更是让他声名鹊起。而《走出西柏坡》则是让他得到了第21届中国电影金鸡奖最佳男配角奖的提名。 孙海英的戏路非常宽，能演武侠片，也能演感情片，随着年龄上升，他也不愁没戏拍，因为他能适应各种各样的角色。 而他出演过的角色有“诗仙”李白，还有丐帮帮主洪七公，还演过汉高祖刘邦。2013年，古装剧《楚汉传奇》横空出世，这部剧让何润东成为无数人心中的梦，他在剧中演的西楚霸王项羽，英雄气概令人好不羡慕。 而谋士范增的结局，也让人感到不胜唏嘘，或许很多人不了解，他的扮演者其实就是孙海英。 孙海英曾经十分自信的表示，这个范增换别人来演不了。从剧中的表现我们可以看出，孙海英的表现确实让这部剧上升了一个高度。 而孙海英的感情经历，实际上经过一段非常令他痛心的时期。 孙海英当年在话剧团时期，就有过一段婚姻。结婚后的他生活幸福美满，没多久就有了孩子。但是意外随之发生了。 儿子因为一场意外，不小心把头摔坏了，自此，孩子便瘫痪了。 而孩子母亲无法接受这个事实，于是便一个人离开了这个家庭，自此，孙海英便孤身一人了。 面对命运的重创，孙海英并没有放弃生活的希望，一边赚钱一边养孩子，但是后来随着孩子病情加重，孩子离开了人世，令他十分受打击。 而他第二段感情，也就是持续至今的感情，对象是吕丽萍，两人因戏相识，多次合作，最后擦出了爱情的火花。 同为演员的两人很有话题，最终熟识了起来，并且最后步入了婚姻的殿堂。 然而，后来孙海英的崇洋媚外，其实也有吕丽萍的一份。 两人在婚后便移居美国，但是两人在"
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "gate_status": "block",
+      "claim_id": "claim_8cfbaad64efd391a10446baf",
+      "url": "https://www.gov.uk/",
+      "relation": "lead",
+      "strength": 0.05,
+      "locator": "We’d like to set additional cookies to understand how you use GOV.UK",
+      "anchored_spans": [
+        "We’d like to set additional cookies to understand how you use GOV.UK"
+      ],
+      "caveats": [
+        "The excerpt is a cookie-consent notice and contains no CPI or inflation data."
+      ],
+      "source_role": "authoritative_secondary",
+      "title": "Welcome to GOV.UK",
+      "artifact": "RQ1C_BOUNDED_QUALIFICATION_RUNTIME.fd4295e.json",
+      "human_classification": "",
+      "hints": {
+        "anchor_count": 1,
+        "anchor_hits": 1,
+        "locator_hit": true,
+        "anchor_numbers": [],
+        "anchor_numbers_missing_from_page": [],
+        "hint": "page_contains_recorded_anchors"
+      },
+      "page_fetch": {
+        "ok": true,
+        "content_chars": 125,
+        "content_sha256": "f845cecad89fa81e",
+        "error_type": ""
+      },
+      "page_excerpt": "We’d like to set additional cookies to understand how you use GOV.UK, remember your settings and improve government services."
+    }
+  ]
+}

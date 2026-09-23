@@ -1,0 +1,1481 @@
+{
+  "schema_version": "rq1c-calibration-run-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "git_sha": "8d0e1f18cec160c7c451d598ecac2c4ea03aa897",
+  "started_at": "2026-09-18T18:54:13.198703Z",
+  "completed_at": "2026-09-18T18:54:50.650264Z",
+  "manifest": {
+    "path": "C:/Users/Zhang/Desktop/study agent/tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "sha256": "e113972478034bfdaba1b4b21161988addd9b011d35a9549752dc2a16b89b807",
+    "case_count": 1
+  },
+  "configured_budget": {
+    "max_candidates": 20,
+    "max_reads": 8,
+    "max_model_calls": 8,
+    "soft_timeout_seconds": 45,
+    "hard_timeout_seconds": 60
+  },
+  "cases": [
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "category": "historical_current_mix",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "reference_date": "2026-09-18",
+      "elapsed_seconds": 37.219,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-historical-current-node-modules",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "da9c301d87afe7419a597e3af50b2327a9f592410ef3f6ae447792d356fc5dfb",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 9,
+        "audits": [
+          {
+            "query_sha256": "bb3a90321e59f70ebb6eb8ed0002b1e5a982f02bf75173c0c78ea9467e721d9e",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "url_error",
+                "attempts": 2,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "14c0f9f800fb06b6e7bac2c24d274ba6265e570706894bb89e651cf2a83e59d3",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "b8cc7378f32e9c3dd5c6a51b44f2e98d58dcf8137526d37aeb2cd3ef8518fea8",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "6ea18642ec0ef69d80bba634dab716745a1e06b2140f57a6e8606ddec07fc85a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "b2aaab2ccaaf3279838da613474fd9fc7227ae7ef2c1c2a89743ef2d2cb6c85a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "971a25bf7fff65a78a8ca7c2d650806bc69b14bc52a3aad3bfe5afafe72226d9",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "a5b9cdb4b62264c49a8d5a6ceeb99f8bf414cf81d6a959ce9d72bf455aabd21f",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "dcb48180047c4f944e2bb5c0b0b5187c74141dcce6adec67f98789585a87fe84",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "e1ce1c451c4246ef391cfcd8f7d161554e230d14e3d17dba33f0eceb236080a4",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 5,
+        "read_count": 2,
+        "read_attempt_count": 2,
+        "research_model_call_count": 4,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 5,
+        "elapsed_seconds": 37.219,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_1f786a729d1f902a",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "url": "https://nodejs.org/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_6401839682b6151b",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        },
+        {
+          "candidate_id": "candidate_f3b77e9a09fefd9a",
+          "title": "Node.js 中文网",
+          "url": "https://nodejs.cn/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "independent_secondary",
+          "cluster_id": "candidate_cluster_7dcd0f42b64fcd24",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_6401839682b6151b",
+        "candidate_cluster_7dcd0f42b64fcd24"
+      ],
+      "finalization_breakdown": {
+        "research_seconds": 32.984,
+        "post_research_projection_seconds": 0.0,
+        "answer_stage_seconds": 4.219,
+        "total_seconds": 37.219,
+        "finalization_seconds": 4.235,
+        "answer_generation_seconds": 3.718,
+        "answer_claim_binding_seconds": 0.0,
+        "other_seconds": 0.0,
+        "answer_stage_call_count": 1,
+        "answer_stage_calls": [
+          {
+            "phase": "answer_generation",
+            "elapsed_seconds": 3.718,
+            "outcome": "ok",
+            "timeout_seconds": 26.531,
+            "remaining_after_call_seconds": 22.813,
+            "remaining_at_dispatch_seconds": 26.531,
+            "message_count": 2,
+            "message_chars": 3874,
+            "request_max_retries": 0,
+            "thinking_disabled": true
+          }
+        ],
+        "answer_stage_tokens": null,
+        "diagnostic_limits": null,
+        "notes": [
+          "gate settle and checkpointing run inside the research phase",
+          "answer-stage token usage is not surfaced at the production chat boundary"
+        ],
+        "artifact_write_seconds": 0.0
+      },
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_12f2e27e721cd432efe9a19e"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_12f2e27e721cd432efe9a19e:eligible_support_clusters=0/1",
+          "critical:claim_12f2e27e721cd432efe9a19e:primary_required"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_1f786a729d1f902a36d81a25",
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "relation": "lead",
+            "strength": 0.2,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_6401839682b6151b",
+            "url": "https://nodejs.org/",
+            "title": "Node.js — Run JavaScript Everywhere",
+            "published_at": "",
+            "locator": "import { } from 'node:http';",
+            "anchored_spans": [
+              "import { } from 'node:http';",
+              "import from 'node:assert';",
+              "import { } from 'node:crypto';"
+            ],
+            "caveats": [
+              "The excerpt shows only ESM-style import syntax in examples and does not explicitly state which module systems Node.js officially supports."
+            ]
+          },
+          {
+            "evidence_id": "web_f3b77e9a09fefd9a4cf2a77c",
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "relation": "lead",
+            "strength": 0.1,
+            "source_role": "independent_secondary",
+            "source_cluster_id": "candidate_cluster_7dcd0f42b64fcd24",
+            "url": "https://nodejs.cn/",
+            "title": "Node.js 中文网",
+            "published_at": "",
+            "locator": "Node.js 是一个开源的、跨平台的 JavaScript 运行时环境",
+            "anchored_spans": [
+              "Node.js 是一个开源的、跨平台的 JavaScript 运行时环境"
+            ],
+            "caveats": [
+              "The excerpt does not mention module systems (e.g., CommonJS or ES modules)."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_54b8ad481192136909a894d4"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 5,
+        "cluster_count": 2,
+        "deeper_targeting": {
+          "gap_unavailable": 0,
+          "page_intent_counts": {
+            "support_lifecycle": 1
+          },
+          "recent": [
+            {
+              "followup_reason": "missing_target_fact",
+              "gap_hint": {
+                "anchors": [
+                  "import { } from 'node:http';",
+                  "import from 'node:assert';",
+                  "import { } from 'node:crypto';"
+                ],
+                "caveat": "The excerpt shows only ESM-style import syntax in examples and does not explicitly state which module systems Node.js officially supports.",
+                "locator": "import { } from 'node:http';",
+                "missing_fact_terms": [
+                  "module",
+                  "systems",
+                  "node.js",
+                  "officially",
+                  "supports"
+                ],
+                "relation": "lead",
+                "source_authority_class": "official",
+                "source_url": "https://nodejs.org/",
+                "targeting_strategy": "root_or_landing_page"
+              },
+              "page_intent": {
+                "kind": "support_lifecycle",
+                "matched_terms": [
+                  "support"
+                ],
+                "path_terms": [
+                  "support",
+                  "versioning",
+                  "lifecycle",
+                  "releases",
+                  "eol"
+                ]
+              },
+              "query_variants": [
+                "module systems node.js officially supports",
+                "module systems node.js officially supports support versioning",
+                "module systems node.js officially supports docs"
+              ],
+              "selected_candidate_depth": 0,
+              "selected_candidate_url": "",
+              "selected_query_variant": "module systems node.js officially supports",
+              "selection_reason": "page_intent_match",
+              "source_authority_class": "official",
+              "source_candidate_url": "https://nodejs.org/",
+              "targeting_strategy": "root_or_landing_page"
+            }
+          ],
+          "strategy_counts": {
+            "root_or_landing_page": 1
+          }
+        },
+        "lead_discovery": {
+          "deeper_targeting_root_or_landing_page": 1,
+          "evidence_lead_followup_cap_reached": 1,
+          "evidence_lead_followup_started": 1,
+          "evidence_lead_no_deeper_url": 1,
+          "no_lead_candidate": 4
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "phase_seconds": {
+          "assessment": {
+            "calls": 4,
+            "seconds": 0.672
+          },
+          "extraction": {
+            "calls": 2,
+            "seconds": 2.547
+          },
+          "read": {
+            "calls": 2,
+            "seconds": 4.25
+          },
+          "search": {
+            "calls": 9,
+            "seconds": 17.358
+          }
+        },
+        "read_count": 2,
+        "reads": [
+          {
+            "candidate_id": "candidate_1f786a729d1f902a",
+            "content_chars": 1497,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          },
+          {
+            "candidate_id": "candidate_f3b77e9a09fefd9a",
+            "content_chars": 1288,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "research_window": {
+          "deadline_elapsed": 48.0,
+          "exhausted": false,
+          "hard_seconds": 60.0,
+          "remaining_after_research_seconds": 27.078,
+          "research_elapsed_seconds": 32.922,
+          "reserve_seconds": 12.0
+        },
+        "search_discovery": {
+          "outcome": "observability_only",
+          "queries": [
+            {
+              "claim_id": "claim_12f2e27e721cd432efe9a19e",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 41,
+              "query_excerpt": "Node.js module systems officially support",
+              "query_sha256": "bb3a90321e59f70ebb6eb8ed0002b1e5a982f02bf75173c0c78ea9467e721d9e",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+                  "title": "Node.js — Run JavaScript Everywhere",
+                  "url": "https://nodejs.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+                  "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+                  "url": "https://node.org.cn/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+                  "title": "Node.js 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+                  "title": "Node.js 中文网 — 下载 Node.js",
+                  "url": "https://nodejs.cn/en/download/current"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+                  "title": "Node.js 中文网",
+                  "url": "https://nodejs.cn/"
+                }
+              ],
+              "slot_index": 1,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_12f2e27e721cd432efe9a19e",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 55,
+              "query_excerpt": "Node.js module systems officially support official docs",
+              "query_sha256": "14c0f9f800fb06b6e7bac2c24d274ba6265e570706894bb89e651cf2a83e59d3",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+                  "title": "Node.js — Run JavaScript Everywhere",
+                  "url": "https://nodejs.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+                  "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+                  "url": "https://node.org.cn/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+                  "title": "Node.js 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+                  "title": "Node.js 中文网 — 下载 Node.js",
+                  "url": "https://nodejs.cn/en/download/current"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+                  "title": "Node.js 中文网",
+                  "url": "https://nodejs.cn/"
+                }
+              ],
+              "slot_index": 2,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_12f2e27e721cd432efe9a19e",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 54,
+              "query_excerpt": "Node.js module systems officially support announcement",
+              "query_sha256": "b8cc7378f32e9c3dd5c6a51b44f2e98d58dcf8137526d37aeb2cd3ef8518fea8",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+                  "title": "Node.js — Run JavaScript Everywhere",
+                  "url": "https://nodejs.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+                  "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+                  "url": "https://node.org.cn/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+                  "title": "Node.js 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+                  "title": "Node.js 中文网 — 下载 Node.js",
+                  "url": "https://nodejs.cn/en/download/current"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+                  "title": "Node.js 中文网",
+                  "url": "https://nodejs.cn/"
+                }
+              ],
+              "slot_index": 3,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_12f2e27e721cd432efe9a19e",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 66,
+              "query_excerpt": "Node.js module systems officially support independent verification",
+              "query_sha256": "6ea18642ec0ef69d80bba634dab716745a1e06b2140f57a6e8606ddec07fc85a",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+                  "title": "Node.js — Run JavaScript Everywhere",
+                  "url": "https://nodejs.org/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。",
+                  "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+                  "url": "https://node.org.cn/"
+                },
+                {
+                  "authority_class": "tutorial",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。",
+                  "title": "Node.js 教程 | 菜鸟教程",
+                  "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。",
+                  "title": "Node.js 中文网 — 下载 Node.js",
+                  "url": "https://nodejs.cn/en/download/current"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。",
+                  "title": "Node.js 中文网",
+                  "url": "https://nodejs.cn/"
+                }
+              ],
+              "slot_index": 4,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_7287847299f62bc2043c24ea",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 48,
+              "query_excerpt": "CommonJS-versus-ES-modules guidance differ older",
+              "query_sha256": "b2aaab2ccaaf3279838da613474fd9fc7227ae7ef2c1c2a89743ef2d2cb6c85a",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 5,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_7287847299f62bc2043c24ea",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 62,
+              "query_excerpt": "CommonJS-versus-ES-modules guidance differ older official docs",
+              "query_sha256": "971a25bf7fff65a78a8ca7c2d650806bc69b14bc52a3aad3bfe5afafe72226d9",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 6,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_7287847299f62bc2043c24ea",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 61,
+              "query_excerpt": "CommonJS-versus-ES-modules guidance differ older announcement",
+              "query_sha256": "a5b9cdb4b62264c49a8d5a6ceeb99f8bf414cf81d6a959ce9d72bf455aabd21f",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 7,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_7287847299f62bc2043c24ea",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 73,
+              "query_excerpt": "CommonJS-versus-ES-modules guidance differ older independent verification",
+              "query_sha256": "dcb48180047c4f944e2bb5c0b0b5187c74141dcce6adec67f98789585a87fe84",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 8,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_12f2e27e721cd432efe9a19e",
+              "generated_query_variants": [
+                "module systems node.js officially supports",
+                "module systems node.js officially supports support versioning",
+                "module systems node.js officially supports docs"
+              ],
+              "hint_terms": [
+                "module",
+                "systems"
+              ],
+              "page_intent": {
+                "kind": "support_lifecycle",
+                "matched_terms": [
+                  "support"
+                ],
+                "path_terms": [
+                  "support",
+                  "versioning",
+                  "lifecycle",
+                  "releases",
+                  "eol"
+                ]
+              },
+              "query_chars": 57,
+              "query_excerpt": "Node.js module systems officially support site:nodejs.org",
+              "query_sha256": "e1ce1c451c4246ef391cfcd8f7d161554e230d14e3d17dba33f0eceb236080a4",
+              "result_count": 0,
+              "results": [],
+              "slot_index": 9,
+              "variant_matches": [
+                0,
+                1,
+                2
+              ]
+            }
+          ],
+          "schema_version": "rq1c-search-discovery-v1"
+        },
+        "selection_authority": [
+          {
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "fallback": false,
+            "input_set": [
+              "https://nodejs.org/",
+              "https://node.org.cn/",
+              "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+              "https://nodejs.cn/en/download/current",
+              "https://nodejs.cn/"
+            ],
+            "input_size": 5,
+            "mode": "model",
+            "output_count": 2,
+            "output_urls": [
+              "https://nodejs.org/",
+              "https://nodejs.cn/"
+            ],
+            "reason": "",
+            "status": "completed",
+            "wave_index": 1,
+            "window_limit": 2
+          },
+          {
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "fallback": true,
+            "input_set": [
+              "https://node.org.cn/",
+              "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+              "https://nodejs.cn/en/download/current"
+            ],
+            "input_size": 3,
+            "mode": "model",
+            "output_count": 0,
+            "output_urls": [],
+            "reason": "model_call_attempts_exhausted",
+            "status": "unavailable",
+            "wave_index": 2,
+            "window_limit": 2
+          },
+          {
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "fallback": true,
+            "input_set": [
+              "https://node.org.cn/",
+              "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+              "https://nodejs.cn/en/download/current"
+            ],
+            "input_size": 3,
+            "mode": "model",
+            "output_count": 0,
+            "output_urls": [],
+            "reason": "qualification_research_model_budget_exhausted",
+            "status": "unavailable",
+            "wave_index": 3,
+            "window_limit": 2
+          },
+          {
+            "claim_id": "claim_12f2e27e721cd432efe9a19e",
+            "fallback": true,
+            "input_set": [
+              "https://node.org.cn/",
+              "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+              "https://nodejs.cn/en/download/current"
+            ],
+            "input_size": 3,
+            "mode": "model",
+            "output_count": 0,
+            "output_urls": [],
+            "reason": "qualification_research_model_budget_exhausted",
+            "status": "unavailable",
+            "wave_index": 4,
+            "window_limit": 2
+          }
+        ],
+        "selection_trace": {
+          "candidate_count": 5,
+          "entries": [
+            {
+              "candidate_pool_class": "candidate_cluster_6401839682b6151b",
+              "canonical_url": "https://nodejs.org/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "read_already_completed",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "already_read"
+              ],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": ""
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_afc3d56d4cbeb33e",
+              "canonical_url": "https://node.org.cn/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:model_selection_not_chosen",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_d52330e5d96907a9",
+              "canonical_url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:model_selection_not_chosen",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_7dcd0f42b64fcd24",
+              "canonical_url": "https://nodejs.cn/en/download/current",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": false,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:model_selection_not_chosen",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": null,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_7dcd0f42b64fcd24",
+              "canonical_url": "https://nodejs.cn/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "read_already_completed",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "already_read"
+              ],
+              "read_dispatched": true,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": ""
+            }
+          ],
+          "schema_version": "research-selection-trace-v1",
+          "terminal_reasons": [
+            "not_materialized",
+            "canonical_duplicate",
+            "authority_or_policy_filter",
+            "candidate_pool_excluded",
+            "scheduler_not_selected",
+            "read_budget_exhausted",
+            "already_read",
+            "unsupported_url",
+            "other_observed_reason",
+            "unobserved"
+          ]
+        },
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": true,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 4
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 2
+        },
+        "relevance": {
+          "topic_only": 2
+        },
+        "source_role": {
+          "primary": 1,
+          "independent_secondary": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1666,
+            "output_tokens": 87,
+            "total_tokens": 1753,
+            "elapsed_seconds": 1.235
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    }
+  ],
+  "summary": {
+    "case_count": 1,
+    "runner_error_cases": 0,
+    "budget_violation_cases": 0,
+    "total_elapsed_seconds": 37.219
+  }
+}

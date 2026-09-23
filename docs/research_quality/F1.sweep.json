@@ -1,0 +1,196 @@
+{
+ "diagnostic_only": true,
+ "rows": [
+  {
+   "run": "docker4-sanity",
+   "elapsed": 43.563,
+   "gate": "partial",
+   "violations": [
+    "candidate_budget_exceeded",
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 2,
+   "admission_s": 32.359,
+   "headroom_admission": 15.641,
+   "headroom_gate": 14.531,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 1110.0,
+   "late_ids": 2,
+   "assessed": 2,
+   "late_read": true,
+   "late_read_success": 1
+  },
+  {
+   "run": "node4-sanity",
+   "elapsed": 54.282,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 35.578,
+   "headroom_admission": 12.422,
+   "headroom_gate": 11.453,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 969.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "docker4-r2",
+   "elapsed": 44.547,
+   "gate": "partial",
+   "violations": [
+    "candidate_budget_exceeded",
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 31.422,
+   "headroom_admission": 16.578,
+   "headroom_gate": 15.484,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 1094.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": true,
+   "late_read_success": 1
+  },
+  {
+   "run": "docker4-r3",
+   "elapsed": 37.593,
+   "gate": "partial",
+   "violations": [
+    "candidate_budget_exceeded",
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 26.391,
+   "headroom_admission": 21.609,
+   "headroom_gate": 20.641,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 968.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": true,
+   "late_read_success": 1
+  },
+  {
+   "run": "node4-r2",
+   "elapsed": 57.797,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 35.5,
+   "headroom_admission": 12.5,
+   "headroom_gate": 11.344,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 1141.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "node4-r3",
+   "elapsed": 58.125,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 37.453,
+   "headroom_admission": 10.547,
+   "headroom_gate": 9.422,
+   "floor": 4.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 1125.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "docker3",
+   "elapsed": 34.922,
+   "gate": "partial",
+   "violations": [],
+   "admitted": 0,
+   "admission_s": null,
+   "headroom_admission": null,
+   "headroom_gate": null,
+   "floor": null,
+   "tail_outcome": "(none)",
+   "assessment_cost_ms": null,
+   "late_ids": 0,
+   "assessed": 0,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "node3",
+   "elapsed": 53.765,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 35.563,
+   "headroom_admission": 12.437,
+   "headroom_gate": 11.484,
+   "floor": 3.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 953.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "docker8",
+   "elapsed": 54.234,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 0,
+   "admission_s": null,
+   "headroom_admission": null,
+   "headroom_gate": null,
+   "floor": null,
+   "tail_outcome": "(none)",
+   "assessment_cost_ms": null,
+   "late_ids": 0,
+   "assessed": 0,
+   "late_read": false,
+   "late_read_success": 0
+  },
+  {
+   "run": "node8",
+   "elapsed": 54.985,
+   "gate": "block",
+   "violations": [
+    "model_call_budget_exceeded"
+   ],
+   "admitted": 3,
+   "admission_s": 37.109,
+   "headroom_admission": 10.891,
+   "headroom_gate": 10.0,
+   "floor": 8.0,
+   "tail_outcome": "assessed:2",
+   "assessment_cost_ms": 891.0,
+   "late_ids": 3,
+   "assessed": 2,
+   "late_read": false,
+   "late_read_success": 0
+  }
+ ]
+}

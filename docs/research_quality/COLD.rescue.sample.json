@@ -1,0 +1,69 @@
+{
+ "probe": "cold-rescue-sample",
+ "rows": [
+  {
+   "url": "https://docs.astral.sh/uv/concepts/resolution/",
+   "current_shape": "ok",
+   "current_chars": 6000,
+   "current_adequate": true,
+   "wigolo": {
+    "attempted": false,
+    "tier": "",
+    "state": "",
+    "reason": "already_adequate",
+    "shape_before": "ok",
+    "shape_after": "",
+    "chars_before": 6000,
+    "chars_after": 0,
+    "latency_ms": 0.0,
+    "cache_hit": null,
+    "retrieval_mode": "",
+    "max_chars_requested": 20000,
+    "preflight": "",
+    "rescued": false,
+    "url": "https://docs.astral.sh/uv/concepts/resolution/",
+    "attempt_seq": 1,
+    "research_seconds_left_at_start": 40.0,
+    "hard_seconds_left_at_start": 45.0,
+    "envelope_remaining_at_start_ms": null,
+    "effective_timeout_seconds": null
+   },
+   "envelope_after_ms": 3000.0,
+   "returned_chars": 6000,
+   "cold": true,
+   "invocations": null
+  },
+  {
+   "url": "https://docs.astral.sh/uv/guides/install-python/",
+   "current_shape": "ok",
+   "current_chars": 2765,
+   "current_adequate": true,
+   "wigolo": {
+    "attempted": false,
+    "tier": "",
+    "state": "",
+    "reason": "already_adequate",
+    "shape_before": "ok",
+    "shape_after": "",
+    "chars_before": 2765,
+    "chars_after": 0,
+    "latency_ms": 0.0,
+    "cache_hit": null,
+    "retrieval_mode": "",
+    "max_chars_requested": 20000,
+    "preflight": "",
+    "rescued": false,
+    "url": "https://docs.astral.sh/uv/guides/install-python/",
+    "attempt_seq": 1,
+    "research_seconds_left_at_start": 40.0,
+    "hard_seconds_left_at_start": 45.0,
+    "envelope_remaining_at_start_ms": null,
+    "effective_timeout_seconds": null
+   },
+   "envelope_after_ms": 3000.0,
+   "returned_chars": 2765,
+   "cold": true,
+   "invocations": null
+  }
+ ]
+}

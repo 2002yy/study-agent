@@ -1,0 +1,94 @@
+{
+  "assumptions": {
+    "claim": "one factual claim per case (the case question)",
+    "note": "prototype simplification; do not compare relation semantics against the production assessment-assigned roles",
+    "source_cluster_id": "single_constant_cluster",
+    "source_role": "primary_for_every_selector_chosen_page"
+  },
+  "cases": [
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "elapsed_seconds": 33.703,
+      "extractor_calls": 0,
+      "planner_calls": 4,
+      "queries": [
+        "Docker Hub pull rate limits unauthenticated 100 pulls per 6 hours authenticated Personal 200 official documentation",
+        "site:docs.docker.com Docker Hub usage and limits pull rate unauthenticated authenticated Personal accounts",
+        "site:docs.docker.com \"pulls per 6 hours\" Docker Hub usage limits unauthenticated 100 authenticated Personal 200"
+      ],
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "read_urls": [],
+      "reads": 0,
+      "relation_counts": {},
+      "relations": [],
+      "searches": 3,
+      "selector_calls": 3,
+      "status": "completed",
+      "stop_reason": "planner_no_query",
+      "supports": 0
+    },
+    {
+      "binding_rows": 0,
+      "budget_violations": [],
+      "case_id": "rq1c-historical-current-node-modules",
+      "category": "historical_current_mix",
+      "elapsed_seconds": 29.61,
+      "extractor_calls": 1,
+      "planner_calls": 4,
+      "queries": [
+        "site:nodejs.org Node.js modules CommonJS ECMAScript modules official documentation",
+        "site:nodejs.org/api Node.js modules documentation CommonJS modules esm ECMAScript modules require import",
+        "site:nodejs.org/api modules CommonJS ECMAScript modules Node.js official documentation",
+        "Node.js official documentation \"CommonJS modules\" \"ECMAScript modules\" current guidance"
+      ],
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "read_urls": [
+        "https://nodejs.org/"
+      ],
+      "reads": 1,
+      "relation_counts": {
+        "lead": 1
+      },
+      "relations": [
+        {
+          "canonical_url": "https://nodejs.org/",
+          "caveat": "The excerpt shows only ES module syntax examples and does not explicitly state which module systems are officially supported or how guidance differs from older CommonJS-versus-ES-modules guidance.",
+          "relation": "lead",
+          "title": "Node.js — Run JavaScript Everywhere"
+        }
+      ],
+      "searches": 4,
+      "selector_calls": 4,
+      "status": "completed",
+      "stop_reason": "search_budget_exhausted",
+      "supports": 0
+    }
+  ],
+  "completed_at": "2026-09-18T18:04:41.026916+00:00",
+  "diagnostic_only": true,
+  "git_sha": "7dca21355b699b746c32478d95d5d03a6b851830",
+  "limits": {
+    "case_timeout_seconds": 60.0,
+    "max_reads": 6,
+    "max_searches": 4,
+    "read_chars": 6000,
+    "results_per_query": 5
+  },
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "schema_version": "agent-loop-prototype-v1",
+  "started_at": "2026-09-18T18:03:37.710884+00:00",
+  "summary": {
+    "budget_violation_cases": 0,
+    "case_count": 2,
+    "reads_total": 1,
+    "searches_total": 7,
+    "supports_cases": 0,
+    "supports_total": 0,
+    "total_elapsed_seconds": 63.313
+  }
+}

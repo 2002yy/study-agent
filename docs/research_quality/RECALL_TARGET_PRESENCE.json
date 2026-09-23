@@ -1,0 +1,402 @@
+{
+  "schema_version": "natural-target-scan-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "generated_at": "2026-09-19T11:48:20.441164+00:00",
+  "scanned_artifacts": 17,
+  "natural_pools": 6,
+  "pools": [
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/prebuilt-installer",
+          "title": "Node.js 中文网 — 下载 Node.js®",
+          "snippet": "Node.js 包含 npm (10.9.0)。 阅读此版本的 变更日志. . 了解如何 验证签名的 SHASUMS 查看所有可用的 Node.js 下载选项 了解 Node.js 版本"
+        },
+        {
+          "url": "https://nodejs.cn/",
+          "title": "Node.js 中文网",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://node.org.cn/api/modules.html",
+          "title": "模块：CommonJS 模块 | Node.js v26.0.0 文档 - Node.js ...",
+          "snippet": "启用 # Node.js 有两个模块系统：CommonJS 模块和 ECMAScript 模块。 默认情况下，Node.js 会将以下内容视为 CommonJS 模块 扩展名为 .cjs 的文件。 具有 .js 扩展名或没有扩展名的文件，且最近的父级 package.json 文件包含顶层字段 \"type\"，其值为 \"commonjs\"。"
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html",
+        "https://node.org.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "SEARCH_DISCOVERY_PROBE.json"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://blog.csdn.net/xhmico/article/details/159132633",
+          "title": "Node.js 与 npm 的安装与配置（详细教程）_npm安装-CSDN博客",
+          "snippet": "文章浏览阅读5.5w次，点赞94次，收藏222次。本文详细介绍了在Windows系统下安装和配置Node.js及npm的完整流程。首先解释了Node.js作为JavaScript运行时环境和npm作为包管理工具的核心功能，随后分步骤指导用户从下载LTS版本安装包到完成安装配置。特别提供了npm镜像优化方案（切换国内源或使用yarn ..."
+        },
+        {
+          "url": "https://nodejs.cn/en/download/current",
+          "title": "Node.js 中文网 — 下载 Node.js",
+          "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/113009496",
+          "title": "前端科普系列-CommonJS：不是前端却革命了前端 - 知乎",
+          "snippet": "接下来，我们需要按照 CommonJS 的规范，去实现 模块管理 的内容。 首先我们知道，CommonJS 规范有说明，加载过的模块会被缓存，所以需要一个对象来缓存已经加载过的模块，然后需要一个 require 函数来加载模块，在加载时要生成一个 module，并且 module 上 要有 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "NATURAL.historical-current-node-modules.r1.json"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://nodejs.cn/",
+          "title": "Node.js 中文网",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/current",
+          "title": "Node.js 中文网 — 下载 Node.js",
+          "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/113009496",
+          "title": "前端科普系列-CommonJS：不是前端却革命了前端 - 知乎",
+          "snippet": "接下来，我们需要按照 CommonJS 的规范，去实现 模块管理 的内容。 首先我们知道，CommonJS 规范有说明，加载过的模块会被缓存，所以需要一个对象来缓存已经加载过的模块，然后需要一个 require 函数来加载模块，在加载时要生成一个 module，并且 module 上 要有 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "SELECTION_AUTHORITY.node.capture1.json"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://nodejs.cn/",
+          "title": "Node.js 中文网",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/prebuilt-installer",
+          "title": "Node.js 中文网 — 下载 Node.js®",
+          "snippet": "Node.js 包含 npm (10.9.0)。 阅读此版本的 变更日志. . 了解如何 验证签名的 SHASUMS 查看所有可用的 Node.js 下载选项 了解 Node.js 版本"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/113009496",
+          "title": "前端科普系列-CommonJS：不是前端却革命了前端 - 知乎",
+          "snippet": "接下来，我们需要按照 CommonJS 的规范，去实现 模块管理 的内容。 首先我们知道，CommonJS 规范有说明，加载过的模块会被缓存，所以需要一个对象来缓存已经加载过的模块，然后需要一个 require 函数来加载模块，在加载时要生成一个 module，并且 module 上 要有 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        },
+        {
+          "url": "https://www.bilibili.com/",
+          "title": "哔哩哔哩 (゜-゜)つロ 干杯~-bilibili",
+          "snippet": "哔哩哔哩（bilibili.com)是国内知名的视频弹幕网站，这里有及时的动漫新番，活跃的ACG氛围，有创意的Up主。大家可以在这里找到许多欢乐。"
+        },
+        {
+          "url": "https://h.bilibili.com/ywh/h5/home",
+          "title": "Bilibili",
+          "snippet": "首页 动画 番剧 国创 音乐 舞蹈 科技 游戏 娱乐 鬼畜 电影 电视剧 纪录片 影视 时尚 生活 广告 直播 相簿"
+        },
+        {
+          "url": "https://app.bilibili.com/",
+          "title": "哔哩哔哩下载中心",
+          "snippet": "哔哩哔哩下载中心提供APP和PC客户端的免费下载入口，轻松畅享弹幕视频、直播等多种内容。"
+        },
+        {
+          "url": "https://big.bilibili.com/pc/video",
+          "title": "哔哩哔哩弹幕视频网 - ( ゜- ゜)つロ 乾杯~ - bilibili",
+          "snippet": "不良信息举报邮箱：help@bilibili.com 涉未成年举报邮箱：teenprotect@bilibili.com 不良信息举报电话：4006262233转3 上海互联网举报中心 | 12345政务服务便民热线 | 沪公网安备31011002002436号 | 儿童色情信息举报专区 | 扫黄打非举报"
+        },
+        {
+          "url": "https://t.bilibili.com/index.html",
+          "title": "动态首页-哔哩哔哩",
+          "snippet": "哔哩哔哩动态首页，展示最新的内容更新和用户动态，随时掌握社区热点。"
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "SELECTION_AUTHORITY.node.confound1.json"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://nodejs.cn/",
+          "title": "Node.js 中文网",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/prebuilt-installer",
+          "title": "Node.js 中文网 — 下载 Node.js®",
+          "snippet": "Node.js 包含 npm (10.9.0)。 阅读此版本的 变更日志. . 了解如何 验证签名的 SHASUMS 查看所有可用的 Node.js 下载选项 了解 Node.js 版本"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/113009496",
+          "title": "前端科普系列-CommonJS：不是前端却革命了前端 - 知乎",
+          "snippet": "接下来，我们需要按照 CommonJS 的规范，去实现 模块管理 的内容。 首先我们知道，CommonJS 规范有说明，加载过的模块会被缓存，所以需要一个对象来缓存已经加载过的模块，然后需要一个 require 函数来加载模块，在加载时要生成一个 module，并且 module 上 要有 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "SELECTION_AUTHORITY.node.confound2.json"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "pool": [
+        {
+          "url": "https://nodejs.org/",
+          "title": "Node.js — Run JavaScript Everywhere",
+          "snippet": "Node.js® is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts."
+        },
+        {
+          "url": "https://node.org.cn/",
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "snippet": "让 JavaScript 无处不在 Node.js® 是一个免费、开源、跨平台的 JavaScript 运行时环境，使开发者能够创建服务器、Web 应用、命令行工具和脚本。"
+        },
+        {
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "title": "Node.js 教程 | 菜鸟教程",
+          "snippet": "Node.js 教程 简单的说 Node.js 就是运行在服务端的 JavaScript。 Node.js 是一个基于 Chrome JavaScript 运行时建立的一个平台。 Node.js 是一个事件驱动 I/O 服务端 JavaScript 环境，基于 Google 的 V8 引擎，V8 引擎执行 Javascript 的速度非常快，性能非常好。"
+        },
+        {
+          "url": "https://nodejs.cn/en/download/current",
+          "title": "Node.js 中文网 — 下载 Node.js",
+          "snippet": "了解有关 Node.js 版本 的更多信息，包括发布时间表和 LTS 状态。 了解如何 验证 已签名的 SHASUMS。 正在寻找 Node.js 源代码？ 下载已签名的 Node.js 源代码 tarball。"
+        },
+        {
+          "url": "https://nodejs.cn/",
+          "title": "Node.js 中文网",
+          "snippet": "Node.js 是一个基于 Chrome V8 引擎的 JavaScript 运行环境。 Node.js 使用了一个事件驱动、非阻塞式 I/O 的模型，使其轻量又高效。 Node.js 的包管理器 npm，是全球最大的开源库生态系统。"
+        },
+        {
+          "url": "https://juejin.cn/post/7108410887052427301",
+          "title": "搞懂前端模块化之 CommonJS 篇你对 CommonJS 的了解不 ...",
+          "snippet": "在 ES6 的 ES Module 出现之前，CommonJS一直是主流的模块化规范，虽然现在 ES Module 的使用越来越广泛，但由于历史原因，很多 Node.js 中使用的库都是以前以 CommonJS 规范实现的，完全更新换代也是需要时间的，所以在将来的较长一段时间里 CommonJS 还将一直存在，因此 ..."
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/1941939074337310389",
+          "title": "CommonJS与ES模块：新手完全指南 - 知乎",
+          "snippet": "于是，Node.js建立并采用了CommonJS规范。 CommonJS的设计理念： - 专为服务器端设计 - 同步加载模块（因为服务器端文件都在本地） - 简单直观的语法 ES模块的出现（2015年） 2015年，ECMAScript 2015（ES6）正式引入了官方的模块系统——ES模块（ESM）。"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/113009496",
+          "title": "前端科普系列-CommonJS：不是前端却革命了前端 - 知乎",
+          "snippet": "接下来，我们需要按照 CommonJS 的规范，去实现 模块管理 的内容。 首先我们知道，CommonJS 规范有说明，加载过的模块会被缓存，所以需要一个对象来缓存已经加载过的模块，然后需要一个 require 函数来加载模块，在加载时要生成一个 module，并且 module 上 要有 ..."
+        },
+        {
+          "url": "https://blog.csdn.net/jongden/article/details/154949610",
+          "title": "CommonJS是什么，5分钟讲清楚 - CSDN博客",
+          "snippet": "CommonJS 是 JavaScript 模块化的早期标准，解决了服务器端 JS 的代码组织问题，是 Node.js 生态的基础。 虽然现在 ES6 模块逐渐成为主流，但理解 CommonJS 有助于掌握 JS 模块化的演进，以及兼容旧项目或打包工具（如 Webpack 对 CommonJS 的支持）。 惠州大亚湾。 _commonjs"
+        },
+        {
+          "url": "https://nodejs.cn/api/modules.html",
+          "title": "CommonJS 模块 | Node.js v26 文档",
+          "snippet": "🌐 CommonJS modules are the original way to package JavaScript code for Node.js. Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+        }
+      ],
+      "targets": [
+        "https://nodejs.cn/api/modules.html"
+      ],
+      "pool_source": "natural",
+      "source_artifact": "SELECTION_AUTHORITY.node.model.run2.json"
+    }
+  ]
+}

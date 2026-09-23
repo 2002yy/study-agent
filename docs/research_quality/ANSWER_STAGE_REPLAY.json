@@ -1,0 +1,273 @@
+{
+  "schema_version": "rq1c-answer-stage-replay-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "git_sha": "0f3bee43bb88f63014e04a4d6a0580bc34310e58",
+  "started_at": "2026-09-14T10:45:55.819039+00:00",
+  "completed_at": "2026-09-14T10:52:07.309038+00:00",
+  "diagnostic_limits": {
+    "deadline_seconds": 240.0,
+    "answer_timeout_seconds": 90.0,
+    "production_llm_timeout_seconds": 30.0,
+    "note": "widened only to observe the untruncated generation distribution; never a qualification or product configuration - each call still runs with min(configured, remaining)"
+  },
+  "repeats": 3,
+  "cases": [
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "category": "current_numeric_primary",
+      "question_sha256": "ba021ccfbbad18c780974b2a2be4e96a24b196e7e3561aa74576469606634d50",
+      "research_seconds": 28.438,
+      "research_status": "partial",
+      "research_stop_reason": "evidence_saturated",
+      "evidence_row_count": 0,
+      "source_block_chars": 794,
+      "generations": [
+        {
+          "repeat": 1,
+          "elapsed_seconds": 18.047,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 193.687,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4090,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 2,
+          "elapsed_seconds": 16.843,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 176.734,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4090,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 3,
+          "elapsed_seconds": 21.547,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 155.172,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4090,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        }
+      ],
+      "generation_summary": {
+        "count": 3,
+        "available": 3,
+        "unavailable": 0,
+        "p50_seconds": 18.047,
+        "p90_seconds": 21.547,
+        "max_seconds": 21.547
+      }
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "category": "unanswerable_unverifiable",
+      "question_sha256": "dca5413d54a13601b5c042b7e4e0e8379f3bd59bb33ea45faf6529d5359d0a44",
+      "research_seconds": 21.86,
+      "research_status": "partial",
+      "research_stop_reason": "evidence_saturated",
+      "evidence_row_count": 0,
+      "source_block_chars": 289,
+      "generations": [
+        {
+          "repeat": 1,
+          "elapsed_seconds": 18.344,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 199.813,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 3060,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 2,
+          "elapsed_seconds": 27.703,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 172.11,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 3060,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 3,
+          "elapsed_seconds": 22.156,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 149.969,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 3060,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        }
+      ],
+      "generation_summary": {
+        "count": 3,
+        "available": 3,
+        "unavailable": 0,
+        "p50_seconds": 22.156,
+        "p90_seconds": 27.703,
+        "max_seconds": 27.703
+      }
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "category": "academic_primary",
+      "question_sha256": "f212ed516f5ffdf2724c0e52a0b5ea9b3497780fccb0fb3633fd8502cda59346",
+      "research_seconds": 23.813,
+      "research_status": "partial",
+      "research_stop_reason": "evidence_saturated",
+      "evidence_row_count": 0,
+      "source_block_chars": 1139,
+      "generations": [
+        {
+          "repeat": 1,
+          "elapsed_seconds": 20.875,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 195.328,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4732,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 2,
+          "elapsed_seconds": 21.437,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 173.89,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4732,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 3,
+          "elapsed_seconds": 15.031,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 158.859,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4732,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        }
+      ],
+      "generation_summary": {
+        "count": 3,
+        "available": 3,
+        "unavailable": 0,
+        "p50_seconds": 20.875,
+        "p90_seconds": 21.437,
+        "max_seconds": 21.437
+      }
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "category": "provenance_duplicate",
+      "question_sha256": "b0012999438b74ba14b5c1faafbe1ec3b86e4768882559bbfb5215c9e9ddc5dc",
+      "research_seconds": 35.687,
+      "research_status": "partial",
+      "research_stop_reason": "evidence_saturated",
+      "evidence_row_count": 0,
+      "source_block_chars": 1025,
+      "generations": [
+        {
+          "repeat": 1,
+          "elapsed_seconds": 24.781,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 179.562,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4590,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 2,
+          "elapsed_seconds": 27.891,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 151.672,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4590,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        },
+        {
+          "repeat": 3,
+          "elapsed_seconds": 26.234,
+          "outcome": "ok",
+          "answer_status": "available",
+          "answer_reason": "",
+          "answer_text_chars": 32,
+          "timeout_seconds": 90.0,
+          "remaining_seconds": 125.422,
+          "prompt_message_count": 2,
+          "prompt_message_chars": 4590,
+          "binding_outcome": "rejected",
+          "binding_error_type": "missing_evidence_brief"
+        }
+      ],
+      "generation_summary": {
+        "count": 3,
+        "available": 3,
+        "unavailable": 0,
+        "p50_seconds": 26.234,
+        "p90_seconds": 27.891,
+        "max_seconds": 27.891
+      }
+    }
+  ],
+  "summary": {
+    "case_count": 4,
+    "generation_count": 12,
+    "available": 12,
+    "p50_seconds": 21.547,
+    "p90_seconds": 27.703,
+    "max_seconds": 27.891
+  }
+}
