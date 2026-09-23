@@ -1,0 +1,111 @@
+{
+  "schema_version": "staged-regression-policy-v1",
+  "policy_owner": "AGENTS.md#4-test-execution-policy--staged-regression-policy-l0l3",
+  "status_record": "docs/PROJECT_STATUS.md#109",
+  "applies_from": "P2-A3",
+  "levels": {
+    "L0": {
+      "when": "every commit",
+      "commands": [
+        "ruff check src tests tools",
+        "git diff --check",
+        "git status --short --untracked-files=no"
+      ]
+    },
+    "L1": {
+      "when": "every implementation slice",
+      "content": "the slice's impact set (own tests + directly affected tests + the layer below)",
+      "impact_sets": "see impact_sets"
+    },
+    "L2": {
+      "when": "every sub-phase CLOSED (Ax / Bx / Cx)",
+      "content": "the named stage gate below (sub-phase stack + adjacent contract tests + key regressions)"
+    },
+    "L3": {
+      "when": "major phase CLOSED (P2-A / P2-B / ...), production authority cutover, pre-release",
+      "commands": [
+        "python -m pytest tests"
+      ]
+    }
+  },
+  "impact_sets": {
+    "a0_taxonomy": [
+      "tests/test_failure_taxonomy.py"
+    ],
+    "a1_breaker": [
+      "tests/test_health_breaker.py"
+    ],
+    "a2a_lifecycle": [
+      "tests/test_candidate_resolution.py"
+    ],
+    "a2b_routing": [
+      "tests/test_progressive_routing.py"
+    ],
+    "a2c_scheduling": [
+      "tests/test_scheduling.py",
+      "tests/test_research_scheduler.py"
+    ],
+    "a2d_chain": [
+      "tests/test_chain_executor.py",
+      "tests/test_wigolo_http_executor.py",
+      "tests/test_read_escalation.py",
+      "tests/test_read_retry.py"
+    ],
+    "a3_browser": [
+      "tests/test_browser_bakeoff_contract.py"
+    ],
+    "read_adequacy": [
+      "tests/test_read_adequacy_probe.py"
+    ],
+    "runtime_read_loop": [
+      "tests/test_active_research_runtime.py",
+      "tests/test_research_active_adapter.py",
+      "tests/test_reader_backends.py"
+    ]
+  },
+  "stage_gates": {
+    "p2-a-retrieval-stack": [
+      "tests/test_failure_taxonomy.py",
+      "tests/test_health_breaker.py",
+      "tests/test_candidate_resolution.py",
+      "tests/test_progressive_routing.py",
+      "tests/test_scheduling.py",
+      "tests/test_research_scheduler.py",
+      "tests/test_chain_executor.py",
+      "tests/test_wigolo_http_executor.py",
+      "tests/test_read_escalation.py",
+      "tests/test_read_retry.py",
+      "tests/test_read_adequacy_probe.py",
+      "tests/test_browser_bakeoff_contract.py",
+      "tests/test_active_research_runtime.py",
+      "tests/test_research_active_adapter.py",
+      "tests/test_reader_backends.py"
+    ]
+  },
+  "force_l3_triggers": [
+    "shared_core_data_models",
+    "production_authority_cutover",
+    "persistence_schema_or_cursor_compatibility",
+    "broad_cross_layer_refactor",
+    "focused_test_failing_for_unknown_reason",
+    "uncontained_behaviour_drift"
+  ],
+  "not_forcing_l3": [
+    "ordinary_adapter",
+    "instrumentation",
+    "fixtures",
+    "provider_integration"
+  ],
+  "retro_application": {
+    "would_not_have_required_l3": [
+      "P2-A2d-1",
+      "P2-A2d-2",
+      "P2-A2d-3",
+      "P2-A3-0"
+    ],
+    "did_require_l3": [
+      "P2-A2d-4",
+      "P2-A2e"
+    ]
+  }
+}
