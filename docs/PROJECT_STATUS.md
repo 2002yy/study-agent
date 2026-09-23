@@ -5935,3 +5935,123 @@ P2-A3 CLOSED           → L3 full pytest 一次
 - L3 触发条件与"不触发"清单冻结；
 - retro-application 与本节一致；
 - runner 拒绝歧义与未知选择。
+
+
+## §110 P2-A3-1 WIGOLO BROWSER ADAPTER — DELIVERED, **BLOCKED BY A PROVIDER CACHE CONTRACT**（code `32a98ea`）
+
+**结果**：Wigolo Browser 的 `BrowserBackend` 已实现并通过 A3-0 合同验收；A3-0 同一 fixture 集的 Wigolo 一侧已完成测量。**但测量暴露了一个必须在 A3-2/A3-3 之前解决的 provider 级阻塞**（见 110.4）。A3-1 **不标记 CLOSED**，A3-3 对照在阻塞解决前**不可信**。
+
+**本刀 production-inert**：未接入 `ACTIVE_READER_CHAIN`，未安装 Crawl4AI，未改 A2 核心语义，未改任何预算常量。
+
+### 110.1 交付物
+
+| 交付物 | 路径 |
+| --- | --- |
+| `wigolo_browser` BackendExecutor | `src/web/research/wigolo_browser_executor.py` |
+| bakeoff result schema（`browser-bakeoff-result-v1`）+ 校验 | `src/web/research/browser_bakeoff.py`（扩展） |
+| bakeoff harness | `tools/run_browser_bakeoff.py` |
+| 本地 fixture server（6 类 synthetic_local 目标） | `tools/browser_bakeoff_fixture_server.py` |
+| executor 合同测试（34） | `tests/test_wigolo_browser_executor.py` |
+| harness/result 测试（34） | `tests/test_browser_bakeoff_harness.py` |
+| 测量产物（未跟踪） | `docs/research_quality/BROWSER_BAKEOFF.wigolo_browser.r2.json` |
+
+### 110.2 executor 形状
+
+```text
+A2 routing / capability demand
+        ↓（chain 决定调用）
+WigoloBrowserBackendExecutor.execute(ChainAttemptRequest)
+  1. capability 可用性：mode == browser（否则 policy skip disabled）
+  2. backend 缺失 → skip preflight
+  3. 共享 B2 预算真值 wigolo_http_execution_plan()（同一实现，非副本）
+  4. provider preflight（非 ready → skip preflight）
+  5. 唯一一次真实 attempt（browser tier, render_js=always）
+  6. 诚实投影 → ChainStepResult（canonical retrieval_state + cost + policy）
+```
+
+- **零 routing 权威**：不解析 URL、不看 host、不判断"这个页面可能要用浏览器"。由测试断言（不 import `progressive_routing` / `candidate_resolution` / `run_chain`，源码无 `urlparse`/`hostname`/`startswith`）。
+- **能力声明已存在且真实**：`DEFAULT_BACKENDS` 的 `wigolo_browser` 已声明 `js_render / session / anti_bot_recovery / pdf`，且这些是 `wigolo_http` 不具备的。**未新增 capability 词**。
+- **诚实失败（本刀新增的关键语义）**：对渲染文本的前 `HONESTY_PREFIX_CHARS = 4000` 字符套用**冻结**的 A0 marker 表（`failure_taxonomy.state_for_text`），命中 `login_required / anti_bot / shell_page` 时降级为 `usable_content=False`。桥接用 `HONESTY_DETAIL` 回落到冻结 marker 字面量，并由测试断言 `classify(detail=…).state` 往返一致——**没有新 marker，也没有手搓 outcome**。
+- cost 含 `fetch_ms`（承接 §107 归因）、`rendered`、`cache_hit`、`tier`、`provider_backend`、`honesty_downgrade`。
+
+### 110.3 A3-0 六类：Wigolo 一侧实测（`A31.wigolo_browser.r2.json`，真实 daemon + 真实 browser）
+
+| 类 | browser_called | browser_state | browser_usable | 备注 |
+| --- | --- | --- | --- | --- |
+| `static_control` ×3 | **False** | — | False | **guard 成立**：native 已结算，browser 零启动 |
+| `js_shell` ×2 | True | `shell_page` / `invalid_content` | False | **被缓存污染，未真正渲染**（110.4） |
+| `spa_delayed_render` ×2 | True | `invalid_content` | False | 同上 |
+| `anti_bot`（challenge） | True | `timeout` | False | 真实 fetch，2.98s 超时 |
+| `anti_bot`（soft 403） | True | **`anti_bot`** | False | **真实 fetch，诚实分类正确** ✅ |
+| `session_required` | True | **`login_required`** | False | **诚实分类正确** ✅（未把登录页当正文） |
+| `document_heavy`（w3c pdf） | True | `anti_bot` | False | 被缓存污染 |
+| `document_heavy`（mixed） | True | `invalid_content` | False | 被缓存污染 |
+
+- `provenance_complete` / `budget_respected` 全部 **True**；`attempts` 携带每步 cost。
+- **static-control guard 在 live 也成立**（3/3 零启动）。
+- **诚实失败路径在 live 也成立**：soft-403 与 session 页都被判为 `anti_bot` / `login_required` 且 `usable=False`。
+
+### 110.4 🚫 BLOCKING FINDING：daemon cache 以 URL 为键、忽略 render mode
+
+**证据（直接探测 daemon，非推断）**：
+
+```text
+warm with render_js=never  → {method: http,  cached: False, len: 10}
+then  render_js=always     → {method: cache, cached: True,  len: 10}   ← 仍是未渲染正文
+render_js=always + no_cache / bypass_cache / force / fresh / refresh / noCache
+                           → 全部 {method: cache, cached: True, len: 10}
+fresh URL, render_js=always → {method: browser, cached: False, len: 5165}  ← 真渲染
+```
+
+**结论**：`wigolo serve` 的响应缓存**只按 URL 作键**，`render_js` 不参与键，且**没有可用的 bypass 参数**。
+
+**对 A3 的直接后果**：在 `native_http → wigolo_http → wigolo_browser` 三步步进链里，`wigolo_http`（`render_js=never`）只要成功，就用**未渲染正文**把该 URL 的缓存写满；随后 `wigolo_browser` 拿到的是 cache hit，**永远不会真正渲染**。
+
+⇒ 实测完全吻合：`wigolo_http` 成功的 4 个类（js_shell / spa / document_heavy）browser 步全部 `rendered=False, cache_hit=True` 且 **bytes 与 http 步逐字节相同**；`wigolo_http` 失败的 2 个类（anti_bot soft-403、session）browser 步 `cache_hit=False`，**真实渲染并给出正确分类**。
+
+**这不是 adapter 缺陷，也不是 A2 核心语义缺陷**——是 **provider 的缓存契约**与"两个 tier 共用一个 daemon"的组合问题。
+
+**第二个相关发现（同一根因的语义面）**：`wigolo_http` 在 `DEFAULT_BACKENDS` 中声明了 `js_render`，但它以 `render_js=never` 运行，**从不渲染**。因此 `js_shell` / `spa` 类会被 routing 先送给一个不能渲染的 backend，既浪费一步与预算，又毒化缓存。**修改能力声明属于 A2 冻结语义面**（capability 词表），**A3-1 不改**。
+
+**必须在 A3-2 / A3-3 之前解决**，可选方向（A3-2 决策，不在本刀）：
+1. daemon 侧把 render mode 纳入 cache key（provider 修复，最干净）；
+2. 为 browser tier 提供可用的 cache-bypass 请求路径；
+3. 链级策略：browser 步使用不共享缓存的通道 / 不先经 http tier 的 URL。
+**任一方向都不得靠调整预算或伪造结果绕过。**
+
+### 110.5 第三个发现：run envelope 跨 tier 共享会饿死第二个 tier
+
+`wigolo_http` 与 `wigolo_browser` 共用同一个 3.0s run envelope（A3-0 冻结）。首轮测量（未按 fixture 重置 envelope）显示：一次 2078ms 的 browser 超时就把 envelope 消耗到 0，其后 4 个 fixture 的 browser 步全部变成 `budget_exhausted` 的 `block_run`——**后测的类根本没被测量**。
+
+- **harness 处置**：一个 fixture = 一个 bounded 测量单元，每个 fixture 前 `reset_http_envelope()`（冻结数值不变，只保证测量互相独立）。
+- **production 含义（需 A3-3 决策）**：production 里 envelope 是 **per-run** 的，两个 tier 共享 ⇒ 一次慢 HTTP 步可以饿死 browser tier。**A3-1 不改预算语义**，作为 activation 前必须裁决的问题记录。
+
+### 110.6 production-inert 证明
+
+| 断言 | 结果 |
+| --- | --- |
+| `ACTIVE_READER_CHAIN` 未增加 browser | ✅ 仍为 `(NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)` |
+| runtime / adapter / chain / router / lifecycle / wigolo_http 无 browser executor 引用 | ✅ 6 模块扫描 |
+| `run_browser_bakeoff` / `crawl4ai` 不出现在 production 模块 | ✅ |
+| `crawl4ai` 未安装、未注册 | ✅ `capability_registry()` 仍为 `{native_http, wigolo_http, wigolo_browser}` |
+| `static_control` 不启动 browser | ✅ 单测 + live 3/3 |
+| 未改 A2 核心语义 / 未新增 capability 词 / 未改预算常量 | ✅ |
+
+### 110.7 门禁（Staged Regression Policy：L0 + L1）
+
+| 层 | 结果 |
+| --- | --- |
+| L0 | Ruff clean；`git diff --check` clean；tracked clean |
+| L1 `a3_browser`（3 文件） | **89 passed** |
+| **L3 full pytest** | **未跑**（本刀 production-inert、未碰核心模型/authority/schema；符合 §109） |
+
+### 110.8 结论与下一刀
+
+```text
+A3-0 ✅ CLOSED
+A3-1 ⚠️ DELIVERED — adapter 合规、measurement 完成，但被 provider cache 契约阻塞
+A3-2 ⏳ Crawl4AI adapter —— 但需先决定 110.4 的解决方向
+A3-3 ⏳ 对照 —— 在 110.4 解决前不可信
+```
+
+**A3-1 不进入 production，不标记 CLOSED。** 下一刀建议：**先裁决 110.4**（daemon cache key / bypass 路径 / 链级策略），再决定 A3-2 是否/如何继续——否则 Crawl4AI 一侧会用同样的方式被污染，对照变成"谁先写缓存"。
