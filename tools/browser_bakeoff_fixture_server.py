@@ -27,13 +27,67 @@ RENDERED_BODY = (
     + "</article>"
 )
 
-_PDF_BYTES = (
-    b"%PDF-1.4\n"
-    b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
-    b"trailer<</Root 1 0 R>>\n%%EOF\n"
+_PDF_LINES = (
+    "Release notes: the verified release date is 2026-08-01.",
+    "This document is a controlled fixture for the browser bakeoff.",
+    "It contains real extractable text so a PDF extractor must return it.",
+    "Section 2: current module guidance differs from the older CommonJS guidance.",
+    "Section 3: the document ends here.",
 )
+
+
+def build_text_pdf(lines: tuple[str, ...]) -> bytes:
+    """A minimal valid PDF with a real text content stream (no dependencies).
+
+    §112 A3-2: a PDF with no text stream would make any extractor report zero
+    characters, so the document gate would fail for the wrong reason.
+    """
+
+    def esc(text: str) -> str:
+        return text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+
+    body = ["BT", "/F1 12 Tf", "72 720 Td", "16 TL"]
+    for index, line in enumerate(lines):
+        if index:
+            body.append("T*")
+        body.append(f"({esc(line)}) Tj")
+    body.append("ET")
+    stream = "\n".join(body).encode("ascii", "replace")
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+        ),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length "
+        + str(len(stream)).encode()
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
+    ]
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets: list[int] = []
+    for number, payload in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n".encode() + payload + b"\nendobj\n"
+
+    xref_at = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n".encode()
+    out += b"0000000000 65535 f \n"
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+        f"startxref\n{xref_at}\n%%EOF\n"
+    ).encode()
+    return bytes(out)
+
+
+_PDF_BYTES = build_text_pdf(_PDF_LINES)
 
 PAGES: dict[str, tuple[int, str, bytes]] = {
     # (status, content-type, body)

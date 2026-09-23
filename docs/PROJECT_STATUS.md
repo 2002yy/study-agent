@@ -6179,3 +6179,127 @@ A3-3 Head-to-head
 3. browser tier **用自己的 envelope**，不与 http tier 共享 accounting；
 4. browser 尝试若返回 `cache_hit` ⇒ 不得当作 browser result；
 5. `document_support` 是 required gate：Crawl4AI 必须先证明 PDF 能力，否则同样被淘汰。
+
+
+## §112 P2-A3-2 CRAWL4AI ADAPTER + QUALIFICATION — Phase 0/1 已过，adapter 待做（**IN PROGRESS，无 verdict**）
+
+**A3-3 已不是对称比分赛**（Wigolo 因 required gate 淘汰）。A3-2 结论只有三种：Crawl4AI `QUALIFIED` → 自动成为 BrowserBackend winner；required gate 失败 → `NO QUALIFIED BROWSER BACKEND`；真 blocker → 如实记录。
+
+**本阶段为 Phase 0/1（provider 能力探针），尚未写 adapter、尚未跑六类 cohort、未出 verdict。**
+
+### 112.1 Gate 0 — 安装 / runtime viability：**PASS，附 dependency-footprint penalty**
+
+按 §111.9 的裁决，**未污染 Study Agent 主 venv**，使用隔离环境：
+
+```text
+C:\Users\Zhang\AppData\Local\Temp\opencode\a3-crawl4ai-venv
+  crawl4ai[pdf]==0.9.4        （pypdf 6.19.0 = pdf extra）
+  playwright 1.63.0 / patchright 1.63.0 / unclecode-litellm 1.81.13 / ...
+  chromium rev 1243（Chrome for Testing 153.0.8010.12）
+```
+
+| 检查 | 结果 |
+| --- | --- |
+| Python 3.12.6 安装 | ✅ |
+| `import crawl4ai, pypdf` | ✅ |
+| `pip check` | ✅ No broken requirements |
+| `crawl4ai-doctor` | ✅ Crawling test passed |
+| example.com browser sanity | ✅ success / 200 / 166 chars / **1550ms** |
+| 额外 server/db 基础设施 | **无** |
+| dependency footprint | **HEAVY**（~90 个依赖，含 litellm/openai/tokenizers/scipy/shapely/trimesh/nltk…） |
+| in-process 集成风险 | **RISK** ⇒ 隔离 venv；A3-3 再决定 subprocess/sidecar/Docker/同进程 |
+
+**安装期事故（已解决，记录以免重踩）**：
+1. 网速 ~44 kB/s，两个 38.6 MB 轮子 + 195.6/114.6 MiB 浏览器下载极慢。
+2. `[WinError 32] 文件被占用`（scipy `_tanhsinh.py`）**不是 Crawl4AI 的 runtime bug**，而是**上一次被中断的 `pip install` 残留进程**占着文件。杀掉后重试即成功。
+3. 浏览器二进制走 **FlClash 本地代理 `127.0.0.1:7890`**（系统代理已启用）+ `PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000` 下载；**后续 qualification 已恢复直连**，避免把代理能力算成 Crawl4AI 能力。
+
+### 112.2 Gate 1 — PDF（required，第一硬门）：**PASS**
+
+必须走 **provider-native PDF 路径**（`PDFCrawlerStrategy` + `PDFContentScrapingStrategy`），不是"浏览器打开 .pdf URL"。
+
+| target | success | markdown | 正文命中 | shell 标记 | 耗时 |
+| --- | --- | --- | --- | --- | --- |
+| `local_file`（受控本地） | ✅ | 309 | ✅ | 无 | 12ms |
+| `local_http`（同文件经本地 HTTP） | ✅ | 309 | ✅ | 无 | 31ms |
+| `public_http`（W3C dummy.pdf） | ✅ | 21 | ✅ | 无 | 703ms |
+
+- 真实正文提取成功；无 viewer shell / "1 of 1" / download-starting / metadata 冒充。
+- **无 `WinError 32` 临时文件锁**（Windows + Py3.12 robustness 观察项：通过）。
+- ⇒ **通过淘汰 Wigolo 的那道 required gate。**
+
+### 112.3 Gate 2 — JS render：**PASS**
+
+| target | success | markdown | 渲染后正文命中 | 耗时 |
+| --- | --- | --- | --- | --- |
+| `spa_delayed`（250ms 定时器注入） | ✅ | 5125 | ✅ | **1346ms** |
+| `spa_xhr`（同步 XHR 注入） | ✅ | 5125 | ✅ | **211ms** |
+| `static_control`（example.com） | ✅ | 166 | — | 573ms |
+| `js_shell` | ⚠️ `success=false` | 1 | — | 206ms |
+
+- 延迟渲染需要显式 `delay_before_return_html`（默认会在定时器触发前取 DOM）——**这是渲染语义，不是调预算**。
+- **延迟/异步注入的正文确实只有浏览器才拿得到**（对照：同页 HTTP-only 只得 11 字符 `Loading...`）。
+- **0.21–1.35s 落在冻结 3.0s browser envelope 内**（对照 Wigolo stealth 实测 ~6.2s 才够）。
+
+**⚠️ 发现（transparency，非 disqualifier）**：`js_shell` 被 Crawl4AI **自身的 anti-bot 检测器误判**为 anti-bot（`Structural: minimal_text, no_content_elements`）。结果不可用是对的，但**归因错了**（真相是 JS shell，不是反爬）。
+
+### 112.4 Cache isolation：**PASS**（决定性）
+
+```text
+HTTP-only crawl（写缓存）      → "Loading..."  11 字符（未渲染）
+browser + CacheMode.BYPASS     → 5125 字符  已渲染  ✅
+browser + CacheMode.BYPASS 再跑 → 5125 字符  已渲染  ✅（可重复）
+```
+
+⇒ Crawl4AI 的 `CacheMode.BYPASS`（另有 `no_cache_read`/`disable_cache`）给出**真正的 tier 隔离**，不像 Wigolo 的 URL-keyed cache 会把未渲染正文喂给 browser tier。**未使用任何 URL 变形/随机 query/全局 flush。**
+
+### 112.5 Gate 3（session）/ Gate 4（anti-bot）：provider 不自我分类，**合同层 PASS**
+
+**原始 provider 行为（如实记录）**：
+
+| target | success | markdown | 是否把墙当内容返回 |
+| --- | --- | --- | --- |
+| `session_gated` | **true** | 63 | **是**（"Members only / Please log in to continue"） |
+| `anti_bot_challenge` | **true** | 99 | **是**（"Checking your browser / CAPTCHA"） |
+| `anti_bot_soft_403` | false（`HTTP 403 with HTML content`） | 64 | 是（markdown 仍含挑战文本） |
+| `static_control` | true | 166 | 否 |
+
+⇒ **Crawl4AI 不会自己把登录墙/挑战页判为失败**（403 形态除外，它有自己的 anti-bot detector）。
+
+**合同层验证（用冻结 marker 层跑 Crawl4AI 的真实输出）**：
+
+| case | 检测状态 | canonical | non-usable |
+| --- | --- | --- | --- |
+| `session_gated` | `login_required` | ✅ | ✅ |
+| `anti_bot_challenge` | `anti_bot` | ✅ | ✅ |
+| `anti_bot_soft_403` | `anti_bot` | ✅ | ✅ |
+| `js_shell` | `shell_page` | ✅ | ✅ |
+| `static_control` / `spa_rendered` | （内容，不降级） | — | — |
+
+⇒ 这**正是 A3-0 合同要求 adapter 做的事**（`CLASS_SUCCESS_DEFINITION`：honest `login_required` 可接受，静默返回登录页不可接受；`NON_USABLE_STATES` 硬门）。**不是为 provider 缺陷打补丁，而是合同规定的 adapter 职责**——A3-1 已 live 证明同一层有效（Wigolo 的 `anti_bot`/`login_required` 就出自此层）。
+
+### 112.6 阶段小结与下一刀
+
+```text
+Gate 0  install/runtime   ✅ PASS（HEAVY deps → 隔离 venv）
+Gate 1  PDF (required)    ✅ PASS
+Gate 2  JS render         ✅ PASS
+        cache isolation   ✅ PASS
+Gate 3  session           ✅ PASS（合同层；provider 不自我分类）
+Gate 4  anti-bot          ✅ PASS（合同层）
+        static control    ✅ 166 chars，未误启动
+────────────────────────────────────────────
+adapter（subprocess bridge）  ⏳ 未做
+六类 frozen cohort            ⏳ 未做
+final verdict                 ⏳ 未出
+```
+
+**下一执行刀（A3-2 续）**：实现 `Crawl4AI BrowserBackendExecutor`。
+因 Crawl4AI 在**隔离 venv**，adapter 采用 **subprocess bridge**（主 venv 的 executor 调用隔离 venv 的 python 执行一次 crawl，读回结构化 JSON），复用：
+- `CacheMode.BYPASS` 做 tier cache 隔离；
+- **同一冻结 honesty 层**（`login_required`/`anti_bot`/`shell_page` 降级）；
+- browser tier 自己的 3.0s envelope（§111.3），数值不变；
+- A3-0 六个 provenance artifact。
+然后跑 A3-0 同一 manifest 的六类 cohort，出 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
+
+**当前无任何 production 改动**：`ACTIVE_READER_CHAIN` 未动，Crawl4AI 未注册进 `DEFAULT_BACKENDS`，未同时启用两个 BrowserBackend。
