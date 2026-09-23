@@ -6680,3 +6680,98 @@ focused tests (L1)               ⏳ 未写（本刀预算耗尽，下刀第一�
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI **未**注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。
 
 **下一刀（必须先做）**：裁决 116.3 的 ①/②/③ → 若 ①，则登记 harness native 保真度修正并重跑 cohort → 补 L1 focused tests → 出最终 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
+
+
+## §117 A3-2c harness fidelity defect 登记 + 一致性硬门结果 — **仍无 verdict（发现 A3-0↔A2 contract gap）**
+
+### 117.1 Harness Fidelity Defect（正式登记）
+
+```text
+Harness Fidelity Defect
+------------------------
+A3-0 已预注册每个 fixture 的 browser capability demand
+（spa_delayed_render.demand = js_render，expect_browser_call = true）。
+
+A3-2c 首版 runner 却让 ambient production native reader 从 loopback fixture
+重新派生 demand，导致 BrowserBackend qualification 被无关的 native-reader
+行为污染（实测：native 在 loopback 上返回 invalid_content/backend_failure，
+于是 spa/js_shell 从未派生出 js_render，browser 从未被调度）。
+
+定性：harness fidelity defect —— 既不是 Crawl4AI capability failure，
+也不是 A2 core failure。
+```
+
+**修正方向（裁决 ①）**：加入 **qualification-only frozen predecessor**（只存在于 tests/tools），按 manifest 预条件生成 canonical predecessor observation，再交给**真实** `route()` / `schedulable_now()` / `run_chain()`。**harness 只固定 route 的输入前提，绝不直接指定 backend。**
+
+### 117.2 一致性硬门（新增，fail-closed）
+
+```text
+manifest frozen demand  ==  route(frozen predecessor observation).required_capabilities
+```
+
+实测结果：
+
+| 类 | manifest demand | predecessor state | `route()` 派生 | 结果 |
+| --- | --- | --- | --- | --- |
+| `static_control` | `[]` | `success` | `[]` | ✅ OK |
+| `js_shell` | `[js_render]` | `shell_page` | `[js_render]` | ✅ OK |
+| `spa_delayed_render` | `[js_render]` | `shell_page` | `[js_render]` | ✅ OK |
+| `anti_bot` | `[anti_bot_recovery]` | `anti_bot` | `[anti_bot_recovery]` | ✅ OK |
+| `session_required` | `[session]` | `login_required` | `[session]` | ✅ OK |
+| **`document_heavy`** | **`['pdf']`** | `invalid_content` | **`['content_extraction']`** | ❌ **MISMATCH** |
+
+```text
+CONSISTENCY_GATE_PASS = False
+is there ANY state whose requirement is {pdf}?  False
+```
+
+### 117.3 ❌ 发现：A3-0↔A2 contract gap（`pdf` 需求无法被路由派生）
+
+冻结的 `STATE_CAPABILITY_REQUIREMENTS` 覆盖：`shell_page`/`js_required`→js_render、`anti_bot`→anti_bot_recovery、`login_required`→session、`http_denied`/`rate_limited`/`connect_failure`/`dns_failure`/`tls_failure`/`timeout`/`reset`/`backend_failure`→plain_http、`invalid_content`→（按 adequacy 细化）。
+
+**没有任何 state 的 requirement 是 `{pdf}`。**
+
+而 A3-0 把 `document_heavy` 冻结为 `demand = ['pdf']` 且 `expect_browser_call = True`，同时 `document_support` 是 **REQUIRED_DIMENSION**。
+
+⇒ **A3-0 要求一个 A2 路由权威无法提出的需求。** 这不是 Crawl4AI 的问题（§112.2 已实证 provider-native PDF 路径可用），也不是 harness 能自行解决的：**在真实 `route()` 之下，`pdf` demand 永远不可能出现。**
+
+**必须裁决（我不自行决定）**：
+
+| 方案 | 含义 | 影响 |
+| --- | --- | --- |
+| **A. `pdf` 是能力声明而非可路由需求** | `document_heavy` 的 predecessor 走 **qualification-only capability demand**，直接喂给**真实** `backend_eligibility(required_capabilities={pdf})`（仍是冻结 eligibility 原语，仍不绕过调度语义），并登记"A2 矩阵无 pdf 派生"为 **routing gap debt** 留 A3-3 | 不改 A0/A2；`document_support` required 维度可被真实测量 |
+| **B. 登记为 A2 缺口，A3-2 判 `document_heavy` 不可测** | required 维度无法测量 ⇒ 按合同 fail closed | 会因一个**路由派生缺口**淘汰一个已实证能读 PDF 的候选，结论失真 |
+| **C. 给 A2 矩阵加 pdf 派生** | 修改 `progressive_routing` 核心 | **违反 A3 边界**，禁止 |
+
+**我倾向 A**：A3-0 的 `capability_demand` 是**能力契约**（"当需要 pdf 时能否胜任"），`document_support` 是 required 维度；而 A2 矩阵缺 pdf 派生是**另一个**问题（A3-3 的 demand-generation 议题，与 §116.3 登记的 reachability debt 同族）。B 会让路由缺口污染 provider verdict，C 越界。
+
+### 117.4 已登记的两笔独立债务（均不属 A3-2 verdict）
+
+```text
+1) production browser-demand generation / reachability debt
+   真实 production：native → classification → route 是否能在真实 browser-needed
+   页面生成 js_render/pdf/session demand。实测 SPA fixture 走
+   invalid_content/short_doc → content_extraction。A3-3 activation 必须单独检查。
+
+2) A2 routing matrix has no pdf derivation（本 §117.3）
+   STATE_CAPABILITY_REQUIREMENTS 中不存在 → {pdf} 的映射。
+```
+
+**A3-2 不因此修改 A0/A2。**
+
+### 117.5 状态
+
+```text
+harness fidelity defect   ✅ 已登记（117.1）
+一致性硬门               ✅ 已实现；5/6 通过，document_heavy MISMATCH（fail-closed 生效）
+frozen predecessor harness ⏳ 待实现（依赖 117.3 裁决）
+12-row cohort 重跑        ⏳
+L1 focused tests          ⏳
+verdict                   ❌ 未出（不得在 pdf 需求无法派生时判 QUALIFIED）
+```
+
+**static-control 门保持**：即使使用 deterministic predecessor，`static_control → browser call = 0` 仍是硬断言（browser READY/available 也不得启动）。
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 BrowserBackend。本刀未改 production 代码。
+
+**下一刀**：裁决 117.3 的 A/B/C → 实现 frozen predecessor harness + 一致性硬门测试 → 重跑 12-row cohort → 补 L1 focused tests → 用**原** `REQUIRED_DIMENSIONS + DISQUALIFIERS` 机械评估 → 出 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
