@@ -1,0 +1,180 @@
+{
+  "schema_version": "browser-bakeoff-manifest-v1",
+  "bakeoff_version": "a3-0",
+  "frozen_at": "2026-09-23",
+  "candidate_backends": [
+    "wigolo_browser",
+    "crawl4ai"
+  ],
+  "budget": {
+    "min_hard_seconds_left": 3.0,
+    "run_envelope_seconds": 3.0,
+    "effective_timeout_floor_seconds": 1.0,
+    "max_chars": 20000,
+    "per_page_timeout_seconds": 20.0
+  },
+  "provenance_requirements": [
+    "runtime_read_outcome",
+    "read_timing",
+    "read_chain",
+    "source_retrieval_attempts",
+    "final_backend",
+    "failure_attempt_id"
+  ],
+  "classes": [
+    {
+      "class": "static_control",
+      "capability_demand": [],
+      "expected_routing": "resolve",
+      "expect_browser_call": false,
+      "success_definition": {
+        "browser_invocation": "forbidden",
+        "usable_content_required": true,
+        "canonical_state_required": true,
+        "notes": "The plain chain must settle it; starting a browser is a failure."
+      },
+      "targets": [
+        {
+          "url": "https://nodejs.org/",
+          "kind": "public_url",
+          "note": "healthy static docs"
+        },
+        {
+          "url": "https://www.python.org/",
+          "kind": "public_url",
+          "note": "healthy static docs"
+        },
+        {
+          "url": "https://www.postgresql.org/",
+          "kind": "public_url",
+          "note": "healthy static docs"
+        }
+      ]
+    },
+    {
+      "class": "js_shell",
+      "capability_demand": [
+        "js_render"
+      ],
+      "expected_routing": "try_backend",
+      "expect_browser_call": true,
+      "success_definition": {
+        "browser_invocation": "required_once",
+        "usable_content_required": true,
+        "canonical_state_required": true,
+        "notes": "The shell must be replaced by rendered content."
+      },
+      "targets": [
+        {
+          "url": "http://127.0.0.1:8899/js-shell.html",
+          "kind": "synthetic_local",
+          "note": "noscript-only shell; authored in A3-1/A3-2"
+        },
+        {
+          "url": "http://127.0.0.1:8899/js-shell-nested.html",
+          "kind": "synthetic_local",
+          "note": "shell inside an iframe"
+        }
+      ]
+    },
+    {
+      "class": "spa_delayed_render",
+      "capability_demand": [
+        "js_render"
+      ],
+      "expected_routing": "try_backend",
+      "expect_browser_call": true,
+      "success_definition": {
+        "browser_invocation": "required_once",
+        "usable_content_required": true,
+        "canonical_state_required": true,
+        "notes": "Content appears only after deferred client-side work."
+      },
+      "targets": [
+        {
+          "url": "http://127.0.0.1:8899/spa-delayed.html",
+          "kind": "synthetic_local",
+          "note": "content injected after a deferred timer"
+        },
+        {
+          "url": "http://127.0.0.1:8899/spa-xhr.html",
+          "kind": "synthetic_local",
+          "note": "content injected after a same-origin XHR"
+        }
+      ]
+    },
+    {
+      "class": "anti_bot",
+      "capability_demand": [
+        "anti_bot_recovery"
+      ],
+      "expected_routing": "try_backend",
+      "expect_browser_call": true,
+      "success_definition": {
+        "browser_invocation": "required_once",
+        "usable_content_required": true,
+        "canonical_state_required": true,
+        "notes": "Recovery is the point of the class; a denial is a miss."
+      },
+      "targets": [
+        {
+          "url": "http://127.0.0.1:8899/anti-bot-challenge.html",
+          "kind": "synthetic_local",
+          "note": "interstitial challenge page"
+        },
+        {
+          "url": "http://127.0.0.1:8899/anti-bot-soft-403.html",
+          "kind": "synthetic_local",
+          "note": "403-shaped body with a challenge marker"
+        }
+      ]
+    },
+    {
+      "class": "session_required",
+      "capability_demand": [
+        "session"
+      ],
+      "expected_routing": "try_backend",
+      "expect_browser_call": true,
+      "success_definition": {
+        "browser_invocation": "required_once",
+        "usable_content_required": false,
+        "canonical_state_required": true,
+        "notes": "Honest ``login_required`` is acceptable; silently returning the login page as content is not."
+      },
+      "targets": [
+        {
+          "url": "http://127.0.0.1:8899/session-gated.html",
+          "kind": "synthetic_local",
+          "note": "login-required page; honest login_required is acceptable"
+        }
+      ]
+    },
+    {
+      "class": "document_heavy",
+      "capability_demand": [
+        "pdf"
+      ],
+      "expected_routing": "try_backend",
+      "expect_browser_call": true,
+      "success_definition": {
+        "browser_invocation": "required_once",
+        "usable_content_required": true,
+        "canonical_state_required": true,
+        "notes": "Document bytes must reach the extractor, not an HTML wrapper."
+      },
+      "targets": [
+        {
+          "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "kind": "public_url",
+          "note": "stable public PDF control"
+        },
+        {
+          "url": "http://127.0.0.1:8899/document-mixed.html",
+          "kind": "synthetic_local",
+          "note": "HTML wrapper linking a same-origin PDF"
+        }
+      ]
+    }
+  ]
+}
