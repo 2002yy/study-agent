@@ -5683,3 +5683,139 @@ A3 ← 下一阶段：Browser Backend Bakeoff — Wigolo Browser vs Crawl4AI
 ```
 
 **A3 启动前的硬约束**：新增 Reader backend **不得要求修改 candidate lifecycle、scheduler 或 router 的核心语义**（§106.2）。A3 只在既有 capability 词表（`js_render` / `anti_bot_recovery` / `session` / `pdf`）内注册新的 `BackendCapability` 并接入 `ACTIVE_READER_CHAIN`。**A3 尚未开始，禁止提前安装/接入 Crawl4AI。**
+
+
+## §108 P2-A3-0 BROWSER BACKEND BAKEOFF CONTRACT — FROZEN（code `47a2938`）
+
+### 108.1 阶段状态
+
+```text
+P2-A2 Progressive Reader        ✅ CLOSED
+├─ A2a lifecycle ✅   A2b routing ✅   A2c scheduling ✅
+├─ A2d explicit Wigolo HTTP ✅（code baseline fc99a0d）
+└─ A2e integration validation ✅（validation head b1a5d24）
+
+P2-A3 Browser Backend Bakeoff   ← 当前
+├─ A3-0 contract / fixtures      ✅ CLOSED（47a2938）
+├─ A3-1 Wigolo Browser adapter   ⏳
+├─ A3-2 Crawl4AI adapter         ⏳
+└─ A3-3 head-to-head + winner    ⏳
+
+P2-A4 Discovery Bakeoff → P2-A5 Heterogeneous Integration
+→ P2-B Synthesis → P2-C Semantic Audit → P2-D Chart/Diagram/Plan → P2-E Artifact Audit
+```
+
+**A3 只回答一个问题**：当 A2 routing 已判定普通 reader 能力不足时，哪个 `BrowserBackend` 更适合作为 production rendered-reader？
+
+A3 **不是**"接两个 browser 看谁能跑"。最大风险已从架构转移到 **把 browser 当成万能 fallback 导致成本失控**。
+
+### 108.2 A3-0 交付物
+
+| 交付物 | 路径 |
+| --- | --- |
+| 冻结合同（production-inert 模块） | `src/web/research/browser_bakeoff.py` |
+| 冻结 fixture manifest | `tests/fixtures/research_quality/browser_bakeoff_manifest.json` |
+| 合同验收测试（28 项） | `tests/test_browser_bakeoff_contract.py` |
+| fixture 格式文档 | `tests/fixtures/research_quality/README.md`（新增 Browser Bakeoff Manifest 节） |
+
+manifest 由合同**生成**（非手写）以保证不漂移；改合同必须重新生成。
+
+### 108.3 冻结的 6 个 fixture 类
+
+| 类 | capability demand | 期望 routing | 期望 browser 调用 |
+| --- | --- | --- | --- |
+| `static_control` | （空） | `resolve` | **否** |
+| `js_shell` | `js_render` | `try_backend` | 是 |
+| `spa_delayed_render` | `js_render` | `try_backend` | 是 |
+| `anti_bot` | `anti_bot_recovery` | `try_backend` | 是 |
+| `session_required` | `session` | `try_backend` | 是 |
+| `document_heavy` | `pdf` | `try_backend` | 是 |
+
+- capability demand 必须 ⊆ **冻结能力词表**（`plain_http` / `content_extraction` / `js_render` / `session` / `anti_bot_recovery` / `pdf`）；**A3 不发明新能力词**。
+- **static control guard（关键）**：`static_control.expect_browser_call` 必须为 `false`。BrowserBackend 不仅要证明"能救复杂页"，还要证明 **"routing 不该叫它时不会被无谓启动"**。
+- 各类 `success_definition` 机器可校验；只有 `session_required` 允许 `usable_content_required=false`（**诚实的 `login_required` 可接受，把登录页当正文静默返回不可接受**）。
+- 每类 `targets[].kind` ∈ `public_url` | `synthetic_local`；url 唯一。JS shell / SPA / anti-bot / session 使用 `synthetic_local`（A3-1/A3-2 落地本地 fixture server），static control 与 document-heavy 保留稳定 `public_url`。
+
+### 108.4 统一预算（复用，不重述）
+
+`BAKEOFF_UNIFIED_BUDGET` **引用 A2 冻结常量**而非重写字面量：
+
+| 键 | 值 | 来源 |
+| --- | --- | --- |
+| `min_hard_seconds_left` | 3.0 | `HTTP_MIN_HARD_SECONDS_DEFAULT`（FROZEN） |
+| `run_envelope_seconds` | 3.0 | `HTTP_RUN_ENVELOPE_DEFAULT`（FROZEN） |
+| `effective_timeout_floor_seconds` | 1.0 | `EFFECTIVE_TIMEOUT_FLOOR_SECONDS` |
+| `max_chars` | 20000 | `WIGOLO_FETCH_MAX_CHARS` |
+| `per_page_timeout_seconds` | 20.0 | bakeoff-only 参数，两侧相同 |
+
+⇒ **同一组页面、同一 capability demand、同一超时预算**；manifest 校验强制 `budget` 精确等于该映射，**一侧无法拿到比另一侧（或比 production）更大的预算**。
+
+### 108.5 比较维度（15 项，方向预注册）
+
+`js_render_success` / `shell_rescue` / `anti_bot_recovery`（higher_better）；
+`session_capability` / `document_support` / `failure_transparency` / `provenance_completeness` / `budget_boundedness` / `static_control_silence`（required）；
+`latency_warm_ms` / `cold_start_ms` / `resident_memory_delta_mb` / `daemon_restarts` / `integration_complexity` / `maintenance_burden`（lower_better）。
+
+**required 维度必须在任何 rate 比较之前全部达标**（含 `static_control_silence`）。
+
+### 108.6 provenance 要求（复用 A2 artifact，不建新 ledger）
+
+`runtime_read_outcome` / `read_timing` / `read_chain` / `source_retrieval_attempts` / `final_backend` / `failure_attempt_id`。
+每个真实 attempt 必须能回答：为什么普通 reader 没解决 / 为什么选 browser / browser 是否真执行 / 花了多少 / 哪个 backend 产出 source / candidate 是否 usable / **失败是否被诚实分类**。
+
+### 108.7 winner criteria（预注册）
+
+- **disqualifiers**：`browser_started_on_static_control` / `budget_exceeded` / `missing_canonical_retrieval_state` / `provenance_incomplete` / `requires_core_semantics_change` / `chain_longer_than_max`。
+- **三种结果**：
+  1. **Wigolo Browser 明显胜出** → production 只留 Wigolo Browser。
+  2. **Crawl4AI 明显更稳/更透明** → production 选 Crawl4AI，Wigolo 保留 HTTP reader。
+  3. **能力互补** → 一个主 `BrowserBackend`，另一个仅作 capability-bounded 特殊 fallback，**且不得把链延长超过 `BROWSER_CHAIN_MAX_LENGTH = 3`**。
+- **默认目标仍是：选一个主 BrowserBackend。** 第 3 种是防滥用对象：`native → wigolo_http → browser_A → browser_B` 很容易把 bounded chain 重新变成长尾链。
+- **tie-break 顺序**：failure transparency / provenance → maintenance burden → 已可通过既有 daemon 触达者（`wigolo_browser`，因为集成复杂度是长期成本）。
+
+### 108.8 硬边界：A3 不得修改 A2 核心语义
+
+`FORBIDDEN_CORE_CHANGES` 明确列出：`candidate_resolution.resolve_candidate` / `RESOLUTION_STATES`、`progressive_routing.route` / `schedulable_now` / `backend_eligibility` / `ACTION_*`、`chain_executor.run_chain`、`failure_taxonomy.RETRIEVAL_STATES` / `classify`。
+
+Browser backend **只能**做三件事（`ALLOWED_ADAPTER_SURFACE`）：
+
+```text
+注册 BackendCapability
+↓
+实现 BackendExecutor
+↓
+进入现有 chain
+```
+
+> 如果接 Crawl4AI 时发现必须重写 `candidate_resolution` / `route()` / `schedulable_now()`，**说明 adapter 设计错了，而不是核心该改**。
+
+### 108.9 A3-0 未进入 production（已验证）
+
+- 合同模块**零** production 引用：`browser_bakeoff` 不出现在 `active_research_runtime.py` / `active_adapter.py` / `chain_executor.py` / `progressive_routing.py` / `candidate_resolution.py` / `wigolo_http_executor.py`。
+- `capability_registry()` 名称集仍为 `{native_http, wigolo_http, wigolo_browser}`，**`crawl4ai` 未注册**。
+- `ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)` 不变；runtime 中无 `WIGOLO_BROWSER` 符号使用。
+- **`crawl4ai` 未安装**（A3-0 期间禁止安装/接入）。
+- 上述均由测试锁定（含 production-inert 扫描 + 11 项 fail-closed 负向控制）。
+
+### 108.10 A3 分刀计划与门
+
+```text
+A3-0 ✅ bakeoff contract / fixtures（本刀）
+A3-1 ⏳ Wigolo Browser adapter（对同一 contract 通过）
+A3-2 ⏳ Crawl4AI adapter（对同一 contract 通过）
+A3-3 ⏳ head-to-head cohort + winner decision
+```
+
+**A3-3 之前不得把两个 browser 同时放进 production chain。** 先各自通过同一 contract，再做对照。
+A3-3 结论必须引用本 §108 的预注册维度与 disqualifier，**不允许事后改判据**。
+
+### 108.11 下一执行刀
+
+```text
+P2-A3-1 — Wigolo Browser adapter
+- 只允许：注册 BackendCapability(js_render / anti_bot_recovery / session / pdf 中实际具备者) + 实现 BackendExecutor
+- 不得改 A2 核心语义（§108.8）
+- 不得接入 Crawl4AI
+- 必须对 A3-0 contract 的 6 类给出可复算结果，并保留 A2 六个 provenance artifact
+- static_control 必须零启动
+```
