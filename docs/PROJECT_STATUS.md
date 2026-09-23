@@ -6775,3 +6775,97 @@ verdict                   ❌ 未出（不得在 pdf 需求无法派生时判 QU
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 BrowserBackend。本刀未改 production 代码。
 
 **下一刀**：裁决 117.3 的 A/B/C → 实现 frozen predecessor harness + 一致性硬门测试 → 重跑 12-row cohort → 补 L1 focused tests → 用**原** `REQUIRED_DIMENSIONS + DISQUALIFIERS` 机械评估 → 出 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
+
+
+## §118 A3-2c v2 frozen-predecessor cohort — **verdict 仍未出：2 个类失败 + 1 个投影 bug，均不属"改合同可解"**
+
+### 118.1 frozen predecessor harness（裁决 A 已实现）
+
+`tools/run_crawl4ai_cohort_v2.py`：按类别提供 **frozen predecessor state**，只固定 `route()` 的**输入前提**；决策仍走**真实** `route()` / `backend_eligibility` / `run_chain` / executor。**harness 从不指定 backend。**
+
+一致性门两态（fail-closed）：
+
+```text
+static_control        PASS_ROUTE_DERIVED
+js_shell              PASS_ROUTE_DERIVED
+spa_delayed_render    PASS_ROUTE_DERIVED
+anti_bot              PASS_ROUTE_DERIVED
+session_required      PASS_ROUTE_DERIVED
+document_heavy        PASS_WITH_ROUTING_GAP   A2_NO_PDF_DEMAND_DERIVATION
+```
+
+`document_heavy` 是**唯一显式例外**：只跳过 `retrieval_state → route() → {pdf}` 这一段；`backend_eligibility`（真实原语）仍决定谁可执行，executor/outcome/provenance/budget 全部真实。
+
+### 118.2 cohort 结果（12 行）
+
+| 类 | browser_called | browser_state | usable | wall |
+| --- | --- | --- | --- | --- |
+| `static_control` ×3 | **False** | — | True | 0.0ms ✅ **负向门成立** |
+| `js_shell` ×2 | True | `backend_failure` | False | 1748.7 / 293.7ms ❌ |
+| **`spa_delayed_render` ×2** | True | **`success`** | **True** | 1402.1 / 1368.0ms ✅ **真渲染 rescue** |
+| `anti_bot` ×2 | **False** | — | False | 0.0ms ✅ **不广告 ⇒ 不调度**（`no_capable_backend`） |
+| `session_required` | True | `login_required` | False | 1286.8ms ✅ 诚实失败 |
+| `document_heavy` ×2 | True | `invalid_content` | False | 1216.8 / **5003.2ms** ❌ |
+
+**正向结果**：`spa_delayed_render` 真实 rendered rescue（`browser_state=success`、`usable=True`、1.37–1.40s ≤ 3.0s）。
+**负向结果**：`static_control` browser **0 调用**（browser READY 也不乱启动）。
+**routing 真实性**：`anti_bot` **未被调度**，因为 crawl4ai 不广告 `anti_bot_recovery` ⇒ `no_capable_backend`。这正是 §115.4 冻结口径要的行为，也说明 **class FAIL ≠ provider 被误用**。
+
+### 118.3 ❌ 失败一：`document_heavy`（required 维度 `document_support`）
+
+**根因（非 PDF 能力问题）**：provider 真的取回了 PDF 正文，但**正文只有 309 字符 < `SHORT_CHAR_THRESHOLD = 800`** ⇒ 冻结 adequacy 层判为 `short_doc` → `invalid_content` → **不可用**。
+
+```text
+provider: PDF 路径成功、真实正文 309 chars（§112.2 Gate 1 已独立实证）
+frozen adequacy: 309 < 800 → short_doc → invalid_content → usable=False
+```
+
+⇒ 这是**"文档长度 vs 字符阈值 adequacy 规则"的不匹配**，不是 Crawl4AI 不能读 PDF。**不得在 A3-2 修改 A0 adequacy 阈值或 A3-0 required 维度** —— 需要裁决（见 118.6）。
+
+### 118.4 ❌ 失败二：`js_shell`
+
+browser 被调用（`browser_called=True`）但得到 `backend_failure`。该 fixture 页面**本身没有 JS 可执行**（`<noscript>` + 空 `#root`），渲染器只能拿到 noscript 文本；Crawl4AI 自身检测器再把它判为异常 ⇒ provider_success=False ⇒ executor 投影为 `backend_failure`。
+
+⇒ 诚实非可用是对的，但 A3-0 的 `js_shell` 类期望 rescue。**该 fixture 无法区分"渲染失败"与"页面本来无内容"** —— fixture 保真度问题（与 §117.1 同族），不是 provider 能力问题。
+
+### 118.5 🐞 投影 bug（本刀发现，未修）
+
+`document_heavy` 第二行 wall **5003.2ms** 且 `bstate=invalid_content`：
+
+```text
+executor 传 deadline_ms ≈ 3000 → bridge 等待 deadline + 2000ms slack = 5000ms
+worker 在 3000ms 未返回（PDF 路径的 requests 下载在 to_thread 中，取消未真正生效）
+→ bridge 读超时 → 返回 {"error": "bridge_read_timeout"}
+→ executor 把它投影为 from_invocation_state("empty") = invalid_content
+```
+
+两处问题：
+1. **bridge 读超时应投影为 bounded failure（`budget_exhausted`），不是 `invalid_content`** —— 当前会伪装成"内容不合格"。
+2. **worker 的取消未约束 PDF 下载路径**（阻塞线程不可取消），该行实际越界 3.0s envelope 达 2s。
+
+### 118.6 需要裁决的三项（我不自行决定）
+
+| # | 问题 | 选项 |
+| --- | --- | --- |
+| 1 | `document_support` 要求 usable，但冻结 adequacy 阈值(800)把 309 字符的真实 PDF 判为 `invalid_content` | (a) 承认"短文档"是 adequacy 规则的正确行为，`document_heavy` 用**更长的 PDF fixture**（fixture 保真度修正，不改合同）；(b) 修改 adequacy 阈值（**违反冻结**，禁止）；(c) 登记为 A3-0↔A0 不一致（同 §114.1 的 contract defect 族） |
+| 2 | `js_shell` fixture 无 JS 可执行，无法表达"渲染救回" | (a) fixture 改为**真正需要 JS 才能出正文**（如 `#root` 由脚本填充）；(b) 接受该类为诚实失败并登记 |
+| 3 | bridge 读超时投影 + PDF 路径取消未生效 | 本刀发现即修（属 adapter 正确性，不涉合同）：bridge 超时 → `budget_exhausted`；PDF 路径加可取消边界 |
+
+**我的倾向**：1(a) + 2(a) 都是**fixture 保真度修正**（登记为 defect 后修，不改 A0/A2 合同），3 是 adapter bug 应当修。但 1 涉及"required 维度是否可由短文档满足"，语义上应由你拍板。
+
+### 118.7 状态
+
+```text
+frozen predecessor harness  ✅ 已实现
+一致性门两态               ✅ 5×PASS_ROUTE_DERIVED + 1×PASS_WITH_ROUTING_GAP
+12-row cohort              ✅ 已跑完
+required dimensions        ❌ document_support 未通过（adequacy 阈值 vs 文档长度）
+class 结果                 spa ✅ / session ✅ / static_control ✅ / anti_bot FAIL(报告) / js_shell ❌ / document_heavy ❌
+adapter 投影 bug           🐞 已发现未修（118.5）
+L1 focused tests           ⏳
+verdict                    ❌ 未出（不得在 required 维度失败时判 QUALIFIED）
+```
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 BrowserBackend。
+
+**已登记债务**（A3-2 不修）：① production browser-demand generation / reachability debt；② `A2_NO_PDF_DEMAND_DERIVATION`；③ 新增 **document-length vs adequacy-threshold mismatch**（118.3）。
