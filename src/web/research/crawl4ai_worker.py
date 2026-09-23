@@ -35,72 +35,125 @@ class PdfDownloadDeadline(RuntimeError):
 #: Hard cap so a hostile server cannot stream forever inside the budget.
 MAX_PDF_BYTES = 100 * 1024 * 1024
 
+#: I/O polling granularity. NOT a budget: it only bounds how long one blocking
+#: read may hold the loop before the absolute deadline is re-checked.
+IO_QUANTUM_SECONDS = 0.25
+
+#: Set to log per-chunk timing (diagnostics only, never used for control).
+DIAG_ENV = "CRAWL4AI_PDF_DIAG"
+
 
 def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
     """Download a PDF under an **absolute** deadline; return a local path.
 
-    The budget is ``deadline_at = now + timeout_ms`` and is re-checked before
-    every chunk, so a slow-but-steady server cannot outlive it. The socket
-    timeout is additionally pinned to the remaining budget when reachable, which
-    bounds a single stalled read too.
+    The budget is ``deadline_at = monotonic() + timeout_ms`` and is the single
+    authority. Every iteration re-checks it, pins the socket timeout to
+    ``min(remaining, IO_QUANTUM_SECONDS)`` and reads a *partial* chunk, so a
+    slow-but-steady or fully stalled peer cannot outlive the budget.
 
-    Raises :class:`PdfDownloadDeadline` on expiry so the worker can report a
-    canonical bounded failure instead of pretending it got content.
+    Raises :class:`PdfDownloadDeadline` on expiry, after removing the partial
+    file and closing the response, so nothing downstream can consume it.
     """
 
     if not url.startswith(("http://", "https://")):
         return url
+    import os as _os
     import tempfile
     import time as _time
     import urllib.error
     import urllib.request
 
     deadline_at = _time.monotonic() + max(0.5, timeout_ms / 1000.0)
+    diag = bool(_os.getenv(DIAG_ENV))
+    started = _time.monotonic()
 
     def _remaining() -> float:
         return deadline_at - _time.monotonic()
 
     handle = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    path = handle.name
+    response = None
+    total = 0
     try:
         try:
             request = urllib.request.Request(url)
-            with urllib.request.urlopen(  # noqa: S310
+            response = urllib.request.urlopen(  # noqa: S310
                 request, timeout=max(0.5, _remaining())
-            ) as response:
-                total = 0
-                while True:
-                    remaining = _remaining()
-                    if remaining <= 0:
-                        raise PdfDownloadDeadline("pdf_download_deadline")
-                    # pin the socket to what is actually left, when reachable
-                    try:
-                        response.fp.raw._sock.settimeout(remaining)  # type: ignore[union-attr]
-                    except Exception:
-                        pass
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > MAX_PDF_BYTES:
-                        raise PdfDownloadDeadline("pdf_download_too_large")
-                    handle.write(chunk)
+            )
+            expected = 0
+            try:
+                expected = int(response.headers.get("Content-Length") or 0)
+            except Exception:
+                expected = 0
+            if diag:
+                print(
+                    f"[pdf] start remaining={_remaining() * 1000:.0f}ms "
+                    f"content_length={expected}",
+                    flush=True,
+                )
+            while True:
+                remaining = _remaining()
+                if remaining <= 0:
+                    raise PdfDownloadDeadline("pdf_download_deadline")
+                quantum = min(remaining, IO_QUANTUM_SECONDS)
+                try:
+                    response.fp.raw._sock.settimeout(quantum)  # type: ignore[union-attr]
+                except Exception:
+                    pass
+                try:
+                    chunk = response.read1(4096)
+                except (TimeoutError, OSError) as exc:
+                    # a quantum expiry is the polling mechanism working, not a
+                    # transport failure: loop and re-check the ABSOLUTE deadline
+                    if _remaining() <= 0:
+                        raise PdfDownloadDeadline('pdf_download_deadline') from exc
+                    continue
+                if diag:
+                    print(
+                        f"[pdf] t={(_time.monotonic() - started) * 1000:.0f}ms "
+                        f"remaining={_remaining() * 1000:.0f}ms got={len(chunk)}",
+                        flush=True,
+                    )
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_PDF_BYTES:
+                    raise PdfDownloadDeadline("pdf_download_too_large")
+                handle.write(chunk)
+                if _remaining() <= 0:
+                    raise PdfDownloadDeadline("pdf_download_deadline")
         except PdfDownloadDeadline:
-            handle.close()
-            import os as _os
-
-            _os.unlink(handle.name)
             raise
         except (urllib.error.URLError, TimeoutError, OSError):
-            # a transport failure is the provider strategy's business, not ours
+            # a transport failure is the provider strategy's business - but the
+            # partial file is ours and must not be left behind
             handle.close()
-            import os as _os
-
-            _os.unlink(handle.name)
+            try:
+                _os.unlink(path)
+            except Exception:
+                pass
             return url
-        handle.close()
-        return handle.name
     except PdfDownloadDeadline:
+        if response is not None:
+            try:
+                response.close()
+            except Exception:
+                pass
+        handle.close()
+        try:
+            _os.unlink(path)
+        except Exception:
+            pass
         raise
+    finally:
+        if response is not None:
+            try:
+                response.close()
+            except Exception:
+                pass
+    handle.close()
+    return path
+
 
 
 def emit(payload):

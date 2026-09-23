@@ -6914,3 +6914,55 @@ L1 tests ⏳ 未写              verdict ❌ 未出
 ```
 
 `2758800` = **fix candidate head**；最终资格取决于 gate C 修复 + 12-row cohort + L1。**production-inert 未变**。已登记债务：① reachability debt；② `A2_NO_PDF_DEMAND_DERIVATION`；③ document-length vs adequacy（已归因 fixture 缺陷）。
+
+
+## §120 PDF absolute I/O deadline：primitive 已证明，worker/bridge 层仍有二阶阻塞
+
+### 120.1 已修（本刀）
+
+1. **PDF 下载改为 
+ead1(4096) 小粒度 partial read** + min(remaining, IO_QUANTUM=0.25s) pin 到 socket timeout；deadline_at 为唯一权威。Content-Length 只用于 accounting/guard，**不再驱动大块 blocking read**。
+2. **quantum socket timeout 不再当 transport failure**：TimeoutError/OSError 来自 quantum 时 continue 并重查 absolute deadline（此前会提前返回 url）。
+3. **transport 回退路径泄漏修复**：非 deadline 失败时也删除临时文件。
+4. 新增 /stalled-report.pdf（发 128B 后 sleep 30s）与 /slow-report.pdf（256B/0.25s）两个 transport fixture。
+
+### 120.2 ✅ 最小复现（直接调用 primitive，无 worker）
+
+| shape | wall | outcome | raised | leaked | bounded |
+| --- | --- | --- | --- | --- | --- |
+| A fast PDF | 15.0ms | ok / 6626 bytes | False | [] | ✅ |
+| B slow trickle | **3000.0ms** | PdfDownloadDeadline | True | True | ✅ |
+| **C stalled** | **3000.0ms** | PdfDownloadDeadline | True | [] | ✅ |
+
+`	ext
+REPRO_ALL_PASS= True
+`
+
+诊断输出证明 loop 每 250ms 回到 deadline 检查（	=31/281/531/.../2531ms）。**C 是决定性证据**：对端发 128B 后完全停顿，下载仍在恰好 3000ms 终止 ⇒ quantum socket timeout 确实把控制权交回 absolute-deadline loop，而非等待对端。
+
+### 120.3 ❌ 但经过 worker/bridge 仍失败
+
+`	ext
+C. forced-slow PDF (through worker): state=budget_exhausted
+   wall=5012.7ms  adequacy=bridge_failure:bridge_read_timeout
+`
+
+- **投影语义正确** ✅（udget_exhausted，非 invalid_content）。
+- **但 worker 未在 3s 内向 bridge 返回**，是 bridge 的 deadline+2000ms 读超时先触发。
+- **定位**：primitive 已在 3000ms 抛 PdfDownloadDeadline（repro 证明），故阻塞在 worker 的**任务包装层**：handle() 用 syncio.wait_for(asyncio.shield(task), timeout_ms)，shield 使取消不能立即传播，随后又走 	ask.cancel() + 800ms grace + invalidate()（crawler.close()），叠加后超出 bridge 读窗口。**这是 worker 侧的取消/包装交互，不是 primitive 问题。**
+
+### 120.4 下一步（单一动作）
+
+最小复现 worker 层：直接向 warm worker 发一次 mode=pdf 到 /slow-report.pdf，打印 worker 内部 handle() 的 wait_for 触发时刻、	ask.cancel() 后 	ask.done() 的时刻、invalidate() 耗时，确定 5s 的具体构成；据此去掉 shield（或改为一层 timeout，避免 wait_for + cancel + grace 三重叠加）。**不改任何冻结预算，bridge 的 +2000ms 安全余量保留。**
+
+### 120.5 状态
+
+`	ext
+PDF primitive (absolute deadline)  ✅ 已证明（repro 3/3 PASS）
+worker/bridge 二阶阻塞             ❌ 未闭合
+focused 四门                       ❌ gate C（同因）
+12-row cohort                      ⏳ 未跑（按规则）
+L1 tests / verdict                 ⏳ / ❌
+`
+
+Crawl4AI provider capability 未变（PDF ✅ / JS render ✅ / session ✅ / anti_bot recovery ❌）；warm transport 正常请求与 session 隔离 ✅。**当前唯一 blocker 是 worker 侧取消包装交互。** A3-2 verdict = PENDING。

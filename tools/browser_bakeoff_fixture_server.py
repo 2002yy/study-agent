@@ -217,6 +217,24 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = self.path.split("?", 1)[0]
+        if path == "/stalled-report.pdf":
+            # §121 gate C(3): headers plus a little data, then stall far past
+            # the budget. Proves the quantum socket timeout returns control to
+            # the absolute-deadline loop instead of waiting on the peer.
+            import time as _stall_time
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(_PDF_BYTES)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            try:
+                self.wfile.write(_PDF_BYTES[:128])
+                self.wfile.flush()
+            except Exception:
+                return
+            _stall_time.sleep(30)
+            return
         if path == "/slow-report.pdf":
             # §120 gate C: trickle a PDF so each read is small but the total
             # wall time far exceeds the browser budget.
