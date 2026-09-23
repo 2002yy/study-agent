@@ -6595,3 +6595,88 @@ Step 6 adapter + cohort  ⏳      verdict ⏳
 **下一刀**：实现 `Crawl4AIBrowserBackendExecutor`（A2 router/scheduler → adapter → warm isolated worker → provider observation → 主进程 frozen honesty 层 → `ChainStepResult`；`CacheMode.BYPASS`；PDF native strategy；per-`(session, mode)` 隔离；`provider_state` + `canonical_retrieval_state` 双层 provenance；browser tier 3.0s envelope），然后跑 A3-0 frozen 六类 cohort，出最终 verdict。
 
 **production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI 未注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。本刀仅改 fixture server（测试工具）+ docs，未触 production 代码，按 Staged Policy 无需 L1/L2。
+
+
+## §116 P2-A3-2c Crawl4AI executor + frozen cohort — **未出 verdict：cohort 暴露 contract/measurement 不匹配**
+
+**结果**：executor 与 bridge 已实现并跑通完整路径；冻结六类 cohort 跑完 12 行，但**结果不足以判定 QUALIFIED**，且暴露一处必须在出 verdict 前解决的不匹配。**按规则不调合同、不改 fixture 强行通过。**
+
+### 116.1 交付物
+
+| 交付物 | 路径 |
+| --- | --- |
+| provider-neutral honesty 层（消除 §112 指出的结构债） | `src/web/research/browser_honesty.py` |
+| `crawl4ai` BrowserBackendExecutor + warm worker bridge | `src/web/research/crawl4ai_browser_executor.py` |
+| provider 侧 worker（隔离 venv 执行） | `src/web/research/crawl4ai_worker.py` |
+| 冻结 cohort runner | `tools/run_crawl4ai_cohort.py` |
+
+**结构**：`A2 router/scheduler → Crawl4AIBrowserBackendExecutor → READY warm isolated worker → provider observation → 主进程 frozen honesty 层 → ChainStepResult`。worker 无 routing / lifecycle / budget / Evidence-Support-Gate authority。
+
+**availability**：仅当 worker `READY` 时 `availability=True`；starting/restarting/crashed 期间统一 `unavailable`（executor 返回 `preflight` policy skip，**绝不**把 startup 3.3–3.9s 记到 candidate 上）。本刀实测 `startup_ms` 3333.9 / 3660.6 / 3699.1 / 3943.7。
+
+**advertised capabilities**：仅 `js_render` / `pdf` / `session`（provider truth 更宽但不广告）。
+
+**deadline**：executor 用 browser tier 独立 envelope 计算 B2 plan；`deadline_hit` / `provider_cancelled` 一律**投影为 canonical bounded failure**（`insufficient_remaining_window`），**绝不**把越界 wall 当 success。
+
+**双层 provenance**：cost 同时携带 `provider_state`（provider 原始判定）与 `canonical_retrieval_state`（冻结层判定）。
+
+### 116.2 cohort 实测（12 行，`A32C.crawl4ai.json`）
+
+| 类 | browser_called | browser_state | usable | chain_action |
+| --- | --- | --- | --- | --- |
+| `static_control` ×3 | **False** | — | True | resolve ✅ |
+| `js_shell` | True | `backend_failure` | False | exhaust |
+| `js_shell` ×2 | False | — | False | exhaust |
+| **`spa_delayed_render` ×2** | **False** | — | **True** | **resolve** ⚠️ |
+| `anti_bot` ×2 | False | — | False | exhaust |
+| `session_required` | False | — | False | exhaust |
+| `document_heavy` | True | `invalid_content` | False | exhaust |
+| `document_heavy` ×2 | False | — | False | exhaust |
+
+`provenance_complete` 全 True（validator 通过）。
+
+### 116.3 ❌ 必须解决的不匹配（本刀不修）
+
+**A3-0 声明的 demand 与 routing 实际派生的 demand 不是同一个。**
+
+```text
+A3-0 manifest:  spa_delayed_render.demand = js_render
+实际 native 读数: invalid_content / short_doc
+route() 派生需求: content_extraction          ← 不是 js_render
+```
+
+而 §115.4 已冻结 crawl4ai **只广告** `js_render` / `pdf` / `session`，**不广告** `content_extraction`（正是为了不让普通 transport failure 升级到昂贵浏览器）。两条冻结口径叠加 ⇒ **`spa_delayed_render` 永远不会路由到 crawl4ai**，实测正是如此（`browser_called=False`，`wall=0.0`，chain 在 plain 链上 resolve）。
+
+同类现象：`js_shell` 的 native 读数也不是 `shell_page`（本 fixture 的 native 在 loopback 上直接 `backend_failure`），因此 `js_render` 需求同样没被派生出来。
+
+**⇒ 这不是 provider 能力问题，是"冻结 fixture 的 demand 标签"与"routing 从真实读数派生需求"之间的落差。** 三者只能选一，且**都必须由你裁决**：
+
+| 方案 | 含义 | 代价 |
+| --- | --- | --- |
+| **① 让 native 读数真实反映 demand** | fixture 的 native 读数必须真的是 `shell_page` / `short_doc`-with-js-need，才能派生出 `js_render` | 需要 fixture 级 native 注入（harness 提供可控 native），**不动合同** |
+| **② 扩大 crawl4ai 广告集** | 广告 `content_extraction` | 违反 §115.4 冻结口径，且会让普通 transport failure 升级浏览器 |
+| **③ 承认 spa 类不可由 crawl4ai 服务** | 该类判为不可调度 | 与 A3-0 的 `expect_browser_call=True` 冲突 |
+
+我**倾向 ①**：A3-0 的 `expected_routing=try_backend` 与 `expect_browser_call=True` 描述的是"当 routing 判定需要 js_render 时应当调用 browser"；而本刀 harness 的 native 是**真实生产 reader**，它在 loopback fixture 上失败，没有产生 `shell_page`，所以从未派生出 js_render。**这是 harness 的 native 保真度问题，不是 crawl4ai 的资格问题** —— 但也**不能**用"给 fixture 换一个可控 native"来事后美化，必须作为**明确的 harness 修正**登记后重跑。
+
+### 116.4 本刀顺带修掉的 3 个 harness/runner bug（如实记录）
+
+1. 只注册 crawl4ai executor ⇒ chain 在 native/wigolo_http 上 `no_executor_for_backend` 直接 exhaust。冻结链需要**三个 executor 全注册**。
+2. 无 content 时把 chain **action**（`exhaust`）当 `outcome_state` ⇒ 非 canonical。改为 `backend_failure`。
+3. `usable_content` 与冻结 validator 的 `usable ⟹ success` 语义不一致 ⇒ 对齐为"outcome 为 success"；"取到内容但不足"由 `browser_state`/`browser_usable`/attempts 承载。
+
+另：cohort 必须在 `RESEARCH_WIGOLO_ESCALATION=browser` 下运行（browser tier 是 opt-in）；未设时全部 skip 为 `disabled` —— 这是**正确行为**，不是 bug。
+
+### 116.5 状态
+
+```text
+executor + bridge + honesty 层   ✅ 已实现、Ruff clean、完整路径跑通
+frozen cohort 12 行              ✅ 已跑完
+required dimensions / disqualifiers  ⏳ 未评估（见 116.3，先决问题未决）
+verdict                          ❌ 未出（不得在未决时不匹配下判 QUALIFIED）
+focused tests (L1)               ⏳ 未写（本刀预算耗尽，下刀第一件事）
+```
+
+**production-inert 未变**：`ACTIVE_READER_CHAIN` 未动；Crawl4AI **未**注册进 `DEFAULT_BACKENDS`；Wigolo Browser 仍 DISQUALIFIED；不同时挂两个 browser。
+
+**下一刀（必须先做）**：裁决 116.3 的 ①/②/③ → 若 ①，则登记 harness native 保真度修正并重跑 cohort → 补 L1 focused tests → 出最终 `QUALIFIED` / `DISQUALIFIED` / `BLOCKED`。
