@@ -9822,3 +9822,110 @@ STOP -> §143-C（B: 它能多带来什么？ C: 为获得这个增益，先试 
 
 **计数修正（勘误）**：此前记为"本会话提交链（16 个）"**有误**；
 `e4e054b..f7f4373` 实为 **15 个**（`e4e054b` 起算）。技术结论不受影响。
+
+
+## §143-B 一致性聚合规则冻结 + harness 交接点
+
+### 143.42 内容结果不得靠多数票抹平不稳定性（冻结）
+
+5 次 paired repeats 的**内容结果**必须按 run 保留，不得只用 median 掩盖漂移：
+
+```text
+每个 run:
+  default_unit_set / crawl4ai_unit_set
+  default_useful / crawl4ai_useful
+aggregate:
+  default_content_consistent
+  crawl4ai_content_consistent
+```
+
+只有 5 次**任务完成状态与 decision-critical unit set 稳定**时，才输出已冻结的四档
+`NONE / MINOR / MATERIAL / ESSENTIAL`。
+
+若内容结果发生实质漂移：
+
+```text
+specialist_gain = 暂不裁定
+reason          = paired content outcome unstable
+```
+
+**这不是新增第五档 gain**，只说明 B 的四档分类前提尚未成立
+（与 `UNRESOLVED_FOR_TASK` 同类：**不拿平均值掩盖稳定性问题**）。
+
+### 143.43 session 延迟聚合口径（冻结）
+
+```text
+total_task_wall_ms = setup_wall_ms + read_wall_ms    <- 进入最终 economics
+read_wall_ms 可单列，但不得与 default 的完整任务时间直接比较
+内容 gain 仍只由任务完成情况决定
+```
+
+### 143.44 raw run 必留字段（供 §143-C 直接判断 escalation 成本）
+
+```text
+backend_path / fallback_used / terminal_outcome
+```
+⇒ §143-C 可直接判断 `native_http` vs `native_http→wigolo_http` 花掉多少 escalation 成本，
+**无需重新猜 chain 行为**。
+
+### 143.45 harness 实现交接点（下一刀，已备齐全部前提）
+
+**文件**：`tools/run_f2_paired.py`（新增）
+
+**复用点（已定位，不重造）**：
+```text
+tools/run_crawl4ai_cohort_v2.py:118  _backends()                 -> bakeoff-local registry
+tools/run_crawl4ai_cohort_v2.py:244  _executors(bridge, ...)     -> {WIGOLO_HTTP, CRAWL4AI_BACKEND}
+src/web/research/chain_executor.py:180  run_chain(...)           -> default 侧真实入口
+src/application/active_research_runtime.py:613  ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
+```
+
+**关键约束**：
+```text
+default 侧 = run_chain(chain=ACTIVE_READER_CHAIN,
+                       executors={native_http, wigolo_http},
+                       record_outcome=...)          <- 真实 production 入口，禁止重实现
+crawl4ai 侧 = Crawl4AIBrowserBackendExecutor（bakeoff-local registry）
+两侧 = 同一 rubric matcher（whitespace 规范化）
+harness 不替任何一侧补能力（尤其 document-mixed 的 linked-PDF 跟随）
+```
+
+**实现顺序（用户冻结）**：
+```text
+1. simple_static 做 1 个 pair smoke：确认真实 run_chain / Crawl4AI / rubric /
+   backend path / wall accounting 能进入同一 row
+2. 6 类 x 5 pairs = 30 paired tasks（seeded randomized alternating order）
+3. 输出 raw rows + 唯一聚合表
+4. STOP，先 adjudicate §143-B，不进入 routing 修改
+```
+
+**唯一交付表**：
+
+| Category | Default path | Default units | C4AI units | Default useful | C4AI useful | Default median | C4AI median | Δwall | Gain |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+**四个高信息量预期结果（非结论）**：
+```text
+simple_static   -> specialist 是否纯重复工作
+js_heavy        -> 是否真到 ESSENTIAL
+document_mixed  -> document-path gain 量化（绝不泛化成 difficult HTML）
+selected_pdf    -> 把"能力 gain"与"速度优势"彻底分开
+```
+
+### 143.46 状态
+
+```text
+§143-A                              ✅ CLOSED
+§143-B protocol/rubric              ✅ (f7f4373)
+§143-B implementation contract      ✅ (c121b35)
+§143-B consistency rule             ✅（本提交）
+§143-B harness + 30 paired tasks    ⏳ NEXT（交接点见 §143.45）
+B adjudication                      ⏳
+§143-C escalation economics         ⏳
+routing economics                   ⏳
+DIRECT_SPECIALIST / DEFAULT_FIRST / FALLBACK_ONLY  ⏳
+```
+
+**说明**：本轮未实现 harness。理由：该切片需"先 smoke、失败再迭代"的完整预算；
+**半成品 harness 优于干净交接**的原则下，选择落档全部前提与复用点后停止。
+B 的协议、rubric、实现契约、一致性规则**已全部冻结**，下一刀可直接编码。
