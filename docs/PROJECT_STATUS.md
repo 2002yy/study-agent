@@ -9570,3 +9570,144 @@ reader_execution_ms / normalization_ms / provenance_ms = null  ✅（不补猜�
 STOP                           ✅（A 阶段结束）
 -> §143-B paired default vs Crawl4AI（difficult_html 主 paired fixture = /document-mixed.html）
 ```
+
+
+## §143-A 封板 + §143-B protocol/rubric freeze
+
+### 143.24 §143-A 四条长期可引用事实（封板）
+
+```text
+browser-like warm steady-state   ≈ 160-205ms p50
+selected PDF warm path           ≈ 40ms p50
+queue contention                 ≈ 0 in this experiment
+qualification-era 2813ms static  = init-effect, not steady-state cost
+```
+`difficult_html` 20/20 稳定 `provider_success=False` ⇒ **非偶发故障，而是 §143-B 的"能力差异放大镜"**。
+
+### 143.25 §143-B 四条公平配对原则（冻结）
+
+**原则 1 —— Default 必须是"当前真实 default"，不是人为挑最弱 reader。**
+```text
+ACTIVE_READER_CHAIN = (NATIVE_HTTP, WIGOLO_HTTP)
+=> default side = 当前 production default 行为（整条 chain）
+   若 active chain 走 native_http -> inadequacy -> wigolo_http，整个结果才是 Default
+不得只测 native_http（否则人为夸大 specialist gain）
+§143-C 才拆 default-first escalation vs direct Crawl4AI
+```
+
+**原则 2 —— 两边共用同一 critical-unit rubric。**
+每 fixture 预定义 `expected_critical_units`（+ 可选 noncritical），两边只算 `critical_units_recovered` / `useful`。
+**禁止** default 用"拿到不少文字就算 useful"而 Crawl4AI 用"必须恢复指定 units"。
+
+**原则 3 —— `provider_success` ≠ 最终 usefulness。**
+`provider_success=False` 不自动 = Crawl4AI failure（只是 provider-level observable）；
+`provider_success=True` 也不自动 = `useful=True`。
+
+**原则 4 —— `specialist_gain` 机器化（不再看感觉）。**
+```text
+NONE      default recovered all decision-critical units
+MINOR     Crawl4AI adds only non-critical detail/structure
+MATERIAL  Crawl4AI recovers >=1 decision-critical unit that default missed,
+          but default is still sufficient for a usable answer
+ESSENTIAL default cannot satisfy the task; Crawl4AI can
+```
+**不做综合分。**
+
+### 143.26 每 fixture 的 critical-unit rubric（**基于真实 fixture 内容，非发明**）
+
+```text
+simple_static  /structured-spec.html
+  expected_critical_units = ["2026-08-01", "ES modules", "CommonJS", "supported"]
+  （表格四行 value；fixture 注释自述含 decision-critical cell）
+  CONFOUND: 带表格结构 => "static structured"，非纯正文 static
+
+technical_docs /code-docs.html
+  expected_critical_units = ["Compute API", "def compute(value)", "verified release identifier", "canonical id"]
+  （h1 + <pre><code> 代码元素 + 关键解释）
+
+js_heavy       /spa-delayed.html
+  expected_critical_units = ["verified release date is 2026-08-01", "CommonJS guidance"]
+  （shell 仅含 "Loading..."；critical units 只在 JS 执行后出现 —— 非 shell 内静态字符串）
+
+difficult_html /document-mixed.html     <- §143-B 主 paired fixture
+  HTML 实际内容 = "Download the report:" + <a href='/report.pdf'>report.pdf</a>
+  expected_critical_units = ["verified release date is 2026-08-01", "CommonJS guidance"]
+  *** 这些 units 在 LINKED PDF 里，不在当前 HTML 里 ***
+  => 该类的结论必须命名为 `document-path gain`
+     （= document discovery / linked-document following），
+     **不得泛化为 "difficult HTML gain"**（二者 routing 含义不同）
+
+session_sensitive /session-gated.html
+  HTML 实际内容 = "Members only / Please log in to continue reading this article."
+  受保护状态在 /session/check（带 cookie 返回 "SESSION OK"）
+  expected_critical_units = ["SESSION OK"]（需保持 session 后读取 protected state）
+  公平性：**不为 default 人工注入 browser session**；default 无 session capability => useful=False 是公平结果
+
+selected_pdf   /report.pdf
+  expected_critical_units = ["verified release date is 2026-08-01", "CommonJS guidance", "extractable prose"]
+  A 已显示 Crawl4AI p50 ≈ 40ms => **不预设 PDF specialist 一定更贵**
+```
+
+### 143.27 §143-B raw row schema（每 category 一对）
+
+```text
+category / fixture
+expected_critical_units
+
+default:
+  default_backend_path        <- 必须保留：current default 是 chain
+  useful / units_recovered / units_total / wall_ms / fallback_used
+crawl4ai:
+  useful / units_recovered / units_total / wall_ms / fallback_used
+
+delta:
+  critical_units / wall_ms / specialist_gain
+```
+`default_backend_path` 直接影响 §143-C escalation economics（例：simple_static -> native_http；
+某 document -> native_http -> wigolo_http）。
+
+### 143.28 延迟口径
+
+**不拿 A 的 p50 与 B 的单次 default 比。** B 每边做**小规模 warm paired repeats**：
+
+```text
+5 paired warm repeats / category
+交错或随机顺序（Default/C4AI 与 C4AI/Default 混排）
+比较 median wall
+```
+B 的核心是**内容差异**，5 次足够 characterization；稳态 latency 分布由 A 负责。
+
+### 143.29 §143-B 最终表（最后一列**待数据决定**）
+
+| Category | Default units | C4AI units | Default useful | C4AI useful | Δwall | Gain |
+| --- | --- | --- | --- | --- | --- | --- |
+| simple | ? | ? | ? | ? | ? | ? |
+| docs | ? | ? | ? | ? | ? | ? |
+| JS | ? | ? | ? | ? | ? | ? |
+| difficult (document-path) | ? | ? | ? | ? | ? | ? |
+| session | ? | ? | ? | ? | ? | ? |
+| PDF | ? | ? | ? | ? | ? | ? |
+
+### 143.30 B 完成后**不立刻冻结 routing signals**
+
+B 回答"Crawl4AI 有没有额外价值"；**C 才回答"既然有价值，应该一开始直接调用还是先试 default"**。
+例：B 得 `difficult_html = MATERIAL`，但 C 发现 default-first 只多花 30ms => `FALLBACK_ONLY` 可能优于 `DIRECT_SPECIALIST`；
+反之 JS（default 200ms useless + C4AI 200ms useful）=> default-first 纯浪费 => `DIRECT_SPECIALIST`。
+
+### 143.31 两个最值得关注的信号（供 C 参考，非结论）
+
+```text
+1. Browser path 实际比预想便宜（warm 160-205ms，远低于 qualification 印象 1.3-2.8s）
+   => 未来 direct specialist 的门槛可能没那么高
+2. PDF specialist 成本极低（~40ms）
+   => selected document routing 更取决于 predictability + content gain，而非"browser 太贵"
+```
+
+### 143.32 状态
+
+```text
+§143-A warm characterization       ✅ CLOSED
+§143-B protocol/rubric freeze      ✅（本提交）
+§143-B paired harness + run        ⏳ NEXT
+STOP / adjudicate -> §143-C escalation economics -> routing economics table
+```
