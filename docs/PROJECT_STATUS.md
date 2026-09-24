@@ -10479,3 +10479,81 @@ B0 parity PASS 后： smoke -> 30 pairs -> aggregate/adjudicate -> §143-C
 
 **一句话位置**：
 > **最近不是走得慢，而是在把跑道修直；B0 之后若仍每次只前进半步，那才是真正的过度拆分。**
+
+
+## §143-B0 (part 1) — shared read-chain primitive EXECUTED
+
+### 143.77 提取范围（实际比预期更小、更机械）
+
+提取对象**本来就是一个嵌套函数**：`read_chain_executors(source_limit)`（原 `:632-653`）。
+⇒ 无需移动大段逻辑，只需把**闭包依赖变成显式参数**。
+
+### 143.78 改动（语义不变的机械提取）
+
+```text
+src/application/active_research_runtime.py
+
+新增 module-level：
+  ACTIVE_READER_CHAIN: tuple[str, str] = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
+      （此前是 execute() 内的函数局部名 -> 现在是稳定、可 import 的契约）
+
+新增 module-level 单实现权威：
+  def build_read_chain_executors(*, source_limit, gateway_read,
+                                 escalation_backend, hard_seconds_left) -> dict[str, Any]
+      构造 NATIVE_HTTP_BACKEND / WIGOLO_HTTP_BACKEND 两个 executor
+
+execute() 内：
+  删除 local ACTIVE_READER_CHAIN 赋值（改用 module 常量）
+  read_chain_executors(source_limit) 变为薄包装 -> 调 build_read_chain_executors(...)
+```
+
+**未改**：`execute()` 外部行为、routing、fallback、deadline、budget charging、
+provenance、`record_outcome`。**未顺手优化任何东西。**
+
+### 143.79 Pre/post parity gate —— PASS
+
+```text
+ruff check src/application/active_research_runtime.py   -> All checks passed!
+import sanity: ACTIVE_READER_CHAIN = ('native_http', 'wigolo_http')
+               build_read_chain_executors callable       -> True
+
+runtime + reader regressions（refactor 后）：
+  tests/test_active_research_runtime.py
+  tests/test_reader_backends.py
+  tests/test_research_active_adapter.py
+  -> 102 passed in 114.33s
+```
+
+### 143.80 防绕开结构性 regression（新增）
+
+`tests/test_read_chain_single_authority.py` —— **4 passed**：
+```text
+test_active_reader_chain_is_module_level_and_importable
+    ACTIVE_READER_CHAIN == ("native_http","wigolo_http") 且为 module-level 恰好一次（含 AnnAssign）
+test_shared_primitive_exists_and_is_used_by_execute
+    build_read_chain_executors 存在且 execute() 内薄包装确实调用它
+test_executor_construction_is_not_re_inlined
+    NativeHttpBackendExecutor(read_fn= ...  全文件计数 == 1
+    WigoloHttpBackendExecutor( ...          全文件计数 == 1
+    <- 防止 execute() 未来重新内联自己的构造
+test_measurement_entry_does_not_start_orchestration
+    窄入口不得调用 discover / plan( / synthes / execute(
+```
+⇒ **B0 通过标准中的"结构性断言/源码级 regression 防止 execute() 绕开 shared primitive"已满足。**
+
+### 143.81 B0 剩余半：窄 measurement entry
+
+```text
+待做：一个只够执行 frozen read target 的窄入口
+      （调用同一 build_read_chain_executors + run_chain，不启 discovery/planning/synthesis）
+前置：需确认 run_chain 调用点（约 :2043 区域）所需的最小上下文
+     （candidate_id / host / record_outcome / routing context）
+```
+
+### 143.82 状态
+
+```text
+§143-B0 part 1  shared primitive + module const + caller rewire + parity + anti-bypass   ✅（本提交）
+§143-B0 part 2  narrow measurement entry                                                ⏳ NEXT
+B0 全 PASS -> ONE-PAIR smoke -> 30 pairs -> aggregate/adjudicate -> §143-C
+```

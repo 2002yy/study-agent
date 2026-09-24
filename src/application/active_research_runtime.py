@@ -289,6 +289,47 @@ def late_tail_floor_seconds() -> float:
 PolicyCheck = Callable[[Mapping[str, Any], str], bool]
 
 
+#: §143-B0: the explicit reader chain is the only authority that may execute a
+#: reader. ``native_http`` runs the plain read (the adapter no longer escalates);
+#: ``wigolo_http`` is the A2d-3 executor carrying the shared B2 guards.
+#: ``wigolo_browser`` is deliberately not enabled.
+#:
+#: Promoted from a function-local name so the chain is a stable, importable
+#: contract rather than an implementation detail of ``execute()``.
+ACTIVE_READER_CHAIN: tuple[str, str] = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
+
+
+def build_read_chain_executors(
+    *,
+    source_limit: int,
+    gateway_read: Callable[[str], Mapping[str, Any]],
+    escalation_backend: Any,
+    hard_seconds_left: Callable[[], float],
+) -> dict[str, Any]:
+    """§143-B0: the single implementation authority for reader executors.
+
+    Both ``ActiveResearchRuntimeExecutor.execute()`` and the narrow measurement
+    entry call **this** function, so a measurement can never observe a
+    hand-rolled "equivalent" of the production default.
+
+    Mechanical extraction of the former nested ``read_chain_executors``: the
+    captured runtime closures are now explicit parameters. No behaviour change.
+    """
+
+    def _native(target: str) -> Mapping[str, Any]:
+        return gateway_read(target, max_chars=source_limit)
+
+    return {
+        NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native),
+        WIGOLO_HTTP_BACKEND: WigoloHttpBackendExecutor(
+            backend=escalation_backend,
+            max_chars=source_limit,
+            hard_seconds_left=hard_seconds_left,
+            charge_envelope=charge_http_envelope,
+        ),
+    }
+
+
 class ActiveResearchCancelled(RuntimeError):
     pass
 
@@ -606,11 +647,8 @@ class ActiveResearchRuntimeExecutor:
                 metrics["read_scheduling"] = entries[-60:]
             return decision
 
-        # §105 A2d-4: the explicit reader chain is now the only authority that
-        # may execute a reader. ``native_http`` runs the plain read (the adapter
-        # no longer escalates); ``wigolo_http`` is the A2d-3 executor carrying
-        # the shared B2 guards. ``wigolo_browser`` is deliberately not enabled.
-        ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
+        # §143-B0: ACTIVE_READER_CHAIN is now a module-level contract
+        # (see the definition above), so the chain has a single authority.
 
         def read_chain_attempted_backends(target_candidate_id: str) -> tuple[str, ...]:
             """Attempt history for one candidate; another candidate never counts."""
@@ -630,27 +668,25 @@ class ActiveResearchRuntimeExecutor:
             return breaker.state_for(backend=backend, host=host)
 
         def read_chain_executors(source_limit: int) -> dict[str, Any]:
-            """One executor per enabled backend; the chain decides who runs."""
+            """One executor per enabled backend; the chain decides who runs.
 
-            def _native(target: str) -> Mapping[str, Any]:
-                return gateway_read(target, max_chars=source_limit)
+            §143-B0: delegates to the shared production primitive so this path
+            and the narrow measurement entry share one implementation authority.
+            """
 
             escalation_backend = (
                 self.gateway.escalation_backend()
                 if hasattr(self.gateway, "escalation_backend")
                 else None
             )
-            return {
-                NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native),
-                WIGOLO_HTTP_BACKEND: WigoloHttpBackendExecutor(
-                    backend=escalation_backend,
-                    max_chars=source_limit,
-                    hard_seconds_left=lambda: (
-                        state.budget.hard_timeout_seconds - elapsed()
-                    ),
-                    charge_envelope=charge_http_envelope,
+            return build_read_chain_executors(
+                source_limit=source_limit,
+                gateway_read=gateway_read,
+                escalation_backend=escalation_backend,
+                hard_seconds_left=lambda: (
+                    state.budget.hard_timeout_seconds - elapsed()
                 ),
-            }
+            )
 
         def record_read_chain_attempt(
             candidate: CandidatePoolItem,
