@@ -1,0 +1,1377 @@
+{
+  "schema_version": "research-quality-harness-closure-v1",
+  "started_at": "2026-08-26T15:33:20.446365Z",
+  "completed_at": "2026-08-26T15:43:13.628344Z",
+  "cases_fixture": "tests/fixtures/research_quality/live_trap_cases.json",
+  "observation_artifact": "docs/research_quality/P0_LIVE_OBSERVATION.json",
+  "observation_sha256": "27780927f446736e6bbf8551a4070d8dd214e57aa75ee713e8e0cc5d5c531732",
+  "provider": "deepseek",
+  "model_profile": "pro",
+  "model": "deepseek-v4-pro",
+  "reference_date": "2026-08-26",
+  "case_count": 10,
+  "scope": {
+    "eval_only": true,
+    "stores_page_bodies": false,
+    "stores_prompts": false,
+    "stores_raw_model_output": false,
+    "sends_eval_gold": false,
+    "sends_chat_memory_local_files_or_attachments": false,
+    "max_reads_per_case": 8,
+    "max_page_chars": 12000,
+    "sdk_hidden_retries": 0,
+    "application_attempts_per_logical_call": 2,
+    "request_timeout_seconds": 60.0,
+    "keyword_relation_fallback": false
+  },
+  "cases": [
+    {
+      "case_id": "trap-secondary-only-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "What is the current official primary rate limit for unauthenticated requests to the GitHub REST API?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-secondary-only-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "What is the current official primary rate limit for unauthenticated requests to the GitHub REST API?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "What is the current official primary rate limit for unauthenticated requests to the GitHub REST API?",
+        "projected_claims": [
+          {
+            "surface": "The current official primary rate limit for unauthenticated requests to the GitHub REST API is 60 requests per hour per originating IP address.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 30,
+            "requires_dated_evidence": true
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 3.375,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-secondary-only-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-secondary-only-live:1",
+          "case_id": "trap-secondary-only-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 100
+          },
+          "input_sha256": "2ddc92fca9dfdf9b1fcf0f4af87fe5c14f9933e68ea5dbbd35e83eea40e45ae5",
+          "input_chars": 116,
+          "started_at": "2026-08-26T15:33:20.446365Z",
+          "completed_at": "2026-08-26T15:33:32.772137Z",
+          "elapsed_seconds": 12.328,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "9f75e8fe3d281891055f0f4e657703927377f8475d3dd16e12ca728a9875770e",
+          "response_chars": 417,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 12.328,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-duplicate-source-live",
+      "projection_status": "unavailable",
+      "failure_reason": "claim_projection_unavailable",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "Which independently operated organizations published original technical advisories about CVE-2024-3094, excluding syndicated or copied reports?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-duplicate-source-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "Which independently operated organizations published original technical advisories about CVE-2024-3094, excluding syndicated or copied reports?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "Which independently operated organizations published original technical advisories about CVE-2024-3094, excluding syndicated or copied reports?",
+        "projected_claims": [],
+        "projected_claim_evidence": [],
+        "llm_calls": 2,
+        "elapsed_seconds": 0.672,
+        "closed": true
+      },
+      "projected_claims": [],
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-duplicate-source-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-duplicate-source-live:1",
+          "case_id": "trap-duplicate-source-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 143
+          },
+          "input_sha256": "d3ffa6422e20aa0420535d557a326cf4881ac712ddcfe252c045412601bbbf94",
+          "input_chars": 159,
+          "started_at": "2026-08-26T15:33:32.773141Z",
+          "completed_at": "2026-08-26T15:34:48.450541Z",
+          "elapsed_seconds": 75.672,
+          "status": "attempted_failed",
+          "result": "attempted_failed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "response_chars": 0,
+          "error_type": "JSONDecodeError"
+        },
+        {
+          "call_id": "research_claim_projection:trap-duplicate-source-live:1:attempt:2",
+          "logical_call_id": "research_claim_projection:trap-duplicate-source-live:1",
+          "case_id": "trap-duplicate-source-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 2,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 143
+          },
+          "input_sha256": "d3ffa6422e20aa0420535d557a326cf4881ac712ddcfe252c045412601bbbf94",
+          "input_chars": 159,
+          "started_at": "2026-08-26T15:34:48.450541Z",
+          "completed_at": "2026-08-26T15:35:59.027544Z",
+          "elapsed_seconds": 70.578,
+          "status": "attempted_failed",
+          "result": "attempted_failed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "292bfc9fbf8ab67e3a679e3a7cee1dc5a70da416ee75e90acb79726ba7a94bc3",
+          "response_chars": 1749,
+          "error_type": "ValueError"
+        }
+      ],
+      "reads": [],
+      "observation_search_status": "ok",
+      "elapsed_seconds": 146.25,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "claim_projection_unavailable:JSONDecodeError,ValueError",
+      "stop_reason": "projection_exhausted_no_fallback"
+    },
+    {
+      "case_id": "trap-old-primary-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "Which Node.js release lines currently receive security updates according to the official release schedule?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-old-primary-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "Which Node.js release lines currently receive security updates according to the official release schedule?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "Which Node.js release lines currently receive security updates according to the official release schedule?",
+        "projected_claims": [
+          {
+            "surface": "The official Node.js release schedule identifies the Node.js release lines that are currently receiving security updates.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 90,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "The official schedule classifies release lines as Current, Active LTS, or Maintenance LTS, and security updates are provided according to that classification.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The official Node.js release schedule includes specific version numbers and their support status.",
+            "kind": "factual",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 0.688,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-old-primary-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-old-primary-live:1",
+          "case_id": "trap-old-primary-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 106
+          },
+          "input_sha256": "7e0e25b4aa89c1e411fbc8dec6da2f52d83300f2b459b8671bdc9dde314fc588",
+          "input_chars": 122,
+          "started_at": "2026-08-26T15:35:59.028540Z",
+          "completed_at": "2026-08-26T15:36:33.014265Z",
+          "elapsed_seconds": 34.0,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "fa126bd5df218b3486a75edbc2624d6f579dbc6837adb452eeb44ed7c5196c4d",
+          "response_chars": 1068,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 34.0,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-conflicting-primary-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "What is the current default retention period for GitHub Actions artifacts and logs, and how does the current documentation relate to older official announcements?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-conflicting-primary-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "What is the current default retention period for GitHub Actions artifacts and logs, and how does the current documentation relate to older official announcements?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "What is the current default retention period for GitHub Actions artifacts and logs, and how does the current documentation relate to older official announcements?",
+        "projected_claims": [
+          {
+            "surface": "The current default retention period for GitHub Actions artifacts is 90 days.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 90,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "The current default retention period for GitHub Actions logs is 90 days.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 90,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "GitHub's current documentation states that the default retention period for Actions artifacts and logs can be customized per repository or organization within a 1 to 90 day range.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 90,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "Older official GitHub announcements stated that the default retention period for Actions artifacts and logs was 90 days.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The current documentation's stated default retention period is consistent with the older official announcements, showing no change from the previously announced 90-day default.",
+            "kind": "analytical",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "quantitative_claim",
+            "max_age_days": 90,
+            "requires_dated_evidence": true
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 1.281,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-conflicting-primary-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-conflicting-primary-live:1",
+          "case_id": "trap-conflicting-primary-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 162
+          },
+          "input_sha256": "4385d44f1a6165f1ca5a1820dd71c2344adb233f791709c5321b47ce78d6f625",
+          "input_chars": 178,
+          "started_at": "2026-08-26T15:36:33.014265Z",
+          "completed_at": "2026-08-26T15:37:10.641632Z",
+          "elapsed_seconds": 37.625,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "cda9b0bc271020ba834a6adb4a64e2ceb6d2c486a9d483d6377d1bdcad58da14",
+          "response_chars": 1715,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 37.625,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-no-primary-exists-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "What are the exact confidential commercial terms of the Microsoft and OpenAI partnership that neither party has publicly disclosed?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-no-primary-exists-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "What are the exact confidential commercial terms of the Microsoft and OpenAI partnership that neither party has publicly disclosed?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "What are the exact confidential commercial terms of the Microsoft and OpenAI partnership that neither party has publicly disclosed?",
+        "projected_claims": [
+          {
+            "surface": "What exact financial terms, including revenue sharing and profit caps, govern the Microsoft-OpenAI partnership but remain confidential?",
+            "kind": "research_question",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "Which intellectual property ownership, licensing, and exclusivity provisions between Microsoft and OpenAI have not been publicly disclosed?",
+            "kind": "research_question",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "What governance rights, board representation, or veto powers are specified in the undisclosed Microsoft-OpenAI commercial agreement?",
+            "kind": "research_question",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "What termination triggers, change-of-control restrictions, or non-compete clauses exist in the confidential partnership terms?",
+            "kind": "research_question",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "Can exact confidential terms be inferred from public redactions, regulatory filings, or litigation documents?",
+            "kind": "research_question",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "Hypothesis: The undisclosed terms likely include asymmetric revenue-sharing arrangements favoring Microsoft during early phases of the partnership.",
+            "kind": "hypothesis",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 2,
+        "elapsed_seconds": 0.672,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-no-primary-exists-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-no-primary-exists-live:1",
+          "case_id": "trap-no-primary-exists-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 131
+          },
+          "input_sha256": "e66399b1f283a92c67fc3d3d3394173793a2d07efa5c234b2faa12eafba0e56a",
+          "input_chars": 147,
+          "started_at": "2026-08-26T15:37:10.642637Z",
+          "completed_at": "2026-08-26T15:37:57.108314Z",
+          "elapsed_seconds": 46.469,
+          "status": "attempted_failed",
+          "result": "attempted_failed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "751d211fd26b5f839878803cb539040cd2f540d2d816cd67c409cb0f0b57897a",
+          "response_chars": 2108,
+          "error_type": "ValueError"
+        },
+        {
+          "call_id": "research_claim_projection:trap-no-primary-exists-live:1:attempt:2",
+          "logical_call_id": "research_claim_projection:trap-no-primary-exists-live:1",
+          "case_id": "trap-no-primary-exists-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 2,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 131
+          },
+          "input_sha256": "e66399b1f283a92c67fc3d3d3394173793a2d07efa5c234b2faa12eafba0e56a",
+          "input_chars": 147,
+          "started_at": "2026-08-26T15:37:57.108314Z",
+          "completed_at": "2026-08-26T15:38:30.457394Z",
+          "elapsed_seconds": 33.343,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "765d0ab9ad4e6c840c94dde73dec0b64fc428a4f2d85ab7d0506508c63dc047e",
+          "response_chars": 2190,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 79.812,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "ValueError",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-community-opinion-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "How do Python developers currently describe their experience with Python 3.13 free-threaded mode?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-community-opinion-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "How do Python developers currently describe their experience with Python 3.13 free-threaded mode?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "How do Python developers currently describe their experience with Python 3.13 free-threaded mode?",
+        "projected_claims": [
+          {
+            "surface": "Python developers report a mixed experience with Python 3.13 free-threaded mode, citing both performance improvements and compatibility limitations.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "community_sentiment",
+            "max_age_days": 180,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "Some developers observe performance regressions for single-threaded code in Python 3.13 free-threaded builds compared to the default GIL build.",
+            "kind": "analytical",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "quantitative_claim",
+            "max_age_days": 180,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "Developers report that many C extension packages do not yet provide free-threaded wheels, making adoption of Python 3.13 free-threaded mode difficult.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "community_sentiment",
+            "max_age_days": 180,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "Python 3.13 documentation describes the free-threaded build as experimental and not recommended for production use.",
+            "kind": "factual",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "Community benchmarks show Python 3.13 free-threaded mode improves multi-core scaling for CPU-bound parallel tasks compared to GIL-limited Python 3.12.",
+            "kind": "analytical",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "quantitative_claim",
+            "max_age_days": 180,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "The free-threaded Python ecosystem may not be ready for widespread production adoption until critical packages provide stable free-threaded wheels and broader testing coverage.",
+            "kind": "hypothesis",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "exploratory_hypothesis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 1.359,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-community-opinion-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-community-opinion-live:1",
+          "case_id": "trap-community-opinion-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 97
+          },
+          "input_sha256": "62497dbe3c6df42fc920ada4421045b3e97e0bf73da18ac2c8447b949cdadddf",
+          "input_chars": 113,
+          "started_at": "2026-08-26T15:38:30.459387Z",
+          "completed_at": "2026-08-26T15:38:55.753743Z",
+          "elapsed_seconds": 25.297,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "4ab76f939cc22caa4727f94e557c0f5b6055019406ea128fa5e6959212b7f9ef",
+          "response_chars": 2218,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 25.297,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-numerical-original-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "What is the exact United States unemployment rate in the most recent Employment Situation release published by the U.S. Bureau of Labor Statistics?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-numerical-original-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "What is the exact United States unemployment rate in the most recent Employment Situation release published by the U.S. Bureau of Labor Statistics?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "What is the exact United States unemployment rate in the most recent Employment Situation release published by the U.S. Bureau of Labor Statistics?",
+        "projected_claims": [
+          {
+            "surface": "The U.S. Bureau of Labor Statistics publishes a monthly Employment Situation news release.",
+            "kind": "factual",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The Employment Situation release reports the official U-3 unemployment rate for the United States.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The most recent Employment Situation release provides a seasonally adjusted U-3 unemployment rate expressed as a percentage.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 45,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "The exact unemployment rate in the most recent Employment Situation release is a specific seasonally adjusted percentage identifiable in the report.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "current_fact",
+            "max_age_days": 45,
+            "requires_dated_evidence": true
+          },
+          {
+            "surface": "The reported unemployment rate corresponds to the civilian noninstitutional population age 16 and over.",
+            "kind": "factual",
+            "priority": "context",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 0.719,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-numerical-original-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-numerical-original-live:1",
+          "case_id": "trap-numerical-original-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 147
+          },
+          "input_sha256": "2fa55d3070a5a7a1d912dcbe3bd8bdf1931005fa13c713f98fd462f5faa7acfd",
+          "input_chars": 163,
+          "started_at": "2026-08-26T15:38:55.754742Z",
+          "completed_at": "2026-08-26T15:39:25.635510Z",
+          "elapsed_seconds": 29.875,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "01392e02becff8baa67e9cfa7cbb0af323cd6c2d8d5479469fbc04a21a57c07c",
+          "response_chars": 1667,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 29.875,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-causal-competing-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "Why did the July 2024 CrowdStrike outage occur, distinguishing the direct technical trigger from contributing deployment and control failures?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-causal-competing-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "Why did the July 2024 CrowdStrike outage occur, distinguishing the direct technical trigger from contributing deployment and control failures?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "Why did the July 2024 CrowdStrike outage occur, distinguishing the direct technical trigger from contributing deployment and control failures?",
+        "projected_claims": [
+          {
+            "surface": "The direct technical trigger was a defect in Rapid Response Content update Channel File 291 that caused an out-of-bounds memory read in the CrowdStrike Falcon sensor, leading to a system crash on Windows hosts.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The faulty update was deployed globally in a single rapid push without staged rollout or canary testing, so the defect reached millions of endpoints simultaneously.",
+            "kind": "analytical",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "causal_analysis",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "CrowdStrike's pre-deployment validation and Content Validator did not test the specific IPC parameter pattern in Channel File 291, allowing the defect to escape detection.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "The Falcon sensor lacked runtime validation of Channel File 291 content, so an out-of-bounds read could crash the host.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          },
+          {
+            "surface": "No automatic rollback or blocking mechanism was in place for Rapid Response Content updates, limiting containment and prolonging recovery.",
+            "kind": "factual",
+            "priority": "major",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [],
+        "llm_calls": 1,
+        "elapsed_seconds": 3.312,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-causal-competing-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-causal-competing-live:1",
+          "case_id": "trap-causal-competing-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 142
+          },
+          "input_sha256": "cfc559a8f1baec7a8a221a8bcedda3ef798d50f3efbe71935956360ef4819403",
+          "input_chars": 158,
+          "started_at": "2026-08-26T15:39:25.636038Z",
+          "completed_at": "2026-08-26T15:40:20.978653Z",
+          "elapsed_seconds": 55.344,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "64ec2f8d84f436a58e8049dae6f25e7db7c07df2c2728aaec74e69fd374d5048",
+          "response_chars": 1917,
+          "error_type": ""
+        }
+      ],
+      "reads": [],
+      "elapsed_seconds": 55.344,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 0,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-simple-factual-live",
+      "projection_status": "completed",
+      "failure_reason": "",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "Which open-source license does the FastAPI project use?",
+      "reference_date": "2026-08-26",
+      "documents": [
+        {
+          "doc_id": "live_trap_simple_factual_live_1",
+          "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE",
+          "title": "fastapi/LICENSE at master · fastapi/fastapi · GitHub",
+          "source_role": "primary",
+          "cluster_id": "publisher:fastapi",
+          "published_at": null
+        },
+        {
+          "doc_id": "live_trap_simple_factual_live_2",
+          "url": "https://github.com/binkuolo/fastapi/blob/main/LICENSE",
+          "title": "fastapi/LICENSE at main · binkuolo/fastapi · GitHub",
+          "source_role": "community",
+          "cluster_id": "publisher:binkuolo",
+          "published_at": null
+        },
+        {
+          "doc_id": "live_trap_simple_factual_live_3",
+          "url": "https://generalistprogrammer.com/license/fastapi",
+          "title": "Is fastapi free? fastapi License (MIT)",
+          "source_role": "independent_secondary",
+          "cluster_id": "publisher:generalistprogrammer",
+          "published_at": null
+        },
+        {
+          "doc_id": "live_trap_simple_factual_live_4",
+          "url": "https://fastapi.tiangolo.com/",
+          "title": "FastAPI - FastAPI",
+          "source_role": "primary",
+          "cluster_id": "publisher:fastapi",
+          "published_at": null
+        }
+      ],
+      "transcript": {
+        "case_id": "trap-simple-factual-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "Which open-source license does the FastAPI project use?"
+        ],
+        "searches": 1,
+        "reads": [
+          {
+            "doc_id": "live_trap_simple_factual_live_1",
+            "outcome": "success",
+            "extraction_eligible": true
+          },
+          {
+            "doc_id": "live_trap_simple_factual_live_2",
+            "outcome": "success",
+            "extraction_eligible": true
+          },
+          {
+            "doc_id": "live_trap_simple_factual_live_3",
+            "outcome": "success",
+            "extraction_eligible": true
+          },
+          {
+            "doc_id": "live_trap_simple_factual_live_4",
+            "outcome": "success",
+            "extraction_eligible": true
+          }
+        ],
+        "cited_doc_ids": [
+          "live_trap_simple_factual_live_1",
+          "live_trap_simple_factual_live_2",
+          "live_trap_simple_factual_live_3",
+          "live_trap_simple_factual_live_4"
+        ],
+        "addressed_claim_surfaces": [
+          "The FastAPI project is licensed under the MIT License."
+        ],
+        "question_surface": "Which open-source license does the FastAPI project use?",
+        "projected_claims": [
+          {
+            "surface": "The FastAPI project is licensed under the MIT License.",
+            "kind": "factual",
+            "priority": "critical",
+            "state": "searching",
+            "evidence_policy_profile": "official_statement",
+            "max_age_days": null,
+            "requires_dated_evidence": false
+          }
+        ],
+        "projected_claim_evidence": [
+          {
+            "claim_surface": "The FastAPI project is licensed under the MIT License.",
+            "doc_id": "live_trap_simple_factual_live_1",
+            "relation": "supports",
+            "strength": 1.0
+          },
+          {
+            "claim_surface": "The FastAPI project is licensed under the MIT License.",
+            "doc_id": "live_trap_simple_factual_live_2",
+            "relation": "supports",
+            "strength": 0.6
+          },
+          {
+            "claim_surface": "The FastAPI project is licensed under the MIT License.",
+            "doc_id": "live_trap_simple_factual_live_3",
+            "relation": "supports",
+            "strength": 1.0
+          },
+          {
+            "claim_surface": "The FastAPI project is licensed under the MIT License.",
+            "doc_id": "live_trap_simple_factual_live_4",
+            "relation": "background",
+            "strength": 0.0
+          }
+        ],
+        "llm_calls": 5,
+        "elapsed_seconds": 5.797,
+        "closed": true
+      },
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-simple-factual-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-simple-factual-live:1",
+          "case_id": "trap-simple-factual-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 55
+          },
+          "input_sha256": "408133323cc58c4c8974a3f07056a4e4c2414666cc9d5c128dec0f311108a969",
+          "input_chars": 71,
+          "started_at": "2026-08-26T15:40:20.980648Z",
+          "completed_at": "2026-08-26T15:40:27.741410Z",
+          "elapsed_seconds": 6.766,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "a371b9a0904fdf49416a60a00763dc1869d7b391e4167ecae03ef49a8153e213",
+          "response_chars": 337,
+          "error_type": ""
+        },
+        {
+          "call_id": "research_evidence_projection:trap-simple-factual-live:1:attempt:1",
+          "logical_call_id": "research_evidence_projection:trap-simple-factual-live:1",
+          "case_id": "trap-simple-factual-live",
+          "purpose": "research_evidence_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question",
+            "projected_claims",
+            "public_web_content"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "projected_claims": 1,
+            "public_web_content": 1,
+            "public_web_content_chars": 1079
+          },
+          "input_sha256": "4f7dd251299ccacf47d4c55f490dfa408886f3ba49257f854b9095a5f0b1af44",
+          "input_chars": 1593,
+          "started_at": "2026-08-26T15:40:29.565021Z",
+          "completed_at": "2026-08-26T15:40:35.778882Z",
+          "elapsed_seconds": 6.203,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-evidence-projection-v1",
+          "response_sha256": "df4494f537f93dc326406546b72ffb2b12e0b57e5d9c5e916b1c2e5a042020bd",
+          "response_chars": 297,
+          "error_type": ""
+        },
+        {
+          "call_id": "research_evidence_projection:trap-simple-factual-live:2:attempt:1",
+          "logical_call_id": "research_evidence_projection:trap-simple-factual-live:2",
+          "case_id": "trap-simple-factual-live",
+          "purpose": "research_evidence_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "https://github.com/binkuolo/fastapi/blob/main/LICENSE",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question",
+            "projected_claims",
+            "public_web_content"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "projected_claims": 1,
+            "public_web_content": 1,
+            "public_web_content_chars": 1060
+          },
+          "input_sha256": "43c86f36d83d5e99e97869e09e4120b2a7ec1c94b504e7fdaba1cfb8edfb3355",
+          "input_chars": 1572,
+          "started_at": "2026-08-26T15:40:37.533791Z",
+          "completed_at": "2026-08-26T15:41:39.527313Z",
+          "elapsed_seconds": 61.984,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-evidence-projection-v1",
+          "response_sha256": "9981096a7c11f8cd753c329e412ff20d53d1c048661ed029059b87c71c6ec206",
+          "response_chars": 300,
+          "error_type": ""
+        },
+        {
+          "call_id": "research_evidence_projection:trap-simple-factual-live:3:attempt:1",
+          "logical_call_id": "research_evidence_projection:trap-simple-factual-live:3",
+          "case_id": "trap-simple-factual-live",
+          "purpose": "research_evidence_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "https://generalistprogrammer.com/license/fastapi",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question",
+            "projected_claims",
+            "public_web_content"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "projected_claims": 1,
+            "public_web_content": 1,
+            "public_web_content_chars": 1065
+          },
+          "input_sha256": "20586a7eb16d126bfb9ed72e74ce22971b896df36b923e8ec17a7eb102d79993",
+          "input_chars": 1555,
+          "started_at": "2026-08-26T15:41:41.473544Z",
+          "completed_at": "2026-08-26T15:41:45.791496Z",
+          "elapsed_seconds": 4.313,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-evidence-projection-v1",
+          "response_sha256": "af9c5b2075b2de6fae9f3d6f905da2bea87ec7bb6d699b012a564ee331069818",
+          "response_chars": 324,
+          "error_type": ""
+        },
+        {
+          "call_id": "research_evidence_projection:trap-simple-factual-live:4:attempt:1",
+          "logical_call_id": "research_evidence_projection:trap-simple-factual-live:4",
+          "case_id": "trap-simple-factual-live",
+          "purpose": "research_evidence_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "https://fastapi.tiangolo.com/",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question",
+            "projected_claims",
+            "public_web_content"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "projected_claims": 1,
+            "public_web_content": 1,
+            "public_web_content_chars": 12000
+          },
+          "input_sha256": "6db2e484bc7533f9b99f9cb114abe292cb7c5b2328158995483934511d181ff2",
+          "input_chars": 12534,
+          "started_at": "2026-08-26T15:41:47.938359Z",
+          "completed_at": "2026-08-26T15:41:57.255071Z",
+          "elapsed_seconds": 9.312,
+          "status": "completed",
+          "result": "completed",
+          "response_schema_version": "research-evidence-projection-v1",
+          "response_sha256": "eab1a5918648818946767e03b60ff51d416e0dc9323778738c2866887614c1f5",
+          "response_chars": 281,
+          "error_type": ""
+        }
+      ],
+      "reads": [
+        {
+          "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE",
+          "status": "read_ok",
+          "content_chars": 1079,
+          "content_sha256": "886585583f960ffe82e422a6a9d5c24b9b719a96945c4dfe4cb45f647fd31b77",
+          "backend": "",
+          "elapsed_seconds": 8.031
+        },
+        {
+          "url": "https://github.com/binkuolo/fastapi/blob/main/LICENSE",
+          "status": "read_ok",
+          "content_chars": 1060,
+          "content_sha256": "c1c4f393416028e0db6854a6c1b417d51cc6181fc7265f3bc910db62f9ce2b24",
+          "backend": "",
+          "elapsed_seconds": 63.75
+        },
+        {
+          "url": "https://generalistprogrammer.com/license/fastapi",
+          "status": "read_ok",
+          "content_chars": 1065,
+          "content_sha256": "d2d2b9ed77de3483d33b2fdd597297db49386bea9f1a2f1c35f7636476d03ff5",
+          "backend": "",
+          "elapsed_seconds": 6.266
+        },
+        {
+          "url": "https://fastapi.tiangolo.com/",
+          "status": "read_ok",
+          "content_chars": 12000,
+          "content_sha256": "c7ddaa0f44381b91341c5a84588658e2c04f92053e7b49782e2911a3e08b11e4",
+          "backend": "",
+          "elapsed_seconds": 11.468
+        },
+        {
+          "url": "https://gitee.com/zhan_xiaobai/fastapi/blob/master/LICENSE",
+          "status": "read_failed",
+          "error_type": "empty_or_unsuccessful_read",
+          "elapsed_seconds": 0.125
+        }
+      ],
+      "elapsed_seconds": 96.406,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 5,
+        "source_role_fit_candidate_count": 4,
+        "scheduled_read_count": 5,
+        "successful_read_count": 4,
+        "projected_document_count": 4,
+        "eligible_evidence_count": 3
+      },
+      "typed_failure_reason": "",
+      "stop_reason": "projection_completed"
+    },
+    {
+      "case_id": "trap-unanswerable-live",
+      "projection_status": "unavailable",
+      "failure_reason": "claim_projection_unavailable",
+      "legacy_closed_basis": "operational_search_status_ok_proxy",
+      "question": "Which exact vulnerabilities will be fixed in the next Node.js security release before the project announces them?",
+      "reference_date": "2026-08-26",
+      "documents": [],
+      "transcript": {
+        "case_id": "trap-unanswerable-live",
+        "reference_date": "2026-08-26",
+        "queries": [
+          "Which exact vulnerabilities will be fixed in the next Node.js security release before the project announces them?"
+        ],
+        "searches": 1,
+        "reads": [],
+        "cited_doc_ids": [],
+        "addressed_claim_surfaces": [],
+        "question_surface": "Which exact vulnerabilities will be fixed in the next Node.js security release before the project announces them?",
+        "projected_claims": [],
+        "projected_claim_evidence": [],
+        "llm_calls": 2,
+        "elapsed_seconds": 9.875,
+        "closed": true
+      },
+      "projected_claims": [],
+      "external_calls": [
+        {
+          "call_id": "research_claim_projection:trap-unanswerable-live:1:attempt:1",
+          "logical_call_id": "research_claim_projection:trap-unanswerable-live:1",
+          "case_id": "trap-unanswerable-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 1,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 113
+          },
+          "input_sha256": "dcc5f9a2fbd41200e056d9083945a07fdc7b23f23f27d489aa0696b999634202",
+          "input_chars": 129,
+          "started_at": "2026-08-26T15:41:57.384581Z",
+          "completed_at": "2026-08-26T15:42:41.365099Z",
+          "elapsed_seconds": 43.985,
+          "status": "attempted_failed",
+          "result": "attempted_failed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "5d7a797e7b65aec90e81c105a2875667b40e7a13c3138623e7efc80835242357",
+          "response_chars": 1823,
+          "error_type": "ValueError"
+        },
+        {
+          "call_id": "research_claim_projection:trap-unanswerable-live:1:attempt:2",
+          "logical_call_id": "research_claim_projection:trap-unanswerable-live:1",
+          "case_id": "trap-unanswerable-live",
+          "purpose": "research_claim_projection",
+          "provider": "deepseek",
+          "model": "deepseek-v4-pro",
+          "url": "",
+          "attempt": 2,
+          "data_categories": [
+            "evaluation_question"
+          ],
+          "data_counts": {
+            "evaluation_question": 1,
+            "question_chars": 113
+          },
+          "input_sha256": "dcc5f9a2fbd41200e056d9083945a07fdc7b23f23f27d489aa0696b999634202",
+          "input_chars": 129,
+          "started_at": "2026-08-26T15:42:41.365099Z",
+          "completed_at": "2026-08-26T15:43:13.626341Z",
+          "elapsed_seconds": 32.265,
+          "status": "attempted_failed",
+          "result": "attempted_failed",
+          "response_schema_version": "research-claim-projection-v1",
+          "response_sha256": "89f4e870299a0b22f9c7d34440e4340e8da26a828fc1ed075e307d9e717ea4a3",
+          "response_chars": 1367,
+          "error_type": "ValueError"
+        }
+      ],
+      "reads": [],
+      "observation_search_status": "ok",
+      "elapsed_seconds": 76.25,
+      "retrieval_funnel": {
+        "attempted_queries": 1,
+        "returned_candidate_count": 5,
+        "benchmark_relevant_candidate_count": 5,
+        "source_role_fit_candidate_count": 0,
+        "scheduled_read_count": 0,
+        "successful_read_count": 0,
+        "projected_document_count": 0,
+        "eligible_evidence_count": 0
+      },
+      "typed_failure_reason": "claim_projection_unavailable:ValueError",
+      "stop_reason": "projection_exhausted_no_fallback"
+    }
+  ],
+  "summary": {
+    "total_cases": 10,
+    "completed_cases": 8,
+    "unavailable_cases": 2,
+    "artifact_completeness": "10/10 funnel · 10/10 transcript · 10/10 typed_reason",
+    "harness_status": "PASS / COMPLETE"
+  },
+  "derived_from": {
+    "semantic_artifact": "docs/research_quality/P0_LIVE_SEMANTIC_EVAL.json",
+    "observation_artifact": "docs/research_quality/P0_LIVE_OBSERVATION.json"
+  }
+}

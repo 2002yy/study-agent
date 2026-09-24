@@ -1,0 +1,786 @@
+{
+  "schema_version": "research-quality-live-observation-v1",
+  "started_at": "2026-08-26T14:30:34.259462Z",
+  "completed_at": "2026-08-26T14:31:02.015484Z",
+  "cases_fixture": "tests/fixtures/research_quality/live_trap_cases.json",
+  "case_count": 10,
+  "cases": [
+    {
+      "case_id": "trap-secondary-only-live",
+      "category": "secondary_only",
+      "question": "What is the current official primary rate limit for unauthenticated requests to the GitHub REST API?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "What is the current official primary rate limit for unauthenticated requests to the GitHub REST API?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:timeout;duckduckgo:timeout;google cse:HTTP connection error;startpage:Suspended: CAPTCHA;wikipedia:timeout"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "current（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/current/5342364",
+          "source": "Bing RSS",
+          "relevance": 0.32,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "current是什么意思_current的翻译_音标_读音_用法_例句_爱 ...",
+          "url": "https://www.iciba.com/word?w=current",
+          "source": "Bing RSS",
+          "relevance": 0.32,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "CURRENT中文 (简体)翻译：剑桥词典",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/current",
+          "source": "Bing RSS",
+          "relevance": 0.4,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "current - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?q=current&FORM=BDVSP6&cc=cn",
+          "source": "Bing RSS",
+          "relevance": 0.32,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Current | Future of Banking",
+          "url": "https://current.com/",
+          "source": "Bing RSS",
+          "relevance": 0.38,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 3.375
+    },
+    {
+      "case_id": "trap-duplicate-source-live",
+      "category": "duplicate_source",
+      "question": "Which independently operated organizations published original technical advisories about CVE-2024-3094, excluding syndicated or copied reports?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "Which independently operated organizations published original technical advisories about CVE-2024-3094, excluding syndicated or copied reports?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "independently是什么意思_independently的翻译_音标_读音 ...",
+          "url": "https://www.iciba.com/word?w=independently",
+          "source": "Bing RSS",
+          "relevance": 0.318,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "INDEPENDENTLY中文 (简体)翻译：剑桥词典",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/independently",
+          "source": "Bing RSS",
+          "relevance": 0.318,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "independently - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?q=independently&cc=cn",
+          "source": "Bing RSS",
+          "relevance": 0.318,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "independently_百度百科",
+          "url": "https://baike.baidu.com/item/independently/3794222",
+          "source": "Bing RSS",
+          "relevance": 0.318,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "INDEPENDENTLY | English meaning - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/dictionary/english/independently",
+          "source": "Bing RSS",
+          "relevance": 0.335,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 0.672
+    },
+    {
+      "case_id": "trap-old-primary-live",
+      "category": "old_primary",
+      "question": "Which Node.js release lines currently receive security updates according to the official release schedule?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "Which Node.js release lines currently receive security updates according to the official release schedule?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "Node.js — Run JavaScript Everywhere",
+          "url": "https://nodejs.org/",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Node.js — 让 JavaScript 无处不在 - Node.js 运行环境",
+          "url": "https://node.org.cn/",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Node.js 与 npm 的安装与配置（详细教程）_npm安装-CSDN博客",
+          "url": "https://blog.csdn.net/xhmico/article/details/159132633",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Node.js 教程 | 菜鸟教程",
+          "url": "https://www.runoob.com/nodejs/nodejs-tutorial.html",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Node.js 中文网",
+          "url": "https://nodejs.cn/",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 1,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 0.688
+    },
+    {
+      "case_id": "trap-conflicting-primary-live",
+      "category": "conflicting_primary",
+      "question": "What is the current default retention period for GitHub Actions artifacts and logs, and how does the current documentation relate to older official announcements?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "What is the current default retention period for GitHub Actions artifacts and logs, and how does the current documentation relate to older official announcements?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "current（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/current/5342364",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "current是什么意思_current的翻译_音标_读音_用法_例句_爱 ...",
+          "url": "https://www.iciba.com/word?w=current",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "CURRENT中文 (简体)翻译：剑桥词典",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/current",
+          "source": "Bing RSS",
+          "relevance": 0.371,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "current - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?q=current&FORM=BDVSP6&cc=cn",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Current | Future of Banking",
+          "url": "https://current.com/",
+          "source": "Bing RSS",
+          "relevance": 0.386,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 1.281
+    },
+    {
+      "case_id": "trap-no-primary-exists-live",
+      "category": "no_primary_exists",
+      "question": "What are the exact confidential commercial terms of the Microsoft and OpenAI partnership that neither party has publicly disclosed?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "What are the exact confidential commercial terms of the Microsoft and OpenAI partnership that neither party has publicly disclosed?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "exact是什么意思_exact的翻译_音标_读音_用法_例句_爱 ...",
+          "url": "https://www.iciba.com/word?w=exact",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "exact - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?q=exact&FORM=BDVSP6&cc=cn",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "EXACT中文 (简体)翻译：剑桥词典 - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/exact",
+          "source": "Bing RSS",
+          "relevance": 0.367,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "exact（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/exact/63224047",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "使用EXACT函数，方便而独特地比较数据结果 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/37696577",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 0.672
+    },
+    {
+      "case_id": "trap-community-opinion-live",
+      "category": "community_opinion",
+      "question": "How do Python developers currently describe their experience with Python 3.13 free-threaded mode?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "How do Python developers currently describe their experience with Python 3.13 free-threaded mode?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "do（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/do/14078906",
+          "source": "Bing RSS",
+          "relevance": 0.321,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "do是什么意思_do的翻译_音标_读音_用法_例句_爱词霸在线词典",
+          "url": "https://www.iciba.com/word?w=do",
+          "source": "Bing RSS",
+          "relevance": 0.321,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "DO中文 (简体)翻译：剑桥词典 - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/do",
+          "source": "Bing RSS",
+          "relevance": 0.321,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "Do是什么词性？一文讲透do的3种词性及用法区别_百度文库",
+          "url": "https://wenku.baidu.com/view/0026dcefc822bcd126fff705cc17552706225e7d.html",
+          "source": "Bing RSS",
+          "relevance": 0.343,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "do是什么意思？中文释义、例句与同义词 | Dictionary.net",
+          "url": "https://www.dictionary.net/zh/dictionary/do",
+          "source": "Bing RSS",
+          "relevance": 0.321,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 1.359
+    },
+    {
+      "case_id": "trap-numerical-original-live",
+      "category": "numerical_original_source",
+      "question": "What is the exact United States unemployment rate in the most recent Employment Situation release published by the U.S. Bureau of Labor Statistics?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "What is the exact United States unemployment rate in the most recent Employment Situation release published by the U.S. Bureau of Labor Statistics?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:Suspended: timeout;duckduckgo:Suspended: timeout;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "exact是什么意思_exact的翻译_音标_读音_用法_例句_爱 ...",
+          "url": "https://www.iciba.com/word?w=exact",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "exact - 搜索 词典",
+          "url": "https://global.bing.com/dict/search?q=exact&FORM=BDVSP6&cc=cn",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "EXACT中文 (简体)翻译：剑桥词典 - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/exact",
+          "source": "Bing RSS",
+          "relevance": 0.355,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "exact（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/exact/63224047",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "使用EXACT函数，方便而独特地比较数据结果 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/37696577",
+          "source": "Bing RSS",
+          "relevance": 0.314,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 0.719
+    },
+    {
+      "case_id": "trap-causal-competing-live",
+      "category": "causal_competing_explanations",
+      "question": "Why did the July 2024 CrowdStrike outage occur, distinguishing the direct technical trigger from contributing deployment and control failures?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "Why did the July 2024 CrowdStrike outage occur, distinguishing the direct technical trigger from contributing deployment and control failures?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [
+        "searxng:unresponsive_engines:brave:timeout;duckduckgo:CAPTCHA;google cse:Suspended: HTTP connection error;startpage:Suspended: CAPTCHA"
+      ],
+      "candidate_count": 5,
+      "relevant_candidate_count": 0,
+      "candidates": [
+        {
+          "title": "WHY中文 (简体)翻译：剑桥词典 - Cambridge Dictionary",
+          "url": "https://dictionary.cambridge.org/zhs/%E8%AF%8D%E5%85%B8/%E8%8B%B1%E8%AF%AD-%E6%B1%89%E8%AF%AD-%E7%AE%80%E4%BD%93/why",
+          "source": "Bing RSS",
+          "relevance": 0.333,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "why是什么意思_why的翻译_音标_读音_用法_例句_爱词霸 ...",
+          "url": "https://www.iciba.com/word?w=why",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "why（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/why/73467",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "why（1995年迈克尔·杰克逊的单曲）_百度百科",
+          "url": "https://baike.baidu.com/item/why/3511688",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        },
+        {
+          "title": "沈佳润新歌《Why》洗脑循环，少女心事引爆全网|专辑|中文版 ...",
+          "url": "https://k.sina.cn/article_7879848925_1d5acf3dd06801prcq.html",
+          "source": "Bing RSS",
+          "relevance": 0.317,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 0,
+          "benchmark_relevant": false
+        }
+      ],
+      "read_attempt_count": 0,
+      "read_success_count": 0,
+      "reads": [],
+      "elapsed_seconds": 3.312
+    },
+    {
+      "case_id": "trap-simple-factual-live",
+      "category": "simple_factual",
+      "question": "Which open-source license does the FastAPI project use?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "Which open-source license does the FastAPI project use?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [],
+      "candidate_count": 5,
+      "relevant_candidate_count": 5,
+      "candidates": [
+        {
+          "title": "fastapi/LICENSE at master · fastapi/fastapi · GitHub",
+          "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.367,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 2,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "fastapi/LICENSE at main · binkuolo/fastapi · GitHub",
+          "url": "https://github.com/binkuolo/fastapi/blob/main/LICENSE",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.367,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 2,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "Is fastapi free? fastapi License (MIT)",
+          "url": "https://generalistprogrammer.com/license/fastapi",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.433,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 2,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "FastAPI - FastAPI",
+          "url": "https://fastapi.tiangolo.com/",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.367,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 2,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "LICENSE · 张小白/fastapi - Gitee",
+          "url": "https://gitee.com/zhan_xiaobai/fastapi/blob/master/LICENSE",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.4,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 2,
+          "benchmark_relevant": true
+        }
+      ],
+      "read_attempt_count": 3,
+      "read_success_count": 3,
+      "reads": [
+        {
+          "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE",
+          "ok": true,
+          "content_chars": 1084,
+          "backend": "",
+          "elapsed_seconds": 2.14
+        },
+        {
+          "url": "https://github.com/binkuolo/fastapi/blob/main/LICENSE",
+          "ok": true,
+          "content_chars": 1065,
+          "backend": "",
+          "elapsed_seconds": 1.313
+        },
+        {
+          "url": "https://generalistprogrammer.com/license/fastapi",
+          "ok": true,
+          "content_chars": 1065,
+          "backend": "",
+          "elapsed_seconds": 1.359
+        }
+      ],
+      "elapsed_seconds": 5.797
+    },
+    {
+      "case_id": "trap-unanswerable-live",
+      "category": "unanswerable_unverifiable",
+      "question": "Which exact vulnerabilities will be fixed in the next Node.js security release before the project announces them?",
+      "search_status": "ok",
+      "search_reason": "results_found",
+      "attempted_queries": [
+        "Which exact vulnerabilities will be fixed in the next Node.js security release before the project announces them?"
+      ],
+      "providers_attempted": [],
+      "provider_errors": [],
+      "candidate_count": 5,
+      "relevant_candidate_count": 5,
+      "candidates": [
+        {
+          "title": "Node.js — Tuesday, January 13, 2026 Security Releases",
+          "url": "https://nodejs.org/en/blog/vulnerability/december-2025-security-releases",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.388,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 3,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "Node.js Security Release: HIGH Severity Vulnerabilities Hit All Three Lines",
+          "url": "https://www.techtimes.com/articles/321432/20260723/nodejs-security-release-high-severity-vulnerabilities-hit-all-three-lines.htm",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.406,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 4,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "Node.js July 2026 security release: patching guide - Breachroad",
+          "url": "https://breachroad.com/en/blog/nodejs-july-27-2026-security-release/",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.388,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 3,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "Node.js 中文网 — Thursday, June 18, 2026 Security Releases",
+          "url": "https://nodejs.cn/en/blog/vulnerability/june-2026-security-releases",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.353,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 3,
+          "benchmark_relevant": true
+        },
+        {
+          "title": "Node.js 中文网 — Tuesday, January 13, 2026 Security Releases",
+          "url": "https://nodejs.cn/en/blog/vulnerability/december-2025-security-releases",
+          "source": "SearXNG/duckduckgo",
+          "relevance": 0.388,
+          "directness": "weak",
+          "legacy_worth_reading": true,
+          "substantive_overlap_count": 3,
+          "benchmark_relevant": true
+        }
+      ],
+      "read_attempt_count": 3,
+      "read_success_count": 3,
+      "reads": [
+        {
+          "url": "https://nodejs.org/en/blog/vulnerability/december-2025-security-releases",
+          "ok": true,
+          "content_chars": 6000,
+          "backend": "",
+          "elapsed_seconds": 2.532
+        },
+        {
+          "url": "https://www.techtimes.com/articles/321432/20260723/nodejs-security-release-high-severity-vulnerabilities-hit-all-three-lines.htm",
+          "ok": true,
+          "content_chars": 6000,
+          "backend": "",
+          "elapsed_seconds": 2.687
+        },
+        {
+          "url": "https://breachroad.com/en/blog/nodejs-july-27-2026-security-release/",
+          "ok": true,
+          "content_chars": 6000,
+          "backend": "",
+          "elapsed_seconds": 1.656
+        }
+      ],
+      "elapsed_seconds": 9.875
+    }
+  ],
+  "summary": {
+    "search_ok_cases": 10,
+    "cases_with_candidates": 10,
+    "cases_with_relevant_candidates": 2,
+    "cases_with_successful_read": 2,
+    "total_candidates": 50,
+    "total_relevant_candidates": 10,
+    "total_read_attempts": 6,
+    "total_successful_reads": 6
+  },
+  "scope": {
+    "stores_page_bodies": false,
+    "uses_model_synthesis": false,
+    "produces_shadow_decision": false,
+    "records_legacy_worth_reading": true,
+    "reads_only_benchmark_relevant_candidates": true
+  }
+}

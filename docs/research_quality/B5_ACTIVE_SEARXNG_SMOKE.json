@@ -1,0 +1,111 @@
+{
+  "schema_version": "research-quality-b5-active-smoke-v2",
+  "started_at": "2026-08-29T18:05:41.246564Z",
+  "question": "What open-source license does the FastAPI project use?",
+  "reference_date": "2026-08-29",
+  "searxng_endpoint": "http://127.0.0.1:8080",
+  "run": {
+    "status": "partial",
+    "provider_status": "insufficient",
+    "stop_reason": "evidence_budget_exhausted",
+    "stage": "completed",
+    "run_attempt": 1
+  },
+  "search": {
+    "query_attempt_count": 2,
+    "providers": [
+      "bing_rss",
+      "duckduckgo_html",
+      "searxng"
+    ],
+    "searxng_attempted": true,
+    "searxng_success": true,
+    "provider_audits": [
+      {
+        "query": "FastAPI project uses MIT License.",
+        "providers_attempted": [
+          "searxng",
+          "bing_rss",
+          "duckduckgo_html"
+        ],
+        "provider_audit": true
+      },
+      {
+        "query": "FastAPI project uses MIT License. official documentation primary source",
+        "providers_attempted": [
+          "searxng",
+          "bing_rss",
+          "duckduckgo_html"
+        ],
+        "provider_audit": true
+      }
+    ]
+  },
+  "candidates": {
+    "count": 7,
+    "clusters": []
+  },
+  "reads": {
+    "selected_source_count": 0,
+    "read_statuses": [],
+    "extraction_statuses": []
+  },
+  "gate": {
+    "status": "partial",
+    "eligible_evidence_count": 0,
+    "open_critical_claim_ids": [
+      "claim_63dbd3ca4630fe066d44d6ec"
+    ],
+    "stop_reason": "evidence_budget_exhausted",
+    "budget": {
+      "candidates_used": 7,
+      "elapsed_seconds": 64.7039999999106,
+      "hard_timeout_seconds": 60.0,
+      "max_candidates": 20,
+      "max_reads": 8,
+      "max_total_chars": 16000,
+      "reads_used": 0,
+      "soft_timeout_seconds": 45.0
+    }
+  },
+  "metrics": {
+    "candidate_count": 7,
+    "cluster_count": 0,
+    "open_critical_gap_count": 1,
+    "phase": "assessing",
+    "read_count": 0
+  },
+  "ui_progress": {
+    "run_id": "b5_active_searxng_smoke",
+    "status": "partial",
+    "stage": "completed",
+    "provider_status": "insufficient",
+    "stop_reason": "evidence_budget_exhausted",
+    "error": "",
+    "query_attempt_count": 2,
+    "selected_source_count": 0,
+    "candidate_count": 7,
+    "read_count": 0,
+    "cluster_count": 0,
+    "open_critical_gap_count": 1,
+    "active_phase": "assessing",
+    "gate_status": "partial",
+    "version": 20,
+    "round": null,
+    "notes_count": 0,
+    "last_step_kind": null,
+    "last_step_text": null
+  },
+  "model_calls": {
+    "count": 1,
+    "purposes": [
+      "research_claim_planning"
+    ],
+    "inflight_model_call": null,
+    "inflight_external_call": null
+  },
+  "brief_excerpt": {
+    "summary": "",
+    "conditional_wording_required": true
+  }
+}
