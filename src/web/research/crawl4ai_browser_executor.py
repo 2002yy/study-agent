@@ -107,6 +107,14 @@ class Crawl4AIBridge:
     late_responses: int = field(default=0, init=False)
     malformed_lines: int = field(default=0, init=False)
     reader_alive: bool = field(default=False, init=False)
+    #: §124: created once in ``start()``, never lazily from two threads.
+    _events: Any = field(default=None, init=False, repr=False)
+    #: Last exception raised by the reader thread (empty when healthy).
+    reader_error: str = field(default="", init=False)
+    #: Diagnostics: lines seen by the reader at all.
+    lines_seen: int = field(default=0, init=False)
+    #: Small tail of worker stderr (debug only; the pipe is always drained).
+    _stderr_tail: Any = field(default=None, init=False, repr=False)
 
     def start(self, *, timeout_ms: float = 60000.0) -> None:
         if not self.python:
@@ -123,13 +131,31 @@ class Crawl4AIBridge:
         )
         self._pending = {}
         self._pending_lock = threading.Lock()
+        self._events = queue.Queue()
+        self.reader_error = ""
+        self.lines_seen = 0
         self.reader_alive = True
         threading.Thread(target=self._pump, daemon=True).start()
+        # §124: stderr MUST be drained. Crawl4AI logs steadily to stderr; with
+        # an unread PIPE the worker eventually blocks on a stderr write and
+        # never emits its stdout response (the flaky 'lines_seen=1' symptom).
+        self._stderr_tail = []
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
         hello = self._next(timeout_ms)
         if hello.get("event") != "READY":
             raise WorkerUnavailable(f"worker did not become ready: {hello}")
         self.startup_ms = hello.get("startup_ms")
         self.cancel_grace_ms = hello.get("cancel_grace_ms")
+
+    def _drain_stderr(self) -> None:
+        """Keep the worker's stderr pipe empty; retain a small tail for debug."""
+
+        try:
+            for line in self._proc.stderr:  # type: ignore[union-attr]
+                if len(self._stderr_tail) < 200:
+                    self._stderr_tail.append(line.rstrip())
+        except Exception:
+            pass
 
     def _pump(self) -> None:
         """The ONE stdout reader for this worker's lifetime.
@@ -139,36 +165,40 @@ class Crawl4AIBridge:
         by two different readers racing for the same line.
         """
 
-        for line in self._proc.stdout:  # type: ignore[union-attr]
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except Exception:
-                self.malformed_lines += 1
-                continue
-            request_id = str(payload.get("request_id") or "")
-            if not request_id:
-                # READY / BYE / STATS style events
-                self._broadcast(payload)
-                continue
-            with self._pending_lock:
-                box = self._pending.pop(request_id, None)
-            if box is None:
-                # late response for an abandoned request: record and discard,
-                # never hand it to a later caller
-                self.late_responses += 1
-                continue
-            box.put(payload)
-        self.reader_alive = False
-        self._fail_all_pending("worker_eof")
+        try:
+            for line in self._proc.stdout:  # type: ignore[union-attr]
+                if not line.strip():
+                    continue
+                self.lines_seen += 1
+                try:
+                    payload = json.loads(line)
+                except Exception:
+                    self.malformed_lines += 1
+                    continue
+                request_id = str(payload.get("request_id") or "")
+                if not request_id:
+                    # READY / BYE / STATS style events
+                    self._broadcast(payload)
+                    continue
+                with self._pending_lock:
+                    box = self._pending.pop(request_id, None)
+                if box is None:
+                    # late response for an abandoned request: record and discard,
+                    # never hand it to a later caller
+                    self.late_responses += 1
+                    continue
+                box.put(payload)
+        except Exception as exc:  # noqa: BLE001 - a dead reader must be visible
+            self.reader_error = f"{type(exc).__name__}: {exc}"[:200]
+        finally:
+            self.reader_alive = False
+            self._fail_all_pending("worker_eof")
 
     def _broadcast(self, payload: dict[str, Any]) -> None:
-        """Non-request events (READY/BYE/STATS) go to a shared inbox."""
+        """Non-request events (READY/BYE/STATS) go to the shared inbox."""
 
-        if not hasattr(self, "_events"):
-            self._events = queue.Queue()
-        self._events.put(payload)
+        if self._events is not None:
+            self._events.put(payload)
 
     def _fail_all_pending(self, reason: str) -> None:
         with self._pending_lock:
@@ -178,8 +208,8 @@ class Crawl4AIBridge:
             box.put({"error": reason})
 
     def _next(self, timeout_ms: float) -> dict[str, Any]:
-        if not hasattr(self, "_events"):
-            self._events = queue.Queue()
+        if self._events is None:
+            return {"error": "bridge_not_started"}
         try:
             return self._events.get(timeout=timeout_ms / 1000.0)
         except queue.Empty:

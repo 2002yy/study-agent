@@ -7086,3 +7086,57 @@ A3-2 verdict                     PENDING
 `
 
 **未跑**：focused 四门 / 12-row cohort / L1 / verdict。**production-inert 未变**。hygiene 待办：§120 的 docs trailing whitespace；git ls-files docs/research_quality 必须保持为空（上次 git add -A 误跟踪已用 317f0fe 纠正，勿重犯）。
+
+
+## §123 A3-2d 步骤 1-3：reader 已可观测；**根因未解，stderr 假设被证伪**
+
+### 123.1 已修（有效）
+
+1. **_events 改为显式 dataclass 字段**（原先由 _broadcast/_next 在**两个线程**里用 hasattr 惰性创建，可能各建一个 Queue）。**这一处修复是有效的** —— 修后一次运行中 reader 正常投递：late_responses=1、B 拿到自己的响应（
+id=r2、5804 chars、31ms）、**未被 A 的迟到响应污染**。
+2. **_pump 全包 try/except**：新增 
+eader_error / 
+eader_alive / lines_seen 诊断；异常不再静默杀死线程。
+3. **stderr drain 线程**：新增 _drain_stderr，保留 200 行 tail 供调试。
+
+### 123.2 ❌ 但 reader 仍会“只看到 READY 就停住”
+
+修完 1 之后，同一测试**时好时坏**：
+
+`	ext
+好的一次:  late_responses=1  B rid=r2 5804 chars 31ms      (reader 投递正常)
+坏的一次:  lines_seen=1  late=0  malformed=0  reader_alive=True  reader_error=''
+           A/B/C 全 bridge_read_timeout；连 op=stats（不经过任何 crawl）也超时
+`
+
+**坏的一次的精确含义**：
+- reader 存活、无异常、进程未 EOF ⇒ **worker 活着**；
+- 但 stdout 只出现过 READY 一行 ⇒ **worker 在 READY 之后从未写出任何响应**；
+- 连 op=stats（不触发 crawl）都超时 ⇒ **worker 通过 bridge 启动后完全不处理输入**；
+- 而**同一请求在前台直连（§121）始终正常**（3015ms 返回）。
+
+⇒ **差异在 bridge 的 spawn 方式 vs 前台直连之间，不在 worker 逻辑**。
+
+### 123.3 被证伪的假设（如实记录）
+
+**假设**：worker 被未读取的 stderr PIPE 堵死（Crawl4AI 持续写 stderr → 缓冲填满 → 卡在 stderr 写入）。
+
+**证伪**：加入 stderr drain 线程后，lines_seen=1 依旧、stats 仍超时。**stderr 不是根因。**
+
+### 123.4 下刀诊断（按顺序，成本递增）
+
+1. **READY 后立刻发 {op:stats}**（任何 crawl 之前）：若仍超时 ⇒ 输入通道问题；若正常 ⇒ 问题在 crawl 触发之后。
+2. 打印 self._proc.poll()（是否已退出）与 self._stderr_tail（现保留 200 行）—— 看 worker 是否报错或已死。
+3. 对比 bridge 与前台直连的 **Popen 参数差异**（cwd、环境变量、ufsize、	ext 模式、-u）。前台直连用的是 [ISOLATED, -u, -X, utf8, worker] 且 stderr 继承；bridge 用 [python, -u, -X, utf8, worker] 且 cwd 未设（**工作目录差异是首要嫌疑** —— worker 若依赖相对导入或 Crawl4AI 的相对路径，cwd 不同会导致 READY 后的首次真实工作失败）。
+4. 若确认是 cwd/环境差异，修正 spawn 参数并复测 A/B/C。
+
+### 123.5 状态
+
+`	ext
+reader 可观测性/相关性协议   ✅ 已实现（request_id + persistent reader + late 丢弃）
+_events 惰性创建 bug         ✅ 已修（曾使 reader 完全不投递）
+“worker 经 bridge 不处理输入” ❌ 未解（时好时坏；stderr 假设已证伪）
+focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
+`
+
+**未重开**：PDF primitive、worker deadline/cancellation、session isolation、warm worker、provider capability 均保持 CLOSED。**production-inert 未变**。
