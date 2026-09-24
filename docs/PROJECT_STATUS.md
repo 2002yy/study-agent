@@ -10720,3 +10720,117 @@ harness / smoke / 30 pairs                        ⏳ 依赖 B0.1 裁定
 ```
 
 **未做**：未写任何 gateway_read 替身；未改 `execute()` 的 read 语义。
+
+
+## §143-B0.1 裁定 = A：production read-semantics 单实现权威（NEXT，独立完整一刀）
+
+### 143.93 状态口径修正（冻结）
+
+此前"测量对象 = production 对象 已闭合"**说得太早**。正确口径：
+
+```text
+B0   executor construction authority    ✅ CLOSED (81c80cd)
+B0.1 gateway/read semantics authority   ⏳ OPEN
+end-to-end measurement equivalence      ⏳ NOT YET CLOSED
+```
+
+**这不是推翻 B0**，而是发现单实现权威**还没沿依赖链走到底**。
+
+### 143.94 A 的范围（比 B0 part 1 更精确）
+
+**不能只是把 `gateway_read` 从闭包挪到 module-level。**
+要闭合的是 **production read semantics 的单实现权威**：
+`gateway_read` 内**有行为意义**的东西必须一起进入 production-owned shared primitive：
+
+```text
+metrics/context sequencing
+set_escalation_runtime_context（escalation runtime context）
+bounded retry policy（§48/§49）
+window-awareness / finalization reserve
+underlying gateway fetch
+```
+
+**目标形态**：
+```text
+shared production read primitive
+    +-- metrics/context sequencing
+    +-- escalation runtime context
+    +-- bounded retry policy
+    +-- window/finalization reserve
+    +-- underlying gateway fetch
+
+execute()                      -> shared production read primitive
+run_single_read_measurement()  -> same shared production read primitive
+```
+
+**禁止形态**：
+```text
+run_single_read_measurement(gateway_read=some_callback)
+    <- 技术灵活，但实验上太危险：接口本身就在允许"仿 default"
+```
+
+### 143.95 防止"继续下移"的停止标准（冻结）
+
+**不能再只提一层，然后发现它又接受一堆 harness 自拼的"等价状态"。**
+
+> **B0.1 停止标准**：所有会影响 read 行为的依赖，都必须是
+> **共享 production primitive / 明确配置值 / 可合法构造的 production-owned state**，
+> 而不是 harness 自己重新解释的一套状态。
+
+**依赖分类（必须逐个裁决）**：
+```text
+context                         若仅 telemetry 容器 -> 可显式传
+retry policy                    必须共用 production implementation
+window awareness / finalization reserve
+                                若影响是否重试/何时停止 -> 行为语义，不能仿造
+escalation runtime context      必须走同一 production helper
+底层 fetch/gateway              可作为底层依赖注入，但其上层控制逻辑不能复制
+```
+⇒ **沿依赖链提取到真正稳定的行为边界为止。**
+
+### 143.96 为什么不选 B / C
+
+```text
+B（驱动真实 runtime 取真实 gateway_read）
+  无新信息：只要真实 gateway_read 仍只在 execute() 内形成，就仍启动整套
+  orchestration -> 回到 A0 已否决的困境
+
+C（接受近似并降级结论）
+  会让 B 的问题偷偷变成"specialist 相对【近似 default】有多少收益？"
+  与冻结的 §143-B 研究问题不是同一件事
+  且现在尚未产生数据，没有理由主动降低证据等级
+```
+
+### 143.97 B0.1 通过标准（以 end-to-end equivalence 为门，冻结）
+
+```text
+execute_uses_shared_gateway_read_semantics      = True
+measurement_uses_same_gateway_read_semantics    = True
+
+retry_semantics_unchanged                       = True
+window_reserve_semantics_unchanged              = True
+escalation_context_semantics_unchanged          = True
+metrics_sequence_semantics_unchanged            = True
+
+measurement_accepts_no_arbitrary_gateway_read   = True   <- 关键新增
+
+existing_runtime_reader_regressions             = PASS
+new_gateway_read_parity_regressions             = PASS
+anti_bypass_guard                               = PASS
+```
+
+**`measurement_accepts_no_arbitrary_gateway_read=True` 的理由**：
+直接防止未来有人为测试方便**重新注入一个"差不多"的 callback**。
+
+### 143.98 状态
+
+```text
+§143-B0     executor construction authority     ✅ CLOSED (81c80cd)
+§143-B0.1   read semantics authority            ⏳ NEXT（完整 production refactor，不碰 harness）
+B0.1 parity PASS 后才可宣布：
+  end-to-end measurement path = production read path
+然后进入 ONE-PAIR smoke -> 30 pairs -> aggregate/adjudicate -> §143-C
+```
+
+**一句总括**：`81c80cd` 解决了 **executor identity**；`597776b` 暴露了 **behavioral identity 还没闭合**。
+B0.1 是沿依赖链走到底的最后一环。
