@@ -202,6 +202,25 @@ PAGES: dict[str, tuple[int, str, bytes]] = {
     ),
     "/report.pdf": (200, "application/pdf", _PDF_BYTES),
     # §113 A3-2 Phase 1.5A: real session endpoints (cookie + localStorage).
+    # §131 FG1: a genuinely structured page - heading, prose, a key/value
+    # table and a decision-critical cell - so the structured-content gate is
+    # actually exercised rather than a link stub.
+    "/structured-spec.html": (
+        200,
+        "text/html; charset=utf-8",
+        (
+            "<html><head><title>Release specification</title></head><body>"
+            "<h1>Release specification</h1>"
+            "<p>This page documents the verified release in prose form.</p>"
+            "<table><tr><th>Field</th><th>Value</th></tr>"
+            "<tr><td>release_date</td><td>2026-08-01</td></tr>"
+            "<tr><td>module_system</td><td>ES modules</td></tr>"
+            "<tr><td>legacy_system</td><td>CommonJS</td></tr>"
+            "<tr><td>support_status</td><td>supported</td></tr></table>"
+            "<p>See the linked release notes for the full changelog.</p>"
+            "</body></html>"
+        ).encode("utf-8"),
+    ),
     "/session/start": (200, "text/html; charset=utf-8", _SESSION_START.encode("utf-8")),
     "/session/check": (200, "text/html; charset=utf-8", _SESSION_CHECK.encode("utf-8")),
 }

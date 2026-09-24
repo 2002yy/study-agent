@@ -7605,3 +7605,51 @@ FG4 Provenance/audit.      ⏳
 ```
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
+
+
+## §131 FG1 Useful extraction — **PASS**（覆盖缺口已补，判定纯语义）
+
+### 131.1 两项极小修正（按裁决，不扩样本）
+
+1. **删除 `len(lines) >= 3` 作为 usefulness 判据** —— 它不是冻结 criterion，且是错误 proxy（两行内容可能 100% useful；100 行也可能全是垃圾）。usefulness 现为**纯语义**：`critical_recall == 1.0 AND no decision-critical unit lost AND no detected boilerplate domination`。
+2. **原位替换 `structured_mixed` → `structured_table`**（样本数不变）：新 fixture `/structured-spec.html` 含 heading + prose + 键值表（`release_date` / `module_system` / `legacy_system` / `support_status`）+ 链接，**含 decision-critical 表格单元格**。
+
+### 131.2 指标 scope 澄清（避免 L1 审计过度解读）
+
+`noise_ratio` 改名 **`detected_noise_ratio`**。其 scope 仅为：
+
+> 在**已声明的 boilerplate marker 集合**中检测到的占比。
+
+它**不是**“网页绝对零噪声”。文档与后续审计不得把 `detected_noise_ratio=0.0` 读作“抽取完美”。
+
+### 131.3 结果
+
+```text
+technical_pdf      useful=True  recall=1.0  detected_noise=0.0  lines=3   missing=[]   ✅
+js_heavy_spa       useful=True  recall=1.0  detected_noise=0.0  lines=41  missing=[]   ✅
+static_docs        useful=True  recall=1.0  detected_noise=0.0  lines=3   missing=[]   ✅
+structured_table   useful=True  recall=1.0  detected_noise=0.0  lines=9   missing=[]   ✅
+
+FG1_useful_extraction = PASS
+  all_fixtures_useful              = True
+  no_decision_critical_unit_lost   = True
+  no_boilerplate_domination        = True
+```
+
+- `structured_table` **完整恢复 5 个 critical unit**（含表格单元格 `2026-08-01` / `ES modules` / `CommonJS` / `supported`）⇒ **表格/键值结构确实存活抽取**，覆盖缺口补齐。
+- 最强正向证据仍为 **`js_heavy_spa`：真实 JS 渲染 41 行 / recall 1.0**（specialist-reader 正向证据）。
+
+### 131.4 状态
+
+```text
+FG1 Useful extraction            ✅ PASS
+FG2 Bounded execution            ⏳（normal / slow / failure 各一，验证 bounded terminal + post-health）
+FG3 Isolation / repeatability    ⏳（一次 cross-session isolation replay + 同输入重复，critical semantic drift=0）
+FG4 Provenance / auditability    ⏳（真正做 result → invocation_id → ledger row → source/backend/outcome 反查）
+FOCUSED_QUALIFICATION            ⏳
+12-row cohort / L1 verdict       ⏳
+```
+
+**FG2–FG4 保持很薄**，各只做最小资格证明。**FG4 重点是从结果反查 ledger，不是只检查字段存在。**
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
