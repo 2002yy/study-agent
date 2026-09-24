@@ -330,6 +330,51 @@ def build_read_chain_executors(
     }
 
 
+def run_single_read_measurement(
+    *,
+    url: str,
+    source_limit: int,
+    gateway_read: Callable[[str], Mapping[str, Any]],
+    escalation_backend: Any,
+    hard_seconds_left: Callable[[], float],
+    candidate_id: str = "f2-measurement",
+    outer_attempt_number: int = 1,
+) -> tuple[Any, tuple[Any, ...]]:
+    """§143-B0: the narrow measurement entry.
+
+    Executes exactly one frozen read target through the **same** production
+    primitives that ``ActiveResearchRuntimeExecutor.execute()`` uses:
+    :func:`build_read_chain_executors` + :func:`run_chain` with
+    :data:`ACTIVE_READER_CHAIN`.
+
+    It deliberately does **not** call ``execute()`` and never starts discovery,
+    planning or synthesis. It carries no routing, deadline or budget logic of its
+    own: those live in the shared primitive and in the caller-supplied callbacks.
+
+    Returns ``(chain_run, recorded_steps)`` where ``recorded_steps`` is the real
+    ``record_outcome`` event sequence - the authoritative source of the backend
+    path.
+    """
+
+    executors = build_read_chain_executors(
+        source_limit=source_limit,
+        gateway_read=gateway_read,
+        escalation_backend=escalation_backend,
+        hard_seconds_left=hard_seconds_left,
+    )
+    recorded: list[Any] = []
+    chain_run = run_chain(
+        candidate_id=candidate_id,
+        url=url,
+        host=host_of(url),
+        outer_attempt_number=outer_attempt_number,
+        chain=ACTIVE_READER_CHAIN,
+        executors=executors,
+        record_outcome=recorded.append,
+    )
+    return chain_run, tuple(recorded)
+
+
 class ActiveResearchCancelled(RuntimeError):
     pass
 

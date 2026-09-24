@@ -10557,3 +10557,80 @@ test_measurement_entry_does_not_start_orchestration
 §143-B0 part 2  narrow measurement entry                                                ⏳ NEXT
 B0 全 PASS -> ONE-PAIR smoke -> 30 pairs -> aggregate/adjudicate -> §143-C
 ```
+
+
+## §143-B0 — **CLOSED**（shared read-chain primitive + narrow measurement entry）
+
+### 143.83 part 2：窄 measurement entry
+
+`src/application/active_research_runtime.py` 新增 module-level：
+
+```text
+def run_single_read_measurement(*, url, source_limit, gateway_read,
+                                escalation_backend, hard_seconds_left,
+                                candidate_id="f2-measurement",
+                                outer_attempt_number=1) -> (chain_run, recorded_steps)
+```
+
+**它调用与 `execute()` 完全相同的 production primitives**：
+```text
+build_read_chain_executors(...)        <- 同一个单实现权威
+run_chain(chain=ACTIVE_READER_CHAIN, ...)  <- 真实 chain 执行
+```
+**它不做**：
+```text
+不调 execute()
+不启 discovery / planning / synthesis
+不复制 routing / deadline / budget 逻辑
+不持有 runtime 实例（依赖全部显式传入）
+```
+返回 `recorded_steps` = 真实 `record_outcome` 事件序列（backend path 的权威来源）。
+
+### 143.84 B0 通过标准对照
+
+```text
+execute_uses_shared_read_primitive      = True   （execute() 内薄包装调 build_read_chain_executors）
+measurement_uses_same_primitive         = True   （run_single_read_measurement 调同一个）
+reader_chain_unchanged                  = True   （ACTIVE_READER_CHAIN 值不变，仅提到 module-level）
+deadline_semantics_unchanged            = True   （hard_seconds_left 仍由调用方 lambda 提供）
+budget_charge_semantics_unchanged       = True   （charge_http_envelope 未动）
+record_outcome_semantics_unchanged      = True   （仍为调用方 append）
+existing_runtime_regressions            = PASS   （runtime + reader + adapter = 102 passed）
+existing_reader_regressions             = PASS
+结构性防绕开 regression                  = PASS   （4 项，见 §143.80 / §143.85）
+```
+
+### 143.85 防绕开 guard 最终形态（4 passed）
+
+```text
+test_active_reader_chain_is_module_level_and_importable
+test_shared_primitive_exists_and_is_used_by_execute
+test_executor_construction_is_not_re_inlined           （两个构造点全文件计数各 == 1）
+test_measurement_entry_does_not_start_orchestration
+    共享 primitive + 真实 run_chain + 不调 execute() + 无 discovery/synthes
+    + 不自带 route/schedulable_now/deadline_preflight/budget
+    （扫描时剥离 docstring，只检代码）
+```
+
+### 143.86 B0 交付的意义
+
+```text
+测量对象 = production 对象  —— 已闭合
+可测性缺口（NO MEASUREMENT SEAM）已修复，且不是测试专用后门：
+  execute() 与 measurement entry 共享同一 implementation authority
+收益超出 §143-B：以后任何 reader-level regression / cost attribution /
+  backend-path verification 都能复用这个 seam
+```
+
+### 143.87 状态（B0 关闭，节奏切换生效）
+
+```text
+§143-B A0   NO MEASUREMENT SEAM   ✅
+§143-B0     shared primitive + narrow entry + parity + anti-bypass  ✅ CLOSED
+NEXT（连续推进，不再逐观察写刀）：
+  ONE-PAIR smoke（simple_static；断言 §143.49 + runtime-origin invariant）
+  -> 30 pairs
+  -> aggregate + consistency + classification_status/specialist_gain
+  -> adjudicate B
+  -> §143-C escalation economics
+```

@@ -74,7 +74,11 @@ def test_executor_construction_is_not_re_inlined() -> None:
 
 
 def test_measurement_entry_does_not_start_orchestration() -> None:
-    """The narrow entry must not pull in discovery/planning/synthesis."""
+    """The narrow entry must share the primitive and never start orchestration."""
+
+    from src.application import active_research_runtime as mod
+
+    assert callable(mod.run_single_read_measurement)
 
     src = _source()
     match = re.search(
@@ -82,9 +86,21 @@ def test_measurement_entry_does_not_start_orchestration() -> None:
         src,
         re.DOTALL,
     )
-    if match is None:
-        # not implemented yet: the guard is a placeholder until B0 lands it
-        return
+    assert match is not None, "narrow measurement entry must exist"
     body = match.group(0)
-    for forbidden in ("discover", "plan(", "synthes", "execute("):
-        assert forbidden not in body, f"measurement entry must not call {forbidden!r}"
+    # scan the CODE only: the docstring legitimately names what it must not do
+    parts = body.split('"""')
+    code = parts[0] + (parts[2] if len(parts) >= 3 else "")
+
+    # shares the one implementation authority + real run_chain
+    assert "build_read_chain_executors(" in code
+    assert "run_chain(" in code
+    assert "chain=ACTIVE_READER_CHAIN" in code
+
+    # never starts unrelated research orchestration
+    for forbidden in ("execute(", "discover", "synthes"):
+        assert forbidden not in code, f"measurement entry must not call {forbidden!r}"
+
+    # carries no routing/deadline/budget logic of its own
+    for forbidden in ("route(", "schedulable_now(", "deadline_preflight(", "budget"):
+        assert forbidden not in code, f"measurement entry must not re-implement {forbidden!r}"
