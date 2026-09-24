@@ -123,8 +123,6 @@ class Crawl4AIBridge:
     _write_lock: Any = field(default=None, init=False, repr=False)
     #: The Popen parameters actually used (spawn-parity record).
     spawn_params: Any = field(default=None, init=False)
-    #: Diagnostics for the stdin path (B0-B3).
-    write_diag: Any = field(default_factory=list, init=False)
 
     def start(self, *, timeout_ms: float = 60000.0) -> None:
         if not self.python:
@@ -215,13 +213,6 @@ class Crawl4AIBridge:
             self.reader_alive = False
             self._fail_all_pending("worker_eof")
 
-    def _diag(self, message: str) -> None:
-        """Bridge-side stdin timeline (B0-B3), kept for the stability gate."""
-
-        self.write_diag.append(message)
-        if len(self.write_diag) > 200:
-            del self.write_diag[:100]
-
     def _broadcast(self, payload: dict[str, Any]) -> None:
         """Non-request events (READY/BYE/STATS) go to the shared inbox."""
 
@@ -267,12 +258,8 @@ class Crawl4AIBridge:
         line = json.dumps(payload) + "\n"
         try:
             with self._write_lock:
-                self._diag(f"B0 before stdin.write rid={request_id}")
                 self._proc.stdin.write(line)  # type: ignore[union-attr]
-                self._diag("B1 after write")
                 self._proc.stdin.flush()  # type: ignore[union-attr]
-                self._diag("B2 after flush")
-            self._diag(f"B3 poll={self._proc.poll()}")
         except Exception as exc:  # noqa: BLE001
             with self._pending_lock:
                 self._pending.pop(request_id, None)
@@ -282,10 +269,8 @@ class Crawl4AIBridge:
         except queue.Empty:
             # abandon only THIS request; the reader keeps the pipe and will
             # discard the late response by request_id
-            self._diag(f"B1_caller_window_expired rid={request_id}")
             with self._pending_lock:
                 self._pending.pop(request_id, None)
-            self._diag(f"B2_pending_removed rid={request_id}")
             return {"error": "bridge_read_timeout", "request_id": request_id}
 
     def stop(self) -> None:

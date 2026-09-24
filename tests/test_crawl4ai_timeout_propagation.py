@@ -17,7 +17,6 @@ cleanly when either is unavailable.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import time
@@ -65,7 +64,6 @@ def bridge_and_server():
         except Exception:
             time.sleep(0.3)
 
-    os.environ["CRAWL4AI_PDF_DIAG"] = "1"
     from src.web.research.crawl4ai_browser_executor import Crawl4AIBridge
 
     bridge = Crawl4AIBridge(python=str(ISOLATED))

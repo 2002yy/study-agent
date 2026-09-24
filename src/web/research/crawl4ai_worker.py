@@ -39,9 +39,6 @@ MAX_PDF_BYTES = 100 * 1024 * 1024
 #: read may hold the loop before the absolute deadline is re-checked.
 IO_QUANTUM_SECONDS = 0.25
 
-#: Set to log per-chunk timing (diagnostics only, never used for control).
-DIAG_ENV = "CRAWL4AI_PDF_DIAG"
-
 
 def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
     """Download a PDF under an **absolute** deadline; return a local path.
@@ -64,8 +61,6 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
     import urllib.request
 
     deadline_at = _time.monotonic() + max(0.5, timeout_ms / 1000.0)
-    diag = bool(_os.getenv(DIAG_ENV))
-    started = _time.monotonic()
 
     def _remaining() -> float:
         return deadline_at - _time.monotonic()
@@ -80,18 +75,6 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
             response = urllib.request.urlopen(  # noqa: S310
                 request, timeout=max(0.5, _remaining())
             )
-            expected = 0
-            try:
-                expected = int(response.headers.get("Content-Length") or 0)
-            except Exception:
-                expected = 0
-            if diag:
-                print(
-                    f"[pdf] start remaining={_remaining() * 1000:.0f}ms "
-                    f"content_length={expected}",
-                    file=sys.stderr,
-                    flush=True,
-                )
             while True:
                 remaining = _remaining()
                 if remaining <= 0:
@@ -109,13 +92,6 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
                     if _remaining() <= 0:
                         raise PdfDownloadDeadline('pdf_download_deadline') from exc
                     continue
-                if diag:
-                    print(
-                        f"[pdf] t={(_time.monotonic() - started) * 1000:.0f}ms "
-                        f"remaining={_remaining() * 1000:.0f}ms got={len(chunk)}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
                 if not chunk:
                     break
                 total += len(chunk)
@@ -158,29 +134,9 @@ def _bounded_pdf_fetch(url: str, timeout_ms: int) -> str:
 
 
 
-DIAG_ENV = "CRAWL4AI_TIMEOUT_DIAG"
-_TL: dict[str, float] = {}
-
-
-def _tl(mark: str) -> None:
-    """Record a monotonic timeline mark (diagnostics only)."""
-
-    import os as _os
-    import time as _t
-
-    if _os.getenv(DIAG_ENV):
-        _TL[mark] = _t.monotonic()
-        base = _TL.get("T0_request_begin", _TL[mark])
-        # print EVERY mark immediately, to stderr (stdout is the JSON IPC channel)
-        print(f"[tl] {mark}=+{(_TL[mark] - base) * 1000:.0f}ms", file=sys.stderr, flush=True)
-
-
 def emit(payload):
     sys.stdout.write(json.dumps(payload) + "\n")
     sys.stdout.flush()
-    if payload.get("request_id"):
-        print(f"[W] W5_response_written rid={payload.get('request_id')}",
-              file=sys.stderr, flush=True)
 
 
 class Worker:
@@ -245,7 +201,6 @@ class Worker:
             try:
                 local = await asyncio.to_thread(_bounded_pdf_fetch, url, timeout_ms)
             except PdfDownloadDeadline as exc:
-                _tl("T2_pdf_deadline_raised")
                 return {
                     "provider_success": False,
                     "status_code": None,
@@ -291,11 +246,7 @@ class Worker:
         key = self.key_for(session_id, mode)
 
         started = time.perf_counter()
-        _TL.clear()
-        _tl("T0_request_begin")
-        _tl("T0b_worker_deadline_armed")
         task = asyncio.create_task(self.execute(request))
-        _tl("T1_task_created")
         provider_cancelled = False
         crawler_invalidated = False
         provider_stopped = True
@@ -304,21 +255,16 @@ class Worker:
             payload = await asyncio.wait_for(asyncio.shield(task), timeout_ms / 1000.0)
             payload["deadline_hit"] = False
         except asyncio.TimeoutError:
-            _tl("T1_worker_deadline_fired")
             self.timeouts += 1
             task.cancel()
-            _tl("T2_task_cancel_requested")
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=CANCEL_GRACE_MS / 1000.0)
             except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
                 pass
-            _tl("T4_task_cancelled_or_done")
             provider_cancelled = True
             provider_stopped = task.done()
             # potentially contaminated: never reuse this crawler
-            _tl("T3_invalidate_enter")
             crawler_invalidated = await self.invalidate(key)
-            _tl("T4_invalidate_exit")
             payload = {
                 "provider_success": False,
                 "status_code": None,
@@ -343,7 +289,6 @@ class Worker:
         actual_ms = round((time.perf_counter() - started) * 1000.0, 1)
         # §123: echo the correlation id so the bridge never pairs by line order
         payload["request_id"] = request_id
-        _tl("T7_response_written")
         payload["cancellation"] = {
             "requested_deadline_ms": timeout_ms,
             "cancel_grace_ms": CANCEL_GRACE_MS,
@@ -376,9 +321,6 @@ async def main():
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
             counters["responses"] += 1
-        rid = payload.get("request_id")
-        if rid:
-            print(f"[W] W5_response_written rid={rid}", file=sys.stderr, flush=True)
 
     async def handle_task(request):
         """One request's whole lifecycle; never raises into the dispatcher."""
@@ -399,28 +341,20 @@ async def main():
                 })
                 return
             # crawl: the ONLY serialized section
-            print(f"[C] C0_accepted rid={rid}", file=sys.stderr, flush=True)
             queued_at = time.monotonic()
-            print(f"[C] C1_wait_slot rid={rid}", file=sys.stderr, flush=True)
             async with crawl_slot:
                 queue_wait_ms = round((time.monotonic() - queued_at) * 1000.0, 1)
-                print(f"[C] C2_acquired_slot rid={rid} queue_wait_ms={queue_wait_ms}",
-                      file=sys.stderr, flush=True)
                 counters["active_crawls"] += 1
                 counters["max_active_crawls"] = max(
                     counters["max_active_crawls"], counters["active_crawls"]
                 )
                 try:
-                    print(f"[C] C3_execute_enter rid={rid}", file=sys.stderr, flush=True)
                     payload = await worker.handle(request)
-                    print(f"[C] C4_execute_exit rid={rid}", file=sys.stderr, flush=True)
                 finally:
                     counters["active_crawls"] -= 1
-            print(f"[C] C5_released_slot rid={rid}", file=sys.stderr, flush=True)
             payload["request_id"] = rid
             payload["queue_wait_ms"] = queue_wait_ms
             await emit_response(payload)
-            print(f"[C] C6_response_emitted rid={rid}", file=sys.stderr, flush=True)
         except Exception as exc:  # noqa: BLE001 - always answer with the id
             await emit_response({
                 "provider_success": False,
@@ -428,20 +362,15 @@ async def main():
                 "request_id": rid,
             })
 
-    print("[W] W0_ready_written", file=sys.stderr, flush=True)
     emit({
         "event": "READY",
         "startup_ms": round((time.perf_counter() - T0) * 1000.0, 1),
         "cancel_grace_ms": CANCEL_GRACE_MS,
     })
 
-    print("[W] W1_request_loop_entered", file=sys.stderr, flush=True)
     try:
         while True:
-            print("[W] W2_before_readline", file=sys.stderr, flush=True)
             line = await asyncio.to_thread(sys.stdin.readline)
-            print(f"[W] W3_after_readline bytes={len(line or '')}",
-                  file=sys.stderr, flush=True)
             if not line:
                 break
             if not line.strip():
@@ -451,8 +380,6 @@ async def main():
             except Exception as exc:  # noqa: BLE001
                 await emit_response({"error": f"bad_json: {exc}"})
                 continue
-            print(f"[W] W4_parsed rid={request.get('request_id')} op={request.get('op')}",
-                  file=sys.stderr, flush=True)
             if request.get("op") == "shutdown":
                 # stop accepting, let outstanding work finish (bounded), then close
                 if tasks:

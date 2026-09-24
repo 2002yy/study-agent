@@ -8654,3 +8654,144 @@ Exact-head + evidence inventory validation -> P2-A3 CLOSE -> §143 F2_CHARACTERI
 **本轮未修改任何实现文件**（inventory-only）。发现 A/B 均为**待退役对象的既有缺陷**，非新引入回归；登记于此，随 §142-2b 一并处理。
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §142-2b Forensic retirement — **EXECUTED**
+
+### 142.10 执行范围（严格按 §142.7 边界）
+
+**已删除**（`src/web/research/crawl4ai_worker.py`，-68 行）：
+
+```text
+DIAG_ENV = "CRAWL4AI_PDF_DIAG"        (含注释)
+DIAG_ENV = "CRAWL4AI_TIMEOUT_DIAG"    <- 名称遮蔽随删除自然消失（未"修复"命名）
+_TL: dict[str, float] = {}
+_tl(mark) 时间线函数
+[pdf] start / [pdf] t=...  per-chunk 打印 + diag/started 局部变量
+[C] C0_accepted / C1_wait_slot / C2_acquired_slot / C3_execute_enter /
+    C4_execute_exit / C5_released_slot / C6_response_emitted
+[W] W0_ready_written / W1_request_loop_entered / W2_before_readline /
+    W3_after_readline / W4_parsed / W5_response_written (emit + emit_response)
+_tl T0/T0b/T1/T1_fired/T2/T2_cancel/T3/T4×2/T7 全部时间线打点
+expected = Content-Length 局部变量（仅服务 [pdf] start 打印 -> 死代码）
+```
+
+**已删除**（`src/web/research/crawl4ai_browser_executor.py`，-15 行）：
+
+```text
+write_diag 字段 + _diag() 方法 + B0/B1/B2/B3/B1_caller_window/B2_pending 调用
+```
+
+**已删除**（`tests/test_crawl4ai_timeout_propagation.py`，-1 行 + 1 import）：
+
+```text
+os.environ["CRAWL4AI_PDF_DIAG"] = "1"   （inert，见 §142.6）
+import os                               （随之成为未使用）
+```
+
+**未改任何测试断言。**
+
+### 142.11 明确保留（stderr drain 未被误删 —— §142.9 最值得防的点）
+
+```text
+_drain_stderr() 线程 + 管道消费 + _stderr_tail 有界尾部   <- generic stderr consumption 保留
+queue_wait_ms                                            <- 真实 ledger 字段
+late_responses / malformed_lines / reader_error / lines_seen
+request_id / requested_deadline_ms / deadline_ms / deadline_hit
+cancellation(6 字段) / backend / provider_state / canonical_retrieval_state
+fallback_used / fallback_reason / terminal outcome / source identity
+```
+
+**contract**：`REMOVE = our verbose forensic stderr timeline`；`KEEP = generic stderr consumption + bounded tail capture`。
+（删的是"我们自己的 timeline 生产者"，不是"stderr 排水基础设施"—— 后者缺失会重新制造 stderr 填满 pipe 的 IPC/liveness 风险。）
+
+### 142.12 三层验证证据
+
+**Layer 1 — permanent regression / static**
+```text
+rg 源码+测试 forensic markers
+  (CRAWL4AI_PDF_DIAG|CRAWL4AI_TIMEOUT_DIAG|CRAWL4AI_HB|_tl(|_seg(|write_diag|_diag(|[C]|[W]|[tl]|[pdf])
+  -> 0 命中
+py_compile 两个实现文件 + 测试                -> OK
+ruff                                          -> All checks passed!
+pytest tests/test_crawl4ai_timeout_propagation.py -> 3 passed in 15.32s
+  test_explicit_request_timeout_reaches_the_worker      PASSED
+  test_pdf_primitive_budget_is_derived_from_the_request PASSED
+  test_worker_default_is_preserved_for_calls_without_a_timeout PASSED
+```
+⇒ **删除 inert diagnostic setup 后，真正的 timeout regression 断言原样继续通过。**
+
+**Layer 2 — retained observability sanity（真实 bridge+worker，一次 success + 一次 bounded failure）**
+```text
+SUCCESS  /report.pdf   : request_id=r1  outcome=success  deadline_hit=False
+                         queue_wait_ms=0.0  session_key=anon|pdf  content_chars=5804
+                         cancellation={requested_deadline_ms:20000, provider_cancelled:false, ...}
+BOUNDED  /slow-report  : request_id=r2  outcome=deadline_expired  deadline_hit=True
+                         cancellation={requested_deadline_ms:1200, actual_return_ms:1198.0,
+                                       provider_cancelled:true, crawler_invalidated:true, ...}
+bridge stats           : lines_seen=3  malformed_lines=0  late_responses=0
+                         reader_error=''  reader_alive=True  startup_ms=1216.3
+has write_diag attr    : False   (forensic 字段已移除)
+```
+⇒ 保留字段全部可观测；**deadline 被 1200ms 预算精确约束（1198.0ms）**。
+
+**Layer 3 — evidence / repository integrity（§141 后视为硬门）**
+```text
+git diff 47a2938..HEAD -- docs/research_quality      -> EMPTY（tracked 证据面未变）
+stage_gates.json / browser_bakeoff.py               -> 未修改
+git diff --check                                    -> clean
+git status --untracked-files=no                     -> 仅 3 个预期文件 M
+```
+⇒ `EXPECTED_EVIDENCE_DIFF = []` 成立。
+
+### 142.13 删除收益账（非 KPI，closeout 可读性）
+
+```text
+forensic_helpers_removed      = 2   (_tl, _diag)
+diagnostic_env_gates_removed  = 2   (CRAWL4AI_PDF_DIAG, CRAWL4AI_TIMEOUT_DIAG)
+timeline_emit_sites_removed   = 21  ([pdf]×2, [C]×7, [W]×6, [tl]×1 定义 + T 打点×9)
+inert_test_setup_removed      = 1   (os.environ CRAWL4AI_PDF_DIAG)
+lines_removed                 = 84  (worker -68, executor -15, test -1)
+
+product_fields_removed        = 0
+regression_assertions_removed = 0
+evidence_files_removed        = 0
+```
+
+⇒ 本次确为 **删 proof scaffolding，而非删 capability**。
+
+### 142.14 §142-2b 验收对照（§142 六条）
+
+```text
+1. raw CI failures still fail jobs         n/a（本轮未动 CI；§142-1 已判 KEEP）
+2. failure diagnostics still upload        n/a
+3. higher-level adjudication unchanged     n/a
+4. permanent regression guards retained    ✅ 3/3 timeout guards PASS
+5. evidence inventory unchanged            ✅ EXPECTED_EVIDENCE_DIFF = []
+6. exact-head CI green                     ⏳ 待 exact-head validation
+engineering hygiene                        ✅ tracked clean / diff --check clean / 0 unexpected artifacts
+```
+
+### 142.15 新登记的 debt（**非本轮范围，不修**）
+
+**`Worker.close_all()` 未定义** —— `crawl4ai_worker.py` 在 line 460 / 470 调用 `worker.close_all()`，
+但 `Worker` 类**未定义该方法**（`rg "def close_all"` 0 命中；LSP 独立确认
+`Cannot access attribute "close_all" for class "Worker"`）。
+⇒ shutdown 路径会抛 `AttributeError`。属**既有 latent defect，与 forensic 无关**，
+按 §10 scope-control 规则**不顺手修**，登记为独立 debt，留待专门切片处理（需先确认 shutdown 测试为何未暴露它）。
+
+**`CRAWL4AI_HB` 仅为 docs 提及**（代码中已无）；**`_seg` 不存在**（§142.7 清单中的两项经 rg 核实为伪条目）。
+
+### 142.16 状态
+
+```text
+§141 proof audit                     ✅
+§142-1 workflow simplification audit ✅ 无删除项
+§142-2a forensic reference inventory ✅（2 发现，边界修正）
+§142-2b forensic retirement          ✅ EXECUTED（本提交；84 行删除，三层验证 PASS）
+§142-3 qualification asset lifecycle ⏳ NEXT
+Exact-head + evidence inventory validation -> P2-A3 CLOSE -> §143 F2_CHARACTERIZATION  ⏳
+```
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、
+loop affinity、warm worker、session isolation、production-inert routing。
