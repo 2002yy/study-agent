@@ -10047,3 +10047,66 @@ routing economics
 production routing review
 Research Quality
 ```
+
+
+## §143-B harness attempt — 未提交（草稿），wiring 发现已落档
+
+### 143.53 本轮做了什么 / 为什么未提交
+
+按 §143.51 Step 1–4 写了 `tools/run_f2_paired.py` 草稿（default 侧 `run_chain` +
+Crawl4AI 侧既有 executor + 共享 rubric matcher + 5 paired + consistency 聚合）。
+
+**静态检查立刻暴露多处真实 wiring 错误**，修正需更多定位与 smoke 迭代：
+
+```text
+ACTIVE_READER_CHAIN     是 active_research_runtime.py:613 的「函数局部变量」，不可 import
+NATIVE_HTTP_BACKEND / WIGOLO_HTTP_BACKEND  不是该模块顶层常量（它们在 :175/:192 被 import）
+WIGOLO_TIER_HTTP        不存在；HTTP tier 键是 read_escalation.py 里的字面量 "http"
+NativeHttpBackendExecutor(read_fn=None)  需要真实 read_fn
+```
+
+⇒ 按既定原则（**"不留下一个未经 smoke 的 paired harness，比硬塞半成品更健康"**），
+**未提交**；草稿移出仓库至
+`C:\Users\Zhang\AppData\Local\Temp\opencode\run_f2_paired.DRAFT.py`。
+**仓库保持 tracked clean。**
+
+### 143.54 下一刀的真实 wiring（已定位，可直接编码）
+
+**关键发现：runtime 构造真实 executors 的唯一权威位置是 `active_research_runtime.py:640-650`：**
+
+```text
+src/application/active_research_runtime.py:644
+    NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native),
+src/application/active_research_runtime.py:645
+    WIGOLO_HTTP_BACKEND: WigoloHttpBackendExecutor(...)
+src/application/active_research_runtime.py:613
+    ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)   [函数局部]
+src/application/active_research_runtime.py:175 / 192
+    NATIVE_HTTP_BACKEND / WIGOLO_HTTP_BACKEND 为 import 进来的名字
+src/web/research/read_escalation.py
+    HTTP tier 键 = 字面量 "http"（不是 WIGOLO_TIER_HTTP）
+```
+
+**实现要点（修正后）**：
+```text
+default 侧：镜像 :640-650 的 executor 构造（含 _native read_fn），
+            chain 用 (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND) 显式元组，
+            NATIVE_HTTP_BACKEND / WIGOLO_HTTP_BACKEND 从其真实定义模块 import
+HTTP envelope：charge_http_envelope / tier 用 "http"
+```
+**不得修改 production**（`run_chain` / `active_research_runtime` 均不动）；
+harness 只镜像其构造方式。
+
+### 143.55 状态
+
+```text
+§143-A                         ✅ CLOSED
+§143-B design/rubric/contract  ✅ FROZEN
+§143-B consistency + data model ✅ FROZEN
+§143-B harness                 ⏳ 草稿存在，wiring 已定位（§143.54），待 smoke
+```
+
+**教训（与 §141/§142 同族）**：harness 的**静态检查**在跑数据前就抓到了
+"以为存在的模块级常量实际是函数局部变量"这类装配错误 ——
+与 §142-4 的 `close_all` 同型：**"以为可用"与"实际可达"之间的缝隙**。
+smoke-first 的纪律正是为此。
