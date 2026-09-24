@@ -10192,3 +10192,97 @@ WigoloHttpBackendExecutor(...) 的简化版。
 ```
 ⇒ **新增检查项：引入任何"真实生产路径"进测量 harness 前，必须先证明它是
 "稳定、可 import、可复用"的外部接口，而非实现内部的局部存在。**
+
+
+## §143-B A0 reachability gate — **NO MEASUREMENT SEAM（停止条件触发）**
+
+### 143.60 A0 判定
+
+**结论：当前 production reader semantics 没有 measurement seam；
+§143-B standalone paired harness 在"不改 production"的约束下不可直接实现。**
+
+### 143.61 决定性证据
+
+```text
+executor 构造（active_research_runtime.py:613-651）嵌套在
+ActiveResearchRuntimeExecutor.execute()（:369）内部的闭包中：
+    :555  def schedule_read(url)                  <- 嵌套闭包
+    :613  ACTIVE_READER_CHAIN = (...)
+    :635  def _native(target)                     <- 嵌套闭包
+    :644  NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native)
+
+execute() 横跨 :369 -> :3056（约 2700 行）= 整个研究 orchestration
+（discovery / planning / waves / synthesis）。
+
+ActiveResearchRuntimeExecutor 的公开入口只有：
+    __init__(:326) / execute(:369) / _terminal_unavailable(:3056) / _required(:3100)
+=> 唯一的公开执行入口 execute() 就是全量 orchestration。
+```
+
+### 143.62 为什么这触发停止条件（而非退回手写 executor）
+
+用户预授权的停止条件原文：
+
+> 如果实际编码时发现：**没有任何方式只驱动目标 read task 进入真实 runtime，
+> 而不同时启动与本实验无关的研究 orchestration。**
+> 那就**不要退回手写 executor，也不要立刻抽 production factory**。
+
+现状正是如此。两条被禁止的替代路线：
+
+```text
+禁止 1  手写等价 executor        -> 造"仿 default"，污染实验（§143.33 / §143.57）
+禁止 2  为 harness 抽 factory    -> 修改被测系统以迁就 measurement（违反"不因 harness 难写而改被测对象"）
+```
+
+⇒ **两条都不走。** 记录结论并停止。
+
+### 143.63 §143-B 的合法出路（需单独 adjudicate，不在本刀）
+
+```text
+选项 1  新增 production-owned measurement seam
+        例：runtime 暴露一个"仅执行 read 链"的受控入口（narrow entry），
+        由 production 自己拥有 executor 构造，harness 只驱动它。
+        代价：改 production surface —— 需单独 review，且必须保持
+              现有 execute() 语义不变（纯增量 seam）。
+
+选项 2  接受 §143-B 只能作为"整轮 runtime 级"实验
+        （单位变为研究任务而非 read task）—— 与 §143.25 的"同一研究任务配对"目标不符，
+        需重新裁定实验单位。
+
+选项 3  放弃 paired，改为"specialist 侧 characterization + 文献/推理"
+        证据强度显著降低。
+```
+
+**推荐顺序**：选项 1 优先（保持实验单位与 production 真实性，且是纯增量）；
+但**必须单独作为 production 变更 review**，不与 §143-B measurement 混在一刀。
+
+### 143.64 本次发现的方法论价值
+
+```text
+§143-B 至今三次 wiring 假设失败，全部在"产生数据之前"被截断：
+  1. 常量名假设失败（ACTIVE_READER_CHAIN 是函数局部）
+  2. 构造可复用假设失败（绑定 runtime 闭包）
+  3. measurement seam 假设失败（唯一入口是全量 orchestration）
+
+=> §143-B 的设计与判据全部冻结且未被污染；
+   失败的是"production 提供了可测量接口"这一隐含前提。
+```
+
+**这正是 smoke-first 与"不改被测对象"两条纪律的联合收益**：
+如果先跑 30 pairs 再发现 default 侧是仿造的，整批数据都要作废。
+
+### 143.65 状态
+
+```text
+P2-A3                           ✅ CLOSED
+§143-A warm cost profile        ✅ CLOSED
+§143-B design/rubric/contract   ✅ FROZEN
+§143-B consistency + data model ✅ FROZEN
+§143-B harness wiring           ✅ 定位完成
+§143-B A0 reachability          ✅ 判定 NO MEASUREMENT SEAM（停止）
+§143-B measurement seam         ⏳ 需单独 adjudicate（选项 1/2/3）
+§143-C / routing economics      ⏳（依赖 B 的出路裁定）
+```
+
+**未做**：未改 `active_research_runtime.py`；未抽 factory；未造等价 executor；
+未提交任何 harness 代码。
