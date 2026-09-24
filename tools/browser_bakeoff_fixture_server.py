@@ -202,6 +202,19 @@ PAGES: dict[str, tuple[int, str, bytes]] = {
     ),
     "/report.pdf": (200, "application/pdf", _PDF_BYTES),
     # §113 A3-2 Phase 1.5A: real session endpoints (cookie + localStorage).
+    # §139 cohort row 4: a code-heavy documentation page.
+    "/code-docs.html": (
+        200,
+        "text/html; charset=utf-8",
+        (
+            "<html><head><title>Compute API</title></head><body>"
+            "<h1>Compute API</h1>"
+            "<p>The helper below returns the verified release identifier.</p>"
+            "<pre><code>def compute(value):\n    return value</code></pre>"
+            "<p>Call it with the release date to obtain the canonical id.</p>"
+            "</body></html>"
+        ).encode("utf-8"),
+    ),
     # §131 FG1: a genuinely structured page - heading, prose, a key/value
     # table and a decision-critical cell - so the structured-content gate is
     # actually exercised rather than a link stub.

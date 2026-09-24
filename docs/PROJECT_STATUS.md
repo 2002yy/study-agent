@@ -8167,3 +8167,79 @@ F2_CHARACTERIZATION                ⏳
 **12-row cohort**：使用已冻结的 12 个类别，每行只记 `useful` / `correct_enough` / `bounded` / `latency` / `provenance` / `fallback`（+`notes` 仅写判定所需异常）。**不发明新的 correctness invariant**；若某行暴露新类型问题，单独 adjudicate。
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§137。**
+
+
+## §139 12-row role-assignment cohort — **L1_VERDICT = ELIGIBLE_SPECIALIST**
+
+### 139.1 评分规则（跑前冻结，无事后规则）
+
+**qualification dimensions**：`useful` / `correct_enough` / `bounded` / `provenance`
+**仅用于 SPECIALIST-vs-DEFAULT**：`latency` / `fallback`（**单次 fallback 或慢行不算失败**）
+
+每行三个最终状态之一：
+
+```text
+PASS                  applicable 且 useful+correct_enough+bounded+provenance
+EXPECTED_FAILURE      该类别按设计就是 failure/fallback 场景：
+                      bounded + provenance + 失败行为符合预期
+QUALIFICATION_FAILURE decision-critical content 丢失 / 抽取错误 /
+                      无界 lifecycle / 状态污染 / provenance 歧义
+```
+
+**L1 规则（跑前冻结）**：本 cohort **至多授予 `ELIGIBLE_SPECIALIST`**；`ELIGIBLE_DEFAULT` 需后续 comparative characterization。
+
+### 139.2 结果
+
+| # | Category | Useful | Correct | Bounded | Provenance | Latency | Fallback | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | simple_static | ✅ 1/1 | ✅ | ✅ | ✅ | 2813ms | no | **PASS** |
+| 2 | technical_docs | ✅ 2/2 | ✅ | ✅ | ✅ | 1453ms | no | **PASS** |
+| 3 | long_form | ✅ 2/2 | ✅ | ✅ | ✅ | 1437ms | no | **PASS** |
+| 4 | code_heavy | ✅ 2/2 | ✅ | ✅ | ✅ | 1484ms | no | **PASS** |
+| 5 | table_structured | ✅ 5/5 | ✅ | ✅ | ✅ | 1360ms | no | **PASS** |
+| 6 | js_heavy | ✅ 2/2 | ✅ | ✅ | ✅ | 1390ms | no | **PASS** |
+| 7 | js_heavy_deeper | ✅ 2/2 | ✅ | ✅ | ✅ | 1313ms | no | **PASS** |
+| 8 | normal_pdf | ✅ 2/2 | ✅ | ✅ | ✅ | 250ms | no | **PASS** |
+| 9 | slow_pdf | ❌ 0/1 | n/a | ✅ | ✅ | 3000ms | **yes** | **EXPECTED_FAILURE** |
+| 10 | session_sensitive | ✅ | ✅ | ✅ | ✅ | — | no | **PASS** |
+| 11 | difficult_extraction | ✅ | ✅ | ✅ | ✅ | — | no | **PASS** |
+| 12 | expected_failure | n/a | n/a | ✅ | ✅ | — | — | **EXPECTED_FAILURE** |
+
+### 139.3 聚合
+
+```text
+rows                     = 12
+qualification_failures   = 0
+expected_failures        = 2        # slow_pdf（bounded deadline）、expected_failure（404）
+specialist_strengths     = [simple_static, technical_docs, long_form, code_heavy,
+                            table_structured, js_heavy, js_heavy_deeper, normal_pdf,
+                            session_sensitive, difficult_extraction]
+open_debts               = [failure provider_backend=None, 404 provider message]
+```
+
+### 139.4 L1 裁定
+
+```text
+L1_VERDICT = ELIGIBLE_SPECIALIST
+ROLE       = JS-heavy / difficult HTML / selected document cases /
+             session-sensitive where the current reader is insufficient
+```
+
+**资格通过 ≠ 默认启用**：`production-inert` **继续保持**（`ACTIVE_READER_CHAIN` 未动、Crawl4AI 未注册进 `DEFAULT_BACKENDS`、Wigolo Browser 仍 DISQUALIFIED、不同时挂两个 browser），直到 L1 role freeze 后**单独决定** routing integration。
+
+`ELIGIBLE_DEFAULT` **未授予**：12-row cohort 不足以支持它，需 `F2_CHARACTERIZATION` 完成与现有 default reader 的成本/时延/收益比较。
+
+### 139.5 状态与路线
+
+```text
+Infrastructure / IPC               ✅ CLOSED
+Bridge closure                     ✅ PASS
+FOCUSED_QUALIFICATION              ✅ PASS（FG1–FG4）
+12-row cohort                      ✅ 完成
+L1 role verdict                    ✅ ELIGIBLE_SPECIALIST
+Crawl4AI role freeze               ⏳ NEXT
+F2_CHARACTERIZATION                ⏳
+Research Quality                   ⏳
+```
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§138。**
