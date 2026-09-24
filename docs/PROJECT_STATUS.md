@@ -9185,3 +9185,142 @@ Research Quality                         ⏳
 最终目标不是另一个 PASS/FAIL，而是一张 **routing economics 表**，并冻结
 `DIRECT_SPECIALIST_SIGNALS` / `DEFAULT_FIRST_SIGNALS` / `FALLBACK_ONLY_SIGNALS`。
 **必须先清 proof scaffolding 再测**（§142 已完成该前置条件）。
+
+
+## §143 F2_CHARACTERIZATION — framework freeze (§143-A / B / C)
+
+### 143.1 边界（冻结）
+
+```text
+不做 correctness / capability testing
+不新增 PASS/FAIL gate
+不修任何 runtime / routing / deadline 语义
+只回答"在哪些场景值得调用 Crawl4AI"
+```
+
+**换脑声明**：从"它对不对"切到"它值不值得调用"。P2-A3 已 CLOSED，**不再回 A3**。
+**前置条件已满足**：proof scaffolding 已于 §142 清退，测的是未来生产候选形态。
+
+### 143.2 §143-A Warm steady-state ledger
+
+只测长期运行形态，**不重做 cold qualification**。同一类页面至少若干 warm repeats，记录：
+
+```text
+total_wall_ms
+queue_wait_ms
+reader_execution_ms
+normalization_ms
+provenance_ms
+content_units_recovered
+```
+
+输出：`p50` / `p95` / `queue_wait share` / `execution share`。**目的是回答"时间花在哪"，不是优化。**
+
+**instrumentation 盘点（先查后建）**：
+
+```text
+已存在（直接用，不新增生产 instrumentation）：
+  latency_ms / fetch_ms        crawl4ai_browser_executor 每步 wall_ms
+  deadline_ms                  executor 投影
+  queue_wait_ms                worker ledger（已由 §142 判定为永久保留）
+  startup_ms                   bridge READY
+  cancellation.actual_return_ms worker 侧实际执行时间 -> reader_execution_ms 的来源
+  envelope_remaining_ms        tier-keyed envelope
+
+需在既有调用点外围测量（harness 侧，非生产代码）：
+  normalization_ms             包住 honesty/projection 调用
+  provenance_ms                包住 provenance 组装
+  content_units_recovered      由既有 content_chars / 结构单元派生
+```
+
+⇒ **不需要改生产代码**；ledger 由 harness 在既有边界外围计时并派生。
+
+### 143.3 §143-B Default vs Crawl4AI paired comparison（核心）
+
+**同一 fixture 必须成对**（`current default reader` vs `Crawl4AI`），不得分别跑两套不同页面。
+
+覆盖 6 类：
+
+```text
+simple_static / technical_docs / js_heavy / difficult_html / session_sensitive / selected_pdf
+```
+
+每对只比较：`useful` / `critical_units` / `wall_ms` / `fallback`。
+
+**`specialist_gain` 定义（提前冻结，避免事后凭感觉分级）**：
+
+```text
+NONE       default 已完整满足，Crawl4AI 无实质增益
+MINOR      有小幅额外内容/结构，但不改变答案能力
+MATERIAL   default 有明显缺失，Crawl4AI 改善研究质量
+ESSENTIAL  default 无法完成任务，而 Crawl4AI 能完成
+```
+
+### 143.4 §143-C Escalation economics
+
+```text
+Path A: default -> 判断 inadequate -> Crawl4AI
+Path B: direct Crawl4AI
+```
+记录：`total_wall` / `duplicate_work` / `final_usefulness`。
+
+**核心问题不是"哪个绝对更快"**，而是：
+
+> 当 specialist signal 已经很强时，先走 default 是否纯属浪费？
+
+### 143.5 唯一交付物：routing economics 表
+
+| 场景 | Default 足够？ | Crawl4AI gain | Default 延迟 | Crawl4AI 延迟 | Escalation penalty | 推荐 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Static | ? | ? | ? | ? | ? | ? |
+| Technical docs | ? | ? | ? | ? | ? | ? |
+| JS-heavy | ? | ? | ? | ? | ? | ? |
+| Difficult HTML | ? | ? | ? | ? | ? | ? |
+| Session-sensitive | ? | ? | ? | ? | ? | ? |
+| Selected PDF | ? | ? | ? | ? | ? | ? |
+
+随后冻结三组信号：
+
+```text
+DIRECT_SPECIALIST_SIGNALS
+DEFAULT_FIRST_SIGNALS
+FALLBACK_ONLY_SIGNALS
+```
+
+**预判（非结论，待数据决定）**：
+
+```text
+DIRECT_SPECIALIST_SIGNALS:
+  JS_RENDER_REQUIRED / SESSION_STATE_REQUIRED / known difficult HTML where primary
+  reader inadequacy is predictable
+DEFAULT_FIRST_SIGNALS:
+  ordinary static HTML / normal technical docs / long-form text where native reader suffices
+FALLBACK_ONLY_SIGNALS:
+  ambiguous document/PDF cases / primary reader returned insufficient content /
+  extraction-quality failure without a strong pre-routing signal
+```
+
+**禁止脆弱 heuristic**（§140 已冻结）：URL contains "docs" / PDF extension / site looks complicated。
+
+### 143.6 异常值处理约定
+
+`simple_static = 2813ms`（12-row cohort，§139 透露值）**只作为 characterization 信号**：
+
+```text
+先看 warm repeats 后是否消失
+  消失 -> first-request/init effect -> 记录，不修
+  稳定存在 -> 计入 economics，但仍不是 correctness bug
+```
+**不回头改 cohort。**
+
+### 143.7 路线
+
+```text
+P2-A3                    ✅ CLOSED
+§143-A warm ledger       ⏳ NEXT（先建 harness；不改生产代码）
+§143-B paired comparison ⏳
+§143-C escalation economics ⏳
+routing economics table  ⏳
+routing policy proposal  ⏳
+单独 production integration review ⏳
+```
