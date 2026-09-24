@@ -7558,3 +7558,50 @@ ELIGIBLE_DEFAULT    需要更强证据：broad usefulness + bounded reliability 
 ```
 
 **下一刀只做 FG1–FG4，约 60% 注意力在 FG1，其余三门只做最小资格证明。**
+
+
+## §130 FG1 Useful extraction — 实质判据 PASS；1 处为 fixture/阈值代理误判
+
+### 130.1 结果
+
+```text
+technical_pdf      useful=True   recall=1.0  noise=0.0  lines=3   missing=[]   ✅
+js_heavy_spa       useful=True   recall=1.0  noise=0.0  lines=41  missing=[]   ✅ 真渲染 41 行
+static_docs        useful=True   recall=1.0  noise=0.0  lines=3   missing=[]   ✅
+structured_mixed   useful=False  recall=1.0  noise=0.0  lines=2   missing=[]   ⚠️
+
+FG1_useful_extraction = FAIL
+  no_decision_critical_unit_lost = True    ✅
+  no_boilerplate_domination      = True    ✅
+```
+
+### 130.2 判读
+
+**实质判据全部通过**：
+- 四个 fixture **`critical_recall` 全为 1.0**（预期 critical unit 全部恢复）
+- **无 decision-critical content unit 丢失**（`missing=[]` 全空）
+- **无灾难性 boilerplate 支配**（`noise_ratio=0.0`）
+
+**`structured_mixed` 的 `useful=False` 只由测试自身的 `len(lines) >= 3` 代理触发**：它 `recall=1.0`、`noise=0.0`，只是该页面本身是 2 行链接 stub（"Download the report: report.pdf"）。**这是 fixture 选择偏弱 + 阈值代理不当，不是内容质量缺陷。**
+
+**最强正向证据**：`js_heavy_spa` —— 真实 JS 渲染后 **41 行 / recall 1.0**，正文完整可用于 reasoning。
+
+### 130.3 处置（按裁决不扩样本）
+
+二选一（单点修正，不增加样本数）：
+1. 把 `structured_mixed` 换成**真正的表格/结构化页面**；
+2. **去掉 `lines >= 3` 这个非实质代理**（它不是 FG1 的 exit criterion 的一部分）。
+
+FG1 冻结 exit criterion 只有三条：`all critical fixtures useful` / `no fixture loses a decision-critical content unit` / `no catastrophic boilerplate domination`。`lines>=3` 是我自加的代理，**不属冻结判据**。
+
+### 130.4 状态
+
+```text
+FG1 Useful extraction      ⚠️ 实质 PASS；1 处代理误判待单点修正
+FG2 Bounded execution      ⏳（已有 §127/§128 大量基础证据，focused 版应很薄）
+FG3 Isolation/repeat.      ⏳（session isolation 已证明，本门为 qualification replay）
+FG4 Provenance/audit.      ⏳
+12-row cohort / L1 verdict ⏳
+```
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
