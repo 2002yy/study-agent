@@ -179,6 +179,22 @@ class Worker:
             pass
         return True
 
+    async def close_all(self):
+        """Shutdown authority: close every live crawler under a bounded grace.
+
+        The ``Worker`` owns ``self.crawlers``; ``invalidate`` closes one at a
+        time, this closes the rest on shutdown. Bounded so a wedged Playwright
+        context cannot make shutdown hang.
+        """
+
+        crawlers = list(self.crawlers.values())
+        self.crawlers.clear()
+        for crawler in crawlers:
+            try:
+                await asyncio.wait_for(crawler.close(), timeout=CANCEL_GRACE_MS / 1000.0)
+            except Exception:
+                pass
+
     async def execute(self, request):
         from crawl4ai import CrawlerRunConfig, CacheMode
 

@@ -8893,3 +8893,103 @@ Proof retirement 连续抓到**三类完全不同**的问题：
 
 **硬规则（采纳）**：*"已知真实 runtime defect 尚未判清" 与 "P2-A3 CLOSED" 不应同时存在。*
 故 §142-4 插在 §142-3 之后、P2-A3 CLOSE 之前；且 §142-4 不得污染 §142-2b/§142-3。
+
+
+## §142-4 Shutdown contract reconciliation — **EXECUTED（情形 A：真实 runtime bug，已最小修复）**
+
+### 142.23 五问裁定
+
+**Q1. `close_all()` 是否真的不存在？** —— **是。**
+```text
+rg "def close_all"            -> 0 命中
+rg "close_all" 全仓            -> 仅 crawl4ai_worker.py 2 处调用（line 387 循环内 / line 397 finally）+ docs
+```
+**Q2. 是否由 monkeypatch / inheritance / fixture 动态提供？** —— **否。**
+```text
+rg "def close_all|setattr\([^)]*close_all|close_all\s*=|monkeypatch.*close_all" -> 0 命中
+```
+⇒ **排除情形 C。**
+
+**Q3. 历史 shutdown test 到底测到了什么？** —— **什么也没测到。**
+```text
+rg -ln "shutdown|BYE" tests   -> 仅 test_persistent_web_agent.py（无关子系统）
+```
+**没有任何测试向 crawl4ai worker 发送 `{"op":"shutdown"}` 或断言 BYE。**
+bridge `stop()` 会写 shutdown、吞掉超时（`except Exception: pass`）、随后 `terminate()` 进程 ——
+**崩溃因此完全不可见**。这就是"历史 shutdown 结论 PASS"与静态事实冲突的根因：
+§125–§138 的 shutdown 结论来自 **bridge/worker 正常请求路径**，从未覆盖 **worker 自身 shutdown opcode 的 BYE 契约**。
+
+**Q4. real worker 收到 `shutdown` 是否会 `AttributeError`？** —— **是（决定性证据）。**
+最小 real-worker replay（start → stats → shutdown）：
+```text
+READY  ok (startup_ms=3592.6)
+STATS  ok (dispatcher live, live_crawlers=["warmup|browser"])
+SHUTDOWN reply: ''          <- BYE 从未发出
+PROCESS EXITED rc=1         <- 崩溃退出（非有界优雅退出）
+STDERR: AttributeError: 'Worker' object has no attribute 'close_all'  (line 397)
+        + RuntimeError: Event loop is closed  (级联)
+```
+**两处调用点均可达且均损坏**：line 387（循环内，先抛）被 line 394 `finally` 的 line 397 **覆盖**
+（Python 语义：`finally` 中抛出的异常取代在途异常）⇒ traceback 只显示 397。
+
+**Q5. 正确 authority = 补 `close_all` 还是删 stale call？** —— **补 `close_all`。**
+```text
+Worker 拥有 self.crawlers（已启动的 AsyncWebCrawler 集合）
+invalidate() 已确立"单 crawler 有界关闭"范式（asyncio.wait_for(crawler.close(), CANCEL_GRACE_MS)）
+删除调用 -> live crawler 在 shutdown 时不被关闭 -> 资源泄漏
+```
+⇒ 删除是错的；正确 authority 是**关闭全部 crawler**，复用既有 `CANCEL_GRACE_MS` 与 `invalidate` 范式。
+
+### 142.24 最小修复（不扩 shutdown 架构）
+
+`src/web/research/crawl4ai_worker.py` —— 新增 `Worker.close_all()`：
+```python
+    async def close_all(self):
+        """Shutdown authority: close every live crawler under a bounded grace."""
+        crawlers = list(self.crawlers.values())
+        self.crawlers.clear()
+        for crawler in crawlers:
+            try:
+                await asyncio.wait_for(crawler.close(), timeout=CANCEL_GRACE_MS / 1000.0)
+            except Exception:
+                pass
+```
+**未改** shutdown 循环结构、未改 `invalidate`、未改任何 timeout/cancellation/ledger 语义。
+
+### 142.25 永久回归锁（防止复发）
+
+新增 `tests/test_crawl4ai_shutdown_contract.py`（**worker 级**，故意不经 bridge —— 因为 bridge `stop()` 的吞异常正是缺陷不可见的原因）：
+```text
+READY -> shutdown -> 断言 '"event": "BYE"' -> 断言 rc == 0 -> 断言 stderr 无 "close_all"
+```
+**这是本次唯一新增测试；未扩展 shutdown 测试矩阵。**
+
+### 142.26 证据
+
+```text
+ruff                                            -> All checks passed!
+L1 impact set (shutdown + timeout guards)       -> 4 passed in 11.24s
+  test_real_worker_shutdown_emits_bye_and_exits_cleanly   PASSED   (修复前为 rc=1 + AttributeError)
+  test_explicit_request_timeout_reaches_the_worker        PASSED
+  test_pdf_primitive_budget_is_derived_from_the_request   PASSED
+  test_worker_default_is_preserved_for_calls_without_a_timeout PASSED
+git diff --check                                -> clean
+tracked evidence inventory                      -> unchanged（EXPECTED_EVIDENCE_DIFF = []）
+```
+**负向对照**：修复前的 real-worker replay 即负向对照 —— 同一路径下 `rc=1` / `AttributeError` / 无 BYE；
+修复后同路径 `BYE` + `rc=0`。行为差异被 §142.25 的回归锁永久固定。
+
+### 142.27 状态
+
+```text
+§142-1 workflow audit                ✅ 无删除项
+§142-2a forensic inventory           ✅
+§142-2b forensic retirement          ✅ EXECUTED (e17fcaa)
+§142-3 asset lifecycle               ✅ adjudicated (ebb80e6 + 982d41e)
+§142-4 shutdown reconciliation       ✅ EXECUTED（情形 A；补 close_all + 回归锁）
+Exact-head + L2 + evidence inventory  ⏳ NEXT
+P2-A3 CLOSE                          ⏳
+§143 F2_CHARACTERIZATION             ⏳
+```
+
+**"已知真实 runtime defect 尚未判清" 与 "P2-A3 CLOSED" 不再同时存在** —— §142-4 已判清并修复。
