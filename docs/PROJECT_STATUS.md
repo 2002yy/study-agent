@@ -10944,3 +10944,94 @@ NEXT（连续推进）：
 ```
 
 **一句总括**：`81c80cd` 闭合 executor identity，`ea43729` 闭合 behavioral identity；measurement 现在与 execute 共用同一条 read 语义，且接口不再允许注入 `gateway_read`。
+
+
+## §143-B ONE-PAIR smoke **PASS** + 30-pair run **暴露 measurement premise**（需裁定，未给 B 结论）
+
+### 143.105 交付（`c19cba2`）
+
+```text
+tools/run_f2_paired.py        新增 §143-B paired harness
+tests/test_f2_paired_harness.py  9 passed（结构性 + rubric + gain bands + smoke verdict + default-only smoke）
+
+default 侧 = run_single_read_measurement（B0/B0.1 的 production read path），
+             不在 harness 里构造 native/wigolo executor、不注入 gateway_read；
+crawl4ai 侧 = 既有 Crawl4AIBrowserBackendExecutor；
+两侧共用 whitespace-normalized critical-unit rubric；
+useful = rubric 派生（units_recovered >= 1），两侧同一规则（§143.38 四档因此可达）。
+```
+
+ONE-PAIR `simple_static` smoke：**12/12 §143.49 + runtime-origin checks PASS**
+（default native_http 4/4、`runtime_origin.entry=run_single_read_measurement`、crawl4ai 真实执行 wall>0）。
+
+### 143.106 30-pair run 结果（`docs/research_quality/F2_PAIRED.json`，**非 B 结论**）
+
+| Category | Default units | C4AI units | Default useful | C4AI useful | Δwall | Gain |
+| --- | --- | --- | --- | --- | --- | --- |
+| simple_static | 4/4 | 0/4 | true | false | -1838ms | **NONE** |
+| technical_docs | 0/4 | 0/4 | false | false | -1833ms | UNRESOLVED |
+| js_heavy | 0/2 | 0/2 | false | false | -1849ms | UNRESOLVED |
+| document_path | 0/2 | 0/2 | false | false | -1851ms | UNRESOLVED |
+| session_sensitive | 0/1 | 0/1 | false | false | -1877ms | UNRESOLVED |
+| selected_pdf | 0/3 | 3/3 | false | true | -2002ms | **ESSENTIAL** |
+
+### 143.107 裁定发现：这是 measurement premise，不是 browser 能力信号
+
+三条互相独立的证据都指向 **harness 在测短文档阈值，而不是内容恢复能力**：
+
+```text
+1) 冻结 fixture 全部小于 production 的短文档阈值
+   src/web/research/read_adequacy.py: SHORT_CHAR_THRESHOLD = 800
+   /structured-spec.html = 239 chars；/code-docs.html / spa / document / session 均更小
+   => 只有 /report.pdf 超过阈值
+
+2) native_http 对 short_doc 一律归类 invalid_content
+   -> route() 必然升级到 wigolo_http
+   -> harness 未运行 wigolo daemon（127.0.0.1:3333 closed，preflight=misconfigured）
+   -> chain 永远 exhaust / all_backends_tried，从不 resolve
+   -> 证据：run.reason = all_backends_tried；backend_path 只记到 native_http
+
+3) 两侧 content 保留语义不对称（同为生产 executor 的既有行为，未改）
+   native（NativeHttpBackendExecutor）：short_doc 仍保留内容（structured-spec 返回 239 字，可判 4/4）
+   Crawl4AI（Crawl4AIBrowserBackendExecutor）：
+       usable = content and adequacy.shape == ADEQUATE_SHAPE
+       非 adequate -> content 归零（structured-spec 实测 provider 抽到 310 字，最终 content_len=0）
+   => 同一页 default 4/4、Crawl4AI 0/4 是 executor 保留策略差异，不是能力差异
+```
+
+**结论：当前 30-pair 数据不可解释为 §143-B 的 specialist_gain**（4/6 是两侧都 0 的 UNRESOLVED，仅 PDF 与 structured 可解释）。
+
+**附带观测（非本 finding 主体）**：default 每刀实测约 2.0s。一次进程内首刀后应转快（探针 2.6s→0.4ms），但 tool 全程约 2.0s；疑与 6 次 warm-up + Crawl4AI bridge 并发下 fixture server 的调度/首连有关，属待查观测项，不影响上面的 premise 判定。
+
+### 143.108 三条合法出路（需用户裁定，勿自行改冻结 fixture）
+
+```text
+A（推荐）—— 提高 fixture 体量到 production 可用区间
+   保留 §143.26 的 critical units 不变，把每个 fixture 扩写成 >=800 字的真实文档
+   （单位仍在正文里）。这样才能真正比较"内容恢复"，而不是短文档阈值。
+   代价：改冻结 fixture 内容 —— 但 B 尚未产生任何有效数据（未被污染），
+        且该 premise 使原 fixture 无法回答冻结问题。
+
+B —— 改测"raw recovered text"而非 adequacy-filtered content
+   需要暴露 Crawl4AI 的原始抽取文本 / 改生产 executor 保留语义
+   => 违反 §143.33 "Crawl4AI 侧复用既有 executor"；不可行，除非单独 production 变更。
+
+C —— 接受生产语义（executor 返回的 content 即"系统可用内容"）
+   => 冻结 fixture 下 B 只能得到 simple_static=NONE / pdf=ESSENTIAL，
+      其余 4 类结构性不可判；证据强度显著下降，且未回答原研究问题。
+
+D —— 运行 wigolo HTTP daemon 使 default escalation 可执行
+   仅解决 (2) 的链不完整；但 fixture 仍 short_doc，(1)(3) 不变
+   => 单独不够，只能作为 A 的补充。
+```
+
+### 143.109 状态
+
+```text
+§143-B harness + smoke                  ✅（c19cba2；12/12 plumbing PASS）
+§143-B 30-pair run                      ✅ 执行完成（F2_PAIRED.json）
+§143-B adjudication                     ⏳ 阻塞于 fixture/threshold premise（出路 A/B/C/D）
+§143-C                                  ⏳（依赖 B 的有效数据）
+```
+
+**未做**：未改冻结 fixture；未改任何 production read/adequacy 语义；未把 30-pair 数据写成 B 结论；未进入 routing。
