@@ -8094,3 +8094,76 @@ FOCUSED_QUALIFICATION              ⏳（FG4 后直接组合，**不加 FG5**）
 **原则**：不再证明底层"能跑"，只证明 reader 在研究场景里**可用、稳定、可追责**。
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§136。**
+
+
+## §138 FG4 Provenance / auditability — **PASS** ⇒ **FOCUSED_QUALIFICATION = PASS**
+
+### 138.1 两条 invocation 的 ledger 反查
+
+```text
+SUCCESS ledger:
+  backend=crawl4ai   source_url=http://127.0.0.1:8899/report.pdf   outcome=success
+  provider_backend=crawl4ai   provider_state=success   deadline_ms=3000
+  attempted=True   fallback_used=False   fallback_reason=None
+
+FAILURE ledger:
+  backend=crawl4ai   source_url=http://127.0.0.1:8899/slow-report.pdf
+  outcome=budget_exhausted   failure_class=deadline_expired
+  provider_state=failure   deadline_ms=3000
+  deadline_hit=True   requested_deadline_ms=3000
+  attempted=True   fallback_used=False   fallback_reason=None
+```
+
+断言（15/15）：
+
+```text
+S_traceable / S_exact_terminal_records / S_source_match / S_backend_match /
+S_outcome_match / S_fallback_explicit
+F_traceable / F_exact_terminal_records / F_source_match / F_backend_match /
+F_outcome_match / F_failure_class_present / F_deadline_state_traceable /
+F_fallback_explicit
+no_ambiguous_authority
+```
+
+- **`exact_terminal_records == 1`**：两条 invocation 各只有一个 authoritative terminal outcome，**无双重权威**。
+- **`fallback_used=False` 是显式记录**（连同 `fallback_reason=None`），因此"没有 fallback"与"忘了记录 fallback"可区分。
+- 失败链的 `failure_class` / `deadline_state` / `requested_deadline_ms` 全部可追踪。
+
+### 138.2 附带 transparency 观察（非 blocker）
+
+失败路径的 `provider_backend` 为 `None`（失败时无 artifact，故未填充）。但 `backend=crawl4ai` 字段**始终存在且无歧义**，审计仍可唯一定位 backend ⇒ **登记为 minor transparency debt**，不影响 FG4 判定。
+
+（§135.4 的 404 provider message debt 同样维持 OPEN；FG4 已证明失败**可唯一定位到 source/backend/outcome/stage/deadline/fallback**，属结论 A/B 之间，**非资格 blocker**。）
+
+### 138.3 FOCUSED_QUALIFICATION 组合裁定
+
+```text
+FG1 Useful extraction          PASS
+FG2 Bounded execution          PASS
+FG3 Isolation/repeatability    PASS
+FG4 Provenance/auditability    PASS
+
+FOCUSED_QUALIFICATION = PASS
+```
+
+**不加 FG5，不做"最终再全部跑一遍"。**
+
+### 138.4 状态与下一步
+
+```text
+Infrastructure / IPC               ✅ CLOSED
+Bridge closure                     ✅ PASS
+FOCUSED_QUALIFICATION              ✅ PASS（FG1–FG4）
+12-row cohort                      ⏳ NEXT
+L1 verdict                         ⏳
+Crawl4AI role freeze               ⏳
+F2_CHARACTERIZATION                ⏳
+```
+
+**项目节点**：从"单项能力资格证明"正式进入 **小样本代表性分布上的角色授予**。问题不再是"Crawl4AI 能不能用"，而是"**它以什么身份进入 Study Agent：`INELIGIBLE` / `ELIGIBLE_SPECIALIST` / `ELIGIBLE_DEFAULT`**"。
+
+按现有证据，**`ELIGIBLE_SPECIALIST`** 仍是最合理、最值得验证的目标。
+
+**12-row cohort**：使用已冻结的 12 个类别，每行只记 `useful` / `correct_enough` / `bounded` / `latency` / `provenance` / `fallback`（+`notes` 仅写判定所需异常）。**不发明新的 correctness invariant**；若某行暴露新类型问题，单独 adjudicate。
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§137。**
