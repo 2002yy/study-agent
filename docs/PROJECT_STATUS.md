@@ -8357,3 +8357,135 @@ simple_static = 2813ms，而多数复杂 HTML 反而 ~1.3-1.5s
 ```
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、**production-inert routing**（本轮未改任何 routing 代码）。**不回 §125–§139。**
+
+
+## §141 P2-A3 Proof Infrastructure Audit（**只分类，不删除**）
+
+### 141.1 审计先抓到的真实回归（已修）
+
+`git diff 47a2938..HEAD -- docs/research_quality` 显示 **6 个文件为 `D`（被删除）**，它们在 A3-0 时是**合法跟踪的**，被我此前那次 `git rm -r --cached docs/research_quality` 一并取消跟踪：
+
+```text
+B5_ACTIVE_SEARXNG_SMOKE.json
+P0_LIVE_OBSERVATION.json
+P0_LIVE_SEMANTIC_EVAL.json
+P0_LIVE_SEMANTIC_EVAL_V2.json
+P0_RETRIEVAL_FAILURE_CLASSIFICATION.json
+P0_SHADOW_REPORT.md
+```
+
+**已修复**：全部 `git checkout 47a2938 --` 恢复并重新 `git add`；现在 `git diff 47a2938..HEAD -- docs/research_quality` 为**空**（跟踪状态与 A3-0 完全一致）。
+
+> 这正是 §141 审计的价值：**一次"清理"动作本身可能引入仓库状态回归**，必须先审计再动手。
+
+### 141.2 五类分类（A3 窗口 `47a2938..HEAD`）
+
+#### `KEEP_PRODUCT`（已成为真实系统 contract，不碰）
+
+```text
+src/web/research/browser_honesty.py            provider-neutral 诚实层（A3-1R 提取）
+src/web/research/crawl4ai_browser_executor.py  executor + bridge（含 timeout 传播修复）
+src/web/research/crawl4ai_worker.py            provider 侧 worker（协议部分；含 forensic 待退，见 D）
+src/web/research/progressive_routing.py        capability truth 修正（wigolo_http 去掉 js_render）
+src/web/research/read_escalation.py            tier-keyed run envelope
+src/web/research/wigolo_backend.py             browser tier 的 provider-native cache 隔离
+src/application/active_research_runtime.py     browser tier envelope per-run reset
+src/web/research/browser_bakeoff.py            A3-0 冻结 contract + fail-closed validator
+```
+
+#### `KEEP_REGRESSION`（高 ROI 永久护栏；这次事故已证明其价值）
+
+```text
+tests/test_crawl4ai_timeout_propagation.py   1379ms 传播 guard + PDF budget 派生 + 结构 guard
+tests/test_browser_bakeoff_contract.py       contract 校验（含 11 项 fail-closed 负向控制）
+tests/test_stage_gates_policy.py             策略 manifest 防漂移
+tests/stage_gates.json                       L1/L2 命名门
+tools/run_stage_gate.py                      策略执行器（固定命令）
+tests/test_wigolo_browser_executor.py        诚实层 / cache 隔离 / 预算回归
+tests/test_browser_bakeoff_harness.py        harness + result schema 回归
+tests/test_active_research_runtime.py         A2e/A2d-4 既有回归（本窗口内仅增量修改）
+```
+
+#### `MOVE_TO_QUALIFICATION`（长期有价值，但不该每 PR 跑）
+
+```text
+tools/run_crawl4ai_qualification.py   自管理 qualification runner（fixture server + worker + gates + cohort）
+tools/run_crawl4ai_cohort_v2.py       frozen-predecessor 12-row cohort runner
+tools/run_crawl4ai_cohort.py          v1 cohort runner（已被 v2 取代 → 候选归档）
+tools/run_browser_bakeoff.py          Wigolo 侧 bakeoff harness（Wigolo 已 DISQUALIFIED → 候选归档）
+tools/browser_bakeoff_fixture_server.py  本地 fixture server（qualification 专用）
+src/web/research/wigolo_browser_executor.py  **已淘汰候选**的实现（保留为 A3-1/A3-1R 证据，不进默认 CI）
+```
+
+#### `REMOVE_PROOF_WRAPPER`（**候选，需先检查 CI**）
+
+```text
+.github/workflows/rag-provider-replay.yml   ← 用户指出疑似 set +e / save $? / exit 0 / 后续手工 exit 1
+.github/workflows/ci.yml                    ← 需检查是否存在 continue-on-error + 手工 re-fail
+```
+
+**规则（建议正式写入维护规范）**：
+
+> **If raw tool exit status is the intended CI verdict, let the CI platform propagate it.
+> If raw exit status is only an input to a higher-level policy decision, explicit adjudication is justified.**
+
+因此 `pytest fail → job fail` 通常**无需包装**；而 `mypy nonzero → compare against accepted baseline → decide` **确实需要中间层**（保留）。
+**本轮未检查/未修改这两个 workflow**（预算耗尽），下刀第一件事。
+
+#### `REMOVE_FORENSIC`（根因已定、修复已落地、regression 已建立 → 逐项问"还有没有独立长期 observability 价值"）
+
+```text
+crawl4ai_worker.py:
+  _tl() / _seg() / [C] / [W] / [tl] marks        forensic（B0-B3 / W0-W5 / C0-C6 / T0-T4 链条）
+  CRAWL4AI_TIMEOUT_DIAG / CRAWL4AI_HB / CRAWL4AI_PDF_DIAG   诊断 env gate
+crawl4ai_browser_executor.py:
+  write_diag (B0-B3)                             纯 forensic
+  lines_seen / reader_error / malformed_lines / _stderr_tail   轻量计数，保留（真实 observability）
+  late_responses                                 保留（协议健康指标）
+```
+
+**明确例外（不得当 forensic 退掉）**：`request_id` / source / backend / terminal outcome / `deadline_ms` / `cancellation` / `queue_wait_ms` / `provider_state` / `canonical_retrieval_state` —— 这些是 **ledger/provenance contract**，是后续 Research Quality / claim→evidence 的基础设施。
+
+> **FG4 harness 可以瘦，ledger/provenance contract 必须留。**
+
+### 141.3 三问判据（冻结）
+
+```text
+Q1 删掉它，真实产品 bug 是否更难被发现？        是 → 保留
+Q2 它是否只是验证另一份人工清单没抄错？          是 → 消灭重复事实来源，而非继续验证复制品
+Q3 它是否只是为了让失败后 artifact 能上传？      是 → 用 if: always()，删 continue-on-error + re-fail 包装
+```
+
+### 141.4 §141 边界（严格）
+
+**只允许**三类修改：① 删除重复 CI execution；② 删除 raw-exit-status 的手工重新传播；③ 删除已无长期价值的 proof-only wiring / meta-test。
+
+**禁止**顺手：重写 runtime、重构 reader、改 routing、改 timeout、改 provenance schema、改 test architecture、统一 workflow 风格。
+
+> **只减证明包装，不改被证明对象。**
+
+### 141.5 路线
+
+```text
+§139 12-row / L1                  ✅ ELIGIBLE_SPECIALIST
+§140 Crawl4AI role freeze         ✅
+§141 Proof infrastructure audit   ✅ 本节（分类完成；已修一处仓库状态回归）
+§142 High-confidence retirement   ⏳ NEXT（先检查 2 个 workflow，再处理高置信项）
+Exact-head validation / CI green  ⏳
+P2-A3 CLOSE                       ⏳
+§143+ F2_CHARACTERIZATION         ⏳（清理后再测，避免 baseline 背着 qualification 脚手架）
+```
+
+**为什么必须在 F2 前清**：否则 F2 测到的是**临时 qualification-era 架构**，而非长期架构；先清完再测，F2 才能回答"未来生产候选形态里 Crawl4AI 的 routing economics 是什么"。
+
+### 141.6 长期管理规则（建议制度化）
+
+每个大 gate / qualification 阶段结束时增加一项 **`PROOF_RETIREMENT_REVIEW`**：
+
+```text
+为证明该能力新增了什么？
+其中哪些已成为：product contract / regression guard / qualification suite / forensic debris
+→ 及时退役最后一类
+```
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§140。**
