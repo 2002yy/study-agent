@@ -397,17 +397,28 @@ async def main():
                 })
                 return
             # crawl: the ONLY serialized section
+            print(f"[C] C0_accepted rid={rid}", file=sys.stderr, flush=True)
+            queued_at = time.monotonic()
+            print(f"[C] C1_wait_slot rid={rid}", file=sys.stderr, flush=True)
             async with crawl_slot:
+                queue_wait_ms = round((time.monotonic() - queued_at) * 1000.0, 1)
+                print(f"[C] C2_acquired_slot rid={rid} queue_wait_ms={queue_wait_ms}",
+                      file=sys.stderr, flush=True)
                 counters["active_crawls"] += 1
                 counters["max_active_crawls"] = max(
                     counters["max_active_crawls"], counters["active_crawls"]
                 )
                 try:
+                    print(f"[C] C3_execute_enter rid={rid}", file=sys.stderr, flush=True)
                     payload = await worker.handle(request)
+                    print(f"[C] C4_execute_exit rid={rid}", file=sys.stderr, flush=True)
                 finally:
                     counters["active_crawls"] -= 1
+            print(f"[C] C5_released_slot rid={rid}", file=sys.stderr, flush=True)
             payload["request_id"] = rid
+            payload["queue_wait_ms"] = queue_wait_ms
             await emit_response(payload)
+            print(f"[C] C6_response_emitted rid={rid}", file=sys.stderr, flush=True)
         except Exception as exc:  # noqa: BLE001 - always answer with the id
             await emit_response({
                 "provider_success": False,
