@@ -8243,3 +8243,117 @@ Research Quality                   ⏳
 ```
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§138。**
+
+
+## §140 Crawl4AI Role Freeze — **`ELIGIBLE_SPECIALIST`（contract only，不改 routing 代码）**
+
+### 140.1 正式冻结
+
+```text
+CRAWL4AI_ROLE = ELIGIBLE_SPECIALIST
+
+Eligible use cases:
+- JS-heavy pages requiring real rendering
+- difficult HTML extraction
+- selected document / PDF cases where the current reader is inadequate
+- session-sensitive pages requiring isolated browser state
+
+Not established:
+- universal / default reader superiority
+- lower cost than the current default
+- better latency than the current default
+- broad replacement of the existing reader chain
+
+Production status:
+- production_inert      = True
+- ACTIVE_READER_CHAIN   unchanged
+- not registered in DEFAULT_BACKENDS
+- no dual-browser production routing
+- Wigolo Browser        remains DISQUALIFIED
+```
+
+### 140.2 三个概念彻底拆开（防止后续误读）
+
+```text
+CAPABLE  !=  ELIGIBLE  !=  ACTIVE
+
+Crawl4AI 当前:  capable = yes      eligible = specialist      active = no
+```
+
+⇒ **`L1 PASS` 不得被解释为"应该设成默认"**。routing integration 是**单独**的审议事项。
+
+### 140.3 Specialist routing boundary（现在写死，避免 F2 后重争）
+
+```text
+Use Crawl4AI only when one or more specialist signals exist:
+
+1. JS_RENDER_REQUIRED
+2. PRIMARY_READER_INADEQUATE
+3. SESSION_STATE_REQUIRED
+4. DOCUMENT_PATH_REQUIRES_PROVEN_CRAWL4AI_CAPABILITY
+```
+
+**明确禁止**作为正式角色定义的脆弱 heuristic：
+
+```text
+URL contains "docs"
+PDF extension
+site looks complicated
+```
+
+尤其 **`selected document cases` 的含义**：
+
+> **不是"所有 PDF → Crawl4AI"**，而是**现有 reader 不足**，或该 document path **明确需要已经证明过的能力**时才用。
+
+### 140.4 已冻结的四层证据（verdict 基础）
+
+```text
+Focused qualification   PASS（FG1–FG4）
+12-row cohort           qualification_failures = 0
+expected failures       2（slow_pdf bounded deadline；404），均 bounded + provenance 完整
+L1                      ELIGIBLE_SPECIALIST
+```
+
+`slow_pdf` 的 `EXPECTED_FAILURE` 是**健康信号**：未为了"12/12 全绿"掩盖真实能力边界。
+
+### 140.5 下一阶段：F2_CHARACTERIZATION（不是 correctness gate）
+
+问题转变：从"Crawl4AI 能不能可靠用？" → **"在什么时候使用它值得？"**
+
+四个账：
+
+| # | 账 | 要点 |
+| --- | --- | --- |
+| 1 | **End-to-end latency** | 区分 `dispatch_wait` / browser-read execution / content normalization / ledger-provenance overhead / total wall；给 `p50` / `p95` / warm steady-state。**cold startup 可记录，但不作为 specialist steady-state 主指标。** 不过度 instrumentation，主要找 dominant component。 |
+| 2 | **Default-reader comparison**（核心） | 同一代表性 fixture 上比较 `current default reader` vs `Crawl4AI specialist`：useful content quality / latency / failure rate / fallback requirement / extra cost。要回答的是**"多花的时间换来了什么"**，不是"Crawl4AI 1.4s 算不算快"。 |
+| 3 | **Incremental value** | `specialist_gain` ∈ `NONE` / `MINOR` / `MATERIAL` / `ESSENTIAL`（分类，不强行压成综合分）。 |
+| 4 | **Cost of escalation** | `default 失败 → Crawl4AI` 相对 `直接 Crawl4AI` 的额外代价；决定 routing policy 是 `always default first` 还是 `high-confidence signal → direct Crawl4AI`。**这比单独测 Crawl4AI latency 更重要。** |
+
+**F2 交付物**：一张 **routing economics 表**（类型 × default 是否够用 × Crawl4AI 增益 × 额外时延 × 建议），随后冻结：
+
+```text
+DIRECT_SPECIALIST_SIGNALS = [...]
+DEFAULT_FIRST_SIGNALS     = [...]
+FALLBACK_ONLY_SIGNALS     = [...]
+```
+
+### 140.6 12-row 已透露、留给 F2 的信号（现在不修）
+
+```text
+simple_static = 2813ms，而多数复杂 HTML 反而 ~1.3-1.5s
+```
+
+**先不当 bug、不优化、不回头改 cohort**。F2 需回答"为什么 simple_static 反而最慢"（候选：fixture/server variance、cold-ish startup、first-request initialization、cache/session state、一次性网络时序）。**属 characterization，非资格问题。**
+
+### 140.7 路线
+
+```text
+§140 Crawl4AI role freeze            ✅ 本节（ELIGIBLE_SPECIALIST，production-inert）
+§141+ F2_CHARACTERIZATION            ⏳ NEXT
+      default-vs-Crawl4AI / latency / value / escalation cost
+      -> Routing economics -> Routing policy proposal
+      -> 单独审议 production integration
+      -> Research Quality
+```
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、**production-inert routing**（本轮未改任何 routing 代码）。**不回 §125–§139。**
