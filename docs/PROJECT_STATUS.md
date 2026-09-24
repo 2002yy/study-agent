@@ -9929,3 +9929,121 @@ DIRECT_SPECIALIST / DEFAULT_FIRST / FALLBACK_ONLY  ⏳
 **说明**：本轮未实现 harness。理由：该切片需"先 smoke、失败再迭代"的完整预算；
 **半成品 harness 优于干净交接**的原则下，选择落档全部前提与复用点后停止。
 B 的协议、rubric、实现契约、一致性规则**已全部冻结**，下一刀可直接编码。
+
+
+## §143-B 数据模型冻结 + 计数勘误（定论）
+
+### 143.47 计数勘误（定论，含边界）
+
+**此前的"16"是错的，正确为 17。**
+
+```text
+本会话提交链 = e4e054b（§141，inclusive）.. 09b4cb5
+             = 17 个提交
+```
+
+**为什么 git 报 16**：`e4e054b` 在本仓库历史中是**根提交**（`git log -1 e4e054b^` 解析为 `e4e054b` 自身），
+故 `e4e054b^..HEAD` 退化为 `e4e054b..HEAD`，**排除了 `e4e054b` 本身**。
+`git rev-list --count 05aa0fa~1..HEAD` = 16 ⇒ 加 `e4e054b` = **17**。
+
+**冻结写法（无歧义）**：
+```text
+chain = e4e054b..09b4cb5  -> 16 commits（不含起点）
+chain = e4e054b..09b4cb5  inclusive of e4e054b -> 17 commits
+```
+此后一律写 **17（含 §141 起点）**，不再使用会退化的 `e4e054b^..HEAD` 口径。
+
+### 143.48 `classification_status` 数据模型（冻结）
+
+三种"无法给四档"的情形**均作为 classification status**，**不污染已冻结的四档枚举**：
+
+```text
+classification_status = RESOLVED
+  specialist_gain = ESSENTIAL | MATERIAL | MINOR | NONE
+
+classification_status = UNRESOLVED_FOR_TASK
+  specialist_gain = null
+  含义：两侧都 useless -> 四档前提未满足
+
+classification_status = UNSTABLE_OUTCOME
+  specialist_gain = null
+  含义：5 次内容/任务完成结果发生实质漂移（§143.42）
+```
+
+⇒ 取代此前 `specialist_gain = "暂不裁定"` 的写法。**仅表达方式变更，不改实验语义。**
+
+### 143.49 Smoke 断言（证明 harness 未偷偷改变实验）
+
+先证明 harness 没有偏离实验，再关心"结果是否合理"：
+
+```text
+default_used_real_run_chain        = True
+default_backend_path               present
+crawl4ai_used_existing_executor    = True
+
+same_expected_units_on_both_sides  = True
+harness_added_fetches              = 0
+harness_followed_links_itself      = False
+
+default_unit_set                   present
+crawl4ai_unit_set                  present
+
+default_wall_ms > 0
+crawl4ai_wall_ms > 0
+```
+
+**代码审计 invariant（最重要）**：`harness_added_fetches = 0`。
+`document-mixed` 的价值正在于观察**现有 reader 是否自行完成 linked-document path**；
+harness 一旦替任何一边追链接，**整个 B 失去意义**。
+
+### 143.50 `record_outcome` 实现要点（不得改 production）
+
+需要 `backend_path` / `fallback_used` / `terminal_outcome`，但**不得为取这些信息修改 `run_chain()`**。
+优先利用既有 `record_outcome=...` 在 harness 侧收集**真实执行事件**，
+再从**真实事件序列**构建：
+
+```text
+NATIVE_HTTP
+NATIVE_HTTP -> WIGOLO_HTTP
+```
+**不得根据最终内容猜 backend path。** 该数据是 §143-C 的直接输入，
+**数据质量比多测几轮 latency 更重要**。
+
+### 143.51 §143-B 六结论（真正重要的产出，非数字量）
+
+```text
+simple_static / technical_docs / js_heavy / document_path / session_sensitive / selected_pdf
+```
+
+各 gain 档的 routing 含义（**预判，非结论**）：
+
+```text
+NONE      -> specialist 没有能力价值
+MINOR     -> 通常不足以承担额外 routing complexity
+MATERIAL  -> 值得 escalation，是否 direct 交给 C
+ESSENTIAL -> 强候选 direct specialist，仍交给 C 算 economics
+```
+
+**B 跑完后不得因某项 ESSENTIAL 就直接改 routing** —— C 的意义正是防止
+"能力必要"被误读成"必须一开始就调用"。
+
+### 143.52 状态
+
+```text
+P2-A3                         ✅ CLOSED
+§143-A warm cost profile      ✅ CLOSED
+§143-B experimental design    ✅ FROZEN
+§143-B consistency semantics  ✅ FROZEN
+§143-B implementation         ⏳ NEXT
+    Step 1 reuse cohort-v2 assembly (_backends/_executors/_frozen_predecessor_executor)
+    Step 2 wire real default (run_chain + ACTIVE_READER_CHAIN + record_outcome)
+    Step 3 one shared rubric matcher (normalize whitespace, recover semantic units, derive useful)
+    Step 4 simple_static ONE-PAIR SMOKE (assert §143.49)
+    Step 5 only after smoke -> 6 categories x 5 pairs
+    Step 6 aggregate consistency + median wall + specialist_gain
+    Step 7 STOP
+§143-C escalation economics
+routing economics
+production routing review
+Research Quality
+```
