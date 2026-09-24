@@ -120,13 +120,23 @@ def _aggregate(runs: list[dict]) -> dict:
 
     totals = col("total_wall_ms")
     qw = col("queue_wait_ms")
+    wh = col("worker_handle_ms")
     p50_total = statistics.median(totals) if totals else None
+
+    def iqr(vals: list[float]) -> float | None:
+        if len(vals) < 4:
+            return None
+        s = sorted(vals)
+        return round(pct(s, 75) - pct(s, 25), 1)  # type: ignore[operator]
+
     out = {
         "n_runs": len(runs),
         "n_success": sum(1 for r in runs if r.get("provider_success")),
         "p50_total": round(p50_total, 1) if p50_total is not None else None,
         "p95_total": pct(totals, 95),
         "max_total": round(max(totals), 1) if totals else None,
+        "iqr_total": iqr(totals),
+        "p50_worker_handle": round(statistics.median(wh), 1) if wh else None,
         "p50_queue_wait": statistics.median(qw) if qw else None,
     }
     if p50_total:
