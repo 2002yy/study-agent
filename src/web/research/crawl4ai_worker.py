@@ -178,6 +178,9 @@ def _tl(mark: str) -> None:
 def emit(payload):
     sys.stdout.write(json.dumps(payload) + "\n")
     sys.stdout.flush()
+    if payload.get("request_id"):
+        print(f"[W] W5_response_written rid={payload.get('request_id')}",
+              file=sys.stderr, flush=True)
 
 
 class Worker:
@@ -355,14 +358,19 @@ async def main():
     import crawl4ai  # noqa: F401  (warm the import before READY)
 
     await worker.crawler_for("warmup|browser", "browser")
+    print("[W] W0_ready_written", file=sys.stderr, flush=True)
     emit({
         "event": "READY",
         "startup_ms": round((time.perf_counter() - T0) * 1000.0, 1),
         "cancel_grace_ms": CANCEL_GRACE_MS,
     })
+    print("[W] W1_request_loop_entered", file=sys.stderr, flush=True)
     try:
         while True:
+            print("[W] W2_before_readline", file=sys.stderr, flush=True)
             line = await asyncio.to_thread(sys.stdin.readline)
+            print(f"[W] W3_after_readline bytes={len(line or '')}",
+                  file=sys.stderr, flush=True)
             if not line:
                 break
             if not line.strip():
@@ -372,13 +380,19 @@ async def main():
             except Exception as exc:  # noqa: BLE001
                 emit({"error": f"bad_json: {exc}"})
                 continue
+            print(f"[W] W4_parsed rid={request.get('request_id')} op={request.get('op')}",
+                  file=sys.stderr, flush=True)
             op = request.get("op")
+            rid = str(request.get("request_id") or "")
             if op == "shutdown":
-                emit({"event": "BYE"})
+                emit({"event": "BYE", "request_id": rid})
                 break
             if op == "stats":
+                # §125: ops replies MUST echo request_id too, otherwise the
+                # correlation-ID reader cannot resolve their pending request.
                 emit({
                     "event": "STATS",
+                    "request_id": rid,
                     "completed": worker.completed,
                     "timeouts": worker.timeouts,
                     "invalidations": worker.invalidations,

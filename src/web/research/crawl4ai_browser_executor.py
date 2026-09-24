@@ -85,6 +85,10 @@ BRIDGE_READ_SLACK_MS = 2000
 ADVERTISED_CAPABILITIES: frozenset[str] = frozenset({"js_render", "pdf", "session"})
 
 
+#: §125 spawn parity: the foreground probe runs the worker from the repo root.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
 class WorkerUnavailable(RuntimeError):
     """The isolated provider worker is not READY."""
 
@@ -115,6 +119,12 @@ class Crawl4AIBridge:
     lines_seen: int = field(default=0, init=False)
     #: Small tail of worker stderr (debug only; the pipe is always drained).
     _stderr_tail: Any = field(default=None, init=False, repr=False)
+    #: §125: exactly one stdin writer for this bridge's lifetime.
+    _write_lock: Any = field(default=None, init=False, repr=False)
+    #: The Popen parameters actually used (spawn-parity record).
+    spawn_params: Any = field(default=None, init=False)
+    #: Diagnostics for the stdin path (B0-B3).
+    write_diag: Any = field(default_factory=list, init=False)
 
     def start(self, *, timeout_ms: float = 60000.0) -> None:
         if not self.python:
@@ -128,10 +138,21 @@ class Crawl4AIBridge:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            # §125 spawn parity: the foreground probe runs with cwd=REPO_ROOT.
+            # Recorded as a parity correction, not yet a proven root cause.
+            cwd=str(REPO_ROOT),
         )
+        self.spawn_params = {
+            "argv": [self.python, "-u", "-X", "utf8", str(self.worker)],
+            "cwd": str(REPO_ROOT),
+            "text": True,
+            "encoding": "utf-8",
+            "bufsize": 1,
+        }
         self._pending = {}
         self._pending_lock = threading.Lock()
         self._events = queue.Queue()
+        self._write_lock = threading.Lock()
         self.reader_error = ""
         self.lines_seen = 0
         self.reader_alive = True
@@ -194,6 +215,13 @@ class Crawl4AIBridge:
             self.reader_alive = False
             self._fail_all_pending("worker_eof")
 
+    def _diag(self, message: str) -> None:
+        """Bridge-side stdin timeline (B0-B3), kept for the stability gate."""
+
+        self.write_diag.append(message)
+        if len(self.write_diag) > 200:
+            del self.write_diag[:100]
+
     def _broadcast(self, payload: dict[str, Any]) -> None:
         """Non-request events (READY/BYE/STATS) go to the shared inbox."""
 
@@ -232,9 +260,15 @@ class Crawl4AIBridge:
         with self._pending_lock:
             self._pending[request_id] = box
         payload["request_id"] = request_id
+        line = json.dumps(payload) + "\n"
         try:
-            self._proc.stdin.write(json.dumps(payload) + "\n")  # type: ignore[union-attr]
-            self._proc.stdin.flush()  # type: ignore[union-attr]
+            with self._write_lock:
+                self._diag(f"B0 before stdin.write rid={request_id}")
+                self._proc.stdin.write(line)  # type: ignore[union-attr]
+                self._diag("B1 after write")
+                self._proc.stdin.flush()  # type: ignore[union-attr]
+                self._diag("B2 after flush")
+            self._diag(f"B3 poll={self._proc.poll()}")
         except Exception as exc:  # noqa: BLE001
             with self._pending_lock:
                 self._pending.pop(request_id, None)

@@ -7140,3 +7140,76 @@ focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
 `
 
 **未重开**：PDF primitive、worker deadline/cancellation、session isolation、warm worker、provider capability 均保持 CLOSED。**production-inert 未变**。
+
+
+## §124 A3-2d 步骤 4-5：**IPC 协议在 stats 路径 20/20 稳定；crawl 路径暴露“事件循环被阻塞”**
+
+### 124.1 根因（两处叠加，均已修）
+
+| # | bug | 证据 |
+| --- | --- | --- |
+| 1 | _events 由 _broadcast/_next 在**两个线程**里 hasattr 惰性创建 ⇒ 可能各建一个 Queue | 修前 reader 完全不投递；修后开始正常投递 |
+| 2 | **stats/shutdown 回复未 echo 
+equest_id** ⇒ 在 correlation-ID 协议下被 reader 当**广播**，永远无法 resolve pending[r1] | 时间线 W4_parsed rid=r1 op=stats 之后 **无 W5**，lines_seen=2（READY + 那条广播） |
+| — | cwd spawn parity（前台直连用 cwd=REPO_ROOT，bridge 未设） | 记为 **parity correction**，未主张为根因 |
+
+**时间线（§125）一次定位**：
+`	ext
+B = [B0 before stdin.write rid=r1, B1 after write, B2 after flush, B3 poll=None]
+W = [W0_ready_written, W1_request_loop_entered, W2_before_readline,
+     W3_after_readline bytes=36, W4_parsed rid=r1 op=stats, W2_before_readline]
+`
+⇒ 请求写出/到达/解析全部正常，**只差 W5（响应未发）**，而原因是 ops 分支没回 
+equest_id。
+
+### 124.2 ✅ 稳定门（用户要求：20× 独立 startup）
+
+`	ext
+STABILITY 20/20
+STABILITY_PASS= True
+每轮: event=STATS  rid=r1  stats_ms=0~15ms  reader_error=''  poll=None  lines_seen=2
+`
+满足全部条件：20/20、
+eader_error=''、poll=None、lines_seen 正确、无 stale/late 污染。
+
+### 124.3 本刀已实现（协议层，全部保留）
+
+- 
+equest_id 关联（worker **原样 echo**，含 ops 分支）
+- **单一 persistent stdout reader**（按 
+equest_id 分发到 _pending）
+- **late response 丢弃**（late_responses 计数，绝不交给后续请求）
+- **stdin 单写锁**（with self._write_lock: write → flush）
+- **stderr drain 线程**（保留 200 行 tail；不读会堵死 worker）
+- **spawn parity**：cwd=REPO_ROOT；spawn_params 记录实际参数
+- 诊断：bridge write_diag(B0-B3) / worker W0-W5（全部 **stderr**，stdout 仅协议）
+
+### 124.4 ❌ 新的、更窄的 blocker：crawl 期间事件循环被阻塞
+
+`	ext
+A (short wait) wall=2812ms bridge_read_timeout
+B/C            wall=5000ms bridge_read_timeout
+DIAG reader_alive=True reader_error='' lines_seen=1 late=0 malformed=0
+最后的纯 STATS 也 bridge_read_timeout
+`
+
+- lines_seen=1 ⇒ crawl 期间 **stdout 一行都没有**（连 A 的响应也没有）。
+- **纯 stats 也超时** ⇒ 与 124.2 的 20/20 形成对照 ⇒ **worker 的 asyncio 事件循环在 crawl 期间被阻塞**，既发不出响应也处理不了后续请求。
+- **这已不是 IPC 问题**：IPC 协议在 stats 路径已 20/20 稳定。
+- §121 的前台直连测试同路径能 3015ms 返回 ⇒ 差异在**并发/阻塞方式**，不在 crawl 逻辑。
+
+**下刀诊断（成本递增）**：
+1. crawl 进行中**并发**发一条 stats：若也超时 ⇒ 事件循环被占死（本刀已强证据）；若正常 ⇒ 问题在响应写回路径。
+2. 定位 execute() 中**未 await 的同步调用**：crawler_for() 里的 wait crawler.start()、_bounded_pdf_fetch 的 	o_thread、以及 Crawl4AI 内部是否在事件循环线程上做同步 I/O。
+3. 若确认事件循环被占：把**整个 execute()** 放到 syncio.to_thread（或独立线程）里执行，事件循环只负责 stdin/stdout——**这不改 PDF primitive、不改 worker deadline 语义**，只是执行位置。
+
+### 124.5 状态
+
+`	ext
+IPC 协议（request_id / persistent reader / late 丢弃 / 单写锁 / spawn parity）  ✅ 20/20 稳定（stats 路径）
+stderr drain / stdout 纯协议                                                  ✅
+crawl 路径：事件循环阻塞                                                      ❌ 新 blocker（更窄）
+focused 四门 / 12-row cohort / L1 / verdict                                   ⏳ / ⏳ / ⏳ / ❌
+`
+
+**未重开**：PDF primitive、worker deadline/cancellation、session isolation、warm worker、provider capability。**production-inert 未变**。git ls-files docs/research_quality 保持 0。
