@@ -7470,3 +7470,91 @@ F4 Provenance / auditability
 **L1 verdict 三选一**：`INELIGIBLE` / `ELIGIBLE_SPECIALIST` / `ELIGIBLE_DEFAULT`。按现有证据最值得验证的是 **`ELIGIBLE_SPECIALIST`**（qualified specialist reader for JS / difficult HTML / specific document cases），**不急着证明 universal default**。
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §129 A3-2d bridge closure：审计措辞裁定（raw FAIL 保留）
+
+### 129.1 原始机器结论与工程裁定并列（不得只留其一）
+
+```text
+RAW_HARNESS_VERDICT = FAIL
+
+Reason:
+- lateA_late_discarded checked before late response arrival
+- B expected request_id incorrectly hard-coded as r3 instead of r4
+
+ADJUDICATED_BRIDGE_CLOSURE = PASS
+
+Basis:
+- A fresh replay PASS
+- late-A composed evidence PASS
+- B fresh replay PASS
+- no implementation defect implicated by either raw failure
+```
+
+**要求**：后续文档不得擦除 `RAW_HARNESS_VERDICT = FAIL`；两者必须同时可见，避免只看机器输出造成误判。
+
+### 129.2 命名去撞车（冻结）
+
+```text
+FG1..FG4  = focused qualification gates（机制是否成立）
+F2_CHARACTERIZATION = 后续性能/成本账（不是本阶段的 FG2）
+```
+
+即：本阶段的门叫 **`FG2_BOUNDED_EXECUTION`**，性能账仍叫 **`F2_CHARACTERIZATION`**。
+
+### 129.3 focused 四门（冻结定义）
+
+| 门 | 只回答一个问题 | Exit criterion |
+| --- | --- | --- |
+| **FG1 Useful extraction** | Study Agent 拿到的内容是否足以支持后续 reasoning | 所有 critical fixture `useful=True`；无 fixture 丢失 decision-critical content unit；无灾难性 boilerplate 支配 |
+| **FG2 Bounded execution** | 每类是否都在 contract 内到达 terminal | 每个 fixture 到达 terminal outcome；无无界执行；请求后 worker health PASS |
+| **FG3 Isolation / repeatability** | A 是否污染 B；重复读是否语义稳定 | `cross-session contamination = 0`；`critical semantic drift = 0`；重复运行仍 useful |
+| **FG4 Provenance / auditability** | 拿到内容后能否解释它从哪来、怎么来的 | 每个结果唯一可回溯（`result → invocation_id → exact ledger record → backend/source/outcome`）；无 orphan result；无歧义 backend 归属；无缺失 terminal outcome |
+
+**FG1 指标（不用字符数）**：
+
+```text
+content_unit          = 人工定义的小集合（如 title / main explanation / prerequisite / code example / warning / table）
+critical_recall       = recovered critical units / expected critical units
+noise_ratio           = boilerplate/nav 占比
+```
+
+**FG3 比较的是** `critical content units` / `reader backend` / `source identity` / `session boundary`，**不是字节 bitwise 相等**（JS 页面可能有 timestamp / nonce / 动态 nav / 顺序差异）。
+
+**FG4 要有"从结果反查 ledger"的测试**，不是仅"ledger row exists"。
+
+### 129.4 12-row cohort 冻结（不扩到 30/50）
+
+| # | 类型 | | # | 类型 |
+| --- | --- | --- | --- | --- |
+| 1 | 简单静态正文 | | 7 | JS-heavy + deeper content |
+| 2 | 技术文档 | | 8 | 普通 PDF |
+| 3 | 长文 | | 9 | slow PDF |
+| 4 | 代码密集文档 | | 10 | session-sensitive |
+| 5 | 表格/结构化内容 | | 11 | difficult extraction |
+| 6 | JS-heavy | | 12 | expected failure / fallback |
+
+每行只留：`useful` / `correct_enough` / `bounded` / `latency` / `provenance` / `fallback`（+ `notes` 只写判定所需异常，不得变成实验日志仓库）。
+
+### 129.5 L1 verdict 规则（提前冻结，避免看感觉）
+
+```text
+INELIGIBLE          出现任一：critical extraction failures / unbounded execution /
+                    state contamination / non-auditable successful results
+ELIGIBLE_SPECIALIST 大多数适用目标成功，但明显依赖页面类型，
+                    或某些普通页面成本/质量不值得替换已有 reader
+ELIGIBLE_DEFAULT    需要更强证据：broad usefulness + bounded reliability +
+                    good auditability + 相对现有 default 无实质回退
+```
+
+**目标应当是证明 `ELIGIBLE_SPECIALIST`，而不是逼实验给出 `ELIGIBLE_DEFAULT`。**
+
+### 129.6 项目节点
+
+```text
+之前：“Crawl4AI worker 会不会坏？”
+现在：“Crawl4AI 返回的东西是否值得 Study Agent 相信和使用？”
+```
+
+**下一刀只做 FG1–FG4，约 60% 注意力在 FG1，其余三门只做最小资格证明。**
