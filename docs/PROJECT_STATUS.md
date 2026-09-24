@@ -9324,3 +9324,120 @@ routing economics table  ⏳
 routing policy proposal  ⏳
 单独 production integration review ⏳
 ```
+
+
+## §143-A measurement protocol freeze（跑数据前钉死）
+
+### 143.8 决策 1 — `reader_execution_ms` 的来源（已核实）
+
+**核实结论：`cancellation.actual_return_ms` 与 `fetch_ms`/`latency_ms` 都不可复用为通用 `reader_execution_ms`。**
+
+```text
+worker actual_ms（crawl4ai_worker.py:305）
+  = time.perf_counter() - started，started 在 handle() 入口（:264）
+  -> 测的是 handle() 全程（含 task 创建 / wait_for / invalidate），非纯 reader 执行
+  -> 且容器名为 "cancellation"（cancellation 字典在 handle() 末尾无条件构建，成功路径也填）
+  -> 语义与命名都指向取消/deadline 路径 ⇒ 不可当通用 reader_execution_ms
+
+executor fetch_ms / latency_ms（crawl4ai_browser_executor.py:402）
+  = wall_ms = perf_counter() - started（executor step 全程，含 bridge IPC + queue wait）
+  -> 不纯，且与 queue_wait_ms 重叠
+```
+
+**冻结动作**：`reader_execution_ms` 由 **harness 在调用边界测量**；
+**不为 F2 修改任何生产 instrumentation**（§143.1 边界）。`queue_wait_ms` 仍用 worker ledger（干净、不重叠）。
+
+### 143.9 决策 2 — 残差记账（不强行凑 100%）
+
+```text
+unattributed_ms = total_wall_ms - queue_wait_ms - reader_execution_ms
+                  - normalization_ms - provenance_ms
+accounted_share = 1 - unattributed_ms / total_wall_ms
+```
+
+component 之间**可能重叠或漏账**；**不强行让份额加到 100%** —— **残差本身就是 characterization 结果**。
+
+### 143.10 决策 3 — warm protocol（避免 first-request 与顺序效应）
+
+```text
+fixture server 启动
+bridge/worker 启动
+-> 1 次 disposable global warm-up
+-> 每个 fixture 再做 1 次 discarded fixture warm-up
+-> 正式 repeats（交错/随机顺序，而非 static×N -> docs×N -> JS×N）
+```
+
+**必须交错/随机**，否则后面的类别天然享受更热的 browser/cache 状态。
+
+### 143.11 决策 4 — 样本数与 p95
+
+```text
+N = 20 warm measured repeats / category   -> 可报告 p95
+若只跑 5-10 次 -> 指标改称 median + max / observed upper tail，不给"看起来很精确的 p95"
+```
+
+### 143.12 6 类 fixture 映射 + 两个 confound（提前标注）
+
+```text
+simple_static      -> /structured-spec.html   [CONFOUND: 带表格/结构 => "static structured"，
+                                                非纯正文 static；不得外推为"所有 simple HTML"]
+technical_docs     -> /code-docs.html
+js_heavy           -> /js-shell.html 或 /spa-delayed.html
+difficult_html     -> /document-mixed.html    [§143-B 主 paired fixture：extraction difficulty]
+session_sensitive  -> /session-gated.html
+selected_pdf       -> /report.pdf
+```
+
+**`difficult_html` 的语义拆分（冻结）**：
+
+```text
+/anti-bot-soft-403.html    = access/recovery difficulty  -> 留给 escalation/fallback economics
+/document-mixed.html       = extraction difficulty       -> §143-B 主 paired fixture
+```
+
+理由：否则"Crawl4AI 内容增益"会与"能否访问"混在一起。
+
+### 143.13 输出 schema（一行一个 measured run；原始数据保留，聚合表只是视图）
+
+```text
+category / fixture / run_index / warm=True
+
+total_wall_ms / queue_wait_ms / reader_execution_ms / normalization_ms / provenance_ms
+unattributed_ms
+
+content_units_recovered / startup_ms / deadline_ms / fallback_used
+```
+
+聚合视图（单独生成）：
+
+```text
+p50_total / p95_total / p50_reader_execution / p50_queue_wait
+queue_wait_share / execution_share / normalization_share / provenance_share / unattributed_share
+```
+
+**原始 run 数据保留** ⇒ 遇到 `simple_static=2813ms` 这类异常，可判断是某轮尖峰还是稳定现象，**不必重跑猜测**。
+
+### 143.14 §143-A 禁止事项（冻结）
+
+即使观察到 `simple static 比 JS-heavy 慢`，也**先只写 `OBSERVED`**，不立即：
+
+```text
+调 worker / 改 fixture / 改 timeout / 清 cache / 优化 browser / 增加 capability test
+```
+
+只有当 repeats 表明是**稳定成本**，且 §143-B 显示 **gain=NONE**，它才成为 routing economics 的强证据：
+
+> **"不是 bug，但不值得调用 specialist。"**
+
+这正是 F2 与之前 qualification 的最大区别。
+
+### 143.15 切片计划（冻结）
+
+```text
+§143-A1  build tools/run_f2_characterization.py
+§143-A2  validate component accounting on 1 fixture（no production changes）
+§143-A3  6 categories x warm repeats
+§143-A4  emit raw ledger + aggregate p50/p95/share table
+STOP
+-> 然后才进入 §143-B（同 fixture 配对 default reader）
+```
