@@ -10110,3 +10110,85 @@ harness 只镜像其构造方式。
 "以为存在的模块级常量实际是函数局部变量"这类装配错误 ——
 与 §142-4 的 `close_all` 同型：**"以为可用"与"实际可达"之间的缝隙**。
 smoke-first 的纪律正是为此。
+
+
+## §143-B harness wiring — 决定性发现：default 侧不可 standalone 重建
+
+### 143.56 真实 wiring（已完整定位）
+
+```text
+名字常量的真实来源：
+  from src.web.research.health_breaker import NATIVE_HTTP_BACKEND
+  from src.web.research.wigolo_http_executor import WIGOLO_HTTP_BACKEND, WigoloHttpBackendExecutor
+  （active_research_runtime.py:175 / :192 即上述 import）
+
+真实 executor 构造（active_research_runtime.py:635-651，runtime 方法内部）：
+  def _native(target: str) -> Mapping[str, Any]:
+      return gateway_read(target, max_chars=source_limit)
+  escalation_backend = (
+      self.gateway.escalation_backend()
+      if hasattr(self.gateway, "escalation_backend") else None
+  )
+  return {
+      NATIVE_HTTP_BACKEND: NativeHttpBackendExecutor(read_fn=_native),
+      WIGOLO_HTTP_BACKEND: WigoloHttpBackendExecutor(
+          backend=escalation_backend,
+          max_chars=source_limit,
+          hard_seconds_left=lambda: (state.budget.hard_timeout_seconds - elapsed()),
+          charge_envelope=charge_http_envelope,
+      ),
+  }
+```
+
+### 143.57 关键结论：default 侧**不能**在 standalone harness 里忠实重建
+
+构造依赖 **runtime 实例状态**：
+
+```text
+_native 闭包捕获 source_limit（来自 state）
+escalation_backend = self.gateway.escalation_backend()（runtime gateway）
+hard_seconds_left 闭包捕获 state.budget.hard_timeout_seconds 与 elapsed()
+```
+
+⇒ 若 harness 自行拼一个"等价" executor，**就是重新发明一个仿 default** ——
+正是 §143.33 明令禁止的（"否则会偷偷创造一个'仿 default'"）。
+
+**这解释了为什么先前草稿的 wiring 假设会失败**：问题不在常量名，而在
+**default 侧的真实构造本质上是 runtime 内部闭包，不是可复用的模块级接口**。
+与 `ACTIVE_READER_CHAIN`（函数局部）、`close_all`（未定义）同族：
+**"源码里看见一个名字" ≠ "该名字是稳定、可 import、可复用的接口"。**
+
+### 143.58 两条合法路径（下一刀必须二选一，不得自行拼装）
+
+```text
+路径 A（推荐）—— 驱动真实 runtime 入口
+  让 §143-B 的 default 侧经过实际 runtime 的读链入口，
+  从而天然获得 _native / gateway / budget / envelope 的真实语义。
+  代价：需要构造 runtime 依赖（gateway 等），比 standalone 重。
+
+路径 B —— 复用 runtime 自己的构造
+  不复制代码，而是调用 runtime 暴露的（或可最小构造的）构造路径，
+  确保 harness 与 production 走**同一份** executor 构造。
+  代价：需确认是否存在可复用的入口；若无，则回到路径 A。
+
+**禁止**：在 harness 里手写 NativeHttpBackendExecutor(read_fn=...) +
+WigoloHttpBackendExecutor(...) 的简化版。
+```
+
+### 143.59 状态
+
+```text
+§143-B design/rubric/contract   ✅ FROZEN
+§143-B consistency + data model ✅ FROZEN
+§143-B harness wiring           ✅ 定位完成（§143.56-143.58）
+§143-B harness implementation    ⏳ NEXT —— 先定路径 A/B，再 smoke
+```
+
+**工程模式（第三次同族确认，已可制度化为检查项）**：
+```text
+§142-4  close_all        -> 调用存在，定义不存在（以为可达）
+§143-B  ACTIVE_READER_CHAIN -> 名字存在，是函数局部（以为可 import）
+§143-B  executor 构造      -> 构造存在，绑定 runtime 闭包（以为可复用）
+```
+⇒ **新增检查项：引入任何"真实生产路径"进测量 harness 前，必须先证明它是
+"稳定、可 import、可复用"的外部接口，而非实现内部的局部存在。**
