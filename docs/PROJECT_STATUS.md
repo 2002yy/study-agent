@@ -7958,3 +7958,51 @@ FOCUSED_QUALIFICATION            ⏳
 ```
 
 **不回 §125–§134**（infrastructure 与诊断链均已封板）。**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §136 §135.5 timeout-propagation regression guard — **3/3 PASS，timeout 这条线封死**
+
+### 136.1 新增永久回归锁
+
+`tests/test_crawl4ai_timeout_propagation.py`（3 项；需隔离 venv + fixture server，缺失时 skip）：
+
+| 测试 | 断言 |
+| --- | --- |
+| `test_explicit_request_timeout_reaches_the_worker` | 用**非默认值 `1379ms`**（避免 30000-vs-30000 假通过）⇒ `cancellation.requested_deadline_ms == 1379` 且 `deadline_hit=True` |
+| `test_pdf_primitive_budget_is_derived_from_the_request` | wall ≤ `1379 + slop`（若仍用 30000 默认，会花 ~6.3s 涓流） |
+| `test_worker_default_is_preserved_for_calls_without_a_timeout` | `timeout_ms` 仍为 keyword-only；`payload["timeout_ms"] = int(timeout_ms)` 修复行必须存在 |
+
+```text
+3 passed in 11.27s
+```
+
+**设计要点**：第 2 条刻意不解析 stderr 文本（诊断行取用时机不稳），改用 **wall-clock 上界**——同样能唯一区分"用了请求预算"与"落回 30000 默认"，且不依赖仪器细节。
+
+### 136.2 裁定
+
+> **timeout propagation 这条线彻底封死，不再回来。**
+
+**保留** `30000` 默认值（服务真正未显式传 timeout 的调用）；关键不变量：**只要请求显式提供 timeout，它就必须拥有优先权，不能被内部默认值覆盖。**
+
+### 136.3 状态
+
+```text
+Infrastructure / IPC               ✅ CLOSED（§125–§128）
+Bridge closure                     ✅ PASS（§129）
+FG1 Useful extraction              ✅ PASS（§131）
+FG2 Bounded execution              ✅ PASS（§135）
+§135.5 timeout propagation guard   ✅ PASS（§136）
+FG3 Isolation / repeatability      ⏳ NEXT
+FG4 Provenance / auditability      ⏳
+FOCUSED_QUALIFICATION → 12-row cohort → L1 verdict   ⏳
+```
+
+**FG3 保持两个 replay**：
+- **FG3-A cross-session isolation**：复用既有 session fixture，断言 `wrong_session_bind=0` / `state_leak=0` / `both_useful=True`；
+- **FG3-B semantic repeatability**：同输入重复 3 次，比较 `critical_units` / `useful` / `source identity` / `backend identity`，断言 `critical_semantic_drift=0` / `all_runs_useful=True`。**不比较全文 hash**，允许 timestamp / 动态 ID / DOM 顺序漂移。
+
+**FG4 只测两个 invocation（1 success + 1 bounded failure）**，但必须真正反查：`result → invocation_id → ledger query → exactly one authoritative terminal record → source/backend/outcome`。核心断言 `terminal_records == 1` / `source_match` / `backend_match` / `outcome_match` / `invocation_linkage`；失败结果再要求 `failure_class present` / `deadline_state present` / `fallback_decision traceable`。
+
+**已登记的 404 provider message transparency debt**（§135.4）**现在不修**，留给 FG4/L1 判断它是否只是可解释性债务。
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§135。**
