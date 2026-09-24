@@ -293,6 +293,7 @@ class Worker:
         started = time.perf_counter()
         _TL.clear()
         _tl("T0_request_begin")
+        _tl("T0b_worker_deadline_armed")
         task = asyncio.create_task(self.execute(request))
         _tl("T1_task_created")
         provider_cancelled = False
@@ -303,9 +304,10 @@ class Worker:
             payload = await asyncio.wait_for(asyncio.shield(task), timeout_ms / 1000.0)
             payload["deadline_hit"] = False
         except asyncio.TimeoutError:
-            _tl("T3_outer_wait_for_fired")
+            _tl("T1_worker_deadline_fired")
             self.timeouts += 1
             task.cancel()
+            _tl("T2_task_cancel_requested")
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=CANCEL_GRACE_MS / 1000.0)
             except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
@@ -314,9 +316,9 @@ class Worker:
             provider_cancelled = True
             provider_stopped = task.done()
             # potentially contaminated: never reuse this crawler
-            _tl("T5_invalidate_begin")
+            _tl("T3_invalidate_enter")
             crawler_invalidated = await self.invalidate(key)
-            _tl("T6_invalidate_end")
+            _tl("T4_invalidate_exit")
             payload = {
                 "provider_success": False,
                 "status_code": None,

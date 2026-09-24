@@ -278,8 +278,10 @@ class Crawl4AIBridge:
         except queue.Empty:
             # abandon only THIS request; the reader keeps the pipe and will
             # discard the late response by request_id
+            self._diag(f"B1_caller_window_expired rid={request_id}")
             with self._pending_lock:
                 self._pending.pop(request_id, None)
+            self._diag(f"B2_pending_removed rid={request_id}")
             return {"error": "bridge_read_timeout", "request_id": request_id}
 
     def stop(self) -> None:

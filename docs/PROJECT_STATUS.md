@@ -7698,3 +7698,105 @@ FOCUSED_QUALIFICATION            ⏳（被 FG2 阻塞）
 ```
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
+
+
+## §133 FG2 failure-path lifecycle discrimination — **slow 路径是元凶；404 完全健康**
+
+### 133.1 措辞收紧（采纳）
+
+§132 的正确表述应为：
+
+> slow/failure crawl **没有在 caller bridge window 内形成 terminal response**，且紧随其后的 crawl 也无法完成。
+> **尚未证明 `crawl_slot` 永久泄漏。**
+
+`post_stats=True + post_crawl=False` 更像"旧 crawl 仍合法持有 slot ⇒ 后续排队 ⇒ 自己窗口耗尽"，而非 semaphore 泄漏。二者是**不同 defect class**，必须先分开。
+
+### 133.2 404 单请求 trace（结论：健康）
+
+```text
+404 caller wall=172.0ms  err=None  deadline_hit=False
+[C] C0_accepted -> C1_wait_slot -> C2_acquired_slot(queue_wait=0.0)
+    -> C3_execute_enter -> C4_execute_exit -> C5_released_slot
+[W] W5_response_written rid=r1
+[C] C6_response_emitted rid=r1
+late_responses=0  reader_error=''  malformed=0
+R2 post_terminal_crawl success=True  queue_wait=0.0
+```
+
+⇒ **404 路径 172ms 完成、完整 terminal lifecycle、slot 正常释放、R2 恢复成功**。**404 不是问题**（用户关于"不要把 404 应特别快写成 contract"的提醒成立）。
+
+### 133.3 slow 单请求 trace（结论：真实 blocker）
+
+```text
+SLOW caller wall=6016.0ms  err=bridge_read_timeout  deadline_hit=None
+[C] C0_accepted -> C1_wait_slot -> C2_acquired_slot(queue_wait=0.0) -> C3_execute_enter
+    （之后无 C4 / C5 / W5 / C6）
+B1_caller_window_expired rid=r1 / B2_pending_removed rid=r1
+late_responses=0  reader_error=''  malformed=0
+R2 post_terminal_crawl success=None
+```
+
+⇒ slow PDF 的 **`execute()` 进入后 12s 内从未返回**，slot 持续被持有，后续请求（含 R2）全部排队失败。
+
+### 133.4 仪器注意（必须声明）
+
+`T1_worker_deadline_fired` 使用 **env-gated** 的 `_tl()`；本次**未设 `CRAWL4AI_TIMEOUT_DIAG=1`**，故其"缺席"**不构成结论**。**确定性证据是 C4 未出现。**
+
+**下刀必须带 `CRAWL4AI_TIMEOUT_DIAG=1` 重跑**，才能判定属于四类中的哪一类：
+
+| 时间线 | 根因 |
+| --- | --- |
+| `T1` 根本没出现 | worker deadline 未覆盖实际失败路径 |
+| `T1` 出现但 `T4` 很晚 | `invalidate()/close` 阻塞 |
+| `T1/T4` 正常但迟迟无 `C5` | slot/task lifecycle bug |
+| `C5` 出现但无 `C6` | response/emission path |
+
+### 133.5 FG2 定义收紧（采纳）
+
+分离两个维度，避免 `bridge_read_timeout` 被误读为"系统 bounded"：
+
+```text
+caller_bounded             # caller 在有限时间内返回（当前已满足）
+worker_terminal            # worker 内部 request 是否达到 authoritative terminal state
+worker_terminal_ms
+slot_release_bounded
+post_terminal_healthy
+```
+
+**FG2 冻结 exit criterion 改为**：
+
+```text
+for normal / slow / failure:
+    caller_bounded        == True
+    worker_terminal       == True
+    slot_release_bounded  == True
+    post_terminal_health  == True
+```
+
+（slow/failure 可以 `success=False`，完全没问题。）
+
+**recovery 也拆成两项**：`R1 immediate_post_crawl`（单槽下可为 queue-budget consequence）vs **`R2 post_terminal_crawl`**（这才是 FG2 不能接受的 lifecycle corruption 判据）。**不得靠 sleep 猜旧任务结束，而应根据 C5/terminal 标记再发请求。**
+
+### 133.6 修复目标（明确非目标）
+
+**不是**"让 404/slow 更快"。目标是：
+
+> **确保 slow/failure path 被 worker deadline/lifecycle authority 完整覆盖。**
+
+速度改善只是副作用。**不得**用"调大 bridge 窗口"或"调大 3.0s budget"掩盖。
+
+### 133.7 状态
+
+```text
+FG1                              ✅ PASS
+FG2 caller_bounded               ✅
+FG2 worker_terminal              ❌ blocker（slow path：C3 进入后无 C4）
+§133 lifecycle trace             ✅ 已完成（404 健康；slow 是元凶）
+§133b env-gated T-mark replay    ⏳ NEXT（带 CRAWL4AI_TIMEOUT_DIAG=1）
+minimal repair -> FG2 replay     ⏳
+FG3 / FG4 / FOCUSED_QUALIFICATION / 12-row / L1 verdict   ⏳
+```
+
+**§125–§128 的 invariants 仍然成立**（reader/IPC/dispatcher/HOL 均无回归）。本发现是 **qualification 首次暴露过去 fixture 未覆盖的 failure-path lifecycle** —— 正说明 FG2 有价值。
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
