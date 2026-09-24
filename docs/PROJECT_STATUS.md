@@ -8489,3 +8489,74 @@ P2-A3 CLOSE                       ⏳
 ```
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§140。**
+
+
+## §142-1 Workflow simplification audit — **结论：无删除项（两个 job 均为合法聚合）**
+
+### 142.1 逐 job 判定（按冻结规则：raw exit status 是否即最终 verdict？）
+
+#### `ci.yml`
+
+```text
+Run pytest                  continue-on-error: true
+Upload pytest diagnostics   if: always()
+Enforce pytest result       if: steps.pytest.outcome == 'failure' -> tail -200 pytest.log; exit 1
+Run ruff / RAG quality      （同模式）
+```
+
+**判定：`KEEP`（aggregation，非 identity）。** `continue-on-error` 的目的是让 pytest 失败后 **ruff / rag_quality / mypy 仍能跑完**，最后统一 `Enforce` 汇总。
+⇒ **删除 `continue-on-error` 会改变行为**（后续检查不再执行），属"higher-level policy decision"，按规则**保留显式 adjudication**。
+
+#### `.github/workflows/rag-provider-replay.yml`
+
+```text
+set +e -> run replay -> replay_status=$? -> exit 0 -> 发布 exit_code
+set +e -> run claim  -> claim_status=$?  -> exit 0 -> 发布 exit_code
+Validate completed real-provider provenance   if: always()
+Enforce replay command results                if: always() -> 两个 exit_code 任一非零则 exit 1
+```
+
+**判定：`KEEP`（aggregation，非 identity）。** 两条命令**必须都跑完**，中间还要做 provenance 校验，最后**聚合成单一 verdict**。
+⇒ 同样属于"多个结果汇总后才能决定 PASS/FAIL"，按规则**保留**。
+
+### 142.2 否定性结论的价值
+
+**两个 workflow 中都不存在"最终 verdict 与原始 exit status 完全相同"的 identity adjudication wrapper。**
+
+这条结论必须显式记录，**防止未来 agent 机械地"清理所有 `continue-on-error`"**。判据仍为 §141.3 的三问 + §142.1 的规则：
+
+> **If raw tool exit status is the intended CI verdict, let the CI platform propagate it.
+> If raw exit status is only an input to a higher-level policy decision, explicit adjudication is justified.**
+
+`ci.yml` / `rag-provider-replay.yml` 均属**后者**。
+
+### 142.3 §142-1 验收
+
+```text
+proof_wrapper_lines_removed     = 0
+duplicate_steps_removed         = 0
+reason                          = 审计发现无 identity adjudication；两 job 均为合法聚合
+```
+
+**未修改任何 workflow 文件。**
+
+### 142.4 状态
+
+```text
+§141 proof audit                     ✅（分类完成 + 修一处仓库状态回归）
+§142-1 workflow simplification audit ✅ 无删除项（本节）
+§142-2 forensic retirement           ⏳ NEXT（B/W/C/T marks + 诊断 env gate；保留 queue_wait_ms / late_responses / malformed_lines / reader_error）
+§142-3 qualification asset lifecycle ⏳（v2 keep；v1 / Wigolo 侧 adjudicate；fixture server 降级）
+Exact-head + evidence inventory validation  ⏳
+P2-A3 CLOSE                          ⏳
+§143 F2_CHARACTERIZATION             ⏳
+```
+
+**§142 新 invariant（采纳）**：`PROOF_RETIREMENT must not alter evidence inventory unexpectedly.`
+exact-head 前后都检查 `git diff <A3-baseline>..HEAD -- docs/research_quality`、tracked qualification evidence inventory、`stage_gates.json`、browser bakeoff contract；变化必须是**显式 allowlist**（当前 `EXPECTED_EVIDENCE_DIFF = []`）。
+
+**§142 验收 6 条（冻结）**：① raw CI failures still fail jobs；② failure diagnostics still upload；③ higher-level adjudication semantics unchanged；④ permanent regression guards retained；⑤ evidence inventory unchanged except explicit allowlist；⑥ exact-head CI green。外加 `tracked clean` / `git diff --check` clean / 0 unexpected artifacts。
+
+**清理不以删行数为成功指标。**
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§141。**
