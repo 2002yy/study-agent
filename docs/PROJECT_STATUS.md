@@ -7337,3 +7337,62 @@ focused 四门 / 12-row cohort / L1 / verdict                                   
 ```
 
 **未重开**：`execute()` 实现、worker deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**明确不做**：`to_thread(execute)` 大搬家。
+
+
+## §127 A3-2d crawl queue / recovery characterization（§128）— 语义健全，无 lifecycle bug
+
+### 127.1 结果
+
+```text
+D4b stats=0.0ms STATS                                    ✅ 控制面立即恢复
+D4c recovered=True  queue_wait=0.0                       ✅ 旧 crawl 终结后恢复
+D2 both_ok=True  max_active=1  queue_waits=[16.0, 0.0]   ✅✅✅
+D1=True   D6=20/20                                       ✅
+D4a timed_out=False  late_responses=0                    ⚠️ 未触发（测试参数问题，非失败）
+```
+
+### 127.2 D2：真并发起跑 + 足额预算 ⇒ 三项断言全过
+
+用 `threading.Barrier(2)` 同步起跑，预算给足（12000ms，覆盖 queue + execution）：
+
+- `queue_waits=[16.0, 0.0]` ⇒ **semaphore 争用真实发生**（一个 crawl 等 16ms 才拿到 slot）
+- `max_active_crawls == 1` ⇒ **执行不重叠**
+- `both_ok=True` ⇒ 两者都成功
+
+⇒ 比仅 `max_active_crawls=1` 强得多：**两个 crawl 请求同时存在，execution 被正确序列化**。
+
+### 127.3 D4a 未触发 = 测试参数问题
+
+使用了 FAST PDF，它在 400ms 内完成，caller 的 400ms 超时自然不触发（`late_responses=0` 是其直接后果）。late-discard 已在 §125 实测（`late=2`）。**不是实现缺陷。**
+
+### 127.4 对“排队 crawl 的预算语义”的回答（核心问题）
+
+证据支持 **方案 A**：
+
+> **一个排队的 crawl，其 caller wall-clock 预算包含 queue time。**
+
+依据：worker 报告 `queue_wait_ms`（D2 实测 16ms）；预算紧时（早前 D4）排队导致 `next_ok=False`；预算足时（D2 12000ms）两者都成功；`max_active_crawls` 恒为 1。
+
+⇒ **这是 contract 记录（characterization），不是 bug**：
+
+```text
+queued crawl may consume caller wall-clock budget
+```
+
+worker recovery 本身未损坏（D4b/D4c 均 PASS）。
+
+### 127.5 状态与裁定
+
+```text
+§125 IPC correlation                  ✅ CLOSED（stats 20/20）
+§126 HOL root cause = B               ✅ CLOSED（措辞已更正）
+§127 concurrent dispatcher repair     ✅ CLOSED（D1/D2/D3/D5/D6 全绿）
+§128 crawl queue / recovery           ✅ CLOSED（无 lifecycle bug；方案 A 为 contract 记录）
+D4a late-discard                      ✅ 已在 §125 实测（本次未触发）
+A / late-A / B closure                ⏳ NEXT
+focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
+```
+
+**基础架构层到此结束**：不再设计 worker。下一刀回到资格链 —— `A / late-A / B closure → focused 四门 → 12-row cohort → L1 → Crawl4AI verdict`。
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
