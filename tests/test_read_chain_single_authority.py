@@ -60,6 +60,53 @@ def test_shared_primitive_exists_and_is_used_by_execute() -> None:
     assert "return build_read_chain_executors(" in src
 
 
+def test_read_semantics_primitive_is_the_only_authority() -> None:
+    """§143-B0.1: read semantics live in ONE module-level primitive."""
+
+    from src.application import active_research_runtime as mod
+
+    assert callable(mod.build_production_gateway_read)
+
+    src = _source()
+    assert src.count("def build_production_gateway_read(") == 1, (
+        "read semantics must have exactly one implementation authority"
+    )
+    # both the production execute() path and the measurement entry build the
+    # read function through the same primitive
+    assert src.count("= build_production_gateway_read(") == 2, (
+        "execute() and run_single_read_measurement must both use the shared primitive"
+    )
+    # the read function itself must be declared in exactly one place (inside
+    # the shared primitive), never re-inlined in execute()/measurement
+    assert src.count("def gateway_read(") == 1, (
+        "gateway_read must only be produced by the shared primitive, never re-inlined"
+    )
+    # escalation runtime context must not be forked into a second call site
+    assert src.count("set_escalation_runtime_context(") == 1, (
+        "escalation runtime context must be stamped by the shared primitive only"
+    )
+    # the read timeout must not be re-implemented outside the primitive
+    assert "def read_timeout_seconds(" not in src, (
+        "read timeout semantics must live in the shared primitive only"
+    )
+
+
+def test_measurement_entry_accepts_no_arbitrary_gateway_read() -> None:
+    """§143-B0.1: a caller may not inject a hand-rolled read function."""
+
+    import inspect
+
+    from src.application import active_research_runtime as mod
+
+    params = inspect.signature(mod.run_single_read_measurement).parameters
+    assert "gateway_read" not in params, (
+        "the measurement entry must not accept an arbitrary gateway_read"
+    )
+    # the low-level gateway is injected; the read *semantics* are not
+    assert "gateway" in params
+    assert "research_seconds_left" in params
+
+
 def test_executor_construction_is_not_re_inlined() -> None:
     """Only the shared primitive may construct the reader executors."""
 

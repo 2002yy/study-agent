@@ -299,10 +299,13 @@ PolicyCheck = Callable[[Mapping[str, Any], str], bool]
 ACTIVE_READER_CHAIN: tuple[str, str] = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)
 
 
+GatewayRead = Callable[..., Mapping[str, Any]]
+
+
 def build_read_chain_executors(
     *,
     source_limit: int,
-    gateway_read: Callable[[str], Mapping[str, Any]],
+    gateway_read: GatewayRead,
     escalation_backend: Any,
     hard_seconds_left: Callable[[], float],
 ) -> dict[str, Any]:
@@ -330,32 +333,158 @@ def build_read_chain_executors(
     }
 
 
+def build_production_gateway_read(
+    *,
+    gateway: Any,
+    accepts_timeout: bool,
+    get_context: Callable[[], dict[str, Any]],
+    research_seconds_left: Callable[[], float],
+    hard_seconds_left: Callable[[], float],
+    wave_index: Callable[[], int],
+    on_phase_start: Callable[[str], None] | None = None,
+    on_phase_end: Callable[[str], None] | None = None,
+    on_retry: Callable[..., None] | None = None,
+) -> Callable[..., dict[str, Any]]:
+    """§143-B0.1: the single implementation authority for production read semantics.
+
+    Both ``ActiveResearchRuntimeExecutor.execute()`` and the narrow measurement
+    entry build their ``gateway_read`` through **this** function, so a
+    measurement can never observe a hand-rolled "equivalent" of the production
+    read path.
+
+    Everything with behavioural meaning is owned here, not by callers:
+
+    * metrics/context sequencing (``retrieval_attempt_seq``);
+    * escalation runtime context (``set_escalation_runtime_context``);
+    * the bounded retry policy (§48/§49) including the ``window_aware``
+      admission and deadline-preserving retry suppression;
+    * the research-window / finalization reserve that bounds the read timeout.
+
+    Callers only inject low-level, production-owned dependencies: the
+    underlying ``gateway`` fetch, the research clock, the telemetry/context
+    cursor and the current wave index. Observation hooks (phase timing, retry
+    ledger) are optional and never change control flow. No caller may pass a
+    ``gateway_read``; the read function is created here and nowhere else.
+    """
+
+    def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
+        """Read a page through the shared production read semantics."""
+
+        def _inner(target: str) -> Mapping[str, Any]:
+            # §71B/B1: stamp per-read scalars so the adapter-side escalation
+            # outcome carries the attempt order and the headroom at start.
+            context = get_context()
+            metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
+            metrics_for_seq["retrieval_attempt_seq"] = seq
+            set_escalation_runtime_context(
+                attempt_seq=seq,
+                research_seconds_left=research_seconds_left(),
+                hard_seconds_left=hard_seconds_left(),
+            )
+            if accepts_timeout:
+                return (
+                    gateway.read(
+                        target,
+                        max_chars=max_chars,
+                        timeout=min(
+                            READ_TIMEOUT_CAP_SECONDS,
+                            max(0.0, research_seconds_left()),
+                        ),
+                    )
+                    or {}
+                )
+            return gateway.read(target, max_chars=max_chars) or {}
+
+        mode = read_retry_mode()
+        if on_phase_start is not None:
+            on_phase_start("read")
+
+        def _with_escalation_ledger(payload: dict[str, Any]) -> dict[str, Any]:
+            escalation = payload.get("escalation")
+            if isinstance(escalation, Mapping):
+                _record_escalation_diagnostics(
+                    get_context(), escalation, wave_index=int(wave_index())
+                )
+            return payload
+
+        try:
+            if mode == "off":
+                return _with_escalation_ledger(dict(_inner(url)))
+            admission = None
+            if mode == "window_aware":
+                # §50/B2: the same formula-based admission policy as the
+                # inventory channel; only the metrics channel differs.
+                admission = make_window_admission(
+                    remaining_seconds=research_seconds_left
+                )
+            payload = read_with_bounded_retry(
+                url,
+                read_fn=_inner,
+                admission=admission,
+                diagnostics_key="read_retry",
+                # F2-O1b B: deadline-preserving retry suppression - a retry
+                # is only issued when its wait plus the last attempt's own
+                # cost still fit the remaining research window.
+                remaining_seconds=research_seconds_left,
+            )
+            _accumulate_fetch_metrics(
+                get_context(), "read_retry", payload.get("read_retry")
+            )
+            _retry_diag = payload.get("read_retry")
+            if isinstance(_retry_diag, Mapping) and on_retry is not None:
+                on_retry(
+                    wait_ms=float(_retry_diag.get("retry_backoff_ms") or 0.0),
+                    fetch_ms=float(_retry_diag.get("retry_fetch_ms") or 0.0),
+                )
+            return _with_escalation_ledger(payload)
+        finally:
+            if on_phase_end is not None:
+                on_phase_end("read")
+
+    return gateway_read
+
+
 def run_single_read_measurement(
     *,
     url: str,
     source_limit: int,
-    gateway_read: Callable[[str], Mapping[str, Any]],
+    gateway: Any,
     escalation_backend: Any,
+    get_context: Callable[[], dict[str, Any]],
+    research_seconds_left: Callable[[], float],
     hard_seconds_left: Callable[[], float],
+    accepts_timeout: bool = False,
+    wave_index: Callable[[], int] | None = None,
     candidate_id: str = "f2-measurement",
     outer_attempt_number: int = 1,
 ) -> tuple[Any, tuple[Any, ...]]:
-    """§143-B0: the narrow measurement entry.
+    """§143-B0/B0.1: the narrow measurement entry.
 
     Executes exactly one frozen read target through the **same** production
     primitives that ``ActiveResearchRuntimeExecutor.execute()`` uses:
-    :func:`build_read_chain_executors` + :func:`run_chain` with
-    :data:`ACTIVE_READER_CHAIN`.
+    :func:`build_production_gateway_read` + :func:`build_read_chain_executors`
+    + :func:`run_chain` with :data:`ACTIVE_READER_CHAIN`.
 
     It deliberately does **not** call ``execute()`` and never starts discovery,
-    planning or synthesis. It carries no routing, deadline or budget logic of its
-    own: those live in the shared primitive and in the caller-supplied callbacks.
+    planning or synthesis. It carries no routing, deadline or budget logic of
+    its own, and it accepts **no** ``gateway_read``: read semantics live only in
+    the shared production primitive above, so a caller cannot inject a
+    hand-rolled read path.
 
     Returns ``(chain_run, recorded_steps)`` where ``recorded_steps`` is the real
     ``record_outcome`` event sequence - the authoritative source of the backend
     path.
     """
 
+    gateway_read = build_production_gateway_read(
+        gateway=gateway,
+        accepts_timeout=accepts_timeout,
+        get_context=get_context,
+        research_seconds_left=research_seconds_left,
+        hard_seconds_left=hard_seconds_left,
+        wave_index=(lambda: 0) if wave_index is None else wave_index,
+    )
     executors = build_read_chain_executors(
         source_limit=source_limit,
         gateway_read=gateway_read,
@@ -895,11 +1024,6 @@ class ActiveResearchRuntimeExecutor:
             }
             checkpoint()
 
-        def read_timeout_seconds() -> float:
-            """Reader deadline: a page read may never outlive the window."""
-
-            return min(READ_TIMEOUT_CAP_SECONDS, max(0.0, research_seconds_left()))
-
         def record_research_window_skip(key: str) -> None:
             """Count work the exhausted research window refused to start."""
 
@@ -947,80 +1071,21 @@ class ActiveResearchRuntimeExecutor:
             )
             entry["calls"] = int(entry.get("calls") or 0) + 1
 
-        def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
-            """Read a page, forwarding the shared deadline when supported.
-
-            §48/§49 diagnostic (default off): bounded fetch-layer retries wrap
-            the read here, where the research window is visible, so the
-            ``window_aware`` mode can refuse a retry that would eat the
-            finalization reserve. Success-path behaviour and content semantics
-            are unchanged.
-            """
-
-            def _inner(target: str) -> Mapping[str, Any]:
-                # §71B/B1: stamp per-read scalars so the adapter-side escalation
-                # outcome carries the attempt order and the headroom at start.
-                metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
-                seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
-                metrics_for_seq["retrieval_attempt_seq"] = seq
-                set_escalation_runtime_context(
-                    attempt_seq=seq,
-                    research_seconds_left=research_seconds_left(),
-                    hard_seconds_left=state.budget.hard_timeout_seconds - elapsed(),
-                )
-                if self.read_gateway_accepts_timeout:
-                    return (
-                        self.gateway.read(
-                            target,
-                            max_chars=max_chars,
-                            timeout=read_timeout_seconds(),
-                        )
-                        or {}
-                    )
-                return self.gateway.read(target, max_chars=max_chars) or {}
-
-            mode = read_retry_mode()
-            phase_begin("read")
-            def _with_escalation_ledger(payload: dict[str, Any]) -> dict[str, Any]:
-                escalation = payload.get("escalation")
-                if isinstance(escalation, Mapping):
-                    _record_escalation_diagnostics(
-                        context, escalation, wave_index=int(cursor.wave_index)
-                    )
-                return payload
-
-            try:
-                if mode == "off":
-                    return _with_escalation_ledger(dict(_inner(url)))
-                admission = None
-                if mode == "window_aware":
-                    # §50/B2: the same formula-based admission policy as the
-                    # inventory channel; only the metrics channel differs.
-                    admission = make_window_admission(
-                        remaining_seconds=research_seconds_left
-                    )
-                payload = read_with_bounded_retry(
-                    url,
-                    read_fn=_inner,
-                    admission=admission,
-                    diagnostics_key="read_retry",
-                    # F2-O1b B: deadline-preserving retry suppression - a retry
-                    # is only issued when its wait plus the last attempt's own
-                    # cost still fit the remaining research window.
-                    remaining_seconds=research_seconds_left,
-                )
-                _accumulate_fetch_metrics(
-                    context, "read_retry", payload.get("read_retry")
-                )
-                _retry_diag = payload.get("read_retry")
-                if isinstance(_retry_diag, Mapping):
-                    timing_ledger.record_retry(
-                        wait_ms=float(_retry_diag.get("retry_backoff_ms") or 0.0),
-                        fetch_ms=float(_retry_diag.get("retry_fetch_ms") or 0.0),
-                    )
-                return _with_escalation_ledger(payload)
-            finally:
-                phase_end("read")
+        # §143-B0.1: read semantics come from the shared production primitive,
+        # so execute() and the narrow measurement entry cannot drift apart.
+        gateway_read = build_production_gateway_read(
+            gateway=self.gateway,
+            accepts_timeout=self.read_gateway_accepts_timeout,
+            get_context=lambda: context,
+            research_seconds_left=research_seconds_left,
+            hard_seconds_left=lambda: state.budget.hard_timeout_seconds - elapsed(),
+            wave_index=lambda: int(cursor.wave_index),
+            on_phase_start=phase_begin,
+            on_phase_end=phase_end,
+            on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(
+                wait_ms=wait_ms, fetch_ms=fetch_ms
+            ),
+        )
 
         def fetch_text(url: str) -> tuple[str, str, str, str]:
             """§63 inventory fetch (XML/JSON/HTML) for the domain-targeted channel.

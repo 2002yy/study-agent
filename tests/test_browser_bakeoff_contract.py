@@ -312,7 +312,9 @@ def test_production_chain_is_unchanged_at_a3_0() -> None:
     runtime = Path("src/application/active_research_runtime.py").read_text(
         encoding="utf-8"
     )
-    match = re.search(r"ACTIVE_READER_CHAIN = \(([^)]*)\)", runtime)
+    match = re.search(
+        r"ACTIVE_READER_CHAIN(?:\s*:\s*[^=]+)?\s*=\s*\(([^)]*)\)", runtime
+    )
     assert match is not None, "the production reader chain must be declared"
     assert match.group(1).strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
     # The comment may *mention* the browser tier; no browser symbol may be used.

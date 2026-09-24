@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import pytest
+import re
 
 from src.web.research.browser_bakeoff import (
     BAKEOFF_CLASSES,
@@ -489,7 +490,11 @@ def test_harness_does_not_touch_the_production_chain() -> None:
     runtime = Path("src/application/active_research_runtime.py").read_text(
         encoding="utf-8"
     )
-    assert "ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)" in runtime
+    chain_match = re.search(
+        r"ACTIVE_READER_CHAIN(?:\s*:\s*[^=]+)?\s*=\s*\(([^)]*)\)", runtime
+    )
+    assert chain_match is not None, "the production reader chain must be declared"
+    assert chain_match.group(1).strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
     assert "WigoloBrowserBackendExecutor" not in runtime
     assert BAKEOFF_CHAIN == (NATIVE_HTTP, WIGOLO_HTTP, WIGOLO_BROWSER_BACKEND)
     assert len(BAKEOFF_CHAIN) <= BROWSER_CHAIN_MAX_LENGTH

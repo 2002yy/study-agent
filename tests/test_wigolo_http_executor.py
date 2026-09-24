@@ -9,6 +9,7 @@ truth actually reaches both entry points identically.
 from __future__ import annotations
 
 import io
+import re
 from typing import Any
 
 import pytest
@@ -447,7 +448,11 @@ def test_the_active_chain_enables_wigolo_http_but_not_the_browser() -> None:
     text = io.open(
         "src/application/active_research_runtime.py", encoding="utf-8", errors="ignore"
     ).read()
-    assert "ACTIVE_READER_CHAIN = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)" in text
+    match = re.search(
+        r"ACTIVE_READER_CHAIN(?:\s*:\s*[^=]+)?\s*=\s*\(([^)]*)\)", text
+    )
+    assert match is not None, "the production reader chain must be declared"
+    chain = match.group(1)
+    assert chain.strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
     # the declared chain names exactly two backends; the browser is not one
-    chain = text.split("ACTIVE_READER_CHAIN = (", 1)[1].split(")", 1)[0]
     assert "wigolo_browser" not in chain
