@@ -10286,3 +10286,129 @@ P2-A3                           ✅ CLOSED
 
 **未做**：未改 `active_research_runtime.py`；未抽 factory；未造等价 executor；
 未提交任何 harness 代码。
+
+
+## §143-B0 裁定：Production-owned shared read-chain primitive（NEXT）
+
+### 143.66 裁定与关键修正
+
+**选 1，但不是"纯增量 measurement seam"。**
+
+**被否决的表述**（会重蹈同一个坑）：
+```text
+production 有一套 reader construction，measurement seam 另有一套"等价 construction"
+=> 即使两份代码看起来一样，§143-B 测到的仍不是 production 真正消费的那条路径
+```
+
+**正式定义（冻结）**：
+> **Production-owned shared read-chain primitive**
+> 抽出一个最小、受控、production 自持的 read-chain primitive；
+> **`execute()` 与 measurement seam 必须共同调用这一个 primitive**。
+> `execute()` 的外部行为、routing、deadline、budget 语义保持不变，
+> 但实现结构允许做一次**受审计的机械提取**。
+
+⇒ 它是：**语义不变的 production refactor** + **一个窄 measurement entry** + **明确的 parity regression**。
+**这才真正闭合"测量对象 = production 对象"。**
+
+### 143.67 为什么不选 2 / 3
+
+```text
+不选 2（整轮 runtime 级 paired）：
+  实验单位从 "reader specialist gain" 膨胀为
+  discovery + planning + scheduling + waves + synthesis + reader
+  => 即使 specialist 侧更好也无法干净归因到 reader，冻结的 specialist_gain 失去解释力
+  => 2 不是"成本更高但还能做"，而是【改变研究问题】
+
+不选 3（放弃 paired，退化为 specialist 侧 characterization）：
+  可作为最终 fallback，但现在太早 —— B contract / rubric / classification model 已齐，
+  只缺一个可靠 seam；此时放弃会丢掉最有价值的因果证据
+```
+
+### 143.68 §143-B0 六条硬约束（冻结）
+
+```text
+1. Single implementation authority
+   execute() 和 measurement entry 必须调用同一个 read-chain primitive
+2. No semantic widening
+   不改：ACTIVE_READER_CHAIN / routing / fallback / deadline /
+        budget charging / provenance / record_outcome
+3. Mechanical extraction only
+   允许移动/提取现有逻辑，但不趁机"顺手优化"
+4. Production path remains consumer
+   seam 绝不能成为测试专用复制品
+5. Pre/post parity gate
+   现有 reader/runtime regression 在 refactor 前后必须等价通过
+6. Measurement entry is narrow
+   输入只够执行一个 frozen read target；不得启动 discovery / planning / synthesis
+```
+
+### 143.69 要求的代码形态（冻结）
+
+```text
+ActiveResearchRuntimeExecutor.execute()
+        |
+        +-- shared production read-chain primitive
+                +-- native executor
+                +-- wigolo executor
+                +-- budget/deadline callbacks
+                +-- record_outcome
+                +-- run_chain
+
+measurement seam
+        |
+        +-- same shared production read-chain primitive
+```
+
+**绝不能变成**：
+```text
+execute()          -> old inline logic
+measurement seam   -> copied "equivalent" logic      <- 看似"纯增量"，其实证据最弱
+```
+
+### 143.70 §143-B0 通过标准（冻结）
+
+回到 ONE-PAIR smoke 之前必须先证明：
+
+```text
+execute_uses_shared_read_primitive         = True
+measurement_uses_same_primitive            = True
+
+reader_chain_unchanged                     = True
+deadline_semantics_unchanged               = True
+budget_charge_semantics_unchanged          = True
+record_outcome_semantics_unchanged         = True
+
+existing_runtime_regressions               = PASS
+existing_reader_regressions                = PASS
+```
+**另加**：一个结构性断言或源码级 regression，防止未来 `execute()` 又偷偷绕开 shared primitive。
+
+### 143.71 状态
+
+```text
+§143-B A0
+  NO MEASUREMENT SEAM                      ✅（不是 harness 实现失败）
+
+§143-B0
+  production-owned shared read-chain primitive
+  + narrow measurement entry               ⏳ NEXT（独立 production review，不与 harness 混提交）
+
+完成 B0 后：
+  ONE-PAIR smoke -> 30 pairs -> adjudicate B -> §143-C
+```
+
+### 143.72 这个缺口为什么值得修（超出 §143-B 的收益）
+
+`NO MEASUREMENT SEAM` 暴露的是 **production architecture 的一个真实可测性缺口**，
+不只是"§143-B 需要"：
+
+```text
+以后任何 reader-level regression
+       cost attribution
+       backend-path verification
+都能复用这个 seam
+```
+
+⇒ 值得单独改 production 的正当理由：**建立一个 production 真正消费的、可测量的 read-chain 边界。**
+
+**未重开**：`execute()` 的外部行为、routing、deadline、budget 语义在本刀均不变。
