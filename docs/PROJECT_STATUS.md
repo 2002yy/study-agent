@@ -8006,3 +8006,91 @@ FOCUSED_QUALIFICATION → 12-row cohort → L1 verdict   ⏳
 **已登记的 404 provider message transparency debt**（§135.4）**现在不修**，留给 FG4/L1 判断它是否只是可解释性债务。
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§135。**
+
+
+## §137 FG3 Isolation / repeatability — **PASS**（两个 replay）
+
+### 137.1 FG3-A cross-session isolation
+
+```text
+FG3-A  A=/session/start(session_id=A) -> /session/check(A) = 200 SESSION OK
+       B=/session/check(session_id=B)                    = 401 NO SESSION
+       anon=/session/check(无 session)                    = 401 NO SESSION
+```
+
+| 断言 | 结果 |
+| --- | --- |
+| `a_sees_own_state` | ✅ |
+| `wrong_session_bind == 0` | ✅ |
+| `state_leak == 0` | ✅ |
+| `both_useful` | ✅ |
+
+复用既有 session fixture（`/session/start` + `/session/check`），**未新造复杂站点**，属资格层 replay。
+
+### 137.2 FG3-B semantic repeatability
+
+同输入（`/structured-spec.html`）连续 3 次：
+
+```text
+run1: useful=True  units=5/5  rid=r5
+run2: useful=True  units=5/5  rid=r6
+run3: useful=True  units=5/5  rid=r7
+```
+
+| 断言 | 结果 |
+| --- | --- |
+| `critical_semantic_drift == 0` | ✅ |
+| `all_runs_useful` | ✅ |
+| `source_identity_stable`（逻辑 URL identity） | ✅ |
+| `backend_identity_stable`（routing 归属，非内部 browser instance/session id） | ✅ |
+| `distinct_invocations` | ✅ |
+
+**刻意不比较**：全文 hash / timestamp / 动态 ID / DOM 顺序。
+
+```text
+FG3_ISOLATION_REPEATABILITY = PASS
+```
+
+### 137.3 §136 措辞修正（采纳）
+
+`test_worker_default_is_preserved_for_calls_without_a_timeout` **不是**"实际无 timeout 调用 replay PASS"。因为 `request()` 的 `timeout_ms` 仍是**必填 keyword-only 参数**，该测试实际证明的是：
+
+- bridge 显式 timeout 仍必填；
+- worker 的 `30000` fallback/default 代码路径仍存在；
+- 本次修复**没有删掉**该默认值（结构性 guard，非运行时 no-timeout 路径验证）。
+
+### 137.4 FG4 的规则（先写死）
+
+```text
+exact_terminal_records == 1      # ledger 可含 start/retry/intermediate 行，
+                                 # 但必须能唯一确定 authoritative_terminal_outcome
+```
+
+成功链反查：`result → invocation_id → ledger → source → backend → outcome=success`
+失败链反查：`result → invocation_id → ledger → source → backend → outcome=failure → failure_class → deadline_state → fallback_decision`
+
+**404 transparency debt 的三个可能结论（FG4 裁决，不提前修）**：
+
+```text
+A. ledger 明确记为 provider_failure，来源/阶段可定位        -> transparency debt，非 blocker
+B. 只能看到笼统 provider message，但失败阶段仍可唯一定位     -> 可能仍可 ELIGIBLE_SPECIALIST，记 debt
+C. 404 / provider internal error / deadline 完全无法区分     -> FG4 或 L1 可能受阻
+```
+
+### 137.5 状态
+
+```text
+Infrastructure / IPC               ✅ CLOSED
+Bridge closure                     ✅ PASS
+FG1 Useful extraction              ✅ PASS
+FG2 Bounded execution              ✅ PASS
+§135.5 timeout propagation guard   ✅ PASS
+FG3 Isolation / repeatability      ✅ PASS
+FG4 Provenance / auditability      ⏳ NEXT
+FOCUSED_QUALIFICATION              ⏳（FG4 后直接组合，**不加 FG5**）
+12-row cohort → L1 verdict         ⏳
+```
+
+**原则**：不再证明底层"能跑"，只证明 reader 在研究场景里**可用、稳定、可追责**。
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§136。**
