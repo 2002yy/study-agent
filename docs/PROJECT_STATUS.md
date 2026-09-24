@@ -9441,3 +9441,59 @@ queue_wait_share / execution_share / normalization_share / provenance_share / un
 STOP
 -> 然后才进入 §143-B（同 fixture 配对 default reader）
 ```
+
+
+## §143-A1 / §143-A2 — harness built + accounting validated
+
+### 143.16 §143-A1 deliverable
+
+```text
+tools/run_f2_characterization.py   （新增；不改任何生产代码）
+  --repeats N / --only <category> / --output <json> / --seed
+实现冻结协议：fixture server -> bridge/worker -> 1 次 disposable global warm-up
+  -> 每 fixture 1 次 discarded warm-up -> N 次 measured repeats（INTERLEAVED，seeded shuffle）
+输出：raw ledger（一行一 run）+ aggregate view（p50/p95/份额）
+```
+
+**边界测量**：	otal_wall_ms 由 harness 包住 ridge.request()；queue_wait_ms 取自 worker ledger；
+worker_handle_ms（=cancellation.actual_return_ms）作为**独立可观测量**报告，**不冒充 
+eader_execution_ms**（§143.8）；
+
+eader_execution_ms / 
+ormalization_ms / provenance_ms 在 raw provider call 边界**不可分离** -> 显式置 
+ull。
+
+### 143.17 §143-A2 validation（1 fixture × 3 repeats，no production changes）
+
+```text
+ruff                                          -> All checks passed!
+3/3 runs success，稳定 216.2 / 217.7 / 219.6 ms，queue_wait=0.0
+aggregate: p50_total=217.7  p95_total=219.6  max=219.6
+           queue_wait_share=0.0  unattributed_share=1.0
+```
+
+**记账验证结论**：harness 端到端可用；**在 raw provider call 边界只有 queue_wait_ms 可干净分离**，
+其余全部落入残差（unattributed_share=1.0）。**这不是缺陷** —— §143.9 已冻结残差本身就是结果；
+
+ormalization_ms / provenance_ms 的可分离性属于 **§143-B（default reader 侧边界）** 的课题。
+
+### 143.18 §143-A2 首个 characterization 发现（OBSERVED，非修复项）
+
+```text
+simple_static warm = 217-220ms（3/3 稳定）
+```
+
+⇒ **§139 12-row cohort 的 simple_static = 2813ms 在 warm 下不复现**，
+与 **first-request / init effect** 一致（§143.6 约定：**记录，不修；不回头改 cohort**）。
+
+按 §143.14：**仅记为 OBSERVED**，不调 worker / 不调 fixture / 不调 timeout / 不清 cache。
+
+### 143.19 状态
+
+```text
+§143-A1 harness build        ✅（本提交）
+§143-A2 accounting validation ✅（1 fixture × 3 repeats）
+§143-A3 6 categories × N warm repeats  ⏳ NEXT
+§143-A4 raw ledger + aggregate table   ⏳
+STOP -> §143-B（同 fixture 配对 default reader）
+```
