@@ -8560,3 +8560,97 @@ exact-head 前后都检查 `git diff <A3-baseline>..HEAD -- docs/research_qualit
 **清理不以删行数为成功指标。**
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§141。**
+
+
+## §142-2 Forensic retirement — **reference-surface inventory（先查后删；尚未删代码）**
+
+### 142.5 引用面 inventory 结果（按用户要求的六类引用面逐一核对）
+
+```text
+runtime references        = 仅 diagnostic 实现自身（两个实现文件内）
+permanent tests           = 1 处：tests/test_crawl4ai_timeout_propagation.py:68 设 CRAWL4AI_PDF_DIAG=1（见 142.6，inert）
+qualification parsers     = none（无 harness 解析 timeline 文本）
+CI grep/assertion         = none
+debug/artifact parsers    = none
+docs historical mentions  = 允许（不因删 runtime mark 去重写历史）
+```
+
+**关键阴性结论**：`rg` 全仓库搜索确认 —— **没有任何外部 parser 读取 `[C]`/`[W]`/`[tl]`/`[pdf]` timeline 文本**。这些标记只在 `crawl4ai_worker.py` 内被 `print`，无消费者。
+
+### 142.6 inventory 抓到的两个真实发现（**删除边界因此收紧**）
+
+#### 发现 A — `DIAG_ENV` 名称遮蔽（latent bug）
+
+`src/web/research/crawl4ai_worker.py` **两次定义 `DIAG_ENV`**：
+
+```text
+line  43:  DIAG_ENV = "CRAWL4AI_PDF_DIAG"      -> line 67:  diag = bool(_os.getenv(DIAG_ENV))
+line 161:  DIAG_ENV = "CRAWL4AI_TIMEOUT_DIAG"  -> line 171: if _os.getenv(DIAG_ENV):
+```
+
+line 161 在模块加载时**重新绑定全局 `DIAG_ENV`**，故 line 67 运行时读到的是 `"CRAWL4AI_TIMEOUT_DIAG"`。
+⇒ **PDF 诊断门从未被 `CRAWL4AI_PDF_DIAG` 真正打开过**（该门自诞生即为 no-op）。
+
+#### 发现 B — 永久回归锁中的 env 设置是 inert
+
+`tests/test_crawl4ai_timeout_propagation.py:68` 设 `os.environ["CRAWL4AI_PDF_DIAG"] = "1"`，
+但由发现 A 该行**不开启任何东西**；且该测试的断言仅依赖 `reply.get("cancellation")`（**真实 ledger 字段**）。
+⇒ **永久回归锁不依赖任何 diag 输出**；env 行可随诊断门一并移除，断言不受影响。
+
+### 142.7 冻结后的删除边界（据 inventory 修正）
+
+#### 可删除（仅服务过去单次根因定位，且无外部消费者）
+
+```text
+_tl(...) / _seg(...)                        时间线打点
+[C] C0..C6 / [W] W0..W5 / [tl] / [pdf]      stderr timeline markers（无外部 parser）
+write_diag 字段 + 4 处写入                   crawl4ai_browser_executor.py 纯 forensic
+CRAWL4AI_TIMEOUT_DIAG / CRAWL4AI_HB 门      含 line 161 的 DIAG_ENV 二次绑定
+CRAWL4AI_PDF_DIAG 门（line 43/67）           连同发现 A 的名称遮蔽一起解开
+tests/...timeout_propagation.py:68 的 env 行 inert，随门移除（断言不变）
+```
+
+**前提四条已满足**：① root cause 已明确（§127–§135）；② 修复已落地（`payload["timeout_ms"]`）；③ 永久 regression guard 存在（1379ms guard）；④ 删除后正常 failure observability 仍足够（见下）。
+
+#### 必须保留（永久区 —— 产品级 observability + provenance）
+
+```text
+queue_wait_ms                 <- 由 forensic probe 升级为 performance/lifecycle observability
+late_responses / malformed_lines / reader_error / lines_seen / _stderr_tail
+request_id / requested_deadline_ms / deadline_ms / deadline_hit
+cancellation outcome / backend / provider_state / canonical_retrieval_state
+fallback_used / fallback_reason / terminal outcome / source identity
+```
+
+**`queue_wait_ms` 特别说明**：它最初为 §127/§128 查 semaphore 而加，但 **F2_CHARACTERIZATION 必须用它区分"Crawl4AI 本身慢"与"Crawl4AI executor 排队慢"** ⇒ 已进入 routing economics 解释层，**永久保留**。
+
+**原则**：*Diagnostics should be cheap to reintroduce, not permanently omnipresent.* 保留 `stderr tail` + `request_id` + `reader_error` + timeout/deadline 字段即足够；新事故时临时再加针对性 probes（已证明加得回来）。
+
+### 142.8 §142-2 验证计划（三层，不重跑整个 qualification）
+
+```text
+1. static/targeted   worker starts / normal crawl works /
+                     1379ms timeout guard 3/3 still green /
+                     reader diagnostics object 仍暴露保留字段
+2. observability     一次 success + 一次 bounded failure，确认仍可见
+                     request_id / terminal outcome / deadline state / queue_wait /
+                     reader_error|malformed|late counters / ledger-provenance
+                     （不再要求看到 B/W/C/T markers —— 它们即删除对象）
+3. evidence inventory  git diff 47a2938..HEAD -- docs/research_quality
+                     必须仍满足 EXPECTED_EVIDENCE_DIFF = []
+```
+
+### 142.9 状态
+
+```text
+§141 proof audit                     ✅
+§142-1 workflow simplification audit ✅ 无删除项
+§142-2 forensic reference inventory  ✅（本节；抓到 2 个真实发现，删除边界已修正）
+§142-2b forensic deletion            ⏳ NEXT（按 142.7 边界执行；须同步解开 DIAG_ENV 遮蔽）
+§142-3 qualification asset lifecycle ⏳
+Exact-head + evidence inventory validation -> P2-A3 CLOSE -> §143 F2_CHARACTERIZATION  ⏳
+```
+
+**本轮未修改任何实现文件**（inventory-only）。发现 A/B 均为**待退役对象的既有缺陷**，非新引入回归；登记于此，随 §142-2b 一并处理。
+
+**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。
