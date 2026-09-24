@@ -7800,3 +7800,85 @@ FG3 / FG4 / FOCUSED_QUALIFICATION / 12-row / L1 verdict   ⏳
 **§125–§128 的 invariants 仍然成立**（reader/IPC/dispatcher/HOL 均无回归）。本发现是 **qualification 首次暴露过去 fixture 未覆盖的 failure-path lifecycle** —— 正说明 FG2 有价值。
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §134 §133b slow-path timeout-authority replay — **根因锁定：worker 的 `timeout_ms` 传参接线 bug**
+
+### 134.1 证据（单次 slow replay，`CRAWL4AI_TIMEOUT_DIAG=1`）
+
+```text
+WITNESS concurrent stats at +1.0s: wall=0.0ms  event=STATS  active_crawls=1
+   => event loop 活着、dispatcher 正常、slot 被 r1 合法持有
+
+[pdf] t=6281ms remaining=23719ms got=0
+   => 初始预算 = 6281 + 23719 ~= 30000ms   <-- 不是请求的 4000ms
+
+[tl] T0_request_begin=+0ms
+[tl] T0b_worker_deadline_armed=+0ms
+[tl] T1_task_created=+0ms
+     （无 T1_worker_deadline_fired）
+[C] C3_execute_enter rid=r1
+     ... 6.4s ...
+[C] C4_execute_exit / C5_released_slot / W5 / C6
+late=1  reader_error=''  malformed=0
+```
+
+### 134.2 根因
+
+**PDF primitive 收到的 `timeout_ms` 是默认 `30000`，而不是请求里的 `4000`。**
+
+由此完整解释全部现象：
+1. primitive 不在 4s 中止，而是**完整跑完 6.28s 涓流**；
+2. worker 的 `wait_for(..., timeout_ms)` 同样按 30000 计时 ⇒ **`T1` 不触发**（与观测一致）；
+3. caller 的 4s 窗口先到期 ⇒ `bridge_read_timeout`；
+4. 随后 `C4/C5/W5/C6` **全部在 ~6.4s 正常出现**，`late=1`、`reader_error=''`。
+
+⇒ **不是** event-loop starvation，**不是** cleanup 无界，**不是** slot 泄漏，**不是** 404 —— 是 **`timeout_ms` 未从请求传入 worker 的 timeout 管道**。
+
+对照 §133b 判定树：`T0 有、stats 正常、T1 无` ⇒ **deadline/timer wiring bug**（情形 A）。
+
+### 134.3 措辞（按裁决）
+
+- **不要写 "slot leak"**。正确表述：`slot remains held because the slow request has not reached terminal lifecycle`（实际它最终在 ~6.4s 到达并释放）。
+- `shield()` **不是罪证**，本刀不动它。真正 contract 是：deadline 后 worker 必须在有限时间内形成 authoritative terminal state 并释放 crawl slot。
+- 修复目标**不是**"让 slow 更快"，而是**让 `timeout_ms` 正确到达 timeout authority**（primitive + `wait_for` + cleanup 共用同一预算）。
+
+### 134.4 待确认（下刀第一步，行级）
+
+确认 `timeout_ms` 在哪一层丢失，候选：
+1. bridge `request()` 构造 payload 时是否真的带上了 `timeout_ms`；
+2. worker `execute()` 读取 `request.get("timeout_ms")` 的取值点（是否存在默认值遮蔽/覆盖）；
+3. `handle()` 与 `execute()` 是否各自计算 `timeout_ms` 且二者不一致；
+4. PDF 分支调用 `_bounded_pdf_fetch(url, timeout_ms)` 时传入的是否是**请求级**预算。
+
+**最小修复**：让 primitive / `wait_for` / cleanup 共用**同一个请求级 `deadline_at`**。**不改 3.0s / bridge 窗口 / PDF primitive 本身。**
+
+### 134.5 FG2 合格形态（slow）
+
+slow **不要求成功**。合格形态例如：
+
+```text
+caller_bounded=True
+worker_terminal=True
+success=False
+failure_class=deadline
+slot_release_bounded=True
+post_terminal_health=True
+```
+
+现在缺的只是后三项，而根因已定位。
+
+### 134.6 状态
+
+```text
+FG1                              ✅ PASS
+FG2 normal                       ✅
+FG2 deterministic failure / 404   ✅（§133 已证明 172ms 完整闭环）
+FG2 slow lifecycle               ❌ 唯一 blocker —— 根因 = timeout_ms 接线
+§133  lifecycle trace            ✅ CLOSED
+§133b timeout-authority replay   ✅ CLOSED（根因锁定）
+minimal repair → FG2 N/S/F replay ⏳ NEXT
+FG3 → FG4 → FOCUSED_QUALIFICATION → 12-row → L1 verdict   ⏳
+```
+
+**§125–§128 的 invariants 仍全部成立**。**未重开**：`execute()` 的业务实现、deadline/cancellation 语义设计、PDF primitive 算法、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
