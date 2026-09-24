@@ -8993,3 +8993,104 @@ P2-A3 CLOSE                          ⏳
 ```
 
 **"已知真实 runtime defect 尚未判清" 与 "P2-A3 CLOSED" 不再同时存在** —— §142-4 已判清并修复。
+
+
+## §142-5 A3 browser regression-set closure — **EXECUTED**
+
+### 142.28 动机
+
+§142-4 的两个 Crawl4AI 测试已被裁定为**永久回归契约**，但不在任何命名 gate 中：
+
+```text
+test_crawl4ai_timeout_propagation.py  -> 防止 4000ms 再静默退回 30000ms
+test_crawl4ai_shutdown_contract.py    -> 防止 worker shutdown 再次无 BYE / rc=1
+```
+
+若 `a3_browser` 代表"A3 browser 相关改动应跑哪些永久回归"，而这两个最重要的
+Crawl4AI 回归锁不在其中，则 P2-A3 虽功能可关，**长期 gate wiring 尚未闭环**。
+⇒ 由"非阻塞 follow-up"升级为 closeout wiring fix（修复成本极低、长期收益高，
+且正属本阶段 regression ownership）。
+
+### 142.29 改动（仅补名册，未改语义）
+
+`tests/stage_gates.json`：
+
+```text
+impact_sets.a3_browser           3 -> 5   (+ timeout_propagation, + shutdown_contract)
+stage_gates.p2-a-retrieval-stack 17 -> 19 (+ timeout_propagation, + shutdown_contract)
+```
+
+**未改**任何 level 定义、`force_l3_triggers`、`not_forcing_l3`、`retro_application`、
+policy owner 或 stage-gate 语义 —— 只是把已裁定为永久 regression 的测试接到其所属命名 gate。
+
+### 142.30 证据
+
+```text
+JSON 有效；两处均含两个测试；所有引用文件存在      ✅
+tests/test_stage_gates_policy.py                  -> 10 passed
+targeted a3_browser impact set (5 文件)            -> 97 passed in 37.37s
+L2 stage gate (p2-a-retrieval-stack, 19 文件)      -> 469 passed in 251.49s（465 + 4）
+```
+（469 = 465 + 4：timeout propagation 3 项 + shutdown contract 1 项。）
+
+### 142.31 P2-A3 CLOSE 检查表（全部就位）
+
+```text
+product contract        ✅
+permanent regressions   ✅（含 timeout 传播 + shutdown BYE/rc=0）
+qualification assets    ✅ lifecycle assigned（§142-3）
+forensic debris         ✅ retired（§142-2b）
+named regression gate   ✅ complete（§142-5）
+runtime latent defect   ✅ reconciled（§142-4）
+evidence inventory      ✅ intact（EXPECTED_EVIDENCE_DIFF = []）
+```
+
+### 142.32 P2-A3 资产账（closeout 交付物）
+
+```text
+KEEP_PRODUCT
+  request_id / timeout 传播 / session / ledger-provenance / crawl lifecycle
+KEEP_REGRESSION
+  timeout propagation（1379ms）/ shutdown BYE+rc=0 /
+  bakeoff contract / stage-gate policy / session isolation
+QUALIFICATION_ONLY
+  run_crawl4ai_qualification.py / run_crawl4ai_cohort_v2.py / browser_bakeoff_fixture_server.py
+HISTORICAL_EVIDENCE
+  wigolo_browser_executor.py / run_browser_bakeoff.py（disqualification reproducibility）
+RETIRED
+  B/W/C/T forensic timeline / diagnostic env gates / inert test setup
+SUPERSEDED_REMOVED
+  run_crawl4ai_cohort.py (v1)
+```
+
+### 142.33 Proof Retirement 三条 closeout lesson（制度化依据）
+
+```text
+1. retirement can accidentally remove evidence            (§141)
+2. proof machinery can develop its own bugs               (§142-2a)
+3. "proven" lifecycle claims can contain untested reachable gaps (§142-4)
+```
+⇒ `PROOF_RETIREMENT_REVIEW` 制度化：每个大 gate 结束时，把新增产物分为
+product contract / regression guard / qualification suite / forensic debris，
+并及时退役最后一类。**它是一次长期 contract 与历史证明之间的一致性审计。**
+
+### 142.34 保留 debt（不阻塞 A3）
+
+```text
+bridge.stop() 吞掉 BYE 缺失 -> 是否额外记录 missing BYE（observability enhancement）
+  worker contract 已由 worker-level regression 固定；不影响当前 correctness。
+```
+
+### 142.35 状态
+
+```text
+§142-1 workflow audit                ✅
+§142-2a forensic inventory           ✅
+§142-2b forensic retirement          ✅ EXECUTED (e17fcaa)
+§142-3 asset lifecycle               ✅ adjudicated (ebb80e6 + 982d41e)
+§142-4 shutdown reconciliation       ✅ EXECUTED (82b9a3a)
+§142-5 a3_browser regression wiring  ✅ EXECUTED（本提交）
+Exact-head validation                 ⏳ NEXT
+P2-A3 CLOSE                          ⏳
+§143 F2_CHARACTERIZATION             ⏳
+```
