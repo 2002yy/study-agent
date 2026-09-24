@@ -7653,3 +7653,48 @@ FOCUSED_QUALIFICATION            ⏳
 **FG2–FG4 保持很薄**，各只做最小资格证明。**FG4 重点是从结果反查 ledger，不是只检查字段存在。**
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
+
+
+## §132 FG2_BOUNDED_EXECUTION — **FAIL**（抓到真实 boundedness 缺口）
+
+### 132.1 结果
+
+```text
+N_normal     wall=109.0ms   terminal=True   bounded=True   success=True      ✅
+S_slow       wall=6016.0ms  terminal=False  bounded=True   success=None      ❌
+F_failure    wall=6000.0ms  terminal=False  bounded=True   success=None      ❌
+post: stats=True  crawl=False  reader_clean=True  max_active_crawls=1
+```
+
+### 132.2 判读（FG2 抓到的问题，不得裁定通过）
+
+1. **`N_normal` ✅**：109ms 到达 terminal，success。
+2. **`S_slow` / `F_failure` 未到达 terminal**：两者都在 bridge 窗口（`timeout_ms(4000)+2000 = 6000ms`）**满额超时**（`bridge_read_timeout`）。
+   - **`F_failure` 只是一个 404**，却跑了整 6000ms —— **确定性失败本应快速终止**，这是明显异常。
+3. **`post_crawl=False`（最关键）**：后续一次**正常 crawl 也失败**。`post_stats=True` ⇒ **控制面活着**，但 **crawl slot 看起来仍被占用**。
+
+### 132.3 与 §127/§128 的区别（不是重复问题）
+
+- §127/§128 验证的是：**快速 crawl** 的 caller 超时 → late 丢弃 → slot 释放 → 后续恢复。那些 PASS。
+- 本节暴露的是：**慢 crawl / 失败 crawl 未在窗口内终结，且未释放 `crawl_slot`**，导致后续 crawl 被永久挡住（而控制面因 dispatcher 并发化仍然健康）。
+- ⇒ **这是 FG2 的合法发现**（"every fixture reaches a terminal outcome" 未满足），**不是** IPC/reader 回归（`reader_clean=True`、`malformed=0`）。
+
+### 132.4 待查方向（下一刀，最小复现）
+
+1. **`F_failure`（404）为何耗满窗口**：`_bounded_pdf_fetch` 遇 `HTTPError` 会 `return url`，随后 **provider PDF strategy 自行再取该 URL**；需确认该路径是否没有 deadline 约束（即 404 被 strategy 内部长时间重试/等待）。
+2. **slot 是否真的泄漏**：用 §127 的 C0–C6 标记复核 `S_slow`/`F_failure` 是否走到 `C5_released_slot`；若未走到 ⇒ `execute()` 未在窗口内返回，slot 被持有。
+3. **`handle()` 的 `wait_for(shield(task))` 对 PDF 路径是否失效**：`shield` 使取消不能立即传播，若 `to_thread(_bounded_pdf_fetch)` 因 provider 二次取数而超出，`wait_for` 到期后 cancel 可能无法在 grace 内收敛。
+4. 明确**不得**用"调大 bridge 窗口"或"调大 3.0s budget"来掩盖。
+
+### 132.5 状态
+
+```text
+FG1 Useful extraction            ✅ PASS
+FG2 Bounded execution            ❌ FAIL（slow/failure 未达 terminal；post_crawl 失败）
+FG3 Isolation / repeatability    ⏳
+FG4 Provenance / auditability    ⏳
+FOCUSED_QUALIFICATION            ⏳（被 FG2 阻塞）
+12-row cohort / L1 verdict       ⏳
+```
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**不回 §125–§128。**
