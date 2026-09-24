@@ -9711,3 +9711,114 @@ B 回答"Crawl4AI 有没有额外价值"；**C 才回答"既然有价值，应�
 §143-B paired harness + run        ⏳ NEXT
 STOP / adjudicate -> §143-C escalation economics -> routing economics table
 ```
+
+
+## §143-B implementation freeze（跑数据前钉死 5 个细节）
+
+### 143.33 细节 1 — default 侧必须调用真实 production chain 入口
+
+```text
+src/web/research/chain_executor.py:180  def run_chain(...)
+  chain        = ACTIVE_READER_CHAIN   (= ("native_http", "wigolo_http"))
+  executors    = {"native_http": NativeHttpBackendExecutor, "wigolo_http": WigoloHttpBackendExecutor}
+  record_outcome = 真实回调
+```
+**禁止在 harness 里重新实现 `try native_http; if inadequate -> wigolo_http`** —— 否则会偷偷创造一个"仿 default"。
+`default_backend_path` 必须**从实际执行结果/ledger 推导**（如 `native_http` / `native_http→wigolo_http`），
+**不得由 harness 根据结果猜**。
+（Crawl4AI 侧复用 cohort v2 的 bakeoff-local registry 装配方式。）
+
+### 143.34 细节 2 — session-sensitive 单独记建立 session 的成本
+
+```text
+setup_wall_ms       建立 session 的成本
+read_wall_ms        读取 protected state 的成本
+total_task_wall_ms  合计
+```
+内容 gain 仍按同一 task 判定（获取只有有效 session 才能看到的 `SESSION OK`）。
+Default 无 session capability ⇒ `useful=False` 是公平结果；
+**Crawl4AI 不得把 session 建立成本藏在计时边界之外**。B 主看 usefulness；§143-C 算 direct-specialist economics 时需要这笔成本。
+
+### 143.35 细节 3 — `document-mixed` 保持当前 reader 行为原样
+
+**不得**为了让 default"公平"而人工发现链接后额外请求 PDF。
+若 default chain 只返回 `Download the report: report.pdf`，而 Crawl4AI 的**既有** document path 能取得 linked PDF 的 critical units，
+那正是要测的 **`document-path gain`**。反向亦然：**harness 不替任何一侧补能力。**
+
+### 143.36 细节 4 — critical-unit matcher 规范化
+
+unit 内容不变，但 matcher 允许合理规范化：
+
+```text
+normalize whitespace（含换行折叠）
+preserve semantic tokens
+case-sensitive only where meaning requires it
+```
+尤其 PDF 与 `<pre><code>` —— 否则测到的可能是排版差异而非信息恢复差异。
+
+### 143.37 细节 5 — 同时保留每次原始 paired run 与每侧 median
+
+```text
+pair_index / order（default-first | c4ai-first）
+default_wall_ms / crawl4ai_wall_ms
+default_units / crawl4ai_units
+```
+5 轮 **seeded randomized alternating order**，聚合出：
+
+```text
+default_median_wall / crawl4ai_median_wall / delta_wall_ms
+```
+⇒ 若某一侧总因先跑而吃 warm/cache 效应，可直接看出来。
+
+### 143.38 gain 判定完全机械化（冻结）
+
+```text
+ESSENTIAL  default useful=False AND Crawl4AI useful=True
+MATERIAL   default useful=True AND Crawl4AI useful=True
+           AND Crawl4AI 多恢复 >=1 个 decision-critical unit
+MINOR      两边 decision-critical units 相同 AND Crawl4AI 只增加非关键内容/结构
+NONE       两边任务完成能力与 decision-critical recovery 等价
+```
+
+**关键补充（非第五档）**：
+```text
+若 default 与 Crawl4AI 都 useless -> gain = UNRESOLVED_FOR_TASK
+```
+它表示**四档前提未满足、无法授予 specialist advantage**；
+**不得硬塞进 `NONE`**，否则 `NONE` 会被误读为"default 已经够好"。
+
+### 143.39 六类各自回答的问题（冻结）
+
+```text
+simple_static      Crawl4AI 是否只是重复 default 已能完成的工作？
+technical_docs     browser 是否真正增加 decision-critical 技术内容，而非只是格式更完整？
+js_heavy           JS 后出现的信息是否使 Crawl4AI 从"更好"升级成"任务必要"？
+document_mixed     linked-document following 带来的 document-path gain 到底多大？
+session_sensitive  有状态读取是不是 Crawl4AI 的 capability-essential 区域？
+selected_pdf       Crawl4AI 的低成本 PDF 路径究竟有内容优势，还是只是"同样正确且也很便宜"？
+```
+
+**`selected_pdf` 特别约定**：即便 `default 3/3 units / C4AI 3/3 units / C4AI faster`，
+B 里仍是 **`specialist_gain = NONE`** —— 因为 gain 定义是**研究能力增益，不是速度增益**。
+速度优势留到 routing economics 表表达，**不把"更快"偷偷混成"更有能力"**。
+
+### 143.40 §143-B 唯一交付表
+
+| Category | Default path | Default units | C4AI units | Default useful | C4AI useful | Default median | C4AI median | Δwall | Gain |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+然后 **STOP + adjudicate**，不马上改 routing。
+
+### 143.41 状态 + 计数修正
+
+```text
+§143-A warm characterization   ✅ CLOSED
+§143-B protocol/rubric freeze  ✅ (f7f4373)
+§143-B implementation freeze   ✅（本提交）
+§143-B paired harness + run    ⏳ NEXT
+STOP -> §143-C（B: 它能多带来什么？ C: 为获得这个增益，先试 default 值不值得？）
+     -> DIRECT_SPECIALIST / DEFAULT_FIRST / FALLBACK_ONLY
+```
+
+**计数修正（勘误）**：此前记为"本会话提交链（16 个）"**有误**；
+`e4e054b..f7f4373` 实为 **15 个**（`e4e054b` 起算）。技术结论不受影响。
