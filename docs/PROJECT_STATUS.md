@@ -7882,3 +7882,79 @@ FG3 → FG4 → FOCUSED_QUALIFICATION → 12-row → L1 verdict   ⏳
 ```
 
 **§125–§128 的 invariants 仍全部成立**。**未重开**：`execute()` 的业务实现、deadline/cancellation 语义设计、PDF primitive 算法、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §135 FG2 timeout-propagation 修复 — **FG2_BOUNDED_EXECUTION = PASS**
+
+### 135.1 断点（行级确认，与预判模式一致）
+
+```python
+def request(self, *, timeout_ms: float, **payload: Any) -> dict[str, Any]:
+```
+
+`timeout_ms` 是 **bridge 自身消费的 keyword-only 参数**，`**payload` 只收集**其它** kwargs ⇒ **payload 从不包含 `timeout_ms`** ⇒ worker 的
+
+```python
+timeout_ms = int(request.get("timeout_ms") or 30000)
+```
+
+**静默落回 30000 默认值**。这正是"请求显式 timeout 被内部默认值覆盖"的典型形态。
+
+### 135.2 最小修复（一行）
+
+```python
+payload["request_id"] = request_id
+payload["timeout_ms"] = int(timeout_ms)     # §135
+```
+
+- **保留** `30000` 默认值（服务真正未显式传 timeout 的调用）。
+- **不动** PDF primitive、`wait_for` 结构、cleanup 语义、`crawl_slot`、dispatcher、bridge 窗口、3.0s budget。
+- 修复后：请求的显式 timeout 拥有优先权，并到达 **worker 的 timeout authority**（primitive 与 `wait_for` 共用同一预算）。
+
+### 135.3 FG2 N/S/F replay 结果
+
+```text
+N_normal     wall=125.0ms   terminal=True  bounded=True  success=True                       ✅
+S_slow       wall=4000.0ms  terminal=True  bounded=True  success=False
+             deadline_hit=True  failure_class=deadline_expired                             ✅
+F_failure    wall=47.0ms    terminal=True  bounded=True  success=False  class=<provider msg>  ✅
+post: stats=True  crawl=True  reader_clean=True  max_active_crawls=1                        ✅
+
+FG2_BOUNDED_EXECUTION = PASS
+```
+
+对照修复前：`S_slow` 6000ms 无 terminal / `F_failure` 6000ms 无 terminal / `post_crawl=False`
+⇒ 修复后：**`S_slow` 恰好在请求的 4000ms 终止**（`deadline_hit=True`）、**`F_failure` 47ms 终止**、**`post_crawl=True`**。
+
+**`S_slow` 形态符合冻结定义**：`success=False` 完全合格，只要 `worker_terminal=True` / `slot_release_bounded=True` / `post_terminal_health=True`。
+
+### 135.4 附带 transparency 观察（非 blocker）
+
+`F_failure`（404）的 failure class 是 provider 级消息 `'Unexpected error in _crawl_web at line 795 in aprocess_html'`，**不是干净的 `not_found` 分类**。失败本身有界、terminal、可审计 ⇒ 不阻塞 FG2；但登记为 **provider failure-class transparency debt**，A3-3/L1 审计时应复核是否需要在 canonical 层细化。
+
+### 135.5 待补：永久 regression invariant（下刀第一件事）
+
+```text
+requested_timeout_ms == effective_worker_timeout_ms
+initial_pdf_remaining_ms <= requested_timeout_ms + small_scheduling_slop
+```
+
+目的：即便以后有人重构 envelope，也不会再次悄悄退回 30 秒默认值。**这是本修复的回归锁，必须补上。**
+
+### 135.6 审计结论（可冻结为一句）
+
+> **The slow-path FG2 failure was caused by request timeout propagation falling back to the worker's 30s default; the crawl itself, event loop, cancellation infrastructure, semaphore lifecycle, and late-response handling remained healthy.**
+
+### 135.7 状态
+
+```text
+FG1 Useful extraction            ✅ PASS
+FG2 Bounded execution            ✅ PASS（N/S/F 全绿 + post-health）
+FG2 propagation regression test  ⏳ NEXT（§135.5）
+FG3 Isolation / repeatability    ⏳
+FG4 Provenance / auditability    ⏳
+FOCUSED_QUALIFICATION            ⏳
+12-row cohort / L1 verdict       ⏳
+```
+
+**不回 §125–§134**（infrastructure 与诊断链均已封板）。**未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、loop affinity、warm worker、session isolation、production-inert routing。

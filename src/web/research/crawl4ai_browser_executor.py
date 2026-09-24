@@ -260,6 +260,10 @@ class Crawl4AIBridge:
         with self._pending_lock:
             self._pending[request_id] = box
         payload["request_id"] = request_id
+        # §135: timeout_ms is this method's own parameter, so it was never in
+        # **payload and the worker silently fell back to its 30s default. The
+        # request's explicit timeout must reach the worker's timeout authority.
+        payload["timeout_ms"] = int(timeout_ms)
         line = json.dumps(payload) + "\n"
         try:
             with self._write_lock:
