@@ -7396,3 +7396,77 @@ focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
 **基础架构层到此结束**：不再设计 worker。下一刀回到资格链 —— `A / late-A / B closure → focused 四门 → 12-row cohort → L1 → Crawl4AI verdict`。
 
 **未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §128 A / late-A / B integration closure（§129）— 实质项全 PASS；2 处 FAIL 为测试参数错
+
+### 128.1 结果
+
+```text
+A       success=True  chars=5804  rid=r1  deadline_hit=False  queue_wait=0.0   ✅ 完整闭环
+late-A  caller 超时；stats=0.0ms STATS                                        ✅ 控制面响应
+B       success=True  chars=5804                                              ✅ 同一 warm worker 可复用
+worker  healthy=True  malformed=0  max_active_crawls=1  reader_error=''       ✅
+```
+
+### 128.2 两处 FAIL 的性质（均为测试参数，非实现缺陷）
+
+1. **`lateA_late_discarded=False`（`late_responses=0`）** —— **检查过早**。`timeout_ms=600` ⇒ bridge 窗口 600+2000=2600ms；slow PDF（6626B @256B/0.25s）需 ~6.5s，迟到响应在 ~6.5s 才到，而测试在 ~3.6s 就读取了 `late_responses`。**响应尚未到达，不等于未被丢弃。**
+2. **`B_request_id_matched=False`** —— **期望值写错**。实际 rid 序列：A=`r1`、late-A crawl=`r2`、late-A stats=`r3`、**B=`r4`**；测试断言了 `r3`。
+
+### 128.3 evidence table（含组合证据）
+
+| Gate | 必须回答的问题 | 证据 | 结论 |
+| --- | --- | --- | --- |
+| **A** | 正常 crawl 完整闭环吗 | §129 新 replay：`success` / 5804 chars / `rid=r1` / `deadline_hit=False` | ✅ |
+| **late-A** | caller 放弃后迟到响应会污染后续吗 | **§125 `late=2`（两个迟到响应均被丢弃、未污染 pending）** + §128 D4b（控制面 0.0ms 立即响应） + §128 D4c（旧 crawl 终结后恢复） + §129（控制面响应 0.0ms） | ✅ **组合证据充分** |
+| **B** | 经 timeout/late history 后 worker 还能正常 crawl 吗 | §129 新 replay：`success` / 5804 chars / 同一 warm worker | ✅ |
+| **Control** | crawl 期间 stats 可响应吗 | §127 D1/D3/D5 + §129（0.0ms） | ✅ |
+| **Serialization** | crawler 是否仍单槽 | §128 D2（`max_active=1`、`queue_waits=[16.0,0.0]`、两者皆成功） + §129（`max_active_crawls=1`） | ✅ |
+
+`late-A` 采用**组合证据**：§125 的 `late=2` 是**当前 request_id / persistent-reader / late-discard 实现路径**上的真实证据，且 **§127/§128 未改动该 reader discard 逻辑**（只改了 dispatcher 与 slot 记账）。故按裁决不再人为制造一次慢 timeout。
+
+```text
+D4a late-discard:
+  NOT REPRODUCED in §128 because the selected FAST fixture completed
+  inside the 400 ms caller window.
+  Capability already established in §125: late_responses=2, both discarded
+  without pending-request contamination.
+  No relevant reader/discard implementation changed afterward.
+```
+
+### 128.4 裁定
+
+```text
+BRIDGE_CLOSURE = PASS（实质项全绿；两处 FAIL 已归因为测试参数）
+```
+
+**此后不再回 §125–§128**（基础设施层封板）。
+
+### 128.5 路线（下一阶段性质变化）
+
+```text
+§125–§128 infrastructure            ✅ DONE / CLOSED
+A / late-A / B closure              ✅ 本节
+focused four gates                  ← NEXT
+12-row cohort
+L1 eligibility verdict
+Crawl4AI role frozen
+F2 wall-time / cost ledger
+Research Quality
+```
+
+**focused 四门（冻结）**：
+
+```text
+F1 Useful extraction      能成功返回 200 != 给 Study Agent 返回可用于推理的正文（产品价值最高）
+F2 Bounded execution
+F3 Isolation / repeatability
+F4 Provenance / auditability
+```
+
+**12-row cohort 冻结为 12 行**（不扩到 30/50），每行只保留决策相关字段：`useful` / `correct-enough` / `bounded` / `latency` / `provenance` / `fallback`。
+
+**L1 verdict 三选一**：`INELIGIBLE` / `ELIGIBLE_SPECIALIST` / `ELIGIBLE_DEFAULT`。按现有证据最值得验证的是 **`ELIGIBLE_SPECIALIST`**（qualified specialist reader for JS / difficult HTML / specific document cases），**不急着证明 universal default**。
+
+**未重开**：`execute()` 实现、deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。
