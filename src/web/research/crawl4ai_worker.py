@@ -358,12 +358,70 @@ async def main():
     import crawl4ai  # noqa: F401  (warm the import before READY)
 
     await worker.crawler_for("warmup|browser", "browser")
+
+    # §127: only crawl execution is serialized; the control plane stays live.
+    crawl_slot = asyncio.Semaphore(1)
+    stdout_lock = asyncio.Lock()
+    tasks: set = set()
+    counters = {"active_crawls": 0, "max_active_crawls": 0, "responses": 0}
+
+    async def emit_response(payload):
+        """Serialized stdout emission (mirror of the bridge's stdin lock)."""
+
+        payload.setdefault("request_id", "")
+        line = json.dumps(payload)
+        async with stdout_lock:
+            sys.stdout.write(line + "\n")
+            sys.stdout.flush()
+            counters["responses"] += 1
+        rid = payload.get("request_id")
+        if rid:
+            print(f"[W] W5_response_written rid={rid}", file=sys.stderr, flush=True)
+
+    async def handle_task(request):
+        """One request's whole lifecycle; never raises into the dispatcher."""
+
+        rid = str(request.get("request_id") or "")
+        try:
+            op = request.get("op")
+            if op == "stats":
+                await emit_response({
+                    "event": "STATS",
+                    "request_id": rid,
+                    "completed": worker.completed,
+                    "timeouts": worker.timeouts,
+                    "invalidations": worker.invalidations,
+                    "live_crawlers": sorted(worker.crawlers),
+                    "active_crawls": counters["active_crawls"],
+                    "max_active_crawls": counters["max_active_crawls"],
+                })
+                return
+            # crawl: the ONLY serialized section
+            async with crawl_slot:
+                counters["active_crawls"] += 1
+                counters["max_active_crawls"] = max(
+                    counters["max_active_crawls"], counters["active_crawls"]
+                )
+                try:
+                    payload = await worker.handle(request)
+                finally:
+                    counters["active_crawls"] -= 1
+            payload["request_id"] = rid
+            await emit_response(payload)
+        except Exception as exc:  # noqa: BLE001 - always answer with the id
+            await emit_response({
+                "provider_success": False,
+                "error_message": f"{type(exc).__name__}: {exc}"[:200],
+                "request_id": rid,
+            })
+
     print("[W] W0_ready_written", file=sys.stderr, flush=True)
     emit({
         "event": "READY",
         "startup_ms": round((time.perf_counter() - T0) * 1000.0, 1),
         "cancel_grace_ms": CANCEL_GRACE_MS,
     })
+
     print("[W] W1_request_loop_entered", file=sys.stderr, flush=True)
     try:
         while True:
@@ -378,39 +436,25 @@ async def main():
             try:
                 request = json.loads(line)
             except Exception as exc:  # noqa: BLE001
-                emit({"error": f"bad_json: {exc}"})
+                await emit_response({"error": f"bad_json: {exc}"})
                 continue
             print(f"[W] W4_parsed rid={request.get('request_id')} op={request.get('op')}",
                   file=sys.stderr, flush=True)
-            op = request.get("op")
-            rid = str(request.get("request_id") or "")
-            if op == "shutdown":
-                emit({"event": "BYE", "request_id": rid})
+            if request.get("op") == "shutdown":
+                # stop accepting, let outstanding work finish (bounded), then close
+                if tasks:
+                    await asyncio.wait(set(tasks), timeout=CANCEL_GRACE_MS / 1000.0)
+                await worker.close_all()
+                await emit_response({"event": "BYE", "request_id": str(request.get("request_id") or "")})
                 break
-            if op == "stats":
-                # §125: ops replies MUST echo request_id too, otherwise the
-                # correlation-ID reader cannot resolve their pending request.
-                emit({
-                    "event": "STATS",
-                    "request_id": rid,
-                    "completed": worker.completed,
-                    "timeouts": worker.timeouts,
-                    "invalidations": worker.invalidations,
-                    "live_crawlers": sorted(worker.crawlers),
-                })
-                continue
-            try:
-                payload = await worker.handle(request)
-            except Exception as exc:  # noqa: BLE001
-                payload = {"provider_success": False,
-                           "error_message": f"{type(exc).__name__}: {exc}"[:200]}
-            emit(payload)
+            task = asyncio.create_task(handle_task(request))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+            # dispatcher returns to readline immediately: no head-of-line block
     finally:
-        for crawler in list(worker.crawlers.values()):
-            try:
-                await crawler.close()
-            except Exception:
-                pass
+        for task in list(tasks):
+            task.cancel()
+        await worker.close_all()
 
 
 if __name__ == "__main__":

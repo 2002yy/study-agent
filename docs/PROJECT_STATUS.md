@@ -7275,3 +7275,65 @@ focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
 ```
 
 **不要重开**：PDF primitive、deadline/cancellation 语义、session isolation、warm-worker qualification、provider PDF capability。**production-inert 未变**。
+
+
+## §126 A3-2d 并发 dispatcher 修复（§127 前半）：**HOL 已消除**，D2/D4 待查
+
+### 126.1 旧结论措辞更正（避免后续审计被误导）
+
+§124/§125 的临时判断「crawl blocks asyncio event loop」**作废**。正确表述：
+
+> crawl **monopolized the serial request-dispatch path**；observed bridge timeout **did not** establish event-loop starvation.
+
+依据：§125 的 W 状态机显示 `W2_before_readline`(next) 只在 `W5_response_written rid=r1` 之后出现 ⇒ 串行 dispatch，而非 loop 阻塞。
+
+### 126.2 已实施（三条硬约束全部落实）
+
+| 约束 | 实现 |
+| --- | --- |
+| `Semaphore(1)` **只包 crawl execution**，不包整个 handler | `async with crawl_slot:` 只围绕 `worker.handle(request)`；`stats` 不经过 slot |
+| **stdout 重新串行化** | `stdout_lock = asyncio.Lock()`；`emit_response()` 在锁内 `write + flush`（与 bridge 的 stdin 单写锁对称） |
+| **task 强引用 + 异常回收** | `tasks.add(task)` + `task.add_done_callback(tasks.discard)`；`handle_task` 自身兜住异常并以**同 `request_id`** 回 error |
+
+结构：
+
+```text
+stdin dispatcher（永远尽快回到 readline）
+   ├─ r1 crawl -> task(handle r1) -> crawl_slot(1) -> 既有 execute()
+   ├─ r2 stats -> task(handle r2) -> 立即响应
+   └─ shutdown -> 停止接单 -> 有界等待 outstanding -> close_all -> BYE
+all handle tasks -> serialized stdout emission
+```
+
+**关键不变量**：`IPC concurrency != crawl concurrency`。允许控制面并发，**不允许 Crawl4AI 并发执行**。
+
+另：`shutdown` 未重设计 cancellation —— 只保证并发化不破坏原有 shutdown 顺序。
+
+### 126.3 矩阵结果（D1-D6）
+
+```text
+D1 stats during crawl: 0.0ms  event=STATS        ✅ HOL 消除
+D3 two stats:          0.0ms  STATS/STATS        ✅
+D5 stats during failing crawl: event=STATS       ✅
+D6 stats 20/20                                   ✅ 无回归
+D2 max_active_crawls = 1                         ✅ 机器证据：crawl 不并发
+D2 both_ok = False                               ⚠️ 待查
+D4 next_ok = False                               ❌ 超时后下一请求未成功
+```
+
+- **D1/D3/D5/D6 全过** ⇒ 长 crawl 不再阻塞控制平面（本刀主目标达成）。
+- **`max_active_crawls == 1`** ⇒ "没有并发 crawl" 由计数直接证明，非时间线推测。
+- **D4 未过**：caller 超时后（`late=2`，迟到响应确被丢弃 ✅）**下一个请求未成功** —— 需再查一次（候选：被取消的 crawl 是否仍占着 `crawl_slot`；或 `invalidate()` 后的重建路径）。
+- **D2 `both_ok=False`**：测试线程内 `a` 完成后才发 `b`，需确认是超时还是响应异常。
+
+### 126.4 状态
+
+```text
+IPC correlation（request_id / reader / late 丢弃 / 单写锁 / drain / cwd parity）  ✅ 20/20
+串行 dispatch HOL                                                                  ✅ 已消除（D1/D3/D5/D6）
+crawl 并发不重叠                                                                   ✅ max_active_crawls==1
+D4 超时后恢复 / D2 双 crawl                                                         ❌ / ⚠️ 待查
+focused 四门 / 12-row cohort / L1 / verdict                                        ⏳ / ⏳ / ⏳ / ❌
+```
+
+**未重开**：`execute()` 实现、worker deadline/cancellation 语义、PDF primitive、crawler/session loop affinity、warm worker、session isolation、production-inert routing。**明确不做**：`to_thread(execute)` 大搬家。
