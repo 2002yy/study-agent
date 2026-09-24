@@ -7213,3 +7213,65 @@ focused 四门 / 12-row cohort / L1 / verdict                                   
 `
 
 **未重开**：PDF primitive、worker deadline/cancellation、session isolation、warm worker、provider capability。**production-inert 未变**。git ls-files docs/research_quality 保持 0。
+
+
+## §125 A3-2d 判别结果：**B（串行 dispatch / head-of-line blocking）**，非 A（event loop 阻塞）
+
+### 125.1 执行事故（如实记录）
+
+判别脚本 `patch_heartbeat.py` 在 `old_arun` 断言处失败 ⇒ **整个补丁未写入**（heartbeat 与 E1-E6 分段标记都没加上）。因此脚本自打印的 `VERDICT=A_event_loop_blocked` **无效** —— 它由“不存在的 heartbeat”推得（`heartbeat_ticked_during_crawl=False` 是必然的假值）。
+
+### 125.2 但 W 标记单独给出决定性答案：**B**
+
+```text
+[W] W0_ready_written
+[W] W1_request_loop_entered
+[W] W2_before_readline
+[W] W3_after_readline bytes=104
+[W] W4_parsed rid=r1 op=None
+[W] W5_response_written rid=r1
+[W] W2_before_readline          <- 只有 r1 写完之后才回到读 stdin
+```
+
+⇒ **`W2_before_readline`(next) 只在 r1 响应写完之后出现** ⇒ 请求循环是**串行 await**（`read → await execute → write`），长 crawl 把控制平面一起 **head-of-line block**。
+
+**这正是用户预判的 B**，且验证了那条警告：**`stats` 超时不能证明 event loop 被卡死**。
+
+### 125.3 并发实验的另一项重要观察
+
+```text
+r1 (slow PDF, timeout_ms=8000) -> err=None  deadline_hit=False  chars=5804   <- 完整成功
+r2 (stats, 300ms 后并发发出)   -> wall=4000ms  bridge_read_timeout
+```
+
+- 给足预算（8s）时 slow PDF **完整成功** ⇒ **crawl 路径本身没有挂死**。
+- 之前“crawl 挂死”的主因很可能是 **bridge 窗口（`deadline+2000`）短于 crawl 实际耗时**，叠加 **B 的串行 dispatch**，使后续请求全部被挡住。
+
+### 125.4 修复方向（按用户给出的层级，未实施）
+
+**B 的正确修法（低风险，不动 Crawl4AI 线程模型）**：把串行 `read → await execute → write` 改为 **persistent stdin dispatcher + 每请求一个 task**：
+
+```text
+persistent stdin dispatcher
+   ├── r1 crawl  -> asyncio.create_task(handle(r1))
+   ├── r2 stats  -> asyncio.create_task(handle(r2))   # 立即响应
+   └── shutdown
+crawl 仍只有 1 个执行槽：crawl_sem = asyncio.Semaphore(1)
+```
+
+⇒ 消除“长 crawl 阻塞控制平面”，**但不允许两个 Crawl4AI crawl 并行**。
+
+**明确不做**：不把整个 `execute()` 搬到 `asyncio.to_thread` —— `execute` 是 coroutine，且 Crawl4AI/Playwright 的 loop-bound 对象跨 loop 使用会引入 `attached to a different loop` / `Event loop is closed` / session 复用破坏等新问题，会重开已封板的 warm worker 与 session isolation。
+
+### 125.5 状态
+
+```text
+IPC transport / request correlation   ✅ PASS（stats 20/20）
+已建立修复: request_id 关联 / ops echo / 单一 stdout reader / late 丢弃 /
+            stdin 单写锁 / stderr drain / spawn cwd parity
+新 blocker: crawl 阻塞控制平面        ✅ 已判别为 B（串行 dispatch / HOL）
+判别残留: heartbeat 未真正实施（补丁失败），但 B 由 W 标记独立确立
+focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
+```
+
+**不要重开**：PDF primitive、deadline/cancellation 语义、session isolation、warm-worker qualification、provider PDF capability。**production-inert 未变**。
