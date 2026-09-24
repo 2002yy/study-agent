@@ -10634,3 +10634,89 @@ NEXT（连续推进，不再逐观察写刀）：
   -> adjudicate B
   -> §143-C escalation economics
 ```
+
+
+## §143-B0.1 发现：read-function 仍是 runtime 闭包（需 adjudicate）
+
+### 143.88 事实
+
+为把 harness 接到 `run_single_read_measurement`，必须提供 `gateway_read`。
+核查其真实来源后确认：
+
+```text
+src/application/active_research_runtime.py:950
+    def gateway_read(url: str, *, max_chars: int) -> dict[str, Any]:
+        ...
+        def _inner(target) -> Mapping[str, Any]:
+            metrics_for_seq = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+            seq = int(metrics_for_seq.get("retrieval_attempt_seq") or 0) + 1
+            metrics_for_seq["retrieval_attempt_seq"] = seq
+            set_escalation_runtime_context(attempt_seq=seq, ...)
+            ...
+```
+
+即 `gateway_read` **同样是 `execute()` 内的嵌套闭包**，且捕获/携带真实语义：
+
+```text
+context / metrics 戳（retrieval_attempt_seq）
+set_escalation_runtime_context(...)
+§48/§49 bounded fetch-layer retries（含 window_aware / finalization reserve 判断）
+```
+
+### 143.89 为什么这需要停下 adjudicate
+
+B0 已闭合 **executor construction** 的单实现权威；
+但**读函数本身仍是 runtime 闭包**。
+
+若 harness 自供一个 `gateway_read`：
+
+```text
+=> 就是同一类"仿 default"问题下移一层
+   （executor 是 production 的，但 read 语义是 harness 的）
+=> §143-B 的 default 侧仍不是 production 真正消费的那条路径
+=> 正是 §143-B0 旨在消除的风险
+```
+
+`run_single_read_measurement` 的签名是**诚实的**（它正确地把 `gateway_read` 设为必需输入，
+而不是偷偷自己造一个）；问题在于 **harness 无法在不驱动 runtime 的前提下获得真的那一个**。
+
+### 143.90 这是"隐藏前提"，属允许中途停下的例外
+
+用户冻结的例外条件：
+
+> 只有再次发现会让既有实验失效的隐藏前提，才允许中途停下来单独 adjudicate。
+
+本发现正属此类：**若不处理，30 pairs 的 default 侧会是"半仿造"** ——
+executor 真实、read 语义不真实。**数据仍会在事后被判定为不可解释。**
+
+### 143.91 两条合法出路（需裁定，下一刀）
+
+```text
+出路 A（B0 扩展）—— 把 read function 也提为共享 primitive
+  与 build_read_chain_executors 同法：把 gateway_read 的构造（含 retries /
+  escalation context / window 判断所依赖的闭包）机械提取为 production 自持的
+  共享函数，execute() 与该函数共调。
+  代价：比 B0 part 1 更大（gateway_read 的闭包捕获面更广：context / metrics /
+        retry 策略 / window reserve）。
+  收益：与 B0 同一等式闭合到底 —— measurement path == production read path。
+
+出路 B —— 驱动真实 runtime 以取得真实 gateway_read
+  重回到 A0 已否决的困境：唯一入口是全量 orchestration（选项 2 问题）。
+  => 除非能找到新的窄入口，否则不可行。
+
+出路 C —— 接受"executor 真实 + read 近似"并降低 B 的结论强度
+  需明确降级：B 只能回答"specialist 相对某个近似 default 的增益"，归因强度下降。
+```
+
+**推荐**：出路 A（与 B0 同构、等式彻底闭合）；但这是一次比 B0 part 1 更大的
+production refactor，应作为**独立、完整、可验证的一刀**，不与 harness 混提交。
+
+### 143.92 状态
+
+```text
+§143-B0     executor construction 权威            ✅ CLOSED (81c80cd)
+§143-B0.1   read function 权威                    ⏳ 需 adjudicate（出路 A/B/C）
+harness / smoke / 30 pairs                        ⏳ 依赖 B0.1 裁定
+```
+
+**未做**：未写任何 gateway_read 替身；未改 `execute()` 的 read 语义。
