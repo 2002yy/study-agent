@@ -10412,3 +10412,70 @@ existing_reader_regressions                = PASS
 ⇒ 值得单独改 production 的正当理由：**建立一个 production 真正消费的、可测量的 read-chain 边界。**
 
 **未重开**：`execute()` 的外部行为、routing、deadline、budget 语义在本刀均不变。
+
+
+## §143-B0 节奏切换点（治理决定，冻结）
+
+### 143.73 为什么之前的超细粒度是合理的
+
+从 `3da38dd` → `eff715b` → `6f86494` → `0c8464a` 是一条**连续的架构发现链**，
+每刀关闭一个**不可逆决策点**：
+
+```text
+ACTIVE_READER_CHAIN    "看起来存在" -> 确认只是函数局部变量
+executor construction  "似乎可复用" -> 确认绑定 runtime 闭包状态
+A0                     是否合法 measurement seam？ -> 明确 NO
+B0                     能否单独造 equivalent seam？ -> 明确 NO，必须共享 implementation authority
+```
+
+**若按"今天要多写代码"的节奏推进**，可能早已跑出 30 pairs 甚至画完表，
+后来才发现 default 是仿造的 ⇒ **30/30 全部作废**。
+
+**这类提交的价值不能用 LOC 衡量，而应用**：
+> **提交之后，还有多少架构歧义会导致下一阶段结果无法解释？**
+
+### 143.74 三种不同的"进度"（诊断）
+
+| 维度 | 最近看起来 | 实际情况 |
+| --- | --- | --- |
+| 代码产量 | 很低 | 刻意低 |
+| 架构认知 | 很高 | 连续发现真实边界 |
+| 实验可信度 | 显著上升 | B 至今未被脏数据污染 |
+
+### 143.75 节奏切换（冻结）：B0 是最后一个细拆阶段
+
+```text
+B0 是最后一个应该如此细拆的架构阶段（它真的修改 production architecture）
+B0 parity PASS 之后 -> 明显加速
+```
+
+**新节奏（从此生效）**：
+```text
+一个提交 = 一个可验证成果
+```
+**而非**：
+```text
+一个提交 = 一个思考步骤
+```
+
+**后续提交粒度计划**：
+```text
+B0        -> 一个完整 production refactor commit（shared primitive + narrow entry + parity gate + 防绕开断言）
+smoke     -> 一个 harness + regression commit（ONE-PAIR，不再拆成五六个文档提交）
+30 pairs  -> 一个 evidence/data commit
+aggregation -> 一个 analysis/adjudication commit
+```
+
+**例外条件（允许继续细拆）**：再次撞到隐藏接口假设 / 不可逆决策点 / 会使既有数据作废的前提。
+否则**不得**把超细粒度审计模式常态化。
+
+### 143.76 状态
+
+```text
+§143-B A0   NO MEASUREMENT SEAM   ✅
+§143-B0     shared read-chain primitive + narrow entry  ⏳ NEXT（最后一个细拆阶段）
+B0 parity PASS 后： smoke -> 30 pairs -> aggregate/adjudicate -> §143-C
+```
+
+**一句话位置**：
+> **最近不是走得慢，而是在把跑道修直；B0 之后若仍每次只前进半步，那才是真正的过度拆分。**
