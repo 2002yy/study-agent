@@ -10834,3 +10834,113 @@ B0.1 parity PASS 后才可宣布：
 
 **一句总括**：`81c80cd` 解决了 **executor identity**；`597776b` 暴露了 **behavioral identity 还没闭合**。
 B0.1 是沿依赖链走到底的最后一环。
+
+
+## §143-B0.1 — **CLOSED**（production read-semantics 单实现权威）
+
+### 143.99 交付（`ea43729`）
+
+```text
+src/application/active_research_runtime.py
+
+新增 module-level 单实现权威：
+  GatewayRead = Callable[..., Mapping[str, Any]]
+  def build_production_gateway_read(*, gateway, accepts_timeout, get_context,
+             research_seconds_left, hard_seconds_left, wave_index,
+             on_phase_start=None, on_phase_end=None, on_retry=None)
+             -> Callable[..., dict[str, Any]]
+      内部自持（行为语义，不由调用方决定）：
+        - metrics/context sequencing（retrieval_attempt_seq）
+        - set_escalation_runtime_context（escalation runtime context）
+        - bounded retry policy（§48/§49；window_aware admission +
+          deadline-preserving retry suppression）
+        - research-window / finalization reserve 决定的 read timeout
+
+execute() 内：
+  删除内联 def gateway_read 与 def read_timeout_seconds
+  gateway_read = build_production_gateway_read(gateway=self.gateway,
+      accepts_timeout=..., get_context=lambda: context,
+      research_seconds_left=..., hard_seconds_left=lambda: ...,
+      wave_index=lambda: int(cursor.wave_index),
+      on_phase_start=phase_begin, on_phase_end=phase_end,
+      on_retry=lambda *, wait_ms, fetch_ms: timing_ledger.record_retry(...))
+
+run_single_read_measurement() 内：
+  不再接受 gateway_read（关键新增）；
+  改为接受底层 gateway/clock/context 并调用同一个 build_production_gateway_read
+  -> 与 execute() 共用同一条 read 语义
+```
+
+**未重开**：`execute()` 外部行为、routing、fallback、budget charging、provenance、record_outcome、`ACTIVE_READER_CHAIN`、45s/60s 门。
+
+### 143.100 B0.1 通过标准对照（§143.97）
+
+```text
+execute_uses_shared_gateway_read_semantics      = True
+measurement_uses_same_gateway_read_semantics    = True
+retry_semantics_unchanged                       = True
+window_reserve_semantics_unchanged              = True
+escalation_context_semantics_unchanged          = True
+metrics_sequence_semantics_unchanged            = True
+measurement_accepts_no_arbitrary_gateway_read   = True   <- 关键新增
+existing_runtime_reader_regressions             = PASS   （113 passed）
+new_gateway_read_parity_regressions             = PASS   （5 behavioural tests）
+anti_bypass_guard                               = PASS   （7 structural checks）
+```
+
+### 143.101 guards
+
+`tests/test_read_chain_single_authority.py`（B0.1 增补，7 checks）：
+- primitive 模块级恰好一次；execute() 与 measurement 各调用一次（计数 == 2）
+- `def gateway_read(` 全文件恰好一次（仅在 primitive 内，禁内联）
+- `set_escalation_runtime_context(` 全文件恰好一次（escalation context 不可分叉）
+- `def read_timeout_seconds(` 不存在（timeout 语义只在 primitive）
+- measurement 签名无 `gateway_read`（inspect.signature）
+
+`tests/test_gateway_read_semantics_authority.py`（新增，5 behavioural parity）：
+- off 模式：attempt_seq 单调戳记、window timeout 转发、read phase 括号
+- accepts_timeout=False：不传 timeout
+- window_aware：真实走 `read_with_bounded_retry`（attempts/retries/指标累计/on_retry）
+- escalation payload 经 module authority 路由（wave_index 正确）
+- 预算不足时 retry 被拒且失败真相保留
+
+### 143.102 顺带修复的 B0 遗留（stale source-string guards）
+
+B0 part 1（`4ccd00b`）给 `ACTIVE_READER_CHAIN` 加了类型注解，导致 3 个源码字符串断言失效；B0 当时的 102-test parity 未覆盖它们，故遗留为红：
+
+```text
+tests/test_wigolo_http_executor.py::test_the_active_chain_enables_wigolo_http_but_not_the_browser
+tests/test_browser_bakeoff_contract.py::test_production_chain_is_unchanged_at_a3_0
+tests/test_browser_bakeoff_harness.py::test_harness_does_not_touch_the_production_chain
+```
+
+修复：断言改为容忍可选类型注解的 regex，语义（native_http -> wigolo_http，不含 browser）不变。
+
+### 143.103 验证证据
+
+```text
+L0   ruff check src tests tools                 -> PASS
+     git diff --check                           -> clean
+L1   113 passed（runtime + reader + adapter + read_chain + B0.1 parity）
+L2   p2-a-retrieval-stack + B0.1 tests          -> 480 passed
+L3   python -m pytest tests                     -> 2527 passed / 2 failed
+     head = ea43729aa78a1a8dbed3857fb6e2a24573693735（tracked clean）
+     2 failed 均为 pre-existing local-platform protocol probes
+       （provider_timeout_retry / provider_http_429 / provider_http_503 /
+        user_cancellation / unreadable_page 五个 probe 在本机 fail）
+     负对照：pre-change HEAD c08cf87 上同样 5 个 probe fail -> 与本刀无关
+```
+
+### 143.104 状态
+
+```text
+§143-B     A0 NO MEASUREMENT SEAM                        ✅
+§143-B0    executor construction authority               ✅ CLOSED (81c80cd)
+§143-B0.1  read semantics authority                      ✅ CLOSED (ea43729)
+=> end-to-end measurement path = production read path    ✅
+NEXT（连续推进）：
+  ONE-PAIR smoke（simple_static；断言 §143.49 + runtime-origin invariant）
+  -> 30 pairs -> aggregate/adjudicate -> §143-C
+```
+
+**一句总括**：`81c80cd` 闭合 executor identity，`ea43729` 闭合 behavioral identity；measurement 现在与 execute 共用同一条 read 语义，且接口不再允许注入 `gateway_read`。
