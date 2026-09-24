@@ -9497,3 +9497,76 @@ simple_static warm = 217-220ms（3/3 稳定）
 §143-A4 raw ledger + aggregate table   ⏳
 STOP -> §143-B（同 fixture 配对 default reader）
 ```
+
+
+## §143-A3 / §143-A4 — warm steady-state ledger EXECUTED（120 raw rows）-> **STOP**
+
+### 143.20 结果（6 类 × 20 measured warm repeats）
+
+```text
+category            n  succ   p50     p95     max     IQR    p50_worker_handle  queue_wait
+simple_static      20   20   205.2   240.8   244.1   13.3        204.8            0.0
+technical_docs     20   20   203.3   216.7   217.2   10.2        202.9            0.0
+js_heavy           20   20   202.8   219.7   222.5    4.9        202.3            0.0
+difficult_html     20    0   202.2   226.7   230.8    6.4        201.8            0.0
+session_sensitive  20   20   159.9   184.1   755.1   12.8        159.3            0.0
+selected_pdf       20   20    40.1    43.5    46.5   17.6         39.7            0.0
+```
+
+产物：`docs/research_quality/F2_WARM_LEDGER.json`（**未跟踪**；raw 120 行 + aggregate view）。
+
+### 143.21 Characterization 结论（OBSERVED only —— 无 PASS/FAIL，无修复项）
+
+**C1. `simple_static = 2813ms` 的异常被判定为 init effect（N=20 确认）。**
+```text
+warm p50 = 205.2ms / p95 = 240.8ms / IQR = 13.3ms  （§139 单次 2813ms 不复现）
+```
+⇒ **qualification 的单次 wall time 不能直接拿来当 routing cost。** 不修 cohort、不调 worker。
+
+**C2. 所有类别 warm 成本高度稳定（IQR 4.9–17.6ms）。** 最稳 = `js_heavy`（IQR 4.9）。
+
+**C3. `session_sensitive` 有单次尾尖峰，IQR 与 p95 给出不同信息。**
+```text
+p50=159.9 / p95=184.1 / max=755.1 / IQR=12.8
+```
+⇒ p95 平稳而 max 是**单次尖峰**（正是 "IQR vs p95" 要区分的形态）。**OBSERVED**，不转 correctness investigation。
+
+**C4. `selected_pdf` 是 warm 下最快的一类（p50=40.1ms）。** PDF 路径（provider-native PDF strategy + 本地路径交接）warm 下显著快于浏览器路径。
+
+**C5. `difficult_html`（`/document-mixed.html`）20/20 `provider_success=False`（chars=68）。**
+```text
+n_success = 0 / 20，稳定（非尖峰）；fixture 正常返回（HTML 包装 + 指向 /report.pdf 的链接）
+```
+⇒ **稳定的 provider 观测结果**（mixed document 页在 browser 模式下 provider 诚实报告未成功），
+**非 harness/fixture 失效** ⇒ 按约定**记为 OBSERVED，不自动转 correctness investigation**。
+该 fixture 是 §143-B 的**主 paired fixture**（extraction difficulty），届时由配对数据判定 `specialist_gain`。
+
+**C6. `queue_wait = 0.0` 全部类别** —— 本并发水平下无排队竞争。
+
+**C7. `unattributed_share = 1.0` 的正确解读（措辞冻结）**：
+> 在当前 harness 边界下，除 queue wait 外，其余 provider/normalization/provenance 成本
+> **无法正交拆分**，因此统一归入 unattributed residual。
+
+**不得解读为"所有时间都无法解释"或 instrumentation 失败。** 正交拆分属 §143-B（default 侧边界）课题。
+
+### 143.22 退出条件核对
+
+```text
+6 categories x 20 measured warm repeats = 120 raw rows        ✅
+每类 n / success count / p50 / p95 / max / IQR /
+     p50_worker_handle / p50_queue_wait / queue_wait_share /
+     unattributed_share                                        ✅
+raw 每轮原始值保留（aggregate 仅视图）                          ✅
+reader_execution_ms / normalization_ms / provenance_ms = null  ✅（不补猜测值）
+```
+
+### 143.23 状态
+
+```text
+§143-A1 harness build          ✅
+§143-A2 accounting validation  ✅
+§143-A3 6 x 20 warm repeats    ✅
+§143-A4 raw ledger + aggregate ✅
+STOP                           ✅（A 阶段结束）
+-> §143-B paired default vs Crawl4AI（difficult_html 主 paired fixture = /document-mixed.html）
+```
