@@ -9094,3 +9094,94 @@ Exact-head validation                 ⏳ NEXT
 P2-A3 CLOSE                          ⏳
 §143 F2_CHARACTERIZATION             ⏳
 ```
+
+
+## §142-6 Exact-head validation — **P2-A3 CLOSED**
+
+### 142.36 Formal closure checks（封账，不发明任何新测试）
+
+```text
+HEAD                                    8e74a037127551e1201f665f4a4c04b5883dae4a
+tracked tree                            clean
+git diff --check                        clean
+docs/research_quality vs A3 baseline    EMPTY  -> EXPECTED_EVIDENCE_DIFF = []
+a3_browser named gate (5 文件)           97/97 PASS
+p2-a-retrieval-stack L2 (19 文件)        469/469 PASS
+stage-gate policy                       10/10 PASS
+qualification lifecycle inventory        no unresolved classification
+```
+
+### 142.37 production state（已冻结并核实，非新发现）
+
+```text
+Crawl4AI role           = ELIGIBLE_SPECIALIST（文档级 role freeze，§140）
+production_inert        = True
+ACTIVE_READER_CHAIN     = (NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND)   <- 无 wigolo_browser / 无 crawl4ai
+DEFAULT_BACKENDS        = {native_http, wigolo_http, wigolo_browser}  <- crawl4ai 未注册
+capability_registry()   = {native_http, wigolo_http, wigolo_browser}  <- crawl4ai 未注册
+Wigolo Browser          = DISQUALIFIED（未启用；bakeoff 淘汰）
+```
+
+**`production_inert` 由"缺席"实现**：Crawl4AI 未注册进 `DEFAULT_BACKENDS` / `ACTIVE_READER_CHAIN`，
+故无 `CRAWL4AI_ROLE` 代码常量 —— role freeze 是文档级契约，其技术现实是**不在任何 production 路径上**。
+
+**已冻结的既有项（非新 debt，勿重复登记）**：
+`wigolo_browser` 在 `DEFAULT_BACKENDS` 中声明 `pdf` 而实际做不到 —— §111.4 已记录
+"本刀不改（A3-0 测量面，且候选已被淘汰）；若 Wigolo Browser 日后被重新考虑，
+必须先移除 `pdf` 声明再重新测量"。
+
+### 142.38 新冻结基线
+
+```text
+L2 (p2-a-retrieval-stack) authoritative baseline = 469 passed
+  （465 为 §142-5 前的历史 baseline；469 为 regression ownership closure 后的新基线）
+a3_browser impact set = 5 文件 / 97 passed
+```
+
+### 142.39 P2-A3 CLOSE 四结论（不再写长过程）
+
+```text
+Capability   Crawl4AI 已具备 JS render / PDF / session / bounded lifecycle / provenance 能力。
+Eligibility  ELIGIBLE_SPECIALIST，不是 default。
+Production   仍 production_inert；routing integration 尚未授权（须单独审议）。
+Maintenance  永久 regression 已纳入 named gates；qualification 与 historical evidence
+             生命周期已明确；forensic scaffolding 已退役。
+```
+
+### 142.40 OPEN_DEBT（均不阻塞 A3）
+
+```text
+- bridge.stop() missing-BYE observability（worker contract 已由 worker-level regression 固定）
+- failure/provider transparency normalization（provider 对小页面 anti-bot 系统性误报）
+```
+
+### 142.41 P2-A3 生命周期回顾
+
+```text
+发现候选 -> 淘汰 Wigolo -> 证明 Crawl4AI -> 修真实 bug -> 授予 specialist 角色
+        -> 清退证明脚手架 -> 补齐永久 regression ownership -> CLOSED
+```
+
+**提交链**：`47a2938`(A3-0) → … → `e4e054b`(§141) → `05aa0fa`(§142-1) → `92025da`(§142-2a)
+→ `e17fcaa`(§142-2b) → `ebb80e6`+`982d41e`(§142-3) → `82b9a3a`(§142-4) → `8e74a03`(§142-5) → 本提交。
+
+### 142.42 路线（正式收缩）
+
+```text
+P2-A3 CLOSE                              ✅（本节）
+§143 F2_CHARACTERIZATION                 ⏳ NEXT
+Routing economics                        ⏳
+Routing integration review               ⏳
+Research Quality                         ⏳
+```
+
+**§143 边界（冻结）**：不再做 correctness/capability testing。F2 只回答四个经济问题：
+```text
+1. warm steady-state 到底花多久
+2. 相比 current default，多花时间换来了多少内容价值
+3. 哪些场景 specialist_gain = NONE / MINOR / MATERIAL / ESSENTIAL
+4. default-first escalation 与 direct-specialist 哪个更划算
+```
+最终目标不是另一个 PASS/FAIL，而是一张 **routing economics 表**，并冻结
+`DIRECT_SPECIALIST_SIGNALS` / `DEFAULT_FIRST_SIGNALS` / `FALLBACK_ONLY_SIGNALS`。
+**必须先清 proof scaffolding 再测**（§142 已完成该前置条件）。
