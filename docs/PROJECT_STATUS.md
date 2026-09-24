@@ -8411,7 +8411,7 @@ tests/test_active_research_runtime.py         A2e/A2d-4 既有回归（本窗口
 ```text
 tools/run_crawl4ai_qualification.py   自管理 qualification runner（fixture server + worker + gates + cohort）
 tools/run_crawl4ai_cohort_v2.py       frozen-predecessor 12-row cohort runner
-tools/run_crawl4ai_cohort.py          v1 cohort runner（已被 v2 取代 → 候选归档）
+tools/run_crawl4ai_cohort.py          v1 cohort runner（已被 v2 取代 → §142-3 REMOVED）
 tools/run_browser_bakeoff.py          Wigolo 侧 bakeoff harness（Wigolo 已 DISQUALIFIED → 候选归档）
 tools/browser_bakeoff_fixture_server.py  本地 fixture server（qualification 专用）
 src/web/research/wigolo_browser_executor.py  **已淘汰候选**的实现（保留为 A3-1/A3-1R 证据，不进默认 CI）
@@ -8795,3 +8795,101 @@ Exact-head + evidence inventory validation -> P2-A3 CLOSE -> §143 F2_CHARACTERI
 
 **未重开**：`execute()` 业务实现、deadline/cancellation 语义设计、PDF primitive 算法、
 loop affinity、warm worker、session isolation、production-inert routing。
+
+
+## §142-3 Qualification asset lifecycle — **adjudicated**
+
+### 142.17 四类归属（冻结）
+
+```text
+PERMANENT_CI        = （无 qualification asset 属此类；CI 只跑 L0/L1/L2 门禁与永久 regression）
+QUALIFICATION_ONLY  = tools/run_crawl4ai_qualification.py
+                      tools/run_crawl4ai_cohort_v2.py
+                      tools/browser_bakeoff_fixture_server.py
+HISTORICAL_EVIDENCE = src/web/research/wigolo_browser_executor.py
+                      tools/run_browser_bakeoff.py
+REMOVE_SUPERSEDED   = tools/run_crawl4ai_cohort.py   (v1)  -> 本次删除
+```
+
+### 142.18 v1 → v2 supersession matrix（机械判定）
+
+| 能力 | v1 (`run_crawl4ai_cohort.py`, §116) | v2 (`run_crawl4ai_cohort_v2.py`, §118) |
+| --- | --- | --- |
+| 类别覆盖 | A3-0 六类（`BAKEOFF_CLASSES`） | A3-0 六类（**同一** `BAKEOFF_CLASSES`） |
+| 判定语义 | **被 ambient production native reader 污染**（v1 缺陷，§118 明载） | frozen predecessor 提供每类输入前提，决策仍交真实 `route()`/`backend_eligibility`/`run_chain` |
+| consistency gate | 无 | **`PASS_ROUTE_DERIVED` / `PASS_WITH_ROUTING_GAP` 两态门**（fail-closed） |
+| 显式例外记录 | 无 | `document_heavy` 单例外显式记录（A2 无 `{pdf}` 派生路径） |
+| 代码引用 | **无**（仅 docs 提及） | `tools/run_crawl4ai_qualification.py:215` import |
+| 历史 verdict 依赖 | 否 | **是**（§139 12-row `ELIGIBLE_SPECIALIST` 由 v2 产出） |
+
+**四条判定全部成立**：
+
+```text
+v2 coverage ⊇ v1                     ✅ 同一 BAKEOFF_CLASSES
+v2 assertions >= v1                  ✅ v2 增加两态一致性门 + 例外显式化，并修正 v1 的污染缺陷
+v1 unique fixture/protocol = none    ✅ 无独有 fixture/协议行为
+historical verdict 不依赖 v1 executable ✅ §139 verdict 来自 v2
+```
+
+⇒ **`REMOVE_SUPERSEDED`**，执行删除。
+
+### 142.19 保留资产的 contract（防止未来误接回 CI）
+
+**`QUALIFICATION_ONLY`** —— 保留代码，但：
+
+```text
+不要求每 PR 执行
+触发条件：backend major upgrade / Playwright upgrade / routing eligibility 重审
+禁止被未来 Agent 当普通 CI 自动重新接入
+```
+
+**`HISTORICAL_EVIDENCE`（Wigolo）** —— 已 `DISQUALIFIED`，但"为什么被淘汰"是 A3 browser bakeoff 的重要历史结论：
+
+```text
+Wigolo production path      disabled      （未注册进 DEFAULT_BACKENDS）
+Wigolo default routing      forbidden     （无 dual-browser routing）
+Wigolo qualification evidence retained     （保留淘汰判据的可执行历史证据）
+```
+
+`src/web/research/wigolo_browser_executor.py` 与 `tools/run_browser_bakeoff.py`：
+**retained for qualification reproducibility, not product eligibility.**
+（防止未来 Agent 看到源码还在，误以为"这是第二个可用 browser backend"。）
+
+### 142.20 资产生命周期表（P2-A3 closeout 交付物）
+
+| 类型 | 例子 | 最终状态 |
+| --- | --- | --- |
+| Product | `request_id` / `timeout_ms` 传播 / ledger-provenance | permanent |
+| Regression | 1379ms timeout guard | permanent CI |
+| Qualification | FG / cohort v2 / fixture server / qualification runner | manual-requalification |
+| Forensic | B/W/C/T timeline marks | retired (§142-2b) |
+| Disqualified candidate | Wigolo executor/harness | evidence retained, production disabled |
+| Superseded | cohort v1 | removed (§142-3) |
+
+### 142.21 状态
+
+```text
+§141 proof audit                     ✅
+§142-1 workflow simplification audit ✅ 无删除项
+§142-2a forensic reference inventory ✅
+§142-2b forensic retirement          ✅ EXECUTED (e17fcaa)
+§142-3 qualification asset lifecycle ✅ adjudicated（v1 REMOVED；本提交）
+§142-4 shutdown contract reconciliation  ⏳ NEXT（`Worker.close_all()` 未定义 —— P2-A3 CLOSE 前必须判清）
+Exact-head + evidence inventory validation -> P2-A3 CLOSE -> §143 F2_CHARACTERIZATION  ⏳
+```
+
+### 142.22 PROOF_RETIREMENT_REVIEW 的制度价值（本轮累计证据）
+
+Proof retirement 连续抓到**三类完全不同**的问题：
+
+```text
+§141     清理动作错误删除既有 evidence（docs/research_quality 6 文件被误取消跟踪）
+§142-2a  forensic subsystem 自身存在 DIAG_ENV latent bug（名称遮蔽 -> PDF 门从未生效）
+§142-2b后 静态清理暴露 Worker.close_all contract 不一致
+```
+
+⇒ `PROOF_RETIREMENT_REVIEW` 的价值已超过"删代码"本身：它实际是一次
+**长期 contract 与历史证明之间的一致性审计**。此制度保留。
+
+**硬规则（采纳）**：*"已知真实 runtime defect 尚未判清" 与 "P2-A3 CLOSED" 不应同时存在。*
+故 §142-4 插在 §142-3 之后、P2-A3 CLOSE 之前；且 §142-4 不得污染 §142-2b/§142-3。
