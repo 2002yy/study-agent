@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-P1` 的 **enable decision** —— P1 contract（§143.139）、internal implementation（`84b5d9c`）、external request-surface binding（`52f70a1`+`cfa58fc`）与 **operator e2e（真实 request → P1 → Crawl4AI + fallback）** 均已完成且 PASS；`EXPLICIT_READER_HINTS_ENABLED` 仍 **OFF**。下一步单独裁定是否从默认 off 改为 on（不与 schema/binding 混）。可选、且属 1:1 机械映射：把 `reader_capabilities` 接入具体外部表面（`WebLookupService.create` / tool-run args / manifest loader）。P3 更后。
+- **下一刀（唯一）：**`§143-P1` 的 **read-site integration contract 冻结**（或改选 B/C）—— enable 已裁定 **DEFER / KEEP OFF**（§143.155）。核实发现 surface 与 reader-task 构造点不同：外部入口 `WebLookupService.create` 只构造 research run/context；真实读发生在 `execute()` 内联 read site（`read_chain_executors`+`run_chain`），与 P1 router 的 B0.1 窄入口是两条路径。故 flag ON 的真实 surface 路由需要热路径 read-site contract（no-hint parity / budget / attempts / provenance / failure isolation / §143-B parity），不能作为纯字段追加。选项 A（冻结 read-site contract，推荐）/ B（无更窄真实入口，不可用）/ C（维持 operator-only）。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12021,3 +12021,83 @@ P3 PDF rule                         🅿️ optional later
 **说明**：canonical DTO 与 P1 router 已真实可达（operator e2e 证明）；
 把该字段接到具体外部表面（API/tool args/manifest loader）是部署/product-surface 决定，
 仍属 1:1 机械映射，不再重新 review routing。
+
+
+### 143.155 enable 裁定（冻结）：**DEFER / KEEP OFF**
+
+```text
+EXPLICIT_READER_HINTS_ENABLED 代码默认值：OFF（不改）
+部署配置：qualified environment 可显式 opt-in 设为 ON
+```
+
+理由：P1 内部逻辑/DTO/operator e2e 都已可信，真正缺的是**真实 production transport/service surface
+尚未把显式用户/任务声明送进 `ReaderTaskRequest`**。此时默认 ON：
+
+```text
+1) 无实际收益：没有 concrete external surface 能合法触发
+2) 风险后置：未来某个"只接字段"的提交可能突然激活真实 specialist routing
+   （`cfa58fc` 已证明 mock 全绿会掩盖真实调用形态差异）
+=> surface binding 与 routing enable 必须是两个明确决策点
+```
+
+**enable 分两层（冻结）**：代码默认 OFF；合格部署显式 opt-in ON。
+P1 本就是"显式 hint"，非基础必需；Crawl4AI specialist 另有独立 gate；两个 gate 同时打开才产生真实 routing；
+出问题只需关 hint routing，不影响 specialist seam 或 default reader。
+
+### 143.156 concrete external-surface binding 的前置发现（需裁定）
+
+按"绑定真实入口 + transport qualification"执行时核实，发现 **surface 与 reader-task 构造点不是同一个**：
+
+```text
+外部入口（有"显式调用者/任务声明"语义）：
+  src/application/web_lookup_service.py:440  WebLookupService.create(...)
+  （经 src/api/routes/web_lookup_routes.py 暴露）
+  -> 构造的是 **research run / research_context**，不是 reader task
+
+reader task 的真正构造点（production）：
+  src/application/active_research_runtime.py:2182-2194
+  execute() 内联 read site：read_chain_executors(source_limit) + run_chain(...)
+  -> 直接跑 ACTIVE_READER_CHAIN，绕开 B0.1 窄入口
+
+P1 router 的 default fallback：
+  run_single_read_measurement（B0.1 窄入口），与 execute() 内联链**是两条不同的读执行路径**
+  （各自 scheduling / attempts / budget / record_outcome / provenance）
+```
+
+⇒ "concrete surface binding" **不是纯 1:1 字段追加**：要让 flag ON 时真实 surface 能到达 Crawl4AI，
+必须在 execute() 的**热路径 read site** 增加 specialist-first 分支，并协调上述两条路径
+（budget / attempts / provenance / §143-B parity / failure isolation）。
+这已超出"surface admission"，属热路径 routing 变更，需要自己的冻结 contract。
+
+**选项（需裁定）**：
+
+```text
+A 冻结 read-site integration contract（推荐）
+   在 run context 携带 reader_capabilities；read site 在
+   EXPLICIT_READER_HINTS_ENABLED + crawl4ai_specialist_enabled 同时开启时：
+     specialist-first；usable -> 跳过 default chain；否则走 default chain
+   必须冻结：no-hint parity（与当前完全等价）、budget/attempts 记账、
+   provenance、failure isolation、§143-B/B0 parity
+B 先绑定更窄的真实单次读入口
+   核查结果：production 当前**没有**这样的入口（无 src 调用 P1 router / B0.1 窄入口）
+C 保持 P1 为 operator/qualification-only
+   即现状；等出现真实单次读 surface 再绑定
+```
+
+**推荐 A**：它是唯一能到"真实 production transport"目标的路径；B 不可用；C 即当前状态。
+但在写热路径代码前需要冻结 read-site contract（尤其 no-hint parity 与 budget/attempts 语义）。
+
+### 143.157 状态
+
+```text
+§143-P1 contract / internal / binding / operator e2e   ✅
+EXPLICIT_READER_HINTS_ENABLED                          OFF（KEEP OFF，§143.155）
+concrete external-surface binding                      ⛔ BLOCKED on read-site contract（§143.156）
+transport-level qualification                          ⏳（依赖上者）
+deployment opt-in enable                               ⏳
+default-ON decision                                    ⏳ later
+P3                                                     ⏳ later
+```
+
+**未做**：未改 flag 默认值；未在 `WebLookupService.create` 增加未消费字段；
+未改 execute() 热路径；未改 ACTIVE_READER_CHAIN；未做 P3。
