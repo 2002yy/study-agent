@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-RS` 的 **hot-path implementation** —— read-site integration contract 已冻结（§143.158–§143.160，裁定 A：selector 前置、default 原路径不动、`run_single_read_measurement` 永不进 hot path）。第一步须先在 `f47c443` 采固定基线快照；随后在原 default block 前加 early specialist selector（不抽/不搬/不包装），specialist 走独立 attempt accounting 但消耗同一 hard budget，success 归一化回下游 read-result contract，unusable 回落原 inline chain。双 gate（`EXPLICIT_READER_HINTS_ENABLED` + `CRAWL4AI_SPECIALIST_ENABLED`）默认仍 OFF，不得顺手 enable。之后 pre/post parity + operator e2e + transport→context→read-site qualification。P3 更后。
+- **下一刀（唯一）：**`§143-RS` 的 **selector implementation** —— baseline harness/snapshot 已交付（`bd148f2`/`a37c70e`，baseline_commit `f47c443`，与当前 pre-change 相等）。下一步：在原 default block 前加 early specialist selector（不抽/不搬/不包装），specialist 走独立 invocation accounting 但消耗同一 hard budget，success 归一化回下游 read-result contract，unusable 回落原 inline chain；`_read_site_hint_route(context)` 为纯判定 helper。随后用同一 harness 做 pre/post normalized parity（五组 PASS gate A–E）+ operator e2e。双 gate 默认仍 OFF，不得顺手 enable。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12241,3 +12241,47 @@ deployment opt-in enable decision   ⏳（不得在 implementation 完成后顺�
 
 **未做**：未改 `execute()`；未改 `WebLookupService.create`；未改两个 gate；未实现任何 selector；
 未改 ACTIVE_READER_CHAIN。baseline 快照尚未采集（属 hot-path implementation 的前置）。
+
+
+### 143.162 baseline harness + snapshot 交付（`bd148f2` + `a37c70e`）
+
+按裁定：**新建最小 deterministic read-site harness，不复用整轮 research runner**。
+
+```text
+tools/run_read_site_parity.py
+  复用 tests/test_active_research_runtime.py 的既有 deterministic fakes
+  （_cutover_service / _ShortNativeReadGateway / _CutoverEscalationBackend /
+    _TrackingRepository；无 broad runner、无网络）
+  驱动真实 dispatch/runtime 到 execute() read site，捕获稳定投影
+
+两个 no-hint case：
+  native_adequate    -> chain resolve / backend_path [native_http] / reads content_chars=1200
+  native_to_wigolo   -> chain resolve / backend_path [native_http, wigolo_http] /
+                        native invalid_content(short_doc,4) -> wigolo success(1200)
+
+捕获（stable）：read outcomes(backend/content_chars/retrieval_state) / chain action+reason /
+                backend_path / step(record_outcome) sequence / source read_status+final_backend
+剥离（volatile）：wall_ms / timestamps / request+invocation ids
+
+baseline artifact: docs/research_quality/READ_SITE_PARITY.baseline.json
+  baseline_commit = f47c443ac049eaffd648c0049032f4ab56f9e528
+  normalization schema/version = read-site-parity-v1
+```
+
+**基线可信度校验**：在 `f47c443` worktree（独立 checkout）用同一 harness 采集 baseline；
+并与当前 HEAD（selector 尚未实现）的 probe 对比 —— **cases 完全相等**，
+证明 `f47c443` 与当前 pre-change 的 read site 行为一致，快照可用于 post-change normalized parity。
+
+### 143.163 状态
+
+```text
+§143-RS contract                 ✅ FROZEN（c6be7f5）
+§143-RS baseline harness         ✅（bd148f2）
+§143-RS baseline snapshot        ✅（a37c70e；baseline_commit=f47c443；与 HEAD pre-change 相等）
+§143-RS selector implementation  ⏳ NEXT
+§143-RS pre/post parity + e2e    ⏳
+transport -> context -> read-site qualification ⏳
+deployment opt-in enable         ⏳（flag 仍 OFF）
+```
+
+**未做**：未改 `execute()`；未实现 selector；未改 gate 默认值；未改 `WebLookupService.create`。
