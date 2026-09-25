@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），下一刀 = 实现纯函数 `assess_claim_evidence` 并以 shadow metric 接入（不改 stop/gate）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = 实现纯函数 `assess_claim_evidence` 并以 shadow metric 接入（不改 stop/gate）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12520,24 +12520,43 @@ gate：
 §143-C 的机制结论指出缺口：**Default success metadata is not semantic adequacy metadata.**
 系统知道"读成功 / 有正文 / backend resolve"，但不知道"证据是否足以支撑当前 claim"。
 
-**路线（冻结）**：
+**路线（冻结，2026-09-25 更新为 7 阶段版）**：
 
 ```text
-★ Semantic Research Quality（RQ-A/B/C/D）
-   Claim <-> Evidence Coverage / Semantic Adequacy / Contradiction / Coverage-aware Stop
+(1) Semantic Research Quality
+    Claim <-> Evidence / semantic adequacy / contradiction / coverage
         ↓
-   ResearchBrief
+(2) Multimodal Reader v1
+    网页图片 / screenshot / chart / diagram / PDF figure
+    -> Visual EvidenceUnit -> 与文本证据统一进入 Claim <-> Evidence
         ↓
-   Synthesis / Citations
+(3) ResearchBrief
+    多模态 evidence 汇总：claim / support / contradict / unresolved
         ↓
-   Final Answer Auditor（<=1 repair）
+(4) Synthesis
+    图文联合推理；citation / figure-page-region provenance
         ↓
-   50-60 Frozen + Live Release Benchmark
+(5) Final Answer Auditor
+    检查文字结论是否真的被文字或图像证据支持（<=1 repair）
         ↓
-   RQCE v1 freeze
+(6) Persistent Research State / Memory
+    跨轮保留 claim / evidence / 未解问题 / 历史研究状态
         ↓
-   分支：P3/A4/A5 按需 | Study Agent 上层 Knowledge/Teaching
+(7) 50-60 Frozen + Live Benchmark
+    同时测 text-only / PDF / image / chart / mixed-media
+        ↓
+    RQCE v1 freeze
+        ↓
+    分支：P3/A4/A5 按需 | Study Agent 上层 Knowledge/Teaching
 ```
+
+**关键方向（冻结）**：当前接入 API **已支持图像输入**，因此多模态工作**不需要**解决
+"模型会不会看图"，重点是**把视觉能力接进 research loop**。因此：
+
+- **EvidenceUnit schema 从 v1 起即设计为多模态兼容**（见 §144.4），**不允许**后面再改 schema。
+- **Multimodal Reader v1（②）紧跟 Semantic Research Quality（①）**，**不再后置**；
+  但 RQ-A 底座稳定之前不启动。
+- 视觉读取**分级**，不"看到图片就全送模型"（见 §144.5）。
 
 `P2-A4 discovery providers` / `P2-A5 heterogeneous integration` / `P3 PDF rule` 一律
 **按真实缺口触发，不作为主线 NEXT**。
@@ -12567,16 +12586,16 @@ CONFLICTED  -> contested
 UNRESOLVED  -> unresolved
 ```
 
-**新增（最小；只加"语义充分性"这一缺失维度）**：
+**新增（最小；只加"语义充分性"这一缺失维度，但 unit 记录**从 v1 起多模态兼容**，见 §144.4）**：
 
 ```text
-EvidenceRequirement.required_units: tuple[str, ...] = ()
-    claim 需要被正文覆盖的内容单元（由 claim/planner 显式声明；
-    禁止从被读页面反推，避免循环）。
+EvidenceRequirement.required_units: tuple[RequiredUnit, ...] = ()
+    claim 需要被覆盖的内容单元（由 claim/planner 显式声明；
+    禁止从被读页面反推，避免循环）。RequiredUnit 含 modality: text|visual|any。
 
-ResearchEvidence.recovered_units: tuple[str, ...] = ()
-    该证据正文中实际出现、且被 locator/anchored_spans 支撑的单元
-    （由 extractor/verifier 产出，code-owned）。
+ResearchEvidence.units: tuple[EvidenceUnit, ...] = ()
+    该证据中实际出现、且被 locator/anchored_spans/region 支撑的单元
+    （由 extractor/verifier 产出，code-owned；见 §144.4）。
 
 ClaimEvidenceAssessment（新增计算结构，纯函数产物）:
     claim_id
@@ -12586,13 +12605,16 @@ ClaimEvidenceAssessment（新增计算结构，纯函数产物）:
     required_clusters: int
     has_primary: bool
     contradicting_clusters: int
-    required_units: tuple[str, ...]
-    recovered_units: tuple[str, ...]
-    missing_units: tuple[str, ...]
+    required_units: tuple[RequiredUnit, ...]
+    recovered_units: tuple[EvidenceUnit, ...]
+    missing_units: tuple[RequiredUnit, ...]
     reasons: tuple[str, ...]
 
 SemanticAdequacy = adequate | partial | insufficient | not_evaluated   # 新增
 ```
+
+（unit 匹配按 `unit_id` / 语义等价键；v1 只要求同 `modality` 内可判定，
+`modality=any` 的 RequiredUnit 可被 text 或 visual EvidenceUnit 满足。）
 
 **判据（冻结，确定性、code-owned，绝不信任 model closure）**：
 
@@ -12602,8 +12624,8 @@ SemanticAdequacy = adequate | partial | insufficient | not_evaluated   # 新增
   required           = claim.evidence_requirement.min_independent_sources
   has_primary        = any(support.source_role == "primary")
   contradict_clusters= |{source_cluster_id : relation=contradicts AND strength>=STRONG}|
-  recovered_units    = union(evidence.recovered_units) over eligible supports
-  missing_units      = required_units - recovered_units
+  recovered_units    = union(evidence.units) over eligible supports
+  missing_units      = required_units 中未被任一 recovered unit 匹配者（按 unit_id/等价键 + modality）
   structural_ok      = support_clusters >= required AND (not requires_primary_source OR has_primary)
   units_ok           = required_units == () OR missing_units == ()
 
@@ -12652,3 +12674,70 @@ missing_units       = required_units - recovered_units
 ```
 
 **本刀（§144.1）为 contract-only**：未写代码、未改 production、未改 stop/gate。
+
+### 144.4 EvidenceUnit 模型（冻结：多模态兼容，v1 起生效，不允许后改 schema）
+
+**原则**：`EvidenceUnit` 是 text 与 visual **共用的统一证据单元**；文本与视觉证据都归约到它，
+再统一进入 Claim ↔ Evidence。**v1 就把它设计成多模态兼容，避免后续改 schema。**
+
+```text
+EvidenceUnit
+    unit_id: str                 # 稳定 id
+    source_type: SourceType      # text | table | image | chart | screenshot | pdf_figure
+    source: str                  # url / file id / evidence_id
+    page: int | None = None      # PDF/多页来源
+    region: str = ""             # bbox / 区域定位（图/表/截图用）
+    content: str = ""            # 文本单元正文（text/table/OCR 文本）
+    observation: str = ""        # 视觉单元的结构化观察（图/表/截图语义，code-owned）
+    supports: tuple[str, ...] = ()     # claim_id 列表（relation=supports 的绑定在 link 层）
+    contradicts: tuple[str, ...] = ()
+    confidence: float = 0.0
+    provenance: str = ""         # locator / anchored_spans / figure-page-region
+
+SourceType = text | table | image | chart | screenshot | pdf_figure   # 新增
+
+RequiredUnit
+    unit_id: str
+    description: str
+    modality: text | visual | any = "any"   # visual 必须由 image/chart/screenshot/pdf_figure 满足
+```
+
+**不变量（冻结）**：
+
+```text
+- supports/contradicts 的权威绑定仍在 ResearchClaimEvidenceLink（relation + strength），
+  EvidenceUnit 上的 supports/contradicts 只是便捷投影，不构成第二权威。
+- 视觉 EvidenceUnit 的 observation 必须带 provenance（page/region/figure 引用），
+  禁止无定位的视觉断言。
+- 文本证据保持既有 ResearchEvidence 语义（locator/anchored_spans）；
+  EvidenceUnit 是其单元化视图，不替换 ResearchEvidence。
+- required_units 的 modality=visual 不可被纯 text 证据满足（防止"正文提及图"冒充"读到图"）。
+```
+
+### 144.5 视觉读取分级策略（冻结：视觉成本受控）
+
+**原则**：不"看到图片就全送模型"。分级递进，只有低层不足且视觉确为证据时才调用 vision。
+
+```text
+L0 文本正文
+   ↓ 不足
+L1 alt / caption / nearby text（图周边文字）
+   ↓ 不足
+L2 OCR / table extraction（需要时，图表/表格数值）
+   ↓ 不足且满足触发条件
+L3 vision API（图本身承载关键证据时）
+```
+
+**L3 触发条件（冻结，满足任一）**：
+
+```text
+- 正文写"见 Figure 4 / 如图 / 见表"，但结论只在图里；
+- benchmark 数值只画在图表中（正文无数值）；
+- UI 状态只存在于截图；
+- 流程图 / 架构图本身即为证据；
+- PDF 正文与图表可能矛盾（需读图交叉验证）；
+- 用户问题明确要求"看这张图 / 这张截图 / 这个图表"。
+```
+
+**要求**：L3 的产出必须落为带 provenance 的 `EvidenceUnit(source_type in {image,chart,screenshot,pdf_figure})`，
+并走与文本相同的 eligibility / strength / gate 路径；视觉调用计入既有 hard budget（不重置时钟）。
