@@ -19,18 +19,22 @@
   - `§143-B` paired default-vs-Crawl4AI：**PASS，条件型 specialist**（`ae98859`）
   - `§143-C` routing-signal economics：**CLOSED — generic routing-signal insufficiency established**（`db03e07`）
   - `§143-Routing Review`：contract + policy matrix + Pareto + 裁定 ✅（`a09ad46`）
+  - `§143-P1` explicit hint（contract/internal/binding）✅ CLOSED（`ac2fe15` / `84b5d9c` / `52f70a1`+`cfa58fc`）
+  - `§143-SI` Crawl4AI production specialist seam（default-inert）✅ CLOSED（`8722391`）
+  - `§143-RS` read-site integration + real-worker qualification ✅ CLOSED / PASS（`58f6a75` / `cb1055d`）
 - **当前 routing policy 裁定（冻结）：**
   - **baseline = P0/P4 current state：**不自动猜、不自动升级（默认行为不变）。
-  - **P1 explicit capability/request hint = RECOMMENDED，但未实现**（缺 hint contract）。
-  - **P3 PDF lightweight rule = 可选窄优化，未实施**（只覆盖 `selected_pdf=MATERIAL`）。
+  - **P1 explicit capability/request hint = 已实现并 qualification PASS；默认 OFF，合格部署可显式 opt-in ON。**
+  - **P3 PDF lightweight rule = 可选窄优化，未实施**（只覆盖 `selected_pdf=MATERIAL`；排在观察期之后）。
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
-- **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-P1` **rollout closeout / deployment opt-in decision** —— §143-RS 已 CLOSED，P1 routing 已 CLOSEOUT（`cb1055d`）：read site 已接通但默认 inert，Q1/Q2/Q3 全 PASS，no-hint parity 与 A–E gate 全 PASS。**代码默认值保持 `EXPLICIT_READER_HINTS_ENABLED=OFF`**；合格部署可显式 opt-in ON，观察真实运行后再决定是否改代码默认值（later）。当前无必须的代码切片；可选后续为 P3 PDF lightweight rule（optional later）。
+- **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
+- **当前动作：主线代码 STOP，进入观察期。** 路线：qualified deployment 显式开启 P1 → 观察真实 provenance/latency/fallback → P1 rollout review → 再决定 opt-in/扩大/default ON/是否开 P3。**无必须的代码切片。**（详见 §143.170–§143.172）
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
   - Routing Review：§143.132–§143.137
+  - P1 / SI / RS / qualification：§143.139–§143.169；artifacts `READ_SITE_PARITY.baseline.json`、`READ_SITE_QUALIFICATION.json`
 - **关键机制结论：**"Default success metadata is not semantic adequacy metadata." —— 当前 runtime 的 read 成功 / usable / resolve 状态**不携带**"内容是否足以支撑 claim / critical units"，故自动 post-default 升级在出现 semantic-adequacy 信号前不可靠。
 - **其他未关闭线索（非本阶段 NEXT）：**RQ1-C bounded qualification / 严格 Live12（§1–§9）仍在 PR #142 上，未 GO；其 provider / 网络 blocker 见 §7–§9。本阶段（Research Quality / routing）不改变其冻结门，也不得借本阶段回改其门槛。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider / API key / endpoint，也不执行真实 provider Live12。
@@ -12415,3 +12419,94 @@ P3 PDF lightweight rule            🅿️ optional later
 
 **未做**：未改任何 gate 默认值；未改 `ACTIVE_READER_CHAIN`；未新增 production flag/allowlist/loopback bypass；
 未做 P3。
+
+
+## §143 — STOP / 观察期收口（主线开发暂停）
+
+### 143.170 收口状态（全部 CLOSED / PASS）
+
+```text
+§143-A/B/C                ✅ CLOSED
+Routing Review            ✅ CLOSED
+Crawl4AI production seam  ✅ CLOSED
+P1 contract               ✅ CLOSED
+P1 internal routing       ✅ CLOSED
+external binding          ✅ CLOSED
+read-site integration     ✅ CLOSED
+real-worker qualification ✅ PASS
+P1 routing closeout       ✅ CLOSED
+
+default enable            OFF
+qualified deployment ON   allowed（显式 opt-in）
+global default-ON         later
+```
+
+**P1 的最终形态**：
+
+> **真实 production read-site 可用、可显式触发、可回落、可审计，但默认不自动激活。**
+
+这正是 Routing Review 推荐的目标形态（条件升级型 specialist）。
+
+### 143.171 决定：主线代码 STOP，进入观察期
+
+不因"还有 optional"继续找活干。**P3 暂不开**，优先级排在 P1 qualified deployment observation 之后。
+
+观察期要收集（这些比再加一条 PDF rule 更有价值）：
+
+```text
+JS_RENDER hint 是否被合理使用
+SESSION_STATE 是否真的有调用方
+hint_honored / fallback / specialist latency 分布
+是否出现 operator misuse
+两个 gate 的运维体验是否合理
+```
+
+**推荐路线（冻结）**：
+
+```text
+主线代码：STOP
+   ↓
+qualified deployment 显式开启 P1
+   ↓
+观察真实 provenance / latency / fallback
+   ↓
+P1 rollout review
+   ↓
+再决定：保持 opt-in / 扩大 rollout / default ON / 是否值得开 P3
+```
+
+**若以后开 P3**（窄 contract，届时再冻结）：
+
+> 只基于 extension / Content-Type，目标仅是 `selected_pdf` MATERIAL 补全；
+> 不声称解决 JS/session，不作为通用 browser routing，不修改 P1。
+
+### 143.172 恢复入口（供 cold-start agent，无需 chat history）
+
+```text
+当前 head：以 git rev-parse HEAD 为准；tracked clean（git status --porcelain --untracked-files=no 为空）
+
+权威位置：
+  §143-B 结果      §143.110-117；docs/research_quality/F2_PAIRED.threshold_safe.json
+  §143-C 结果      §143.122-131；docs/research_quality/F2_C_ECONOMICS.json
+  Routing Review   §143.132-137
+  P1 contract      §143.139
+  specialist seam  src/web/research/crawl4ai_specialist.py（§143.144-147）
+  P1 router        src/application/reader_hint_routing.py（§143.139）
+  P1 binding       src/application/reader_task_request.py（§143.151-154）
+  read-site        src/application/active_research_runtime.py（§143.158-168）
+  read-site 基线   docs/research_quality/READ_SITE_PARITY.baseline.json（baseline_commit f47c443）
+  qualification    docs/research_quality/READ_SITE_QUALIFICATION.json
+
+复现命令：
+  parity（no-hint）：python tools/run_read_site_parity.py --output <tmp>.json
+      并与 READ_SITE_PARITY.baseline.json 的 cases 做 machine compare
+  qualification（真实 worker）：设置 CRAWL4AI_PYTHON=<isolated interpreter>
+      后 python tools/run_read_site_qualification.py --output <tmp>.json
+
+gate：
+  EXPLICIT_READER_HINTS_ENABLED（默认 OFF）
+  CRAWL4AI_SPECIALIST_ENABLED（默认 OFF）
+  CRAWL4AI_PYTHON（绝对解释器路径；缺失即 fail-closed，无 host fallback）
+```
+
+**未做**：未改 gate 默认值；未开 P3；未改 production routing 默认行为；未动 §0 治理规则之外的结构。
