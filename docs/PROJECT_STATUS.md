@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`specialist production integration` 的 **contract 冻结** —— 因 P1 隐含前提不成立：production 无可用 specialist executor（Crawl4AI 仅 tooling/qualification；`ACTIVE_READER_CHAIN` 无 browser；`wigolo_browser` DISQUALIFIED）。候选 A/B/C 见 §143.141（推荐 B：把与 B/C 实测一致的 Crawl4AI 集成为 production specialist）。P1 本体（字段 + 分支 + provenance + flag，contract 已冻结 §143.139）在该前置确定后紧接着实现；P3 更后。
+- **下一刀（唯一）：**`Crawl4AI production-specialist integration` 的 **implementation**（contract 已冻结 §143.144–§143.145：把 Crawl4AI 集成为 **production-available but default-inert** specialist target；`ACTIVE_READER_CHAIN` 不变；独立 identity `CRAWL4AI_BROWSER`；两个独立 gate `crawl4ai_specialist_enabled` / `explicit_reader_hints_enabled`；核心负断言：无显式调用时不得被自动选中）。前置裁定：A REJECT，C DEFER，选 B（§143.143）。随后才是 P1 本体实现；P3 更后。P1 contract 已冻结（§143.139）。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -11671,3 +11671,125 @@ P3 PDF rule                     🅿️ optional later
 ```
 
 **未做**：未改任何 production 代码 / routing；未注册 Crawl4AI；未启用 wigolo_browser；未实现 P1 任何字段。
+
+
+## §143-SI — Crawl4AI production-specialist integration：contract 冻结
+
+### 143.143 裁定：选 B（并定性）
+
+> **不是"把 Crawl4AI 加进 active chain"**，而是先把它集成为一个
+> **production-available but default-inert specialist target**，然后 P1 hint 才有资格显式选择它。
+
+```text
+A（重新启用 wigolo_browser）  REJECT
+   仍有 §110.4 未解阻塞，且不是 B/C 实测对象 -> 证据断层
+C（contract-only seam）       DEFER
+   只会得到 hint present -> specialist unavailable -> hint_honored=false，
+   不提供 B/C 已证质量收益，且可能提前固化未验证的 integration surface
+```
+
+**路线冻结**：
+
+```text
+Crawl4AI production-specialist integration contract      ⏳ NEXT
+        ↓
+production integration（default-inert）
+        ↓
+integration qualification / rollback / failure-isolation regressions
+        ↓
+P1 implementation
+        ↓
+P1 regression / routing closeout
+```
+
+**为什么必须先补这一层**：
+
+> B/C 证明的是"这个 specialist 有价值"；Routing Review 推荐的是"显式 hint 可以安全选 specialist"；
+> 但在两者之间还缺一层——**"这个 specialist 在 production 中实际可寻址"**。本阶段补的正是这层。
+
+### 143.144 integration contract（冻结，10 条）
+
+```text
+1) 默认行为不变（最高优先级）
+   no explicit specialist selection -> ACTIVE_READER_CHAIN unchanged
+   -> native_http -> wigolo_http
+   Crawl4AI 不得因被注册进 production 就进入默认 fallback 链
+
+2) 独立 specialist identity
+   不复用模糊的 "browser" 名；稳定、可 provenance 的 identity，例如 CRAWL4AI_BROWSER
+   必须与 B/C 测到的 executor 对应
+
+3) 生命周期归 production 所有
+   worker/bridge 谁启动；是否 lazy start；是否复用 warm worker；shutdown；
+   crash recovery；stale response / request_id 隔离；post-timeout health
+   （A3 已验证的 worker contract 可复用证据，但 production wiring 不得假设 tooling 替它管生命周期）
+
+4) 隔离 venv / dependency ownership
+   production 主进程不直接吞 Crawl4AI 依赖面；通过既有 bridge/worker 边界消费
+
+5) health / readiness
+   仅当 specialist eligible + ready + deadline/budget 允许 时才 honor hint
+   禁止 "hint present -> 无条件调用"
+
+6) deadline / budget envelope
+   沿用既有 production accounting：hard timeout propagation / remaining budget /
+   render/session 额外成本 / timeout 后不污染下一请求
+   （B 已证 js_heavy 天然含约 1200ms render delay，必须进 envelope，不得绕开）
+
+7) session / setup contract
+   冻结 setup URL / session key / session context 的必需项与提供方；
+   specialist 不自动发明登录流程；session isolation；setup 失败如何记录
+   （之后与 P1 SESSION_STATE 对齐）
+
+8) failure isolation
+   specialist invocation failure is local to that explicit invocation；
+   不得污染 production 默认链状态 / worker response queue / session state 到后续请求
+
+9) provenance / record_outcome
+   至少可见：requested specialist / actual backend / ready-eligible /
+   terminal_outcome / fallback_used / latency /（P1 接入后）hint+source
+
+10) rollback（两个独立 gate，不得绑定）
+    crawl4ai_specialist_enabled      -> off：可留注册、不可被调用、默认链完全不变
+    explicit_reader_hints_enabled    -> off：字段仍可解析/记录，routing effect disabled
+```
+
+### 143.145 integration PASS 门（P1 本体开工前必须证明）
+
+```text
+default_chain_unchanged=True
+crawl4ai_is_production_addressable=True
+crawl4ai_not_in_default_chain=True
+health_readiness_gate=True
+deadline_budget_propagation=True
+worker_timeout_bounded=True
+post_timeout_health=True
+session_isolation=True
+record_outcome_provenance=True
+specialist_gate_off_blocks_invocation=True
+existing_default_reader_regressions=PASS
+existing_A3_Crawl4AI_qualification_contracts=PASS
+```
+
+**关键负断言（整个 integration 的核心安全边界）**：
+
+> **没有 P1 / 显式调用时，production 永远不会因为 Crawl4AI 已注册而自动选中它。**
+
+### 143.146 状态
+
+```text
+§143-P1 contract                 ✅ FROZEN（§143.139）
+§143-P1 implementation           ⏳ BLOCKED（等待下方 integration）
+Crawl4AI production integration
+  contract                       ✅ FROZEN（本刀，§143.144-§143.145）
+  implementation                 ⏳ NEXT
+  qualification                  ⏳
+then:
+  P1 implementation -> regression -> routing closeout
+P3 PDF rule                      🅿️ optional later
+A (wigolo_browser)               ❌ REJECT
+C (contract-only seam)           🅿️ DEFER
+```
+
+**未做**：未注册 Crawl4AI 进 production；未改 ACTIVE_READER_CHAIN；未实现任何 gate / 字段 / worker wiring；
+未改 production 代码。
