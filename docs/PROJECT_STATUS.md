@@ -1,19 +1,39 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-09-13
+> 更新：2026-09-25
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
-## 0. Current Handoff
+## 0. Current Handoff（cold-start 入口）
 
-- **当前 initiative：**Draft PR #142，分支 `codex/rq1c-bounded-qualification`。仓库侧 RQ1-C remediation、DeepSeek structured-output compatibility、一次性 qualification 资产清理均已收口。**严格 provider-faithful Live12 已在 exact clean head `be48a9667c0cd37ef7a2e246617dcc437a0ad3a3` 上真实执行并失败**（见 §7）；首要 blocker 已从"RQ1-C claim/evidence 逻辑未知"收敛为"**provider failure policy 不是 deadline-aware + 本机外部 provider 可用性**"。
-- **主线基线：**PR #143 answer/claim binding 已交付到 `main@f3f17824c132e2a88caf4dac4a9d6eae78e35910`；PR #144 仓库清理已以 merge commit `96f8a80e923311e2866a395f32c3ce33a92657df` 合入 main。PR #142 在其上继续 RQ1-C bounded qualification。
-- **仓库清理：**`cc7b8d4ee5060676d35c4ca7ed1de8fa0f77b09a` 已退役 13 个一次性 RQ1-C qualification/diagnostic 资产：6 个 GitHub Actions workflow、3 份 trigger 文档、2 个 diagnostic runner、2 个 diagnostic-only tests。长期 runner / rubric / 6+2 reservation / git identity / protocol probes / evaluator / guardrail / runtime core 保留。
-- **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider、API key 或 endpoint，也不执行真实 provider Live12。
-- **当前唯一下一步（2026-09-16 更新）：**§37B-selection 已完成并给出**第一个可信的正例丢失定位**：目标候选 `https://nodejs.cn/api/modules.html`（provider ✓ → normalized ✓ → materialized ✓ → pool ✓）**死在 bounded assessment window（`_bounded_assessment_candidates`，cap=2）**，terminal_reason = `candidate_pool_excluded`（观察到的分支：`window_limit_reached`）——**没有进入 H9、没有进入 read plan、也没有触发任何 authority/mirror/budget 规则**（read budget 2/8 未用尽）。工具：`tools/run_selection_provenance.py`（`daebd8a`/`cea5db4`）。⇒ 未来 ranking 接线点是**评估窗口的候选排序**，不是此前猜的 harvest seam。**§38 agent-loop prototype**（`7dca213`/`0b61afd`/`9ddfd7d`）首批实测：纯模型 planner+selector 在同样的 provider/reader/extractor 下**目前弱于 pipeline**（Docker case 4 次 search 未召回 docs.docker.com；Node case 未召回 `/api/modules.html`；planner 需 provider 感知提示，模型调用有超时噪声）。下一批 = **§38b hybrid**：保留冻结的 query planning，只把 selection（评估窗口/读选择）交给模型，直接验证"selection 是死因"的假设。**reserve 12s、60s、Live12、30s timeout、PARTIAL/PASS、extractor/Gate/answer、read adequacy 全部继续冻结。**（注：§37B 生产 instrumentation 的全量 pytest 门禁因用户要求切换方向而中断，pending 一次完整复跑。）
-- **exact-head 提醒：**本文件更新提交会使 #142 head 前移；未来正式 Live12 必须以新的 `git rev-parse HEAD` clean head 重新认定 source SHA，不得回用 `be48a96` / `178dbf4` / `f5d12c4` / `4d1ed67` 等旧 head。
+> **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
+> §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
+
+- **分支 / head：**`codex/rq1c-bounded-qualification`（Draft PR #142）。本节随每次 docs 提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
+- **已关闭阶段：**
+  - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
+  - `§143-A` specialist warm cost profile ✅ CLOSED
+  - `§143-B` paired default-vs-Crawl4AI：**PASS，条件型 specialist**（`ae98859`）
+  - `§143-C` routing-signal economics：**CLOSED — generic routing-signal insufficiency established**（`db03e07`）
+  - `§143-Routing Review`：contract + policy matrix + Pareto + 裁定 ✅（`a09ad46`）
+- **当前 routing policy 裁定（冻结）：**
+  - **baseline = P0/P4 current state：**不自动猜、不自动升级（默认行为不变）。
+  - **P1 explicit capability/request hint = RECOMMENDED，但未实现**（缺 hint contract）。
+  - **P3 PDF lightweight rule = 可选窄优化，未实施**（只覆盖 `selected_pdf=MATERIAL`）。
+  - **P2 static allowlist / C2 adaptive routing = DEFER**。
+  - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
+- **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
+- **下一刀（唯一）：**`P1 hint contract` 的 **contract 冻结**（随后 implementation → regression → routing closeout）。P3 作为其后独立 optional slice，不与 P1 合并实现。
+- **权威证据位置：**
+  - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
+  - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
+  - Routing Review：§143.132–§143.137
+- **关键机制结论：**"Default success metadata is not semantic adequacy metadata." —— 当前 runtime 的 read 成功 / usable / resolve 状态**不携带**"内容是否足以支撑 claim / critical units"，故自动 post-default 升级在出现 semantic-adequacy 信号前不可靠。
+- **其他未关闭线索（非本阶段 NEXT）：**RQ1-C bounded qualification / 严格 Live12（§1–§9）仍在 PR #142 上，未 GO；其 provider / 网络 blocker 见 §7–§9。本阶段（Research Quality / routing）不改变其冻结门，也不得借本阶段回改其门槛。
+- **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider / API key / endpoint，也不执行真实 provider Live12。
 
 ## 1. DeepSeek structured-output compatibility closure
 
@@ -11384,9 +11404,8 @@ C2 (adaptive routing)                    🅿️ future option（未启动）
 
 **未做**：未改任何 production routing；未启动 C2；未在 miss 后新增信号。
 
-**文档债务（登记，不本刀修）**：本文件 §0 Current Handoff 自早期 initiative 起未随 §143 链更新，
-对 cold-start 已不再准确；应在独立 docs-governance 刀中重建 §0（或把 §0 指向最新 §143 段落），
-不得在 routing 决策刀里顺带修改。
+**文档债务（已在本刀清偿）**：§0 Current Handoff 曾自早期 initiative 起未随 §143 链更新，对 cold-start 不准确；
+已由后续独立 docs-governance 刀重建为"当前权威状态 + 下一动作"入口（见 §143.138）。
 
 
 ## §143-Routing Review（RR）— contract 冻结 + policy matrix + Pareto + 最终裁定
@@ -11516,4 +11535,14 @@ C2                              🅿️ future option
 ```
 
 **未做**：未改任何 production routing；未新增 fixture / signal experiment；未做 C2；
-未把 P3 包装成整体策略。§0 文档债务继续隔离，待 RR 完成后单独治理。
+未把 P3 包装成整体策略。§0 文档债务已由独立 docs-governance 刀清偿（§143.138），不与 routing 实现混刀。
+
+### 143.138 §0 docs-governance 重建（本刀）
+
+- §0 重写为 **cold-start 入口**：只维护"当前权威状态 + 下一动作"。
+- **治理规则冻结**：§0 不复制实验史；历史细节留在对应 §143.x；若再次腐烂，属独立 docs-governance 债务。
+- 覆盖：分支/head/tracked clean；P2-A3 + §143-A/B/C + Routing Review 全关闭；当前 routing policy 裁定；
+  明确未实现项；下一刀 = P1 hint contract；权威证据位置；机制结论；RQ1-C Live12 未关闭线索（指向 §1–§9）。
+- **路线冻结**：§0 repair → P1 hint contract → P1 production implementation → regression / routing closeout
+  → Research Quality → P3 optional later。
+- 本刀 **docs-only**，未改 production、未改 routing、未动 A/B/C 任何冻结结论。
