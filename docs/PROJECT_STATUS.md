@@ -12832,6 +12832,17 @@ L3 full pytest（candidate content，dirty tree）：2637 passed / 7 failed / 2 
 `test_browser_bakeoff_harness`、`test_rq1c_impl_entrypoints`、`test_rq1c_protocol_probes`
 —— 均为 §143 链推进后未同步的陈旧契约测试。
 
+**CI 状态（2026-09-25）**：PR #142 的 CI 在**父提交 `32993fb` 上已 failure**
+（run `36128767522`：9 failed / 2598 passed / 6 skipped），失败集与本地不同，含
+`test_read_site_selector.py`（本地 PASS、CI FAIL → 疑似环境依赖，待查）、
+`test_discovery_annotation.py`、`test_rq1c_bounded_pre_dispatch_budget.py`
+（`OPENAI_API_KEY is missing`）等。**结论：CI 在本刀之前即已红**，属既有/环境性债务，
+非 RQ-A 引入。RQ-A 新 head `a87c24b` 的 CI（push `36131229116` / PR `36131233978`）
+查询时 in_progress，未在本轮判定。**按 CI 规矩：未宣称 REMOTE GO / DELIVERED。**
+
+**待查债务（新增）**：`test_read_site_selector.py` 在 CI 与本地结果不一致，
+需单独一轮定位（环境差异 / 顺序依赖 / fixture）。
+
 **未做**：未接 coverage-aware stop；未改 EvidenceGate 语义；未做 synthesis/auditor。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
