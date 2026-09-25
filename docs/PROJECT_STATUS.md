@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-P1` 的 **read-site integration contract 冻结**（或改选 B/C）—— enable 已裁定 **DEFER / KEEP OFF**（§143.155）。核实发现 surface 与 reader-task 构造点不同：外部入口 `WebLookupService.create` 只构造 research run/context；真实读发生在 `execute()` 内联 read site（`read_chain_executors`+`run_chain`），与 P1 router 的 B0.1 窄入口是两条路径。故 flag ON 的真实 surface 路由需要热路径 read-site contract（no-hint parity / budget / attempts / provenance / failure isolation / §143-B parity），不能作为纯字段追加。选项 A（冻结 read-site contract，推荐）/ B（无更窄真实入口，不可用）/ C（维持 operator-only）。P3 更后。
+- **下一刀（唯一）：**`§143-RS` 的 **hot-path implementation** —— read-site integration contract 已冻结（§143.158–§143.160，裁定 A：selector 前置、default 原路径不动、`run_single_read_measurement` 永不进 hot path）。第一步须先在 `f47c443` 采固定基线快照；随后在原 default block 前加 early specialist selector（不抽/不搬/不包装），specialist 走独立 attempt accounting 但消耗同一 hard budget，success 归一化回下游 read-result contract，unusable 回落原 inline chain。双 gate（`EXPLICIT_READER_HINTS_ENABLED` + `CRAWL4AI_SPECIALIST_ENABLED`）默认仍 OFF，不得顺手 enable。之后 pre/post parity + operator e2e + transport→context→read-site qualification。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12101,3 +12101,143 @@ P3                                                     ⏳ later
 
 **未做**：未改 flag 默认值；未在 `WebLookupService.create` 增加未消费字段；
 未改 execute() 热路径；未改 ACTIVE_READER_CHAIN；未做 P3。
+
+
+## §143-RS — execute() read-site integration contract（冻结；A 选定）
+
+### 143.158 结构（冻结）：selector 前置，default 原路径不动
+
+```text
+execute() read site
+        │
+        ├─ 没有显式 hint / flag OFF
+        │      └─ 原 inline default path【原样，不抽/不搬/不包装】
+        │
+        └─ 显式 hint + 两个 gate 均满足 + readiness/budget 允许
+               ├─ Crawl4AI specialist usable
+               │      └─ 返回 specialist result，跳过本次 default chain
+               └─ unavailable / failed / unusable
+                      └─ 记录 specialist provenance -> 原 inline default path【原样】
+```
+
+**禁止形态**（会再造路径分叉）：
+
+```text
+execute() -> run_reader_with_hints() -> run_single_read_measurement() 作为 default   ❌
+```
+
+**三条路径职责冻结**：
+
+```text
+execute inline run_chain              = production default execution authority
+invoke_crawl4ai_specialist            = production specialist execution authority
+run_single_read_measurement           = measurement / qualification seam only（永不进 hot path）
+```
+
+### 143.159 关键语义（冻结）
+
+**1) no-hint parity（normalized trace）**
+"逐字节"仅适用于确定性字段；volatile 字段剥离后比较 normalized trace。
+
+```text
+exact equal:   content bytes / terminal_outcome / terminal_reason / backend_path /
+               record_outcome event sequence / critical provenance fields /
+               attempt numbering / budget-charge event sequence
+strip only:    wall_ms / absolute timestamps / request UUID / invocation ID
+结构性断言:    no_hint -> selector returns DEFAULT；invoke_crawl4ai_specialist 调用数 == 0；
+               原 run_chain 调用点仍存在且参数表达式未被替换
+实现约束:      只在原 default block 前增加 early specialist branch；不抽/不搬/不包装
+```
+
+**2) attempts accounting**
+`specialist invocation 不占用、也不重编号 default chain 的 backend-attempt 序列`。
+hint + Crawl4AI 失败后 fallback：default 侧 attempt numbering 与"无 hint"时完全一致
+（specialist 走独立 provenance 维度：`specialist_invoked/specialist_backend/specialist_outcome/specialist_latency_ms`），
+**不得**变成 `crawl4ai attempt=1; native=2; wigolo=3`。
+
+**3) budget**
+attempt numbering 不变 ≠ specialist 免费：specialist 消耗**同一** request hard deadline；
+拿到与 production 同源的 `hard_seconds_left()` / deadline / envelope；无预算不启动；
+不绕过 deadline preflight；session/render 计入；specialist timeout 后 fallback 是否有资格启动
+由**剩余真实 budget**决定；**不得**为保持 parity 偷偷重置计时器。
+
+**4) success 归一化**
+branch 内把 specialist success 归一化成 execute 下游原本消费的 read-result contract
+（content / url-source / usable / terminal outcome / backend_path / provenance / latency）。
+下游 planning/synthesis **不得**认识 specialist-only 新数据类型。
+
+**5) fallback 规则**
+unavailable / health-readiness fail / deadline-preflight fail / worker crash / timeout /
+returned unusable → 记录 specialist 结果后走原 inline default chain；
+**不自动 replay Crawl4AI、不换另一 specialist、不改 default chain、不因 hint 跳过 native/wigolo**。
+
+**6) provenance 语义（精确）**
+
+```text
+Crawl4AI 实际执行 + usable          -> hint_honored=true,  specialist_usable=true,  fallback_used=false
+Crawl4AI 实际执行 + unusable/失败   -> hint_honored=true,  specialist_usable=false, fallback_used=true
+gate/health 阶段未执行 specialist   -> hint_honored=false, reason=specialist_unavailable/disabled/budget...
+```
+"specialist 没产出 usable content" **不得**误记为"hint 没被 honor"。
+
+**7) transport**
+`WebLookupService.create` 不需要知道 Crawl4AI；只把 canonical
+`reader_capabilities` / `hint_source` / session-setup companion 写入 **research run/context**，
+沿既有 run context 生命周期**只读**传到 read site。
+`transport 表达 intent；read site 拥有 routing authority`；route/service 层禁止
+`if JS_RENDER: call Crawl4AI`（会造第二个 routing authority）。context 中该部分不可变，
+planner/runtime 不得中途增删 capability。
+
+**8) 双 gate**
+hot path 必须同时满足 `EXPLICIT_READER_HINTS_ENABLED && CRAWL4AI_SPECIALIST_ENABLED`
+再加 readiness/budget：
+
+```text
+hint + hint-gate OFF            -> 原 default
+hint + hint-gate ON + spec OFF  -> 原 default + hint_unhonored_reason
+两 gate ON + specialist 不可用  -> 原 default + provenance
+两 gate ON + specialist ready   -> specialist-first
+```
+默认 gate 的 rollout 决策不因本刀自动 enable。
+
+### 143.160 read-site PASS gate（冻结，五组）
+
+```text
+A No-hint parity
+  no_hint_normalized_trace == pre_change_baseline
+  no_hint_content_bytes == baseline
+  no_hint_record_outcome_sequence == baseline
+  no_hint_attempt_sequence == baseline
+  specialist_invocation_count == 0
+B Explicit JS/session
+  JS_RENDER -> specialist-first
+  SESSION_STATE -> specialist-first
+  combined hints -> one specialist invocation only
+C Success / fallback
+  specialist usable -> default chain not called
+  specialist unavailable/failed/unusable -> original inline default path called
+                                         -> default attempt numbering unchanged
+D Accounting
+  specialist latency charged / remaining hard budget reduced / deadline-budget not bypassed /
+  fallback gets real remaining budget / no silent replay
+E Provenance / isolation
+  hint source preserved / specialist outcome recorded / actual backend path correct /
+  failure does not contaminate subsequent reads / no auto-derived capabilities
++ 现有 reader/runtime/A3/P1 回归继续 PASS
+```
+
+基线快照在实现前于 `f47c443` 固定。
+
+### 143.161 路线与状态
+
+```text
+read-site integration contract      ✅ FROZEN（本刀，§143.158-§143.160）
+hot-path implementation             ⏳ NEXT
+pre/post parity + operator E2E      ⏳
+transport -> context -> read-site qualification ⏳
+P1 routing closeout                 ⏳
+deployment opt-in enable decision   ⏳（不得在 implementation 完成后顺手打开 flag）
+```
+
+**未做**：未改 `execute()`；未改 `WebLookupService.create`；未改两个 gate；未实现任何 selector；
+未改 ACTIVE_READER_CHAIN。baseline 快照尚未采集（属 hot-path implementation 的前置）。
