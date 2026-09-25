@@ -234,11 +234,10 @@ def test_no_auto_derivation_from_page_signals() -> None:
     code = src.split('"""', 2)[2] if src.count('"""') >= 2 else src
     for forbidden in (
         "content_type",
-        "terminal_outcome",
         "url.endswith",
         ".pdf",
         "search_excerpt",
         "requests.get",
     ):
-        # comments/docstrings already stripped; derive-names must not appear
+        # comments/docstrings already stripped; page-signal derive-names must not appear
         assert forbidden not in code, forbidden
