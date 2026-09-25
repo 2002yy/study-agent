@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-RS` 的 **selector implementation** —— baseline harness/snapshot 已交付（`bd148f2`/`a37c70e`，baseline_commit `f47c443`，与当前 pre-change 相等）。下一步：在原 default block 前加 early specialist selector（不抽/不搬/不包装），specialist 走独立 invocation accounting 但消耗同一 hard budget，success 归一化回下游 read-result contract，unusable 回落原 inline chain；`_read_site_hint_route(context)` 为纯判定 helper。随后用同一 harness 做 pre/post normalized parity（五组 PASS gate A–E）+ operator e2e。双 gate 默认仍 OFF，不得顺手 enable。P3 更后。
+- **下一刀（唯一）：**`§143-RS` 的 **transport → context → read-site 真实 worker e2e（qualification）** —— selector 已实现（`58f6a75`），no-hint parity 与 A–E gate 已 PASS，双 gate 仍 OFF。下一步用真实 Crawl4AI worker（operator 显式 `CRAWL4AI_PYTHON` + 两个 gate ON）穿过 `WebLookupService.create` → run context → `execute()` read site，确认真实 specialist success 短路与 unusable 回落、provenance、budget accounting 均符合契约；随后 P1 routing closeout，再单独裁定 deployment opt-in enable。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12285,3 +12285,66 @@ deployment opt-in enable         ⏳（flag 仍 OFF）
 ```
 
 **未做**：未改 `execute()`；未实现 selector；未改 gate 默认值；未改 `WebLookupService.create`。
+
+
+### 143.164 selector implementation 交付（`58f6a75`）
+
+**`execute()` read site**：在原 inline default block 之前加入 `read_site_specialist_step(candidate, source_limit)`；
+原 `read_chain_executors` + `run_chain(...)` 调用**原地保留**（仅置于 `else` 分支，参数表达式不变）。
+
+```text
+selector
+  ├─ route != specialist -> 记录 provenance（若有 hint）-> 原 default block 原样执行
+  └─ route == specialist -> invoke_crawl4ai_specialist(...)
+        ├─ usable  -> chain_steps=[step]; chain_run=specialist_chain_run(...)（短路，default 不执行）
+        └─ 否则    -> 记录 provenance -> 原 default block 原样执行
+```
+
+**语义**：
+
+```text
+identity:            CRAWL4AI_BROWSER（normalise 为标准 ChainRun；下游无 specialist-only 类型）
+accounting:          specialist 独立 provenance（metrics.read_site_specialist）；
+                     default attempt numbering 不变（短路时不跑 run_chain）
+budget:              specialist 拿到 hard_seconds_left = state.budget.hard_timeout_seconds - elapsed()
+                     （同一 hard deadline；不重置计时器）
+provenance:          requested_reader_capabilities / hint_source / hint_honored / specialist_attempted /
+                     specialist_backend / specialist_outcome / specialist_usable /
+                     specialist_unavailable_reason / specialist_latency_ms / fallback_used
+hint_honored:        执行了 specialist -> true（即便 unusable，另记 specialist_usable=false/fallback_used=true）
+                     未执行（gate/health）-> false
+双 gate:             EXPLICIT_READER_HINTS_ENABLED + CRAWL4AI_SPECIALIST_ENABLED（默认 OFF）
+transport:           WebLookupService.create 接受 adapter-validated reader_capabilities + session companions，
+                     写入 run context（intent only）；read site 独占 routing authority
+```
+
+### 143.165 read-site PASS gate 状态
+
+```text
+A No-hint parity          PASS（同一 harness：post-change cases == f47c443 baseline，machine compare True）
+B Explicit JS/session     PASS（JS_RENDER -> specialist；SESSION_STATE 缺 companion -> unsatisfied；
+                                combined 单次由 P1 router 测试覆盖；read site 为单次决策）
+C Success / fallback      PASS（usable -> run_chain 调用数 0；unusable -> run_chain 执行且 default 编号不变）
+D Accounting              PASS（specialist 同一 hard budget；独立 provenance；无 silent replay）
+E Provenance / isolation  PASS（metrics.read_site_specialist；无 auto-derivation）
+现有回归                   PASS（focused impact set + A3：230 passed / 2 skipped）
+```
+
+测试：`tests/test_read_site_selector.py` 8 passed（含 usable 短路时 `run_chain` 未被调用、unusable 回落、
+transport 记录/拒绝、纯 route 判定）。`ruff src tests tools` PASS。
+
+### 143.166 状态
+
+```text
+§143-RS contract                 ✅ FROZEN（c6be7f5）
+§143-RS baseline                 ✅（bd148f2 / a37c70e；baseline_commit f47c443）
+§143-RS selector implementation  ✅（58f6a75）
+§143-RS no-hint parity           ✅（post == baseline）
+§143-RS A–E gate                 ✅（见 §143.165）
+transport -> context -> read-site **real-worker** e2e   ⏳ NEXT（qualification）
+P1 routing closeout              ⏳
+deployment opt-in enable         ⏳（双 gate 仍 OFF）
+```
+
+**未做**：未启用任何 gate；未做真实 worker 穿过 execute() 的 operator e2e（下一步）；未改
+`ACTIVE_READER_CHAIN`；未做 P3。
