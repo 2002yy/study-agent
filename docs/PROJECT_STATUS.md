@@ -12741,3 +12741,44 @@ L3 vision API（图本身承载关键证据时）
 
 **要求**：L3 的产出必须落为带 provenance 的 `EvidenceUnit(source_type in {image,chart,screenshot,pdf_figure})`，
 并走与文本相同的 eligibility / strength / gate 路径；视觉调用计入既有 hard budget（不重置时钟）。
+
+## §145 Artifact / evidence hygiene（2026-09-25）
+
+**背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
+代码历史已推远程（`dfe5319`），但这些 JSON 证据仍未托管 → 存在"单机丢失即证据断链"风险。
+
+**分类（窄刀：不改 schema / 不重命名 / 不重组目录）**：
+
+```text
+A 权威 evidence：被 tracked docs/code 明确引用，且未被标注为"未跟踪/诊断产物/测量产物"
+                 -> 纳入版本管理
+B 可重生成中间产物：probe / 重复 run / 一次性 diagnostics -> 不提交
+C 纯日志/临时：full_pytest_batch*.log、stash_repro.txt -> ignore
+```
+
+**判据（可复现方法）**：对每个 untracked JSON，取其 basename，
+用 `git grep -F <basename>` 扫描 tracked 的 `docs/*.md` / `src` / `tools` / `tests`；
+引用行若带"未跟踪 / 诊断产物 / 测量产物"标记则归 B，否则归 A。
+
+**结果**：
+
+```text
+A 纳入版本管理：41 个 JSON（4.99 MB，全部 JSON 合法、无密钥）
+B/C：其余 247 个（含 2 log + 1 txt）→ 不提交
+untracked：288 -> 0
+```
+
+**规则（已写入 .gitignore）**：
+
+```text
+docs/research_quality/*.json     # 该目录默认 scratch：raw / 一次性输出不版本化
+                                 # 需版本化的新证据 artifact 必须显式 git add -f
+full_pytest_batch*.log
+stash_repro.txt
+```
+
+**注意（footgun）**：此后在 `docs/research_quality/` 新建的权威证据 artifact **默认被 ignore**，
+必须 `git add -f docs/research_quality/<name>.json`（或把该路径加入 negate 列表），
+否则会重现"证据只在本机"的风险。**新增权威 evidence 时务必确认它出现在 commit 中。**
+
+**未做**：未删除任何本地文件；未改 artifact 内容/schema；未重命名；未重组目录。

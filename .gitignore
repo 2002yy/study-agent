@@ -55,3 +55,13 @@ frontend/playwright-g12-report/
 pytest_full.log
 .local-llama/
 .local-model/
+
+# research_quality: raw / one-off experiment outputs are NOT versioned.
+# Only cited evidence artifacts are tracked (already in the index).
+# To version a new evidence artifact, add it explicitly:
+#   git add -f docs/research_quality/<name>.json
+docs/research_quality/*.json
+
+# local test / scratch logs
+full_pytest_batch*.log
+stash_repro.txt

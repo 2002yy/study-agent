@@ -1,0 +1,1154 @@
+{
+  "schema_version": "selection-authority-runtime-probe-v1",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "qualification_guard_bypassed": true,
+  "guard_bypass_reason": "the six-call research cap starves per-wave selection calls; the raw driver keeps the runtime's production budgets but has no overlay",
+  "selector_accounting_caveat": "selection-authority model calls are recorded in metrics.selection_authority but do not pass through the runtime's durable model-attempt ledger, so the runtime's own model budget does not count them",
+  "git_sha": "50bb71a476df58ada270e17571c10c64bcd68616",
+  "started_at": "2026-09-20T11:14:21.932901Z",
+  "completed_at": "2026-09-20T11:15:08.569601Z",
+  "manifest": {
+    "path": "C:/Users/Zhang/Desktop/study agent/tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "case_count": 1
+  },
+  "selection_authority_mode": "model",
+  "cases": [
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "category": "simple_factual_primary",
+      "question": "What open-source license does Astral's uv project use according to its official repository?",
+      "reference_date": "2026-09-20",
+      "elapsed_seconds": 46.453,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-simple-license-uv",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "569b1fbea8142b3073811590d875d9ef87a20036e37d478c034899d737a9e1fd",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 4,
+        "audits": [
+          {
+            "query_sha256": "80e65ca2d5bedb6f336a1dc28f2d1d8d03841b71915327286192a268b2f37bea",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "url_error",
+                "attempts": 2,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "wallclock_timeout",
+                "attempts": 1,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "06140a5894d57bb5378ebf80f96dd71a609950f69e75b3c09d3ffd6a33e512ae",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "995b58226e7aa70615ea21b6803d80969c7ec63a25e760d28ebec511a6249fa0",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "629f1e682c7fdc5f16e92ae3b70000d87049d3f9a8213446a828e7ce1989db32",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 5,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 4,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 5,
+        "elapsed_seconds": 46.453
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "finalization_breakdown": {
+        "research_seconds": 44.25,
+        "post_research_projection_seconds": 0.0,
+        "answer_stage_seconds": 2.203,
+        "total_seconds": 46.453
+      },
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_f01727a40abd225d1821d2f5"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_f01727a40abd225d1821d2f5:eligible_support_clusters=0/1",
+          "critical:claim_f01727a40abd225d1821d2f5:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_49286b7f2968524cac7e617b"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "atomic_routing": [],
+        "candidate_count": 5,
+        "cluster_count": 0,
+        "discovery_funnel": {
+          "assessed_answer_relevant": 0,
+          "by_discovery_method": {},
+          "extracted_supports": 0,
+          "gate_eligible": 0,
+          "proposed_candidates": 0,
+          "read": 0,
+          "rows": []
+        },
+        "domain_targeted": [
+          {
+            "added_candidate_ids": [],
+            "call_status": "completed",
+            "claim_id": "claim_f01727a40abd225d1821d2f5",
+            "domains": [
+              "github.com",
+              "docs.astral.sh"
+            ],
+            "dropped": [
+              {
+                "detail": "HTTPError: HTTP Error 406: Not Acceptable",
+                "reason": "inventory_fetch_failed",
+                "url": "https://github.com/sitemap.xml"
+              },
+              {
+                "detail": "URLError: <urlopen error timed out>",
+                "reason": "inventory_fetch_failed",
+                "url": "https://github.com/sitemap_index.xml"
+              },
+              {
+                "reason": "skipped_by_window",
+                "url": "https://docs.astral.sh/sitemap.xml"
+              },
+              {
+                "reason": "skipped_by_window",
+                "url": "https://docs.astral.sh/sitemap_index.xml"
+              }
+            ],
+            "links_found": [],
+            "search_urls": [
+              "https://github.com/sitemap.xml",
+              "https://github.com/sitemap_index.xml"
+            ],
+            "stages": {
+              "candidate_admitted": 0,
+              "domain_proposed": 2,
+              "inventory_fetched": 2,
+              "links_ranked": 0,
+              "verification_attempted": 0,
+              "verification_succeeded": 0
+            },
+            "tier1_miss_reason": "no_viable_read_path",
+            "verification_reads": 0,
+            "verified": [],
+            "wave_index": 2
+          }
+        ],
+        "inventory_fetch": {
+          "admission_reasons": [
+            "allowed",
+            "insufficient_window"
+          ],
+          "attempts": 3,
+          "fetches": 2,
+          "retries": 1,
+          "retry_reasons": [
+            "URLError: <urlopen error _ssl.c:983: The handshake operation timed out>"
+          ],
+          "skipped_due_to_budget": 1
+        },
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "orchestration_model_calls": 4,
+        "orchestration_model_calls_by_purpose": {
+          "research_domain_proposal": 1,
+          "research_selection_authority": 3
+        },
+        "phase": "unavailable",
+        "phase_seconds": {
+          "assessment": {
+            "calls": 3,
+            "seconds": 2.218
+          },
+          "search": {
+            "calls": 4,
+            "seconds": 11.297
+          }
+        },
+        "read_count": 0,
+        "read_reserve": {
+          "configured": 3,
+          "hard_cap": 8,
+          "reads_used": 0,
+          "reclaim_reason": "no_open_conflicts",
+          "reclaimed": 3
+        },
+        "research_window": {
+          "deadline_elapsed": 48.0,
+          "exhausted": false,
+          "hard_seconds": 60.0,
+          "remaining_after_research_seconds": 15.828,
+          "research_elapsed_seconds": 44.172,
+          "reserve_seconds": 12.0
+        },
+        "search_discovery": {
+          "outcome": "observability_only",
+          "queries": [
+            {
+              "claim_id": "claim_f01727a40abd225d1821d2f5",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 61,
+              "query_excerpt": "Astral's open-source license Astral uv project use repository",
+              "query_sha256": "80e65ca2d5bedb6f336a1dc28f2d1d8d03841b71915327286192a268b2f37bea",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral 是一个基于 EasyTier 的跨平台 P2P 游戏联机软件，支持 Minecraft、Terraria 等游戏联机。 提供端到端加密传输与简单易用的现代化界面，几分钟即可完成配置，突破地理限制享受低延迟网络体验。",
+                  "title": "Astral",
+                  "url": "https://astral.fan/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "下载 Astral 通用版与 Astral Game。 国内推荐。点开对应版本后，在分享里选平台安装包。",
+                  "title": "下载 · Astral",
+                  "url": "https://next.astral.fan/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "去中心化组网工具. Contribute to ldoubil/astral development by creating an account on GitHub.",
+                  "title": "Releases · ldoubil/astral - GitHub",
+                  "url": "https://github.com/ldoubil/astral/releases"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "点击此处下载 Astral 的最新正式版，快速获取便携版以体验其功能和服务。",
+                  "title": "⬇️ 下载 | AstralGame",
+                  "url": "https://astral.fan/getting-started/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral Game：持续游戏适配，Raft 等。 Astral Next 游戏版 通用版 下载 博客 旧文档 QQ群 QQ频道 GitHub",
+                  "title": "Astral Game · 游戏版 · Astral",
+                  "url": "https://next.astral.fan/game/"
+                }
+              ],
+              "slot_index": 1,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_f01727a40abd225d1821d2f5",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 75,
+              "query_excerpt": "Astral's open-source license Astral uv project use repository official docs",
+              "query_sha256": "06140a5894d57bb5378ebf80f96dd71a609950f69e75b3c09d3ffd6a33e512ae",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral 是一个基于 EasyTier 的跨平台 P2P 游戏联机软件，支持 Minecraft、Terraria 等游戏联机。 提供端到端加密传输与简单易用的现代化界面，几分钟即可完成配置，突破地理限制享受低延迟网络体验。",
+                  "title": "Astral",
+                  "url": "https://astral.fan/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "下载 Astral 通用版与 Astral Game。 国内推荐。点开对应版本后，在分享里选平台安装包。",
+                  "title": "下载 · Astral",
+                  "url": "https://next.astral.fan/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "去中心化组网工具. Contribute to ldoubil/astral development by creating an account on GitHub.",
+                  "title": "Releases · ldoubil/astral - GitHub",
+                  "url": "https://github.com/ldoubil/astral/releases"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "点击此处下载 Astral 的最新正式版，快速获取便携版以体验其功能和服务。",
+                  "title": "⬇️ 下载 | AstralGame",
+                  "url": "https://astral.fan/getting-started/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral Game：持续游戏适配，Raft 等。 Astral Next 游戏版 通用版 下载 博客 旧文档 QQ群 QQ频道 GitHub",
+                  "title": "Astral Game · 游戏版 · Astral",
+                  "url": "https://next.astral.fan/game/"
+                }
+              ],
+              "slot_index": 2,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_f01727a40abd225d1821d2f5",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 74,
+              "query_excerpt": "Astral's open-source license Astral uv project use repository announcement",
+              "query_sha256": "995b58226e7aa70615ea21b6803d80969c7ec63a25e760d28ebec511a6249fa0",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral 是一个基于 EasyTier 的跨平台 P2P 游戏联机软件，支持 Minecraft、Terraria 等游戏联机。 提供端到端加密传输与简单易用的现代化界面，几分钟即可完成配置，突破地理限制享受低延迟网络体验。",
+                  "title": "Astral",
+                  "url": "https://astral.fan/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "下载 Astral 通用版与 Astral Game。 国内推荐。点开对应版本后，在分享里选平台安装包。",
+                  "title": "下载 · Astral",
+                  "url": "https://next.astral.fan/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "去中心化组网工具. Contribute to ldoubil/astral development by creating an account on GitHub.",
+                  "title": "Releases · ldoubil/astral - GitHub",
+                  "url": "https://github.com/ldoubil/astral/releases"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "点击此处下载 Astral 的最新正式版，快速获取便携版以体验其功能和服务。",
+                  "title": "⬇️ 下载 | AstralGame",
+                  "url": "https://astral.fan/getting-started/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral Game：持续游戏适配，Raft 等。 Astral Next 游戏版 通用版 下载 博客 旧文档 QQ群 QQ频道 GitHub",
+                  "title": "Astral Game · 游戏版 · Astral",
+                  "url": "https://next.astral.fan/game/"
+                }
+              ],
+              "slot_index": 3,
+              "variant_matches": []
+            },
+            {
+              "claim_id": "claim_f01727a40abd225d1821d2f5",
+              "generated_query_variants": [],
+              "hint_terms": [],
+              "page_intent": {},
+              "query_chars": 86,
+              "query_excerpt": "Astral's open-source license Astral uv project use repository independent verification",
+              "query_sha256": "629f1e682c7fdc5f16e92ae3b70000d87049d3f9a8213446a828e7ce1989db32",
+              "result_count": 5,
+              "results": [
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 1,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral 是一个基于 EasyTier 的跨平台 P2P 游戏联机软件，支持 Minecraft、Terraria 等游戏联机。 提供端到端加密传输与简单易用的现代化界面，几分钟即可完成配置，突破地理限制享受低延迟网络体验。",
+                  "title": "Astral",
+                  "url": "https://astral.fan/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 2,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "下载 Astral 通用版与 Astral Game。 国内推荐。点开对应版本后，在分享里选平台安装包。",
+                  "title": "下载 · Astral",
+                  "url": "https://next.astral.fan/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 3,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "去中心化组网工具. Contribute to ldoubil/astral development by creating an account on GitHub.",
+                  "title": "Releases · ldoubil/astral - GitHub",
+                  "url": "https://github.com/ldoubil/astral/releases"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 4,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "点击此处下载 Astral 的最新正式版，快速获取便携版以体验其功能和服务。",
+                  "title": "⬇️ 下载 | AstralGame",
+                  "url": "https://astral.fan/getting-started/download/"
+                },
+                {
+                  "authority_class": "unknown",
+                  "final_caveat": "",
+                  "final_relation": "",
+                  "human_candidate_classification": "",
+                  "lexical_targeting_score": {
+                    "candidate_intent_match": 0,
+                    "candidate_snippet_match": 0,
+                    "candidate_title_match": 0
+                  },
+                  "provider": "bing_rss",
+                  "providers": [
+                    "bing_rss"
+                  ],
+                  "read_status": "",
+                  "result_rank": 5,
+                  "selected_for_harvest": false,
+                  "selected_for_read": false,
+                  "selection_reason": "fallback_order",
+                  "snippet": "Astral Game：持续游戏适配，Raft 等。 Astral Next 游戏版 通用版 下载 博客 旧文档 QQ群 QQ频道 GitHub",
+                  "title": "Astral Game · 游戏版 · Astral",
+                  "url": "https://next.astral.fan/game/"
+                }
+              ],
+              "slot_index": 4,
+              "variant_matches": []
+            }
+          ],
+          "schema_version": "rq1c-search-discovery-v1"
+        },
+        "selection_authority": [
+          {
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_f01727a40abd225d1821d2f5",
+            "elapsed_ms": 719,
+            "enabled": true,
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://astral.fan/",
+              "https://next.astral.fan/download/"
+            ],
+            "final_picks": [
+              "https://astral.fan/",
+              "https://next.astral.fan/download/"
+            ],
+            "input_set": [
+              "https://astral.fan/",
+              "https://next.astral.fan/download/",
+              "https://github.com/ldoubil/astral/releases",
+              "https://astral.fan/getting-started/download/",
+              "https://next.astral.fan/game/"
+            ],
+            "input_size": 5,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "orchestration_model_call": 1,
+            "raw_pick_count": 0,
+            "selection_source": "legacy_fallback",
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 1,
+            "window_limit": 2
+          },
+          {
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_f01727a40abd225d1821d2f5",
+            "elapsed_ms": 421,
+            "enabled": true,
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://github.com/ldoubil/astral/releases",
+              "https://astral.fan/getting-started/download/"
+            ],
+            "final_picks": [
+              "https://github.com/ldoubil/astral/releases",
+              "https://astral.fan/getting-started/download/"
+            ],
+            "input_set": [
+              "https://github.com/ldoubil/astral/releases",
+              "https://astral.fan/getting-started/download/",
+              "https://next.astral.fan/game/"
+            ],
+            "input_size": 3,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "orchestration_model_call": 1,
+            "raw_pick_count": 0,
+            "selection_source": "legacy_fallback",
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 2,
+            "window_limit": 2
+          },
+          {
+            "authority": "model_preference_with_legacy_fallback",
+            "call_status": "completed",
+            "claim_id": "claim_f01727a40abd225d1821d2f5",
+            "elapsed_ms": 687,
+            "enabled": true,
+            "fallback_invoked": true,
+            "fallback_picks": [
+              "https://next.astral.fan/game/"
+            ],
+            "final_picks": [
+              "https://next.astral.fan/game/"
+            ],
+            "input_set": [
+              "https://next.astral.fan/game/"
+            ],
+            "input_size": 1,
+            "model": "deepseek-flash",
+            "model_picks": [],
+            "orchestration_model_call": 1,
+            "raw_pick_count": 0,
+            "selection_source": "legacy_fallback",
+            "unusable_reason": "empty",
+            "usable": false,
+            "valid_pick_count": 0,
+            "wave_index": 3,
+            "window_limit": 1
+          }
+        ],
+        "selection_trace": {
+          "candidate_count": 5,
+          "entries": [
+            {
+              "candidate_pool_class": "candidate_cluster_1ad47c553b0660cb",
+              "canonical_url": "https://astral.fan/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_cd379c38ae6541b9",
+              "canonical_url": "https://next.astral.fan/download/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "",
+              "filter_reason": "",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 2,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "unobserved"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_f4a21f5c9b7d8506",
+              "canonical_url": "https://github.com/ldoubil/astral/releases",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 3,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_1ad47c553b0660cb",
+              "canonical_url": "https://astral.fan/getting-started/download/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 4,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            },
+            {
+              "candidate_pool_class": "candidate_cluster_cd379c38ae6541b9",
+              "canonical_url": "https://next.astral.fan/game/",
+              "deduped_survivor": true,
+              "duplicate_merges": 3,
+              "entered_candidate_pool": true,
+              "entered_scheduler": true,
+              "filter_decision": "rejected",
+              "filter_reason": "assessment_window:window_limit_reached",
+              "materialized": true,
+              "normalized": true,
+              "observed_drops": [
+                "candidate_pool_excluded"
+              ],
+              "read_dispatched": false,
+              "read_skip_reason": "",
+              "scheduler_decision": "",
+              "scheduler_rank": 1,
+              "scheduler_reason": "",
+              "seen_in_provider": true,
+              "terminal_reason": "candidate_pool_excluded"
+            }
+          ],
+          "schema_version": "research-selection-trace-v1",
+          "terminal_reasons": [
+            "not_materialized",
+            "canonical_duplicate",
+            "authority_or_policy_filter",
+            "candidate_pool_excluded",
+            "scheduler_not_selected",
+            "read_budget_exhausted",
+            "already_read",
+            "unsupported_url",
+            "other_observed_reason",
+            "unobserved"
+          ]
+        },
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 5
+        },
+        "relevance": {
+          "off_target": 5
+        },
+        "source_role": {
+          "unknown": 1,
+          "aggregator": 4
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      }
+    }
+  ],
+  "summary": {
+    "selection_authority_records": 3,
+    "selector_completed_calls": 0,
+    "fallback_records": 0,
+    "targets_in_selector_input": [],
+    "reads": 0,
+    "gate_status": "block",
+    "answer_status": "available"
+  },
+  "claims": [
+    {
+      "id": "claim_f01727a40abd225d1821d2f5",
+      "text": "What open-source license does Astral's uv project use according to its official repository?",
+      "kind": "factual",
+      "priority": "critical",
+      "state": "unresolved",
+      "parent_id": "",
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:official_statement",
+      "evidence_requirement": {
+        "max_age_days": null,
+        "min_independent_sources": 1,
+        "requires_dated_evidence": false,
+        "requires_primary_source": true,
+        "requires_successful_read": true,
+        "source_roles": [
+          "primary"
+        ]
+      }
+    }
+  ],
+  "source_reads": []
+}
