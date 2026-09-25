@@ -13039,3 +13039,43 @@ python tools/package_project_helper.py . "$env:TEMP\pkg_check.zip" 0
 
 **非阻塞 hygiene debt**（不混入本线）：`tools/run_f2_paired.py`、
 `run_f2_characterization.py` 与两个 crawl4ai 契约测试的机器特定 venv 绝对路径。
+
+### 146.4 exact-head `f5bbcca` 剩余失败（mypy baseline gate）
+
+detect-secrets 全绿后 job 继续到 `Run expanded mypy` ✓ + `Enforce mypy baseline` **X**：
+`ERROR: mypy debt increased: current=133, baseline=128, new=11`。
+
+**性质**：`config/mypy_baseline.json` 由 `main@a343a7f` 生成（128 signatures）；
+本分支（§143 链）新增 11 个签名 -> 属"前置 gate 红导致后置 gate 长期未执行"的**第 5 层**历史债，
+**与 RQ-A 无关**（11 处全部位于 §143 期文件，RQ-A 两个新文件零新增）。
+
+**11 处（全部为类型收窄/注解问题，运行语义不变）**：
+
+```text
+arg-type float(str|None) x6: health_breaker.py:101/110, read_escalation.py:139/150,
+                             read_retry.py:84, active_research_runtime.py:284
+  -> raw not in (None, "") 改为 raw is not None and raw != ""（等价，且可被 mypy 收窄）
+import-not-found         x2: crawl4ai_worker.py:157/160 -> # type: ignore[import-not-found]
+union-attr               x1: active_research_runtime.py:2496 -> usable_step is not None 收窄
+no-redef                 x1: active_research_runtime.py:4238 -> 循环变量 record -> entry
+index                    x1: active_research_runtime.py:6867 -> row: dict[str, Any] 注解
+```
+
+**验证（本地 mypy 可复现，CI 同款命令）**：
+
+```text
+mypy --explicit-package-bases src/   -> 133 errors（与 CI 完全一致）
+tools/check_mypy_baseline.py         -> current=122, baseline=128, resolved=6, new=0 -> PASS
+ruff：All checks passed（5 个改动文件）
+L1：health_breaker / read_escalation / read_retry / crawl4ai×2 / active_research_runtime /
+    web_provider_health / read_chain_single_authority = 160 passed
+L3 full pytest：2646 passed / 2 failed（clean-checkout guard，因未提交）/ 2 skipped
+```
+
+**注意**：`Enforce mypy baseline` 是**只增不减**门（current <= baseline 即通过）；
+本刀修复后 current(122) 已低于 baseline(128)。**未重生成 baseline**
+（避免把分支状态写回 main 基线）。
+
+**治理修正**：AGENTS §4.6 记"本仓库未声明 mypy 基线"**与事实不符** —— 仓库实际存在
+`config/mypy_baseline.json` + `tools/check_mypy_baseline.py` + CI `Enforce mypy baseline` 门。
+后续按"存在基线门"对待。

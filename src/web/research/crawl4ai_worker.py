@@ -154,10 +154,12 @@ class Worker:
         crawler = self.crawlers.get(key)
         if crawler is not None:
             return crawler
-        from crawl4ai import AsyncWebCrawler
+        from crawl4ai import AsyncWebCrawler  # type: ignore[import-not-found]
 
         if mode == "pdf":
-            from crawl4ai.processors.pdf import PDFCrawlerStrategy
+            from crawl4ai.processors.pdf import (  # type: ignore[import-not-found]
+                PDFCrawlerStrategy,
+            )
 
             crawler = AsyncWebCrawler(crawler_strategy=PDFCrawlerStrategy(), verbose=False)
         else:

@@ -136,7 +136,7 @@ def http_min_hard_seconds() -> float:
 
     raw = os.getenv(HTTP_MIN_HARD_SECONDS_ENV)
     try:
-        value = float(raw) if raw not in (None, "") else HTTP_MIN_HARD_SECONDS_DEFAULT
+        value = float(raw) if raw is not None and raw != "" else HTTP_MIN_HARD_SECONDS_DEFAULT
     except (TypeError, ValueError):
         value = HTTP_MIN_HARD_SECONDS_DEFAULT
     return max(0.0, min(value, 120.0))
@@ -147,7 +147,7 @@ def http_run_envelope_seconds() -> float:
 
     raw = os.getenv(HTTP_RUN_ENVELOPE_ENV)
     try:
-        value = float(raw) if raw not in (None, "") else HTTP_RUN_ENVELOPE_DEFAULT
+        value = float(raw) if raw is not None and raw != "" else HTTP_RUN_ENVELOPE_DEFAULT
     except (TypeError, ValueError):
         value = HTTP_RUN_ENVELOPE_DEFAULT
     return max(0.0, min(value, 120.0))

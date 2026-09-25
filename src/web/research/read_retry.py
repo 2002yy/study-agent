@@ -81,7 +81,7 @@ def read_retry_mode() -> str:
 def retry_window_floor_seconds() -> float:
     raw = os.getenv(READ_RETRY_FLOOR_ENV)
     try:
-        value = float(raw) if raw not in (None, "") else READ_RETRY_WINDOW_FLOOR_SECONDS
+        value = float(raw) if raw is not None and raw != "" else READ_RETRY_WINDOW_FLOOR_SECONDS
     except (TypeError, ValueError):
         value = READ_RETRY_WINDOW_FLOOR_SECONDS
     return max(1.0, min(value, 120.0))

@@ -98,7 +98,7 @@ def read_breaker_enabled() -> bool:
 def _env_float(name: str, fallback: float) -> float:
     raw = os.getenv(name)
     try:
-        value = float(raw) if raw not in (None, "") else float(fallback)
+        value = float(raw) if raw is not None and raw != "" else float(fallback)
     except (TypeError, ValueError):
         value = float(fallback)
     return max(0.0, value)
@@ -107,7 +107,7 @@ def _env_float(name: str, fallback: float) -> float:
 def _env_int(name: str, fallback: int) -> int:
     raw = os.getenv(name)
     try:
-        value = int(float(raw)) if raw not in (None, "") else int(fallback)
+        value = int(float(raw)) if raw is not None and raw != "" else int(fallback)
     except (TypeError, ValueError):
         value = int(fallback)
     return max(1, value)

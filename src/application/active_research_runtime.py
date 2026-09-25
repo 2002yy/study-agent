@@ -281,7 +281,7 @@ def late_tail_floor_seconds() -> float:
 
     raw = os.getenv(LATE_TAIL_FLOOR_ENV)
     try:
-        value = float(raw) if raw not in (None, "") else LATE_TAIL_MIN_SECONDS_LEFT
+        value = float(raw) if raw is not None and raw != "" else LATE_TAIL_MIN_SECONDS_LEFT
     except (TypeError, ValueError):
         value = LATE_TAIL_MIN_SECONDS_LEFT
     return max(1.0, min(value, 60.0))
@@ -2493,7 +2493,9 @@ class ActiveResearchRuntimeExecutor:
                     )
                     ok = usable_step is not None
                     content = (
-                        str(usable_step.content or "")[:source_limit] if ok else ""
+                        str(usable_step.content or "")[:source_limit]
+                        if usable_step is not None
+                        else ""
                     )
                     final_step = usable_step or chain_steps[-1]
                     if ok:
@@ -4235,14 +4237,14 @@ def _late_admission_tail(
     invocation = _note_late_tail_invocation(
         _live(), claim_id=claim.id, wave_index=wave_index
     )
-    for record in metrics.get("domain_targeted") or []:
-        if not isinstance(record, Mapping):
+    for entry in metrics.get("domain_targeted") or []:
+        if not isinstance(entry, Mapping):
             continue
-        if str(record.get("claim_id") or "") != claim.id:
+        if str(entry.get("claim_id") or "") != claim.id:
             continue
-        if int(record.get("wave_index") or 0) != int(wave_index):
+        if int(entry.get("wave_index") or 0) != int(wave_index):
             continue
-        for candidate_id in record.get("added_candidate_ids") or []:
+        for candidate_id in entry.get("added_candidate_ids") or []:
             text_id = str(candidate_id)
             if text_id and text_id not in late_ids:
                 late_ids.append(text_id)
@@ -6864,7 +6866,7 @@ def _evidence_brief(
                 if isinstance(detail, Mapping):
                     claim_anchor = detail
         anchors_source = claim_anchor if claim_anchor is not None else {}
-        row = {
+        row: dict[str, Any] = {
             "evidence_id": link.evidence_id,
             "claim_id": link.claim_id,
             "relation": link.relation,
