@@ -28,6 +28,23 @@ def _stale_sha_env() -> dict[str, str]:
     return env
 
 
+def _with_repo_pythonpath(env: dict[str, str]) -> dict[str, str]:
+    """Make a script-file subprocess able to import ``src`` anywhere.
+
+    Running ``tools/<script>.py`` puts ``tools/`` on ``sys.path``, not the repo
+    root, so the guard tests only worked where PYTHONPATH was already set (CI
+    sets ``PYTHONPATH=.``). Without it they failed locally with
+    ``ModuleNotFoundError: No module named 'src'`` instead of the guard message.
+    """
+
+    parts = [part for part in env.get("PYTHONPATH", "").split(os.pathsep) if part]
+    if str(REPO_ROOT) not in parts:
+        parts.insert(0, str(REPO_ROOT))
+    updated = dict(env)
+    updated["PYTHONPATH"] = os.pathsep.join(parts)
+    return updated
+
+
 def _run_imported_call(
     *,
     module_name: str,
@@ -209,7 +226,7 @@ def test_direct_protocol_internal_execution_cannot_bypass_exact_head_guard(
             str(output),
         ],
         cwd=REPO_ROOT,
-        env=_stale_sha_env(),
+        env=_with_repo_pythonpath(_stale_sha_env()),
         capture_output=True,
         text=True,
         timeout=15,

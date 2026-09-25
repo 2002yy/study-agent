@@ -41,7 +41,11 @@ from src.web.research.contracts import (
 )
 from src.web.research.evidence_gate import evaluate_evidence_gate
 from src.web.research.gap_planner import GapSearchIntent
-from src.web.research.provider_search import ResearchProviderSearch
+from src.web.research.provider_search import (
+    MIN_USEFUL_PROVIDER_SECONDS,
+    PROVIDER_BLOCKED_REASONS,
+    ResearchProviderSearch,
+)
 from src.web.research.runtime import (
     CLAIM_ENGINE_RUNTIME_CONTEXT_KEY,
     ResearchRuntimeCursor,
@@ -265,20 +269,27 @@ def _provider_probe(probe_id: str, failure: str) -> dict[str, Any]:
     search = ResearchProviderSearch(
         provider_call=provider_call,  # type: ignore[arg-type]
         provider_enabled=lambda provider: provider == "searxng",
-        provider_timeout_seconds=1.0,
+        # Must clear the deadline-aware minimum useful budget, otherwise the very
+        # first attempt is (correctly) skipped as `skipped_insufficient_budget`
+        # and the retry/429/503 paths are never exercised. This constant was
+        # introduced after RQ1-C (178dbf4); the probe fixture was still 1.0s.
+        provider_timeout_seconds=MIN_USEFUL_PROVIDER_SECONDS + 1.0,
     )
     payload = search.search_exact("deterministic rq1c provider probe", max_results=3)
     outcomes = payload.get("provider_outcomes") or []
     audits = payload.get("provider_audits") or []
     expected_reason = "timeout" if failure == "timeout" else failure
+    # Single-run circuit breaker (178dbf4, post-RQ1-C): block-style reasons are
+    # not worth retrying and mark the provider degraded for the rest of the run.
+    expected_attempts = 1 if expected_reason in PROVIDER_BLOCKED_REASONS else 2
     passed = (
         payload.get("status") == "unavailable"
-        and len(calls) == 2
+        and len(calls) == expected_attempts
         and len(outcomes) == 1
         and outcomes[0].get("status") == "failed"
         and outcomes[0].get("reason") == expected_reason
-        and outcomes[0].get("attempts") == 2
-        and len(audits) == 2
+        and outcomes[0].get("attempts") == expected_attempts
+        and len(audits) == expected_attempts
         and all(audit.get("reason") == expected_reason for audit in audits)
     )
     return {
@@ -300,7 +311,12 @@ def _runtime_probe(
     cancelling: bool,
 ) -> dict[str, Any]:
     state = _probe_state()
-    with tempfile.TemporaryDirectory(prefix=f"{probe_id}_") as directory:
+    # ignore_cleanup_errors: on Windows the sqlite handle can still be held when
+    # the temp dir is removed (WinError 32 -> PermissionError), which made this
+    # probe fail on Windows only. The probe result is computed before cleanup.
+    with tempfile.TemporaryDirectory(
+        prefix=f"{probe_id}_", ignore_cleanup_errors=True
+    ) as directory:
         repository = WebLookupRepository(RuntimeDatabase(Path(directory) / "probe.sqlite"))
         run = repository.create(
             WebLookupRun(
