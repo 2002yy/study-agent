@@ -12990,3 +12990,46 @@ Linux/CI：Path(r"C:\...") 变成"文件名含反斜杠"的文件，被创建在
 **顺带记录（不在本刀修）**：`tools/run_f2_paired.py`、`tools/run_f2_characterization.py`
 与两个 crawl4ai 契约测试把验证 venv 的绝对路径写成常量。CI 不执行它们
 （operator-only 工具 / 带 skipif 的契约测试），不影响 gate；属"机器特定默认值"债务。
+
+### 146.3 `Run package helper` / `Run detect-secrets` 是独立 gate（结论 + 本地 L0）
+
+**观察**：连续 **4 层** gate 债都由同一模式掩盖 —— pytest 一红，其后的 gate 整层不跑，
+于是每轮都要等 CI 才暴露：
+
+```text
+1 packaging secret 误报（f2 fixture 的 _SESSION_TOKEN）
+2 文档 self-trip（引用同一模式样例）
+3 测试污染 repo root（selector_ab 硬编码 Windows 路径）
+4 detect-secrets 熵误报（evidence artifacts 的 hex/base64 摘要）
+```
+
+**结论**：`Run package helper` 与 `Run detect-secrets` **不是"打包尾部小步骤"，而是独立 gate**，
+应与 `ruff`、`git diff --check` 同级放进本地 **L0 / pre-push**。
+
+```bash
+# CI 等价调用（Linux）
+python tools/package_project_helper.py . /dev/null 0
+
+# Windows 平台等价（/dev/null 不适用；用临时 sink，不改 helper 语义）
+python tools/package_project_helper.py . "$env:TEMP\pkg_check.zip" 0
+```
+
+可挡住：repo-root 污染 / 非法 zip entry 名 / 反斜杠路径 / secret 与 self-trip /
+测试误写 checkout。
+
+**146.3.1 detect-secrets 处置**：CI 报告 30 个文件、~2.5k findings；除
+`tests/test_answer_formation_probe.py` 外全部位于 `docs/research_quality/*.json`
+（机器生成证据，内容以 `query_sha256`/`git_sha`/candidate id 等摘要为主）。
+
+```text
+处置：--exclude-files 增加 docs/research_quality/*.json（熵检测在该目录只产生误报）
+      --exclude-lines 增加 candidate_sha256（与既有 digest 字段约定一致）
+未削弱对 src/tools/tests 的扫描；该目录仍由 package helper 做 key 模式扫描。
+```
+
+**证据说明（重要）**：本地**无法可靠复现**该 gate —— `detect-secrets scan` 对同一文件
+本地 0 findings，而 `scan_line` 有命中（版本同为 1.5.0）。因此本项**以 CI 为唯一 oracle**，
+本地不宣称已验证。
+
+**非阻塞 hygiene debt**（不混入本线）：`tools/run_f2_paired.py`、
+`run_f2_characterization.py` 与两个 crawl4ai 契约测试的机器特定 venv 绝对路径。
