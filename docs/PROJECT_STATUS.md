@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B（Semantic Adequacy 数据验证 / contradiction 判据）**：在 §143-B threshold-safe cohort 上验证 `semantic_adequacy` 判据可区分（"shape ok 但缺 units" 必落 partial/insufficient），并推进 RQ-C 冲突判据。**RQ-A 已完成**（§144.7）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B**：在 §143-B threshold-safe cohort 上验证 RQ-A 核心承诺 —— **shape/content 成功但缺 required_units，必须被判成 partial/insufficient，而不是"读成功=证据足够"**；并推进 contradiction 判据。CI gate 已恢复（§146）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12885,3 +12885,62 @@ stash_repro.txt
 否则会重现"证据只在本机"的风险。**新增权威 evidence 时务必确认它出现在 commit 中。**
 
 **未做**：未删除任何本地文件；未改 artifact 内容/schema；未重命名；未重组目录。
+
+## §146 CI gate restoration（2026-09-25，bounded）
+
+**背景**：CI 在本刀之前已红（父提交 `32993fb` run `36128767522` = 9 failed / 2598 passed）。
+目标**仅为**恢复"CI 红灯 = 当前 head 真回归"的可信性；不重开 RQ-A，不改 P1/RS production 语义。
+
+**9 个失败分类与处置**：
+
+```text
+A 环境依赖（测试偷偷依赖开发机环境）
+  1. test_read_site_selector（×3）
+     CRAWL4AI_PYTHON 指向测试文件本身 -> os.access(X_OK) 在 Windows 对任意文件为
+     True、在 Linux 对普通 .py 为 False -> config_ok 与 route 在 CI/本地分叉。
+     修复：改用 sys.executable（绝对且可执行）；新增 platform-independent 回归
+     （config_ok=True + fail-closed 三例）。
+  2. test_discovery_annotation（×1）
+     断言整个 dict 相等，但 build_classification_tasks 内嵌 generated_at 墙钟；
+     Windows 时钟粗（两次调用同刻）vs Linux 微秒（不同）-> CI 失败。
+     修复：确定性断言排除 generated_at（保留其存在性断言）。
+  3. test_rq1c_bounded_pre_dispatch_budget（×1）
+     guarded budget 构造读 provider settings，CI 无 .env -> OPENAI_API_KEY is missing。
+     修复：autouse fixture 显式声明 provider env（dummy key + 不可达 base_url）。
+  4. test_rq1c_impl_entrypoints（×1，仅本地）
+     脚本式子进程缺 PYTHONPATH -> ModuleNotFoundError: src（CI 设 PYTHONPATH=.）。
+     修复：子进程 env 显式注入 REPO_ROOT。
+
+B 陈旧契约（被后续冻结合同取代）
+  5. test_browser_bakeoff_contract（×2）+ test_browser_bakeoff_harness（×1）
+     A3-0 断言 production 不得出现 crawl4ai / WIGOLO_BROWSER；已被 §143-SI
+     （qualified、default-inert specialist seam）合法取代。
+     证据：ACTIVE_READER_CHAIN 仍为两后端默认链；capability_registry 未注册 crawl4ai。
+     修复（同步而非退休）：改为"harness/executor 不得进 production"+"默认链不变"，
+     并保留"crawl4ai 不得注册为 chain backend"。
+  6. test_rq1c_protocol_probes（×1）
+     探针 fixture 落后于 RQ1-C 之后的生产合同：
+       - provider budget 1.0s < MIN_USEFUL_PROVIDER_SECONDS(1.5，`178dbf4`)
+         -> 首跳即 skipped_insufficient_budget；
+       - http_status:429 现属 PROVIDER_BLOCKED_REASONS（单次运行断路器）-> 不重试。
+     证据：CI 在 `be48a966`（RQ1-C 收口）为绿；这些常量/语义均在该提交之后引入。
+     修复：探针 budget 提升至 MIN_USEFUL+1.0；期望 attempts 按 blocked 与否取 1/2。
+     另：TemporaryDirectory 清理在 Windows 与未关闭 sqlite 句柄冲突（WinError 32）
+     -> ignore_cleanup_errors=True（探针结果在清理前计算，不受影响）。
+
+C 真实分歧
+  无。read_site_selector / discovery_annotation 均证明为测试环境依赖，非 production bug。
+```
+
+**验证**：
+
+```text
+ruff：All checks passed（改动文件）
+L1：5 个受影响测试文件 = 88 passed；rq1c 两文件 = 13 passed
+L3 full pytest（clean head `a4c7d0d`）：2648 passed, 2 skipped, 0 failed（15:16）
+```
+
+**未做**：未改 production 语义（§143 P1/RS 不动）；未改 RQ-A 判据；未删除任何测试
+（同步而非退休）；未重开 §143/§144 决策。
+
+**结果**：clean checkout 本地全绿 -> CI 恢复为可判定 gate（exact-head CI 待确认）。
