@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = 实现纯函数 `assess_claim_evidence` 并以 shadow metric 接入（不改 stop/gate）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B（Semantic Adequacy 数据验证 / contradiction 判据）**：在 §143-B threshold-safe cohort 上验证 `semantic_adequacy` 判据可区分（"shape ok 但缺 units" 必落 partial/insufficient），并推进 RQ-C 冲突判据。**RQ-A 已完成**（§144.7）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12776,6 +12776,63 @@ S2 上层 claim planner 生成：
 1) RQ-A required_units source freeze（本节）
 2) assess_claim_evidence 实现（纯函数）+ shadow 接入（不改 stop/gate）
 ```
+
+### 144.7 RQ-A 实现（2026-09-25，`8fffbf8`）
+
+**交付**：
+
+```text
+src/web/research/evidence_units.py
+    SourceType / UnitModality / EvidenceUnit / RequiredUnit + 严格 parse
+    unit_satisfies_modality（visual 不可被 text/table 满足）
+src/web/research/claim_evidence_assessment.py
+    SemanticAdequacy / ClaimEvidenceAssessment
+    assess_claim_evidence（纯函数）/ assess_research_state / safe_assess_research_state
+src/web/research/contracts.py
+    EvidenceRequirement.required_units、ResearchEvidence.units
+    （可选、默认空 -> 向后兼容；research-state-v1 未升版）
+src/web/research/stop_gate.py
+    ShadowStopDecision.claim_assessments（仅观测；决策字段不变）
+tests/test_evidence_units.py、tests/test_claim_evidence_assessment.py
+```
+
+**判据（实现 = §144.1 冻结口径）**：
+
+```text
+semantic_adequacy: required_units 空 -> not_evaluated
+                   missing 空 -> adequate
+                   covered 非空 -> partial
+                   否则 -> insufficient
+state: contradicts+supports            -> contested
+       structural_ok AND units_ok      -> satisfied
+       结构足但缺 units / 仅部分支持    -> partially_satisfied
+       否则                            -> unresolved
+structural_coverage = supporting_clusters / required_clusters（required<=0 -> 1.0）
+semantic_coverage   = covered_units / required_units（无 required -> null）
+conflict_flag       = contradicting_clusters > 0
+```
+
+**边界（守住）**：RQ-A **只判不找**；不生成/不反推 `required_units`；
+不在 production hot path 调用；**不改 stop/gate/routing 行为**（assessments 仅挂在 shadow 观测字段）。
+
+**验证（L0–L3）**：
+
+```text
+L0 ruff：All checks passed（src/web/research + 新测试）
+L1 focused：test_evidence_units + test_claim_evidence_assessment + 直接受影响集 = 38 passed
+L3 full pytest（candidate content，dirty tree）：2637 passed / 7 failed / 2 skipped
+   7 failed 拆解：
+   - 2 = clean-checkout guard（dirty tree 所致；clean HEAD 下 PASS）
+   - 5 = 既有失败，与 RQ-A 无关（父提交 32993fb 上完全相同的 5 个失败）
+   => clean candidate head 有效结果：2639 passed / 5 既有 failed / 2 skipped
+```
+
+**既有失败债（记录，不在本刀修）**：`test_browser_bakeoff_contract`
+（A3-0 断言 production 模块不得引用 crawl4ai，已被 §143-SI 合法取代）、
+`test_browser_bakeoff_harness`、`test_rq1c_impl_entrypoints`、`test_rq1c_protocol_probes`
+—— 均为 §143 链推进后未同步的陈旧契约测试。
+
+**未做**：未接 coverage-aware stop；未改 EvidenceGate 语义；未做 synthesis/auditor。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
