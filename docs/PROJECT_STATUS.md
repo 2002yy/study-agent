@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-P1 implementation` —— 使用已交付的 production seam `invoke_crawl4ai_specialist`（`8722391`），实现 request 字段 `reader_capabilities: set{JS_RENDER|SESSION_STATE}`、校验、routing branch、provenance、`explicit_reader_hints_enabled` gate。contract 已冻结 §143.139；integration contract/impl 已冻结/交付 §143.144–§143.147。两个 gate 独立：`crawl4ai_specialist_enabled`（specialist 是否可被调用）与 `explicit_reader_hints_enabled`（hint 是否有 routing effect）。P1 首次 rollout：flag 默认 off → qualification → 再决定 enable。P3 更后。
+- **下一刀（唯一）：**`§143-P1` 的 **external request-surface binding** —— P1 本体已交付（`84b5d9c`，`src/application/reader_hint_routing.py`，`EXPLICIT_READER_HINTS_ENABLED` 默认 **off**），regression contract 12/12 PASS；但 `reader_capabilities` 尚未绑定到真实外部 request/task surface（request 字段 / task manifest / UI toggle）。该绑定是 product-surface 决定，本阶段刻意未发明。bind 之后再做**单独的 enable 决策**（flag 仍默认 off）。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -11860,4 +11860,76 @@ Crawl4AI integration implementation  ✅（8722391）
 Crawl4AI integration qualification   ✅ 证据见 §143.147（A3 复用 + 真实 e2e）
 §143-P1 implementation               ⏳ NEXT（使用 invoke_crawl4ai_specialist seam，两个独立 gate）
 P3 PDF rule                          🅿️ optional later
+```
+
+
+### 143.149 P1 implementation 交付（`84b5d9c`）
+
+**新增** `src/application/reader_hint_routing.py`（5 个面齐备，flag 默认 off）：
+
+```text
+1) 字段 + 校验
+   reader_capabilities（唯一显式输入）；parse_reader_capabilities 关闭式校验：
+   v1 词表 {JS_RENDER, SESSION_STATE}；未知 -> ReaderHintError；裸字符串被拒（防拆字符）；
+2) enum
+   JS_RENDER / SESSION_STATE（大小写敏感）
+3) routing branch
+   resolve_reader_route（纯函数）+ run_reader_with_hints（组合执行）
+   no hint            -> default（P0/P4 等价）
+   hint + flag off    -> default，hint_honored=false, reason=hints_disabled（routing effect = 0）
+   hint + SESSION_STATE 缺输入 -> unsatisfied（routing 前拒绝，不做任何 read）
+   hint + specialist config 不可用 -> default，hint_honored=false, reason=specialist_unavailable
+   hint + 就绪        -> specialist-first（invoke_crawl4ai_specialist）
+   specialist 不可用/无 usable -> 既有 default 读 best-effort，hint_honored=false
+4) provenance
+   route / requested_reader_capabilities / hint_source / hint_honored /
+   hint_unhonored_reason / actual_backend_path / specialist / default
+5) gate
+   EXPLICIT_READER_HINTS_ENABLED（默认 off；解析与 provenance 始终可用，routing effect 为 0）
+```
+
+**§143.139 regression contract 逐项**：
+
+```text
+no_hint_preserves_current_routing               = PASS
+js_render_hint_routes_specialist_first          = PASS
+session_state_hint_routes_specialist_first      = PASS
+combined_hints_invoke_specialist_once           = PASS
+unknown_hint_rejected                           = PASS
+pdf_does_not_implicitly_create_hint             = PASS（PDF 属未知词表 -> 校验错误）
+hint_does_not_bypass_backend_health             = PASS
+hint_does_not_bypass_deadline_or_budget         = PASS（透传到 specialist seam / A3 合同）
+unavailable_specialist_is_explicitly_recorded   = PASS
+runtime/measurement_does_not_auto_derive_hint   = PASS（结构性断言：无 url/content/ctype/outcome 派生）
+session_hint_requires_existing_session_inputs   = PASS
+feature_flag_off_restores_P0_P4_behavior        = PASS
+```
+
+**测试**：`tests/test_reader_hint_routing.py` 20 passed。聚焦 impact set + A3 contracts：287 passed / 1 skipped；
+ruff src tests tools PASS。
+
+**rollout 状态（遵冻结治理）**：
+
+```text
+implementation complete      ✅
+regression/qualification     ✅
+flag default                 OFF（EXPLICIT_READER_HINTS_ENABLED 未启用）
+separate enable decision     ⏳ 未做
+```
+
+**剩余（enable 之前）**：把 `reader_capabilities` 绑定到真实**外部 request/task surface**
+（request 字段 / task manifest / UI toggle 三选一或其 1:1 映射）—— 这是 product-surface 决定，
+本刀刻意不发明。当前只有可调用的 production entry `run_reader_with_hints(...)`；默认路径零影响。
+
+**未做**：未启用 flag；未把 hint 接到 execute()/dispatch/API；未改 ACTIVE_READER_CHAIN；未做 P3。
+
+### 143.150 状态
+
+```text
+§143-P1 contract                 ✅ FROZEN（§143.139）
+Crawl4AI production specialist   ✅ CLOSED（8722391；default-inert 已证）
+§143-P1 implementation           ✅（84b5d9c；flag default off）
+P1 external request-surface bind ⏳ NEXT（product-surface 决定）
+P1 enable decision               ⏳（bind 之后，单独裁定）
+P3 PDF rule                      🅿️ optional later
 ```
