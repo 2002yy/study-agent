@@ -197,6 +197,32 @@ def session_check_body(cookie_header: str) -> tuple[int, str]:
 class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
+    def _head_response(
+        self, status: int, content_type: str, length: int, path: str
+    ) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Cache-Control", "no-store")
+        for header, value in PAGE_HEADERS.get(path, ()):
+            self.send_header(header, value)
+        self.end_headers()
+
+    def do_HEAD(self) -> None:  # noqa: N802 - http.server API
+        """Metadata probe (cost-bearing P1 signal): headers only, no body."""
+
+        path = self.path.split("?", 1)[0]
+        if path == "/session/check":
+            status, body = session_check_body(self.headers.get("Cookie", ""))
+            self._head_response(status, "text/html; charset=utf-8", len(body.encode("utf-8")), path)
+            return
+        entry = PAGES.get(path)
+        if entry is None:
+            self._head_response(404, "text/plain", 0, path)
+            return
+        status, content_type, body = entry
+        self._head_response(status, content_type, len(body), path)
+
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = self.path.split("?", 1)[0]
         if path == "/session/check":

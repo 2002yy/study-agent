@@ -11183,3 +11183,115 @@ false-positive cost
 ```
 
 **未做**：§143-C 尚未设计冻结、未写任何 economics 代码、未改 routing。
+
+
+## §143-C routing economics（冻结契约 + 实测 + STOP）
+
+### 143.122 冻结修订（用户裁定，覆盖草案）
+
+```text
+1) 只允许两类信号：pre-route + post-default。禁止 specialist-result feedback /
+   cache / online adaptation（属 future C2）。
+2) pre-route 再分两层：
+     P0 zero-fetch（URL / extension / domain / path）
+     P1 costed metadata（Content-Type；若需 HEAD/GET probe，probe wall 必须计入）
+3) 净收益不得压成单一 quality/ms 标量；输出 decision vector：
+     quality/resolution uplift + incremental wall + false-positive rate
+     + false-positive wall cost
+4) latency 权威口径 = C-local steady state（同进程 / daemon ready / 1 次 discarded
+   warm-up / >=5 timed reps / median + p95），方法继承 §143-A；
+   B 的 warm median 只作 sanity check。
+```
+
+冻结门槛：`ESSENTIAL recall = 100%` 且 `NONE false positive = 0`。
+`MATERIAL` 为 weaker-positive（漏掉不判失败，也不得为抓它牺牲 gate）。
+`UNRESOLVED` 记为 no-current-gain escalation，独立报告，不与 NONE 混同。
+STOP：输出 Pareto/decision table 后停止；若无规则达标即为有效负结果，不得事后加信号。
+
+### 143.123 实现（`tools/run_f2_c_economics.py` + 测试）
+
+有限预注册规则集（11 条，跑数据前冻结）：
+
+```text
+P0_zero_fetch       p0_ext_pdf / p0_path_session / p0_path_js / p0_path_document
+                    / p0_essential_targets(session|js) / p0_all_targeted
+P1_metadata_costed  p1_ct_pdf / p1_ct_non_html      （HEAD probe，成本计入）
+P2_post_default     p2_did_not_resolve / p2_short_doc_or_invalid / p2_default_escalated
+```
+
+labels 直接取已关闭的 B 裁定（不重算）。质量 + latency + FP economics 分开报告。
+
+### 143.124 C-local steady-state latency（reps=5，median / p95，ms）
+
+| fixture | probe | default | specialist |
+| --- | ---: | ---: | ---: |
+| simple_static | 1.7 | 0.2 | 230.4 / 243.9 |
+| technical_docs | 1.5 | 0.2 | 231.5 / 245.1 |
+| js_heavy | 1.3 | 0.2 | 1332.8 / 1346.9 |
+| document_path | 1.6 | 0.2 | 228.5 / 233.0 |
+| session_sensitive | 1.4 | 11.4 | 340.9 / 346.3 |
+| selected_pdf | 1.4 | 4.1 | 30.3 / 33.1 |
+
+（未把 B 的 warm median 当 C economics。）
+
+### 143.125 实测 decision table（`docs/research_quality/F2_C_ECONOMICS.json`）
+
+| Rule | Class | ESSENTIAL recall | NONE FP | MATERIAL cap | UNRESOLVED trig | incr median wall | FP wall | gate |
+| --- | --- | ---: | --- | --- | --- | ---: | ---: | --- |
+| p0_ext_pdf | P0 | 0.00 | [] | selected_pdf | [] | 30.3ms | 0 | fail |
+| p0_path_session | P0 | 0.50 | [] | [] | [] | 340.9ms | 0 | fail |
+| p0_path_js | P0 | 0.50 | [] | [] | [] | 1332.8ms | 0 | fail |
+| p0_path_document | P0 | 0.00 | [] | [] | document_path | 228.5ms | 0 | fail |
+| **p0_essential_targets** | P0 | **1.00** | [] | [] | [] | 836.8ms | 0 | **PASS** |
+| **p0_all_targeted** | P0 | **1.00** | [] | selected_pdf | document_path | 284.7ms | 0 | **PASS** |
+| p1_ct_pdf | P1 | 0.00 | [] | selected_pdf | [] | 31.7ms | 0 | fail |
+| p1_ct_non_html | P1 | 0.00 | [] | selected_pdf | [] | 31.7ms | 0 | fail |
+| p2_did_not_resolve | P2 | 0.00 | [] | [] | [] | 0.0ms | 0 | fail |
+| p2_short_doc_or_invalid | P2 | 0.00 | [] | [] | [] | 0.0ms | 0 | fail |
+| p2_default_escalated | P2 | 0.50 | [] | selected_pdf | [] | 185.6ms | 0 | fail |
+
+Pareto front：`p0_essential_targets` / `p0_all_targeted`。
+
+### 143.126 STOP 结论（C 的裁定性读法，冻结）
+
+**关键机制发现（比"哪条规则通过"更重要）**：P2 对高价值场景**结构性失明**。
+
+```text
+default 观测（F2_C_ECONOMICS.json -> default_observed）：
+  simple_static / technical_docs / js_heavy / document_path
+      -> terminal_outcome=resolve, reason=usable_content, native only,
+         step=(success, ok)          <- 四者**完全同形**
+  session_sensitive -> native(http_denied) -> wigolo(success)
+  selected_pdf      -> native(backend_failure) -> wigolo(success)
+```
+
+⇒ 对 `js_heavy` 这类"**shape 成功但缺 critical units**"的页面，production 事后状态与
+`simple_static` **无法区分**。因此任何仅依赖 default 事后 metadata 的升级规则都
+**不可能**达到 `ESSENTIAL recall=100%`（实测 `p2_did_not_resolve` /
+`p2_short_doc_or_invalid` 触发为空）。
+
+**通用信号不足，只有 URL-shape 通过**：
+
+```text
+P1（Content-Type，成本极低 ~1.5ms）只能识别 PDF -> 仅 MATERIAL，ESSENTIAL recall=0
+P2（default 事后状态）最多识别 native 真失败的 session -> recall=0.5
+通过 gate 的两条规则都是 P0 的 URL-path 子串启发式（session|js / +pdf+document）
+=> 它们通过**部分来自 cohort 构造**（fixture path 名），不是泛化能力证明
+```
+
+**冻结结论**：
+
+> **当前预注册的通用信号（extension / Content-Type / post-default metadata）不足以支持自动 routing；通过的 URL-path 规则只在本 cohort 上成立，不能据此改 production routing。** 这是一个有效结果：C 把"能不能在付费前可靠知道"回答为"对本 cohort 能用 URL 形状，对可泛化信号为否"。
+
+**未做**：未据 C 修改任何 routing；未新增信号（遵守 STOP）；未引入 specialist-result feedback。
+
+### 143.127 状态
+
+```text
+§143-B                                   ✅ CLOSED（ae98859；条件型 specialist）
+§143-C contract                          ✅ FROZEN（§143.121-§143.122）
+§143-C implementation + run + STOP table  ✅（本提交）
+routing review / any production routing  ⏳ 未开；需另行裁决
+```
+
+**一句话**：B 已证明 Crawl4AI 在哪里值得用；C 的证明是"可泛化的付费前信号不足，只有 URL 形状在本 cohort 上可行"——因此**不得**据此自动路由。

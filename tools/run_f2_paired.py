@@ -213,6 +213,18 @@ def _run_default(url: str, category: str) -> dict:
     backend_path = [
         s.backend for s in steps if bool(getattr(s, "attempted", False))
     ]
+    # post-default metadata: only what the default read really produced. §143-C
+    # P2 may classify on this; it may never fetch anything extra.
+    steps_meta = [
+        {
+            "backend": str(getattr(s, "backend", "")),
+            "retrieval_state": str(getattr(s, "retrieval_state", "")),
+            "attempted": bool(getattr(s, "attempted", False)),
+            "usable_content": bool(getattr(s, "usable_content", False)),
+            "adequacy_reason": str(getattr(s, "adequacy_reason", "")),
+        }
+        for s in steps
+    ]
     return {
         "wall_ms": wall_ms,
         "content": chain_run.content,
@@ -222,6 +234,9 @@ def _run_default(url: str, category: str) -> dict:
         "backend_path": backend_path,
         "fallback_used": len(backend_path) > 1,
         "terminal_outcome": chain_run.action,
+        "terminal_reason": chain_run.reason,
+        "final_state": chain_run.final_state,
+        "steps": steps_meta,
         # runtime-origin invariant: the row is provably produced by the shared
         # production read path, not by a harness re-implementation.
         "runtime_origin": {
