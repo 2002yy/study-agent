@@ -48,8 +48,14 @@ sys.path.insert(0, str(REPO_ROOT))
 DEFAULT_ISOLATED = Path(
     r"C:\Users\Zhang\AppData\Local\Temp\opencode\a3-crawl4ai-venv\Scripts\python.exe"
 )
-FIXTURE = REPO_ROOT / "tools" / "browser_bakeoff_fixture_server.py"
+FIXTURE = REPO_ROOT / "tools" / "f2_paired_fixture_server.py"
 PORT = 8793
+
+#: §143-B fallback sentinel: a deliberately short page so the native read is
+#: classified short_doc and the production chain must escalate to wigolo_http.
+#: Its only job is to prove the production default fallback environment is live
+#: (NATIVE_HTTP -> WIGOLO_HTTP) before a 30-pair run is trusted.
+FALLBACK_SENTINEL = "/f2-fallback-sentinel.html"
 
 NATIVE = "native_http"
 WIGOLO_HTTP = "wigolo_http"
@@ -89,8 +95,9 @@ CATEGORIES: tuple[dict, ...] = (
         "category": "js_heavy",
         "fixture": "/spa-delayed.html",
         "mode": "browser",
+        "delay_ms": 1200,
         "critical_units": ["verified release date is 2026-08-01", "CommonJS guidance"],
-        "note": "units appear only after JS",
+        "note": "units appear only after JS (A3 cohort uses a 1200ms render delay)",
     },
     {
         "category": "document_path",
@@ -101,9 +108,10 @@ CATEGORIES: tuple[dict, ...] = (
     },
     {
         "category": "session_sensitive",
-        "fixture": "/session-gated.html",
+        "fixture": "/session/check",
         "mode": "browser",
         "critical_units": ["SESSION OK"],
+        "session_setup": "/session/start",
         "note": "requires a valid session; setup cost accounted separately",
     },
     {
@@ -230,7 +238,15 @@ def _run_default(url: str, category: str) -> dict:
 
 # --------------------------------------------------------------- crawl4ai side
 
-def _run_crawl4ai(bridge, url: str, mode: str, category: str) -> dict:
+def _run_crawl4ai(
+    bridge,
+    url: str,
+    mode: str,
+    category: str,
+    *,
+    setup_url: str | None = None,
+    delay_ms: int = 0,
+) -> dict:
     """The existing Crawl4AIBrowserBackendExecutor. No capability top-up."""
 
     from src.application.active_research_runtime import ChainAttemptRequest
@@ -248,9 +264,23 @@ def _run_crawl4ai(bridge, url: str, mode: str, category: str) -> dict:
         mode=mode,
         max_chars=MAX_CHARS,
         session_id=SESSION_ID if category == "session_sensitive" else None,
-        delay_ms=0,
+        delay_ms=delay_ms,
         charge_envelope=lambda ms: charge_run_envelope(ms, TIER_BROWSER),
     )
+    # §143.34: a real session capability needs its establishment cost accounted
+    # separately, not hidden outside the timing boundary.
+    setup_wall_ms = 0.0
+    if setup_url:
+        setup_started = time.perf_counter()
+        bridge.request(
+            timeout_ms=REQUEST_TIMEOUT_MS,
+            url=setup_url,
+            mode=mode,
+            max_chars=MAX_CHARS,
+            session_id=SESSION_ID,
+            delay_ms=0,
+        )
+        setup_wall_ms = round((time.perf_counter() - setup_started) * 1000.0, 1)
     reset_run_envelope(TIER_BROWSER)
     t0 = time.perf_counter()
     result = executor.execute(
@@ -267,6 +297,8 @@ def _run_crawl4ai(bridge, url: str, mode: str, category: str) -> dict:
     cost = dict(getattr(result, "cost", {}) or {})
     return {
         "wall_ms": wall_ms,
+        "setup_wall_ms": setup_wall_ms,
+        "total_task_wall_ms": round(wall_ms + setup_wall_ms, 1),
         "content": result.content,
         "reader_usable_content": bool(result.usable_content),
         "backend_path": [CRAWL4AI_BACKEND],
@@ -284,7 +316,16 @@ def _pair(bridge, spec: dict, base: str, *, allow_local: bool) -> dict:
     if allow_local:
         _allow_local_fixture_reads()
     d = _run_default(url, spec["category"])
-    c = _run_crawl4ai(bridge, url, spec["mode"], spec["category"])
+    setup_path = spec.get("session_setup")
+    c = _run_crawl4ai(
+        bridge,
+        url,
+        spec["mode"],
+        spec["category"],
+        setup_url=f"{base}{setup_path}" if setup_path else None,
+        delay_ms=int(spec.get("delay_ms", 0)),
+    )
+    c_total_wall = c["total_task_wall_ms"]
     d_units = _units(d["content"], expected)
     c_units = _units(c["content"], expected)
     d_useful = _task_useful(len(d_units))
@@ -310,7 +351,10 @@ def _pair(bridge, spec: dict, base: str, *, allow_local: bool) -> dict:
             "units_recovered": len(c_units),
             "units_total": len(expected),
             "unit_set": c_units,
-            "wall_ms": c["wall_ms"],
+            "wall_ms": c_total_wall,
+            "read_wall_ms": c["wall_ms"],
+            "setup_wall_ms": c["setup_wall_ms"],
+            "total_task_wall_ms": c_total_wall,
             "fallback_used": c["fallback_used"],
             "terminal_outcome": c["terminal_outcome"],
             "reader_usable_content": c["reader_usable_content"],
@@ -332,8 +376,36 @@ def _pair(bridge, spec: dict, base: str, *, allow_local: bool) -> dict:
             "default_unit_set": d_units,
             "crawl4ai_unit_set": c_units,
             "default_wall_ms_positive": d["wall_ms"] > 0,
-            "crawl4ai_wall_ms_positive": c["wall_ms"] > 0,
+            "crawl4ai_wall_ms_positive": c_total_wall > 0,
         },
+    }
+
+
+def _wigolo_fallback_status() -> str:
+    """Production fallback health (``ready`` / ``unavailable`` / ``misconfigured``)."""
+
+    from src.web.research.wigolo_backend import WigoloShadowReadBackend
+
+    return WigoloShadowReadBackend(tier="http").preflight()
+
+
+def _run_fallback_sentinel(base: str, *, allow_local: bool) -> dict:
+    """Prove the production default fallback is live: NATIVE_HTTP -> WIGOLO_HTTP."""
+
+    from tools.f2_paired_fixture_server import SENTINEL_MARKER
+
+    if allow_local:
+        _allow_local_fixture_reads()
+    row = _run_default(f"{base}{FALLBACK_SENTINEL}", "fallback_sentinel")
+    path = row["backend_path"]
+    native_then_wigolo = path[:2] == [NATIVE, WIGOLO_HTTP]
+    return {
+        "url": FALLBACK_SENTINEL,
+        "marker": SENTINEL_MARKER,
+        "backend_path": path,
+        "native_then_wigolo": native_then_wigolo,
+        "wigolo_reachable": WIGOLO_HTTP in path,
+        "passed": native_then_wigolo,
     }
 
 
@@ -443,6 +515,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="do not relax the SSRF guard for the loopback fixture",
     )
+    ap.add_argument(
+        "--allow-unhealthy-fallback",
+        action="store_true",
+        help="do not abort when the wigolo HTTP fallback is not ready (debug only)",
+    )
     args = ap.parse_args(argv)
 
     specs = [CATEGORIES[0]] if args.smoke else list(CATEGORIES)
@@ -454,6 +531,16 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("RESEARCH_WIGOLO_ESCALATION", "browser")
     os.environ.setdefault("WIGOLO_BROWSER_ESCALATION", "1")
     os.environ.setdefault("WIGOLO_RERANKER", "off")
+
+    # §143-B companion gate D: the production default fallback must be live,
+    # otherwise the default side is measured as native-only and biased.
+    fallback_status = _wigolo_fallback_status()
+    print(f"wigolo fallback preflight: {fallback_status}", flush=True)
+    if fallback_status != "ready" and not args.allow_unhealthy_fallback:
+        raise SystemExit(
+            "wigolo HTTP fallback is not ready; start the daemon (WIGOLO_RERANKER=off) "
+            "or pass --allow-unhealthy-fallback (latency/default-path then NON-AUTHORITATIVE)"
+        )
 
     server = subprocess.Popen(
         [sys.executable, "-u", "-X", "utf8", str(FIXTURE), "--port", str(PORT)],
@@ -472,6 +559,7 @@ def main(argv: list[str] | None = None) -> int:
     bridge.start()
     raw: list[dict] = []
     smoke: dict | None = None
+    fallback_sentinel: dict | None = None
     try:
         for spec in specs:  # warm-up per fixture (discarded)
             _pair(bridge, spec, base, allow_local=allow_local)
@@ -492,8 +580,19 @@ def main(argv: list[str] | None = None) -> int:
                 f"{row['crawl4ai']['units_total']} "
                 f"({row['crawl4ai']['wall_ms']:.0f}ms)"
             )
+        # companion gate D: always prove the production fallback is live
+        fallback_sentinel = _run_fallback_sentinel(base, allow_local=allow_local)
         if args.smoke and raw:
-            smoke = _smoke_verdict(raw[0])
+            pair_verdict = _smoke_verdict(raw[0])
+            smoke = {
+                "passed": bool(pair_verdict["passed"] and fallback_sentinel["passed"]),
+                "fallback_preflight": fallback_status,
+                "checks": {
+                    **pair_verdict["checks"],
+                    "fallback_sentinel_native_then_wigolo": fallback_sentinel["passed"],
+                },
+                "fallback_sentinel": fallback_sentinel,
+            }
     finally:
         bridge.stop()
         server.terminate()
@@ -517,10 +616,12 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if smoke is not None:
-        print("\n=== smoke verdict (§143.49 + runtime-origin) ===")
-        print(f"passed={smoke['passed']}")
+        print("\n=== smoke verdict (§143.49 + runtime-origin + fallback sentinel) ===")
+        print(f"passed={smoke['passed']}  fallback_preflight={smoke['fallback_preflight']}")
         for name, ok in smoke["checks"].items():
             print(f"  {'PASS' if ok else 'FAIL'}  {name}")
+        sent = smoke.get("fallback_sentinel") or {}
+        print(f"  fallback_sentinel path={sent.get('backend_path')}")
 
     if args.output:
         out = Path(args.output)
@@ -531,6 +632,8 @@ def main(argv: list[str] | None = None) -> int:
             "schema": "f2-paired-v1",
             "pairs": n_pairs,
             "seed": args.seed,
+            "fallback_preflight": fallback_status,
+            "fallback_sentinel": fallback_sentinel,
             "smoke": smoke,
             "raw": raw,
             "aggregate": aggregate,

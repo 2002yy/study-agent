@@ -1,0 +1,143 @@
+{
+ "schema": "f2-paired-v1",
+ "pairs": 1,
+ "seed": 143,
+ "fallback_preflight": "ready",
+ "fallback_sentinel": {
+  "url": "/f2-fallback-sentinel.html",
+  "marker": "F2_FALLBACK_SENTINEL_OK",
+  "backend_path": [
+   "native_http",
+   "wigolo_http"
+  ],
+  "native_then_wigolo": true,
+  "wigolo_reachable": true,
+  "passed": true
+ },
+ "smoke": {
+  "passed": true,
+  "fallback_preflight": "ready",
+  "checks": {
+   "default_used_real_run_chain": true,
+   "default_backend_path_present": true,
+   "default_from_shared_measurement_entry": true,
+   "default_backend_path_in_active_chain": true,
+   "crawl4ai_used_existing_executor": true,
+   "same_expected_units_on_both_sides": true,
+   "harness_added_fetches_zero": true,
+   "harness_followed_links_itself_false": true,
+   "default_unit_set_present": true,
+   "crawl4ai_unit_set_present": true,
+   "default_wall_ms_positive": true,
+   "crawl4ai_wall_ms_positive": true,
+   "fallback_sentinel_native_then_wigolo": true
+  },
+  "fallback_sentinel": {
+   "url": "/f2-fallback-sentinel.html",
+   "marker": "F2_FALLBACK_SENTINEL_OK",
+   "backend_path": [
+    "native_http",
+    "wigolo_http"
+   ],
+   "native_then_wigolo": true,
+   "wigolo_reachable": true,
+   "passed": true
+  }
+ },
+ "raw": [
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 0.2,
+    "fallback_used": false,
+    "terminal_outcome": "resolve",
+    "reader_usable_content": true,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 241.4,
+    "read_wall_ms": 241.4,
+    "setup_wall_ms": 0.0,
+    "total_task_wall_ms": 241.4,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 0,
+   "order": "default-first"
+  }
+ ],
+ "aggregate": {
+  "simple_static": {
+   "classification_status": "RESOLVED",
+   "specialist_gain": "NONE",
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "4/4",
+   "crawl4ai_units": "4/4",
+   "default_useful": true,
+   "crawl4ai_useful": true,
+   "default_backend_path": "native_http",
+   "default_median_wall": 0.2,
+   "crawl4ai_median_wall": 241.4,
+   "delta_wall_ms": 241.2
+  }
+ }
+}

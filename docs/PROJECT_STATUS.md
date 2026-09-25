@@ -11035,3 +11035,97 @@ D —— 运行 wigolo HTTP daemon 使 default escalation 可执行
 ```
 
 **未做**：未改冻结 fixture；未改任何 production read/adequacy 语义；未把 30-pair 数据写成 B 结论；未进入 routing。
+
+
+## §143-B 重跑就绪（A+D）+ threshold-safe 30-pair evidence
+
+### 143.110 裁定执行：A + D（B、C 否决）
+
+用户裁定：**A 修"测的东西不对"（fixture 不满足 production adequacy 前提），D 修"default 没跑完整"（production fallback 环境未启动）**。旧诊断数据 `F2_PAIRED.json`（`5dc9a40`）保留为 diagnostic-invalid，不覆盖。
+
+### 143.111 Fixture repair rule（冻结，先立规则后改）
+
+```text
+critical units / rubric / category / expected answer  不变
+只改文档载体，使其跨过 production adequacy gate（SHORT_CHAR_THRESHOLD=800）
+统一留安全裕度：normalized text >= 1200 chars
+不新增/不删除 critical unit；不改变正确答案；
+扩写只能是自然上下文/解释；不针对某 backend parser 写特殊 markup；
+fixture 一次冻结后再跑全套。
+```
+
+新增 **专属** `tools/f2_paired_fixture_server.py`（不动 A3 共享 fixture server，避免污染 A3/contract tests）。同类别、同 units、同答案；non-PDF 载体 normalized ≥ 1200，filler 经断言不含任何 unit 子串。
+
+关键修正：production readability 会**丢弃 `<table>`**（旧 239 字页侥幸保留）。故 units 除表格外必须在**正文**中再出现一次，否则 native 抽取后 unit 丢失。
+
+### 143.112 D：production fallback 环境已恢复
+
+```text
+wigolo@0.2.1（npx cache）以 WIGOLO_RERANKER=off 启动 serve
+/health = healthy、browsers=ready、cache=active
+
+harness 新增硬 preflight：WigoloShadowReadBackend(tier="http").preflight() != ready
+  -> abort（除非 --allow-unhealthy-fallback，此时 latency/default-path 记 NON-AUTHORITATIVE）
+
+预登记 sentinel：/f2-fallback-sentinel.html（短页，强制 short_doc）
+  smoke 实测 backend_path = ["native_http", "wigolo_http"]
+  => NATIVE_HTTP -> WIGOLO_HTTP 真实可达，D 通过
+```
+
+### 143.113 2 秒 latency 定位与修复
+
+根因（非 production read cost）：`WigoloShadowReadBackend.preflight()` 在 daemon 缺失时做一次 ~2s health 探测，并按 **backend 实例**缓存 negative 结果；harness 每次重建 gateway → 每刀 2s。
+
+```text
+bridge 未启动：run_single_read_measurement ~0.1ms（warm）
+bridge 启动、daemon down：~2040ms/刀（wigolo_http preflight 2s）
+daemon healthy：恢复 fast（default warm ~0.2ms；crawl4ai ~200ms）
+```
+
+⇒ 2s 是 **measurement environment artifact**，已由 D 消除；latency 恢复 authoritative。
+
+### 143.114 rerun 中发现并修复的 2 个 harness wiring 缺口（非实验结论）
+
+```text
+1) js_heavy 必须 delay_ms=1200（与 A3 cohort 对齐）；delay=0 时 crawler 只看 shell
+2) session setup_url 必须绝对 URL（v2 传了相对 "/session/start"，session 未建立）
+```
+两者均是 wiring，非能力差异；修复后 session/js_heavy 才可解释。
+
+### 143.115 threshold-safe 30-pair 结果（`docs/research_quality/F2_PAIRED.threshold_safe.json`）
+
+`fallback_preflight=ready`、`fallback_sentinel.passed=true`；5 次重复 content 全一致。
+
+| Category | Default path | Default units | C4AI units | Default useful | C4AI useful | Default median | C4AI median | Δwall | Gain |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| simple_static | native_http | 4/4 | 4/4 | true | true | 0.2ms | 218.9ms | +218.7 | **NONE** |
+| technical_docs | native_http | 4/4 | 4/4 | true | true | 0.2ms | 215.1ms | +214.9 | **NONE** |
+| js_heavy | native_http | 0/2 | 2/2 | false | true | 0.2ms | 1323.6ms | +1323.4 | **ESSENTIAL** |
+| document_path | native_http | 0/2 | 0/2 | false | false | 0.2ms | 236.2ms | +236.0 | UNRESOLVED_FOR_TASK |
+| session_sensitive | native_http -> wigolo_http | 0/1 | 1/1 | false | true | 23.6ms | 333.3ms | +309.7 | **ESSENTIAL** |
+| selected_pdf | native_http -> wigolo_http | 2/3 | 3/3 | true | true | 22.4ms | 50.7ms | +28.3 | **MATERIAL** |
+
+### 143.116 读法（仅 characterization，**不是 routing 决定**）
+
+```text
+simple_static / technical_docs：default 已完整恢复全部 unit -> specialist 纯重复（NONE）
+js_heavy：default 只有 shell，Crawl4AI 渲染后拿到 units -> ESSENTIAL（代价 ~1.3s，含 1200ms render delay）
+session_sensitive：default 保持 login wall（无 session capability）-> ESSENTIAL（Crawl4AI setup 计入 total）
+selected_pdf：default 经 native->wigolo_http 得 2/3，Crawl4AI 3/3 -> MATERIAL（差异 1 个 unit）
+document_path：两侧都不跟随 linked PDF -> UNRESOLVED_FOR_TASK
+  = 现有 executor 无 link-following 的**真实能力结论**，不是实验装置问题
+```
+
+**PDF 的 MATERIAL 仍是相对较弱的证据**（default 靠 wigolo_http 已经拿到 2/3）；不得把任一 ESSENTIAL 直接读成 routing 成立。
+
+### 143.117 状态
+
+```text
+§143-B harness + smoke                      ✅（c19cba2；12/12 plumbing PASS）
+§143-B threshold-invalid diagnostic run     ✅ 保留（5dc9a40 / F2_PAIRED.json）
+§143-B A+D rerun readiness + evidence       ✅（本提交；F2_PAIRED.threshold_safe.json）
+§143-B aggregate/adjudicate                 ⏳ NEXT（进入 §143-C 前先冻结 B 结论口径）
+§143-C escalation economics                 ⏳
+```
+
+**未做**：未改 production read/adequacy/routing；未据 B 改 routing；未动 A3 共享 fixture server。

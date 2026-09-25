@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import re
 import time
 import urllib.request
 from pathlib import Path
@@ -27,7 +28,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HARNESS = REPO_ROOT / "tools" / "run_f2_paired.py"
-FIXTURE = REPO_ROOT / "tools" / "browser_bakeoff_fixture_server.py"
+FIXTURE = REPO_ROOT / "tools" / "f2_paired_fixture_server.py"
+OLD_DIAGNOSTIC_ARTIFACT = REPO_ROOT / "docs" / "research_quality" / "F2_PAIRED.json"
 
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -226,3 +228,114 @@ def test_default_smoke_is_production_origin_and_recovers_units(fixture_base) -> 
     assert row["wall_ms"] > 0
     recovered = _units(row["content"], spec["critical_units"])
     assert recovered == spec["critical_units"]
+
+
+# --------------------------------------- fixture repair rule A (threshold-safe)
+
+def _norm_text(html: str) -> str:
+    # a reader without JS never sees <script>/<style> source as content
+    html = re.sub(r"<(script|style)\b.*?</\1>", " ", html or "", flags=re.I | re.S)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
+
+
+def test_non_pdf_fixtures_are_threshold_safe() -> None:
+    """Every non-PDF carrier must clear the production adequacy threshold."""
+
+    from tools import f2_paired_fixture_server as fx
+
+    for path in (
+        "/structured-spec.html",
+        "/code-docs.html",
+        "/spa-delayed.html",
+        "/document-mixed.html",
+    ):
+        assert len(_norm_text(fx.PAGES[path][2].decode("utf-8"))) >= 1200, path
+
+    assert len(_norm_text(fx._SESSION_LOGIN_WALL)) >= 1200
+    assert len(_norm_text(fx._SESSION_GRANTED)) >= 1200
+    assert len(_norm_text(fx._SESSION_START)) >= 1200
+    assert len(_norm_text(fx._PDF_LINES and " ".join(fx._PDF_LINES))) >= 1200
+
+
+def test_critical_units_preserved_in_their_carriers() -> None:
+    from tools import f2_paired_fixture_server as fx
+
+    assert all(
+        u in _norm_text(fx.PAGES["/structured-spec.html"][2].decode("utf-8"))
+        for u in ["2026-08-01", "ES modules", "CommonJS", "supported"]
+    )
+    assert all(
+        u in _norm_text(fx.PAGES["/code-docs.html"][2].decode("utf-8"))
+        for u in ["Compute API", "def compute(value)", "verified release identifier", "canonical id"]
+    )
+    # js_heavy: units appear only after JS, never in the static shell
+    shell = _norm_text(fx.PAGES["/spa-delayed.html"][2].decode("utf-8"))
+    assert "CommonJS guidance" not in shell
+    assert all(
+        u in _norm_text(fx._RENDERED_BODY)
+        for u in ["verified release date is 2026-08-01", "CommonJS guidance"]
+    )
+    # document_path: units live in the linked PDF, not the landing HTML
+    assert "CommonJS guidance" not in _norm_text(fx.PAGES["/document-mixed.html"][2].decode("utf-8"))
+    assert all(
+        u in _norm_text(" ".join(fx._PDF_LINES))
+        for u in ["verified release date is 2026-08-01", "CommonJS guidance"]
+    )
+    # session: unit only in the granted body
+    assert "SESSION OK" not in _norm_text(fx._SESSION_LOGIN_WALL)
+    assert "SESSION OK" in _norm_text(fx._SESSION_GRANTED)
+
+
+def test_filler_carries_no_decision_content() -> None:
+    from tools import f2_paired_fixture_server as fx
+
+    for unit in (
+        "2026-08-01",
+        "ES modules",
+        "CommonJS",
+        "supported",
+        "Compute API",
+        "def compute(value)",
+        "verified release identifier",
+        "canonical id",
+        "SESSION OK",
+        "verified release date is 2026-08-01",
+        "CommonJS guidance",
+    ):
+        assert unit not in fx._FILLER, unit
+
+
+def test_rubric_unchanged_versus_the_diagnostic_invalid_run() -> None:
+    """A changed only the carrier: categories + critical units must be identical."""
+
+    import json
+
+    from tools.run_f2_paired import CATEGORIES
+
+    if not OLD_DIAGNOSTIC_ARTIFACT.exists():
+        pytest.skip("diagnostic-invalid artifact not present")
+    old = json.loads(OLD_DIAGNOSTIC_ARTIFACT.read_text(encoding="utf-8"))
+    old_units = {row["category"]: row["expected_critical_units"] for row in old["raw"]}
+    new_units = {spec["category"]: spec["critical_units"] for spec in CATEGORIES}
+    assert new_units == old_units
+
+
+# --------------------------------------------- fallback sentinel (companion D)
+
+def test_fallback_sentinel_shape(monkeypatch) -> None:
+    from tools import run_f2_paired as hp
+
+    monkeypatch.setattr(hp, "_allow_local_fixture_reads", lambda: None)
+    monkeypatch.setattr(
+        hp,
+        "_run_default",
+        lambda url, category: {"backend_path": ["native_http", "wigolo_http"]},
+    )
+    sent = hp._run_fallback_sentinel("http://x", allow_local=False)
+    assert sent["passed"] is True
+    assert sent["native_then_wigolo"] is True
+
+    monkeypatch.setattr(
+        hp, "_run_default", lambda url, category: {"backend_path": ["native_http"]}
+    )
+    assert hp._run_fallback_sentinel("http://x", allow_local=False)["passed"] is False
