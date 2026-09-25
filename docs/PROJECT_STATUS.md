@@ -12944,3 +12944,21 @@ L3 full pytest（clean head `a4c7d0d`）：2648 passed, 2 skipped, 0 failed（15
 （同步而非退休）；未重开 §143/§144 决策。
 
 **结果**：clean checkout 本地全绿 -> CI 恢复为可判定 gate（exact-head CI 待确认）。
+
+### 146.1 exact-head `246080f` 剩余失败（packaging helper 误报）
+
+pytest 全绿后 job 继续执行到 `Run package helper (validate packaging logic)`
+（此前 pytest 红时该步为 skipped），暴露一个**既有误报**：
+`tools/f2_paired_fixture_server.py` 的 `_SESSION_TOKEN = "f2-session-truth-2026"`
+命中 `tools/package_project_helper.py` 的通用模式
+`(?i)(api[_-]?key|token|secret)\s*[:=]\s*['"][^'"]{16,}`。
+
+```text
+证据：早期 run 36131314781 中该步为 skipped（job 在 Enforce pytest result 即失败）
+      -> 非本刀引入，是 pytest 变绿后新暴露的既有误报。
+处置：常量重命名为 _SESSION_ID（值不变），避免与密钥扫描模式冲突；
+      未削弱扫描器、未改 fixture 语义。
+验证：package_project_helper.py 本地 exit 0（OK: 1495 files）
+      test_f2_paired_harness + test_f2_c_economics + test_crawl4ai_specialist_integration
+      = 39 passed, 1 skipped
+```

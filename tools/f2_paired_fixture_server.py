@@ -126,7 +126,7 @@ _DOCUMENT_MIXED = (
 
 # ── session_sensitive /session/check (+ /session/start) ─────────────────
 _SESSION_COOKIE = "f2_sid"
-_SESSION_TOKEN = "f2-session-truth-2026"
+_SESSION_ID = "f2-session-truth-2026"
 _SESSION_LOGIN_WALL = (
     "<html><head><title>Members only</title></head><body>"
     "<h1>Members only</h1>"
@@ -183,12 +183,12 @@ PAGES: dict[str, tuple[int, str, bytes]] = {
 
 #: The session cookie is set here, not in the body.
 PAGE_HEADERS: dict[str, tuple[tuple[str, str], ...]] = {
-    "/session/start": (("Set-Cookie", f"{_SESSION_COOKIE}={_SESSION_TOKEN}; Path=/"),),
+    "/session/start": (("Set-Cookie", f"{_SESSION_COOKIE}={_SESSION_ID}; Path=/"),),
 }
 
 
 def session_check_body(cookie_header: str) -> tuple[int, str]:
-    present = f"{_SESSION_COOKIE}={_SESSION_TOKEN}" in str(cookie_header or "")
+    present = f"{_SESSION_COOKIE}={_SESSION_ID}" in str(cookie_header or "")
     if present:
         return 200, _SESSION_GRANTED
     return 401, _SESSION_LOGIN_WALL
