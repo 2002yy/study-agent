@@ -11123,9 +11123,63 @@ document_path：两侧都不跟随 linked PDF -> UNRESOLVED_FOR_TASK
 ```text
 §143-B harness + smoke                      ✅（c19cba2；12/12 plumbing PASS）
 §143-B threshold-invalid diagnostic run     ✅ 保留（5dc9a40 / F2_PAIRED.json）
-§143-B A+D rerun readiness + evidence       ✅（本提交；F2_PAIRED.threshold_safe.json）
-§143-B aggregate/adjudicate                 ⏳ NEXT（进入 §143-C 前先冻结 B 结论口径）
-§143-C escalation economics                 ⏳
+§143-B A+D rerun readiness + evidence       ✅（8f5468a；F2_PAIRED.threshold_safe.json）
+§143-B aggregate/adjudicate                 ✅ CLOSED（本提交，见 §143.118）
+§143-C escalation economics                 ⏳ NEXT（口径见 §143.121）
 ```
 
 **未做**：未改 production read/adequacy/routing；未据 B 改 routing；未动 A3 共享 fixture server。
+
+
+## §143-B — **CLOSED = PASS（条件型 specialist，非整体 superior backend）**
+
+### 143.118 裁定（冻结口径）
+
+> **Crawl4AI 已证明具备场景化 specialist 价值，但不具备普适替代 default reader 的证据。**
+>
+> - `simple_static`：**NONE** —— default 已完整恢复，C4AI 只增加约 219ms。
+> - `technical_docs`：**NONE** —— 同样无质量增益，增加约 215ms。
+> - `js_heavy`：**ESSENTIAL** —— default 0/2，C4AI 2/2；代价约 +1323ms，其中约 1200ms 是预登记 render delay。
+> - `session_sensitive`：**ESSENTIAL** —— default 0/1，C4AI 1/1；约 +310ms，且 wall 已包含 session setup。
+> - `selected_pdf`：**MATERIAL** —— default 经 `native_http→wigolo_http` 已有 2/3，C4AI 提升到 3/3；仅约 +28ms，因此是"低边际成本补全"，但不是不可替代。
+> - `document_path`：**UNRESOLVED_FOR_TASK** —— 两侧都 0/2；已确认是现有 executor 都不会跟随 linked PDF 的真实能力缺口，不再是实验装置问题。
+
+⇒ **§143-B 回答的是"在哪些场景 specialist 值得存在"，而不是"应该默认调用 specialist"。**
+
+### 143.119 aggregate 结论（冻结）
+
+> **Crawl4AI 的价值高度集中在动态渲染、会话态页面和部分 PDF 补全场景；对普通静态页与技术文档没有可观测质量收益。现有 linked-document path 则双方均未解决。故 B 支持"条件升级型 specialist"，不支持"全局默认前置"。**
+
+**`selected_pdf=MATERIAL` 的克制表述（冻结）**：
+
+> **在当前 default fallback 已经能恢复大部分 PDF critical units 的前提下，Crawl4AI 提供额外完整性增益，且此次边际 wall 很小。**
+
+这与 `js_heavy` / `session_sensitive` 的 **ESSENTIAL**（default 完全无法完成）必须区分。
+
+### 143.120 B/C 边界（冻结）
+
+```text
+B：证明 specialist 在哪里有价值。   ✅ CLOSED
+C：证明什么时候调用它才经济。      ⏳ NEXT
+```
+
+### 143.121 §143-C 研究问题与三类 economics（下一阶段口径，未实现）
+
+**唯一研究问题**：
+
+> **什么信号足以在"调用前或 default 失败后"识别这些高收益场景，使 specialist 的期望质量收益大于额外 latency / 成本？**
+
+至少拆成三类 economics：
+
+```text
+pre-route economics
+  能否提前识别 js-heavy / session-sensitive / selected-pdf
+
+post-failure escalation economics
+  default 出现什么 terminal_outcome / shape / provenance 后再升级最划算
+
+false-positive cost
+  把 simple_static / technical_docs 错送 specialist 要付多少无收益延迟
+```
+
+**未做**：§143-C 尚未设计冻结、未写任何 economics 代码、未改 routing。
