@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B**：在 §143-B threshold-safe cohort 上验证 RQ-A 核心承诺 —— **shape/content 成功但缺 required_units，必须被判成 partial/insufficient，而不是"读成功=证据足够"**；并推进 contradiction 判据。CI gate 已恢复（§146）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B**：在 §143-B threshold-safe cohort 上验证 RQ-A 核心承诺 —— **shape/content 成功但缺 required_units，必须被判成 partial/insufficient，而不是"读成功=证据足够"**；并推进 contradiction 判据。**CI gate 已恢复并闭环**（§146.5，exact-head `de2b909` 全绿）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13079,3 +13079,35 @@ L3 full pytest：2646 passed / 2 failed（clean-checkout guard，因未提交）
 **治理修正**：AGENTS §4.6 记"本仓库未声明 mypy 基线"**与事实不符** —— 仓库实际存在
 `config/mypy_baseline.json` + `tools/check_mypy_baseline.py` + CI `Enforce mypy baseline` 门。
 后续按"存在基线门"对待。
+
+### 146.5 CI restoration CLOSED（2026-09-25，`de2b909`）
+
+exact-head `de2b909` 的 push run `36167172322` 与 PR run `36167177675` 均 **success**；
+job 内**所有 gate 步骤通过**：
+
+```text
+pytest ✓ | ruff ✓ | package helper ✓ | detect-secrets ✓ | mypy baseline ✓
+frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real-stack browser gates ✓
+```
+
+（`Enforce *` 步骤显示为 skipped，是因为它们只在对应步骤失败时才运行 -> 即门通过。）
+
+**结果**：
+
+```text
+起点：父提交 32993fb CI 红（9 failed / 2598 passed）
+终点：de2b909 CI 绿（全部 gate 步骤通过）
+累计 5 层历史债全部归类并处置（第 6 层不存在：frontend / Playwright 层首次执行即通过）：
+  1 packaging secret 误报（f2 fixture 常量名）
+  2 文档 self-trip（引用同一模式样例）
+  3 测试污染 repo root（selector_ab 硬编码 Windows 路径）
+  4 detect-secrets 熵误报（evidence artifacts 摘要字段）
+  5 mypy baseline 新增 11 签名（§143 期类型收窄/注解）
+分类：环境依赖 4 组 / 陈旧契约 2 组 / 真实分歧 0
+```
+
+**结论**：CI 重新成为可信 gate；本地 L0 已加入 package helper（§146.3）。
+后续红灯默认按"当前 head 真回归"处理。
+
+**门清单（彼此独立，不可互相替代）**：`pytest` / `ruff` / `git diff --check` /
+`package_project_helper` / `detect-secrets` / `mypy baseline`（+ frontend / Playwright）。
