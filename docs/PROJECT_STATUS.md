@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-P1` 的 **external request-surface binding** —— P1 本体已交付（`84b5d9c`，`src/application/reader_hint_routing.py`，`EXPLICIT_READER_HINTS_ENABLED` 默认 **off**），regression contract 12/12 PASS；但 `reader_capabilities` 尚未绑定到真实外部 request/task surface（request 字段 / task manifest / UI toggle）。该绑定是 product-surface 决定，本阶段刻意未发明。bind 之后再做**单独的 enable 决策**（flag 仍默认 off）。P3 更后。
+- **下一刀（唯一）：**`§143-P1` 的 **enable decision** —— P1 contract（§143.139）、internal implementation（`84b5d9c`）、external request-surface binding（`52f70a1`+`cfa58fc`）与 **operator e2e（真实 request → P1 → Crawl4AI + fallback）** 均已完成且 PASS；`EXPLICIT_READER_HINTS_ENABLED` 仍 **OFF**。下一步单独裁定是否从默认 off 改为 on（不与 schema/binding 混）。可选、且属 1:1 机械映射：把 `reader_capabilities` 接入具体外部表面（`WebLookupService.create` / tool-run args / manifest loader）。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -11933,3 +11933,91 @@ P1 external request-surface bind ⏳ NEXT（product-surface 决定）
 P1 enable decision               ⏳（bind 之后，单独裁定）
 P3 PDF rule                      🅿️ optional later
 ```
+
+
+### 143.151 external request-surface contract（冻结）
+
+> **canonical application request/task DTO 作为唯一 surface；API request field / task manifest / UI toggle
+> 只能 1:1 映射到它，不各自拥有 routing 语义。**
+
+```text
+外部序列化形态:  reader_capabilities: list[str] = []
+允许值:          "JS_RENDER" | "SESSION_STATE"
+缺省 / None / []  三者等价 = no hint
+未知值 / 裸字符串 / 错误类型 -> boundary validation error（fail-closed）
+canonical 进入 application 层后 -> 内部 set[ReaderCapability]
+hint_source:     由 adapter 写入封闭来源（REQUEST_FIELD | TASK_MANIFEST | UI_TOGGLE），
+                 调用方不得填写（外部 payload 含 hint_source -> 拒绝）
+runtime / planner / LLM 不得修改或推断 reader_capabilities
+SESSION_STATE 必须在同一 request 携带 companion session/setup 输入；
+  validation 顺序 = parse capabilities -> validate companion -> construct canonical task -> routing
+flag off 时: 字段照常接受并记录，但 routing effect = 0（schema 不随 rollout 抖动）
+```
+
+**显式的硬定义**：外部调用方 / 已冻结 task manifest / UI 用户动作 → `reader_capabilities`；
+**不是** planner 看 URL/正文后推断。UI 只能写 canonical field，不得出现 `BROWSER_GENERIC` 类宽语义。
+
+### 143.152 external binding 实现（`52f70a1` + `cfa58fc`）
+
+**新增** `src/application/reader_task_request.py`：
+
+```text
+ReaderTaskRequest（frozen dataclass）= canonical DTO
+parse_reader_task_request(raw, hint_source=...)  -> 边界校验 + 构造
+from_request_field / from_task_manifest / from_ui_toggle  -> 1:1 adapter（各自赋封闭 hint_source）
+run_reader_task(request, ...) -> run_reader_with_hints(...)（P1 router）
+```
+
+`cfa58fc` 修复：真实 `run_single_read_measurement` 返回 `(chain_run, recorded)`，P1 default reader 现做归一化；
+并新增 operator e2e。
+
+**§143 external-binding PASS 门逐项**：
+
+```text
+absent_field == empty_list == no_hint                         = PASS
+request_js_render_maps_1_to_1                                 = PASS
+request_session_state_maps_1_to_1                             = PASS
+unknown_external_value_rejected                               = PASS
+bare_string_rejected                                          = PASS
+adapter_assigns_hint_source                                   = PASS
+caller_cannot_spoof_hint_source                               = PASS
+planner_runtime_cannot_mutate_or_infer_capabilities           = PASS（frozen DTO + 结构性断言）
+session_state_requires_companion_inputs                       = PASS
+flag_off_accepts_but_does_not_route                           = PASS
+no_hint_external_request_preserves_existing_execution         = PASS
+manifest_explicit_value_maps_1_to_1                           = PASS
+manifest_does_not_auto_derive_from_task_or_url                = PASS（adapter 只读显式字段）
+```
+
+### 143.153 operator e2e（真实 request -> P1 -> Crawl4AI）
+
+```text
+条件:   CRAWL4AI_PYTHON=<isolated interpreter> + CRAWL4AI_SPECIALIST_ENABLED=1
+        + EXPLICIT_READER_HINTS_ENABLED=1（operator 显式）
+链路:   from_request_field({"url":..., "reader_capabilities":["JS_RENDER"]})
+        -> run_reader_task -> run_reader_with_hints -> invoke_crawl4ai_specialist
+结果 1: route=specialist, hint_honored=true, actual_backend_path=[crawl4ai_browser], terminal_outcome 非空  ✅
+结果 2: specialist_config_ok=false 时 -> route=default, hint_honored=false,
+        hint_unhonored_reason=specialist_unavailable, actual_backend_path=[native_http]                ✅
+```
+
+本机以 a3 venv 运行：PASS。
+
+### 143.154 状态
+
+```text
+§143-P1 contract                    ✅ FROZEN（§143.139）
+§143-P1 internal implementation      ✅（84b5d9c）
+§143-P1 external binding            ✅（52f70a1 + cfa58fc）
+§143-P1 operator e2e (real chain)   ✅（§143.153）
+EXPLICIT_READER_HINTS_ENABLED       OFF（默认，未启用）
+P1 enable decision                  ⏳ NEXT（单独裁定，不与 schema/binding 混）
+P3 PDF rule                         🅿️ optional later
+```
+
+**未做**：未启用 flag；未把 `reader_capabilities` 接入 `WebLookupService.create` / tool-run args / API routes；
+未改 `execute()` 内部读点；未改 `ACTIVE_READER_CHAIN`；未做 P3。
+
+**说明**：canonical DTO 与 P1 router 已真实可达（operator e2e 证明）；
+把该字段接到具体外部表面（API/tool args/manifest loader）是部署/product-surface 决定，
+仍属 1:1 机械映射，不再重新 review routing。
