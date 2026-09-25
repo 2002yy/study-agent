@@ -87,7 +87,15 @@ def test_classification_tasks_are_blind_and_deterministic(tmp_path: Path) -> Non
     first = build_classification_tasks(audit, pass_label="A")
     second = build_classification_tasks(audit, pass_label="A")
 
-    assert first == second
+    # `generated_at` is wall-clock provenance, not part of the blind payload.
+    # Comparing the whole dict was platform-dependent: Windows' coarse clock made
+    # two back-to-back calls share a timestamp, while Linux' microsecond clock
+    # made them differ and failed CI. The deterministic contract is the payload.
+    assert first["tasks"] == second["tasks"]
+    assert {k: v for k, v in first.items() if k != "generated_at"} == {
+        k: v for k, v in second.items() if k != "generated_at"
+    }
+    assert first["generated_at"] and second["generated_at"]
     assert first["candidate_count"] == 2
     candidate = first["tasks"][0]["candidates"][0]
     assert set(candidate) == {"canonical_url", "url", "title", "snippet"}

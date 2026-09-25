@@ -290,11 +290,18 @@ def test_forbidden_core_semantics_are_named() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a3_0_contract_is_production_inert() -> None:
+def test_bakeoff_harness_is_production_inert() -> None:
+    # A3-0's blanket "no browser tier in production" was superseded by §143-SI,
+    # which deliberately added the qualified, default-inert Crawl4AI specialist
+    # seam (docs/PROJECT_STATUS.md §143.170-§143.172). The invariant that still
+    # holds is that the *bakeoff harness* never enters production.
     for module in PRODUCTION_MODULES:
         text = Path(module).read_text(encoding="utf-8")
-        assert "browser_bakeoff" not in text, f"{module} must not import the contract"
-        assert "crawl4ai" not in text, f"{module} must not reference crawl4ai"
+        assert "browser_bakeoff" not in text, f"{module} must not import the harness"
+        assert "run_browser_bakeoff" not in text, f"{module} must not run the bakeoff"
+        assert (
+            "wigolo_browser_executor" not in text
+        ), f"{module} must not import the browser executor"
 
 
 def test_no_crawl4ai_backend_is_registered() -> None:
@@ -306,7 +313,11 @@ def test_no_crawl4ai_backend_is_registered() -> None:
 
 
 def test_production_chain_is_unchanged_at_a3_0() -> None:
-    """The browser joins the chain only after A3-3 picks a winner."""
+    """The default reader chain is still the two-backend P0 chain.
+
+    §143-SI added an *explicit-hint-only* specialist seam; it must never become
+    part of the default chain or the capability registry.
+    """
 
     assert PRODUCTION_CHAIN_AT_A3_0 == ("native_http", "wigolo_http")
     runtime = Path("src/application/active_research_runtime.py").read_text(
@@ -317,9 +328,6 @@ def test_production_chain_is_unchanged_at_a3_0() -> None:
     )
     assert match is not None, "the production reader chain must be declared"
     assert match.group(1).strip() == "NATIVE_HTTP_BACKEND, WIGOLO_HTTP_BACKEND"
-    # The comment may *mention* the browser tier; no browser symbol may be used.
-    assert "WIGOLO_BROWSER" not in runtime
-    assert "crawl4ai" not in runtime.lower()
 
 
 # ---------------------------------------------------------------------------

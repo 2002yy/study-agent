@@ -10,12 +10,19 @@ run context only.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_TEST = REPO_ROOT / "tests" / "test_active_research_runtime.py"
+
+#: A genuinely executable, absolute interpreter. Pointing CRAWL4AI_PYTHON at the
+#: test file itself made config_ok platform-dependent (os.access X_OK is true for
+#: any file on Windows, false for a plain .py on Linux), so CI and local
+#: disagreed. sys.executable is absolute + executable everywhere.
+SPECIALIST_PYTHON = sys.executable
 
 from src.application import active_research_runtime as runtime  # noqa: E402
 from src.application.reader_hint_routing import (  # noqa: E402
@@ -58,7 +65,7 @@ def test_hint_with_flag_off_is_default(monkeypatch) -> None:
 def test_hint_ready_routes_specialist(monkeypatch) -> None:
     monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
     monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", str(Path(__file__)))
+    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
     route = runtime.read_site_hint_route({"reader_capabilities": [JS_RENDER]})
     assert route["route"] == "specialist"
@@ -68,7 +75,7 @@ def test_hint_ready_routes_specialist(monkeypatch) -> None:
 def test_session_hint_without_inputs_is_unsatisfied(monkeypatch) -> None:
     monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
     monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", str(Path(__file__)))
+    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
     route = runtime.read_site_hint_route({"reader_capabilities": [SESSION_STATE]})
     assert route["route"] == "unsatisfied"
@@ -89,7 +96,7 @@ def _hint_context(*capabilities: str, session_id: str = "") -> dict:
 def _run_with_hint(monkeypatch, tmp_path, *, capabilities, specialist):
     monkeypatch.setenv(EXPLICIT_HINTS_ENABLED_ENV, "1")
     monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
-    monkeypatch.setenv("CRAWL4AI_PYTHON", str(Path(__file__)))
+    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
     monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
     monkeypatch.setenv("WIGOLO_RERANKER", "off")
 
@@ -228,3 +235,36 @@ def test_create_rejects_unknown_capability(tmp_path) -> None:
     repository = ART._TrackingRepository(ART.RuntimeDatabase(tmp_path / "hint2.sqlite"))
     with pytest.raises(ReaderHintError):
         WebLookupService(repository).create("q", reader_capabilities=["PDF"])
+
+
+# ------------------------------------------------- specialist config gate
+
+def test_specialist_config_ok_with_a_real_interpreter(monkeypatch) -> None:
+    # Locks the platform-independent intent: a real absolute interpreter must
+    # make the specialist config gate pass on every OS (this is what the old
+    # `str(Path(__file__))` trick broke on Linux CI).
+    from src.web.research.crawl4ai_specialist import crawl4ai_specialist_status
+
+    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
+    monkeypatch.setenv("CRAWL4AI_PYTHON", SPECIALIST_PYTHON)
+    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
+    assert crawl4ai_specialist_status()["config_ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("value", "reason"),
+    [
+        ("", "python_not_configured"),
+        ("relative/python", "python_not_absolute"),
+        (str(REPO_ROOT / "definitely_missing_python"), "python_missing"),
+    ],
+)
+def test_specialist_config_fails_closed(monkeypatch, value, reason) -> None:
+    from src.web.research.crawl4ai_specialist import crawl4ai_specialist_status
+
+    monkeypatch.setenv("CRAWL4AI_SPECIALIST_ENABLED", "1")
+    monkeypatch.setenv("CRAWL4AI_PYTHON", value)
+    monkeypatch.setenv("RESEARCH_WIGOLO_ESCALATION", "browser")
+    status = crawl4ai_specialist_status()
+    assert status["config_ok"] is False
+    assert status["reason"] == reason

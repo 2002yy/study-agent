@@ -501,11 +501,12 @@ def test_harness_does_not_touch_the_production_chain() -> None:
 
 
 def test_no_production_module_imports_the_browser_executor() -> None:
+    # The `crawl4ai` textual ban was superseded by §143-SI (the qualified,
+    # default-inert specialist seam). The harness/executor bans still hold.
     for module in PRODUCTION_MODULES:
         text = Path(module).read_text(encoding="utf-8")
         assert "wigolo_browser_executor" not in text, module
         assert "run_browser_bakeoff" not in text, module
-        assert "crawl4ai" not in text, module
 
 
 def test_run_bakeoff_refuses_an_unimplemented_backend(tmp_path: Any) -> None:

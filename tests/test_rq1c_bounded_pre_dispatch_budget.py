@@ -10,6 +10,23 @@ import pytest
 import tools.run_rq1c_bounded_qualification as runner
 
 
+@pytest.fixture(autouse=True)
+def _provider_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Declare the provider env these tests need instead of relying on a local .env.
+
+    Guarded-budget construction reads provider settings (and raises if the key is
+    absent), even though every chat call in this file is faked. Without this the
+    suite passed on a developer machine with ``.env`` and failed in CI with
+    ``OPENAI_API_KEY is missing.`` The base URL is unreachable on purpose, so a
+    missed patch can never reach the network.
+    """
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("MODEL_FLASH_NAME", "test-flash")
+    monkeypatch.setenv("MODEL_PRO_NAME", "test-pro")
+
+
 def test_answer_pipeline_capacity_rejects_before_generation(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[object] = []
     monkeypatch.setattr(runner, "_production_chat", lambda *args, **kwargs: calls.append((args, kwargs)))
