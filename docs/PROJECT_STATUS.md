@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-B**：在 §143-B threshold-safe cohort 上验证 RQ-A 核心承诺 —— **shape/content 成功但缺 required_units，必须被判成 partial/insufficient，而不是"读成功=证据足够"**；并推进 contradiction 判据。**CI gate 已恢复并闭环**（§146.5，exact-head `de2b909` 全绿）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-C（contradiction / evidence conflict）**：把 support/contradict 的冲突判定从"两侧都有就 contested"细化为带 authority/freshness/directness 的冲突处理，仍**只判不找、不改 stop**。**RQ-B 已完成**（§144.8，cohort 实测 PASS：read 成功但缺 units 必落 partial，绝不 satisfied）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12844,6 +12844,58 @@ L3 full pytest（candidate content，dirty tree）：2637 passed / 7 failed / 2 
 需单独一轮定位（环境差异 / 顺序依赖 / fixture）。
 
 **未做**：未接 coverage-aware stop；未改 EvidenceGate 语义；未做 synthesis/auditor。
+
+### 144.8 RQ-B 实现与验证（2026-09-25）
+
+**目标**：在 **§143-B threshold-safe cohort**（`F2_PAIRED.threshold_safe.json`，30 对 × 2 侧 = 60 侧）
+上验证 RQ-A 核心机制结论 —— **"读取成功"不能替代"语义足够"**。
+**只做 validation / characterization**：不改 stop/gate/routing，不造新 fixture。
+
+**复用方式（关键）**：cohort 每例已声明 `expected_critical_units`（claim 侧要求），
+每侧报告 `unit_set`（实际回收）-> 直接映射为 RQ-A 的 `required_units` / `ResearchEvidence.units`。
+
+**交付**：
+
+```text
+tools/run_rq_b_semantic_validation.py
+    validate_cohort / assess_side / assess_without_requirement
+tests/test_rq_b_semantic_validation.py            （8 tests）
+docs/research_quality/RQ_B_SEMANTIC_VALIDATION.json（artifact；需 git add -f）
+```
+
+**结果（cohort 实测）**：
+
+```text
+verdict = PASS
+rows = 60
+adequate = 35 | partial = 5 | insufficient = 20 | not_evaluated = 0
+read_useful_but_units_short = 5    <- 真实 cohort 中"读成功但缺 units"的侧
+```
+
+**三类对照全部成立**：
+
+```text
+1 完整覆盖：35 侧 -> adequate + satisfied（含 simple_static / technical_docs）
+2 结构成功但缺 units：5 侧（selected_pdf/default，read useful=True，回收 2/3）
+  -> partial + partially_satisfied，绝不 satisfied   <- §143-C 机制结论在真实数据上成立
+3 无 required_units：60/60 -> not_evaluated（reader 不反推要求）
+附加不变量：no_false_satisfied = True（satisfied 永不与缺 unit 共存）
+```
+
+按 category 分布（与 §143-B verdict 一致）：
+
+```text
+simple_static / technical_docs : adequate（默认链本就够）
+selected_pdf / default         : partial（2/3；默认链读成功但不完整）
+document_path                  : insufficient（0/2，两侧）
+js_heavy / session_sensitive   : 默认 insufficient，specialist adequate
+```
+
+**边界（守住）**：未改 stop/gate/routing；未生成/反推 required_units；
+未接 coverage-aware stop（留给后续）。
+
+**验证**：ruff ✓；`test_rq_b_semantic_validation` = 8 passed；
+`tools/run_rq_b_semantic_validation.py` exit 0（RQ-B PASS）。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 

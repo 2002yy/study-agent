@@ -1,0 +1,711 @@
+{
+ "schema_version": "rq-b-semantic-validation-v1",
+ "cohort": "F2_PAIRED.threshold_safe.json",
+ "rows": [
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "partial",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 3,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "crawl4ai",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "partial",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 3,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 1,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "crawl4ai",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "crawl4ai",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "partial",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 3,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 1,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 1,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "crawl4ai",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 1,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "side": "crawl4ai",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 2
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 2,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "default",
+   "read_useful": false,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 0,
+   "semantic_adequacy": "insufficient",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session/check",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 1,
+   "recovered_unit_count": 1,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "partial",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 3,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 4,
+   "recovered_unit_count": 4,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "default",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 2,
+   "semantic_adequacy": "partial",
+   "claim_state": "partially_satisfied",
+   "missing_unit_count": 1
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "side": "crawl4ai",
+   "read_useful": true,
+   "expected_unit_count": 3,
+   "recovered_unit_count": 3,
+   "semantic_adequacy": "adequate",
+   "claim_state": "satisfied",
+   "missing_unit_count": 0
+  }
+ ],
+ "contrasts": {
+  "full_coverage": {
+   "count": 35,
+   "rule": "adequate + satisfied",
+   "ok": true,
+   "examples": [
+    "simple_static/default",
+    "simple_static/crawl4ai",
+    "selected_pdf/crawl4ai",
+    "js_heavy/crawl4ai",
+    "js_heavy/crawl4ai",
+    "technical_docs/default"
+   ]
+  },
+  "read_success_units_short": {
+   "count": 5,
+   "rule": "partial/insufficient and never satisfied",
+   "ok": true,
+   "examples": [
+    "selected_pdf/default",
+    "selected_pdf/default",
+    "selected_pdf/default",
+    "selected_pdf/default",
+    "selected_pdf/default"
+   ]
+  },
+  "no_required_units": {
+   "count": 60,
+   "rule": "not_evaluated",
+   "ok": true
+  },
+  "no_false_satisfied": {
+   "ok": true
+  }
+ },
+ "summary": {
+  "rows": 60,
+  "adequate": 35,
+  "partial": 5,
+  "insufficient": 20,
+  "not_evaluated": 0,
+  "read_useful": 40,
+  "read_useful_but_units_short": 5
+ },
+ "verdict": "PASS"
+}
