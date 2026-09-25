@@ -11387,3 +11387,133 @@ C2 (adaptive routing)                    🅿️ future option（未启动）
 **文档债务（登记，不本刀修）**：本文件 §0 Current Handoff 自早期 initiative 起未随 §143 链更新，
 对 cold-start 已不再准确；应在独立 docs-governance 刀中重建 §0（或把 §0 指向最新 §143 段落），
 不得在 routing 决策刀里顺带修改。
+
+
+## §143-Routing Review（RR）— contract 冻结 + policy matrix + Pareto + 最终裁定
+
+### 143.132 Contract（冻结，先立规则再评估）
+
+**候选政策集严格限定为 5 个**（review 期间不得发明新策略）：
+
+```text
+P0  default-only            不自动启 specialist；最低风险基线
+P1  explicit capability/request hint
+                            仅上层任务明确声明需要 JS render / session browser /
+                            richer PDF 时才启 specialist；不依赖自动 classifier
+P2  static allowlist        仅对已知 provider/domain/route 人工维护、可审计地开启
+P3  PDF lightweight rule    仅针对 selected_pdf=MATERIAL 的 extension/Content-Type 轻量升级
+P4  wait for semantic adequacy
+                            暂不扩自动 routing，直到出现"内容是否足以支撑任务"的
+                            semantic-adequacy 信号再重估 post-default escalation
+```
+
+**评估维度（冻结）**：
+
+| 维度 | 要回答的问题 |
+| --- | --- |
+| 质量覆盖 | 能覆盖 B 中多少 ESSENTIAL / MATERIAL 场景？ |
+| 增量成本 | steady-state latency / session / render 成本多少？ |
+| 误触发风险 | 会不会把 NONE / UNRESOLVED 场景送 specialist？ |
+| 可运维性 | 规则是否可解释、可测试、可回滚、可维护？ |
+| 证据强度 | 结论来自 B/C 实测，还是依赖未经验证的泛化假设？ |
+| 架构债务 | 是否引入新的 route state / allowlist / hint contract / cache 语义？ |
+
+**硬约束（不得为得到更积极方案而重新解释 A/B/C）**：
+
+```text
+js_heavy / session_sensitive  继续 = ESSENTIAL
+selected_pdf                  继续 = MATERIAL
+simple_static / technical_docs  = NONE
+document_path                  = UNRESOLVED_FOR_TASK（specialist routing 不是其解决方案）
+§143-C 结论继续有效：不存在已证明可泛化的自动 generic classifier
+"能覆盖更多 ESSENTIAL" 不自动等于 "更优 policy"（全量前置已被 B+C 支配，不入候选集）
+```
+
+**STOP 规则（冻结）**：
+
+```text
+1. 只比较上述 5 个候选政策
+2. 所有评分只使用 §143-A/B/C 已有证据
+3. 不新增 fixture / 不新增 signal experiment / 不做 C2
+4. 每个 policy 输出：ESSENTIAL coverage / MATERIAL coverage /
+   NONE false-trigger exposure / latency-cost / operational complexity /
+   evidence confidence
+5. 做 Pareto comparison
+6. 产出 RECOMMEND / REJECT / DEFER 最终裁定
+7. STOP
+8. 真正修改 production routing 必须再开独立 implementation 刀
+```
+
+⇒ RR 只能回答 **"应该采用什么 policy"**，不得顺手改 routing。
+
+### 143.133 输入（A/B/C，不再新增测量）
+
+```text
+§143-A  成本：specialist warm ~200ms；js_heavy 1333ms（含 1200ms render delay）；
+        session 341ms（含 setup）；pdf 30ms；default 0.2ms
+§143-B  价值：js/session=ESSENTIAL；pdf=MATERIAL；static/docs=NONE；
+        linked-doc=UNRESOLVED
+§143-C  信号：通用零请求/成本化元数据/post-default 均不足；P2 结构性失明
+        （default 事后 metadata 不携带 semantic adequacy）
+```
+
+### 143.134 Policy matrix（仅用 A/B/C 证据）
+
+| Policy | ESSENTIAL coverage | MATERIAL coverage | NONE/UNRESOLVED FP exposure | 增量成本 | 可运维性 | 证据强度 | 架构债务 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **P0 default-only** | 0/2 | 0（pdf 仍走 default 得 2/3） | 0 | 0 | 最佳（无新面） | 强（C 证明无通用信号） | 无 |
+| **P1 explicit hint** | 2/2（**当且仅当**上层显式声明） | 1/1（同前提） | 0（意图显式，非推断） | 仅声明时：js 1333 / session 341 / pdf 30ms | 中（需 hint contract） | 强（B 证明价值）；hint 可得性未证 | 中（新 hint contract + route state） |
+| **P2 static allowlist** | 未证（本 cohort 无稳定 provider） | 未证 | 低（人工审查） | on-hit | 中（需人工维护/审计） | **弱**（无 stable provider/route 证据） | 中（allowlist 状态） |
+| **P3 PDF lightweight rule** | 0 | 1/1 | 0（本 cohort 无误触发） | probe ~1.5ms + specialist ~30ms | 好（窄谓词，可测/可回滚） | 强（B pdf=MATERIAL；C ext/ctype→pdf） | 低 |
+| **P4 wait semantic adequacy** | 0（现在） | 0（现在） | 0 | 0（现在） | 最佳 | 强（C 证明 P2 无 semantic adequacy） | 无（只定义未来触发条件） |
+
+### 143.135 Pareto comparison
+
+```text
+Pareto 前沿（coverage↑ / cost↓ / FP↓）：
+  P0 / P4   零成本零覆盖：不被任何方案在 cost/FP 上严格支配
+  P1        唯一能覆盖 ESSENTIAL 的合法路径（代价 = 显式 hint，FP=0）
+  P3        以极低成本补 MATERIAL（FP=0，债务低）
+
+被支配 / 证据不足：
+  P2        无 stable provider 证据；在可得证据上不优于 P1，且引入 allowlist 债务
+  全量 specialist 前置（非候选）  覆盖 ESSENTIAL 但把 NONE 全部多付成本 -> 被 B+C 支配
+  通用自动 classifier（非候选）   C 已证明不存在可泛化信号 -> 直接否决
+```
+
+### 143.136 最终裁定（RECOMMEND / REJECT / DEFER）
+
+```text
+RECOMMEND
+  · P4 作为自动 routing 的治理性立场：在 semantic-adequacy 信号出现前，不自动推断、
+    不自动升级（"不自动猜"本身是 C 支持的正确默认）
+  · P1 作为唯一被认可的前置 specialist 路径：仅在上层显式 capability/request hint 下启用；
+    能安全覆盖 js/session ESSENTIAL，且 FP=0（意图显式）
+  · P3 作为窄口径可选优化：只覆盖 selected_pdf=MATERIAL；不得包装成整体 routing 策略
+
+REJECT
+  · 任何通用自动 classifier / 全量 specialist 前置：与 §143-C 结论冲突且被 B+C 支配
+
+DEFER
+  · P2 static allowlist：在出现稳定、可审计的 provider/route 证据前不采纳
+  · C2（adaptive routing / specialist-result feedback）：future option，仍不启动
+
+BASELINE
+  · P0 default-only 保持为兜底：若 P1 的 hint contract 未落地，行为等同 P4 当前态
+```
+
+**一句话**：specialist 有明确局部价值，但没有可泛化的自动识别信号 ⇒
+production 应采取**保守、显式触发、不自动猜**的 policy；自动升级留待 semantic-adequacy signal。
+
+### 143.137 状态与边界
+
+```text
+§143-A/B/C                     ✅ CLOSED
+§143-RR contract + matrix + Pareto + verdict   ✅（本提交）
+production routing change       ⏳ 未开（必须独立 implementation 刀）
+semantic-adequacy signal        ⏳ 未来触发条件（P4 的门）
+C2                              🅿️ future option
+```
+
+**未做**：未改任何 production routing；未新增 fixture / signal experiment；未做 C2；
+未把 P3 包装成整体策略。§0 文档债务继续隔离，待 RR 完成后单独治理。
