@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`§143-RS` 的 **transport → context → read-site 真实 worker e2e（qualification）** —— selector 已实现（`58f6a75`），no-hint parity 与 A–E gate 已 PASS，双 gate 仍 OFF。下一步用真实 Crawl4AI worker（operator 显式 `CRAWL4AI_PYTHON` + 两个 gate ON）穿过 `WebLookupService.create` → run context → `execute()` read site，确认真实 specialist success 短路与 unusable 回落、provenance、budget accounting 均符合契约；随后 P1 routing closeout，再单独裁定 deployment opt-in enable。P3 更后。
+- **下一刀（唯一）：**`§143-P1` **rollout closeout / deployment opt-in decision** —— §143-RS 已 CLOSED，P1 routing 已 CLOSEOUT（`cb1055d`）：read site 已接通但默认 inert，Q1/Q2/Q3 全 PASS，no-hint parity 与 A–E gate 全 PASS。**代码默认值保持 `EXPLICIT_READER_HINTS_ENABLED=OFF`**；合格部署可显式 opt-in ON，观察真实运行后再决定是否改代码默认值（later）。当前无必须的代码切片；可选后续为 P3 PDF lightweight rule（optional later）。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12356,3 +12356,62 @@ deployment opt-in enable         ⏳（双 gate 仍 OFF）
 ⇒ 需在 **candidate 形成之后、read site 之前**注入 fixture 候选（test/operator harness seam），
 或先定位丢弃它的那一步（search-result 归一化 vs 评估 fake vs URL safety）再决定最小注入点。
 不采用 production loopback bypass；不引入 tunnel/公网 fixture。
+
+
+### 143.167 qualification 注入点定位 + Q1/Q2/Q3（全 PASS）
+
+**丢弃点定位**：`merge_candidate_pool` 内 `canonicalize_url` → `is_public_http_url` 返回 False
+→ `canonical=""` → 候选在**候选形成阶段**即被丢弃（production URL safety，正确行为）。
+注入点选在 **`execute_candidate_pool_batch` 输出之后**（URL safety 已结束、read site 之前），
+**仅存在于 operator/test harness**：monkeypatch 该函数，把预验证 fixture candidate 追加进
+`batch_result.candidates`。**未新增 production flag / allowlist / loopback bypass。**
+
+工具：`tools/run_read_site_qualification.py`（operator，真实 Crawl4AI worker，`CRAWL4AI_PYTHON` 显式）。
+
+```text
+Q1 specialist usable   真实 worker -> usable；run_chain 调用数 0；backend=[crawl4ai_browser]；latency>0   ✅
+Q2 specialist unusable 真实 worker 执行但 invalid_content -> hint_honored=true, specialist_usable=false,
+                       fallback_used=true；原 inline native_http 路径执行；specialist latency>0            ✅
+Q3 gate OFF            hint 存在但 specialist 未执行 -> hint_honored=false, reason=hints_disabled；
+                       原 default 路径执行                                                              ✅
+```
+
+artifact：`docs/research_quality/READ_SITE_QUALIFICATION.json`（`checks` 全 true）。
+**provenance 与 default `backend_path` 分开**：specialist 只出现在 `read_site_specialist`，
+default chain 仍只记 `native_http`/`wigolo_http`。
+
+**说明**：Q1–Q3 用 deterministic active run（`_active_context` + context 携带 hint）驱动；
+`WebLookupService.create` 的 transport 记录由 `tests/test_read_site_selector.py` 单独证明
+（create() 本身不 seed active state，故不用于本 qualification）。
+
+### 143.168 §143-RS CLOSED + P1 routing CLOSEOUT
+
+```text
+§143-RS contract                    ✅ FROZEN（c6be7f5）
+§143-RS baseline                    ✅（bd148f2/a37c70e；baseline_commit f47c443）
+§143-RS selector implementation     ✅（58f6a75）
+§143-RS no-hint parity              ✅（post == baseline）
+§143-RS A–E gate                    ✅（§143.165）
+§143-RS Q1/Q2/Q3 qualification      ✅（cb1055d；§143.167）
+```
+
+**结论**：P1 已从"可调用模块"进入 **"真实 production read-site 已接通但默认不激活"**：
+
+```text
+transport（WebLookupService.create -> run context，intent only）
+  -> execute() read site selector（routing authority）
+  -> specialist-first（usable 才短路）/ 原 inline default（其余）
+双 gate 默认 OFF；no-hint 行为与 f47c443 基线逐字段一致
+```
+
+### 143.169 rollout 状态（冻结口径）
+
+```text
+代码默认值：EXPLICIT_READER_HINTS_ENABLED = OFF（不改）
+qualified deployment 可显式 opt-in ON
+观察真实运行后再决定是否把代码默认值改为 ON（later）
+P3 PDF lightweight rule            🅿️ optional later
+```
+
+**未做**：未改任何 gate 默认值；未改 `ACTIVE_READER_CHAIN`；未新增 production flag/allowlist/loopback bypass；
+未做 P3。
