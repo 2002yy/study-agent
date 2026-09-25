@@ -26,7 +26,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现（勿误认为已有）：**production routing 未做任何改动；无 P1 hint contract；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback。
-- **下一刀（唯一）：**`Crawl4AI production-specialist integration` 的 **implementation**（contract 已冻结 §143.144–§143.145：把 Crawl4AI 集成为 **production-available but default-inert** specialist target；`ACTIVE_READER_CHAIN` 不变；独立 identity `CRAWL4AI_BROWSER`；两个独立 gate `crawl4ai_specialist_enabled` / `explicit_reader_hints_enabled`；核心负断言：无显式调用时不得被自动选中）。前置裁定：A REJECT，C DEFER，选 B（§143.143）。随后才是 P1 本体实现；P3 更后。P1 contract 已冻结（§143.139）。
+- **下一刀（唯一）：**`§143-P1 implementation` —— 使用已交付的 production seam `invoke_crawl4ai_specialist`（`8722391`），实现 request 字段 `reader_capabilities: set{JS_RENDER|SESSION_STATE}`、校验、routing branch、provenance、`explicit_reader_hints_enabled` gate。contract 已冻结 §143.139；integration contract/impl 已冻结/交付 §143.144–§143.147。两个 gate 独立：`crawl4ai_specialist_enabled`（specialist 是否可被调用）与 `explicit_reader_hints_enabled`（hint 是否有 routing effect）。P1 首次 rollout：flag 默认 off → qualification → 再决定 enable。P3 更后。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -11793,3 +11793,71 @@ C (contract-only seam)           🅿️ DEFER
 
 **未做**：未注册 Crawl4AI 进 production；未改 ACTIVE_READER_CHAIN；未实现任何 gate / 字段 / worker wiring；
 未改 production 代码。
+
+
+### 143.147 integration implementation 交付（`8722391`）
+
+**新增** `src/web/research/crawl4ai_specialist.py`（production 可达、默认 inert）：
+
+```text
+identity:            CRAWL4AI_BROWSER
+gate A:              CRAWL4AI_SPECIALIST_ENABLED（默认 off）
+config:              CRAWL4AI_PYTHON = 绝对解释器路径（无发现、无 PATH、无 host fallback）
+lifecycle:           lazy start（首次显式调用）+ warm reuse（后续复用）
+                     复用 A3 Crawl4AIBridge（persistent worker/stdout reader/request_id/
+                     late-response discard/bounded timeout+grace/post-timeout health/shutdown）
+crash/EOF:           当前 invocation fail-closed -> teardown/reset -> 不 replay；
+                     下一次显式调用才 lazy-start 新 worker
+timeout:             只放弃本次请求；bridge 仍健康则不复用重启（A3 语义）
+fail-closed reason:  disabled / python_not_configured / python_not_absolute / python_missing /
+                     browser_tier_disabled / start_failed:* / worker_crash
+provenance:          requested_specialist / actual_backend / specialist_available / specialist_ready /
+                     unavailable_reason / terminal_outcome / fallback_used / usable_content / latency_ms
+addressable seam:    invoke_crawl4ai_specialist(...)（唯一显式入口）
+```
+
+**默认路径未受影响**：`ACTIVE_READER_CHAIN` 仍为 `(native_http, wigolo_http)`；runtime 未 import 本模块。
+
+**§143.145 PASS 门证据**：
+
+```text
+default_chain_unchanged                = PASS（结构性断言 + 现有 runtime 回归）
+crawl4ai_is_production_addressable     = PASS（真实 worker e2e：CRAWL4AI_PYTHON=a3 venv，
+                                          actual_backend=crawl4ai_browser）
+crawl4ai_not_in_default_chain          = PASS
+health_readiness_gate                  = PASS（disabled/missing/relative/missing-path/tier/start-fail 全 fail-closed）
+deadline_budget_propagation            = PASS（hard_seconds_left/charge_envelope 透传；A3 executor 承担）
+worker_timeout_bounded / post_timeout  = PASS（复用 A3 bridge 合同；test_crawl4ai_timeout_propagation PASS）
+session_isolation                      = PASS（session_id 透传、setup 显式消费；A3 worker session_key 复用）
+record_outcome_provenance              = PASS
+specialist_gate_off_blocks_invocation  = PASS
+existing_default_reader_regressions    = PASS
+existing_A3_Crawl4AI_contracts         = PASS
+```
+
+**核心负断言已成立**：
+
+```text
+no explicit specialist invocation
+  -> worker 不启动
+  -> Crawl4AI 不出现在 backend_path
+  -> ACTIVE_READER_CHAIN 保持 native_http -> wigolo_http
+```
+
+**测试**：`tests/test_crawl4ai_specialist_integration.py` 15 passed（fake-backed）+ 1 skipped（真实 e2e，仅当
+操作者显式设置 `CRAWL4AI_PYTHON` 时运行）；真实 e2e 在本机以 a3 venv 单独运行 PASS。
+聚焦 impact set + A3 contracts：267 passed / 1 skipped。
+
+**未做**：未把 specialist 接进 runtime routing（P1 才做）；未连接两个 gate；未实现 P1 字段；
+未改任何默认 reader 行为。本模块在生产默认路径上**不可达**，只能在显式调用时可达。
+
+### 143.148 状态
+
+```text
+§143-P1 contract                     ✅ FROZEN（§143.139）
+Crawl4AI integration contract        ✅ FROZEN（§143.144-§143.145）
+Crawl4AI integration implementation  ✅（8722391）
+Crawl4AI integration qualification   ✅ 证据见 §143.147（A3 复用 + 真实 e2e）
+§143-P1 implementation               ⏳ NEXT（使用 invoke_crawl4ai_specialist seam，两个独立 gate）
+P3 PDF rule                          🅿️ optional later
+```
