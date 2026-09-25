@@ -139,8 +139,34 @@ def _specialist_backend_path(specialist: Mapping[str, Any]) -> list[str]:
 
 
 def _default_backend_path(default: Mapping[str, Any]) -> list[str]:
+    if not isinstance(default, Mapping):
+        return []
     path = default.get("backend_path")
     return [str(item) for item in path] if isinstance(path, list) else []
+
+
+def _run_default_read(*, url: str, **kwargs: Any) -> dict[str, Any]:
+    """Normalise the production default measurement entry to a provenance dict.
+
+    ``run_single_read_measurement`` returns ``(chain_run, recorded_steps)``; the
+    routing layer only needs the backend path and a usability flag.
+    """
+
+    result = run_single_read_measurement(url=url, **kwargs)
+    if isinstance(result, Mapping):
+        return dict(result)
+    chain_run, recorded = result
+    path = [
+        str(getattr(step, "backend", ""))
+        for step in recorded
+        if bool(getattr(step, "attempted", False))
+    ]
+    return {
+        "backend_path": path,
+        "content": str(getattr(chain_run, "content", "") or ""),
+        "reader_usable_content": bool(getattr(chain_run, "usable_content", False)),
+        "terminal_outcome": str(getattr(chain_run, "action", "") or ""),
+    }
 
 
 def run_reader_with_hints(
@@ -221,7 +247,7 @@ def run_reader_with_hints(
 
 
 #: Module-level indirections so tests can inject fakes without a real runtime.
-_DEFAULT_READER: Callable[..., Any] = run_single_read_measurement
+_DEFAULT_READER: Callable[..., Any] = _run_default_read
 _SPECIALIST_READER: Callable[..., Any] = invoke_crawl4ai_specialist
 
 
