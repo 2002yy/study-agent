@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线代码 STOP，进入观察期。** 路线：qualified deployment 显式开启 P1 → 观察真实 provenance/latency/fallback → P1 rollout review → 再决定 opt-in/扩大/default ON/是否开 P3。**无必须的代码切片。**（详见 §143.170–§143.172）
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），下一刀 = 实现纯函数 `assess_claim_evidence` 并以 shadow metric 接入（不改 stop/gate）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12510,3 +12510,145 @@ gate：
 ```
 
 **未做**：未改 gate 默认值；未开 P3；未改 production routing 默认行为；未动 §0 治理规则之外的结构。
+
+
+## §144 P2-RQ — Semantic Research Quality（下一主阶段）
+
+### 144.0 定位与路线（冻结）
+
+§143 / P1 / RS routing 已收口（§143.170–§143.172）。主线回到 **Research Quality Core**。
+§143-C 的机制结论指出缺口：**Default success metadata is not semantic adequacy metadata.**
+系统知道"读成功 / 有正文 / backend resolve"，但不知道"证据是否足以支撑当前 claim"。
+
+**路线（冻结）**：
+
+```text
+★ Semantic Research Quality（RQ-A/B/C/D）
+   Claim <-> Evidence Coverage / Semantic Adequacy / Contradiction / Coverage-aware Stop
+        ↓
+   ResearchBrief
+        ↓
+   Synthesis / Citations
+        ↓
+   Final Answer Auditor（<=1 repair）
+        ↓
+   50-60 Frozen + Live Release Benchmark
+        ↓
+   RQCE v1 freeze
+        ↓
+   分支：P3/A4/A5 按需 | Study Agent 上层 Knowledge/Teaching
+```
+
+`P2-A4 discovery providers` / `P2-A5 heterogeneous integration` / `P3 PDF rule` 一律
+**按真实缺口触发，不作为主线 NEXT**。
+
+### 144.1 RQ-A 契约（冻结：数据模型 + 判据；本刀不写 agent）
+
+**原则**：**复用既有模型为权威，不另造平行 `Claim`/`EvidenceUnit`。**
+
+已有权威（`src/web/research/contracts.py` / `evidence_gate.py` / `src/domain/evidence.py`）：
+
+```text
+ResearchClaim(id, question_id, text, kind, priority, state, evidence_requirement)
+ResearchEvidence(evidence_id, locator, anchored_spans, lifecycle_status, extraction_status, published_at)
+ResearchClaimEvidenceLink(link.support_type in {supports,contradicts,qualifies,background,lead},
+                          confidence, source_role, source_cluster_id, locator, caveats)
+EvidenceCluster / EvidenceGap / ConflictGap / EvidenceGateResult(pass|block|partial)
+ResearchClaimState = pending|searching|satisfied|partially_satisfied|unresolved|unavailable|contested
+claim_support_topology(state, claim) -> (clusters, required, has_primary)
+```
+
+**请求口径 → 既有 vocabulary 的映射（冻结，不新增 literal）**：
+
+```text
+SUPPORTED   -> satisfied
+PARTIAL     -> partially_satisfied
+CONFLICTED  -> contested
+UNRESOLVED  -> unresolved
+```
+
+**新增（最小；只加"语义充分性"这一缺失维度）**：
+
+```text
+EvidenceRequirement.required_units: tuple[str, ...] = ()
+    claim 需要被正文覆盖的内容单元（由 claim/planner 显式声明；
+    禁止从被读页面反推，避免循环）。
+
+ResearchEvidence.recovered_units: tuple[str, ...] = ()
+    该证据正文中实际出现、且被 locator/anchored_spans 支撑的单元
+    （由 extractor/verifier 产出，code-owned）。
+
+ClaimEvidenceAssessment（新增计算结构，纯函数产物）:
+    claim_id
+    state: ResearchClaimState            # 既有 vocabulary（权威）
+    semantic_adequacy: SemanticAdequacy  # 新增
+    supporting_clusters: int
+    required_clusters: int
+    has_primary: bool
+    contradicting_clusters: int
+    required_units: tuple[str, ...]
+    recovered_units: tuple[str, ...]
+    missing_units: tuple[str, ...]
+    reasons: tuple[str, ...]
+
+SemanticAdequacy = adequate | partial | insufficient | not_evaluated   # 新增
+```
+
+**判据（冻结，确定性、code-owned，绝不信任 model closure）**：
+
+```text
+输入（仅用 eligible links：既有 structural + freshness eligibility，relation + strength）：
+  support_clusters   = |{source_cluster_id : relation=supports AND strength>=STRONG(0.7)}|
+  required           = claim.evidence_requirement.min_independent_sources
+  has_primary        = any(support.source_role == "primary")
+  contradict_clusters= |{source_cluster_id : relation=contradicts AND strength>=STRONG}|
+  recovered_units    = union(evidence.recovered_units) over eligible supports
+  missing_units      = required_units - recovered_units
+  structural_ok      = support_clusters >= required AND (not requires_primary_source OR has_primary)
+  units_ok           = required_units == () OR missing_units == ()
+
+semantic_adequacy:
+  required_units == ()                -> not_evaluated
+  missing_units == ()                 -> adequate
+  recovered_units != ()               -> partial
+  else                                -> insufficient
+
+state（按序判定）:
+  contradict_clusters > 0 AND support_clusters > 0        -> contested      (CONFLICTED)
+  structural_ok AND units_ok                              -> satisfied      (SUPPORTED)
+  structural_ok AND NOT units_ok                          -> partially_satisfied (PARTIAL，语义缺口)
+  support_clusters > 0                                    -> partially_satisfied (PARTIAL，结构不足)
+  else                                                    -> unresolved     (UNRESOLVED)
+```
+
+**coverage（冻结口径，分开报告，不压成单一分数）**：
+
+```text
+structural_coverage = support_clusters / required
+semantic_coverage   = |recovered_units| / |required_units|   (required_units 为空 -> not_evaluated)
+conflict_flag       = contradict_clusters > 0
+missing_units       = required_units - recovered_units
+```
+
+### 144.2 RQ-A 非目标（本阶段明确不做）
+
+```text
+不改 stop policy（stop 仍由既有 budget/saturation/gate 决定）
+不引入新 agent / 模型自评 closure
+不从被读页面反推 required_units
+不改 EvidenceGate 既有 pass/block/partial 语义
+不做 synthesis / auditor / brief 生成
+```
+
+### 144.3 RQ-A 下一步（下一刀）
+
+```text
+1) 实现纯函数 assess_claim_evidence(state, claim) -> ClaimEvidenceAssessment
+   （复用 claim_support_topology 的 eligibility，不复制 eligibility 逻辑）
+2) 在既有 claim engine 上以 **shadow metric** 接入（不改 stop/gate 行为）
+3) 回归：现有 claim/evidence/gate 测试全 PASS；新增判据表驱动测试
+4) 数据：在 §143-B threshold-safe cohort 上验证 semantic_adequacy 判据可区分
+   （例如 §143-C 暴露的"shape ok 但缺 units"必须落 partial/insufficient）
+```
+
+**本刀（§144.1）为 contract-only**：未写代码、未改 production、未改 stop/gate。
