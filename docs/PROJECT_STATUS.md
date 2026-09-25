@@ -12742,6 +12742,41 @@ L3 vision API（图本身承载关键证据时）
 **要求**：L3 的产出必须落为带 provenance 的 `EvidenceUnit(source_type in {image,chart,screenshot,pdf_figure})`，
 并走与文本相同的 eligibility / strength / gate 路径；视觉调用计入既有 hard budget（不重置时钟）。
 
+### 144.6 required_units 来源冻结（冻结，2026-09-25）
+
+**原则**：`required_units` 属于**研究目标侧声明**——描述"要支持这个 claim 至少需要哪些语义要点/事实槽位"。
+evidence 只回答"覆盖了哪些 unit"。**禁止循环定义**：不得从已读 evidence 反推 required_units，
+reader 也不得自动生成。
+
+**v1 只允许两种权威来源（仅此两种）**：
+
+```text
+S1 显式预声明（fixture / benchmark / 结构化任务）：
+   测试、benchmark、已知结构化问题直接提供 required_units。
+S2 上层 claim planner 生成：
+   生成后必须冻结为本轮 claim contract
+   （写入 ResearchClaim.evidence_requirement.required_units），
+   本轮 reader / evidence 阶段不得修改。
+```
+
+**`assess_claim_evidence()` 职责边界（冻结）**：
+
+```text
+输入：claim contract（含 required_units）+ evidence / links
+输出：coverage / support / conflict / semantic_adequacy / missing_units
+禁止：生成或修改 required_units；禁止用 evidence 反推 required_units
+```
+
+**v1 行为（冻结）**：required_units 缺省为空时 `semantic_adequacy = not_evaluated`，
+不改变既有 state 判定 → **shadow 接入不改变任何既有 stop/gate 行为**。
+
+**实现顺序（冻结）**：
+
+```text
+1) RQ-A required_units source freeze（本节）
+2) assess_claim_evidence 实现（纯函数）+ shadow 接入（不改 stop/gate）
+```
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
