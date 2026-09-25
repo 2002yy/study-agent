@@ -89,9 +89,11 @@ def test_replay_exception_is_recorded_not_raised() -> None:
     attempts = replay(CALL, chat_fn=chat_fn, runs=1, policy="captured")
     assert attempts[0]["exception_type"] == "TimeoutError"
     assert attempts[0]["classification"] == "C_call_unavailable"
-    assert attempts[0]["candidate_sha256"] == (
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    )
+    # sha256 of the empty candidate text: a digest, not a credential. Keeping the
+    # field name on the same line as the value lets the CI secret-scan
+    # --exclude-lines digest rule match (it is line-scoped).
+    candidate_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert attempts[0]["candidate_sha256"] == candidate_sha256
 
 
 def test_summary_reports_rates_and_latency() -> None:

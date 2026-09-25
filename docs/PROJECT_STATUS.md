@@ -13031,5 +13031,11 @@ python tools/package_project_helper.py . "$env:TEMP\pkg_check.zip" 0
 本地 0 findings，而 `scan_line` 有命中（版本同为 1.5.0）。因此本项**以 CI 为唯一 oracle**，
 本地不宣称已验证。
 
+**146.3.2 `--exclude-lines` 是行级的**：`tests/test_answer_formation_probe.py` 原本把
+字段名与摘要值分成两行（`...["candidate_sha256"] == (` + 下一行 64-hex），
+行级规则无法匹配，CI 仍报 1 处。处置：把字段名与值放在同一行
+（`candidate_sha256 = "<64-hex>"`）。教训：**引用摘要时，字段名与值必须同行**，
+否则 digest 排除规则失效。
+
 **非阻塞 hygiene debt**（不混入本线）：`tools/run_f2_paired.py`、
 `run_f2_characterization.py` 与两个 crawl4ai 契约测试的机器特定 venv 绝对路径。
