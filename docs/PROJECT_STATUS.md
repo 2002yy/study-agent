@@ -12348,3 +12348,11 @@ deployment opt-in enable         ⏳（双 gate 仍 OFF）
 
 **未做**：未启用任何 gate；未做真实 worker 穿过 execute() 的 operator e2e（下一步）；未改
 `ACTIVE_READER_CHAIN`；未做 P3。
+
+**qualification 前置探测（Q1/Q2 的 candidate 注入点）**：按裁定用 test-only "已预验证 candidate" 注入，
+不改 production loopback/SSRF 规则。探测结果：把 search backend 直接指向
+`http://127.0.0.1:<port>/structured-spec.html` 后 `candidate_count=0`、`read_chain=[]`
+——即 **loopback 候选在 candidate 形成阶段即被丢弃**，不会到达 read site。
+⇒ 需在 **candidate 形成之后、read site 之前**注入 fixture 候选（test/operator harness seam），
+或先定位丢弃它的那一步（search-result 归一化 vs 评估 fake vs URL safety）再决定最小注入点。
+不采用 production loopback bypass；不引入 tunnel/公网 fixture。
