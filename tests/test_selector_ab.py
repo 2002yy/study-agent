@@ -26,7 +26,7 @@ def test_injected_targets_are_the_known_authoritative_pages() -> None:
     )
 
 
-def test_run_ab_is_paired_on_the_same_pool_with_injected_fallback() -> None:
+def test_run_ab_is_paired_on_the_same_pool_with_injected_fallback(tmp_path) -> None:
     from tools.run_selector_ab import run_ab
 
     probe = {
@@ -50,15 +50,13 @@ def test_run_ab_is_paired_on_the_same_pool_with_injected_fallback() -> None:
         ]
     }
     annotations: dict = {"merged": []}
-    tmp_probe = __import__("pathlib").Path(
-        r"C:\Users\Zhang\AppData\Local\Temp\opencode\ab_probe.json"
-    )
-    tmp_ann = __import__("pathlib").Path(
-        r"C:\Users\Zhang\AppData\Local\Temp\opencode\ab_ann.json"
-    )
-    tmp_out = __import__("pathlib").Path(
-        r"C:\Users\Zhang\AppData\Local\Temp\opencode\ab_out.json"
-    )
+    # Portable temp paths. Hardcoding a developer's Windows temp path made this
+    # test machine-specific: on Linux it wrote files literally named
+    # "C:\Users\...\ab_ann.json" into the repo root, which the packaging helper
+    # then rejected as a backslash path (and it polluted the checkout).
+    tmp_probe = tmp_path / "ab_probe.json"
+    tmp_ann = tmp_path / "ab_ann.json"
+    tmp_out = tmp_path / "ab_out.json"
     import json
 
     tmp_probe.write_text(json.dumps(probe), encoding="utf-8")

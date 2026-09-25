@@ -12964,3 +12964,29 @@ pytest 全绿后 job 继续执行到 `Run package helper (validate packaging log
       test_f2_paired_harness + test_f2_c_economics + test_crawl4ai_specialist_integration
       = 39 passed, 1 skipped
 ```
+
+### 146.2 exact-head `8e39a6d` 剩余失败（测试污染 repo root）
+
+`tests/test_selector_ab.py` 硬编码了开发机的 Windows 路径
+（`C:\Users\Zhang\AppData\Local\Temp\opencode\ab_*.json`）并**写入**它们：
+
+```text
+Windows：写到真实 temp 目录，无副作用；
+Linux/CI：Path(r"C:\...") 变成"文件名含反斜杠"的文件，被创建在 repo root；
+随后 package_project_helper.py 校验 zip entry 名
+-> ERROR: backslash path: C:\Users\...\ab_ann.json
+```
+
+证据：该步此前一直 skipped（pytest 红），pytest 变绿后才暴露。
+
+```text
+处置：改用 pytest 内置 tmp_path（去掉机器路径依赖与 root 污染）。
+验证：python tools/package_project_helper.py . /dev/null 0（与 CI 同款参数）
+      -> OK: 1495 files, exit 0
+      test_selector_ab + test_crawl4ai_shutdown_contract + test_crawl4ai_timeout_propagation
+      = 7 passed
+```
+
+**顺带记录（不在本刀修）**：`tools/run_f2_paired.py`、`tools/run_f2_characterization.py`
+与两个 crawl4ai 契约测试把验证 venv 的绝对路径写成常量。CI 不执行它们
+（operator-only 工具 / 带 skipif 的契约测试），不影响 gate；属"机器特定默认值"债务。
