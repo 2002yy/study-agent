@@ -449,6 +449,9 @@ class WebLookupService:
         parent_run_id: str | None = None,
         create_request_id: str | None = None,
         suggestion_status: str = "not_checked",
+        reader_capabilities: list[str] | None = None,
+        reader_session_id: str | None = None,
+        reader_setup_url: str | None = None,
     ) -> WebLookupRun:
         normalized = query.strip()
         if not normalized:
@@ -484,6 +487,24 @@ class WebLookupService:
         if research_mode not in {"standard", "deep"}:
             raise ValueError(f"Unsupported research_mode: {research_mode}")
         context["research_mode"] = research_mode
+        # §143-P1 transport: express explicit reader-capability intent on the run
+        # context. The read site owns routing authority; this layer only records
+        # the canonical, adapter-validated declaration (never infers it).
+        if reader_capabilities or reader_session_id or reader_setup_url:
+            from src.application.reader_task_request import from_request_field
+
+            reader_request = from_request_field(
+                {
+                    "reader_capabilities": reader_capabilities or [],
+                    "session_id": reader_session_id,
+                    "setup_url": reader_setup_url,
+                }
+            )
+            if reader_request.reader_capabilities:
+                context["reader_capabilities"] = sorted(reader_request.reader_capabilities)
+                context["reader_capabilities_source"] = reader_request.hint_source
+                context["reader_session_id"] = reader_request.session_id or ""
+                context["reader_setup_url"] = reader_request.setup_url or ""
         if research_mode == "deep":
             context["deep"] = {
                 "plan": [],
