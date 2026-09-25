@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-C（contradiction / evidence conflict）**：把 support/contradict 的冲突判定从"两侧都有就 contested"细化为带 authority/freshness/directness 的冲突处理，仍**只判不找、不改 stop**。**RQ-B 已完成**（§144.8，cohort 实测 PASS：read 成功但缺 units 必落 partial，绝不 satisfied）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-D（coverage-aware stop）**：让 stop 能区分"证据很多"与"关键冲突已解决 / 关键 claim 已 adequate"；仍**只判不找**，先做契约与判据，再考虑接入。**RQ-C 已完成**（§144.9）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12896,6 +12896,62 @@ js_heavy / session_sensitive   : 默认 insufficient，specialist adequate
 
 **验证**：ruff ✓；`test_rq_b_semantic_validation` = 8 passed；
 `tools/run_rq_b_semantic_validation.py` exit 0（RQ-B PASS）。
+
+### 144.9 RQ-C 实现：stable conflict model（2026-09-25）
+
+**目标**：把"两侧都有强证据就 contested"升级为**稳定的冲突模型**；
+仍**只判不找、不改 stop/gate/routing**。第一版**不做复杂 truth arbitration**。
+
+**模型（冻结 v1）**：
+
+```text
+ConflictStatus   = none | unresolved_conflict | preferred_side
+EvidenceStanding = evidence_id, relation, source_role, authority_rank, fresh, direct, strength
+ConflictAssessment = claim_id, status, preferred_side, supporting[], contradicting[],
+                     preferred_evidence_ids[], reasons[]
+```
+
+**规则**：
+
+```text
+- support / contradict 严格分开；两侧各自按 (authority_rank, evidence_id) 排序
+- authority_rank 复用 policy.SOURCE_ROLE_AUTHORITY_ORDER
+  （唯一权威序：primary=0 … aggregator=4；未知 role = 5）
+- directness = relation in {supports, contradicts}
+- 仅当"两侧最强 authority_rank 存在严格差"时给出 preferred_side；否则 unresolved_conflict
+- contested 本身不等于选胜者
+- 永不使用来源数量投票
+- freshness 不在本层重复裁决（link eligibility 已是唯一真值）
+```
+
+**交付**：
+
+```text
+src/web/research/claim_conflict_assessment.py
+    assess_claim_conflict / assess_state_conflicts / safe_assess_state_conflicts
+    EvidenceStanding / ConflictAssessment / authority_rank
+src/web/research/policy.py
+    新增公开 SOURCE_ROLE_AUTHORITY_ORDER（= 既有 _ALL_SOURCE_ROLES；唯一权威序）
+src/web/research/stop_gate.py
+    ShadowStopDecision.claim_conflicts（仅观测；决策字段不变）
+tests/test_claim_conflict_assessment.py（12 tests）
+```
+
+**实现中发现并修正的两点（重要）**：
+
+```text
+1 "loser has primary" 守卫是死代码：若一侧持 primary 则其 best rank = 0，
+  另一侧不可能严格更优 -> 守卫不可达。已删除；规则简化为"严格 authority 差"。
+2 freshness 已由 link eligibility 唯一裁决（stale link 不构成 side）；
+  本层只上报 standing、不重复裁决 -> 不制造第二个更弱的 freshness 真值。
+```
+
+**验证**：ruff ✓；mypy baseline PASS（122 <= 128，新模块零新增）；
+`test_claim_conflict_assessment` + RQ-A / 契约 / stop_gate 集 = 92 passed；
+package helper exit 0；`git diff --check` ok。
+
+**边界（守住）**：未改 stop/gate/routing 行为；未接 coverage-aware stop；
+未做 truth arbitration（无数量投票、无自动选胜者）。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 

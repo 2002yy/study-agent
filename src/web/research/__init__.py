@@ -62,6 +62,16 @@ from src.web.research.claim_evidence_assessment import (
     assess_research_state,
     safe_assess_research_state,
 )
+from src.web.research.claim_conflict_assessment import (
+    ConflictAssessment,
+    ConflictStatus,
+    EvidenceStanding,
+    PreferredSide,
+    assess_claim_conflict,
+    assess_state_conflicts,
+    authority_rank,
+    safe_assess_state_conflicts,
+)
 from src.web.research.trace import (
     TraceAppendResult,
     append_research_trace,
@@ -172,6 +182,14 @@ __all__ = [
     "assess_claim_evidence",
     "assess_research_state",
     "safe_assess_research_state",
+    "ConflictAssessment",
+    "ConflictStatus",
+    "EvidenceStanding",
+    "PreferredSide",
+    "assess_claim_conflict",
+    "assess_state_conflicts",
+    "authority_rank",
+    "safe_assess_state_conflicts",
     "TraceAppendResult",
     "append_research_trace",
     "try_append_research_trace",

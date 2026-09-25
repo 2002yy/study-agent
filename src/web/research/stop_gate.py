@@ -14,6 +14,10 @@ from src.web.research.claim_evidence_assessment import (
     ClaimEvidenceAssessment,
     safe_assess_research_state,
 )
+from src.web.research.claim_conflict_assessment import (
+    ConflictAssessment,
+    safe_assess_state_conflicts,
+)
 from src.web.research.contracts import ResearchState
 from src.web.research.evidence_gate import EvidenceGateResult, evaluate_evidence_gate
 
@@ -34,6 +38,8 @@ class ShadowStopDecision:
     gate_result: EvidenceGateResult | None = None
     #: RQ-A observability only; never consulted for any stop/gate decision.
     claim_assessments: tuple[ClaimEvidenceAssessment, ...] = ()
+    #: RQ-C observability only; never consulted for any stop/gate decision.
+    claim_conflicts: tuple[ConflictAssessment, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -50,6 +56,7 @@ class ShadowStopDecision:
             "reasons": list(self.reasons),
             "gate_result": self.gate_result.to_dict() if self.gate_result else None,
             "claim_assessments": [item.to_dict() for item in self.claim_assessments],
+            "claim_conflicts": [item.to_dict() for item in self.claim_conflicts],
         }
 
 
@@ -77,6 +84,7 @@ def evaluate_shadow_stop(
         reasons=gate.reasons,
         gate_result=gate,
         claim_assessments=safe_assess_research_state(state),
+        claim_conflicts=safe_assess_state_conflicts(state),
     )
 
 
