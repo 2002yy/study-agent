@@ -10,6 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from src.web.research.claim_evidence_assessment import (
+    ClaimEvidenceAssessment,
+    safe_assess_research_state,
+)
 from src.web.research.contracts import ResearchState
 from src.web.research.evidence_gate import EvidenceGateResult, evaluate_evidence_gate
 
@@ -28,6 +32,8 @@ class ShadowStopDecision:
     gap_ids: tuple[str, ...] = ()
     reasons: tuple[str, ...] = ()
     gate_result: EvidenceGateResult | None = None
+    #: RQ-A observability only; never consulted for any stop/gate decision.
+    claim_assessments: tuple[ClaimEvidenceAssessment, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -43,6 +49,7 @@ class ShadowStopDecision:
             "gap_ids": list(self.gap_ids),
             "reasons": list(self.reasons),
             "gate_result": self.gate_result.to_dict() if self.gate_result else None,
+            "claim_assessments": [item.to_dict() for item in self.claim_assessments],
         }
 
 
@@ -69,6 +76,7 @@ def evaluate_shadow_stop(
         gap_ids=gate.gap_ids,
         reasons=gate.reasons,
         gate_result=gate,
+        claim_assessments=safe_assess_research_state(state),
     )
 
 
