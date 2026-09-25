@@ -11290,8 +11290,100 @@ P2（default 事后状态）最多识别 native 真失败的 session -> recall=0
 ```text
 §143-B                                   ✅ CLOSED（ae98859；条件型 specialist）
 §143-C contract                          ✅ FROZEN（§143.121-§143.122）
-§143-C implementation + run + STOP table  ✅（本提交）
-routing review / any production routing  ⏳ 未开；需另行裁决
+§143-C implementation + run + STOP table  ✅（db03e07）
+routing review / any production routing  ⏳ NEXT（§143.129）
 ```
 
 **一句话**：B 已证明 Crawl4AI 在哪里值得用；C 的证明是"可泛化的付费前信号不足，只有 URL 形状在本 cohort 上可行"——因此**不得**据此自动路由。
+
+
+## §143-C — **CLOSED：Generic routing-signal insufficiency established**
+
+### 143.128 正式关闭口径（冻结）
+
+> **§143-C CLOSED — Generic routing-signal insufficiency established.**
+>
+> 在冻结 cohort 与预注册规则集上，通用的零请求 URL/extension/domain 信号、成本化 `Content-Type` 元数据，以及 default-read 后的 terminal/shape/backend/provenance 信号，均不能可靠识别所有 ESSENTIAL specialist 场景，同时避免无收益升级。
+>
+> 当前仅有 cohort-specific URL-path heuristics 满足 gate，但缺乏泛化证据，因此不得用于 production routing。
+
+**C 最重要的工程结论（单独冻结）**：
+
+> **Default success metadata is not semantic adequacy metadata.**
+
+当前 runtime 能告诉你：
+
+```text
+read 成功了 / content usable / backend resolve 了
+```
+
+但不能告诉你：
+
+```text
+这份内容是否足以支撑当前 claim / critical units
+```
+
+这解释了为什么 P2 会结构性失明（§143.126），也说明：在出现 **semantic-adequacy signal** 之前，
+任何"靠 default 事后状态自动升级"的设计都缺乏判据。
+
+### 143.129 下一阶段：Routing Review（NEXT，非 signal hunting）
+
+基于 A + B + C 的已知事实做产品决策，输入已完整：
+
+```text
+§143-A  specialist 成本 / warm profile
+§143-B  质量价值：js/session=ESSENTIAL；pdf=MATERIAL；static/docs=NONE；linked-doc=unresolved
+§143-C  现有通用信号无法可靠识别 ESSENTIAL（且 P2 无 semantic adequacy）
+```
+
+Routing review 要回答的唯一问题：
+
+> **既然 specialist 有明确局部价值，但又没有可靠自动识别信号，production 应采取什么保守策略？**
+
+它才比较这些 **policy tradeoff**（此时才比较）：
+
+```text
+default-only
+显式 capability / request hint 才启 specialist
+上层任务明确要求 JS / session 时才启 specialist
+已知 provider/domain 静态 allowlist
+不自动调用 Crawl4AI，直到有 semantic-adequacy signal
+PDF 是否单独做轻量规则
+```
+
+这已不是 measurement 任务，而是 policy tradeoff。
+
+### 143.130 路线与 C2 处置
+
+```text
+§143-C            ✅ CLOSED
+        ↓
+Routing Review    ⏳ NEXT
+        ↓
+Production routing decision
+        ↓
+Research Quality
+```
+
+**C2（specialist-result feedback / adaptive routing / 域级缓存 / session 复用 / 历史先验）
+暂不启动，登记为 future option，而非 NEXT。** 理由：C2 回答的是"已经付过一次成本后能否更聪明"，
+不解决 C 的核心问题（第一次请求要不要调 specialist）；且对 `js_heavy` 这类场景，第一次 specialist
+成本已经付掉。只有当 Routing Review 发现"存在大量重复域/重复 session 请求"时才重新评估。
+
+### 143.131 状态
+
+```text
+§143-A warm cost profile                 ✅ CLOSED
+§143-B conditional-specialist verdict    ✅ CLOSED（ae98859）
+§143-C signal insufficiency              ✅ CLOSED（db03e07）
+Routing Review                           ⏳ NEXT
+Production routing decision              ⏳
+Research Quality                         ⏳
+C2 (adaptive routing)                    🅿️ future option（未启动）
+```
+
+**未做**：未改任何 production routing；未启动 C2；未在 miss 后新增信号。
+
+**文档债务（登记，不本刀修）**：本文件 §0 Current Handoff 自早期 initiative 起未随 §143 链更新，
+对 cold-start 已不再准确；应在独立 docs-governance 刀中重建 §0（或把 §0 指向最新 §143 段落），
+不得在 routing 决策刀里顺带修改。
