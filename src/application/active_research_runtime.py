@@ -635,6 +635,88 @@ def record_read_site_specialist(
     metrics["read_site_specialist"] = entries[-60:]
 
 
+# Multimodal Reader v1 read-site seam (docs/PROJECT_STATUS.md §144.15).
+# The read site never invents visual metadata: the caller/operator declares it on
+# the run context, exactly like every other injected read seam. The declaration
+# is JSON-safe; the fetch seams are module-level indirections so tests can inject
+# fakes without a real runtime (same pattern as reader_hint_routing).
+VISUAL_METADATA_BY_URL_KEY = "visual_metadata_by_url"
+
+#: Injected visual seams (operator / test). ``None`` -> no fetch, fail-closed.
+_VISUAL_IMAGE_FETCHER: Any = None
+_VISUAL_IMAGE_DESTINATION: Any = None
+#: ``None`` -> build from the real G14-c gate (off unless the operator enables it).
+_VISUAL_VISION_ADAPTER: Any = None
+
+
+def _read_visual_evidence_for_candidate(
+    *,
+    context: dict[str, Any],
+    state: ResearchState,
+    canonical_url: str,
+) -> list[dict[str, Any]]:
+    """Declared visual metadata -> bounded visual units (default-inert).
+
+    Returns ``[]`` without any side effect when the operator has not enabled any
+    vision call, so the default production trace is unchanged. A visual failure
+    is swallowed: a successful text read must never become a failure because of
+    the visual side, and the visual audit stays additional observability.
+
+    The declaration is keyed by canonical URL: it must be decidable *before* the
+    run, and it is never derived from the page.
+    """
+
+    try:
+        from src.web.research.visual_read_budget import (
+            configured_max_vision_calls,
+        )
+
+        if configured_max_vision_calls() == 0:
+            return []
+        declared = context.get(VISUAL_METADATA_BY_URL_KEY)
+        if not isinstance(declared, Mapping):
+            return []
+        payload = declared.get(canonical_url)
+        if payload is None:
+            return []
+        from src.application.research_visual_read import read_visual_evidence
+
+        if isinstance(payload, Mapping):
+            read_payload = {
+                "visual_metadata": payload.get("visual_metadata") or [],
+            }
+            required_units = tuple(payload.get("required_units") or ())
+        else:
+            read_payload = {"visual_metadata": payload}
+            required_units = ()
+        result = read_visual_evidence(
+            read_payload=read_payload,
+            required_units=required_units,
+            state=state,
+            context=context,
+            fetcher=_VISUAL_IMAGE_FETCHER,
+            destination_dir=_VISUAL_IMAGE_DESTINATION,
+            adapter=_VISUAL_VISION_ADAPTER,
+        )
+    except Exception:  # noqa: BLE001 - the visual side must never break a read
+        return []
+
+    metrics = context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})
+    if isinstance(metrics, dict):
+        entries = metrics.get("visual_reads")
+        if not isinstance(entries, list):
+            entries = []
+        entries.append(
+            {
+                "canonical_url": str(canonical_url),
+                "vision_calls": int(result.vision_calls),
+                "outcomes": [item.to_dict() for item in result.outcomes],
+            }
+        )
+        metrics["visual_reads"] = entries[-60:]
+    return [unit.to_dict() for unit in result.units]
+
+
 class _ModelAttemptBudgetExhausted(RuntimeError):
     pass
 
@@ -2517,6 +2599,18 @@ class ActiveResearchRuntimeExecutor:
                         retrieval_attempts=[item.to_dict() for item in chain_steps],
                     )
                     _upsert_source(selected_sources, record)
+                    if ok:
+                        # Multimodal Reader v1 (default-inert): declared visual
+                        # metadata may yield provenance-anchored visual units.
+                        # It never changes ok/content/reads_used/the chain, and a
+                        # visual failure can never fail a successful text read.
+                        visual_units = _read_visual_evidence_for_candidate(
+                            context=context,
+                            state=state,
+                            canonical_url=candidate.canonical_url,
+                        )
+                        if visual_units:
+                            record["visual_units"] = visual_units
                     update_budget(reads_used=successful_reads)
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})["reads"] = [
                         outcome.to_dict() for outcome in cursor.read_outcomes
