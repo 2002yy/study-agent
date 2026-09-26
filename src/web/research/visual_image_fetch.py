@@ -18,6 +18,8 @@ performs no network I/O of its own.
 from __future__ import annotations
 
 import hashlib
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -95,6 +97,9 @@ def materialize_image(
 
     try:
         raw = fetcher(url)
+    except ImageFetchError:
+        # Preserve the fetcher's own bounded reason (e.g. SSRF / redirect / type).
+        raise
     except Exception as exc:  # noqa: BLE001 - normalized into a bounded reason
         raise ImageFetchError(REASON_FETCH_FAILED) from exc
 
@@ -108,13 +113,27 @@ def materialize_image(
 
     digest = hashlib.sha1(body).hexdigest()[:20]
     target = destination_dir / f"{digest}{_EXTENSION_BY_TYPE.get(content_type, '.bin')}"
+    partial = destination_dir / f".{digest}.part"
     try:
+        # Atomic completion: the final content-addressed name appears only once
+        # the bytes are fully written, and a failed/cancelled write is cleaned up.
         destination_dir.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(body)
+        partial.write_bytes(body)
+        os.replace(partial, target)
     except OSError as exc:
+        try:
+            partial.unlink(missing_ok=True)
+        except OSError:
+            pass
         raise ImageFetchError(REASON_WRITE_FAILED) from exc
 
     return FetchedImage(path=target, content_type=content_type, byte_count=len(body))
+
+
+def default_image_destination() -> Path:
+    """A stable bounded cache directory for materialized images."""
+
+    return Path(tempfile.gettempdir()) / "study_agent_visual_images"
 
 
 def _unpack(raw: Any) -> tuple[bytes, str]:
@@ -143,5 +162,6 @@ __all__ = [
     "REASON_TOO_LARGE",
     "REASON_UNSUPPORTED_TYPE",
     "REASON_WRITE_FAILED",
+    "default_image_destination",
     "materialize_image",
 ]

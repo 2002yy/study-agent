@@ -107,7 +107,13 @@ from src.web.research.visual_metadata import (
 from src.web.research.visual_image_fetch import (
     FetchedImage,
     ImageFetchError,
+    default_image_destination,
     materialize_image,
+)
+from src.web.research.visual_image_http import (
+    MAX_REDIRECTS,
+    default_image_fetcher,
+    fetch_image,
 )
 from src.web.research.visual_read_budget import (
     AUDIT_PURPOSE,
@@ -265,6 +271,10 @@ __all__ = [
     "FetchedImage",
     "ImageFetchError",
     "materialize_image",
+    "default_image_destination",
+    "MAX_REDIRECTS",
+    "default_image_fetcher",
+    "fetch_image",
     "AUDIT_PURPOSE",
     "MAX_VISION_CALLS_ENV",
     "VISUAL_AUDIT_KEY",

@@ -102,3 +102,23 @@ def test_materialize_never_writes_a_rejected_body(tmp_path: Path) -> None:
         )
 
     assert _written_images(tmp_path) == []
+
+
+def test_materialize_completes_atomically_without_leaving_a_partial(tmp_path: Path) -> None:
+    fetched = materialize_image(
+        "https://x/y.png", fetcher=lambda url: (_PNG, "image/png"), destination_dir=tmp_path
+    )
+
+    assert fetched.path.exists()
+    leftovers = [item for item in tmp_path.iterdir() if item.suffix == ".part"]
+    assert leftovers == []
+
+
+def test_materialize_preserves_the_fetchers_bounded_reason(tmp_path: Path) -> None:
+    def ssrf_fetcher(url: str):
+        raise ImageFetchError("image_url_not_public")
+
+    with pytest.raises(ImageFetchError) as exc:
+        materialize_image("http://127.0.0.1/x", fetcher=ssrf_fetcher, destination_dir=tmp_path)
+
+    assert exc.value.reason == "image_url_not_public"

@@ -649,6 +649,22 @@ _VISUAL_IMAGE_DESTINATION: Any = None
 _VISUAL_VISION_ADAPTER: Any = None
 
 
+def _default_visual_fetcher() -> Any:
+    """The real, SSRF-aware fetcher (§144.16). Still gated by max_vision_calls."""
+
+    from src.web.research.visual_image_http import default_image_fetcher
+
+    return default_image_fetcher()
+
+
+def _default_visual_destination() -> Any:
+    """A bounded temp cache dir; the caller never sees the bytes."""
+
+    from src.web.research.visual_image_fetch import default_image_destination
+
+    return default_image_destination()
+
+
 def _read_visual_evidence_for_candidate(
     *,
     context: dict[str, Any],
@@ -694,8 +710,8 @@ def _read_visual_evidence_for_candidate(
             required_units=required_units,
             state=state,
             context=context,
-            fetcher=_VISUAL_IMAGE_FETCHER,
-            destination_dir=_VISUAL_IMAGE_DESTINATION,
+            fetcher=_VISUAL_IMAGE_FETCHER or _default_visual_fetcher(),
+            destination_dir=_VISUAL_IMAGE_DESTINATION or _default_visual_destination(),
             adapter=_VISUAL_VISION_ADAPTER,
         )
     except Exception:  # noqa: BLE001 - the visual side must never break a read
