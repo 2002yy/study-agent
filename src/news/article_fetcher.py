@@ -221,6 +221,49 @@ def _fetch_html_payload(
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
 
+def _fetch_text_payload(
+    url: str,
+    timeout: int,
+    max_bytes: int,
+) -> tuple[str, str, str, str]:
+    """Return (text, final_url, content_type, reason) for any textual resource.
+
+    Unlike :func:`_fetch_html_payload` this accepts XML/JSON inventories (e.g.
+    ``/sitemap.xml``), which the §63 domain-targeted channel harvests for
+    <loc> entries. Same opener, same redirect/DNS guard, same bounds; reason is
+    empty on success, otherwise a diagnostic key such as "non_text_resource".
+    """
+    req = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": (
+                "application/xml,application/xhtml+xml,text/xml,application/json,"
+                "text/html;q=0.9,*/*;q=0.8"
+            ),
+        },
+    )
+
+    with _SAFE_OPENER.open(req, timeout=timeout) as response:
+        final_url = response.geturl()
+        if final_url and not _is_fetchable_article_url(final_url):
+            return "", final_url or url, "", "unsafe_redirect_target"
+
+        content_type = response.headers.get("Content-Type", "")
+        lowered = content_type.lower()
+        if not any(
+            token in lowered
+            for token in ("html", "text", "xml", "json", "javascript")
+        ):
+            return "", final_url or url, content_type, "non_text_resource"
+
+        payload = response.read(max_bytes + 1)
+        if len(payload) > max_bytes:
+            payload = payload[:max_bytes]
+
+    return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
+
+
 def _try_firecrawl(url: str, timeout: int, max_chars: int) -> tuple[str, str]:
     if not firecrawl_enabled():
         return "", ""

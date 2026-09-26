@@ -14,6 +14,10 @@ from src.application.answer_claim_binder import (
     bind_answer_claims,
     factual_claims_fully_bound,
 )
+from src.application.answer_consistency import (
+    check_answer_consistency,
+    consistency_gate_enabled,
+)
 from src.context_builder import build_messages
 from src.domain.answer_claims import rejected_answer_claim_snapshot
 from src.domain.answer_validation import (
@@ -47,6 +51,65 @@ PERFORMANCE_MODES = {"fast", "standard", "deep"}
 RESEARCH_ANSWER_BLOCKED_COPY = (
     "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
 )
+
+# Gate=BLOCK is known *before* generation (no eligible evidence rows, or no
+# attempt budget), and in that case the release gate replaces whatever the model
+# writes with RESEARCH_ANSWER_BLOCKED_COPY. Measured: the default answer call
+# spends 1330-2083 hidden reasoning tokens (16-41s) for output that is then
+# discarded, so the blocked branch runs with thinking disabled. The published
+# surface is unchanged; PARTIAL/PASS keep the production default.
+THINKING_DISABLED_EXTRA_BODY: dict[str, dict[str, str]] = {
+    "thinking": {"type": "disabled"}
+}
+
+
+def _answer_attempt_budget(prepared: Any) -> int:
+    """Allowed answer-generation attempts for this turn (shared gate input)."""
+
+    plan = prepared.answer_validation or {}
+    raw_allowed = plan.get("allowed_attempts")
+    try:
+        return 0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _evidence_rows_present(prepared: Any) -> bool:
+    """Whether the turn carries any eligible evidence row (shared gate input)."""
+
+    plan = prepared.answer_validation or {}
+    raw_rows = plan.get("evidence_rows") or ()
+    return any(isinstance(row, dict) for row in raw_rows)
+
+
+def _answer_generation_extra_body(prepared: Any) -> dict[str, dict[str, str]] | None:
+    """Return the per-turn generation policy.
+
+    ``BLOCK`` (no evidence rows / no attempt budget) disables hidden reasoning;
+    any other gate outcome keeps the production default. This is derived from the
+    same two inputs the release gate uses, so the policy cannot drift away from
+    the gate decision.
+
+    ``RESEARCH_ANSWER_BOUNDED_POLICY=on`` is a diagnostic override (§40c): the
+    gate-pass path also runs the bounded thinking-off policy, because the
+    captured gate-pass answer calls returned empty content with thinking on
+    (reasoning consumed the output budget). Default off: production unchanged.
+    """
+
+    if _answer_attempt_budget(prepared) < 1 or not _evidence_rows_present(prepared):
+        return THINKING_DISABLED_EXTRA_BODY
+    if _answer_bounded_policy_enabled():
+        return THINKING_DISABLED_EXTRA_BODY
+    return None
+
+
+def _answer_bounded_policy_enabled() -> bool:
+    """§40c diagnostic switch; unset/unknown keeps the production policy."""
+
+    import os
+
+    raw = (os.getenv("RESEARCH_ANSWER_BOUNDED_POLICY") or "").strip().lower()
+    return raw in {"1", "true", "on", "yes"}
 
 
 def _configured_llm_provider() -> str:
@@ -595,6 +658,7 @@ class ChatService:
                 max_tokens=max_tokens,
                 task_name="single_chat",
                 request_max_retries=0,
+                extra_body=_answer_generation_extra_body(prepared),
             )
         except TurnCancelled:
             self._settle_cancelled_preparation(
@@ -660,6 +724,7 @@ class ChatService:
             task_name="single_chat",
             should_cancel=should_cancel,
             request_max_retries=0,
+            extra_body=_answer_generation_extra_body(prepared),
         )
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
@@ -675,6 +740,7 @@ class ChatService:
             max_tokens=max_tokens,
             task_name="single_chat",
             request_max_retries=0,
+            extra_body=_answer_generation_extra_body(prepared),
         ):
             yield token
 
@@ -743,13 +809,7 @@ class ChatService:
             "error_type": "",
         }
         plan = prepared.answer_validation or {}
-        raw_allowed = plan.get("allowed_attempts")
-        try:
-            allowed_attempts = (
-                0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
-            )
-        except (TypeError, ValueError):
-            allowed_attempts = 1
+        allowed_attempts = _answer_attempt_budget(prepared)
         if allowed_attempts < 1:
             return (
                 RESEARCH_ANSWER_BLOCKED_COPY,
@@ -819,6 +879,11 @@ class ChatService:
                 ),
                 task_name="answer_claim_binding",
                 request_max_retries=0,
+                extra_body=(
+                    THINKING_DISABLED_EXTRA_BODY
+                    if _answer_bounded_policy_enabled()
+                    else None
+                ),
             ),
             max_attempts=allowed_attempts,
             before_model_call=lambda: cancel_check("answer_claim_binding_pre"),
@@ -831,6 +896,9 @@ class ChatService:
             "error_type": "",
         }
         snapshot = bound.snapshot
+        if bound.segment_stats and isinstance(prepared.rag, dict):
+            # §40d: keep overflow distinguishable from an empty answer.
+            prepared.rag["answer_binding_segments"] = dict(bound.segment_stats)
         self._record_claim_binding_call(
             prepared,
             outcome=snapshot.status,
@@ -838,6 +906,32 @@ class ChatService:
             candidate=candidate,
         )
         if snapshot.status == "validated" and factual_claims_fully_bound(snapshot):
+            if consistency_gate_enabled():
+                # §40c diagnostic consistency gate: the generated text must not
+                # contradict the evidence ledger. The binding snapshot stays
+                # truthful; only the publication decision changes.
+                consistency = check_answer_consistency(
+                    candidate=candidate,
+                    claims=snapshot.claims,
+                    links=snapshot.claim_links,
+                    rows=rows,
+                )
+                if isinstance(prepared.rag, dict):
+                    prepared.rag["answer_consistency"] = consistency.to_dict()
+                if not consistency.ok:
+                    binding_phase["outcome"] = PHASE_OUTCOME_REJECTED
+                    binding_phase["error_type"] = (
+                        "consistency_failed:" + "_".join(consistency.codes())
+                    )[:120]
+                    return (
+                        RESEARCH_ANSWER_BLOCKED_COPY,
+                        snapshot,
+                        {
+                            PHASE_ANSWER_GENERATION: generation_phase,
+                            PHASE_ANSWER_CLAIM_BINDING: binding_phase,
+                        },
+                        True,
+                    )
             binding_phase["outcome"] = PHASE_OUTCOME_PASSED
             return (
                 candidate,

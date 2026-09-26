@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from src.domain.answer_claims import (
@@ -97,6 +97,7 @@ class BoundAnswerClaims:
     snapshot: AnswerClaimSnapshotV1
     raw_output: str = ""
     attempt_count: int = 0
+    segment_stats: dict[str, Any] = field(default_factory=dict)
 
 
 def bind_answer_claims(
@@ -111,7 +112,7 @@ def bind_answer_claims(
     answer = str(request.final_answer or "")
     if not answer.strip():
         raise ValueError("answer claim binding requires a final answer")
-    segments = _segment_answer(answer)
+    segments, segment_stats = segment_answer_with_stats(answer)
     if not segments:
         return BoundAnswerClaims(
             snapshot=rejected_answer_claim_snapshot(
@@ -120,6 +121,7 @@ def bind_answer_claims(
                 reason="answer_not_segmentable",
             ),
             attempt_count=0,
+            segment_stats=segment_stats,
         )
     rows = tuple(_bounded_rows(request.evidence_rows))
     rows_by_link = {
@@ -157,7 +159,10 @@ def bind_answer_claims(
         )
         if parsed is not None:
             return BoundAnswerClaims(
-                snapshot=parsed, raw_output=raw, attempt_count=attempt
+                snapshot=parsed,
+                raw_output=raw,
+                attempt_count=attempt,
+                segment_stats=segment_stats,
             )
         last_error = parse_error or "malformed_structured_output"
     return BoundAnswerClaims(
@@ -167,6 +172,7 @@ def bind_answer_claims(
             reason=last_error or "producer_unavailable",
         ),
         attempt_count=attempts,
+        segment_stats=segment_stats,
     )
 
 
@@ -349,6 +355,35 @@ def _parse_strength(value: Any) -> float | None:
 
 def _segment_ref(index: int) -> str:
     return f"s{index + 1}"
+
+
+def segment_answer_with_stats(answer: str) -> tuple[tuple[str, ...], dict[str, Any]]:
+    """Segment with §40d diagnostics: raw count, limit and overflow flag.
+
+    ``_segment_answer`` collapses both "no content" and "over the segment
+    budget" into ``()``; the stats keep those cases distinguishable in the
+    audit, so an overflow never looks like an empty answer.
+    """
+
+    raw_parts = _SEGMENT_BOUNDARY.split(answer or "")
+    nonempty = [part.strip(" \t\n\r") for part in raw_parts]
+    nonempty = [part for part in nonempty if part]
+    overflow_chars = any(len(part) > _MAX_SEGMENT_CHARS for part in nonempty)
+    overflow_count = len(nonempty) > _MAX_SEGMENTS
+    segments = _segment_answer(answer)
+    stats = {
+        "raw_nonempty_segment_count": len(nonempty),
+        "segment_limit": _MAX_SEGMENTS,
+        "max_segment_chars": _MAX_SEGMENT_CHARS,
+        "segment_overflow": bool(overflow_count or overflow_chars),
+        "overflow_reason": (
+            "segment_count"
+            if overflow_count
+            else ("segment_chars" if overflow_chars else "")
+        ),
+        "accepted": bool(segments),
+    }
+    return segments, stats
 
 
 def _segment_answer(answer: str) -> tuple[str, ...]:

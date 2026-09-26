@@ -21,6 +21,52 @@ from src.llm_client import ModelProfile, get_client, get_model_name, get_provide
 RESEARCH_MODEL_AUDIT_SCHEMA_VERSION = "research-model-call-audit-v1"
 MAX_RESEARCH_MODEL_ATTEMPTS = 2
 
+_JSON_OBJECT_CONTRACT_SUFFIX = (
+    "\n\nOutput contract (STRICT, must match exactly):\n"
+    "Return ONE JSON object with EXACTLY the keys and shapes defined by this "
+    "JSON schema:\n{schema}\n"
+    "No prose, no markdown fence, no extra keys."
+)
+
+
+def with_json_object_contract(
+    messages: list[dict[str, str]],
+    schema: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    """Carry a JSON-schema contract in the system prompt for ``json_object`` transport.
+
+    Used only when the provider does not support wire-level ``json_schema``
+    response_format. The strict Python parser downstream keeps final authority;
+    this only restores the schema information the wire format can no longer carry.
+    """
+    if not isinstance(messages, list) or not messages:
+        raise ValueError("json_object contract requires messages")
+    first = messages[0]
+    if not isinstance(first, Mapping) or first.get("role") != "system":
+        raise ValueError("json_object contract requires a leading system message")
+    suffix = _JSON_OBJECT_CONTRACT_SUFFIX.format(
+        schema=json.dumps(schema, ensure_ascii=False, indent=1)
+    )
+    contract_messages = list(messages)
+    contract_messages[0] = dict(first)
+    contract_messages[0]["content"] = str(first.get("content", "")) + suffix
+    return contract_messages
+
+
+def merge_research_extra_body(
+    base: Mapping[str, Any] | None,
+    override: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Merge provider extra_body settings; ``None`` inputs stay transparent."""
+    if not override:
+        if isinstance(base, Mapping):
+            return dict(base)
+        return None
+    merged = dict(override)
+    if isinstance(base, Mapping):
+        merged.update(base)
+    return merged
+
 T = TypeVar("T")
 StructuredParser = Callable[[Any], T]
 AttemptStartedHook = Callable[["ResearchModelAttemptStart"], None]
@@ -297,6 +343,7 @@ class ResearchModelGateway:
         on_attempt_started: AttemptStartedHook | None = None,
         on_attempt_finished: AttemptFinishedHook | None = None,
         attempt_start: int = 1,
+        extra_body: Mapping[str, Any] | None = None,
     ) -> ResearchModelResult[T]:
         call_root = _required_text(logical_call_id, 300, "logical_call_id")
         normalized_purpose = _required_text(purpose, 100, "purpose")
@@ -364,6 +411,9 @@ class ResearchModelGateway:
             value: T | None = None
             status = "attempt_failed"
             try:
+                request_kwargs: dict[str, Any] = {}
+                if extra_body is not None:
+                    request_kwargs["extra_body"] = dict(extra_body)
                 response = self._request_client().chat.completions.create(
                     model=model_name,
                     messages=messages,
@@ -372,6 +422,7 @@ class ResearchModelGateway:
                     response_format={"type": "json_object"},
                     timeout=timeout,
                     stream=False,
+                    **request_kwargs,
                 )
                 raw = str(response.choices[0].message.content or "")
                 response_hash = _sha256_text(raw)

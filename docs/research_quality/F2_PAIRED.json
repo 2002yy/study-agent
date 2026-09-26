@@ -1,0 +1,1794 @@
+{
+ "schema": "f2-paired-v1",
+ "pairs": 5,
+ "seed": 143,
+ "smoke": null,
+ "raw": [
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2030.6,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 212.0,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 0,
+   "order": "default-first"
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance",
+    "extractable prose"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 3,
+    "unit_set": [],
+    "wall_ms": 2035.0,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 3,
+    "units_total": 3,
+    "unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "wall_ms": 21.2,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 1,
+   "order": "default-first"
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2033.3,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 198.2,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 2,
+   "order": "default-first"
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2044.4,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 195.4,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 3,
+   "order": "default-first"
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "expected_critical_units": [
+    "Compute API",
+    "def compute(value)",
+    "verified release identifier",
+    "canonical id"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 2049.2,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 207.8,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 4,
+   "order": "default-first"
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2049.9,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 225.0,
+    "fallback_used": false,
+    "terminal_outcome": "backend_failure",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 5,
+   "order": "default-first"
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance",
+    "extractable prose"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 3,
+    "unit_set": [],
+    "wall_ms": 2044.8,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 3,
+    "units_total": 3,
+    "unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "wall_ms": 49.1,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 6,
+   "order": "default-first"
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2038.5,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 195.7,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 7,
+   "order": "default-first"
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2051.8,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 198.9,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 8,
+   "order": "default-first"
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session-gated.html",
+   "expected_critical_units": [
+    "SESSION OK"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 2038.2,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 177.6,
+    "fallback_used": false,
+    "terminal_outcome": "login_required",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 9,
+   "order": "default-first"
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2037.7,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 194.9,
+    "fallback_used": false,
+    "terminal_outcome": "backend_failure",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 10,
+   "order": "default-first"
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2044.0,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 199.5,
+    "fallback_used": false,
+    "terminal_outcome": "backend_failure",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 11,
+   "order": "default-first"
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance",
+    "extractable prose"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 3,
+    "unit_set": [],
+    "wall_ms": 2033.7,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 3,
+    "units_total": 3,
+    "unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "wall_ms": 21.6,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 12,
+   "order": "default-first"
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "expected_critical_units": [
+    "Compute API",
+    "def compute(value)",
+    "verified release identifier",
+    "canonical id"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 2041.6,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 209.9,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 13,
+   "order": "default-first"
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session-gated.html",
+   "expected_critical_units": [
+    "SESSION OK"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 2035.9,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 162.5,
+    "fallback_used": false,
+    "terminal_outcome": "login_required",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 14,
+   "order": "default-first"
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "expected_critical_units": [
+    "Compute API",
+    "def compute(value)",
+    "verified release identifier",
+    "canonical id"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 2055.7,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 209.0,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 15,
+   "order": "default-first"
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session-gated.html",
+   "expected_critical_units": [
+    "SESSION OK"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 2046.8,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 161.1,
+    "fallback_used": false,
+    "terminal_outcome": "login_required",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 16,
+   "order": "default-first"
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2047.4,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 194.7,
+    "fallback_used": false,
+    "terminal_outcome": "backend_failure",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 17,
+   "order": "default-first"
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session-gated.html",
+   "expected_critical_units": [
+    "SESSION OK"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 2038.4,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 159.6,
+    "fallback_used": false,
+    "terminal_outcome": "login_required",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 18,
+   "order": "default-first"
+  },
+  {
+   "category": "document_path",
+   "fixture": "/document-mixed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2045.6,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 192.2,
+    "fallback_used": false,
+    "terminal_outcome": "backend_failure",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 19,
+   "order": "default-first"
+  },
+  {
+   "category": "js_heavy",
+   "fixture": "/spa-delayed.html",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 2045.2,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 2,
+    "unit_set": [],
+    "wall_ms": 195.4,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 20,
+   "order": "default-first"
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2059.4,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 211.4,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 21,
+   "order": "default-first"
+  },
+  {
+   "category": "session_sensitive",
+   "fixture": "/session-gated.html",
+   "expected_critical_units": [
+    "SESSION OK"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 2045.6,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 1,
+    "unit_set": [],
+    "wall_ms": 160.2,
+    "fallback_used": false,
+    "terminal_outcome": "login_required",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 22,
+   "order": "default-first"
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2033.6,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 194.9,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 23,
+   "order": "default-first"
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "expected_critical_units": [
+    "Compute API",
+    "def compute(value)",
+    "verified release identifier",
+    "canonical id"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 2036.3,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 244.4,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 24,
+   "order": "default-first"
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2030.0,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 195.2,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 25,
+   "order": "default-first"
+  },
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2038.5,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 190.7,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 26,
+   "order": "default-first"
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance",
+    "extractable prose"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 3,
+    "unit_set": [],
+    "wall_ms": 2030.7,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 3,
+    "units_total": 3,
+    "unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "wall_ms": 32.6,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 27,
+   "order": "default-first"
+  },
+  {
+   "category": "technical_docs",
+   "fixture": "/code-docs.html",
+   "expected_critical_units": [
+    "Compute API",
+    "def compute(value)",
+    "verified release identifier",
+    "canonical id"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 2036.4,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 194.2,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 28,
+   "order": "default-first"
+  },
+  {
+   "category": "selected_pdf",
+   "fixture": "/report.pdf",
+   "expected_critical_units": [
+    "verified release date is 2026-08-01",
+    "CommonJS guidance",
+    "extractable prose"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 3,
+    "unit_set": [],
+    "wall_ms": 2068.5,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": true,
+    "units_recovered": 3,
+    "units_total": 3,
+    "unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "wall_ms": 33.8,
+    "fallback_used": false,
+    "terminal_outcome": "success",
+    "reader_usable_content": true
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [],
+    "crawl4ai_unit_set": [
+     "verified release date is 2026-08-01",
+     "CommonJS guidance",
+     "extractable prose"
+    ],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 29,
+   "order": "default-first"
+  }
+ ],
+ "aggregate": {
+  "simple_static": {
+   "classification_status": "RESOLVED",
+   "specialist_gain": "NONE",
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "4/4",
+   "crawl4ai_units": "0/4",
+   "default_useful": true,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2033.6,
+   "crawl4ai_median_wall": 195.2,
+   "delta_wall_ms": -1838.4
+  },
+  "technical_docs": {
+   "classification_status": "UNRESOLVED_FOR_TASK",
+   "specialist_gain": null,
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "0/4",
+   "crawl4ai_units": "0/4",
+   "default_useful": false,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2041.6,
+   "crawl4ai_median_wall": 209.0,
+   "delta_wall_ms": -1832.6
+  },
+  "js_heavy": {
+   "classification_status": "UNRESOLVED_FOR_TASK",
+   "specialist_gain": null,
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "0/2",
+   "crawl4ai_units": "0/2",
+   "default_useful": false,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2044.4,
+   "crawl4ai_median_wall": 195.7,
+   "delta_wall_ms": -1848.7
+  },
+  "document_path": {
+   "classification_status": "UNRESOLVED_FOR_TASK",
+   "specialist_gain": null,
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "0/2",
+   "crawl4ai_units": "0/2",
+   "default_useful": false,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2045.6,
+   "crawl4ai_median_wall": 194.9,
+   "delta_wall_ms": -1850.7
+  },
+  "session_sensitive": {
+   "classification_status": "UNRESOLVED_FOR_TASK",
+   "specialist_gain": null,
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "0/1",
+   "crawl4ai_units": "0/1",
+   "default_useful": false,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2038.4,
+   "crawl4ai_median_wall": 161.1,
+   "delta_wall_ms": -1877.3
+  },
+  "selected_pdf": {
+   "classification_status": "RESOLVED",
+   "specialist_gain": "ESSENTIAL",
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "0/3",
+   "crawl4ai_units": "3/3",
+   "default_useful": false,
+   "crawl4ai_useful": true,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2035.0,
+   "crawl4ai_median_wall": 32.6,
+   "delta_wall_ms": -2002.4
+  }
+ }
+}

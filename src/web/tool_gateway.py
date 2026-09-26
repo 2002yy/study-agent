@@ -133,6 +133,22 @@ def _snapshot_search_results(
     return results
 
 
+_READ_ERROR_CODE_BY_REASON = {
+    "unsafe_or_empty_url": "invalid_url",
+    "empty_cache_entry": "fetch_failed",
+    "unsafe_redirect_target": "blocked",
+    "non_html_resource": "unsupported",
+    "all_backends_failed": "provider_failed",
+}
+
+
+def _canonical_read_error_code(reason: str) -> str:
+    value = str(reason or "").strip()
+    if value.startswith("exception:"):
+        return "provider_failed"
+    return _READ_ERROR_CODE_BY_REASON.get(value, "other")
+
+
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
@@ -357,13 +373,15 @@ class GeneralWebGateway:
             "providers_attempted": providers_attempted,
         }
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+    def read(
+        self, url: str, *, max_chars: int = 6000, timeout: float | None = None
+    ) -> dict[str, Any]:
         value = str(url or "").strip()
         if self.github_reader.supports(value):
             return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(
             value,
-            timeout=10,
+            timeout=max(1, int(timeout if timeout is not None else 10)),
             max_chars=max(500, min(max_chars, 20_000)),
         )
         if not result.ok:
@@ -371,6 +389,7 @@ class GeneralWebGateway:
                 "ok": False,
                 "url": result.requested_url,
                 "error": result.reason or "page_read_failed",
+                "error_code": _canonical_read_error_code(result.reason),
             }
         return {
             "ok": True,

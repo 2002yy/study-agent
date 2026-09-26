@@ -71,8 +71,10 @@ class ResearchWebGateway:
             normalized.append(record)
         return normalized
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
-        return self.gateway.read(url, max_chars=max_chars)
+    def read(
+        self, url: str, *, max_chars: int = 6000, timeout: float | None = None
+    ) -> dict[str, Any]:
+        return self.gateway.read(url, max_chars=max_chars, timeout=timeout)
 
     def warnings(self) -> list[dict[str, str]]:
         return list(self._warnings)

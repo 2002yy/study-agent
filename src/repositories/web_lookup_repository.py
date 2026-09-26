@@ -5,7 +5,9 @@ from __future__ import annotations
 import builtins
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
+import time
 from typing import Any
 
 from src.domain.runtime_entities import WebLookupRun, new_id, utc_now
@@ -21,6 +23,16 @@ from src.web.source_assessment import assess_sources
 
 def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _monotonic() -> float:
+    return time.perf_counter()
+
+
+def _short_hash(value: str) -> str:
+    """Identity of one serialized section, without keeping its content."""
+
+    return hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
 
 
 def _validated_stop_reason(value: str) -> str:
@@ -573,11 +585,39 @@ class WebLookupRepository:
         provider_status: str = "",
         stop_reason: str = "",
         answer_confidence: str = "",
+        diagnostics: dict[str, Any] | None = None,
     ) -> WebLookupRun:
+        """Persist one research checkpoint.
+
+        ``diagnostics`` is an optional, purely observational sink (F2-O4a): when
+        given, it receives how long serialization took versus how long the actual
+        write took, the serialized size per section, and how many version
+        conflicts the optimistic-concurrency loop hit. Nothing about behaviour,
+        durability or recovery semantics changes, and callers that pass nothing
+        keep their exact previous behaviour.
+        """
+
         stop_reason = _validated_stop_reason(stop_reason)
         checkpoint_context = dict(research_context)
+        repo_started = _monotonic()
+        conflicts = 0
+        serialize_ms = 0.0
+        write_ms = 0.0
+        load_ms = 0.0
+        attempts_used = 0
+        section_sizes: dict[str, int] = {}
+        # Loop-invariant sections are serialized once, outside the retry loop.
+        invariant_started = _monotonic()
+        dumped_query_attempts = _dump(query_attempts)
+        dumped_selected_sources = _dump(selected_sources)
+        dumped_rejected_sources = _dump(rejected_sources)
+        dumped_items = _dump(items)
+        dumped_warnings = _dump(warnings)
+        invariant_ms = (_monotonic() - invariant_started) * 1000.0
         for _attempt in range(4):
+            load_started = _monotonic()
             run = self._required(run_id)
+            load_ms += (_monotonic() - load_started) * 1000.0
             self._assert_running_owner(run, operation_id)
             checkpoint_context = merge_active_steering_context(
                 checkpoint_context,
@@ -588,6 +628,21 @@ class WebLookupRepository:
                 **_operation_state(run.research_context),
             )
             now = utc_now()
+            attempts_used = _attempt + 1
+            serialize_started = _monotonic()
+            dumped_context = _dump(context)
+            serialize_ms = (
+                invariant_ms + (_monotonic() - serialize_started) * 1000.0
+            )
+            section_sizes = {
+                "research_context": len(dumped_context),
+                "query_attempts": len(dumped_query_attempts),
+                "selected_sources": len(dumped_selected_sources),
+                "rejected_sources": len(dumped_rejected_sources),
+                "items": len(dumped_items),
+                "warnings": len(dumped_warnings),
+            }
+            write_started = _monotonic()
             with self.database.connect() as connection:
                 cursor = connection.execute(
                 """
@@ -599,12 +654,12 @@ class WebLookupRepository:
                 WHERE id = ? AND status = 'running' AND version = ?
                 """,
                 (
-                    _dump(context),
-                    _dump(query_attempts),
-                    _dump(selected_sources),
-                    _dump(rejected_sources),
-                    _dump(items),
-                    _dump(warnings),
+                    dumped_context,
+                    dumped_query_attempts,
+                    dumped_selected_sources,
+                    dumped_rejected_sources,
+                    dumped_items,
+                    dumped_warnings,
                     provider_status,
                     stop_reason,
                     answer_confidence,
@@ -613,8 +668,48 @@ class WebLookupRepository:
                     run.version,
                 ),
                 )
+            write_ms = (_monotonic() - write_started) * 1000.0
             if cursor.rowcount == 1:
-                return self._required(run_id)
+                hash_started = _monotonic()
+                section_hashes = {
+                    "research_context": _short_hash(dumped_context),
+                    "query_attempts": _short_hash(dumped_query_attempts),
+                    "selected_sources": _short_hash(dumped_selected_sources),
+                    "rejected_sources": _short_hash(dumped_rejected_sources),
+                    "items": _short_hash(dumped_items),
+                    "warnings": _short_hash(dumped_warnings),
+                }
+                hash_ms = (_monotonic() - hash_started) * 1000.0
+                load_started = _monotonic()
+                persisted = self._required(run_id)
+                load_ms += (_monotonic() - load_started) * 1000.0
+                if diagnostics is not None:
+                    repo_ms = (_monotonic() - repo_started) * 1000.0
+                    diagnostics.update(
+                        {
+                            "attempts": attempts_used,
+                            "conflicts": conflicts,
+                            "repo_ms": round(repo_ms, 1),
+                            "load_ms": round(load_ms, 1),
+                            "serialize_ms": round(serialize_ms, 1),
+                            "write_ms": round(write_ms, 1),
+                            "hash_ms": round(hash_ms, 1),
+                            "repo_other_ms": round(
+                                max(
+                                    0.0,
+                                    repo_ms - load_ms - serialize_ms - write_ms,
+                                ),
+                                1,
+                            ),
+                            "bytes_by_section": dict(section_sizes),
+                            "section_hashes": section_hashes,
+                            "bytes_total": int(sum(section_sizes.values())),
+                            "write_targets": 1,
+                            "files": 0,
+                        }
+                    )
+                return persisted
+            conflicts += 1
             checkpoint_context = context
         raise ValueError(f"WebLookupRun checkpoint conflicted: {run_id}")
 

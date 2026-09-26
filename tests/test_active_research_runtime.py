@@ -25,6 +25,7 @@ from src.application.active_research_runtime import (
     ActiveResearchRuntimeExecutor,
     RuntimePlannedQuery,
     _append_gap_queries,
+    _bounded_assessment_candidates,
     _restore_completed_read_targets,
 )
 from src.application.research_web_lookup_dispatch import (
@@ -47,7 +48,12 @@ from src.web.research.contracts import (
     build_research_state,
 )
 from src.web.research.model_gateway import ResearchModelGateway
+from src.web.research.candidate_pool import CandidatePoolItem
+from src.web.research.gap_planner import GapSearchIntent
 from src.web.research.runtime import CLAIM_ENGINE_RUNTIME_CONTEXT_KEY, ResearchRuntimeCursor
+from src.web.research.read_adequacy import SHORT_CHAR_THRESHOLD
+from src.web.research.read_escalation import ESCALATION_ENV
+from src.web.research.retrieval_backends import RawReadArtifact
 from src.web.research.state import attach_claim_engine_state
 
 
@@ -85,6 +91,54 @@ def _active_context(*, policy_allowed: bool = True) -> dict[str, Any]:
     )
 
 
+def test_assessment_window_is_read_bounded_and_cluster_diverse() -> None:
+    def candidate(candidate_id: str, rank: int) -> CandidatePoolItem:
+        url = f"https://{candidate_id}.example/item"
+        return CandidatePoolItem(
+            id=candidate_id,
+            canonical_url=url,
+            url=url,
+            title=candidate_id,
+            snippet="snippet",
+            source="source",
+            published_at="2026-09-05",
+            query_ids=("query",),
+            intents=(GapSearchIntent.PRIMARY,),
+            providers=("searxng",),
+            first_seen_rank=rank,
+        )
+
+    candidates = tuple(candidate(chr(97 + index), index + 1) for index in range(6))
+    assignments = {
+        "a": SimpleNamespace(cluster_id="cluster-1"),
+        "b": SimpleNamespace(cluster_id="cluster-1"),
+        "c": SimpleNamespace(cluster_id="cluster-2"),
+        "d": SimpleNamespace(cluster_id="cluster-2"),
+        "e": SimpleNamespace(cluster_id="cluster-3"),
+        "f": SimpleNamespace(cluster_id="cluster-4"),
+    }
+
+    selected = _bounded_assessment_candidates(
+        candidates,
+        assignments=assignments,
+        max_reads=4,
+    )
+
+    assert [item.id for item in selected] == ["a", "c"]
+    assert _bounded_assessment_candidates(
+        candidates,
+        assignments=assignments,
+        max_reads=0,
+    ) == ()
+    advanced = _bounded_assessment_candidates(
+        candidates,
+        assignments=assignments,
+        max_reads=4,
+        excluded_candidate_ids=frozenset({"a", "c"}),
+    )
+    assert [item.id for item in advanced] == ["b", "d"]
+
+
 class _StructuredClient:
     def __init__(
         self,
@@ -92,12 +146,19 @@ class _StructuredClient:
         on_call: Callable[[int], None] | None = None,
         malformed_extraction: bool = False,
         claims_count: int = 1,
+        lead_only_assessment: bool = False,
+        lead_then_support: bool = False,
+        eligible_urls: tuple[str, ...] = (),
     ) -> None:
         self.chat = SimpleNamespace(completions=self)
         self.calls: list[dict[str, Any]] = []
         self.on_call = on_call
         self.malformed_extraction = malformed_extraction
         self.claims_count = claims_count
+        self.lead_only_assessment = lead_only_assessment
+        self.lead_then_support = lead_then_support
+        self.eligible_urls = tuple(eligible_urls)
+        self.assessment_urls: list[list[str]] = []
 
     def with_options(self, **kwargs: Any) -> "_StructuredClient":
         assert kwargs == {"max_retries": 0}
@@ -110,52 +171,99 @@ class _StructuredClient:
         system = str(kwargs["messages"][0]["content"])
         request = loads(str(kwargs["messages"][1]["content"]))
         if "claim planner" in system:
-            claims = [
-                {
-                    "surface": "The verified release date is current",
-                    "kind": "factual",
-                    "priority": "critical",
-                    "policy_profile": "current_fact",
-                }
-            ]
+            question = str(request["question"])
+            supporting_claims: list[dict[str, str]] = []
             if self.claims_count > 1:
-                claims.append(
+                critical_anchor = "verified current release date"
+                supporting_anchor = "current release date"
+                if critical_anchor not in question or supporting_anchor not in question:
+                    raise AssertionError(
+                        "multi-claim fixture requires two distinct question anchors"
+                    )
+                supporting_claims.append(
                     {
-                        "surface": "The release announcement is published by the official project",
+                        "question_anchor": supporting_anchor,
                         "kind": "factual",
-                        "priority": "major",
                         "policy_profile": "current_fact",
                     }
                 )
+            else:
+                critical_anchor = question if len(question) <= 160 else question[:160].rstrip()
             payload = {
                 "schema_version": "research-runtime-claim-plan-v1",
-                "claims": claims,
+                "critical_claim": {
+                    "question_anchor": critical_anchor,
+                    "kind": "factual",
+                    "policy_profile": "current_fact",
+                },
+                "supporting_claims": supporting_claims,
             }
         elif "search candidates" in system:
-            payload = {
-                "schema_version": "candidate-assessment-v1",
-                "assessments": [
+            self.assessment_urls.append(
+                [
+                    str(item.get("canonical_url") or "")
+                    for item in request["candidates"]
+                ]
+            )
+            rows: list[dict[str, Any]] = []
+            for index, item in enumerate(request["candidates"]):
+                canonical = str(item.get("canonical_url") or "")
+                is_discovered = (
+                    canonical == "https://primary.example/bank-rate"
+                    or canonical in self.eligible_urls
+                )
+                rows.append(
                     {
-                        "candidate_id": item["candidate_id"],
-                        "relevance": "answer_relevant",
-                        "relevance_confidence": 0.98,
-                        "source_role": (
-                            "primary" if index == 0 else "independent_secondary"
+                        "i": index,
+                        "r": (
+                            0
+                            if is_discovered
+                            else (1 if self.lead_only_assessment else 0)
                         ),
-                        "source_role_confidence": 0.95,
-                        "expected_gain_signals": [
-                            "new_primary" if index == 0 else "new_independent_cluster"
-                        ],
+                        "rc": 0.98,
+                        "s": (
+                            1
+                            if is_discovered
+                            else (
+                                5
+                                if self.lead_only_assessment
+                                else (1 if index == 0 else 3)
+                            )
+                        ),
+                        "sc": 0.95,
+                        "g": [0 if index == 0 else 1],
                     }
-                    for index, item in enumerate(request["candidates"])
-                ],
+                )
+            payload = {"v": "ca2", "a": rows}
+        elif "provenance scout" in system:
+            payload = {
+                "schema_version": "research-lead-discovery-v1",
+                "candidate_id": request["candidate_id"],
+                "discovered_urls": ["https://primary.example/bank-rate"],
+                "domains": ["primary.example"],
+                "organizations": ["Official Body"],
+                "primary_source_hints": ["Official Bank Rate page"],
+                "warnings": [],
             }
         else:
             # H7: anchors must differ per claim AND exist in the read excerpt
             # (the strict parser rejects anchors absent from the excerpt), and
             # the fake output must be deterministic per claim input.
             claim_text = str(request["claim_text"])
-            if "official project" in claim_text:
+            page_url = str((request.get("page") or {}).get("url") or "")
+            relation = "supports"
+            strength = 0.95
+            caveats: list[str] = []
+            if self.lead_then_support and page_url.rstrip("/") == "https://official.example":
+                relation = "lead"
+                strength = 0.1
+                locator = "Official release announcement"
+                anchored_spans = ["Official release announcement"]
+                caveats = ["The page does not state the verified release date itself."]
+            elif self.lead_then_support and "docs.official.example" in page_url:
+                locator = "2026-08-01"
+                anchored_spans = ["2026-08-01"]
+            elif claim_text == "current release date":
                 locator = "2026-08-01"
                 anchored_spans = ["2026-08-01"]
             else:
@@ -171,11 +279,11 @@ class _StructuredClient:
                 "claim_id": request["claim_id"],
                 "source_role": request["source_role"],
                 "source_cluster_id": request["source_cluster_id"],
-                "relation": "supports",
-                "strength": 0.95,
+                "relation": relation,
+                "strength": strength,
                 "locator": locator,
                 "anchored_spans": anchored_spans,
-                "caveats": [],
+                "caveats": caveats,
                 "published_at": request["published_at"],
             }
         content = __import__("json").dumps(payload)
@@ -388,17 +496,17 @@ class _PrimaryRoleClient(_StructuredClient):
         if "search candidates" in system:
             request = loads(str(kwargs["messages"][1]["content"]))
             payload = {
-                "schema_version": "candidate-assessment-v1",
-                "assessments": [
+                "v": "ca2",
+                "a": [
                     {
-                        "candidate_id": item["candidate_id"],
-                        "relevance": "answer_relevant",
-                        "relevance_confidence": 0.98,
-                        "source_role": "primary",
-                        "source_role_confidence": 0.95,
-                        "expected_gain_signals": ["new_primary"],
+                        "i": index,
+                        "r": 0,
+                        "rc": 0.98,
+                        "s": 1,
+                        "sc": 0.95,
+                        "g": [0],
                     }
-                    for item in request["candidates"]
+                    for index, _item in enumerate(request["candidates"])
                 ],
             }
             content = _json_dumps(payload)
@@ -1145,7 +1253,7 @@ def test_one_physical_read_serves_multiple_claims(tmp_path: Any) -> None:
     anchors = {}
     for claim in state.claims:
         row = rows_by_claim[claim.id]
-        if "official project" in claim.text:
+        if claim.text == "current release date":
             assert row["locator"] == "2026-08-01"
             assert row["anchored_spans"] == ["2026-08-01"]
             anchors[claim.id] = (row["locator"], tuple(row["anchored_spans"]))
@@ -2419,7 +2527,7 @@ def test_assessment_identity_stable_across_crash_resume(tmp_path: Any) -> None:
 
 
 def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> None:
-    """Two durable failed attempts must resume as claim-unavailable/no-gain.
+    """A failed attempt resumes once, then remains claim-local/no-gain.
 
     The same logical assessment is never called a third time and its exhausted
     ceiling must not escape into the whole-run active_runtime_unavailable path.
@@ -2433,7 +2541,7 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
                 raise RuntimeError("simulated assessment provider failure")
             return super().create(**kwargs)
 
-    class _CrashAfterAssessmentUnavailableRepository(_TrackingRepository):
+    class _CrashAfterFirstAssessmentFailureRepository(_TrackingRepository):
         def __init__(self, database: RuntimeDatabase) -> None:
             super().__init__(database)
             self.crashed = False
@@ -2445,28 +2553,28 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
             cursor = ResearchRuntimeCursor.from_dict(
                 persisted.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
             )
-            exhausted = [
+            failed = [
                 call
                 for call in cursor.model_calls
                 if "research_candidate_assessment" in call.logical_call_id
                 and call.status == "attempt_failed"
             ]
-            if len(exhausted) == 2 and any(
+            if len(failed) == 1 and any(
                 failure.phase == "assessing"
-                and failure.code == "model_attempts_exhausted"
+                and failure.code == "assessment_failed"
                 for failure in cursor.failures
             ):
                 self.crashed = True
                 assert persisted.active_operation_id
                 self.fail(
                     run_id,
-                    "simulated process exit after assessment exhaustion",
+                    "simulated process exit after assessment failure",
                     operation_id=persisted.active_operation_id,
                 )
-                raise RuntimeError("simulated assessment exhaustion crash")
+                raise RuntimeError("simulated assessment failure crash")
             return persisted
 
-    repository = _CrashAfterAssessmentUnavailableRepository(
+    repository = _CrashAfterFirstAssessmentFailureRepository(
         RuntimeDatabase(tmp_path / "active-assessment-exhausted.sqlite")
     )
     run = repository.create(
@@ -2480,7 +2588,7 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
         )
     )
     failing_client = _AssessmentFailingClient()
-    with pytest.raises(RuntimeError, match="assessment exhaustion crash"):
+    with pytest.raises(RuntimeError, match="assessment failure crash"):
         _service(repository, failing_client).execute(run.id, raise_on_error=True)
 
     crashed = repository.get(run.id)
@@ -2493,14 +2601,10 @@ def test_resume_after_exhausted_assessment_stays_claim_local(tmp_path: Any) -> N
         for call in crashed_cursor.model_calls
         if "research_candidate_assessment" in call.logical_call_id
     ]
-    assert [call.attempt for call in exhausted_calls] == [1, 2]
+    assert [call.attempt for call in exhausted_calls] == [1]
     exhausted_logical_call_id = exhausted_calls[0].logical_call_id
-    assert all(
-        call.logical_call_id == exhausted_logical_call_id
-        for call in exhausted_calls
-    )
 
-    resumed = _service(repository, _StructuredClient()).execute(
+    resumed = _service(repository, failing_client).execute(
         run.id,
         raise_on_error=True,
     )
@@ -3969,3 +4073,1862 @@ def test_v1_planning_attempt_exhaustion_is_classified_before_third_call(
         failure.item_id.startswith(f"{logical_call_id}:attempt:3")
         for failure in resumed_cursor.failures
     )
+
+
+def test_bounded_lead_read_discovers_assets_without_creating_evidence(
+    tmp_path: Any,
+) -> None:
+    """Slice 1: a lead_only candidate is read as a lead and yields discovery
+    assets only; it never produces eligible evidence or an evidence read."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "lead.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_lead",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(lead_only_assessment=True)
+    service = _service(repository, client)
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    # Bounded lead reads (<= MAX_LEAD_READS_PER_RUN) produced typed payloads.
+    assert 1 <= len(cursor.lead_read_ids) <= 2
+    assert len(cursor.lead_discoveries) == len(cursor.lead_read_ids)
+    discovery = cursor.lead_discoveries[0]
+    assert discovery["discovered_urls"] == ["https://primary.example/bank-rate"]
+    assert discovery["domains"] == ["primary.example"]
+    assert discovery["primary_source_hints"] == ["Official Bank Rate page"]
+    # The discovery payload is a lead asset: it cannot carry evidence fields.
+    assert set(discovery) == {
+        "source_candidate_id",
+        "discovered_urls",
+        "domains",
+        "organizations",
+        "primary_source_hints",
+        "warnings",
+    }
+    assert any(call.purpose == "research_lead_discovery" for call in cursor.model_calls)
+    # Slice 2A: the discovered URL re-entered the pool exactly once (canonical
+    # URL identity dedupes the repeated discovery) with discovery provenance.
+    discovered = [
+        item for item in cursor.candidates if item.discovery_method == "lead_url"
+    ]
+    assert len(discovered) == 1
+    assert discovered[0].url == "https://primary.example/bank-rate"
+    assert discovered[0].parent_lead_candidate_id in cursor.lead_read_ids
+    assert discovered[0].discovery_depth == 1
+    # Slice 2 closed loop: the discovered candidate re-enters assessment like
+    # any other candidate (no privilege) and, once the assessor marks it
+    # answer_relevant + primary, it becomes a schedulable evidence read.
+    discovered_id = discovered[0].id
+    assert any(
+        outcome.candidate_id == discovered_id for outcome in cursor.read_outcomes
+    )
+    # Slice 3A budget consistency: lead reads and lead-discovery model calls
+    # stay inside the frozen shared budgets (max_reads=8, max_model_calls=8).
+    assert len(cursor.lead_read_ids) <= 2
+    assert len(cursor.model_calls) <= 8
+    successful_evidence_reads = sum(
+        1 for outcome in cursor.read_outcomes if outcome.status == "success"
+    )
+    assert len(cursor.lead_read_ids) + successful_evidence_reads <= 8
+    # Slice 3A progress axes are audited explicitly.
+    wave_progress = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY][
+        "wave_progress"
+    ]
+    assert any(item["discovery_progress"] for item in wave_progress)
+
+
+class _AdvancingClock:
+    """Monotonic clock that jumps forward on every read (simulates slow phases)."""
+
+    def __init__(self, step: float) -> None:
+        self.value = 0.0
+        self.step = step
+
+    def __call__(self) -> float:
+        self.value += self.step
+        return self.value
+
+
+def test_research_window_stops_new_waves_before_the_hard_deadline(
+    tmp_path: Any,
+) -> None:
+    """Research Window Deadline Hardening: the research tail belongs to finalization."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "window.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_research_window",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    clock = _AdvancingClock(30.0)
+    service = _service(repository, _StructuredClient(), monotonic=clock)
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    metrics = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY]
+    window = metrics.get("research_window")
+    assert window is not None, (completed.status, completed.stop_reason, sorted(metrics))
+    assert window["reserve_seconds"] == 12.0
+    assert window["hard_seconds"] == 60.0
+    assert window["deadline_elapsed"] == 48.0
+    # The research window guard fired (research ended on the window boundary
+    # rather than on the hard deadline).
+    assert window["exhausted"] is True
+    assert window["research_elapsed_seconds"] >= window["deadline_elapsed"]
+    assert completed.status == "partial"
+
+
+class _HomepageOnlySearchBackend:
+    """Returns only the official homepage.
+
+    The deeper URL must come from the evidence-lead follow-up, never from search.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def search_exact(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+    ) -> dict[str, Any]:
+        del query, max_results
+        self.calls += 1
+        return {
+            "status": "ok",
+            "reason": "results_found",
+            "results": [
+                {
+                    "title": "Official project homepage",
+                    "url": "https://official.example/",
+                    "snippet": "Official release announcement and downloads",
+                    "published_at": "2026-08-01",
+                    "provider": "bing_rss",
+                }
+            ],
+            "providers_attempted": ["bing_rss"],
+            "provider_errors": [],
+            "provider_audits": [],
+            "provider_outcomes": [],
+            "searched_at": "2026-08-27T00:00:00+00:00",
+        }
+
+
+class _EvidenceLeadReadGateway:
+    """Homepage points at a deeper docs subdomain; that page carries the fact."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        if "docs.official.example" in url:
+            content = "Verified fact: the release date is 2026-08-01."
+        else:
+            content = (
+                "Official release announcement. See "
+                "https://docs.official.example/releases/2026-08-01 for the verified date."
+            )
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Official page",
+            "content": content[:max_chars],
+        }
+
+
+def test_evidence_lead_followup_reaches_deeper_support(tmp_path: Any) -> None:
+    """Frozen fixture: homepage -> lead -> deeper URL -> supports -> 1/2 clusters.
+
+    ``relation="lead"`` must stay a discovery signal only: it never counts as
+    support, but it must feed a bounded follow-up that can reach the page which
+    actually answers the claim.
+    """
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "evidence_lead.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_evidence_lead",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(
+        lead_then_support=True,
+        eligible_urls=("https://docs.official.example/releases/2026-08-01",),
+    )
+    reader = _EvidenceLeadReadGateway()
+    service = _service(
+        repository,
+        client,
+        search_backend=_HomepageOnlySearchBackend(),
+        read_gateway=reader,
+    )
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    # The evidence-stage lead produced a bounded follow-up.
+    assert cursor.evidence_lead_followups, "expected an evidence-lead follow-up"
+    followup = cursor.evidence_lead_followups[0]
+    assert followup["method"] == "evidence_lead_url"
+    deeper = [
+        item
+        for item in cursor.candidates
+        if item.discovery_method == "evidence_lead_url"
+    ]
+    assert deeper
+    assert deeper[0].url == "https://docs.official.example/releases/2026-08-01"
+    # The deeper page was really read (the search backend never returned it).
+    assert any("docs.official.example" in url for url in reader.calls)
+    # relation="lead" never counts as support: the claim reaches 1/2 clusters.
+    brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    reasons = " ".join(brief.get("gate_reasons") or [])
+    assert "eligible_support_clusters=1/" in reasons, reasons
+
+
+class _EvidenceLeadNoUrlReadGateway:
+    """Official homepage with no harvestable links (plain text only)."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Official page",
+            "content": (
+                "Official release announcement for the current release. "
+                "No links are present in this plain text body."
+            )[:max_chars],
+        }
+
+
+def test_evidence_lead_followup_falls_back_to_domain_hint(tmp_path: Any) -> None:
+    """No deeper URL: the follow-up must still feed the Gap Planner a hint."""
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "evidence_lead_hint.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_evidence_lead_hint",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    client = _StructuredClient(lead_then_support=True)
+    reader = _EvidenceLeadNoUrlReadGateway()
+    service = _service(
+        repository,
+        client,
+        search_backend=_HomepageOnlySearchBackend(),
+        read_gateway=reader,
+    )
+
+    completed = service.execute(run.id, raise_on_error=False)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    assert cursor.evidence_lead_followups
+    followup = cursor.evidence_lead_followups[0]
+    assert followup["method"] == "no_deeper_url"
+    assert followup["hint_domain"] == "official.example"
+    # §36A: the durable follow-up record keeps its frozen 8-key shape (the codec
+    # strictly validates it), and the obstacle is searched positively: the claim
+    # subject first, then the missing fact's own terms - never the negation.
+    assert set(followup) == {
+        "wave_index",
+        "evidence_id",
+        "source_candidate_id",
+        "method",
+        "added_candidate_ids",
+        "hint_domain",
+        "trusted_primary_domain",
+        "hint_terms",
+    }
+    assert all(term not in {"not", "does", "no"} for term in followup["hint_terms"])
+    diagnostics = (
+        completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY, {}) or {}
+    ).get("deeper_targeting")
+    assert isinstance(diagnostics, dict)
+    assert diagnostics["recent"], "expected §36A diagnostics in metrics"
+    entry = diagnostics["recent"][-1]
+    assert entry["followup_reason"] in {
+        "missing_target_fact",
+        "lead_without_usable_gap",
+    }
+    # §36B slice 1: page-intent + bounded query variants are recorded as
+    # discovery diagnostics only (never as evidence semantics).
+    for key in (
+        "page_intent",
+        "query_variants",
+        "selected_query_variant",
+        "selection_reason",
+    ):
+        assert key in entry
+    assert len(entry["query_variants"]) <= 3
+    # The Gap Planner (still the only query owner) turned the hint into a
+    # site-scoped follow-up query.
+    queries = [item.query for item in cursor.planned_queries]
+    assert any("site:official.example" in query for query in queries), queries
+
+
+class _DeadlineRecordingReadGateway:
+    """Timeout-aware reader that records the shared research deadline."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, float | None]] = []
+
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append((url, timeout))
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Read source",
+            "content": "Verified fact: The release date is 2026-08-01."[:max_chars],
+        }
+
+
+def test_read_forwards_shared_research_deadline(tmp_path: Any) -> None:
+    """Every evidence read is bounded by min(reader cap, research window)."""
+
+    repository = _TrackingRepository(
+        RuntimeDatabase(tmp_path / "read_deadline.sqlite")
+    )
+    run = repository.create(
+        WebLookupRun(
+            id="run_read_deadline",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    reader = _DeadlineRecordingReadGateway()
+
+    completed = _service(repository, _StructuredClient(), read_gateway=reader).execute(
+        run.id, raise_on_error=False
+    )
+
+    assert completed.status == "completed"
+    assert reader.calls, "expected the run to read at least one page"
+    # The reader's own 10s default is the cap while the window is healthy.
+    assert {timeout for _url, timeout in reader.calls} == {10.0}
+
+
+class _WindowJumpTimer:
+    """Research clock that reports an exhausted window once search is done."""
+
+    def __init__(self) -> None:
+        self.value = 0.0
+        self.exhaust = False
+
+    def __call__(self) -> float:
+        if self.exhaust:
+            self.value = 50.0
+        return self.value
+
+
+class _WindowJumpingSearchBackend:
+    def __init__(self, timer: _WindowJumpTimer) -> None:
+        self.timer = timer
+        self._inner = _SearchBackend()
+
+    def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
+        payload = self._inner.search_exact(query, max_results=max_results)
+        return payload
+
+
+class _WindowJumpClient(_StructuredClient):
+    """Exhaust the research window at the last model phase before reading."""
+
+    def __init__(self, timer: _WindowJumpTimer) -> None:
+        super().__init__()
+        self.timer = timer
+
+    def create(self, **kwargs: Any) -> Any:
+        result = super().create(**kwargs)
+        system = str(kwargs["messages"][0]["content"])
+        if "search candidates" in system:
+            # Candidate assessment is the final model phase before physical
+            # reads, so the read phase itself starts against a spent window.
+            self.timer.exhaust = True
+        return result
+
+
+def test_read_never_starts_outside_research_window(tmp_path: Any) -> None:
+    """An exhausted research window starts no reads instead of overrunning it."""
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "read_window.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_read_window",
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+    timer = _WindowJumpTimer()
+    reader = _DeadlineRecordingReadGateway()
+
+    completed = _service(
+        repository,
+        _WindowJumpClient(timer),
+        search_backend=_WindowJumpingSearchBackend(timer),
+        read_gateway=reader,
+        monotonic=timer,
+    ).execute(run.id, raise_on_error=False)
+
+    # Boundary invariant: research never crosses into the finalization reserve.
+    # An exhausted window starts no page reads and settles as a partial run.
+    assert reader.calls == []
+    metrics = completed.research_context[ACTIVE_RESEARCH_METRICS_KEY]
+    assert metrics.get("read_count") == 0
+    window = metrics.get("research_window") or {}
+    assert window.get("exhausted") is True
+    assert float(window.get("remaining_after_research_seconds") or 0) > 0
+    assert completed.stop_reason == "evidence_budget_exhausted"
+
+
+class _SameHostSearchBackend:
+    """Several candidates on one host, so a single health key covers them all."""
+
+    def __init__(self, host: str = "flaky.example") -> None:
+        self.host = host
+        self.calls = 0
+
+    def search_exact(self, query: str, *, max_results: int = 5) -> dict[str, Any]:
+        del query, max_results
+        self.calls += 1
+        return {
+            "status": "ok",
+            "reason": "results_found",
+            "results": [
+                {
+                    "title": f"Flaky source {index}",
+                    "url": f"https://{self.host}/page{index}",
+                    "snippet": "candidate on the same host",
+                    "published_at": "2026-08-01",
+                    "provider": "searxng",
+                }
+                for index in range(3)
+            ],
+            "providers_attempted": ["searxng"],
+            "provider_errors": [],
+            "provider_audits": [],
+            "provider_outcomes": [],
+            "searched_at": "2026-08-27T00:00:00+00:00",
+        }
+
+
+class _CountingFailingReadGateway:
+    """Fails every read with a transport-shaped error, counting the attempts."""
+
+    def __init__(self, error: str = "URLError: <urlopen error [WinError 10054]>") -> None:
+        self.error = error
+        self.calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        del max_chars
+        self.calls += 1
+        return {
+            "ok": False,
+            "status": "failed",
+            "url": url,
+            "error": self.error,
+            "content": "",
+        }
+
+
+class _MixedHostReadGateway:
+    """Fails one host, serves another, so isolation can be asserted."""
+
+    def __init__(self, bad_host: str = "flaky.example") -> None:
+        self.bad_host = bad_host
+        self.calls = 0
+        self.bad_calls = 0
+        self.good_calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls += 1
+        if self.bad_host in url:
+            self.bad_calls += 1
+            return {
+                "ok": False,
+                "status": "failed",
+                "url": url,
+                "error": "URLError: <urlopen error [WinError 10054]>",
+                "content": "",
+            }
+        self.good_calls += 1
+        return {
+            "ok": True,
+            "url": url,
+            "title": "Healthy source",
+            "content": "Verified fact: the release date is 2026-08-01."[:max_chars],
+        }
+
+
+def _breaker_sources(completed: Any) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (completed.selected_sources or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def test_read_breaker_opens_and_the_scheduler_skips_the_unhealthy_reader(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§96 A1a + §100 A2c + §105 A2d-4: an unhealthy reader is not planned.
+
+    A1a opened the breaker; A2c makes the pre-attempt scheduler refuse to plan a
+    read for that host, so the run no longer produces a meaningless breaker-skip
+    read outcome every wave - the decision is scheduling provenance instead. With
+    the explicit chain, an unhealthy ``native_http`` is recorded as blocked and
+    the chain falls through to the alternate reader instead of deferring.
+    """
+
+    monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+    monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker",
+            query="Research an unhealthy host",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _CountingFailingReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    health = metrics.get("backend_health") or []
+    assert health, "the breaker must publish its per-run state"
+    record = next(
+        item for item in health if item["health_key"] == "native_http::flaky.example"
+    )
+    assert record["state"] in {"open", "half_open", "cooldown"}
+    assert record["failure_streak"] >= 1
+
+    # The repeated waits are bounded: fewer gateway calls than candidates.
+    assert gateway.calls < 3
+
+    # A2c/A2d-4: the refusal is a scheduling decision, not a read outcome. The
+    # unhealthy native reader is blocked and the chain schedules the alternate.
+    scheduling = metrics.get("read_scheduling") or []
+    assert scheduling, "the scheduler must record why it did not plan a read"
+    scheduled = [item for item in scheduling if item["action"] == "schedule"]
+    assert scheduled, "the chain must still schedule its alternate reader"
+    assert any(
+        "native_http" in item.get("blocked_backends", ()) for item in scheduled
+    ), "the unhealthy native reader must be recorded as blocked"
+
+    # No policy-skip read outcome was manufactured for the deferred candidate.
+    sources = _breaker_sources(completed)
+    skipped = [
+        item
+        for item in sources
+        if isinstance(item.get("retrieval_policy"), Mapping)
+        and item["retrieval_policy"].get("attempted") is False
+    ]
+    assert skipped == []
+
+
+def test_read_breaker_leaves_a_healthy_host_untouched(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§96 A1a: one unhealthy host must not poison a healthy one."""
+
+    monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+    monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", "1")
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-mixed.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker_mixed",
+            query="Research two hosts",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _MixedHostReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(host="healthy.example"),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    health = metrics.get("backend_health") or []
+    healthy_keys = [
+        item for item in health if item["health_key"] == "native_http::healthy.example"
+    ]
+    # Either the healthy host never recorded a failure, or it is still closed.
+    assert all(item["state"] == "closed" for item in healthy_keys)
+    assert all(item["failure_streak"] == 0 for item in healthy_keys)
+
+    sources = _breaker_sources(completed)
+    healthy_reads = [
+        item for item in sources if "healthy.example" in str(item.get("item", {}).get("url", ""))
+    ]
+    assert healthy_reads, "the healthy host must still be read"
+    assert any(item.get("read_status") == "read" for item in healthy_reads)
+
+
+def test_read_breaker_switch_defaults_off(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The switch stays off by default, so the A0/F2 baselines stay valid."""
+
+    monkeypatch.delenv("RESEARCH_READ_BREAKER", raising=False)
+    repository = WebLookupRepository(RuntimeDatabase(tmp_path / "breaker-off.sqlite"))
+    run = repository.create(
+        WebLookupRun(
+            id="run_active_breaker_off",
+            query="Research with the breaker off",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+        )
+    )
+    gateway = _CountingFailingReadGateway()
+
+    completed = _service(
+        repository,
+        _StructuredClient(),
+        search_backend=_SameHostSearchBackend(),
+        read_gateway=gateway,
+    ).execute(run.id, raise_on_error=True)
+
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    assert not metrics.get("backend_health")
+    assert gateway.calls >= 2, "with the breaker off every read still goes out"
+
+# ---------------------------------------------------------------------------
+# §105 A2d-4: explicit reader chain cutover (native_http -> wigolo_http)
+# ---------------------------------------------------------------------------
+
+
+class _CutoverEscalationBackend:
+    """Deterministic stand-in for the Wigolo HTTP tier; never touches a daemon."""
+
+    name = "wigolo"
+
+    def __init__(
+        self,
+        content: str = "",
+        *,
+        latency_ms: float = 120.0,
+        preflight: str = "ready",
+    ) -> None:
+        self.content = content
+        self.latency_ms = latency_ms
+        self.preflight_status = preflight
+        self.calls: list[Any] = []
+
+    def preflight(self) -> str:
+        return self.preflight_status
+
+    def fetch(self, request: Any) -> RawReadArtifact:
+        self.calls.append(request)
+        return RawReadArtifact(
+            url=request.url,
+            content=self.content,
+            backend="wigolo",
+            latency_ms=self.latency_ms,
+            external_metadata={"state": "ok" if self.content else "empty"},
+        )
+
+
+class _ShortNativeReadGateway:
+    """A native reader that always returns an inadequate (short) document."""
+
+    def __init__(self, *, text: str = "tiny") -> None:
+        self.text = text
+        self.calls = 0
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls += 1
+        return {
+            "ok": True,
+            "url": url,
+            "title": "short native read",
+            "content": self.text[:max_chars],
+        }
+
+
+def _cutover_service(
+    repository: WebLookupRepository,
+    client: _StructuredClient,
+    *,
+    read_gateway: Any,
+    escalation_backend: Any | None,
+) -> ClaimEngineDispatchWebLookupService:
+    gateway = ActiveResearchGateway(
+        search_backend=_SearchBackend(),
+        read_gateway=read_gateway,
+    )
+    if escalation_backend is not None:
+        gateway.set_escalation_backend(escalation_backend)
+
+    def gateway_factory() -> ActiveResearchGateway:
+        return gateway
+
+    def runtime_factory(
+        repo: WebLookupRepository,
+        active_gateway: ActiveResearchGateway,
+    ) -> ActiveResearchRuntimeExecutor:
+        model = ResearchModelGateway(
+            client=client,
+            model_name="test-model",
+            timeout_seconds=20,
+        )
+        return ActiveResearchRuntimeExecutor(
+            repo,
+            active_gateway,
+            model_gateway=model,
+            monotonic=perf_counter,
+        )
+
+    return ClaimEngineDispatchWebLookupService(
+        repository,
+        active_gateway_factory=gateway_factory,
+        active_runtime_factory=runtime_factory,
+    )
+
+
+def _cutover_run(repository: WebLookupRepository, run_id: str) -> WebLookupRun:
+    return repository.create(
+        WebLookupRun(
+            id=run_id,
+            query="What is the verified current release date?",
+            stage="planned",
+            status="pending",
+            research_context=_active_context(),
+            max_items=5,
+        )
+    )
+
+
+def _chain_rows(completed: WebLookupRun) -> list[dict[str, Any]]:
+    metrics = completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    return [
+        dict(item)
+        for item in (metrics.get("read_chain") or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def test_read_chain_falls_back_to_wigolo_without_inflating_sources(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§105: an inadequate native read escalates to an explicit Wigolo step.
+
+    One candidate, two backend attempts, still exactly one top-level source.
+    """
+
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    adequate = "y" * (SHORT_CHAR_THRESHOLD + 400)
+    backend = _CutoverEscalationBackend(adequate)
+    native = _ShortNativeReadGateway()
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover.sqlite"))
+    run = _cutover_run(repository, "run_cutover_fallback")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=native,
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    rows = _chain_rows(completed)
+    assert rows, "the chain must record its decision"
+    fallback_rows = [
+        row
+        for row in rows
+        if [step["backend"] for step in row["steps"]]
+        == ["native_http", "wigolo_http"]
+    ]
+    assert fallback_rows, "an inadequate native read must route to wigolo_http"
+    assert len(backend.calls) == len(fallback_rows)
+
+    sources = _breaker_sources(completed)
+    assert sources
+    # every candidate keeps exactly one top-level source, whatever the attempts
+    assert len(sources) == len({item["candidate_id"] for item in sources})
+    for item in sources:
+        attempts = item.get("retrieval_attempts") or []
+        assert len(attempts) <= 2
+        if attempts:
+            assert item["final_backend"] in {"native_http", "wigolo_http"}
+
+    # the fallback candidate's source carries both attempts and the winner
+    fallback = next(
+        item for item in sources if len(item.get("retrieval_attempts") or []) == 2
+    )
+    assert fallback["final_backend"] == "wigolo_http"
+    assert fallback["read_status"] == "read"
+    assert [step["backend"] for step in fallback["retrieval_attempts"]] == [
+        "native_http",
+        "wigolo_http",
+    ]
+
+
+def test_read_chain_does_not_run_wigolo_when_native_is_adequate(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    backend = _CutoverEscalationBackend("y" * 9000)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_ok.sqlite"))
+    run = _cutover_run(repository, "run_cutover_native_ok")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(
+            text="z" * (SHORT_CHAR_THRESHOLD + 400)
+        ),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert backend.calls == [], "an adequate native read must never call Wigolo"
+    for row in _chain_rows(completed):
+        assert [step["backend"] for step in row["steps"]] == ["native_http"]
+    for item in _breaker_sources(completed):
+        assert item["final_backend"] == "native_http"
+
+
+def test_read_chain_does_not_run_wigolo_when_the_tier_is_disabled(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ESCALATION_ENV, raising=False)
+    backend = _CutoverEscalationBackend("y" * 9000)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_off.sqlite"))
+    run = _cutover_run(repository, "run_cutover_disabled")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert backend.calls == []
+    for item in _breaker_sources(completed):
+        assert item["final_backend"] == "native_http"
+
+
+def test_read_chain_charges_the_run_envelope_once_per_real_wigolo_call(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§105: the envelope is run-scoped - debits accumulate across candidates."""
+
+    from src.web.research.read_escalation import (
+        http_envelope_spent_ms,
+        reset_http_envelope,
+    )
+
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    reset_http_envelope()
+    backend = _CutoverEscalationBackend(
+        "y" * (SHORT_CHAR_THRESHOLD + 400), latency_ms=120.0
+    )
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_env.sqlite"))
+    run = _cutover_run(repository, "run_cutover_envelope")
+    _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    assert len(backend.calls) >= 2, "two candidates must both escalate"
+    # one debit per real call, accumulated over the whole run
+    assert http_envelope_spent_ms() == pytest.approx(
+        120.0 * len(backend.calls), abs=1.0
+    )
+
+
+def test_read_chain_keeps_one_outcome_per_candidate_and_backend(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ESCALATION_ENV, "http")
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    backend = _CutoverEscalationBackend("y" * (SHORT_CHAR_THRESHOLD + 400))
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / "cutover_uniq.sqlite"))
+    run = _cutover_run(repository, "run_cutover_unique")
+    completed = _cutover_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=_ShortNativeReadGateway(),
+        escalation_backend=backend,
+    ).execute(run.id, raise_on_error=True)
+
+    cursor = ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+    keys = [(item.candidate_id, item.backend) for item in cursor.read_outcomes]
+    assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
+    # both backends really ran, so the fallback pairs exist
+    assert "wigolo_http" in {item.backend for item in cursor.read_outcomes}
+    assert len(backend.calls) == sum(
+        1 for item in cursor.read_outcomes if item.backend == "wigolo_http"
+    ), "exactly one Wigolo call per recorded Wigolo outcome (no double call)"
+
+    timing = (
+        completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+    ).get("read_timing") or []
+    backends = {row.get("backend") for row in timing}
+    assert {"native_http", "wigolo_http"} <= backends
+    for row in timing:
+        # legacy-only on the explicit chain: the second backend owns its own row
+        assert row.get("escalation_ms", 0.0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# §107 P2-A2e: Progressive Reader integration validation
+#
+# Six frozen dimensions (PROJECT_STATUS §106.4). This section validates the
+# A0->A2d stack end-to-end through the real runtime read loop. It adds no
+# architecture, no backend, no budget policy and no new ledger.
+# ---------------------------------------------------------------------------
+
+#: An adequate native document. The extractor anchors on "release date", so a
+#: validated run must keep that phrase in the body.
+_A2E_ADEQUATE = "release date " + ("y" * (SHORT_CHAR_THRESHOLD + 400))
+
+#: An adequate alternate document (content only; anchors are irrelevant here).
+_A2E_ALT_OK = "z" * (SHORT_CHAR_THRESHOLD + 400)
+
+
+class _ScriptedNativeReadGateway:
+    """A native reader whose payload is chosen per URL (A2e validation only)."""
+
+    def __init__(
+        self,
+        payload: Mapping[str, Any] | None = None,
+        *,
+        by_url: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> None:
+        self.payload = dict(payload or {})
+        self.by_url = {
+            str(key): dict(value) for key, value in (by_url or {}).items()
+        }
+        self.calls: list[str] = []
+
+    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
+        self.calls.append(url)
+        base = dict(self.by_url.get(url, self.payload))
+        base.setdefault("url", url)
+        content = base.get("content")
+        if isinstance(content, str):
+            base["content"] = content[:max_chars]
+        return base
+
+
+def _a2e_service(
+    repository: WebLookupRepository,
+    client: _StructuredClient,
+    *,
+    read_gateway: Any,
+    escalation_backend: Any | None,
+    search_backend: Any | None = None,
+) -> ClaimEngineDispatchWebLookupService:
+    gateway = ActiveResearchGateway(
+        search_backend=search_backend or _SearchBackend(),
+        read_gateway=read_gateway,
+    )
+    if escalation_backend is not None:
+        gateway.set_escalation_backend(escalation_backend)
+
+    def gateway_factory() -> ActiveResearchGateway:
+        return gateway
+
+    def runtime_factory(
+        repo: WebLookupRepository,
+        active_gateway: ActiveResearchGateway,
+    ) -> ActiveResearchRuntimeExecutor:
+        model = ResearchModelGateway(
+            client=client,
+            model_name="test-model",
+            timeout_seconds=20,
+        )
+        return ActiveResearchRuntimeExecutor(
+            repo,
+            active_gateway,
+            model_gateway=model,
+            monotonic=perf_counter,
+        )
+
+    return ClaimEngineDispatchWebLookupService(
+        repository,
+        active_gateway_factory=gateway_factory,
+        active_runtime_factory=runtime_factory,
+    )
+
+
+def _a2e_run(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str,
+    native: Any,
+    wigolo: Any | None = None,
+    search_backend: Any | None = None,
+    escalation: str | None = "http",
+    breaker: bool = False,
+    breaker_threshold: int = 1,
+) -> Any:
+    """One deterministic end-to-end run through the real read loop."""
+
+    if escalation is None:
+        monkeypatch.delenv(ESCALATION_ENV, raising=False)
+    else:
+        monkeypatch.setenv(ESCALATION_ENV, escalation)
+    monkeypatch.setenv("WIGOLO_RERANKER", "off")
+    if breaker:
+        monkeypatch.setenv("RESEARCH_READ_BREAKER", "on")
+        monkeypatch.setenv("RESEARCH_BREAKER_FAILURE_THRESHOLD", str(breaker_threshold))
+    else:
+        monkeypatch.delenv("RESEARCH_READ_BREAKER", raising=False)
+
+    repository = _TrackingRepository(RuntimeDatabase(tmp_path / f"{name}.sqlite"))
+    run = _cutover_run(repository, f"run_{name}")
+    return _a2e_service(
+        repository,
+        _StructuredClient(),
+        read_gateway=native,
+        escalation_backend=wigolo,
+        search_backend=search_backend,
+    ).execute(run.id, raise_on_error=True)
+
+
+def _a2e_sources(completed: Any) -> list[dict[str, Any]]:
+    return [
+        dict(item)
+        for item in (completed.selected_sources or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def _a2e_metrics(completed: Any) -> dict[str, Any]:
+    return completed.research_context.get(ACTIVE_RESEARCH_METRICS_KEY) or {}
+
+
+def _a2e_cursor(completed: Any) -> ResearchRuntimeCursor:
+    return ResearchRuntimeCursor.from_dict(
+        completed.research_context[CLAIM_ENGINE_RUNTIME_CONTEXT_KEY]
+    )
+
+
+def _a2e_attempt_tuples(source: Mapping[str, Any]) -> list[tuple[str, str, bool, bool]]:
+    return [
+        (
+            str(item.get("backend") or ""),
+            str(item.get("retrieval_state") or ""),
+            bool(item.get("attempted")),
+            bool(item.get("usable_content")),
+        )
+        for item in (source.get("retrieval_attempts") or [])
+        if isinstance(item, Mapping)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# D1: reader-chain correctness (the full runtime path, not the unit contract)
+# ---------------------------------------------------------------------------
+
+#: native payload -> (expected chain steps, expected final backend, expected
+#: usable read, expected chain action)
+_A2E_CHAIN_CASES: tuple[tuple[str, Mapping[str, Any], tuple[str, ...], str, bool, str], ...] = (
+    (
+        "native_success",
+        {"ok": True, "content": _A2E_ADEQUATE},
+        ("native_http",),
+        "native_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_not_found",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 404 Not Found",
+            "escalation": {"http_status": 404},
+        },
+        ("native_http",),
+        "native_http",
+        False,
+        "resolve",
+    ),
+    (
+        "native_short_doc",
+        {"ok": True, "content": "tiny"},
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_transport_reset",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "URLError: <urlopen error [WinError 10054]> connection reset by peer",
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_timeout",
+        {"ok": False, "status": "failed", "error": "urlopen error timed out"},
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_http_denied",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 403 Forbidden",
+            "escalation": {"http_status": 403},
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_rate_limited",
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 429 Too Many Requests",
+            "escalation": {"http_status": 429},
+        },
+        ("native_http", "wigolo_http"),
+        "wigolo_http",
+        True,
+        "resolve",
+    ),
+    (
+        "native_shell_page",
+        {"ok": True, "content": "Please enable JavaScript to continue"},
+        # §111 A3-1R: js_render is the browser tier's capability, and the
+        # production chain has no browser tier yet - so a shell page terminates
+        # instead of being sent to the non-rendering http tier.
+        ("native_http",),
+        "native_http",
+        True,
+        "exhaust",
+    ),
+    (
+        "native_anti_bot",
+        {"ok": False, "status": "failed", "error": "captcha challenge detected"},
+        ("native_http",),
+        "native_http",
+        False,
+        "exhaust",
+    ),
+    (
+        "native_login_required",
+        {"ok": False, "status": "failed", "error": "login required to view"},
+        ("native_http",),
+        "native_http",
+        False,
+        "exhaust",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("case", "payload", "expected_steps", "expected_final", "expected_usable", "expected_action"),
+    _A2E_CHAIN_CASES,
+    ids=[row[0] for row in _A2E_CHAIN_CASES],
+)
+def test_a2e_reader_chain_correctness(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    payload: Mapping[str, Any],
+    expected_steps: tuple[str, ...],
+    expected_final: str,
+    expected_usable: bool,
+    expected_action: str,
+) -> None:
+    """D1: every frozen native outcome routes to the frozen chain decision."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(payload)
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name=f"a2e_chain_{case}", native=native, wigolo=wigolo
+    )
+
+    rows = _chain_rows(completed)
+    assert rows, "the chain must record its decision"
+    for row in rows:
+        assert [step["backend"] for step in row["steps"]] == list(expected_steps)
+        assert row["action"] == expected_action
+
+    sources = _a2e_sources(completed)
+    assert sources
+    assert len(sources) == len({item["candidate_id"] for item in sources})
+    for item in sources:
+        assert item["final_backend"] == expected_final
+        assert (item["read_status"] == "read") is expected_usable
+        assert [a[0] for a in _a2e_attempt_tuples(item)] == list(expected_steps)
+
+    # The alternate runs exactly when the frozen routing asked it to.
+    expect_wigolo = "wigolo_http" in expected_steps
+    assert bool(wigolo.calls) is expect_wigolo
+
+
+def test_a2e_circuit_open_native_is_never_faked_as_an_outcome(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D1: an unhealthy native reader is skipped, never manufactured."""
+
+    native = _CountingFailingReadGateway()
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    completed = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_circuit_open",
+        native=native,
+        wigolo=wigolo,
+        search_backend=_SameHostSearchBackend(),
+        escalation=None,
+        breaker=True,
+    )
+
+    metrics = _a2e_metrics(completed)
+    # The unhealthy native reader is refused by the pre-attempt scheduler...
+    scheduling = metrics.get("read_scheduling") or []
+    blocked = [
+        item
+        for item in scheduling
+        if "native_http" in tuple(item.get("blocked_backends") or ())
+    ]
+    assert blocked, "an open native circuit must be recorded as blocked"
+    # ...and the alternate is still considered, never the blocked reader.
+    assert any(item.get("backend") == "wigolo_http" for item in blocked)
+
+    # No read outcome and no source was minted for a reader that never ran.
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes, "the first candidate still ran"
+    assert all(item.backend == "native_http" for item in outcomes)
+    assert native.calls == 1, "bounded: the blocked reader is not re-planned"
+
+    # Deferred candidates leave no source and are not terminal.
+    deferred = [row for row in _chain_rows(completed) if row["action"] == "defer"]
+    assert deferred, "a candidate whose only capable reader is unhealthy defers"
+    for row in deferred:
+        assert row["steps"] == []
+    assert len(_a2e_sources(completed)) == 1
+
+
+def test_a2e_unavailable_alternate_exhausts_without_looping(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D1: an alternate that cannot run is a policy skip, not a loop."""
+
+    wigolo = _CutoverEscalationBackend("", preflight="unavailable")
+    native = _ScriptedNativeReadGateway(
+        {"ok": False, "status": "failed", "error": "urlopen error timed out"}
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_unavailable_alt", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "an unavailable alternate must not be fetched"
+    for row in _chain_rows(completed):
+        # Only the real attempt is recorded; the skip is not an attempt.
+        assert [step["backend"] for step in row["steps"]] == ["native_http"]
+        assert row["action"] == "exhaust"
+        assert row["reason"] == "all_backends_tried"
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes
+    assert all(item.backend == "native_http" for item in outcomes)
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+        assert item["final_backend"] == "native_http"
+
+
+# ---------------------------------------------------------------------------
+# D2: candidate lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_candidate_lifecycle_is_one_source_per_candidate(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: many attempts, one resolution, at most one source, no evidence bloat."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_lifecycle", native=native, wigolo=wigolo
+    )
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    keys = [(item.candidate_id, item.backend) for item in outcomes]
+    assert keys, "the fallback path must produce attempts"
+    assert len(keys) == len(set(keys)), "one outcome per (candidate, backend)"
+
+    sources = _a2e_sources(completed)
+    candidate_ids = [item["candidate_id"] for item in sources]
+    assert len(candidate_ids) == len(set(candidate_ids)), "one source per candidate"
+
+    # Two backend attempts per candidate, still exactly one source each.
+    fallback = [item for item in sources if len(_a2e_attempt_tuples(item)) == 2]
+    assert fallback, "the inadequate native read must escalate"
+    assert len(sources) == len(outcomes) // 2
+
+    # Evidence is not inflated by the extra backend attempt: the candidate set
+    # the extractor saw equals the candidate set the chain produced.
+    assert len(sources) == _a2e_metrics(completed).get("candidate_count")
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("resolved") == len(sources)
+    assert resolution.get("counts", {}).get("chain_exhausted") == 0
+    assert resolution.get("counts", {}).get("fallback_pending") == 0
+
+
+def test_a2e_not_found_is_terminal_but_unusable(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: a terminal resource outcome settles the candidate without content."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 404 Not Found",
+            "escalation": {"http_status": 404},
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_not_found", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "not_found is terminal and must not escalate"
+    for row in _chain_rows(completed):
+        assert row["action"] == "resolve"
+        assert row["reason"] == "terminal_resource_outcome"
+
+    outcomes = _a2e_cursor(completed).read_outcomes
+    assert outcomes
+    assert all(item.status == "failed" for item in outcomes)
+    assert all(item.retrieval_state == "not_found" for item in outcomes)
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("resolved") == len(outcomes)
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+
+
+def test_a2e_chain_exhausted_is_terminal_but_unusable(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D2: no capable backend is terminal, and it produced no content."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {"ok": False, "status": "failed", "error": "captcha challenge detected"}
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_exhausted", native=native, wigolo=wigolo
+    )
+
+    assert wigolo.calls == [], "anti_bot needs a capability this chain lacks"
+    for row in _chain_rows(completed):
+        assert row["action"] == "exhaust"
+        assert row["reason"] == "no_capable_backend"
+
+    resolution = _a2e_metrics(completed).get("candidate_resolution") or {}
+    assert resolution.get("counts", {}).get("chain_exhausted") == len(
+        _a2e_sources(completed)
+    )
+    assert resolution.get("counts", {}).get("resolved") == 0
+    for item in _a2e_sources(completed):
+        assert item["read_status"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# D3: budget / boundedness
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_retry_stays_inside_the_backend_and_the_chain_stays_bounded(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D3: backend-local retry x reader-chain steps must not blow up."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": True,
+            "content": "tiny",
+            "read_retry": {
+                "attempts": 3,
+                "retries": 2,
+                "retry_fetch_ms": 45.0,
+                "retry_backoff_ms": 12.0,
+            },
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_retry", native=native, wigolo=wigolo
+    )
+
+    rows = _chain_rows(completed)
+    assert rows
+    # A backend may really run at most once per candidate: 3 network attempts
+    # stayed inside the native backend and never became chain steps.
+    assert len(native.calls) == len(rows)
+    assert len(wigolo.calls) == len(rows)
+    for row in rows:
+        assert len(row["steps"]) == 2
+
+    # The backend-local retry count is still observable in the attempt cost.
+    for item in _a2e_sources(completed):
+        native_attempt = next(
+            a for a in (item.get("retrieval_attempts") or []) if a["backend"] == "native_http"
+        )
+        assert native_attempt["cost"]["attempts"] == 3
+        assert native_attempt["cost"]["retries"] == 2
+
+    # Timing records the native fetch as one row, not as three chain attempts.
+    timing = _a2e_metrics(completed).get("read_timing") or []
+    native_rows = [row for row in timing if row.get("backend") == "native_http"]
+    assert len(native_rows) == len(rows)
+
+
+def test_a2e_wigolo_envelope_is_run_scoped_and_bounded(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D3: the alternate's budget is a single run-scoped, bounded envelope."""
+
+    from src.web.research.read_escalation import (
+        http_envelope_spent_ms,
+        reset_http_envelope,
+    )
+
+    reset_http_envelope()
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK, latency_ms=120.0)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_envelope", native=native, wigolo=wigolo
+    )
+
+    assert len(wigolo.calls) >= 2, "both candidates must escalate"
+    spent = http_envelope_spent_ms()
+    assert spent == pytest.approx(120.0 * len(wigolo.calls), abs=1.0)
+    # Bounded: the run can never debit more than the frozen envelope.
+    assert spent <= 3000.0 + 1.0
+
+    # One Wigolo timing row per real call; nothing double-counted.
+    timing = _a2e_metrics(completed).get("read_timing") or []
+    wigolo_rows = [row for row in timing if row.get("backend") == "wigolo_http"]
+    assert len(wigolo_rows) == len(wigolo.calls)
+
+
+# ---------------------------------------------------------------------------
+# D4: failure semantics (state -> routing -> lifecycle must agree)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("case", "payload", "expected_state", "expected_final", "expected_usable"),
+    [
+        (
+            "http_denied",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 403 Forbidden",
+                "escalation": {"http_status": 403},
+            },
+            "http_denied",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "not_found",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 404 Not Found",
+                "escalation": {"http_status": 404},
+            },
+            "not_found",
+            "native_http",
+            False,
+        ),
+        (
+            "rate_limited",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "HTTPError: 429 Too Many Requests",
+                "escalation": {"http_status": 429},
+            },
+            "rate_limited",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "reset",
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "URLError: <urlopen error [WinError 10054]>",
+            },
+            "reset",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "timeout",
+            {"ok": False, "status": "failed", "error": "urlopen error timed out"},
+            "timeout",
+            "wigolo_http",
+            True,
+        ),
+        (
+            "anti_bot",
+            {"ok": False, "status": "failed", "error": "captcha challenge detected"},
+            "anti_bot",
+            "native_http",
+            False,
+        ),
+        (
+            "shell_page",
+            {"ok": True, "content": "Please enable JavaScript to continue"},
+            "shell_page",
+            "native_http",
+            True,
+        ),
+        (
+            "login_required",
+            {"ok": False, "status": "failed", "error": "login required to view"},
+            "login_required",
+            "native_http",
+            False,
+        ),
+    ],
+    ids=[
+        "http_denied",
+        "not_found",
+        "rate_limited",
+        "reset",
+        "timeout",
+        "anti_bot",
+        "shell_page",
+        "login_required",
+    ],
+)
+def test_a2e_failure_state_routing_and_lifecycle_agree(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    payload: Mapping[str, Any],
+    expected_state: str,
+    expected_final: str,
+    expected_usable: bool,
+) -> None:
+    """D4: canonical state, routing decision and lifecycle must not contradict."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(payload)
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name=f"a2e_failure_{case}", native=native, wigolo=wigolo
+    )
+
+    for item in _a2e_sources(completed):
+        attempts = _a2e_attempt_tuples(item)
+        native_attempt = next(a for a in attempts if a[0] == "native_http")
+        # The canonical state is carried by the attempt, not re-derived later.
+        assert native_attempt[1] == expected_state
+
+        # A usable read always names the attempt that actually produced content;
+        # an unusable one never does.
+        assert (item["read_status"] == "read") is expected_usable
+        assert item["final_backend"] == expected_final
+        winner = next(a for a in attempts if a[0] == item["final_backend"])
+        assert winner[3] is expected_usable, (
+            "final_backend must name the content-producing attempt, never a failed one"
+        )
+
+    # The routing action never contradicts the state's capability requirement:
+    # a state needing a capability this chain lacks must not call the alternate.
+    for row in _chain_rows(completed):
+        if expected_state in {"anti_bot", "login_required", "shell_page"}:
+            # §111 A3-1R: shell_page needs js_render, which only a browser tier
+            # has - the production chain has none, so it terminates.
+            assert row["action"] == "exhaust"
+            assert row["reason"] == "no_capable_backend"
+        elif expected_state == "not_found":
+            assert row["action"] == "resolve"
+        else:
+            assert row["action"] == "resolve"
+
+
+# ---------------------------------------------------------------------------
+# D5: provenance completeness
+# ---------------------------------------------------------------------------
+
+
+def test_a2e_provenance_links_outcome_timing_chain_and_source(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D5: a fallback candidate's story is reconstructable from the artifacts."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway({"ok": True, "content": "tiny"})
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_provenance", native=native, wigolo=wigolo
+    )
+
+    metrics = _a2e_metrics(completed)
+    outcomes = _a2e_cursor(completed).read_outcomes
+    outcome_keys = {(item.candidate_id, item.backend) for item in outcomes}
+    chain_by_candidate = {
+        row["candidate_id"]: row for row in (metrics.get("read_chain") or [])
+    }
+    timing = metrics.get("read_timing") or []
+
+    for item in _a2e_sources(completed):
+        candidate_id = item["candidate_id"]
+        attempts = _a2e_attempt_tuples(item)
+        assert len(attempts) == 2, "why native failed and whether Wigolo ran"
+
+        # 1. the attempt history matches the source's nested attempts exactly
+        assert {(candidate_id, a[0]) for a in attempts} <= outcome_keys
+
+        # 2. the chain row for this candidate carries the same steps
+        row = chain_by_candidate[candidate_id]
+        assert [step["backend"] for step in row["steps"]] == [a[0] for a in attempts]
+
+        # 3. the winner is the second (adequate) attempt
+        assert item["final_backend"] == "wigolo_http"
+        assert attempts[0] == ("native_http", "invalid_content", True, True)
+        assert attempts[1][0] == "wigolo_http" and attempts[1][3] is True
+
+        # 4. cost is attributable: one timing row per backend, Wigolo fetch cost
+        for backend in ("native_http", "wigolo_http"):
+            rows = [
+                r
+                for r in timing
+                if r.get("backend") == backend and r.get("candidate_id") == candidate_id
+            ]
+            assert len(rows) == 1, f"exactly one {backend} timing row per candidate"
+        wigolo_row = next(
+            r
+            for r in timing
+            if r.get("backend") == "wigolo_http" and r.get("candidate_id") == candidate_id
+        )
+        assert float(wigolo_row.get("fetch_ms") or 0.0) > 0.0
+
+        # 5. usability is answerable without re-reading anything
+        assert item["read_status"] == "read"
+
+
+def test_a2e_failure_records_carry_the_attempt_id_of_the_failed_step(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D5: a failed attempt is durably auditable via outcome + failure id."""
+
+    wigolo = _CutoverEscalationBackend(_A2E_ALT_OK)
+    native = _ScriptedNativeReadGateway(
+        {
+            "ok": False,
+            "status": "failed",
+            "error": "HTTPError: 403 Forbidden",
+            "escalation": {"http_status": 403},
+        }
+    )
+    completed = _a2e_run(
+        tmp_path, monkeypatch, name="a2e_failure_id", native=native, wigolo=wigolo
+    )
+
+    cursor = _a2e_cursor(completed)
+    read_failures = [
+        failure
+        for failure in cursor.failures
+        if getattr(failure, "code", "") == "read_failed"
+    ]
+    assert read_failures, "an unusable attempt must leave a failure record"
+    failed_ids = {failure.item_id for failure in read_failures}
+    assert failed_ids == {item["candidate_id"] for item in _a2e_sources(completed)}
+
+    # The durable failure carries the attempt id of the step that failed, so the
+    # per-attempt marker's non-durability does not hide the audit trail.
+    for failure in read_failures:
+        assert failure.attempt_id.startswith("research_read:")
+        assert ":native_http" in failure.attempt_id
+    # The successful Wigolo attempt leaves no read_failed record.
+    assert all(
+        item.backend == "native_http"
+        for item in cursor.read_outcomes
+        if item.status == "failed"
+    )
+
+
+# ---------------------------------------------------------------------------
+# D6: authority regression
+# ---------------------------------------------------------------------------
+
+
+def _a2e_normalise_ids(value: Any) -> Any:
+    """Erase run-scoped minted ids; they are identifiers, not authority."""
+
+    import re
+
+    pattern = re.compile(r"(?:claim|web|ev|question|gap)_[0-9a-f]{6,}")
+    if isinstance(value, str):
+        return pattern.sub("<id>", value)
+    if isinstance(value, Mapping):
+        return {key: _a2e_normalise_ids(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_a2e_normalise_ids(item) for item in value]
+    return value
+
+
+def _a2e_authority_view(completed: Any) -> dict[str, Any]:
+    """The authority artifacts Progressive Reader must never influence.
+
+    Run-scoped minted ids (claim/evidence/gap) are normalised out: two runs of
+    the same deterministic fixture legitimately mint different ids, while the
+    *decisions* over them must be identical.
+    """
+
+    brief = completed.research_context[ACTIVE_RESEARCH_BRIEF_KEY]
+    return {
+        "status": completed.status,
+        "provider_status": completed.provider_status,
+        "stop_reason": completed.stop_reason,
+        "gate_status": brief.get("gate_status"),
+        "conditional_wording_required": brief.get("conditional_wording_required"),
+        "eligible_evidence": _a2e_normalise_ids(brief.get("eligible_evidence")),
+        "open_critical_claim_ids": _a2e_normalise_ids(
+            brief.get("open_critical_claim_ids")
+        ),
+        "source_block": _a2e_normalise_ids(completed.source_block),
+        "item_count": len(completed.items or []),
+        "sources": [
+            (
+                item["candidate_id"],
+                item["read_status"],
+                item.get("content"),
+                (item.get("extraction") or {}).get("status"),
+            )
+            for item in _a2e_sources(completed)
+        ],
+    }
+
+
+def test_a2e_authority_is_unchanged_when_no_fallback_is_needed(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D6: with an adequate native read the progressive chain degrades to the
+    single-reader behaviour, byte for byte, on every authority artifact."""
+
+    native_payload = {"ok": True, "content": _A2E_ADEQUATE}
+
+    single = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_authority_off",
+        native=_ScriptedNativeReadGateway(native_payload),
+        wigolo=_CutoverEscalationBackend(_A2E_ALT_OK),
+        escalation=None,
+    )
+    progressive = _a2e_run(
+        tmp_path,
+        monkeypatch,
+        name="a2e_authority_on",
+        native=_ScriptedNativeReadGateway(native_payload),
+        wigolo=_CutoverEscalationBackend(_A2E_ALT_OK),
+        escalation="http",
+    )
+
+    assert _a2e_authority_view(single) == _a2e_authority_view(progressive)
+
+    # The progressive run really had the alternate available but never needed it.
+    for completed in (single, progressive):
+        for item in _a2e_sources(completed):
+            assert item["final_backend"] == "native_http"
+            assert _a2e_attempt_tuples(item) == [
+                ("native_http", "success", True, True)
+            ]
+        backends = {
+            row.get("backend") for row in (_a2e_metrics(completed).get("read_timing") or [])
+        }
+        assert backends == {"native_http"}
+        for row in _chain_rows(completed):
+            assert [step["backend"] for step in row["steps"]] == ["native_http"]
+            assert row["action"] == "resolve"

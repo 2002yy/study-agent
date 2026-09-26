@@ -1,0 +1,502 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from src.web.research.candidate_pool import CandidatePoolItem
+from src.web.research.candidate_ranking import (
+    CandidateSemanticAssessment,
+    RankedCandidate,
+)
+from src.web.research.gap_planner import GapSearchIntent
+from src.web.research.lead_discovery import (
+    LEAD_DISCOVERY_SCHEMA_VERSION,
+    RuntimeLeadDiscoverer,
+    parse_lead_discovery_response,
+)
+from src.web.research.scheduler import is_schedulable_lead
+
+
+def _payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": LEAD_DISCOVERY_SCHEMA_VERSION,
+        "candidate_id": "cand-1",
+        "discovered_urls": ["https://www.bankofengland.co.uk/monetary-policy/bank-rate"],
+        "domains": ["bankofengland.co.uk"],
+        "organizations": ["Bank of England"],
+        "primary_source_hints": ["Bank of England Bank Rate official"],
+        "warnings": [],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _candidate() -> CandidatePoolItem:
+    return CandidatePoolItem(
+        id="cand-1",
+        canonical_url="https://news.example/report",
+        url="https://news.example/report",
+        title="Report",
+        snippet="snippet",
+        source="Publisher",
+        published_at="2026-08-20",
+        query_ids=("q",),
+        intents=(GapSearchIntent.PRIMARY,),
+        providers=("bing_rss",),
+        first_seen_rank=1,
+    )
+
+
+def _ranked(*, eligibility: str, intents: tuple[str, ...]) -> RankedCandidate:
+    candidate = CandidatePoolItem(
+        id="cand-1",
+        canonical_url="https://news.example/report",
+        url="https://news.example/report",
+        title="Report",
+        snippet="snippet",
+        source="Publisher",
+        published_at="2026-08-20",
+        query_ids=("q",),
+        intents=intents,
+        providers=("bing_rss",),
+        first_seen_rank=1,
+    )
+    assessment = CandidateSemanticAssessment(
+        candidate_id="cand-1",
+        relevance="topic_only",
+        relevance_confidence=0.6,
+        source_role="aggregator",
+        source_role_confidence=0.8,
+        cluster_id="cluster-1",
+    )
+    return RankedCandidate(
+        candidate=candidate,
+        assessment=assessment,
+        rank=1,
+        eligibility=eligibility,  # type: ignore[arg-type]
+        reason_codes=(),
+        new_cluster=True,
+        expected_information_gain=1,
+    )
+
+
+def test_parser_accepts_bounded_discovery_payload() -> None:
+    parsed = parse_lead_discovery_response(_payload(), candidate_id="cand-1")
+    assert parsed.source_candidate_id == "cand-1"
+    assert parsed.discovered_urls == (
+        "https://www.bankofengland.co.uk/monetary-policy/bank-rate",
+    )
+    assert parsed.domains == ("bankofengland.co.uk",)
+    assert parsed.organizations == ("Bank of England",)
+
+
+def test_parser_rejects_evidence_shaped_fields() -> None:
+    with pytest.raises(ValueError):
+        parse_lead_discovery_response(
+            _payload(claim_support="supports", evidence_strength=0.9),
+            candidate_id="cand-1",
+        )
+
+
+def test_parser_rejects_changed_candidate_id() -> None:
+    with pytest.raises(ValueError):
+        parse_lead_discovery_response(_payload(candidate_id="other"), candidate_id="cand-1")
+
+
+def test_parser_rejects_non_absolute_or_unsafe_urls() -> None:
+    for bad in ("javascript:alert(1)", "/relative/path", "ftp://example.com/x"):
+        with pytest.raises(ValueError):
+            parse_lead_discovery_response(
+                _payload(discovered_urls=[bad]), candidate_id="cand-1"
+            )
+
+
+def test_parser_rejects_oversized_lists() -> None:
+    with pytest.raises(ValueError):
+        parse_lead_discovery_response(
+            _payload(discovered_urls=[f"https://example.com/{i}" for i in range(6)]),
+            candidate_id="cand-1",
+        )
+
+
+def test_parser_dedupes_and_allows_empty_assets() -> None:
+    parsed = parse_lead_discovery_response(
+        _payload(
+            discovered_urls=["https://example.com/a", "https://example.com/a"],
+            domains=["example.com", "EXAMPLE.com"],
+            organizations=[],
+            primary_source_hints=[],
+            warnings=[],
+        ),
+        candidate_id="cand-1",
+    )
+    assert parsed.discovered_urls == ("https://example.com/a",)
+    assert parsed.domains == ("example.com",)
+    assert parsed.organizations == ()
+
+
+class _FakeGateway:
+    provider_profile = "openai"
+
+    def __init__(self, payload: Any, status: str = "completed") -> None:
+        self.payload = payload
+        self.status = status
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_structured(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        if self.status != "completed":
+            return SimpleNamespace(
+                status=self.status, value=None, audits=(), reason="model_call_failed"
+            )
+        try:
+            value = kwargs["parse"](self.payload)
+        except Exception:
+            # Real gateway behavior: a strict-parser rejection is a fail-closed
+            # unavailable result, never a silent success.
+            return SimpleNamespace(
+                status="unavailable", value=None, audits=(), reason="parse_failed"
+            )
+        return SimpleNamespace(status="completed", value=value, audits=(), reason="")
+
+
+def test_discoverer_returns_typed_discovery_and_uses_lead_purpose() -> None:
+    gateway = _FakeGateway(_payload())
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="Bank of England publishes the Bank Rate at ...",
+    )
+    assert result.status == "completed"
+    assert result.discovery is not None
+    assert result.discovery.domains == ("bankofengland.co.uk",)
+    assert gateway.calls[0]["purpose"] == "research_lead_discovery"
+    assert gateway.calls[0]["max_tokens"] == 700
+
+
+def test_discoverer_fails_closed_on_empty_content_without_model_call() -> None:
+    gateway = _FakeGateway(_payload())
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="   ",
+    )
+    assert result.status == "unavailable"
+    assert result.reason == "empty_read_content"
+    assert gateway.calls == []
+
+
+def test_discoverer_reports_unavailable_on_model_failure() -> None:
+    gateway = _FakeGateway(_payload(), status="unavailable")
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="page text",
+    )
+    assert result.status == "unavailable"
+    assert result.discovery is None
+
+
+def test_discoverer_fails_closed_when_parser_rejects_payload() -> None:
+    # Missing required keys -> strict parser rejects -> unavailable, not success.
+    gateway = _FakeGateway({"schema_version": LEAD_DISCOVERY_SCHEMA_VERSION})
+    result = RuntimeLeadDiscoverer(gateway).discover(
+        run_id="run-1",
+        candidate=_candidate(),
+        content="page text",
+    )
+    assert result.status == "unavailable"
+    assert result.discovery is None
+    assert result.reason == "parse_failed"
+
+
+def _runtime_candidate(
+    url: str,
+    *,
+    candidate_id: str = "cand-parent",
+    depth: int = 0,
+) -> Any:
+    from src.web.research.runtime import RuntimeCandidate
+
+    return RuntimeCandidate(
+        id=candidate_id,
+        url=url,
+        title=url,
+        query_ids=("q-1",),
+        intents=("primary",),
+        discovery_depth=depth,
+    )
+
+
+def _payload_with_urls(*urls: str) -> Any:
+    from src.web.research.lead_discovery import LeadDiscoveryPayload
+
+    return LeadDiscoveryPayload(
+        source_candidate_id="cand-parent",
+        discovered_urls=tuple(urls),
+        domains=(),
+        organizations=(),
+        primary_source_hints=(),
+        warnings=(),
+    )
+
+
+def test_lead_discovered_candidates_reject_unsafe_and_duplicate_urls() -> None:
+    from src.application.active_research_runtime import _lead_discovered_candidates
+
+    parent = _runtime_candidate("https://news.example/report")
+    existing = (_runtime_candidate("https://existing.example/page", candidate_id="e"),)
+    discovery = _payload_with_urls(
+        "javascript:alert(1)",
+        "https://existing.example/page",
+        "https://primary.example/a",
+    )
+
+    added, stats = _lead_discovered_candidates(
+        existing, discovery, parent=parent, max_candidates=20, discovered_so_far=0
+    )
+
+    assert [item.url for item in added] == ["https://primary.example/a"]
+    assert stats["unsafe_url_rejected"] == 1
+    assert stats["duplicate_url_rejected"] == 1
+    assert stats["added"] == 1
+    assert added[0].parent_lead_candidate_id == "cand-parent"
+    assert added[0].discovery_method == "lead_url"
+    assert added[0].discovery_depth == 1
+    assert added[0].query_ids == ("q-1",)
+
+
+def test_lead_discovered_candidates_respect_depth_and_run_cap() -> None:
+    from src.application.active_research_runtime import _lead_discovered_candidates
+
+    discovery = _payload_with_urls("https://primary.example/a")
+
+    deep_added, deep_stats = _lead_discovered_candidates(
+        (),
+        discovery,
+        parent=_runtime_candidate("https://news.example/report", depth=1),
+        max_candidates=20,
+        discovered_so_far=0,
+    )
+    assert deep_added == ()
+    assert deep_stats["depth_blocked"] == 1
+
+    capped_added, capped_stats = _lead_discovered_candidates(
+        (),
+        discovery,
+        parent=_runtime_candidate("https://news.example/report"),
+        max_candidates=20,
+        discovered_so_far=4,
+    )
+    assert capped_added == ()
+    assert capped_stats["cap_exhausted"] == 1
+
+
+def test_lead_scheduling_is_deterministic_and_budget_bounded() -> None:
+    lead = _ranked(eligibility="lead_only", intents=(GapSearchIntent.PRIMARY,))
+    assert is_schedulable_lead(lead, lead_budget_available=True, gap_needs_primary=True)
+    assert not is_schedulable_lead(
+        lead, lead_budget_available=False, gap_needs_primary=True
+    )
+    assert not is_schedulable_lead(
+        lead, lead_budget_available=True, gap_needs_primary=False
+    )
+
+
+def test_rejected_and_eligible_candidates_are_never_lead_scheduled() -> None:
+    rejected = _ranked(eligibility="rejected", intents=(GapSearchIntent.PRIMARY,))
+    eligible = _ranked(eligibility="eligible", intents=(GapSearchIntent.PRIMARY,))
+    assert not is_schedulable_lead(
+        rejected, lead_budget_available=True, gap_needs_primary=True
+    )
+    assert not is_schedulable_lead(
+        eligible, lead_budget_available=True, gap_needs_primary=True
+    )
+
+
+def test_lead_scheduling_requires_primary_provenance_or_verification_intent() -> None:
+    discovery_only = _ranked(
+        eligibility="lead_only", intents=(GapSearchIntent.DISCOVERY,)
+    )
+    assert not is_schedulable_lead(
+        discovery_only, lead_budget_available=True, gap_needs_primary=True
+    )
+
+
+def test_lead_hints_never_trust_a_mere_source_domain() -> None:
+    """§20: only a primary-role page or a discovered domain is site-worthy."""
+
+    from src.application.active_research_runtime import _lead_hints_for_claim
+    from src.web.research.runtime import (
+        ResearchRuntimeCursor,
+        RuntimeCandidate,
+        RuntimePlannedQuery,
+    )
+
+    def _cursor(
+        *, trusted_primary_domain: str, hint_domain: str
+    ) -> ResearchRuntimeCursor:
+        return ResearchRuntimeCursor(
+            planned_queries=(
+                RuntimePlannedQuery(
+                    id="gap_1:discovery",
+                    gap_id="gap_1",
+                    claim_id="claim_1",
+                    intent="discovery",
+                    query="mirror page query",
+                ),
+            ),
+            candidates=(
+                RuntimeCandidate(
+                    id="cand-1",
+                    url="https://mirror.example/page",
+                    title="mirror",
+                    query_ids=("gap_1:discovery",),
+                ),
+            ),
+            evidence_lead_followups=(
+                {
+                    "wave_index": 1,
+                    "evidence_id": "web_x",
+                    "source_candidate_id": "cand-1",
+                    "method": "no_deeper_url",
+                    "added_candidate_ids": [],
+                    "hint_domain": hint_domain,
+                    "trusted_primary_domain": trusted_primary_domain,
+                    "hint_terms": ["pull", "rate"],
+                },
+            ),
+        )
+
+    # Aggregator/mirror page: the observed domain is audit only.
+    trusted, hints = _lead_hints_for_claim(
+        _cursor(trusted_primary_domain="", hint_domain="mirror.example"),
+        "claim_1",
+    )
+    assert trusted == ""
+    assert "mirror.example" not in hints
+    assert "pull" in hints
+
+    # Primary-role page: the domain is the evidence owner, so it may be used.
+    trusted_primary, _ = _lead_hints_for_claim(
+        _cursor(
+            trusted_primary_domain="official.example",
+            hint_domain="official.example",
+        ),
+        "claim_1",
+    )
+    assert trusted_primary == "official.example"
+
+
+def test_cursor_round_trips_lead_discovery_state() -> None:
+    from src.web.research.lead_discovery import LeadDiscoveryPayload
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    payload = LeadDiscoveryPayload(
+        source_candidate_id="cand-1",
+        discovered_urls=("https://www.bankofengland.co.uk/bank-rate",),
+        domains=("bankofengland.co.uk",),
+        organizations=("Bank of England",),
+        primary_source_hints=("Bank of England Bank Rate",),
+        warnings=(),
+    )
+    cursor = ResearchRuntimeCursor(
+        lead_read_ids=("cand-1",),
+        lead_discoveries=(payload.to_dict(),),
+    )
+
+    restored = ResearchRuntimeCursor.from_dict(cursor.to_dict())
+
+    assert restored.lead_read_ids == ("cand-1",)
+    assert restored.lead_discoveries == (payload.to_dict(),)
+
+
+def test_pre_lead_cursor_still_loads_with_empty_lead_state() -> None:
+    from src.web.research.runtime import ResearchRuntimeCursor
+
+    legacy = ResearchRuntimeCursor().to_dict()
+    legacy.pop("lead_read_ids")
+    legacy.pop("lead_discoveries")
+
+    restored = ResearchRuntimeCursor.from_dict(legacy)
+
+    assert restored.lead_read_ids == ()
+    assert restored.lead_discoveries == ()
+
+
+def test_gap_planner_uses_bounded_source_hints_for_primary_intent() -> None:
+    """§20: a mere source domain never becomes a ``site:`` constraint.
+
+    Only an explicit ``trusted_domain`` (evidence owner) may lock the search
+    space with ``site:``; hints only sharpen wording.
+    """
+
+    from src.web.research.contracts import (
+        EvidenceGap,
+        EvidenceRequirement,
+        ResearchClaim,
+    )
+    from src.web.research.gap_planner import GapSearchIntent, plan_gap_queries
+
+    claim = ResearchClaim(
+        id="claim-1",
+        question_id="q-1",
+        text="UK bank rate current",
+        kind="factual",
+        priority="critical",
+        state="searching",
+        evidence_requirement=EvidenceRequirement(
+            source_roles=("primary", "independent_secondary"),
+            min_independent_sources=1,
+            requires_primary_source=True,
+            requires_successful_read=True,
+            requires_dated_evidence=False,
+        ),
+    )
+    gap = EvidenceGap(
+        id="gap-1",
+        claim_id="claim-1",
+        gap_type="primary_required",
+        desired_source_role="primary",
+        state="open",
+    )
+
+    without_hints = plan_gap_queries(gap, claim)
+    with_hints = plan_gap_queries(
+        gap,
+        claim,
+        source_hints=("bankofengland.co.uk", "Bank of England"),
+    )
+    with_trusted = plan_gap_queries(
+        gap,
+        claim,
+        trusted_domain="bankofengland.co.uk",
+    )
+
+    primary_plain = next(
+        item for item in without_hints.queries if item.intent == GapSearchIntent.PRIMARY
+    )
+    primary_hinted = next(
+        item for item in with_hints.queries if item.intent == GapSearchIntent.PRIMARY
+    )
+    primary_trusted = next(
+        item for item in with_trusted.queries if item.intent == GapSearchIntent.PRIMARY
+    )
+    assert "site:" not in primary_plain.query
+    # A mere source domain is never converted into a site constraint.
+    assert "site:" not in primary_hinted.query
+    assert "England" in primary_hinted.query
+    # Only an explicit trusted domain locks the search space.
+    assert "site:bankofengland.co.uk" in primary_trusted.query
+    # Non-primary intents are untouched by hints.
+    discovery_plain = next(
+        item
+        for item in without_hints.queries
+        if item.intent == GapSearchIntent.DISCOVERY
+    )
+    discovery_hinted = next(
+        item for item in with_hints.queries if item.intent == GapSearchIntent.DISCOVERY
+    )
+    assert discovery_plain.query == discovery_hinted.query

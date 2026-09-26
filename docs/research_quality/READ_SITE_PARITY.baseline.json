@@ -1,0 +1,237 @@
+{
+ "schema": "read-site-parity-v1",
+ "baseline_commit": "f47c443ac049eaffd648c0049032f4ab56f9e528",
+ "fixture": "tests/test_active_research_runtime.py::_cutover_service",
+ "normalization": {
+  "captured": [
+   "read outcomes (backend/content_chars/retrieval_state)",
+   "terminal/chain action+reason",
+   "backend_path (retrieval_attempts backends)",
+   "record_outcome/step sequence",
+   "source read_status/final_backend"
+  ],
+  "stripped_volatile": [
+   "wall_ms",
+   "timestamps",
+   "request/invocation ids"
+  ]
+ },
+ "cases": {
+  "native_adequate": {
+   "case": "native_adequate",
+   "stop_reason": "evidence_saturated",
+   "provider_status": "insufficient",
+   "chain": [
+    {
+     "action": "resolve",
+     "reason": "usable_content",
+     "attempted_backends": [
+      "native_http"
+     ],
+     "steps": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    },
+    {
+     "action": "resolve",
+     "reason": "usable_content",
+     "attempted_backends": [
+      "native_http"
+     ],
+     "steps": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "read_status": "read",
+     "final_backend": "native_http",
+     "retrieval_attempts": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    },
+    {
+     "read_status": "read",
+     "final_backend": "native_http",
+     "retrieval_attempts": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    }
+   ],
+   "reads": [
+    {
+     "candidate_id": "candidate_7a96ae2b2fbe9ed7",
+     "status": "success",
+     "content_chars": 1200,
+     "error_code": "",
+     "backend": "native_http",
+     "retrieval_state": "success"
+    },
+    {
+     "candidate_id": "candidate_41421a0d4fdabbfe",
+     "status": "success",
+     "content_chars": 1200,
+     "error_code": "",
+     "backend": "native_http",
+     "retrieval_state": "success"
+    }
+   ]
+  },
+  "native_to_wigolo": {
+   "case": "native_to_wigolo",
+   "stop_reason": "evidence_saturated",
+   "provider_status": "insufficient",
+   "chain": [
+    {
+     "action": "resolve",
+     "reason": "usable_content",
+     "attempted_backends": [
+      "native_http",
+      "wigolo_http"
+     ],
+     "steps": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "invalid_content",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "short_doc"
+      },
+      {
+       "backend": "wigolo_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    },
+    {
+     "action": "resolve",
+     "reason": "usable_content",
+     "attempted_backends": [
+      "native_http",
+      "wigolo_http"
+     ],
+     "steps": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "invalid_content",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "short_doc"
+      },
+      {
+       "backend": "wigolo_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    }
+   ],
+   "sources": [
+    {
+     "read_status": "read",
+     "final_backend": "wigolo_http",
+     "retrieval_attempts": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "invalid_content",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "short_doc"
+      },
+      {
+       "backend": "wigolo_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    },
+    {
+     "read_status": "read",
+     "final_backend": "wigolo_http",
+     "retrieval_attempts": [
+      {
+       "backend": "native_http",
+       "retrieval_state": "invalid_content",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "short_doc"
+      },
+      {
+       "backend": "wigolo_http",
+       "retrieval_state": "success",
+       "attempted": true,
+       "usable_content": true,
+       "adequacy_reason": "ok"
+      }
+     ]
+    }
+   ],
+   "reads": [
+    {
+     "candidate_id": "candidate_7a96ae2b2fbe9ed7",
+     "status": "success",
+     "content_chars": 4,
+     "error_code": "",
+     "backend": "native_http",
+     "retrieval_state": "invalid_content"
+    },
+    {
+     "candidate_id": "candidate_7a96ae2b2fbe9ed7",
+     "status": "success",
+     "content_chars": 1200,
+     "error_code": "",
+     "backend": "wigolo_http",
+     "retrieval_state": "success"
+    },
+    {
+     "candidate_id": "candidate_41421a0d4fdabbfe",
+     "status": "success",
+     "content_chars": 4,
+     "error_code": "",
+     "backend": "native_http",
+     "retrieval_state": "invalid_content"
+    },
+    {
+     "candidate_id": "candidate_41421a0d4fdabbfe",
+     "status": "success",
+     "content_chars": 1200,
+     "error_code": "",
+     "backend": "wigolo_http",
+     "retrieval_state": "success"
+    }
+   ]
+  }
+ }
+}

@@ -109,3 +109,30 @@ Gold 不写固定文章，只描述"正确闭环需要什么"：
 - C2 的 live case 只是 metadata 定义；真实 live web 运行属 RQCE-P0-C3/C4。
 - P0-C5 的 live observation 不调用模型、不生成 shadow decision；semantic
   claim/evidence projection 必须另过 external-model authorization gate。
+
+## Browser Bakeoff Manifest（P2-A3-0 冻结，schema `browser-bakeoff-manifest-v1`）
+
+> `browser_bakeoff_manifest.json` 是 P2-A3 browser backend 对照实验的**合同**，
+> 不是评测 corpus。它由 `src/web/research/browser_bakeoff.py` 生成并校验；
+> 手写容易与合同漂移，因此**修改合同后必须重新生成**。
+
+- 顶层字段：`schema_version` / `bakeoff_version` / `frozen_at` /
+  `candidate_backends`（必须精确等于 `["wigolo_browser", "crawl4ai"]`）/
+  `budget`（必须精确等于统一预算）/ `provenance_requirements` / `classes`。
+- `classes` 必须**恰好**是 6 个冻结类，顺序固定：`static_control` /
+  `js_shell` / `spa_delayed_render` / `anti_bot` / `session_required` /
+  `document_heavy`。
+- 每个类必须声明 `capability_demand`（⊆ 冻结能力词表，且等于合同）、
+  `expected_routing`（∈ 冻结 action 词表）、`expect_browser_call`、
+  `success_definition`（等于合同）、以及 ≥1 个 `targets`。
+- `targets[].kind` ∈ `public_url` | `synthetic_local`；url 必须 `http(s)://` 且全局唯一。
+- **static control guard**：`static_control.expect_browser_call` 必须为 `false`。
+  BrowserBackend 不仅要证明"能救复杂页"，还要证明"routing 不叫它时不启动"。
+- 统一预算**复用** A2 冻结常量（`HTTP_MIN_HARD_SECONDS_DEFAULT` /
+  `HTTP_RUN_ENVELOPE_DEFAULT` / `EFFECTIVE_TIMEOUT_FLOOR_SECONDS` /
+  `WIGOLO_FETCH_MAX_CHARS`），不重述字面量，保证两侧候选拿到同样的预算。
+- 加载入口：`src.web.research.browser_bakeoff.load_browser_bakeoff_manifest(path)`；
+  任何违反（schema、预算、能力词表、类集合、control guard、重复 url）均
+  fail-closed 抛 `BrowserBakeoffContractError`，不做部分接受。
+- 边界：本 manifest 不含 runner、不安装任何 backend、不进入 production chain。
+  `crawl4ai` 在 A3-0 期间**未安装、未注册**。

@@ -12,9 +12,10 @@ a second evidence store.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from src.web.research.provider_search import ResearchProviderSearch
 from src.web.research_gateway import ResearchWebGateway
@@ -91,15 +92,35 @@ class ActiveResearchGateway:
     ) -> None:
         self._search_backend = search_backend or ResearchProviderSearch()
         self._read_gateway = read_gateway or ResearchWebGateway()
+        self._backend_accepts_deadline = _accepts_deadline(self._search_backend)
+        self._read_gateway_accepts_timeout = read_gateway_accepts_timeout(
+            self._read_gateway
+        )
         self._last_audit: ActiveSearchCallAudit | None = None
         self._pending_audits: list[dict[str, Any] | None] = []
         self._warnings: list[dict[str, str]] = []
+        # §71C-3a escalation backend is built lazily (only if the mode is on)
+        self._escalation_backend: Any | None = None
+        self._escalation_backend_built = False
 
-    def search_detailed(self, query: str, *, max_items: int = 10) -> dict[str, Any]:
+    def search_detailed(
+        self,
+        query: str,
+        *,
+        max_items: int = 10,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
         self._last_audit = None
         self._warnings = []
         try:
-            payload = self._search_backend.search_exact(query, max_results=max_items)
+            if deadline is not None and self._backend_accepts_deadline:
+                payload = cast(Any, self._search_backend).search_exact(
+                    query,
+                    max_results=max_items,
+                    deadline=deadline,
+                )
+            else:
+                payload = self._search_backend.search_exact(query, max_results=max_items)
             if not isinstance(payload, Mapping):
                 raise ValueError("research search backend must return a mapping")
             snapshot = dict(payload)
@@ -143,8 +164,53 @@ class ActiveResearchGateway:
             normalized.append(record)
         return normalized
 
-    def read(self, url: str, *, max_chars: int = 6000) -> dict[str, Any]:
-        return self._read_gateway.read(url, max_chars=max_chars)
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        # The shared research-window deadline is forwarded only to gateways
+        # that accept it; legacy doubles keep the previous signature.
+        # §48/§49 bounded retry is wired in the runtime's gateway_read, where
+        # the research window is visible (window-aware admission); the adapter
+        # stays a plain delegation so a read is never retried twice.
+        if timeout is not None and self._read_gateway_accepts_timeout:
+            result = cast(Any, self._read_gateway).read(
+                url,
+                max_chars=max_chars,
+                timeout=timeout,
+            )
+        else:
+            result = self._read_gateway.read(url, max_chars=max_chars)
+        # §105 A2d-4: escalation moved to the explicit reader chain. This is now
+        # a plain native delegation - it never performs a second backend call,
+        # and it never writes an ``escalation`` signal. The chain executor owns
+        # ``native_http -> wigolo_http``; the backend factory below stays only as
+        # the provider the runtime uses to build that chain's executor.
+        return dict(result or {})
+
+    def escalation_backend(self) -> Any | None:
+        """Lazily built Wigolo HTTP-tier backend (None when disabled)."""
+
+        if self._escalation_backend is None and self._escalation_backend_built:
+            return None
+        if self._escalation_backend is None:
+            self._escalation_backend = self._build_escalation_backend("http")
+            self._escalation_backend_built = True
+        return self._escalation_backend
+
+    def _build_escalation_backend(self, tier: str) -> Any:
+        from src.web.research.wigolo_backend import WigoloShadowReadBackend
+
+        return WigoloShadowReadBackend(tier=tier)
+
+    def set_escalation_backend(self, backend: Any) -> None:
+        """Test seam: inject a backend without touching the daemon."""
+
+        self._escalation_backend = backend
+        self._escalation_backend_built = True
 
     def warnings(self) -> list[dict[str, str]]:
         return [dict(item) for item in self._warnings]
@@ -216,4 +282,36 @@ def _bounded_text(value: Any, limit: int) -> str:
     return " ".join(str(value or "").split())[:limit]
 
 
-__all__ = ["ActiveResearchGateway", "ActiveSearchCallAudit"]
+def _accepts_deadline(backend: ResearchSearchExact) -> bool:
+    """Return True only when the backend's search_exact accepts ``deadline``.
+
+    Keeps injected legacy backends (and test doubles) working unchanged while the
+    deadline-aware production backend receives the stage deadline.
+    """
+
+    try:
+        parameters = inspect.signature(backend.search_exact).parameters
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return "deadline" in parameters
+
+
+def read_gateway_accepts_timeout(gateway: object) -> bool:
+    """Return whether a read gateway can honour a shared read timeout.
+
+    Legacy gateways (and test doubles) that only accept ``max_chars`` keep
+    working; the caller then falls back to the gateway's own default timeout.
+    """
+
+    try:
+        parameters = inspect.signature(gateway.read).parameters  # type: ignore[attr-defined]
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return "timeout" in parameters
+
+
+__all__ = [
+    "ActiveResearchGateway",
+    "ActiveSearchCallAudit",
+    "read_gateway_accepts_timeout",
+]
