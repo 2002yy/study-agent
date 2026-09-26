@@ -104,6 +104,9 @@ class VisualImage:
     ocr_text: str = ""
     triggers: tuple[VisualTrigger, ...] = ()
     carries_required_evidence: bool = False
+    #: Materialized local file for the vision seam (empty until fetched).
+    #: Transport only: provenance is always derived from ``source``.
+    local_path: str = ""
 
     @property
     def provenance(self) -> str:

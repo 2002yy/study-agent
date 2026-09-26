@@ -99,6 +99,25 @@ from src.web.research.multimodal_reader import (
     to_evidence_unit as visual_to_evidence_unit,
     visual_prompt,
 )
+from src.web.research.visual_metadata import (
+    MAX_VISUAL_METADATA_ENTRIES,
+    VISUAL_METADATA_KEY,
+    project_visual_metadata,
+)
+from src.web.research.visual_image_fetch import (
+    FetchedImage,
+    ImageFetchError,
+    materialize_image,
+)
+from src.web.research.visual_read_budget import (
+    AUDIT_PURPOSE,
+    MAX_VISION_CALLS_ENV,
+    VISUAL_AUDIT_KEY,
+    configured_max_vision_calls,
+    record_visual_audit,
+    visual_audit_record,
+    visual_read_budget,
+)
 from src.web.research.trace import (
     TraceAppendResult,
     append_research_trace,
@@ -240,6 +259,19 @@ __all__ = [
     "read_visual_candidates",
     "visual_to_evidence_unit",
     "visual_prompt",
+    "MAX_VISUAL_METADATA_ENTRIES",
+    "VISUAL_METADATA_KEY",
+    "project_visual_metadata",
+    "FetchedImage",
+    "ImageFetchError",
+    "materialize_image",
+    "AUDIT_PURPOSE",
+    "MAX_VISION_CALLS_ENV",
+    "VISUAL_AUDIT_KEY",
+    "configured_max_vision_calls",
+    "record_visual_audit",
+    "visual_audit_record",
+    "visual_read_budget",
     "TraceAppendResult",
     "append_research_trace",
     "try_append_research_trace",
