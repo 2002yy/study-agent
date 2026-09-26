@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 接入评审**：冻结"接入 production read path"的边界（candidate discovery 触发点、VisualReadBudget 与 runtime hard budget 接线、provenance 持久化），**先契约后接入**，接入刀需补 L3。**Multimodal Reader v1 已实现**（§144.12，未接入）。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 integration review**：冻结接入边界 —— discovery 真实触发点、vision provider binding、`VisualReadBudget` 与 runtime hard budget 接线、provenance 持久化；**先契约后接入**，接入刀需补 L3 / operator e2e。**Multimodal Reader v1 已实现、逻辑可用但 production 不可达**（§144.12）。flake 已硬化（§146）。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13387,8 +13387,17 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 **门清单（彼此独立，不可互相替代）**：`pytest` / `ruff` / `git diff --check` /
 `package_project_helper` / `detect-secrets` / `mypy baseline`（+ frontend / Playwright）。
 
-**新增测试基础设施债务（2026-09-25，非阻塞）**：
+**测试基础设施债务（2026-09-25，已解决）**：
 `tests/test_rq1c_impl_entrypoints.py::test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes`
-在**全量 pytest 负载**下会偶发失败（clone 未就绪 -> guard 报 "readable git checkout"），
-隔离运行稳定 PASS。属 flake，**不是当前 head 的真回归**；后续若要硬化，应给该测试的
-`git clone` 加深度/超时或改为不依赖真实 clone（单独一刀，勿混入功能线）。
+曾在全量 pytest 负载下**连续 2 次**失败（隔离恒 PASS）。
+
+```text
+根因：RQ1-C guard 的 _run_git 每命令预算 5s；超时属 SubprocessError
+      -> guard 报 "requires a readable git checkout"。测试用**完整 clone**，
+      冷启动首次 git status 在负载下可超 5s -> 报错与期望的 "clean tracked checkout" 不符。
+处置（仅测试；guard 未改）：clone 改 --depth 1 --single-branch；
+      测试自身先跑一次 git status 预热索引并断言 checkout 确实 dirty；
+      clone / status 超时放宽（180s）。
+验证：单测重复 5 次全 PASS（10–14s，较原 15–20s 更快）；
+      L3 full pytest @ 26086f7（clean head）= 2705 passed / 2 skipped / 0 failed。
+```
