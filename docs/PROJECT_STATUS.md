@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§147 ResearchBrief 实现（一刀）**：`build_research_brief_projection(state)` 纯函数 + confidence 确定性映射表 + 表驱动测试 + 在既有 state / cohort 上验证；**不改 stop/gate、不写 research-state-v1**。**契约已冻结**（§147）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§148 Synthesis（路线 ④）**：消费 `ResearchBriefProjection`，冻结"图文联合推理 + citation（figure-page-region provenance）"契约后再实现；**不改 RQ-A/C/D、不改 stop/gate**。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13531,6 +13531,60 @@ P7 missing 与 limitations 分开：
    + 在既有 state / cohort 上验证（不改 stop/gate）
 ```
 
+### 147.1 ResearchBrief 实现（2026-09-25，单刀）
+
+**交付**：`src/web/research/research_brief_projection.py`（+ `__init__` 导出、23 tests）
+
+```text
+ResearchBriefProjection
+├─ question        : question_id / question_surface
+├─ claims[]        : claim_id / statement / criticality / status /
+│                    semantic_adequacy / confidence / evidence_refs[]
+├─ contradictions[]: claim_id / support_refs[] / contradict_refs[] /
+│                    conflict_status / preferred_side
+├─ missing[]       : claim_id / missing_required_units[] / reason
+├─ source_map[]    : evidence_id / source / locator / modality / provenance
+└─ limitations[]   : run 级 bounded codes
+build_research_brief_projection(state) 纯函数；safe_... 失败返回 None
+```
+
+**confidence（冻结映射，表驱动锁定）**：
+
+```text
+not_evaluated        adequacy == not_evaluated
+unresolved           conflict_status == unresolved_conflict
+low                  adequacy == insufficient
+medium               adequacy == partial，或结构不足（clusters < required / 缺 required primary）
+high                 adequacy == adequate 且结构达标
+（离散分档，无浮点；**无 LLM 参与**）
+```
+
+**limitations（run 级 bounded codes）**：`unresolved_conflicts_present` /
+`claims_without_declared_required_units` / `critical_claims_not_adequately_supported` /
+`primary_source_missing` / `undated_evidence_present` / `budget_exhausted_before_coverage` /
+`evidence_without_provenance`
+
+**原则验证（23 tests 覆盖）**：P1 值直接取自 RQ-A/C/D（与 assessor 输出逐一比对）；
+P2 `not_evaluated` 保持并记 limitation；P3 preferred_side 仍保留双方 refs；
+P4 missing 只镜像 frozen `required_units` / unresolved conflict（无声明则**不产生** missing）；
+P5 text/visual 同一引用模型（`modality` 取 unit source_type，无 unit 时 `unknown`）；
+P6 confidence 为字符串分档；P7 missing 与 limitations 分离；
+另：纯函数（state 不变）、**不写入 research-state-v1**（persisted brief 仍是 gate-owned
+最小 summary，投影键不出现在 state payload）。
+
+**验证**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1509 files) | git diff --check ok
+L1：test_research_brief_projection = 23 passed
+L3 full pytest @ 10c7e6d：2787 passed / 1 failed / 2 skipped
+  1 failed = tests/test_cross_layer_regression.py::test_news_query_change_invalidates_downstream_stages
+             （502 Bad Gateway：该测试**真的发起网络请求**；隔离重跑 1 passed → 网络 flake，
+               与本刀无关，已记债）
+```
+
+**未做**：不改 RQ-A/C/D；不改 stop/gate；不写 research-state-v1；不做 citation / Synthesis。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
@@ -13794,6 +13848,12 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 
 **结论**：CI 重新成为可信 gate；本地 L0 已加入 package helper（§146.3）。
 后续红灯默认按"当前 head 真回归"处理。
+
+**新增测试基础设施债务（2026-09-25，非阻塞）**：
+`tests/test_cross_layer_regression.py::test_news_query_change_invalidates_downstream_stages`
+会**真的发起网络请求**，在 502 时失败（本会话 1 次；隔离重跑 PASS）。属**网络依赖**类 flake，
+不是当前 head 的真回归。硬化方向（单独一刀）：改为注入式 fake 或加显式 skip/重试，
+不要让 full suite 依赖外网。
 
 **门清单（彼此独立，不可互相替代）**：`pytest` / `ruff` / `git diff --check` /
 `package_project_helper` / `detect-secrets` / `mypy baseline`（+ frontend / Playwright）。
