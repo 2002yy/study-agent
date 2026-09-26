@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal read-site 单点接线（微刀）**：在 `execute()` 的成功读取之后插入一次 `read_visual_evidence(...)` 调用（默认 `RESEARCH_VISION_MAX_CALLS=0` ⇒ 完全惰性；gate off ⇒ inert），补 L3 + operator e2e；真实 fetcher 单独另刀。**Multimodal Reader v1 integration 已完成**（§144.14，逻辑 + production-capable，默认惰性）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **safe real web-image fetcher（单独一刀）**：绑定真实抓取到 `_VISUAL_IMAGE_FETCHER`，冻结 SSRF / redirect / content-type / size / timeout / temp-file lifecycle 安全边界，再补 multimodal qualification。**read-site 单点接线已完成**（§144.15，默认惰性）。**Multimodal Reader v1 = integration-ready + production-reachable（默认惰性）**，仍缺真实 web fetch。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13201,7 +13201,13 @@ wiring（read-site 触发点 + 视觉元数据投影）
 
 **本刀为 review / contract only**：未写生产代码。
 
-### 144.14 Multimodal Reader v1 production integration（2026-09-25，单刀）
+### 144.14 Multimodal Reader v1 production integration **primitives**（2026-09-25，单刀）
+
+> **命名更正（2026-09-25）**：本节交付的是 **integration primitives / integration-ready**，
+> **不是** end-to-end production integration。当时仍缺两条真实连接：
+> `execute()` read-site 调用点（§144.15 已补）与真实 web image fetcher（仍未做）。
+> 即：vision provider binding ✅ / budget model ✅ / provenance+audit ✅ /
+> bounded materialization seam ✅ / orchestration ✅ / **production reachability ❌（§144.15 补）/ real web fetch ❌**。
 
 **交付（按 §144.13 四个边界）**：
 
@@ -13257,6 +13263,52 @@ L3 full pytest @ 6678541（clean head）：2735 passed / 2 skipped / 0 failed
 - 未实现 web image 的真实 fetcher（注入 seam；真实抓取需复用既有 URL 安全策略）
 - 未改 RQ-A/C/D 判据
 ```
+
+### 144.15 read-site 单点接线（2026-09-25，微刀）
+
+**插入点**：`execute()` 成功读取之后、`_upsert_source` 之后、`update_budget` 之前 —— **唯一一处**。
+
+```text
+successful read
+  -> project_visual_metadata（声明的 visual_metadata_by_url 通道，键 = canonical_url）
+  -> read_visual_evidence（同一 hard budget / 同一 context 审计）
+  -> 有 unit 时写 record["visual_units"] + metrics["visual_reads"]
+  -> downstream RQ chain 不变（未改判据）
+```
+
+**声明通道**：`context["visual_metadata_by_url"] = {canonical_url: {"visual_metadata": [...], "required_units": [...]}}`
+—— 必须**运行前可判定**，绝不从页面反推；持久化上下文保持 JSON-safe。
+
+**注入 seam（模块级间接，同 `reader_hint_routing` 惯例）**：
+
+```text
+_VISUAL_IMAGE_FETCHER / _VISUAL_IMAGE_DESTINATION / _VISUAL_VISION_ADAPTER
+默认 None -> 不抓取、不调用（fail-closed）；operator / 测试可注入
+```
+
+**锁死的不变量（operator e2e 全部覆盖）**：
+
+```text
+- RESEARCH_VISION_MAX_CALLS 未设（0）-> 在**任何副作用之前**返回；即使声明了 metadata，
+  normalized trace 与 production 基线一致
+- 不改变 reads_used；不改 read chain / 文本内容
+- 不重置 hard deadline（vision 名额由同一剩余时钟派生）
+- 无 visual metadata -> 零影响
+- gate off / budget 0 / adapter unavailable -> fail-closed
+- visual 失败 -> 降级为 unavailable，**原成功的 text read 保持成功**
+- visual audit 仅附加观测，不改既有 backend/read provenance
+```
+
+**验证**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1505 files) | git diff --check ok
+focused：test_read_site_visual_evidence = 5 passed；impact set（含 selector/visual 全部）= 73 passed
+L3 full pytest @ 6aac4a0（clean head）：2740 passed / 2 skipped / 0 failed
+```
+
+**未做**：真实 web image fetcher（单独一刀：SSRF / redirect / content-type / size / timeout /
+temp-file lifecycle 安全边界）；未改 RQ-A/C/D；stop/gate/routing 行为零改动（默认惰性）。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
