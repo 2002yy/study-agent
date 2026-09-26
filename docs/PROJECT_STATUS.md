@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§148 Synthesis 实现（一刀）**：组装器（纯函数 + 可注入 writer），输入 = `ResearchBriefProjection`（控制面）+ 只读 evidence payloads（数据面），输出 = 带 citation 的结构化草稿 + assertion→evidence_ref 全覆盖校验；**不改 RQ-A/C/D、不改 stop/gate**。**契约已冻结**（§148）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§149 Final Answer Auditor（路线 ⑤，先冻结契约再实现）**：审最终答案的 factual claim 是否真被文字/图像证据支持（citation 是否真支持该 claim、有无 overstated、有无漏掉 contradiction、是否回答了用户真正的问题），**最多 ≤1 次 bounded repair**；不改 RQ-A/C/D、不改 stop/gate。**§148 Synthesis 已实现**（§148.1）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13649,6 +13649,64 @@ visual evidence : source + page + region/figure
    输出 = 带 citation 的结构化草稿 + 校验（assertion -> evidence_ref 全覆盖）
    表驱动测试 + 在既有 state 上验证
 ```
+
+### 148.1 Synthesis 实现（2026-09-25，单刀）
+
+**交付**：`src/web/research/synthesis_assembler.py`（+ `__init__` 导出、17 tests）
+
+```text
+SynthesisDraft
+├─ sections[]      : section_id / text / assertions[] / citations[]
+│   ├─ assertion   : assertion_id / claim_id / statement / evidence_refs[] / stance
+│   └─ citation    : evidence_id / label / modality / provenance
+├─ limitations[]   : 直接取自 projection（不得静默丢弃）
+└─ coverage_report : factual_assertions / covered_assertions / uncovered_assertions /
+                    unauthorized_refs / fully_covered
+```
+
+**输入与权限（按 §148 冻结）**：
+
+```text
+控制面 = ResearchBriefProjection（authority view）
+数据面 = EvidencePayload（只读：source / locator / modality / provenance /
+                          content / observation / page / region）
+writer 只负责"怎么表达"；**事实边界与 citation coverage 由 code 校验**
+默认 writer = extractive_writer（确定性、**无模型调用**）
+```
+
+**失败语义（全部 raise，绝不静默放行）**：
+
+```text
+REASON_UNCOVERED_ASSERTION   writer 产出无 evidence_ref 的事实断言 -> draft invalid
+REASON_UNAUTHORIZED_REF      writer 引用 Projection 未授权的 evidence_ref -> reject
+REASON_STANCE_VIOLATION      unresolved conflict 被写成 settled（或 not_evaluated 被 assert）
+                             -> 结构化 stance 校验拒绝
+REASON_LIMITATIONS_DROPPED   projection.limitations 被丢弃 -> reject
+```
+
+**stance 表（冻结，表驱动锁定）**：
+
+```text
+not_evaluated adequacy  -> {not_evaluated}
+unresolved_conflict     -> {contested}
+confidence low / medium -> {limited, contested}
+confidence high         -> {asserted, limited}
+```
+
+**citation 模型（统一）**：text = `source (locator)`；visual = `source p.N region`；
+`assertion -> evidence_ref -> source_map / provenance` 可**机械追溯**（coverage_report 计数）。
+
+**验证**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1510 files) | git diff --check ok
+L1：test_synthesis_assembler = 17 passed
+L3 full pytest @ 18666a2（clean head）：2805 passed / 2 skipped / 0 failed
+```
+
+**未做**：不改 RQ-A/C/D；不改 stop/gate；不写 research-state-v1；
+不做 Final Answer Auditor（路线 ⑤）；未接入真实 LLM writer（默认 extractive，
+LLM writer 作为注入 seam 由后续刀决定）。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
