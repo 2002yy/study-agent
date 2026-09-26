@@ -18,6 +18,10 @@ from src.web.research.claim_conflict_assessment import (
     ConflictAssessment,
     safe_assess_state_conflicts,
 )
+from src.web.research.coverage_stop_assessment import (
+    CoverageStopAssessment,
+    safe_assess_coverage_stop,
+)
 from src.web.research.contracts import ResearchState
 from src.web.research.evidence_gate import EvidenceGateResult, evaluate_evidence_gate
 
@@ -40,6 +44,8 @@ class ShadowStopDecision:
     claim_assessments: tuple[ClaimEvidenceAssessment, ...] = ()
     #: RQ-C observability only; never consulted for any stop/gate decision.
     claim_conflicts: tuple[ConflictAssessment, ...] = ()
+    #: RQ-D advisory coverage view; never consulted for any stop/gate decision.
+    coverage_assessment: CoverageStopAssessment | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -57,6 +63,9 @@ class ShadowStopDecision:
             "gate_result": self.gate_result.to_dict() if self.gate_result else None,
             "claim_assessments": [item.to_dict() for item in self.claim_assessments],
             "claim_conflicts": [item.to_dict() for item in self.claim_conflicts],
+            "coverage_assessment": (
+                self.coverage_assessment.to_dict() if self.coverage_assessment else None
+            ),
         }
 
 
@@ -85,6 +94,7 @@ def evaluate_shadow_stop(
         gate_result=gate,
         claim_assessments=safe_assess_research_state(state),
         claim_conflicts=safe_assess_state_conflicts(state),
+        coverage_assessment=safe_assess_coverage_stop(state),
     )
 
 

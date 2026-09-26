@@ -72,6 +72,14 @@ from src.web.research.claim_conflict_assessment import (
     authority_rank,
     safe_assess_state_conflicts,
 )
+from src.web.research.coverage_stop_assessment import (
+    ClaimCoverageGap,
+    CoverageStopAssessment,
+    CoverageStopStatus,
+    Recommendation,
+    assess_coverage_stop,
+    safe_assess_coverage_stop,
+)
 from src.web.research.trace import (
     TraceAppendResult,
     append_research_trace,
@@ -190,6 +198,12 @@ __all__ = [
     "assess_state_conflicts",
     "authority_rank",
     "safe_assess_state_conflicts",
+    "ClaimCoverageGap",
+    "CoverageStopAssessment",
+    "CoverageStopStatus",
+    "Recommendation",
+    "assess_coverage_stop",
+    "safe_assess_coverage_stop",
     "TraceAppendResult",
     "append_research_trace",
     "try_append_research_trace",

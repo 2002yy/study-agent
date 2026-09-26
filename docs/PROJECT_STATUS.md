@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§144 RQ-D（coverage-aware stop）**：让 stop 能区分"证据很多"与"关键冲突已解决 / 关键 claim 已 adequate"；仍**只判不找**，先做契约与判据，再考虑接入。**RQ-C 已完成**（§144.9）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1**（§144.4 EvidenceUnit / §144.5 分级读取已冻结）：先冻结契约再实现，仍不改 stop/gate。**RQ 层（RQ-A/B/C/D）已完成**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -12952,6 +12952,59 @@ package helper exit 0；`git diff --check` ok。
 
 **边界（守住）**：未改 stop/gate/routing 行为；未接 coverage-aware stop；
 未做 truth arbitration（无数量投票、无自动选胜者）。
+
+### 144.10 RQ-D 实现：coverage-aware stop assessment（advisory，2026-09-25）
+
+**目标**：让 stop 侧能区分"**证据很多**"与"**关键 claim 已 adequate / 关键冲突已解决**"。
+**本刀只做契约与判据**：advisory，**不改 stop/gate/routing**，也不被它们消费。
+
+**模型（冻结 v1）**：
+
+```text
+CoverageStopStatus     = covered | gaps_remain | conflict_unresolved
+Recommendation         = stop_candidate | continue_candidate
+ClaimCoverageGap       = claim_id, priority, semantic_adequacy, missing_unit_count, conflict_status
+CoverageStopAssessment = status, recommendation, critical_claim_count,
+                         adequate_critical_claim_count, blocking_claims[],
+                         unresolved_conflict_claim_ids[], evidence_count, reasons[]
+```
+
+**判据（确定性，只看 critical claims）**：
+
+```text
+blocking = semantic_adequacy in {partial, insufficient}      （RQ-A）
+           OR conflict.status == unresolved_conflict         （RQ-C）
+not_evaluated（未声明 required_units）不阻塞，仅记录 reason
+blocking 为空且存在 critical claim -> covered / stop_candidate
+否则 -> gaps_remain 或 conflict_unresolved / continue_candidate
+evidence_count 仅作上下文上报；规则从不使用证据数量
+```
+
+**交付**：
+
+```text
+src/web/research/coverage_stop_assessment.py
+    assess_coverage_stop / safe_assess_coverage_stop
+    CoverageStopAssessment / ClaimCoverageGap / Recommendation
+src/web/research/stop_gate.py
+    ShadowStopDecision.coverage_assessment（仅观测；决策字段不变）
+tests/test_coverage_stop_assessment.py（11 tests）
+```
+
+**关键对照（测试锁定）**：
+
+```text
+- 5 个来源但缺 1 个 unit -> continue_candidate（体积不算覆盖）
+- 1 个来源但完全覆盖     -> stop_candidate
+- adequate 但冲突 unresolved -> continue_candidate（"证据够" != "冲突已解决"）
+- 无 required_units -> 不阻塞（不能要求从未声明的 unit）
+- 非 critical claim 不影响
+```
+
+**验证**：ruff ✓；`test_coverage_stop_assessment` = 11 passed；mypy baseline PASS（见下）。
+
+**边界（守住）**：未改 stop/gate/routing 行为；未接入任何 stop 决策；
+`ShadowStopDecision` 既有决策字段与 `gate_result` 完全不变。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
