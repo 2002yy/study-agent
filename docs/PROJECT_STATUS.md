@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **safe real web-image fetcher（单独一刀）**：绑定真实抓取到 `_VISUAL_IMAGE_FETCHER`，冻结 SSRF / redirect / content-type / size / timeout / temp-file lifecycle 安全边界，再补 multimodal qualification。**read-site 单点接线已完成**（§144.15，默认惰性）。**Multimodal Reader v1 = integration-ready + production-reachable（默认惰性）**，仍缺真实 web fetch。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **multimodal qualification**：在受控条件下验证视觉证据端到端价值（declared visual metadata + 显式开启 vision ⇒ 产出 unit 并影响 RQ-A/C/D；默认惰性时零影响），并冻结 qualification 契约与 artifact。**safe real web-image fetcher 已完成**（§144.16，默认惰性）。**Multimodal Reader v1 = 逻辑 + provider + budget/provenance + read-site reachability + safe fetch 全部就绪（默认惰性）**。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13309,6 +13309,43 @@ L3 full pytest @ 6aac4a0（clean head）：2740 passed / 2 skipped / 0 failed
 
 **未做**：真实 web image fetcher（单独一刀：SSRF / redirect / content-type / size / timeout /
 temp-file lifecycle 安全边界）；未改 RQ-A/C/D；stop/gate/routing 行为零改动（默认惰性）。
+
+### 144.16 safe real web-image fetcher（2026-09-25，单刀）
+
+**交付**：`src/web/research/visual_image_http.py`（真实抓取）+ `visual_image_fetch` 原子化
+
+```text
+安全合同（全部由测试锁死）：
+- 仅 http/https；**初始 URL 与每一次 redirect 都重新做 public-URL 预检**
+  （复用 src/news/url_normalizer.is_public_http_url；自动 redirect handler 已移除，
+   逐跳手动跟随，任何一跳都不能跳过校验）
+- redirect 上限（默认 3）
+- connect/read timeout（6s）+ overall wall-clock（15s）
+- Content-Type 必须属于允许的 image/*（复用 ALLOWED_IMAGE_TYPES）
+- 非 identity 的 Content-Encoding 直接拒绝（防解压炸弹）
+- Content-Length 只作早拒绝；**实际流式读取仍硬限 max_bytes(8MB)**（不信任声明长度）
+- 固定 User-Agent；**不带 cookie / 凭据 / 继承认证头**
+- 失败归一为 bounded reason
+持久化：materialize_image 改为**原子完成**（临时文件 + os.replace，失败清理 partial），
+        并**保留 fetcher 自身 reason**（SSRF / redirect / 类型等精确原因不再被折叠）
+绑定：read-site seam 默认解析真实 fetcher + 有界临时缓存目录；
+      仍然惰性（RESEARCH_VISION_MAX_CALLS 默认 0 + 必须显式声明 metadata 才可能抓取）
+```
+
+**测试**：`tests/test_visual_image_http.py`（14 tests：逐跳 SSRF 复检 / redirect 上限 /
+不信任 Content-Length 的流式硬限 / 压缩拒绝 / 无凭据）；`test_visual_image_fetch.py` 增 3
+（原子性 / reason 保留）。
+
+**验证**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1506 files) | git diff --check ok
+focused：impact set（http + fetch + read-site + selector + visual 全部）= 91 passed
+L3 full pytest @ 2c553d0（clean head）：2758 passed / 2 skipped / 0 failed
+```
+
+**未做**：未做真实网络 e2e（CI 无确定性网络；真实抓取只在 operator 显式开启后发生）；
+未改 RQ-A/C/D；stop/gate/routing 行为零改动。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
