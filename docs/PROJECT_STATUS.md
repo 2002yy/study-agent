@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1**（§144.4 EvidenceUnit / §144.5 分级读取已冻结）：先冻结契约再实现，仍不改 stop/gate。**RQ 层（RQ-A/B/C/D）已完成**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 实现（visual evidence pipeline）**：visual candidate discovery → 分级升级（L0→L3）→ normalize 为 EvidenceUnit → 复用 RQ 链；**契约已冻结**（§144.11），集成已证明（视觉 unit 贯通 RQ-A/C/D，零新生产代码）。仍不改 stop/gate。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13012,6 +13012,70 @@ L3 full pytest @ 5bde4c9: 2678 passed / 1 failed / 2 skipped
 
 **边界（守住）**：未改 stop/gate/routing 行为；未接入任何 stop 决策；
 `ShadowStopDecision` 既有决策字段与 `gate_result` 完全不变。
+
+### 144.11 Multimodal Reader v1 契约（冻结，2026-09-25）
+
+**前提**：接入 API 已支持图像输入 -> 不再讨论"模型能不能看图"；本阶段只解决
+"**把视觉证据接进已稳定的 RQ schema**"。
+
+**总原则（冻结）**：
+
+> 视觉 evidence 必须走**同一条** `EvidenceUnit -> Claim assessment -> Conflict -> Coverage` 链，
+> **不得**另造"图像分析子系统"或第二套视觉 adequacy 逻辑。
+
+**1) Visual candidate discovery（视觉候选）**
+
+```text
+来源：webpage image / screenshot / chart / diagram / PDF figure
+判据（显式、可审计；禁止"看到 <img> 就送模型"）：
+  - 正文指向该图（"见 Figure 4" / "如图" / "见表"）但结论只在图里；或
+  - benchmark 数值只画在图表中（正文无数值）；或
+  - UI 状态只存在于截图；或
+  - 流程图 / 架构图本身即证据；或
+  - PDF 正文与图表可能矛盾（需读图交叉验证）；或
+  - 用户问题明确要求看图 / 截图 / 图表
+候选必须带 provenance 锚点：page / region(bbox) / figure 引用
+```
+
+**2) Staged escalation（分级，成本受控）**
+
+```text
+L0 正文
+L1 alt / caption / nearby text
+L2 OCR / table extraction（需要时）
+L3 vision API（仅当图像承载 required evidence 时）
+L3 产出必须落为带 provenance 的 EvidenceUnit(source_type in {image,chart,screenshot,pdf_figure})
+视觉调用计入既有 hard budget（不重置时钟）
+```
+
+**3) Normalize -> EvidenceUnit（映射）**
+
+```text
+source_type : image | chart | screenshot | pdf_figure（视觉）；text | table（文本/表格文本）
+source      : url / evidence_id / file id
+page/region : 定位锚点（PDF 页码 / bbox）
+content     : 文本类正文（text/table 或 OCR 文本）
+observation : 视觉单元的结构化观察（图/表/截图语义）
+provenance  : locator / anchored_spans / figure-page-region
+supports/contradicts : 便捷投影；权威绑定仍在 ResearchClaimEvidenceLink(relation, strength)
+confidence  : 0..1
+不变量：无定位的视觉断言禁止入库
+```
+
+**4) Feed existing RQ chain（零新增 adequacy 逻辑）**
+
+```text
+视觉 EvidenceUnit -> ResearchEvidence.units -> RQ-A assess_claim_evidence
+                                             -> RQ-C assess_claim_conflict
+                                             -> RQ-D assess_coverage_stop
+required_units 的 modality=visual 只能被视觉 EvidenceUnit 满足（已实现，§144.4）
+```
+
+**非目标**：不改 stop/gate/routing；不新增视觉 adequacy 判据；不做"模型说了算"的闭合；
+本契约不引入 provider / 模型选择（属后续实现细节）。
+
+**集成证明（本刀）**：`tests/test_multimodal_evidence_integration.py` 用**现有**代码
+证明视觉路径贯通 RQ-A/C/D（**零新生产代码**）。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
