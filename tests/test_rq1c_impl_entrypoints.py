@@ -71,12 +71,28 @@ def _run_imported_call(
 
 
 def _dirty_local_clone(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """A dirty *tracked* checkout, cheaply and deterministically.
+
+    The tool under test derives its repo root from ``__file__``, so it must be
+    imported from a real checkout: cwd/PYTHONPATH pointing at the pristine repo
+    would make the guard read the clean repo instead.
+
+    Hardening (load-dependent flake): the production guard budgets 5s per git
+    command and, correctly, reports "readable git checkout" if one exceeds it.
+    A cold full clone's first ``git status`` could exceed that under a loaded
+    full-suite run. A shallow clone plus a warm-up status here removes the
+    timing sensitivity without touching the guard.
+    """
+
     checkout = tmp_path / "dirty-checkout"
     subprocess.run(
         [
             "git",
             "clone",
             "--quiet",
+            "--depth",
+            "1",
+            "--single-branch",
             "--no-hardlinks",
             str(REPO_ROOT),
             str(checkout),
@@ -84,7 +100,7 @@ def _dirty_local_clone(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=180,
         check=True,
     )
     head = subprocess.run(
@@ -92,7 +108,7 @@ def _dirty_local_clone(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         cwd=checkout,
         capture_output=True,
         text=True,
-        timeout=5,
+        timeout=60,
         check=True,
     ).stdout.strip()
 
@@ -101,6 +117,18 @@ def _dirty_local_clone(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         dirty_target.read_text(encoding="utf-8") + "\n# dirty-checkout regression\n",
         encoding="utf-8",
     )
+
+    # Warm the clone's git index/status caches and confirm the checkout really is
+    # dirty before the guard is asked to judge it.
+    warm = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=no"],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    assert warm.stdout.strip(), "the cloned checkout must be dirty before the guard runs"
 
     env = os.environ.copy()
     env["GITHUB_SHA"] = head
