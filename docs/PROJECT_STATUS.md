@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 production integration（一刀完成）**：按 §144.13 冻结的 4 个边界接入 —— read-site 触发点 + 声明式视觉元数据投影 / 绑定既有 G14-c vision seam（不新增 provider 路径）/ `VisualReadBudget` 与 runtime hard budget 同源（默认 0）/ provenance 随 `ResearchEvidence.units` 持久化 + run 级审计 / fail-closed；补 L3 + operator e2e。**integration 契约已冻结**（§144.13）。flake 已硬化（§146）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal read-site 单点接线（微刀）**：在 `execute()` 的成功读取之后插入一次 `read_visual_evidence(...)` 调用（默认 `RESEARCH_VISION_MAX_CALLS=0` ⇒ 完全惰性；gate off ⇒ inert），补 L3 + operator e2e；真实 fetcher 单独另刀。**Multimodal Reader v1 integration 已完成**（§144.14，逻辑 + production-capable，默认惰性）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13200,6 +13200,63 @@ wiring（read-site 触发点 + 视觉元数据投影）
 ```
 
 **本刀为 review / contract only**：未写生产代码。
+
+### 144.14 Multimodal Reader v1 production integration（2026-09-25，单刀）
+
+**交付（按 §144.13 四个边界）**：
+
+```text
+边界1 discovery 触发点
+  src/web/research/visual_metadata.py
+    project_visual_metadata(read_payload) —— 只读声明的 visual_metadata 通道
+    未知 kind / 缺 source / 缺 trigger -> 丢弃；上限 8；从不看 markup
+边界2 绑定 G14-c（不新增 provider 路径）
+  src/application/research_vision_adapter.py
+    build_research_vision_adapter(enabled=?, describer=?)
+    - gate = attachment_vision_enabled（默认 off -> inert）
+    - describer 默认 describe_image_with_deepseek（复用模型 / 错误语义）
+    - 不 steer prompt：requirement 锚定在下游 RQ-A
+  src/web/research/visual_image_fetch.py
+    materialize_image(url, fetcher=, destination_dir=, max_bytes=8MB, allowed=image/*)
+    - content-type / 空 body / 超限 / 写失败 -> ImageFetchError（bounded reason）
+    - 文件名 content-addressed；fetcher 注入（本模块无网络）
+边界3 同一 hard budget
+  src/web/research/visual_read_budget.py
+    RESEARCH_VISION_MAX_CALLS（默认 0）-> VisualReadBudget
+    - 不计 reads_used（vision 是 model call）
+    - 剩余硬时钟 < 5s -> 归零
+边界4 provenance 持久化 + run 级审计
+  units 随 ResearchEvidence.units 进 research-state-v1（沿用，无新通道）
+  record_visual_audit -> context["visual_external_calls"]
+  （形状同 G14-c，键为 image / evidence）
+编排
+  src/application/research_visual_read.py
+    read_visual_evidence(read_payload, required_units=, state=, context=,
+                         fetcher=, destination_dir=, adapter=)
+```
+
+**实现中修正的一处真实语义**：fetch 失败的图像**不得占用 vision 名额、也不得进入 adapter**
+-> 直接产出 unavailable + 精确 fetch reason（不消耗 budget）；已由测试锁定。
+
+**默认惰性（default-inert）**：`RESEARCH_VISION_MAX_CALLS` 默认 0
+=> 即使接线完成也不会自动看图（与 P1 reader hints / Crawl4AI specialist 同一姿态）。
+
+**统一门禁**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1505 files) | git diff --check ok
+focused：test_visual_metadata_projection + test_visual_image_fetch + test_research_visual_read
+         + test_multimodal_reader + test_multimodal_evidence_integration = 56 passed
+L3 full pytest @ 6678541（clean head）：2735 passed / 2 skipped / 0 failed
+```
+
+**未做（明确边界）**：
+
+```text
+- 未在 execute() read-site 落调用点（下一微刀：单点插入 + L3）；当前 stop/gate/routing 零改动
+- 未实现 web image 的真实 fetcher（注入 seam；真实抓取需复用既有 URL 安全策略）
+- 未改 RQ-A/C/D 判据
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
