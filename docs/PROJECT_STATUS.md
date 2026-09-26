@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§148 Synthesis（路线 ④）**：消费 `ResearchBriefProjection`，冻结"图文联合推理 + citation（figure-page-region provenance）"契约后再实现；**不改 RQ-A/C/D、不改 stop/gate**。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§148 Synthesis 实现（一刀）**：组装器（纯函数 + 可注入 writer），输入 = `ResearchBriefProjection`（控制面）+ 只读 evidence payloads（数据面），输出 = 带 citation 的结构化草稿 + assertion→evidence_ref 全覆盖校验；**不改 RQ-A/C/D、不改 stop/gate**。**契约已冻结**（§148）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13584,6 +13584,71 @@ L3 full pytest @ 10c7e6d：2787 passed / 1 failed / 2 skipped
 ```
 
 **未做**：不改 RQ-A/C/D；不改 stop/gate；不写 research-state-v1；不做 citation / Synthesis。
+
+## §148 Synthesis contract（冻结 v1，2026-09-25；路线 ④）
+
+**核心接口决定（冻结）**：
+
+```text
+Synthesis inputs
+= ResearchBriefProjection          # 控制面 / authority view：决定该信什么、缺什么、哪里冲突
++ referenced EvidenceUnit payloads # 数据面 / 只读：提供实际文本内容 / 视觉 observation
+```
+
+**为什么不能只有一边（冻结理由）**：
+
+```text
+只吃 Projection -> Projection 只有 refs 与 source/locator/modality/provenance，
+                   没有足够证据内容可写
+只吃整个 state  -> 容易绕过 RQ authority，重新判一遍证据（退化成第二个研究 agent）
+```
+
+**权限（冻结，窄）**：
+
+```text
+允许：
+  - 依据 evidence_refs 取**已存在**证据（EvidenceUnit payload，只读）
+  - 组织 / 压缩 / 解释
+  - 生成 citation
+禁止：
+  - 新搜索 / 新 read / 新 required_units
+  - 改 adequacy / 改 preferred_side / 改 conflict_status
+  - 隐藏 unresolved conflict
+  - 因写作需要自行"补全事实"（不得引入 evidence_refs 之外的事实）
+```
+
+**citation / provenance 契约（冻结，统一模型）**：
+
+```text
+text evidence   : source + locator
+visual evidence : source + page + region/figure
+每个 factual assertion
+  -> 至少能追到一个 evidence_ref
+  -> evidence_ref 再追到 source_map / provenance
+不可引用不在 evidence_refs 内的事实；引用视觉结论必须带 page/region
+```
+
+**措辞规则（冻结）**：
+
+```text
+- unresolved conflict：**不得写成单边确定事实**，必须体现"存在冲突 / 未解决"
+- not_evaluated / missing：必须体现在措辞或 limitation 中，**不得自动补成高置信结论**
+- 低 confidence 分档（low / medium）应反映为限定语，而非确定性断言
+- limitations[] 必须出现在输出（至少以限制说明形式），不得静默丢弃
+```
+
+**非目标**：不新增搜索 / 读取；不改 RQ-A/C/D；不改 stop/gate；
+不做 Final Answer Auditor（路线 ⑤）；不写 research-state-v1。
+
+**实现顺序（冻结）**：
+
+```text
+1) 本刀：仅冻结契约（§148）
+2) 下一刀：实现 Synthesis 组装器（纯函数 + 可注入 writer）
+   输入 = ResearchBriefProjection + 只读 evidence payloads
+   输出 = 带 citation 的结构化草稿 + 校验（assertion -> evidence_ref 全覆盖）
+   表驱动测试 + 在既有 state 上验证
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
