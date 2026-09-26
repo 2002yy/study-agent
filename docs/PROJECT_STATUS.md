@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 实现（visual evidence pipeline）**：visual candidate discovery → 分级升级（L0→L3）→ normalize 为 EvidenceUnit → 复用 RQ 链；**契约已冻结**（§144.11），集成已证明（视觉 unit 贯通 RQ-A/C/D，零新生产代码）。仍不改 stop/gate。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 接入评审**：冻结"接入 production read path"的边界（candidate discovery 触发点、VisualReadBudget 与 runtime hard budget 接线、provenance 持久化），**先契约后接入**，接入刀需补 L3。**Multimodal Reader v1 已实现**（§144.12，未接入）。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13076,6 +13076,49 @@ required_units 的 modality=visual 只能被视觉 EvidenceUnit 满足（已实�
 
 **集成证明（本刀）**：`tests/test_multimodal_evidence_integration.py` 用**现有**代码
 证明视觉路径贯通 RQ-A/C/D（**零新生产代码**）。
+
+### 144.12 Multimodal Reader v1 实现（2026-09-25，单刀）
+
+**交付**：`src/web/research/multimodal_reader.py`（+ `__init__` 导出、20 tests）
+
+```text
+1 discovery  discover_visual_candidates
+   - 只吃"声明信号"（triggers / user_requested），绝不从 markup 猜测
+   - 无 trigger -> 丢弃；无 source(provenance) -> 丢弃（无定位视觉断言不得入库）
+2 escalation plan_visual_escalation
+   - ladder = text -> alt -> ocr -> vision
+   - 首个能覆盖 required_units 的层即停；required 为空且有 text 亦停 text
+   - 仅当图像声明 carries_required_evidence 时才允许到 vision；否则 None -> skipped
+3 vision     VisionAdapter（注入式 seam）
+   - 未配置 -> fail-closed（vision_not_configured），不抛给调用方
+   - 观察异常 -> status unavailable + vision_failed，绝不破坏 read
+4 normalize  to_evidence_unit
+   - source_type 由 kind 映射（diagram -> image；table -> table）
+   - 强制 provenance（source/page/region）；缺失即 raise
+5 budget     VisualReadBudget（max_vision_calls / charge / remaining / exhausted）
+   - 每次 vision 调用计费；耗尽 -> unavailable + vision_budget_exhausted，不调用
+   - 不重置时钟；与 runtime hard budget 的接线留给后续（涉及 production read path）
+6 feed RQ    产出的 EvidenceUnit 直接进 ResearchEvidence.units -> RQ-A/C/D（无第二套 adequacy 逻辑）
+```
+
+**统一门禁（本刀最后一次性跑）**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1500 files) | git diff --check ok
+focused：test_multimodal_reader = 20 passed；test_multimodal_evidence_integration = 6 passed
+L3 full pytest @ 4be51c2（clean head）：2704 passed / 1 failed / 2 skipped
+  1 failed = test_rq1c_impl_entrypoints::test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes
+             -> 隔离运行 1 passed (20.15s) ⇒ 同一 load-dependent flake（本会话第 2 次命中），非本刀回归
+```
+
+**未做（明确边界）**：
+
+```text
+- 未接入 production read/runtime path（stop/gate/routing 行为零改动）
+- 未实现真实 vision provider 选择（adapter 为注入 seam）
+- 未把 VisualReadBudget 接到 runtime hard budget（需单独一刀 + L3）
+- 未改 RQ-A/C/D 判据
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
