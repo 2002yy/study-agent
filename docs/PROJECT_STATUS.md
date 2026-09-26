@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 rollout review / 观察期**（与 P1 同姿态：qualified + production-capable + default-inert，先在真实运行中观察再决定是否扩大），或按需回到 **§144 后续（ResearchBrief / Synthesis）**。**Multimodal Reader v1 已 qualified**（§144.17，Q1–Q6 PASS）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§145 ResearchBrief**（路线 ③）：结构化 brief（Question → Claims → Evidence/Contradictions/Confidence/Missing pieces → Source map → Research limitations），**先冻结契约再实现**，仍不改 stop/gate。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18，default-inert，扩大与否由真实证据决定）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13392,6 +13392,70 @@ focused：qualification + 全部 visual/read-site 相关 = 98 passed
 
 **结论**：**Multimodal Reader v1 = qualified, production-capable, default-inert**。
 
+### 144.18 Multimodal rollout review（观察合同，2026-09-25）
+
+**性质**：**治理 + 观察合同，不是实现刀**。与 §143.169 P1 rollout decision 同一风格：
+能力已证明可用，但"默认是否扩大开启"必须靠**真实运行证据**，而不是继续靠实验室 qualification 推断。
+
+#### 1) 谁可以开启（冻结：继续默认 off）
+
+```text
+默认 OFF。只允许明确 opt-in 的 qualified deployment / operator run 显式开启。
+开启需**同时**满足三个条件（任一缺失即惰性）：
+  a. G14-c gate：attachment_vision_enabled = True（frontend setting，默认 False）
+  b. RESEARCH_VISION_MAX_CALLS > 0（默认 0）
+  c. 该 canonical_url 在 context["visual_metadata_by_url"] 中被显式声明
+无自动触发、无 URL/内容推断、无 ranking 阶段猜图。
+```
+
+#### 2) 观察什么（全部用**既有** emission，不需要新埋点）
+
+```text
+来源：run context 的 metrics["visual_reads"] 与 context["visual_external_calls"]
+       + 既有 read/chain metrics（无需新增 instrumentation）
+
+- 触发率：被声明的候选 / 总 read 数
+- fetch 成功率 + 失败原因分布（bounded reasons：not_public / redirect / type /
+  size / encoding / timeout / fetch_failed ...）
+- vision 成功率 + 失败原因（gate_off / not_materialized / description_failed / empty）
+- 预算占用：每次 run 的 vision_calls、墙钟占用、占 hard budget 比例、
+  以及"临近 deadline 归零"发生次数
+- ★ semantic-value rate：visual unit **真正改变** RQ-A adequacy（或 coverage recommendation）
+  的 run 占比 —— 核心指标（"调用成功"不算）
+- 低价值调用率：产生了 vision 调用但未改变任何判定的比例
+- provenance / audit 完整性：无 provenance 的 unit 必须为 0；每次尝试都有 audit 记录
+- fail-closed 稳定性：**视觉失败导致 text read 变化**的次数必须为 0
+```
+
+#### 3) 什么条件才允许扩大（冻结判据方向，阈值待真实数据后裁定）
+
+```text
+同时满足才进入"扩大/default-on"讨论：
+  - semantic-value rate 足够高（阈值由真实样本裁定，不接受先验猜测）
+  - fail-closed 稳定（text read 变化 = 0；provenance/audit 缺口 = 0）
+  - 预算成本可接受（vision 调用占比与墙钟占比在可接受范围）
+  - 未出现系统性低价值调用
+否则维持 opt-in。
+```
+
+#### 4) 回滚（冻结）
+
+```text
+RESEARCH_VISION_MAX_CALLS=0 或 attachment_vision_enabled=False
+-> 立即回到完全惰性；无数据迁移、无 schema 影响。
+```
+
+#### 5) 非目标（本 review 明确不做）
+
+```text
+- 不加任何新功能 / 不改 schema / 不改判据 / 不翻转默认值 / 不扩触发面
+- 不新增 instrumentation（观察所需 emission 已在 §144.14–§144.16 就位）
+- 不改 RQ-A/C/D、stop/gate/routing
+```
+
+**状态**：Multimodal Reader v1 = **qualified + production-capable + default-inert**，
+进入**观察期**；扩大与否由真实运行证据决定。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
@@ -13658,6 +13722,17 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 
 **门清单（彼此独立，不可互相替代）**：`pytest` / `ruff` / `git diff --check` /
 `package_project_helper` / `detect-secrets` / `mypy baseline`（+ frontend / Playwright）。
+
+**本地 L0 自检（2026-09-25 扩充）**：`detect-secrets` 已**两次**在 "pytest 绿之后"才暴露
+**字面量**误报，且都属于本地可提前发现项。因此 L0 在 `package helper` 之外，再加一次
+"字面量模式"自检（对**改动文件**）：
+
+```text
+模式 1（赋值型）：(api[_-]?key|token|secret)\s*[:=]\s*['"][^'"]{16,}
+模式 2（Basic Auth 字面量）：://[A-Za-z0-9_.-]+:[^@\s]+@
+处置约定：断言里的凭据 URL 一律运行时拼装；引用样例一律不写成可被命中的字面量。
+（本会话两次实例：docs 里引用 `token = "..."` 样例；测试里写 `user:pass@host` 字面量）
+```
 
 **测试基础设施债务（2026-09-25，已解决）**：
 `tests/test_rq1c_impl_entrypoints.py::test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes`
