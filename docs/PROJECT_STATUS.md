@@ -13003,6 +13003,13 @@ tests/test_coverage_stop_assessment.py（11 tests）
 
 **验证**：ruff ✓；`test_coverage_stop_assessment` = 11 passed；mypy baseline PASS（见下）。
 
+```text
+L3 full pytest @ 5bde4c9: 2678 passed / 1 failed / 2 skipped
+  1 failed = tests/test_rq1c_impl_entrypoints.py::test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes
+             （flake：全量负载下 clone 未就绪 -> guard 报 "readable git checkout" 而非 "clean"；
+               隔离运行 1 passed / 15.07s -> 非 RQ-D 回归，记为测试基础设施债务）
+```
+
 **边界（守住）**：未改 stop/gate/routing 行为；未接入任何 stop 决策；
 `ShadowStopDecision` 既有决策字段与 `gate_result` 完全不变。
 
@@ -13272,3 +13279,9 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 
 **门清单（彼此独立，不可互相替代）**：`pytest` / `ruff` / `git diff --check` /
 `package_project_helper` / `detect-secrets` / `mypy baseline`（+ frontend / Playwright）。
+
+**新增测试基础设施债务（2026-09-25，非阻塞）**：
+`tests/test_rq1c_impl_entrypoints.py::test_dirty_tracked_checkout_blocks_imported_internal_artifact_writes`
+在**全量 pytest 负载**下会偶发失败（clone 未就绪 -> guard 报 "readable git checkout"），
+隔离运行稳定 PASS。属 flake，**不是当前 head 的真回归**；后续若要硬化，应给该测试的
+`git clone` 加深度/超时或改为不依赖真实 clone（单独一刀，勿混入功能线）。
