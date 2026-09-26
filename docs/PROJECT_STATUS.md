@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§145 ResearchBrief**（路线 ③）：结构化 brief（Question → Claims → Evidence/Contradictions/Confidence/Missing pieces → Source map → Research limitations），**先冻结契约再实现**，仍不改 stop/gate。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18，default-inert，扩大与否由真实证据决定）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§147 ResearchBrief 实现（一刀）**：`build_research_brief_projection(state)` 纯函数 + confidence 确定性映射表 + 表驱动测试 + 在既有 state / cohort 上验证；**不改 stop/gate、不写 research-state-v1**。**契约已冻结**（§147）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13455,6 +13455,81 @@ RESEARCH_VISION_MAX_CALLS=0 或 attachment_vision_enabled=False
 
 **状态**：Multimodal Reader v1 = **qualified + production-capable + default-inert**，
 进入**观察期**；扩大与否由真实运行证据决定。
+
+## §147 ResearchBrief contract（冻结 v1，2026-09-25；路线 ③）
+
+> 编号说明：文档 §145 = artifact/evidence hygiene、§146 = CI gate restoration 已被占用，
+> 故路线 ③ ResearchBrief 用 **§147**。
+
+**定位（最重要的一条边界）**：
+
+> ResearchBrief 是 **evidence state -> synthesis 的 loss-minimized projection**，
+> **不是第二个研究 agent**：不重新搜索、不重新判证据、不做第二套 contradiction arbitration。
+
+**authority 关系（冻结）**：
+
+```text
+RQ-A（semantic adequacy）/ RQ-C（conflict）/ RQ-D（coverage）是 authority；
+ResearchBrief = 对其输出的投影 + 归纳，Brief 不新增判断。
+```
+
+**命名决定（需 review 确认）**：既有 `ResearchBrief`（`contracts.py`，**persisted**，gate-owned：
+`claim_ids` / `unresolved_claim_ids` / `conflict_gap_ids` / `outline`）**保持不动**。
+§147 的 brief 是**派生投影**，命名为 `ResearchBriefProjection`，
+**不写入 research-state-v1**（不新增持久化通道、不升 schema 版本）。
+
+**结构（冻结 v1）**：
+
+```text
+ResearchBriefProjection
+├─ question: {question_id, question_surface}
+├─ claims[]        : claim_id, statement, criticality, status,
+│                    semantic_adequacy, confidence, evidence_refs[]
+├─ contradictions[]: claim_id, support_refs[], contradict_refs[],
+│                    conflict_status, preferred_side?
+├─ missing[]       : claim_id, missing_required_units[], reason
+├─ source_map[]    : evidence_id, source, locator, modality, provenance
+└─ limitations[]
+```
+
+**原则（冻结，逐条对应实现判据）**：
+
+```text
+P1 Brief 不重新判断证据：所有 status / adequacy / conflict 字段直接取自 RQ-A/C/D 输出
+P2 不把 not_evaluated 偷换成"可信"：confidence 必须显式区分 not_evaluated
+P3 不因 preferred_side 存在而删除反方证据：support_refs / contradict_refs 都保留
+P4 missing 只能来源于 **frozen required_units**（RQ-A 的 missing_units）或
+   **unresolved conflict**（RQ-C）；Brief 不得自造研究要求
+P5 source_map 对 text 与 visual 使用**同一套引用模型**
+   （EvidenceUnit：source / locator / page / region / modality / provenance）
+P6 confidence 必须有**可解释来源**：由 code 确定性推导，**禁止 LLM 自报数值**
+P7 missing 与 limitations 分开：
+   - missing = 当前 claim 的证据缺口（claim 级）
+   - limitations = 研究过程 / 来源 / 时间范围等整体限制（run 级）
+```
+
+**confidence（冻结：确定性分档，非模型自报）**：
+
+```text
+分档（离散，避免伪精度）：
+  not_evaluated（未声明 required_units）/ unresolved（无支撑或未解决冲突）
+  low / medium / high —— 由以下输入确定性映射：
+    semantic_adequacy（adequate / partial / insufficient / not_evaluated）
+    conflict_status（none / unresolved_conflict / preferred_side）
+    supporting_clusters vs required_clusters、has_primary
+  映射表在实现刀中冻结，并以表驱动测试锁定（先契约、后实现）
+```
+
+**非目标**：不写散文报告；不新增搜索 / 读取；不改 RQ-A/C/D；不改 stop/gate；
+不写 research-state-v1；不做 citation 生成（属后续 Synthesis）。
+
+**实现顺序（冻结）**：
+
+```text
+1) 本刀：仅冻结契约（§147）
+2) 下一刀：实现 build_research_brief_projection(state)（纯函数）+ 表驱动测试
+   + 在既有 state / cohort 上验证（不改 stop/gate）
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
