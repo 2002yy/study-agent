@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 integration review**：冻结接入边界 —— discovery 真实触发点、vision provider binding、`VisualReadBudget` 与 runtime hard budget 接线、provenance 持久化；**先契约后接入**，接入刀需补 L3 / operator e2e。**Multimodal Reader v1 已实现、逻辑可用但 production 不可达**（§144.12）。flake 已硬化（§146）。**RQ 层（RQ-A/B/C/D）已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 production integration（一刀完成）**：按 §144.13 冻结的 4 个边界接入 —— read-site 触发点 + 声明式视觉元数据投影 / 绑定既有 G14-c vision seam（不新增 provider 路径）/ `VisualReadBudget` 与 runtime hard budget 同源（默认 0）/ provenance 随 `ResearchEvidence.units` 持久化 + run 级审计 / fail-closed；补 L3 + operator e2e。**integration 契约已冻结**（§144.13）。flake 已硬化（§146）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13119,6 +13119,87 @@ L3 full pytest @ 4be51c2（clean head）：2704 passed / 1 failed / 2 skipped
 - 未把 VisualReadBudget 接到 runtime hard budget（需单独一刀 + L3）
 - 未改 RQ-A/C/D 判据
 ```
+
+### 144.13 Multimodal Reader v1 integration review（契约冻结，2026-09-25）
+
+**关键发现**：production **已存在** gated vision seam（G14-c），**不需要新建 provider 路径**：
+
+```text
+src/application/attachment_vision.py
+  describe_image_with_deepseek(image_path) -> str
+  model   = DEEPSEEK_MODEL_VISION_NAME 或 deepseek-v4-flash-vision-exp
+  provider= get_provider_settings("deepseek")
+  失败    -> VisionDescriptionError（fail-closed）
+  输入    = 本地文件路径（图像字节只经此模块离机）
+gate  ：attachment_vision_enabled（frontend setting，默认 False）
+        由 runtime_repository.vision_enabled() 注入
+审计  ：session_attachment_service 经 record_external_call 记录
+        purpose=image_description / provider / model /
+        data_categories=[image_content] / status=attempted|failed|completed
+```
+
+**因此 v1 integration 的原则是"绑定既有 seam"，不是"再造一条视觉路径"。**
+
+#### 边界 1 —— discovery 触发点
+
+```text
+触发点：read-site，在一次成功读取**之后**，对 read payload 的**声明式视觉元数据**做 discovery
+真实前提：当前 read payload 不携带图像元数据（只有 content/locator/anchored_spans）
+-> 接入刀必须先在 read 结果上增加"声明式视觉元数据投影"：
+   image refs + alt/caption/nearby + page/region（不含字节）
+禁止：在候选 / ranking 阶段猜图；禁止从 markup 抓 <img>
+```
+
+#### 边界 2 —— vision provider 绑定
+
+```text
+绑定：VisionAdapter 的 production 实现 = 适配 describe_image_with_deepseek
+- 复用既有 gate（attachment_vision_enabled，默认 off -> fail-closed）
+- 复用既有模型选择（DEEPSEEK_MODEL_VISION_NAME）
+- 复用既有错误语义（VisionDescriptionError -> unavailable / vision_failed）
+- 不新增第二套 prompt / provider / model 选择
+差异处置：既有 seam 接受"本地路径 + 固定描述 prompt"，不接受自定义 prompt
+-> v1 **不强行加 prompt**：requirement 锚定发生在**下游**
+   （RQ-A 判断观察是否覆盖 required_units），而非通过 steering prompt；
+   multimodal_reader.visual_prompt 保留为本地 helper，不用于 production 绑定
+前置：图像必须**先落地为本地文件**（web 图需 fetch-to-file；需 size / content-type 上限）
+```
+
+#### 边界 3 —— budget 接线
+
+```text
+VisualReadBudget 必须与 runtime **同一个 hard budget** 同源：
+- vision 调用是 **model call**，不是 read -> 不得计入 reads_used
+- 不得重置时钟；deadline / 剩余预算沿用既有 runtime 计算
+- max_vision_calls 由 runtime 配置派生（v1 默认 0 = 完全不调用）
+接线点：read-site 分支（与读调度同一处），使计时 / 尝试计数共享
+```
+
+#### 边界 4 —— provenance 持久化
+
+```text
+不新增持久化通道：视觉 EvidenceUnit 的 page/region/provenance 随
+ResearchEvidence.units 进入 research-state-v1（已 round-trip 测试）
+兼容：ResearchEvidence.locator 置为该图锚点（figure/page/region），与文本证据同字段语义
+审计：研究路径需新增 run/evidence 维度的 external-call 记录
+      （既有 record_external_call 是 attachment-keyed，研究侧无对应）
+      形状与 G14-c 一致：purpose=image_description / provider / model /
+      data_categories=[image_content] / status
+```
+
+#### 接入刀范围（下一次，一刀完成）
+
+```text
+wiring（read-site 触发点 + 视觉元数据投影）
++ provider binding（复用 G14-c）
++ budget（同源 hard budget；默认 0）
++ provenance（units + locator + run 级审计）
++ fail-closed（gate off / 无本地文件 / provider 失败 -> unavailable）
++ L3 / operator e2e
+非目标：不改 RQ-A/C/D；不改 stop/gate；不新增 provider / prompt 路径
+```
+
+**本刀为 review / contract only**：未写生产代码。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
