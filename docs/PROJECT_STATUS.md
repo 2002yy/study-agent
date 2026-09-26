@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **multimodal qualification**：在受控条件下验证视觉证据端到端价值（declared visual metadata + 显式开启 vision ⇒ 产出 unit 并影响 RQ-A/C/D；默认惰性时零影响），并冻结 qualification 契约与 artifact。**safe real web-image fetcher 已完成**（§144.16，默认惰性）。**Multimodal Reader v1 = 逻辑 + provider + budget/provenance + read-site reachability + safe fetch 全部就绪（默认惰性）**。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **Multimodal Reader v1 rollout review / 观察期**（与 P1 同姿态：qualified + production-capable + default-inert，先在真实运行中观察再决定是否扩大），或按需回到 **§144 后续（ResearchBrief / Synthesis）**。**Multimodal Reader v1 已 qualified**（§144.17，Q1–Q6 PASS）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13346,6 +13346,51 @@ L3 full pytest @ 2c553d0（clean head）：2758 passed / 2 skipped / 0 failed
 
 **未做**：未做真实网络 e2e（CI 无确定性网络；真实抓取只在 operator 显式开启后发生）；
 未改 RQ-A/C/D；stop/gate/routing 行为零改动。
+
+### 144.17 Multimodal Reader v1 qualification（2026-09-25，单刀）
+
+**交付**：`tools/run_multimodal_qualification.py` + artifact
+`docs/research_quality/MULTIMODAL_QUALIFICATION.json`（`git add -f`）+ 7 tests
+
+**六个场景（确定性：注入 fetcher/adapter，无网络无模型调用）**：
+
+```text
+Q1 default-inert  ：vision 关闭 + 有声明 metadata -> 无 fetch、无 vision、无 unit、vision_calls=0
+Q2 enabled+declared：合法图片 -> 1 个带 provenance 的 visual EvidenceUnit，vision_calls=1
+Q3 semantic value ：该 unit 使 RQ-A 由 insufficient -> adequate/satisfied，
+                    coverage 由 continue_candidate -> stop_candidate，
+                    并在 RQ-C 中形成 preferred_side=support（"调用成功"≠"语义有价值"）
+Q4 fail-closed    ：SSRF（image_url_not_public）与 provider 失败
+                    （vision_description_failed）均 unavailable 且无 unit；
+                    text read 保证由 read-site e2e 测试锁定（见引用）
+Q5 provenance     ：page/region/source/provenance + audit（purpose=image_description）可追溯
+Q6 budget         ：vision 调用吃同一时钟（剩余时间不足 -> 0），reads_used 不变
+```
+
+**artifact 冻结字段**：场景 id / gate / 是否 fetch / 是否 vision / units / vision_calls /
+RQ-A/C/D 前后 / unit+provenance / audit / reads_used 前后 / verdict + 引用
+（`tests/test_read_site_visual_evidence.py` 覆盖 read-site 层不变量）。
+
+**实测（artifact）**：
+
+```text
+verdict = PASS（6/6）
+Q3 before: adequacy=insufficient, claim_state=partially_satisfied, coverage=continue_candidate
+Q3 after : adequacy=adequate,     claim_state=satisfied,            coverage=stop_candidate
+Q3 RQ-C  : conflict_status=preferred_side, preferred_side=support
+Q6       : max_vision_calls 1（有余时）/ 0（临 deadline）；reads_used 0 -> 0
+```
+
+**验证**：
+
+```text
+ruff ✓ | mypy baseline PASS (122<=128) | package helper exit 0 (OK: 1508 files) | git diff --check ok
+focused：qualification + 全部 visual/read-site 相关 = 98 passed
+未跑 L3：本刀无 production 代码变更（仅 tools / tests / docs + artifact）；
+         上一次全量 2758 passed @ 2c553d0 仍有效
+```
+
+**结论**：**Multimodal Reader v1 = qualified, production-capable, default-inert**。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
