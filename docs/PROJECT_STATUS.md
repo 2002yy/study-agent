@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§150 Persistent Research State v1 本地实现 CLOSED、远端待门禁**（§150.5；`66681b0` L3 2827 passed / 2 skipped）。已完成独立 schema、事务 repository、显式 terminal-run `unresolved` 发布与同 thread 只读 recall；默认运行链未注入历史线索，`confirmed` 因缺合格 Auditor 授权继续 fail-closed。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。**唯一下一步 = 本刀独立 Draft PR 的 exact-head CI 交付门**；门绿后进入路线 ⑧ 的 Benchmark 合同冻结，不提前宣称 §150 远端 DELIVERED 或 RQCE v1 Freeze。
+- **当前动作：§150 Persistent Research State v1 本地实现 CLOSED、远端待门禁**（§150.5；`66681b0` L3 2827 passed / 2 skipped）。已完成独立 schema、事务 repository、显式 terminal-run `unresolved` 发布与同 thread 只读 recall；默认运行链未注入历史线索，`confirmed` 因缺合格 Auditor 授权继续 fail-closed。首个远端 head `50a3210` 的 push/PR CI 被既知 wall-clock 断言 flake 阻断，已按 §150.6 做窄修。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。**唯一下一步 = 本刀独立 Draft PR 的新 exact-head CI 交付门**；门绿后进入路线 ⑧ 的 Benchmark 合同冻结，不提前宣称 §150 远端 DELIVERED 或 RQCE v1 Freeze。
 - **当前先决门：**父 PR #142 `8c3153a` exact-head PR/push CI 均 success；§150 本地 L0/L1/L2/L3 已绿。文档收口不重跑本地 L3；新远端 head 必须单独核验 push/PR CI，旧 SHA 的绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -13880,6 +13880,12 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 **候选 `66681b0` 门禁**：L1 58 passed；L2 70 passed；clean-head L3 `pytest -q tests` **2827 passed / 2 skipped / 0 failed，906.84s**；Ruff 全库 clean；mypy baseline 122 ≤ 128、NEW=0；package helper exit 0（1514 files）；`git diff --check` clean。首个 L3 在发现 question-source 绑定需收紧时主动中止，**未**当作通过；上述 L3 是修正后 clean `66681b0` 的唯一完整结果。文档收口不改变运行行为，按分层门禁不重复 L3。
 
 **限制与下一步**：当前没有绑定 source state/draft digest 的 qualified semantic Auditor，故没有 confirmed 结论，也不自动把历史 lead 填入当前 Evidence Gate、引用或答案；superseded/contradicted 自动归并与跨 thread/project 权限另立合同。唯一下一步为本刀独立 Draft PR 的 exact-head CI；绿后再冻结路线 ⑧ Benchmark 合同。父 PR #142 的 RQ1-C 手动 Live12 仍 NO-GO，不因本刀改变。
+
+### 150.6 首轮 exact-head CI 阻断与窄修（2026-09-28）
+
+Draft PR #145 首个 head `50a3210aa568fc1bf47e03956463fba0351387a7` 的 PR run `36327674106` 与 push run `36327639592` 均 completed/failure；两者唯一 pytest 失败均为 `test_agent_loop_prototype::test_same_inputs_produce_identical_outcomes`，`elapsed_seconds` 在同输入的两次真实执行间为 `0.001` 与 `0.0`。PR run 其余 `2822 passed / 6 skipped`，pytest 后的门因 enforce 失败而未运行。§107.6 已在旧 head、旧 production 上证明该 wall-clock 相等断言属于负载敏感 flake；这不是 §150 运行逻辑差异。
+
+只修该测试：两个 outcome 的确定性字段继续逐项相等，`elapsed_seconds` 改为各自检查非负且小于 60 秒预算；已有 timeout 测试继续覆盖真实超时退出。`test_agent_loop_prototype.py` + `test_cross_layer_regression.py` 聚焦 **28 passed**，Ruff 全库与 `git diff --check` clean；无 production、fixture、依赖或 runtime 配置改动，按分层门禁不重跑本地 L3。远端须以**窄修后新 head** 的 push/PR CI 为准，旧 run 不得作交付证据。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
