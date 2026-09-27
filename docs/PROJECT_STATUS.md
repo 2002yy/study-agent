@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§149 Final Answer Auditor 本地 CLOSED**（§149.1；candidate `c8c9618`，full pytest 2819 passed / 2 skipped）。§143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。路线 7 阶段版（§144.0）：① RQ → ② Multimodal Reader v1 → ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。**唯一下一刀 = 路线 ⑥ Persistent Research State v1 契约冻结**：先定义状态所有权、持久化与恢复边界、版本兼容及与既有 RQ state 的关系，再决定实现；不得在本刀顺手改 RQ-A/C/D、stop/gate。§149 默认语义 judge abstain，不等于已具真实语义审核能力；后续接线须另立合同。P3/A4/A5 按需，非 NEXT。
-- **当前先决门：**在开始 Persistent Research State 合同刀前，核验当前 PR exact-head CI；本地 `2819 passed` 不替代远端完成。docs-only 头变动无需重跑本地 L3，但其远端交付仍按该 HEAD 的 CI 判定。
+- **当前动作：§150 Persistent Research State v1 合同已冻结**（§150，本次仅 docs）；§149 Auditor 在 clean candidate `c8c9618` 本地 full pytest 2819 passed / 2 skipped，`366b741` 的 PR/push exact-head CI 均 success。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。路线 7 阶段（§144.0）：① RQ → ② Multimodal Reader v1 → ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。**唯一下一刀 = §150.4 的 v1 实现批次**（严格模型 + 专用事务存储 + terminal-run 发布 + 同 thread 有界只读 recall）；不得顺手改 RQ-A/C/D、stop/gate、`MemoryRun` 或默认 answer/reader 路径。§149 默认 judge abstain，当前不具备可信 confirmed 写入资格。P3/A4/A5 按需，非 NEXT。
+- **当前先决门：**本次 docs-only 头推远程后只核验该新 HEAD 的 exact-head CI，再开始 §150 实现；不因 docs 改动重跑本地 L3，也不以旧 SHA 的 CI 冒充新 HEAD 交付。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -42,7 +42,7 @@
 
 ## 0A. Research Quality Engine → Study Agent 总路线（用户同步，2026-09-27）
 
-**执行权**：本节记录主线顺序、阶段门与旁路边界；§0 保留唯一当前动作。用户提供的路线原稿写于 `733c0e1`、§149 尚为 NEXT 的时点；当前 §149 已在 `c8c9618` 完成本地实现（§149.1），不能把原稿的旧 SHA、旧 CI 状态或旧 NEXT 当作当前事实。Draft PR #142 的 exact-head CI 仍须单独确认；本路线不将本地通过等同远端交付。
+**执行权**：本节记录主线顺序、阶段门与旁路边界；§0 保留唯一当前动作。用户提供的路线原稿写于 `733c0e1`、§149 尚为 NEXT 的时点；当前 §149 已在 `c8c9618` 完成本地实现（§149.1），`366b741` exact-head 两条 CI 已通过；旧 SHA、旧 NEXT 不再是当前事实。本次 docs-only 新 HEAD 的远端门另查。
 
 | 顺序 | 阶段 | 当前状态与冻结边界 |
 | --- | --- | --- |
@@ -51,16 +51,16 @@
 | ③ | Multimodal Reader v1 | Q1–Q6 qualification PASS，production-capable、默认 OFF；text→caption/alt→OCR/table→vision 分级，仅为图像承载 required evidence 升级；视觉 EvidenceUnit 仍走同一 RQ-A/C/D。真实 rollout 以 **semantic-value rate** 为核心，扩大阈值待样本。 |
 | ④ | §147 ResearchBriefProjection | CLOSED；从既有 research state 派生、non-persisted、synthesis-facing；既有 gate-owned `ResearchBrief` 不变。confidence 由确定性代码给出，missing 与 limitations 分开。 |
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
-| ⑥ | §149 Final Answer Auditor | **本地 CLOSED，远端 exact-head gate 待确认**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
-| ⑦ | Persistent Research / Project Memory v1 | **唯一后续主线：先冻结契约，未实现。** 从 within-run state 扩展到 cross-run continuity；不得把历史答案直接当事实。 |
+| ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
+| ⑦ | Persistent Research / Project Memory v1 | **§150 合同已冻结，未实现。** 下一刀按 §150.4 实现；从 within-run state 扩展到 cross-run continuity，不把历史答案直接当事实。 |
 | ⑧ | 50–60 task Release Benchmark | 计划中；frozen 可复现集 + live 变化集，分别量 retrieval、required-unit/adequacy、conflict、visual semantic value、assertion/citation coverage、Auditor 漏检/误拒/repair、latency/cost/fail-closed/usefulness。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
 
-### 下一主线的合同入口：Persistent Research / Project Memory
+### 下一主线的合同入口：Persistent Research / Project Memory（§150 已冻结）
 
-合同先回答状态所有权、持久化/恢复、版本兼容与既有 `ResearchState` 的关系；再定义 topic/project、question、claims、conclusions、evidence refs、unresolved gaps、contradictions、freshness、provenance、generated_at 的最小 record。Recall 要分别检查相关性、新鲜度及当前仍有效；新闻、软件/API、法规、产品等易变事实必须重新验证。Merge 要区分 `confirmed / superseded / contradicted / stale / unresolved`，不能只追加旧答案。以上是**待冻结的设计输入**，并非已实现 schema 或默认启用功能。
+§150 已冻结状态所有权、持久化/恢复、版本兼容及与既有 `ResearchState` 的关系。Recall 须检查相关性、新鲜度与当前有效性，Merge 保留 `confirmed / superseded / contradicted / stale / unresolved` 的区分与来源。具体 v1 权限、模型、读写边界和验收以 §150 为准；该阶段尚未实现 schema 或默认启用功能。
 
 ### 旁路与门禁
 
@@ -13836,6 +13836,37 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 **门禁失败定位与窄修复**：首个 clean commit `bfbcffe` 上，2 个 protocol probes 隔离复验均 PASS；cross-layer 测试仍 502，证明这次并非仅是瞬时网络 flake。根因是旧测试 patch `src.api.run_search_stage`，但当前 `/news/runs/{id}/search` 已经由 `NewsService.dependencies.search` 执行；测试未隔离真实搜索。仅修改该测试的 fake 注入点（`tests/test_cross_layer_regression.py`），不改 production news 行为。cross-layer + Auditor + Synthesis focused 32 passed；随后在包含该测试修复的 clean candidate HEAD 上重跑 L3，结果见下。
 
 **最终本地门禁（clean candidate `c8c9618`）**：full `pytest -q tests` **2819 passed / 2 skipped / 0 failed**（880.61s）；此前 L1 54 passed、Ruff 全库 clean、mypy baseline 122 ≤ 128 且 NEW=0、`git diff --check` clean。该完整回归覆盖上述 protocol probes 与 cross-layer 用例。本节仅判定本地 CLOSED；推远程后仍以新 exact-head CI 为准，不把旧 SHA 的 CI 复用为交付证据。
+
+## §150 Persistent Research State v1 contract（冻结，2026-09-27；路线 ⑥）
+
+**先决门已满足**：Draft PR #142 的 `366b741a77b4f9085498f6fdd6af503445f646a0` exact-head 两条 CI `36316878544`（PR）/ `36316875855`（push）均 completed/success；工作树 clean。本节只冻结下一阶段合同，不实现 schema、repository 或 runtime 接线。
+
+**目标与现有所有权**：`ResearchState`/`research-state-v1` 是单次 run 的严格校验状态；`WebLookupRepository` 是 `WebLookupRun.research_context["claim_engine"]` checkpoint/恢复/operation 的唯一 owner；§147 `ResearchBriefProjection` 是非持久化视图；`MemoryRun`/`MemoryService` 是现有通用记忆写入流程。跨 run 研究记忆必须是**独立的、有版本的派生记录**，不能把 `ResearchState` 改作跨 run schema、在 `research_context` 内累积历史、或把研究结论直接写进通用 learner/user memory。
+
+### 150.1 写入权威与记录模型（冻结）
+
+- v1 的隔离单位为**同一 server-owned `owner_thread_id` 的多次 run**；无 owner thread、跨 thread/project 的自动共享均不发布/召回。`topic` 由该 run 的 server-owned question surface 归一化为有界标签，是检索提示而非权限边界；不同措辞不自动合并，全项目范围的身份与授权待后续合同。
+- 唯一候选输入是 terminal `WebLookupRun`（`completed` 或 `partial`、无活动 operation）中 `mode=active` 且已验证的 `ResearchState`，以及由它派生的 RQ-A/C/D assessment、§147 Projection、§149 AuditResult。必须按该 run 的 server-owned evidence IDs 重新走 `ResearchState.from_dict`；shadow/旧版/损坏 state、失败/取消 run、来源不符、未确认 owner 均 fail-closed，不从自由文本答案推断事实。
+- 每个 `ResearchMemoryRevision` 独立于 `research-state-v1`，`schema_version="research-memory-v1"`。最小字段：revision ID；owner thread、topic、source run ID/version/state digest、生成时间；question；逐 claim 的原始 claim ID/text/criticality、adequacy/status、required/covered/missing units、support/contradict refs、conflict/preferred-side 状态；unresolved gaps/limitations；带 source/locator/page/region/published_at/provenance 的证据引用；可选 audited conclusion 与 audit verdict/provenance；前序 revision refs。证据 ID 必须以 source run ID 命名空间化，不能把旧 run 的 ID 当成本 run 的 ID。
+- 仅当最终答案经既有 publication gate 允许、**AuditResult=pass**（绑定该 source state digest、被审 draft digest、已 qualification 的 judge 类型/版本）且该 claim `adequate`、没有 unresolved conflict、引用可追至该 run 的 eligible evidence 时，才可发布 `confirmed` 的 claim-level conclusion；任意调用者注入一个返回 pass 的 judge 不构成写入授权。§149 默认 judge abstain，故默认路径目前**不会**发布 confirmed。partial/insufficient/not_evaluated、冲突未解或审计未批准只能保存为 `unresolved` 研究线索，不得伪装已证实答案。`confirmed` 是有时间戳的历史判断，不是永久真值。
+- 存储只保留有界的 claim/证据定位与审计元数据；不得复制整页正文、图片二进制、prompt、原始 provider 错误或密钥。视觉引用保留 page/region；缺来源或位置的记录不可升级为 confirmed。
+
+### 150.2 持久化、恢复与兼容（冻结）
+
+- 由专用 research-memory repository 持久化，不复用 `MemoryRun` 表/写入权限或改 `WebLookupRepository` 的单 run operation 所有权。revision 追加不可变；发布 revision、旧 revision 的显式关联以及同 owner thread 的 revision cursor 更新必须在**一个事务**中完成，并以 expected version/CAS 防并发覆盖；`topic` 不充当自动合并键。
+- `(source_run_id, source_run_version)` 为幂等发布键；state digest 为通过校验后的 `ResearchState.to_dict()` 的 UTF-8 canonical JSON（sorted keys、compact separators）的 SHA-256。相同 digest 重试返回同一 revision；同键不同 digest 明确冲突，不静默覆盖。崩溃在事务前无可见 revision，提交后重试不重复；未完成的发布不能使旧 confirmed 被撤销或新结论可见。
+- 新版本记录走显式版本识别；未知/损坏 `research-memory-v1` 不参与 recall，必须报告 bounded reason，不能猜测默认值。`research-state-v1`、旧 `WebLookupRun`、既有 `MemoryRun` 保持原 schema；不自动回填历史 run，也不做隐式跨版本迁移。
+- 新证据可产生 `confirmed / superseded / contradicted / unresolved` 的新 revision，并显式链接旧 revision；旧证据与反方仍保留。`stale` 是 recall 时依据 evidence 日期、claim `max_age_days`/时效要求和当前日期算出的**有效状态**，不通过改写历史 revision 来假装事实消失；日期不足时按未验证处理。
+
+### 150.3 Recall 的事实边界（冻结）
+
+- v1 只在同 owner thread 按 `(generated_at DESC, revision_id DESC)` 读最多 20 条候选，逐项报告 topic relevance（同归一化 topic 或 `unverified`，不作语义相似性断言）、freshness、source/claim provenance、冲突与未解 gap；旧记录是**研究线索**，不能直接进入本 run 的 Evidence Gate、ClaimEvidenceLink、Auditor citation 或最终强断言。
+- 对新闻、软件/API、法规、产品等易变事实，以及 stale/undated/superseded/contradicted 记录，必须由当前 run 重新读取或验证原始来源，并由当前 RQ-A/C/D 重新判断；旧 `confirmed` 也不能豁免。召回缺来源、来源已删或版本无法解析时 fail-closed 为 unavailable lead。
+- 初版不自动更改检索排序、stop/gate、answer publication 或默认读取链；自动注入研究上下文、跨 thread/project 召回、语义向量匹配、Learner Model 写入与 LLM 归并均另立合同。
+
+### 150.4 下一实现刀及验收（冻结）
+
+下一刀在独立可回滚的实现批次完成：`research-memory-v1` 严格模型与 parser → 专用事务 repository → 从 terminal run 发布 revision → 同 thread 有界只读 recall。先保持显式调用/默认不自动注入。测试至少覆盖：schema/owner/source ref fail-closed；unapproved 不产生 confirmed；同键幂等与不同 digest 冲突；CAS 并发及 crash-before/after-commit；跨 thread 隔离；旧证据不能直接作为新证据；stale/undated/conflict 的召回语义；default-off 与既有 stop/gate/MemoryRun 不变。持久化 schema 属 L3 强制触发，按 `AGENTS.md` 跑 impact set、stage gate、一次 clean candidate full suite、独立静态/CI 门禁。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
