@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,7 +45,7 @@ jobs:
         run: pytest -q --tb=short > pytest.log 2>&1
 
       - name: Upload pytest diagnostics
-        if: always()
+        if: steps.pytest.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: pytest-log
@@ -55,7 +62,7 @@ jobs:
             > rag-quality-baseline.log 2>&1
 
       - name: Upload RAG K1 quality baseline
-        if: always()
+        if: steps.rag_quality.outcome == 'success' || steps.rag_quality.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: rag-quality-baseline
@@ -87,7 +94,6 @@ jobs:
         id: secrets
         continue-on-error: true
         run: |
-          pip install detect-secrets 2>/dev/null
           # docs/research_quality/*.json are machine-generated evidence artifacts whose
           # content is dominated by hashes/ids (query_sha256, git_sha, candidate ids...),
           # so the entropy detectors only ever produce false positives there. They are
@@ -119,7 +125,7 @@ jobs:
           echo "detect-secrets: no secrets found"
 
       - name: Upload detect-secrets diagnostics
-        if: always()
+        if: steps.secrets.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: detect-secrets-report
@@ -139,7 +145,7 @@ jobs:
         run: timeout 120s mypy --explicit-package-bases src/ > mypy.log 2>&1
 
       - name: Upload mypy diagnostics
-        if: always()
+        if: steps.mypy.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: mypy-log
@@ -169,7 +175,7 @@ jobs:
           } > ../frontend.log 2>&1
 
       - name: Upload frontend diagnostics
-        if: always()
+        if: steps.frontend.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-log
@@ -193,7 +199,7 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
 
       - name: Upload Playwright install diagnostics
-        if: always()
+        if: steps.playwright_install.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-install-log
@@ -217,7 +223,7 @@ jobs:
           npm run test:e2e > ../browser-e2e.log 2>&1
 
       - name: Upload browser Golden Journey diagnostics
-        if: always()
+        if: steps.browser_e2e.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: browser-golden-journeys
@@ -244,7 +250,7 @@ jobs:
           npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1
 
       - name: Upload real-stack browser diagnostics
-        if: always()
+        if: steps.real_stack_browser_e2e.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: real-stack-browser-gates

@@ -1,7 +1,7 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-09-27
+> 更新：2026-09-28
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**`codex/release-benchmark-foundation`（基于 Draft PR #145 的 `f9b9c24`；§151 合同与准入计划独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **分支 / head：**`codex/ci-repository-cleanup`（基于 §151 Draft PR #146 的 `d98acd6`；CI/仓库治理独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§151 Release Benchmark 合同与准入计划本地完成、远端待门禁**（见 §151）。§150 显式 v1 已在 `f9b9c24` exact-head PR CI `36333986339`、push CI `36333984257` 双绿；Draft PR #145 仍未合并。§151 锁定 56 个目标槽位、独立 release gold、指标分母与 NO-GO 条件，并用只读校验器盘点现有资产；目前真正准入 release 的新 case 为 **0/56**，不能把旧开发/资格用例当 release 分数。**唯一下一步 = 本分支 exact-head CI；绿后再整刀做独立 release case registry、gold 与 replay/score runner**。RQCE v1 Freeze 仍不可宣称。
-- **当前先决门：**§150 父 head `f9b9c24` 的 exact-head PR/push CI 均 success；§151 需要自己的本地验证与新 head CI。旧 SHA 绿灯不可复用。
+- **当前动作：§152 CI/仓库治理清理**（见 §152）。§151 的 `d98acd6` exact-head PR CI `36338069294`、push CI `36338044533` 均 completed/success；Draft PR #146 仍未合并。§151 的独立 release case 当前 **0/56**、Release/RQCE v1 均 NO-GO。§152 仅减少成功 CI 的诊断产物和过期 run，保留全部独立 gate、失败诊断、手动 provider replay 与双事件 exact-head 校验。**唯一下一步 = 本分支本地门禁与 exact-head CI；绿后进入独立 release case registry、gold 与 replay/score runner**。
+- **当前先决门：**§150 `f9b9c24` 与 §151 `d98acd6` 的 exact-head PR/push CI 均 success；§152 仍须自己的新 head CI。旧 SHA 绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 合同与准入计划已冻结；56 个槽位，release case 当前 0/56，NO-GO。** frozen/live 分离，现有开发/资格/保留 holdout 不计 release 分数；下一刀建独立 case registry、gold 与 runner。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 合同与准入计划已冻结且 exact-head CI 双绿；56 个槽位，release case 当前 0/56，NO-GO。** frozen/live 分离，现有开发/资格/保留 holdout 不计 release 分数；§152 CI 清理后建独立 case registry、gold 与 runner。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -14215,3 +14215,13 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 验证：单测重复 5 次全 PASS（10–14s，较原 15–20s 更快）；
       L3 full pytest @ 26086f7（clean head）= 2705 passed / 2 skipped / 0 failed。
 ```
+
+## §152 CI / repository cleanup（2026-09-28）
+
+**先决复核**：§151 `d98acd6c04657406315bbce78ad6f2dab84bbe27` 的 PR #146 run `36338069294` 与 push run `36338044533` 均 completed/success；起点 tracked/untracked 工作树为 clean。当前仅有常规 `ci.yml` 和显式 `workflow_dispatch` 的 `rag-provider-replay.yml` 两条 workflow；后者仍有独立测试和真实 provider 资格用途，不删除。`docs/research_quality` 的 56 个 tracked 证据文件保留；未发现 tracked `output/` 或 `*.log` 可清。§142 对两个 workflow 的聚合/裁决语义已有冻结结论，本刀不移除 `continue-on-error` 或独立 gate。
+
+**清理内容**：常规 CI 的 pytest、detect-secrets、mypy、frontend、Playwright install、Golden Journeys、real-stack 诊断 artifact 改为对应执行步骤失败时上传；RAG K1 baseline 成功或失败都保留报告，步骤被跳过时不再空上传。成功 run 的 artifact 从 8 组降为 1 组，失败时仍留对应日志/浏览器报告。按 workflow/event/PR 或 branch 对过期 run 做并发取消；main push 不取消，push 与 PR 保持独立 exact-head run。CI token 权限显式收窄为 `contents: read`。`detect-secrets==1.5.0` 已在 `requirements-dev.txt` 锁定并由依赖安装步骤提供，删除重复的运行时 pip install。修正 `AGENTS.md` 中“未声明 mypy baseline”的过期说明，使其与现有 `config/mypy_baseline.json` 和 CI gate 一致。
+
+**不变边界**：pytest、RAG K1、Ruff、package helper、detect-secrets、mypy baseline、frontend test/build、Playwright/browser gates 均继续执行；provider replay 仍只由手动触发。§151 release case 仍 0/56，未提升旧资格资产，也未触碰 production runtime、fixture 或 release 指标合同。
+
+**本地验证**：YAML 解析及 artifact/concurrency 不变量通过；CI owner/手动 replay 相关焦点测试 **38 passed**；Ruff 全库 clean、package helper **1516 files**、mypy baseline **122 ≤ 128 / NEW=0**、`git diff --check` clean。仅改 workflow/agent 指令/status，无 production、fixture 或 runtime 配置改动，按分层门禁不重跑 L3。CI 配置行为仍以本分支 exact-head PR/push run 为最终证据。**唯一下一实现刀**：独立 release case registry、gold/证据对象与 replay/score runner 的首个可验证批次。
