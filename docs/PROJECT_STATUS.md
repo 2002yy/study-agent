@@ -30,6 +30,7 @@
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
 - **当前动作：§149 Final Answer Auditor 本地 CLOSED**（§149.1；candidate `c8c9618`，full pytest 2819 passed / 2 skipped）。§143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。路线 7 阶段版（§144.0）：① RQ → ② Multimodal Reader v1 → ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。**唯一下一刀 = 路线 ⑥ Persistent Research State v1 契约冻结**：先定义状态所有权、持久化与恢复边界、版本兼容及与既有 RQ state 的关系，再决定实现；不得在本刀顺手改 RQ-A/C/D、stop/gate。§149 默认语义 judge abstain，不等于已具真实语义审核能力；后续接线须另立合同。P3/A4/A5 按需，非 NEXT。
+- **当前先决门：**在开始 Persistent Research State 合同刀前，核验当前 PR exact-head CI；本地 `2819 passed` 不替代远端完成。docs-only 头变动无需重跑本地 L3，但其远端交付仍按该 HEAD 的 CI 判定。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -38,6 +39,36 @@
 - **关键机制结论：**"Default success metadata is not semantic adequacy metadata." —— 当前 runtime 的 read 成功 / usable / resolve 状态**不携带**"内容是否足以支撑 claim / critical units"，故自动 post-default 升级在出现 semantic-adequacy 信号前不可靠。
 - **其他未关闭线索（非本阶段 NEXT）：**RQ1-C bounded qualification / 严格 Live12（§1–§9）仍在 PR #142 上，未 GO；其 provider / 网络 blocker 见 §7–§9。本阶段（Research Quality / routing）不改变其冻结门，也不得借本阶段回改其门槛。
 - **资格执行位置：**真实 production API qualification 只在**本地 / 手动**执行；GitHub CI 不持有 provider / API key / endpoint，也不执行真实 provider Live12。
+
+## 0A. Research Quality Engine → Study Agent 总路线（用户同步，2026-09-27）
+
+**执行权**：本节记录主线顺序、阶段门与旁路边界；§0 保留唯一当前动作。用户提供的路线原稿写于 `733c0e1`、§149 尚为 NEXT 的时点；当前 §149 已在 `c8c9618` 完成本地实现（§149.1），不能把原稿的旧 SHA、旧 CI 状态或旧 NEXT 当作当前事实。Draft PR #142 的 exact-head CI 仍须单独确认；本路线不将本地通过等同远端交付。
+
+| 顺序 | 阶段 | 当前状态与冻结边界 |
+| --- | --- | --- |
+| ① | Reader / Retrieval | 基础链 CLOSED；默认 `NATIVE_HTTP → WIGOLO_HTTP`。Crawl4AI 为合格 specialist，production-capable、default-inert；P1 仅显式 JS_RENDER / SESSION_STATE hint，qualified、默认 OFF，不按 URL/domain/Content-Type/outcome 猜测升级。 |
+| ② | RQ-A/B/C/D | A claim↔evidence / required units、B semantic adequacy、C conflict、D critical-claim coverage-aware stop 均阶段性 CLOSED；D 仍 shadow/advisory，不改 production stop/gate。`read success ≠ semantic adequacy`，`preferred_side` 不删除反方证据，evidence 数量不投票决定真相。 |
+| ③ | Multimodal Reader v1 | Q1–Q6 qualification PASS，production-capable、默认 OFF；text→caption/alt→OCR/table→vision 分级，仅为图像承载 required evidence 升级；视觉 EvidenceUnit 仍走同一 RQ-A/C/D。真实 rollout 以 **semantic-value rate** 为核心，扩大阈值待样本。 |
+| ④ | §147 ResearchBriefProjection | CLOSED；从既有 research state 派生、non-persisted、synthesis-facing；既有 gate-owned `ResearchBrief` 不变。confidence 由确定性代码给出，missing 与 limitations 分开。 |
+| ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
+| ⑥ | §149 Final Answer Auditor | **本地 CLOSED，远端 exact-head gate 待确认**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
+| ⑦ | Persistent Research / Project Memory v1 | **唯一后续主线：先冻结契约，未实现。** 从 within-run state 扩展到 cross-run continuity；不得把历史答案直接当事实。 |
+| ⑧ | 50–60 task Release Benchmark | 计划中；frozen 可复现集 + live 变化集，分别量 retrieval、required-unit/adequacy、conflict、visual semantic value、assertion/citation coverage、Auditor 漏检/误拒/repair、latency/cost/fail-closed/usefulness。 |
+| ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
+| ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
+| ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
+
+### 下一主线的合同入口：Persistent Research / Project Memory
+
+合同先回答状态所有权、持久化/恢复、版本兼容与既有 `ResearchState` 的关系；再定义 topic/project、question、claims、conclusions、evidence refs、unresolved gaps、contradictions、freshness、provenance、generated_at 的最小 record。Recall 要分别检查相关性、新鲜度及当前仍有效；新闻、软件/API、法规、产品等易变事实必须重新验证。Merge 要区分 `confirmed / superseded / contradicted / stale / unresolved`，不能只追加旧答案。以上是**待冻结的设计输入**，并非已实现 schema 或默认启用功能。
+
+### 旁路与门禁
+
+- 用户路线稿提出 repair 可“补回答已有 evidence 支持的用户子问题”；§149 v1 冻结合同与当前实现只允许改表达、删弱断言、补已有 citation、恢复 conflict/limitation，并禁止新增 assertion。该扩展列为后续合同评审项，**本次路线同步不变更 §149 repair 权限**。
+- P3 selected-PDF 轻规则只在 Benchmark 或实测证明瓶颈时排期；Crawl4AI/P1 与 Multimodal 保持观察期，不能因 qualified 自动 default-on。LLM Synthesis writer 需独立合同和可用的语义审核接线后再评估。
+- 本地 L0/L1/L2/L3 按本仓库 `AGENTS.md` 分层执行；pytest、Ruff、diff check、package helper、secret-like literal self-check、detect-secrets、mypy baseline、frontend/build、Playwright/browser gates 各自独立。生产候选只在对应阶段门跑 full suite；push 后只记录当前 exact-head CI，不用旧 HEAD 绿灯替代。
+- 一个 feature slice 依次完成合同冻结、整块实现、impact-set 测试、适用 gate、commit、docs closeout、push、exact-head CI 一次查询。只有隐藏前提推翻设计、不可逆架构/安全决定、或继续会使证据无效时才中断；普通缺陷在刀内修完。
+- 旧 cross-layer news 用例的公网 502 已定位为 fake 注入旧接口并在 `c8c9618` 修正，不再列作开放网络债。早期 operator-only 本机路径属于后续 hygiene，不阻塞本路线。
 
 ## 1. DeepSeek structured-output compatibility closure
 
