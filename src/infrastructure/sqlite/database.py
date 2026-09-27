@@ -10,7 +10,7 @@ from typing import Callable
 from src.infrastructure.sqlite.learning_semantic_schema import LEARNING_SEMANTIC_MIGRATION_V18
 from src.infrastructure.sqlite.learning_truth_schema import LEARNING_TRUTH_MIGRATION_V17
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (
@@ -523,6 +523,32 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE UNIQUE INDEX idx_web_lookup_runs_create_request
             ON web_lookup_runs(create_request_id)
             WHERE create_request_id IS NOT NULL;
+        """,
+    ),
+    (
+        24,
+        """
+        CREATE TABLE research_memory_threads (
+            owner_thread_id TEXT PRIMARY KEY REFERENCES chat_threads(id),
+            version INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE research_memory_revisions (
+            revision_id TEXT PRIMARY KEY,
+            owner_thread_id TEXT NOT NULL REFERENCES chat_threads(id),
+            source_run_id TEXT NOT NULL REFERENCES web_lookup_runs(id),
+            source_run_version INTEGER NOT NULL,
+            state_digest TEXT NOT NULL,
+            schema_version TEXT NOT NULL,
+            generated_at TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            UNIQUE(source_run_id, source_run_version)
+        );
+
+        CREATE INDEX idx_research_memory_thread_recent
+            ON research_memory_revisions(
+                owner_thread_id, generated_at DESC, revision_id DESC
+            );
         """,
     ),
 )
