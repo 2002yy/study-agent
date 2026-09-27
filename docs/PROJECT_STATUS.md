@@ -1,7 +1,7 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-09-25
+> 更新：2026-09-27
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§149 Auditor 实现（一刀）**：`audit_final_answer(...)` —— 机械层复用 §148 validator，语义层经**可注入 judge seam**（默认确定性、无模型调用），输出结构化 `AuditResult`（verdict / issues / unanswered_aspects / contradiction_gaps / citation_support_gaps / repair_allowed），**repair 上限固定 1 且用尽后不循环**（返回 audited-but-not-approved）；不改 RQ-A/C/D、不改 stop/gate。**契约已冻结**（§149）。**§148 Synthesis 已实现**（§148.1）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：§149 Final Answer Auditor 本地 CLOSED**（§149.1；candidate `c8c9618`，full pytest 2819 passed / 2 skipped）。§143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。路线 7 阶段版（§144.0）：① RQ → ② Multimodal Reader v1 → ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。**唯一下一刀 = 路线 ⑥ Persistent Research State v1 契约冻结**：先定义状态所有权、持久化与恢复边界、版本兼容及与既有 RQ state 的关系，再决定实现；不得在本刀顺手改 RQ-A/C/D、stop/gate。§149 默认语义 judge abstain，不等于已具真实语义审核能力；后续接线须另立合同。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13788,7 +13788,7 @@ fail        ：存在不可由 repair 修复的 issue（证据根本不足 / 未
    + 表驱动测试 + repair 上限 1 的结构性测试（含"用尽后不循环"）
 ```
 
-### 149.1 Auditor 实现（2026-09-27，候选）
+### 149.1 Auditor 实现（2026-09-27，本地 CLOSED）
 
 **交付**：`src/web/research/final_answer_auditor.py`、`tests/test_final_answer_auditor.py`；
 `synthesis_assembler.validate_synthesis_draft` 仍是唯一机械校验入口，本刀补足
@@ -13802,7 +13802,9 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 
 **本地候选验证**：L1 impact set（Auditor + Synthesis + ResearchBrief）54 passed；Ruff 全库 clean；mypy baseline 122 ≤ 128、NEW=0。首次未提交工作树上的 L3 full pytest：2816 passed / 2 skipped / 3 failed（876.25s）。其中 2 个 `test_rq1c_protocol_probes` 在 `rq1c_git_identity` 因 tracked worktree 非 clean 而拒绝运行；`test_cross_layer_regression.py::test_news_query_change_invalidates_downstream_stages` 收到外部请求 502，此用例历史在 §147.1 也记录过同类网络 flake。须在 clean candidate HEAD 下复验这些失败并取得最终 gate，当前不作 full-pass/交付结论。
 
-**门禁失败定位与窄修复**：首个 clean commit `bfbcffe` 上，2 个 protocol probes 隔离复验均 PASS；cross-layer 测试仍 502，证明这次并非仅是瞬时网络 flake。根因是旧测试 patch `src.api.run_search_stage`，但当前 `/news/runs/{id}/search` 已经由 `NewsService.dependencies.search` 执行；测试未隔离真实搜索。仅修改该测试的 fake 注入点（`tests/test_cross_layer_regression.py`），不改 production news 行为。cross-layer + Auditor + Synthesis focused 32 passed；下一步在包含该测试修复的 clean candidate HEAD 上重跑 L3。
+**门禁失败定位与窄修复**：首个 clean commit `bfbcffe` 上，2 个 protocol probes 隔离复验均 PASS；cross-layer 测试仍 502，证明这次并非仅是瞬时网络 flake。根因是旧测试 patch `src.api.run_search_stage`，但当前 `/news/runs/{id}/search` 已经由 `NewsService.dependencies.search` 执行；测试未隔离真实搜索。仅修改该测试的 fake 注入点（`tests/test_cross_layer_regression.py`），不改 production news 行为。cross-layer + Auditor + Synthesis focused 32 passed；随后在包含该测试修复的 clean candidate HEAD 上重跑 L3，结果见下。
+
+**最终本地门禁（clean candidate `c8c9618`）**：full `pytest -q tests` **2819 passed / 2 skipped / 0 failed**（880.61s）；此前 L1 54 passed、Ruff 全库 clean、mypy baseline 122 ≤ 128 且 NEW=0、`git diff --check` clean。该完整回归覆盖上述 protocol probes 与 cross-layer 用例。本节仅判定本地 CLOSED；推远程后仍以新 exact-head CI 为准，不把旧 SHA 的 CI 复用为交付证据。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
