@@ -47,9 +47,9 @@ class ResearchMemoryService:
         if not loaded.available or loaded.effective_mode != "active" or loaded.state is None:
             raise ValueError("research memory requires a validated active state")
         state = loaded.state
-        if not state.questions:
+        if not state.questions or not run.query.strip():
             raise ValueError("research memory requires a question")
-        question = state.questions[0].question_surface
+        question = run.query
         projection = build_research_brief_projection(state)
         assessments = {claim.id: assess_claim_evidence(state, claim) for claim in state.claims}
         conflicts = {claim.id: assess_claim_conflict(state, claim) for claim in state.claims}

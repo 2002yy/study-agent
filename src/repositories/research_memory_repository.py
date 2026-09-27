@@ -67,6 +67,8 @@ class ResearchMemoryRepository:
             if existing is not None and existing["state_digest"] != checked.state_digest:
                 raise ValueError("memory source version digest conflict")
             source_run = _from_row(source)
+            if checked.question != source_run.query:
+                raise ValueError("memory question source mismatch")
             try:
                 state = ResearchState.from_dict(
                     source_run.research_context["claim_engine"],

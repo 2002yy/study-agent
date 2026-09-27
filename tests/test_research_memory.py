@@ -28,6 +28,7 @@ from src.web.research.evidence_units import EvidenceUnit, RequiredUnit
 from src.web.research.persistent_memory import (
     ResearchMemoryRevision,
     known_research_evidence_ids,
+    normalized_topic,
 )
 
 
@@ -220,6 +221,11 @@ def test_source_version_and_owner_are_rechecked_at_commit_and_recall(memory):
     with pytest.raises(ValueError, match="owner mismatch"):
         service.memory.publish(
             replace(revision, owner_thread_id="thread-2"), expected_cursor_version=0,
+        )
+    with pytest.raises(ValueError, match="question source mismatch"):
+        service.memory.publish(
+            replace(revision, question="forged question", topic=normalized_topic("forged question")),
+            expected_cursor_version=0,
         )
     with database.connect() as connection:
         connection.execute("UPDATE web_lookup_runs SET version = version + 1 WHERE id = ?", (run.id,))
