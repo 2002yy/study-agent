@@ -13802,6 +13802,8 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 
 **本地候选验证**：L1 impact set（Auditor + Synthesis + ResearchBrief）54 passed；Ruff 全库 clean；mypy baseline 122 ≤ 128、NEW=0。首次未提交工作树上的 L3 full pytest：2816 passed / 2 skipped / 3 failed（876.25s）。其中 2 个 `test_rq1c_protocol_probes` 在 `rq1c_git_identity` 因 tracked worktree 非 clean 而拒绝运行；`test_cross_layer_regression.py::test_news_query_change_invalidates_downstream_stages` 收到外部请求 502，此用例历史在 §147.1 也记录过同类网络 flake。须在 clean candidate HEAD 下复验这些失败并取得最终 gate，当前不作 full-pass/交付结论。
 
+**门禁失败定位与窄修复**：首个 clean commit `bfbcffe` 上，2 个 protocol probes 隔离复验均 PASS；cross-layer 测试仍 502，证明这次并非仅是瞬时网络 flake。根因是旧测试 patch `src.api.run_search_stage`，但当前 `/news/runs/{id}/search` 已经由 `NewsService.dependencies.search` 执行；测试未隔离真实搜索。仅修改该测试的 fake 注入点（`tests/test_cross_layer_regression.py`），不改 production news 行为。cross-layer + Auditor + Synthesis focused 32 passed；下一步在包含该测试修复的 clean candidate HEAD 上重跑 L3。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
