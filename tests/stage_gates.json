@@ -65,6 +65,12 @@
       "tests/test_research_web_lookup_dispatch.py",
       "tests/test_runtime_sqlite_repository.py"
     ],
+    "release_benchmark_plan": [
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py"
+    ],
     "read_adequacy": [
       "tests/test_read_adequacy_probe.py"
     ],
@@ -75,6 +81,13 @@
     ]
   },
   "stage_gates": {
+    "release-benchmark-foundation": [
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py",
+      "tests/test_rq1c_bounded_qualification.py"
+    ],
     "research-memory-stack": [
       "tests/test_research_memory.py",
       "tests/test_research_quality_state.py",

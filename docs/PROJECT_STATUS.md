@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**`codex/persistent-research-memory`（基于 Draft PR #142 的 `8c3153a`；§150 实现候选 `66681b0`）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **分支 / head：**`codex/release-benchmark-foundation`（基于 Draft PR #145 的 `f9b9c24`；§151 合同与准入计划独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§150 Persistent Research State v1 本地实现 CLOSED、远端待门禁**（§150.5；`66681b0` L3 2827 passed / 2 skipped）。已完成独立 schema、事务 repository、显式 terminal-run `unresolved` 发布与同 thread 只读 recall；默认运行链未注入历史线索，`confirmed` 因缺合格 Auditor 授权继续 fail-closed。首个远端 head `50a3210` 的 push/PR CI 被既知 wall-clock 断言 flake 阻断，已按 §150.6 做窄修。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。**唯一下一步 = 本刀独立 Draft PR 的新 exact-head CI 交付门**；门绿后进入路线 ⑧ 的 Benchmark 合同冻结，不提前宣称 §150 远端 DELIVERED 或 RQCE v1 Freeze。
-- **当前先决门：**父 PR #142 `8c3153a` exact-head PR/push CI 均 success；§150 本地 L0/L1/L2/L3 已绿。文档收口不重跑本地 L3；新远端 head 必须单独核验 push/PR CI，旧 SHA 的绿灯不可复用。
+- **当前动作：§151 Release Benchmark 合同与准入计划本地完成、远端待门禁**（见 §151）。§150 显式 v1 已在 `f9b9c24` exact-head PR CI `36333986339`、push CI `36333984257` 双绿；Draft PR #145 仍未合并。§151 锁定 56 个目标槽位、独立 release gold、指标分母与 NO-GO 条件，并用只读校验器盘点现有资产；目前真正准入 release 的新 case 为 **0/56**，不能把旧开发/资格用例当 release 分数。**唯一下一步 = 本分支 exact-head CI；绿后再整刀做独立 release case registry、gold 与 replay/score runner**。RQCE v1 Freeze 仍不可宣称。
+- **当前先决门：**§150 父 head `f9b9c24` 的 exact-head PR/push CI 均 success；§151 需要自己的本地验证与新 head CI。旧 SHA 绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -52,15 +52,15 @@
 | ④ | §147 ResearchBriefProjection | CLOSED；从既有 research state 派生、non-persisted、synthesis-facing；既有 gate-owned `ResearchBrief` 不变。confidence 由确定性代码给出，missing 与 limitations 分开。 |
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
-| ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 本地 CLOSED、远端待门禁。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权；从 within-run state 扩展到可回滚的 cross-run continuity。 |
-| ⑧ | 50–60 task Release Benchmark | 计划中；frozen 可复现集 + live 变化集，分别量 retrieval、required-unit/adequacy、conflict、visual semantic value、assertion/citation coverage、Auditor 漏检/误拒/repair、latency/cost/fail-closed/usefulness。 |
+| ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 合同与准入计划已冻结；56 个槽位，release case 当前 0/56，NO-GO。** frozen/live 分离，现有开发/资格/保留 holdout 不计 release 分数；下一刀建独立 case registry、gold 与 runner。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
 
-### 下一主线的合同入口：Persistent Research / Project Memory（§150 已冻结）
+### 当前主线的合同入口：Release Benchmark（§151）
 
-§150 已冻结状态所有权、持久化/恢复、版本兼容及与既有 `ResearchState` 的关系；显式 v1 已按 §150.5 实现。Recall 检查相关性、新鲜度与来源有效性。`confirmed / superseded / contradicted` 的合格审计发布和自动归并仍待独立合同与授权；当前只发布 `unresolved`，不自动启用。
+§150 显式 v1 已通过本地与 exact-head CI，但 Draft PR #145 尚未合并；历史 recall 仍只作研究线索。§151 冻结 release benchmark 的准入与测量合同，当前 plan 与资产盘点不是 56 个已完成任务，也不是 RQCE v1 release 资格。
 
 ### 旁路与门禁
 
@@ -13886,6 +13886,36 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 Draft PR #145 首个 head `50a3210aa568fc1bf47e03956463fba0351387a7` 的 PR run `36327674106` 与 push run `36327639592` 均 completed/failure；两者唯一 pytest 失败均为 `test_agent_loop_prototype::test_same_inputs_produce_identical_outcomes`，`elapsed_seconds` 在同输入的两次真实执行间为 `0.001` 与 `0.0`。PR run 其余 `2822 passed / 6 skipped`，pytest 后的门因 enforce 失败而未运行。§107.6 已在旧 head、旧 production 上证明该 wall-clock 相等断言属于负载敏感 flake；这不是 §150 运行逻辑差异。
 
 只修该测试：两个 outcome 的确定性字段继续逐项相等，`elapsed_seconds` 改为各自检查非负且小于 60 秒预算；已有 timeout 测试继续覆盖真实超时退出。`test_agent_loop_prototype.py` + `test_cross_layer_regression.py` 聚焦 **28 passed**，Ruff 全库与 `git diff --check` clean；无 production、fixture、依赖或 runtime 配置改动，按分层门禁不重跑本地 L3。远端须以**窄修后新 head** 的 push/PR CI 为准，旧 run 不得作交付证据。
+
+## §151 Release Benchmark v1：合同与准入计划（冻结，2026-09-28；路线 ⑧）
+
+**先决门与范围**：§150 的 `f9b9c24b4fa0e0d7b2aca5468bf81d8be7574abf` exact-head PR run `36333986339`、push run `36333984257` 均 completed/success，工作树切到独立 `codex/release-benchmark-foundation`。本节冻结 release benchmark 的**计划/准入/指标口径**，并实现离线只读 plan/旧资产校验；不声称已有 56 个 release case，不运行真实 provider，不改变生产 research/answer/stop/gate。§150 的 Draft PR #145 不因绿 CI 自动合并。
+
+### 151.1 Release case 与现有资产的隔离（冻结）
+
+- 目标 **56 个独立 release task**，先按 `release-benchmark-plan-v1` 固定槽位：frozen 32（text 10 / PDF 7 / image 5 / chart 4 / mixed 6）；live 24（text 7 / PDF 5 / image 3 / chart 3 / mixed 6）。每种 modality 在两种 mode 中都非零。primary focus 预算为 retrieval 12、required-unit/adequacy 10、conflict 8、visual semantic value 8、synthesis 8、auditor 6、continuity/freshness 4；合计 56。focus 是主分层标签，个案仍可覆盖多个指标。
+- 当前 `research-quality-eval-v1` 的 frozen trap 10 / live trap 10 是**已暴露的开发校准集**；RQ1-C bounded holdout 12 是该资格门的**保留集**；Multimodal Q1–Q6 是**已执行资格控制**。四组共 38 个用例，身份不重叠，但都**不得**直接晋升为 §151 release gold 或计入 56 个分子/分母。它们可用于 harness 回归和指标算子校准，需在报告中与 release 分数分表展示。
+- 新 case registry 必须独立版本化：唯一 case ID、mode、modality、primary focus、用户问题/子问题、声明的 required units、预期冲突/限制、可追溯来源、gold 标注者与复核状态、冻结时间/版本/内容 digest。frozen case 持有可离线重放的原始文字/图像/PDF/图表和 source/page/region；live case 只持有查询与来源定位/时间要求，**不**把实时网页正文或未来答案封入 fixture。gold 对被评系统隐藏，只由 scorer 读取；任一字段/来源漂移须显式版本变更，不静默替换任务。
+- 准入前需独立复核 gold 与 source 真实性、重复/泄漏、难度和 modality 标注。不得把测试断言数量、合成无来源文本、旧 PR/qualification 结果或模型自评当独立 release task。已暴露的开发集可作为负控制，但 release 总数与达标率只按新准入 registry 计算。
+
+### 151.2 执行与测量（冻结）
+
+- frozen 与 live **分开运行、分开报告**。每次运行锁定精确代码 SHA、case manifest/gold digest、配置、reader/specialist 开关、预算、模型/工具版本与时间窗口；frozen 禁止出网且可重放，live 的真实读取/模型调用只在本地手动资格环境执行，不放 CI，也不以旧抓取代替当次来源。live 记录 source URL、read 状态、page/region、日期及人工复核元数据；不把 raw provider 错误、密钥或整页正文提交入仓。
+- 指标逐 case 记录 `eligible / observed / unavailable / failure` 与理由，再汇总**明确分母**；缺运行、缺 gold、judge abstain、不可读、超时不得从分母中无声剔除或计为成功。按 mode、modality、focus、风险类型分别给出 micro 计数与 macro case 比例，并保留每个失败的 case ID/证据定位。结果文件版本化、引用 exact SHA 与两个 manifest digest；任何候选 head 或 gold 变化都需重新计算。
+- **检索/阅读**：gold-relevant original-source recall@k、successful-read rate、独立来源簇数、source role 与 freshness 命中；搜索返回、snippet 命中和真正 read-backed evidence 分开。
+- **RQ-A/B/C/D 与多模态**：required-unit 覆盖（包括视觉 unit）、adequacy/critical-claim 判定、冲突两侧保留与 false-settled、coverage-aware stop；visual semantic-value rate 只在视觉 unit 实际改变 adequacy/conflict/stop 的 eligible case 分母上算，不以“看过图”替代。
+- **Synthesis/Auditor**：回答子问题覆盖和 evidence grounding 分列；assertion citation 授权与 source/page/region 支持率、unsupported 强断言、limitations/contradiction 保留；Auditor false approve / false reject、至多一次 repair 的合法性与最终状态。默认语义 judge abstain 时语义支持指标为 `unavailable`，不得据此判语义审核合格。
+- **系统成本/安全与效用**：每 case latency、模型/视觉调用、读取数和可归因成本；读/抽取/模型失败的 fail-closed、历史 memory 被误当当前 evidence、跨线程泄漏；用户问题是否真正回答由独立人工 rubric 评估。缺成本或人工标签的指标显式 `unavailable`。
+
+### 151.3 GO/NO-GO 与本刀交付（冻结）
+
+`tests/fixtures/release_benchmark/plan_v1.json` 只声明目标分层；`src/evals/release_benchmark_plan.py` 严格校验版本、50–60 范围、完整 mode×modality、计数与 focus 总和。`tools/check_release_benchmark_plan.py` 离线只读盘点四组旧资产，以文件 SHA-256 绑定库存；当前结果：**56 个目标、0 个准入 release case、38 个排除旧用例、release NO-GO**。`plan_digest` 固定目标字节语义，不能冒充 case/gold digest。
+
+**本刀验证**：最终 `release_benchmark_plan` L1 **51 passed**、`release-benchmark-foundation` L2 **80 passed**；Ruff 全库 clean、mypy baseline 122 ≤ 128 且 NEW=0、package helper exit 0（1516 files）、`git diff --check` clean。计划检查输出 `target=56 / admitted=0 / excluded=38 / NO_GO`、digest `c48e29f64745d0e2489470e169313225144fa2fd625745570a06b779119a12bd`。本刀只新增离线 eval plan/fixture/工具与合同，不触及生产 runtime、共享 Evidence/Support/Gate 或持久化，因此不触发 L3；远端仍以本分支 exact-head CI 为准。
+
+Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播分层和 provenance 完整、gold 独立复核、runner 对所有 case 有可追踪结果、语义指标有合格 judge/人工标签、硬安全错误为 0，并且 soft utility/latency/cost 阈值在**候选运行前**用另一次 pilot 校准并锁定。`unsupported strong assertion`、错误 citation、unresolved conflict 被写成 settled、未授权 confirmed、旧 memory 晋升当前 evidence、跨线程泄漏等均为硬 NO-GO；缺 case/指标/阈值也为 NO-GO。不得在看到 release 结果后调整阈值或剔除难例。§151 当前仅冻结测量和准入合同，**RQCE v1 Freeze 仍 NO-GO**。
+
+**下一实现刀**：独立 release case registry + gold/证据对象、56 个新 task 的分层构建与人工复核接口、frozen replay/live 手动记录适配、逐 case scorer 与汇总器；先以小 pilot 验证 scorer 的正负控制，再封存阈值，最后执行真正的 56 task release gate。保持 §150 的默认不注入与 §149 的默认 abstain，不顺手启用 LLM writer、P1/P3 或跨 thread memory。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
