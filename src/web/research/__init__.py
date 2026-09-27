@@ -150,6 +150,13 @@ from src.web.research.synthesis_assembler import (
     extractive_writer,
     validate_synthesis_draft,
 )
+from src.web.research.final_answer_auditor import (
+    AuditIssue,
+    AuditResult,
+    SemanticAssessment,
+    abstaining_judge,
+    audit_final_answer,
+)
 from src.web.research.trace import (
     TraceAppendResult,
     append_research_trace,
@@ -323,6 +330,11 @@ __all__ = [
     "collect_evidence_payloads",
     "extractive_writer",
     "validate_synthesis_draft",
+    "AuditIssue",
+    "AuditResult",
+    "SemanticAssessment",
+    "abstaining_judge",
+    "audit_final_answer",
     "AUDIT_PURPOSE",
     "MAX_VISION_CALLS_ENV",
     "VISUAL_AUDIT_KEY",

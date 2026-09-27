@@ -31,6 +31,8 @@ REASON_UNCOVERED_ASSERTION = "assertion_without_evidence_ref"
 REASON_UNAUTHORIZED_REF = "unauthorized_evidence_ref"
 REASON_STANCE_VIOLATION = "stance_not_allowed"
 REASON_LIMITATIONS_DROPPED = "limitations_dropped"
+REASON_CITATION_MISSING = "citation_missing"
+REASON_VISUAL_LOCATOR_MISSING = "visual_locator_missing"
 
 _VISUAL_MODALITIES = frozenset({"image", "chart", "screenshot", "pdf_figure"})
 
@@ -293,7 +295,7 @@ def assemble_synthesis_draft(
         limitations=projection.limitations,
         coverage_report=SynthesisCoverageReport(),
     )
-    report = validate_synthesis_draft(draft, projection=projection)
+    report = validate_synthesis_draft(draft, projection=projection, payloads=by_id)
     return SynthesisDraft(
         sections=draft.sections,
         limitations=draft.limitations,
@@ -305,11 +307,12 @@ def validate_synthesis_draft(
     draft: SynthesisDraft,
     *,
     projection: ResearchBriefProjection,
+    payloads: Mapping[str, EvidencePayload] | None = None,
 ) -> SynthesisCoverageReport:
     """Mechanical checks: facts, refs, stances, limitations. Raises on violation."""
 
-    authorized = {
-        ref for claim in projection.claims for ref in claim.evidence_refs
+    authorized_by_claim = {
+        claim.claim_id: set(claim.evidence_refs) for claim in projection.claims
     }
     stances = _stance_lookup(projection)
 
@@ -319,6 +322,7 @@ def validate_synthesis_draft(
     unauthorized: list[str] = []
 
     for section in draft.sections:
+        cited = {citation.evidence_id: citation for citation in section.citations}
         for assertion in section.assertions:
             factual += 1
             if not assertion.evidence_refs:
@@ -328,7 +332,7 @@ def validate_synthesis_draft(
                 )
             covered += 1
             for ref in assertion.evidence_refs:
-                if ref not in authorized:
+                if ref not in authorized_by_claim.get(assertion.claim_id, set()):
                     unauthorized.append(ref)
                     raise SynthesisContractViolation(REASON_UNAUTHORIZED_REF, ref)
             allowed = stances.get(assertion.claim_id)
@@ -337,6 +341,24 @@ def validate_synthesis_draft(
                     REASON_STANCE_VIOLATION,
                     f"{assertion.assertion_id}:{assertion.stance}",
                 )
+            if payloads is not None:
+                for ref in assertion.evidence_refs:
+                    citation = cited.get(ref)
+                    if citation is None or ref not in payloads:
+                        raise SynthesisContractViolation(
+                            REASON_CITATION_MISSING, f"{assertion.assertion_id}:{ref}"
+                        )
+                    payload = payloads[ref]
+                    if payload.is_visual and (
+                        payload.page is None
+                        or not payload.region
+                        or f"p.{payload.page}" not in citation.label
+                        or payload.region not in citation.label
+                    ):
+                        raise SynthesisContractViolation(
+                            REASON_VISUAL_LOCATOR_MISSING,
+                            f"{assertion.assertion_id}:{ref}",
+                        )
 
     for limitation in projection.limitations:
         if limitation not in draft.limitations:
@@ -375,10 +397,12 @@ def _pick_stance(allowed: frozenset[str]) -> SynthesisStance:
 
 __all__ = [
     "EvidencePayload",
+    "REASON_CITATION_MISSING",
     "REASON_LIMITATIONS_DROPPED",
     "REASON_STANCE_VIOLATION",
     "REASON_UNAUTHORIZED_REF",
     "REASON_UNCOVERED_ASSERTION",
+    "REASON_VISUAL_LOCATOR_MISSING",
     "SynthesisAssertion",
     "SynthesisCitation",
     "SynthesisContractViolation",

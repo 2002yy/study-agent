@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§149 Final Answer Auditor（路线 ⑤，先冻结契约再实现）**：审最终答案的 factual claim 是否真被文字/图像证据支持（citation 是否真支持该 claim、有无 overstated、有无漏掉 contradiction、是否回答了用户真正的问题），**最多 ≤1 次 bounded repair**；不改 RQ-A/C/D、不改 stop/gate。**§148 Synthesis 已实现**（§148.1）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
+- **当前动作：主线回到 Research Quality。** §143 / P1 / RS routing 已收口；P1 保持 **opt-in 观察期**（代码默认 OFF，合格部署可显式 ON，见 §143.169/§143.172），不阻塞主线。下一主阶段 = **§144 P2-RQ（Semantic Research Quality）**：RQ-A 契约（数据模型 + 判据）已冻结（§144.1），**EvidenceUnit 从 v1 起多模态兼容**（§144.4），视觉读取分级（§144.5）。路线 7 阶段版（§144.0）：① RQ → ② **Multimodal Reader v1**（紧跟，不再后置）→ ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。下一刀 = **§149 Auditor 实现（一刀）**：`audit_final_answer(...)` —— 机械层复用 §148 validator，语义层经**可注入 judge seam**（默认确定性、无模型调用），输出结构化 `AuditResult`（verdict / issues / unanswered_aspects / contradiction_gaps / citation_support_gaps / repair_allowed），**repair 上限固定 1 且用尽后不循环**（返回 audited-but-not-approved）；不改 RQ-A/C/D、不改 stop/gate。**契约已冻结**（§149）。**§148 Synthesis 已实现**（§148.1）。**§147 ResearchBrief 已实现**（§147.1）。**Multimodal Reader v1 已 qualified 并进入观察期**（§144.17–§144.18）。**RQ 层已阶段性 CLOSED**（§144.7–§144.10）。flake 已硬化（§146）。CI gate 已闭环（§146.5）。P3/A4/A5 按需，非 NEXT。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -13707,6 +13707,100 @@ L3 full pytest @ 18666a2（clean head）：2805 passed / 2 skipped / 0 failed
 **未做**：不改 RQ-A/C/D；不改 stop/gate；不写 research-state-v1；
 不做 Final Answer Auditor（路线 ⑤）；未接入真实 LLM writer（默认 extractive，
 LLM writer 作为注入 seam 由后续刀决定）。
+
+## §149 Final Answer Auditor contract（冻结 v1，2026-09-25；路线 ⑤）
+
+**定位**：审**最终答案**（`SynthesisDraft` 及其 citation），**不再搜资料**；Auditor **不产生新事实**。
+
+**两层审计（冻结，不得混在一起）**：
+
+```text
+机械层（code 可确定；deterministic）
+  - assertion 是否有 evidence_ref
+  - ref 是否被 Projection 授权
+  - visual citation 是否带 page/region
+  - limitations 是否保留（未被丢弃）
+  - unresolved conflict 是否被写成 settled（stance 违规）
+  -> 该层已由 §148 的 validator 覆盖；Auditor **直接复用，不重造**
+
+语义层（需要判断"证据是否真的支持这句话"）
+  - citation 是否"挂对了"（ref 存在但内容不支撑该断言）
+  - 是否 overstated（措辞强度超过 adequacy / confidence）
+  - 是否漏掉关键 contradiction
+  - 是否真正回答了用户问题
+```
+
+**输出（结构化，不是单一 pass/fail）**：
+
+```text
+AuditResult
+├─ verdict              pass | repairable | fail
+├─ issues[]             assertion_id / issue_type / severity / evidence_refs[] / reason
+├─ unanswered_aspects[]
+├─ contradiction_gaps[]
+├─ citation_support_gaps[]
+└─ repair_allowed       bool
+```
+
+**"是否回答用户问题"拆两维（冻结）**：
+
+```text
+question_coverage  ：用户问题的主要子问题是否都有对应回答
+evidence_grounding ：这些回答是否有证据
+（二者独立报告；避免"证据扎实但只回答了一半"被判 pass）
+```
+
+**repair 规则（冻结，最关键）**：
+
+```text
+最多 **1 次** bounded repair。repair 只允许：
+  - 改表达（措辞 / 限定语）
+  - 删弱 unsupported claim
+  - 补**已有** citation
+  - 恢复遗漏的 conflict / limitation
+禁止：
+  - 新搜索 / 新 read / 新 evidence / 新 required_units
+  - 改 RQ-A/C/D / 改 preferred_side
+  - 把缺证据的问题"脑补完整"
+repair 后仍不过：
+  -> 停止，**不循环**；保留失败原因，返回 **audited-but-not-approved** 状态
+```
+
+**verdict 语义（冻结）**：
+
+```text
+pass        ：无 blocking issue
+repairable  ：存在可由 bounded repair 修复的 issue
+              （且 repair_allowed=True 且本 run 尚未用过 repair）
+fail        ：存在不可由 repair 修复的 issue（证据根本不足 / 未回答问题）
+             或 repair 已用尽仍不过 -> audited-but-not-approved
+```
+
+**非目标**：不新增搜索 / 读取；不改 RQ-A/C/D；不改 stop/gate；不写 research-state-v1；
+不做第二次 auditor 循环；不产生新事实。
+
+**实现顺序（冻结）**：
+
+```text
+1) 本刀：仅冻结契约（§149）
+2) 下一刀：实现 audit_final_answer(...)
+   机械层复用 §148 validator；语义层经**可注入 judge seam**（默认确定性、无模型调用）
+   + 表驱动测试 + repair 上限 1 的结构性测试（含"用尽后不循环"）
+```
+
+### 149.1 Auditor 实现（2026-09-27，候选）
+
+**交付**：`src/web/research/final_answer_auditor.py`、`tests/test_final_answer_auditor.py`；
+`synthesis_assembler.validate_synthesis_draft` 仍是唯一机械校验入口，本刀补足
+claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组装器也调用同一入口。
+
+- `AuditResult` 分别报告 verdict、结构化 issues、unanswered aspects、contradiction gaps、citation support gaps、question coverage 与 evidence grounding；未批准态为 `audited-but-not-approved`。
+- 默认语义 judge 明确 abstain / fail closed；只有注入的 judge 能判断证据是否真正支持 assertion、措辞是否过强、冲突是否遗漏及问题是否回答。没有模型调用，也不把结构化 coverage 误报为语义通过。
+- 若 issue 可修且提供 repairer，只调用一次；再次审计后仍有 blocking issue 就 fail，保留初次与最终原因，`repair_allowed=False`，无循环。
+- repair 仅能处理已有 section/assertion/claim 与 projection 已授权的 refs/limitations；不得新增 assertion、claim、evidence 或无关 citation。关键 claim 被删导致 unanswered，不能靠空答案获得 PASS。
+- 不接搜索、read、RQ-A/C/D、stop/gate、持久化；尚未接真实 LLM 语义 judge 或 writer，默认路径不会批准最终答案。
+
+**本地候选验证**：L1 impact set（Auditor + Synthesis + ResearchBrief）54 passed；Ruff 全库 clean；mypy baseline 122 ≤ 128、NEW=0。首次未提交工作树上的 L3 full pytest：2816 passed / 2 skipped / 3 failed（876.25s）。其中 2 个 `test_rq1c_protocol_probes` 在 `rq1c_git_identity` 因 tracked worktree 非 clean 而拒绝运行；`test_cross_layer_regression.py::test_news_query_change_invalidates_downstream_stages` 收到外部请求 502，此用例历史在 §147.1 也记录过同类网络 flake。须在 clean candidate HEAD 下复验这些失败并取得最终 gate，当前不作 full-pass/交付结论。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
