@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§155 dual-review verifier 已封板**（见 §155）。Draft PR #150 实现 head `9613064` 的 exact-head PR CI `36409748284`、push CI `36409741997` 均 success；GitHub collaborator review 与仓库外可信 issuer 签名 artifact 两条验证路径均可用。当前 GitHub review 列表为空，trusted issuer 未配置，verified attestation 为 0；六个候选仍 pending，正式准入 **0/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = operator 从仓库外配置 trusted issuer，并由独立模型/agent 对 digest `54218c630aff23aaa0a6d135c3677f0121b7f00a15424cfef9e83f94525a5808` 的当前 packet 正式复核，生成绑定 `9613064` 的签名 artifact；随后验证凭证，才讨论单案准入。**
+- **当前动作：§156 个人项目六案复核已代行接受**（见 §156）。§155 verifier 实现 head `9613064` 的 exact-head PR CI `36409748284`、push CI `36409741997` 均 success；两条严格验证路径仍可用。用户授权由 Codex 代行接受六案内容复核，原始 review 已保存；gold 六案 `approved`，准入报告 v2 以 `structural_gold_review` 计 **6/56**。这不是 signed attestation，当前 verified attestation 仍为 0；其余 50 案、实际执行、合格语义/视觉评估和先验阈值未完成，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对已准入六案执行记录型 pilot，明确将无合格视觉适配器的案标为 unavailable，获取可复核的逐案 scorer 输出。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 合同已冻结；§153 registry/scorer、§154 六个 pending 来源候选、§155 dual-review verifier 与 PDF/视觉诊断已在 `9613064` exact-head CI 封板；正式准入仍 0/56、NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是仓库外可信 issuer 与真实独立 attestation。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 用户授权个人项目 owner 复核接受，六案准入 6/56，release 仍 NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是已准入六案的记录型 pilot。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -13954,6 +13954,16 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **本地验证**：review packet/gold 漂移、GitHub API review 的正负控制（含自审、旧 SHA、错 packet、后续 review）、PDF page read、GIF provenance/视觉注入、chart renderer 缺失及视觉快照漂移均覆盖；`release-benchmark-review` L2 及相关合同 **105 passed**，追加视觉漂移测试聚焦 **9 passed**。Ruff clean、mypy baseline **122 ≤ 128 / NEW=0**、package helper **1525 files**、`git diff --check` clean。`gh api` 对 PR #149 不存在的 review ID 返回 `review_not_found`，未伪造成功凭证。仍是 eval seam，未触发生产共享模型或 authority 的 L3。
 
 **封板证据与限制**：Draft PR #150 的实现 head `961306441a3e088b06d3cccbcba2b0822c9d8846`，exact-head PR CI `36409748284` 与 push CI `36409741997` 均 `success`；`gh api` 查询该 PR review 列表为 0。当前环境未配置 trusted issuer，verified attestation 为 0；六个 gold 均 `pending`，正式准入 0/56，release gate **NO-GO**。§155 dual-review verifier **CLOSED**，不得把验证器通过误记为 case 准入。唯一下一步：operator 从仓库外配置可信 issuer，由独立模型/agent 针对当前 packet 与原始来源正式复核并生成绑定 `9613064` 的签名 artifact，再运行验证器。qualified vision/semantic judge、OS 层离线证明、先验阈值和剩余 50 个 release case 仍是后续门，不得称 RQCE v1 GO。
+
+## §156 个人项目六案 owner 复核接受（2026-09-29）
+
+**用户裁定与范围**：用户认为个人项目的 trusted issuer 签名流程过重，明确授权 Codex 代行通过本轮六案内容复核。该裁定只适用于当前 packet `54218c630aff23aaa0a6d135c3677f0121b7f00a15424cfef9e83f94525a5808` 与六个 gold；§155 GitHub/签名验证器保留为可选严格路径，但不再是本个人项目六案准入的前置门。不能把 owner 接受写成 cryptographically verified attestation，也不改变 56 案目标、执行/语义/视觉/阈值门或 release NO-GO。
+
+**复核依据与原始记录**：独立模型给出六案 `pass`、四个 review axes 为 true、无 blocking findings 的原始文本，按原字节保存于 `docs/research_quality/RELEASE_BENCHMARK_SIX_CASE_REVIEW_2026-09-29.txt`，SHA-256 `b2bf30df9d53c51c3843809db03841805dbd0f9972cd7e5e33fcfec13f4fc870`。Codex 复核 packet digest、五份冻结来源字节 SHA，并查看 NASA Moon 第 2 页、USGS 火山图、GISTEMP 图表及 NWS 单页真实渲染；NOAA 源句的本地水深/海岸线条件也核对。原始文本的“局地水”“二五天／一三天”等短句不完整，原文保留不改；对应 gold 与来源分别明确 local bathymetry、2–5 days / 1–3 days。live 案复核的是问题与判分规则，不把当时 feed 事件值当作持久事实。
+
+**机器语义**：`gold_v1.json` 六案保留 annotator `codex-draft`，reviewer 记为 `chatgpt-independent-review-1`、state=`approved`、四项检查 true。个人项目接受结构完整 gold 作为准入依据；`release-benchmark-admission-v2` 如实标记 `admission_basis=structural_gold_review`，它不自行验证 reviewer 身份或 owner 授权，因此后续 gold `approved` 必须先有可追溯的实际复核与 owner 接受记录。当前 6/56，剩余 50，scorer 仍 `NO_GO`。未生成签名、未配置 issuer、未证明视觉 adapter 或 qualified semantic judge，也未产生逐案 release observations。下一执行刀只做六案记录型 pilot 和可复核 scorer 输出。
+
+**本地证据**：原始 review 文件按字节复制，SHA-256 未变；当前 packet digest 仍为 `54218c...a5808`。registry 工具输出 `reviewed_candidate_cases=6 / admitted_release_cases=6 / missing_release_cases=50 / release_gate=NO_GO`；空记录 scorer 输出 `missing_observations=6`，原因含 `release_cases_incomplete`、`release_observations_incomplete` 和未锁定阈值/语义资格。聚焦测试 25 passed、`release-benchmark-review` L2 108 passed、Ruff clean、`git diff --check` clean。本次只改变离线 eval 准入及 gold，没有生产 runtime 或共享核心模型改动，不触发 L3。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
