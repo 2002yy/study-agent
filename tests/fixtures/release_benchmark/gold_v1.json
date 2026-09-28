@@ -1,6 +1,6 @@
 {
   "schema_version": "release-benchmark-gold-v1",
-  "registry_digest": "0cc68df9f1e9fb278e89dbc794be0466773439064bd42df730cebf9ff571db15",
+  "registry_digest": "4638a378428b8633776af63b0e82556c934e8c76b8bbc8acd48d9fd78711afd8",
   "reviews": [
     {
       "case_id": "REL-F-TEXT-001",
@@ -79,7 +79,7 @@
     },
     {
       "case_id": "REL-F-CHART-001",
-      "case_content_sha256": "7d2fa07b15453affaeeeea562c2f696384d2725d603c374388871806f7d455a2",
+      "case_content_sha256": "7fcb7c2bec31a9f7850a33cb31646d9cc2dc77b996458a2b437187f4579c35a8",
       "annotator": "codex-draft",
       "reviewer": "unassigned",
       "state": "pending",
@@ -88,7 +88,7 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "trend": "The black annual curve is generally lower in the late nineteenth century and rises to higher positive plotted values in the final decades, despite year-to-year fluctuations. Do not infer a current-year value.",
+        "trend": "The upper black temperature-mean curve in the upper plot is generally lower in the late nineteenth century and rises to higher positive plotted values in the final decades, despite year-to-year fluctuations. Do not infer a current-year value.",
         "axes and archive limit": "Horizontal ticks span approximately 1880 to 2020; the visible vertical numeric scale runs about -2.0 to +1.0. The snapshot supplies no explanatory legend for the colored curves and no current-year data; do not assign meanings or exact units absent from the chart."
       },
       "unit_sources": {
