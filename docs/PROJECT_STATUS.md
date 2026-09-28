@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**`codex/release-benchmark-attestation`（基于 §154 Draft PR #149 的 `960da37`；§155 复核 packet 与多模态离线诊断独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **分支 / head：**本次状态收口在 `codex/release-benchmark-closeout-docs`；§155 实现与正式复核目标仍是 Draft PR #150 的 `codex/release-benchmark-attestation` exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`。文档分支提交不得改变 #150 的复核目标；各分支权威 HEAD 以各自 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§155 review packet 与 PDF/视觉离线诊断**（见 §155）。§154 `960da37` 的 PR CI `36388793394`、push CI `36388750300` 均 success；Draft PR #149 未合并。六个候选的 substantive gold 已补成可复核判分要点；GitHub exact-head 独立复核验证器已建，但**没有真实外部 review**。PDF 文本进入实际 `WebLookupService`，GIF/PDF 视觉进入现有 multimodal pipeline；默认缺 vision adapter 时明确 `unavailable`。正式准入仍 **0/56**，RQCE v1 **NO-GO**。**唯一下一步 = 本分支本地收口与 exact-head CI；绿后取得独立 reviewer 的真实 packet-bound PR review**。
-- **当前先决门：**§151 父 head `d98acd6` 的 exact-head PR/push CI 均 success；§153 仍须自己的新 head CI。旧 SHA 绿灯不可复用。
+- **当前动作：§155 dual-review verifier 已封板**（见 §155）。Draft PR #150 实现 head `9613064` 的 exact-head PR CI `36409748284`、push CI `36409741997` 均 success；GitHub collaborator review 与仓库外可信 issuer 签名 artifact 两条验证路径均可用。当前 GitHub review 列表为空，trusted issuer 未配置，verified attestation 为 0；六个候选仍 pending，正式准入 **0/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = operator 从仓库外配置 trusted issuer，并由独立模型/agent 对 digest `54218c630aff23aaa0a6d135c3677f0121b7f00a15424cfef9e83f94525a5808` 的当前 packet 正式复核，生成绑定 `9613064` 的签名 artifact；随后验证凭证，才讨论单案准入。**
+- **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 合同已冻结；§153 registry/scorer、§154 六个 pending 来源候选、§155 packet verifier 与 PDF/视觉诊断本地完成；正式准入仍 0/56、NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是 exact-head CI 与真实独立复核。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 合同已冻结；§153 registry/scorer、§154 六个 pending 来源候选、§155 dual-review verifier 与 PDF/视觉诊断已在 `9613064` exact-head CI 封板；正式准入仍 0/56、NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是仓库外可信 issuer 与真实独立 attestation。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -13947,13 +13947,13 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 
 **范围与先决门**：从 §154 Draft PR #149 的 `960da37` 切出 `codex/release-benchmark-attestation`；父 head PR CI `36388793394`、push CI `36388750300` 均 success。只扩展 eval/gold/工具/文档；不接生产默认 reader、answer、stop、gate，不以调用参数或 JSON 自填值授予 release 权限。
 
-**可复核 gold 与外部 packet**：六个 pending gold 的 aspect rubric 已从泛化占位语补成具体来源支撑、视觉定位与时效限制；live USGS 案只定义按获取时间选最新事件及空 feed 处理，不预填未来事实。`release-benchmark-review-packet-v1` 按 case 绑定问题、source SHA/locator/page/region、substantive gold 与四项复核轴，并有 canonical digest。reviewer 可按 packet marker 在 GitHub PR 提交 review；工具通过 `gh api` 实时读取 PR 与完整 review 列表，仅接受与作者及 gold annotator 不同的 GitHub `User` 协作者、`APPROVED`、exact current head、匹配 packet marker/四项 `yes`、且未被同 reviewer 后续 review 取代的记录。旧头、自审、错 digest、缺复核轴均 fail-closed。该检查**只验证外部 GitHub 记录，不自动改变 admission/scorer**；当前没有真实独立 review，仍 0/56。
+**可复核 gold 与外部 packet**：六个 pending gold 的 aspect rubric 已从泛化占位语补成具体来源支撑、视觉定位与时效限制；live USGS 案只定义按获取时间选最新事件及空 feed 处理，不预填未来事实。`REL-F-CHART-001` 已修订为 upper plot 的 upper black temperature-mean curve，旧 `30af2f4` review 材料失效。`release-benchmark-review-packet-v1` 按 case 绑定问题、source SHA/locator/page/region、substantive gold 与四项复核轴；当前六案 packet digest 为 `54218c630aff23aaa0a6d135c3677f0121b7f00a15424cfef9e83f94525a5808`。两条独立复核路径：GitHub PR 协作者的 exact-head `APPROVED` review，或仓库外可信 issuer 以 HMAC-SHA256 签署的 artifact。artifact 必须绑定 exact head、packet digest、完整 case scope、四项 review axes、approved decision 且无 blocking findings；reviewer 与 issuer 均不得是 PR 作者或 gold annotator。可信 key 只能由 operator 经 `RELEASE_BENCHMARK_REVIEW_ARTIFACT_KEYS_JSON` 从仓库外提供，artifact 不能自授信。旧头、自审、错 digest、缺轴、未知 issuer 或错误签名均 fail-closed。两条检查**只验证外部凭证，不自动改变 admission/scorer**。
 
 **二进制重放**：PDF text 案由 byte-SHA 校验后的指定页交给 `pypdf`，再通过实际 `WebLookupService` 与临时 SQLite 完成 read（NASA Moon page 2 `completed/found/sources_read`）。mixed NWS 案把 page 1 文本 read 与视觉 read 分开记录。USGS GIF 以原始字节，NASA chart/NWS PDF 页以本地 `pdftoppm` raster，经 `VisualImage → read_visual_candidates`；materialized SHA 与原始 source SHA 分别记录。默认 vision adapter 未配置时，图像、chart、mixed 视觉结果明确 `unavailable / vision_not_configured`；无 Poppler 时明确 `pdf_visual_page_renderer_not_available`，不以 PDF 文字充当视觉理解。Python socket connect 在 pilot 执行期拦截；这不是 OS 层禁网沙箱，也不是合格语义 judge。
 
 **本地验证**：review packet/gold 漂移、GitHub API review 的正负控制（含自审、旧 SHA、错 packet、后续 review）、PDF page read、GIF provenance/视觉注入、chart renderer 缺失及视觉快照漂移均覆盖；`release-benchmark-review` L2 及相关合同 **105 passed**，追加视觉漂移测试聚焦 **9 passed**。Ruff clean、mypy baseline **122 ≤ 128 / NEW=0**、package helper **1525 files**、`git diff --check` clean。`gh api` 对 PR #149 不存在的 review ID 返回 `review_not_found`，未伪造成功凭证。仍是 eval seam，未触发生产共享模型或 authority 的 L3。
 
-**限制与唯一下一步**：六个 gold 均 `pending`，reviewer `unassigned`、四项检查 false；packet verifier 即使通过也不能自行准入。先完成本分支 exact-head PR/push CI；绿后由独立协作者对具体 packet 与原始来源进行真实 GitHub review，再决定是否将经验证的外部凭证接入单案 admission。qualified vision/semantic judge、OS 层离线证明、先验阈值和剩余 50 个 release case 仍是后续门，不得称 RQCE v1 GO。
+**封板证据与限制**：Draft PR #150 的实现 head `961306441a3e088b06d3cccbcba2b0822c9d8846`，exact-head PR CI `36409748284` 与 push CI `36409741997` 均 `success`；`gh api` 查询该 PR review 列表为 0。当前环境未配置 trusted issuer，verified attestation 为 0；六个 gold 均 `pending`，正式准入 0/56，release gate **NO-GO**。§155 dual-review verifier **CLOSED**，不得把验证器通过误记为 case 准入。唯一下一步：operator 从仓库外配置可信 issuer，由独立模型/agent 针对当前 packet 与原始来源正式复核并生成绑定 `9613064` 的签名 artifact，再运行验证器。qualified vision/semantic judge、OS 层离线证明、先验阈值和剩余 50 个 release case 仍是后续门，不得称 RQCE v1 GO。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
