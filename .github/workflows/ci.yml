@@ -94,7 +94,7 @@ jobs:
           # still scanned for key-like patterns by tools/package_project_helper.py.
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$|docs[\\/]research_quality[\\/].*\.json$' \
-            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256)[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
+            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256|plan_digest|registry_digest)[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
             .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
             > detect-secrets-report.json 2>&1
           python - <<'PY'

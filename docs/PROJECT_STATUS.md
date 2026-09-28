@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§153 Release Benchmark registry、gold 与 recorded-score 合同本地实现**（见 §153）。§151 `d98acd6` exact-head PR CI `36338069294`、push CI `36338044533` 均 success；Draft PR #146 未合并。§152 CI 清理在独立 Draft PR #147 的 `3c71a36` exact-head PR CI `36339981942`、push CI `36339961292` 双绿，但本分支不包含该改动。§153 已建严格 case/gold 对象、只读准入盘点与离线观察评分；当前正式 release case **0/56**，RQCE v1 仍 NO-GO。**唯一下一步 = 本分支 exact-head CI；绿后采集首批独立来源 case、建立外部复核凭证和实际 frozen replay 接口**。
+- **当前动作：§153 Release Benchmark registry、gold 与 recorded-score 合同本地实现**（见 §153）。§151 `d98acd6` exact-head PR CI `36338069294`、push CI `36338044533` 均 success；Draft PR #146 未合并。§152 CI 清理在独立 Draft PR #147 的 `3c71a36` exact-head PR CI `36339981942`、push CI `36339961292` 双绿，但本分支不包含该改动。§153 已建严格 case/gold 对象、只读准入盘点与离线观察评分；当前正式 release case **0/56**，RQCE v1 仍 NO-GO。`58b561f` 的 PR CI `36384659500` 与 push CI `36384624012` 因 detect-secrets 将空 manifest 的 `plan_digest` / `registry_digest` SHA 误报为密钥而失败；本地定点复扫 0 命中，CI 精确排除规则已修复。**唯一下一步 = 修复 head 的 exact-head CI；绿后采集首批独立来源 case、建立外部复核凭证和实际 frozen replay 接口**。
 - **当前先决门：**§151 父 head `d98acd6` 的 exact-head PR/push CI 均 success；§153 仍须自己的新 head CI。旧 SHA 绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
