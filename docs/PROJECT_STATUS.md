@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§156 个人项目六案复核已代行接受**（见 §156）。§155 verifier 实现 head `9613064` 的 exact-head PR CI `36409748284`、push CI `36409741997` 均 success；两条严格验证路径仍可用。用户授权由 Codex 代行接受六案内容复核，原始 review 已保存；gold 六案 `approved`，准入报告 v2 以 `structural_gold_review` 计 **6/56**。这不是 signed attestation，当前 verified attestation 仍为 0；其余 50 案、实际执行、合格语义/视觉评估和先验阈值未完成，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对已准入六案执行记录型 pilot，明确将无合格视觉适配器的案标为 unavailable，获取可复核的逐案 scorer 输出。**
+- **当前动作：§157 五个 frozen 案记录型 pilot 已完成**（见 §157）。§156 `16b37ac` 的 exact-head PR CI `36454445058`、push CI `36454438176` 均 success。六案 gold 已复核并按个人项目规则准入 **6/56**；本轮在代码 head `5d48e48` 生成五案 source-bound observation，live 案保持 `missing`。文本/PDF 只证实来源读取，图像/图表/mixed 因无合格视觉适配器为 `unavailable`；没有答案语义分数，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对文本/PDF 两案接真实答案生成与来源引用记录，再由人工/合格 judge 标注语义指标；保持视觉与 live 缺测可见。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 用户授权个人项目 owner 复核接受，六案准入 6/56，release 仍 NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是已准入六案的记录型 pilot。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 六案按 owner 裁定准入 6/56；§157 五案 frozen reader 记录型 pilot 完成，live 缺测，release 仍 NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一门是文本/PDF 的真实答案与语义评分。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -13964,6 +13964,14 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **机器语义**：`gold_v1.json` 六案保留 annotator `codex-draft`，reviewer 记为 `chatgpt-independent-review-1`、state=`approved`、四项检查 true。个人项目接受结构完整 gold 作为准入依据；`release-benchmark-admission-v2` 如实标记 `admission_basis=structural_gold_review`，它不自行验证 reviewer 身份或 owner 授权，因此后续 gold `approved` 必须先有可追溯的实际复核与 owner 接受记录。当前 6/56，剩余 50，scorer 仍 `NO_GO`。未生成签名、未配置 issuer、未证明视觉 adapter 或 qualified semantic judge，也未产生逐案 release observations。下一执行刀只做六案记录型 pilot 和可复核 scorer 输出。
 
 **本地证据**：原始 review 文件按字节复制，SHA-256 未变；当前 packet digest 仍为 `54218c...a5808`。registry 工具输出 `reviewed_candidate_cases=6 / admitted_release_cases=6 / missing_release_cases=50 / release_gate=NO_GO`；空记录 scorer 输出 `missing_observations=6`，原因含 `release_cases_incomplete`、`release_observations_incomplete` 和未锁定阈值/语义资格。聚焦测试 25 passed、`release-benchmark-review` L2 108 passed、Ruff clean、`git diff --check` clean。本次只改变离线 eval 准入及 gold，没有生产 runtime 或共享核心模型改动，不触发 L3。
+
+## §157 五案 frozen reader 记录型 pilot（2026-09-29）
+
+**先决门与范围**：§156 Draft PR #151 的 `16b37ac1b676e1590f6cfebbdda9b89c3f441965` exact-head PR CI `36454445058`、push CI `36454438176` 均 success。本刀只将已准入五个 frozen 案的真实本地 reader pilot 输出转换为 `release-benchmark-observation-v1` 并运行现有 scorer；不触碰生产默认 answer/reader/stop/gate，不把未生成的答案或视觉解释补写为结果。live 案需要实际人工来源核验，本刀保持 `missing`，不伪填 `human_reviewed_by`。
+
+**实现与事实边界**：`release_benchmark_recorded_pilot.py` 严格核对 case 内容 digest、source locator/字节 SHA/page/region 和 Python socket guard，再把 `WebLookupService` 本地 `web_source_1` 映射回 registry source ID。记录工具要求 tracked worktree clean、绑定当前 code SHA、保留原始五案 transcript 的字节 SHA、生成 observation 与逐案 scorer。文本/PDF 案来源 `read_ok` 但 case 为 `unavailable / answer_generation_not_run`；图像/图表来源 `read_failed / vision_not_configured`；mixed PDF 文本来源 `read_ok`，但 case 因所需视觉解释缺失为 `unavailable`。`read_success` 对 mixed 仅描述文本来源读取，不能解释为视觉或答案通过。scorer 的 `release_admitted` 现与准入状态同源，不再硬编码 false。
+
+**可复核证据**：代码执行 head `5d48e481b7093361c79521eb8ae41251729f7e0f`；artifact `docs/research_quality/RELEASE_BENCHMARK_RECORDED_PILOT_2026-09-29/` 内有 `pilot_bundle.json`、`observation.json`、`score.json`。bundle 字节 SHA-256 `f188955460a8ea43ee81838f8efd136c3aa9c6485ebc2d5ca9f34ec3b9426b29` 与 observation 绑定一致；CLI 重新读取 observation 的 recording digest `1dfbe0636caaf9ee8fb83541ba06e15ee7f97a1adeccdf465e7dc4ef7d055438`。五个 frozen case 均 `unavailable`，live case `missing`；准入 6/56、缺 50、缺观察 1、release **NO-GO**。聚焦测试 24 passed、`release-benchmark-pilot` L2 加 stage policy **117 passed**、Ruff clean、`git diff --check` clean。Python socket guard 不是 OS 层断网证明；本轮无答案、qualified semantic labels、vision adapter 或先验阈值。下一刀聚焦文本/PDF 两案真实答案与引用记录及人工/合格语义标注。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
