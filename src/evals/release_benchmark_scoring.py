@@ -370,7 +370,8 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
                 }
         cases.append({
             "case_id": case.case_id, "mode": case.mode, "modality": case.modality,
-            "primary_focus": case.primary_focus, "release_admitted": False,
+            "primary_focus": case.primary_focus,
+            "release_admitted": case.case_id in reviewed,
             "state": observed.state if observed else "missing",
             "reason": observed.reason if observed else "observation_missing",
             "source_reads": [

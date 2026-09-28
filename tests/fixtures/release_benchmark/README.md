@@ -37,6 +37,14 @@ The opt-in text/PDF pilot uses a snapshot allowlist, rechecks bytes on each read
 
 These outputs are diagnostic runtime transcripts, not scored release observations. The guard covers Python socket connects in this process; it is not an OS-level network sandbox. An absent PDF renderer is reported as `unavailable`, and a present renderer does not supply semantic vision. The mixed case records its PDF text read and visual read separately.
 
+To record the five approved **frozen** reader pilots against one clean code head and score them, run:
+
+```powershell
+.venv\Scripts\python.exe tools/run_release_benchmark_recorded_pilot.py --output-dir .workbuddy/release-recorded-pilot
+```
+
+The output directory contains `pilot_bundle.json`, `observation.json`, and `score.json`. The observation binds the bundle's exact byte SHA-256, registry/gold digests, source locator/SHA/page/region, and code head. It maps WebLookupService's local source IDs back to registry IDs only after checking the source binding. Reader success does not imply an answer: text/PDF cases stay `unavailable` because answer generation was not run; image/chart/mixed stay `unavailable` without qualified visual interpretation. The live case remains `missing` until a real manual live read with an actual human reviewer is recorded. The scorer still reports `NO_GO`.
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell
