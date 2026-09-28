@@ -1,4 +1,4 @@
-"""Run one opt-in frozen text candidate through the real WebLookupService."""
+"""Run one opt-in frozen candidate through its available local reader pilot."""
 
 from __future__ import annotations
 
@@ -13,7 +13,12 @@ if str(ROOT) not in sys.path:
 
 from src.evals.release_benchmark_plan import load_release_benchmark_plan  # noqa: E402
 from src.evals.release_benchmark_registry import load_registry  # noqa: E402
-from src.evals.release_benchmark_replay import run_frozen_text_pilot  # noqa: E402
+from src.evals.release_benchmark_replay import (  # noqa: E402
+    run_frozen_mixed_pilot,
+    run_frozen_pdf_pilot,
+    run_frozen_text_pilot,
+    run_frozen_visual_pilot,
+)
 
 
 FIXTURES = ROOT / "tests/fixtures/release_benchmark"
@@ -28,7 +33,16 @@ def main() -> None:
     case = next((item for item in registry.cases if item.case_id == args.case_id), None)
     if case is None:
         parser.error("unknown release candidate")
-    print(json.dumps(run_frozen_text_pilot(case, ROOT), sort_keys=True))
+    dispatch = {
+        "text": run_frozen_text_pilot,
+        "pdf": run_frozen_pdf_pilot,
+        "image": run_frozen_visual_pilot,
+        "chart": run_frozen_visual_pilot,
+        "mixed": run_frozen_mixed_pilot,
+    }
+    if case.mode != "frozen":
+        parser.error("live cases cannot use frozen replay")
+    print(json.dumps(dispatch[case.modality](case, ROOT), sort_keys=True))
 
 
 if __name__ == "__main__":

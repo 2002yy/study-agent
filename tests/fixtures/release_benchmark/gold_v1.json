@@ -13,8 +13,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "definitions": "Assess against the original source and stated limitations.",
-        "cause and local factor": "Assess against the original source and stated limitations."
+        "definitions": "Storm surge is abnormal storm-caused seawater rise above the predicted astronomical tide. Storm tide is the total observed level during a storm: surge plus the normal astronomical tide.",
+        "cause and local factor": "Primary cause is storm winds pushing water onshore. Accept at least one location-dependent factor named by NOAA, such as coastline orientation relative to the track or local bathymetry; do not treat this frozen page as a current forecast."
       },
       "unit_sources": {
         "surge_vs_tide": [
@@ -39,8 +39,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "same lunar face": "Assess against the original source and stated limitations.",
-        "surface regions": "Assess against the original source and stated limitations."
+        "same lunar face": "The lithograph attributes the nearly fixed Earth-facing side to synchronous rotation: the Moon rotates about once in the time it travels around Earth.",
+        "surface regions": "Bright areas are lunar highlands. Dark maria are impact basins filled with dark lava; the handout dates this filling to roughly 4 to 2.5 billion years ago. Do not promote its 2001 mission counts into a current claim."
       },
       "unit_sources": {
         "synchronous_rotation": [
@@ -62,8 +62,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "visual labels": "Assess against the original source and stated limitations.",
-        "diagram limit": "Assess against the original source and stated limitations."
+        "visual labels": "The schematic labels a central vent rising through the volcano and a magma reservoir beneath the central body. Answer must use the displayed labels and their relative positions, with page 1 / labeled region provenance.",
+        "diagram limit": "This is a generic cross-sectional illustration. It does not measure a named volcano, establish depth or scale, or prove every shield volcano has the depicted geometry."
       },
       "unit_sources": {
         "reservoir_position": [
@@ -88,8 +88,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "trend": "Assess against the original source and stated limitations.",
-        "axes and archive limit": "Assess against the original source and stated limitations."
+        "trend": "The black annual curve is generally lower in the late nineteenth century and rises to higher positive plotted values in the final decades, despite year-to-year fluctuations. Do not infer a current-year value.",
+        "axes and archive limit": "Horizontal ticks span approximately 1880 to 2020; the visible vertical numeric scale runs about -2.0 to +1.0. The snapshot supplies no explanatory legend for the colored curves and no current-year data; do not assign meanings or exact units absent from the chart."
       },
       "unit_sources": {
         "black_curve_trend": [
@@ -114,8 +114,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "watch versus warning": "Assess against the original source and stated limitations.",
-        "precautions and layout": "Assess against the original source and stated limitations."
+        "watch versus warning": "On page 1 right panel, the watch is described as typically issued 2-5 days ahead of possible dangerous heat, with lower certainty. The warning is typically issued 1-3 days ahead of extremely dangerous conditions and has higher certainty.",
+        "precautions and layout": "Locate the heat-wave precautions in the left column and name any two printed items, such as slowing strenuous activity, wearing light loose clothing, drinking water, or using air-conditioned locations. Do not assert that a local alert is currently in force."
       },
       "unit_sources": {
         "watch_warning_difference": [
@@ -140,8 +140,8 @@
       "difficulty_checked": false,
       "modality_checked": false,
       "aspect_rubric": {
-        "latest event or empty feed": "Assess against the original source and stated limitations.",
-        "provenance and freshness": "Assess against the original source and stated limitations."
+        "latest event or empty feed": "At recorded retrieval time, select the feed feature with the greatest event time and report its magnitude, place, and UTC time. If the features list is empty, explicitly report no matching event; never prefill a future observation.",
+        "provenance and freshness": "Cite the original USGS feed and selected event URL when present, preserve the retrieval timestamp, and require the feed read to be within 30 minutes of answer generation."
       },
       "unit_sources": {
         "latest_event_selection": [
