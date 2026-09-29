@@ -61,6 +61,14 @@ Prepare the two-case assessment packet only after rechecking the saved answer ag
 
 The packet binds the answer bundle digest and contains the previously withheld gold rubric. It is an input for an assessor, not a semantic verdict. Rechecking proves internal source/prompt/citation consistency; it does not prove that the remote model's prose is supported or that the historical reader guard actually ran.
 
+The owner allows a DeepSeek API path for this personal project's frozen-source diagnostics. The source snapshot remains byte-bound and the local reader still runs without network; model inference is explicitly remote. A separate DeepSeek pro probe can assess the saved flash-model answers against the source and rubric, plus blinded wrong-citation, missing-aspect, and unsupported-claim controls:
+
+```powershell
+.venv\Scripts\python.exe tools/run_release_benchmark_semantic_probe.py --answer-bundle docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/answer_bundle.json --review-packet docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/review_packet.json --output-dir .workbuddy/release-semantic-probe
+```
+
+The probe records every prompt and raw response, model identity, capture digests, and per-control detection. It is a cross-model **diagnostic**; the pro model is not thereby a qualified judge, and these judgments are not scorer labels. The existing `release-benchmark-observation-v1` still requires fully offline frozen execution. Any release-scoring path that permits remote inference needs an explicit versioned contract and network provenance; this probe does not silently change v1.
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell
