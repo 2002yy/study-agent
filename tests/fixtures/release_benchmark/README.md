@@ -78,6 +78,12 @@ The probe records every prompt and raw response, model identity, capture digests
 
 The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the older reader-only pilot retains their unavailable/read evidence separately. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
 
+`release-benchmark-semantic-calibration-v1` replays a saved probe's prompts and raw responses against the answer bundle and frozen source before measuring two separate properties: target control detection and non-target specificity. For a wrong locator, coverage and grounding must remain supported; for a missing answer aspect, grounding and citation support must remain supported; for an unsupported added sentence, coverage must remain covered while grounding and citation support fail. The actual-answer diagnostic must be clean, each control needs its target issue once, and unrelated issues or dimension changes fail specificity. This is a diagnostic calibration gate: even a 6/6 pass does not make a model a qualified judge or create formal semantic labels. A same-provider reviewer has no independent authority. Run the check on a clean tracked HEAD with the saved probe and review packet:
+
+```powershell
+.venv\Scripts\python.exe tools/calibrate_release_benchmark_semantic_probe.py --answer-bundle docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/answer_bundle.json --review-packet docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/review_packet.json --semantic-probe .workbuddy/semantic-probe-current-adb409c/semantic_probe.json --output-dir .workbuddy/semantic-calibration-check
+```
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell

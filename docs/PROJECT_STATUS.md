@@ -13995,6 +13995,12 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 
 **下一刀**：以本轮 review packet 与答案 digests 为固定输入，先冻结可执行的独立语义裁定/负控制准入规则，再决定是否写入正式 question coverage、grounding、citation 指标；不得让同家族 DeepSeek 诊断自行授予 qualified judge 身份。
 
+## §161 语义探针校准合同（2026-09-29）
+
+**冻结判据**：§159 的 6/6 目标检出只是必要条件。以同一真实答案为基线，每案三种单点负控制还需保持非目标维度：错 locator 仅使 citation support 失效；删去子问题仅使 question coverage 变 partial；添加无来源支持的句子使 evidence grounding 与 citation support 失效，但不改变 question coverage。各控制必须指出目标 issue，重复或不相干的 issue 与维度漂移均使 specificity fail；原答案的模型诊断需三维 supported 且无 issue。检查器逐条重建 frozen source prompt，从保存的 raw response 重算判词、控制和 digest，拒绝伪造评估字段、prompt 与不可能的时间顺序。
+
+**权限边界**：校准结果是 `release-benchmark-semantic-calibration-v1` 诊断侧车。即使 specificity 6/6，也始终 `qualified_judge=false`、`formal_semantic_label=false`、`release_observation=false`、release **NO-GO**；同家族 DeepSeek pro 不得靠自评取得独立语义权威。不得修改 §160 observation 或把 §159 / 本节模型判断写成 scorer 的 observed 语义指标。真实执行结果和下一步在本节续记。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
