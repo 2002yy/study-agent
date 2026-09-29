@@ -11,7 +11,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import re
-from typing import Callable
+from typing import Any, Callable, cast
 
 from src.evals.release_benchmark_answer_pilot import build_answer_review_packet
 from src.evals.release_benchmark_registry import ReleaseGold, ReleaseRegistry
@@ -84,7 +84,7 @@ def _control_answer(case_id: str, answer: str, locator: str,
     raise ValueError("unknown semantic probe control")
 
 
-def _review_messages(*, case: dict[str, object], source_text: str,
+def _review_messages(*, case: dict[str, Any], source_text: str,
                      answer: str, sample_id: str) -> list[dict[str, str]]:
     source = case["source"]
     payload = {
@@ -131,7 +131,9 @@ def run_semantic_probe(
     packet = build_answer_review_packet(bundle, registry, gold, root)
     cases = []
     started_at = _now()
-    for answer_row, packet_case in zip(bundle["cases"], packet["cases"], strict=True):
+    answer_rows = cast(list[dict[str, Any]], bundle["cases"])
+    packet_cases = cast(list[dict[str, Any]], packet["cases"])
+    for answer_row, packet_case in zip(answer_rows, packet_cases, strict=True):
         if reviewer_model == answer_row["model"]:
             raise ValueError("semantic probe reviewer must differ from answer model")
         source_text = answer_row["messages"][1]["content"].split("Source text:\n", 1)[1]
@@ -146,7 +148,8 @@ def run_semantic_probe(
                                         answer=answer, sample_id=sample_id)
             raw = model_call(messages)
             parsed = _parse_assessment(raw, source_id)
-            issue_types = {item["issue_type"] for item in parsed["issues"]}
+            issues = cast(list[dict[str, Any]], parsed["issues"])
+            issue_types = {item["issue_type"] for item in issues}
             consistent = not (
                 ("wrong_citation" in issue_types
                  and parsed["citation_support"] != "gap")
