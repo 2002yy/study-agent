@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支为 `codex/release-benchmark-answer-pilot`；§158 真实答案执行代码 head `943e454fe88f9dec07452126194234f0d17be4f9`。§155 正式复核目标仍是 Draft PR #150 的 `codex/release-benchmark-attestation` exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；各分支权威 HEAD 以各自 `git rev-parse HEAD` 为准。
+- **分支 / head：**当前执行分支为 `codex/release-benchmark-answer-pilot`、Draft PR #152；§158 最新真实答案执行代码 head `7c4b8d6b5c5c5de44e274bf2ea21535e2ebf13a3`。§155 正式复核目标仍是 Draft PR #150 的 `codex/release-benchmark-attestation` exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；各分支权威 HEAD 以各自 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§158 两案真实答案诊断已完成**（见 §158）。§157 上一 exact-head `ab43dee` 的 PR CI `36458552688` 与 push CI `36458548051` 均 success。六案准入仍 **6/56**；TEXT/PDF 由真实远端模型生成答案、逐 claim 引用登记来源，并产生 byte-bound review packet。远端推理有网络，不能伪装成 frozen `network_disabled=true` observation；语义标签仍待真正人工或合格 judge，视觉三案仍 unavailable、live 仍 missing，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对两案 review packet 做具名、可追溯的语义裁定，并建立符合 frozen 离线执行约束的答案路径后再计分。**
+- **当前动作：§158 两案真实答案诊断与增量复核已完成**（见 §158）。PR #152 上一 exact-head `fea6b60` 的 push CI `36535754996` 与 PR CI `36535787466` 均 success；之后修复模型自带链接可混入 code-owned citation 的缺口并重跑。六案准入仍 **6/56**；TEXT/PDF 已有真实模型答案、逐 claim 登记来源引用及 byte-bound review packet。远端推理有网络，不能伪装成 frozen `network_disabled=true` observation；author-side 检查不是正式语义标签，本机也未发现离线模型运行时。视觉三案仍 unavailable、live 仍 missing，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对两案 review packet 做具名、可追溯的语义裁定，并建立符合 frozen 离线执行约束的答案路径后再计分。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -13977,7 +13977,7 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 
 **先决门与实现**：§157 收口 head `ab43deec8f033a6d03bc08944528abb68a908b02` 的 PR CI `36458552688`、push CI `36458548051` 均 success。独立分支 `codex/release-benchmark-answer-pilot` 实现显式调用的 TEXT/PDF answer pilot：冻结快照字节 SHA 复核 → 真实 `WebLookupService` 离线读 → 只把题目和已读来源文本发送给远端模型 → 严格解析 1–6 条带登记 source ID 的 claims → 代码生成 locator/page citation 与既定 limitation。gold 未进入模型 prompt。随后离线复核器从冻结快照重算上下文、prompt、claims 与答案，再生成含 gold rubric 的 review packet；负向测试覆盖伪造引用、来源漂移、篡改答案/页码/prompt。
 
-**执行证据与边界**：真实执行代码 head `943e454fe88f9dec07452126194234f0d17be4f9`，产物 `docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/answer_bundle.json` 的字节 SHA-256 `fa29f52a0451b354b310dca547633577d6cb2eaec85acb4c6487a37cc538a5fa`，同目录 `review_packet.json` 绑定该 digest。两案答案均保留真实模型响应、prompt、来源字节/上下文摘要、引用与模型身份；初步逐句检查覆盖题面，但没有正式语义标签。模型请求在 reader 的 Python socket guard **结束后**联网执行，产物明确 `inference_network=remote_model_api`、`release_observation=false`，不能装作 frozen `offline_replay`，不写入 scorer observation、不声称 qualified judge。图像/图表/mixed 仍无视觉适配器，live 仍缺测；准入 6/56、release **NO-GO**。代码聚焦 10 passed、`release-benchmark-pilot` L2 **117 passed**、Ruff 与 diff check clean。唯一下一步是对 review packet 取得具名且可追溯的人工/合格语义裁定，并在符合 frozen 离线约束的执行路径上重跑后才考虑计分。
+**执行证据与边界**：Draft PR #152 初始 head `fea6b606cfec7bc797ad483b720ee2b5c0aca73c` 的 push CI `36535754996` 和 PR CI `36535787466` 均 success。增量复核发现模型 claim 可自带外部 Markdown 链接，同时得到 code-owned citation；`7c4b8d6` 已让解析器拒绝嵌入链接/URL、无效代码 SHA，并加入负控制。真实答案在修复代码 head `7c4b8d6b5c5c5de44e274bf2ea21535e2ebf13a3` 重跑；`docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/answer_bundle.json` 的字节 SHA-256 为 `5de1ff1e94514187d709a3ce147a6162930f9f99b3cdd80d47f045b278ab2226`，同目录 `review_packet.json` 绑定该 digest，`author_diagnostic_review.md` 记录非正式来源核对与措辞提示。两案答案均保留真实模型响应、prompt、来源字节/上下文摘要、引用与模型身份；没有正式语义标签。模型请求在 reader 的 Python socket guard **结束后**联网执行，产物明确 `inference_network=remote_model_api`、`release_observation=false`，不能装作 frozen `offline_replay`，不写入 scorer observation、不声称 qualified judge。本机无 Ollama/llama CLI，Python 环境无 llama_cpp/transformers/torch/onnxruntime，未配置 local provider；本刀没有可执行的本地离线模型。图像/图表/mixed 仍无视觉适配器，live 仍缺测；准入 6/56、release **NO-GO**。修复后聚焦 **12 passed**、`release-benchmark-pilot` L2 **119 passed**、Ruff 与 diff check clean。唯一下一步是对 review packet 取得具名且可追溯的人工/合格语义裁定，并在符合 frozen 离线约束的执行路径上重跑后才考虑计分。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
