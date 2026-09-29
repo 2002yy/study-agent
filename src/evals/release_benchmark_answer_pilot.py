@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from src.evals.release_benchmark_registry import ReleaseCase
+from src.evals.release_benchmark_registry import ReleaseCase, ReleaseGold, ReleaseRegistry
 from src.evals.release_benchmark_replay import (
     FrozenPdfGateway,
     FrozenTextGateway,
@@ -55,6 +55,37 @@ def _parse_claims(raw: str, source_id: str) -> list[dict[str, object]]:
     return parsed
 
 
+def _messages(case: ReleaseCase, content: str) -> list[dict[str, str]]:
+    source = case.sources[0]
+    return [
+        {"role": "system", "content": (
+            "Answer only from the supplied frozen source text. Return JSON with exactly "
+            "one key, claims: an array of 1 to 6 objects with text and source_ids. "
+            "Every source_ids value must be an array containing the supplied source ID. "
+            "Keep each claim concise. Do not use outside knowledge. If the source does "
+            "not answer an aspect, say so as a cited claim. Do not include citations "
+            "inside claim text."
+        )},
+        {"role": "user", "content": (
+            f"Question: {case.question}\nSource ID: {source.source_id}\n"
+            f"Source locator: {source.locator}\n"
+            f"Page: {source.page or 'web page'}\n"
+            f"Source text:\n{content}"
+        )},
+    ]
+
+
+def _render_answer(case: ReleaseCase, claims: list[dict[str, object]]) -> str:
+    source = case.sources[0]
+    label = source.source_id + (f", p.{source.page}" if source.page else "")
+    answer = "\n".join(f"{claim['text']} [{label}]({source.locator}"
+                       + (f"#page={source.page}" if source.page else "") + ")"
+                       for claim in claims)
+    if case.limitations:
+        answer += "\n" + " ".join(case.limitations)
+    return answer
+
+
 def generate_frozen_answer(
     case: ReleaseCase, root: Path, *, model_call: Callable[[list[dict[str, str]]], str],
     provider: str, model: str, code_sha: str,
@@ -85,22 +116,7 @@ def generate_frozen_answer(
     if (read["source_sha256"] != source.sha256 or read["url"] != source.locator
             or not read["content"].strip()):
         raise ValueError("frozen source context binding failed")
-    messages = [
-        {"role": "system", "content": (
-            "Answer only from the supplied frozen source text. Return JSON with exactly "
-            "one key, claims: an array of 1 to 6 objects with text and source_ids. "
-            "Every source_ids value must be an array containing the supplied source ID. "
-            "Keep each claim concise. Do not use outside knowledge. If the source does "
-            "not answer an aspect, say so as a cited claim. Do not include citations "
-            "inside claim text."
-        )},
-        {"role": "user", "content": (
-            f"Question: {case.question}\nSource ID: {source.source_id}\n"
-            f"Source locator: {source.locator}\n"
-            f"Page: {source.page or 'web page'}\n"
-            f"Source text:\n{read['content']}"
-        )},
-    ]
+    messages = _messages(case, read["content"])
     model_started_at = _now()
     raw = model_call(messages)
     model_ended_at = _now()
@@ -110,12 +126,7 @@ def generate_frozen_answer(
     citation = {"source_id": source.source_id, "locator": source.locator,
                 "page": source.page, "region": source.region,
                 "snapshot_sha256": source.sha256}
-    label = source.source_id + (f", p.{source.page}" if source.page else "")
-    answer = "\n".join(f"{claim['text']} [{label}]({source.locator}"
-                       + (f"#page={source.page}" if source.page else "") + ")"
-                       for claim in claims)
-    if case.limitations:
-        answer += "\n" + " ".join(case.limitations)
+    answer = _render_answer(case, claims)
     return {
         "schema_version": SCHEMA,
         "case_id": case.case_id,
@@ -138,5 +149,94 @@ def generate_frozen_answer(
         "answer": answer,
         "semantic_assessment": "pending_external_adjudication",
         "release_observation": False,
+        "release_gate": "NO_GO",
+    }
+
+
+def build_answer_review_packet(bundle: dict[str, object], registry: ReleaseRegistry,
+                               gold: ReleaseGold, root: Path) -> dict[str, object]:
+    """Recheck a saved diagnostic against snapshots before disclosing gold."""
+    if (not isinstance(bundle, dict) or set(bundle) != {
+        "schema_version", "code_sha", "plan_digest", "registry_digest",
+        "gold_digest", "inference_network", "release_gate", "cases",
+    } or bundle["schema_version"] != "release-benchmark-answer-pilot-bundle-v1"
+            or bundle["plan_digest"] != registry.plan_digest
+            or bundle["registry_digest"] != registry.digest
+            or bundle["gold_digest"] != gold.digest
+            or bundle["inference_network"] != "remote_model_api"
+            or bundle["release_gate"] != "NO_GO"):
+        raise ValueError("answer bundle manifest binding is invalid")
+    reviewed = {review.case_id: review for review in gold.reviews
+                if review.structurally_reviewed}
+    selected = [case for case in registry.cases if case.case_id in reviewed
+                and case.mode == "frozen" and case.modality in {"text", "pdf"}]
+    rows = bundle["cases"]
+    if (not isinstance(rows, list) or len(rows) != len(selected)
+            or [row.get("case_id") for row in rows if isinstance(row, dict)]
+            != [case.case_id for case in selected]):
+        raise ValueError("answer bundle case scope mismatch")
+    packet_cases = []
+    for case, row in zip(selected, rows, strict=True):
+        source = case.sources[0]
+        expected_keys = {
+            "schema_version", "case_id", "case_content_sha256", "code_sha",
+            "reader_run_id", "reader_network_guard", "inference_network",
+            "provider", "model", "started_at", "model_started_at",
+            "model_ended_at", "source", "source_context_sha256",
+            "prompt_sha256", "messages", "raw_model_response", "claims",
+            "answer", "semantic_assessment", "release_observation", "release_gate",
+        }
+        if (set(row) != expected_keys or row["schema_version"] != SCHEMA
+                or row["case_content_sha256"] != case.content_sha256
+                or row["code_sha"] != bundle["code_sha"]
+                or row["reader_network_guard"] != "python_socket_connect_blocked"
+                or row["inference_network"] != "remote_model_api"
+                or row["semantic_assessment"] != "pending_external_adjudication"
+                or row["release_observation"] is not False
+                or row["release_gate"] != "NO_GO"
+                or not isinstance(row["reader_run_id"], str)
+                or not row["reader_run_id"].startswith("web_lookup_")
+                or not isinstance(row["provider"], str) or not row["provider"]
+                or not isinstance(row["model"], str) or not row["model"]):
+            raise ValueError("answer diagnostic fields are invalid")
+        expected_source = {
+            "source_id": source.source_id, "locator": source.locator,
+            "page": source.page, "region": source.region,
+            "snapshot_sha256": source.sha256,
+        }
+        if row["source"] != expected_source:
+            raise ValueError("answer citation source binding is invalid")
+        gateway = (FrozenTextGateway(case, root) if case.modality == "text"
+                   else FrozenPdfGateway(case, root))
+        with block_python_network():
+            content = gateway.read(source.locator, max_chars=6000)["content"]
+        messages = _messages(case, content)
+        if (row["source_context_sha256"] != sha256(content.encode("utf-8")).hexdigest()
+                or row["messages"] != messages
+                or row["prompt_sha256"] != sha256(_canonical_bytes(messages)).hexdigest()):
+            raise ValueError("answer prompt or source context drift")
+        claims = _parse_claims(row["raw_model_response"], source.source_id)
+        if row["claims"] != claims or row["answer"] != _render_answer(case, claims):
+            raise ValueError("answer claims or citations were altered")
+        review = reviewed[case.case_id]
+        packet_cases.append({
+            "case_id": case.case_id, "question": case.question,
+            "answer": row["answer"], "claims": claims,
+            "source": expected_source, "aspects": list(case.aspects),
+            "required_units": list(case.required_units),
+            "limitations": list(case.limitations),
+            "aspect_rubric": dict(review.aspect_rubric),
+            "unit_sources": {key: list(value) for key, value in review.unit_sources},
+            "semantic_metrics_pending": ["question_coverage", "evidence_grounding",
+                                         "citation_support", "answer_utility"],
+        })
+    return {
+        "schema_version": "release-benchmark-answer-review-packet-v1",
+        "answer_bundle_sha256": sha256(_canonical_bytes(bundle) + b"\n").hexdigest(),
+        "code_sha": bundle["code_sha"],
+        "registry_digest": registry.digest,
+        "gold_digest": gold.digest,
+        "cases": packet_cases,
+        "semantic_assessment": "pending_external_adjudication",
         "release_gate": "NO_GO",
     }

@@ -53,6 +53,14 @@ The opt-in **answer diagnostic** runs the same frozen text/PDF reader, then send
 
 The remote model call happens after the offline reader guard ends. `answer_bundle.json` therefore declares `inference_network=remote_model_api` and `release_observation=false`. It is **not** a frozen offline score observation. Claim citations are mechanically bound to the registered source ID; evidence support, question coverage, and citation correctness still need an actual manual or qualified semantic assessment. The tool does not read gold into the model prompt or populate semantic metric labels. Image/chart/mixed and live cases remain outside this answer diagnostic. The release gate stays `NO_GO`.
 
+Prepare the two-case assessment packet only after rechecking the saved answer against the current byte-bound snapshots:
+
+```powershell
+.venv\Scripts\python.exe tools/prepare_release_benchmark_answer_review.py --answer-bundle .workbuddy/release-answer-pilot/answer_bundle.json --output .workbuddy/release-answer-pilot/review_packet.json
+```
+
+The packet binds the answer bundle digest and contains the previously withheld gold rubric. It is an input for an assessor, not a semantic verdict. Rechecking proves internal source/prompt/citation consistency; it does not prove that the remote model's prose is supported or that the historical reader guard actually ran.
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell
