@@ -105,8 +105,15 @@ def _review_messages(*, case: dict[str, object], source_text: str,
             "(supported|gap|unverified), and issues (array). Each issue has "
             "issue_type (coverage_gap|unsupported_claim|wrong_citation|"
             "overstatement|other), reason, and evidence_refs (empty array or "
-            "the supplied source ID). Check every claim and citation. A source "
-            "citation is not proof that the source supports the sentence."
+            "the supplied source ID). Check every claim and citation. Compare "
+            "each Markdown citation URL with source_locator exactly; for a PDF, "
+            "only a matching #page=source_page suffix is permitted. An unrelated "
+            "URL requires citation_support=gap and a wrong_citation issue. A "
+            "source citation is not proof that the source supports the sentence. "
+            "Any unsupported or contradicted factual sentence requires "
+            "evidence_grounding=gap and an unsupported_claim issue. If an issue "
+            "reports a coverage gap, question_coverage must be partial. Do not "
+            "mark an axis supported when its issue reports a gap."
         )},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False,
                                                sort_keys=True, separators=(",", ":"))},
@@ -139,6 +146,15 @@ def run_semantic_probe(
                                         answer=answer, sample_id=sample_id)
             raw = model_call(messages)
             parsed = _parse_assessment(raw, source_id)
+            issue_types = {item["issue_type"] for item in parsed["issues"]}
+            consistent = not (
+                ("wrong_citation" in issue_types
+                 and parsed["citation_support"] != "gap")
+                or ({"unsupported_claim", "overstatement"} & issue_types
+                    and parsed["evidence_grounding"] != "gap")
+                or ("coverage_gap" in issue_types
+                    and parsed["question_coverage"] != "partial")
+            )
             expected = {
                 "wrong_citation": ("citation_support", "gap"),
                 "missing_aspect": ("question_coverage", "partial"),
@@ -147,7 +163,8 @@ def run_semantic_probe(
             assessments.append({
                 "variant": variant, "answer": answer, "messages": messages,
                 "raw_model_response": raw, "assessment": parsed,
-                "control_detected": (parsed[expected[0]] == expected[1]
+                "dimension_consistent": consistent,
+                "control_detected": (consistent and parsed[expected[0]] == expected[1]
                                      if expected else None),
             })
         cases.append({
@@ -169,6 +186,10 @@ def run_semantic_probe(
         "started_at": started_at, "ended_at": _now(),
         "cases": cases,
         "all_controls_detected": all(case["all_controls_detected"] for case in cases),
+        "all_dimensions_consistent": all(
+            row["dimension_consistent"] for case in cases
+            for row in case["assessments"]
+        ),
         "formal_semantic_label": False,
         "release_observation": False,
         "release_gate": "NO_GO",

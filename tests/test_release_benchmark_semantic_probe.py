@@ -52,6 +52,7 @@ def test_semantic_probe_detects_controls_but_never_qualifies_judge():
         model_call=_assessment,
     )
     assert result["all_controls_detected"] is True
+    assert result["all_dimensions_consistent"] is True
     assert result["formal_semantic_label"] is False
     assert result["release_observation"] is False
     assert result["release_gate"] == "NO_GO"
@@ -95,3 +96,23 @@ def test_semantic_probe_rejects_same_model_and_unbound_assessment():
                 }],
             }),
         )
+
+
+def test_semantic_probe_keeps_issue_dimension_contradiction_visible():
+    bundle, registry, gold = _inputs()
+
+    def inconsistent(messages):
+        data = json.loads(_assessment(messages))
+        if any(item["issue_type"] == "unsupported_claim" for item in data["issues"]):
+            data["evidence_grounding"] = "supported"
+        return json.dumps(data)
+
+    result = run_semantic_probe(
+        bundle, registry, gold, ROOT, code_sha="a" * 40,
+        reviewer_provider="test", reviewer_model="different-model",
+        model_call=inconsistent,
+    )
+    assert result["all_dimensions_consistent"] is False
+    assert result["all_controls_detected"] is False
+    assert all(not case["assessments"][3]["dimension_consistent"]
+               for case in result["cases"])

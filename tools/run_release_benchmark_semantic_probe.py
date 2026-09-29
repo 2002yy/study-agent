@@ -78,6 +78,7 @@ def main() -> None:
         "probe_sha256": sha256(data).hexdigest(),
         "case_count": len(result["cases"]),
         "all_controls_detected": result["all_controls_detected"],
+        "all_dimensions_consistent": result["all_dimensions_consistent"],
         "formal_semantic_label": False,
         "release_gate": "NO_GO",
         "output": str(output.resolve()),

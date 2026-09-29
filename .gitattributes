@@ -2,3 +2,4 @@ tests/fixtures/release_benchmark/sources/* -text -diff
 docs/research_quality/RELEASE_BENCHMARK_SIX_CASE_REVIEW_2026-09-29.txt -text
 docs/research_quality/RELEASE_BENCHMARK_RECORDED_PILOT_2026-09-29/* -text
 docs/research_quality/RELEASE_BENCHMARK_ANSWER_DIAGNOSTIC_2026-09-29/* -text
+docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_PROBE_2026-09-29/* -text
