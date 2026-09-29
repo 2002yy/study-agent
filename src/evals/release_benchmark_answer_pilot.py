@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 from typing import Callable
 
 from src.evals.release_benchmark_registry import ReleaseCase, ReleaseGold, ReleaseRegistry
@@ -22,6 +23,8 @@ from src.evals.release_benchmark_replay import (
 )
 
 SCHEMA = "release-benchmark-answer-diagnostic-v1"
+_CODE_SHA = re.compile(r"[0-9a-f]{40}\Z")
+_EMBEDDED_LINK = re.compile(r"://|\bwww\.|\[[^\]]+\]\([^)]*\)|[\r\n]", re.I)
 
 
 def _now() -> str:
@@ -34,6 +37,8 @@ def _canonical_bytes(value: object) -> bytes:
 
 
 def _parse_claims(raw: str, source_id: str) -> list[dict[str, object]]:
+    if not isinstance(raw, str) or len(raw) > 10000:
+        raise ValueError("answer model response is not bounded text")
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -49,7 +54,8 @@ def _parse_claims(raw: str, source_id: str) -> list[dict[str, object]]:
             raise ValueError("answer claim has invalid shape")
         claim_text, refs = claim["text"], claim["source_ids"]
         if (not isinstance(claim_text, str) or not claim_text.strip()
-                or len(claim_text) > 500 or refs != [source_id]):
+                or len(claim_text) > 500 or refs != [source_id]
+                or _EMBEDDED_LINK.search(claim_text)):
             raise ValueError("answer claim lacks an authorized citation")
         parsed.append({"text": claim_text.strip(), "source_ids": [source_id]})
     return parsed
@@ -95,7 +101,7 @@ def generate_frozen_answer(
         raise ValueError("answer pilot accepts frozen text/PDF cases only")
     if len(case.sources) != 1:
         raise ValueError("answer pilot requires exactly one registered source")
-    if not provider or not model or len(code_sha) != 40:
+    if not provider or not model or not _CODE_SHA.fullmatch(code_sha):
         raise ValueError("answer pilot needs model identity and code SHA")
     source = case.sources[0]
     gateway = (FrozenTextGateway(case, root) if case.modality == "text"
@@ -164,7 +170,9 @@ def build_answer_review_packet(bundle: dict[str, object], registry: ReleaseRegis
             or bundle["registry_digest"] != registry.digest
             or bundle["gold_digest"] != gold.digest
             or bundle["inference_network"] != "remote_model_api"
-            or bundle["release_gate"] != "NO_GO"):
+            or bundle["release_gate"] != "NO_GO"
+            or not isinstance(bundle["code_sha"], str)
+            or not _CODE_SHA.fullmatch(bundle["code_sha"])):
         raise ValueError("answer bundle manifest binding is invalid")
     reviewed = {review.case_id: review for review in gold.reviews
                 if review.structurally_reviewed}

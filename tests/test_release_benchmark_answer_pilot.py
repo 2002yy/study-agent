@@ -65,6 +65,8 @@ def test_answer_pilot_binds_real_read_and_citations_without_labels(modality):
     '{"claims":[{"text":"claim","source_ids":[] }]}',
     '{"claims":[{"text":"claim","source_ids":["WRONG"]}]}',
     '{"claims":[{"text":"claim","source_ids":["NOAA-SURGE"]}],"score":1}',
+    '{"claims":[{"text":"See [other](https://evil.invalid)","source_ids":["NOAA-SURGE"]}]}',
+    '{"claims":[{"text":"Visit www.evil.invalid","source_ids":["NOAA-SURGE"]}]}',
 ])
 def test_answer_pilot_rejects_missing_or_forged_citations(response):
     with pytest.raises(ValueError, match="JSON|claim|response"):
@@ -131,4 +133,8 @@ def test_review_packet_rechecks_source_prompt_and_answer_before_gold_disclosure(
     altered = deepcopy(bundle)
     altered["cases"][0]["messages"][1]["content"] += " injected"
     with pytest.raises(ValueError, match="prompt or source"):
+        build_answer_review_packet(altered, registry, gold, ROOT)
+    altered = deepcopy(bundle)
+    altered["code_sha"] = "z" * 40
+    with pytest.raises(ValueError, match="manifest binding"):
         build_answer_review_packet(altered, registry, gold, ROOT)
