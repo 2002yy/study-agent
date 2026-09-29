@@ -69,6 +69,15 @@ The owner allows a DeepSeek API path for this personal project's frozen-source d
 
 The probe records every prompt and raw response, model identity, capture digests, and per-control detection. It is a cross-model **diagnostic**; the pro model is not thereby a qualified judge, and these judgments are not scorer labels. The existing `release-benchmark-observation-v1` still requires fully offline frozen execution. Any release-scoring path that permits remote inference needs an explicit versioned contract and network provenance; this probe does not silently change v1.
 
+`release-benchmark-observation-v2` is the separate path for the owner's DeepSeek choice. It requires a **fresh answer run** with an exact source-read timestamp, the current code SHA, a canonical answer-bundle digest, per-case answer digests, `source_network_disabled=true`, `network_disabled=false`, and `inference_network=remote_model_api`. The scorer keeps v1's fully offline requirement intact. V2 initially accepts only mechanical source reads and completed answer presence; it rejects self-declared observed semantic labels until a separate verified authority is available. Run the answer pilot at a clean candidate head, then record and score that same bundle:
+
+```powershell
+.venv\Scripts\python.exe tools/run_release_benchmark_answer_pilot.py --output-dir .workbuddy/remote-answer-v2
+.venv\Scripts\python.exe tools/record_release_benchmark_remote_observation.py --answer-bundle .workbuddy/remote-answer-v2/answer_bundle.json --output-dir .workbuddy/remote-observation-v2
+```
+
+The current v2 run scope is two frozen TEXT/PDF cases. The visual frozen cases and live case remain `missing` in this recording; the older reader-only pilot retains their unavailable/read evidence separately. V2 does not import the DeepSeek pro diagnostic verdicts, and release remains `NO_GO`.
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell
