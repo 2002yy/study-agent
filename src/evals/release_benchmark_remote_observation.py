@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.evals.release_benchmark_answer_pilot import build_answer_review_packet
 from src.evals.release_benchmark_plan import ReleaseBenchmarkPlan, plan_digest
@@ -38,7 +38,7 @@ def build_remote_answer_observation(
     packet = build_answer_review_packet(bundle, registry, gold, root)
     if bundle["code_sha"] != expected_code_sha:
         raise ValueError("remote answer code SHA is not current head")
-    rows = bundle["cases"]
+    rows = cast(list[dict[str, Any]], bundle["cases"])
     if any("read_observed_at" not in row for row in rows):
         raise ValueError("remote answer lacks an exact source read time")
     models = {row["model"] for row in rows}
@@ -47,7 +47,8 @@ def build_remote_answer_observation(
         raise ValueError("remote answer bundle mixes provider or model identity")
     bundle_sha = sha256(_json_bytes(bundle)).hexdigest()
     cases = []
-    for row, packet_case in zip(rows, packet["cases"], strict=True):
+    packet_cases = cast(list[dict[str, Any]], packet["cases"])
+    for row, packet_case in zip(rows, packet_cases, strict=True):
         source = packet_case["source"]
         cases.append({
             "case_id": row["case_id"], "state": "completed", "reason": None,
