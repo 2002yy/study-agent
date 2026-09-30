@@ -120,6 +120,42 @@ def _review_messages(*, case: dict[str, Any], source_text: str,
     ]
 
 
+def materialize_review_items(
+    bundle: dict[str, object], registry: ReleaseRegistry, gold: ReleaseGold,
+    root: Path,
+) -> dict[str, object]:
+    """Frozen review inputs per case: real answer plus the three controls.
+
+    No model call and no scoring. Exposed so a blind reviewer packet can be
+    built from exactly the material §161 calibrates against.
+    """
+    packet = build_answer_review_packet(bundle, registry, gold, root)
+    cases = []
+    answer_rows = cast(list[dict[str, Any]], bundle["cases"])
+    packet_cases = cast(list[dict[str, Any]], packet["cases"])
+    for answer_row, packet_case in zip(answer_rows, packet_cases, strict=True):
+        source_text = answer_row["messages"][1]["content"].split("Source text:\n", 1)[1]
+        locator = packet_case["source"]["locator"]
+        cases.append({
+            "case_id": packet_case["case_id"],
+            "answer_model": answer_row["model"],
+            "answer": answer_row["answer"],
+            "answer_sha256": sha256(answer_row["answer"].encode("utf-8")).hexdigest(),
+            "source_text": source_text,
+            "packet_case": packet_case,
+            "control_answers": {
+                variant: _control_answer(packet_case["case_id"], answer_row["answer"],
+                                         locator, variant)
+                for variant in _CONTROLS
+            },
+        })
+    return {
+        "review_packet": packet,
+        "answer_bundle_sha256": packet["answer_bundle_sha256"],
+        "cases": cases,
+    }
+
+
 def run_semantic_probe(
     bundle: dict[str, object], registry: ReleaseRegistry, gold: ReleaseGold,
     root: Path, *, code_sha: str, reviewer_provider: str,
@@ -128,28 +164,27 @@ def run_semantic_probe(
     """Review actual answers and three controls per case, without scoring."""
     if (not _SHA.fullmatch(code_sha) or not reviewer_provider or not reviewer_model):
         raise ValueError("semantic probe needs exact code and model identity")
-    packet = build_answer_review_packet(bundle, registry, gold, root)
+    materialized = materialize_review_items(bundle, registry, gold, root)
+    packet = cast(dict[str, Any], materialized["review_packet"])
     cases = []
     started_at = _now()
-    answer_rows = cast(list[dict[str, Any]], bundle["cases"])
-    packet_cases = cast(list[dict[str, Any]], packet["cases"])
-    for answer_row, packet_case in zip(answer_rows, packet_cases, strict=True):
-        if reviewer_model == answer_row["model"]:
+    for item in cast(list[dict[str, Any]], materialized["cases"]):
+        if reviewer_model == item["answer_model"]:
             raise ValueError("semantic probe reviewer must differ from answer model")
-        source_text = answer_row["messages"][1]["content"].split("Source text:\n", 1)[1]
+        packet_case = item["packet_case"]
+        source_text = item["source_text"]
         source_id = packet_case["source"]["source_id"]
         assessments = []
         for sample_id, variant in zip(("A", "B", "C", "D"),
                                       ("actual", *_CONTROLS), strict=True):
-            answer = (answer_row["answer"] if variant == "actual" else
-                      _control_answer(packet_case["case_id"], answer_row["answer"],
-                                      packet_case["source"]["locator"], variant))
+            answer = (item["answer"] if variant == "actual"
+                      else item["control_answers"][variant])
             messages = _review_messages(case=packet_case, source_text=source_text,
                                         answer=answer, sample_id=sample_id)
             raw = model_call(messages)
             parsed = _parse_assessment(raw, source_id)
             issues = cast(list[dict[str, Any]], parsed["issues"])
-            issue_types = {item["issue_type"] for item in issues}
+            issue_types = {item_["issue_type"] for item_ in issues}
             consistent = not (
                 ("wrong_citation" in issue_types
                  and parsed["citation_support"] != "gap")
@@ -172,10 +207,10 @@ def run_semantic_probe(
             })
         cases.append({
             "case_id": packet_case["case_id"],
-            "answer_sha256": sha256(answer_row["answer"].encode("utf-8")).hexdigest(),
+            "answer_sha256": item["answer_sha256"],
             "assessments": assessments,
-            "all_controls_detected": all(item["control_detected"]
-                                         for item in assessments[1:]),
+            "all_controls_detected": all(item_["control_detected"]
+                                         for item_ in assessments[1:]),
         })
     return {
         "schema_version": SCHEMA, "review_code_sha": code_sha,

@@ -104,7 +104,7 @@ class ReviewerQualificationViolation(ValueError):
         self.detail = detail
 
 
-def _canonical_hash(value: object) -> str:
+def canonical_hash(value: object) -> str:
     encoded = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
@@ -150,13 +150,13 @@ class ReviewerInput:
         }
 
     def expected_manifest_hash(self) -> str:
-        return _canonical_hash(self.manifest_fields())
+        return canonical_hash(self.manifest_fields())
 
     def resolved_rubric_hash(self) -> str:
-        return self.rubric_hash or _canonical_hash(self.rubric_ref)
+        return self.rubric_hash or canonical_hash(self.rubric_ref)
 
     def resolved_controls_hash(self) -> str:
-        return self.controls_hash or _canonical_hash(self.control_set_ref)
+        return self.controls_hash or canonical_hash(self.control_set_ref)
 
 
 @dataclass(frozen=True)
@@ -203,11 +203,11 @@ class ReviewerProvenance:
 
 
 def reviewer_identity_hash(identity: ReviewerIdentity) -> str:
-    return _canonical_hash(identity.to_dict())
+    return canonical_hash(identity.to_dict())
 
 
 def provenance_hash(provenance: ReviewerProvenance) -> str:
-    return _canonical_hash(provenance.to_dict())
+    return canonical_hash(provenance.to_dict())
 
 
 def _scan_forbidden_keys(value: object, path: str = "") -> None:
@@ -476,7 +476,7 @@ class CalibrationResult:
         }
 
     def artifact_hash(self) -> str:
-        return _canonical_hash(self.to_dict())
+        return canonical_hash(self.to_dict())
 
 
 def check_calibration(
@@ -576,7 +576,7 @@ class QualificationDecision:
         }
 
     def artifact_hash(self) -> str:
-        return _canonical_hash(self.to_dict())
+        return canonical_hash(self.to_dict())
 
 
 def decide_qualification(

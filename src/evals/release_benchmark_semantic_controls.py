@@ -145,6 +145,21 @@ def evaluate_clean_answer(
     )
 
 
+def dimension_consistency_holds(judgment: Mapping[str, Any]) -> bool:
+    """Code-owned rule: an axis may not be 'supported' while its issue reports a gap.
+
+    Both §161 and §162 must derive this from the parsed judgment instead of
+    asking a reviewer to self-report it.
+    """
+    issue_types = {issue["issue_type"] for issue in judgment["issues"]}
+    return not (
+        ("wrong_citation" in issue_types and judgment[AXES[2]] != "gap")
+        or ({"unsupported_claim", "overstatement"} & issue_types
+            and judgment[AXES[1]] != "gap")
+        or ("coverage_gap" in issue_types and judgment[AXES[0]] != "partial")
+    )
+
+
 @dataclass(frozen=True)
 class ConfusionCounts:
     """Two independent confusion pairs over the same control set.
