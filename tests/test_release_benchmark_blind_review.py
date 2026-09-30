@@ -358,9 +358,12 @@ def test_ingest_rejects_an_empty_answer_model_family_list():
 def test_issue_type_vocabulary_is_shared_not_per_item():
     """A per-item vocabulary would be a side channel; it is declared once."""
     packet, _ = _packet()
-    item_blob = json.dumps(packet["items"], ensure_ascii=False)
-    for token in ISSUE_TYPE_VOCABULARY:
-        assert token not in item_blob
+    assert isinstance(packet["instructions"], str)
+    # Exactly one declaration site, at packet level, so it cannot vary per item.
     assert packet["instructions"].count("Allowed issue_type values") == 1
     for token in ISSUE_TYPE_VOCABULARY:
         assert token in packet["instructions"]
+    for item in packet["items"]:
+        assert "instructions" not in item
+        assert not ({"issue_type", "issue_types", "allowed_issue_types",
+                     "vocabulary"} & set(item))
