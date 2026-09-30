@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -11,24 +10,14 @@ import re
 from typing import Any, cast
 
 from src.evals.release_benchmark_registry import ReleaseGold, ReleaseRegistry
+from src.evals.release_benchmark_semantic_controls import (
+    evaluate_clean_answer,
+    evaluate_control,
+)
 from src.evals.release_benchmark_semantic_probe import run_semantic_probe
 
 SCHEMA = "release-benchmark-semantic-calibration-v1"
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
-_AXES = ("question_coverage", "evidence_grounding", "citation_support")
-_EXPECTED = {
-    "wrong_citation": (("covered", "supported", "gap"), "wrong_citation",
-                       {"wrong_citation"}),
-    "missing_aspect": (("partial", "supported", "supported"), "coverage_gap",
-                       {"coverage_gap"}),
-    "unsupported_claim": (("covered", "gap", "gap"), "unsupported_claim",
-                          {"unsupported_claim", "wrong_citation"}),
-}
-_TARGET_AXIS = {
-    "wrong_citation": "citation_support",
-    "missing_aspect": "question_coverage",
-    "unsupported_claim": "evidence_grounding",
-}
 
 
 def _json_bytes(value: object) -> bytes:
@@ -104,32 +93,18 @@ def calibrate_semantic_probe(
         assessments = saved_case["assessments"]
         actual = assessments[0]
         actual_judgment = actual["assessment"]
-        actual_clean = (actual["dimension_consistent"] is True
-                        and tuple(actual_judgment[axis] for axis in _AXES)
-                        == ("covered", "supported", "supported")
-                        and actual_judgment["issues"] == [])
+        actual_clean = evaluate_clean_answer(
+            dimension_consistent=actual["dimension_consistent"] is True,
+            judgment=actual_judgment,
+        )
         controls = []
         for row in assessments[1:]:
-            variant = row["variant"]
-            axes, required_issue, allowed_issues = _EXPECTED[variant]
-            judgment = row["assessment"]
-            counts = Counter(issue["issue_type"] for issue in judgment["issues"])
-            observed_axes = tuple(judgment[axis] for axis in _AXES)
-            target_index = _AXES.index(_TARGET_AXIS[variant])
-            target_detected = (row["dimension_consistent"] is True
-                               and observed_axes[target_index] == axes[target_index]
-                               and counts[required_issue] >= 1)
-            specific = (target_detected and observed_axes == axes
-                        and counts[required_issue] == 1
-                        and set(counts) <= allowed_issues
-                        and all(count == 1 for count in counts.values()))
-            controls.append({
-                "variant": variant, "target_detected": target_detected,
-                "specific": specific,
-                "expected_axes": dict(zip(_AXES, axes, strict=True)),
-                "observed_axes": dict(zip(_AXES, observed_axes, strict=True)),
-                "issue_types": dict(sorted(counts.items())),
-            })
+            verdict = evaluate_control(
+                row["variant"],
+                dimension_consistent=row["dimension_consistent"],
+                judgment=row["assessment"],
+            )
+            controls.append(verdict.to_dict())
         cases.append({"case_id": saved_case["case_id"],
                       "answer_sha256": saved_case["answer_sha256"],
                       "actual_clean_diagnostic": actual_clean,
@@ -137,8 +112,8 @@ def calibrate_semantic_probe(
     controls = [row for case in cases for row in case["controls"]]
     answer_providers = {cast(str, row["provider"])
                         for row in cast(list[dict[str, Any]], bundle["cases"])}
-    specificity_pass = (all(case["actual_clean_diagnostic"] for case in cases)
-                        and all(row["specific"] for row in controls))
+    specificity_pass = (all(bool(case["actual_clean_diagnostic"]) for case in cases)
+                        and all(bool(row["specific"]) for row in controls))
     return {
         "schema_version": SCHEMA,
         "calibration_code_sha": calibration_code_sha,
@@ -149,9 +124,9 @@ def calibrate_semantic_probe(
         "reviewer_model": probe["reviewer_model"],
         "answer_providers": sorted(answer_providers),
         "same_provider_family": probe["reviewer_provider"] in answer_providers,
-        "actual_clean_diagnostics": sum(case["actual_clean_diagnostic"] for case in cases),
-        "target_controls_detected": sum(row["target_detected"] for row in controls),
-        "specific_controls_passed": sum(row["specific"] for row in controls),
+        "actual_clean_diagnostics": sum(bool(case["actual_clean_diagnostic"]) for case in cases),
+        "target_controls_detected": sum(bool(row["target_detected"]) for row in controls),
+        "specific_controls_passed": sum(bool(row["specific"]) for row in controls),
         "controls_total": len(controls),
         "specificity_gate": "pass" if specificity_pass else "fail",
         "cases": cases,
