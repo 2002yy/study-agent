@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A1 契约已冻结**（见 §162）。§161 语义探针特异性校准 **fail**：最新两案 DeepSeek pro 探针检出 6/6 目标负控制，但只有 **1/6** 保持非目标维度正确，同家族 reviewer 无独立计分权限。§160 仍为 2/6 案 completed、4 案 missing、正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = §162 A2：实现独立 reviewer seam + provenance（四个 seam 分离：reviewer → calibration checker → qualification authority → case-label authority），随后 A3 盲校准（门 = target_detection 6/6 且 specificity 6/6 两个独立布尔门）。当前 pro 结果不得晋升。**
+- **当前动作：§162 A2 已闭合；A3 明确阻塞**（见 §162.1）。§162 A1 独立 reviewer 资格合同已冻结（四 seam 分离、门 = target_detection 6/6 且 specificity 6/6 两个独立布尔门）。A2 已实现 reviewer 注入协议、盲输入/provenance/独立性校验、共享校准原语、QualificationAuthority、CaseLabelAuthority 与 23 条回归（含"calibration_pass 单独不授予任何东西"的机器级防线）。**A3 状态 = BLOCKED_EXTERNAL_REVIEWER**：仓内无满足 §162 独立家族合同的 reviewer；DeepSeek pro 属同家族，不是 fallback 而是 negative control（6/6 检出 / 1/6 特异性）。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 裁定 A3 reviewer 来源（独立模型家族，或具名 `manual_human`），再执行 A3 盲校准。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 独立 reviewer 资格合同已冻结（四 seam 分离、门 = 6/6 且 6/6），release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是 §162 A2/A3：独立 reviewer seam + 盲校准通过后，再由 qualification authority 与 case-label authority 分别授予。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 合同冻结、A2 治理管道已实现（23 tests，L3 2921 passed），A3 = BLOCKED_EXTERNAL_REVIEWER，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是裁定 A3 reviewer 来源后执行盲校准，再由 qualification authority 与 case-label authority 分别授予。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -14116,6 +14116,76 @@ exact-head CI
 
 **明确不做**：不为 `.workbuddy/` 插正式 commit（本机 `.git/info/exclude` 处理即可）；
 不在 §162 前开始级联 rebase；§162 不顺手接 image / chart / live。
+
+### 162.1 A2 实现（2026-10-01，单刀；governance plumbing only）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_semantic_controls.py         新增：共享校准原语（唯一语义定义）
+src/evals/release_benchmark_reviewer_qualification.py    新增：A2 治理管道（四 seam）
+src/evals/release_benchmark_semantic_calibration.py      修改：委托共享原语（输出逐字节等价）
+tests/test_release_benchmark_reviewer_qualification.py   新增：23 tests
+tests/stage_gates.json                                   修改：新测试注册进 release-benchmark-pilot
+```
+
+**四 seam（不可折叠，禁止共享 mutable state 串权）**：
+
+```text
+ReviewerAdapter      -> ReviewObservation       （只产事实）
+check_calibration    -> CalibrationResult       （只产事实）
+decide_qualification -> QualificationDecision   （显式授权动作）
+decide_case_label    -> LabelDecision           （第二次显式授权动作）
+```
+
+**关键实现事实（全部 fail-closed）**：
+
+```text
+ReviewObservation **无** qualified_judge 字段（类型层剥夺权力，而非运行时检查）；
+  携带 qualified_judge / approved / label 形状键的响应 -> REASON_REVIEWER_CLAIMED_AUTHORITY
+盲输入拒绝：expected-label 泄漏 / prior-verdict(§161) 泄漏 / 未授权 case identity /
+           blind_case_id 缺失 / manifest hash 不符
+独立性：reviewer family 缺失 / answer family 缺失 / 两家族相同 -> 拒绝
+门：两个独立布尔 + 完整 TP/FN/TN/FP；**不存在 blended accuracy/F1**
+decide_qualification：失败校准上授权 -> REASON_GRANT_ON_FAILED_CALIBRATION；
+                     默认态 = QualificationDecision.not_evaluated()（NOT_EVALUATED）
+decide_case_label：未授权 reviewer -> REASON_LABEL_WITHOUT_QUALIFICATION；
+                   accepted 但无 label payload -> 拒绝
+```
+
+**反模式机器级永久防线（专门测试）**：`calibration_pass=True` 且**未调用** authority →
+`QualificationDecision.not_evaluated().qualified_judge is False`。
+
+**§161 复用而非复制**：控制期望表与逐控制判定移入共享原语；§161 `calibrate_semantic_probe`
+改为委托，输出逐字节等价；§161 既有 7 tests 全绿，**frozen artifact 未改**。
+
+**A3 状态 = BLOCKED_EXTERNAL_REVIEWER**：
+
+```text
+reason: 仓内无满足 §162 独立家族合同的 reviewer。
+DeepSeek flash = answer model；DeepSeek pro = 同家族，disallowed（**不是 fallback**，
+而是明确 negative control：6/6 检出 + 1/6 特异性 = 严重过判）。
+manual_human 保留为正式 fallback，等 A2 闭合后再裁定 A3 走独立模型家族还是具名人工。
+```
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1576 files |
+git diff --check ok | secret-like literal self-check clean
+L1: tests/test_release_benchmark_reviewer_qualification.py = 23 passed
+L2: release-benchmark-pilot stage gate = 90 passed
+L3 @ 61626e1（clean head）：2921 passed / 2 skipped / 0 failed
+```
+
+**本轮失败样本（test-infra，非本刀回归）**：首次 L3 出现
+`tests/test_research_answer_streaming.py::test_research_stream_processes_cancel_while_binder_runs_off_loop`
+失败，断言在 `assert await asyncio.to_thread(entered.wait, 0.5)`（0.5s 预算在全量负载下超时）。
+隔离 1 passed、整文件 8 passed、同一 head 重跑 L3 全绿 → 判定为**负载相关既有 timing flake**，
+与本刀（eval-only，未触生产 runtime/streaming）无关。记为 test-infra 债；硬化留独立窄刀。
+
+**未做**：零真实 reviewer invocation、零 provider SDK、零正式标签、零 B1 模态扩展；
+未改 §160 / §161 artifact；未动 12 PR 堆叠链。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
