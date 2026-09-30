@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A2 已闭合；A3 明确阻塞**（见 §162.1）。§162 A1 独立 reviewer 资格合同已冻结（四 seam 分离、门 = target_detection 6/6 且 specificity 6/6 两个独立布尔门）。A2 已实现 reviewer 注入协议、盲输入/provenance/独立性校验、共享校准原语、QualificationAuthority、CaseLabelAuthority 与 23 条回归（含"calibration_pass 单独不授予任何东西"的机器级防线）。**A3 状态 = BLOCKED_EXTERNAL_REVIEWER**：仓内无满足 §162 独立家族合同的 reviewer；DeepSeek pro 属同家族，不是 fallback 而是 negative control（6/6 检出 / 1/6 特异性）。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 裁定 A3 reviewer 来源（独立模型家族，或具名 `manual_human`），再执行 A3 盲校准。**
+- **当前动作：§162 A3-A 已闭合，等待 operator 执行 A3-B**（见 §162.1 / §162.2 / §162.3）。A2 治理管道（四 seam 分离 + 23 回归）已实现；A3 路径已冻结为**外部独立家族 reviewer（GPT 家族）经人工桥接**；A3-A 已交付盲 packet 生成器 + ingest harness（20 tests），**零真实 invocation**。**A3 状态 = READY_FOR_EXTERNAL_REVIEWER**：需在**全新隔离会话**（**非本聊天**）粘贴 `render_packet_text(packet)`，回填原始响应后 ingest。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = A3-B：生成 packet → 新会话执行 → 回填响应；A3-C ingest 后由 QualificationAuthority 显式裁定（`6/6 + 5/6` 亦 FAIL，不因是 GPT 放宽）。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 合同冻结、A2 治理管道已实现（23 tests，L3 2921 passed），A3 = BLOCKED_EXTERNAL_REVIEWER，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是裁定 A3 reviewer 来源后执行盲校准，再由 qualification authority 与 case-label authority 分别授予。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 合同冻结、A2 治理管道（23 tests）、A3 路径冻结、A3-A 盲 packet + ingest harness（20 tests，L3 2941 passed）均已实现，A3 = READY_FOR_EXTERNAL_REVIEWER，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是在全新隔离会话执行 A3-B 盲复核，再经 qualification authority 与 case-label authority 分别授予。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
