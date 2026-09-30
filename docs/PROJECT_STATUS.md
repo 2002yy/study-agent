@@ -14272,6 +14272,71 @@ A3-B 用户在新会话执行 packet -> 人工回填原始输出
 A3-C ingest 校验 + shared checker -> 校准结果 -> QualificationAuthority 显式裁定
 ```
 
+### 162.3 A3-A 实现（2026-10-01，单刀；零真实 invocation）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_blind_review.py             新增：盲 packet 生成 + ingest harness
+src/evals/release_benchmark_semantic_probe.py           修改：materialize_review_items 公开（行为等价）
+src/evals/release_benchmark_semantic_controls.py        修改：dimension_consistency_holds 提升为共享规则
+src/evals/release_benchmark_reviewer_qualification.py   修改：canonical_hash 公开（无协议变化）
+tests/test_release_benchmark_blind_review.py            新增：20 tests
+tests/stage_gates.json                                  注册两个新测试文件
+```
+
+**packet 事实**：
+
+```text
+items[]：blind_case_id(opaque) / question / aspects / aspect_rubric /
+         source_id / source_locator / source_page / source_region / source_text / answer
+顺序：按 canonical_hash(f"{run}|{case}|{variant}") 排序 -> 确定性且 variant-blind
+manifest（**不发送**）：blind_case_id -> case_id / variant / answer_sha256
+input_manifest_hash = H(review_run_id, answer_bundle_sha256, registry_sha256, gold_sha256)
+```
+
+**本轮自查发现并修正的泄漏（值得记录）**：指令初稿写了 "do not guess whether an item is a
+control" —— 这句话本身**泄漏"存在 control"**。已删除，并加回归
+`test_packet_never_reveals_that_controls_exist`（禁止 control / expected / gold / specificity /
+balance / another reviewer / over-flag / false positive 出现在 packet 文本）。指令仍必须列出允许的
+issue_type 词表（`coverage_gap|unsupported_claim|wrong_citation|overstatement|other`）—— 那是
+**输出 schema 词表**，不是答案键；因此测试改为**结构性断言**（item 的键/值不得等于 variant），
+不再做全文字符串扫描。
+
+**ingest 事实（全部 fail-closed）**：
+
+```text
+响应形状：恰好 {review_run_id, observations}；多余顶层键 -> REASON_RESPONSE_SHAPE
+每个 manifest item 必须恰好出现一次：缺失 / 未知 id / 重复 -> 各自 reason
+reviewer 自带 dimension_consistent -> REASON_SELF_REPORTED_CONSISTENCY
+authority 形状字段（qualified_judge / approved / label）-> A2 REASON_REVIEWER_CLAIMED_AUTHORITY
+同家族 reviewer / 答案家族缺失 -> 拒绝
+```
+
+**code-owned 一致性**：`dimension_consistency_holds` 提取进共享原语，§161 与 §162 同源；
+ingest 用 `dataclasses.replace` 覆写为**计算值** —— 模型自报不被信任。
+
+**artifact**（`release-benchmark-blind-review-ingest-v1`）携带 `output_hash`（原始响应字节）、
+`input_manifest_hash`、`invocation_id` + `invocation_id_kind=harness_assigned_run_id`、
+`reviewer` 身份、`answer_model_families`、`calibration`（含完整 TP/FN/TN/FP）、
+`eligible_for_authority_review`；并且**恒为** `qualified_judge=false`、
+`formal_semantic_label=false`、`release_observation=false`、`release_gate=NO_GO`。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1577 files |
+git diff --check ok | secret-like literal self-check clean
+L1: tests/test_release_benchmark_blind_review.py = 20 passed
+L2: release-benchmark-pilot stage gate = 110 passed
+L3 @ edc4c75（clean head）：2941 passed / 2 skipped / 0 failed
+```
+
+**未做 / 下一步**：本刀**零真实 invocation**、零 provider SDK、零正式标签。A3-B = 由 operator 在
+**全新隔离会话**（**非本聊天**）粘贴 `render_packet_text(packet)` 并把原始响应回填；A3-C =
+ingest 校验 + shared checker → `calibration_pass` → 再由 QualificationAuthority 显式裁定
+（`6/6 + 5/6` 亦 FAIL，不因是 GPT 放宽）。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
