@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§161 语义探针特异性校准已落地**（见 §161）。最新两案 DeepSeek pro 探针虽检出 6/6 目标负控制，却只有 **1/6** 保持非目标维度正确，校准门 fail；同家族 reviewer 无独立计分权限。§160 仍为 2/6 案 completed、4 案 missing、正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 用与答案模型独立的复核者对固定答案及控制重新做来源绑定评估，并在新校准门通过后单独裁定正式标签权限；当前 pro 结果不得晋升。**
+- **当前动作：§162 A1 契约已冻结**（见 §162）。§161 语义探针特异性校准 **fail**：最新两案 DeepSeek pro 探针检出 6/6 目标负控制，但只有 **1/6** 保持非目标维度正确，同家族 reviewer 无独立计分权限。§160 仍为 2/6 案 completed、4 案 missing、正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = §162 A2：实现独立 reviewer seam + provenance（四个 seam 分离：reviewer → calibration checker → qualification authority → case-label authority），随后 A3 盲校准（门 = target_detection 6/6 且 specificity 6/6 两个独立布尔门）。当前 pro 结果不得晋升。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准落地，当前 pro 特异性 1/6、fail，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是独立复核者通过校准后裁定正式语义标签。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 独立 reviewer 资格合同已冻结（四 seam 分离、门 = 6/6 且 6/6），release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是 §162 A2/A3：独立 reviewer seam + 盲校准通过后，再由 qualification authority 与 case-label authority 分别授予。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -14004,6 +14004,118 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **真实结果与证据**：父 §159/§160 的 exact-head push/PR CI 均已 success：PR #153 head `e4d944b` 对应 `36568865632` / `36568871829`；PR #154 head `adb409c` 对应 `36570994413` / `36571035881`。对 §160 answer bundle 在 `adb409c` 执行 DeepSeek pro，保存的 probe SHA-256 `cc077b526092d7fac95c56d567b18c31e323933565fcc4c8fbc23ffcfcdae643`；在校准代码 head `c41816a` 逐条离线重放，calibration SHA-256 `eabc3b04fc5aac004c1c564e2271b3486269a5b35bf757601cc85c9337191bbe`。产物与逐案失败原因在 `docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_CALIBRATION_2026-09-29/`。实际答案诊断 2/2 clean、目标控制 6/6 检出，但非目标 specificity **1/6**，因此校准 **fail**；没有新语义分数。§161 聚焦 **11 passed**、`release-benchmark-pilot` L2 **138 passed**、Ruff clean、mypy baseline 122 ≤ 128 / NEW=0。此刀仅加诊断校准器/测试/文档，未触及生产默认或共享核心，按分层政策不强制 L3；当前分支 exact-head 远端 CI 另核。
 
 **下一刀**：固定 §160 答案与 §161 控制，选用独立于 DeepSeek flash 的复核者；需要可追溯模型/人工身份、同一来源与 rubric 输入、6/6 目标检出和 6/6 specificity，再由独立权限机制允许正式语义标签。当前 DeepSeek pro 仍为 diagnostic，不因用户个人项目而改写测试结果。
+
+## §162 独立 reviewer 资格证明与校准合同（冻结 v1，2026-10-01；路线 ⑧）
+
+**本刀成功定义（冻结）**：不是"得到一个新语义评分"，而是**第一次建立一条不能自授、可追溯、盲评、与答案模型家族独立、并经 6/6 + 6/6 控制校准的正式 judge 资格路径**。
+
+**范围（冻结）**：§162 = 独立 reviewer 的**资格证明 + 校准**。
+**明确非范围**：不重新评分 Release；不直接产出正式标签；不接 image / chart / live（属 §163 B1）；不改生产 reader / answer / stop / gate；不改 §160 / §161 已存 artifact；不动 12 PR 堆叠链（不 rebase）。
+
+### 162.1 核心输入（必须完全冻结）
+
+```text
+ReviewerInput
+├─ answer_bundle_ref          # §160 frozen answer
+├─ source_bundle_ref          # 同一 frozen sources
+├─ rubric_ref                 # §161 frozen rubric
+├─ control_set_ref            # §161 三类控制
+├─ input_manifest_hash
+└─ blind_case_id              # reviewer 不见原 case 身份 / 既有标签 / DeepSeek 结果
+```
+
+```text
+ReviewerProvenance
+├─ reviewer_kind              # model | manual_human
+├─ provider
+├─ model_family
+├─ model_id / revision
+├─ invocation_id
+├─ timestamp
+├─ input_manifest_hash
+├─ rubric_hash
+├─ controls_hash
+└─ qualification_authority
+```
+
+### 162.2 资格硬约束（冻结）
+
+**"模型家族 ≠ 答案模型"是必要条件，不是充分条件。** 资格还要求：
+
+1. reviewer **不知道 §161 DeepSeek 的判断结果**；
+2. reviewer **不得看到 expected label**；
+3. reviewer 只能产生 `review_observation`，**不能自己写 `qualified_judge=true`**；
+4. calibration checker 决定"表现是否达门"；
+5. **另一个 authority seam** 决定"是否授予 judge 资格"；
+6. **judge 资格**与**某 case 的正式 label 权限**再分开。
+
+### 162.3 四个 seam（冻结，禁止折叠）
+
+```text
+reviewer
+    ↓ observations
+calibration checker
+    ↓ calibration_pass
+qualification authority
+    ↓ qualified_judge
+case-label authority
+    ↓ semantic_label
+```
+
+**反模式（冻结禁止）**：不得出现 `if calibration_pass: qualified_judge = True`。
+形式独立、实质自我授权的实现一律视为违约。
+
+### 162.4 A3 校准门（冻结，不放宽）
+
+```text
+target_detection == 6/6     # TP / FN
+specificity      == 6/6     # TN / FP
+```
+
+- 定义为**两个独立布尔门**；**禁止**折成总 accuracy / F1 / 11-of-12。
+- 理由（§161 暴露）：能"发现问题" ≠ 能"正确区分哪些不是问题"；`6/6 + 1/6` 是高敏感、严重过判的 reviewer，平均分会掩盖它。
+- 控制集输出必须保留逐项 confusion 信息（TP/FN、TN/FP），供后续扩 calibration 时不重新定义语义。
+
+### 162.5 A4 授权（冻结，逐案）
+
+即便 §162 calibration 12/12，通过的只是：**该 reviewer 有资格被用于正式标签裁决**。
+**不是**：§160 的两个 answer 自动升级为正式标签。
+
+```text
+§162 calibration PASS
+        ↓
+qualified_judge granted
+        ↓
+重新对正式 case 执行独立 review
+        ↓
+逐 case provenance + verdict
+        ↓
+label authority 接受
+        ↓
+official semantic label
+```
+
+### 162.6 执行顺序（冻结）
+
+```text
+A1 contract freeze（本刀）
+↓
+A2 reviewer seam + provenance
+↓
+A3 blind calibration
+↓
+exact-head CI
+↓
+若 PASS：A4 authority decision
+若 FAIL：NO-GO，禁止晋升，调查 reviewer / contract
+↓
+再考虑 merge stack / hygiene
+↓
+§163+
+```
+
+**明确不做**：不为 `.workbuddy/` 插正式 commit（本机 `.git/info/exclude` 处理即可）；
+不在 §162 前开始级联 rebase；§162 不顺手接 image / chart / live。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
