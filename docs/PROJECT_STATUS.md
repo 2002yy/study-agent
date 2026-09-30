@@ -14012,7 +14012,7 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **范围（冻结）**：§162 = 独立 reviewer 的**资格证明 + 校准**。
 **明确非范围**：不重新评分 Release；不直接产出正式标签；不接 image / chart / live（属 §163 B1）；不改生产 reader / answer / stop / gate；不改 §160 / §161 已存 artifact；不动 12 PR 堆叠链（不 rebase）。
 
-### 162.1 核心输入（必须完全冻结）
+**C1 核心输入（必须完全冻结）**
 
 ```text
 ReviewerInput
@@ -14038,7 +14038,7 @@ ReviewerProvenance
 └─ qualification_authority
 ```
 
-### 162.2 资格硬约束（冻结）
+**C2 资格硬约束（冻结）**
 
 **"模型家族 ≠ 答案模型"是必要条件，不是充分条件。** 资格还要求：
 
@@ -14049,7 +14049,7 @@ ReviewerProvenance
 5. **另一个 authority seam** 决定"是否授予 judge 资格"；
 6. **judge 资格**与**某 case 的正式 label 权限**再分开。
 
-### 162.3 四个 seam（冻结，禁止折叠）
+**C3 四个 seam（冻结，禁止折叠）**
 
 ```text
 reviewer
@@ -14065,7 +14065,7 @@ case-label authority
 **反模式（冻结禁止）**：不得出现 `if calibration_pass: qualified_judge = True`。
 形式独立、实质自我授权的实现一律视为违约。
 
-### 162.4 A3 校准门（冻结，不放宽）
+**C4 A3 校准门（冻结，不放宽）**
 
 ```text
 target_detection == 6/6     # TP / FN
@@ -14076,7 +14076,7 @@ specificity      == 6/6     # TN / FP
 - 理由（§161 暴露）：能"发现问题" ≠ 能"正确区分哪些不是问题"；`6/6 + 1/6` 是高敏感、严重过判的 reviewer，平均分会掩盖它。
 - 控制集输出必须保留逐项 confusion 信息（TP/FN、TN/FP），供后续扩 calibration 时不重新定义语义。
 
-### 162.5 A4 授权（冻结，逐案）
+**C5 A4 授权（冻结，逐案）**
 
 即便 §162 calibration 12/12，通过的只是：**该 reviewer 有资格被用于正式标签裁决**。
 **不是**：§160 的两个 answer 自动升级为正式标签。
@@ -14095,7 +14095,7 @@ label authority 接受
 official semantic label
 ```
 
-### 162.6 执行顺序（冻结）
+**C6 执行顺序（冻结）**
 
 ```text
 A1 contract freeze（本刀）
@@ -14186,6 +14186,91 @@ L3 @ 61626e1（clean head）：2921 passed / 2 skipped / 0 failed
 
 **未做**：零真实 reviewer invocation、零 provider SDK、零正式标签、零 B1 模态扩展；
 未改 §160 / §161 artifact；未动 12 PR 堆叠链。
+
+### 162.2 A3 路径冻结（2026-10-01）：external independent-family model reviewer via 人工桥接
+
+**裁定**：A3 reviewer = **一个全新、隔离上下文的会话中的 GPT-5.6 Sol**，作为 external
+independent-family model reviewer；通过**人工 copy/paste bridge** 消费 frozen packet 并返回
+`ReviewObservation`。
+
+- **当前聊天不得参与评分**：它已见过 §161 `6/6 detection / 1/6 specificity` 与治理设计/失败结论，
+  构成 prior-verdict 污染，违反 C2 盲评要求。
+- **不接 OpenAI SDK、不改 A2 协议、不接 B1、不把 UI reviewer 接进生产。**
+
+**身份（满足 C2 独立性）**：
+
+```text
+reviewer_kind = model
+provider      = OpenAI
+model_family  = GPT
+answer_family = DeepSeek      -> model_family != answer_model_family 成立
+```
+
+**`invocation_id` 语义冻结（澄清，非改义）**：已核对 §162 契约原文，A1 只把 `invocation_id`
+列为 `ReviewerProvenance` 字段名，**未定义其语义**；A2 实现为 harness 分配。现**显式冻结**为：
+
+> 由 qualification harness 为每次 reviewer invocation 分配的、唯一且可追踪的运行 ID
+> （如 `rq-review-20261001-001`），**不是** provider 返回的 API request ID。
+
+可追溯性由四元组决定，而非供应商内部 ID：
+
+```text
+哪一份冻结输入 -> 给了哪个 reviewer -> 得到哪一份原始输出 -> 哪次校准消费了它
+```
+
+因此必须同时记录：`input_manifest_hash` / `output_hash` / `model_family` / `model_id` / `timestamp`。
+未来若改回 provider request ID 语义，属合同变更，必须显式重开 A1 条款，不得静默改义。
+
+**packet 允许清单（只包含这些）**：
+
+```text
+review_run_id / input_manifest_hash / rubric / frozen source material /
+candidate answer 或 assertion / blind_case_id / 要求的输出 schema
+```
+
+**packet 禁止清单（绝对不含）**：
+
+```text
+§161 DeepSeek Pro 输出 / target·control 标记 / expected label / case 原始身份 /
+6/6 + 1/6 结果 / "这是一条 negative control" 之类提示 /
+"另一个 reviewer specificity 很差，请严格避免误报" 之类**方向性提示**
+```
+
+方向性提示本身即污染：class balance 与 expected 分布都会引导模型凑分布。
+
+**输出强制窄 schema（沿用 A2 `ReviewObservation` 字段，不允许新模型自由设计 JSON）**：
+
+```json
+{"blind_case_id": "...", "question_coverage": "covered|partial|unverified",
+ "evidence_grounding": "supported|gap|unverified",
+ "citation_support": "supported|gap|unverified",
+ "issues": [{"issue_type": "...", "reason": "...", "evidence_refs": ["..."]}],
+ "dimension_consistent": true}
+```
+
+**禁止**它：计算 calibration 分数 / 判断自己是否 qualified / 猜 target·control / 输出 `approved` /
+输出正式 semantic label。它只负责 observation（A2 类型层已剥夺这些字段）。
+
+**class-balance 防泄漏**：不得告知"其中 6 个有问题、6 个没问题"；每个 `blind_case_id`
+**独立判断**；即使 batch 也**绝不暴露 target/control 数量与比例**。`blind_case_id` 必须
+**不含 variant 语义**（如 `rq-review-20261001-001-item-03`），variant 只存在于**不发送**的私有 manifest。
+
+**结果语义（不变）**：
+
+```text
+6/6 detection AND 6/6 specificity -> calibration_pass = true
+  -> 仍只是 eligible_for_authority_review
+  -> 再由 QualificationAuthority 显式授权
+任何一项不满（如 6/6 + 5/6）-> FAIL，不因"是 GPT"放宽
+```
+
+**A3 执行顺序**：
+
+```text
+A3-A 本刀：合同冻结 + 盲 packet 生成器 + ingest/validate harness（零真实 invocation）
+A3-B 用户在新会话执行 packet -> 人工回填原始输出
+A3-C ingest 校验 + shared checker -> 校准结果 -> QualificationAuthority 显式裁定
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
