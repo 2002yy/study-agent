@@ -46,6 +46,17 @@ SCHEMA_INGEST = "release-benchmark-blind-review-ingest-v1"
 VARIANT_ACTUAL = "actual"
 CONTROL_VARIANTS = ("wrong_citation", "missing_aspect", "unsupported_claim")
 
+# The operator moves bytes between the repository and an isolated reviewer
+# session. That makes the operator transport, not a reviewer: no human verdict
+# is ever recorded under this path.
+TRANSPORT_MANUAL_COPY_PASTE = "manual_copy_paste"
+
+# One vocabulary for every item. It is emitted once, at packet level, so it can
+# never become a per-variant side channel.
+ISSUE_TYPE_VOCABULARY = (
+    "coverage_gap", "unsupported_claim", "wrong_citation", "overstatement", "other",
+)
+
 REASON_RESPONSE_SHAPE = "reviewer_response_shape_invalid"
 REASON_RUN_ID_MISMATCH = "review_run_id_mismatch"
 REASON_UNKNOWN_ITEM = "unknown_blind_case_id"
@@ -160,6 +171,7 @@ def build_blind_review_packet(
     }
     manifest = {
         "schema_version": SCHEMA_MANIFEST,
+        "packet_sha256": canonical_hash(packet),
         "review_run_id": review_run_id,
         "input_manifest_hash": input_manifest_hash,
         "answer_bundle_sha256": answer_bundle_sha256,
@@ -211,6 +223,7 @@ def ingest_review_run(
     invocation_id: str,
     timestamp: str,
     answer_model_families: Sequence[str],
+    transport: str = TRANSPORT_MANUAL_COPY_PASTE,
 ) -> dict[str, object]:
     """Validate a bridged reviewer response and score it. Grants nothing."""
     if packet.get("input_manifest_hash") != manifest.get("input_manifest_hash"):
@@ -310,6 +323,7 @@ def ingest_review_run(
         calibration=calibration,
         observations=observations,
         manifest_items=manifest_items,
+        transport=transport,
     )
 
 
@@ -325,6 +339,7 @@ def _ingest_artifact(
     calibration: CalibrationResult,
     observations: Mapping[str, ReviewObservation],
     manifest_items: Mapping[str, Mapping[str, object]],
+    transport: str,
 ) -> dict[str, object]:
     items = []
     for blind_case_id, observation in sorted(observations.items()):
@@ -351,6 +366,8 @@ def _ingest_artifact(
         "invocation_id": invocation_id,
         "timestamp": timestamp,
         "invocation_id_kind": "harness_assigned_run_id",
+        "transport": transport,
+        "packet_sha256": manifest.get("packet_sha256"),
         "answer_model_families": sorted(answer_model_families),
         "independence_ok": True,
         "calibration": calibration.to_dict(),

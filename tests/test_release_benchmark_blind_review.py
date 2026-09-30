@@ -11,6 +11,7 @@ import pytest
 
 from src.evals.release_benchmark_blind_review import (
     CONTROL_VARIANTS,
+    ISSUE_TYPE_VOCABULARY,
     REASON_DUPLICATE_ITEM,
     REASON_MISSING_ITEM,
     REASON_RESPONSE_SHAPE,
@@ -352,3 +353,14 @@ def test_ingest_rejects_an_empty_answer_model_family_list():
     packet, manifest = _packet()
     with pytest.raises(ReviewerQualificationViolation):
         _ingest(packet, manifest, _response(manifest), families=())
+
+
+def test_issue_type_vocabulary_is_shared_not_per_item():
+    """A per-item vocabulary would be a side channel; it is declared once."""
+    packet, _ = _packet()
+    item_blob = json.dumps(packet["items"], ensure_ascii=False)
+    for token in ISSUE_TYPE_VOCABULARY:
+        assert token not in item_blob
+    assert packet["instructions"].count("Allowed issue_type values") == 1
+    for token in ISSUE_TYPE_VOCABULARY:
+        assert token in packet["instructions"]

@@ -139,6 +139,7 @@ def materialize_review_items(
         cases.append({
             "case_id": packet_case["case_id"],
             "answer_model": answer_row["model"],
+            "answer_provider": answer_row["provider"],
             "answer": answer_row["answer"],
             "answer_sha256": sha256(answer_row["answer"].encode("utf-8")).hexdigest(),
             "source_text": source_text,
