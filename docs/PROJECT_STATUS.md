@@ -15820,6 +15820,49 @@ legacy populated  B  下一批（本刀冻结规则）   D  **最关键**：真�
 
 **artifact 操作事实（不再动 C2 代码或 repo 语义）**：`docs/research_quality/*.json` 被 ignore 是已知规则；
 后续 C2 artifact 一律 **`git add -f`**，并在提交前确认文件确实 tracked。
+
+### 164.19 §164-C2 B 批执行与诊断（2026-10-01，`--population B`）
+
+**执行**：同一工具、同一冻结 observer/classifier/isolation，仅换预注册 population
+（socratic 模式 + 4 轮 empirical 主题多轮）。artifact
+`docs/research_quality/LEARNER_STATE_PARITY_C2_B_2026-10-01.json`（**`git add -f`**）。
+
+**结果（与 A 批同形）**：
+
+```text
+observation_count 4 | shadow_status ok: 4
+overall            NOT_COMPARABLE: 4
+per_dimension      goal_objective NOT_COMPARABLE:4 | understanding NOT_COMPARABLE:4
+                   next_step MATCH:4 | misconception MATCH:4 | freshness EXPECTED_DIVERGENCE:4
+```
+
+**诊断（决定性，未动分类器）**：
+
+```text
+(a) mode 字面量**精确匹配** engine 的 socratic 字面量 -> socratic 路径**确实进入**
+(b) 但 classify_knowledge 对这 4 个 turn 全部返回 **derivable**（非 empirical/conventional）
+    -> `external = False` -> `plan_socratic` 的 external 分支（唯一设置
+       `objective = state.objective or text` 的分支）**未执行**
+    -> legacy objective **仍为空** -> goal_objective 两侧皆空 -> NOT_COMPARABLE
+```
+
+**结论**：本批 **未达成** "legacy substantive"；它与 A 批同形并非测量故障，也非 classifier 问题，
+而是 **population 构造未满足自己冻结的 inclusion rule**（"能确定产生 legacy objective /
+confirmed_points"）。**未调仪器。**
+
+**新增纪律（冻结）：stratum 标签必须跟随"观测到的状态"，而不是"意图中的状态"。**
+因此本批**如实记录为 legacy-sparse**，**不得**因为原意是 B 就标成 B；真正的 B 象限仍待
+**修正后的 population**。
+
+**修正后的 B 批 inclusion rule（冻结，先于下一批结果）**：
+
+```text
+纳入条件（必须同时满足）：
+  1) mode = socratic（与 engine 字面量精确一致）
+  2) **`classify_knowledge(turn) in {empirical, conventional}`**（否则 external 分支不执行，
+     legacy objective 不会被填充）
+禁止：依据最终 parity 类别挑样本；依据结果调整分类器或 classifier 口径。
+```
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，

@@ -42,15 +42,34 @@ from src.pedagogy.evaluation import PedagogyEvaluationService  # noqa: E402
 from src.repositories.runtime_repository import RuntimeRepository  # noqa: E402
 from src.tools.web_agent import WebToolTrace  # noqa: E402
 
-# Representative turns: plain question, a claim-shaped answer, a partial answer,
-# a misconception-shaped answer, and an off-topic remark.
-TURNS = (
+# Pre-registered populations. Only the population changes between batches; the
+# observer, classifier and isolation primitives stay frozen.
+#
+# Stratum A - legacy sparse / durable absent: ordinary turns in direct-answer
+# mode, which do not populate a legacy objective or known points.
+TURNS_A = (
     "explain how hashing works",
     "hashing maps keys to buckets using a hash function",
     "hashing is sort of like sorting",
     "the moon does not rotate on its own axis",
     "what is the weather today",
 )
+
+# Stratum B - legacy substantive / durable absent: socratic multi-turns on an
+# empirical topic, which deterministically populate the legacy objective. The
+# inclusion rule is fixed before the results are seen and never selects samples
+# by their eventual parity category.
+TURNS_B = (
+    "why does the sky appear blue during the day",
+    "so scattering depends on wavelength then",
+    "let me conclude: shorter wavelengths scatter more strongly",
+    "does that also explain red sunsets",
+)
+
+POPULATIONS = {
+    "A": ("legacy_sparse_durable_absent", TURNS_A, "普通"),
+    "B": ("legacy_substantive_durable_absent", TURNS_B, "苏格拉底"),
+}
 
 SCHEMA = "learner-state-parity-collection-v1"
 
@@ -62,7 +81,7 @@ class _FakeRag:
         return {"status": "found", "context": self.context, "result_count": 1, "results": []}
 
 
-def _service(tmp_path: Path, *, telemetry) -> ChatService:
+def _service(tmp_path: Path, *, telemetry, mode: str) -> ChatService:
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     dependencies = ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(
@@ -71,7 +90,7 @@ def _service(tmp_path: Path, *, telemetry) -> ChatService:
         read_memory_bundle=lambda context_mode: {},
         build_role_prompt=lambda role, **kwargs: f"role:{role}",
         route_request=lambda **kwargs: {
-            "role": "nahida", "mode": "普通", "model_profile": "flash", "reason": "test",
+            "role": "nahida", "mode": mode, "model_profile": "flash", "reason": "test",
         },
         retrieve_local_knowledge=lambda *args, **kwargs: _FakeRag(),
         build_messages=lambda **kwargs: [
@@ -90,15 +109,16 @@ def _service(tmp_path: Path, *, telemetry) -> ChatService:
     return ChatService(repository, dependencies, shadow_telemetry=telemetry)
 
 
-def collect(tmp_dir: Path) -> dict[str, object]:
+def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
     import os
 
+    stratum, turns, mode = POPULATIONS[population]
     os.environ[SHADOW_FLAG] = "1"
     try:
         collector = LearnerStateParityCollector()
         telemetry = BestEffortTelemetry(collector)
-        service = _service(tmp_dir, telemetry=telemetry)
-        for index, text in enumerate(TURNS):
+        service = _service(tmp_dir, telemetry=telemetry, mode=mode)
+        for index, text in enumerate(turns):
             service.start_turn(
                 ChatCommand(user_input=text, thread_id=f"c2-thread-{index}")
             )
@@ -119,8 +139,10 @@ def collect(tmp_dir: Path) -> dict[str, object]:
         telemetry.close()
         return {
             "schema_version": SCHEMA,
+            "population": population,
+            "stratum": stratum,
             "condition": "durable_truth_empty_no_closure",
-            "turns": list(TURNS),
+            "turns": list(turns),
             "observation_count": len(observations),
             "shadow_status": dict(sorted(shadow_status.items())),
             "overall_classification": dict(sorted(overall.items())),
@@ -134,11 +156,18 @@ def collect(tmp_dir: Path) -> dict[str, object]:
 
 
 def main() -> None:
+    import argparse
     import tempfile
 
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--population", default="A", choices=sorted(POPULATIONS))
+    args = parser.parse_args()
+
     tmp = Path(tempfile.mkdtemp(prefix="c2-parity-"))
-    report = collect(tmp)
-    out = ROOT / "docs/research_quality" / "LEARNER_STATE_PARITY_C2_2026-10-01.json"
+    report = collect(tmp, population=args.population)
+    out = ROOT / "docs/research_quality" / (
+        f"LEARNER_STATE_PARITY_C2_{args.population}_2026-10-01.json"
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
