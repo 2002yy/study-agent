@@ -1,0 +1,71 @@
+{
+  "probe": "q5_closure_continuation",
+  "gates": [
+    {
+      "gate": "thread_created",
+      "status": "PASS",
+      "detail": "thread-1"
+    },
+    {
+      "gate": "summary_payload_accepted",
+      "status": "PASS",
+      "detail": {
+        "status": "not_summarized"
+      }
+    },
+    {
+      "gate": "closure_service_instantiated",
+      "status": "PASS",
+      "detail": "LearningClosureService"
+    },
+    {
+      "gate": "create_and_execute_returned",
+      "status": "PASS",
+      "detail": {
+        "id": "closure_edf0104c6491443abd7c5f22d34cdfc1",
+        "status": "preview_ready"
+      }
+    },
+    {
+      "gate": "generator_candidate_present",
+      "status": "PASS",
+      "detail": "present"
+    },
+    {
+      "gate": "run_status",
+      "status": "PASS",
+      "detail": "preview_ready"
+    },
+    {
+      "gate": "run_error_reason",
+      "status": "PASS",
+      "detail": {
+        "error": "",
+        "reason": ""
+      }
+    },
+    {
+      "gate": "truth_committer_called",
+      "status": "FAIL",
+      "detail": []
+    },
+    {
+      "gate": "durable_readback",
+      "status": "FAIL",
+      "detail": "AttributeError: 'RuntimeRepository' object has no attribute 'get_learner_model_service'"
+    },
+    {
+      "gate": "continuation_probe",
+      "status": "PASS",
+      "detail": {
+        "summary_status_after": "not_summarized"
+      }
+    }
+  ],
+  "all_pass": false,
+  "first_fail": {
+    "gate": "truth_committer_called",
+    "status": "FAIL",
+    "detail": []
+  }
+}
