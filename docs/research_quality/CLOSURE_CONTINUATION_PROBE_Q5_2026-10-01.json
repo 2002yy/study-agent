@@ -22,14 +22,14 @@
       "gate": "create_and_execute_returned",
       "status": "PASS",
       "detail": {
-        "id": "closure_2a670f172db34f5aa6f16db34d622a04",
+        "id": "closure_d92c566df9914654809169b15c78f86f",
         "status": "preview_ready"
       }
     },
     {
       "gate": "generator_candidate_present",
       "status": "PASS",
-      "detail": "present"
+      "detail": null
     },
     {
       "gate": "run_status",
@@ -45,33 +45,60 @@
       }
     },
     {
-      "gate": "truth_committer_called",
-      "status": "FAIL",
-      "detail": [
-        "closure_2a670f172db34f5aa6f16db34d622a04"
-      ]
+      "gate": "snapshot_evidence_dump",
+      "status": "PASS",
+      "detail": {
+        "github_learning_sources": [],
+        "final_pedagogy_evaluation": null,
+        "committed_learning_state": {
+          "objective": "recover durable resume",
+          "phase": "guided_practice",
+          "protocol": "socratic_rediscovery"
+        },
+        "keys": [
+          "allowed_source_refs",
+          "candidate_policy",
+          "closure_eligibility",
+          "committed_learning_state",
+          "committed_project_state",
+          "dialogue_budget",
+          "evidence_ids",
+          "excluded_uncommitted_turns",
+          "final_pedagogy_evaluation",
+          "github_learning_sources",
+          "memory_context",
+          "recent_dialogue",
+          "schema_version",
+          "summary_kind",
+          "task_contract",
+          "thread_id"
+        ]
+      }
     },
     {
       "gate": "commit_returned",
       "status": "PASS",
       "detail": {
-        "status": "completed"
+        "status": "failed"
       }
-    },
-    {
-      "gate": "truth_committer_called_after_commit",
-      "status": "PASS",
-      "detail": [
-        "closure_2a670f172db34f5aa6f16db34d622a04"
-      ]
     },
     {
       "gate": "commit_error_reason",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": {
-        "error": "",
-        "reason": ""
+        "error": "Durable learning truth rejected candidate: candidate_source_missing",
+        "reason": "learning_truth_commit_failed"
       }
+    },
+    {
+      "gate": "source_evidence_called",
+      "status": "FAIL",
+      "detail": []
+    },
+    {
+      "gate": "evaluation_repo_called",
+      "status": "FAIL",
+      "detail": []
     },
     {
       "gate": "durable_readback",
@@ -86,16 +113,17 @@
       "gate": "continuation_probe",
       "status": "PASS",
       "detail": {
-        "summary_status_after": "summarized"
+        "summary_status_after": "not_summarized"
       }
     }
   ],
   "all_pass": false,
   "first_fail": {
-    "gate": "truth_committer_called",
+    "gate": "commit_error_reason",
     "status": "FAIL",
-    "detail": [
-      "closure_2a670f172db34f5aa6f16db34d622a04"
-    ]
+    "detail": {
+      "error": "Durable learning truth rejected candidate: candidate_source_missing",
+      "reason": "learning_truth_commit_failed"
+    }
   }
 }

@@ -10,8 +10,9 @@ to any D distribution. It records per-gate evidence so a failure is attributed t
 the exact gate (construction / lifecycle / generation / evaluation / ownership /
 commit / durable persistence / continuation) instead of one collapsed message.
 
-Reuses the existing fixture shape from
-tests/test_learning_closure_commit_boundary.py::_build_service.
+The closure service fixture shape comes from
+tests/test_learning_closure_commit_boundary.py::_build_service; the real truth
+committer wiring comes from tests/test_learning_closure_truth.py::_service.
 """
 
 from __future__ import annotations
@@ -25,17 +26,25 @@ from types import SimpleNamespace
 
 import src.application.memory_service as memory_service_module
 from src.application.learning_closure_service import LearningClosureService
+from src.application.learning_closure_truth import LearningClosureTruthService
 from src.application.memory_service import MemoryService
 from src.application.runtime_repository import get_learner_model_service
 from src.application.session_service import SessionService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.learning_closure_repository import LearningClosureRepository
+from src.repositories.learning_truth_repository import LearningTruthRepository
 from src.repositories.memory_repository import MemoryRepository
 from src.repositories.runtime_repository import RuntimeRepository
 
 
 GATES: list[dict] = []
+
+COMMIT_SHA = "a" * 40
+TREE_SHA = "b" * 40
+REPO_URL = "https://github.com/2002yy/study-agent"
+SOURCE_REF = "github_source:turn-1:0"
+CLAIM_TEXT = "durable learning state must be readable after closure"
 
 
 def gate(name: str, ok: bool, detail: object = None) -> bool:
@@ -58,8 +67,8 @@ def _durable_only_result() -> dict:
     return {
         "candidates": [],
         "durable_learning_candidate": {
-            "source_ref": "local_source:turn-1:0",
-            "claim_text": "durable learning state must be readable after closure",
+            "source_ref": SOURCE_REF,
+            "claim_text": CLAIM_TEXT,
             "claim_kind": "invariant",
             "scope": "project",
             "next_step": "read back the same objective after closure",
@@ -69,13 +78,66 @@ def _durable_only_result() -> dict:
     }
 
 
-class RecordingTruthCommitter:
+class FakeSourceEvidenceService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def search_and_converge(self, repo_url: str, query: str, *, ref: str = ""):
+        self.calls.append((repo_url, query, ref))
+        from src.application.learning_source_evidence import (
+            EvidenceConvergenceResult,
+        )
+        from src.domain.learning_truth import EvidenceBinding, SourceEvidence
+
+        source = SourceEvidence(
+            repository="2002yy/study-agent",
+            commit_sha=COMMIT_SHA,
+            tree_sha=TREE_SHA,
+            path="src/application/session_service.py",
+            file_sha="file-sha",
+            symbol="SessionService.summary_payload",
+            symbol_kind="method",
+            start_line=80,
+            end_line=92,
+            evidence_kind="search_result",
+        )
+        return EvidenceConvergenceResult(
+            primary=EvidenceBinding(source=source, role="primary", position=0),
+            candidate_count=1,
+        )
+
+
+class FakeEvaluationRepository:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    def commit(self, run):
-        self.calls.append(run.id)
-        return SimpleNamespace(status="claim_validated")
+    def get_for_turn(self, turn_id: str):
+        from src.pedagogy.evaluation import PedagogyEvalRun, SemanticEvaluation
+
+        self.calls.append(turn_id)
+        if turn_id != "turn-1":
+            return None
+        return PedagogyEvalRun(
+            id="eval-1",
+            learner_input="durable resume means recovery must span turns",
+            objective="recover session recovery by durable owner",
+            protocol="socratic_rediscovery",
+            expected_concepts=("durable resume",),
+            evidence=("source-primary",),
+            deterministic_result={"is_claim": True, "misconceptions": []},
+            semantic_result=SemanticEvaluation(
+                claims=(CLAIM_TEXT,),
+                correct_points=("durable truth is the owner",),
+                misconceptions=(),
+                reasoning_complete=True,
+                transfer_ready=True,
+                confidence=0.92,
+                evidence_refs=("source-primary",),
+            ),
+            confidence=0.92,
+            final_decision="accept",
+            reasons=("accept",),
+        )
 
 
 def main() -> int:
@@ -88,7 +150,6 @@ def main() -> int:
         database = RuntimeDatabase(tmp / "runtime.db")
         runtime = RuntimeRepository(database)
 
-        # --- G02/G03/G04: real legacy-substantive thread -----------------
         thread = runtime.create_chat_thread(
             ChatThread(
                 id="thread-1",
@@ -127,20 +188,20 @@ def main() -> int:
         memory_service_module.load_runtime_modes = lambda: modes
         memory_service_module.is_memory_write_allowed = lambda _modes: True
 
-        # --- G03: session lifecycle not short-circuited ------------------
-        try:
-            summary = session.summary_payload("thread-1")
-            gate(
-                "summary_payload_accepted",
-                summary.get("status") != "summarized",
-                {"status": summary.get("status")},
-            )
-        except Exception as exc:  # noqa: BLE001
-            gate("summary_payload_accepted", False, f"{type(exc).__name__}: {exc}")
-            raise
+        summary = session.summary_payload("thread-1")
+        gate(
+            "summary_payload_accepted",
+            summary.get("status") != "summarized",
+            {"status": summary.get("status")},
+        )
 
-        # --- G01: service instantiation ---------------------------------
-        committer = RecordingTruthCommitter()
+        source_svc = FakeSourceEvidenceService()
+        eval_repo = FakeEvaluationRepository()
+        truth_committer = LearningClosureTruthService(
+            LearningTruthRepository(database),
+            source_svc,  # type: ignore[arg-type]
+            eval_repo,  # type: ignore[arg-type]
+        )
         frozen = _durable_only_result()
 
         def generator(*_args, **_kwargs):
@@ -150,13 +211,12 @@ def main() -> int:
             LearningClosureRepository(database),
             session,
             memory,
-            learning_truth_committer=committer,
+            learning_truth_committer=truth_committer,
             generator=generator,
             memory_bundle_loader=lambda _mode: {},
         )
         gate("closure_service_instantiated", service is not None, type(service).__name__)
 
-        # --- G05..G10: real create_and_execute ---------------------------
         run = None
         try:
             run = service.create_and_execute("thread-1")
@@ -170,22 +230,32 @@ def main() -> int:
 
         if run is not None:
             generated = dict(run.generated_result or {})
-            cand = generated.get("durable_learning_candidate")
-            gate("generator_candidate_present", bool(cand), None if not cand else "present")
+            gate("generator_candidate_present", bool(generated.get("durable_learning_candidate")))
             gate("run_status", run.status in {"completed", "preview_ready"}, run.status)
             gate("run_error_reason", not run.error, {"error": run.error, "reason": run.reason})
-            gate("truth_committer_called", bool(committer.calls), committer.calls)
 
-            # --- G11: real commit step (separate from create_and_execute) -
+            si = (run.committed_snapshot or {}).get("structured_input") or {}
+            gate(
+                "snapshot_evidence_dump",
+                True,
+                {
+                    "github_learning_sources": si.get("github_learning_sources"),
+                    "final_pedagogy_evaluation": si.get("final_pedagogy_evaluation"),
+                    "committed_learning_state": si.get("committed_learning_state"),
+                    "keys": sorted(si.keys()),
+                },
+            )
+
             try:
                 committed = service.commit(run.id)
                 gate("commit_returned", True, {"status": committed.status})
-                gate("truth_committer_called_after_commit", bool(committer.calls), committer.calls)
                 gate(
                     "commit_error_reason",
                     not committed.error,
                     {"error": committed.error, "reason": committed.reason},
                 )
+                gate("source_evidence_called", bool(source_svc.calls), source_svc.calls)
+                gate("evaluation_repo_called", bool(eval_repo.calls), eval_repo.calls)
                 run = committed
             except Exception as exc:  # noqa: BLE001
                 gate(
@@ -194,19 +264,21 @@ def main() -> int:
                     {"error": f"{type(exc).__name__}: {exc}", "tb": traceback.format_exc()[-800:]},
                 )
 
-            # --- G12: durable readback along the frozen C1 read authority -
             try:
                 lms = get_learner_model_service()
                 snap = lms.build("thread-1")
                 gate(
                     "durable_readback",
                     bool(snap.objective),
-                    {"objective": snap.objective, "goal_status": snap.goal_status, "source": snap.source},
+                    {
+                        "objective": snap.objective,
+                        "goal_status": snap.goal_status,
+                        "source": snap.source,
+                    },
                 )
             except Exception as exc:  # noqa: BLE001
                 gate("durable_readback", False, f"{type(exc).__name__}: {exc}")
 
-            # --- G13: same-thread continuation probe ---------------------
             try:
                 summary_after = session.summary_payload("thread-1")
                 gate(
