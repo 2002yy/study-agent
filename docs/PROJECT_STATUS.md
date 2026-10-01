@@ -16050,6 +16050,43 @@ turn1_post_state  ==  turn2_learning_state_before
 **仍属 collection-side provenance**，不改 observer / classifier / runtime。
 
 **未取得 B 时的纪律**：继续按**真实状态**分层，**不为填表改定义**。
+
+### 164.22 §164-C2 B″ 状态传播链与投影比较（冻结，2026-10-01）
+
+**B″ 验证的是一条完整状态传播链**（不只是"多跑一轮"）：
+
+```text
+write -> persist -> next-turn reload -> observed-state classification -> parity
+```
+**前三步必须先成立**，才能解释后两步。
+
+**审计点（冻结）**：`turn1_post_state == turn2_learning_state_before` 的比较
+**必须比较"冻结的 substantive projection"，而不是整个状态对象全量相等** ——
+否则时间戳 / 版本号 / 运行元数据等**非语义字段**可能制造假失败。
+
+```text
+projection 定义：**沿用当前已定义的 substantive 判据**（objective 是否非空 +
+confirmed_points 数量），**不新增、不放宽字段**。
+```
+
+**B″ 判定顺序（冻结）**：
+
+```text
+Turn 1 post-state substantive?
+        ↓
+persistence evidence valid?
+        ↓
+Turn 2 before-state **reproduces substantive fields**?
+        ↓
+legacy_substantive / durable_substantive
+        ↓
+assign stratum
+        ↓
+最后读取 parity
+```
+
+若最终为 `true / false`，才正式取得**首个 B stratum**；否则保留实际 provenance，
+继续定位状态传播链，**而不是调整分类定义**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
