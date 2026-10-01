@@ -15940,6 +15940,32 @@ parity
 **边界（冻结）**：观测状态检查只属 **collection harness / labeling logic**；
 **不得**反向影响 observer、parity classifier、knowledge classifier 语义、isolation 或生产 runtime 行为。
 **`substantive` 判据不得为了"终于采到 B"而放松。**
+
+**B′ 外推边界（冻结，§164-D 回看时必须保留）**：
+
+```text
+本批 B′ 若最终成立，首先只证明的是：
+  **"当前中文 marker 可触达 population 下"的 B 分布**
+**不得**自然外推为"语言无关的所有 Socratic 外部事实 turn"。
+英文候选全部落 `derivable` 本身就是一个 **construction / population-coverage 事实**，
+应保留 provenance；但**现在仍然不应该修 knowledge classifier**。
+```
+
+**B′ 执行边界（冻结）**：
+
+```text
+允许：population / collection-side observed-state inspection / artifact schema·labeling
+禁止：observer semantics / parity classifier semantics / knowledge classifier semantics /
+      isolation / production runtime / substantive 判据
+```
+
+**B stratum 成立条件（唯一）**：执行后确实出现
+
+```text
+legacy_substantive = true
+durable_substantive = false
+```
+否则**按实际状态重新归层**，**不为填满 2×2 表格而强行贴标签**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
