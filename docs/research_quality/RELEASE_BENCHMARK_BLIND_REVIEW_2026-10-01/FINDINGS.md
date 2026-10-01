@@ -139,4 +139,3 @@ least one item shaped as *unsupported claim + structurally valid citation +
 real locator + locator does not semantically support the claim*, without reusing
 item-05/06 content, so that a later pass shows the reviewer learned the rule
 rather than these two items.
-
