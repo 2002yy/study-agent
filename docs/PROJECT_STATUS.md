@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 已 CLOSED —— 自动 semantic judge = NOT QUALIFIED**（见 §162.10 与 C7 / C8）。三次一致证据（消费集 `6/6+4/6`、fresh Cluster A `6/6+4/6`、fresh Cluster B `6/6+4/6`，同一 signature：`unsupported_claim` 的 `EG=gap` 检出但 `CS=supported`）→ 定性为 **REPRODUCIBLE_REVIEWER_FAMILY_FAILURE_MODE**。**产品裁定**：automatic semantic judge **NOT QUALIFIED**；机械/确定性检查 **AVAILABLE**；正式语义标签**仅**由独立具名 `manual_human` 在显式复核后给出，否则 **abstain / unlabeled**；release gate 在所需语义标签覆盖满足前 **NO_GO**。**Authority granted = NONE**；holdout `RQ-QUAL-HOLDOUT-v1` 对 GPT 家族 = **FINAL FAIL**，未来他家族运行仅作 comparative/diagnostic（C8 要求先预注册多家族政策）。不再为得到 PASS 更换模型。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = 回到主线：按"无自动 semantic judge"推进（需要语义标签的 case 走独立人工，否则 abstain）；未来若 Claude/Gemini/API 自然接入，另开 §162-v2 bakeoff 并预注册 reviewer-selection policy。**
+- **当前动作：§162 CLOSED；主线转入 §163 Release measurement coverage**（见 §162.10 / §163.1）。§162 最终状态：基础设施 / 盲传输 / provenance / 资格合同 CLOSED，**GPT-5.6-Sol 资格 = FAIL**，**自动 semantic judge = NOT QUALIFIED**，**Authority granted = NONE**，release **NO-GO**。失败刻画 = 可复现的 `citation_support` 轴欠判（三次一致，`unsupported_claim`：`EG=gap` 检出 / `CS=supported`）；holdout `RQ-QUAL-HOLDOUT-v1` 对 GPT 家族 = **FINAL FAIL**，他家族运行仅 comparative/diagnostic（C8 要求先预注册）。**产品结论**：没有 qualified automatic judge 是**合法运行状态**，RQCE 已具备真正 abstention 能力。**§163 冻结纪律**：只按 mode/modality/focus 扩 6→56 且**不降门槛**；无标签者保持 **abstain/unlabeled**；正式语义标签只由**独立具名 manual_human 经 authority seam** 给出；视觉 / live 属独立能力链；**阈值必须先预注册再跑全量**。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §163-a：按 cell / focus 采集并冻结新来源（含显式 abstain 标记），先补覆盖，不碰 reviewer。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14801,6 +14801,63 @@ RQ-QUAL-HOLDOUT-v1
 
 **未来入口**：若 Claude / Gemini / API 自然接入，另开 **§162-v2 reviewer bakeoff / qualification**，
 并**在执行前**重新预注册 reviewer-selection policy（见 C8）与 fresh holdout。
+
+### 163.1 Release measurement coverage contract（冻结 v1，2026-10-01；§162 CLOSED 后主线）
+
+**前置状态（冻结）**：
+
+```text
+§162 CLOSED | automatic semantic judge = NONE | Authority granted = NONE
+RQCE v1 落法：机械 / 确定性检查 AVAILABLE；
+正式语义标签仅由独立具名 manual_human 经 authority seam 给出；否则 abstain / unlabeled。
+```
+
+**产品结论（长期保留）**：
+
+> **"没有 qualified automatic judge" 不是系统故障，而是一种合法运行状态。**
+> RQCE 现已具备真正的 abstention 能力：不知道就不冒充知道，没有授权就不冒充有授权。
+> 这比硬塞一个"看起来聪明"的模型裁判更可靠。
+
+**目标矩阵（来自 `plan_v1.json`，本刀不改）**：
+
+```text
+target_total = 56
+cells   frozen: text 10 | pdf 7 | image 5 | chart 4 | mixed 6
+        live  : text 7  | pdf 5 | image 3 | chart 3 | mixed 6
+focus   retrieval 12 | unit_adequacy 10 | conflict 8 | visual_value 8
+        synthesis 8 | auditor 6 | continuity 4
+当前准入 = 6 / 56
+```
+
+**覆盖扩展纪律（冻结）**：
+
+```text
+1) 只按 mode / modality / focus 扩样本；**不得为了凑覆盖降低任何门槛**
+   （来源字节 SHA、独立来源、page / region、required units、gold 复核位一律不变）。
+2) 无正式语义标签的 case **明确保持 abstain / unlabeled**；
+   不得用自动 judge 补、不得构造者自审、不得手改 artifact。
+3) 需要正式语义标签的 case 走**独立 + 具名 + 带 provenance** 的 manual_human，
+   且**必须经已实现的 authority seam**（QualificationAuthority / CaseLabelAuthority），
+   不得绕过 seam 直接改 artifact。
+4) 视觉与 live 属**独立能力链**，不得与 reviewer qualification 绑定：
+   image / chart / mixed 需要视觉 adapter（当前 `vision_not_configured`）；
+   live 需要人工来源核验（freshness requirement）。
+5) **阈值预注册**：任何正式全量计分之前必须先冻结 threshold 与判据；
+   先冻结 -> 再跑全量 -> 再裁定 GO / NO-GO。**禁止看到全量结果后再调阈值。**
+```
+
+**执行顺序（冻结）**：
+
+```text
+163-a 覆盖扩展：按 cell / focus 采集新来源并冻结（未标记者显式 abstain）
+163-b 需要正式标签的 case -> 独立 manual_human，经 authority seam
+163-c 能力链补齐：视觉 adapter + live 来源核验（独立刀，不与 162 绑定）
+163-d 阈值预注册冻结
+163-e 全量 56 案执行 + 计分 -> Release GO / NO-GO
+163-f 只有全绿才进入 RQCE v1 Freeze
+```
+
+**本刀不做**：不再触碰 reviewer / prompt / §162 合同；不改 `plan_v1` 的 `target_total` 或 `cells`。
 
 ### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
 
