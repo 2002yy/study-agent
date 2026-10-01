@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§163 资产对账 + 四项裁定均已冻结；下一步 = §164 Projection & Authority Contract**（见 §163.1–§163.6 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163 产出**：17 个旧学习/教学资产权威矩阵 + 8 条结构发现（F1 两套并行 learning state；F2 ResumePoint·EvidenceSet 是文档虚构；F3 学习域 Observation·Assessment 不存在；F5 retention·review_due 不存在；F6 mastery 被刻意设为不可表示）。**四项裁定（§163.4）**：★1 NextStep = Planner **PROPOSE** / LearnerModel **READ** / ClosureTruth **COMMIT**；★2 Assessment = 机器可评价但**不得**成为 formal semantic label、**不得**直写 mastery/UnderstandingEvidence，且**无权威证据时须 abstain**；★3 goal→goal prerequisite **RETIRE_AS_AUTHORITY**，语义迁入 §165 Concept→Concept；★4 closure **合并 authority surface、保留三层内部职责**。总原则：**Planner 提议 / LearnerModel 投影 / Closure 授权写入，任何模块不得同时观察+判断+改长期真值**。**§164 重新定位（§163.5）= Projection & Authority Contract**（不建大表；统一 durable truth → LearnerModelSnapshot → chat-turn readable context；最大新增工作 = 把 chat runtime 的 PedagogyEvalRun/misconception/objective 可靠变成 closure candidate，并让下一轮 chat 真正读 durable LearnerModel）。**双轨**：主线 A = §164→§165→§166→§167→§168→§169→§170→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。**唯一下一步 = §164 契约冻结（Projection & Authority Contract），再实现。**
+- **当前动作：§164-A 合同已冻结（Projection & Authority Contract）；下一步 = §164-B candidate assembler**（见 §163.1–§163.6 / §164 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产权威矩阵 + 8 条结构发现（核心 = F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE/LearnerModel READ/ClosureTruth COMMIT；★2 Assessment 机器可评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同（冻结）**：A projection authority（durable truth → LearnerModelSnapshot → turn context，snapshot 不持久化）；B+F CandidateAssembler 产出 **LearningClosureCandidate**（独立对象，只 propose，类型层禁止 committed=true）；C 三阶段 cutover（shadow → dual-read → durable authority）；D+H abstain taxonomy 五类且**可路由可审计**；G semantic-equivalence gate（比语义投影，不比字段相等）；E non-goals；**invariant：LearnerModelSnapshot 永远可重建，cache != authority**。**双轨**：主线 A = §164-B→§164-F→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15013,6 +15013,134 @@ Persistent Memory（冻结方向）
 └─ Learner / Pedagogy plane
 通过引用连接（UnderstandingEvidence -> objective -> concept -> knowledge_ref / research_brief_ref）；
 **不硬合成单一 schema**，但可机械追踪。
+```
+
+## §164 Unified Learner State v2 — Projection & Authority Contract（契约冻结 v1，2026-10-01）
+
+**本刀范围（§164-A）**：**只冻结合同**；不写 migration、不改 chat runtime、不新增表、不改 schema。
+
+**本刀要解决的真实结构问题**：§163.2 **F1** —— 两套并行 learning state 并存
+（chat turn 依赖 legacy `learning_state` / `pedagogy_snapshot`；normalized `learning_*` durable truth
+只在显式 closure 后写入）。目标是把这条断层**建桥**，而不是再造第三套 learning state。
+
+### 164.1 合同块 A — Projection authority
+
+```text
+durable truth (learning_* 真值表)
+        ↓ read-only projection
+LearnerModelSnapshot
+        ↓ turn-readable learner context
+chat turn
+
+durable truth        = authority（唯一真值）
+LearnerModelSnapshot = derived / read-only / **not persisted**
+turn context         = snapshot 的派生视图
+```
+
+### 164.2 合同块 B + F — Candidate production；候选 ≠ 评价
+
+```text
+PedagogyEvalRun / misconception detection / objective / turn context
+        ↓ CandidateAssembler
+LearningClosureCandidate
+        ↓ review / confirmation
+ClosureTruth commit
+```
+
+```text
+PedagogyEvalRun         = **一次回合的评价记录**
+LearningClosureCandidate = "我们准备把哪些东西写进长期学习真值？"
+两者权限不同：PedagogyEvalRun **不得**直接成为 durable truth。
+```
+
+`LearningClosureCandidate` 至少携带：
+
+```text
+candidate_id
+goal_ref / objective_ref
+proposed_understanding[]
+proposed_misconceptions[]
+proposed_next_steps[]
+source_turn_ids[]
+pedagogy_eval_refs[]
+authority_requirements
+abstentions[]
+provenance
+```
+
+**只允许 propose**；**禁止**任何 `committed=true` 之类越权字段（**类型层不得存在**）。
+
+### 164.3 合同块 C — Read cutover state machine（三阶段）
+
+```text
+Phase 1 — shadow read
+  legacy = authority；durable learner context = 旁路读取；记录差异；**不影响 chat**
+
+Phase 2 — dual read / bounded preference
+  durable truth 优先；legacy 仅 compatibility fallback；差异进入 telemetry / test evidence
+
+Phase 3 — durable authority
+  LearnerModelSnapshot = chat-turn learner context authority
+  legacy JSON = compatibility projection / retire candidate
+```
+
+### 164.4 合同块 G — Semantic-equivalence migration gate
+
+**切换依据不是 JSON 字段相等，而是关键学习语义不冲突**：
+
+```text
+goal / objective       是否一致
+known understanding    是否不冲突
+next step              是否一致 / 有可解释差异
+misconception          是否有遗漏 / 新增
+freshness              durable-only 允许（legacy 无此概念）
+```
+
+Phase 1 必须**预先定义 equivalence / expected divergence**；未定义不得进入 Phase 2。
+两个系统语义本来就不完全一样，**不得**要求 `legacy == durable` 的逐字段相等。
+
+### 164.5 合同块 D + H — Assessment abstention 与可路由 taxonomy
+
+```text
+ABSTAIN_NO_AUTHORITATIVE_EVIDENCE -> Research
+ABSTAIN_CONFLICTING_EVIDENCE      -> Research / manual review
+ABSTAIN_INSUFFICIENT_RESPONSE     -> ask learner / exercise
+ABSTAIN_OUTSIDE_OBJECTIVE         -> **不更新 learner truth**
+ABSTAIN_EVALUATOR_UNCERTAIN       -> bounded evaluator retry / human
+```
+
+**abstain 必须可路由、可审计**，不得是一个死状态；每次 abstain 记录 reason + provenance。
+这把 §162 的"不会就 abstain"变成**产品行为**，而不是死状态。
+
+### 164.6 Invariant（冻结）：LearnerModelSnapshot 永远可重建
+
+```text
+cache != authority
+```
+
+snapshot 允许缓存，但**必须能从 durable truth 重新构建**；
+**不得**因为"chat turn 要快速读取"就把 snapshot 持久化成第二份真值。
+
+### 164.7 合同块 E — Explicit non-goals（明确不做）
+
+```text
+不建 learner_state 大表
+不给 LLM mastery 写权
+不让 PedagogyEvalRun 直接成为 durable truth
+不让 LearnerModel 成为 writer
+不让 Planner 成为 truth authority
+本刀不写 migration / 不改 chat runtime
+```
+
+### 164.8 实现顺序（冻结）
+
+```text
+§164-A 合同冻结（本刀）
+§164-B candidate assembler
+§164-C shadow durable learner read
+§164-D semantic parity evidence
+§164-E dual-read cutover
+§164-F legacy retirement decision
 ```
 
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
