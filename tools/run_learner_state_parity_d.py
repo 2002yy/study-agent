@@ -159,6 +159,7 @@ def main() -> int:
     )
     claim_text = str(spec.get("claim_text") or CLAIM_TEXT)
     sample_id = str(spec.get("sample_id") or "d-1")
+    legacy_known_points = [str(x) for x in (spec.get("legacy_known_points") or [])]
     _SAMPLE.update({"sample_id": sample_id, "claim_text": claim_text, "durable_objective": durable_objective, "legacy_objective": legacy_objective})
     tmp = Path(tempfile.mkdtemp(prefix="d-parity-"))
     artifact: dict[str, object] = {
@@ -187,6 +188,7 @@ def main() -> int:
                 learning_state={
                     "protocol": "socratic_rediscovery",
                     "objective": legacy_objective,
+                    "confirmed_points": legacy_known_points,
                     "phase": "guided_practice",
                 },
             )
