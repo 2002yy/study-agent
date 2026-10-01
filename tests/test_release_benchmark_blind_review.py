@@ -375,3 +375,21 @@ def test_ingest_rejects_bytes_that_do_not_match_the_parsed_text():
     with pytest.raises(ReviewerQualificationViolation) as exc:
         _ingest(packet, manifest, raw, raw_response_bytes=b'{"other": 1}')
     assert exc.value.reason == REASON_RESPONSE_SHAPE
+
+
+def test_per_item_verdicts_are_not_shared_between_same_variant_items():
+    """Two controls of one variant must each report their own verdict."""
+    packet, manifest = _packet()
+    raw = _response(manifest)
+
+    # Break exactly one of the two unsupported_claim controls (the second one).
+    rows = json.loads(raw)["observations"]
+    targets = [row for row in rows if row["blind_case_id"] == "rq-review-20261001-001-item-06"]
+    targets[0]["citation_support"] = "supported"
+    artifact = _ingest(packet, manifest, json.dumps(
+        {"review_run_id": RUN_ID, "observations": rows}, ensure_ascii=False))
+
+    by_id = {row["blind_case_id"]: row for row in artifact["items"]}
+    assert by_id["rq-review-20261001-001-item-05"]["specific"] is True
+    assert by_id["rq-review-20261001-001-item-06"]["specific"] is False
+    assert artifact["calibration"]["specificity_correct"] == 5

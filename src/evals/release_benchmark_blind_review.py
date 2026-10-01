@@ -309,10 +309,14 @@ def ingest_review_run(
     if missing:
         raise ReviewerQualificationViolation(REASON_MISSING_ITEM, ",".join(missing))
 
-    controls = [
-        ReviewedControl(str(manifest_items[blind_case_id]["variant"]), observation)
-        for blind_case_id, observation in observations.items()
+    control_ids = [
+        blind_case_id for blind_case_id, _ in observations.items()
         if manifest_items[blind_case_id]["variant"] in CONTROL_VARIANTS
+    ]
+    controls = [
+        ReviewedControl(str(manifest_items[blind_case_id]["variant"]),
+                        observations[blind_case_id])
+        for blind_case_id in control_ids
     ]
     clean = [
         observation
@@ -336,6 +340,7 @@ def ingest_review_run(
         calibration=calibration,
         observations=observations,
         manifest_items=manifest_items,
+        control_ids=control_ids,
         transport=transport,
     )
 
@@ -353,15 +358,16 @@ def _ingest_artifact(
     calibration: CalibrationResult,
     observations: Mapping[str, ReviewObservation],
     manifest_items: Mapping[str, Mapping[str, object]],
+    control_ids: Sequence[str],
     transport: str,
 ) -> dict[str, object]:
+    # Verdicts are positional: the checker returns one verdict per control
+    # observation, in the order they were supplied. Matching on variant alone
+    # would attribute the first verdict of a variant to every item sharing it.
+    verdicts = dict(zip(control_ids, calibration.controls, strict=True))
     items = []
     for blind_case_id, observation in sorted(observations.items()):
-        verdict = next(
-            (row for row in calibration.controls
-             if row.variant == manifest_items[blind_case_id]["variant"]),
-            None,
-        )
+        verdict = verdicts.get(blind_case_id)
         items.append({
             "blind_case_id": blind_case_id,
             "case_id": manifest_items[blind_case_id]["case_id"],
