@@ -15703,6 +15703,26 @@ C enabled-path invariance   NOT DONE（ON 下 chat 级 8x8 matrix / bounded late
 证明真实 start_turn 仍像 observer 根本不存在一样运行；同时证明 observer 在正常 ON 路径确实被真实执行。
 C1 closeout 后立即冻结测量仪进入 164-C2，不得顺手"优化 observer"。
 
+**C1 验收期范围纪律（冻结，2026-10-01）**：
+
+`	ext
+这轮测试中若发现 wiring bug，只修复"证明当前冻结合同所必需"的 bug；
+禁止顺手：改善 API / 抽象 fixture / 重构 coordinator / 调整 observer 语义。
+理由：任何非必需改动都会改变被验收对象本身。
+`
+
+**latency 上限必须在看到结果之前冻结**：若 stall / rejected / error 的增量超过该门，
+即判**真 FAIL**，**不得事后调门**。
+
+**C1 close 条件（唯一表述，冻结）**：
+
+> 真实 start_turn 在 observer 正常 / 异常 / 阻塞 / 拒绝 / telemetry 异常等情况下，
+> production-observable behavior 与**各自** OFF baseline 等价；额外等待有界；
+> 且正常 ON 路径确实执行了一次真实 reader。
+
+全部成立后才允许：REAL_RUNTIME_SHADOW_READ = true / §164-C1 = CLOSED；
+随后立刻冻结测量仪，进入 §164-C2 收真实 parity 分布。
+
 **§164-C2 起不再改测量仪**，直接做 characterization：
 真实/代表性 turn 上两套 learner state 到底有多少 `MATCH / EXPECTED_DIVERGENCE / MISSING / CONFLICT / NOT_COMPARABLE`。
 
