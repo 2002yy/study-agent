@@ -14631,6 +14631,54 @@ L2: release-benchmark-pilot stage gate = 162 passed
 **未做 / 下一步**：**未选 reviewer、未执行、未生成 packet**。D-2 = 让 packet / ingest 支持 composite
 holdout（按 cluster 生成 packet、按 cluster 出校准结果、**按 cluster 判门**）；D-3 才选 reviewer。
 
+### 162.8 A3-D-2 实现（2026-10-01，单刀；composite transport + per-cluster ingest）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_blind_review.py              新增 build_holdout_packet / ingest_holdout_review_run
+                                                         + 共享行校验 helper（_validated_observations）
+tests/test_release_benchmark_qualification_transport.py  新增：13 tests
+tests/stage_gates.json                                   注册
+```
+
+**五条实现边界（按裁定逐条落地）**：
+
+```text
+1) packet 隐藏 composite 结构：不含 cluster 标签 / 每 cluster 数量 / gate rule / composite 字段；
+   cluster 归属、instance id、gate rule 只在 repo 侧 manifest；item 顺序仍 variant-blind。
+2) ingest 输出为树：
+   cluster_results[cluster_id] = {target_detected/target_total/target_missed,
+                                  specificity_correct/total/violations, confusion,
+                                  target_gate_pass, specificity_gate_pass, cluster_pass, items}
+   overall_pass = all(cluster_pass)
+   **不产生任何聚合计数**：无 overall_tp / overall_tn / overall_accuracy /
+   overall_score / total_correct（测试级 denylist）。
+3) eligible_for_authority_review == overall_pass；任一 cluster 失败即
+   eligible=false / qualified_judge=false / formal_semantic_label=false / release_gate=NO_GO。
+4) 反平均化行为级回归：A 全对 + B（6/6 检出、5/6 特异性）-> overall=false、eligible=false；
+   对称 case（A 失败、B 全对）-> overall=false。不只靠字段禁词。
+5) artifact 携带完整 digest 链：composite_manifest_sha256 / cluster_fixture_sha256（两 cluster）/
+   cluster_source_sha256（两 source）/ packet_sha256 / output_hash
+   -> 可机械证明"reviewer 实际看到的 packet 正是执行前冻结的两套 holdout"。
+```
+
+**共享校验路径**：单 run 与 composite 共用 `_validated_observations`，避免两条路径漂移；
+单 run manifest 仍用旧的 frozen refs，**已记录的 artifact 校验行为不变**（旧 blind-review / CLI 测试全绿）。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: qualification transport = 13 passed
+L2: release-benchmark-pilot stage gate = 175 passed
+本刀仅 eval 工具路径，未改生产 runtime -> 不强制本地 L3（CI 的 full pytest 为该 head 的等价覆盖）
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet 文件**。D-3 = 选择**真正未污染**的 reviewer
+（不能是 holdout 构造者，且最好未见过消费集 item-05/06 的具体失败位置）后，执行**单次** fresh
+qualification attempt；只有 `overall_pass = A AND B` 才进入 QualificationAuthority。
+
 ### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
 
 `	ext
