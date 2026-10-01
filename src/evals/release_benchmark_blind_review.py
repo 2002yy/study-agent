@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import replace
 from hashlib import sha256
 import json
+from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 
 from src.evals.release_benchmark_reviewer_qualification import (
@@ -42,6 +43,9 @@ from src.evals.release_benchmark_semantic_controls import dimension_consistency_
 SCHEMA_PACKET = "release-benchmark-blind-review-packet-v1"
 SCHEMA_MANIFEST = "release-benchmark-blind-review-manifest-v1"
 SCHEMA_INGEST = "release-benchmark-blind-review-ingest-v1"
+SCHEMA_HOLDOUT_PACKET = "release-benchmark-qualification-holdout-packet-v1"
+SCHEMA_HOLDOUT_MANIFEST = "release-benchmark-qualification-holdout-manifest-v1"
+SCHEMA_HOLDOUT_INGEST = "release-benchmark-qualification-holdout-ingest-v1"
 
 VARIANT_ACTUAL = "actual"
 CONTROL_VARIANTS = ("wrong_citation", "missing_aspect", "unsupported_claim")
@@ -214,7 +218,26 @@ def _parse_response(raw_response_text: str) -> dict[str, Any]:
     return cast(dict[str, Any], payload)
 
 
-def ingest_review_run(
+def _manifest_refs(manifest: Mapping[str, object]) -> tuple[str, str, str]:
+    """Frozen references a reviewer input binds to.
+
+    Composite manifests declare ``frozen_refs``; single-run manifests keep the
+    legacy triple so their already-recorded manifest hashes still validate.
+    """
+    refs = manifest.get("frozen_refs")
+    if isinstance(refs, Mapping) and refs:
+        ordered = [str(refs[key]) for key in sorted(refs)]
+        while len(ordered) < 3:
+            ordered.append("")
+        return ordered[0], ordered[1], ordered[2]
+    return (
+        str(manifest.get("answer_bundle_sha256", "")),
+        str(manifest.get("registry_sha256", "")),
+        str(manifest.get("gold_sha256", "")),
+    )
+
+
+def _validated_observations(
     *,
     packet: Mapping[str, object],
     manifest: Mapping[str, object],
@@ -223,16 +246,10 @@ def ingest_review_run(
     invocation_id: str,
     timestamp: str,
     answer_model_families: Sequence[str],
-    transport: str = TRANSPORT_MANUAL_COPY_PASTE,
     raw_response_bytes: bytes | None = None,
-) -> dict[str, object]:
-    """Validate a bridged reviewer response and score it. Grants nothing.
-
-    `raw_response_bytes` is the operator-supplied payload exactly as received.
-    When given it must decode to `raw_response_text` and it is what gets hashed,
-    so the recorded `output_hash` always describes the original bytes rather
-    than a newline-normalised re-encoding.
-    """
+) -> tuple[str, dict[str, dict[str, Any]], dict[str, dict[str, Any]],
+           dict[str, ReviewObservation]]:
+    """Validate a bridged response into per-item observations. Grants nothing."""
     if raw_response_bytes is not None:
         if raw_response_bytes.decode("utf-8") != raw_response_text:
             raise ReviewerQualificationViolation(
@@ -256,6 +273,7 @@ def ingest_review_run(
     if set(packet_items) != set(manifest_items) or not manifest_items:
         raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "item set mismatch")
 
+    ref_a, ref_b, ref_c = _manifest_refs(manifest)
     seen: set[str] = set()
     observations: dict[str, ReviewObservation] = {}
     for row in cast(list[Any], payload["observations"]):
@@ -273,14 +291,13 @@ def ingest_review_run(
             raise ReviewerQualificationViolation(
                 REASON_SELF_REPORTED_CONSISTENCY, blind_case_id
             )
-        item = packet_items[blind_case_id]
         reviewer_input = build_reviewer_input(
-            answer_bundle_ref=str(manifest.get("answer_bundle_sha256", "")),
-            source_bundle_ref=str(manifest.get("registry_sha256", "")),
-            rubric_ref=str(manifest.get("gold_sha256", "")),
+            answer_bundle_ref=ref_a,
+            source_bundle_ref=ref_b,
+            rubric_ref=ref_c,
             control_set_ref=str(manifest.get("input_manifest_hash", "")),
             blind_case_id=blind_case_id,
-            blind_payload=item,
+            blind_payload=packet_items[blind_case_id],
         )
         validate_blind_input(reviewer_input, authorized_case_ids=sorted(manifest_items))
         provenance = ReviewerProvenance(
@@ -308,6 +325,38 @@ def ingest_review_run(
     missing = sorted(set(manifest_items) - seen)
     if missing:
         raise ReviewerQualificationViolation(REASON_MISSING_ITEM, ",".join(missing))
+    return review_run_id, packet_items, manifest_items, observations
+
+
+def ingest_review_run(
+    *,
+    packet: Mapping[str, object],
+    manifest: Mapping[str, object],
+    raw_response_text: str,
+    reviewer_identity: ReviewerIdentity,
+    invocation_id: str,
+    timestamp: str,
+    answer_model_families: Sequence[str],
+    transport: str = TRANSPORT_MANUAL_COPY_PASTE,
+    raw_response_bytes: bytes | None = None,
+) -> dict[str, object]:
+    """Validate a bridged reviewer response and score it. Grants nothing.
+
+    `raw_response_bytes` is the operator-supplied payload exactly as received.
+    When given it must decode to `raw_response_text` and it is what gets hashed,
+    so the recorded `output_hash` always describes the original bytes rather
+    than a newline-normalised re-encoding.
+    """
+    review_run_id, _, manifest_items, observations = _validated_observations(
+        packet=packet,
+        manifest=manifest,
+        raw_response_text=raw_response_text,
+        reviewer_identity=reviewer_identity,
+        invocation_id=invocation_id,
+        timestamp=timestamp,
+        answer_model_families=answer_model_families,
+        raw_response_bytes=raw_response_bytes,
+    )
 
     control_ids = [
         blind_case_id for blind_case_id, _ in observations.items()
@@ -398,6 +447,245 @@ def _ingest_artifact(
         "calibration_pass": calibration.calibration_pass,
         "eligible_for_authority_review": calibration.eligible_for_authority_review,
         "items": items,
+        "qualified_judge": False,
+        "formal_semantic_label": False,
+        "release_observation": False,
+        "release_gate": "NO_GO",
+    }
+
+# ------------------------------------------------- composite holdout transport
+
+
+def _cluster_fixture_path(root: Path, cluster: Mapping[str, object]) -> Path:
+    relative = str(cluster.get("manifest", ""))
+    if not relative:
+        raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "cluster manifest")
+    return root / relative
+
+
+def build_holdout_packet(
+    *, composite: Mapping[str, object], root: Path, review_run_id: str
+) -> dict[str, object]:
+    """Build one blind packet over every cluster of a composite holdout.
+
+    The reviewer-visible packet carries no cluster label, no per-cluster count,
+    no gate rule and no composite structure: those live only in the manifest.
+    """
+    if not review_run_id.strip():
+        raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "review_run_id")
+    clusters = cast(list[dict[str, Any]], composite.get("clusters", []))
+    if not clusters:
+        raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "composite clusters")
+
+    staged: list[tuple[str, str, dict[str, Any]]] = []
+    source_digests: dict[str, str] = {}
+    fixture_digests: dict[str, str] = {}
+    for cluster in clusters:
+        cluster_id = str(cluster["cluster_id"])
+        fixture = json.loads(_cluster_fixture_path(root, cluster).read_text(encoding="utf-8"))
+        if fixture.get("content_sha256") != cluster.get("content_sha256"):
+            raise ReviewerQualificationViolation(
+                REASON_RESPONSE_SHAPE, f"cluster fixture drifted: {cluster_id}"
+            )
+        fixture_digests[cluster_id] = str(fixture["content_sha256"])
+        sources = {
+            str(source["source_id"]): source
+            for source in cast(list[dict[str, Any]], fixture["sources"])
+        }
+        for source_id, source in sources.items():
+            source_digests[source_id] = str(source["sha256"])
+        for instance in cast(list[dict[str, Any]], fixture["instances"]):
+            source = sources[str(instance["source_id"])]
+            rows = [("actual", cast(dict[str, Any], instance["baseline"])["answer"])]
+            rows += [
+                (str(control["variant"]), str(control["answer"]))
+                for control in cast(list[dict[str, Any]], instance["controls"])
+            ]
+            for variant, answer in rows:
+                staged.append((cluster_id, str(instance["instance_id"]), {
+                    "variant": variant,
+                    "answer": answer,
+                    "question": instance["question"],
+                    "aspects": instance["aspects"],
+                    "aspect_rubric": instance["aspect_rubric"],
+                    "source_id": source["source_id"],
+                    "source_locator": source["locator"],
+                    "source_page": instance.get("page"),
+                    "source_region": instance.get("region"),
+                    "source_text": instance["source_text"],
+                }))
+    staged.sort(key=lambda row: canonical_hash(f"{review_run_id}|{row[0]}|{row[1]}|{row[2]['variant']}"))
+
+    composite_sha = str(composite.get("content_sha256", ""))
+    input_manifest_hash = canonical_hash({
+        "review_run_id": review_run_id,
+        "composite_manifest_sha256": composite_sha,
+        "clusters": sorted(fixture_digests.items()),
+        "sources": sorted(source_digests.items()),
+    })
+
+    items = []
+    manifest_items = []
+    for index, (cluster_id, instance_id, row) in enumerate(staged, start=1):
+        blind_case_id = f"{review_run_id}-item-{index:02d}"
+        items.append({
+            "blind_case_id": blind_case_id,
+            "question": row["question"],
+            "aspects": row["aspects"],
+            "aspect_rubric": row["aspect_rubric"],
+            "source_id": row["source_id"],
+            "source_locator": row["source_locator"],
+            "source_page": row["source_page"],
+            "source_region": row["source_region"],
+            "source_text": row["source_text"],
+            "answer": row["answer"],
+        })
+        manifest_items.append({
+            "blind_case_id": blind_case_id,
+            "cluster_id": cluster_id,
+            "instance_id": instance_id,
+            "variant": row["variant"],
+            "answer_sha256": sha256(str(row["answer"]).encode("utf-8")).hexdigest(),
+        })
+
+    packet = {
+        "schema_version": SCHEMA_HOLDOUT_PACKET,
+        "review_run_id": review_run_id,
+        "input_manifest_hash": input_manifest_hash,
+        "instructions": REVIEWER_INSTRUCTIONS,
+        "items": items,
+    }
+    frozen_refs = {
+        "composite_manifest_sha256": composite_sha,
+        **{f"cluster_fixture_sha256::{key}": value for key, value in fixture_digests.items()},
+        **{f"cluster_source_sha256::{key}": value for key, value in source_digests.items()},
+    }
+    manifest = {
+        "schema_version": SCHEMA_HOLDOUT_MANIFEST,
+        "review_run_id": review_run_id,
+        "input_manifest_hash": input_manifest_hash,
+        "packet_sha256": canonical_hash(packet),
+        "composite_manifest_sha256": composite_sha,
+        "cluster_fixture_sha256": fixture_digests,
+        "cluster_source_sha256": source_digests,
+        "frozen_refs": frozen_refs,
+        "gate_rule": cast(dict[str, Any], composite.get("gate_rule", {})),
+        "items": manifest_items,
+    }
+    return {"packet": packet, "manifest": manifest}
+
+
+def ingest_holdout_review_run(
+    *,
+    packet: Mapping[str, object],
+    manifest: Mapping[str, object],
+    raw_response_text: str,
+    reviewer_identity: ReviewerIdentity,
+    invocation_id: str,
+    timestamp: str,
+    answer_model_families: Sequence[str],
+    transport: str = TRANSPORT_MANUAL_COPY_PASTE,
+    raw_response_bytes: bytes | None = None,
+) -> dict[str, object]:
+    """Score a composite holdout per cluster. Gates, never totals. Grants nothing."""
+    review_run_id, _, manifest_items, observations = _validated_observations(
+        packet=packet,
+        manifest=manifest,
+        raw_response_text=raw_response_text,
+        reviewer_identity=reviewer_identity,
+        invocation_id=invocation_id,
+        timestamp=timestamp,
+        answer_model_families=answer_model_families,
+        raw_response_bytes=raw_response_bytes,
+    )
+    provenance = next(iter(observations.values())).provenance
+
+    cluster_order: list[str] = []
+    for blind_case_id in observations:
+        cluster_id = str(manifest_items[blind_case_id]["cluster_id"])
+        if cluster_id not in cluster_order:
+            cluster_order.append(cluster_id)
+
+    cluster_results: dict[str, object] = {}
+    cluster_pass: dict[str, bool] = {}
+    for cluster_id in cluster_order:
+        control_ids = [
+            blind_case_id for blind_case_id, _ in observations.items()
+            if str(manifest_items[blind_case_id]["cluster_id"]) == cluster_id
+            and manifest_items[blind_case_id]["variant"] in CONTROL_VARIANTS
+        ]
+        controls = [
+            ReviewedControl(str(manifest_items[blind_case_id]["variant"]),
+                            observations[blind_case_id])
+            for blind_case_id in control_ids
+        ]
+        clean = [
+            observation
+            for blind_case_id, observation in observations.items()
+            if str(manifest_items[blind_case_id]["cluster_id"]) == cluster_id
+            and manifest_items[blind_case_id]["variant"] == VARIANT_ACTUAL
+        ]
+        result = check_calibration(
+            reviewer_provenance=provenance,
+            control_observations=controls,
+            clean_answer_observations=clean,
+        )
+        cluster_pass[cluster_id] = result.calibration_pass
+        verdicts = dict(zip(control_ids, result.controls, strict=True))
+        cluster_results[cluster_id] = {
+            "target_detected": result.target_detected,
+            "target_total": result.target_total,
+            "target_missed": result.target_missed,
+            "specificity_correct": result.specificity_correct,
+            "specificity_total": result.specificity_total,
+            "specificity_violations": result.specificity_violations,
+            "confusion": result.confusion.to_dict(),
+            "target_gate_pass": result.target_gate_pass,
+            "specificity_gate_pass": result.specificity_gate_pass,
+            "cluster_pass": result.calibration_pass,
+            "clean_answer_correct": result.clean_answer_correct,
+            "clean_answer_total": result.clean_answer_total,
+            "controls": [row.to_dict() for row in result.controls],
+            "items": [
+                {
+                    "blind_case_id": blind_case_id,
+                    "instance_id": manifest_items[blind_case_id]["instance_id"],
+                    "variant": manifest_items[blind_case_id]["variant"],
+                    "target_detected": (None if blind_case_id not in verdicts
+                                         else verdicts[blind_case_id].target_detected),
+                    "specific": (None if blind_case_id not in verdicts
+                                  else verdicts[blind_case_id].specific),
+                }
+                for blind_case_id in sorted(observations)
+                if str(manifest_items[blind_case_id]["cluster_id"]) == cluster_id
+            ],
+        }
+
+    overall_pass = bool(cluster_pass) and all(cluster_pass.values())
+    return {
+        "schema_version": SCHEMA_HOLDOUT_INGEST,
+        "review_run_id": review_run_id,
+        "input_manifest_hash": manifest.get("input_manifest_hash"),
+        "output_hash": sha256(
+            raw_response_bytes if raw_response_bytes is not None
+            else raw_response_text.encode("utf-8")
+        ).hexdigest(),
+        "raw_response_bytes_preserved": raw_response_bytes is not None,
+        "composite_manifest_sha256": manifest.get("composite_manifest_sha256"),
+        "cluster_fixture_sha256": manifest.get("cluster_fixture_sha256"),
+        "cluster_source_sha256": manifest.get("cluster_source_sha256"),
+        "packet_sha256": manifest.get("packet_sha256"),
+        "reviewer": reviewer_identity.to_dict(),
+        "reviewer_identity_hash": reviewer_identity_hash(reviewer_identity),
+        "invocation_id": invocation_id,
+        "timestamp": timestamp,
+        "invocation_id_kind": "harness_assigned_run_id",
+        "transport": transport,
+        "answer_model_families": sorted(answer_model_families),
+        "independence_ok": True,
+        "cluster_results": cluster_results,
+        "overall_pass": overall_pass,
+        "eligible_for_authority_review": overall_pass,
         "qualified_judge": False,
         "formal_semantic_label": False,
         "release_observation": False,
