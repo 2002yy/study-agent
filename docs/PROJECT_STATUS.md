@@ -15863,6 +15863,44 @@ confirmed_points"）。**未调仪器。**
      legacy objective 不会被填充）
 禁止：依据最终 parity 类别挑样本；依据结果调整分类器或 classifier 口径。
 ```
+
+**A 层子样本归属（冻结，保留 provenance，不合并计数）**：
+
+```text
+A1  ordinary / no-closure      legacy sparse / durable absent   5 turns
+A2  socratic + derivable       legacy sparse / durable absent   4 turns
+B   legacy substantive / durable absent                         **仍未采到**
+```
+A1 与 A2 parity 分布同形但**机制不同**，故**不得**揉成 `A=9` 而丢失 provenance。
+两者共同说明：**legacy sparse 不只是普通问答现象** —— 即使进入 Socratic，
+只要 knowledge classification 落到 `derivable`，legacy 仍可能保持 sparse。
+
+**关键新事实（冻结）**：
+
+> **"进入 Socratic 路径" ≠ "legacy 已产生 substantive learning state"。**
+> stratum 划分从"按对话形式推断状态"推进到"**按实际状态语义划层**"。
+
+**B′ 证据链（冻结，stratum 与 parity 完全解耦）**：
+
+```text
+1. inclusion precondition 已在结果前冻结
+2. classify_knowledge ∈ {empirical, conventional}
+3. real Socratic path executed
+4. **observed legacy state 确认 substantive**
+5. durable observed empty
+----------------------------------------
+到这里才证明：这个样本真的属于 B
+6. **然后**才查看 7 类 × 五维 parity
+```
+
+**precondition ≠ label 判据（冻结）**：
+`mode=socratic AND classify_knowledge ∈ {empirical,conventional}` 只视为
+**population construction precondition**；即便 `external=True` 是当前代码里触发 `objective` 的
+**必要路径**，也**不得**偷换成"必然成功产生 substantive state"。
+执行后仍须按观测状态归层：**确有 substantive → 标 B；仍 sparse → 不得标 B**。
+
+**B′ 预期（保持为预期，不升级为断言）**：durable 尚无 closure，因此**预期**更容易看到
+`MISSING_DURABLE` / 维度级不可比；**若实际不是，记录真实结果**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
