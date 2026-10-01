@@ -298,7 +298,11 @@ def test_real_start_turn_invokes_the_reader_exactly_once(tmp_path) -> None:
     telemetry.close()
 
 
-def test_flag_off_never_invokes_the_reader(tmp_path) -> None:
+def test_flag_off_never_invokes_the_reader(tmp_path, monkeypatch) -> None:
+    # Scope to Phase 1: with the 164-E durable read deliberately enabled the
+    # construction-site read is legitimate, so this asserts the *shadow* path
+    # stays silent when its own flag is off, independent of ambient env.
+    monkeypatch.delenv("LEARNER_STATE_DURABLE_READ", raising=False)
     calls: list[str] = []
 
     def counting_reader(thread_id: str) -> object:
