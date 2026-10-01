@@ -26,7 +26,7 @@ from types import SimpleNamespace
 import src.application.memory_service as memory_service_module
 from src.application.learning_closure_service import LearningClosureService
 from src.application.memory_service import MemoryService
-from src.application.runtime_repository import RuntimeRepository as AppRuntimeRepository
+from src.application.runtime_repository import get_learner_model_service
 from src.application.session_service import SessionService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -176,13 +176,33 @@ def main() -> int:
             gate("run_error_reason", not run.error, {"error": run.error, "reason": run.reason})
             gate("truth_committer_called", bool(committer.calls), committer.calls)
 
+            # --- G11: real commit step (separate from create_and_execute) -
+            try:
+                committed = service.commit(run.id)
+                gate("commit_returned", True, {"status": committed.status})
+                gate("truth_committer_called_after_commit", bool(committer.calls), committer.calls)
+                gate(
+                    "commit_error_reason",
+                    not committed.error,
+                    {"error": committed.error, "reason": committed.reason},
+                )
+                run = committed
+            except Exception as exc:  # noqa: BLE001
+                gate(
+                    "commit_returned",
+                    False,
+                    {"error": f"{type(exc).__name__}: {exc}", "tb": traceback.format_exc()[-800:]},
+                )
+
             # --- G12: durable readback along the frozen C1 read authority -
             try:
-                app_runtime = AppRuntimeRepository(database)
-                lms = app_runtime.get_learner_model_service()
-                projection = lms.build("thread-1")
-                goal = projection.get_focus_goal("thread-1") if hasattr(projection, "get_focus_goal") else None
-                gate("durable_readback", goal is not None, {"goal": goal})
+                lms = get_learner_model_service()
+                snap = lms.build("thread-1")
+                gate(
+                    "durable_readback",
+                    bool(snap.objective),
+                    {"objective": snap.objective, "goal_status": snap.goal_status, "source": snap.source},
+                )
             except Exception as exc:  # noqa: BLE001
                 gate("durable_readback", False, f"{type(exc).__name__}: {exc}")
 

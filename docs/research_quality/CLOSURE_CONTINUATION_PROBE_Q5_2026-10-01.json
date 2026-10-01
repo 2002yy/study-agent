@@ -22,7 +22,7 @@
       "gate": "create_and_execute_returned",
       "status": "PASS",
       "detail": {
-        "id": "closure_edf0104c6491443abd7c5f22d34cdfc1",
+        "id": "closure_2a670f172db34f5aa6f16db34d622a04",
         "status": "preview_ready"
       }
     },
@@ -47,18 +47,46 @@
     {
       "gate": "truth_committer_called",
       "status": "FAIL",
-      "detail": []
+      "detail": [
+        "closure_2a670f172db34f5aa6f16db34d622a04"
+      ]
+    },
+    {
+      "gate": "commit_returned",
+      "status": "PASS",
+      "detail": {
+        "status": "completed"
+      }
+    },
+    {
+      "gate": "truth_committer_called_after_commit",
+      "status": "PASS",
+      "detail": [
+        "closure_2a670f172db34f5aa6f16db34d622a04"
+      ]
+    },
+    {
+      "gate": "commit_error_reason",
+      "status": "PASS",
+      "detail": {
+        "error": "",
+        "reason": ""
+      }
     },
     {
       "gate": "durable_readback",
       "status": "FAIL",
-      "detail": "AttributeError: 'RuntimeRepository' object has no attribute 'get_learner_model_service'"
+      "detail": {
+        "objective": "",
+        "goal_status": "",
+        "source": "derived_read_only"
+      }
     },
     {
       "gate": "continuation_probe",
       "status": "PASS",
       "detail": {
-        "summary_status_after": "not_summarized"
+        "summary_status_after": "summarized"
       }
     }
   ],
@@ -66,6 +94,8 @@
   "first_fail": {
     "gate": "truth_committer_called",
     "status": "FAIL",
-    "detail": []
+    "detail": [
+      "closure_2a670f172db34f5aa6f16db34d622a04"
+    ]
   }
 }
