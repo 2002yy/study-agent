@@ -5,9 +5,10 @@ from __future__ import annotations
 import threading
 import time
 
+from concurrent.futures import CancelledError
+
 import pytest
 
-from src.application import shadow_isolation as iso
 from src.application.learner_state_parity_observer import LearnerStateParityCollector
 from src.application.shadow_isolation import (
     BestEffortTelemetry,
@@ -18,7 +19,6 @@ from src.application.shadow_isolation import (
     CALLER_TIMED_OUT,
     DEFAULT_SHADOW_BUDGET_SECONDS,
     SHADOW_CAPACITY,
-    SHADOW_WORKERS,
     ShadowOutcome,
     run_shadow_bounded,
     shadow_resource_state,
@@ -75,12 +75,9 @@ def test_non_positive_budget_is_rejected() -> None:
 
 
 def test_cancelled_work_is_isolated() -> None:
-    from concurrent.futures import CancelledError
-
-    def cancelled() -> object:
-        raise CancelledError()
-
-    outcome = run_shadow_bounded(cancelled, budget_seconds=BUDGET)
+    outcome = run_shadow_bounded(
+        lambda: (_ for _ in ()).throw(CancelledError()), budget_seconds=BUDGET
+    )
     assert outcome.status == SHADOW_ERROR
     assert outcome.caller_status == CALLER_CANCELLED
     assert outcome.reason == "isolated:cancelled"
@@ -108,41 +105,93 @@ def test_system_exit_is_not_swallowed_as_a_shadow_error() -> None:
 
 # ------------------------------------------------------- resource boundedness
 
-def test_worker_count_stays_bounded_under_repeated_stalls() -> None:
+def test_admission_is_bound_to_the_future_not_the_caller() -> None:
+    """Two stuck workers must block new admissions; caller return must not free them."""
+    started = threading.Event()
+    release = threading.Event()
+
+    def stall() -> object:
+        started.set()
+        release.wait(timeout=5)
+        return None
+
+    # Occupy every worker, and let each caller time out while the worker runs on.
+    run_shadow_bounded(stall, budget_seconds=0.02)
+    assert started.wait(timeout=1.0)
+    run_shadow_bounded(stall, budget_seconds=0.02)
+    started.clear()
+
+    state = shadow_resource_state()
+    assert state["outstanding_work"] == SHADOW_CAPACITY, state
+    assert state["capacity_available"] == 0
+
+    outcomes = [run_shadow_bounded(lambda: "x", budget_seconds=0.05) for _ in range(100)]
+    assert all(item.reason == "capacity_exhausted" for item in outcomes)
+    assert shadow_resource_state()["outstanding_work"] == SHADOW_CAPACITY
+    release.set()
+
+
+def test_caller_timeout_does_not_release_running_capacity() -> None:
     release = threading.Event()
 
     def stall() -> object:
         release.wait(timeout=5)
         return None
 
-    for _ in range(12):
-        run_shadow_bounded(stall, budget_seconds=0.02)
-
-    state = shadow_resource_state()
-    assert state["live_threads"] <= SHADOW_WORKERS, state
+    before = shadow_resource_state()["capacity_available"]
+    outcome = run_shadow_bounded(stall, budget_seconds=0.02)
+    assert outcome.caller_status == CALLER_TIMED_OUT
+    # The worker is still running, so the token is still held.
+    assert shadow_resource_state()["capacity_available"] == before - 1
     release.set()
 
 
-def test_saturation_is_rejected_promptly_instead_of_queueing() -> None:
-    held = [iso._capacity.acquire(blocking=False) for _ in range(SHADOW_CAPACITY)]
-    assert all(held)
-    try:
-        started = time.monotonic()
-        outcome = run_shadow_bounded(lambda: "queued?", budget_seconds=1.0)
-        elapsed = time.monotonic() - started
-        assert outcome.status == SHADOW_UNAVAILABLE
-        assert outcome.reason == "capacity_exhausted"
-        assert outcome.caller_status == CALLER_REJECTED
-        assert elapsed < 0.2, elapsed
-    finally:
-        for _ in held:
-            iso._capacity.release()
+def test_capacity_is_restored_when_the_worker_actually_finishes() -> None:
+    release = threading.Event()
+
+    def stall() -> object:
+        release.wait(timeout=5)
+        return "done"
+
+    run_shadow_bounded(stall, budget_seconds=0.02)
+    assert shadow_resource_state()["capacity_available"] < SHADOW_CAPACITY
+
+    release.set()
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if shadow_resource_state()["capacity_available"] == SHADOW_CAPACITY:
+            break
+        time.sleep(0.01)
+    assert shadow_resource_state()["capacity_available"] == SHADOW_CAPACITY
+    assert run_shadow_bounded(lambda: "x", budget_seconds=0.2).status == SHADOW_OK
 
 
-def test_capacity_is_released_after_each_call() -> None:
-    before = shadow_resource_state()["capacity_available"]
-    run_shadow_bounded(lambda: "x", budget_seconds=BUDGET)
-    assert shadow_resource_state()["capacity_available"] == before
+def test_token_is_released_exactly_once() -> None:
+    """No double release: capacity must never exceed its total."""
+    for _ in range(20):
+        run_shadow_bounded(lambda: "x", budget_seconds=0.2)
+        run_shadow_bounded(_raiser, budget_seconds=0.2)
+        run_shadow_bounded(lambda: (_ for _ in ()).throw(CancelledError()), budget_seconds=0.2)
+        state = shadow_resource_state()
+        assert state["capacity_available"] <= state["capacity_total"]
+    assert shadow_resource_state()["capacity_available"] == SHADOW_CAPACITY
+
+
+def _raiser() -> object:
+    raise RuntimeError("boom")
+
+
+def test_no_intentional_backlog_by_construction() -> None:
+    state = shadow_resource_state()
+    assert state["intentional_backlog"] == 0
+    assert state["max_workers"] == SHADOW_CAPACITY
+
+
+def test_runtime_limitation_is_machine_visible() -> None:
+    """The outer budget bounds caller latency, not worker termination."""
+    limitation = shadow_resource_state()["known_runtime_limitation"]
+    assert "survive caller timeout" in limitation
+    assert "not worker termination" in limitation
 
 
 def test_default_budget_is_a_named_constant_not_a_tuned_parameter() -> None:

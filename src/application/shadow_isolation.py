@@ -47,9 +47,24 @@ from src.domain.learner_state_parity import (
 DEFAULT_SHADOW_BUDGET_SECONDS = 0.25
 
 # Small and fixed. Shadow work is optional measurement; it never deserves a pool.
+#
+# Admission equals workers on purpose: the standard ThreadPoolExecutor's internal
+# queue is not designed to bound backlog, so the first version keeps **zero
+# intentional backlog** instead of writing a custom executor for two shadow slots.
+# Saturation drops; shadow telemetry may be dropped but must never harm production.
 SHADOW_WORKERS = 2
-SHADOW_CAPACITY = 4
+SHADOW_CAPACITY = SHADOW_WORKERS
 TELEMETRY_CAPACITY = 64
+
+# Honest runtime limitation, kept machine-visible rather than only in prose: a
+# worker that hangs indefinitely survives the caller's timeout, because a running
+# Python thread cannot be safely killed. The outer budget bounds how long the
+# caller waits; it does not bound worker termination. The durable snapshot read
+# should therefore also be internally bounded where it can be.
+KNOWN_RUNTIME_LIMITATION = (
+    "indefinitely stuck worker may survive caller timeout; the outer budget bounds "
+    "caller latency, not worker termination"
+)
 
 CALLER_COMPLETED = "completed"
 CALLER_TIMED_OUT = "timed_out"
@@ -73,14 +88,20 @@ def _shared_executor() -> ThreadPoolExecutor:
         return _executor
 
 
-def shadow_resource_state() -> dict[str, int]:
+def shadow_resource_state() -> dict[str, object]:
     """Observability for tests and diagnostics: bounded, by construction."""
     executor = _executor
+    available = _capacity._value  # noqa: SLF001 - diagnostic only
     return {
         "max_workers": SHADOW_WORKERS,
         "live_threads": 0 if executor is None else len(getattr(executor, "_threads", ())),
         "capacity_total": SHADOW_CAPACITY,
-        "capacity_available": _capacity._value,  # noqa: SLF001 - diagnostic only
+        "capacity_available": available,
+        # Outstanding work = tokens held by futures that have not finished, which
+        # is the quantity admission is supposed to bound.
+        "outstanding_work": SHADOW_CAPACITY - available,
+        "intentional_backlog": 0,
+        "known_runtime_limitation": KNOWN_RUNTIME_LIMITATION,
     }
 
 
@@ -132,36 +153,45 @@ def run_shadow_bounded(
             SHADOW_UNAVAILABLE, None, "capacity_exhausted", CALLER_REJECTED
         )
 
+    # The admission token is bound to the **future's** real lifetime, not to the
+    # caller's wait. Releasing it when the caller returns would let a stuck worker
+    # keep its token returned, so subsequent submissions would pile up in the
+    # executor's internal queue without bound.
     try:
         future = _shared_executor().submit(work)
-        try:
-            value = future.result(timeout=budget_seconds)
-        except FutureTimeout:
-            # `future.cancel()` only cancels work that has not started. A running
-            # thread cannot be safely killed, so we report the caller side
-            # honestly instead of claiming the worker stopped.
-            requested = future.cancel()
-            outcome = ShadowOutcome(
-                SHADOW_UNAVAILABLE, None, "budget_exceeded", CALLER_TIMED_OUT,
-                worker_cancel_requested=bool(requested),
-                worker_termination_known=False,
-            )
-        except CancelledError:
-            outcome = ShadowOutcome(
-                SHADOW_ERROR, None, "isolated:cancelled", CALLER_CANCELLED,
-                worker_termination_known=True,
-            )
-        except Exception as exc:  # noqa: BLE001 - business failure isolation
-            outcome = ShadowOutcome(
-                SHADOW_ERROR, None, type(exc).__name__, CALLER_FAILED,
-                worker_termination_known=True,
-            )
-        else:
-            outcome = ShadowOutcome(
-                SHADOW_OK, value, "", CALLER_COMPLETED, worker_termination_known=True
-            )
-    finally:
+    except BaseException:
         _capacity.release()
+        raise
+    future.add_done_callback(lambda _: _capacity.release())
+
+    try:
+        value = future.result(timeout=budget_seconds)
+    except FutureTimeout:
+        # uture.cancel() only cancels work that has not started. A running
+        # thread cannot be safely killed, so we report the caller side honestly
+        # instead of claiming the worker stopped. The token stays held until the
+        # future actually finishes (or a queued future is cancelled, which fires
+        # the done callback).
+        requested = future.cancel()
+        outcome = ShadowOutcome(
+            SHADOW_UNAVAILABLE, None, "budget_exceeded", CALLER_TIMED_OUT,
+            worker_cancel_requested=bool(requested),
+            worker_termination_known=False,
+        )
+    except CancelledError:
+        outcome = ShadowOutcome(
+            SHADOW_ERROR, None, "isolated:cancelled", CALLER_CANCELLED,
+            worker_termination_known=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - business failure isolation
+        outcome = ShadowOutcome(
+            SHADOW_ERROR, None, type(exc).__name__, CALLER_FAILED,
+            worker_termination_known=True,
+        )
+    else:
+        outcome = ShadowOutcome(
+            SHADOW_OK, value, "", CALLER_COMPLETED, worker_termination_known=True
+        )
 
     if on_telemetry is not None and outcome.ok:
         try:
