@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-C1 测量核心已实现（parity 投影 / 确定性分类器 / fail-open shadow observer）；下一步 = §164-C1b chat runtime 接线**（见 §164.1–§164.11 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-B 已实现**：纯投影 candidate assembler（依赖级 AST 测试），桥停在 closure boundary 前。**§164-C0 合同**：中性比较投影（仅测量，非第三套 authority）；7 类词表；五维合同；**禁止 LLM semantic comparator**；C1 production-inert（shadow_read_enabled != durable_authority_enabled）；C2 独立 namespace；Phase-2 阈值留 §164-D 预注册。**§164-C1 测量核心（§164.11）**：DurableLearnerProjection **只从 LearnerModelSnapshot 构建**（不跨层读表）；**fail-open**（snapshot 缺失 -> unavailable；异常 -> error + 异常类型，**不向 chat 抛**）；artifact 走独立 namespace learner_state_parity_observations（**不写 learning_***）；22 tests passed。**尚未接入 chat turn**：约束①的 hook 点（plan 确定后 / side effects 完成前）与约束④的七层行为等价证明留 §164-C1b，故影子读真的跑了**尚未达成**。**双轨**：主线 A = §164-C1b→C2→§164-D→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **当前动作：§164-C1b 合同已冻结（turn-start parity + hook 点 + 等价门）；下一步 = §164-C1b 实现（接线 + 七层等价 + 两条 failure-path）**（见 §164.1–§164.12 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心已实现**（§164.11）：中性投影 / 确定性分类器 / fail-open observer / 独立 namespace；22 tests passed；**尚未接入 chat turn**。**§164-C1b 合同（§164.12）**：**turn-start parity**（两边必须代表同一逻辑时刻，否则人为制造 MISSING_DURABLE）；hook 点已实地核对 = streaming_truth 构造完成之后、update_chat_turn 之前（三条件均满足，**无需重排生产流程**），legacy 侧取 learning_state_before；七层等价分两组（决策输入含 **prompt·context inputs** 比结构化 hash；输出/状态含 response·persisted state·eval·closure eligibility）；两条 failure-path 回归（snapshot read throws / telemetry write throws 均须 OFF==ON）；**shadow telemetry 不在 transaction authority 内**（best-effort / fail-open）；成功门 = REAL_RUNTIME_SHADOW_READ + 决策输入相等 + 输出状态相等 + 坏 shadow 不影响 chat + durable 永不成为 planning input。**双轨**：主线 A = §164-C1b→C2→§164-D→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15360,6 +15360,86 @@ ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1611 files |
 git diff --check ok | secret-like literal self-check clean
 L1: test_learner_state_parity = 22 passed
 `
+
+### 164.12 §164-C1b 合同冻结（turn-start parity + hook 点 + 等价门）
+
+**核心合同：parity 比较的是哪个时间点？冻结为 turn-start parity**
+
+`	ext
+已有 legacy state
+        ↓
+生成 plan / route / retrieval / prompt-context inputs
+        ↓
+【这些输入全部冻结后】
+        ↓
+C1b shadow hook：legacy projection + durable LearnerModelSnapshot + parity observation
+        ↓
+继续原有 chat runtime
+`
+
+理由：若 hook 放在本 turn 的 evaluation / persistence **之后**，就会变成
+legacy 已吸收本 turn 新状态、durable 仍是未 closure commit 的旧真值
+→ **人为制造大量 MISSING_DURABLE / EXPECTED_DIVERGENCE**。
+**两边必须代表同一个逻辑时刻。**
+
+**hook 点（已实地核对 ChatService.start_turn，2026-10-01；按三条件选位置，不按函数名）**：
+
+`	ext
+1) route / pedagogy plan 已确定             -> route 368-415、pedagogy_plan 402
+2) retrieval / prompt-context 已 materialize -> retrieval_plan 422、rag 428-450、
+                                                context_blocks 452-476、messages 477-491
+3) 尚未发生本 turn 的 learner-state mutation / eval persistence
+                                            -> update_chat_turn(..., pedagogy_snapshot=...) 在 527
+`
+
+**结论：天然 hook 点 = streaming_truth 构造完成（521）之后、update_chat_turn（527）之前。**
+该点已满足三条件，**无需重排生产流程**。
+legacy 侧取 learning_state_before（turn 起点的 legacy state），**不是** 
+ext_learning_state。
+
+**七层行为等价分两组**：
+
+`	ext
+第一组（证明 shadow 未进入决策链）：route / pedagogy mode·PedagogyTurnPlan /
+                                    retrieval plan / **prompt·context inputs**
+   -> 比较**结构化 canonical snapshot/hash**，不比最终 prompt 字符串（避免 formatting 噪声）
+第二组（证明未改变输出与状态）：response / persisted LearningState / PedagogyEvalRun / closure eligibility
+   -> response 若模型非确定性，用既有 deterministic fake / model fixture 锁死测试环境
+`
+
+**failure-path 回归（两条，冻结）**：
+
+`	ext
+A. LearnerModelSnapshot read throws          -> OFF behavior == ON behavior
+B. parity collector / telemetry write throws -> OFF behavior == ON behavior
+两种都只允许留下 shadow_status = unavailable / error；
+不得让 chat request 失败，不得改变 closure eligibility。
+`
+
+**事务边界（冻结）**：
+
+`	ext
+production transaction -> 正常完成
+shadow telemetry        -> best-effort / fail-open（**不在 transaction authority 内**）
+`
+
+禁止 chat transaction { save turn; save pedagogy; save parity observation } ——
+否则 telemetry 虽不参与业务决策，却会通过事务失败**间接影响生产行为**。
+
+**C1b 成功门（冻结）**：
+
+`	ext
+REAL_RUNTIME_SHADOW_READ = true
+AND decision inputs:            route / plan / retrieval / prompt-context  equal
+AND observable/state effects:   response / persisted legacy state /
+                                pedagogy eval / closure eligibility      equal
+AND shadow failure:             chat remains unchanged
+AND durable data never becomes planning input
+`
+
+满足后才可宣布 **§164-C1 CLOSED：durable LearnerModel 已真实进入 chat turn 的 shadow path，
+但 authority 仍为 0**。然后 C2 才开始收真实 parity 分布；
+**C2 结果无论多难看都不回头改 C1** —— C1 只证明测量仪没有改变被测对象。
 
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
