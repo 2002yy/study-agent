@@ -47,10 +47,11 @@ from src.repositories.runtime_repository import RuntimeRepository
 COMMIT_SHA = "c" * 40
 TREE_SHA = "d" * 40
 REPO_URL = "https://github.com/2002yy/study-agent"
-SOURCE_REF = "github_source:turn-1:0"
+SOURCE_REF = "github_source:turn-1:0"  # overwritten per-sample below
 CLAIM_TEXT = "durable resume keeps the objective readable across turns"
 
 GATES: list[dict] = []
+_SAMPLE: dict = {}
 
 
 def gate(name: str, ok: bool, detail: object = None) -> bool:
@@ -92,18 +93,18 @@ class FakeEvaluationRepository:
     def get_for_turn(self, turn_id: str):
         from src.pedagogy.evaluation import PedagogyEvalRun, SemanticEvaluation
 
-        if turn_id != "turn-1":
+        if not str(turn_id).startswith("turn-"):
             return None
         return PedagogyEvalRun(
             id="eval-1",
-            learner_input="durable resume keeps the objective readable across turns",
-            objective="recover session recovery by durable owner",
+            learner_input=_SAMPLE["claim_text"],
+            objective=_SAMPLE["durable_objective"],
             protocol="socratic_rediscovery",
             expected_concepts=("durable resume",),
             evidence=("source-primary",),
             deterministic_result={"is_claim": True, "misconceptions": []},
             semantic_result=SemanticEvaluation(
-                claims=(CLAIM_TEXT,),
+                claims=(_SAMPLE["claim_text"],),
                 correct_points=("durable truth is the owner",),
                 misconceptions=(),
                 reasoning_complete=True,
@@ -121,13 +122,13 @@ def _durable_only_result() -> dict:
     return {
         "candidates": [],
         "durable_learning_candidate": {
-            "source_ref": SOURCE_REF,
-            "claim_text": CLAIM_TEXT,
+            "source_ref": f"github_source:turn-{_SAMPLE["sample_id"]}:0",
+            "claim_text": _SAMPLE["claim_text"],
             "claim_kind": "invariant",
             "scope": "project",
             "next_step": "read back the same objective after closure",
             "evaluation_id": "eval-1",
-            "evaluation_turn_id": "turn-1",
+            "evaluation_turn_id": f"turn-{_SAMPLE["sample_id"]}",
         },
     }
 
@@ -148,11 +149,23 @@ def _substantive(*, objective: str, known: int) -> bool:
 
 def main() -> int:
     out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("d_sample.json")
+    spec: dict[str, object] = {}
+    if len(sys.argv) > 2 and sys.argv[2]:
+        _sp = Path(sys.argv[2])
+        spec = json.loads(_sp.read_text(encoding="utf-8-sig")) if _sp.exists() else json.loads(sys.argv[2])
+    legacy_objective = str(spec.get("legacy_objective") or "recover durable resume")
+    durable_objective = str(
+        spec.get("durable_objective") or "recover session recovery by durable owner"
+    )
+    claim_text = str(spec.get("claim_text") or CLAIM_TEXT)
+    sample_id = str(spec.get("sample_id") or "d-1")
+    _SAMPLE.update({"sample_id": sample_id, "claim_text": claim_text, "durable_objective": durable_objective, "legacy_objective": legacy_objective})
     tmp = Path(tempfile.mkdtemp(prefix="d-parity-"))
     artifact: dict[str, object] = {
         "schema_version": "learner-state-parity-collection-v1",
         "population": "D",
         "condition": "legacy_substantive_then_real_closure",
+        "sample_id": sample_id,
         "q5_isolation": {
             "reuses_q5_thread": False,
             "reuses_q5_run": False,
@@ -170,18 +183,18 @@ def main() -> int:
         # --- 1. legacy write + persist (fresh sample) --------------------
         runtime.create_chat_thread(
             ChatThread(
-                id="d-thread",
+                id=f"d-thread-{sample_id}",
                 learning_state={
                     "protocol": "socratic_rediscovery",
-                    "objective": "recover durable resume",
+                    "objective": legacy_objective,
                     "phase": "guided_practice",
                 },
             )
         )
         runtime.add_chat_turn(
             ChatTurn(
-                id="turn-1",
-                thread_id="d-thread",
+                id=f"turn-{sample_id}",
+                thread_id=f"d-thread-{sample_id}",
                 user_message="why does recovery need to span turns?",
                 assistant_message="because durable learning truth owns recovery.",
                 status="completed",
@@ -206,7 +219,7 @@ def main() -> int:
                 },
             )
         )
-        persisted = runtime.get_chat_thread("d-thread")
+        persisted = runtime.get_chat_thread(f"d-thread-{sample_id}")
         legacy_state = LearningState.from_dict(
             getattr(persisted, "learning_state", {}) or {}
         )
@@ -255,7 +268,7 @@ def main() -> int:
         )
 
         # --- 2. real closure ---------------------------------------------
-        run = service.create_and_execute("d-thread")
+        run = service.create_and_execute(f"d-thread-{sample_id}")
         gate("closure_preview_ready", run.status == "preview_ready", run.status)
         committed = service.commit(run.id)
         gate("closure_committed", committed.status == "completed", committed.status)
@@ -273,7 +286,7 @@ def main() -> int:
             eval_repo,  # type: ignore[arg-type]
             read_confirmed_profile=lambda: "",
         )
-        snapshot = lms.build("d-thread")
+        snapshot = lms.build(f"d-thread-{sample_id}")
         durable_projection = build_durable_projection(snapshot)
         artifact["durable_post_closure_projection"] = {
             "goal_id": durable_projection.goal_id,
@@ -297,7 +310,7 @@ def main() -> int:
         prepared = chat.start_turn(
             ChatCommand(
                 user_input="what changed after closure?",
-                thread_id="d-thread",
+                thread_id=f"d-thread-{sample_id}",
             )
         )
         before = prepared.learning_state_before
@@ -332,8 +345,8 @@ def main() -> int:
 
         # --- 6. parity LAST ----------------------------------------------
         observation = observe_learner_state_parity(
-            thread_id="d-thread",
-            turn_id="turn-1",
+            thread_id=f"d-thread-{sample_id}",
+            turn_id=f"turn-{sample_id}",
             learning_state=before,
             snapshot=snapshot,
             provenance={"collection": "164-C2", "population": "D"},
