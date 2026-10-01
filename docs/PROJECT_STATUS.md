@@ -16627,6 +16627,38 @@ artifact：docs/research_quality/LEARNER_STATE_PARITY_C2_D_DISTRIBUTION_2026-10-
 
 **CI（`52d32750`）**：exact-head **PR CI = success**（run 36885107668，12m33s）；
 push CI（run 36885094776）本轮查询时仍 in_progress，同 head 同 job，无红灯证据。
+
+### 164.31 §164-E dual-read cutover 前置只读审计（2026-10-01）
+
+**目的**：定位 Phase 2 的注入点，**不改任何代码**。
+
+```text
+1. legacy authority（现状）
+   PreparedChatTurn.learning_state_before: LearningState
+   —— 由 thread 的 legacy learning_state JSON 构建，是当前 turn 的 learner context authority。
+   出现位置：chat_service.py:219/237/275/565/595/679（构造与透传）。
+
+2. durable read（现状）
+   ChatDependencies.read_learner_model: Callable[[str], Any] | None   （chat_service.py:201）
+   唯一调用点：_observe_turn_shadow（chat_service.py:251），位于
+   flag LEARNER_STATE_SHADOW_READ 之后；返回值是 **dead end**（仅 telemetry 消费）。
+   => durable snapshot 目前**不进入任何 turn 决策**。
+
+3. §164-E Phase 2 注入点
+   产生 learning_state_before 的 learner-context 构建路径：
+   令 durable truth 优先、legacy 仅 compatibility fallback，
+   差异进入 telemetry / test evidence（§164.4 semantic-equivalence gate 已由 §164.29 预定义）。
+
+4. 约束（冻结，不可违反）
+   §164.6 invariant：snapshot 永远可重建（cache != authority），
+                     不得把 snapshot 持久化成第二份真值。
+   §164.7 non-goals：不建 learner_state 大表 / 不给 LLM mastery 写权 /
+                    不让 PedagogyEvalRun 直接成为 durable truth / 不让 LearnerModel 成为 writer /
+                    不让 Planner 成为 truth authority。
+```
+
+**性质**：§164-E 是 **production cutover**，改 chat runtime；
+按 §4.4 触发 **early L3**（共享核心数据模型 / 生产权威切换）。**须独立一刀 + 完整预算，本刀不改代码。**
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
