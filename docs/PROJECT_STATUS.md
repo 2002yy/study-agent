@@ -16201,6 +16201,56 @@ parity              overall / five_dimensions
 **全部按真实状态记录**，**不为取得 D 而改 runtime 或 substantive 定义**。
 
 **§164-D Phase 2 gate 仍不得预注册**：B 只证明了迁移时序；只有 D 才开始提供 semantic parity 核心数据。
+
+### 164.25 §164-C2 D 执行顺序与解释纪律（冻结，2026-10-01）
+
+**D 的证明对象（冻结表述）**：
+
+> **D 不是"双非空"，而是"同一学习事实在 legacy 与 durable 两侧同时形成
+> substantive、可持久化、可追溯的**双承载**"。**
+
+**执行顺序（冻结）：先确认 production closure 的真实 authority 与 continuation 语义，再构造样本。**
+
+```text
+**不得**因为 durable store 有写接口就直接调用 —— 那只能证明"测试代码能写 durable"，
+不能证明"**production-supported closure 真正产生 durable truth**"。
+```
+
+**有效 D 链（冻结）**：
+
+```text
+已有 legacy substantive
+  -> 走**真实 closure 入口**
+  -> closure 成功的**生产证据**
+  -> durable truth **实际读回**
+  -> durable_substantive = true
+  -> durable persistence 成立
+  -> 按**真实 continuation contract** 产生后续 observation
+  -> legacy = true / durable = true
+  -> continuity / lineage 对应**同一学习事实**
+-------------------------------------------- assign D
+  -> **最后**读取 parity
+```
+
+**若 closure 改变 thread / session 生命周期**：这本身就是 C2 的**真实产品事实** ——
+应**记录 continuation scope**，**而不是绕过 production contract**。
+
+**D 结果解释纪律（冻结）**：
+
+```text
+即使首个 D 出现 `MATCH`，也**不能**立刻概括为"迁移语义一致" ——
+它首先只证明**该 D construction stratum 下这一条事实链**的 parity。
+反之若出现 `CONFLICT`，同样先作为**真实 semantic divergence** 记录，**不调仪器**。
+```
+
+**阶段性问题升级（冻结表述）**：从"durable 为什么还是空？"升级为
+
+> **"production closure 写出的 durable truth，能否与既有 legacy learning state
+> 在同一事实 lineage 上同时存在；若能，它们到底怎么对应？"**
+
+**下一刀第一步（建议）**：按 §164.14 inner-read 审计的方式，先审计 **closure 入口的真实 authority**
+（哪个入口是 production-supported、它写什么、写后如何读回、continuation scope 是什么），
+**再**构造 D 样本。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
