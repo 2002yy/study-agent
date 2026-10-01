@@ -16370,6 +16370,31 @@ Q5 实验虽会顺带产生 durable parity 数据，**不得因为看到 MATCH/C
 **边界（冻结）**：Q5 实验只属 **collection-side diagnostic**；
 **不得**改 closure 入口、durable writer、C1 read authority、observer / classifier / isolation / runtime，
 **不得**为取得"能继续"的结果去绕过 production contract。
+
+**Q5 三阶段分离（冻结）**：
+
+```text
+① closure pipeline validity
+   candidate + accepted evaluation -> real create_and_execute -> real commit
+   -> durable substantive readback
+② continuation diagnosis
+   closure 后 same-thread start_turn -> accepted / rejected typed reason
+   -> legacy state visibility -> eligibility semantics -> 归类 continuation contract
+③ semantic parity
+   **本刀禁止**；Q5 中即使产生 parity，也不进入正式 D 数据
+```
+
+**关键门（冻结）**：**只有 ① 完整成功，② 的结果才有解释意义。**
+若 durable commit 本身未真正完成，就**不能**把随后 same-thread 行为称为"closure 后 continuation"。
+
+**Q5 完成后的边界（冻结）**：Q5 完成后**也只冻结 continuation contract**；
+**不要在同一刀顺手宣布 D 已采集**。正式 D 应在**已知 continuation contract 的前提下
+重新构造独立样本**，从而让 **authority discovery / lifecycle discovery / semantic parity**
+三层证据互不污染。
+
+**为什么"半状态"必须避免（冻结）**：停在 candidate 已生成但 evaluation 未验证、
+或 run 已创建但 commit 链未闭合，都会留下**难解释的半状态** ——
+故宁可只冻结合同不执行，以保持证据完整性。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
