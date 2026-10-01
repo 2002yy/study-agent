@@ -16001,6 +16001,55 @@ B 象限要求 legacy 侧已承载实质状态，而 objective 只在**同一 th
 
 **本轮 artifact 原样保留**：它是真实观测（"precondition 满足但状态仍 sparse"），
 provenance 不丢；**不得**改标为 B。
+
+### 164.21 §164-C2 provenance 与 B″ 证据链（冻结，2026-10-01）
+
+**C2 provenance（保留，不并入 A 普通子样本而消失）**：
+
+```text
+A1  ordinary / no-closure            5 turns   sparse / absent
+A2  socratic + derivable             4 turns   sparse / absent
+A3  socratic + actual empirical，**但独立首轮**  2 turns  sparse / absent
+    -> 独立机制：**classifier precondition 满足 ≠ turn-start state 已 substantive**
+B   substantive / absent             尚未取得（下一步 same-thread multi-turn）
+```
+A3 **不得**被并入 A1/A2 而消失 —— 它证明的是：
+**状态写入发生在 turn 内，而 shadow 比较观察的是 turn-start snapshot**（persistence timing provenance）。
+
+**问题定位（冻结表述）**：
+
+> `external=True` 解决的是"**本轮会不会写入** substantive state"，
+> 但 B stratum 要求的是"**本轮开始时** legacy 已经有 substantive state"。
+
+```text
+turn N    learning_state_before = sparse
+          -> plan_socratic external 分支写入 next_learning_state.objective -> 持久化
+turn N+1  同一 thread：learning_state_before = 上轮持久化状态 -> 此时才可能 substantive
+```
+故"同一 thread 多轮"**不是人为造 B**，而是**匹配实际状态传播时序**。
+
+**B″ 证据链（冻结）**：
+
+```text
+Turn 1  same thread / socratic / actual kind ∈ {empirical, conventional}
+        -> 真实执行
+        -> **显式记录 Turn 1 post-state 与 persistence evidence**（不得只假设写成功）
+Turn 2  same thread
+        -> 获取 learning_state_before
+        -> observed legacy_substantive ? / observed durable_substantive ?
+        -> **先据此确定 stratum**
+        -------------------------------- 最后才读 parity
+```
+
+**机械证明要求（冻结）**：至少对用于 `substantive` 判定的字段，须能证明
+
+```text
+turn1_post_state  ==  turn2_learning_state_before
+```
+否则 B″ 若再失败，将无法区分是"没写进去 / 没持久化 / 没跨 turn 读回来 / stratum 本身问题"。
+**仍属 collection-side provenance**，不改 observer / classifier / runtime。
+
+**未取得 B 时的纪律**：继续按**真实状态**分层，**不为填表改定义**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
