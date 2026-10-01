@@ -16659,6 +16659,23 @@ push CI（run 36885094776）本轮查询时仍 in_progress，同 head 同 job，
 
 **性质**：§164-E 是 **production cutover**，改 chat runtime；
 按 §4.4 触发 **early L3**（共享核心数据模型 / 生产权威切换）。**须独立一刀 + 完整预算，本刀不改代码。**
+
+**关键顺序约束（2026-10-01 审计补充）**：
+
+```text
+现状：shadow read 在 chat_service.py:591，位于 planning 输入
+      （messages / route / pedagogy_plan / retrieval_plan）**计算之后**；
+      且注释明确「No branch below may read shadow_result」。
+=> §164-E 的注入点**不在 591**（那里太晚，durable 值无法影响 planning）。
+   必须把 durable read **上移到 planning 输入构建之前**，才能让
+   「durable 优先 / legacy fallback」真正进入 turn 决策。
+   这也是 §164-E 属 cutover 而非小改、须 early L3 的结构性原因。
+
+legacy 值的三个现有消费点（cutover 时都要处理）：
+  chat_service.py:565  pedagogy_snapshot["learning_state_before"] = learning_state.to_dict()
+  chat_service.py:595  传入 _observe_turn_shadow（dead-end telemetry）
+  PreparedChatTurn.learning_state_before（透传给调用方）
+```
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
