@@ -244,6 +244,7 @@ def _observe_turn_shadow(
     retrieval_plan: object,
     messages: list[dict[str, Any]],
     learner_evaluation: PedagogyEvalRun,
+    durable_snapshot: object | None = None,
 ):
     """164-C1b-1 narrow seam: hash decision inputs, then run the bounded shadow read.
 
@@ -253,7 +254,7 @@ def _observe_turn_shadow(
     if not shadow_read_enabled():
         return None
     reader = service.dependencies.read_learner_model
-    if reader is None:
+    if durable_snapshot is None and reader is None:
         return None
     try:
         decision_inputs = build_decision_input_hashes(
@@ -277,7 +278,9 @@ def _observe_turn_shadow(
             thread_id=thread_id,
             turn_id=turn_id,
             learning_state_before=learning_state_before,
-            snapshot_reader=lambda: reader(thread_id),
+            snapshot_reader=lambda: (
+                durable_snapshot if durable_snapshot is not None else reader(thread_id)
+            ),
             decision_inputs=decision_inputs,
             legacy_misconceptions=misconceptions,
         )
@@ -446,15 +449,17 @@ class ChatService:
             )
             learning_state = LearningState.from_dict(thread.learning_state)
             # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
+            durable_snapshot = None
             if durable_read_enabled():
                 _reader = self.dependencies.read_learner_model
                 if _reader is not None:
                     try:
+                        durable_snapshot = _reader(thread.id)
                         learning_state = adjudicate_learner_state(
-                            learning_state, _reader(thread.id)
+                            learning_state, durable_snapshot
                         ).state
                     except Exception:
-                        pass  # fail-open: legacy state stands
+                        durable_snapshot = None  # fail-open: legacy state stands
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
@@ -612,6 +617,7 @@ class ChatService:
                 retrieval_plan=retrieval_plan,
                 messages=messages,
                 learner_evaluation=learner_evaluation,
+                durable_snapshot=durable_snapshot,
             )
             expected = (
                 "pending"
