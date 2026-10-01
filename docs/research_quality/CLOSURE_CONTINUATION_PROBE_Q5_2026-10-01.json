@@ -22,7 +22,7 @@
       "gate": "create_and_execute_returned",
       "status": "PASS",
       "detail": {
-        "id": "closure_d92c566df9914654809169b15c78f86f",
+        "id": "closure_cd87f8715d0741d8af2aeabe26705b5c",
         "status": "preview_ready"
       }
     },
@@ -48,8 +48,60 @@
       "gate": "snapshot_evidence_dump",
       "status": "PASS",
       "detail": {
-        "github_learning_sources": [],
-        "final_pedagogy_evaluation": null,
+        "github_learning_sources": [
+          {
+            "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "query": "SessionService summary_payload durable resume",
+            "repo_url": "https://github.com/2002yy/study-agent",
+            "source_ref": "github_source:turn-1:0",
+            "tool_name": "github_search",
+            "turn_id": "turn-1"
+          }
+        ],
+        "final_pedagogy_evaluation": {
+          "confidence": 0.92,
+          "deterministic_result": {
+            "is_claim": true,
+            "misconceptions": []
+          },
+          "evaluator_version": "pedagogy-eval-v1",
+          "evidence": [
+            "source-primary"
+          ],
+          "expected_concepts": [
+            "durable resume"
+          ],
+          "final_decision": "accept",
+          "id": "eval-1",
+          "learner_input": "durable resume means recovery must span turns",
+          "objective": "recover session recovery by durable owner",
+          "prompt_version": "pedagogy-semantic-v1",
+          "protocol": "socratic_rediscovery",
+          "reasons": [
+            "accept"
+          ],
+          "schema_version": "1",
+          "semantic_result": {
+            "claims": [
+              "durable learning state must be readable after closure"
+            ],
+            "confidence": 0.92,
+            "correct_points": [
+              "durable truth is the owner"
+            ],
+            "evidence_refs": [
+              "source-primary"
+            ],
+            "gaps": [],
+            "misconceptions": [],
+            "reasoning_complete": true,
+            "transfer_ready": true
+          },
+          "semantic_review_data_categories": [],
+          "semantic_review_provider": "",
+          "semantic_review_status": "not_needed",
+          "turn_id": "turn-1"
+        },
         "committed_learning_state": {
           "objective": "recover durable resume",
           "phase": "guided_practice",
@@ -79,33 +131,42 @@
       "gate": "commit_returned",
       "status": "PASS",
       "detail": {
-        "status": "failed"
+        "status": "completed"
       }
     },
     {
       "gate": "commit_error_reason",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": {
-        "error": "Durable learning truth rejected candidate: candidate_source_missing",
-        "reason": "learning_truth_commit_failed"
+        "error": "",
+        "reason": ""
       }
     },
     {
       "gate": "source_evidence_called",
-      "status": "FAIL",
-      "detail": []
+      "status": "PASS",
+      "detail": [
+        [
+          "https://github.com/2002yy/study-agent",
+          "SessionService summary_payload durable resume",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      ]
     },
     {
       "gate": "evaluation_repo_called",
-      "status": "FAIL",
-      "detail": []
+      "status": "PASS",
+      "detail": [
+        "turn-1",
+        "turn-1"
+      ]
     },
     {
       "gate": "durable_readback",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": {
-        "objective": "",
-        "goal_status": "",
+        "objective": "recover session recovery by durable owner",
+        "goal_status": "active",
         "source": "derived_read_only"
       }
     },
@@ -113,17 +174,10 @@
       "gate": "continuation_probe",
       "status": "PASS",
       "detail": {
-        "summary_status_after": "not_summarized"
+        "summary_status_after": "summarized"
       }
     }
   ],
-  "all_pass": false,
-  "first_fail": {
-    "gate": "commit_error_reason",
-    "status": "FAIL",
-    "detail": {
-      "error": "Durable learning truth rejected candidate: candidate_source_missing",
-      "reason": "learning_truth_commit_failed"
-    }
-  }
+  "all_pass": true,
+  "first_fail": null
 }

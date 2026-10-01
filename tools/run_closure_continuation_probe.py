@@ -28,7 +28,6 @@ import src.application.memory_service as memory_service_module
 from src.application.learning_closure_service import LearningClosureService
 from src.application.learning_closure_truth import LearningClosureTruthService
 from src.application.memory_service import MemoryService
-from src.application.runtime_repository import get_learner_model_service
 from src.application.session_service import SessionService
 from src.domain.runtime_entities import ChatThread, ChatTurn
 from src.infrastructure.sqlite.database import RuntimeDatabase
@@ -111,6 +110,9 @@ class FakeEvaluationRepository:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
+    def list_for_thread(self, thread_id: str):
+        return []
+
     def get_for_turn(self, turn_id: str):
         from src.pedagogy.evaluation import PedagogyEvalRun, SemanticEvaluation
 
@@ -173,6 +175,20 @@ def main() -> int:
                 model="pro",
                 route_snapshot={"task_contract": _task_contract()},
                 pedagogy_snapshot={"phase": "guided_practice"},
+                rag_snapshot={
+                    "web_tools": {
+                        "calls": [
+                            {
+                                "name": "github_search",
+                                "arguments": {
+                                    "repo_url": REPO_URL,
+                                    "query": "SessionService summary_payload durable resume",
+                                },
+                                "result": {"ok": True, "commit_sha": COMMIT_SHA},
+                            }
+                        ]
+                    }
+                },
             )
         )
 
@@ -211,6 +227,7 @@ def main() -> int:
             LearningClosureRepository(database),
             session,
             memory,
+            evaluation_repository=eval_repo,  # type: ignore[arg-type]
             learning_truth_committer=truth_committer,
             generator=generator,
             memory_bundle_loader=lambda _mode: {},
@@ -265,7 +282,13 @@ def main() -> int:
                 )
 
             try:
-                lms = get_learner_model_service()
+                from src.application.learner_model import LearnerModelService
+
+                lms = LearnerModelService(
+                    LearningTruthRepository(database),
+                    eval_repo,  # type: ignore[arg-type]
+                    read_confirmed_profile=lambda: "",
+                )
                 snap = lms.build("thread-1")
                 gate(
                     "durable_readback",
