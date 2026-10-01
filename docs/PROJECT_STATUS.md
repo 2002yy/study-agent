@@ -16676,6 +16676,27 @@ legacy 值的三个现有消费点（cutover 时都要处理）：
   chat_service.py:595  传入 _observe_turn_shadow（dead-end telemetry）
   PreparedChatTurn.learning_state_before（透传给调用方）
 ```
+
+**注入点精确定位（2026-10-01 二次审计，修正上一条表述）**：
+
+```text
+start_turn 内的真实构建顺序（行号）：
+  433  route = self.dependencies.route_request(...)
+  443  learning_state = LearningState.from_dict(thread.learning_state)   <- **legacy authority 在此构建**
+  452  learner_evaluation = ...evaluate_learner(...)
+  458  learning_state = LearningState.from_dict(...)                    <- continuation 分支重建
+  467  pedagogy_plan, next_learning_state = ...pedagogy_engine.plan(...)
+  487  retrieval_plan = build_retrieval_query_plan(...)
+  542  messages = self.dependencies.build_messages(...)
+  591  shadow read（dead end）
+
+=> **legacy 值（443/458）本来就早于 planning（467/487/542）**，
+   所以 §164-E **不是"新增一个上移的读取"**，而是：
+   **在 443/458 构建 learning_state 处，consult durable snapshot 并优先采用它，
+     legacy JSON 仅作 compatibility fallback**（差异按 §164.29 G1–G5 入 telemetry / test evidence）。
+   => 改动结构上**局部化于 443/458**，但仍是**生产权威切换**，故 §4.4 early L3 不变。
+   注意 458 是 continuation 分支，两个构建点都要处理，不得只改一处。
+```
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
