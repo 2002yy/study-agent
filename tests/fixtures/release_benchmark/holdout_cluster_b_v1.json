@@ -1,0 +1,153 @@
+{
+  "answer_provenance": "constructed_from_frozen_source: every candidate answer is authored from the frozen snapshot text and is not a model output. Expected axes are therefore provable from the snapshot rather than inferred from a model's behaviour.",
+  "cluster_id": "CLUSTER-B-NOAA-TIDES",
+  "constructor_disqualification": "The author of this fixture knows every expected axis and is disqualified from acting as reviewer for this holdout (C7 rule 5).",
+  "consumed_set_scope": {
+    "consumed_cases": [
+      "REL-F-TEXT-001",
+      "REL-F-PDF-001"
+    ],
+    "consumed_sources": [
+      "NOAA-SURGE",
+      "NASA-MOON"
+    ],
+    "note": "Item content below must not overlap the consumed 161 calibration set."
+  },
+  "content_sha256": "0f5fd6a73d5dde9a760c67b19fb6d81e980b0272b8d26ddc374731d646a41fa8",
+  "excerpt_provenance": "source_text is the visible-text extraction of the frozen snapshot captured at freeze time and frozen here with its own sha256; the snapshot stays linked by byte sha256.",
+  "frozen_at": "2026-10-01T07:00:00Z",
+  "holdout_id": "RQ-HOLDOUT-2026-10-01-B",
+  "instances": [
+    {
+      "aspect_rubric": {
+        "cause": "The cause must be stated as the gravitational pull of the moon and the sun.",
+        "origin and progression": "Tides must be described as long-period waves originating in the ocean and progressing toward the coastlines."
+      },
+      "aspects": [
+        "cause",
+        "origin and progression"
+      ],
+      "baseline": {
+        "answer": "The frozen NOAA page states that tides are caused by gravitational pull of the moon and the sun. It describes tides as very long-period waves that move through the ocean in response to the forces exerted by the moon and sun, originating in the ocean and progressing toward the coastlines, where they appear as the regular rise and fall of the sea surface. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+        "expected_axes": {
+          "citation_support": "supported",
+          "evidence_grounding": "supported",
+          "question_coverage": "covered"
+        }
+      },
+      "controls": [
+        {
+          "answer": "The frozen NOAA page states that tides are caused by gravitational pull of the moon and the sun. It describes tides as very long-period waves that move through the ocean in response to the forces exerted by the moon and sun, originating in the ocean and progressing toward the coastlines, where they appear as the regular rise and fall of the sea surface. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "supported",
+            "question_coverage": "covered"
+          },
+          "rationale": "Structurally valid citation to a real registered locator that does not support the sentences it is attached to.",
+          "required_issue": "wrong_citation",
+          "variant": "wrong_citation"
+        },
+        {
+          "answer": "The frozen NOAA page states that tides are caused by gravitational pull of the moon and the sun. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+          "expected_axes": {
+            "citation_support": "supported",
+            "evidence_grounding": "supported",
+            "question_coverage": "partial"
+          },
+          "rationale": "Origin and progression dropped; the cause is retained.",
+          "required_issue": "coverage_gap",
+          "variant": "missing_aspect"
+        },
+        {
+          "answer": "The frozen NOAA page states that tides are caused by gravitational pull of the moon and the sun. It describes tides as very long-period waves that move through the ocean in response to the forces exerted by the moon and sun, originating in the ocean and progressing toward the coastlines, where they appear as the regular rise and fall of the sea surface. [source](https://oceanservice.noaa.gov/facts/tides.html) The page also states that tides are caused mainly by seasonal changes in ocean temperature. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "gap",
+            "question_coverage": "covered"
+          },
+          "rationale": "False sentence plus a structurally valid citation to the real frozen locator, whose content does not support it.",
+          "required_issue": "unsupported_claim",
+          "variant": "unsupported_claim"
+        }
+      ],
+      "instance_id": "RQ-HO-C-TIDE-CAUSE",
+      "page": 1,
+      "question": "Using only the frozen NOAA ocean-facts page, state what causes tides and describe how tides move from their origin to the shoreline.",
+      "region": "full visible text",
+      "source_id": "NOAA-TIDES",
+      "source_text": "What are tides? Home Ocean Facts What are tides? What are tides? Tides are caused by gravitational pull of the moon and the sun. The rise and fall of the tides play an important role in the natural world and can have a marked effect on maritime-related activities. The image aboves shows the NOAA San Francisco Tide Station, in operation for more than 150 years. Tides are one of the most reliable phenomena in the world. As the sun rises in the east and the stars come out at night, we are confident that the ocean waters will regularly rise and fall along our shores. Tides are very long-period waves that move through the ocean in response to the forces exerted by the moon and sun. Tides originate in the ocean and progress toward the coastlines where they appear as the regular rise and fall of the sea surface. When the highest part, or crest, of the wave reaches a particular location, high tide occurs; low tide corresponds to the lowest part of the wave, or its trough. The difference in height between the high tide and the low tide is called the tidal range. Search Our Facts Get Social More Information Measuring Water Levels (video podcast) Tides and Currents Levels (audio podcast) Tides and Water Levels Center for Operational Oceanographic Products and Services Last updated: 09/23/26 Author: NOAA How to cite this article Contact Us",
+      "source_text_sha256": "d24f71c44bc362da0aff64dad5d5ba2052d3682b3dedfbfec1a7081a93a1fb26"
+    },
+    {
+      "aspect_rubric": {
+        "crest and trough": "High tide must be tied to the crest and low tide to the trough.",
+        "tidal range": "The height difference between high and low tide must be named as the tidal range."
+      },
+      "aspects": [
+        "crest and trough",
+        "tidal range"
+      ],
+      "baseline": {
+        "answer": "The page explains that when the highest part, or crest, of the wave reaches a particular location, high tide occurs, and that low tide corresponds to the lowest part of the wave, or its trough. It states that the difference in height between the high tide and the low tide is called the tidal range. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+        "expected_axes": {
+          "citation_support": "supported",
+          "evidence_grounding": "supported",
+          "question_coverage": "covered"
+        }
+      },
+      "controls": [
+        {
+          "answer": "The page explains that when the highest part, or crest, of the wave reaches a particular location, high tide occurs, and that low tide corresponds to the lowest part of the wave, or its trough. It states that the difference in height between the high tide and the low tide is called the tidal range. [source](https://science.nasa.gov/wp-content/uploads/2024/01/62217main-moon-lithograph.pdf)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "supported",
+            "question_coverage": "covered"
+          },
+          "rationale": "Structurally valid citation to a real registered locator from a different document that does not support the sentences.",
+          "required_issue": "wrong_citation",
+          "variant": "wrong_citation"
+        },
+        {
+          "answer": "The page explains that when the highest part, or crest, of the wave reaches a particular location, high tide occurs, and that low tide corresponds to the lowest part of the wave, or its trough. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+          "expected_axes": {
+            "citation_support": "supported",
+            "evidence_grounding": "supported",
+            "question_coverage": "partial"
+          },
+          "rationale": "Tidal range dropped; crest and trough retained.",
+          "required_issue": "coverage_gap",
+          "variant": "missing_aspect"
+        },
+        {
+          "answer": "The page explains that when the highest part, or crest, of the wave reaches a particular location, high tide occurs, and that low tide corresponds to the lowest part of the wave, or its trough. It states that the difference in height between the high tide and the low tide is called the tidal range. [source](https://oceanservice.noaa.gov/facts/tides.html) The page also states that the tidal range is measured from the crest to mean sea level. [source](https://oceanservice.noaa.gov/facts/tides.html)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "gap",
+            "question_coverage": "covered"
+          },
+          "rationale": "False sentence plus a structurally valid citation to the real frozen locator, whose content does not support it.",
+          "required_issue": "unsupported_claim",
+          "variant": "unsupported_claim"
+        }
+      ],
+      "instance_id": "RQ-HO-D-CREST-RANGE",
+      "page": 1,
+      "question": "Using only the frozen NOAA ocean-facts page, explain what happens when the crest and the trough of a tide wave reach a location, and name the term the page uses for the height difference between them.",
+      "region": "full visible text",
+      "source_id": "NOAA-TIDES",
+      "source_text": "What are tides? Home Ocean Facts What are tides? What are tides? Tides are caused by gravitational pull of the moon and the sun. The rise and fall of the tides play an important role in the natural world and can have a marked effect on maritime-related activities. The image aboves shows the NOAA San Francisco Tide Station, in operation for more than 150 years. Tides are one of the most reliable phenomena in the world. As the sun rises in the east and the stars come out at night, we are confident that the ocean waters will regularly rise and fall along our shores. Tides are very long-period waves that move through the ocean in response to the forces exerted by the moon and sun. Tides originate in the ocean and progress toward the coastlines where they appear as the regular rise and fall of the sea surface. When the highest part, or crest, of the wave reaches a particular location, high tide occurs; low tide corresponds to the lowest part of the wave, or its trough. The difference in height between the high tide and the low tide is called the tidal range. Search Our Facts Get Social More Information Measuring Water Levels (video podcast) Tides and Currents Levels (audio podcast) Tides and Water Levels Center for Operational Oceanographic Products and Services Last updated: 09/23/26 Author: NOAA How to cite this article Contact Us",
+      "source_text_sha256": "d24f71c44bc362da0aff64dad5d5ba2052d3682b3dedfbfec1a7081a93a1fb26"
+    }
+  ],
+  "purpose": "Second source cluster for 162 A3-D, so qualification shows cross-document and cross-topic semantic generalization rather than adaptation to one source's phrasing.",
+  "schema_version": "release-benchmark-qualification-holdout-v1",
+  "sources": [
+    {
+      "locator": "https://oceanservice.noaa.gov/facts/tides.html",
+      "role": "primary",
+      "sha256": "276fa82d74dff8d524d33f37f84e46ccd9d1d7e744006ef4c124c0855963459c",
+      "snapshot_path": "tests/fixtures/release_benchmark/sources/noaa_tides_2026-10-01.html",
+      "source_id": "NOAA-TIDES"
+    }
+  ]
+}

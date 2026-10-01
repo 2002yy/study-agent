@@ -129,7 +129,8 @@
       "tests/test_rq1c_bounded_qualification.py",
       "tests/test_release_benchmark_blind_review.py",
       "tests/test_release_benchmark_blind_review_cli.py",
-      "tests/test_release_benchmark_qualification_holdout.py"
+      "tests/test_release_benchmark_qualification_holdout.py",
+      "tests/test_release_benchmark_qualification_composite.py"
     ],
     "release-benchmark-registry": [
       "tests/test_release_benchmark_registry.py",

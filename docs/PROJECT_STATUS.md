@@ -14569,6 +14569,68 @@ L2: release-benchmark-pilot stage gate = 137 passed
 （需一个新的 packet 构建入口，从 holdout 而非 answer bundle 取材）；A3-D-3 = 选定 reviewer
 （①另一独立家族 / ②独立 manual_human，均须未见本 holdout 与消费集失败位置）后执行一次盲校准。
 
+### 162.7 A3-D-1b Cluster B + composite 冻结（2026-10-01，单刀；仍**不执行**）
+
+**裁定**：Cluster B 采用**方案 1（NOAA tides）**；不为 publisher 完全独立阻塞 §162 —— 本阶段要验证的是
+semantic-binding 规则能否迁移到**新 source / 新 claim / 新表面形式**，而非 publisher-level domain independence。
+
+**交付**：
+
+```text
+tests/fixtures/release_benchmark/sources/noaa_tides_2026-10-01.html   新增冻结来源（29,594 bytes）
+tests/fixtures/release_benchmark/holdout_cluster_b_v1.json            新增 Cluster B（2 instances × 4 项）
+tests/fixtures/release_benchmark/qualification_holdout_v1.json        新增 composite manifest
+tests/test_release_benchmark_qualification_holdout.py                 改为按 cluster 参数化
+tests/test_release_benchmark_qualification_composite.py               新增 composite gates 测试
+tests/stage_gates.json                                                注册
+```
+
+**Cluster B 事实**：
+
+```text
+cluster_id      CLUSTER-B-NOAA-TIDES
+source          NOAA-TIDES  字节 sha256 276fa82d74dff8d524d33f37f84e46ccd9d1d7e744006ef4c124c0855963459c
+excerpt         visible-text 提取，1349 字符，sha256 d24f71c4…
+content_sha256  0f5fd6a73d5dde9a760c67b19fb6d81e980b0272b8d26ddc374731d646a41fa8
+instances       RQ-HO-C-TIDE-CAUSE（成因 / 起源与推进）
+                RQ-HO-D-CREST-RANGE（峰谷 / 潮差）
+controls        6（每 instance：wrong_citation / missing_aspect / unsupported_claim）
+```
+
+**Cluster A 未被改写**（保持 `content_sha256 d99fc107…`）；composite **引用**它而非复制。
+
+**composite manifest（冻结）**：
+
+```text
+RQ-QUAL-HOLDOUT-v1  content_sha256 e5da77caec1905a361c9720bf6b384a1225da76a7e09c07c5a8515f575c133b9
+clusters      CLUSTER-A-NWS-HEAT(6 controls) + CLUSTER-B-NOAA-TIDES(6 controls)
+gate_rule     per_cluster  = "target_detection all AND specificity all"
+              overall_pass = "cluster_A_pass AND cluster_B_pass"
+              blended_total_forbidden = true
+independence  document / topic / claim_instance = true ; publisher = false
+known_limitation  Cluster A 与 B 来自相关的美国政府气象 / 海洋出版生态；资格只证明
+                  cross-document/cross-topic 泛化，不证明 publisher-level 泛化
+```
+
+**反平均化守卫（测试）**：composite 文本禁止出现 `average` / `mean` / `total_score` / `accuracy` / `f1`，
+且 `gate_rule` 必须含 `AND`、`blended_total_forbidden` 必须为 `true` —— 防止"NWS 全对 + Source B 错两项"
+被总分掩盖。Cluster 必须**逐 cluster 全过**。
+
+**表面形式纪律**：Cluster B 的 `unsupported_claim` **不做成教学式显眼题**，仅保持冻结结构
+（假句 + 合法 citation 语法 + 真实冻结 locator + 语义不支持），避免无意带上对旧失败的针对性。
+
+**验证**：
+
+```text
+ruff clean | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: holdout（按 cluster 参数化，两 cluster）+ composite = 35 passed
+L2: release-benchmark-pilot stage gate = 162 passed
+仍只新增 source / fixture / test，未改 src/ 生产路径 -> 不强制 L3
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet**。D-2 = 让 packet / ingest 支持 composite
+holdout（按 cluster 生成 packet、按 cluster 出校准结果、**按 cluster 判门**）；D-3 才选 reviewer。
+
 ### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
 
 `	ext
