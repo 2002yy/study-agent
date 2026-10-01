@@ -15901,6 +15901,45 @@ A1 与 A2 parity 分布同形但**机制不同**，故**不得**揉成 `A=9` 而
 
 **B′ 预期（保持为预期，不升级为断言）**：durable 尚无 closure，因此**预期**更容易看到
 `MISSING_DURABLE` / 维度级不可比；**若实际不是，记录真实结果**。
+
+**B′ 候选筛选（2026-10-01，记录 actual kind；属 construction，不改 classifier）**：
+
+```text
+首轮英文候选 10 条 -> **全部 `derivable`**（含"最强飓风年份""火星几颗卫星""谁写伊利亚特"）
+根因（读代码确认）：`classify_knowledge` 是**中文标记词**分类器
+  EXTERNAL_FACT_MARKERS 形如 哪一年 / 什么时候 / 谁写的 / 最新版本 / 实测数据 / 版本 / api 文档
+  -> **英文候选永远无法满足 precondition**（语言不匹配，非 precondition 不可满足）
+
+中文候选复验（10 条，actual kind 如实记录）：
+  empirical   : 「哪一年出现了史上最强的飓风」「最新的 Python 版本是多少」
+  derivable   : 其余 8 条（含「谁写的伊利亚特」「火星有几颗卫星」「海平面水的沸点是多少度」）
+```
+
+**结论**：B′ precondition **可满足**；候选集由**实际 kind 数据**确定，而非按对话形式推断。
+**须记录的 construction 事实**：筛选必须使用**中文标记词命中**的输入；
+否则会出现"我们选了 empirical 问题"却与运行时实际 kind 不符的情况。
+
+**B′ artifact 字段（冻结；三层证据分字段保存，禁止只存最终 stratum）**：
+
+```text
+construction_precondition
+  mode
+  knowledge_kind_declared        # 筛选时声明的
+  knowledge_kind_actual          # 运行时实际 classify_knowledge 结果
+observed_state
+  legacy_substantive             # true/false（只读检查）
+  legacy_objective_present
+  legacy_confirmed_points_count
+  durable_substantive            # true/false
+stratum_assignment               # B / A2 / other（**按 observed state 判定**）
+parity
+  overall
+  five_dimensions
+```
+
+**边界（冻结）**：观测状态检查只属 **collection harness / labeling logic**；
+**不得**反向影响 observer、parity classifier、knowledge classifier 语义、isolation 或生产 runtime 行为。
+**`substantive` 判据不得为了"终于采到 B"而放松。**
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
