@@ -16395,6 +16395,36 @@ Q5 实验虽会顺带产生 durable parity 数据，**不得因为看到 MATCH/C
 **为什么"半状态"必须避免（冻结）**：停在 candidate 已生成但 evaluation 未验证、
 或 run 已创建但 commit 链未闭合，都会留下**难解释的半状态** ——
 故宁可只冻结合同不执行，以保持证据完整性。
+
+**Q5 构造配方（2026-10-01 只读定位；harness 必须注入什么）**：
+
+```text
+生成步骤（learning_closure_service.execute）
+  generated = self.generator(structured_input, frozen_memory, role, mode, model_profile="pro")
+  -> 注入 generator callable 即可（**无需真实模型调用**）
+  -> generated 必须含 `durable_learning_candidate`（dict），否则
+     `_has_durable_candidate` 为假且无 memory updates 时 raise「无可复核来源的学习成果候选」
+
+commit 侧（learning_closure_truth.commit）依次要求
+  1) closure_eligibility == "learning_summary"
+  2) candidate 存在（_candidate(run.generated_result)）
+  3) candidate **来源可解析**（_source_for_candidate）
+  4) evaluation 存在（_evaluation(candidate, structured_input)）
+  5) **evaluation.final_decision == "accept"**
+  6) _claim_owned_by_evaluation(candidate["claim_text"], evaluation) 为真
+
+=> harness 必须同时注入：
+   a) **fake semantic evaluator**：`PedagogyEvaluationService(semantic_evaluator=<fake>)`
+      使 final_decision 可达 "accept"（需 reasoning_complete=True、transfer_ready=True、
+      confidence>=0.7、misconceptions 空、evidence_refs 落在允许集内）
+      —— 默认 `PedagogyEvaluationService()` 无 evaluator 时只会得到 "needs_semantic_review"
+   b) **generator**：返回含 durable_learning_candidate 的 generated（其 claim_text 须与
+      evaluation 所属 claim 一致，且来源可解析）
+```
+
+**本刀仍未执行（如实记录）**：上述注入件需逐项构造并**各自验证**（fake evaluator 是否真的产出
+accept、candidate 来源是否可解析、claim 是否归属该 evaluation）；任一项未验证就启动，
+即会落入 §164.27 所述"半状态"。故本刀**只定位配方**，构造与执行留待一次有完整验证预算的独立刀。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
