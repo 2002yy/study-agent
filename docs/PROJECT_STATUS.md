@@ -16694,8 +16694,16 @@ start_turn 内的真实构建顺序（行号）：
    所以 §164-E **不是"新增一个上移的读取"**，而是：
    **在 443/458 构建 learning_state 处，consult durable snapshot 并优先采用它，
      legacy JSON 仅作 compatibility fallback**（差异按 §164.29 G1–G5 入 telemetry / test evidence）。
-   => 改动结构上**局部化于 443/458**，但仍是**生产权威切换**，故 §4.4 early L3 不变。
-   注意 458 是 continuation 分支，两个构建点都要处理，不得只改一处。
+   => 改动结构上**局部化于 443**，但仍是**生产权威切换**，故 §4.4 early L3 不变。
+
+**更正（2026-10-01 三次审计）**：上一条说「458 是 continuation 分支」**有误**。
+读 443-466 上下文确认：458 只是把刚算出的 `pedagogy_evaluation` 附加回**同一个**
+`learning_state` 的 payload（`LearningState.from_dict({**learning_state.to_dict(), "payload": {...}})`），
+**不是**第二个独立构建点；continuation 分支实际在 558 `if is_continuation`，且只影响 `base_reply`。
+=> **真正的 legacy authority 构建点只有 443 一处**；
+   §164-E 注入点 = **443**（consult durable snapshot 并优先采用），
+   458 只需保持其「重包裹 + 附加 evaluation」语义不变
+   （不得让 durable 值绕过 458 的 evaluation 附加，也不得让 durable 值进入 458 的 payload 造成二次权威）。
 ```
 `
 
