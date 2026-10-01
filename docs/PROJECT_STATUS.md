@@ -15661,6 +15661,48 @@ capacity exhausted / parity·classifier throws / telemetry throws / telemetry sl
 **不混进**语义等价。并显式验证 `prompt_context_hash` 是**在 shadow hook 之前**算出的，
 而不只是 ON/OFF 恰好相等。
 
+**验收方法四条（2026-10-01 补充；防弱证明）**：
+
+`	ext
+1) 每个场景各自配对 baseline，不得共用一个全局 OFF baseline：
+   same fixture / same user turn / same persisted starting state / same deterministic seams
+   OFF -> Snapshot A；ON(该场景) -> Snapshot B；assert A == B
+   否则 fixture drift 会混进证据。
+
+2) Snapshot 八项只覆盖 production-observable behavior：
+   不得把 shadow telemetry / classifier status 塞进去（否则 ON 天生与 OFF 不等价）。
+   它回答的仍是：如果不知道 observer 存在，生产 turn 看起来是否完全一样？
+   八项定义以本节冻结版本为准，本刀不重新设计。
+
+3) 真实 runtime 证据必须是 invocation proof，不是 artifact proof：
+   flag ON -> real ChatService.start_turn(...) -> reader invocation count == 1
+   -> 输入 lineage / hashes 对应本次真实 turn -> production turn 正常完成
+   -> observation eventually published
+   artifact 只是后果，不能替代"真实 ChatService 调用了 shadow seam"的证明。
+
+4) latency 测的是生产关键路径增量，不是 helper 自身耗时：
+   测 T(ON failure mode) - T(OFF baseline) 存在预先冻结的有界上限；
+   不得只测 "shadow helper returned within X ms"。
+   telemetry slow 单独确认：publish 在 update_chat_turn 成功之后且 non-blocking，
+   故 slow telemetry 不得延长用户可观察的 production critical path。
+`
+
+**C1 三层证据状态（2026-10-01，d8ecdd9）**：
+
+`	ext
+A wiring correctness        OK（flag + 双闸门 / hash-before-shadow / 正确 hook 时点 /
+                              legacy = turn-start / dead-end / persistence 后 publish /
+                              fail-open + non-blocking）
+B default-path non-regress  OK（flag OFF，focused production chat regression = 76 passed）
+C enabled-path invariance   NOT DONE（ON 下 chat 级 8x8 matrix / bounded latency /
+                              real invocation 均未做）
+=> REAL_RUNTIME_SHADOW_READ = false ; 164-C1 = OPEN
+`
+
+**下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
+证明真实 start_turn 仍像 observer 根本不存在一样运行；同时证明 observer 在正常 ON 路径确实被真实执行。
+C1 closeout 后立即冻结测量仪进入 164-C2，不得顺手"优化 observer"。
+
 **§164-C2 起不再改测量仪**，直接做 characterization：
 真实/代表性 turn 上两套 learner state 到底有多少 `MATCH / EXPECTED_DIVERGENCE / MISSING / CONFLICT / NOT_COMPARABLE`。
 
