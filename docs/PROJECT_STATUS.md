@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-D composite holdout 已冻结（未执行）**（见 §162.5 / §162.6 / §162.7 与 C7）。状态：A3-B2 = **FAIL**（`REVIEWER_AXIS_UNDERDISCRIMINATION`），合同**保留**；repeat-002 已登记为 **DIAGNOSTIC_REPEAT**（fresh session / 未披露失败位置 / 非 steering，但 `qualification_use=FORBIDDEN`）；消费集 = `CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION`。**Composite `RQ-QUAL-HOLDOUT-v1`**：Cluster A = NWS-HEAT（`d99fc107…`，**未被改写**）、Cluster B = NOAA-TIDES（`0f5fd6a7…`），各 2 instances × (1 baseline + 3 controls) = 各 6 controls；**逐 cluster 判门**（`target_detection all AND specificity all`），`overall_pass = A AND B`，`blended_total_forbidden=true`；`publisher_independent=false` 已作为明确 limitation 记录。**未授予任何东西**；六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §162 A3-D-2：让 packet / ingest 支持 composite holdout（按 cluster 生成 packet、按 cluster 出校准结果与判门）；随后 D-3 才选 reviewer（须未见 holdout 与消费集失败位置，且不能是构造者）。**
+- **当前动作：§162 A3-D-3 已执行 —— fresh composite holdout 两个 cluster 均 FAIL，且复现旧签名**（见 §162.9）。GPT-5.6 Sol 在**全新隔离会话**、仅凭 leak-free packet、**单次**尝试下得到 A `6/6+4/6`、B `6/6+4/6`：4 个失败全是 `unsupported_claim`（`EG=gap` 检出、`CS=supported` 未达期望），`missing_aspect`/`wrong_citation` 全对、无虚假 issue、真实答案 2/2 clean。**overall_pass=false、eligible_for_authority_review=false、qualified_judge=false、release_gate=NO_GO**；未 retry、未给提示。这是首次**跨文档/跨主题/fresh holdout 复现**，结论升级为 **reproducible reviewer-family failure mode**（未放宽合同、未改期望）。消费集仍为 `CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION`。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = 显式裁定二选一：(a) 接受该家族刻画作为当前合格语义判定能力的边界；(b) 用同一冻结 holdout 去资格化另一 reviewer 家族（须记录"家族在两次尝试间改变"的解释性代价）。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14678,6 +14678,57 @@ L2: release-benchmark-pilot stage gate = 175 passed
 **未做 / 下一步**：**未选 reviewer、未执行、未生成 packet 文件**。D-3 = 选择**真正未污染**的 reviewer
 （不能是 holdout 构造者，且最好未见过消费集 item-05/06 的具体失败位置）后，执行**单次** fresh
 qualification attempt；只有 `overall_pass = A AND B` 才进入 QualificationAuthority。
+
+### 162.9 A3-D-3 执行（2026-10-01）：fresh composite holdout **FAIL**，且**复现**旧签名
+
+**执行**（单次、无提示、无 retry、无换 session 重抽）：
+
+```text
+holdout        RQ-QUAL-HOLDOUT-v1   composite sha256 e5da77ca…
+clusters       A = NWS-HEAT  (fixture d99fc107… / source 3663875d…)
+               B = NOAA-TIDES (fixture 0f5fd6a7… / source 276fa82d…)
+packet_sha256  f8d3ff81af3adff8f5ee69222642fb4703290fa034e68e73cea8b3048f4168f5
+items          16 | reviewer = OpenAI / GPT / gpt-5.6-sol | 全新隔离会话
+transport      manual_copy_paste（operator 只搬运，不参与 verdict）
+output_hash    afcaf52dc360d741e3b59582226b0a05bb117cb80d02d801117862bd933fbab8
+```
+
+**结果**：
+
+```text
+CLUSTER-A-NWS-HEAT    target 6/6  specificity 4/6  clean 2/2  pass=false
+CLUSTER-B-NOAA-TIDES  target 6/6  specificity 4/6  clean 2/2  pass=false
+overall_pass=false | eligible_for_authority_review=false
+qualified_judge=false | formal_semantic_label=false | release_gate=NO_GO
+```
+
+**失败签名（与 A3-B2 完全一致）**：4 个失败全部是 `unsupported_claim` 控制，均为
+`EG=gap`（目标检出）但 `CS=supported`（期望 `gap`）。`missing_aspect` 与 `wrong_citation`
+全部精确命中，**无任何虚假 issue**；两 cluster 的真实答案均 clean（2/2）。
+
+**性质升级**：这是**首次跨文档、跨主题、fresh holdout 的复现** —— 消费集尝试
+（`rq-review-20261001-001`）同样是 `6/6 + 4/6`、同样只错在 `unsupported_claim` 的 `citation_support`。
+故结论从"单次轴语义不稳定"升级为 **reproducible reviewer-family failure mode**：
+对该家族，"citation 能解析到真实来源" 与 "citation 支持该句" 未被区分。
+**冻结期望未改、未放宽**；未授予任何资格。
+
+**范围限制（记录以防说大）**：只刻画一个家族 / 版本，不推广到所有模型；不证明换家族会通过；
+不构成合同缺陷（`citation_support` 已在冻结 rubric 中按语义定义，且该定义已交付 reviewer）；
+消费集 repeat 与本次 fresh attempt 一致，是关于 reviewer 的证据，不是 holdout 设计问题。
+
+**证据**：`docs/research_quality/RELEASE_BENCHMARK_QUALIFICATION_HOLDOUT_2026-10-01/`
+（`FINDINGS.md` / `private_manifest.json` / `reviewer_response.json` / `raw_reviewer_response.txt` /
+`ingested_review.json`）。`packet.txt` 可由冻结 fixture 机械重生成，故只记录 digest、不提交。
+
+**未做**：未 retry、未给提示、未换 session 重抽；未进入 QualificationAuthority（不可用）。
+
+**下一步（需显式裁定，本刀不代决）**：
+
+```text
+(a) 接受该家族刻画，作为当前"合格语义判定"能力的边界；
+(b) 用同一冻结 holdout 去资格化另一个 reviewer 家族
+    （须记录"reviewer 家族在两次尝试之间改变"这一解释性代价）。
+```
 
 ### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
 
