@@ -18,6 +18,13 @@ from src.application.answer_consistency import (
     check_answer_consistency,
     consistency_gate_enabled,
 )
+from src.application.learner_state_shadow_seam import (
+    build_decision_input_hashes,
+    observe_shadow_for_turn,
+    publish_shadow_observation,
+    shadow_read_enabled,
+)
+from src.application.shadow_isolation import BestEffortTelemetry
 from src.context_builder import build_messages
 from src.domain.answer_claims import rejected_answer_claim_snapshot
 from src.domain.answer_validation import (
@@ -189,6 +196,9 @@ class ChatDependencies:
         default_factory=EvidenceDisclosurePolicy
     )
     resolve_web_tools: Callable[..., WebToolTrace] = web_tools_disabled
+    # 164-C1b-1: durable learner-model reader for the shadow path. None keeps the
+    # shadow inert; the feature flag is the second, independent gate.
+    read_learner_model: Callable[[str], Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -219,14 +229,69 @@ def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str)
     return poll
 
 
+def _observe_turn_shadow(
+    service: Any,
+    *,
+    thread_id: str,
+    turn_id: str,
+    learning_state_before: LearningState,
+    route: dict[str, Any],
+    pedagogy_plan: PedagogyTurnPlan,
+    retrieval_plan: object,
+    messages: list[dict[str, Any]],
+    learner_evaluation: PedagogyEvalRun,
+):
+    """164-C1b-1 narrow seam: hash decision inputs, then run the bounded shadow read.
+
+    Returns None when the flag is off or no durable reader is wired. Never raises.
+    The result is a **dead end**: only telemetry consumes it.
+    """
+    if not shadow_read_enabled():
+        return None
+    reader = service.dependencies.read_learner_model
+    if reader is None:
+        return None
+    try:
+        decision_inputs = build_decision_input_hashes(
+            route=route,
+            pedagogy_plan=pedagogy_plan,
+            retrieval_plan=retrieval_plan,
+            messages=messages,
+        )
+        raw_misconceptions = learner_evaluation.deterministic_result.get(
+            "misconceptions"
+        )
+        misconceptions: tuple[str, ...] = tuple(
+            str(item)
+            for item in (
+                raw_misconceptions
+                if isinstance(raw_misconceptions, (list, tuple))
+                else ()
+            )
+        )
+        return observe_shadow_for_turn(
+            thread_id=thread_id,
+            turn_id=turn_id,
+            learning_state_before=learning_state_before,
+            snapshot_reader=lambda: reader(thread_id),
+            decision_inputs=decision_inputs,
+            legacy_misconceptions=misconceptions,
+        )
+    except Exception:  # noqa: BLE001 - fail-open; the turn must not be affected
+        return None
+
+
 class ChatService:
     def __init__(
         self,
         repository: RuntimeRepository,
         dependencies: ChatDependencies | None = None,
+        shadow_telemetry: BestEffortTelemetry | None = None,
     ):
         self.repository = repository
         self.dependencies = dependencies or ChatDependencies()
+        # 164-C1b-1: best-effort, non-blocking, outside any transaction.
+        self.shadow_telemetry = shadow_telemetry
 
     def _make_cancel_check(
         self, turn_id: str, operation_id: str
@@ -519,6 +584,21 @@ class ChatService:
                 operation_id=operation_id,
                 conversation_instruction=command.conversation_instruction,
             )
+            # --- 164-C1b-1 shadow read: DEAD END, telemetry only (docs 164.15) ---
+            # Decision-input hashes are computed *before* the shadow call and passed
+            # in, so the observer cannot participate in the planning inputs they
+            # represent. No branch below may read shadow_result.
+            shadow_result = _observe_turn_shadow(
+                self,
+                thread_id=thread.id,
+                turn_id=turn_id,
+                learning_state_before=learning_state,
+                route=route,
+                pedagogy_plan=pedagogy_plan,
+                retrieval_plan=retrieval_plan,
+                messages=messages,
+                learner_evaluation=learner_evaluation,
+            )
             expected = (
                 "pending"
                 if reserved_existing is None or reserved_existing.status == "pending"
@@ -542,6 +622,14 @@ class ChatService:
             )
             if streaming is None:
                 raise RuntimeError(f"Chat turn was not created: {turn_id}")
+            if shadow_result is not None:
+                # Best-effort and non-blocking: enqueue and continue. Publish only
+                # after the turn's start state is persisted.
+                publish_shadow_observation(
+                    shadow_result,
+                    telemetry=self.shadow_telemetry,
+                    turn_start_persistence_confirmed=streaming is not None,
+                )
         except (TurnCancelled, RetrievalCancelled) as exc:
             self._settle_cancelled_preparation(
                 turn_id=turn_id,
