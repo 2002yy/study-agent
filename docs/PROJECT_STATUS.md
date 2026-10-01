@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§163 资产对账已完成（矩阵 + 4 项待裁定）；主线 A 与并行轨 B 双轨并行**（见 §163 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163 产出**：17 个旧学习/教学资产的权威矩阵（实现位置 / 持久化 / 写入者 / 是否在 chat turn 运行时 / KEEP·UPGRADE·MERGE·RETIRE 提案）+ 8 条结构发现（F1 两套并行 learning state；F2 ResumePoint·EvidenceSet 是文档虚构；F3 学习域 Observation·Assessment 不存在；F5 retention·review_due 完全不存在；F6 mastery 被刻意设为不可表示）。**四项待裁定**：★1 NextStep 写入权；★2 学习域 Assessment 权限边界；★3 dormant prerequisite 边 RETIRE 或升级为 §165 图边；★4 三个 closure service 是否合并。**双轨**：主线 A = §163→§164（Unified Learner State v2，mastery 必须来自证据）→§165→§166→§167→§168→§169→§170→§171；并行 B = §172.1 Release coverage（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。**唯一下一步 = 裁定 ★1–★4 后进入 §164（Learner State v2 契约冻结）；并行 B 可按 §172.1 的 172-a 独立推进。**
+- **当前动作：§163 资产对账 + 四项裁定均已冻结；下一步 = §164 Projection & Authority Contract**（见 §163.1–§163.6 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163 产出**：17 个旧学习/教学资产权威矩阵 + 8 条结构发现（F1 两套并行 learning state；F2 ResumePoint·EvidenceSet 是文档虚构；F3 学习域 Observation·Assessment 不存在；F5 retention·review_due 不存在；F6 mastery 被刻意设为不可表示）。**四项裁定（§163.4）**：★1 NextStep = Planner **PROPOSE** / LearnerModel **READ** / ClosureTruth **COMMIT**；★2 Assessment = 机器可评价但**不得**成为 formal semantic label、**不得**直写 mastery/UnderstandingEvidence，且**无权威证据时须 abstain**；★3 goal→goal prerequisite **RETIRE_AS_AUTHORITY**，语义迁入 §165 Concept→Concept；★4 closure **合并 authority surface、保留三层内部职责**。总原则：**Planner 提议 / LearnerModel 投影 / Closure 授权写入，任何模块不得同时观察+判断+改长期真值**。**§164 重新定位（§163.5）= Projection & Authority Contract**（不建大表；统一 durable truth → LearnerModelSnapshot → chat-turn readable context；最大新增工作 = 把 chat runtime 的 PedagogyEvalRun/misconception/objective 可靠变成 closure candidate，并让下一轮 chat 真正读 durable LearnerModel）。**双轨**：主线 A = §164→§165→§166→§167→§168→§169→§170→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。**唯一下一步 = §164 契约冻结（Projection & Authority Contract），再实现。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14875,7 +14875,116 @@ F8 dormant：`add_prerequisite` / `list_prerequisite_ids`（仅测试）；
    LearningSemanticClosureService）是否 MERGE 为单一 authority
 ```
 
-### 163.4 新路线图（冻结顺序）与 Memory 形态
+### 163.4 四项裁定（冻结，2026-10-01）
+
+**总原则（冻结）**：
+
+> **Planner 负责提议，Learner Model 负责投影，Closure 负责授权写入。**
+> **任何模块不得同时"观察 + 判断 + 改长期真值"。**
+
+**★1 NextStep 写入权**：
+
+```text
+Teaching Planner -> NextStepCandidate -> closure review
+                 -> LearningClosureTruthService -> durable NextStep
+
+权限：Planner                 PROPOSE
+      LearnerModel            READ（只读 derived projection，不因 §164 获得写权）
+      ClosureTruthAuthority   COMMIT / REPLACE PRIMARY
+      User                    可在 closure review 中确认 / 改写
+理由：NextStep 有"唯一 active primary"约束，属长期状态变更，
+      不能让每一次 Planner 推理随手覆盖。
+```
+
+**★2 Learning Assessment 权限边界**：
+
+```text
+PedagogyAssessment
+├─ objective_ref / response_ref
+├─ result: pass | partial | fail | abstain
+├─ basis / evidence_refs
+└─ evaluator_kind / confidence / provenance
+
+允许：deterministic evaluator -> assessment；LLM evaluator -> assessment
+禁止：assessment.pass -> mastery=true
+      assessment.pass -> UnderstandingEvidence(pass) **直写**
+必须：Assessment -> closure candidate -> explicit closure review -> durable UnderstandingEvidence
+```
+
+**硬边界（与 §162 的接口）**：
+
+> 若 Assessment 的正确性依赖一个**尚无权威来源支持的外部事实**，机器**不得**凭自身世界知识
+> 把它升级成 durable pass；无可信 evidence 时 -> `assessment = abstain`，或要求 research / manual review。
+
+原则：**机器可以评价学习表现；机器不能因为评价了学习表现，就顺便取得事实真值权。**
+（Assessment 回答"用户这次表现如何"；Semantic authority 回答"外部事实真伪" —— §162 失败的是后者。）
+
+**★3 prerequisite dormant 边**：
+
+```text
+learning_goal_prerequisites:
+  RETIRE_AS_AUTHORITY
+  SEMANTIC_IDEA -> §165 ConceptGraph
+  NO SILENT TABLE REPURPOSING
+
+§165 新建：Concept -prerequisite_of-> Concept
+           LearningGoal -objectives-> Concept[]
+理由：Goal 与 Concept 不是一个层级；goal→goal 边过粗，且用户换 Goal 后知识依赖不应消失。
+（若日后发现真实历史数据，写显式 migration，不把原表偷偷改义。）
+```
+
+**★4 三个 Closure Service**：
+
+```text
+不物理合成 God Service；MERGE AUTHORITY SURFACE / KEEP INTERNAL SEPARATION
+
+LearningClosureService          = workflow / orchestration（**唯一公共入口**）
+LearningSemanticClosureService  = semantic mapping / normalization（**无 commit authority**）
+LearningClosureTruthService     = sole durable truth writer
+
+链路：Chat runtime -> LearningClosureService -> SemanticClosureService
+                 -> review / confirmation -> ClosureTruthService -> learning_* truth
+```
+
+**★ 最终冻结表**：
+
+| 项目 | 裁定 |
+| --- | --- |
+| ★1 NextStep | Planner **PROPOSE**；LearnerModel **READ**；ClosureTruth **COMMIT** |
+| ★2 Assessment | 机器可评价，但只是 pedagogical assessment；**不得**成为 formal semantic label，**不得**直写 mastery / UnderstandingEvidence |
+| ★3 prerequisite | 当前 goal→goal authority **退休**；语义思想迁入 §165 新 Concept→Concept graph |
+| ★4 closure services | **不**物理合成一个 God Service；合并公共 authority surface，内部保持 orchestration / semantic mapping / durable commit 三层 |
+
+### 163.5 §164 重新定位（冻结）
+
+```text
+§164 Unified Learner State v2 —— Projection & Authority Contract
+```
+
+核心**不是**建一张 `learner_state` 大表，而是统一：
+
+```text
+durable truth -> LearnerModelSnapshot -> chat-turn readable learner context
+```
+
+并继续坚持现在**已经成立**的原则（属继承，不是新建）：
+
+```text
+没有 mastery score
+LLM 不能直接宣布 mastery
+assessment ≠ mastery
+LearnerModel ≠ writer
+Planner ≠ truth authority
+```
+
+**本阶段最大新增工作**：
+
+> 把 chat runtime 已经产生的 `PedagogyEvalRun` / misconception / objective 等，**可靠地变成
+> closure candidate**；然后让下一轮 chat **真正读取 durable LearnerModel**，而不是继续依赖 legacy JSON。
+
+（对应 §163.2 的 F1：两套并行 learning state 的收敛。）
+
+### 163.6 新路线图（冻结顺序）与 Memory 形态
 
 ```text
 §163 资产对账（本刀）
