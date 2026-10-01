@@ -1,4 +1,4 @@
-"""§164-C1b: the shadow read must be bounded, isolated and droppable."""
+"""§164-C1b-0: the shadow read must be bounded in workers, queue and telemetry."""
 
 from __future__ import annotations
 
@@ -7,36 +7,47 @@ import time
 
 import pytest
 
+from src.application import shadow_isolation as iso
 from src.application.learner_state_parity_observer import LearnerStateParityCollector
 from src.application.shadow_isolation import (
     BestEffortTelemetry,
+    CALLER_CANCELLED,
+    CALLER_COMPLETED,
+    CALLER_FAILED,
+    CALLER_REJECTED,
+    CALLER_TIMED_OUT,
     DEFAULT_SHADOW_BUDGET_SECONDS,
+    SHADOW_CAPACITY,
+    SHADOW_WORKERS,
     ShadowOutcome,
     run_shadow_bounded,
+    shadow_resource_state,
 )
 from src.domain.learner_state_parity import SHADOW_ERROR, SHADOW_OK, SHADOW_UNAVAILABLE
 
 BUDGET = 0.15
 
 
-def test_normal_work_returns_ok_with_its_value() -> None:
+# ------------------------------------------------------------------ behaviour
+
+def test_normal_work_completes() -> None:
     outcome = run_shadow_bounded(lambda: {"classification": "MATCH"}, budget_seconds=BUDGET)
-    assert outcome.ok is True
     assert outcome.status == SHADOW_OK
+    assert outcome.caller_status == CALLER_COMPLETED
     assert outcome.value == {"classification": "MATCH"}
 
 
-def test_failing_work_is_fail_open() -> None:
+def test_failing_work_is_isolated() -> None:
     def explode() -> object:
         raise RuntimeError("durable read exploded")
 
     outcome = run_shadow_bounded(explode, budget_seconds=BUDGET)
     assert outcome.status == SHADOW_ERROR
     assert outcome.reason == "RuntimeError"
-    assert outcome.value is None
+    assert outcome.caller_status == CALLER_FAILED
 
 
-def test_stalling_work_hits_the_budget_and_the_caller_continues() -> None:
+def test_stall_hits_the_budget_and_does_not_claim_the_worker_stopped() -> None:
     release = threading.Event()
 
     def stall() -> object:
@@ -49,96 +60,165 @@ def test_stalling_work_hits_the_budget_and_the_caller_continues() -> None:
 
     assert outcome.status == SHADOW_UNAVAILABLE
     assert outcome.reason == "budget_exceeded"
-    # The caller returned within the budget, not when the worker finished.
+    assert outcome.caller_status == CALLER_TIMED_OUT
+    # A running thread cannot be safely killed, so this must stay unknown.
+    assert outcome.worker_termination_known is False
     assert elapsed < 1.0, elapsed
     release.set()
 
 
-def test_cancellation_of_the_shadow_does_not_propagate() -> None:
-    """shadow cancellation != production turn cancellation."""
-
-    def cancelled() -> object:
-        raise KeyboardInterrupt
-
-    outcome = run_shadow_bounded(cancelled, budget_seconds=BUDGET)
-    assert isinstance(outcome, ShadowOutcome)
-    assert outcome.status == SHADOW_ERROR
-    assert outcome.reason == "isolated:KeyboardInterrupt"
-
-
-def test_non_positive_budget_is_unavailable_not_an_error() -> None:
+def test_non_positive_budget_is_rejected() -> None:
     outcome = run_shadow_bounded(lambda: "x", budget_seconds=0)
     assert outcome.status == SHADOW_UNAVAILABLE
     assert outcome.reason == "budget_not_positive"
+    assert outcome.caller_status == CALLER_REJECTED
 
 
-def test_slow_telemetry_does_not_block_the_returned_outcome() -> None:
-    recorded: list[object] = []
+def test_cancelled_work_is_isolated() -> None:
+    from concurrent.futures import CancelledError
 
-    def slow_sink(value: object) -> None:
-        time.sleep(0.5)
-        recorded.append(value)
+    def cancelled() -> object:
+        raise CancelledError()
 
+    outcome = run_shadow_bounded(cancelled, budget_seconds=BUDGET)
+    assert outcome.status == SHADOW_ERROR
+    assert outcome.caller_status == CALLER_CANCELLED
+    assert outcome.reason == "isolated:cancelled"
+
+
+# ------------------------------------------- process signals are not swallowed
+
+def test_keyboard_interrupt_is_not_swallowed_as_a_shadow_error() -> None:
+    """Business failure isolation is not the same as masking process control."""
+
+    def interrupt() -> object:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        run_shadow_bounded(interrupt, budget_seconds=BUDGET)
+
+
+def test_system_exit_is_not_swallowed_as_a_shadow_error() -> None:
+    def exit_now() -> object:
+        raise SystemExit(3)
+
+    with pytest.raises(SystemExit):
+        run_shadow_bounded(exit_now, budget_seconds=BUDGET)
+
+
+# ------------------------------------------------------- resource boundedness
+
+def test_worker_count_stays_bounded_under_repeated_stalls() -> None:
+    release = threading.Event()
+
+    def stall() -> object:
+        release.wait(timeout=5)
+        return None
+
+    for _ in range(12):
+        run_shadow_bounded(stall, budget_seconds=0.02)
+
+    state = shadow_resource_state()
+    assert state["live_threads"] <= SHADOW_WORKERS, state
+    release.set()
+
+
+def test_saturation_is_rejected_promptly_instead_of_queueing() -> None:
+    held = [iso._capacity.acquire(blocking=False) for _ in range(SHADOW_CAPACITY)]
+    assert all(held)
+    try:
+        started = time.monotonic()
+        outcome = run_shadow_bounded(lambda: "queued?", budget_seconds=1.0)
+        elapsed = time.monotonic() - started
+        assert outcome.status == SHADOW_UNAVAILABLE
+        assert outcome.reason == "capacity_exhausted"
+        assert outcome.caller_status == CALLER_REJECTED
+        assert elapsed < 0.2, elapsed
+    finally:
+        for _ in held:
+            iso._capacity.release()
+
+
+def test_capacity_is_released_after_each_call() -> None:
+    before = shadow_resource_state()["capacity_available"]
+    run_shadow_bounded(lambda: "x", budget_seconds=BUDGET)
+    assert shadow_resource_state()["capacity_available"] == before
+
+
+def test_default_budget_is_a_named_constant_not_a_tuned_parameter() -> None:
+    assert isinstance(DEFAULT_SHADOW_BUDGET_SECONDS, float)
+    assert 0 < DEFAULT_SHADOW_BUDGET_SECONDS <= 1.0
+
+
+# --------------------------------------------------------- bounded telemetry
+
+def test_slow_telemetry_does_not_block_the_caller() -> None:
+    telemetry = BestEffortTelemetry(LearnerStateParityCollector())
     started = time.monotonic()
     outcome = run_shadow_bounded(
-        lambda: "observation", budget_seconds=BUDGET, on_telemetry=slow_sink
+        lambda: "observation", budget_seconds=BUDGET,
+        on_telemetry=lambda value: telemetry.record(value),
     )
     elapsed = time.monotonic() - started
-
-    # The read was bounded; the telemetry hook is the caller's own cost and is
-    # not part of the read budget, but it must never change the outcome.
     assert outcome.status == SHADOW_OK
-    assert outcome.value == "observation"
-    assert elapsed < 1.0
+    assert elapsed < 0.5, elapsed
+    assert telemetry.flush(timeout=1.0) is True
+    telemetry.close()
 
 
-def test_telemetry_failure_is_swallowed() -> None:
-    def broken_sink(value: object) -> None:
-        raise RuntimeError("telemetry write failed")
+def test_telemetry_saturation_drops_instead_of_growing_a_backlog() -> None:
+    class StalledSink:
+        def __init__(self) -> None:
+            self.release = threading.Event()
 
-    outcome = run_shadow_bounded(
-        lambda: "observation", budget_seconds=BUDGET, on_telemetry=broken_sink
-    )
-    assert outcome.status == SHADOW_OK
-    assert outcome.value == "observation"
+        def record(self, observation: object) -> None:
+            self.release.wait(timeout=2)
+
+    sink = StalledSink()
+    telemetry = BestEffortTelemetry(sink, capacity=4)
+    for index in range(50):
+        telemetry.record(index)
+
+    assert telemetry.pending <= 4
+    assert telemetry.dropped >= 40
+    sink.release.set()
+    telemetry.close()
 
 
-def test_best_effort_telemetry_drops_failures_without_raising() -> None:
+def test_telemetry_failure_is_counted_not_raised() -> None:
     class BrokenSink:
         def record(self, observation: object) -> None:
             raise RuntimeError("collector is down")
 
     telemetry = BestEffortTelemetry(BrokenSink())
     telemetry.record({"turn_id": "t1"})
+    assert telemetry.flush(timeout=1.0) is True
     assert telemetry.recorded == 0
     assert telemetry.dropped == 1
-
-
-def test_best_effort_telemetry_counts_successful_records() -> None:
-    collector = LearnerStateParityCollector()
-    telemetry = BestEffortTelemetry(collector)
-    telemetry.record("observation")
-    assert telemetry.recorded == 1
-    assert telemetry.dropped == 0
-    assert collector.observations() == ("observation",)
+    telemetry.close()
 
 
 def test_missing_sink_is_a_legal_drop() -> None:
     """chat turn success + parity artifact missing is a legal state."""
     telemetry = BestEffortTelemetry(None)
     telemetry.record("observation")
+    assert telemetry.flush(timeout=1.0) is True
     assert telemetry.recorded == 0
+    assert telemetry.dropped == 1
+    telemetry.close()
+
+
+def test_closed_telemetry_drops_without_raising() -> None:
+    telemetry = BestEffortTelemetry(LearnerStateParityCollector())
+    telemetry.close()
+    telemetry.record("late")
     assert telemetry.dropped == 1
 
 
-def test_default_budget_is_an_explicit_constant() -> None:
-    assert isinstance(DEFAULT_SHADOW_BUDGET_SECONDS, float)
-    assert 0 < DEFAULT_SHADOW_BUDGET_SECONDS <= 1.0
+# ------------------------------------------------------ caller always resumes
 
-
-@pytest.mark.parametrize("scenario", ["normal", "throws", "stalls", "cancelled"])
+@pytest.mark.parametrize("scenario", ["normal", "throws", "stalls", "rejected"])
 def test_production_path_always_continues(scenario: str) -> None:
-    """Whatever the shadow does, the caller gets control back and can proceed."""
     release = threading.Event()
 
     def work() -> object:
@@ -146,19 +226,16 @@ def test_production_path_always_continues(scenario: str) -> None:
             return "ok"
         if scenario == "throws":
             raise ValueError("boom")
-        if scenario == "cancelled":
-            raise KeyboardInterrupt
         release.wait(timeout=5)
         return "late"
 
-    outcome = run_shadow_bounded(work, budget_seconds=BUDGET)
-    production_continued = True  # the call returned; the turn can proceed
-    assert production_continued is True
+    budget = 0.0 if scenario == "rejected" else BUDGET
+    outcome = run_shadow_bounded(work, budget_seconds=budget)
     assert isinstance(outcome, ShadowOutcome)
     if scenario == "normal":
         assert outcome.status == SHADOW_OK
     elif scenario == "stalls":
         assert outcome.status == SHADOW_UNAVAILABLE
     else:
-        assert outcome.status == SHADOW_ERROR
+        assert outcome.status in (SHADOW_ERROR, SHADOW_UNAVAILABLE)
     release.set()

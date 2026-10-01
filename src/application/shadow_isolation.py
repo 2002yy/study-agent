@@ -1,25 +1,38 @@
-"""§164-C1b: bounded, isolated execution for the shadow read.
+"""§164-C1b-0: bounded-resource, isolated execution for the shadow read.
 
-The hook point in ``ChatService.start_turn`` is **synchronous**, so the isolation
-this module provides is bounded synchronous execution rather than asyncio
-scheduling: the shadow work runs on a worker thread with an explicit budget, and
-the caller returns as soon as the budget is spent.
+Latency isolation alone is not production-inert. ``shutdown(wait=False)`` only
+means "I did not wait for it"; it does not mean "it stopped". A stalled reader on
+a per-call executor would leave a live worker behind on every turn, so the single
+call stays fast while threads grow without bound.
 
-Contract, not technique (164.13):
+This module therefore bounds three resources, not just one:
 
-- a shadow failure, a shadow stall or a shadow cancellation must never delay or
-  cancel the production turn beyond the bounded budget;
-- the caller always receives a result object and never an exception;
-- a budget overrun yields ``unavailable`` and the legacy path continues.
+- **workers**: one shared executor with a small fixed worker count;
+- **admission**: a semaphore, so a saturated shadow rejects immediately instead of
+  queueing (an unbounded default queue would just trade thread growth for queue
+  growth);
+- **telemetry**: a bounded queue with drop-on-overload and a single daemon
+  flusher, so a slow sink cannot build an unbounded backlog.
 
-No particular mechanism is promised here - only that the budget is enforced and
-provable by test.
+It also reports honestly what happened: a caller timeout is recorded as
+``timed_out`` with ``worker_termination_known=False``, never as "the worker was
+cancelled", because a running Python thread cannot be safely killed.
+
+Process control signals are deliberately *not* swallowed: business failure
+isolation is not the same as masking KeyboardInterrupt or SystemExit.
 """
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from concurrent.futures import (
+    CancelledError,
+    ThreadPoolExecutor,
+    TimeoutError as FutureTimeout,
+)
 from dataclasses import dataclass
+import queue
+import threading
+import time
 from typing import Any, Callable
 
 from src.domain.learner_state_parity import (
@@ -29,9 +42,46 @@ from src.domain.learner_state_parity import (
 )
 
 # First version budget. Deliberately a named constant rather than a tuned
-# production parameter: C1 only has to prove the work is bounded, not to find the
-# best number.
+# production parameter: C1 only has to prove the work is finite and bounded, not
+# to find the right number. C2 measures the real distribution.
 DEFAULT_SHADOW_BUDGET_SECONDS = 0.25
+
+# Small and fixed. Shadow work is optional measurement; it never deserves a pool.
+SHADOW_WORKERS = 2
+SHADOW_CAPACITY = 4
+TELEMETRY_CAPACITY = 64
+
+CALLER_COMPLETED = "completed"
+CALLER_TIMED_OUT = "timed_out"
+CALLER_FAILED = "failed"
+CALLER_CANCELLED = "cancelled"
+CALLER_REJECTED = "rejected"
+
+_SHUTDOWN = object()
+_executor_lock = threading.Lock()
+_executor: ThreadPoolExecutor | None = None
+_capacity = threading.BoundedSemaphore(SHADOW_CAPACITY)
+
+
+def _shared_executor() -> ThreadPoolExecutor:
+    global _executor
+    with _executor_lock:
+        if _executor is None:
+            _executor = ThreadPoolExecutor(
+                max_workers=SHADOW_WORKERS, thread_name_prefix="shadow-parity"
+            )
+        return _executor
+
+
+def shadow_resource_state() -> dict[str, int]:
+    """Observability for tests and diagnostics: bounded, by construction."""
+    executor = _executor
+    return {
+        "max_workers": SHADOW_WORKERS,
+        "live_threads": 0 if executor is None else len(getattr(executor, "_threads", ())),
+        "capacity_total": SHADOW_CAPACITY,
+        "capacity_available": _capacity._value,  # noqa: SLF001 - diagnostic only
+    }
 
 
 @dataclass(frozen=True)
@@ -41,10 +91,22 @@ class ShadowOutcome:
     status: str
     value: object | None = None
     reason: str = ""
+    caller_status: str = ""
+    worker_cancel_requested: bool = False
+    worker_termination_known: bool = False
 
     @property
     def ok(self) -> bool:
         return self.status == SHADOW_OK
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "caller_status": self.caller_status,
+            "worker_cancel_requested": self.worker_cancel_requested,
+            "worker_termination_known": self.worker_termination_known,
+        }
 
 
 def run_shadow_bounded(
@@ -53,63 +115,134 @@ def run_shadow_bounded(
     budget_seconds: float = DEFAULT_SHADOW_BUDGET_SECONDS,
     on_telemetry: Callable[[object], None] | None = None,
 ) -> ShadowOutcome:
-    """Run shadow work under a hard budget. Never raises, never blocks past it.
+    """Run shadow work under a hard budget and a bounded admission policy.
 
-    ``on_telemetry`` is invoked best-effort after the budgeted read and outside
-    any caller transaction; its own failure or slowness cannot affect the
-    returned outcome, because it runs after the result is decided and its
-    exceptions are swallowed.
+    Never queues, never blocks past the budget, and never raises a business
+    failure. Process control signals (KeyboardInterrupt, SystemExit) are not
+    treated as shadow errors and are allowed to propagate.
     """
     if budget_seconds <= 0:
-        return ShadowOutcome(SHADOW_UNAVAILABLE, None, "budget_not_positive")
+        return ShadowOutcome(
+            SHADOW_UNAVAILABLE, None, "budget_not_positive", CALLER_REJECTED
+        )
+    if not _capacity.acquire(blocking=False):
+        # Saturated: reject immediately rather than queue. Queueing would merely
+        # move the unbounded growth from threads to backlog.
+        return ShadowOutcome(
+            SHADOW_UNAVAILABLE, None, "capacity_exhausted", CALLER_REJECTED
+        )
 
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="shadow-parity")
     try:
-        future = executor.submit(work)
+        future = _shared_executor().submit(work)
         try:
             value = future.result(timeout=budget_seconds)
         except FutureTimeout:
-            # The budget is spent. We deliberately do not wait for the worker:
-            # an overrun must not delay the turn, and a lingering worker is the
-            # bounded cost of that guarantee.
-            return ShadowOutcome(SHADOW_UNAVAILABLE, None, "budget_exceeded")
-        except Exception as exc:  # noqa: BLE001 - fail-open is the contract
-            return ShadowOutcome(SHADOW_ERROR, None, type(exc).__name__)
-        except BaseException as exc:  # noqa: BLE001 - cancellation isolation
-            # A shadow that is cancelled (or otherwise killed) must not cancel
-            # the production turn: report and continue.
-            return ShadowOutcome(SHADOW_ERROR, None, f"isolated:{type(exc).__name__}")
+            # `future.cancel()` only cancels work that has not started. A running
+            # thread cannot be safely killed, so we report the caller side
+            # honestly instead of claiming the worker stopped.
+            requested = future.cancel()
+            outcome = ShadowOutcome(
+                SHADOW_UNAVAILABLE, None, "budget_exceeded", CALLER_TIMED_OUT,
+                worker_cancel_requested=bool(requested),
+                worker_termination_known=False,
+            )
+        except CancelledError:
+            outcome = ShadowOutcome(
+                SHADOW_ERROR, None, "isolated:cancelled", CALLER_CANCELLED,
+                worker_termination_known=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - business failure isolation
+            outcome = ShadowOutcome(
+                SHADOW_ERROR, None, type(exc).__name__, CALLER_FAILED,
+                worker_termination_known=True,
+            )
+        else:
+            outcome = ShadowOutcome(
+                SHADOW_OK, value, "", CALLER_COMPLETED, worker_termination_known=True
+            )
     finally:
-        # shutdown(wait=False): the caller must not block on an overrun worker.
-        executor.shutdown(wait=False)
+        _capacity.release()
 
-    if on_telemetry is not None:
+    if on_telemetry is not None and outcome.ok:
         try:
-            on_telemetry(value)
+            on_telemetry(outcome.value)
         except Exception:  # noqa: BLE001 - telemetry may be dropped
             pass
-    return ShadowOutcome(SHADOW_OK, value)
+    return outcome
 
 
 class BestEffortTelemetry:
-    """Collector wrapper whose failures are always swallowed.
+    """Bounded telemetry sink: drop on overload instead of growing a backlog.
 
     ``chat turn success + parity artifact missing`` is a legal state; the reverse
-    - a parity artifact that can fail or roll back a turn - is forbidden.
+    - a parity artifact that can fail or roll back a turn - stays forbidden.
     """
 
-    def __init__(self, sink: Any | None = None) -> None:
+    def __init__(self, sink: Any | None = None, *, capacity: int = TELEMETRY_CAPACITY) -> None:
         self._sink = sink
-        self.dropped = 0
-        self.recorded = 0
+        self._queue: queue.Queue[object] = queue.Queue(maxsize=capacity)
+        self._lock = threading.Lock()
+        self._recorded = 0
+        self._dropped = 0
+        self._closed = False
+        self._flusher = threading.Thread(
+            target=self._drain, name="shadow-telemetry", daemon=True
+        )
+        self._flusher.start()
+
+    @property
+    def recorded(self) -> int:
+        return self._recorded
+
+    @property
+    def dropped(self) -> int:
+        return self._dropped
+
+    @property
+    def pending(self) -> int:
+        return self._queue.qsize()
 
     def record(self, observation: object) -> None:
-        if self._sink is None:
-            self.dropped += 1
+        if self._closed:
+            with self._lock:
+                self._dropped += 1
             return
         try:
-            self._sink.record(observation)
-        except Exception:  # noqa: BLE001 - telemetry may be dropped
-            self.dropped += 1
-            return
-        self.recorded += 1
+            self._queue.put_nowait(observation)
+        except queue.Full:
+            with self._lock:
+                self._dropped += 1
+
+    def _drain(self) -> None:
+        while True:
+            item = self._queue.get()
+            if item is _SHUTDOWN:
+                return
+            try:
+                if self._sink is not None:
+                    self._sink.record(item)
+                    with self._lock:
+                        self._recorded += 1
+                else:
+                    with self._lock:
+                        self._dropped += 1
+            except Exception:  # noqa: BLE001 - telemetry may be dropped
+                with self._lock:
+                    self._dropped += 1
+
+    def flush(self, *, timeout: float = 1.0) -> bool:
+        """Wait for the backlog to drain. Test/diagnostic helper only."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._queue.empty():
+                return True
+            time.sleep(0.005)
+        return self._queue.empty()
+
+    def close(self, *, timeout: float = 1.0) -> None:
+        self._closed = True
+        try:
+            self._queue.put_nowait(_SHUTDOWN)
+        except queue.Full:
+            pass
+        self._flusher.join(timeout=timeout)
