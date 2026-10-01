@@ -53,20 +53,39 @@ Per §162 **C7** (frozen after A3-B2) this set is
   (targeted re-prompt = calibration-set overfitting);
 - does not change the A3-B2 verdict, which stands as FAIL.
 
-## PROVENANCE: UNCONFIRMED — operator must state one
-
-The label below is deliberately left unresolved, because the answer determines
-whether this is a legitimate diagnostic repeat or a forbidden steering attempt:
+## PROVENANCE: DIAGNOSTIC_REPEAT (confirmed by the operator 2026-10-01)
 
 ```text
-(a) fresh isolated session, same packet, no hints about failures   -> diagnostic repeat
-(b) re-prompted after seeing item-05/06 expectations, or with an
-    explicit citation-support rule added                          -> STEERING (banned by C7)
-(c) same session continued after the first answer                  -> contaminated, not a blind run
+provenance_class          = DIAGNOSTIC_REPEAT
+session_isolation         = fresh_session
+packet                    = original_frozen_packet
+failure_position_disclosed = false
+steering                  = false
+qualification_use         = FORBIDDEN
 ```
 
-Until (a) is confirmed, this artifact must not be cited as evidence about
-reviewer capability, and it must never be cited as a qualification attempt.
+Confirmed: a fresh isolated session, the original frozen packet, no disclosure
+of the failure positions and no steering. It is therefore legitimate diagnostic
+evidence about reviewer axis behaviour.
+
+It still cannot qualify anything: C7 marks this calibration set
+`CONSUMED_FOR_QUALIFICATION_SELECTION`, so a repeat on it is forbidden for
+qualification **even if it had reached 6/6 + 6/6**.
+
+## What the repeat strengthens
+
+```text
+item-05  still reports citation_support = supported
+item-06  now reports gap, but via an extra wrong_citation issue
+         (missing #page=2 suffix) rather than the semantic rule
+```
+
+So the reviewer's axis mapping for the structure
+`unsupported_claim + real locator + semantic mismatch` is **not stable**: two
+items of the same class were treated differently by the same reviewer in the
+same session. That is diagnostic evidence about axis semantics, not about the
+frozen expectation table, and it is recorded as such.
+
 
 ## Defect found while evaluating this response (fixed)
 
