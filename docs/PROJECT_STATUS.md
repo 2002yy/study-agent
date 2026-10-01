@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-B2 = FAIL 已裁定收口，合同保留**（见 §162.5 与 C7）。首次外部独立家族盲复核（OpenAI/GPT，隔离会话，人工桥接）得到 **6/6 检出 + 4/6 特异性**：两个 `unsupported_claim` 控制命中目标轴但未同时打破 `citation_support`。裁定：**保留冻结期望**（`citation_support` 判"该 citation 是否语义支持该 claim"，非 locator 存在性）；**本次资格正式 FAIL、不 retry、不 steering、不模型轮换**；旧 calibration set 转 **CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION**。未授予任何东西（`eligible_for_authority_review=false`、`qualified_judge=false`、`release_gate=NO_GO`）。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §162 A3-D：冻结 fresh independent qualification holdout（新实例/新 source/新表面形式，expected axes 执行前冻结，保留一条 unsupported-claim+真实 locator+语义不支持 结构且不复用旧 item），再选 reviewer（①另一独立家族 / ②独立 manual_human，③不得重提示同一 GPT 考旧题）。**
+- **当前动作：§162 A3-D holdout 已冻结（未执行）**（见 §162.5 / §162.6 与 C7）。裁定与状态：A3-B2 = **FAIL**（`REVIEWER_AXIS_UNDERDISCRIMINATION`），合同**保留**，repeat-002 已登记为 **DIAGNOSTIC_REPEAT**（fresh session / 未披露失败位置 / 非 steering，但 `qualification_use=FORBIDDEN`）；消费集 = `CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION`。fresh holdout `RQ-HOLDOUT-2026-10-01` 已冻结（NWS-HEAT 新来源，2 instances × (1 baseline + 3 controls) = 6 target + 6 specificity，expected axes 执行前冻结，`wrong_citation` 用真实但无关 locator，`unsupported_claim` 保留"假句 + 真实 locator + 语义不支持"结构且不复用旧 item）。**未授予任何东西**；六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §162 A3-D-2：为 holdout 增加盲 packet 构建入口（从 holdout 而非 answer bundle 取材）；随后 A3-D-3 选 reviewer（须未见 holdout 与消费集失败位置）执行一次盲校准。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14500,6 +14500,74 @@ DeepSeek pro 的 `1/6` 是**广泛过判**；除非能证明它的错误同样�
 必须保留至少一个 `unsupported claim + 结构合法 citation + 真实 locator + locator 语义上不支持该 claim`
 结构，且不复用 item-05/06 内容。reviewer 来源优先级：① 另一真正独立模型家族；② 独立 `manual_human`
 （不得由已知失败位置的人充当）；③ **不得**重提示同一 GPT 考旧题。
+
+### 162.6 A3-D 实现（2026-10-01，单刀；fresh qualification holdout，**冻结不执行**）
+
+**交付**：
+
+```text
+tests/fixtures/release_benchmark/holdout_v1.json                新增：冻结的资格 holdout
+tests/test_release_benchmark_qualification_holdout.py           新增：10 tests
+tests/stage_gates.json                                          注册进 release-benchmark-pilot
+```
+
+**可行性发现（影响设计，已记录）**：盲 packet 只携带**文本**（`source_text` 是字符串），
+因此**视觉主导的 claim 无法通过当前 packet 做盲评**。核对仓内 5 份冻结快照：
+
+```text
+noaa_storm_surge.html          已消费（TEXT-001）
+nasa_moon_lithograph.pdf       已消费（PDF-001）
+nws_heat_safety_onepager.pdf   未使用，文本充足（page1 3070 / page2 2054 chars）-> 选为 holdout source
+nasa_giss_history_annual.pdf   未使用，但仅 120 chars 可提取（趋势为视觉内容）-> 不可用于文本盲评
+usgs_shield_volcano.gif        无文本
+```
+
+结论：在**不新增来源、不改 packet 合同**的前提下，可用的**新文本来源只有一个**。因此 holdout 采用
+**同一新 source 的两个 instance**（page 1 watch/warning 面板 / page 2 heat index），而非两个独立来源。
+**若要两个独立来源，需另冻一份新来源（联网获取 + 冻结）—— 属独立刀，等裁定。**
+
+**结构（冻结）**：
+
+```text
+RQ-HOLDOUT-2026-10-01  content_sha256 d99fc107…
+source: NWS-HEAT（registry 已登记，字节 SHA 校验）
+instance A  page 1  watch vs warning 面板
+instance B  page 2  heat index 定义与算例
+每个 instance：1 baseline（covered/supported/supported）+ 3 controls
+  wrong_citation    -> covered/supported/gap        + wrong_citation
+  missing_aspect    -> partial/supported/supported  + coverage_gap
+  unsupported_claim -> covered/gap/gap              + unsupported_claim
+合计 6 controls -> 6 target + 6 specificity
+```
+
+**两个强化设计选择**：
+
+```text
+1) wrong_citation 控制改用"真实但无关的已登记 locator"（USGS / GISTEMP），不再用 invalid.example
+   -> 避免 reviewer 靠"URL 明显是假的"走捷径，直接考语义。
+2) unsupported_claim 控制严格保留鉴别结构：
+   假句 + 结构合法 citation + 指向真实冻结 locator + locator 语义上不支持该句。
+   内容与已消费 item-05/06 完全不同（不同 source、不同 claim、不同表面形式）。
+```
+
+**answer provenance（冻结，防误读）**：holdout 候选答案**由冻结快照文本手工构造**，**不是模型输出**；
+expected axes 因此可由快照直接证明，而非从某模型行为反推（fixture `answer_provenance` 记录）。
+
+**构造者回避**：fixture 作者知道全部 expected axes，**不得**担任本 holdout 的 reviewer（C7 规则 5），
+已在 fixture `constructor_disqualification` 记录。
+
+**验证**：
+
+```text
+ruff clean | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: test_release_benchmark_qualification_holdout = 10 passed
+L2: release-benchmark-pilot stage gate = 137 passed
+本刀只新增 fixture + test，未改 src/ 生产路径 -> 按 §153/§154/§155 先例不强制 L3（CI 的 pytest 覆盖）
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet**。A3-D-2 = 用 holdout 生成盲 packet
+（需一个新的 packet 构建入口，从 holdout 而非 answer bundle 取材）；A3-D-3 = 选定 reviewer
+（①另一独立家族 / ②独立 manual_human，均须未见本 holdout 与消费集失败位置）后执行一次盲校准。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
