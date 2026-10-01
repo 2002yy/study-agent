@@ -16582,6 +16582,51 @@ G5  PASS（4 NOT_COMPARABLE 全部为 legacy 无 known points 的构造样本）
 isolation / substantive 判据；**未为改善 parity 调门**。
 **下一步**：Phase 2 决策（是否把 D 分布结论用于 §164 的 dual-read / bounded-preference
 Phase 2 设计）—— 属 §164 主线决策，**不在本刀**。
+
+### 164.30 §164-D closeout 与 Phase 2 入口条件（冻结，2026-10-01）
+
+**§164-D（semantic parity evidence）= CLOSED。**
+
+```text
+证据：15 样本 D 分布（全部 stratum=D，全部 gate PASS）
+      + §164.29 预注册的 Phase 2 gate（G1–G5 观测 PASS）
+harness：tools/run_learner_state_parity_d.py
+artifact：docs/research_quality/LEARNER_STATE_PARITY_C2_D_DISTRIBUTION_2026-10-01.json
+边界：src/ 零改动（diff-scope 审计：6 文件全新增，2835 insertions，0 deletions）
+```
+
+**§164.4 的 Phase 2 入口条件已满足（关键）**：
+
+```text
+§164.4 line 15101：「Phase 1 必须**预先定义 equivalence / expected divergence**；
+                    未定义不得进入 Phase 2。」
+=> §164.29 的 G1–G5 **即为该预定义**（由观测分布派生，非期望塑造）：
+     goal/objective       -> 可归因差异为允许（CONFLICT 需字面不同）
+     known understanding  -> MISSING_DURABLE 属 §163 F6 预期；仅 CONFLICT 判缺陷
+     next step            -> 必须 MATCH
+     misconception        -> 必须 MATCH
+     freshness            -> 固定 EXPECTED_DIVERGENCE（durable-only，允许）
+=> **Phase 2 入口条件 = SATISFIED**。
+```
+
+**§164.8 实现顺序进度**：
+
+```text
+§164-A 合同冻结            ✅
+§164-B candidate assembler ✅（learning_candidate_assembler.py）
+§164-C shadow durable read ✅（C1 measurement frozen + C1b wiring + C2 分布）
+§164-D semantic parity ev. ✅ CLOSED（本节）
+§164-E dual-read cutover   ⏳ NEXT（Phase 2：durable 优先 / legacy compatibility fallback）
+```
+
+**§164-E 边界（冻结）**：Phase 2 = **dual read / bounded preference**
+（`durable truth 优先；legacy 仅 compatibility fallback；差异进入 telemetry / test evidence`）。
+§164.7 明确 **不建 learner_state 大表 / 不给 LLM mastery 写权 / 不让 LearnerModel 成为 writer /
+不让 Planner 成为 truth authority**；§164.6 invariant：**snapshot 永远可重建（cache != authority）**。
+**§164-E 是 production cutover，须独立一刀 + 完整预算，不在本刀。**
+
+**CI（`52d32750`）**：exact-head **PR CI = success**（run 36885107668，12m33s）；
+push CI（run 36885094776）本轮查询时仍 in_progress，同 head 同 job，无红灯证据。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
