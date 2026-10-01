@@ -16425,6 +16425,33 @@ commit 侧（learning_closure_truth.commit）依次要求
 **本刀仍未执行（如实记录）**：上述注入件需逐项构造并**各自验证**（fake evaluator 是否真的产出
 accept、candidate 来源是否可解析、claim 是否归属该 evaluation）；任一项未验证就启动，
 即会落入 §164.27 所述"半状态"。故本刀**只定位配方**，构造与执行留待一次有完整验证预算的独立刀。
+
+**Q5 两条边界（冻结，2026-10-01）**：
+
+```text
+① **fake evaluator / generator 是受控输入，不是 bypass**
+   允许：替代模型不确定性（使 accept / candidate 可达）
+   **禁止**：直接伪造 commit 结果 / 直接写 durable store /
+           跳过 LearningClosureService 与 LearningClosureTruthService 的**真实验证链**
+   否则 Q5 不再证明 production closure contract。
+
+② 阶段① 必须**逐 gate 留证据**，不得只留一个最终 `commit succeeded`：
+   generator_candidate_present
+   candidate_source_resolved
+   evaluation_present
+   evaluation_final_decision = accept
+   claim_owned_by_evaluation
+   create_and_execute succeeded
+   commit succeeded
+   durable readback substantive
+   run / completion evidence valid
+   -> 失败时才能准确区分卡在 closure generation / semantic acceptance / source binding /
+      claim ownership / commit / durable persistence，而不是压成一个"closure failed"。
+```
+
+**Q5 完成后的产物（冻结）**：**只得到 continuation authority**；
+正式 D 仍必须**另起独立样本** —— 这样 closure construction 的探索痕迹不会混进真正的
+semantic-parity 数据。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
