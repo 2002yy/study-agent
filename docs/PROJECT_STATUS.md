@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-B2 已执行，结果 = calibration FAIL**（见 §162.5）。首次外部独立家族盲复核（OpenAI/GPT，隔离会话，人工桥接）得到 **6/6 检出 + 4/6 特异性**：两个 `unsupported_claim` 控制命中目标轴但未同时打破 `citation_support`。**未授予任何东西**（`eligible_for_authority_review=false`、`qualified_judge=false`、`formal_semantic_label=false`、`release_gate=NO_GO`），门未因换家族而放宽。§161 同家族探针仍为 fail（1/6 特异性）。六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 显式裁定二选一：(a) 合同问题 —— unsupported-but-cited 是否必须同时打破 citation_support（改冻结期望表须显式重开合同）；(b) reviewer 问题 —— 换另一独立家族，或以更明确的 citation-support 规则重提示（需防 steering）。**
+- **当前动作：§162 A3-B2 = FAIL 已裁定收口，合同保留**（见 §162.5 与 C7）。首次外部独立家族盲复核（OpenAI/GPT，隔离会话，人工桥接）得到 **6/6 检出 + 4/6 特异性**：两个 `unsupported_claim` 控制命中目标轴但未同时打破 `citation_support`。裁定：**保留冻结期望**（`citation_support` 判"该 citation 是否语义支持该 claim"，非 locator 存在性）；**本次资格正式 FAIL、不 retry、不 steering、不模型轮换**；旧 calibration set 转 **CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION**。未授予任何东西（`eligible_for_authority_review=false`、`qualified_judge=false`、`release_gate=NO_GO`）。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §162 A3-D：冻结 fresh independent qualification holdout（新实例/新 source/新表面形式，expected axes 执行前冻结，保留一条 unsupported-claim+真实 locator+语义不支持 结构且不复用旧 item），再选 reviewer（①另一独立家族 / ②独立 manual_human，③不得重提示同一 GPT 考旧题）。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14114,6 +14114,22 @@ exact-head CI
 §163+
 ```
 
+**C7 calibration-set discipline（冻结，2026-10-01；A3-B2 FAIL 后确立）**：
+
+```text
+1) 一套 calibration set 一旦被某个 reviewer 执行过并暴露失败位置，即标记
+   CONSUMED_FOR_QUALIFICATION_SELECTION；保留为 diagnostic regression，
+   不再作为"改 prompt / 换模型后"的 qualification gate。
+2) 禁止对同一 set 的失败位置做定向重提示后重考（calibration-set overfitting）；
+   即使第二次得到 6/6 + 6/6，也不可用于资格授予。
+3) 禁止模型轮换直到有人通过（reviewer selection bias）：换 reviewer 必须配 fresh holdout。
+4) 资格评估必须在 reviewer 执行**之前**冻结 fresh holdout 的 expected axes。
+5) operator 若已知失败位置或期望值，不得充当 manual_human reviewer。
+6) fresh holdout 必须保留至少一个结构：
+   unsupported claim + 结构合法 citation + 真实 locator + locator 语义上不支持该 claim，
+   且**不得复用**已暴露的失败 item 内容。
+```
+
 **明确不做**：不为 `.workbuddy/` 插正式 commit（本机 `.git/info/exclude` 处理即可）；
 不在 §162 前开始级联 rebase；§162 不顺手接 image / chart / live。
 
@@ -14447,6 +14463,43 @@ target_gate_pass true | specificity_gate_pass false | calibration_pass **false**
     -> 后者有滑向 steering 的风险，需单独评审
 两条分支都未执行；本 artifact 即为已记录结果。A3 仍 FAIL，release NO-GO。
 ```
+
+**裁定与收口（2026-10-01，用户裁定；无代码语义变更）**：
+
+```text
+A3-B2                   = FAIL
+cause class             = REVIEWER_AXIS_UNDERDISCRIMINATION
+contract decision       = RETAIN FROZEN EXPECTATION（不重开合同，不改 unsupported_claim 期望轴）
+qualification           = NONE
+current calibration set = CONSUMED_FOR_QUALIFICATION_SELECTION
+                          RETAINED_AS_DIAGNOSTIC_REGRESSION
+```
+
+**保留冻结期望的理由**：`citation_support` 评估的是"这个 citation 是否**语义上支持**它所附着的 claim"，
+不是"locator 是否真实存在/可解析"。两轴不重复：
+
+```text
+evidence_grounding : 这句话在允许的 evidence 里有没有依据？
+citation_support   : 它挂着的这个具体 citation，是否真的支持这句话？
+```
+
+真实 locator 不能把"不支持这句话"变成"支持"；反之真陈述也可能挂错来源（`EG=supported` + `CS=gap`）。
+GPT 在 item-05/06 的读法（"claim 没证据，但 citation 指向真实来源，所以 citation 算 supported"）
+属**轴语义混淆**，不是冻结表设计错误。
+
+**同时更正本复盘中的一个弱论据**：不能说"DeepSeek pro 与 GPT 两个独立数据点都指向该格最紧"。
+DeepSeek pro 的 `1/6` 是**广泛过判**；除非能证明它的错误同样集中在
+`unsupported_claim -> citation_support` 这一格，否则它**不构成**关于该格的第二个独立证据。
+准确结论是：**GPT 暴露了 `citation_support` 与 citation existence/validity 之间的 reviewer
+解释风险；但冻结 rubric 已给出语义定义，故本轮不足以证明 contract 错误。**
+
+**本刀不做**：不 retry、不 steering、不模型轮换、不改合同；旧 set 转 diagnostic regression（见 C7）。
+
+**唯一下一步 = §162 A3-D：fresh independent qualification holdout** —— 结构仍为 6 target + 6 specificity，
+但必须是**新实例 / 新 source / 新 claim 表面形式**，且 expected axes 在 reviewer 执行**前**冻结；
+必须保留至少一个 `unsupported claim + 结构合法 citation + 真实 locator + locator 语义上不支持该 claim`
+结构，且不复用 item-05/06 内容。reviewer 来源优先级：① 另一真正独立模型家族；② 独立 `manual_human`
+（不得由已知失败位置的人充当）；③ **不得**重提示同一 GPT 考旧题。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 

@@ -74,8 +74,15 @@ rubric states that a citation is not proof that the source supports the sentence
 - It does **not** establish that this reviewer is unqualified in general. It
   establishes that, under the frozen §161 expectation table, this reviewer does
   not reproduce the required axis mapping on two of six controls.
-- It does not adjudicate whether the expectation itself is right. That is a
-  contract question (§162 C4 gate is frozen) and is not decided by this artifact.
+
+**Correction to an earlier inference in this review.** The same-family probe's
+1/6 specificity is broad over-flagging; unless it is shown that its errors
+concentrate on the same `unsupported_claim -> citation_support` cell, it is **not**
+a second independent data point about that cell. The accurate conclusion is:
+GPT exposes a reviewer interpretation risk between *citation support* and
+*citation existence/validity*, while the frozen rubric already defines
+`citation_support` semantically ("a citation is not proof that the source
+supports the sentence"), so this round does **not** establish a contract defect.
 
 ## Defect found by this execution (fixed in the same slice)
 
@@ -86,16 +93,50 @@ received payload. Ingest now reads and writes bytes, hashes the original bytes,
 and requires those bytes to decode to the parsed text. The `raw == response`
 byte check above is the direct evidence, and a CRLF regression covers it.
 
-## Next (not decided here)
+## Finding (adjudicated 2026-10-01)
 
-Two branches, each needing explicit adjudication before any further run:
+```text
+A3-B2                  = FAIL
+cause class            = REVIEWER_AXIS_UNDERDISCRIMINATION
+observed               = unsupported_claim correctly detected as
+                         evidence_grounding=gap, but the reviewer treated a real
+                         citation locator as citation_support=supported even
+                         though the cited source does not semantically support
+                         the claim
+contract decision      = RETAIN FROZEN EXPECTATION
+qualification          = NONE
+current calibration set = CONSUMED_FOR_QUALIFICATION_SELECTION
+                          RETAINED_AS_DIAGNOSTIC_REGRESSION
+```
 
-1. **Contract question** — is "an unsupported but cited sentence must also break
-   citation_support" the right §162 expectation, or should the two axes be
-   independent? Reopening it changes a frozen table and therefore needs an
-   explicit decision, not a quiet edit.
-2. **Reviewer question** — run a different independent family, or re-prompt with
-   the citation-support rule stated more explicitly (which risks moving toward
-   steering, so it needs its own review).
+The two axes are not redundant, and the frozen expectation is retained:
 
-Neither branch is executed here. This artifact stands as the recorded result.
+```text
+evidence_grounding : is there support for this sentence anywhere in the allowed evidence?
+citation_support   : does the specific citation attached to it actually support it?
+```
+
+A citation that resolves to a real, registered locator can still fail to support
+the sentence it is attached to; conversely a true statement can be attached to
+the wrong source. GPT's item-05/06 reading ("the claim has no evidence, but the
+citation points at a real source, so the citation is supported") is an axis
+semantics confusion, not a defect in the frozen table.
+
+## Next (adjudicated, not executed here)
+
+Contract retained, this reviewer's qualification attempt recorded as FAIL, and
+**no retry on this set**:
+
+- no targeted re-prompt of the same reviewer against the same six items
+  (calibration-set overfitting - even a later 6/6 + 6/6 could not qualify);
+- no rotating families until one passes (reviewer selection bias);
+- this set becomes a diagnostic regression only.
+
+The next slice is a **fresh independent qualification holdout**: same structure
+(6 target / 6 specificity), new instances, new sources and new claim surface
+forms, with expected axes frozen **before** the reviewer runs. It must keep at
+least one item shaped as *unsupported claim + structurally valid citation +
+real locator + locator does not semantically support the claim*, without reusing
+item-05/06 content, so that a later pass shows the reviewer learned the rule
+rather than these two items.
+
