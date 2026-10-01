@@ -15966,6 +15966,41 @@ legacy_substantive = true
 durable_substantive = false
 ```
 否则**按实际状态重新归层**，**不为填满 2×2 表格而强行贴标签**。
+
+### 164.20 §164-C2 B′ 执行结果（2026-10-01）：precondition 满足但 **stratum = A**
+
+**执行**：population 换成已筛出的中文 empirical 候选；工具新增**只读 observed-state 检查**
+与四层字段（`construction_precondition` / `observed_state` / `stratum_assignment` / `parity`），
+其中 `stratum_assignment` **只由 `observed_state` 重算**（不读 declared kind、不读 parity）。
+artifact：`docs/research_quality/LEARNER_STATE_PARITY_C2_B_PRIME_2026-10-01.json`（`git add -f`）。
+
+**结果**：
+
+```text
+construction_precondition   mode=socratic | declared=empirical | **actual=empirical**  ✅ precondition 满足
+observed_state              legacy_substantive = **false** | legacy_objective_present=false
+                            legacy_confirmed_points_count=0 | durable_substantive=false
+stratum_assignment          **A**（由 observed_state 判定；**不是** B）
+parity                      overall NOT_COMPARABLE x2（五维同 A 批形状）
+```
+
+**诊断（未动仪器、未动 classifier）**：`plan_socratic` 的 external 分支把
+`objective = state.objective or text` 写在**本轮之后的 state**上；而
+`prepared.learning_state_before` 是**本轮开始前**的状态。
+故在**每轮独立 thread** 的构造下，首轮 `objective` 必为空 —— 这不是 classifier 问题，
+也不是 instrument 问题，而是 **population construction 缺了"同 thread 累积"**。
+
+**修正后的构造要求（冻结，先于下一批结果）**：
+
+```text
+B 象限要求 legacy 侧已承载实质状态，而 objective 只在**同一 thread 的后续轮次**才可见。
+=> B′ 必须构造为**同一 thread 的多轮**（前一轮写入 objective/confirmed_points，
+   后一轮的 learning_state_before 才能观测到 substantive）。
+仍禁止：依据 parity 结果挑样本；调整 substantive 判据；改 classifier / observer / isolation。
+```
+
+**本轮 artifact 原样保留**：它是真实观测（"precondition 满足但状态仍 sparse"），
+provenance 不丢；**不得**改标为 B。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，

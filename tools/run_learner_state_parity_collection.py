@@ -66,9 +66,19 @@ TURNS_B = (
     "does that also explain red sunsets",
 )
 
+# Stratum B-prime candidates: screened by the **actual** classifier output, not by
+# semantics. The classifier keys on Chinese external-fact markers, so English
+# candidates can never satisfy the precondition; the declared kind is recorded
+# alongside the actual one so a mismatch is visible.
+TURNS_B_PRIME = (
+    "哪一年出现了史上最强的飓风",
+    "最新的 Python 版本是多少",
+)
+
 POPULATIONS = {
     "A": ("legacy_sparse_durable_absent", TURNS_A, "普通"),
-    "B": ("legacy_substantive_durable_absent", TURNS_B, "苏格拉底"),
+    "B": ("legacy_sparse_durable_absent", TURNS_B, "苏格拉底"),
+    "B_PRIME": ("legacy_substantive_durable_absent", TURNS_B_PRIME, "苏格拉底"),
 }
 
 SCHEMA = "learner-state-parity-collection-v1"
@@ -81,7 +91,7 @@ class _FakeRag:
         return {"status": "found", "context": self.context, "result_count": 1, "results": []}
 
 
-def _service(tmp_path: Path, *, telemetry, mode: str) -> ChatService:
+def _service(tmp_path: Path, *, telemetry, mode: str, reader=None) -> ChatService:
     repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
     dependencies = ChatDependencies(
         load_runtime_modes=lambda: RuntimeModes(
@@ -104,24 +114,71 @@ def _service(tmp_path: Path, *, telemetry, mode: str) -> ChatService:
         pedagogy_engine=PedagogyEngine(),
         pedagogy_evaluation=PedagogyEvaluationService(),
         # Durable truth is empty: these turns never close.
-        read_learner_model=lambda thread_id: LearnerModelSnapshot(thread_id=thread_id),
+        read_learner_model=reader or (lambda thread_id: LearnerModelSnapshot(thread_id=thread_id)),
     )
     return ChatService(repository, dependencies, shadow_telemetry=telemetry)
+
+
+def _substantive(*, objective: str, known: int) -> bool:
+    return bool(str(objective or "").strip()) or known > 0
 
 
 def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
     import os
 
-    stratum, turns, mode = POPULATIONS[population]
+    from src.pedagogy.classifier import classify_knowledge
+
+    stratum_hint, turns, mode = POPULATIONS[population]
+    snapshots: list[object] = []
     os.environ[SHADOW_FLAG] = "1"
     try:
         collector = LearnerStateParityCollector()
         telemetry = BestEffortTelemetry(collector)
-        service = _service(tmp_dir, telemetry=telemetry, mode=mode)
+
+        def _reader(thread_id: str) -> object:
+            snapshot = LearnerModelSnapshot(thread_id=thread_id)
+            snapshots.append(snapshot)
+            return snapshot
+
+        service = _service(tmp_dir, telemetry=telemetry, mode=mode, reader=_reader)
+        records: list[dict[str, object]] = []
         for index, text in enumerate(turns):
-            service.start_turn(
+            prepared = service.start_turn(
                 ChatCommand(user_input=text, thread_id=f"c2-thread-{index}")
             )
+            before = prepared.learning_state_before
+            snapshot = snapshots[-1] if snapshots else None
+            durable_known = len(
+                getattr(snapshot, "claim_states", ()) or ()
+            )
+            observed = {
+                "legacy_substantive": _substantive(
+                    objective=before.objective, known=len(before.confirmed_points)
+                ),
+                "legacy_objective_present": bool(before.objective.strip()),
+                "legacy_confirmed_points_count": len(before.confirmed_points),
+                "durable_substantive": _substantive(
+                    objective=getattr(snapshot, "objective", ""), known=durable_known
+                ),
+            }
+            # stratum_assignment is recomputable from observed_state ALONE: it never
+            # reads the declared kind and never reads the parity outcome.
+            if observed["legacy_substantive"] and not observed["durable_substantive"]:
+                assigned = "B"
+            elif not observed["legacy_substantive"] and not observed["durable_substantive"]:
+                assigned = "A"
+            else:
+                assigned = "other"
+            records.append({
+                "turn": text,
+                "construction_precondition": {
+                    "mode": mode,
+                    "knowledge_kind_declared": "empirical",
+                    "knowledge_kind_actual": classify_knowledge(text),
+                },
+                "observed_state": observed,
+                "stratum_assignment": assigned,
+            })
         telemetry.flush(timeout=2.0)
 
         observations = collector.observations()
@@ -137,10 +194,23 @@ def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
             for verdict in observation["dimensions"]:
                 per_dimension[verdict["dimension"]][verdict["classification"]] += 1
         telemetry.close()
+        # Attach parity AFTER stratum assignment is fixed.
+        payloads = list(observations)
+        for record, payload in zip(records, payloads, strict=False):
+            observation = payload["observation"]
+            record["parity"] = {
+                "overall": observation["overall_classification"],
+                "five_dimensions": {
+                    verdict["dimension"]: verdict["classification"]
+                    for verdict in observation["dimensions"]
+                },
+            }
         return {
             "schema_version": SCHEMA,
             "population": population,
-            "stratum": stratum,
+            "stratum_hint": stratum_hint,
+            "stratum_from_observed_state": sorted({r["stratum_assignment"] for r in records}),
+            "records": records,
             "condition": "durable_truth_empty_no_closure",
             "turns": list(turns),
             "observation_count": len(observations),
