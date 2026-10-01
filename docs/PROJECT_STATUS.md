@@ -14588,6 +14588,14 @@ L2: release-benchmark-pilot stage gate = 137 passed
 **未硬化**：硬化属独立窄刀（收紧时序预算或改为确定性同步点），不得与产品 / 实验改动混刀。
 记录后，CI 红 / 绿的归因须先排除这两项；不得据一次红判回归，也不得据一次绿掩债。
 
+3) **已修**：	ests/fixtures/release_benchmark/holdout_v1.json 的 source_text_sha256
+   触发 Hex High Entropy String 误报（CI run 36826228244（ee44c00）/ 36826620816（e4bed1c））。
+   修法：在 .github/workflows/ci.yml 的 --exclude-lines **精确加入该键名**，
+   不扩大扫描范围、不改 fixture 内容。与 §154 的 registry sha256 误报同类。
+
+**归因更正**：2dae09f / ee44c00 / e4bed1c 三处 CI 红**均由该 detect-secrets 误报造成**，
+**不是** flake；42e795 的 push 红才是并发取消类 timing flake。两者病因不同，不得混记。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
