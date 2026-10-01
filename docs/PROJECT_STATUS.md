@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-A 合同已冻结（Projection & Authority Contract）；下一步 = §164-B candidate assembler**（见 §163.1–§163.6 / §164 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产权威矩阵 + 8 条结构发现（核心 = F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE/LearnerModel READ/ClosureTruth COMMIT；★2 Assessment 机器可评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同（冻结）**：A projection authority（durable truth → LearnerModelSnapshot → turn context，snapshot 不持久化）；B+F CandidateAssembler 产出 **LearningClosureCandidate**（独立对象，只 propose，类型层禁止 committed=true）；C 三阶段 cutover（shadow → dual-read → durable authority）；D+H abstain taxonomy 五类且**可路由可审计**；G semantic-equivalence gate（比语义投影，不比字段相等）；E non-goals；**invariant：LearnerModelSnapshot 永远可重建，cache != authority**。**双轨**：主线 A = §164-B→§164-F→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **当前动作：§164-B candidate assembler 已实现；下一步 = §164-C shadow durable learner read**（见 §164.1–§164.9 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产权威矩阵 + 8 条结构发现（核心 = F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE / LearnerModel READ / ClosureTruth COMMIT；★2 Assessment 机器可评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同（冻结）**：A projection authority（durable truth → LearnerModelSnapshot → turn context，snapshot 不持久化）；B+F CandidateAssembler 产出 **LearningClosureCandidate**（独立对象，只 propose，类型层禁止越权字段）；C 三阶段 cutover（shadow → dual-read → durable authority）；D+H abstain taxonomy 五类且**可路由可审计**；G semantic-equivalence gate（比语义投影，不比字段相等）；E non-goals；**invariant：LearnerModelSnapshot 永远可重建，cache != authority**。**§164-B 已实现（§164.9）**：纯投影 assembler（不调 LLM、不做语义判断、不触 truth repository 与 closure commit，**有依赖级 AST 测试**）；候选 schema 类型层 + payload 层双断言无 authority 字段；abstain 按维度独立可路由；semantic_fingerprint 排除 candidate_id 保证幂等；**桥停在 closure boundary 之前，无 convenience auto-commit**；24 tests passed。**双轨**：主线 A = §164-C→§164-F→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -7062,7 +7062,8 @@ NEXT     wall =  188.0ms  provider_success=true（真实 PDF 正文）
 2. **PDF timeout 不走 crawler invalidation**：PDF 下载阶段没有受污染的 browser context（实测 invalidation 也确实是 0ms，但语义上不应调用）。
 3. **PdfDownloadDeadline 直接 canonicalize**：udget_exhausted + dequacy_reason=pdf_download_deadline，而不是 ridge_failure:bridge_read_timeout。
 4. **bridge 读超时后重新同步 IPC**（丢弃残留行 / 重启 worker），否则超时一次会污染后续请求。
-5. **PDF 总预算含 parse**：etch(deadline_at) 后检查 remaining 再 parse，保证 fetch+parse+projection 整体不超 3.0s。
+5. **PDF 总预算含 parse**：
+etch(deadline_at) 后检查 remaining 再 parse，保证 fetch+parse+projection 整体不超 3.0s。
 
 ### 121.4 Gate C 的 PASS 条件（钉死）
 
