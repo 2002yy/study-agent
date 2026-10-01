@@ -15774,6 +15774,52 @@ EXPECTED_DIVERGENCE / CONFLICT / 缺失 / 较差的分布，都可能是 C2 要�
 
 **C2 的核心不是追求漂亮比例，而是保持数据的"不可后见之明性"**，
 这样 §164-D 的 Phase 2 gate 才是由观测数据**预注册**出来的，而不是反过来按希望的结果塑造。
+
+### 164.18 §164-C2 采样空间与统计纪律（冻结 v1，2026-10-01）
+
+**C2 采样空间 = legacy 实质状态 × durable 实质状态（2×2）**：
+
+```text
+                     durable empty            durable populated
+legacy empty      A  已采：5 turns           C  待采
+                     NOT_COMPARABLE 主导
+legacy populated  B  下一批（本刀冻结规则）   D  **最关键**：真正可观察
+                     预计 MISSING_DURABLE /      MATCH / COMPATIBLE /
+                     维度级不可比                CONFLICT / divergence
+```
+
+**已确立的真实 stratum（A 批，`692817e`，原样保留）**：当前 no-closure 普通 turn 区间
+**不是**"legacy 与 durable 大量冲突"，而是**双方都缺乏实质状态**，故 overall 被
+`NOT_COMPARABLE` 主导。该 stratum 的语义 = **legacy sparse + durable absent**。
+
+**三条统计纪律（冻结）**：
+
+```text
+1. A 批 5 turns **原样保留为独立 stratum**；不得因为后续批次"更有信息量"而覆盖或淡化。
+2. **population 改变必须显式记录**；不得把 A / B / D 的计数无条件相加成一个"漂亮总百分比"，
+   除非先定义好目标 population / weighting。
+3. **看到下一批结果前先写清 inclusion rule**（见下），继续保持不可后见之明性。
+```
+
+**B 批 inclusion rule（本刀冻结，先于结果）**：
+
+```text
+选择标准：**能确定产生 legacy `objective` / `confirmed_points` 的 Socratic 多轮对话**
+          （即走 socratic 路径、由 pedagogy engine 填充 objective 与 confirmed_points）。
+禁止标准：**不得依据最终 parity 类别挑样本**（不得先看分类结果再决定纳入/排除）。
+预期读数（先写下来，防止事后改口）：
+  若这些 turn 仍无 durable closure，结果**未必**变成大量 MATCH/CONFLICT，
+  更可能从 NOT_COMPARABLE 转向 **MISSING_DURABLE 或维度级不可比**
+  —— 这不是失败，而是在测 **persistence timing / representation asymmetry**。
+```
+
+**D 批才是真正检验"两个状态系统承载同一学习事实时到底多一致"的批次**（两边都有 substantive state）。
+
+**§164-D 的前置条件**：至少覆盖到 **D**，Phase 2 gate 才有足够依据决定：
+哪些差异是正常迁移期现象 / 哪些类别或维度必须设门 / 门按 overall 还是**按 population stratum 分层**。
+
+**artifact 操作事实（不再动 C2 代码或 repo 语义）**：`docs/research_quality/*.json` 被 ignore 是已知规则；
+后续 C2 artifact 一律 **`git add -f`**，并在提交前确认文件确实 tracked。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
