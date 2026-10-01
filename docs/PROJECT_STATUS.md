@@ -15738,6 +15738,29 @@ worker termination bounded by the inner durable read (bounded query count
 **测量仪就此冻结**：§164-C1 CLOSED 后不得再改 observer / 分类器 / 隔离原语语义。
 下一步进入 §164-C2：真实/代表性 turn 上收 legacy vs durable 的 7 类分布 × 五维，
 为 §164-D 预注册 Phase 2 gate 提供数据。
+
+### 164.17 §164-C2 纪律（冻结，2026-10-01）
+
+```text
+1. exact-head CI 只查一次（不轮询）
+2. green -> 进入 §164-C2
+3. C2 只收分布，不调仪器
+4. 产出 7 类 x 五维真实 parity 数据
+5. 用这些数据为 §164-D 预注册 Phase 2 gate
+```
+
+**核心纪律（防 tuned-to-pass）**：C2 中若某一类比例"难看"，**第一反应不能是修 observer** ——
+先把它作为**真实分布**记录下来；只有数据证明**测量本身违反冻结合同**，才另开问题。
+否则会把 calibration data 污染成 tuned-to-pass data。
+
+**两条不可被后续文档简化掉的结论**：
+
+```text
+a) 外层 shadow budget **不能**证明 worker 生命周期被它界定；
+   worker 终止边界来自 inner durable read 自身的有限查询数与 SQLite busy_timeout（单次锁等待 30s）。
+b) off-vs-off 确定性对照是**证据有效性的前置门**（非测试洁癖）：
+   本刀 7 组配对同时失败时，正是该对照把归因从"shadow wiring 回归"纠正为"夹具噪声"。
+```
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
