@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-A 已闭合，等待 operator 执行 A3-B**（见 §162.1 / §162.2 / §162.3）。A2 治理管道（四 seam 分离 + 23 回归）已实现；A3 路径已冻结为**外部独立家族 reviewer（GPT 家族）经人工桥接**；A3-A 已交付盲 packet 生成器 + ingest harness（20 tests），**零真实 invocation**。**A3 状态 = READY_FOR_EXTERNAL_REVIEWER**：需在**全新隔离会话**（**非本聊天**）粘贴 `render_packet_text(packet)`，回填原始响应后 ingest。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = A3-B：生成 packet → 新会话执行 → 回填响应；A3-C ingest 后由 QualificationAuthority 显式裁定（`6/6 + 5/6` 亦 FAIL，不因是 GPT 放宽）。**
+- **当前动作：§162 A3-B0 已闭合，等待 operator 执行 A3-B1/B2**（见 §162.1–§162.4）。A2 治理管道（四 seam + 23 回归）、A3 路径冻结（外部独立家族 GPT 经人工桥接）、A3-A 盲 packet + ingest harness（21 tests）、A3-B0 transport CLI（13 tests）均已实现，**全程零真实 invocation**。**A3 状态 = READY_FOR_EXTERNAL_REVIEWER**。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = A3-B1 生成 frozen packet → A3-B2 在全新隔离会话（非本聊天）执行盲复核 → A3-B3 ingest + calibration；通过后 A3-C 由 QualificationAuthority 显式裁定（`6/6 + 5/6` 亦 FAIL）。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14336,6 +14336,70 @@ L3 @ edc4c75（clean head）：2941 passed / 2 skipped / 0 failed
 **全新隔离会话**（**非本聊天**）粘贴 `render_packet_text(packet)` 并把原始响应回填；A3-C =
 ingest 校验 + shared checker → `calibration_pass` → 再由 QualificationAuthority 显式裁定
 （`6/6 + 5/6` 亦 FAIL，不因是 GPT 放宽）。
+
+### 162.4 A3-B0 实现（2026-10-01，单刀；operator transport CLI）
+
+**交付**：
+
+```text
+tools/run_release_benchmark_blind_review.py          新增：两模式 transport CLI
+tests/test_release_benchmark_blind_review_cli.py     新增：13 tests
+tests/test_release_benchmark_blind_review.py         +1 词汇表不变量测试（共 21）
+src/evals/release_benchmark_blind_review.py          修改：packet_sha256 / transport / ISSUE_TYPE_VOCABULARY
+src/evals/release_benchmark_semantic_probe.py        修改：materialize 输出加 answer_provider
+tests/stage_gates.json                               注册 CLI 测试
+```
+
+**CLI（仅参数解析 + 文件 I/O）**：
+
+```text
+--emit-packet --review-run-id X --output DIR
+  -> packet.txt              # 唯一可发送；REVIEWER-VISIBLE BEGIN/END 边界包裹
+  -> private_manifest.json   # repo-only，含 packet_sha256
+  -> ingest_template.json    # 回填便利，空 axes，无期望值
+--ingest --review-run-id X --response F --manifest F --output F
+  -> ingested_review.json + raw_reviewer_response.txt（**原始字节保留**）
+```
+
+**边界（冻结并测试）**：
+
+```text
+CLI 不计算、不输出 qualification decision（无 "qualification" 键；qualified_judge 恒 false）
+6/6 + 6/6 也只停在 calibration_pass / eligible_for_authority_review
+--ingest 重新从 frozen state 派生 packet；packet_sha256 不符 -> 拒绝
+manifest 属别的 run -> 拒绝
+operator 记为 transport=manual_copy_paste；reviewer_kind=model / provider=OpenAI / model_family=GPT
+  -> 人工只是 transport，不参与 verdict（避免审计把 copy/paste 误读为 manual review）
+answer_model_families 从 frozen bundle 的 provider 机械推导
+packet 只经库契约生成 -> 不存在第二份漂移的 packet 定义
+```
+
+**哈希链（可机械回放，而非只信最终 JSON）**：
+
+```text
+packet_sha256 + input_manifest_hash
+   -> raw_reviewer_response.txt + output_hash
+   -> ingested_review.json（归一化事实）
+```
+
+**本轮自查修正（记录）**：词汇表不变量测试初版对 item payload 做 token 扫描，被 `other`
+（普通英文词，合法出现在 frozen source text）误伤 → 改为**结构性断言**（词汇表只在 packet 层
+声明一次；item 不得带自己的词汇表字段）。同类"过度字符串扫描"在本阶段已出现两次，后续
+guard 默认用结构断言。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1578 files |
+git diff --check ok | secret-like literal self-check clean
+L1: blind_review 21 + cli 13 passed
+L2: release-benchmark-pilot stage gate = 124 passed
+L3 @ 9690359（clean head）：2955 passed / 2 skipped / 0 failed
+```
+
+**未做 / 下一步**：零真实 invocation、零 provider SDK、零正式标签。A3-B1 = 生成 frozen packet；
+A3-B2 = **全新隔离会话**（**非本聊天**）执行盲复核；A3-B3 = ingest + calibration；
+A3-C = QualificationAuthority 显式裁定。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
