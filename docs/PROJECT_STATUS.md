@@ -16087,6 +16087,54 @@ assign stratum
 
 若最终为 `true / false`，才正式取得**首个 B stratum**；否则保留实际 provenance，
 继续定位状态传播链，**而不是调整分类定义**。
+
+### 164.23 §164-C2 B″ 结果：**首个真正 B stratum 已取得**（2026-10-01）
+
+**执行**：same-thread 多轮（Turn 1 写入 → 完成生命周期 → Turn 2 同 thread 读取），
+冻结 substantive projection 跨 turn 比较；artifact
+`docs/research_quality/LEARNER_STATE_PARITY_C2_B2_2026-10-01.json`（`git add -f`）。
+
+**完整传播链全部成立**：
+
+```text
+Turn 1（writer）
+  turn1_before_state_projection  objective=\"\" / confirmed_points=0   （sparse）
+  turn1_post_state_projection    objective=\"哪一年出现了史上最强的飓风\" / 0
+  turn1_persisted_projection     同上
+  persistence_evidence_valid     **true**（post-state == persisted）
+Turn 2（reader，same thread）
+  turn2_before_state_projection  同上
+  projection_reproduced          **true**（turn2_before == turn1_post）
+-----------------------------------------------
+observed_state        legacy_substantive=**true** / objective_present=true / durable_substantive=**false**
+stratum_assignment    **B**   ← 只由 observed_state 判定
+parity                overall NOT_COMPARABLE
+                      five_dimensions: goal_objective=**MISSING_DURABLE** /
+                      understanding=NOT_COMPARABLE / next_step=MATCH /
+                      misconception=MATCH / freshness=EXPECTED_DIVERGENCE
+```
+
+**与预注册预期对照（先写后测）**：B′/B″ 前冻结的预期是"durable 尚无 closure →
+**预期**更易看到 `MISSING_DURABLE` / 维度级不可比"。实测在 **`goal_objective` 维度命中
+`MISSING_DURABLE`** —— 预期成立，且**未据此回改任何口径**。
+
+**artifact 已知不精确（如实记录，不改口径）**：`knowledge_kind_declared` 当前是
+**population 级常量**（硬编码 "empirical"），而 `knowledge_kind_actual` 是**逐 turn 实测**。
+Turn 2 的 actual = `derivable`（它是 reader 角色，不要求满足 precondition）。
+后续如需精确，应把 declared 也改为逐 turn 记录；**这不影响 stratum 判定**（stratum 只用 observed_state）。
+
+**C2 现状**：
+
+```text
+A1  ordinary / no-closure                 ✅ 5   sparse / absent
+A2  socratic + derivable                  ✅ 4   sparse / absent
+A3  socratic + empirical / independent T1 ✅ 2   sparse / absent
+B   substantive / absent                  ✅ **已取得**（B″ same-thread Turn 2）
+D   substantive / substantive             ⏳ later
+```
+
+**仍冻结未改**：observer / parity classifier / knowledge classifier / isolation / production runtime /
+substantive 判据。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，

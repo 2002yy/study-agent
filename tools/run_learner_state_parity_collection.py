@@ -38,6 +38,7 @@ from src.domain.learner_model import LearnerModelSnapshot  # noqa: E402
 from src.infrastructure.sqlite.database import RuntimeDatabase  # noqa: E402
 from src.mode_manager import RuntimeModes  # noqa: E402
 from src.pedagogy.engine import PedagogyEngine  # noqa: E402
+from src.pedagogy.types import LearningState  # noqa: E402
 from src.pedagogy.evaluation import PedagogyEvaluationService  # noqa: E402
 from src.repositories.runtime_repository import RuntimeRepository  # noqa: E402
 from src.tools.web_agent import WebToolTrace  # noqa: E402
@@ -75,10 +76,19 @@ TURNS_B_PRIME = (
     "最新的 Python 版本是多少",
 )
 
+# Stratum B-double-prime: same-thread multi-turn, so turn two's
+# learning_state_before is turn one's persisted post-state. The first turn writes
+# the objective; only the second turn can observe it at turn start.
+TURNS_B2 = (
+    "哪一年出现了史上最强的飓风",
+    "那一次的实测数据是多少",
+)
+
 POPULATIONS = {
-    "A": ("legacy_sparse_durable_absent", TURNS_A, "普通"),
-    "B": ("legacy_sparse_durable_absent", TURNS_B, "苏格拉底"),
-    "B_PRIME": ("legacy_substantive_durable_absent", TURNS_B_PRIME, "苏格拉底"),
+    "A": ("legacy_sparse_durable_absent", TURNS_A, "普通", False),
+    "B": ("legacy_sparse_durable_absent", TURNS_B, "苏格拉底", False),
+    "B_PRIME": ("legacy_substantive_durable_absent", TURNS_B_PRIME, "苏格拉底", False),
+    "B2": ("legacy_substantive_durable_absent", TURNS_B2, "苏格拉底", True),
 }
 
 SCHEMA = "learner-state-parity-collection-v1"
@@ -123,12 +133,25 @@ def _substantive(*, objective: str, known: int) -> bool:
     return bool(str(objective or "").strip()) or known > 0
 
 
+def _substantive_projection(state: object) -> dict[str, object]:
+    """The frozen substantive projection: exactly the two fields the criterion uses.
+
+    Deliberately not the whole state object - timestamps and version metadata are
+    non-semantic and would manufacture false propagation failures.
+    """
+    points = tuple(getattr(state, "confirmed_points", ()) or ())
+    return {
+        "objective": str(getattr(state, "objective", "") or ""),
+        "confirmed_points_count": len(points),
+    }
+
+
 def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
     import os
 
     from src.pedagogy.classifier import classify_knowledge
 
-    stratum_hint, turns, mode = POPULATIONS[population]
+    stratum_hint, turns, mode, same_thread = POPULATIONS[population]
     snapshots: list[object] = []
     os.environ[SHADOW_FLAG] = "1"
     try:
@@ -142,9 +165,11 @@ def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
 
         service = _service(tmp_dir, telemetry=telemetry, mode=mode, reader=_reader)
         records: list[dict[str, object]] = []
+        post_state_projection: dict[str, object] | None = None
         for index, text in enumerate(turns):
+            thread_id = "c2-same-thread" if same_thread else f"c2-thread-{index}"
             prepared = service.start_turn(
-                ChatCommand(user_input=text, thread_id=f"c2-thread-{index}")
+                ChatCommand(user_input=text, thread_id=thread_id)
             )
             before = prepared.learning_state_before
             snapshot = snapshots[-1] if snapshots else None
@@ -169,8 +194,9 @@ def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
                 assigned = "A"
             else:
                 assigned = "other"
-            records.append({
+            record: dict[str, object] = {
                 "turn": text,
+                "turn_index": index,
                 "construction_precondition": {
                     "mode": mode,
                     "knowledge_kind_declared": "empirical",
@@ -178,7 +204,38 @@ def collect(tmp_dir: Path, *, population: str = "A") -> dict[str, object]:
                 },
                 "observed_state": observed,
                 "stratum_assignment": assigned,
-            })
+            }
+            if same_thread:
+                before_projection = _substantive_projection(before)
+                if index == 0:
+                    # Turn 1: record what this turn produced, plus persistence
+                    # evidence, instead of assuming the write succeeded.
+                    after = prepared.learning_state
+                    post_state_projection = _substantive_projection(after)
+                    persisted = service.repository.get_chat_thread(thread_id)
+                    persisted_state = LearningState.from_dict(
+                        getattr(persisted, "learning_state", {}) or {}
+                    )
+                    record["propagation"] = {
+                        "role": "writer",
+                        "turn1_post_state_projection": post_state_projection,
+                        "turn1_persisted_projection": _substantive_projection(persisted_state),
+                        "persistence_evidence_valid": (
+                            _substantive_projection(persisted_state) == post_state_projection
+                        ),
+                        "turn1_before_state_projection": before_projection,
+                    }
+                else:
+                    record["propagation"] = {
+                        "role": "reader",
+                        "turn2_before_state_projection": before_projection,
+                        "projection_reproduced": before_projection == post_state_projection,
+                    }
+            records.append(record)
+            if same_thread:
+                # Drive the real lifecycle: a turn must be completed before the
+                # same thread can accept the next one.
+                service.complete_turn(prepared, " reply")
         telemetry.flush(timeout=2.0)
 
         observations = collector.observations()
