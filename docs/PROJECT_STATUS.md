@@ -16321,6 +16321,55 @@ closure → durable 写入 → C1 read authority 读回，三者在 `thread_id` 
 **审计未改动任何代码**；若后续发现 closure **当前并未写入 C1 read authority 覆盖的 durable truth**，
 那也是重要结果 —— 此时应记录 **D 当前不可达 / closure→durable authority chain 尚未存在**，
 **而不是为了填 D 去调用底层写接口**。
+
+### 164.27 §164-C2 Q5 continuation 最小实验合同（冻结，2026-10-01；**实验未执行**）
+
+**目的（单一）**：**先证明 closure 后系统允许怎样继续。本刀不评价 semantic parity。**
+
+**四个观察点（冻结）**：
+
+```text
+closure 前
+  legacy_substantive 已成立
+
+closure
+  create_and_execute 成功？
+  commit 成功？
+  durable readback substantive？（沿 C1 read authority 读回）
+  run 状态 / completion evidence？
+
+closure 后 same-thread turn
+  start_turn 是否接受？
+  若拒绝：**typed reason** 是什么？
+  若接受：learning_state_before 是否仍保留 legacy substantive？
+  closure_eligibility 是否因 closure 历史发生变化？
+```
+
+**continuation 归类（三类，标签名不关键，真实 contract 才关键）**：
+
+```text
+CONTINUES_SAME_THREAD             closure 后同 thread 正常继续
+CONTINUES_WITH_CHANGED_SEMANTICS  能继续，但 eligibility / state visibility / lifecycle 真实变化
+SAME_THREAD_NOT_SUPPORTED         closure 后同 thread 被 production contract 拒绝
+```
+
+**关键纪律（冻结）**：
+
+```text
+Q5 实验虽会顺带产生 durable parity 数据，**不得因为看到 MATCH/CONFLICT 就把它算进正式 D 分布**。
+本刀证明对象**只是 continuation scope**。
+等 Q5 冻结后，**再按确定下来的 continuation contract 单独构造正式 D artifact** ——
+避免把"探索 contract 的样本"与"预注册后采集的 D 数据"混在一起。
+```
+
+**为什么本刀未执行（如实记录）**：审计显示 `create_and_execute` 需要 closure **生成步骤**产出
+`durable_learning_candidate`（且 `commit` 要求该 candidate 的 evaluation `final_decision == "accept"`）。
+构造这条管线需要一次有完整验证预算的独立刀；预算不足时半接 closure 管线会留下**未验证状态**，
+违反本仓库自身门禁纪律。故本刀只冻结实验合同，**不启动**。
+
+**边界（冻结）**：Q5 实验只属 **collection-side diagnostic**；
+**不得**改 closure 入口、durable writer、C1 read authority、observer / classifier / isolation / runtime，
+**不得**为取得"能继续"的结果去绕过 production contract。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
