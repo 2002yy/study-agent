@@ -14569,6 +14569,25 @@ L2: release-benchmark-pilot stage gate = 137 passed
 （需一个新的 packet 构建入口，从 holdout 而非 answer bundle 取材）；A3-D-3 = 选定 reviewer
 （①另一独立家族 / ②独立 manual_human，均须未见本 holdout 与消费集失败位置）后执行一次盲校准。
 
+### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
+
+`	ext
+1) tests/test_research_answer_streaming.py
+   ::test_research_stream_processes_cancel_while_binder_runs_off_loop
+   断言 syncio.to_thread(entered.wait, 0.5) —— 0.5s 预算在全量负载下超时。
+   首次 L3 失败；隔离 1 passed、整文件 8 passed、同 head 重跑 L3 全绿 -> 负载相关。
+
+2) tests/test_chat_turn_cancellation.py
+   ::test_concurrent_cancel_during_slow_retrieval
+   断言 	urn.cancel_stage in {"web_tools", "retrieval"} —— CI push run 36821684306
+   观测到 'pedagogy_evaluate'。**同一 SHA 的 PR run 36821688485 为 success**；
+   本地隔离 6/6 passed、整文件 32 passed -> 负载相关。
+`
+
+两者均属**既有并发 / 取消类 timing flake**，与本阶段 eval-only 改动无关（42e795 仅 docs/evidence）。
+**未硬化**：硬化属独立窄刀（收紧时序预算或改为确定性同步点），不得与产品 / 实验改动混刀。
+记录后，CI 红 / 绿的归因须先排除这两项；不得据一次红判回归，也不得据一次绿掩债。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
