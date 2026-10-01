@@ -30,6 +30,7 @@
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
 - **当前动作：§164-C1b-1 前置审计完成（inner read = class B，无需改 LearnerModelService）；下一步 = C1b-1 runtime wiring**（见 §164.1–§164.14 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心 + C1b-0/0.1 隔离原语已实现**（§164.11 / §164.13）：中性投影、确定性分类器、fail-open observer、**admission token 绑定 future 生命周期**、CAPACITY==WORKERS==2 零 backlog、有界 telemetry；**共 45 tests passed**（parity 22 + isolation 23）。**生产 ChatService 未改动**。**§164.14 审计结论**：LearnerModelService.build = **class B（operationally bounded）** —— 固定数量本地查询、无网络/递归/retry，且 usy_timeout=30000 使锁等待有界；**因此不为 shadow 侵入生产读取链**。**limitation 措辞已修正**：worker 终止**有界**（inner read 自身边界，最坏约 30s），但**不受 outer 250ms budget 约束**；退化语义 = 锁竞争时 shadow 最长不可用约 30s，期间 production 完全继续。**双轨**：主线 A = §164-C1b-1 wiring→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **下一刀唯一任务 = §164-C1b-1 runtime wiring + 无侵入证明**（§164.15 六步 / 八场景 / 独立 latency 测试）；门未过则 §164-C1 保持 OPEN。**Post-§164 Interaction Coordination Layer 只是 design note（见其专节），不是下一刀，也不得混入 C1** —— C1 必须原样闭合后才谈协调架构。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15663,7 +15664,112 @@ capacity exhausted / parity·classifier throws / telemetry throws / telemetry sl
 **§164-C2 起不再改测量仪**，直接做 characterization：
 真实/代表性 turn 上两套 learner state 到底有多少 `MATCH / EXPECTED_DIVERGENCE / MISSING / CONFLICT / NOT_COMPARABLE`。
 
+## Post-§164 architectural candidate: Interaction Coordination Layer（design note，2026-10-01；**不编号实现阶段**）
+
+> **状态：设计候选，非下一刀。** 本文档**不改代码**、**不扩 §164 合同**、**不污染 §164-C1 的证明对象**。
+> 明确边界：§164-C1 必须先按 §164.15 原样闭合；本层是**其后的**架构层，不得顺手在 C1 内做
+> `ChatService → Coordinator` 重构。
+
+**设计目标（冻结表述）**：**不追求"统一所有接口"，而是统一"协调协议"。**
+模块内部继续各自专业化；外部交互方式尽量统一。
+让模块之间**不需要彼此理解**，只需要理解统一的 interaction / capability / effect 协议。
+
+**问题诊断**：Research / Teaching / Memory / Eval / Scheduler 各有状态与入口 →
+`ChatService` 变成"知道所有模块细节的人" → 每加一个能力就在主流程里再塞一个
+if / adapter / special case。短期能跑，长期协调成本递增。
+
+### 设计阶段只回答的五个问题
+
+**Q1 `ChatService` 最终应保留什么职责？**
+
+```text
+保留：request ingress -> session/thread identity -> coordinator.invoke(...)
+      -> stream/result -> transport-level persistence
+移除：decide research? / decide teaching? / load memory / update learner state /
+      run eval / maybe schedule / assemble response / persist everything
+不应知道：ResearchBrief / PedagogyTurnPlan / misconception detector / synthesis 细节 / scheduler 内部
+```
+
+**Q2 capability 的统一 lifecycle 是什么？**
+
+```text
+InteractionRequest(thread_id, user_turn, committed_state, capabilities)
+  ↓ coordinator.run(...)  —— 确定性 orchestration kernel（**不是**"大模型随意调度器"）
+  1. Observe  2. Resolve intent/mode  3. Build execution plan
+  4. Invoke capabilities  5. Collect effects  6. Validate  7. Commit  8. Render response
+```
+
+**核心原则**：**能力模块返回"结果 + effect"，而不是自己到处修改系统状态。**
+Research 不直接写 learner state；Teaching 不直接操作 scheduling；Memory 不直接决定 UI。
+
+```python
+CapabilityResult(payload=..., observations=..., proposed_effects=[...])
+```
+由 coordinator 统一决定哪些 effect 可以 commit。
+（与既有的 authority plane / data plane / auditor 思路一致。）
+
+**Q3 state ownership 怎么划？**
+
+```text
+不要 AgentState(research_state, learner_state, memory_state, scheduler_state, ...) 这种大对象。
+拆成 ownership 明确的 slice：ConversationState / LearningState / ResearchState / MemoryState / TaskState
+每个能力声明：CapabilitySpec(reads={...}, writes={...}, depends_on={...})
+Coordinator 由此知道：哪些可并行 / 哪些有写冲突 / 哪些必须先后 / 哪些 state delta 不合法
+```
+
+**Q4 module outputs 如何变成 proposed effects？**
+
+```python
+StateEffect(target="learning_state",   operation="record_misconception", value=...)
+StateEffect(target="research_memory",  operation="store_verified_claim",  value=...)
+StateEffect(target="review_queue",     operation="schedule_review",       value=...)
+```
+Coordinator 统一：`collect effects -> validate authority -> resolve conflicts -> persist`。
+解决四类未来问题：**A 模块越权**（Research 偷偷改 pedagogy state）、
+**B 冲突**（两个能力同时更新 learner mastery）、
+**C replay**（重放 turn input + capability outputs + effects，而不依赖数据库隐式变化）、
+**D audit**（learner state 为何变化 -> 查 effect provenance）。
+
+**Q5 哪些调用可以构成 dependency DAG？**
+
+```text
+             ┌─ MemoryLookup ─┐
+user turn ───┤                ├→ PedagogyPlanner → ResponseAssembler
+             └─ Research ─────┘
+```
+Memory 与 Research 可并行；只有 Teaching Plan 需等二者。
+收益：降 latency、少重复调用、更易缓存、更易 trace、更易做 budget、
+更易解释"这一轮到底调用了什么"。
+**第一版不必真做 DAG engine** —— 只要 capability 声明 `reads / writes / depends_on` 就已大幅改善结构。
+
+### 统一 envelope（保留领域类型）
+
+```python
+CapabilityRequest(interaction_id, thread_id, capability, input, context_refs, constraints, budget)
+CapabilityResult(status, output, evidence, state_delta, diagnostics)
+```
+**原则：统一生命周期，保留领域类型。** `CapabilityRequest[ResearchInput]` /
+`CapabilityResult[ResearchOutput]` —— **禁止**为"统一"退化成 `dict[str, Any]`，
+那会毁掉已建立的大量类型安全与 contract proof。
+
+```python
+ExecutionContext(interaction_id, thread_id, turn_id, trace, deadline, budgets, feature_flags)
+```
+**边界**：`ExecutionContext` 只放 **cross-cutting metadata**，**不得**变成业务垃圾桶
+（禁止 `ctx.research_brief` / `ctx.student_level` / `ctx.quiz_score` / `ctx.browser_result`，否则又是 God Object）。
+
+### 三个优先级（若只做三件）
+
+```text
+第一  CapabilityResult + Effect      —— 从"模块执行并修改世界"改为"模块计算 -> 提议改变 -> 中央 commit"
+第二  InteractionCoordinator         —— 把 ChatService 从"所有系统的 glue code"里救出来
+第三  显式 read/write dependency     —— 先只声明 reads/writes/depends_on，之后再逐步用于并行执行
+```
+
+**与当前主线的关系**：**先把 §164-C1 原样闭合；协调架构作为下一层，不回头污染 measurement contract。**
+
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
+
 
 > 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
 > **Learning/Pedagogy Asset Reconciliation**，故本节**显式改号为 §172.1**（并行轨 B），
