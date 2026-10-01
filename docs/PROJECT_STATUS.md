@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-C0 Semantic Parity Contract 已冻结；下一步 = §164-C1 production-inert shadow read**（见 §164.1–§164.10 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产矩阵 + 8 条结构发现（核心 F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE/LearnerModel READ/ClosureTruth COMMIT；★2 Assessment 可机器评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同**：projection authority / candidate 只 propose / 三阶段 cutover / abstain taxonomy 可路由 / semantic-equivalence gate / non-goals / snapshot 永远可重建。**§164-B 已实现（§164.9）**：纯投影 candidate assembler（依赖级 AST 测试禁止触 truth repository 与 closure commit），24 tests passed，**桥停在 closure boundary 前**。**§164-C0 合同（冻结，§164.10）**：中性比较投影（Legacy/Durable LearnerProjection，**仅为测量，不是第三套 authority**）；分类词表 MATCH/COMPATIBLE/EXPECTED_DIVERGENCE/MISSING_LEGACY/MISSING_DURABLE/CONFLICT/NOT_COMPARABLE；五维合同（goal/objective 不要求字符串相等、understanding 为硬门、next_step 允许差异、misconception 与 freshness 默认 EXPECTED_DIVERGENCE）；**禁止新增 LLM semantic comparator**；C1 要求 production-inert（shadow_read_enabled != durable_authority_enabled，shadow OFF == shadow ON）；C2 产出 LearnerStateParityObservation（**不得**与 learning-domain Observation 混同）；**Phase-2 阈值本阶段不设**，留 §164-D 预注册。**双轨**：主线 A = §164-C1→C2→§164-D→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **当前动作：§164-C1 测量核心已实现（parity 投影 / 确定性分类器 / fail-open shadow observer）；下一步 = §164-C1b chat runtime 接线**（见 §164.1–§164.11 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-B 已实现**：纯投影 candidate assembler（依赖级 AST 测试），桥停在 closure boundary 前。**§164-C0 合同**：中性比较投影（仅测量，非第三套 authority）；7 类词表；五维合同；**禁止 LLM semantic comparator**；C1 production-inert（shadow_read_enabled != durable_authority_enabled）；C2 独立 namespace；Phase-2 阈值留 §164-D 预注册。**§164-C1 测量核心（§164.11）**：DurableLearnerProjection **只从 LearnerModelSnapshot 构建**（不跨层读表）；**fail-open**（snapshot 缺失 -> unavailable；异常 -> error + 异常类型，**不向 chat 抛**）；artifact 走独立 namespace learner_state_parity_observations（**不写 learning_***）；22 tests passed。**尚未接入 chat turn**：约束①的 hook 点（plan 确定后 / side effects 完成前）与约束④的七层行为等价证明留 §164-C1b，故影子读真的跑了**尚未达成**。**双轨**：主线 A = §164-C1b→C2→§164-D→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15308,6 +15308,58 @@ expected divergence explicit + **no new semantic judge** + **no new learner auth
 **未做 / 下一步**：本刀只冻结合同。§164-C1 = 实现 production-inert shadow read
 （含 `shadow OFF == shadow ON` 行为等价回归）；§164-C2 = 产出
 `LearnerStateParityObservation` 并开始收集真实分布。
+
+### 164.11 §164-C1 测量核心实现（2026-10-01）：parity projections + deterministic classifier + fail-open shadow read
+
+**交付**：
+
+`	ext
+src/domain/learner_state_parity.py              新增：中性投影 + 分类词表 + 确定性分类器
+src/application/learner_state_parity_observer.py 新增：投影构建 + fail-open shadow observer + collector
+tests/test_learner_state_parity.py               新增：22 tests
+`
+
+**五条约束的落地（截至本刀）**：
+
+`	ext
+2) DurableLearnerProjection **只从 LearnerModelSnapshot 构建**（confirmed points 取
+   claim_states 中 understanding_status == "confirmed" 的 claim_id），**不跨层读 learning_* 表**；
+   有依赖级 AST 测试证明 observer 与 parity domain 不 import repositories / sqlite /
+   learning_truth_repository / learning_closure* / runtime_repository / session_service
+3) **fail-open**：snapshot 缺失 -> shadow_status=unavailable；投影/分类器异常 -> shadow_status=error
+   且 provenance 记录异常类型；**任何情况都不向 chat 抛异常**
+5) parity artifact 走**独立 namespace** learner_state_parity_observations
+   （collector 为内存 evidence store），**不写 learning_* durable truth**
+`
+
+**分类器（确定性、无模型）**：MATCH / COMPATIBLE / EXPECTED_DIVERGENCE / MISSING_LEGACY /
+MISSING_DURABLE / CONFLICT / NOT_COMPARABLE；next_step 另有 LEGACY_ONLY / DURABLE_ONLY /
+EXPLAINED_DIVERGENCE。五维合同全部落地（objective 粒度差 -> COMPATIBLE、不同主题 -> CONFLICT；
+durable confirmed 撞 legacy 未解 gap -> CONFLICT，legacy unknown + durable confirmed -> MISSING_LEGACY；
+next_step 差异 -> EXPLAINED_DIVERGENCE；misconception / freshness -> EXPECTED_DIVERGENCE）。
+**未引入 LLM comparator**；机械不可判 -> NOT_COMPARABLE。
+
+**未做（下一刀 = §164-C1b，chat runtime 接线）**：
+
+`	ext
+1) 约束①的 hook 点：**plan 已确定之后、turn side effects 完成之前**（不进入 planning input）
+4) 约束④的行为等价两层证明：route / selected pedagogy mode / **prompt·context inputs** /
+   retrieval plan / response / persisted LearningState / PedagogyEvalRun / closure eligibility
+   —— shadow OFF == shadow ON，尤其锁 prompt/context inputs（输出相同但 durable 已悄悄进入
+   prompt 仍属 contract breach）
+`
+
+本刀只交付**可独立验证的测量核心**：投影、分类、artifact、fail-open、namespace 隔离与
+读到了但不影响任何行为的模块级无副作用证明。**尚未接入 chat turn**，因此
+影子读真的跑了 这一条成功标准**尚未达成**，留 §164-C1b。
+
+**验证**：
+
+`	ext
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1611 files |
+git diff --check ok | secret-like literal self-check clean
+L1: test_learner_state_parity = 22 passed
+`
 
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
