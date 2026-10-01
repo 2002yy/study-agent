@@ -16251,6 +16251,76 @@ parity              overall / five_dimensions
 **下一刀第一步（建议）**：按 §164.14 inner-read 审计的方式，先审计 **closure 入口的真实 authority**
 （哪个入口是 production-supported、它写什么、写后如何读回、continuation scope 是什么），
 **再**构造 D 样本。
+
+### 164.26 §164-C2 closure authority map（只读审计，2026-10-01）
+
+**Q1 真实入口（production-supported，非测试 helper / store writer）**：
+
+```text
+POST /learning-closure-runs            -> LearningClosureService.create_and_execute(thread_id)   （orchestration）
+POST /learning-closure-runs/{id}/commit -> LearningClosureService.commit(run_id)
+                                        -> **LearningClosureTruthService.commit(run)**          （**唯一 durable writer**）
+```
+
+**Q2 前置条件（不满足即拒绝/不写，且各自返回 typed status）**：
+
+```text
+入口前：_closure_contract
+  有 task_contract  -> closure_eligibility 必须 in _ALLOWED_CLOSURES，否则 LearningClosureNotEligible
+  否则 legacy 推断  -> learning_state.objective 非空 或 protocol in _LEGACY_LEARNING_PROTOCOLS
+                       -> eligibility = learning_summary（project_execution 则 project_summary）
+  两者皆无        -> raise LearningClosureNotEligible
+commit 内（按序，任一失败即返回非提交状态）：
+  closure_eligibility != "learning_summary"          -> not_learning_closure
+  generated_result 无 durable_learning_candidate     -> no_candidate
+  candidate 来源不可解析                              -> candidate_source_missing
+  无 evaluation                                      -> evaluation_missing
+  evaluation.final_decision != "accept"              -> validation_not_accepted
+  claim 不属于该 evaluation                          -> candidate_claim_mismatch
+```
+
+**Q3 实际写入的 durable truth 与 lineage 绑定**：
+
+```text
+_focus_or_create_goal(run, objective, repo_url)
+  先按 **run.thread_id** 列出现有 goals，命中 active/blocked 且 **归一化 objective 相同** -> focus_goal(复用)
+  否则新建
+  => **lineage key = thread_id + 归一化 objective**
+随后：understanding_evidence（_commit_or_reuse_outcome）/ primary NextStep（_ensure_primary_next_step）/
+      claim revisions 与 evidence bindings
+（非仅"调用了 repository.save"）
+```
+
+**Q4 写后如何经 production read path 读回**：
+
+```text
+C1 冻结的 durable read authority = LearnerModelService.build(thread_id)
+  -> get_focus_goal(thread_id) -> list_goal_revisions -> ...
+closure 把 goal 绑定在 run.thread_id；read authority 也以 thread_id 为键
+=> **closure -> durable -> read 链在 thread_id 上对齐：该链存在**（不是直查底层表替代）
+```
+
+**Q5 closure 后 continuation scope —— 部分确认，仍有未验证项（如实标注）**：
+
+```text
+已确认：closure 是 **API-triggered on a thread**，不是 chat turn；
+        B 观测到的 active-operation 约束是 **per-turn**（由 complete_turn 释放），**非 per-closure**
+        -> closure 本身**不**因 active-operation 机制终结 thread
+已确认：后续 turn 的 closure_eligibility 由**该 turn 自己的** task_contract / learning_state 推导，
+        不依赖 closure 历史
+**未验证（不得当作已确认）**：
+        LearningClosureService.commit 是否以其他方式标记 thread/run 从而**限制后续 turn 或再次 closure**
+        （仅见 _mark_completed_summary(run) 暗示 run 级完成）
+```
+
+**结论（冻结表述）**：**D 具备合法 production construction path** ——
+closure → durable 写入 → C1 read authority 读回，三者在 `thread_id` 上对齐。
+但 Q5 的未验证项**必须在构造 D 前先用最小实验确认**（例如：closure 后同 thread 再跑一轮，
+观察是否被拒 / 是否改变 eligibility），**不得凭 Q5 的推断直接构造样本**。
+
+**审计未改动任何代码**；若后续发现 closure **当前并未写入 C1 read authority 覆盖的 durable truth**，
+那也是重要结果 —— 此时应记录 **D 当前不可达 / closure→durable authority chain 尚未存在**，
+**而不是为了填 D 去调用底层写接口**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
