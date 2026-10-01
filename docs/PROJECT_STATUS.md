@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-D-3 已执行 —— fresh composite holdout 两个 cluster 均 FAIL，且复现旧签名**（见 §162.9）。GPT-5.6 Sol 在**全新隔离会话**、仅凭 leak-free packet、**单次**尝试下得到 A `6/6+4/6`、B `6/6+4/6`：4 个失败全是 `unsupported_claim`（`EG=gap` 检出、`CS=supported` 未达期望），`missing_aspect`/`wrong_citation` 全对、无虚假 issue、真实答案 2/2 clean。**overall_pass=false、eligible_for_authority_review=false、qualified_judge=false、release_gate=NO_GO**；未 retry、未给提示。这是首次**跨文档/跨主题/fresh holdout 复现**，结论升级为 **reproducible reviewer-family failure mode**（未放宽合同、未改期望）。消费集仍为 `CONSUMED_FOR_QUALIFICATION_SELECTION / RETAINED_AS_DIAGNOSTIC_REGRESSION`。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = 显式裁定二选一：(a) 接受该家族刻画作为当前合格语义判定能力的边界；(b) 用同一冻结 holdout 去资格化另一 reviewer 家族（须记录"家族在两次尝试间改变"的解释性代价）。**
+- **当前动作：§162 已 CLOSED —— 自动 semantic judge = NOT QUALIFIED**（见 §162.10 与 C7 / C8）。三次一致证据（消费集 `6/6+4/6`、fresh Cluster A `6/6+4/6`、fresh Cluster B `6/6+4/6`，同一 signature：`unsupported_claim` 的 `EG=gap` 检出但 `CS=supported`）→ 定性为 **REPRODUCIBLE_REVIEWER_FAMILY_FAILURE_MODE**。**产品裁定**：automatic semantic judge **NOT QUALIFIED**；机械/确定性检查 **AVAILABLE**；正式语义标签**仅**由独立具名 `manual_human` 在显式复核后给出，否则 **abstain / unlabeled**；release gate 在所需语义标签覆盖满足前 **NO_GO**。**Authority granted = NONE**；holdout `RQ-QUAL-HOLDOUT-v1` 对 GPT 家族 = **FINAL FAIL**，未来他家族运行仅作 comparative/diagnostic（C8 要求先预注册多家族政策）。不再为得到 PASS 更换模型。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = 回到主线：按"无自动 semantic judge"推进（需要语义标签的 case 走独立人工，否则 abstain）；未来若 Claude/Gemini/API 自然接入，另开 §162-v2 bakeoff 并预注册 reviewer-selection policy。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151–§160 六案准入、两案真实答案、remote-inference v2 机械计分；§161 同家族探针 fail（特异性 1/6）；§162 A1–A3-B0 合同/治理管道/盲 packet/transport CLI 全部实现；§162 A3-B2 首次独立家族（GPT）盲复核 = 6/6 检出 + 4/6 特异性 -> calibration FAIL，未授予任何资格，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是显式裁定"合同 vs reviewer"二选一后再执行。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§161：六案准入、两案真实答案、remote-inference v2 机械计分；§161 同家族探针 fail（1/6 特异性）。§162 已 CLOSED：基础设施/盲传输/provenance/资格合同全部 CLOSED，GPT-5.6-Sol 资格 = FAIL，自动 semantic judge = NOT QUALIFIED，Authority granted = NONE。** 失败刻画 = 可复现的 citation_support 轴欠判（三次一致）；holdout 对 GPT 家族 FINAL FAIL。**RQCE v1 落法：机械检查 AVAILABLE，语义标签仅独立人工或 abstain，release 在语义标签覆盖满足前 NO-GO。** 不再为 PASS 更换模型。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -14130,6 +14130,18 @@ exact-head CI
    且**不得复用**已暴露的失败 item 内容。
 ```
 
+**C8 多家族资格化政策（冻结，2026-10-01；任何后续 family 资格化的前置条件）**：
+
+```text
+1) 固定 reviewer 顺序（如 GPT -> Claude -> Gemini），每家**只允许一次**；
+2) 所有结果**全部报告**，不得只报 PASS 的那一家；
+3) 不得因前一家表现修改 prompt / rubric / holdout；
+4) 不满足以上任一条时，该结果只能记为 comparative / diagnostic，
+   **不得作为资格授予依据**。
+理由：reviewer-selection 决策若发生在看到前一家 FAIL 之后，最终 PASS 会带
+reviewer-selection bias，无法与前次 FAIL 并列解释。
+```
+
 **明确不做**：不为 `.workbuddy/` 插正式 commit（本机 `.git/info/exclude` 处理即可）；
 不在 §162 前开始级联 rebase；§162 不顺手接 image / chart / live。
 
@@ -14729,6 +14741,66 @@ qualified_judge=false | formal_semantic_label=false | release_gate=NO_GO
 (b) 用同一冻结 holdout 去资格化另一个 reviewer 家族
     （须记录"reviewer 家族在两次尝试之间改变"这一解释性代价）。
 ```
+
+### 162.10 §162 CLOSED（2026-10-01）：自动 semantic judge = **NOT QUALIFIED**
+
+**最终状态（冻结，产品裁定）**：
+
+```text
+§162 Independent Semantic Reviewer Qualification
+
+Infrastructure:             CLOSED
+Blind transport/provenance: CLOSED
+Qualification contract:     CLOSED
+GPT-5.6-Sol qualification:  FAIL
+
+Failure characterization:
+  reproducible semantic-axis under-discrimination on citation_support
+  for unsupported-but-validly-cited claims
+
+Qualified automatic judge:  NONE
+Authority granted:          NONE
+Formal semantic labels:     NONE from automatic reviewer
+Release:                    NO-GO
+```
+
+**证据链（三次一致）**：
+
+```text
+consumed calibration   rq-review-20261001-001   6/6 detection + 4/6 specificity
+fresh holdout A        CLUSTER-A-NWS-HEAT       6/6 + 4/6
+fresh holdout B        CLUSTER-B-NOAA-TIDES     6/6 + 4/6
+同一 signature：unsupported_claim -> EG=gap ✅ / CS=supported ❌
+clean baseline / missing_aspect / wrong_citation 全部稳定正确
+-> 定性 = REPRODUCIBLE_REVIEWER_FAMILY_FAILURE_MODE（非 prompt 运气、非单题噪声）
+```
+
+**RQCE v1 落法（冻结）**：
+
+```text
+Automatic semantic judge:        NOT QUALIFIED
+Mechanical / deterministic:      AVAILABLE
+Semantic labels:
+  - independent manual_human -> allowed when explicitly reviewed
+  - otherwise                -> abstain / unlabeled
+Release gate:                    NO_GO until required semantic-label coverage is satisfied
+```
+
+原则：**机器能确定的继续机器确定；需要语义裁决的地方不伪造自动权威。**
+
+**holdout 状态（冻结）**：
+
+```text
+RQ-QUAL-HOLDOUT-v1
+  GPT family qualification result: FINAL FAIL
+  future other-family runs:        comparative / diagnostic only
+```
+
+**未做**：不再为得到 PASS 而更换模型；本阶段**不执行 (b)**；未授予任何 authority；
+未放宽 `citation_support` 期望；未改写 Cluster A / composite / 已提交 artifact。
+
+**未来入口**：若 Claude / Gemini / API 自然接入，另开 **§162-v2 reviewer bakeoff / qualification**，
+并**在执行前**重新预注册 reviewer-selection policy（见 C8）与 fresh holdout。
 
 ### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
 
