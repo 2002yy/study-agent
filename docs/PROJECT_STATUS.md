@@ -15587,6 +15587,82 @@ memory.py:60               read_memory_file -> read_text_file(MEMORY_DIR / name)
 不可写成：shadow lifecycle fully bounded by the outer budget
 `
 
+### 164.15 §164-C1b-1 接线边界（冻结 v1，2026-10-01；实现待独立刀）
+
+**边界 1 — shadow 开关默认 OFF**
+
+```text
+learner_state_shadow_read = false   # default
+```
+"代码已接线" 与 "生产测量已启用" 是**两件事**；测试与后续 C2 characterization 再显式打开。
+
+**边界 2 — 250ms 是最大允许扰动，不是性能合格声明**
+
+```text
+normal -> 实际耗时
+stall  -> 最多等 budget 后 fail-open
+```
+C1 只能证明**延迟有界**，**不得**写成 latency-neutral。真实 `p50 / p95 / p99`、
+timeout rate、capacity_exhausted rate 留给 **C2**。**不得为了"做到完全异步"而改变
+turn-start sampling 语义。**
+
+**边界 3 — publish 必须真的 non-blocking，且命名要精确**
+
+```text
+sample / parity
+  ↓
+update_chat_turn succeeds
+  ↓
+telemetry.put_nowait(...)
+  ↓
+继续生产路径
+```
+**禁止** `update succeeds -> await / wait for sink`。
+命名：不要写 `production_turn_commit=confirmed`（这里只证明 `start_turn` 对应状态已持久化），
+精确写法为：
+
+```text
+turn_start_persistence_confirmed = true
+```
+避免把"527 更新成功"说成整个 turn 生命周期已完成。
+
+**边界 4 — shadow outcome 在业务逻辑里是真正死端**
+
+```python
+shadow_outcome = _observe_learner_state_parity(...)
+# only telemetry consumes shadow_outcome
+
+update_chat_turn(...)
+```
+**禁止**任何 `if shadow_outcome...: change_plan() / change_state() / change_closure()`；
+**连**"shadow unavailable 时 fallback 到另一个 learner context"这类看似合理的便利逻辑也不得出现。
+
+**C1 CLOSED 的门（最终，冻结）**：
+
+```text
+REAL_RUNTIME_SHADOW_READ = true
+feature flag default = OFF
+decision inputs invariant              ✅
+production state / output invariant    ✅
+exception isolation                    ✅
+caller latency bounded                 ✅
+capacity / backlog bounded             ✅
+telemetry non-blocking / drop-safe     ✅
+no durable planning input              ✅
+no transaction authority               ✅
+exact-head tests / CI                  ✅
+```
+
+验收矩阵：`TurnBehaviorSnapshot` 八项 × 八场景（OFF / normal / snapshot throws / snapshot stalls /
+capacity exhausted / parity·classifier throws / telemetry throws / telemetry slow），
+**全部要求 production snapshot == OFF baseline**；
+另**单独**测 latency（`stall / rejected / error -> 调用方额外等待有界`），
+**不混进**语义等价。并显式验证 `prompt_context_hash` 是**在 shadow hook 之前**算出的，
+而不只是 ON/OFF 恰好相等。
+
+**§164-C2 起不再改测量仪**，直接做 characterization：
+真实/代表性 turn 上两套 learner state 到底有多少 `MATCH / EXPECTED_DIVERGENCE / MISSING / CONFLICT / NOT_COMPARABLE`。
+
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
 > 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
