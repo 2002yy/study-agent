@@ -16135,6 +16135,72 @@ D   substantive / substantive             ⏳ later
 
 **仍冻结未改**：observer / parity classifier / knowledge classifier / isolation / production runtime /
 substantive 判据。
+
+### 164.24 §164-C2 D 象限构造合同（冻结，2026-10-01）
+
+**D 不等于"两边都有东西"** —— 那只说明两侧非空，**不一定**说明两侧正在描述**同一个学习事实**。
+
+**D 成立条件（冻结）**：
+
+```text
+1. legacy substantive 已观测成立
+2. **production-supported closure 真正发生**
+3. durable substantive write **已观测并持久化**
+4. 后续 parity observation 时：legacy_substantive = true 且 durable_substantive = true
+5. 两侧 provenance 属于**同一学习连续性 / 同一待比较事实**
+-------------------------------------------- 到这里才 assign D
+6. **最后**才读取 parity
+```
+
+**D 的传播链从 B 扩展为**：
+
+```text
+legacy write -> legacy persist -> closure -> durable write -> durable persist
+  -> subsequent observation -> dual-state classification -> parity
+```
+
+**两条不得偷换的区分（冻结）**：
+
+```text
+a) **closure happened ≠ durable substantive**
+   必须**实际读回** durable state 之后才能判 durable_substantive = true。
+b) **两边 substantive ≠ 两边语义对齐**
+   lineage / provenance 必须先成立，才能把 D 当作"同一学习事实双承载"的样本。
+```
+
+**continuation scope 不得预设（冻结）**：B 已暴露真实 runtime 的 active-operation 生命周期约束；
+D 可能还有"closure 对 thread 生命周期意味着什么"这一真实约束。
+**不得为复刻 B 而强行规定 D 必须 same-thread**：
+
+```text
+closure 后若允许 same-thread continuation -> 用 same thread
+closure 后若 production contract 要求另一种 continuation scope -> 按真实 contract 构造
+关键：**lineage 必须可证明**，而不是接口形式必须一样。**不要为了采 D 改 runtime。**
+```
+
+**D artifact 分层 provenance（冻结，至少能回答）**：
+
+```text
+legacy_before_projection
+closure_evidence
+durable_post_closure_projection
+durable_persistence_evidence
+observation_legacy_projection
+observation_durable_projection
+continuity / lineage evidence
+
+observed_state      legacy_substantive / durable_substantive
+stratum_assignment  D / other
+parity              overall / five_dimensions
+```
+
+**artifact schema 精化说明**：未来 artifact 可把 `knowledge_kind_declared` 改为**逐 turn**记录
+（collection-side schema 精化）；**旧 B artifact 原样冻结、不回写**。
+
+**失败时的纪律**：若 closure 后 durable 仍为空 / legacy 消失 / continuity 断掉，
+**全部按真实状态记录**，**不为取得 D 而改 runtime 或 substantive 定义**。
+
+**§164-D Phase 2 gate 仍不得预注册**：B 只证明了迁移时序；只有 D 才开始提供 semantic parity 核心数据。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
