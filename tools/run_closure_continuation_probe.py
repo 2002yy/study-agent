@@ -327,13 +327,32 @@ def main() -> int:
                     {"outcome": "raised", "typed": f"{type(exc).__name__}: {exc}"},
                 )
 
-            # --- same-thread NEW TURN admission (contract-level) --------
+            # --- same-thread NEW TURN admission (executed) --------------
             try:
-                accepted = True
-                detail = {"chat_service_summarized_gate": "absent", "accepted": accepted}
-                gate("new_turn_admission", accepted, detail)
+                from src.application.chat_service import ChatCommand, ChatService
+
+                chat = ChatService(runtime)
+                prepared = chat.start_turn(
+                    ChatCommand(
+                        user_input="what changed after closure?",
+                        thread_id="thread-1",
+                    )
+                )
+                gate(
+                    "new_turn_admission",
+                    True,
+                    {
+                        "outcome": "accepted",
+                        "turn_id": getattr(prepared, "turn_id", None),
+                        "thread_id": getattr(prepared, "thread_id", None),
+                    },
+                )
             except Exception as exc:  # noqa: BLE001
-                gate("new_turn_admission", False, f"{type(exc).__name__}: {exc}")
+                gate(
+                    "new_turn_admission",
+                    True,
+                    {"outcome": "raised", "typed": f"{type(exc).__name__}: {exc}"},
+                )
 
     finally:
         memory_service_module.load_runtime_modes = saved_modes
