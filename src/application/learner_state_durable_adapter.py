@@ -27,9 +27,18 @@ caller can route differences to telemetry or test evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
 
 from src.pedagogy.types import LearningState
+
+DURABLE_READ_FLAG = "LEARNER_STATE_DURABLE_READ"
+
+
+def durable_read_enabled() -> bool:
+    """Phase 2 is opt-in: default OFF keeps production behaviour unchanged."""
+    return os.environ.get(DURABLE_READ_FLAG, "0").strip().lower() in {"1", "true", "yes", "on"}
+
 
 # Decisions (frozen vocabulary; mirrors the §164.29 pre-registered gate).
 DURABLE_PREFERRED = "durable_preferred"

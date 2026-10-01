@@ -18,6 +18,10 @@ from src.application.answer_consistency import (
     check_answer_consistency,
     consistency_gate_enabled,
 )
+from src.application.learner_state_durable_adapter import (
+    adjudicate as adjudicate_learner_state,
+    durable_read_enabled,
+)
 from src.application.learner_state_shadow_seam import (
     build_decision_input_hashes,
     observe_shadow_for_turn,
@@ -441,6 +445,16 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
+            if durable_read_enabled():
+                _reader = self.dependencies.read_learner_model
+                if _reader is not None:
+                    try:
+                        learning_state = adjudicate_learner_state(
+                            learning_state, _reader(thread.id)
+                        ).state
+                    except Exception:
+                        pass  # fail-open: legacy state stands
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
