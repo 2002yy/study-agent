@@ -43,7 +43,7 @@ from src.evals.release_benchmark_semantic_controls import dimension_consistency_
 SCHEMA_PACKET = "release-benchmark-blind-review-packet-v1"
 SCHEMA_MANIFEST = "release-benchmark-blind-review-manifest-v1"
 SCHEMA_INGEST = "release-benchmark-blind-review-ingest-v1"
-SCHEMA_HOLDOUT_PACKET = "release-benchmark-qualification-holdout-packet-v1"
+SCHEMA_HOLDOUT_PACKET = "release-benchmark-frozen-source-review-packet-v1"
 SCHEMA_HOLDOUT_MANIFEST = "release-benchmark-qualification-holdout-manifest-v1"
 SCHEMA_HOLDOUT_INGEST = "release-benchmark-qualification-holdout-ingest-v1"
 
@@ -67,6 +67,10 @@ REASON_UNKNOWN_ITEM = "unknown_blind_case_id"
 REASON_MISSING_ITEM = "missing_blind_case_id"
 REASON_DUPLICATE_ITEM = "duplicate_blind_case_id"
 REASON_SELF_REPORTED_CONSISTENCY = "reviewer_self_reported_consistency"
+REASON_LEAKY_RUN_ID = "review_run_id_leaks_framing"
+
+# The reviewer-visible packet must not hint that it is a qualification gate.
+_LEAKY_RUN_ID_TOKENS = ("qual", "holdout", "calib", "cluster", "gate", "composite")
 
 REVIEWER_INSTRUCTIONS = (
     "Review each item independently against only the frozen source excerpt and the "
@@ -86,8 +90,8 @@ REVIEWER_INSTRUCTIONS = (
     "sentence requires evidence_grounding=gap with an unsupported_claim issue. If an "
     "issue reports a coverage gap, question_coverage must be partial. Never mark an "
     "axis supported while its issue reports a gap. Do not add any other keys. Judge "
-    "every item on its own material. Do not state whether you are qualified, do not "
-    "score yourself, and do not output any approval or label."
+    "every item on its own material. Do not score your own output, and do not output "
+    "any approval, verdict or label."
 )
 
 def _materialized_cases(materialized: Mapping[str, object]) -> list[dict[str, Any]]:
@@ -473,6 +477,10 @@ def build_holdout_packet(
     """
     if not review_run_id.strip():
         raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "review_run_id")
+    lowered = review_run_id.lower()
+    for token in _LEAKY_RUN_ID_TOKENS:
+        if token in lowered:
+            raise ReviewerQualificationViolation(REASON_LEAKY_RUN_ID, token)
     clusters = cast(list[dict[str, Any]], composite.get("clusters", []))
     if not clusters:
         raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "composite clusters")

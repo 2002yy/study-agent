@@ -23,7 +23,7 @@ from src.evals.release_benchmark_reviewer_qualification import (
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/release_benchmark"
 COMPOSITE = FIXTURES / "qualification_holdout_v1.json"
-RUN_ID = "rq-qual-20261001-001"
+RUN_ID = "rq-review-20261001-002"
 INSTANT = "2026-10-01T08:00:00Z"
 
 CLUSTER_A = "CLUSTER-A-NWS-HEAT"
@@ -109,7 +109,8 @@ def test_packet_hides_the_composite_structure() -> None:
     packet, _ = _built()
     blob = json.dumps(packet, ensure_ascii=False).lower()
     for forbidden in ("cluster", "composite", "gate_rule", "overall_pass",
-                      "holdout_id", "instance_id"):
+                      "holdout", "qualif", "calibration", "specificity", "score yourself",
+                      "instance_id", "eligible_for_authority_review"):
         assert forbidden not in blob
     assert packet["schema_version"] == SCHEMA_HOLDOUT_PACKET
 
@@ -275,3 +276,13 @@ def test_ingest_refuses_a_same_family_reviewer() -> None:
             timestamp=INSTANT,
             answer_model_families=("deepseek",),
         )
+
+
+def test_leaky_review_run_ids_are_rejected() -> None:
+    """The run id is reviewer-visible, so it must not frame the task."""
+    for leaky in ("rq-qual-20261001-001", "holdout-run", "calib-1", "cluster-a"):
+        with pytest.raises(ReviewerQualificationViolation) as exc:
+            build_holdout_packet(
+                composite=_composite(), root=ROOT, review_run_id=leaky
+            )
+        assert exc.value.reason == "review_run_id_leaks_framing"
