@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-B candidate assembler 已实现；下一步 = §164-C shadow durable learner read**（见 §164.1–§164.9 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产权威矩阵 + 8 条结构发现（核心 = F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE / LearnerModel READ / ClosureTruth COMMIT；★2 Assessment 机器可评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同（冻结）**：A projection authority（durable truth → LearnerModelSnapshot → turn context，snapshot 不持久化）；B+F CandidateAssembler 产出 **LearningClosureCandidate**（独立对象，只 propose，类型层禁止越权字段）；C 三阶段 cutover（shadow → dual-read → durable authority）；D+H abstain taxonomy 五类且**可路由可审计**；G semantic-equivalence gate（比语义投影，不比字段相等）；E non-goals；**invariant：LearnerModelSnapshot 永远可重建，cache != authority**。**§164-B 已实现（§164.9）**：纯投影 assembler（不调 LLM、不做语义判断、不触 truth repository 与 closure commit，**有依赖级 AST 测试**）；候选 schema 类型层 + payload 层双断言无 authority 字段；abstain 按维度独立可路由；semantic_fingerprint 排除 candidate_id 保证幂等；**桥停在 closure boundary 之前，无 convenience auto-commit**；24 tests passed。**双轨**：主线 A = §164-C→§164-F→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **当前动作：§164-C0 Semantic Parity Contract 已冻结；下一步 = §164-C1 production-inert shadow read**（见 §164.1–§164.10 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163**：17 项资产矩阵 + 8 条结构发现（核心 F1 两套并行 learning state）；四项裁定已冻结（★1 NextStep=Planner PROPOSE/LearnerModel READ/ClosureTruth COMMIT；★2 Assessment 可机器评价但不得成为 semantic label 或直写 mastery，无权威证据须 abstain；★3 goal→goal prerequisite RETIRE_AS_AUTHORITY 迁入 §165；★4 closure 合并 authority surface、保留三层内部职责）。**§164-A 合同**：projection authority / candidate 只 propose / 三阶段 cutover / abstain taxonomy 可路由 / semantic-equivalence gate / non-goals / snapshot 永远可重建。**§164-B 已实现（§164.9）**：纯投影 candidate assembler（依赖级 AST 测试禁止触 truth repository 与 closure commit），24 tests passed，**桥停在 closure boundary 前**。**§164-C0 合同（冻结，§164.10）**：中性比较投影（Legacy/Durable LearnerProjection，**仅为测量，不是第三套 authority**）；分类词表 MATCH/COMPATIBLE/EXPECTED_DIVERGENCE/MISSING_LEGACY/MISSING_DURABLE/CONFLICT/NOT_COMPARABLE；五维合同（goal/objective 不要求字符串相等、understanding 为硬门、next_step 允许差异、misconception 与 freshness 默认 EXPECTED_DIVERGENCE）；**禁止新增 LLM semantic comparator**；C1 要求 production-inert（shadow_read_enabled != durable_authority_enabled，shadow OFF == shadow ON）；C2 产出 LearnerStateParityObservation（**不得**与 learning-domain Observation 混同）；**Phase-2 阈值本阶段不设**，留 §164-D 预注册。**双轨**：主线 A = §164-C1→C2→§164-D→§165→…→§171；并行 B = §172.1（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15208,6 +15208,106 @@ L1: test_learning_candidate_assembler = 24 passed
 **未做 / 下一步**：不改 chat runtime 读写路径、不写 migration、不改 schema。
 §164-C = 让 chat turn **shadow-read** durable LearnerModel，并第一次量化 legacy 与 durable
 两套学习状态的差异（含 equivalence / expected divergence 定义）。
+
+### 164.10 §164-C0 Semantic Parity Contract（冻结 v1，2026-10-01）
+
+**本刀范围**：只冻结 parity 合同；**不改 chat runtime、不接 durable read、不新增语义比较器**。
+§164-C 拆为 **C0 合同 → C1 production-inert shadow read → C2 parity evidence collection**。
+
+**要回答的问题**：同一个用户、同一个学习线程下，legacy state 与 durable LearnerModel
+**到底算不算语义一致**？
+
+**比较对象不是原始对象**，而是两边各自产出一个**中性比较投影**：
+
+```text
+Legacy LearningState           -> LegacyLearnerProjection
+                                        \
+                                         -> SemanticParityResult
+                                        /
+LearnerModelSnapshot           -> DurableLearnerProjection
+```
+
+两个 projection **只为迁移测量服务**，**不得**成为第三套 learner state authority。
+
+**分类词表（冻结；不得只返回 equal=true/false）**：
+
+```text
+MATCH
+COMPATIBLE
+EXPECTED_DIVERGENCE
+MISSING_LEGACY
+MISSING_DURABLE
+CONFLICT
+NOT_COMPARABLE
+```
+
+**五个维度的合同（冻结）**：
+
+| 维度 | 合同 |
+| --- | --- |
+| 1 Goal / Objective | **不要求字符串相等**：exact ref match / canonical identity / known linkage → `MATCH`/`COMPATIBLE`；同主题不同粒度 → `COMPATIBLE`；不同主题 → `CONFLICT`；**机械不可判 → `NOT_COMPARABLE`** |
+| 2 Understanding | **硬门**：durable `pass` 与 legacy `failed`/未解 misconception → `CONFLICT`；legacy `unknown` + durable `confirmed` → `MISSING_LEGACY`（**不是冲突**） |
+| 3 NextStep | 允许差异（两套路径产生方式不同）：`MATCH` / `LEGACY_ONLY` / `DURABLE_ONLY` / `EXPLAINED_DIVERGENCE` / `CONFLICT`；Phase 1 **只收数据，不预设差异即 bug** |
+| 4 Misconception | 当前 misconception 在 chat runtime live、durable 尚无正式 lifecycle（§168）：legacy 有 / durable 无 → **默认 `EXPECTED_DIVERGENCE`**（否则会因 §168 未实现而永久打红） |
+| 5 Freshness | durable/on-demand 侧已有能力且不持久化：durable 有 / legacy 无 → **固定 `EXPECTED_DIVERGENCE`**，**绝不因此阻止 Phase 2** |
+
+**禁止**：§164-C **不得新增 LLM semantic comparator**。第一版只允许 exact ref match、
+canonical goal/objective identity、known linkage；无法机械判断即 `NOT_COMPARABLE`。
+（否则又会为了 parity 引入一个新的自动 semantic judge —— 与 §162 结论直接冲突。）
+
+**C1 — production-inert shadow read（冻结）**：
+
+```text
+允许：legacy context 正常驱动当前 turn；旁路 durable LearnerModelSnapshot
+      -> parity projection -> comparison -> telemetry
+禁止：durable result -> 改 prompt / pedagogy plan / retrieval / next step / closure
+```
+
+> **读到了，但不能影响任何用户可观察行为。**
+
+机器级 invariant 与回归（冻结）：
+
+```text
+shadow_read_enabled != durable_authority_enabled
+shadow OFF response == shadow ON response
+  （至少对 route / plan / persisted turn state / closure eligibility 做行为等价断言）
+```
+
+**C2 — Parity artifact（冻结）**：
+
+```text
+LearnerStateParityObservation
+├─ thread_id
+├─ turn_id
+├─ legacy_projection_hash
+├─ durable_projection_hash
+├─ dimensions { goal_objective, understanding, next_step, misconception, freshness }
+├─ overall_classification
+├─ expected_divergences[]
+├─ conflicts[]
+└─ provenance
+```
+
+**命名边界**：可以叫 `ParityObservation`，但**不得**把它塞进 learning domain 的 `Observation`
+概念里 —— 该概念在代码中**并不存在**，而 research/eval 侧已有大量同名碰撞
+（`VisionObservation` / `CaseObservation` / `ReviewObservation`）。
+
+**Phase-2 gate（冻结：本阶段不设阈值）**：§164-C 只做 characterization，回答
+"多少 MATCH / EXPECTED_DIVERGENCE / MISSING_* / 真实 CONFLICT"；**不写死百分比**。
+阈值属 **§164-D semantic parity gate**，须在看到真实分布后**预注册**，
+避免"先定无依据阈值 → 看数据 → 再改阈值"。
+
+**§164-C 成功定义（冻结）**：**不是**"durable LearnerModel 已开始影响聊天"，而是
+
+> **在完全不改变 chat 行为的前提下，每个 turn 都能得到一份可解释、可重放的
+> legacy-vs-durable 语义差异观测。**
+
+即：shadow read works + production behavior unchanged + differences classified +
+expected divergence explicit + **no new semantic judge** + **no new learner authority**。
+
+**未做 / 下一步**：本刀只冻结合同。§164-C1 = 实现 production-inert shadow read
+（含 `shadow OFF == shadow ON` 行为等价回归）；§164-C2 = 产出
+`LearnerStateParityObservation` 并开始收集真实分布。
 
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
