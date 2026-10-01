@@ -15550,7 +15550,25 @@ evaluations.list_for_thread(thread_id)           1 次本地查询
 原措辞：indefinitely stuck worker may survive caller timeout
 修正后：worker 终止**不是无界**，而是受 inner read 自身边界约束
         （有界查询数 + busy_timeout 30s）；outer 250ms budget 只约束 caller 延迟，
-        **不**约束 worker 终止。最坏情况是 worker 最长约 30s 后必然结束。
+        **不**约束 worker 终止。
+
+**不得写"最坏约 30s 后 worker 必然结束"**：30s 是**单次 SQLite busy wait** 上界，
+不是整个 `build()` 的总 deadline；多个查询理论上可分别等待，且 `busy_timeout`
+不是通用的 SQL / 文件系统执行 deadline。
+
+**资源安全来自结构封顶，而不是来自"必然结束"**：
+```text
+最多 2 个 outstanding workers | 0 intentional backlog | 饱和后立即 reject | production continues
+```
+**即使 inner reader 极端异常，退化规模仍被封顶为两个 shadow worker** ——
+这一点比声称"30 秒必结束"更重要、也更可证。
+
+**`read_confirmed_profile` 绑定已按实际生产路径核实（非类型推断）**：
+```text
+runtime_repository.py:389  read_confirmed_profile=lambda: read_memory_file("learner_profile.md")
+memory.py:60               read_memory_file -> read_text_file(MEMORY_DIR / name)
+=> 当前生产绑定 = 本地单文件读取，无外部 I/O、无网络
+```
 `
 
 **由此得到的真实退化语义（有界且可接受）**：若两次读取同时遭遇锁竞争，
