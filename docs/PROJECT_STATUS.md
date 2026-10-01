@@ -6975,7 +6975,7 @@ L1 tests ⏳ 未写              verdict ❌ 未出
 
 ### 120.1 已修（本刀）
 
-1. **PDF 下载改为 
+1. **PDF 下载改为
 ead1(4096) 小粒度 partial read** + min(remaining, IO_QUANTUM=0.25s) pin 到 socket timeout；deadline_at 为唯一权威。Content-Length 只用于 accounting/guard，**不再驱动大块 blocking read**。
 2. **quantum socket timeout 不再当 transport failure**：TimeoutError/OSError 来自 quantum 时 continue 并重查 absolute deadline（此前会提前返回 url）。
 3. **transport 回退路径泄漏修复**：非 deadline 失败时也删除临时文件。
@@ -7099,13 +7099,13 @@ wait_for(readline) 在 Windows 上**不是可取消的 pipe read**：caller 超�
 
 | 项 | 实现 |
 | --- | --- |
-| 
-equest_id | bridge 每请求生成 
+|
+equest_id | bridge 每请求生成
 N，worker **原样 echo**；不再依赖 stdout 行顺序配对 |
-| 单一 persistent stdout reader | _pump 成为 worker 生命周期内**唯一** reader，按 
+| 单一 persistent stdout reader | _pump 成为 worker 生命周期内**唯一** reader，按
 equest_id 分发到 _pending[request_id] |
 | late response | pending 中已无该 id ⇒ 计 late_responses 并**丢弃**，绝不交给后续请求 |
-| 事件通道 | 无 
+| 事件通道 | 无
 equest_id 的 READY/BYE/STATS 走独立 _events 队列 |
 | worker 侧 | 所有诊断已改到 **stderr**（_tl / [pdf]），stdout 仅协议 |
 
@@ -7125,7 +7125,7 @@ C               wall=5016ms  deadline_hit=None         <- C 也超时
 - _broadcast 与 _next 都用 if not hasattr(self, _events) 惰性创建 _events，dataclass 上未声明该字段；reader 线程与主线程可能各建一个，导致 READY 之外的投递路径异常；
 - 需确认 _pump 线程是否在第一次迭代就异常退出（未捕获异常会静默终止线程，
 eader_alive 仍为 True）。
-- 建议下刀：把 _events 显式声明为 dataclass 字段（init=False），并给 _pump 加 try/except 记录 
+- 建议下刀：把 _events 显式声明为 dataclass 字段（init=False），并给 _pump 加 try/except 记录
 eader_error，先证明 reader 活着。
 
 ### 122.4 状态
@@ -7150,8 +7150,8 @@ A3-2 verdict                     PENDING
 
 1. **_events 改为显式 dataclass 字段**（原先由 _broadcast/_next 在**两个线程**里用 hasattr 惰性创建，可能各建一个 Queue）。**这一处修复是有效的** —— 修后一次运行中 reader 正常投递：late_responses=1、B 拿到自己的响应（
 id=r2、5804 chars、31ms）、**未被 A 的迟到响应污染**。
-2. **_pump 全包 try/except**：新增 
-eader_error / 
+2. **_pump 全包 try/except**：新增
+eader_error /
 eader_alive / lines_seen 诊断；异常不再静默杀死线程。
 3. **stderr drain 线程**：新增 _drain_stderr，保留 200 行 tail 供调试。
 
@@ -7205,7 +7205,7 @@ focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
 | # | bug | 证据 |
 | --- | --- | --- |
 | 1 | _events 由 _broadcast/_next 在**两个线程**里 hasattr 惰性创建 ⇒ 可能各建一个 Queue | 修前 reader 完全不投递；修后开始正常投递 |
-| 2 | **stats/shutdown 回复未 echo 
+| 2 | **stats/shutdown 回复未 echo
 equest_id** ⇒ 在 correlation-ID 协议下被 reader 当**广播**，永远无法 resolve pending[r1] | 时间线 W4_parsed rid=r1 op=stats 之后 **无 W5**，lines_seen=2（READY + 那条广播） |
 | — | cwd spawn parity（前台直连用 cwd=REPO_ROOT，bridge 未设） | 记为 **parity correction**，未主张为根因 |
 
@@ -7215,7 +7215,7 @@ B = [B0 before stdin.write rid=r1, B1 after write, B2 after flush, B3 poll=None]
 W = [W0_ready_written, W1_request_loop_entered, W2_before_readline,
      W3_after_readline bytes=36, W4_parsed rid=r1 op=stats, W2_before_readline]
 `
-⇒ 请求写出/到达/解析全部正常，**只差 W5（响应未发）**，而原因是 ops 分支没回 
+⇒ 请求写出/到达/解析全部正常，**只差 W5（响应未发）**，而原因是 ops 分支没回
 equest_id。
 
 ### 124.2 ✅ 稳定门（用户要求：20× 独立 startup）
@@ -7230,9 +7230,9 @@ eader_error=''、poll=None、lines_seen 正确、无 stale/late 污染。
 
 ### 124.3 本刀已实现（协议层，全部保留）
 
-- 
+-
 equest_id 关联（worker **原样 echo**，含 ops 分支）
-- **单一 persistent stdout reader**（按 
+- **单一 persistent stdout reader**（按
 equest_id 分发到 _pending）
 - **late response 丢弃**（late_responses 计数，绝不交给后续请求）
 - **stdin 单写锁**（with self._write_lock: write → flush）
@@ -9512,11 +9512,11 @@ tools/run_f2_characterization.py   （新增；不改任何生产代码）
 ```
 
 **边界测量**：	otal_wall_ms 由 harness 包住 ridge.request()；queue_wait_ms 取自 worker ledger；
-worker_handle_ms（=cancellation.actual_return_ms）作为**独立可观测量**报告，**不冒充 
+worker_handle_ms（=cancellation.actual_return_ms）作为**独立可观测量**报告，**不冒充
 eader_execution_ms**（§143.8）；
 
-eader_execution_ms / 
-ormalization_ms / provenance_ms 在 raw provider call 边界**不可分离** -> 显式置 
+eader_execution_ms /
+ormalization_ms / provenance_ms 在 raw provider call 边界**不可分离** -> 显式置
 ull。
 
 ### 143.17 §143-A2 validation（1 fixture × 3 repeats，no production changes）
@@ -15394,7 +15394,7 @@ legacy 已吸收本 turn 新状态、durable 仍是未 closure commit 的旧真�
 
 **结论：天然 hook 点 = streaming_truth 构造完成（521）之后、update_chat_turn（527）之前。**
 该点已满足三条件，**无需重排生产流程**。
-legacy 侧取 learning_state_before（turn 起点的 legacy state），**不是** 
+legacy 侧取 learning_state_before（turn 起点的 legacy state），**不是**
 ext_learning_state。
 
 **七层行为等价分两组**：
