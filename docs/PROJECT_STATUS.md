@@ -15143,6 +15143,71 @@ snapshot 允许缓存，但**必须能从 durable truth 重新构建**；
 §164-F legacy retirement decision
 ```
 
+### 164.9 §164-B 实现（2026-10-01，单刀）：candidate assembler
+
+**交付**：
+
+```text
+src/domain/learning_closure_candidate.py            新增：候选对象 + abstain taxonomy
+src/application/learning_candidate_assembler.py     新增：纯投影 assembler
+tests/test_learning_candidate_assembler.py          新增：24 tests
+```
+
+**六条约束的落地**：
+
+```text
+1) 纯投影：输入仅 PedagogyEvalRun + objective + misconceptions + source_turn_id；
+   不调 LLM、不做语义判断、不建 durable goal、不决定 mastery、不调 ClosureTruth
+   -> **依赖级测试**：AST 解析 assembler 的 import，禁止 repositories / sqlite /
+      learning_truth_repository / closure services / runtime_repository；
+      并断言源码不出现 commit( / create_* / complete( / chat( 等调用
+2) candidate_id 无长期身份语义：lcc_* 前缀；测试断言 != eval_ref != objective_ref
+3) proposed_understanding 引用 evaluation 而非复制成事实：
+   ProposedUnderstanding{objective_ref, claim_ref, proposed_result, pedagogy_eval_ref,
+   basis, authority_required=closure_review}；accept -> proposed_result="pass"
+4) misconception 只做 proposal：ProposedMisconception{description, pedagogy_eval_ref,
+   basis, authority_required}；**不建生命周期、不建表**（§168 负责）。
+   字段名用 `description` 而非 `label` —— `label` 保留给 semantic-label authority
+5) abstain 按维度独立，不 void 整个 candidate：
+   例：understanding 取 ABSTAIN_NO_AUTHORITATIVE_EVIDENCE 时仍可 propose next_step="research"
+6) 幂等：semantic_fingerprint 覆盖提案内容但**排除 candidate_id**；
+   同输入两次组装 -> fingerprint 相同、candidate_id 不同
+```
+
+**abstain taxonomy（五类，全部可路由）**：
+
+```text
+NO_AUTHORITATIVE_EVIDENCE -> research
+CONFLICTING_EVIDENCE      -> research_or_manual_review
+INSUFFICIENT_RESPONSE     -> ask_learner_or_exercise
+OUTSIDE_OBJECTIVE         -> no_learner_truth_update
+EVALUATOR_UNCERTAIN       -> bounded_evaluator_retry_or_human
+```
+
+触发映射（**只读既有事实，不新增判断**）：`blocked_by_policy` -> NO_AUTHORITATIVE_EVIDENCE；
+`unavailable` / `attempted_failed` -> EVALUATOR_UNCERTAIN；空响应或 `is_claim=False` -> INSUFFICIENT_RESPONSE；
+objective 为空 -> OUTSIDE_OBJECTIVE；semantic 引用不在允许集内的 evidence -> NO_AUTHORITATIVE_EVIDENCE；
+调用方显式传入冲突证据 -> CONFLICTING_EVIDENCE。
+
+**禁止字段（类型层 + payload 层双断言）**：`committed` / `mastery` / `mastered` / `qualified` /
+`durable_id` / `truth_id` / `understanding_evidence_id` / `next_step_id` / `goal_id` /
+`label` / `semantic_label` / `approved`。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1609 files |
+git diff --check ok | secret-like literal self-check clean
+L1: test_learning_candidate_assembler = 24 passed
+```
+
+**桥停在 closure boundary 之前**：本刀**不**新增 convenience path（candidate -> auto commit），
+测试环境也没有；candidate 生成得再完整也不提交。
+
+**未做 / 下一步**：不改 chat runtime 读写路径、不写 migration、不改 schema。
+§164-C = 让 chat turn **shadow-read** durable LearnerModel，并第一次量化 legacy 与 durable
+两套学习状态的差异（含 equivalence / expected divergence 定义）。
+
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
 > 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
