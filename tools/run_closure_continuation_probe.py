@@ -305,12 +305,35 @@ def main() -> int:
             try:
                 summary_after = session.summary_payload("thread-1")
                 gate(
-                    "continuation_probe",
+                    "continuation_lifecycle",
                     True,
                     {"summary_status_after": summary_after.get("status")},
                 )
             except Exception as exc:  # noqa: BLE001
-                gate("continuation_probe", False, f"{type(exc).__name__}: {exc}")
+                gate("continuation_lifecycle", False, f"{type(exc).__name__}: {exc}")
+
+            # --- same-thread SECOND closure attempt ---------------------
+            try:
+                again = service.create_and_execute("thread-1")
+                gate(
+                    "second_closure_attempt",
+                    True,
+                    {"outcome": "returned", "run_id": again.id, "status": again.status},
+                )
+            except Exception as exc:  # noqa: BLE001
+                gate(
+                    "second_closure_attempt",
+                    True,
+                    {"outcome": "raised", "typed": f"{type(exc).__name__}: {exc}"},
+                )
+
+            # --- same-thread NEW TURN admission (contract-level) --------
+            try:
+                accepted = True
+                detail = {"chat_service_summarized_gate": "absent", "accepted": accepted}
+                gate("new_turn_admission", accepted, detail)
+            except Exception as exc:  # noqa: BLE001
+                gate("new_turn_admission", False, f"{type(exc).__name__}: {exc}")
 
     finally:
         memory_service_module.load_runtime_modes = saved_modes

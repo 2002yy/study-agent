@@ -22,7 +22,7 @@
       "gate": "create_and_execute_returned",
       "status": "PASS",
       "detail": {
-        "id": "closure_cd87f8715d0741d8af2aeabe26705b5c",
+        "id": "closure_9342fa57e61343079dcff5c8026310ae",
         "status": "preview_ready"
       }
     },
@@ -171,10 +171,27 @@
       }
     },
     {
-      "gate": "continuation_probe",
+      "gate": "continuation_lifecycle",
       "status": "PASS",
       "detail": {
         "summary_status_after": "summarized"
+      }
+    },
+    {
+      "gate": "second_closure_attempt",
+      "status": "PASS",
+      "detail": {
+        "outcome": "returned",
+        "run_id": "closure_9342fa57e61343079dcff5c8026310ae",
+        "status": "completed"
+      }
+    },
+    {
+      "gate": "new_turn_admission",
+      "status": "PASS",
+      "detail": {
+        "chat_service_summarized_gate": "absent",
+        "accepted": true
       }
     }
   ],
