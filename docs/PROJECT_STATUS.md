@@ -16704,6 +16704,29 @@ start_turn 内的真实构建顺序（行号）：
    §164-E 注入点 = **443**（consult durable snapshot 并优先采用），
    458 只需保持其「重包裹 + 附加 evaluation」语义不变
    （不得让 durable 值绕过 458 的 evaluation 附加，也不得让 durable 值进入 458 的 payload 造成二次权威）。
+
+**字段映射审计（2026-10-01，443 处替换的关键未知）**：
+
+```text
+LearnerModelSnapshot（durable）        -> LearningState（legacy）
+  objective            (str)           -> objective            (str)   ✅ 可直接映射
+  goal_id / topic_id                   -> payload[...]                  ✅ 元数据
+  goal_status          (str)           -> 无对应字段 -> payload/phase    ⚠ 需定义语义
+  claim_states[].claim_id              -> confirmed_points (text)      ⚠ **类型不兼容**（ID vs 文本）
+  unresolved_count     (int)           -> unresolved_gap  (str)        ⚠ **类型不兼容**（int vs 字符串）
+  confirmed_profile                    -> 无对应字段                     ⚠ 需定义语义
+
+=> **不能简单覆盖**：§164-E 需要一个 **显式逐字段语义的 adapter**
+   （LearnerModelSnapshot -> LearningState），可映射字段取 durable，
+   不可映射字段按 §164.29 预注册的 G1–G5 决定「取 durable / 回退 legacy / 标记不可比」。
+
+=> 这解释了 D 分布中 understanding = MISSING_DURABLE 的根因：
+   durable 侧是 claim_id，legacy 侧是文本 point，**投影层刻意判不可比**；
+   §164-E 不得为了让两者"看起来一致"而篡改该投影（§164.6/§164.7 + §163 F6）。
+```
+
+**结论**：§164-E 的实现核心 = **adapter + 逐字段语义裁决**，
+不是"把 durable 值赋给 legacy 字段"。这是 cutover 的实质工作量，须完整预算。
 ```
 `
 
