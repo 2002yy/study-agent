@@ -123,7 +123,8 @@ def _ingest(
     assert isinstance(packet, dict)
     if manifest.get("packet_sha256") != built["manifest"]["packet_sha256"]:
         raise ValueError("frozen packet does not match the recorded manifest")
-    raw = response_path.read_text(encoding="utf-8")
+    raw_bytes = response_path.read_bytes()
+    raw = raw_bytes.decode("utf-8")
     materialized = _load_frozen(bundle_path)
     families = sorted({str(case["answer_provider"])
                        for case in materialized["cases"]})  # type: ignore[index]
@@ -142,6 +143,7 @@ def _ingest(
         timestamp=timestamp,
         answer_model_families=families,
         transport=transport,
+        raw_response_bytes=raw_bytes,
     )
     # Transport never decides qualification.
     if artifact.get("qualified_judge") is not False:
@@ -152,7 +154,8 @@ def _ingest(
     # The raw response is preserved beside the normalized artifact so the
     # parse can always be replayed instead of trusted.
     raw_copy = out_path.with_name("raw_reviewer_response.txt")
-    raw_copy.write_text(raw, encoding="utf-8")
+    # Byte-for-byte, so the parse can be replayed against the original payload.
+    raw_copy.write_bytes(raw_bytes)
     out_path.write_bytes(_json_bytes(artifact))
     print(f"output_hash={artifact['output_hash']}")
     print(f"calibration_pass={artifact['calibration_pass']}")

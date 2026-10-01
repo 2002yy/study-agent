@@ -224,8 +224,20 @@ def ingest_review_run(
     timestamp: str,
     answer_model_families: Sequence[str],
     transport: str = TRANSPORT_MANUAL_COPY_PASTE,
+    raw_response_bytes: bytes | None = None,
 ) -> dict[str, object]:
-    """Validate a bridged reviewer response and score it. Grants nothing."""
+    """Validate a bridged reviewer response and score it. Grants nothing.
+
+    `raw_response_bytes` is the operator-supplied payload exactly as received.
+    When given it must decode to `raw_response_text` and it is what gets hashed,
+    so the recorded `output_hash` always describes the original bytes rather
+    than a newline-normalised re-encoding.
+    """
+    if raw_response_bytes is not None:
+        if raw_response_bytes.decode("utf-8") != raw_response_text:
+            raise ReviewerQualificationViolation(
+                REASON_RESPONSE_SHAPE, "raw bytes do not match the parsed text"
+            )
     if packet.get("input_manifest_hash") != manifest.get("input_manifest_hash"):
         raise ReviewerQualificationViolation(REASON_RESPONSE_SHAPE, "manifest mismatch")
     review_run_id = str(packet.get("review_run_id", ""))
@@ -319,6 +331,7 @@ def ingest_review_run(
         invocation_id=invocation_id,
         timestamp=timestamp,
         raw_response_text=raw_response_text,
+        raw_response_bytes=raw_response_bytes,
         answer_model_families=answer_model_families,
         calibration=calibration,
         observations=observations,
@@ -335,6 +348,7 @@ def _ingest_artifact(
     invocation_id: str,
     timestamp: str,
     raw_response_text: str,
+    raw_response_bytes: bytes | None,
     answer_model_families: Sequence[str],
     calibration: CalibrationResult,
     observations: Mapping[str, ReviewObservation],
@@ -360,7 +374,11 @@ def _ingest_artifact(
         "schema_version": SCHEMA_INGEST,
         "review_run_id": review_run_id,
         "input_manifest_hash": manifest.get("input_manifest_hash"),
-        "output_hash": sha256(raw_response_text.encode("utf-8")).hexdigest(),
+        "output_hash": sha256(
+            raw_response_bytes if raw_response_bytes is not None
+            else raw_response_text.encode("utf-8")
+        ).hexdigest(),
+        "raw_response_bytes_preserved": raw_response_bytes is not None,
         "reviewer": reviewer_identity.to_dict(),
         "reviewer_identity_hash": reviewer_identity_hash(reviewer_identity),
         "invocation_id": invocation_id,

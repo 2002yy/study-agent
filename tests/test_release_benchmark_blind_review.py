@@ -367,3 +367,11 @@ def test_issue_type_vocabulary_is_shared_not_per_item():
         assert "instructions" not in item
         assert not ({"issue_type", "issue_types", "allowed_issue_types",
                      "vocabulary"} & set(item))
+
+
+def test_ingest_rejects_bytes_that_do_not_match_the_parsed_text():
+    packet, manifest = _packet()
+    raw = _response(manifest)
+    with pytest.raises(ReviewerQualificationViolation) as exc:
+        _ingest(packet, manifest, raw, raw_response_bytes=b'{"other": 1}')
+    assert exc.value.reason == REASON_RESPONSE_SHAPE

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -166,9 +167,8 @@ def test_ingest_writes_normalized_facts_and_preserves_the_raw_response(tmp_path)
     # The raw response survives ingest so the parse can be replayed.
     raw = (out / "raw_reviewer_response.txt").read_text(encoding="utf-8")
     assert raw == (out / "reviewer_response.json").read_text(encoding="utf-8")
-    assert artifact["output_hash"] == __import__("hashlib").sha256(
-        raw.encode("utf-8")
-    ).hexdigest()
+    assert artifact["output_hash"] == sha256(raw.encode("utf-8")).hexdigest()
+    assert artifact["raw_response_bytes_preserved"] is True
 
 
 def test_ingest_records_the_operator_as_transport_not_a_reviewer(tmp_path):
@@ -222,3 +222,19 @@ def test_cli_never_prints_a_qualification_verdict(tmp_path, mode):
     _, _, result = _ingest(tmp_path)
     assert "GRANTED" not in result.stdout
     assert "qualified_judge=False" in result.stdout
+
+
+def test_ingest_preserves_raw_bytes_verbatim_even_with_crlf(tmp_path):
+    """A CRLF payload must survive ingest byte-for-byte, not be re-encoded."""
+    out = _emit(tmp_path)
+    manifest = json.loads((out / "private_manifest.json").read_text(encoding="utf-8"))
+    response = out / "reviewer_response.json"
+    response.write_bytes(_response(manifest).replace("\n", "\r\n").encode("utf-8"))
+    target = out / "ingested_review.json"
+    result = _run("--ingest", "--review-run-id", RUN_ID, "--response", str(response),
+                  "--manifest", str(out / "private_manifest.json"), "--output", str(target))
+    assert result.returncode == 0, result.stderr
+    preserved = (out / "raw_reviewer_response.txt").read_bytes()
+    assert preserved == response.read_bytes()
+    artifact = json.loads(target.read_text(encoding="utf-8"))
+    assert artifact["output_hash"] == sha256(preserved).hexdigest()
