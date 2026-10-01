@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 CLOSED；主线转入 §163 Release measurement coverage**（见 §162.10 / §163.1）。§162 最终状态：基础设施 / 盲传输 / provenance / 资格合同 CLOSED，**GPT-5.6-Sol 资格 = FAIL**，**自动 semantic judge = NOT QUALIFIED**，**Authority granted = NONE**，release **NO-GO**。失败刻画 = 可复现的 `citation_support` 轴欠判（三次一致，`unsupported_claim`：`EG=gap` 检出 / `CS=supported`）；holdout `RQ-QUAL-HOLDOUT-v1` 对 GPT 家族 = **FINAL FAIL**，他家族运行仅 comparative/diagnostic（C8 要求先预注册）。**产品结论**：没有 qualified automatic judge 是**合法运行状态**，RQCE 已具备真正 abstention 能力。**§163 冻结纪律**：只按 mode/modality/focus 扩 6→56 且**不降门槛**；无标签者保持 **abstain/unlabeled**；正式语义标签只由**独立具名 manual_human 经 authority seam** 给出；视觉 / live 属独立能力链；**阈值必须先预注册再跑全量**。六案准入 **6/56**，RQCE v1 **NO-GO**。**唯一下一步 = §163-a：按 cell / focus 采集并冻结新来源（含显式 abstain 标记），先补覆盖，不碰 reviewer。**
+- **当前动作：§163 资产对账已完成（矩阵 + 4 项待裁定）；主线 A 与并行轨 B 双轨并行**（见 §163 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§163 产出**：17 个旧学习/教学资产的权威矩阵（实现位置 / 持久化 / 写入者 / 是否在 chat turn 运行时 / KEEP·UPGRADE·MERGE·RETIRE 提案）+ 8 条结构发现（F1 两套并行 learning state；F2 ResumePoint·EvidenceSet 是文档虚构；F3 学习域 Observation·Assessment 不存在；F5 retention·review_due 完全不存在；F6 mastery 被刻意设为不可表示）。**四项待裁定**：★1 NextStep 写入权；★2 学习域 Assessment 权限边界；★3 dormant prerequisite 边 RETIRE 或升级为 §165 图边；★4 三个 closure service 是否合并。**双轨**：主线 A = §163→§164（Unified Learner State v2，mastery 必须来自证据）→§165→§166→§167→§168→§169→§170→§171；并行 B = §172.1 Release coverage（6/56→56/56，manual labels，vision/live，threshold 预注册）。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。**唯一下一步 = 裁定 ★1–★4 后进入 §164（Learner State v2 契约冻结）；并行 B 可按 §172.1 的 172-a 独立推进。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -14802,7 +14802,115 @@ RQ-QUAL-HOLDOUT-v1
 **未来入口**：若 Claude / Gemini / API 自然接入，另开 **§162-v2 reviewer bakeoff / qualification**，
 并**在执行前**重新预注册 reviewer-selection policy（见 C8）与 fresh holdout。
 
-### 163.1 Release measurement coverage contract（冻结 v1，2026-10-01；§162 CLOSED 后主线）
+## §163 Learning / Pedagogy Asset Reconciliation（2026-10-01；新主线 A 入口）
+
+**路线重构（冻结）**：项目不再按"Research 做完才开始 Teaching"理解，而按**三线合流**：
+旧教学资产 + 新研究底座 + 未来统一学习闭环。
+
+**总目标（重新定义）**：能持续研究、形成可信证据、记住用户长期学习状态，并按掌握程度决定
+**下一步教什么 / 怎么教 / 怎么验证 / 什么时候复习**的个人 Study Agent。Research Engine 是
+**教学系统的可信知识输入层**，不是另一个独立产品。
+
+**双轨（冻结）**：
+
+```text
+主线 A：Study Loop Integration   §163 -> §164 -> §165 -> §166 -> §167 -> §168 -> §169 -> §170 -> §171
+并行 B：Release reliability      6/56 -> 56/56；manual semantic labels；vision/live；threshold freeze；GO/NO-GO
+```
+
+理由：§162 已证明当前自动 semantic judge 不够资格，但这**不阻塞** Learner Model 开发；
+否则会为证明研究引擎 100% 可发布而长期停做学习功能，反而偏离项目初衷。
+
+**§163 目标产物**：一张权威矩阵。**本阶段不新增功能**，只做 inventory / authority mapping /
+dependency mapping / migration decision。
+
+### 163.1 盘点结果（READ-ONLY 代码事实，2026-10-01）
+
+| 旧 contract | 当前实现位置 | 持久化 | 写入者 | 是否在 chat turn 运行时 | 决策（提案） |
+| --- | --- | --- | --- | --- | --- |
+| LearningTopic | `domain/learning_truth.py:15` / `learning_topics`(v17) | 是 | `LearningClosureTruthService` | 否（仅 closure API） | **KEEP**（升为 v2 顶层主题） |
+| LearningGoal | `learning_truth.py:24` + `learning_goal_contexts`(v18) | 是 | closure services | 否 | **KEEP + MERGE**（与 research question / project goal 建 bridge） |
+| ResumePoint | **无类**；`LearningResumeService.build()` 返回 dict | 否（派生） | 无（只读） | 否（`/learning-resume`） | **UPGRADE** 为 typed projection（§170） |
+| NextStep | `learning_truth.py:117` / `next_steps`(v17，唯一 primary active 索引) | 是 | closure commit | 否 | **★1 写入权待裁定** |
+| Objective | `LearningGoal.objective` + 旧 `LearningState.objective` | 是（双路径） | closure / legacy planner | **是**（legacy） | **MERGE**：durable goal 为 authority，legacy 降为 turn-local |
+| Observation（学习） | **不存在** | — | — | — | **NEW**（§167；命名须与 research 侧 `*Observation` 区分） |
+| Assessment（学习） | **不存在**（最近似 `PedagogyEvalRun.final_decision`） | — | — | — | **★2 NEW**（§167；须与 semantic judge 权限边界一致） |
+| UnderstandingEvidence | `learning_truth.py:90` / `understanding_evidence`(v17) | 是 | closure commit | 否 | **KEEP + 升级为 mastery 唯一事实输入**（§164） |
+| EvidenceSet | **文档虚构**；关系化为 `claim_revision_evidence` + `EvidenceBinding` | 是（关系化） | closure | 否 | **KEEP 关系化设计**（不新建表）+ 与 Research Evidence 建 bridge（不统一 schema） |
+| misconception | `pedagogy/types.py:94` 等，内嵌 `pedagogy_eval_runs` JSON | 是（内嵌） | `PedagogyEvaluationService` | **是** | **UPGRADE** 为 lifecycle（§168） |
+| prerequisite | (a) `learning_goal_prerequisites`(v17) **dormant 仅测试**；(b) `role="supporting_prerequisite"` **live** | 是 | (b) `LearningSourceEvidenceService` | (b) 是 | **★3** (a) RETIRE 或升为 §165 图边 |
+| freshness | `learning_freshness.py:58`，**明确不持久化** | 否（on-demand） | 无 | 是（resume/revalidation 读） | **KEEP**（纯 deterministic） |
+| retention | **不存在**（文档明确 deferred） | — | — | — | **NEW**（§169，非 Anki） |
+| review_due | **不存在** | — | — | — | **NEW**（§169） |
+| PedagogyTurnPlan | `pedagogy/types.py:105`，序列化进 `chat_turns` | 是（JSON） | `PedagogyEngine.plan` | **是** | **UPGRADE 为 TeachingPlan v2 祖先**（§166，不废掉） |
+| Socratic Rediscovery | `pedagogy/socratic.py:13` + protocol 字符串 | 是（JSON） | `PedagogyEngine.plan` | **是** | **KEEP 为教学 strategy**（非独立流程） |
+| Closure | `LearningClosureRun` + 三个 service + component migration | 是 | closure services | 否（仅 API） | **★4 MERGE** 为单一 authority |
+
+### 163.2 关键结构发现（决定迁移策略）
+
+```text
+F1 **两套并行 learning state 共存**：旧 = chat_turns/chat_threads JSON（learning_state /
+   pedagogy_snapshot / pedagogy_eval_runs）驱动每个 chat turn；新 = 归一化真值表 learning_*，
+   **只在显式 post-session closure commit 写入**。对账核心 = 这两套的收敛策略。
+F2 ResumePoint / EvidenceSet 是**文档虚构**：按符号名找不到（实现分别是 dict 投影与关系化绑定）。
+F3 学习域的 Observation / Assessment **不存在**；同名符号全在 research/eval 侧
+   （VisionObservation / CaseObservation / ReviewObservation / CandidateSemanticAssessment / source_assessment）。
+F4 prerequisite 有两个无关含义（见矩阵），且 `prerequisite_gap` **不存在**。
+F5 retention / review_due / spaced review **完全不存在**。
+F6 **mastery 被刻意设为不可表示**：无分数字段、无表；LLM 不能断言 mastery；
+   `LLMSemanticEvaluator` 的 accept 只能间接、且必须经显式 closure commit + 用户确认才落成 durable pass。
+F7 **两套 schema 版本机制**：`pedagogy_eval_runs` 走全局 `MIGRATIONS` v13；
+   `learning_closure_runs` 走 repository 内 ad-hoc component migration v1。
+F8 dormant：`add_prerequisite` / `list_prerequisite_ids`（仅测试）；
+   `get_learning_semantic_closure_service` 工厂无生产调用者。
+```
+
+### 163.3 需裁定的四项（★，本刀不代决）
+
+```text
+★1 NextStep 写入权：Planner 还是 Learner Model？（现状：closure 写 / resume 读）
+★2 学习域 Assessment 的权限边界：机器评价 ≠ semantic label，如何与 §162 结论一致
+★3 prerequisite(a) dormant 目标间边：RETIRE，还是升级为 §165 Concept Graph 的边？
+★4 三个 closure service（LearningClosureService / LearningClosureTruthService /
+   LearningSemanticClosureService）是否 MERGE 为单一 authority
+```
+
+### 163.4 新路线图（冻结顺序）与 Memory 形态
+
+```text
+§163 资产对账（本刀）
+§164 Unified Learner State v2 —— mastery 必须来自证据（Objective -> UnderstandingEvidence[]
+     -> deterministic/bounded aggregation -> MasteryState）；状态 unknown/introduced/guided/
+     assisted/independent/retained；**independent 必须来自新场景下无关键提示的独立应用成功**
+§165 Concept / Prerequisite Graph —— 只解决三问：依赖什么 / 卡住是否前置 / 下一步补哪个节点
+§166 Teaching Planner v2 —— 输出 TeachingPlan（objective / prerequisite action / strategy /
+     explanation depth / example need / question / hint budget / success criterion）
+§167 Exercise + Assessment —— recall / transfer / independent application
+     -> Observation -> Assessment -> UnderstandingEvidence
+§168 Misconception Lifecycle —— suspected / supported / confirmed / resolved + evidence
+     （**不得因一次答错写入永久记忆**）
+§169 Spaced Review / Retention —— 首版非 SM-2：mastery strength + last independent evidence
+     + elapsed time + previous review performance -> review_due
+§170 Resume / Next-Step orchestration
+§171 Research × Teaching integration —— 已有可信知识够则直接教；不够 / 时效高 / 有争议才 research
+        ↓
+   Study Agent v1 Freeze
+再后：Project / Coding Agent（learn -> research -> plan -> implement -> validate -> remember）
+```
+
+```text
+Persistent Memory（冻结方向）
+├─ Knowledge / Research plane
+└─ Learner / Pedagogy plane
+通过引用连接（UnderstandingEvidence -> objective -> concept -> knowledge_ref / research_brief_ref）；
+**不硬合成单一 schema**，但可机械追踪。
+```
+
+### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
+
+> 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
+> **Learning/Pedagogy Asset Reconciliation**，故本节**显式改号为 §172.1**（并行轨 B），
+> 内容未改。此为显式改号，非静默变更。
 
 **前置状态（冻结）**：
 
