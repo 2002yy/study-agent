@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-C1b 合同已补强（latency / cancellation isolation）；实现**未开始**（见下方 reason）**（见 §164.1–§164.13 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心已实现**（§164.11，22 tests）。**§164-C1b 合同（§164.12/§164.13）**：**turn-start parity**；hook 点 = streaming_truth 之后 / update_chat_turn 之前（legacy 取 learning_state_before）；七层等价分两组（**prompt·context hash 必须在 hook 前生成**）；**exception / timeout / cancellation / telemetry-latency 四类 fail-open 隔离**（有界 shadow 预算，绝不无限 await）；**shadow telemetry 不在 transaction authority 内**；**parity observation 允许丢**（chat 成功 + artifact 缺失合法；artifact 成功却导致 chat 回滚永久禁止）。**本刀不接生产代码**：ChatService.start_turn 是 1475 行生产文件，接线 + 5 条回归 + 七层等价需要一次有完整预算的独立刀；在预算不足时改动生产 chat 路径而不留验证余量，会违反本仓库自身的门禁纪律。**双轨**：主线 A = §164-C1b 实现→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **当前动作：§164-C1b-1 前置审计完成（inner read = class B，无需改 LearnerModelService）；下一步 = C1b-1 runtime wiring**（见 §164.1–§164.14 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心 + C1b-0/0.1 隔离原语已实现**（§164.11 / §164.13）：中性投影、确定性分类器、fail-open observer、**admission token 绑定 future 生命周期**、CAPACITY==WORKERS==2 零 backlog、有界 telemetry；**共 45 tests passed**（parity 22 + isolation 23）。**生产 ChatService 未改动**。**§164.14 审计结论**：LearnerModelService.build = **class B（operationally bounded）** —— 固定数量本地查询、无网络/递归/retry，且 usy_timeout=30000 使锁等待有界；**因此不为 shadow 侵入生产读取链**。**limitation 措辞已修正**：worker 终止**有界**（inner read 自身边界，最坏约 30s），但**不受 outer 250ms budget 约束**；退化语义 = 锁竞争时 shadow 最长不可用约 30s，期间 production 完全继续。**双轨**：主线 A = §164-C1b-1 wiring→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -15515,6 +15515,59 @@ AND no transaction authority
 
 满足后 **§164-C1 才可真正 CLOSED**；到那时才能确信：
 看到的 legacy vs durable 差异**是系统本身的差异，而不是测量仪把系统扰动出来的差异**。
+
+### 164.14 §164-C1b-1 前置：inner durable read 审计（2026-10-01）
+
+**按 A/B/C 三分类审计 LearnerModelService.build(thread_id) 的完整读取链**（只读审计，未改代码）：
+
+`	ext
+truth.get_focus_goal(thread_id)                  1 次本地查询
+read_confirmed_profile()                         注入的 Callable，非网络
+truth.list_goal_revisions(goal.id)               1 次本地查询，随后 **切片到 _MAX_CLAIM_STATES = 12**
+  └─ 每个 claim state（<=12）：
+       truth.list_understanding_for_revision(rev)   1 次查询
+       （可选 fallback：list_revisions(claim_id) + 再查，次数受该 claim 的 revision 数限制）
+       truth.get_claim(claim_id)                    1 次查询
+truth.list_hypotheses_for_goal(goal.id)          1 次本地查询
+evaluations.list_for_thread(thread_id)           1 次本地查询
+`
+
+`	ext
+结构上：**固定数量本地 SQLite 查询**（受 12 × 小常数限制）；
+        **无网络、无递归、无外部 worker、无 retry 循环** -> 满足 A 的结构条件
+等待上：sqlite3.connect(self.path, timeout=30.0) + PRAGMA busy_timeout = 30000
+        （src/infrastructure/sqlite/database.py:563,566）
+        -> 锁等待被**有界在 30s**，满足 B 的操作条件
+`
+
+**分类结论：B（operationally bounded），且结构上同时满足 A。不是 C（potentially unbounded）。**
+
+**因此不修改 LearnerModelService**（避免为 shadow 侵入生产读取链）。
+
+**但这条审计修正了 limitation 的措辞（重要）**：
+
+`	ext
+原措辞：indefinitely stuck worker may survive caller timeout
+修正后：worker 终止**不是无界**，而是受 inner read 自身边界约束
+        （有界查询数 + busy_timeout 30s）；outer 250ms budget 只约束 caller 延迟，
+        **不**约束 worker 终止。最坏情况是 worker 最长约 30s 后必然结束。
+`
+
+**由此得到的真实退化语义（有界且可接受）**：若两次读取同时遭遇锁竞争，
+两个 admission token 会被占用至多约 30s，期间所有 shadow 调用 capacity_exhausted
+立即返回、production 完全继续 —— 即 **shadow 最长不可用约 30s，而不是永久**。
+
+**C1 CLOSED 时的措辞（冻结）**：
+
+`	ext
+可宣布：REAL_RUNTIME_SHADOW_READ = true
+        production decision/state behavior invariant verified;
+        caller latency / executor backlog / thread count / telemetry backlog bounded;
+        worker termination bounded by the inner durable read (bounded query count
+        + sqlite busy_timeout 30s), **not** by the outer shadow budget.
+
+不可写成：shadow lifecycle fully bounded by the outer budget
+`
 
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
