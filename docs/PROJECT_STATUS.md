@@ -15696,7 +15696,48 @@ A wiring correctness        OK（flag + 双闸门 / hash-before-shadow / 正确 
 B default-path non-regress  OK（flag OFF，focused production chat regression = 76 passed）
 C enabled-path invariance   NOT DONE（ON 下 chat 级 8x8 matrix / bounded latency /
                               real invocation 均未做）
-=> REAL_RUNTIME_SHADOW_READ = false ; 164-C1 = OPEN
+=> REAL_RUNTIME_SHADOW_READ = true ; 164-C1 = CLOSED  (2026-10-01, 644c41a)
+
+### 164.16 §164-C1 CLOSED（2026-10-01，644c41a）
+
+**证据（三层全部成立）**：
+
+`	ext
+A wiring correctness         OK
+B default-path non-regress   OK（flag OFF，focused production chat regression 107 passed）
+C enabled-path invariance    OK（15 tests，见下）
+
+C 明细（tests/test_learner_state_shadow_acceptance.py）：
+  确定性对照      off vs off 相等（先证明夹具确定，off/on 差异才有意义）
+  8 场景配对等价  off baseline vs on(normal / reader throws / reader stalls /
+                  capacity exhausted / projection error / telemetry throws /
+                  telemetry slow) —— **各自配对，不共用全局 baseline**
+  latency 增量    stall / rejected / error 的 T(on)-T(off) <= LATENCY_DELTA_BOUND_SECONDS
+                  （**上限在看到结果前冻结**）
+  invocation proof 真实 start_turn 调用 reader **恰好 1 次**；flag OFF 时 **0 次**；
+                  未接 reader 时 0 次；发布出的 observation 携带本次 turn 的 prompt_context_hash
+`
+
+**本刀发现（值得记录）**：首次运行时 7 组配对**全部失败**，差异字段为 route_hash /
+pedagogy_eval_hash / persisted_learning_state_hash。**确定性对照立即证明这是夹具问题而非 wiring 回归**：
+每轮生成的 ped_eval_<hex> 身份直接进入被哈希载荷、并嵌套在 route 的 learning_state 内；
+初版 id 清洗正则漏掉了它（该标识含**两个**下划线）。
+**教训**：没有确定性对照，就会把夹具噪声误判成 shadow 破坏生产行为。
+
+**C1 结论措辞（按 §164.14 冻结版）**：
+
+`	ext
+REAL_RUNTIME_SHADOW_READ = true
+production decision/state behavior invariant verified;
+caller latency / executor backlog / thread count / telemetry backlog bounded;
+worker termination bounded by the inner durable read (bounded query count
+  + sqlite busy_timeout 30s per lock wait), NOT by the outer shadow budget.
+`
+**不得**写成 shadow lifecycle fully bounded by the outer budget。
+
+**测量仪就此冻结**：§164-C1 CLOSED 后不得再改 observer / 分类器 / 隔离原语语义。
+下一步进入 §164-C2：真实/代表性 turn 上收 legacy vs durable 的 7 类分布 × 五维，
+为 §164-D 预注册 Phase 2 gate 提供数据。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
