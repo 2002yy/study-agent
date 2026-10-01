@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§162 A3-B0 已闭合，等待 operator 执行 A3-B1/B2**（见 §162.1–§162.4）。A2 治理管道（四 seam + 23 回归）、A3 路径冻结（外部独立家族 GPT 经人工桥接）、A3-A 盲 packet + ingest harness（21 tests）、A3-B0 transport CLI（13 tests）均已实现，**全程零真实 invocation**。**A3 状态 = READY_FOR_EXTERNAL_REVIEWER**。§161 校准仍 fail，正式语义标签 0；六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = A3-B1 生成 frozen packet → A3-B2 在全新隔离会话（非本聊天）执行盲复核 → A3-B3 ingest + calibration；通过后 A3-C 由 QualificationAuthority 显式裁定（`6/6 + 5/6` 亦 FAIL）。**
+- **当前动作：§162 A3-B2 已执行，结果 = calibration FAIL**（见 §162.5）。首次外部独立家族盲复核（OpenAI/GPT，隔离会话，人工桥接）得到 **6/6 检出 + 4/6 特异性**：两个 `unsupported_claim` 控制命中目标轴但未同时打破 `citation_support`。**未授予任何东西**（`eligible_for_authority_review=false`、`qualified_judge=false`、`formal_semantic_label=false`、`release_gate=NO_GO`），门未因换家族而放宽。§161 同家族探针仍为 fail（1/6 特异性）。六案准入 **6/56**，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 显式裁定二选一：(a) 合同问题 —— unsupported-but-cited 是否必须同时打破 citation_support（改冻结期望表须显式重开合同）；(b) reviewer 问题 —— 换另一独立家族，或以更明确的 citation-support 规则重提示（需防 steering）。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151–§160 已完成首批六案准入、两案真实答案及 remote-inference v2 机械计分；§161 探针校准 fail（特异性 1/6）；§162 A1 合同冻结、A2 治理管道（23 tests）、A3 路径冻结、A3-A 盲 packet + ingest harness（20 tests，L3 2941 passed）均已实现，A3 = READY_FOR_EXTERNAL_REVIEWER，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是在全新隔离会话执行 A3-B 盲复核，再经 qualification authority 与 case-label authority 分别授予。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§160 六案准入、两案真实答案、remote-inference v2 机械计分；§161 同家族探针 fail（特异性 1/6）；§162 A1–A3-B0 合同/治理管道/盲 packet/transport CLI 全部实现；§162 A3-B2 首次独立家族（GPT）盲复核 = 6/6 检出 + 4/6 特异性 -> calibration FAIL，未授予任何资格，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是显式裁定"合同 vs reviewer"二选一后再执行。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -14400,6 +14400,53 @@ L3 @ 9690359（clean head）：2955 passed / 2 skipped / 0 failed
 **未做 / 下一步**：零真实 invocation、零 provider SDK、零正式标签。A3-B1 = 生成 frozen packet；
 A3-B2 = **全新隔离会话**（**非本聊天**）执行盲复核；A3-B3 = ingest + calibration；
 A3-C = QualificationAuthority 显式裁定。
+
+### 162.5 A3-B2 首次独立家族盲复核（2026-10-01）：calibration FAIL
+
+**执行**：packet `rq-review-20261001-001`（`packet_sha256 60ded5ea…b32642`；8 items = 2 real answers +
+3 controls × 2 cases）；reviewer = OpenAI / GPT / `gpt-5.6-sol`（`reviewer_kind=model`）；
+`transport=manual_copy_paste`（operator 只搬运字节，不参与 verdict）；answer family = deepseek
+→ 独立性成立；原始响应 sha256 `7e6098a5…d73b08`（**逐字节保留**）。
+
+**结果**：
+
+```text
+target detection 6/6（FN 0）| specificity 4/6（FP 2）| real answers clean 2/2
+target_gate_pass true | specificity_gate_pass false | calibration_pass **false**
+-> eligible_for_authority_review=false / qualified_judge=false /
+   formal_semantic_label=false / release_gate=NO_GO
+```
+
+**失败位置**：两个 `unsupported_claim` 控制。reviewer 命中目标轴（`evidence_grounding=gap`）并给出
+正确 issue type，但把 `citation_support` 留在 `supported`，而冻结期望是 `gap`（注入的假句带有指向
+真实 locator 的引用，冻结 rubric 明确"citation 不是来源支持该句的证明"）。
+
+**性质**：
+
+- **不是检出问题**：6/6 目标全部命中，2/2 真实答案 clean，两处违规都不是虚假 issue。
+- **与同家族探针失败模式不同**：DeepSeek pro = 6/6 检出 + 1/6 特异性（广泛过判）；
+  GPT = 6/6 + 4/6（单轴欠判）。
+- **不能据此判定该 reviewer 普遍不合格**；只能说在冻结的 §161 期望表下它未复现所需维度映射。
+- **未放宽门、未授予任何东西**：`6/6 + 4/6` 照合同 FAIL。
+
+**本刀同时修掉一个真实缺陷**：`--ingest` 曾以**文本模式**回写原始响应 → LF 结尾被写成 CRLF，
+保留文件与收到的字节不再一致，`output_hash` 会描述"重新编码"而非"实际载荷"。现改为读写 bytes +
+对原始字节取哈希 + 要求字节能解码为被解析文本（防"哈希一份、解析另一份"），artifact 记录
+`raw_response_bytes_preserved`；CRLF 回归已覆盖。真实运行的 `raw == response` 字节一致即直接证据。
+
+**权威证据**：`docs/research_quality/RELEASE_BENCHMARK_BLIND_REVIEW_2026-10-01/`
+（`FINDINGS.md` / `private_manifest.json` / `reviewer_response.json` / `raw_reviewer_response.txt` /
+`ingested_review.json`）。
+
+**未做 / 下一步（需显式裁定，本刀不代决）**：
+
+```text
+(a) 合同问题：unsupported-but-cited 句是否必须同时打破 citation_support？
+    -> 改冻结期望表 = 重开合同，须显式裁定，不得静默编辑
+(b) reviewer 问题：换另一个独立家族，或以更明确的 citation-support 规则重提示
+    -> 后者有滑向 steering 的风险，需单独评审
+两条分支都未执行；本 artifact 即为已记录结果。A3 仍 FAIL，release NO-GO。
+```
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
