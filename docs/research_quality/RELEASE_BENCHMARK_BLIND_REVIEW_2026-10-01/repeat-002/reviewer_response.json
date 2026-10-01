@@ -1,0 +1,116 @@
+{
+  "review_run_id": "rq-review-20261001-001",
+  "observations": [
+    {
+      "blind_case_id": "rq-review-20261001-001-item-01",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer defines storm surge but does not distinguish storm tide, identify storm winds pushing water onshore as the primary cause, or name a location-dependent factor affecting surge height.",
+          "evidence_refs": [
+            "NOAA-SURGE"
+          ]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-02",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The citation attached to the storm-surge definition uses https://invalid.example/unregistered rather than the supplied source_locator.",
+          "evidence_refs": [
+            "NOAA-SURGE"
+          ]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-03",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer explains synchronous rotation but does not distinguish the bright lunar highlands from the dark maria.",
+          "evidence_refs": [
+            "NASA-MOON"
+          ]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-04",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-05",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The statement that lunar gravity is the primary cause of storm surge contradicts the frozen source, which says the surge is caused primarily by a storm's winds pushing water onshore.",
+          "evidence_refs": [
+            "NOAA-SURGE"
+          ]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-06",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The statement that the Moon does not rotate on its own axis contradicts the frozen source, which says the Moon rotates once on its axis in very nearly the same time that it travels once around Earth.",
+          "evidence_refs": [
+            "NASA-MOON"
+          ]
+        },
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The citation attached to the unsupported final statement omits the required #page=2 suffix for the supplied PDF source.",
+          "evidence_refs": [
+            "NASA-MOON"
+          ]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-07",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-001-item-08",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The citation attached to the synchronous-rotation statement uses https://invalid.example/unregistered#page=2 rather than the supplied source_locator with the permitted #page=2 suffix.",
+          "evidence_refs": [
+            "NASA-MOON"
+          ]
+        }
+      ]
+    }
+  ]
+}
