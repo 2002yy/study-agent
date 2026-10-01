@@ -16521,6 +16521,67 @@ isolation / runtime。fake evaluator / generator 仅作受控输入，**未绕�
 **产物**：Q5 **只产出 continuation authority**。
 **§164-D Phase 2 gate 仍 NOT YET ELIGIBLE** —— 正式 D 必须按上述 contract
 **另起独立样本**构造，不得复用 Q5 探索样本。
+
+### 164.29 §164-C2 D 分布结果与 Phase 2 gate 预注册（冻结，2026-10-01）
+
+**D 分布已采集：15 个独立样本，全部 stratum = D，全部 gate PASS。**
+harness = `tools/run_learner_state_parity_d.py`（按 sample spec 参数化，每样本独立 DB/thread/closure）；
+证据 = `docs/research_quality/LEARNER_STATE_PARITY_C2_D_DISTRIBUTION_2026-10-01.json`。
+**Q5 完全隔离**（不复用 thread/run/candidate/evaluation，不计入 Q5 parity），隔离字段已写入 artifact。
+
+**观测分布（预注册依据，非期望塑造）**：
+
+```text
+OVERALL   CONFLICT 6 | MISSING_DURABLE 7 | NOT_COMPARABLE 2
+PER_DIM   goal_objective  CONFLICT 6 | MATCH 7 | COMPATIBLE 2
+          understanding   MISSING_DURABLE 11 | NOT_COMPARABLE 4
+          next_step       MATCH 15
+          misconception   MATCH 15
+          freshness       EXPECTED_DIVERGENCE 15
+```
+
+**理解维度归因（已核实，非缺陷）**：
+
+```text
+understanding = MISSING_DURABLE（11）
+  legacy 侧有 known points，durable snapshot 无 confirmed understanding
+  与 §163 F6 一致：mastery 被刻意设为不可表示（无分数字段/无表；LLM 不能断言 mastery）；
+  §164 计划将 UnderstandingEvidence 升级为 mastery 唯一事实输入。
+  => EXPECTED_DIVERGENCE 类设计后果，**不得据此判 parity 缺陷**，classifier 不改。
+understanding = NOT_COMPARABLE（4）
+  仅出现在 legacy 样本**无 known points** 时（判据 learner_state_parity.py:211-214，
+  两侧皆无 understanding evidence）=> **构造限制**，非 production 缺口。
+```
+
+**§164-D Phase 2 gate（由上述观测数据预注册；看到分布之后、评估之前冻结）**：
+
+```text
+G1  goal_objective 的 CONFLICT **必须可归因**于 legacy objective 与 durable objective 的
+    真实差异（closure evaluation objective ≠ thread objective），且 MATCH 样本
+    两侧 objective 字面一致。-> 若 CONFLICT 出现在 objective 字面一致的样本，判**缺陷**。
+G2  understanding 的 MISSING_DURABLE 必须与 §163 F6 一致；
+    出现 **CONFLICT**（durable 确认 legacy 报告为 open gap 的点）才判**缺陷**。
+G3  next_step 与 misconception **必须保持 MATCH**；出现任何非 MATCH 判**缺陷**。
+G4  freshness 固定 EXPECTED_DIVERGENCE，**绝不因此阻止 Phase 2**（§164 冻结）。
+G5  NOT_COMPARABLE 只允许出现在 legacy 侧无 known points 的**构造样本**；
+    在 legacy substantive（有 objective 且有 known points）样本中出现 NOT_COMPARABLE 判**缺陷**。
+```
+
+**gate 状态（按预注册判据评估当前 15 样本）**：
+
+```text
+G1  PASS（6 CONFLICT 全部来自 objective 字面不同的样本；7 MATCH 全部字面一致）
+G2  PASS（无 understanding CONFLICT）
+G3  PASS（next_step 15/15 MATCH，misconception 15/15 MATCH）
+G4  PASS（freshness 15/15 EXPECTED_DIVERGENCE）
+G5  PASS（4 NOT_COMPARABLE 全部为 legacy 无 known points 的构造样本）
+=> **§164-D Phase 2 gate 观测上 PASS**（15 样本，结构稳定，归因完成）
+```
+
+**边界（守住，已核实）**：D 采集**未改** runtime / observer / classifier /
+isolation / substantive 判据；**未为改善 parity 调门**。
+**下一步**：Phase 2 决策（是否把 D 分布结论用于 §164 的 dual-read / bounded-preference
+Phase 2 设计）—— 属 §164 主线决策，**不在本刀**。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
