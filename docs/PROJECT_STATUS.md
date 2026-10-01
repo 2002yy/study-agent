@@ -15441,6 +15441,81 @@ AND durable data never becomes planning input
 但 authority 仍为 0**。然后 C2 才开始收真实 parity 分布；
 **C2 结果无论多难看都不回头改 C1** —— C1 只证明测量仪没有改变被测对象。
 
+### 164.13 §164-C1b 合同补强（latency / cancellation isolation + 两个实现细节）
+
+**新增机器级 invariant（冻结）**：
+
+```text
+shadow failure / slowness / cancellation
+must not delay or cancel the production turn beyond a bounded shadow budget
+```
+
+**为什么必须补**：即使 observer 永不写业务状态，只要 durable snapshot read 卡住（如 3s），
+`shadow ON` 就会让 turn 多等 → 上游 timeout / 用户取消 → `update_chat_turn` 甚至可能没执行。
+**从产品角度它仍然改变了生产行为。** 仅冻结 exception fail-open + transaction isolation 不够。
+
+**结构（冻结）：把"采样时点"与"telemetry 落地"分开**
+
+```text
+521
+ ↓
+capture immutable turn-start shadow inputs
+   - learning_state_before
+   - thread / turn refs
+   - **已在 hook 之前生成好的 decision-input hashes**
+ ↓
+bounded durable snapshot read / projection        <- 有界预算，绝不无限 await
+ ↓
+527 production update proceeds
+
+telemetry collection / write
+ -> **在 production transaction 之外**
+ -> best-effort
+```
+
+```text
+snapshot timeout -> shadow_status = unavailable -> **立即继续 legacy path**
+```
+
+**新增 3 条 regression（冻结）**：
+
+```text
+1. durable snapshot read stalls      -> bounded timeout -> production turn 正常完成
+2. shadow task / call is cancelled   -> cancellation **不向 chat turn 传播**
+3. telemetry collector is slow       -> production persistence / response path **不等它**
+```
+
+（与既有研究链中的 bounded timeout / cancellation isolation 同一原则。）
+
+**实现细节（冻结）**：
+
+```text
+① 七层等价里的 prompt / context hash **必须在 hook 之前生成**。
+   -> 机械证明 observer **不可能参与 hash 所代表的 planning input**，
+      而不是 hook 后再"回头重建"一份 context 去比较。
+② parity observation **允许丢**：
+   `chat turn success + parity artifact missing` = **合法状态**；
+   反向 `parity artifact success + chat turn rollback/failure because parity`
+   = **永久禁止**。
+```
+
+**C1b 成功门（最终版，冻结）**：
+
+```text
+REAL_RUNTIME_SHADOW_READ
+AND decision-input equivalence
+AND output / state equivalence
+AND exception fail-open
+AND timeout fail-open
+AND cancellation isolation
+AND telemetry latency isolation
+AND no durable planning input
+AND no transaction authority
+```
+
+满足后 **§164-C1 才可真正 CLOSED**；到那时才能确信：
+看到的 legacy vs durable 差异**是系统本身的差异，而不是测量仪把系统扰动出来的差异**。
+
 ### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
 
 > 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
