@@ -16452,6 +16452,75 @@ accept、candidate 来源是否可解析、claim 是否归属该 evaluation）�
 **Q5 完成后的产物（冻结）**：**只得到 continuation authority**；
 正式 D 仍必须**另起独立样本** —— 这样 closure construction 的探索痕迹不会混进真正的
 semantic-parity 数据。
+
+### 164.28 §164-C2 Q5 执行结果与 continuation contract（冻结，2026-10-01）
+
+**状态：Q5 已执行完毕，全部 gate PASS（`first_fail = null`）。** harness =
+`tools/run_closure_continuation_probe.py`；证据 =
+`docs/research_quality/CLOSURE_CONTINUATION_PROBE_Q5_2026-10-01.json`。
+执行链：`7b760244 → 79fa2254 → b481767c → 4ce068d8 → 61586831 → da1bed9d`。
+
+**阶段①a orchestration（经验 PASS）**：
+
+```text
+create_and_execute(thread_id) -> status = preview_ready     （不 commit）
+service.commit(run_id)        -> status = completed，真实调用 truth committer
+source_evidence.search_and_converge 被真实调用（repo_url/query/pinned commit_sha）
+evaluation_repository 被真实调用（turn-1）
+```
+
+**阶段①b durable persistence（经验 PASS）**：
+
+```text
+durable_readback（C1 read authority = LearnerModelService.build(thread_id)）
+  objective   = "recover session recovery by durable owner"
+  goal_status = "active"
+=> closure → durable writer → C1 read authority 三者在 thread_id 上对齐，读回 substantive。
+```
+
+**阶段② continuation（经验 PASS）**：
+
+```text
+closure 后 session lifecycle        -> summarized（成功 closure 才翻转；commit 失败不翻转）
+同 thread 第二次 create_and_execute  -> **幂等复用**已完成 run（返回 completed，不重生成、不抛错）
+同 thread 真实 ChatService.start_turn -> **ACCEPTED**（无 summarized 门禁、无 typed rejection）
+```
+
+**continuation contract（冻结）**：
+
+```text
+CONTINUES_WITH_CHANGED_SEMANTICS
+  普通 chat turn 在同 thread 继续被接受（continuation 允许）；
+  但 closure 历史真实改变了语义：session 进入 summarized，
+  第二次 closure 由已完成 run 复用而非重新生成。
+```
+
+**代码依据（辅助，非替代经验）**：全仓库 `summarized` 门禁**只有一处**
+（`learning_closure_service.py:88-94`，closure 入口）；**任何 chat turn 路径都不检查它**。
+
+**修正过的构造配方（三次，均为实验暴露）**：
+
+```text
+1) 主要成本不是 fake evaluator/generator，而是 SessionService + MemoryService +
+   LearningClosureRepository 依赖栈；且 create_and_execute 首步即
+   session_service.summary_payload(thread_id)，受 session lifecycle 约束。
+2) candidate.source_ref 必须与 structured_input["github_learning_sources"] 条目对齐；
+   该列表由 **已提交 turn 的 rag_snapshot["web_tools"]["calls"]** 中
+   name ∈ {github_search, github_snapshot, github_structure, github_impact} 的调用派生，
+   格式 github_source:{turn_id}:{call_index}；裸 ChatTurn 产出空集 -> candidate_source_missing。
+3) final_pedagogy_evaluation 需向 LearningClosureService 传 evaluation_repository；
+   durable readback 必须用**绑定临时库**的 LearnerModelService
+   （`get_learner_model_service()` 是全局 lru_cache，绑默认库，是陷阱）。
+```
+
+**边界（守住，已核实）**：Q5 **未读 semantic parity**、**未计入任何 D 分布**、
+**未改** closure 入口 / durable writer / C1 read authority / observer / classifier /
+isolation / runtime。fake evaluator / generator 仅作受控输入，**未绕过**真实验证链
+（source convergence 与 evaluation 查询均真实发生）。
+
+**产物**：Q5 **只产出 continuation authority**。
+**§164-D Phase 2 gate 仍 NOT YET ELIGIBLE** —— 正式 D 必须按上述 contract
+**另起独立样本**构造，不得复用 Q5 探索样本。
 `
 
 **下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
