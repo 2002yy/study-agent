@@ -16849,6 +16849,16 @@ focus   retrieval 12 | unit_adequacy 10 | conflict 8 | visual_value 8
 **归因更正**：2dae09f / ee44c00 / e4bed1c 三处 CI 红**均由该 detect-secrets 误报造成**，
 **不是** flake；42e795 的 push 红才是并发取消类 timing flake。两者病因不同，不得混记。
 
+4) **CI-infra（非测试）：Playwright 安装步骤失败**（2026-10-01 记录）
+   `52d32750` 的 **push run 36885094776 = failure**，失败点**不是任何 Python 测试**，
+   而是步骤 **"Enforce Playwright browser install"**：`##[error]Process completed with exit code 1`。
+   **同一 head 的 PR run 36885107668 = success（12m33s）**；新 head `1879294d` 的
+   push（36887608759，15m35s）与 PR（36887618217，12m21s）**双绿**。
+   => **基础设施 / 下载类 flake**（该 runner 上浏览器安装失败），**与代码无关**，
+   不得据一次红判回归。归因顺序：**先看失败步骤是否为测试**；非测试步骤失败直接判 infra。
+   另注：该 run 启动 5s 后即无日志进展（`updatedAt` 停在启动后 5s），约 30min 后才报 failure
+   —— 属 runner 饥饿 / 挂起后超时，**不重跑**（新 head 双绿已给出该代码的绿证）。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
