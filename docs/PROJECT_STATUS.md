@@ -17618,3 +17618,47 @@ Q5 ordinary chat 能否偷偷写 durable NextStep
 
 **搜索边界（冻结）**：NextStep 可指向"需要 research"，但**不得** `NextStep -> 直接调用 RQCE`；
 保持 `LearnerTruth(下一步是什么) / Chat-runtime(是否需要 research) / Research Engine(怎么查)` 的边界。
+
+### 165.2 §165-B read projection 结果（2026-10-01）
+
+```text
+LearnerModelSnapshot 新增（additive，默认空）：next_step_id / next_step_text / next_step_status
+LearnerModelService.build 从 truth 读取 active+primary NextStep 并填充
+LearningTruthReader protocol 补 list_next_steps_for_goal
+=> **read projection 缺口已闭合**（此前 G3 回退 legacy 的根因）
+边界：**projection only** —— 无 authority 变更、无 runtime 切换
+提交：4cfa689f
+```
+
+### 165.3 §165-C parity 判定：**触及冻结测量仪，需显式版本裁决**（2026-10-01）
+
+**关键治理点**：判定 durable NextStep vs legacy `unresolved_gap` 的可比性，
+必须让 parity 投影携带 durable next step；但该投影位于
+`src/application/learner_state_parity_observer.py::build_durable_projection`
+—— **属 §164-C1 冻结的测量仪**（`next_steps=()` 为冻结值）。
+
+```text
+现状：build_durable_projection.next_steps = ()（冻结）
+      => next_step 维度恒为 MATCH（两侧皆空）或 LEGACY_ONLY
+      与 D 分布观察一致（next_step: MATCH 15）
+
+若要真实判定，必须把 snapshot.next_step_text 接入 durable.next_steps
+=> **这是修改冻结测量仪**，§164-C2 明文禁止"改测量仪"。
+```
+
+**裁决（本刀只记录，不执行）**：两条合法路径，**不得静默改投影**：
+
+```text
+路径 1（推荐）：**测量仪版本升级**（instrument v2）
+  显式声明：parity 观测增加 next_step durable 侧来源；记录版本号与新基线；
+  旧 v1 结果保留为历史，不混算。
+路径 2：**独立的 next-step 比较器**
+  不动 parity instrument；为 NextStep 单独写一个只读比较器（与 G2 同理）。
+```
+
+**判据预告（基于 `_classify_next_step` 既有规则，不改）**：durable `NextStep.text`
+与 legacy `unresolved_gap` 若文本不同，按既有规则为 `EXPLAINED_DIVERGENCE`
+（"different producers, not necessarily a defect"）—— **不是 defect**。
+
+**下一步（§165 后续）**：先做路径 1 或 2 的裁决，再取真实判定；
+**在裁决前不得改 `build_durable_projection`**。
