@@ -1,4 +1,9 @@
-"""§164-E adapter: per-field durable/legacy adjudication (additive, unwired)."""
+"""§164-E runtime adjudication surface: G1 objective only (post-165/168 rulings).
+
+G2-G5 are handled by their own owners and are deliberately absent from this surface, so
+the tests here assert the objective adjudication, the persistence-plane restore, the
+canary opt-in and the fail-open default - and assert that no other gate is emitted.
+"""
 
 from __future__ import annotations
 
@@ -6,16 +11,13 @@ from types import SimpleNamespace
 
 from src.application.learner_state_durable_adapter import (
     CANARY_FLAG,
+    DURABLE_PREFERRED,
     DURABLE_READ_FLAG,
+    GATE_GOAL_OBJECTIVE,
+    LEGACY_FALLBACK,
+    adjudicate,
     durable_read_enabled,
     restore_persistence_plane,
-    DURABLE_PREFERRED,
-    EXPECTED_DIVERGENCE,
-    GATE_GOAL_OBJECTIVE,
-    GATE_UNDERSTANDING,
-    LEGACY_FALLBACK,
-    NOT_COMPARABLE,
-    adjudicate,
 )
 from src.pedagogy.types import LearningState
 
@@ -25,23 +27,22 @@ def _legacy() -> LearningState:
         protocol="socratic_rediscovery",
         objective="recover durable resume",
         phase="guided_practice",
-        confirmed_points=("durable resume", "recovery spans turns"),
+        confirmed_points=("durable resume",),
         unresolved_gap="why does recovery span turns",
     )
 
 
-def _snapshot(*, objective="", claim_ids=(), goal_id="goal-1", goal_status="active"):
-    claims = tuple(
-        SimpleNamespace(claim_id=cid, understanding_status="confirmed")
-        for cid in claim_ids
-    )
+def _snapshot(*, objective="", claim_ids=()):
     return SimpleNamespace(
         thread_id="t1",
         objective=objective,
-        claim_states=claims,
-        goal_id=goal_id,
+        claim_states=tuple(
+            SimpleNamespace(claim_id=cid, understanding_status="confirmed")
+            for cid in claim_ids
+        ),
+        goal_id="goal-1",
         topic_id="topic-1",
-        goal_status=goal_status,
+        goal_status="active",
         unresolved_count=len(claim_ids),
     )
 
@@ -50,7 +51,6 @@ def test_missing_snapshot_leaves_legacy_untouched():
     legacy = _legacy()
     result = adjudicate(legacy, None)
     assert result.state.objective == legacy.objective
-    assert result.state.confirmed_points == legacy.confirmed_points
     assert result.used_durable is False
     assert result.decisions[0].decision == LEGACY_FALLBACK
 
@@ -59,73 +59,38 @@ def test_durable_objective_is_preferred():
     result = adjudicate(_legacy(), _snapshot(objective="durable owns recovery"))
     assert result.state.objective == "durable owns recovery"
     assert result.used_durable is True
-    decision = next(d for d in result.decisions if d.field == "objective")
-    assert decision.decision == DURABLE_PREFERRED
+    decision = result.decisions[0]
+    assert decision.field == "objective"
     assert decision.gate == GATE_GOAL_OBJECTIVE
+    assert decision.decision == DURABLE_PREFERRED
 
 
 def test_empty_durable_objective_falls_back_to_legacy():
     result = adjudicate(_legacy(), _snapshot(objective=""))
     assert result.state.objective == "recover durable resume"
     assert result.used_durable is False
-    decision = next(d for d in result.decisions if d.field == "objective")
-    assert decision.decision == LEGACY_FALLBACK
+    assert result.decisions[0].decision == LEGACY_FALLBACK
 
 
-def test_durable_claim_ids_are_not_coerced_into_text_points():
+def test_only_the_objective_gate_is_emitted():
+    """G2-G5 must not appear here; they belong to their own owners."""
+    result = adjudicate(_legacy(), _snapshot(objective="x", claim_ids=("c1",)))
+    gates = {d.gate for d in result.decisions}
+    assert gates == {GATE_GOAL_OBJECTIVE}
+    assert result.to_dict()["runtime_gates"] == [GATE_GOAL_OBJECTIVE]
+
+
+def test_legacy_understanding_and_gap_are_not_touched():
     legacy = _legacy()
-    result = adjudicate(legacy, _snapshot(claim_ids=("claim-a", "claim-b")))
-    # The legacy text points survive: identifiers must not masquerade as text.
+    result = adjudicate(legacy, _snapshot(objective="x", claim_ids=("c1", "c2")))
+    # Durable claim identifiers must not masquerade as legacy text points.
     assert result.state.confirmed_points == legacy.confirmed_points
-    decision = next(d for d in result.decisions if d.field == "confirmed_points")
-    assert decision.decision == NOT_COMPARABLE
-    assert decision.gate == GATE_UNDERSTANDING
-    assert decision.durable_value == ("claim-a", "claim-b")
-
-
-def test_no_confirmed_understanding_is_expected_divergence():
-    result = adjudicate(_legacy(), _snapshot(claim_ids=()))
-    decision = next(d for d in result.decisions if d.field == "confirmed_points")
-    assert decision.decision == EXPECTED_DIVERGENCE
-
-
-def test_durable_metadata_goes_to_payload_not_to_legacy_fields():
-    result = adjudicate(_legacy(), _snapshot(objective="x"))
-    payload = result.state.payload
-    assert payload["durable_goal_id"] == "goal-1"
-    assert payload["durable_topic_id"] == "topic-1"
-    assert payload["durable_goal_status"] == "active"
-    # No legacy field was repurposed for durable metadata.
-    assert result.state.objective == "x"
-
-
-def test_next_step_misconception_and_freshness_decisions_are_recorded():
-    result = adjudicate(_legacy(), _snapshot(objective="x"))
-    gates = {d.gate: d.decision for d in result.decisions}
-    assert gates["G3"] == LEGACY_FALLBACK
-    assert gates["G4"] == LEGACY_FALLBACK
-    assert gates["G5"] == EXPECTED_DIVERGENCE
-
-
-def test_divergences_collects_only_non_durable_preferred_decisions():
-    result = adjudicate(_legacy(), _snapshot(objective="x", claim_ids=("c1",)))
-    fields = {d.field for d in result.divergences()}
-    assert "objective" not in fields
-    assert "confirmed_points" in fields
-    assert "freshness" in fields
-
-
-def test_result_is_serialisable_for_telemetry():
-    result = adjudicate(_legacy(), _snapshot(objective="x", claim_ids=("c1",)))
-    as_dict = result.to_dict()
-    assert as_dict["used_durable"] is True
-    assert {d["field"] for d in as_dict["decisions"]} >= {"objective", "confirmed_points"}
+    assert result.state.unresolved_gap == legacy.unresolved_gap
 
 
 def test_durable_overlay_does_not_migrate_into_persistence():
     legacy = _legacy()
     adj = adjudicate(legacy, _snapshot(objective="durable owns recovery")).to_dict()
-    # The planner saw the durable objective; persistence must keep the legacy one.
     next_state = LearningState.from_dict(
         {**legacy.to_dict(), "objective": "durable owns recovery"}
     )
@@ -141,7 +106,7 @@ def test_no_adjudication_leaves_persistence_untouched():
 
 def test_legacy_fallback_adjudication_leaves_persistence_untouched():
     legacy = _legacy()
-    adj = adjudicate(legacy, _snapshot(objective="")).to_dict()  # no durable_preferred
+    adj = adjudicate(legacy, _snapshot(objective="")).to_dict()
     assert restore_persistence_plane(legacy, legacy, adj) is legacy
 
 
