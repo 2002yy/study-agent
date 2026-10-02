@@ -114,7 +114,10 @@ def restore_persistence_plane(
 
     if not adjudication:
         return next_state
-    decisions = adjudication.get("decisions") or []
+    raw_decisions = adjudication.get("decisions")
+    decisions: list[object] = (
+        raw_decisions if isinstance(raw_decisions, list) else []
+    )
     taken = {
         str(d.get("field"))
         for d in decisions
