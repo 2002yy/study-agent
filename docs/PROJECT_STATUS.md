@@ -16769,10 +16769,18 @@ frontend              GREEN
 **剩余交付门（唯一）**：
 
 ```text
-exact-head workflow overall GREEN（@ f788f933 或其后续 head）
-  blocked only by Playwright enforce infra/tooling
-  -> 环境恢复后**单次**查询/运行 exact-head CI
-  -> 若 Enforce Playwright browser install 继续单独失败：
+**已满足 @ cc81bf7c（2026-10-01）**
+  exact-head push          run 37004862352  **success**（14m6s）
+  exact-head pull_request  run 37004866145  **success**（12m4s）
+  => Playwright enforce infra 已恢复；exact-head workflow **整体 GREEN**
+  cc81bf7c 为 docs-only（+53 行）叠在 f788f933（含 §164-E 代码）之上；
+  docs-only 提交按 §4.5 不改生产行为，其绿 CI 覆盖**同一生产代码**。
+
+（历史：f788f933 曾因 Enforce Playwright browser install 超时/失败而红，
+  经逐步骤核实为 CI infra；已由 cc81bf7c 的绿 CI 取代。）
+
+后续同 head 复查规则（若 head 再移动）：
+  -> 若 Enforce Playwright browser install 仍单独失败：
      只审它的 enforce 条件 / 状态传递 / workflow plumbing
   -> **不得回头碰 adapter / wiring / parity / measurement**
 ```
