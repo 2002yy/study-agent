@@ -16850,6 +16850,38 @@ R3 rollback 后**无需数据迁移**（无 schema / 无持久化变更）
 ```
 
 **决策状态**：**代码资格 ✅ COMPLETE；部署启用 ⏳ 待独立决定**（本刀只冻结合同，不执行 flip）。
+
+### 164.34 §164-E rollout 前置缺口：adjudication decisions 未进入观测通道（2026-10-01）
+
+**结论：§164-E 满足代码资格门，但**尚未**满足 §164.33 的 T2（rollout 前置）。**
+
+```text
+现状（chat_service.py:443 接线）：
+  learning_state = adjudicate_learner_state(learning_state, durable_snapshot).state
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   **只取 .state，discard 了 decisions / divergences**
+
+=> adjudication 的逐字段裁决（G1–G5 分类、durable_preferred / legacy_fallback /
+   not_comparable / expected_divergence）**当前没有任何消费者**，
+   既不进 telemetry、也无落盘。
+=> §164.33 T2「观测通道就绪：decisions / divergences 已入 telemetry 且可回读，
+   G1–G5 分类可用于事后审计」**未满足**。
+=> 因此 **S2 观察窗口当前无法产生可审计的 rollout evidence**。
+```
+
+**为什么这是真实缺口而非可忽略细节**：
+```text
+§164.33 的 abort 条件 A5（durable objective 覆盖后与 G1 预期不符）
+与 I2（reader 恰好一次）等都需要**可回读的 adjudication 记录**才能事后审计。
+没有该通道，S2 只能观测"turn 是否失败"，无法判定 G1–G5 层面是否按预期工作。
+```
+
+**下一刀（唯一）**：让 §164-E 接线**保留并发出** adjudication 结果
+（decisions / divergences）到既有观测通道（复用 §164-C1 的 telemetry 模式），
+使 T2 可满足。**additive、默认 OFF 下行为不变**；不改 adapter 的裁决语义。
+
+**边界**：本刀**只定位缺口，不改代码**；
+**不得**为收集 evidence 而放松 §164.33 的 I1–I5 或 A1–A5 判据。
 ```
 `
 
