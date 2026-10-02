@@ -450,16 +450,21 @@ class ChatService:
             learning_state = LearningState.from_dict(thread.learning_state)
             # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
             durable_snapshot = None
+            durable_adjudication = None
             if durable_read_enabled():
                 _reader = self.dependencies.read_learner_model
                 if _reader is not None:
                     try:
                         durable_snapshot = _reader(thread.id)
-                        learning_state = adjudicate_learner_state(
+                        _adj = adjudicate_learner_state(
                             learning_state, durable_snapshot
-                        ).state
+                        )
+                        learning_state = _adj.state
+                        # 164.34 T2: retain the record so decisions are auditable.
+                        durable_adjudication = _adj.to_dict()
                     except Exception:
                         durable_snapshot = None  # fail-open: legacy state stands
+                        durable_adjudication = None
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
@@ -585,6 +590,7 @@ class ChatService:
                 "learning_state_after": next_learning_state.to_dict(),
                 "evidence_disclosure": disclosed.policy,
                 "evidence_units": list(disclosed.units),
+                **(({"durable_adjudication": durable_adjudication} if durable_adjudication else {})),
             }
             streaming_truth = _normalized_turn_truth(
                 turn=reserved_existing,
