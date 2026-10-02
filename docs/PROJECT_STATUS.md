@@ -16727,6 +16727,59 @@ LearnerModelSnapshot（durable）        -> LearningState（legacy）
 
 **结论**：§164-E 的实现核心 = **adapter + 逐字段语义裁决**，
 不是"把 durable 值赋给 legacy 字段"。这是 cutover 的实质工作量，须完整预算。
+
+### 164.32 §164-E 实现 closeout 与剩余交付门（冻结，2026-10-01）
+
+**§164-E 实现已全部落地（默认 OFF，未启用）**：
+
+```text
+adapter        src/application/learner_state_durable_adapter.py（逐字段裁决，9 tests）
+wiring         chat_service.py:443 单点注入，flag LEARNER_STATE_DURABLE_READ **默认 OFF**，fail-open
+read unification  443 读一次 -> 591 shadow 复用（snapshot_reader），C1「reader 恰好一次」不变量恢复
+test scope     test_flag_off_never_invokes_the_reader 限定到 Phase 1 配置
+dual-config L1 flag ON 41 passed / flag OFF 41 passed
+提交链         b66e78a9 -> 42ae014a -> d4562295 -> f788f933
+```
+
+**`f788f933` exact-head CI 归因（完整，逐步骤核实）**：
+
+```text
+pytest                GREEN
+ruff                  GREEN
+package helper        GREEN
+detect-secrets        GREEN   （那行 "ERROR: potential secrets detected" 经核实为
+                               workflow 非阻断输出；detect-secrets 步骤 conclusion = success）
+mypy                  GREEN
+frontend              GREEN
+唯一失败              Enforce Playwright browser install   -> CI infra / tooling
+                      （非测试失败；Install Playwright browsers 本身 = success）
+```
+
+**两个结论必须同时成立，不得互相替代**：
+
+```text
+1. §164-E 当前**没有 product regression evidence**。
+2. `f788f933` **仍不能宣布权威 L3 PASS** —— 整个 exact-head workflow 尚未 green。
+```
+
+**CI 中 pytest=success 的附带定性**：本地那 3 个 Crawl4AI worker 失败
+（`test_crawl4ai_shutdown_contract` / `test_crawl4ai_timeout_propagation`）
+在权威 CI 环境完整通过 => **本地 worker 环境问题**，**无理由为它修改 §164-E**。
+
+**剩余交付门（唯一）**：
+
+```text
+exact-head workflow overall GREEN（@ f788f933 或其后续 head）
+  blocked only by Playwright enforce infra/tooling
+  -> 环境恢复后**单次**查询/运行 exact-head CI
+  -> 若 Enforce Playwright browser install 继续单独失败：
+     只审它的 enforce 条件 / 状态传递 / workflow plumbing
+  -> **不得回头碰 adapter / wiring / parity / measurement**
+```
+
+**flag-flip 是部署决策（冻结）**：即使 exact-head workflow 变绿，
+也**不自动启用**；须把「代码资格已满足」与「是否部署启用」作为**两个独立决定**，
+并继续守 §164.6 invariant / §164.7 non-goals 的 rollout 与 authority 边界。
 ```
 `
 
