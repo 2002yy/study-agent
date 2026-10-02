@@ -5,6 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from src.application.learner_state_durable_adapter import (
+    CANARY_FLAG,
+    DURABLE_READ_FLAG,
+    durable_read_enabled,
     restore_persistence_plane,
     DURABLE_PREFERRED,
     EXPECTED_DIVERGENCE,
@@ -140,3 +143,29 @@ def test_legacy_fallback_adjudication_leaves_persistence_untouched():
     legacy = _legacy()
     adj = adjudicate(legacy, _snapshot(objective="")).to_dict()  # no durable_preferred
     assert restore_persistence_plane(legacy, legacy, adj) is legacy
+
+
+def test_durable_read_is_off_by_default(monkeypatch):
+    monkeypatch.delenv(DURABLE_READ_FLAG, raising=False)
+    monkeypatch.delenv(CANARY_FLAG, raising=False)
+    assert durable_read_enabled("t1") is False
+
+
+def test_canary_enables_only_listed_threads(monkeypatch):
+    monkeypatch.delenv(DURABLE_READ_FLAG, raising=False)
+    monkeypatch.setenv(CANARY_FLAG, "t1, t2")
+    assert durable_read_enabled("t1") is True
+    assert durable_read_enabled("t2") is True
+    assert durable_read_enabled("t3") is False
+
+
+def test_global_flag_overrides_canary_scope(monkeypatch):
+    monkeypatch.setenv(DURABLE_READ_FLAG, "1")
+    monkeypatch.setenv(CANARY_FLAG, "t1")
+    assert durable_read_enabled("anything") is True
+
+
+def test_canary_without_thread_id_is_off(monkeypatch):
+    monkeypatch.delenv(DURABLE_READ_FLAG, raising=False)
+    monkeypatch.setenv(CANARY_FLAG, "t1")
+    assert durable_read_enabled(None) is False

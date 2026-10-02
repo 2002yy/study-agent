@@ -35,9 +35,34 @@ from src.pedagogy.types import LearningState
 DURABLE_READ_FLAG = "LEARNER_STATE_DURABLE_READ"
 
 
-def durable_read_enabled() -> bool:
-    """Phase 2 is opt-in: default OFF keeps production behaviour unchanged."""
-    return os.environ.get(DURABLE_READ_FLAG, "0").strip().lower() in {"1", "true", "yes", "on"}
+CANARY_FLAG = "LEARNER_STATE_DURABLE_READ_CANARY"
+
+
+def _truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def durable_read_enabled(thread_id: str | None = None) -> bool:
+    """Phase 2 is opt-in; default OFF keeps production behaviour unchanged.
+
+    164-E controlled deployment has two explicit opt-ins, neither of which is a global
+    default:
+
+    * ``LEARNER_STATE_DURABLE_READ`` - stage-gate enablement, all threads.
+    * ``LEARNER_STATE_DURABLE_READ_CANARY`` - a comma-separated thread allowlist, so the
+      read is enabled for designated threads only.
+
+    With neither set the read is off, which is the default.
+    """
+
+    if _truthy(os.environ.get(DURABLE_READ_FLAG, "0")):
+        return True
+    allowlist = os.environ.get(CANARY_FLAG, "")
+    if not allowlist.strip() or thread_id is None:
+        return False
+    return thread_id.strip() in {
+        item.strip() for item in allowlist.split(",") if item.strip()
+    }
 
 
 # Decisions (frozen vocabulary; mirrors the §164.29 pre-registered gate).

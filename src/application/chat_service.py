@@ -455,7 +455,7 @@ class ChatService:
             # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
             durable_snapshot = None
             durable_adjudication = None
-            if durable_read_enabled():
+            if durable_read_enabled(thread.id):
                 _reader = self.dependencies.read_learner_model
                 if _reader is not None:
                     try:
