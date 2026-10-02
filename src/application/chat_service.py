@@ -448,6 +448,9 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            # 164.33/I6: the C1 observer must compare the PRE-adjudication legacy value,
+            # otherwise enabling Phase 2 masks legacy-vs-durable divergence.
+            legacy_learning_state = learning_state
             # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
             durable_snapshot = None
             durable_adjudication = None
@@ -617,7 +620,7 @@ class ChatService:
                 self,
                 thread_id=thread.id,
                 turn_id=turn_id,
-                learning_state_before=learning_state,
+                learning_state_before=legacy_learning_state,
                 route=route,
                 pedagogy_plan=pedagogy_plan,
                 retrieval_plan=retrieval_plan,

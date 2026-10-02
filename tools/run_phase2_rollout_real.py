@@ -46,6 +46,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evaluation import PedagogyEvaluationService
+from src.pedagogy.types import LearningState
 from src.repositories.learning_closure_repository import LearningClosureRepository
 from src.repositories.learning_truth_repository import LearningTruthRepository
 from src.repositories.memory_repository import MemoryRepository
@@ -294,10 +295,8 @@ def _run_sample(sample: dict, root: Path) -> dict:
     chat = ChatService(runtime, deps)
 
     records = []
-    last_prepared = None
     for index, text in enumerate(TURNS):
         prepared = chat.start_turn(ChatCommand(user_input=text, thread_id=thread_id))
-        last_prepared = prepared
         chat.complete_turn(prepared, " reply")
         turn = runtime.list_chat_turns(thread_id)[-1]
         snap = dict(getattr(turn, "pedagogy_snapshot", {}) or {})
@@ -319,10 +318,15 @@ def _run_sample(sample: dict, root: Path) -> dict:
             decision_counts[d.get("decision")] += 1
 
     # A5 via the parity instrument (the adjudication record has no conflict value).
+    # The legacy side must be the persisted, un-adjudicated thread state: with Phase 2
+    # on, prepared.learning_state_before is already the adjudicated value.
+    legacy_side = LearningState.from_dict(
+        runtime.get_chat_thread(thread_id).learning_state
+    )
     parity_obs = observe_learner_state_parity(
         thread_id=thread_id,
         turn_id="turn-seed",
-        learning_state=last_prepared.learning_state_before,
+        learning_state=legacy_side,
         snapshot=lms.build(thread_id),
         provenance={"collection": "164.33", "audit": "A5"},
     )
