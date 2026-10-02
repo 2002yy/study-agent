@@ -17797,3 +17797,80 @@ durable misconception **不进入** §164-C1 冻结 instrument 的 build_durable
 **本刀边界（冻结）**：**只冻结语义与 authority 契约**；
 **不实现**持久化 / 写路径 / read projection（留作 §168-C）；
 **不改** runtime authority；**不改** §164-C1 冻结 instrument；**不给 adjudicate() 加分支**。
+
+### 168.3 §168-C 实现结果（2026-10-01）
+
+```text
+触点 1-3（存储层，提交 3f0d5f73）：
+  LearnerMisconception（description 而非 label；默认 suspected / count=1）
+  learner_misconceptions 表（status CHECK 三态 + count CHECK >=1 + (goal_id,status,last_seen_at) 索引）
+  repository: create / get / list_for_goal / find_by_description / update + 行映射
+触点 4（写路径，提交 5029254e）：
+  LearningClosureTruthService._promote_misconceptions（semantic + deterministic 来源）
+    首见 -> suspected / count=1；重复 -> count+=1，**status 不变（不自动 confirmed）**
+  commit 路径在 _focus_or_create_goal 之后调用；唯一写路径 = closure 边界
+三个硬门：ordinary chat ≠ writer ✅｜重复 ≠ 自动 confirmed ✅｜无半接状态 ✅
+测试：存储层 5 + promotion 4；回归 closure truth / commit boundary 全绿
+```
+
+### 168.4 §168-D 结果与 G4 证据（提交 592a79b3）
+
+```text
+label 关系（复用冻结语义，未改 instrument）：
+  neither / both same text / durable confirmed -> MATCH
+  legacy only / durable suspected only / different text -> EXPECTED_DIVERGENCE
+  => misconception 维度**从无 CONFLICT**
+★ 关键：label 关系**无法区分 observation 与 durable truth**
+  同文本在 suspected 与 confirmed 下**都是 MATCH**
+  => 冻结的 label 比较器对 **promotion / validation 语义盲**；
+     promotion 状态必须**旁路携带**，不能由 label 推断。
+```
+
+### 168.5 §168 G4 authority 裁决（冻结，2026-10-01）
+
+```text
+legacy misconception = **本轮 evaluator observation**（transient）
+durable misconception = **带生命周期的 durable record**（suspected -> … -> confirmed/resolved）
+=> G4 = **observation vs durable truth（promotion / validation）**
+   既非字段偏好，也非冻结 classifier 可表达
+=> **G4 不做 authority cutover**：legacy observation 继续用于本轮教学；
+   durable record 作为**独立维度**（promotion 状态由 status 表达）。
+   **不得给 adjudicate() 加 misconception 分支。**
+```
+
+### 168.6 §164.36 最终 StudyContext A/B 裁决（冻结，2026-10-01）
+
+**这是 §164.36 约定的最终裁决实验（不再逐轮抽象验证）。**
+
+**A 的实测复杂度（直接计数）**：
+
+```text
+gate branches      : 5（G1–G5），7 处 gate= 决策点
+decision kinds     : 4（durable_preferred / legacy_fallback / not_comparable / expected_divergence）
+chat_service 特例  : ~7（legacy 副本 / snapshot 初始化 / adjudication 初始化 / flag 检查 /
+                       reader 调用 / adjudicate 调用 / fail-open 复位 / 发射）
+restore 特例       : 1（objective 还原）
+adapter 规模       : 217 行
+```
+
+**B 的评估（基于四种真实融合规则）**：
+
+```text
+G1 override / G2 heterogeneous / G3 coexist / G4 promotion
+=> 这 4 条融合规则是**领域固有**（两套系统真实不同），
+   **不是 A 的产物**；B 只能**搬移**它们（adjudicate+restore -> read projection），
+   **不能消除**。
+B 相对 A 的实际节省：约 2 处特例（无需 restore、无需 writeback 防护）
+B 的额外成本：新增 StudyContext 类型 + projection 层 + 新的 read-time 规则位置
+```
+
+**裁决**：
+
+```text
+**B 未明显降低复杂度** -> 按 §164.36 冻结判据：
+**StudyContext 保持 deferred（除非未来出现新的真实压力）**。
+维持现状 A：`LearningState + adjudication` + 独立 comparator（§165-C / §168-D）。
+```
+
+**理由（冻结）**：复杂度来自**领域的四种真实差异**，而非当前接法；
+引入 B 会新增结构而不消除规则。**功能先向前走，让真实复杂度决定是否需要抽象。**
