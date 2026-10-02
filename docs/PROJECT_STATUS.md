@@ -17747,3 +17747,53 @@ G4 misconception  -> **observation vs durable truth**（promotion / validation�
 -> **§165+§168 之后**做最终 StudyContext A/B（届时可**直接计数**：
 A 的 adjudication 分支 / restore 特例 / coercion / authority exception
 vs B 的 read-time projection rule 与是否消除 writeback 防护）。
+
+### 168.2 §168-B durable misconception 最小语义 + 写 authority（冻结，2026-10-01）
+
+**设计依据**：`ProposedMisconception` 已有 `description / pedagogy_eval_ref / basis /
+authority_required`，且其 docstring 明确 `label` 属 semantic-label authority、proposal 不是它。
+=> durable 侧**沿用"描述而非标签"**的纪律。
+
+**最小 durable 语义（冻结）**：
+
+```text
+LearnerMisconception（durable，最小字段集）
+  id
+  goal_id
+  description        <- 描述，**不是 label**（label 属 semantic-label authority）
+  status             <- "suspected" | "confirmed" | "resolved"
+  occurrence_count   <- 观察计数（promotion 的依据）
+  first_seen_at / last_seen_at
+  source_eval_ref    <- 首次观察的 evaluation 引用
+=> **不引入** priority / severity / 教学动作字段（无真实压力前不加）。
+```
+
+**promotion 语义（冻结，§168 的核心）**：
+
+```text
+observation（legacy，本轮 evaluator）  ≠  durable truth
+=> 首次观察**不得**直接成为 confirmed：
+   第一次 -> status = "suspected"（occurrence_count = 1）
+   再次观察 -> occurrence_count += 1（**仍不自动 confirmed**，阈值留待真实数据裁定）
+   confirmed 需要**显式验证**（后续刀定义），不得由计数自动升级
+=> **ordinary chat 永远不能写**；LLM 亦不可断言
+```
+
+**写 authority（冻结）**：
+
+```text
+唯一写路径 = LearningClosureTruthService（closure commit boundary）
+  —— 与 Claim / Understanding / NextStep 同一边界；
+  ordinary chat / API / PedagogyEngine / LearnerModel **均不可写**。
+```
+
+**读 projection（冻结为下一步，不在本刀）**：
+
+```text
+durable misconception **不进入** §164-C1 冻结 instrument 的 build_durable_projection；
+真实比较走**独立 comparator（路径 2）**，与 §165-C 同法。
+```
+
+**本刀边界（冻结）**：**只冻结语义与 authority 契约**；
+**不实现**持久化 / 写路径 / read projection（留作 §168-C）；
+**不改** runtime authority；**不改** §164-C1 冻结 instrument；**不给 adjudicate() 加分支**。
