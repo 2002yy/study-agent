@@ -16,27 +16,21 @@
       {
         "sample": "diff",
         "objectives_equal": false,
-        "decision": "durable_preferred"
-      },
-      {
-        "sample": "diff",
-        "objectives_equal": false,
-        "decision": "durable_preferred"
+        "goal_objective_parity": "MATCH",
+        "overall_parity": "NOT_COMPARABLE"
       },
       {
         "sample": "equal",
         "objectives_equal": true,
-        "decision": "durable_preferred"
-      },
-      {
-        "sample": "equal",
-        "objectives_equal": true,
-        "decision": "durable_preferred"
+        "goal_objective_parity": "MATCH",
+        "overall_parity": "NOT_COMPARABLE"
       }
     ]
   },
   "samples": [
     {
+      "parity_overall": "NOT_COMPARABLE",
+      "parity_goal_objective": "MATCH",
       "sample_id": "diff",
       "expectation": "durable_preferred_with_diverging_objective",
       "legacy_objective": "recover durable resume",
@@ -140,6 +134,8 @@
       ]
     },
     {
+      "parity_overall": "NOT_COMPARABLE",
+      "parity_goal_objective": "MATCH",
       "sample_id": "equal",
       "expectation": "gate_match_no_conflict",
       "legacy_objective": "recover durable resume",

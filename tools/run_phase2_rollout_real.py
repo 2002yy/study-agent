@@ -34,6 +34,9 @@ import src.application.memory_service as memory_service_module
 from src.application.chat_service import ChatCommand, ChatDependencies, ChatService
 from src.application.learner_model import LearnerModelService
 from src.application.learner_state_durable_adapter import DURABLE_READ_FLAG
+from src.application.learner_state_parity_observer import (
+    observe_learner_state_parity,
+)
 from src.application.learning_closure_service import LearningClosureService
 from src.application.learning_closure_truth import LearningClosureTruthService
 from src.application.memory_service import MemoryService
@@ -291,8 +294,10 @@ def _run_sample(sample: dict, root: Path) -> dict:
     chat = ChatService(runtime, deps)
 
     records = []
+    last_prepared = None
     for index, text in enumerate(TURNS):
         prepared = chat.start_turn(ChatCommand(user_input=text, thread_id=thread_id))
+        last_prepared = prepared
         chat.complete_turn(prepared, " reply")
         turn = runtime.list_chat_turns(thread_id)[-1]
         snap = dict(getattr(turn, "pedagogy_snapshot", {}) or {})
@@ -313,7 +318,26 @@ def _run_sample(sample: dict, root: Path) -> dict:
             gate_counts[d.get("gate")] += 1
             decision_counts[d.get("decision")] += 1
 
+    # A5 via the parity instrument (the adjudication record has no conflict value).
+    parity_obs = observe_learner_state_parity(
+        thread_id=thread_id,
+        turn_id="turn-seed",
+        learning_state=last_prepared.learning_state_before,
+        snapshot=lms.build(thread_id),
+        provenance={"collection": "164.33", "audit": "A5"},
+    )
+    parity_g1 = next(
+        (
+            v.classification
+            for v in parity_obs.dimensions
+            if getattr(v, "dimension", "") == "goal_objective"
+        ),
+        None,
+    )
+
     return {
+        "parity_overall": parity_obs.overall_classification,
+        "parity_goal_objective": parity_g1,
         "sample_id": sid,
         "expectation": sample["expect"],
         "legacy_objective": sample["legacy"],
@@ -345,21 +369,19 @@ def main() -> int:
 
     # --- audits -------------------------------------------------------------
     i2 = all(r["reader_calls"] == r["turn_count"] for r in results)
-    a5 = []
-    for r in results:
-        for rec in r["records"]:
-            for d in rec["decisions"]:
-                if d.get("gate") == "G1":
-                    a5.append(
-                        {
-                            "sample": r["sample_id"],
-                            "objectives_equal": r["legacy_objective"]
-                            == r["durable_objective"],
-                            "decision": d.get("decision"),
-                        }
-                    )
+    # A5: audited with the parity instrument, which is what actually emits CONFLICT.
+    a5 = [
+        {
+            "sample": r["sample_id"],
+            "objectives_equal": r["legacy_objective"] == r["durable_objective"],
+            "goal_objective_parity": r["parity_goal_objective"],
+            "overall_parity": r["parity_overall"],
+        }
+        for r in results
+    ]
     a5_abort = any(
-        item["objectives_equal"] and item["decision"] == "conflict" for item in a5
+        item["objectives_equal"] and item["goal_objective_parity"] == "CONFLICT"
+        for item in a5
     )
 
     payload = {
