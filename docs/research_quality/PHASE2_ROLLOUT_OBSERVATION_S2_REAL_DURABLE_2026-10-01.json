@@ -1,0 +1,105 @@
+{
+  "schema_version": "phase2-rollout-observation-v1",
+  "contract": "164.33",
+  "environment": "controlled harness with real durable truth",
+  "closure": {
+    "create_status": "preview_ready",
+    "commit_status": "completed",
+    "durable_objective": "recover session recovery by durable owner"
+  },
+  "legacy_objective": "recover durable resume",
+  "turn_count": 2,
+  "adjudication_emitted_count": 2,
+  "durable_preferred_turns": 2,
+  "gate_counts": {
+    "G1": 2,
+    "G2": 2,
+    "G3": 2,
+    "G4": 2,
+    "G5": 2
+  },
+  "decision_counts": {
+    "durable_preferred": 2,
+    "expected_divergence": 2,
+    "legacy_fallback": 4,
+    "not_comparable": 2
+  },
+  "records": [
+    {
+      "turn_index": 0,
+      "turn_id": "turn_5884246ae0b9416d9a3aed0067a586c2",
+      "adjudication_present": true,
+      "used_durable": true,
+      "decisions": [
+        {
+          "decision": "durable_preferred",
+          "field": "objective",
+          "gate": "G1",
+          "reason": ""
+        },
+        {
+          "decision": "not_comparable",
+          "field": "confirmed_points",
+          "gate": "G2",
+          "reason": "durable confirmed understanding is expressed as claim ids, which cannot become legacy text points; not coerced"
+        },
+        {
+          "decision": "legacy_fallback",
+          "field": "next_step",
+          "gate": "G3",
+          "reason": "durable next-step lifecycle not implemented"
+        },
+        {
+          "decision": "legacy_fallback",
+          "field": "misconception",
+          "gate": "G4",
+          "reason": "durable misconception lifecycle not implemented (168)"
+        },
+        {
+          "decision": "expected_divergence",
+          "field": "freshness",
+          "gate": "G5",
+          "reason": "freshness is durable-only; legacy has no such concept"
+        }
+      ]
+    },
+    {
+      "turn_index": 1,
+      "turn_id": "turn_6c8b63eda6304db5b093874f93c592c3",
+      "adjudication_present": true,
+      "used_durable": true,
+      "decisions": [
+        {
+          "decision": "durable_preferred",
+          "field": "objective",
+          "gate": "G1",
+          "reason": ""
+        },
+        {
+          "decision": "not_comparable",
+          "field": "confirmed_points",
+          "gate": "G2",
+          "reason": "durable confirmed understanding is expressed as claim ids, which cannot become legacy text points; not coerced"
+        },
+        {
+          "decision": "legacy_fallback",
+          "field": "next_step",
+          "gate": "G3",
+          "reason": "durable next-step lifecycle not implemented"
+        },
+        {
+          "decision": "legacy_fallback",
+          "field": "misconception",
+          "gate": "G4",
+          "reason": "durable misconception lifecycle not implemented (168)"
+        },
+        {
+          "decision": "expected_divergence",
+          "field": "freshness",
+          "gate": "G5",
+          "reason": "freshness is durable-only; legacy has no such concept"
+        }
+      ]
+    }
+  ]
+}
