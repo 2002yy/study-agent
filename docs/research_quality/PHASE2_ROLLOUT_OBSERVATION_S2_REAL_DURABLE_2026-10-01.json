@@ -40,6 +40,13 @@
   },
   "samples": [
     {
+      "next_step_probe_165": {
+        "legacy_unresolved_gap": "",
+        "durable_next_step_text": "read back the objective after closure",
+        "classification": "DURABLE_ONLY"
+      },
+      "durable_next_step_text": "read back the objective after closure",
+      "legacy_unresolved_gap": "",
       "I6_persisted_objective": "recover durable resume",
       "I6_persistence_unchanged": true,
       "I1_I4_durable_goals_before": 1,
@@ -223,6 +230,13 @@
       ]
     },
     {
+      "next_step_probe_165": {
+        "legacy_unresolved_gap": "",
+        "durable_next_step_text": "read back the objective after closure",
+        "classification": "DURABLE_ONLY"
+      },
+      "durable_next_step_text": "read back the objective after closure",
+      "legacy_unresolved_gap": "",
       "I6_persisted_objective": "recover durable resume",
       "I6_persistence_unchanged": true,
       "I1_I4_durable_goals_before": 1,

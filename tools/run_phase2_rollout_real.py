@@ -46,6 +46,11 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.mode_manager import RuntimeModes
 from src.pedagogy.engine import PedagogyEngine
 from src.pedagogy.evaluation import PedagogyEvaluationService
+from src.domain.learner_state_parity import (
+    DurableLearnerProjection,
+    LegacyLearnerProjection,
+    _classify_next_step,
+)
 from src.pedagogy.types import LearningState
 from src.repositories.learning_closure_repository import LearningClosureRepository
 from src.repositories.learning_truth_repository import LearningTruthRepository
@@ -349,7 +354,28 @@ def _run_sample(sample: dict, root: Path) -> dict:
         thread_after.learning_state
     ).objective
 
+    # 165-C real-input probe: durable NextStep text vs legacy unresolved_gap, using the
+    # thin independent comparator (does not touch the 164 parity instrument).
+    _v = _classify_next_step(
+        LegacyLearnerProjection(next_step_hint=legacy_side.unresolved_gap),
+        DurableLearnerProjection(
+            next_steps=(
+                (str(getattr(probe, "next_step_text", "") or ""),)
+                if getattr(probe, "next_step_text", "")
+                else ()
+            )
+        ),
+    )
+    real_next_step = {
+        "legacy_unresolved_gap": legacy_side.unresolved_gap,
+        "durable_next_step_text": str(getattr(probe, "next_step_text", "") or ""),
+        "classification": _v.classification,
+    }
+
     return {
+        "next_step_probe_165": real_next_step,
+        "durable_next_step_text": str(getattr(probe, "next_step_text", "") or ""),
+        "legacy_unresolved_gap": legacy_side.unresolved_gap,
         "I6_persisted_objective": persisted_objective,
         "I6_persistence_unchanged": persisted_objective == sample["legacy"],
         "I1_I4_durable_goals_before": durable_goals_before,
