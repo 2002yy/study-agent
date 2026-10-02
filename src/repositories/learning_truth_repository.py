@@ -725,6 +725,28 @@ class LearningTruthRepository:
             ).fetchall()
         return [_misconception_from_row(row) for row in rows]
 
+    def update_misconception(
+        self, item: LearnerMisconception
+    ) -> LearnerMisconception:
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                UPDATE learner_misconceptions
+                SET description = ?, status = ?, occurrence_count = ?,
+                    source_eval_ref = ?, last_seen_at = ?
+                WHERE id = ?
+                """,
+                (
+                    item.description,
+                    item.status,
+                    item.occurrence_count,
+                    item.source_eval_ref,
+                    item.last_seen_at,
+                    item.id,
+                ),
+            )
+        return item
+
     def find_misconception_by_description(
         self, goal_id: str, description: str
     ) -> LearnerMisconception | None:
