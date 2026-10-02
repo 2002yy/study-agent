@@ -1,8 +1,18 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Feature-branch pushes used to trigger both a push run and a PR run of the same
+# workflow at the same head. Only pull_request (plus main pushes and manual runs)
+# triggers now, and superseded runs on the same ref are cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -35,7 +45,10 @@ jobs:
       - name: Run pytest
         id: pytest
         continue-on-error: true
-        run: pytest -q --tb=short > pytest.log 2>&1
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          pytest -q --tb=short --durations=30 2>&1 | tee pytest.log
 
       - name: Upload pytest diagnostics
         if: always()
