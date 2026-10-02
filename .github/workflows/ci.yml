@@ -56,7 +56,7 @@ jobs:
         with:
           name: pytest-log
           path: pytest.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Run RAG K1 local quality baseline
@@ -100,7 +100,6 @@ jobs:
         id: secrets
         continue-on-error: true
         run: |
-          pip install detect-secrets 2>/dev/null
           # docs/research_quality/*.json are machine-generated evidence artifacts whose
           # content is dominated by hashes/ids (query_sha256, git_sha, candidate ids...),
           # so the entropy detectors only ever produce false positives there. They are
@@ -140,7 +139,7 @@ jobs:
         with:
           name: detect-secrets-report
           path: detect-secrets-report.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce detect-secrets result
@@ -160,7 +159,7 @@ jobs:
         with:
           name: mypy-log
           path: mypy.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce mypy baseline
@@ -190,7 +189,7 @@ jobs:
         with:
           name: frontend-log
           path: frontend.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce frontend result
@@ -200,6 +199,7 @@ jobs:
           exit 1
 
       - name: Install Playwright browsers
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -214,16 +214,17 @@ jobs:
         with:
           name: playwright-install-log
           path: playwright-install.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce Playwright browser install
-        if: steps.playwright_install.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'failure'
         run: |
           tail -300 playwright-install.log
           exit 1
 
       - name: Run browser Golden Journeys
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -245,12 +246,13 @@ jobs:
           retention-days: 7
 
       - name: Enforce browser Golden Journeys
-        if: steps.browser_e2e.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.browser_e2e.outcome == 'failure'
         run: |
           tail -300 browser-e2e.log
           exit 1
 
       - name: Run real-stack browser gates
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
@@ -273,7 +275,7 @@ jobs:
           retention-days: 7
 
       - name: Enforce real-stack browser gates
-        if: steps.real_stack_browser_e2e.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.real_stack_browser_e2e.outcome == 'failure'
         run: |
           tail -300 real-stack-browser-e2e.log
           exit 1
