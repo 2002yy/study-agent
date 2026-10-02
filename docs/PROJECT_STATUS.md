@@ -17505,7 +17505,59 @@ StudyWorkflow（极薄，只负责调用顺序；初期可由 ChatService 承担
 estore_persistence_plane 是
 **migration-safety mechanism**，非最终架构中心；
 逐字段 authority cutover 完成后，
-estore_* 自然删除。
+restore_* 自然删除。
 
 **本刀之后仍以 §164 收口为唯一优先**：
 I1/I3/I4/I5/I6 正式化 -> clean S2 扩样 -> **Phase-2 deployment ruling**。
+
+### 164.37 §164-E Phase 2 deployment ruling（冻结，2026-10-01）
+
+**证据基础**：
+
+```text
+代码资格：§164-E adapter / wiring / read unification / test scope / dual-config L1
+T2 通道：durable_adjudication 可回读
+persistence isolation：authority leak 闭合（restore_persistence_plane）
+不变量实测：I1/I2/I3/I4/I5/I6 + A5 全部通过（clean S2，4 turns/样本）
+exact-head push CI @8530f09e = success（13m18s，含 mypy baseline）<- 代码绿证
+exact-head PR   CI @8530f09e = infra 停摆（非红、非代码；不重跑）
+=> 判定使用 push-green 作为代码绿证；不宣称"双 CI 通过"。
+```
+
+**T / S / R 映射**：
+
+```text
+T1 代码资格已满足          ✅（CI push 绿）
+T2 观测通道可回读          ✅（durable_adjudication 入 turn 记录）
+T3 回退开关可操作          ✅（LEARNER_STATE_DURABLE_READ 默认 OFF，置回即恢复）
+T4 无未决 regression       ✅（mypy 回归已修；I1–I6/A5 实测）
+T5 不含 durable 写入权     ✅（I1/I4：durable goal 计数 1 -> 1）
+
+S1 指定环境起始            ✅（受控 harness，进程内 flag）
+S2 观察窗口（对照 OFF）    ✅（diff CONFLICT / equal MATCH；I2 exactly-once）
+S3 逐级扩大                ⏳ 部署执行项（本裁定只封板资格，不执行扩大）
+S4 全量 ON                 ⏳ 部署执行项
+
+R1 flag OFF 恢复 legacy    ✅（I5：flag OFF 无记录；行为不变）
+R2 无不可逆副作用          ✅（I6：持久化 objective 仍为 legacy；Phase 2 只读 durable）
+R3 无需数据迁移            ✅（无 schema / 无持久化变更）
+```
+
+**裁定**：
+
+```text
+Phase 2 = QUALIFIED FOR CONTROLLED DEPLOYMENT
+
+即：durable objective 可作为受 flag 控制的 runtime decision authority；
+legacy persistence authority 保留；失败自动回落 legacy。
+
+明确不是：
+  migration
+  full durable authority cutover
+  Phase 3
+  legacy retirement
+```
+
+**边界（冻结）**：本裁定**只封板资格**，不执行 flag-flip；
+实际启用仍按 §164.33 的 S1–S4 逐级扩大，且 deployment 是**独立操作决定**。
+**§164-E 至此 CLOSED**；下一阶段为 §164 CLOSED 后的 **StudyContext 对比实验**（§164.36）。
