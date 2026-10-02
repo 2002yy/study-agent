@@ -16788,6 +16788,68 @@ frontend              GREEN
 **flag-flip 是部署决策（冻结）**：即使 exact-head workflow 变绿，
 也**不自动启用**；须把「代码资格已满足」与「是否部署启用」作为**两个独立决定**，
 并继续守 §164.6 invariant / §164.7 non-goals 的 rollout 与 authority 边界。
+
+### 164.33 §164-E Phase 2 flag-flip 部署决策合同（冻结，2026-10-01）
+
+**边界前提（冻结，最关键）**：
+
+```text
+「dual-read / bounded-preference 被启用」  ≠  「durable 成为 authority」
+Phase 2 即使上线，仍必须守 §164.7 non-goals；
+**不得借 rollout 偷渡 Phase 3 权限**。
+Phase 3（durable authority）须在取得真实 rollout evidence 后，
+回读 §164.3 的 Phase 3 frozen definition 再单独裁决。
+```
+
+**1. 触发条件（全部满足才允许 flag = ON）**：
+
+```text
+T1 代码资格已满足：§164-E 实现 + dual-config L1 + exact-head CI 绿（已达 @ cc81bf7c）
+T2 观测通道就绪：adjudication 的 decisions / divergences 已入 telemetry 且可回读，
+   §164.29 的 G1–G5 分类可用于事后审计
+T3 回退开关可操作：LEARNER_STATE_DURABLE_READ 可置回 OFF（最小代价，不需数据操作）
+T4 无未决 product regression evidence（当前满足）
+T5 本次 rollout **不包含任何 durable 写入权**（§164.7）
+```
+
+**2. rollout scope（逐级扩大，不跳级）**：
+
+```text
+S1 起始：**指定环境**（内部单一环境），flag = ON 仅限该环境
+S2 观察窗口：收集足量真实 turn 的 adjudication 分布（对照 OFF baseline）
+S3 仅当 S2 **无 abort 信号**才逐级扩大；**不得跳级**
+S4 全量 ON 为最后一步，且须**再次确认全部 invariants**
+```
+
+**3. invariants + abort 条件**：
+
+```text
+必须持续成立：
+ I1 §164.6：snapshot 永远可重建（cache != authority）；adapter **不持久化** snapshot
+ I2 C1 不变量：reader **恰好调用一次**（443 读 -> 591 复用）
+ I3 fail-open：reader 缺失 / adjudicate 抛错 -> legacy 原样，turn 继续
+ I4 §164.7 non-goals 未被触碰：无 learner_state 大表 / 无 LLM mastery 写权 /
+    LearnerModel 非 writer / Planner 非 truth authority
+ I5 legacy authority 仍可完整回退
+
+abort（任一出现立即置 OFF 并记录）：
+ A1 turn 失败率 / 延迟相对 OFF baseline 显著上升
+ A2 reader 调用次数 != 1（I2 破坏）
+ A3 adjudicate 抛错率 > 0（fail-open 被频繁触发）
+ A4 出现任何 durable 写入（I4 破坏）
+ A5 durable objective 覆盖后与 G1 预期不符（CONFLICT 出现在字面一致样本）
+```
+
+**4. rollback**：
+
+```text
+R1 flag = OFF 即恢复 legacy authority：443 不读、591 自读，行为回到 OFF baseline
+R2 **无写入后不可逆副作用**：Phase 2 只读 durable、只改内存中的 LearningState，
+   **不写 durable truth、不持久化 snapshot**
+R3 rollback 后**无需数据迁移**（无 schema / 无持久化变更）
+```
+
+**决策状态**：**代码资格 ✅ COMPLETE；部署启用 ⏳ 待独立决定**（本刀只冻结合同，不执行 flip）。
 ```
 `
 
