@@ -17662,3 +17662,88 @@ LearningTruthReader protocol 补 list_next_steps_for_goal
 
 **下一步（§165 后续）**：先做路径 1 或 2 的裁决，再取真实判定；
 **在裁决前不得改 `build_durable_projection`**。
+
+### 165.4 §165 G3 正式裁决（冻结，2026-10-01）：双语义并存，不做 cutover
+
+**依据**：§165-C 真实输入 `DURABLE_ONLY` + 合成 `EXPLAINED_DIVERGENCE`（两者均非 defect 类）。
+
+```text
+legacy unresolved_gap = 当前教学轮次的即时缺口 / pedagogy-local state  -> **legacy authority**
+durable NextStep      = closure 后确认的跨 turn 学习行动 / resume anchor -> **durable authority**
+=> durable NextStep **≠** legacy unresolved_gap
+   **不是** durable-preferred / legacy-fallback，
+   而是**两个不同维度，各自拥有语义与 authority**。
+```
+
+**运行时规则（冻结）**：
+
+```text
+durable 有 / legacy 空   -> resume / cross-turn 用 durable；**不填充 unresolved_gap**
+durable 空 / legacy 有   -> 当前教学继续用 legacy gap
+两者文本相同             -> 仍视为两个来源，**不因此合并 ownership**
+两者不同                 -> **正常 coexistence，不是 conflict**
+durable reader 失败      -> **不影响** legacy 当前轮教学
+=> **不得给 adjudicate() 再加 next_step -> unresolved_gap 分支**
+```
+
+## §168 Misconception lifecycle
+
+### 168.1 §168-A Misconception lifecycle qualification（只读审计，2026-10-01）
+
+**问题一：legacy misconception 到底是什么？**
+
+```text
+= **本轮 evaluator 的 observation**
+  PedagogyEvalRun.semantic_result.misconceptions + deterministic_result["misconceptions"]
+  => 是"这一轮观察到的疑似误区"，**不是长期事实**。
+```
+
+**问题二：durable misconception 应该是什么？（当前答案：尚不存在）**
+
+```text
+ProposedMisconception（learning_closure_candidate.py:96）存在，但其 docstring 明文：
+  "A suspected misconception. **Lifecycle states belong to 168, not here.**"
+  "…a misconception proposal is not [the semantic-label authority]"
+=> 只有 **proposal**，**没有 durable truth**；lifecycle 被显式留给 §168。
+```
+
+**问题三：谁有写 authority？**
+
+```text
+**当前无人**：无 durable misconception 持久化。
+  learning_semantic_closure.py:128-132 仅**收集** run 的 misconceptions；
+  parity observer 注释："The durable misconception lifecycle does not exist yet (168)"。
+```
+
+**问题四：read projection？**
+
+```text
+**无**：build_durable_projection 的 misconception_labels 冻结为 ()（§164-C1 instrument）。
+=> 与 §165-C 同理，真实比较需要独立 comparator（路径 2），**不得改冻结 instrument**。
+```
+
+**结论（§168 的预判得到证实）**：
+
+```text
+observation ≠ durable truth
+=> G4 与 G3 **不同**：G4 是 **observation vs durable truth（promotion / validation 语义）**。
+```
+
+**融合规则汇总（StudyContext 价值的关键证据）**：
+
+```text
+G1 objective      -> **override**（replacement semantics）
+G2 understanding  -> **heterogeneous representations**（claim IDs vs text points，不可比）
+G3 next_step      -> **coexist**（双语义并存）
+G4 misconception  -> **observation vs durable truth**（promotion / validation）
+```
+
+**本刀边界（冻结）**：**不假设** durable misconception 应替换 legacy；
+**不改** runtime authority；**不给 adjudicate() 加 misconception 分支**；
+**不改** §164-C1 冻结 instrument。
+
+**下一步（§168 后续）**：durable misconception 最小语义 + 写 authority 定义
+-> read projection（独立 comparator，路径 2）-> G4 authority 裁决
+-> **§165+§168 之后**做最终 StudyContext A/B（届时可**直接计数**：
+A 的 adjudication 分支 / restore 特例 / coercion / authority exception
+vs B 的 read-time projection rule 与是否消除 writeback 防护）。
