@@ -29,6 +29,10 @@
   },
   "samples": [
     {
+      "I6_persisted_objective": "recover durable resume",
+      "I6_persistence_unchanged": true,
+      "I1_I4_durable_goals_before": 1,
+      "I1_I4_durable_goals_after": 1,
       "parity_overall": "CONFLICT",
       "parity_goal_objective": "CONFLICT",
       "sample_id": "diff",
@@ -134,6 +138,10 @@
       ]
     },
     {
+      "I6_persisted_objective": "recover durable resume",
+      "I6_persistence_unchanged": true,
+      "I1_I4_durable_goals_before": 1,
+      "I1_I4_durable_goals_after": 1,
       "parity_overall": "NOT_COMPARABLE",
       "parity_goal_objective": "MATCH",
       "sample_id": "equal",

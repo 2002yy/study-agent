@@ -292,6 +292,8 @@ def _run_sample(sample: dict, root: Path) -> dict:
         pedagogy_evaluation=PedagogyEvaluationService(),
         read_learner_model=reader,
     )
+    truth_repo = LearningTruthRepository(database)
+    durable_goals_before = len(truth_repo.list_goals_for_thread(thread_id)) if hasattr(truth_repo, "list_goals_for_thread") else None
     chat = ChatService(runtime, deps)
 
     records = []
@@ -339,7 +341,21 @@ def _run_sample(sample: dict, root: Path) -> dict:
         None,
     )
 
+    # I6: the legacy persistence plane must not be rewritten by the durable overlay.
+    thread_after = runtime.get_chat_thread(thread_id)
+    persisted_objective = LearningState.from_dict(
+        thread_after.learning_state
+    ).objective
+
     return {
+        "I6_persisted_objective": persisted_objective,
+        "I6_persistence_unchanged": persisted_objective == sample["legacy"],
+        "I1_I4_durable_goals_before": durable_goals_before,
+        "I1_I4_durable_goals_after": (
+            len(truth_repo.list_goals_for_thread(thread_id))
+            if hasattr(truth_repo, "list_goals_for_thread")
+            else None
+        ),
         "parity_overall": parity_obs.overall_classification,
         "parity_goal_objective": parity_g1,
         "sample_id": sid,
