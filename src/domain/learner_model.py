@@ -48,6 +48,11 @@ class LearnerModelSnapshot:
     goal_status: str = ""
     claim_states: tuple[LearnerClaimState, ...] = ()
     unresolved_count: int = 0
+    # 165-B: primary durable NextStep, exposed read-only. Additive: empty when absent,
+    # so nothing that ignores it changes behaviour.
+    next_step_id: str = ""
+    next_step_text: str = ""
+    next_step_status: str = ""
     evaluation: LearnerEvaluationSummary = LearnerEvaluationSummary()
     confirmed_profile: tuple[ConfirmedLearnerPreference, ...] = ()
 

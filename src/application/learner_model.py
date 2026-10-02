@@ -11,6 +11,7 @@ from src.domain.learner_model import (
     LearnerModelSnapshot,
 )
 from src.domain.learning_truth import (
+    NextStep,
     ClaimRevisionBundle,
     LearningClaim,
     LearningGoal,
@@ -35,6 +36,8 @@ class LearningTruthReader(Protocol):
     ) -> list[tuple[UnderstandingEvidence, UnderstandingClaimResult]]: ...
 
     def list_hypotheses_for_goal(self, goal_id: str) -> list[LearningHypothesis]: ...
+
+    def list_next_steps_for_goal(self, goal_id: str) -> list[NextStep]: ...
 
 
 class PedagogyEvaluationReader(Protocol):
@@ -99,6 +102,14 @@ class LearnerModelService:
             item.resolved_by_claim_id is None
             for item in self.truth.list_hypotheses_for_goal(goal.id)
         )
+        primary_step = next(
+            (
+                item
+                for item in self.truth.list_next_steps_for_goal(goal.id)
+                if item.status == "active" and item.is_primary
+            ),
+            None,
+        )
         matching_runs = tuple(
             run
             for run in self.evaluations.list_for_thread(thread_id)
@@ -112,6 +123,9 @@ class LearnerModelService:
             goal_status=goal.status,
             claim_states=claim_states,
             unresolved_count=unresolved_count,
+            next_step_id=getattr(primary_step, "id", "") or "",
+            next_step_text=getattr(primary_step, "text", "") or "",
+            next_step_status=getattr(primary_step, "status", "") or "",
             evaluation=_evaluation_summary(matching_runs),
             confirmed_profile=profile,
         )
