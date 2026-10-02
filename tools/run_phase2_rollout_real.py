@@ -76,6 +76,8 @@ SAMPLES = (
 TURNS = (
     "explain how durable resume works",
     "why does recovery need to span turns?",
+    "what does a checkpoint protect?",
+    "when is the objective considered recovered?",
 )
 
 # Per-sample values consumed by the module-level fakes.
@@ -373,6 +375,82 @@ def _run_sample(sample: dict, root: Path) -> dict:
     }
 
 
+def _edge_case(*, flag_on: bool, reader_raises: bool, root: Path) -> dict:
+    """I3 (fail-open) and I5 (flag off emits nothing) on the real path."""
+    sid = "edge"
+    os.environ[DURABLE_READ_FLAG] = "1" if flag_on else "0"
+    tmp = root / ("edge_on" if flag_on else "edge_off")
+    tmp.mkdir(parents=True, exist_ok=True)
+    _SAMPLE.clear()
+    _SAMPLE.update(SAMPLES[0])
+    database = RuntimeDatabase(tmp / "runtime.db")
+    runtime = RuntimeRepository(database)
+    thread_id = "edge-thread"
+    runtime.create_chat_thread(
+        ChatThread(
+            id=thread_id,
+            learning_state={
+                "protocol": "socratic_rediscovery",
+                "objective": SAMPLES[0]["legacy"],
+                "confirmed_points": ["durable resume"],
+                "phase": "guided_practice",
+            },
+        )
+    )
+
+    def _reader(_tid):
+        if reader_raises:
+            raise RuntimeError("durable read unavailable")
+        return None
+
+    deps = ChatDependencies(
+        load_runtime_modes=lambda: RuntimeModes(
+            memory_mode="preview", performance_mode="standard"
+        ),
+        read_memory_bundle=lambda context_mode: {},
+        build_role_prompt=lambda role, **kw: f"role:{role}",
+        route_request=lambda **kw: {
+            "role": "nahida",
+            "mode": "socratic",
+            "model_profile": "flash",
+            "reason": "t",
+        },
+        retrieve_local_knowledge=lambda *a, **k: _FakeRag(),
+        build_messages=lambda **kw: [
+            {"role": "system", "content": kw["role_prompt"]},
+            {"role": "user", "content": kw["user_input"]},
+        ],
+        chat=lambda *a, **k: "complete reply",
+        stream_chat=lambda *a, **k: iter(["part"]),
+        chat_max_tokens=lambda pm: 1000,
+        resolve_web_tools=lambda *a, **k: WebToolTrace(enabled=False),
+        pedagogy_engine=PedagogyEngine(),
+        pedagogy_evaluation=PedagogyEvaluationService(),
+        read_learner_model=_reader,
+    )
+    chat = ChatService(runtime, deps)
+    error = ""
+    emitted = None
+    try:
+        prepared = chat.start_turn(
+            ChatCommand(user_input="edge case turn", thread_id=thread_id)
+        )
+        chat.complete_turn(prepared, " reply")
+        turn = runtime.list_chat_turns(thread_id)[-1]
+        emitted = (getattr(turn, "pedagogy_snapshot", {}) or {}).get(
+            "durable_adjudication"
+        )
+    except Exception as exc:  # noqa: BLE001
+        error = f"{type(exc).__name__}: {exc}"
+    return {
+        "sample_id": sid,
+        "flag_on": flag_on,
+        "reader_raises": reader_raises,
+        "turn_error": error,
+        "adjudication_emitted": emitted is not None,
+    }
+
+
 def main() -> int:
     out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("s2_real.json")
     root = Path(tempfile.mkdtemp(prefix="s2-real-"))
@@ -382,6 +460,8 @@ def main() -> int:
     saved_allowed = memory_service_module.is_memory_write_allowed
     try:
         results = [_run_sample(s, root) for s in SAMPLES]
+        edge_i5 = _edge_case(flag_on=False, reader_raises=False, root=root)
+        edge_i3 = _edge_case(flag_on=True, reader_raises=True, root=root)
     finally:
         os.environ.pop(DURABLE_READ_FLAG, None)
         memory_service_module.load_runtime_modes = saved_modes
@@ -419,6 +499,18 @@ def main() -> int:
             "A5_objective_conflict_on_equal": a5_abort,
             "G1_audit": a5,
         },
+        "edge_cases": {
+            "I5_flag_off_emits_nothing": {
+                "emitted": edge_i5["adjudication_emitted"],
+                "pass": not edge_i5["adjudication_emitted"],
+            },
+            "I3_fail_open": {
+                "turn_error": edge_i3["turn_error"],
+                "emitted": edge_i3["adjudication_emitted"],
+                "pass": edge_i3["turn_error"] == ""
+                and not edge_i3["adjudication_emitted"],
+            },
+        },
         "samples": results,
     }
     out_path.write_text(
@@ -431,7 +523,12 @@ def main() -> int:
             f"decisions={r['decision_counts']}"
         )
     print("I2 exactly-once:", i2)
-    print("A5 abort:", a5_abort, "| G1:", a5)
+    print("A5 abort:", a5_abort)
+    print("I5 flag-off emits nothing:", not edge_i5["adjudication_emitted"])
+    print(
+        "I3 fail-open (no turn error, no record):",
+        edge_i3["turn_error"] == "" and not edge_i3["adjudication_emitted"],
+    )
     return 0
 
 
