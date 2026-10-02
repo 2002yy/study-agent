@@ -17561,3 +17561,60 @@ legacy persistence authority 保留；失败自动回落 legacy。
 **边界（冻结）**：本裁定**只封板资格**，不执行 flag-flip；
 实际启用仍按 §164.33 的 S1–S4 逐级扩大，且 deployment 是**独立操作决定**。
 **§164-E 至此 CLOSED**；下一阶段为 §164 CLOSED 后的 **StudyContext 对比实验**（§164.36）。
+
+## §165 NextStep lifecycle
+
+### 165.1 §165-A NextStep lifecycle qualification（只读审计，2026-10-01）
+
+**范围**：只回答 5 个问题；**不做 authority cutover**。
+**StudyContext 状态**：`validated candidate, deferred`（§164.36 实验证明其不退化，但未证明降复杂度；
+**不再做合成实验**，等 §165/§168 制造真实压力后再一次裁定）。
+
+```text
+Q1 durable NextStep 的 owner 是谁
+   -> learning_closure_truth.py（closure truth 边界内）
+      _ensure_primary_next_step(goal_id, text) 创建 NextStep(is_primary=True)
+      _active_primary_next_step(goal_id) 读取当前 primary
+      learning_semantic_closure.py 亦构造 NextStep
+
+Q2 谁可以 create / replace / complete
+   -> 仅 closure 写路径（LearningClosureTruthService）。
+      status 字段存在（默认 "active"）=> complete/replace 语义**已在模型内**，
+      但**当前无普通 turn 或 API 的写入口**。
+
+Q3 LearnerModel 怎么读取当前 primary next step
+   -> **读不到**：LearnerModelSnapshot 字段为
+      thread_id/source/goal_id/topic_id/objective/goal_status/claim_states/
+      unresolved_count/evaluation/confirmed_profile
+      —— **无 next_step 字段**。
+   => 这正是 §164 G3 = legacy_fallback 的根因（投影未暴露 durable NextStep）。
+
+Q4 legacy unresolved_gap(str) vs durable NextStep
+   -> durable NextStep = 富对象：id / goal_id / text / status / is_primary /
+      created_at / updated_at
+      legacy unresolved_gap = **单个字符串**
+   => 仅 text 可能对齐；id/status/is_primary/resume 语义**无 legacy 对应**
+   => 判定：**not comparable（同 G2 性质）**，不得强转成字符串。
+
+Q5 ordinary chat 能否偷偷写 durable NextStep
+   -> **不能**：chat_service.py 与 src/api/ **零引用**
+      LearningClosureTruthService / learning_closure_truth。
+```
+
+**结论（重要，第一次真实生产证据）**：durable NextStep **已经需要**
+`id / status / is_primary / resume semantics`，而 legacy 只有一个字符串
+=> **这正是 §164.36 预判的情形**：StudyContext 的必要性首次获得**真实生产证据**
+（而非合成实验）。但**本刀仍不引入 StudyContext**，只记录。
+
+**下一步（§165 后续，非本刀）**：
+
+```text
+① durable NextStep lifecycle 本身先闭合（owner / create / replace / complete）
+② read projection：把 primary NextStep 加入 LearnerModelSnapshot
+③ shadow / parity：判定与 legacy unresolved_gap 的可比性
+④ 再决定 runtime authority（不照抄 objective 的接法）
+⑤ 最后才切换
+```
+
+**搜索边界（冻结）**：NextStep 可指向"需要 research"，但**不得** `NextStep -> 直接调用 RQCE`；
+保持 `LearnerTruth(下一步是什么) / Chat-runtime(是否需要 research) / Research Engine(怎么查)` 的边界。
