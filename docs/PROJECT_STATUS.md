@@ -17466,3 +17466,47 @@ artifact: docs/research_quality/PHASE2_ROLLOUT_OBSERVATION_S2_REAL_DURABLE_2026-
 **§0 Current Handoff 更新（本刀顺手 closeout）**：真实最新状态为
 §164-E code-qualified + T2 通道 + S2 真实观察 + Phase-2 Persistence Isolation；
 **deployment ruling 仍 pending**，且**下一刀不是 Phase 3**。
+### 164.36 架构裁定：§164 之后的最小结构候选（冻结，2026-10-01；**本刀不实现**）
+
+**裁定（冻结）**：**现在不引入任何新层**。
+保留并继续复用：RQCE / PedagogyEngine / LearningClosure / LearnerTruth / LearnerModelSnapshot。
+**不新增**：Coordinator Framework / Effect Bus / Capability Framework / 统一 Memory / 万能 State。
+
+**Study Agent 实际是三条主干**（非两块）：
+Research（外部知识与证据） / Pedagogy（在线教学） / LearnerTruth（长期学习真值）；
+**Research Memory ≠ Learner Memory**（前者记查过什么，后者记学会了什么），
+仅通过 source_ref / evidence_ref / claim_id 建立关系，不合并存储。
+
+**最终形态（最简，最多新增两个概念）**：
+
+`	ext
+Research Engine -> ResearchBrief -> StudyContext <- LearnerModel
+                                        |
+                                        v
+                                  PedagogyEngine -> Evaluation -> LearningClosure -> LearnerTruth
+StudyWorkflow（极薄，只负责调用顺序；初期可由 ChatService 承担）
+=> 新增上限：StudyContext + StudyWorkflow（后者初期不必抽出）
+`
+
+**优先级（冻结）**：§164 CLOSED 之后，最值得验证的架构候选是
+**StudyContext read model** —— 优先级 **高于** Coordinator，也高于 Event Sourcing。
+
+**验证方式（冻结，先证明再引入）**：§164 CLOSED 后做一个**很小的设计实验**，
+用当前真实 turn 取 **10–20 个样本**，对比：
+
+`	ext
+1. adjudicate -> LearningState（现状）
+2. StudyContext read projection（候选）
+判据：B 是否**减少 adapter 分支 / 减少 authority 特例**，且 **planner 输出不退化**。
+不满足则不切。
+`
+
+**过渡结构定性（冻结）**：
+estore_persistence_plane 是
+**migration-safety mechanism**，非最终架构中心；
+逐字段 authority cutover 完成后，
+estore_* 自然删除。
+
+**本刀之后仍以 §164 收口为唯一优先**：
+I1/I3/I4/I5/I6 正式化 -> clean S2 扩样 -> **Phase-2 deployment ruling**。
+
