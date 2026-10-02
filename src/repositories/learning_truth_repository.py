@@ -13,6 +13,7 @@ from src.domain.learning_truth import (
     LearningGoal,
     LearningGoalContext,
     LearningHypothesis,
+    LearnerMisconception,
     LearningTopic,
     NextStep,
     SourceEvidence,
@@ -690,6 +691,53 @@ class LearningTruthRepository:
             ).fetchall()
         return [_next_step_from_row(row) for row in rows]
 
+    def create_misconception(
+        self, item: LearnerMisconception
+    ) -> LearnerMisconception:
+        if not item.description.strip():
+            raise ValueError("Misconception description is required")
+        with self.database.connect() as connection:
+            self._require_goal(connection, item.goal_id)
+            self._insert_misconception(connection, item)
+        return item
+
+    def get_misconception(
+        self, misconception_id: str
+    ) -> LearnerMisconception | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM learner_misconceptions WHERE id = ?",
+                (misconception_id,),
+            ).fetchone()
+        return _misconception_from_row(row) if row else None
+
+    def list_misconceptions_for_goal(
+        self, goal_id: str
+    ) -> list[LearnerMisconception]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM learner_misconceptions
+                WHERE goal_id = ?
+                ORDER BY last_seen_at DESC, id
+                """,
+                (goal_id,),
+            ).fetchall()
+        return [_misconception_from_row(row) for row in rows]
+
+    def find_misconception_by_description(
+        self, goal_id: str, description: str
+    ) -> LearnerMisconception | None:
+        target = description.strip().lower()
+        return next(
+            (
+                item
+                for item in self.list_misconceptions_for_goal(goal_id)
+                if item.description.strip().lower() == target
+            ),
+            None,
+        )
+
     @staticmethod
     def _validate_goal(goal: LearningGoal) -> None:
         if not goal.objective.strip():
@@ -920,6 +968,31 @@ class LearningTruthRepository:
                 int(next_step.is_primary),
                 next_step.created_at,
                 next_step.updated_at,
+            ),
+        )
+
+    @staticmethod
+    def _insert_misconception(
+        connection: sqlite3.Connection, item: LearnerMisconception
+    ) -> None:
+        if not item.description.strip():
+            raise ValueError("Misconception description is required")
+        connection.execute(
+            """
+            INSERT INTO learner_misconceptions(
+                id, goal_id, description, status, occurrence_count,
+                source_eval_ref, first_seen_at, last_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item.id,
+                item.goal_id,
+                item.description,
+                item.status,
+                item.occurrence_count,
+                item.source_eval_ref,
+                item.first_seen_at,
+                item.last_seen_at,
             ),
         )
 
@@ -1158,4 +1231,17 @@ def _next_step_from_row(row: sqlite3.Row) -> NextStep:
         is_primary=bool(row["is_primary"]),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
+    )
+
+
+def _misconception_from_row(row: sqlite3.Row) -> LearnerMisconception:
+    return LearnerMisconception(
+        id=str(row["id"]),
+        goal_id=str(row["goal_id"]),
+        description=str(row["description"]),
+        status=str(row["status"]),
+        occurrence_count=int(row["occurrence_count"]),
+        source_eval_ref=str(row["source_eval_ref"]),
+        first_seen_at=str(row["first_seen_at"]),
+        last_seen_at=str(row["last_seen_at"]),
     )
