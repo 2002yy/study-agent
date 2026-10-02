@@ -100,6 +100,34 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
+def restore_persistence_plane(
+    next_state: LearningState,
+    legacy_state: LearningState,
+    adjudication: dict[str, object] | None,
+) -> LearningState:
+    """Keep the legacy persistence plane free of the durable overlay.
+
+    Phase 2 may let the durable value drive this turn's effective state, but it must not
+    migrate silently into legacy persistence. Any field the adjudication took from durable
+    is restored to its legacy value in the state that is about to be persisted.
+    """
+
+    if not adjudication:
+        return next_state
+    decisions = adjudication.get("decisions") or []
+    taken = {
+        str(d.get("field"))
+        for d in decisions
+        if isinstance(d, dict) and d.get("decision") == DURABLE_PREFERRED
+    }
+    if not taken:
+        return next_state
+    data = dict(next_state.to_dict())
+    if "objective" in taken:
+        data["objective"] = legacy_state.objective
+    return LearningState.from_dict(data)
+
+
 def adjudicate(
     legacy_state: LearningState,
     snapshot: object | None,

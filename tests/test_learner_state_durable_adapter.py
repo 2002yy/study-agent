@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from src.application.learner_state_durable_adapter import (
+    restore_persistence_plane,
     DURABLE_PREFERRED,
     EXPECTED_DIVERGENCE,
     GATE_GOAL_OBJECTIVE,
@@ -116,3 +117,26 @@ def test_result_is_serialisable_for_telemetry():
     as_dict = result.to_dict()
     assert as_dict["used_durable"] is True
     assert {d["field"] for d in as_dict["decisions"]} >= {"objective", "confirmed_points"}
+
+
+def test_durable_overlay_does_not_migrate_into_persistence():
+    legacy = _legacy()
+    adj = adjudicate(legacy, _snapshot(objective="durable owns recovery")).to_dict()
+    # The planner saw the durable objective; persistence must keep the legacy one.
+    next_state = LearningState.from_dict(
+        {**legacy.to_dict(), "objective": "durable owns recovery"}
+    )
+    restored = restore_persistence_plane(next_state, legacy, adj)
+    assert restored.objective == legacy.objective
+
+
+def test_no_adjudication_leaves_persistence_untouched():
+    legacy = _legacy()
+    assert restore_persistence_plane(legacy, legacy, None) is legacy
+    assert restore_persistence_plane(legacy, legacy, {}) is legacy
+
+
+def test_legacy_fallback_adjudication_leaves_persistence_untouched():
+    legacy = _legacy()
+    adj = adjudicate(legacy, _snapshot(objective="")).to_dict()  # no durable_preferred
+    assert restore_persistence_plane(legacy, legacy, adj) is legacy

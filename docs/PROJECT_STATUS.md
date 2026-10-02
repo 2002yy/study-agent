@@ -17413,3 +17413,57 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 验证：单测重复 5 次全 PASS（10–14s，较原 15–20s 更快）；
       L3 full pytest @ 26086f7（clean head）= 2705 passed / 2 skipped / 0 failed。
 ```
+
+### 164.35 §164 Phase-2 Persistence Isolation（冻结，2026-10-01）
+
+**触发**：S2 真实 durable 观察窗口发现 **authority leak** ——
+adjudicated state 流入 planner -> next_learning_state -> **写回 thread 的 legacy learning_state**，
+使 legacy objective 被 durable objective 替换，parity 观测随后变成同义反复（假 MATCH）。
+
+**裁定（采纳 A，不定义为 migration）**：
+
+`	ext
+durable = runtime decision authority（本轮 effective state）
+legacy  = **既有 persistence authority**
+=> effective runtime state ≠ persistence authority
+   durable overlay 可以影响本轮 planning，但**不得静默迁移进 legacy persistence**。
+   真正切 authority 时的 migration 另行单独设计（不在 Phase 2）。
+`
+
+**两条状态平面（冻结）**：
+
+`	ext
+legacy state
+    ├──→ legacy persistence plane（next_learning_state -> thread.learning_state）
+    └── + durable adjudication -> effective runtime state -> planner（本轮）
+`
+
+**实现**：learner_state_durable_adapter.restore_persistence_plane(next_state, legacy_state, adjudication)
+—— 把被 adjudication 取用自 durable 的字段在**持久化前**还原为 legacy 值；
+chat_service 在 pedagogy_engine.plan(...) 之后、持久化之前调用它。
+
+**回归集（本刀一次补齐，全部通过）**：
+
+`	ext
+flag OFF                 legacy 行为完全不变（44 passed）
+flag ON                  planner 看到 durable-preferred objective（durable_preferred 2/2）
+persistence              durable objective **不得**写回 legacy（diff 样本恢复 CONFLICT）
+next turn                parity probe 看到真实 legacy-vs-durable divergence（CONFLICT）
+reader                   exactly-once（I2 True）
+equal-objective          真 MATCH，A5 不触发
+divergent-objective      真 divergence（CONFLICT），不因污染而 MATCH
+`
+
+**S2 replay（干净窗口）**：
+
+`	ext
+diff : goal_objective=CONFLICT  overall=CONFLICT
+equal: goal_objective=MATCH     overall=NOT_COMPARABLE
+I2 exactly-once=True | A5 abort=False
+artifact: docs/research_quality/PHASE2_ROLLOUT_OBSERVATION_S2_REAL_DURABLE_2026-10-01.json
+`
+
+**§0 Current Handoff 更新（本刀顺手 closeout）**：真实最新状态为
+§164-E code-qualified + T2 通道 + S2 真实观察 + Phase-2 Persistence Isolation；
+**deployment ruling 仍 pending**，且**下一刀不是 Phase 3**。
+

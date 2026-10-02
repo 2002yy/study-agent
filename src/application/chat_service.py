@@ -21,6 +21,7 @@ from src.application.answer_consistency import (
 from src.application.learner_state_durable_adapter import (
     adjudicate as adjudicate_learner_state,
     durable_read_enabled,
+    restore_persistence_plane,
 )
 from src.application.learner_state_shadow_seam import (
     build_decision_input_hashes,
@@ -496,6 +497,12 @@ class ChatService:
                 mode=route["mode"],
                 state=learning_state,
             )
+            # 164.34/Persistence Isolation: the durable overlay drives this turn's
+            # effective state, but must not migrate into the legacy persistence plane.
+            if durable_adjudication is not None:
+                next_learning_state = restore_persistence_plane(
+                    next_learning_state, legacy_learning_state, durable_adjudication
+                )
             route = {
                 **route,
                 "pedagogy": pedagogy_plan.to_dict(),

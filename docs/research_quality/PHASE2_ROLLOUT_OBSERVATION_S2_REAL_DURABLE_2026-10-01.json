@@ -16,8 +16,8 @@
       {
         "sample": "diff",
         "objectives_equal": false,
-        "goal_objective_parity": "MATCH",
-        "overall_parity": "NOT_COMPARABLE"
+        "goal_objective_parity": "CONFLICT",
+        "overall_parity": "CONFLICT"
       },
       {
         "sample": "equal",
@@ -29,8 +29,8 @@
   },
   "samples": [
     {
-      "parity_overall": "NOT_COMPARABLE",
-      "parity_goal_objective": "MATCH",
+      "parity_overall": "CONFLICT",
+      "parity_goal_objective": "CONFLICT",
       "sample_id": "diff",
       "expectation": "durable_preferred_with_diverging_objective",
       "legacy_objective": "recover durable resume",
