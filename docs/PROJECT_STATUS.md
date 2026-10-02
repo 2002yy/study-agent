@@ -17874,3 +17874,80 @@ B 的额外成本：新增 StudyContext 类型 + projection 层 + 新的 read-ti
 
 **理由（冻结）**：复杂度来自**领域的四种真实差异**，而非当前接法；
 引入 B 会新增结构而不消除规则。**功能先向前走，让真实复杂度决定是否需要抽象。**
+
+## §169 Retention / Review
+
+### 169.1 §169-A Retention / Review Contract（冻结，2026-10-01）
+
+**阶段目标（冻结）**：不是"做一个复习算法"，而是闭合产品能力 ——
+**系统不仅知道"你学过什么"，还知道"哪些理解已过时或该重新验证、下一次从哪里继续"。**
+
+**四个问题的回答**：
+
+```text
+Q1 什么东西可以 review？
+   -> **已确认的 Understanding**（durable UnderstandingEvidence + UnderstandingResult）
+      即"曾经 pass 过、但时间在流逝"的理解单元。
+      **不是**：未确认的 proposal / suspected misconception / 本轮 legacy gap。
+
+Q2 什么触发 review due？
+   -> **纯时间维度**：`now - last_validated_at >= interval`
+      interval 初版 = **固定常量**（不引入 SM-2 / FSRS / difficulty-stability）。
+      后续若真实数据表明固定 interval 不够，再演进（见 M3 后决策）。
+   -> **不因** misconception / next step / gap 触发 review（各自语义独立）。
+
+Q3 review 成功/失败产生什么 durable evidence？
+   -> 一次 review = 一次**真实 turn + evaluation**，走既有 closure 边界：
+      review pass -> 新增 UnderstandingEvidence（更新 last_validated_at）
+      review fail -> 不降级既有 Understanding；作为本轮 observation（可进 §168 suspected）
+   -> **不新增**独立的 review-result 真值类型；复用 UnderstandingEvidence。
+
+Q4 谁有权更新 review 状态？
+   -> 与既有 authority 一致：**只有 LearningClosureTruthService**（closure 边界）。
+      ordinary chat / API / PedagogyEngine / LearnerModel **均不可写**。
+   -> 若采用纯读投影（§169-B），则 **无独立 review 状态可写**：
+      "due/not_due" 是**派生视图**，不是持久化真值。
+```
+
+**最小模型（优先验证"不新增实体"，§169-B）**：
+
+```text
+UnderstandingEvidence timestamps
+        +
+latest validation result
+        ↓
+  ReviewProjection（派生，只读）
+  ├─ due        （now - last_validated_at >= interval）
+  ├─ not_due
+  └─ reason
+```
+
+**冻结边界（不做）**：
+
+```text
+✗ StudyContext / universal coordinator / effect bus
+✗ G2/G3/G4 runtime adjudication（已收缩为 G1-only）
+✗ 现在做 misconception confirmed（等真实 review 需求）
+✗ 现在做完整 spaced repetition：SM-2 / FSRS / difficulty-stability /
+  personalized forgetting curve / scheduler daemon / notification
+```
+
+**三者语义独立（冻结，M3 合流时不得重新揉合）**：
+
+```text
+durable NextStep       = 跨轮恢复锚点（该继续做什么）
+ReviewProjection       = 该不该复习（时间维度）
+current-turn legacy gap = 这一轮正在解决什么（pedagogy-local）
+```
+
+**里程碑（冻结）**：
+
+```text
+M1 Review Contract（本节）      -> due/not_due 语义冻结
+M2 Review works end-to-end      -> 到期 -> 出题/解释 -> 评估 -> 写 UnderstandingEvidence
+M3 Resume + Review 合流         -> 打开线程时正确回答：
+                                   继续上次 NextStep / 先复习已到期 Claim / 处理当前 gap
+```
+
+**下一步（§169-B，非本刀）**：实现 ReviewProjection（纯读，优先不新增实体），
+先证明"纯读投影是否够用"；不够才考虑 ReviewItem persistence。
