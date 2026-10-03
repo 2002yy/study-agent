@@ -45,6 +45,22 @@ To record the five approved **frozen** reader pilots against one clean code head
 
 The output directory contains `pilot_bundle.json`, `observation.json`, and `score.json`. The observation binds the bundle's exact byte SHA-256, registry/gold digests, source locator/SHA/page/region, and code head. It maps WebLookupService's local source IDs back to registry IDs only after checking the source binding. Reader success does not imply an answer: text/PDF cases stay `unavailable` because answer generation was not run; image/chart/mixed stay `unavailable` without qualified visual interpretation. The live case remains `missing` until a real manual live read with an actual human reviewer is recorded. The scorer still reports `NO_GO`.
 
+The opt-in **answer diagnostic** runs the same frozen text/PDF reader, then sends only the question and byte-bound source text to a configured remote model. It records the model identity, complete prompt/response, source snapshot and context digests, structured claims, and code-owned citation locators:
+
+```powershell
+.venv\Scripts\python.exe tools/run_release_benchmark_answer_pilot.py --output-dir .workbuddy/release-answer-pilot
+```
+
+The remote model call happens after the offline reader guard ends. `answer_bundle.json` therefore declares `inference_network=remote_model_api` and `release_observation=false`. It is **not** a frozen offline score observation. Claim citations are mechanically bound to the registered source ID; evidence support, question coverage, and citation correctness still need an actual manual or qualified semantic assessment. The tool does not read gold into the model prompt or populate semantic metric labels. Image/chart/mixed and live cases remain outside this answer diagnostic. The release gate stays `NO_GO`.
+
+Prepare the two-case assessment packet only after rechecking the saved answer against the current byte-bound snapshots:
+
+```powershell
+.venv\Scripts\python.exe tools/prepare_release_benchmark_answer_review.py --answer-bundle .workbuddy/release-answer-pilot/answer_bundle.json --output .workbuddy/release-answer-pilot/review_packet.json
+```
+
+The packet binds the answer bundle digest and contains the previously withheld gold rubric. It is an input for an assessor, not a semantic verdict. Rechecking proves internal source/prompt/citation consistency; it does not prove that the remote model's prose is supported or that the historical reader guard actually ran.
+
 The gold spells out source-backed answer criteria. Prepare a packet containing each selected case, source SHA, substantive gold and review checklist:
 
 ```powershell
