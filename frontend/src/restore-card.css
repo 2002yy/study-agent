@@ -15,6 +15,43 @@
   gap: 14px;
 }
 
+.new-user-restore-card {
+  width: min(100%, 880px);
+  margin: 24px auto;
+  padding: 24px;
+  gap: 20px;
+}
+
+.new-user-restore-card .restore-card-heading h3 {
+  margin-top: 8px;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.4;
+}
+
+.new-user-restore-card .restore-card-kicker {
+  font-size: 12px;
+}
+
+.new-user-restore-card .restore-card-preview {
+  max-height: none;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.new-user-restore-card .restore-entry {
+  padding: 16px;
+  gap: 12px;
+}
+
+.new-user-restore-card .restore-entry strong {
+  font-size: 14px;
+}
+
+.new-user-restore-card .restore-entry small,
+.new-user-restore-card .restore-entry-more summary {
+  font-size: 12px;
+}
+
 .restore-card-heading > div {
   min-width: 0;
 }

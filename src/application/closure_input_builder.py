@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Any, Protocol
 
 from src.domain.runtime_entities import ChatTurn
+from src.domain.review_turn import read_review_snapshot
 from src.pedagogy.evaluation import PedagogyEvalRun
 
 CLOSURE_INPUT_SCHEMA_VERSION = "learning-closure-input-v1"
@@ -84,6 +85,22 @@ def build_structured_closure_input(
         completed_turns,
         evaluation_repository=evaluation_repository,
     )
+    review_fields = {}
+    if completed_turns and "review" in completed_turns[-1].route_snapshot:
+        answer = completed_turns[-1]
+        binding = read_review_snapshot(answer.route_snapshot["review"], phase="answer")
+        prompt = next((item for item in completed_turns if item.id == binding.prompt_turn_id), None)
+        if prompt is None or read_review_snapshot(prompt.route_snapshot.get("review"), phase="prompt") != binding:
+            raise ValueError("Review closure prompt binding mismatch")
+        if prompt.assistant_message != binding.question or binding.thread_id != thread_id:
+            raise ValueError("Review closure source mismatch")
+        exact_eval = evaluation_repository.get_for_turn(answer.id) if evaluation_repository else None
+        if exact_eval is None:
+            raise ValueError("Review closure requires exact answer evaluation")
+        final_evaluation = {**asdict(exact_eval), "turn_id": answer.id}
+        review_fields["review_attempt"] = {
+            "binding": binding.to_dict(), "answer_turn_id": answer.id, "evaluation_id": exact_eval.id,
+        }
     recent_dialogue, used_chars = _recent_dialogue(
         completed_turns,
         turn_limit=safe_recent_limit,
@@ -119,6 +136,7 @@ def build_structured_closure_input(
         else "learning_summary"
     )
     return {
+        **review_fields,
         "schema_version": CLOSURE_INPUT_SCHEMA_VERSION,
         "thread_id": thread_id,
         "summary_kind": summary_kind,

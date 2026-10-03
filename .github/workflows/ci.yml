@@ -1,15 +1,21 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Feature-branch pushes used to trigger both a push run and a PR run of the same
+# workflow at the same head. Only pull_request (plus main pushes and manual runs)
+# triggers now, and superseded runs on the same ref are cancelled.
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -42,16 +48,10 @@ jobs:
       - name: Run pytest
         id: pytest
         continue-on-error: true
-        run: pytest -q --tb=short > pytest.log 2>&1
-
-      - name: Upload pytest diagnostics
-        if: steps.pytest.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-log
-          path: pytest.log
-          if-no-files-found: error
-          retention-days: 7
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          pytest -q --tb=short --durations=30 2>&1 | tee pytest.log
 
       - name: Run RAG K1 local quality baseline
         id: rag_quality
@@ -61,33 +61,14 @@ jobs:
             --output rag-quality-baseline.json \
             > rag-quality-baseline.log 2>&1
 
-      - name: Upload RAG K1 quality baseline
-        if: steps.rag_quality.outcome == 'success' || steps.rag_quality.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rag-quality-baseline
-          path: |
-            rag-quality-baseline.json
-            rag-quality-baseline.log
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Enforce RAG quality harness integrity
-        if: steps.rag_quality.outcome == 'failure'
-        run: |
-          tail -200 rag-quality-baseline.log
-          exit 1
-
-      - name: Enforce pytest result
-        if: steps.pytest.outcome == 'failure'
-        run: |
-          tail -200 pytest.log
-          exit 1
-
       - name: Run ruff
+        id: ruff
+        continue-on-error: true
         run: ruff check .
 
       - name: Run package helper (validate packaging logic)
+        id: packaging
+        continue-on-error: true
         run: python tools/package_project_helper.py . /dev/null 0
 
       - name: Run detect-secrets
@@ -98,9 +79,12 @@ jobs:
           # content is dominated by hashes/ids (query_sha256, git_sha, candidate ids...),
           # so the entropy detectors only ever produce false positives there. They are
           # still scanned for key-like patterns by tools/package_project_helper.py.
+          # tests/fixtures/release_benchmark/*.json hold the same kind of frozen
+          # digests (source_text_sha256, content_sha256), so their hash-bearing
+          # keys are excluded by name below rather than by widening the scan.
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$|docs[\\/]research_quality[\\/].*\.json$' \
-            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256)[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
+            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256|source_text_sha256|plan_digest|registry_digest|"sha256")[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
             .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
             > detect-secrets-report.json 2>&1
           python - <<'PY'
@@ -124,36 +108,14 @@ jobs:
           PY
           echo "detect-secrets: no secrets found"
 
-      - name: Upload detect-secrets diagnostics
-        if: steps.secrets.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: detect-secrets-report
-          path: detect-secrets-report.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Enforce detect-secrets result
-        if: steps.secrets.outcome == 'failure'
-        run: |
-          cat detect-secrets-report.json
-          exit 1
-
       - name: Run expanded mypy
         id: mypy
         continue-on-error: true
         run: timeout 120s mypy --explicit-package-bases src/ > mypy.log 2>&1
 
-      - name: Upload mypy diagnostics
-        if: steps.mypy.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: mypy-log
-          path: mypy.log
-          if-no-files-found: error
-          retention-days: 7
-
       - name: Enforce mypy baseline
+        id: mypy_baseline
+        continue-on-error: true
         env:
           MYPY_OUTCOME: ${{ steps.mypy.outcome }}
         run: |
@@ -174,22 +136,8 @@ jobs:
             npm run build
           } > ../frontend.log 2>&1
 
-      - name: Upload frontend diagnostics
-        if: steps.frontend.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-log
-          path: frontend.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Enforce frontend result
-        if: steps.frontend.outcome == 'failure'
-        run: |
-          tail -240 frontend.log
-          exit 1
-
       - name: Install Playwright browsers
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.frontend.outcome == 'success'
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -198,22 +146,8 @@ jobs:
           set -o pipefail
           npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
 
-      - name: Upload Playwright install diagnostics
-        if: steps.playwright_install.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-install-log
-          path: playwright-install.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Enforce Playwright browser install
-        if: steps.playwright_install.outcome == 'failure'
-        run: |
-          tail -300 playwright-install.log
-          exit 1
-
       - name: Run browser Golden Journeys
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -222,25 +156,8 @@ jobs:
           set -o pipefail
           npm run test:e2e > ../browser-e2e.log 2>&1
 
-      - name: Upload browser Golden Journey diagnostics
-        if: steps.browser_e2e.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: browser-golden-journeys
-          path: |
-            browser-e2e.log
-            frontend/playwright-report
-            frontend/test-results
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Enforce browser Golden Journeys
-        if: steps.browser_e2e.outcome == 'failure'
-        run: |
-          tail -300 browser-e2e.log
-          exit 1
-
       - name: Run real-stack browser gates
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
@@ -249,21 +166,30 @@ jobs:
           set -o pipefail
           npm run test:e2e:real-stack > ../real-stack-browser-e2e.log 2>&1
 
-      - name: Upload real-stack browser diagnostics
-        if: steps.real_stack_browser_e2e.outcome == 'failure'
+      - name: Upload CI diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: real-stack-browser-gates
+          name: ci-diagnostics
           path: |
+            pytest.log
+            rag-quality-baseline.json
+            rag-quality-baseline.log
+            detect-secrets-report.json
+            mypy.log
+            frontend.log
+            playwright-install.log
+            browser-e2e.log
             real-stack-browser-e2e.log
+            frontend/playwright-report
             frontend/playwright-real-stack-report
-            frontend/test-results/real-stack-artifacts
-            frontend/test-results/real-stack-runtime
-          if-no-files-found: warn
+            frontend/test-results
+          if-no-files-found: ignore
           retention-days: 7
 
-      - name: Enforce real-stack browser gates
-        if: steps.real_stack_browser_e2e.outcome == 'failure'
-        run: |
-          tail -300 real-stack-browser-e2e.log
-          exit 1
+      - name: Enforce required CI outcomes
+        if: always()
+        env:
+          CI_STEP_RESULTS: ${{ toJSON(steps) }}
+          CI_BROWSER_REQUIRED: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: python tools/check_ci_outcomes.py

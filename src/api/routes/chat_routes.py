@@ -694,6 +694,7 @@ def _chat_command(
             }
     return PolicyChatCommand(
         user_input=request.user_input,
+        review_prompt_turn_id=request.review_prompt_turn_id,
         selected_role=request.selected_role,
         selected_mode=request.selected_mode,
         selected_model=request.selected_model,

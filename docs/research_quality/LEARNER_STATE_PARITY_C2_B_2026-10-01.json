@@ -1,0 +1,36 @@
+{
+  "condition": "durable_truth_empty_no_closure",
+  "observation_count": 4,
+  "overall_classification": {
+    "NOT_COMPARABLE": 4
+  },
+  "per_dimension": {
+    "freshness": {
+      "EXPECTED_DIVERGENCE": 4
+    },
+    "goal_objective": {
+      "NOT_COMPARABLE": 4
+    },
+    "misconception": {
+      "MATCH": 4
+    },
+    "next_step": {
+      "MATCH": 4
+    },
+    "understanding": {
+      "NOT_COMPARABLE": 4
+    }
+  },
+  "population": "B",
+  "schema_version": "learner-state-parity-collection-v1",
+  "shadow_status": {
+    "ok": 4
+  },
+  "stratum": "legacy_substantive_durable_absent",
+  "turns": [
+    "why does the sky appear blue during the day",
+    "so scattering depends on wavelength then",
+    "let me conclude: shorter wavelengths scatter more strongly",
+    "does that also explain red sunsets"
+  ]
+}

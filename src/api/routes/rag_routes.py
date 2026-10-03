@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from src.api.models.rag import (
     KnowledgeDocumentDeleteResponse,
@@ -24,6 +24,11 @@ from src.api.models.rag import (
     RagStatusResponse,
 )
 from src.application.rag_run_service import RagRunService
+from src.application.document_reading import (
+    DocumentReadingResponse,
+    ReadingUnavailable,
+    read_knowledge_document,
+)
 from src.application.runtime_repository import get_rag_run_service
 from src.rag import index as rag_index
 from src.rag.backends import get_vector_backend_from_env
@@ -285,6 +290,26 @@ def list_knowledge_base_documents(
     return KnowledgeDocumentListResponse(
         **service.documents(index_path=_index_path(index_path))
     )
+
+
+@router.get(
+    "/knowledge-base/documents/{document_id}/reading",
+    response_model=DocumentReadingResponse,
+)
+def read_knowledge_base_document(
+    document_id: str,
+    start_line: int = Query(default=1, ge=1),
+    limit: int = Query(default=100, ge=1, le=200),
+    expected_revision: str = "",
+) -> DocumentReadingResponse:
+    try:
+        return read_knowledge_document(
+            rag_index.DEFAULT_RAG_INDEX_PATH, document_id,
+            start_line=start_line, limit=limit,
+            expected_revision=expected_revision,
+        )
+    except ReadingUnavailable as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.patch(

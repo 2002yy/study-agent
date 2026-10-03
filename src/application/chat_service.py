@@ -18,6 +18,18 @@ from src.application.answer_consistency import (
     check_answer_consistency,
     consistency_gate_enabled,
 )
+from src.application.learner_state_durable_adapter import (
+    adjudicate as adjudicate_learner_state,
+    durable_read_enabled,
+    restore_persistence_plane,
+)
+from src.application.learner_state_shadow_seam import (
+    build_decision_input_hashes,
+    observe_shadow_for_turn,
+    publish_shadow_observation,
+    shadow_read_enabled,
+)
+from src.application.shadow_isolation import BestEffortTelemetry
 from src.context_builder import build_messages
 from src.domain.answer_claims import rejected_answer_claim_snapshot
 from src.domain.answer_validation import (
@@ -167,6 +179,7 @@ class ChatCommand:
     turn_id: str | None = None
     operation_id: str | None = None
     answer_validation: dict[str, Any] | None = None
+    review_prompt_turn_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -189,6 +202,9 @@ class ChatDependencies:
         default_factory=EvidenceDisclosurePolicy
     )
     resolve_web_tools: Callable[..., WebToolTrace] = web_tools_disabled
+    # 164-C1b-1: durable learner-model reader for the shadow path. None keeps the
+    # shadow inert; the feature flag is the second, independent gate.
+    read_learner_model: Callable[[str], Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -219,14 +235,72 @@ def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str)
     return poll
 
 
+def _observe_turn_shadow(
+    service: Any,
+    *,
+    thread_id: str,
+    turn_id: str,
+    learning_state_before: LearningState,
+    route: dict[str, Any],
+    pedagogy_plan: PedagogyTurnPlan,
+    retrieval_plan: object,
+    messages: list[dict[str, Any]],
+    learner_evaluation: PedagogyEvalRun,
+    durable_snapshot: object | None = None,
+):
+    """164-C1b-1 narrow seam: hash decision inputs, then run the bounded shadow read.
+
+    Returns None when the flag is off or no durable reader is wired. Never raises.
+    The result is a **dead end**: only telemetry consumes it.
+    """
+    if not shadow_read_enabled():
+        return None
+    reader = service.dependencies.read_learner_model
+    if durable_snapshot is None and reader is None:
+        return None
+    try:
+        decision_inputs = build_decision_input_hashes(
+            route=route,
+            pedagogy_plan=pedagogy_plan,
+            retrieval_plan=retrieval_plan,
+            messages=messages,
+        )
+        raw_misconceptions = learner_evaluation.deterministic_result.get(
+            "misconceptions"
+        )
+        misconceptions: tuple[str, ...] = tuple(
+            str(item)
+            for item in (
+                raw_misconceptions
+                if isinstance(raw_misconceptions, (list, tuple))
+                else ()
+            )
+        )
+        return observe_shadow_for_turn(
+            thread_id=thread_id,
+            turn_id=turn_id,
+            learning_state_before=learning_state_before,
+            snapshot_reader=lambda: (
+                durable_snapshot if durable_snapshot is not None else reader(thread_id)
+            ),
+            decision_inputs=decision_inputs,
+            legacy_misconceptions=misconceptions,
+        )
+    except Exception:  # noqa: BLE001 - fail-open; the turn must not be affected
+        return None
+
+
 class ChatService:
     def __init__(
         self,
         repository: RuntimeRepository,
         dependencies: ChatDependencies | None = None,
+        shadow_telemetry: BestEffortTelemetry | None = None,
     ):
         self.repository = repository
         self.dependencies = dependencies or ChatDependencies()
+        # 164-C1b-1: best-effort, non-blocking, outside any transaction.
+        self.shadow_telemetry = shadow_telemetry
 
     def _make_cancel_check(
         self, turn_id: str, operation_id: str
@@ -308,8 +382,80 @@ class ChatService:
             assistant_message=reply,
         )
 
+    def start_review_prompt(
+        self, thread_id: str, revision_id: str, *, turn_id: str, operation_id: str
+    ) -> ChatTurn:
+        from src.application.learning_review import LearningReviewService
+        from src.domain.review_turn import ReviewTurnBinding, read_review_snapshot
+        from src.repositories.learning_truth_repository import LearningTruthRepository
+        from src.task_intent import default_contract
+
+        if not turn_id.strip() or not operation_id.strip():
+            raise ValueError("Review prompt requires turn and operation IDs")
+        existing = self.repository.get_chat_turn(turn_id)
+        if existing is not None:
+            binding = read_review_snapshot(existing.route_snapshot.get("review"), phase="prompt")
+            if (existing.thread_id, binding.claim_revision_id, existing.operation_id) != (
+                thread_id, revision_id, operation_id
+            ) or existing.status != "completed":
+                raise ValueError("Review prompt replay conflicts with existing turn")
+            return existing
+        if self.repository.get_chat_thread(thread_id) is None:
+            raise ValueError("Review session not found")
+        truth = LearningTruthRepository(self.repository.database)
+        preview = LearningReviewService(truth).preview_prompt(thread_id, revision_id)
+        goal = truth.get_focus_goal(thread_id)
+        bundle = truth.get_revision(revision_id)
+        if goal is None or goal.id != preview.goal_id or bundle is None:
+            raise ValueError("Review source changed")
+        binding = ReviewTurnBinding(
+            thread_id, goal.id, revision_id, preview.last_validated_at, turn_id,
+            preview.question, bundle.revision.claim_text, goal.objective,
+            tuple(item.source.id for item in bundle.evidence),
+        )
+        binding = ReviewTurnBinding.from_dict(binding.to_dict())
+        route = {
+            "review": binding.snapshot("prompt"),
+            "task_contract": replace(default_contract("explain_back"), source_policy="local_only").to_dict(),
+        }
+        self.repository.acquire_chat_operation(thread_id, operation_id)
+        try:
+            self.repository.add_chat_turn(ChatTurn(
+                id=turn_id, thread_id=thread_id, operation_id=operation_id,
+                user_message="开始复习", status="pending", route_snapshot=route,
+            ))
+            self._make_cancel_check(turn_id, operation_id)("review_prompt")
+            completed = self.repository.update_chat_turn(
+                turn_id, assistant_message=binding.question, status="completed",
+                route_snapshot=route, pedagogy_snapshot={"move": "invite_explanation", "phase": "review"},
+                expected_status="pending", expected_operation_id=operation_id,
+                enforce_operation_owner=True, forbid_cancel_requested=True, release_operation=True,
+            )
+            if completed is None:
+                raise ValueError("Review prompt disappeared")
+            return completed
+        except TurnCancelled:
+            self._settle_cancelled_preparation(
+                turn_id=turn_id, operation_id=operation_id, stage="review_prompt", assistant_message=""
+            )
+            raise
+        except Exception:
+            with suppress(Exception):
+                pending = self.repository.get_chat_turn(turn_id)
+                if pending and pending.status == "pending" and pending.operation_id == operation_id:
+                    self.repository.update_chat_turn(
+                        turn_id, assistant_message="", status="failed", expected_status="pending",
+                        expected_operation_id=operation_id, enforce_operation_owner=True, release_operation=True,
+                    )
+                else:
+                    self.repository.release_chat_operation(thread_id, operation_id)
+            raise
+
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
         command, existing, retry_parent = self._validate_turn_command(command)
+        from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
+
+        review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
         settings = _session_settings(command, context_mode)
@@ -376,6 +522,26 @@ class ChatService:
                 keep_current_role=command.keep_current_role,
             )
             learning_state = LearningState.from_dict(thread.learning_state)
+            # 164.33/I6: the C1 observer must compare the PRE-adjudication legacy value,
+            # otherwise enabling Phase 2 masks legacy-vs-durable divergence.
+            legacy_learning_state = learning_state
+            # --- 164-E Phase 2: durable preferred, legacy fallback (default OFF) ---
+            durable_snapshot = None
+            durable_adjudication = None
+            if durable_read_enabled(thread.id):
+                _reader = self.dependencies.read_learner_model
+                if _reader is not None:
+                    try:
+                        durable_snapshot = _reader(thread.id)
+                        _adj = adjudicate_learner_state(
+                            learning_state, durable_snapshot
+                        )
+                        learning_state = _adj.state
+                        # 164.34 T2: retain the record so decisions are auditable.
+                        durable_adjudication = _adj.to_dict()
+                    except Exception:
+                        durable_snapshot = None  # fail-open: legacy state stands
+                        durable_adjudication = None
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
@@ -383,10 +549,18 @@ class ChatService:
                 )
             )
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
+            eval_state, expected_concepts, evidence_ids = review_evaluation_inputs(
+                review_binding, learning_state, expected_concepts, evidence_ids
+            )
+            if review_binding is not None:
+                from src.task_intent import default_contract
+
+                route["review"] = review_binding.snapshot("answer")
+                route["task_contract"] = default_contract("explain_back").to_dict()
             cancel_check("pedagogy_evaluate")
             learner_evaluation = self.dependencies.pedagogy_evaluation.evaluate_learner(
                 learner_input=command.user_input,
-                state=learning_state,
+                state=eval_state,
                 expected_concepts=expected_concepts,
                 evidence=evidence_ids,
             )
@@ -404,6 +578,12 @@ class ChatService:
                 mode=route["mode"],
                 state=learning_state,
             )
+            # 164.34/Persistence Isolation: the durable overlay drives this turn's
+            # effective state, but must not migrate into the legacy persistence plane.
+            if durable_adjudication is not None:
+                next_learning_state = restore_persistence_plane(
+                    next_learning_state, legacy_learning_state, durable_adjudication
+                )
             route = {
                 **route,
                 "pedagogy": pedagogy_plan.to_dict(),
@@ -501,6 +681,7 @@ class ChatService:
                 "learning_state_after": next_learning_state.to_dict(),
                 "evidence_disclosure": disclosed.policy,
                 "evidence_units": list(disclosed.units),
+                **(({"durable_adjudication": durable_adjudication} if durable_adjudication else {})),
             }
             streaming_truth = _normalized_turn_truth(
                 turn=reserved_existing,
@@ -518,6 +699,22 @@ class ChatService:
                 parent_turn_id=retry_parent.id if retry_parent else None,
                 operation_id=operation_id,
                 conversation_instruction=command.conversation_instruction,
+            )
+            # --- 164-C1b-1 shadow read: DEAD END, telemetry only (docs 164.15) ---
+            # Decision-input hashes are computed *before* the shadow call and passed
+            # in, so the observer cannot participate in the planning inputs they
+            # represent. No branch below may read shadow_result.
+            shadow_result = _observe_turn_shadow(
+                self,
+                thread_id=thread.id,
+                turn_id=turn_id,
+                learning_state_before=legacy_learning_state,
+                route=route,
+                pedagogy_plan=pedagogy_plan,
+                retrieval_plan=retrieval_plan,
+                messages=messages,
+                learner_evaluation=learner_evaluation,
+                durable_snapshot=durable_snapshot,
             )
             expected = (
                 "pending"
@@ -542,6 +739,14 @@ class ChatService:
             )
             if streaming is None:
                 raise RuntimeError(f"Chat turn was not created: {turn_id}")
+            if shadow_result is not None:
+                # Best-effort and non-blocking: enqueue and continue. Publish only
+                # after the turn's start state is persisted.
+                publish_shadow_observation(
+                    shadow_result,
+                    telemetry=self.shadow_telemetry,
+                    turn_start_persistence_confirmed=streaming is not None,
+                )
         except (TurnCancelled, RetrievalCancelled) as exc:
             self._settle_cancelled_preparation(
                 turn_id=turn_id,
@@ -1051,6 +1256,12 @@ class ChatService:
                 )
         if gate_blocked_pedagogy:
             committed_state = prepared.learning_state_before
+        if "review" in prepared.route:
+            committed_state = LearningState.from_dict(prepared.thread.learning_state)
+        committed_payload = (
+            dict(prepared.thread.learning_state)
+            if "review" in prepared.route else committed_state.to_dict()
+        )
         pedagogy_snapshot = {
             **prepared.turn.pedagogy_snapshot,
             "assistant_evaluation": {
@@ -1080,10 +1291,10 @@ class ChatService:
         updated = self.repository.complete_chat_turn_with_pedagogy(
             prepared.turn.id,
             assistant_message=reply,
-            learning_state=committed_state.to_dict(),
+            learning_state=committed_payload,
             route_snapshot={
                 **prepared.route,
-                "learning_state": committed_state.to_dict(),
+                "learning_state": committed_payload,
                 "web_context_used": prepared.web_context_used,
                 "is_continuation": prepared.is_continuation,
                 "is_continuation_resolved": prepared.is_continuation,

@@ -391,6 +391,13 @@ def get_learner_model_service():
 
 
 @lru_cache(maxsize=1)
+def get_learning_review_service():
+    from src.application.learning_review import LearningReviewService
+
+    return LearningReviewService(get_learning_truth_repository())
+
+
+@lru_cache(maxsize=1)
 def get_web_lookup_service():
     from src.application.research_web_lookup_dispatch import (
         ClaimEngineDispatchWebLookupService,
@@ -422,6 +429,7 @@ def reset_runtime_repository_cache() -> None:
     get_github_snapshot_service.cache_clear()
     get_github_snapshot_repository.cache_clear()
     get_learner_model_service.cache_clear()
+    get_learning_review_service.cache_clear()
     get_learning_resume_service.cache_clear()
     get_learning_semantic_closure_service.cache_clear()
     get_learning_outcome_commit_service.cache_clear()

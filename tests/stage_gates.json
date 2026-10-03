@@ -71,6 +71,26 @@
       "tests/test_research_quality_runner.py",
       "tests/test_multimodal_qualification.py"
     ],
+    "release_benchmark_registry": [
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py"
+    ],
+    "release_benchmark_pilot": [
+      "tests/test_release_benchmark_replay.py",
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_web_lookup_run.py"
+    ],
+    "release_benchmark_review": [
+      "tests/test_release_benchmark_review.py",
+      "tests/test_release_benchmark_replay.py",
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_web_lookup_run.py"
+    ],
     "read_adequacy": [
       "tests/test_read_adequacy_probe.py"
     ],
@@ -78,9 +98,96 @@
       "tests/test_active_research_runtime.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
+    ],
+    "retention_review_read": [
+      "tests/test_review_projection.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learner_model_api.py",
+      "tests/test_learner_model_integration.py",
+      "tests/test_learning_truth_repository.py"
+    ],
+    "retention_review_turns": [
+      "tests/test_review_turns.py",
+      "tests/test_chat_service.py",
+      "tests/test_chat_turn_cancellation.py",
+      "tests/test_external_data_policy.py",
+      "tests/test_learning_verification_e2e.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_service.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learning_semantic_closure.py",
+      "tests/test_project_closure_input.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_runtime_sqlite_repository.py"
+    ],
+    "document_reading": [
+      "tests/test_document_reading.py",
+      "tests/test_session_attachment_routes.py",
+      "tests/test_session_attachments.py",
+      "tests/test_rag_runs.py",
+      "tests/test_rag_evidence_api.py",
+      "tests/test_rag_evidence_eligibility.py",
+      "tests/test_rag.py"
+    ],
+    "ci_outcome_consolidation": [
+      "tests/test_ci_outcomes.py",
+      "tests/test_ci_detect_secrets_allowlist.py",
+      "tests/test_mypy_baseline.py"
     ]
   },
   "stage_gates": {
+    "document-reading-v1": [
+      "tests/test_document_reading.py",
+      "tests/test_session_attachment_routes.py",
+      "tests/test_session_attachments.py",
+      "tests/test_rag_runs.py",
+      "tests/test_rag_evidence_api.py",
+      "tests/test_rag_evidence_eligibility.py",
+      "tests/test_rag.py"
+    ],
+    "release-benchmark-review": [
+      "tests/test_release_benchmark_review.py",
+      "tests/test_release_benchmark_replay.py",
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_web_lookup_run.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py",
+      "tests/test_rq1c_bounded_qualification.py"
+    ],
+    "release-benchmark-pilot": [
+      "tests/test_release_benchmark_semantic_calibration.py",
+      "tests/test_release_benchmark_reviewer_qualification.py",
+      "tests/test_release_benchmark_remote_observation.py",
+      "tests/test_release_benchmark_semantic_probe.py",
+      "tests/test_release_benchmark_answer_pilot.py",
+      "tests/test_release_benchmark_recorded_pilot.py",
+      "tests/test_release_benchmark_replay.py",
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_web_lookup_run.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py",
+      "tests/test_rq1c_bounded_qualification.py",
+      "tests/test_release_benchmark_blind_review.py",
+      "tests/test_release_benchmark_blind_review_cli.py",
+      "tests/test_release_benchmark_qualification_holdout.py",
+      "tests/test_release_benchmark_qualification_composite.py",
+      "tests/test_release_benchmark_qualification_transport.py"
+    ],
+    "release-benchmark-registry": [
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py",
+      "tests/test_rq1c_bounded_qualification.py"
+    ],
     "release-benchmark-foundation": [
       "tests/test_release_benchmark_plan.py",
       "tests/test_research_quality_eval.py",
@@ -117,6 +224,42 @@
       "tests/test_active_research_runtime.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
+    ],
+    "retention-review-turns": [
+      "tests/test_review_turns.py",
+      "tests/test_chat_service.py",
+      "tests/test_chat_turn_cancellation.py",
+      "tests/test_external_data_policy.py",
+      "tests/test_learning_verification_e2e.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_service.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learning_semantic_closure.py",
+      "tests/test_project_closure_input.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_answer_publication_gate.py",
+      "tests/test_memory_consent.py",
+      "tests/test_pr143_policy_continuation_accounting.py",
+      "tests/test_research_evidence_chat_truth.py",
+      "tests/test_session_attachments.py",
+      "tests/test_review_projection.py",
+      "tests/test_learner_model_api.py",
+      "tests/test_learner_model_integration.py",
+      "tests/test_session_service.py",
+      "tests/test_learning_truth_mini_golden_journey.py"
+    ],
+    "retention-review-read": [
+      "tests/test_review_projection.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learner_model_api.py",
+      "tests/test_learner_model_integration.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_session_service.py",
+      "tests/test_learning_truth_mini_golden_journey.py"
     ]
   },
   "force_l3_triggers": [

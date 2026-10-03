@@ -18,12 +18,16 @@ from src.application.learning_outcome_commit import (
     LearningOutcomeCommitService,
 )
 from src.application.learning_semantic_closure import LearningSemanticClosureService
+from src.application.learning_semantic_closure import _map_evaluation_result
 from src.application.learning_source_evidence import (
     EvidenceConvergenceResult,
     LearningSourceEvidenceService,
 )
 from src.domain.learning_closure import LearningClosureRun
+from src.domain.review_turn import ReviewTurnBinding
+from src.domain.runtime_entities import utc_now
 from src.domain.learning_truth import (
+    LearnerMisconception,
     ClaimRevisionBundle,
     LearningGoal,
     LearningTopic,
@@ -74,6 +78,9 @@ class LearningClosureTruthService:
     def commit(self, run: LearningClosureRun) -> LearningClosureTruthResult:
         if run.closure_eligibility != "learning_summary":
             return LearningClosureTruthResult(status="not_learning_closure")
+        structured_input = _structured_input(run)
+        if "review_attempt" in structured_input:
+            return self._commit_review(run, structured_input)
 
         candidate = _candidate(run.generated_result)
         if candidate is None:
@@ -97,6 +104,9 @@ class LearningClosureTruthService:
             objective=objective,
             repo_url=source["repo_url"],
         )
+
+        # 168: observations become suspected durable misconceptions; never auto-confirmed.
+        self._promote_misconceptions(goal.id, evaluation)
 
         convergence = self.source_evidence.search_and_converge(
             source["repo_url"],
@@ -171,6 +181,32 @@ class LearningClosureTruthService:
             claim_revision_id=revision.id,
             understanding_id=closure.understanding.id if closure.understanding else "",
             validation_status=closure.validation_status,
+        )
+
+    def _commit_review(self, run, structured_input) -> LearningClosureTruthResult:
+        attempt = structured_input["review_attempt"]
+        if not isinstance(attempt, dict) or set(attempt) != {"binding", "answer_turn_id", "evaluation_id"}:
+            raise ValueError("Invalid frozen review attempt")
+        binding = ReviewTurnBinding.from_dict(attempt["binding"])
+        if attempt["answer_turn_id"] != run.last_completed_turn_id:
+            raise ValueError("Review answer source mismatch")
+        evaluation = self.evaluation_repository.get_for_turn(run.last_completed_turn_id)
+        if evaluation is None or evaluation.id != attempt["evaluation_id"]:
+            raise ValueError("Review evaluation missing/mismatched")
+        if evaluation.final_decision == "accept" and not _claim_owned_by_evaluation(binding.claim_text, evaluation):
+            raise ValueError("Review accepted a different claim")
+        result = _map_evaluation_result(evaluation)
+        understanding = UnderstandingEvidence(
+            id=_stable_id("understanding_review", run.id, run.last_completed_turn_id, evaluation.id),
+            method=binding.method, prompt=binding.question, user_response=evaluation.learner_input,
+        )
+        stored = self.repository.commit_review_attempt(
+            run=run, binding=binding, evaluation=evaluation, understanding=understanding, result=result,
+        )
+        return LearningClosureTruthResult(
+            status="review_" + result, goal_id=binding.goal_id,
+            claim_revision_id=binding.claim_revision_id, understanding_id=stored.id,
+            validation_status=result,
         )
 
     def _evaluation(
@@ -348,6 +384,52 @@ class LearningClosureTruthService:
             ),
             None,
         )
+
+    def _promote_misconceptions(
+        self, goal_id: str, evaluation: PedagogyEvalRun
+    ) -> None:
+        """168.2: first sighting -> suspected; repeat -> count+1; NEVER auto-confirm."""
+        descriptions: list[str] = []
+        if evaluation.semantic_result is not None:
+            descriptions.extend(
+                str(item) for item in evaluation.semantic_result.misconceptions
+            )
+        raw = evaluation.deterministic_result.get("misconceptions", ())
+        if isinstance(raw, (list, tuple)):
+            descriptions.extend(str(item) for item in raw)
+        seen: set[str] = set()
+        for description in descriptions:
+            text = description.strip()
+            if not text or text.lower() in seen:
+                continue
+            seen.add(text.lower())
+            existing = self.repository.find_misconception_by_description(
+                goal_id, text
+            )
+            if existing is None:
+                self.repository.create_misconception(
+                    LearnerMisconception(
+                        goal_id=goal_id,
+                        description=text,
+                        status="suspected",
+                        occurrence_count=1,
+                        source_eval_ref=evaluation.id,
+                    )
+                )
+            else:
+                # Repeat observation raises the count but never confirms.
+                self.repository.update_misconception(
+                    LearnerMisconception(
+                        id=existing.id,
+                        goal_id=goal_id,
+                        description=existing.description,
+                        status=existing.status,
+                        occurrence_count=existing.occurrence_count + 1,
+                        source_eval_ref=existing.source_eval_ref,
+                        first_seen_at=existing.first_seen_at,
+                        last_seen_at=utc_now(),
+                    )
+                )
 
     def _ensure_primary_next_step(self, goal_id: str, text: str) -> NextStep | None:
         existing = self._active_primary_next_step(goal_id)

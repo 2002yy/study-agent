@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import hashlib
+import json
 
 from src.domain.runtime_entities import new_id, utc_now
+
+
+def canonical_closure_source_hash(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)

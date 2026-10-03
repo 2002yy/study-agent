@@ -1,0 +1,43 @@
+{
+  "clusters": [
+    {
+      "cluster_id": "CLUSTER-A-NWS-HEAT",
+      "content_sha256": "d99fc1072651b78eccdc5c4707f26ea9457ee17cdafed2fba78ffe288fac0d22",
+      "controls": 6,
+      "gate": {
+        "specificity": "all",
+        "target_detection": "all"
+      },
+      "instances": 2,
+      "manifest": "tests/fixtures/release_benchmark/holdout_v1.json"
+    },
+    {
+      "cluster_id": "CLUSTER-B-NOAA-TIDES",
+      "content_sha256": "0f5fd6a73d5dde9a760c67b19fb6d81e980b0272b8d26ddc374731d646a41fa8",
+      "controls": 6,
+      "gate": {
+        "specificity": "all",
+        "target_detection": "all"
+      },
+      "instances": 2,
+      "manifest": "tests/fixtures/release_benchmark/holdout_cluster_b_v1.json"
+    }
+  ],
+  "composite_id": "RQ-QUAL-HOLDOUT-v1",
+  "content_sha256": "e5da77caec1905a361c9720bf6b384a1225da76a7e09c07c5a8515f575c133b9",
+  "frozen_at": "2026-10-01T07:00:00Z",
+  "gate_rule": {
+    "blended_total_forbidden": true,
+    "overall_pass": "cluster_A_pass AND cluster_B_pass",
+    "per_cluster": "target_detection all AND specificity all"
+  },
+  "known_limitation": "Cluster A and Cluster B originate from related U.S. weather/ocean government publishing ecosystems; qualification therefore establishes cross-document/cross-topic semantic generalization, not publisher-level generalization.",
+  "purpose": "Composite qualification holdout for 162 A3-D. Gates are evaluated per source cluster; a blended total is explicitly forbidden.",
+  "schema_version": "release-benchmark-qualification-holdout-composite-v1",
+  "source_cluster_independence": {
+    "claim_instance_independent": true,
+    "document_independent": true,
+    "publisher_independent": false,
+    "topic_independent": true
+  }
+}

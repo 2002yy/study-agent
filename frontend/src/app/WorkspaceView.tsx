@@ -1,4 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState } from "react";
 
 import AppShell from "../AppShell";
 import { SlideOver } from "../components/SlideOver";
@@ -20,6 +21,7 @@ import { ExtensionDrawers } from "./ExtensionDrawers";
 import type { ExtensionViewModel } from "./useExtensionRuntime";
 import type { LearningSessionRuntime } from "./useLearningSessionRuntime";
 import { useWorkspace } from "./WorkspaceProvider";
+import { ReadingLayout, ReadingWorkspaceProvider } from "../features/reading/ReadingWorkspace";
 import type { useWorkspaceControllers } from "./useWorkspaceControllers";
 
 type Controllers = ReturnType<typeof useWorkspaceControllers>;
@@ -67,6 +69,7 @@ export function WorkspaceView({
     chatController,
   } = controllers;
   const { state, dispatch } = useWorkspace();
+  const [readingNavigationKey, setReadingNavigationKey] = useState(0);
   const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
   const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
   // G16 decision 1: badge only participates under the ask policy.
@@ -132,18 +135,36 @@ export function WorkspaceView({
   };
   const requestNewSession = () => {
     closeTransitionSource();
-    transitionGuard.request("new", chatController.startNewSession);
+    transitionGuard.request("new", () => {
+      setReadingNavigationKey(key => key + 1);
+      return chatController.startNewSession();
+    });
   };
   const requestRestoreSession = (sessionId: string) => {
     closeTransitionSource();
-    transitionGuard.request("switch", () => chatController.restoreSession(sessionId));
+    transitionGuard.request("switch", () => {
+      setReadingNavigationKey(key => key + 1);
+      return chatController.restoreSession(sessionId);
+    });
   };
   const requestArchiveSession = (sessionId: string) => {
     closeTransitionSource();
-    transitionGuard.request("archive", () => chatController.archiveCurrentSession(sessionId));
+    transitionGuard.request("archive", () => {
+      setReadingNavigationKey(key => key + 1);
+      return chatController.archiveCurrentSession(sessionId);
+    });
   };
 
   return (
+    <ReadingWorkspaceProvider
+      sessionId={learningView.sessionId}
+      navigationKey={readingNavigationKey}
+      documents={uploadController.documents?.documents ?? []}
+      isSending={learningView.isSending}
+      onAsk={(prompt) => ui.setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)}
+      onOpen={closeDrawer}
+      onBrowse={() => openDrawer("sources")}
+    >
     <AppShell>
       <input
         accept={RAG_UPLOAD_ACCEPT}
@@ -167,6 +188,7 @@ export function WorkspaceView({
         onNewSession={requestNewSession}
         onSessionChanged={refresh}
       />
+      <ReadingLayout>
       <div className="chat-column">
         <LearningStrip
           resume={learningView.learningResume}
@@ -252,6 +274,7 @@ export function WorkspaceView({
         />
       </div>
 
+      </ReadingLayout>
       <SlideOver open={state.activeDrawer === "sessions"} title="会话历史" onClose={closeDrawer}>
         <SessionNavigator
           sessions={snapshot.sessions}
@@ -305,6 +328,7 @@ export function WorkspaceView({
 
       <SlideOver open={state.activeDrawer === "sources"} title="资料与来源" onClose={closeDrawer}>
         <SourcesPanel
+          initialTab="library"
           lastChat={chatController.lastChat}
           ragSearch={ragController.result}
           isSearching={ragController.isSearching}
@@ -333,5 +357,6 @@ export function WorkspaceView({
         onConfirm={transitionGuard.confirm}
       />
     </AppShell>
+    </ReadingWorkspaceProvider>
   );
 }

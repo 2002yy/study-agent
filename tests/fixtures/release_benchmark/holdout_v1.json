@@ -1,0 +1,152 @@
+{
+  "answer_provenance": "constructed_from_frozen_source: every candidate answer is authored from the frozen snapshot text and is not a model output. Expected axes are therefore provable from the snapshot rather than inferred from a model's behaviour.",
+  "constructor_disqualification": "The author of this fixture knows every expected axis and is disqualified from acting as reviewer for this holdout (C7 rule 5).",
+  "consumed_set_scope": {
+    "consumed_cases": [
+      "REL-F-TEXT-001",
+      "REL-F-PDF-001"
+    ],
+    "consumed_sources": [
+      "NOAA-SURGE",
+      "NASA-MOON"
+    ],
+    "note": "Item content below must not overlap the consumed 161 calibration set."
+  },
+  "content_sha256": "d99fc1072651b78eccdc5c4707f26ea9457ee17cdafed2fba78ffe288fac0d22",
+  "excerpt_provenance": "source_text is the pypdf text extraction of the frozen snapshot page, captured at freeze time and frozen here with its own sha256; the snapshot itself remains linked by byte sha256.",
+  "frozen_at": "2026-10-01T06:00:00Z",
+  "holdout_id": "RQ-HOLDOUT-2026-10-01",
+  "instances": [
+    {
+      "aspect_rubric": {
+        "certainty": "The relative certainty of a watch versus a warning must be stated as printed.",
+        "lead time": "Both lead times must be stated as printed in the watch-versus-warning panel."
+      },
+      "aspects": [
+        "lead time",
+        "certainty"
+      ],
+      "baseline": {
+        "answer": "The handout's watch-versus-warning panel states that an Excessive Heat Watch is typically issued two to five days ahead of possible dangerous heat conditions, and that certainty regarding the development and timing of the event is lower than a warning. An Excessive Heat Warning is typically issued within one to three days of the onset of extremely dangerous heat conditions and remains in effect until the extreme danger subsides, with certainty high that the event will occur. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf)",
+        "expected_axes": {
+          "citation_support": "supported",
+          "evidence_grounding": "supported",
+          "question_coverage": "covered"
+        }
+      },
+      "controls": [
+        {
+          "answer": "The handout's watch-versus-warning panel states that an Excessive Heat Watch is typically issued two to five days ahead of possible dangerous heat conditions, and that certainty regarding the development and timing of the event is lower than a warning. An Excessive Heat Warning is typically issued within one to three days of the onset of extremely dangerous heat conditions and remains in effect until the extreme danger subsides, with certainty high that the event will occur. [source](https://www.usgs.gov/media/images/shield-volcano-diagram)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "supported",
+            "question_coverage": "covered"
+          },
+          "rationale": "Structurally valid citation to a real registered locator that does not support the sentences it is attached to.",
+          "required_issue": "wrong_citation",
+          "variant": "wrong_citation"
+        },
+        {
+          "answer": "The handout states that an Excessive Heat Watch is typically issued two to five days ahead of possible dangerous heat conditions, and that an Excessive Heat Warning is typically issued within one to three days of the onset of extremely dangerous heat conditions. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf)",
+          "expected_axes": {
+            "citation_support": "supported",
+            "evidence_grounding": "supported",
+            "question_coverage": "partial"
+          },
+          "rationale": "Certainty comparison dropped; lead time retained.",
+          "required_issue": "coverage_gap",
+          "variant": "missing_aspect"
+        },
+        {
+          "answer": "The handout's watch-versus-warning panel states that an Excessive Heat Watch is typically issued two to five days ahead of possible dangerous heat conditions, and that certainty regarding the development and timing of the event is lower than a warning. An Excessive Heat Warning is typically issued within one to three days of the onset of extremely dangerous heat conditions and remains in effect until the extreme danger subsides, with certainty high that the event will occur. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf) The same panel states that an Excessive Heat Watch is typically issued within one to three days of onset. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "gap",
+            "question_coverage": "covered"
+          },
+          "rationale": "Required structure: false sentence + structurally valid citation to the real frozen locator whose content does not support it. The panel prints two to five days for a watch.",
+          "required_issue": "unsupported_claim",
+          "variant": "unsupported_claim"
+        }
+      ],
+      "instance_id": "RQ-HO-A-WATCH-WARNING",
+      "page": 1,
+      "question": "Using only the frozen National Weather Service heat-safety one-pager, compare how far in advance an Excessive Heat Watch and an Excessive Heat Warning are typically issued, and state the certainty the handout assigns to each.",
+      "region": "right-hand WARNING VS. WATCH panel",
+      "source_id": "NWS-HEAT",
+      "source_text": "National Weather Service\nHEAT SAFETY\nFOR YOU AND YOUR FAMILY\nDURING A HEAT WAVE\n 9 Slow down: Reduce, eliminate or reschedule strenuous activities \nuntil the coolest time of the day. Children, seniors and anyone with \nhealth concerns should stay in the coolest available place, not \nnecessarily indoors.\n 9 Dress for summer: Wear lightweight, loose-fitting, light-colored \nclothing to reflect heat.\n 9 Eat light: Choose easy-to-digest foods such as fruit or salads. \nIf you pack food, put it in a cooler or carry an ice pack. Meats and \ndairy products can spoil quickly in hot weather.\n 9 Drink plenty of water (not very cold):\n Focus on \nnon-alcoholic and decaffeinated fluids. Drink water even if you don’t \nfeel thirsty. If you’re on a fluid-restrictive diet or have a problem with \nfluid retention, consult a physician before increasing consumption \nof fluids. \n 9 Use air conditioners:SSpend time in air-conditioned locations \nsuch as malls and libraries if your home isn’t air conditioned.\n 9 Use portable electric fans: Fans exhaust hot air from rooms \nor draw in cooler air. Do not direct the flow of portable electric fans \ntoward yourself when room temperatures are hotter than 90°F. \nThe dry blowing air will dehydrate you faster, endangering your \nhealth.\n 9 Minimize direct exposure to the sun. Sunburn reduces \nyour body’s ability to dissipate heat. Take a cool bath or shower.\n 9 Do not take salt tablets: Only take salt tablets if \nrecommended by a physician.\n 9 Be aware of infants, older, sick or frail people and \npets. Never leave children, disabled adults or pets in a car.\n 9 For more heat health tips, go to the\n Centers for Disease \nControl and Prevention: cdc.gov\nWARNING VS. WATCH \nExcessive Heat Watch\nAn Excessive Heat Watch is typically issued two to five days\nahead of possible dangerous heat conditions. Certainty regarding\nthe development and timing of the event is lower than a warning.\nExcessive Heat Warning \nAn Excessive Heat Warning, sometimes preceded by an \nExcessive Heat Watch, is typically issued within one to three \ndays of the onset  of extremely dangerous heat conditions and \nremains in effect until the extreme danger subsides. Certainty is \nhigh that the event will occur.\nHeat Advisory \nA Heat Advisory is typically issued within one to three days of \nthe onset of dangerous heat and remains in effect until \nthe danger subsides. These conditions pose a lesser, but still \ndangerous, risk to communities. Certainty is high that conditions \nwill occur.\nEXCESSIVE HEAT - \nAMERICA’S DEADLIEST WEATHER\nExcessive heat poses a significant risk to people’s health, including \nheat stroke and heat exhaustion, which can result in death. \nExcessive heat generally means unusually hot temperatures, \npossibly combined with oppressive humidity, that persists for two or \nmore days. However, specific guidelines vary across the country  \nand may be refined through work with local and state health \nprofessionals.\nFor more information, visit    weather.gov/safety/heat\nDrink plenty fluids in hot weather, even if you aren’t thristy.",
+      "source_text_sha256": "50a5e764a110d81442ec848bc97b6fa2732b41edc0a9b29945ca948eb4bc9961"
+    },
+    {
+      "aspect_rubric": {
+        "definition": "The Heat Index must be described as accounting for humidity together with the temperature.",
+        "worked example": "The printed example values must be reproduced exactly."
+      },
+      "aspects": [
+        "definition",
+        "worked example"
+      ],
+      "baseline": {
+        "answer": "Page 2 of the handout explains that the Heat Index is one way to measure how hot it feels when humidity is considered with the temperature. Its worked example states that when the temperature is 95 degrees Fahrenheit and the relative humidity is 50 percent, the Heat Index is 105 degrees Fahrenheit. The handout adds that Heat Index temperatures shaded in red indicate extreme danger, and that the National Weather Service uses the Heat Index in many parts of the country to determine when and where to issue heat alerts. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf#page=2)",
+        "expected_axes": {
+          "citation_support": "supported",
+          "evidence_grounding": "supported",
+          "question_coverage": "covered"
+        }
+      },
+      "controls": [
+        {
+          "answer": "Page 2 of the handout explains that the Heat Index is one way to measure how hot it feels when humidity is considered with the temperature. Its worked example states that when the temperature is 95 degrees Fahrenheit and the relative humidity is 50 percent, the Heat Index is 105 degrees Fahrenheit. The handout adds that Heat Index temperatures shaded in red indicate extreme danger, and that the National Weather Service uses the Heat Index in many parts of the country to determine when and where to issue heat alerts. [source](https://data.giss.nasa.gov/gistemp/history/output/history_loti_ann.pdf)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "supported",
+            "question_coverage": "covered"
+          },
+          "rationale": "Structurally valid citation to a real registered locator from a different domain that does not support the sentences.",
+          "required_issue": "wrong_citation",
+          "variant": "wrong_citation"
+        },
+        {
+          "answer": "Page 2 of the handout explains that the Heat Index is one way to measure how hot it feels when humidity is considered with the temperature, and that Heat Index temperatures shaded in red indicate extreme danger. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf#page=2)",
+          "expected_axes": {
+            "citation_support": "supported",
+            "evidence_grounding": "supported",
+            "question_coverage": "partial"
+          },
+          "rationale": "Worked example dropped; definition retained.",
+          "required_issue": "coverage_gap",
+          "variant": "missing_aspect"
+        },
+        {
+          "answer": "Page 2 of the handout explains that the Heat Index is one way to measure how hot it feels when humidity is considered with the temperature. Its worked example states that when the temperature is 95 degrees Fahrenheit and the relative humidity is 50 percent, the Heat Index is 105 degrees Fahrenheit. The handout adds that Heat Index temperatures shaded in red indicate extreme danger, and that the National Weather Service uses the Heat Index in many parts of the country to determine when and where to issue heat alerts. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf#page=2) The page also states that the Heat Index is calculated from temperature alone. [source](https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf#page=2)",
+          "expected_axes": {
+            "citation_support": "gap",
+            "evidence_grounding": "gap",
+            "question_coverage": "covered"
+          },
+          "rationale": "Required structure: false sentence + structurally valid citation to the real frozen locator whose content does not support it. The page states humidity is considered with the temperature.",
+          "required_issue": "unsupported_claim",
+          "variant": "unsupported_claim"
+        }
+      ],
+      "instance_id": "RQ-HO-B-HEAT-INDEX",
+      "page": 2,
+      "question": "Using only page 2 of the frozen National Weather Service heat-safety one-pager, explain what the Heat Index measures and reproduce the handout's worked example.",
+      "region": "Heat Index definition, worked example and danger shading",
+      "source_id": "NWS-HEAT",
+      "source_text": "National Weather Service\nThe Heat Index \nThe Heat Index is one way to measure how hot it feels when \nhumidity is considered with the temperature. For example, when \nthe temperature is 95 °F and the relative humidity is 50 percent, the \nHeat Index is 105 °F. To find the Heat Index temperature, use the \nchart or use the online calculator available at \nweather.gov/safety/heat-index.\nHeat Index temperatures shaded in red indicate extreme danger. \nThe National Weather Service utilizes the Heat Index in many parts \nof the country to determine when and where to issue heat alerts.\n             80    82    84    86    88    90    92    94     96    98    100   102   104    106    108   110\n 40       80    81    83    85     88    91    94    97    101   105  109   114    119    124    130   136\n 45       80    82    84    87    89     93    96   100   104  109   114   119   124   130   137 \n 50       81    83    85    88     91    95    99   103   108   113   118  124    131   137\n 55       81    84    86     89    93     97  101  106  112   117  124    130   137\n 60       82    84    88     91    95   100  105  110  116  123    129   137 \n 65       82    85    89     93    98   103  108   114  121  128   136 \n 70       83    86     90    95   100  105  112  119   126  134 \n 75       84    88    92     97   103  109 116   124   132 \n 80       84    89    94   100  106  113  121    129 \n 85       85    90     96   102 110  117    126   135 \n 90       86    91    98   105  113  122    131 \n 95       86    93  100  108  117    127     \n100     87    95  103  112  121    132     \nTEMPERATURE ( F )NWS Heat Index\nRelative Humidity\n (%)\nLIKELIHOOD OF HEAT DISORDERS\nwith Prolonged Exposure or Strenous Activity\nCaution                     Extreme Caution                   Danger                   Extreme Danger\nNEVER leave a baby, senior or pet locked in a car, even for a few minutes.\nDozens of infants and untold numbers of pets die every year in hot vehicles. \nHEAT CAN BE DANGEROUS\nFor more information, visit    weather.gov/safety/heat",
+      "source_text_sha256": "fbacb543f08afef0bb5e6b7792094d854bfb43b9b7bb3b3de0ad51c78a665e65"
+    }
+  ],
+  "purpose": "Fresh independent reviewer qualification holdout for 162 A3-D. Replaces the consumed 161 calibration set for qualification selection (see C7). Diagnostic regression use of the consumed set is unaffected.",
+  "schema_version": "release-benchmark-qualification-holdout-v1",
+  "sources": [
+    {
+      "locator": "https://www.weather.gov/media/twc/HeatSafety-OnePager.pdf",
+      "role": "primary",
+      "sha256": "3663875ddaed139edcc8a39566895ead00db8a063d7a2ac94cb5c1aabeb89acd",
+      "snapshot_path": "tests/fixtures/release_benchmark/sources/nws_heat_safety_onepager.pdf",
+      "source_id": "NWS-HEAT"
+    }
+  ]
+}

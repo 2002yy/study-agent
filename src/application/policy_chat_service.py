@@ -279,6 +279,9 @@ class ExternalDataPolicyChatService(ChatService):
             policy_command
         )
         command = cast(PolicyChatCommand, validated_command)
+        from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
+
+        review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
         saved_policy = load_frontend_settings()
@@ -322,6 +325,10 @@ class ExternalDataPolicyChatService(ChatService):
             explicit_override=command.task_intent,
             persisted_route=(persisted_turn.route_snapshot if persisted_turn else None),
         )
+        if review_binding is not None:
+            from src.task_intent import default_contract
+
+            task_contract = replace(default_contract("explain_back"), source_policy="local_only")
         operation_id = command.operation_id or new_id("op")
         thread = self.repository.acquire_chat_operation(
             thread.id,
@@ -403,6 +410,8 @@ class ExternalDataPolicyChatService(ChatService):
                 memory_consent=memory_consent_granted,
             )
             route = {**route, "external_data_policy": decision.to_dict()}
+            if review_binding is not None:
+                route["review"] = review_binding.snapshot("answer")
             expected_concepts = tuple(
                 str(item)
                 for item in learning_state.payload.get(
@@ -410,12 +419,15 @@ class ExternalDataPolicyChatService(ChatService):
                 )
             )
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
+            eval_state, expected_concepts, evidence_ids = review_evaluation_inputs(
+                review_binding, learning_state, expected_concepts, evidence_ids
+            )
             cancel_check("pedagogy_evaluate")
             learner_evaluation = cast(
                 Any, self.dependencies.pedagogy_evaluation
             ).evaluate_learner(
                 learner_input=command.user_input,
-                state=learning_state,
+                state=eval_state,
                 expected_concepts=expected_concepts,
                 evidence=evidence_ids,
                 task_contract=task_contract,

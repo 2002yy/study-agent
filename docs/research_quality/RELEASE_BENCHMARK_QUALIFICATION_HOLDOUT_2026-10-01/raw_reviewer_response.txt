@@ -1,0 +1,189 @@
+{
+  "review_run_id": "rq-review-20261001-002",
+  "observations": [
+    {
+      "blind_case_id": "rq-review-20261001-002-item-01",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The answer additionally states that an Excessive Heat Watch is typically issued within one to three days of onset, but the frozen source states that a Watch is typically issued two to five days ahead.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-02",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer states the cause of tides but does not describe them as long-period waves originating in the ocean and progressing toward the coastlines.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-03",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer correctly explains the crest and trough but does not name the height difference between high and low tide as the tidal range.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-04",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The answer additionally states that the Heat Index is calculated from temperature alone, which contradicts the frozen source's statement that humidity is considered with the temperature.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-05",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-06",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-07",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-08",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The answer additionally states that tidal range is measured from the crest to mean sea level, whereas the frozen source defines tidal range as the difference in height between high tide and low tide.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-09",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer gives both lead times but omits the requested certainty statements for the Watch and Warning.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-10",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The Markdown citation URL does not match the supplied National Weather Service source_locator or its permitted page-2 form.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-11",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": []
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-12",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The Markdown citation URL points to the National Weather Service heat-safety PDF rather than the supplied NOAA tides source_locator.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-13",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The Markdown citation URL points to an unrelated NASA PDF rather than the supplied NOAA tides source_locator.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-14",
+      "question_coverage": "partial",
+      "evidence_grounding": "supported",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "coverage_gap",
+          "reason": "The answer explains what the Heat Index measures but does not reproduce the worked example of 95 °F, 50 percent relative humidity, and a 105 °F Heat Index.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-15",
+      "question_coverage": "covered",
+      "evidence_grounding": "supported",
+      "citation_support": "gap",
+      "issues": [
+        {
+          "issue_type": "wrong_citation",
+          "reason": "The Markdown citation URL points to an unrelated USGS page rather than the supplied National Weather Service source_locator.",
+          "evidence_refs": ["NWS-HEAT"]
+        }
+      ]
+    },
+    {
+      "blind_case_id": "rq-review-20261001-002-item-16",
+      "question_coverage": "covered",
+      "evidence_grounding": "gap",
+      "citation_support": "supported",
+      "issues": [
+        {
+          "issue_type": "unsupported_claim",
+          "reason": "The answer additionally states that tides are caused mainly by seasonal changes in ocean temperature, which is unsupported by and contradicts the frozen source's stated gravitational cause.",
+          "evidence_refs": ["NOAA-TIDES"]
+        }
+      ]
+    }
+  ]
+}

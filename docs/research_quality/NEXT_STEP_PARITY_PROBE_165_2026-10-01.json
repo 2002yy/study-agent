@@ -1,0 +1,50 @@
+{
+  "schema_version": "next-step-parity-probe-v1",
+  "namespace": "learner-next-step-parity-probe-165",
+  "contract": "165-C",
+  "note": "independent thin comparator; reuses the frozen classifier semantics; does NOT modify the 164 parity instrument; results are 165 evidence only and must not be mixed into 164 v1 statistics",
+  "case_count": 5,
+  "classifications": [
+    "DURABLE_ONLY",
+    "EXPLAINED_DIVERGENCE",
+    "LEGACY_ONLY",
+    "MATCH"
+  ],
+  "rows": [
+    {
+      "case": "both empty",
+      "legacy_unresolved_gap": "",
+      "durable_next_step_text": "",
+      "classification": "MATCH",
+      "reason": ""
+    },
+    {
+      "case": "legacy only",
+      "legacy_unresolved_gap": "why does recovery span turns",
+      "durable_next_step_text": "",
+      "classification": "LEGACY_ONLY",
+      "reason": ""
+    },
+    {
+      "case": "durable only",
+      "legacy_unresolved_gap": "",
+      "durable_next_step_text": "review the recovery boundary",
+      "classification": "DURABLE_ONLY",
+      "reason": ""
+    },
+    {
+      "case": "identical text",
+      "legacy_unresolved_gap": "review the recovery boundary",
+      "durable_next_step_text": "review the recovery boundary",
+      "classification": "MATCH",
+      "reason": ""
+    },
+    {
+      "case": "different text",
+      "legacy_unresolved_gap": "why does recovery span turns",
+      "durable_next_step_text": "review the recovery boundary",
+      "classification": "EXPLAINED_DIVERGENCE",
+      "reason": ""
+    }
+  ]
+}

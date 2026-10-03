@@ -205,9 +205,9 @@
 
   .topbar-actions {
     position: relative;
-    display: grid;
+    display: flex;
     width: 100%;
-    grid-template-columns: repeat(3, 44px);
+    flex-wrap: nowrap;
     justify-content: flex-start;
     gap: 8px;
     overflow: visible;
@@ -221,8 +221,7 @@
   }
 
   .topbar-actions .end-session-button {
-    grid-column: 1 / -1;
-    justify-self: start;
+    flex: 0 0 auto;
     min-height: 44px;
   }
 
@@ -260,6 +259,7 @@
 
   .composer {
     position: sticky;
+    grid-template-columns: minmax(0, 1fr) auto;
     bottom: 0;
     z-index: 11;
     padding-top: 12px;

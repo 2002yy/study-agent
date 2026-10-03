@@ -1,0 +1,117 @@
+{
+  "condition": "durable_truth_empty_no_closure",
+  "observation_count": 2,
+  "overall_classification": {
+    "NOT_COMPARABLE": 2
+  },
+  "per_dimension": {
+    "freshness": {
+      "EXPECTED_DIVERGENCE": 2
+    },
+    "goal_objective": {
+      "MISSING_DURABLE": 1,
+      "NOT_COMPARABLE": 1
+    },
+    "misconception": {
+      "MATCH": 2
+    },
+    "next_step": {
+      "MATCH": 2
+    },
+    "understanding": {
+      "NOT_COMPARABLE": 2
+    }
+  },
+  "population": "B2",
+  "records": [
+    {
+      "construction_precondition": {
+        "knowledge_kind_actual": "empirical",
+        "knowledge_kind_declared": "empirical",
+        "mode": "苏格拉底"
+      },
+      "observed_state": {
+        "durable_substantive": false,
+        "legacy_confirmed_points_count": 0,
+        "legacy_objective_present": false,
+        "legacy_substantive": false
+      },
+      "parity": {
+        "five_dimensions": {
+          "freshness": "EXPECTED_DIVERGENCE",
+          "goal_objective": "NOT_COMPARABLE",
+          "misconception": "MATCH",
+          "next_step": "MATCH",
+          "understanding": "NOT_COMPARABLE"
+        },
+        "overall": "NOT_COMPARABLE"
+      },
+      "propagation": {
+        "persistence_evidence_valid": false,
+        "role": "writer",
+        "turn1_before_state_projection": {
+          "confirmed_points_count": 0,
+          "objective": ""
+        },
+        "turn1_persisted_projection": {
+          "confirmed_points_count": 0,
+          "objective": ""
+        },
+        "turn1_post_state_projection": {
+          "confirmed_points_count": 0,
+          "objective": "哪一年出现了史上最强的飓风"
+        }
+      },
+      "stratum_assignment": "A",
+      "turn": "哪一年出现了史上最强的飓风",
+      "turn_index": 0
+    },
+    {
+      "construction_precondition": {
+        "knowledge_kind_actual": "derivable",
+        "knowledge_kind_declared": "empirical",
+        "mode": "苏格拉底"
+      },
+      "observed_state": {
+        "durable_substantive": false,
+        "legacy_confirmed_points_count": 0,
+        "legacy_objective_present": true,
+        "legacy_substantive": true
+      },
+      "parity": {
+        "five_dimensions": {
+          "freshness": "EXPECTED_DIVERGENCE",
+          "goal_objective": "MISSING_DURABLE",
+          "misconception": "MATCH",
+          "next_step": "MATCH",
+          "understanding": "NOT_COMPARABLE"
+        },
+        "overall": "NOT_COMPARABLE"
+      },
+      "propagation": {
+        "projection_reproduced": true,
+        "role": "reader",
+        "turn2_before_state_projection": {
+          "confirmed_points_count": 0,
+          "objective": "哪一年出现了史上最强的飓风"
+        }
+      },
+      "stratum_assignment": "B",
+      "turn": "那一次的实测数据是多少",
+      "turn_index": 1
+    }
+  ],
+  "schema_version": "learner-state-parity-collection-v1",
+  "shadow_status": {
+    "ok": 2
+  },
+  "stratum_from_observed_state": [
+    "A",
+    "B"
+  ],
+  "stratum_hint": "legacy_substantive_durable_absent",
+  "turns": [
+    "哪一年出现了史上最强的飓风",
+    "那一次的实测数据是多少"
+  ]
+}

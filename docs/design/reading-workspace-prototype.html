@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Study Agent · 阅读与对话设计稿</title>
+  <style>
+    :root{color-scheme:light;--bg:#f3f6f8;--paper:#fff;--ink:#20313c;--muted:#657782;--line:#dce5e9;--teal:#137c76;--soft:#edf6f5;--quote:#fff2d0;--quote-ink:#745000;--reading-size:18px;--chat-width:430px;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+    *{box-sizing:border-box}body{margin:0;min-width:320px}button,input,textarea{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #6dbcb7;outline-offset:3px}button{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:8px 12px;min-height:38px}button:hover{background:var(--soft)}a{color:var(--teal)}.primary{background:var(--teal);border-color:var(--teal);color:white}.primary:hover{background:#0c625d}.muted{color:var(--muted)}.small{font-size:12px}.demo{height:30px;display:flex;align-items:center;justify-content:center;background:#e8f0f5;color:#486477;font-size:12px;padding:0 12px;gap:6px}.topbar{height:65px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--paper);border-bottom:1px solid var(--line);gap:12px}.brand{display:flex;align-items:center;gap:11px;white-space:nowrap}.brandmark{width:30px;height:32px;background:var(--soft);border-left:3px solid var(--teal);border-radius:3px;display:grid;place-items:center;color:var(--teal);font-size:18px;font-weight:700}.brand strong{font-size:16px;letter-spacing:-.3px}.brand span{font-size:12px;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:10px}.top-actions button{font-size:12px}.mobile-tabs{display:none}.workspace{display:grid;grid-template-columns:194px minmax(0,1fr) var(--chat-width);height:calc(100dvh - 95px);min-height:0}.library{padding:26px 16px;border-right:1px solid var(--line);background:#f7f9fa;overflow:auto}.library h2{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 12px}.library .document{display:flex;gap:10px;padding:12px 10px;background:white;border:1px solid #bdd8d5;border-radius:8px;font-size:13px;line-height:1.6}.filemark{color:var(--teal);font-size:19px}.document strong{display:block;font-size:13px}.document small{color:var(--muted);font-size:11px}.library nav{margin-top:34px}.library nav a{display:block;margin:3px 0;padding:9px 10px;font-size:12px;text-decoration:none;color:var(--muted);border-radius:5px;border-left:2px solid transparent}.library nav a.active{background:#eaf1f2;color:var(--ink);border-left-color:var(--teal)}.library .note{font-size:11px;color:var(--muted);line-height:1.9;margin-top:35px;padding:0 10px}.reader{display:flex;flex-direction:column;min-width:0;min-height:0;background:#edf2f5}.reader-tools{background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:57px;padding:10px 22px}.reader-tools .title{font-size:13px;font-weight:600;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.toolgroup{display:flex;align-items:center;gap:6px;white-space:nowrap}.toolgroup button{font-size:12px;min-height:32px;padding:5px 9px}.reader-scroll{overflow:auto;min-height:0;flex:1;scroll-behavior:smooth;scrollbar-gutter:stable;padding:28px 30px 40px}.paper{max-width:720px;min-height:100%;margin:auto;background:white;padding:46px 54px 52px;border:1px solid #e3e9ec;box-shadow:0 2px 10px #20313c04;border-radius:3px}.paper .eyebrow{font-size:12px;color:var(--teal);font-weight:600;letter-spacing:.5px}.paper h1{font-size:32px;line-height:1.45;letter-spacing:-.8px;margin:15px 0}.paper .subtitle{font-size:14px;color:var(--muted);line-height:1.9;margin:0 0 33px}.article-section{scroll-margin-top:24px}.paper h2{font-size:21px;font-weight:650;margin:32px 0 17px;line-height:1.5}.paper p,.paper li{font-size:var(--reading-size);line-height:1.95;margin:0 0 18px;overflow-wrap:anywhere}.paper ul{padding-left:23px}.passage{border-left:3px solid #dfb346;padding:15px 18px 12px;background:#fff9eb;margin:20px -2px 22px;scroll-margin-top:24px;border-radius:0 5px 5px 0}.passage p{margin:0 0 11px}.passage button{font-size:12px;border-color:#e2d4ad;color:var(--quote-ink);background:#fffdf7;min-height:34px}.passage.located{outline:2px solid #e2b84f;outline-offset:5px}.passage .locator{font-size:11px;color:var(--quote-ink);display:block;margin-bottom:8px}.example{padding:17px 18px;background:#f4f7fa;border-radius:5px;margin:22px 0}.example p{font-size:15px;margin:0}.paper-footer{border-top:1px solid var(--line);padding-top:20px;margin-top:30px;font-size:12px;color:var(--muted);line-height:1.8}.reader-status{min-height:31px;font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;padding:6px 22px;border-top:1px solid var(--line);background:#f8fafb}.reader-status strong{font-weight:500;color:var(--teal)}.chat{background:white;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0}.chat-title{min-height:57px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:10px 23px;gap:8px}.chat-title strong{font-size:14px}.chat-title span{font-size:11px;color:var(--muted)}.conversation{overflow:auto;min-height:0;flex:1;padding:26px 25px;scrollbar-gutter:stable}.user-message{font-size:14px;line-height:1.8;margin-left:25px;padding:13px 16px;background:#f0f4f7;border-radius:10px 10px 2px 10px;overflow-wrap:anywhere}.assistant{margin-top:26px}.assistant-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--teal);margin-bottom:12px}.assistant-label small{color:var(--muted);font-weight:400;font-size:10px}.assistant p,.assistant li{font-size:14px;line-height:1.9;margin:0 0 13px}.assistant ol{padding-left:22px;margin:14px 0}.assistant .answer-key{font-size:16px;font-weight:600;line-height:1.8}.citation{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline;color:var(--quote-ink);background:var(--quote);border:0;border-radius:4px;font-size:11px;min-height:25px;padding:2px 7px}.citation:hover{background:#ffe7a2}.context-preview{border-left:2px solid #dfb346;padding:9px 12px;margin:16px 0;background:#fffbf1;font-size:12px;line-height:1.8;color:#735c2b}.suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-top:24px}.suggestions button{font-size:11px;min-height:32px;padding:6px 10px;border-color:#d2e3e1;color:var(--teal)}.composer{border-top:1px solid var(--line);padding:17px 19px 14px;background:white}.selection-context{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding:9px 11px;background:#fff9eb;border:1px solid #ebdcb4;border-radius:5px}.selection-context .text{font-size:11px;line-height:1.65;flex:1}.selection-context .text strong{display:block;font-weight:600;color:var(--quote-ink)}.selection-context button{border:0;background:transparent;min-height:28px;width:28px;padding:0;flex-shrink:0;font-size:18px;color:var(--muted)}[hidden]{display:none!important}.input-box{border:1px solid #c5d4d8;border-radius:9px;padding:10px;background:white}.input-box:focus-within{border-color:#75aaa5;box-shadow:0 0 0 2px #137c7610}.input-box textarea{border:0;resize:none;width:100%;height:58px;line-height:1.65;font-size:13px;background:white;color:var(--ink);padding:0 3px;outline:none}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px}.composer-actions .hint{font-size:10px;color:var(--muted)}.composer-actions button{min-height:34px;font-size:12px;padding:7px 15px}.composer-foot{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:var(--muted)}.local-note{font-size:12px;color:var(--muted);line-height:1.8;padding:12px 0}.reading-focus .workspace{grid-template-columns:194px minmax(0,1fr)}.reading-focus .chat{display:none}.reading-focus .paper{max-width:800px}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24434b;color:white;max-width:calc(100% - 30px);padding:12px 18px;border-radius:8px;box-shadow:0 7px 25px #20313c20;font-size:12px;line-height:1.7;z-index:4}.refs{max-width:510px;border:1px solid var(--line);border-radius:12px;padding:28px;color:var(--ink);box-shadow:0 20px 70px #20313c20}.refs::backdrop{background:#20313c55}.refs h2{font-size:20px;margin:0 0 20px}.refs li{font-size:14px;line-height:1.8;margin-bottom:15px}.refs button{float:right}.refs p{font-size:12px;color:var(--muted);line-height:1.8}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    @media(min-width:1200px){.paper p,.paper li{letter-spacing:.15px}}
+    @media(max-width:1199px){:root{--chat-width:390px}.workspace{grid-template-columns:minmax(0,1fr) var(--chat-width)}.library{display:none}.reading-focus .workspace{grid-template-columns:1fr}.paper{padding:34px 36px}.reader-scroll{padding:22px 20px}.topbar{padding:0 20px}}
+    @media(max-width:820px){.demo{font-size:10px;height:28px}.topbar{height:59px;padding:0 16px}.brand span,.focus-control{display:none}.top-actions button{min-height:34px;font-size:11px;padding:6px 9px}.mobile-tabs{display:flex;height:45px;gap:6px;background:white;border-bottom:1px solid var(--line);padding:4px 15px}.mobile-tabs button{flex:1;border:0;background:white;min-height:36px;font-size:13px}.mobile-tabs button[aria-pressed=true]{color:var(--teal);background:var(--soft);font-weight:650}.workspace{height:calc(100dvh - 132px);display:block}.reader,.chat{height:100%}.chat{border-left:0;display:none}.view-chat .reader{display:none}.view-chat .chat{display:flex}.reader-tools{padding:10px 16px;min-height:49px;gap:8px}.reader-tools .title{font-size:12px}.toolgroup{gap:3px}.toolgroup button{font-size:11px;padding:5px 8px}.reader-scroll{padding:0;background:white}.paper{border:0;border-radius:0;padding:26px 23px 36px;box-shadow:none}.paper h1{font-size:27px;line-height:1.45;letter-spacing:-.5px}.paper h2{font-size:20px;margin-top:29px}.paper .subtitle{font-size:13px;margin-bottom:29px}.paper p,.paper li{font-size:calc(var(--reading-size) - 1px);line-height:1.95}.passage{padding:13px 14px}.reader-status{padding:6px 16px;min-height:29px;font-size:10px}.chat-title{min-height:49px;padding:10px 19px}.conversation{padding:22px 20px}.composer{padding:12px 15px}.composer-foot{font-size:9px}.refs{width:calc(100% - 32px);padding:23px}.reading-focus .chat{display:none}.toast{bottom:16px;width:max-content}}
+    @media(prefers-reduced-motion:reduce){.reader-scroll{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <div class="demo"><strong>交互设计稿</strong><span>· 示例讲义与预写回答，未连接真实资料或模型</span></div>
+  <header class="topbar">
+    <div class="brand"><div class="brandmark" aria-hidden="true">S</div><strong>Study Agent</strong><span>阅读工作台</span></div>
+    <div class="top-actions"><button class="focus-control" id="focus" aria-pressed="false">专注阅读</button><button id="show-refs">设计参考 ↗</button></div>
+  </header>
+  <nav class="mobile-tabs" aria-label="切换工作区"><button id="read-tab" aria-pressed="true">资料</button><button id="chat-tab" aria-pressed="false">对话</button></nav>
+  <main class="workspace">
+    <aside class="library" aria-label="资料与目录">
+      <h2>当前资料</h2>
+      <div class="document"><span class="filemark" aria-hidden="true">▤</span><div><strong>数据库索引讲义</strong><small>示例文档 · 3 个小节</small></div></div>
+      <nav aria-label="文档目录"><h2>目录</h2><a href="#intro" class="active">查询为什么会变快</a><a href="#cost">索引的维护成本</a><a href="#choice">什么时候值得建索引</a></nav>
+      <p class="note">边读边问。<br>点回答中的引用，<br>回到原文上下文。</p>
+    </aside>
+    <section class="reader" aria-label="资料阅读">
+      <div class="reader-tools"><span class="title">数据库索引讲义</span><div class="toolgroup"><button id="font-down" aria-label="减小阅读字号">A−</button><button id="font-up" aria-label="增大阅读字号">A＋</button></div></div>
+      <div class="reader-scroll" id="reader-scroll" tabindex="0" aria-label="文档正文，可滚动">
+        <article class="paper">
+          <div class="eyebrow">数据库基础 / 示例讲义</div>
+          <h1>查询更快，<br>为什么写入可能更慢？</h1>
+          <p class="subtitle">从一次查找，到每一次维护。理解索引带来的收益，也理解它付出的成本。</p>
+          <section class="article-section" id="intro"><h2>查询为什么会变快</h2>
+            <p>如果没有可用的索引，数据库可能需要逐行检查表中的记录，寻找满足条件的行。数据量越大，需要检查的内容通常越多。</p>
+            <p>索引提供了另一条寻找记录的路径。可以把它理解为一份按特定字段组织的目录：先在目录里定位，再找到需要的记录。</p>
+            <div class="example"><p>例如，按订单编号查询一笔订单时，合适的索引可以帮助缩小查找范围。收益取决于查询方式、数据分布和执行计划。</p></div>
+          </section>
+          <section class="article-section" id="cost"><h2>索引的维护成本</h2>
+            <p>表中的数据会变化，而索引必须保持与数据一致。它也需要占用存储空间。</p>
+            <div class="passage" id="maintenance" tabindex="-1">
+              <span class="locator">§ 索引的维护成本 · 第 2 段</span>
+              <p id="passage-text">每当插入、删除记录，或更新索引涉及的字段时，数据库还需要维护相应的索引。因此，索引可能加快某些查询，同时增加写入的工作量。</p>
+              <button id="explain">解释这一段 →</button>
+            </div>
+            <p>这不意味着所有更新都会同样变慢。影响与更新的字段、索引结构、并发情况和数据库实现有关。仅凭“索引数量多”还不足以判断一次具体操作的耗时。</p>
+          </section>
+          <section class="article-section" id="choice"><h2>什么时候值得建索引</h2>
+            <p>判断一个索引是否有价值，需要把查询收益和维护成本放在同一个使用场景里看。</p>
+            <ul><li>先看常见查询如何筛选、连接和排序。</li><li>再看表的写入频率，以及索引涉及的字段是否经常更新。</li><li>用实际执行计划和测量结果验证收益。</li></ul>
+            <p>合适的索引服务于具体查询。为所有字段都建立索引，并不能保证整体性能更好。</p>
+          </section>
+          <footer class="paper-footer">这份讲义为设计稿原创示例，不属于项目证据库。<br>正式版本仅对具备真实定位信息的引用提供跳转。</footer>
+        </article>
+      </div>
+      <div class="reader-status"><span id="position">正在阅读 · 查询为什么会变快</span><strong id="jump-status">原文与对话保持在同一工作区</strong></div>
+    </section>
+    <section class="chat" aria-label="学习对话">
+      <div class="chat-title"><strong>和资料聊一聊</strong><span>当前资料 · 数据库索引讲义</span></div>
+      <div class="conversation" id="conversation" tabindex="0" aria-label="对话记录，可滚动">
+        <div class="user-message">为什么索引能加速查询，却可能拖慢写入？</div>
+        <div class="assistant">
+          <div class="assistant-label">Study Agent <small>预写示例回答</small></div>
+          <p class="answer-key">查询时少找一些，<br>写入时多维护一份。</p>
+          <p>你可以把索引看作目录。查询时，目录帮助定位记录；修改数据时，相关目录也要跟着更新。</p>
+          <ol><li><strong>查询：</strong>合适的索引可以缩小查找范围。</li><li><strong>写入：</strong>插入、删除或修改索引字段，可能带来额外的维护工作。<button class="citation" data-target="maintenance" aria-label="查看引用：索引的维护成本，第2段">讲义 § 维护成本 ↗</button></li></ol>
+          <div class="context-preview">“索引可能加快某些查询，同时增加写入的工作量。”</div>
+          <p>具体会增加多少成本，仍需要结合实际负载测量。讲义没有给出固定比例。</p>
+          <div class="suggestions"><button data-question="举一个订单表的例子">举个例子</button><button data-question="帮我比较哪些字段适合建索引">比较适用场景</button></div>
+        </div>
+      </div>
+      <form class="composer" id="ask-form">
+        <div class="selection-context" id="selection-context" hidden><div class="text"><strong>正在讨论 · 维护成本，第 2 段</strong><span>插入、删除或更新索引字段，需要维护相应索引。</span></div><button type="button" id="clear-context" aria-label="移除引用段落">×</button></div>
+        <div class="input-box"><label class="visually-hidden" for="question">向资料提问</label><textarea id="question" placeholder="问当前资料，或点左侧“解释这一段”"></textarea><div class="composer-actions"><span class="hint">Ctrl / ⌘ + Enter 发送</span><button class="primary" id="send" type="submit" disabled>发送 ↑</button></div></div>
+        <div class="composer-foot"><span>回答有引用时，可返回原文核对</span><span>仅本地演示</span></div>
+      </form>
+    </section>
+  </main>
+  <div class="toast" role="status" id="toast" hidden></div>
+  <dialog class="refs" id="refs" aria-labelledby="refs-title"><h2 id="refs-title">参考了哪些阅读体验</h2><ul><li><a href="https://docs.readwise.io/reader/docs/faqs/appearance" target="_blank" rel="noopener noreferrer">Readwise Reader</a><br>正文排版与可折叠的辅助面板。</li><li><a href="https://www.zotero.org/support/pdf_reader" target="_blank" rel="noopener noreferrer">Zotero</a><br>标注、笔记与原文位置之间的往返。</li><li><a href="https://support.google.com/gemininotebook/answer/16179559?hl=en" target="_blank" rel="noopener noreferrer">Google Notebook 官方文档</a><br>点击回答引用，回到对应资料中的上下文。</li></ul><p>这些是交互参考。本设计稿不连接任何上述服务，也不实现真实模型或文档读取。</p><button id="close-refs">关闭</button></dialog>
+  <script>
+    const $ = id => document.getElementById(id);
+    const reader = $('reader-scroll');
+    const question = $('question');
+    let toastTimer;
+    function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').hidden=true},3500)}
+    function view(mode){if(mode==='chat'){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读'}document.body.classList.toggle('view-chat',mode==='chat');$('read-tab').setAttribute('aria-pressed',String(mode==='read'));$('chat-tab').setAttribute('aria-pressed',String(mode==='chat'))}
+    function reveal(target){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读';view('read');const node=$(target);node.scrollIntoView({block:'center'});if(target==='maintenance'){node.classList.add('located');$('jump-status').textContent='已定位 · 维护成本，第 2 段';node.focus({preventScroll:true})}}
+    $('read-tab').onclick=()=>view('read');$('chat-tab').onclick=()=>view('chat');
+    document.querySelectorAll('[data-target]').forEach(button=>button.onclick=()=>reveal(button.dataset.target));
+    document.querySelectorAll('.library nav a').forEach(link=>link.onclick=event=>{event.preventDefault();reveal(link.getAttribute('href').slice(1))});
+    function updateSend(){$('send').disabled=!question.value.trim()}
+    function prompt(text,withPassage=false){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读';view('chat');$('selection-context').hidden=!withPassage;question.value=text;updateSend();question.focus()}
+    $('explain').onclick=()=>prompt('请用一个具体例子解释这一段的索引维护成本。',true);
+    document.querySelectorAll('[data-question]').forEach(button=>button.onclick=()=>prompt(button.dataset.question));
+    $('clear-context').onclick=()=>{$('selection-context').hidden=true;question.focus()};
+    question.oninput=updateSend;
+    $('ask-form').onsubmit=event=>{event.preventDefault();const text=question.value.trim();if(!text)return;const message=document.createElement('div');message.className='user-message';message.style.marginTop='24px';message.textContent=text;const note=document.createElement('p');note.className='local-note';note.textContent='已记录到本地演示。设计稿不请求模型，正式版本会在这里继续回答。';$('conversation').append(message,note);$('conversation').scrollTop=$('conversation').scrollHeight;question.value='';updateSend();toast('问题已加入本地演示对话，未发送到任何服务。')};
+    question.onkeydown=event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();$('ask-form').requestSubmit()}};
+    let readingSize=18;
+    function resizeText(delta){readingSize=Math.max(16,Math.min(22,readingSize+delta));document.documentElement.style.setProperty('--reading-size',readingSize+'px');$('font-down').disabled=readingSize===16;$('font-up').disabled=readingSize===22;toast('阅读字号：'+readingSize+'px')}
+    $('font-down').onclick=()=>resizeText(-1);$('font-up').onclick=()=>resizeText(1);
+    $('focus').onclick=()=>{const active=document.body.classList.toggle('reading-focus');$('focus').setAttribute('aria-pressed',String(active));$('focus').textContent=active?'恢复并排':'专注阅读'};
+    const sections=[...document.querySelectorAll('.article-section')];
+    reader.onscroll=()=>{const top=reader.getBoundingClientRect().top;let current=sections[0];for(const section of sections){if(section.getBoundingClientRect().top<top+reader.clientHeight*.4)current=section}document.querySelectorAll('.library nav a').forEach(link=>link.classList.toggle('active',link.getAttribute('href')==='#'+current.id));$('position').textContent='正在阅读 · '+current.querySelector('h2').textContent};
+    $('show-refs').onclick=()=>$('refs').showModal();$('close-refs').onclick=()=>$('refs').close();
+    $('refs').onclick=event=>{if(event.target===$('refs')){const bounds=$('refs').getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)$('refs').close()}};
+  </script>
+</body>
+</html>
