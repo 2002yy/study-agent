@@ -1,7 +1,7 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-09-29
+> 更新：2026-10-03
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支为 `codex/release-benchmark-semantic-calibration`，父 Draft PR #154 head `adb409c73b4c491da34f3748d6836d23f04620d2`；§161 校准执行代码 head `c41816a386d5120a4c152b874598feb14e61fffb`。§155 正式复核目标仍是 Draft PR #150 的 exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；当前分支最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**本刀执行分支 `codex/retention-review-read`，基于 Draft PR #155 / `codex/release-benchmark-semantic-calibration` 的 `2b6e9d0a091f1796fd9105baa28b2e7b045f5ea6`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-C1b-1 前置审计完成（inner read = class B，无需改 LearnerModelService）；下一步 = C1b-1 runtime wiring**（见 §164.1–§164.14 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心 + C1b-0/0.1 隔离原语已实现**（§164.11 / §164.13）：中性投影、确定性分类器、fail-open observer、**admission token 绑定 future 生命周期**、CAPACITY==WORKERS==2 零 backlog、有界 telemetry；**共 45 tests passed**（parity 22 + isolation 23）。**生产 ChatService 未改动**。**§164.14 审计结论**：LearnerModelService.build = **class B（operationally bounded）** —— 固定数量本地查询、无网络/递归/retry，且 usy_timeout=30000 使锁等待有界；**因此不为 shadow 侵入生产读取链**。**limitation 措辞已修正**：worker 终止**有界**（inner read 自身边界，最坏约 30s），但**不受 outer 250ms budget 约束**；退化语义 = 锁竞争时 shadow 最长不可用约 30s，期间 production 完全继续。**双轨**：主线 A = §164-C1b-1 wiring→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
-- **下一刀唯一任务 = §164-C1b-1 runtime wiring + 无侵入证明**（§164.15 六步 / 八场景 / 独立 latency 测试）；门未过则 §164-C1 保持 OPEN。**Post-§164 Interaction Coordination Layer 只是 design note（见其专节），不是下一刀，也不得混入 C1** —— C1 必须原样闭合后才谈协调架构。
-- **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
+- **当前动作：§169-B 复习纯读投影接线。**§164 runtime wiring / parity / Phase2 thread canary 已完成；runtime adjudication 仅保留 G1 objective gate，G2/G3/G4 不获运行时裁决权。§165 NextStep lifecycle、§168 misconception lifecycle 已实现；重复观察不自动 confirmed。§169-A contract 已冻结，§169-B `ReviewProjection` 纯投影已实现（`2b6e9d0`），下一步将其接入线程范围的只读服务/API。§162 CLOSED：自动 semantic judge = NOT QUALIFIED，authority NONE，release NO-GO；不重新选模型以追求 PASS。
+- **下一刀唯一任务 = §169-B1 thread-scoped review read path**：只读当前 focused goal 的最新 claim revisions，固定 7 天 due；不继承旧 revision 的理解证据，不写 ReviewItem，不自动生成评估/确认。保留 §169-A closure-only writer。CI 整理作为独立提交：合并诊断上传/失败收口，保留必要检查及 main/manual 浏览器门禁。
+- **当前先决门：**`2b6e9d0` exact-head PR CI `37046367948` success；feature branches 已取消重复 push CI。后续 HEAD 变化必须取得新的 exact-head PR CI，旧 SHA 绿灯不移作新证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
