@@ -174,6 +174,11 @@ def test_token_is_released_exactly_once() -> None:
         run_shadow_bounded(lambda: (_ for _ in ()).throw(CancelledError()), budget_seconds=0.2)
         state = shadow_resource_state()
         assert state["capacity_available"] <= state["capacity_total"]
+    # Future.result() may wake before the worker's done callback releases its
+    # token. Bound the wait so a leaked token still fails this assertion.
+    deadline = time.monotonic() + 2.0
+    while shadow_resource_state()["capacity_available"] != SHADOW_CAPACITY and time.monotonic() < deadline:
+        time.sleep(0.01)
     assert shadow_resource_state()["capacity_available"] == SHADOW_CAPACITY
 
 
