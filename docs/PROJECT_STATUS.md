@@ -1,7 +1,7 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-03
+> 更新：2026-10-04
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**用户已授权将全部开放 PR 合并到 main。#142、#145–#146、#148–#160 已合并，main 为 `45e2b94f96f08663ab4c294ef79ca6c892730ce7`。剩余 #147 在 `codex/ci-repository-cleanup` 修复冲突，执行 worktree 为 `D:/study-agent-validation/merge-main-20261003`；原 `codex/document-reading` 工作树保持 clean。最终执行 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，合并基线 main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。当前 `codex/main-browser-closeout` 修复 exact-main 浏览器入口回归，独立 worktree `D:/study-agent-validation/main-browser-closeout-20261004`；原工作树 `codex/search-first-research` 保留未发布的恢复策略草稿。最终执行 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：全部 PR 合并收口（§169.9）。**只读资料阅读 #160 exact-head CI `37133312617` / `6aa4b3e2` 已 success，正式代码已进入 main；其余已合并 PR 均核对原 exact-head CI 与未解决 review threads。#147 保留当前 CI 聚合/取消策略与最新交接文档，只补回 `contents: read` 权限及 mypy baseline 指令。冲突修复的新 head 仍须自己的 CI；最终 main CI 尚待核对。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**核对 #147 冲突修复 head 的 PR CI；绿后以 expected-head 保护合并到 main，再记录最终 exact-main CI。全部合并收口后回到 §169-M3，只读呈现 primary NextStep、到期 revision 与 current-turn gap。
+- **当前动作：全部 PR 合并验收（§169.10）。**#147 PR CI `37134505231` / `6fee3798` success 后已合并。最终 main CI `37135080098` / `push` / `a0e000ad` failure：浏览器来源入口误开资料 tab。修复已通过五组浏览器测试53/53及前端368/368、build；等待修复 head 的 exact-main CI，不以关闭浏览器检查替代验收。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务：**修复 head 的 exact-main CI 绿后执行 §170 Research Recovery Loop v1 + Lookup/Standard calibration；用户真实 `opus5.5` 轨迹是 golden regression。Deep Research 单独任务合同，复用现有 Evidence/Synthesis/Auditor；§169-M3 暂后移。
 - **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -18097,3 +18097,13 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **验证与待门禁：**CI outcome/secret allowlist/package/workflow registry 四个 owner 文件71 passed / 16.05s；Ruff 全库 PASS，UTF-8 YAML 权限与 concurrency 不变量 PASS，diff-check/scope audit PASS。workflow/指令/docs-only 不重跑 L3；新 #147 head 必须单独 PR CI 通过，之后 expected-head 合并，再核对最终 exact-main CI；在两项完成前不称全部合并交付 CLOSED。Git fetch 一次下载阻塞，确认仅为本次 fetch 的 remote-https/index-pack 等待；停止该次下载后用 low-speed timeout 重取 main 成功，无 production 修复。所有证据日志在仓库外。
 
 **唯一下一步：**核对 #147 新 head 的已记录 PR run；success 后合并 #147，再记录最终 main SHA/run。完成后继续 §169-M3 read-only Resume + Review convergence；release/judge 权限不因代码合并提升。
+
+### 169.10 exact-main 浏览器回归修复（2026-10-04，LOCAL GO / REMOTE PENDING）
+
+**合并事实：**#147 `6fee37984b632d362db1919302551bdcef9fc749` 的 PR run `37134505231` success；全部17个 PR 已合并，main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。该 exact-main push run `37135080098` failure，原因是 browser_e2e；后端/RAG/Ruff/package/secrets/mypy baseline/前端/real-stack gates 均通过。旧 head 的 success 不覆盖这个失败。
+
+**根因与修复：**阅读入口将 SourcesPanel.initialTab 全局硬编码为 library，覆盖了“更多→资料与来源”的 answer evidence 入口。现在按入口明确选择 tab：阅读资料→library，更多→answer。浏览器用例保留旧断言并新增两入口往返验收。全量前端首次发现滚动单测在初始定位 passive effect 完成前写 scrollTop；以 await act 完成初始文档加载再模拟用户滚动，DOM identity 和 scrollTop 保留断言均不放宽。
+
+**验证：**相关前端14 passed；全量368 passed / 92 files，tsc + vite build PASS。隔离端口5175、Chromium/Firefox/WebKit及移动配置共53 browser tests PASS / 1.7m，完整运行保留 global teardown 的53份 artifact gate；单项目诊断运行的 artifact 数不足不是生产故障。生产改动仅 WorkspaceView 入口，不重复后端 L3。diff-check/scope audit PASS。已知大 JS chunk warning 为既有性能债。修复发布后只记录一次新 exact-main run；未 green 前状态为 REMOTE PENDING。
+
+**接续：**按用户最新授权，main 收口后先做搜索恢复控制，再校准预算。简单新事实查询应先搜再消歧，短追问继承原研究对象；不能搜“快去”或自动要求用户重新授权。Lookup/Standard 与独立 Deep Research 的冻结范围见下一批 §170，均不得降低 evidence/citation/judge 权限。

@@ -86,6 +86,16 @@ test("sources drawer separates adopted evidence, documents, and diagnostics", as
   await expect(panel.getByText(SOURCE_CANDIDATE_TITLE, { exact: true })).toHaveCount(0);
   await expect(panel.getByText(/分数：/)).toHaveCount(0);
 
+  // The reading launcher opens the library; More -> sources keeps its answer
+  // evidence entry point, including after returning from the reading launcher.
+  await dialog.getByRole("button", { name: "关闭资料与来源", exact: true }).click();
+  await page.getByRole("button", { name: "阅读资料", exact: true }).click();
+  await expect(dialog.getByRole("tab", { name: "我的资料" })).toHaveAttribute("aria-selected", "true");
+  await dialog.getByRole("button", { name: "关闭资料与来源", exact: true }).click();
+  await page.getByLabel("打开更多学习工具").click();
+  await page.getByRole("menuitem", { name: /资料与来源/ }).click();
+  await expect(dialog.getByRole("tab", { name: "本次回答依据" })).toHaveAttribute("aria-selected", "true");
+
   expect(await noHorizontalOverflow(page)).toBe(true);
   expect(fixture.base.unexpectedApiPaths).toEqual([]);
 });

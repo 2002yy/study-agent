@@ -70,7 +70,15 @@ export function WorkspaceView({
   } = controllers;
   const { state, dispatch } = useWorkspace();
   const [readingNavigationKey, setReadingNavigationKey] = useState(0);
-  const openDrawer = (drawer: DrawerId) => dispatch({ type: "OPEN_DRAWER", drawer });
+  const [sourcesInitialTab, setSourcesInitialTab] = useState<"answer" | "library">("answer");
+  const openDrawer = (drawer: DrawerId) => {
+    if (drawer === "sources") setSourcesInitialTab("answer");
+    dispatch({ type: "OPEN_DRAWER", drawer });
+  };
+  const openReadingLibrary = () => {
+    setSourcesInitialTab("library");
+    dispatch({ type: "OPEN_DRAWER", drawer: "sources" });
+  };
   const closeDrawer = () => dispatch({ type: "CLOSE_DRAWER" });
   // G16 decision 1: badge only participates under the ask policy.
   const memoryPolicy = String(
@@ -163,7 +171,7 @@ export function WorkspaceView({
       isSending={learningView.isSending}
       onAsk={(prompt) => ui.setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)}
       onOpen={closeDrawer}
-      onBrowse={() => openDrawer("sources")}
+      onBrowse={openReadingLibrary}
     >
     <AppShell>
       <input
@@ -328,7 +336,8 @@ export function WorkspaceView({
 
       <SlideOver open={state.activeDrawer === "sources"} title="资料与来源" onClose={closeDrawer}>
         <SourcesPanel
-          initialTab="library"
+          key={sourcesInitialTab}
+          initialTab={sourcesInitialTab}
           lastChat={chatController.lastChat}
           ragSearch={ragController.result}
           isSearching={ragController.isSearching}

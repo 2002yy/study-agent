@@ -60,7 +60,10 @@ describe("reading workspace",()=>{
     expect(screen.queryByText("这是资料的第一段。")).not.toBeInTheDocument();
   });
   it("preserves the reader DOM and scroll position while switching tabs",async()=>{
-    render(<Harness/>);fireEvent.click(screen.getByText("打开正文"));await screen.findByText("这是资料的第一段。");
+    render(<Harness/>);
+    // Finish the initial document positioning before simulating user scrolling.
+    await act(async()=>{fireEvent.click(screen.getByText("打开正文"))});
+    expect(screen.getByText("这是资料的第一段。")).toBeInTheDocument();
     const body=screen.getByLabelText("可滚动资料正文");body.scrollTop=123;
     fireEvent.click(screen.getByRole("button",{name:"对话"}));
     fireEvent.click(screen.getByRole("button",{name:"资料"}));
@@ -96,7 +99,8 @@ describe("reading workspace",()=>{
   });
   it("keeps a global document when the first chat ID is allocated, but clears it on explicit navigation",async()=>{
     const view=render(<Harness sessionId=""/>);
-    fireEvent.click(screen.getByText("打开正文"));await screen.findByText("这是资料的第一段。");
+    await act(async()=>{fireEvent.click(screen.getByText("打开正文"))});
+    expect(screen.getByText("这是资料的第一段。")).toBeInTheDocument();
     const body=screen.getByLabelText("可滚动资料正文");body.scrollTop=77;
     view.rerender(<Harness sessionId="first-chat"/>);
     expect(screen.getByLabelText("可滚动资料正文")).toBe(body);
