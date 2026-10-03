@@ -71,6 +71,13 @@
       "tests/test_research_quality_runner.py",
       "tests/test_multimodal_qualification.py"
     ],
+    "release_benchmark_registry": [
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py"
+    ],
     "read_adequacy": [
       "tests/test_read_adequacy_probe.py"
     ],
@@ -81,6 +88,14 @@
     ]
   },
   "stage_gates": {
+    "release-benchmark-registry": [
+      "tests/test_release_benchmark_registry.py",
+      "tests/test_release_benchmark_plan.py",
+      "tests/test_research_quality_eval.py",
+      "tests/test_research_quality_runner.py",
+      "tests/test_multimodal_qualification.py",
+      "tests/test_rq1c_bounded_qualification.py"
+    ],
     "release-benchmark-foundation": [
       "tests/test_release_benchmark_plan.py",
       "tests/test_research_quality_eval.py",

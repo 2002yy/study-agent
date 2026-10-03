@@ -62,6 +62,7 @@ def test_inventory_excludes_old_cases_and_reports_no_release_readiness() -> None
     assert report["admitted_release_cases"] == 0
     assert report["missing_release_cases"] == 56
     assert report["release_gate"] == "NO_GO"
+    assert report["reason"] == "independent_release_case_admission_incomplete"
 
 
 def test_inventory_fails_closed_if_reserved_holdout_overlaps_calibration(tmp_path) -> None:

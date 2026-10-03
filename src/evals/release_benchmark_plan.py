@@ -180,7 +180,7 @@ def readiness_report(plan: ReleaseBenchmarkPlan, root: Path) -> dict[str, object
         "admitted_release_cases": 0,
         "missing_release_cases": plan.target_total,
         "release_gate": "NO_GO",
-        "reason": "independent_release_case_registry_absent",
+        "reason": "independent_release_case_admission_incomplete",
         **inventory,
     }
 
