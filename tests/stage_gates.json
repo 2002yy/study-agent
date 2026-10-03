@@ -98,6 +98,20 @@
       "tests/test_active_research_runtime.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
+    ],
+    "retention_review_read": [
+      "tests/test_review_projection.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learner_model_api.py",
+      "tests/test_learner_model_integration.py",
+      "tests/test_learning_truth_repository.py"
+    ],
+    "ci_outcome_consolidation": [
+      "tests/test_ci_outcomes.py",
+      "tests/test_ci_detect_secrets_allowlist.py",
+      "tests/test_mypy_baseline.py"
     ]
   },
   "stage_gates": {
@@ -177,6 +191,17 @@
       "tests/test_active_research_runtime.py",
       "tests/test_research_active_adapter.py",
       "tests/test_reader_backends.py"
+    ],
+    "retention-review-read": [
+      "tests/test_review_projection.py",
+      "tests/test_learning_review.py",
+      "tests/test_learning_review_api.py",
+      "tests/test_learning_closure_truth.py",
+      "tests/test_learner_model_api.py",
+      "tests/test_learner_model_integration.py",
+      "tests/test_learning_truth_repository.py",
+      "tests/test_session_service.py",
+      "tests/test_learning_truth_mini_golden_journey.py"
     ]
   },
   "force_l3_triggers": [

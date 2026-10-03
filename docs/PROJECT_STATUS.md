@@ -1,7 +1,7 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-09-29
+> 更新：2026-10-03
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支为 `codex/release-benchmark-semantic-calibration`，父 Draft PR #154 head `adb409c73b4c491da34f3748d6836d23f04620d2`；§161 校准执行代码 head `c41816a386d5120a4c152b874598feb14e61fffb`。§155 正式复核目标仍是 Draft PR #150 的 exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；当前分支最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**本刀执行分支 `codex/retention-review-read`，基于 Draft PR #155 / `codex/release-benchmark-semantic-calibration` 的 `2b6e9d0a091f1796fd9105baa28b2e7b045f5ea6`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§164-C1b-1 前置审计完成（inner read = class B，无需改 LearnerModelService）；下一步 = C1b-1 runtime wiring**（见 §164.1–§164.14 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心 + C1b-0/0.1 隔离原语已实现**（§164.11 / §164.13）：中性投影、确定性分类器、fail-open observer、**admission token 绑定 future 生命周期**、CAPACITY==WORKERS==2 零 backlog、有界 telemetry；**共 45 tests passed**（parity 22 + isolation 23）。**生产 ChatService 未改动**。**§164.14 审计结论**：LearnerModelService.build = **class B（operationally bounded）** —— 固定数量本地查询、无网络/递归/retry，且 usy_timeout=30000 使锁等待有界；**因此不为 shadow 侵入生产读取链**。**limitation 措辞已修正**：worker 终止**有界**（inner read 自身边界，最坏约 30s），但**不受 outer 250ms budget 约束**；退化语义 = 锁竞争时 shadow 最长不可用约 30s，期间 production 完全继续。**双轨**：主线 A = §164-C1b-1 wiring→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
-- **下一刀唯一任务 = §164-C1b-1 runtime wiring + 无侵入证明**（§164.15 六步 / 八场景 / 独立 latency 测试）；门未过则 §164-C1 保持 OPEN。**Post-§164 Interaction Coordination Layer 只是 design note（见其专节），不是下一刀，也不得混入 C1** —— C1 必须原样闭合后才谈协调架构。
-- **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
+- **当前动作：§169-B1 LOCAL GO，远程 CI 待确认。**复习读取服务/API 已完成（§169.2），生产候选 `2bf5a78b8c4f833e8680259748f9f47c03a04ed8` 的 L3 为 3176 passed / 6 skipped；后续只更新 handoff。§164 runtime adjudication 仍仅保留 G1 objective gate，G2/G3/G4 不获运行时裁决权。§165 / §168 lifecycle 已实现，重复观察不自动 confirmed。§162 自动 semantic judge = NOT QUALIFIED，authority NONE，release NO-GO，未重新打开资格评估。
+- **下一刀唯一任务 = §169-M2 显式复习轮次接线**：先取得本分支 exact-head PR CI，再将用户显式选择的 due claim 接入真实 turn / 既有 evaluation / closure-only writer；pass 增加 UnderstandingEvidence，fail 不降级既有理解、不重置 due。保持 NextStep / ReviewProjection / current gap 的权威分离，不新增 scheduler 或自动裁决。
+- **当前先决门：**基础 `2b6e9d0` exact-head PR CI `37046367948` success；本分支完成本地门，新的 exact-head PR CI 尚待确认，不能借用基础绿灯。feature branches 不跑重复 push CI；PR 的首次 exact-head run snapshot 保存在 PR body，可按 `codex/retention-review-read` 查找。不轮询等 CI、不宣称 REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -17951,3 +17951,20 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **下一步（§169-B，非本刀）**：实现 ReviewProjection（纯读，优先不新增实体），
 先证明"纯读投影是否够用"；不够才考虑 ReviewItem persistence。
+
+### 169.2 §169-B1 Thread-scoped review read path + CI consolidation（2026-10-03）
+
+**结果：LOCAL GO；REMOTE PENDING。**分支 `codex/retention-review-read`，基础为 Draft PR #155 / `2b6e9d0a091f1796fd9105baa28b2e7b045f5ea6`。独立治理提交 `81a9aba7` 修正过期 §0；产品提交 `15660f40` 接上复习读取；CI 提交 `4cd4e9b0` 合并诊断与结果收口，`2bf5a78b` 补齐浏览器前置条件。全量验证的生产候选为 `2bf5a78b8c4f833e8680259748f9f47c03a04ed8`；最终文档 HEAD 以 Git 为准。
+
+- `LearningReviewService` 只依赖现有 truth reader，读取线程 focused goal 的最新 linked revision；不继承 superseded revision 的 pass。沿用 §169-B 唯一纯投影函数和固定 7 天间隔，无新数据库实体或 writer。
+- `GET /sessions/{session_id}/reviews`：session 不存在返回 404；`limit=1..100`（默认 20）、`offset>=0`、`due_only`。due-first / 到期时间 / revision ID 排序；返回分页 total 和 due_count，不暴露原始 learner response。分页限制响应大小，现有 repository reader 仍读取 focused goal 的 revision history；不宣称查询数量有固定上限。
+- 同一 revision 的 later fail 不降级原 pass、不重置 due；new pass 更新最后验证时间。真实 closure evidence 经只读 service 消费，完整 SQLite dump 前后一致。没有注入默认 chat、自动评估、自动确认、StudyContext 或 G2/G3/G4 authority。
+- CI 从 **30 steps → 17 steps**，**8 uploads → 1**；保留 pytest、RAG local harness、Ruff、packaging、secret scan、mypy no-new-errors、frontend unit/build。job ID `test` 不变；browser install / golden / real-stack 仍只在 main push / manual 执行，前置失败则跳过下游执行，最终 gate 把 missing/skipped required checks 判失败。使用实际 outcome，不能被 `continue-on-error` conclusion 隐藏。保留 PR/main/manual 触发和取消旧 run 的去重策略。
+
+**验证：**combined L1 80 passed；review L2 49 passed；最终 CI/policy focused 53 passed；L3 **3176 passed / 6 skipped，1109.63s**。Ruff PASS；mypy 122 current / 128 baseline，no new errors；RAG local harness PASS；变更范围 secrets 0；`git diff --check` PASS，候选 tracked/untracked clean。
+
+**环境失败与恢复：**首轮 L3 在约 83% 后因 C: free=0 出现大量 setup errors，输出也因磁盘空间不足中断；该轮不计作产品回归结果。失败日志保存在 `D:\study-agent-validation\retention-review-20261003\l3-c-drive-full.log`。本轮 pytest 临时数据约 1.67 GB，归档到 D: 后 C: 恢复约 1.7 GB；未清理其他窗口/历史目录。递归删除被自动审批 `blocked by policy` 拒绝，改用保留数据的归档；单个 readonly fixture 残留仍留在原 pytest-592 目录。第二轮使用 D: TEMP/TMP 和专用 `--basetemp`，结果全绿，日志 `D:\study-agent-validation\retention-review-20261003\l3-d-drive.log`。未来本机 L3 使用 D: 临时空间；不要对这个已通过候选再次全量。
+
+**远程收口：**最终文档提交后 push 并创建独立 stacked Draft PR，以 `codex/release-benchmark-semantic-calibration` 为 base。只查询一次 final exact-head CI；run ID/event/head/status 保存在 PR body。尚未有该 HEAD success，不能宣称 REMOTE GO / DELIVERED，也不 merge。
+
+**唯一下一刀：**取得 exact-head CI 后，进入 §169-M2 显式复习轮次；保持 existing evaluation + closure-only writer，不产生新的自动 judge authority。

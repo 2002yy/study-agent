@@ -185,6 +185,23 @@ def test_explicit_closure_reconverges_source_then_commits_claim_and_understandin
     assert truth.get_focus_goal("thread-1") == goal
     assert len(truth.list_goal_revisions(first.goal_id)) == 1
     assert truth.list_understanding_for_revision(first.claim_revision_id)
+    # The review read path consumes closure-owned validation without any writer.
+    from datetime import datetime, timedelta, timezone
+
+    from src.application.learning_review import LearningReviewService
+
+    evidence, _result = truth.list_understanding_for_revision(first.claim_revision_id)[0]
+    verified = datetime.fromisoformat(evidence.verified_at.replace("Z", "+00:00"))
+    if verified.tzinfo is None:
+        verified = verified.replace(tzinfo=timezone.utc)
+    with database.connect() as connection:
+        before = "\n".join(connection.iterdump())
+    review = LearningReviewService(truth)
+    assert not review.build("thread-1", now=verified).items[0].due
+    assert review.build("thread-1", now=verified + timedelta(days=7)).items[0].due
+    assert review.build("another-thread", now=verified).items == ()
+    with database.connect() as connection:
+        assert "\n".join(connection.iterdump()) == before
     steps = truth.list_next_steps_for_goal(first.goal_id)
     assert len([item for item in steps if item.status == "active" and item.is_primary]) == 1
     with database.connect() as connection:
