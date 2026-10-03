@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**本刀执行分支 `codex/retention-review-turns`，基于 Draft PR #157 / `codex/retention-review-prompt` 的 `c73925b6812f7a7599c824658fbd40695f1413b3`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**当前执行分支 `codex/review-workspace-ui`，基于 Draft PR #158 / `codex/retention-review-turns` 的 `20da9c74e0260e02cfff971e8d0ef0e0495140ca`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§169-M2B LOCAL GO，后端真实复习链路 CLOSED；REMOTE 尚待最终 exact-head CI。**基础 §169-M2A exact-head PR CI `37113241196` success（`c73925b6`），未 merge。本刀真实 prompt → 显式绑定 answer → 精确 evaluation → explicit closure → 原子 understanding 写入已闭环，见 §169.4。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **当前动作：用户要求的 UI 实页检查及优化 LOCAL GO（§169.5），待新分支 exact-head CI。**§169-M2B 后端真实复习链路 CLOSED，Draft PR #158 的 exact-head CI `37123206375` / `20da9c74` 已 success（未 merge）。真实 prompt → 显式绑定 answer → 精确 evaluation → explicit closure → 原子 understanding 写入已闭环，见 §169.4。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
 - **下一刀唯一任务 = §169-M3 Resume + Review 合流**：先检查当前分支已记录的 exact-head PR CI；绿后冻结最小只读合流契约，再实现线程打开时分别呈现 primary NextStep、到期 revision 和 current-turn gap。保持三者权威分离，不引入 scheduler 或自动导航真值写入。
-- **当前先决门：**L2 266 passed；复核修复后 review/chat 回归 82 passed；完整 L3 在代码候选 `ead6ddc8dd74bc0afe5df63d94b46177779dffca` 为 3236 passed / 6 skipped / 1 failed（旧 shadow 测试异步回调断言竞态）。局部测试修正后 isolation/chat/review 90 passed + shadow consumers 28 passed；无生产/广域 fixture 改动，按 §4.5 不重跑整套。Ruff PASS / mypy current 122 <= baseline 128 / diff-check PASS。远端必须以最终 exact head 的完整 CI 为准。feature branches 不跑重复 push CI；首次 run ID/event/head/status snapshot 保存于当前分支 PR body。不轮询、不借基础绿灯宣称当前 REMOTE GO。
+- **当前先决门：**后端完整回归与旧 shadow 测试竞态闭环见 §169.4，最终 PR CI `37123206375` / event `pull_request` / head `20da9c74e0260e02cfff971e8d0ef0e0495140ca` completed/success。本 UI 批次仅 CSS、页面语言/标题和旧 CSS 契约断言，无后端生产行为/fixture/依赖变更，不重跑 backend L3；前端影响测试 22 passed、build PASS、三种 viewport 实页验收 PASS。新的 exact-head CI 尚待确认，首个 run snapshot 保存当前 PR body；不轮询，不借基础绿灯宣称 UI REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18018,8 +18018,22 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **L3 单项失败与修复：**`tests/test_shadow_isolation.py::test_token_is_released_exactly_once` 最后立即断言 available=2，实际为1。已核对本机 stdlib `Future.set_result`：先 notify result waiters，再 `_invoke_callbacks`；production token 由 done callback 释放，所以 caller 已返回不保证 callback 已完成。修正仅在最终全容量断言前最多等待2秒（仍检测漏释放，循环内仍检测超额），不改 production semaphore/worker、fixture 或预算。受影响 90+28 测试通过；§4.5 的二次 L3 触发条件未成立，故不重复整套，也不把首轮 L3 记成全绿。远端最终 exact-head CI 承接完整 green gate。
 
-**交付边界：**stacked branch `codex/retention-review-turns` → base `codex/retention-review-prompt` / `c73925b6`；代码候选为上述 `ead6ddc8`，后续只有局部旧测试断言和封板文档。最终 head 用 `git rev-parse HEAD`，工作树 tracked clean；PR body 记录最终 head 与唯一 CI snapshot。未 merge，CI success 前不得称 REMOTE GO。
+**交付证据：**Draft PR [#158](https://github.com/2002yy/study-agent/pull/158)，stacked branch `codex/retention-review-turns` → base `codex/retention-review-prompt` / `c73925b6`；代码候选为上述 `ead6ddc8`，后续只有局部旧测试断言和封板文档。最终 head `20da9c74e0260e02cfff971e8d0ef0e0495140ca`，tracked clean；exact-head PR CI [37123206375](https://github.com/2002yy/study-agent/actions/runs/37123206375) / pull_request / completed / success。因用户追加状态询问及 UI 任务，一次检查已记录的 run 确认最终结果；无 CI polling。M2B REMOTE GO（未 merge），不代表 semantic release NO-GO 已解锁。
 
 **已知边界：**后端显式 API 链路；没有复习 UI、后台 scheduler、ReviewItem、自动 Goal completion 或新 judge authority。§162 资格门、§164 G1-only runtime 保持。
 
 **唯一下一刀：**当前 exact-head CI 绿后进入 §169-M3 只读 Resume + Review 合流契约及实现。不要把 review failure 或 current gap 写成 durable NextStep，也不要重开 §169.3 binding/write authority 决策。
+
+### 169.5 用户追加：学习工作台 UI 实页优化（2026-10-03，LOCAL GO）
+
+**范围：**分支 `codex/review-workspace-ui` 基于 PR #158 exact head `20da9c74`。用户明确要求打开页面并优化 UI，因此本次为独立 presentation batch，未提前实现 M3 truth/navigation authority。
+
+**实页发现与修改：**真实 `http://127.0.0.1:5173/` 加载已有20个会话后，sidebar heading/count 挤在一起，session group 自动 min-content grid 使列表 scrollWidth=487、横向溢出；调整 header flex/grid 和 group 的 `minmax(0,1fr)`，最终 sidebar clientWidth=scrollWidth=264，rename controls 可见。桌面 sender 原被拉高至整个151px composer 区，改成88×44px独立按钮；composer 收窄至960px阅读宽度。新任务卡最大880px、标题20–26px、解释及入口字号提高。手机主要动作与三个工具改成单行44px touch targets，390×844 topbar 从约186px降至134.67px；input/send 同排。页面标题改为 `Study Agent · 学习工作台`，lang=`zh-CN`。
+
+**渲染 QA：**Browser plugin not available，使用已有 Playwright Chromium（headed），无新增 browser/dependency；1600×900、390×844、360×520。page identity、非空、无框架遮罩、console health、截图、交互 PASS；fresh context response errors=[] / console=[]。桌面 search 无匹配→清空恢复列表；系统学习入口→input 填入且发送 enabled（未发送/调用provider）；更多→资料 drawer→关闭；手机 history drawer 开关；360×520 More menu 完整位于 viewport，文档无横向溢出。只检查 Chromium，未宣称 Firefox/WebKit 或真实模型回答通过。
+
+**本地 gates：**初次 `npm run test -- ...` 由于脚本自带 `src`，实际跑全部 frontend unit：351 passed / 1 failed（旧 mobile CSS source contract 固定两行 grid，与本次实页优化冲突）。只更新该布局断言；`npx vitest run` 六个直接 owner test files 22 passed / 1.10s。`npm run build` PASS（tsc + vite）；既有 >500kB chunk warning 是单独性能债，无本刀依赖/打包行为扩张。diff-check / scope audit PASS，backend L3 不重跑。
+
+**截图（仓库外）：**`D:/study-agent-validation/retention-review-20261003/ui-after-desktop.png`、`ui-after-mobile.png`、`ui-after-narrow-tools.png`；before/loaded截图同目录。实际浏览器和本地服务保持可用以便用户查看。当前 UI 分支 final head 用 `git rev-parse HEAD`，exact-head CI snapshot 记录其 Draft PR body；绿色前 UI REMOTE PENDING。
+
+**下一步：**核对本 UI 批次已记录的 exact-head CI；绿后按 §169-M3 冻结只读 resume/review 合流契约并实现。此次没有复习 UI 接线、scheduler、Goal/NextStep 写入或 judge qualification。
