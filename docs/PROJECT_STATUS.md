@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，合并基线 main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。当前 `codex/main-browser-closeout` 修复 exact-main 浏览器入口回归，独立 worktree `D:/study-agent-validation/main-browser-closeout-20261004`；原工作树 `codex/search-first-research` 保留未发布的恢复策略草稿。最终执行 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并。main 修复 head=`5a3199aa1d879e432bdb8f3103507c0528f0e62c`（base=`a0e000ad`），已推送。主工作树 `codex/search-first-research` 已同步该 main，仅记录 §170 合同；未验证的八文件恢复草稿已保存为具名 stash（见 §170.4）。最终本地 docs-only HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：全部 PR 合并验收（§169.10）。**#147 PR CI `37134505231` / `6fee3798` success 后已合并。最终 main CI `37135080098` / `push` / `a0e000ad` failure：浏览器来源入口误开资料 tab。修复已通过五组浏览器测试53/53及前端368/368、build；等待修复 head 的 exact-main CI，不以关闭浏览器检查替代验收。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **当前动作：全部 PR 合并验收（§169.10）。**#147 PR CI `37134505231` / `6fee3798` success 后已合并。旧 main CI `37135080098` / `a0e000ad` failure 已修复，五组浏览器53/53、前端368/368及build通过。新 exact-main run=`37137943243` / push / `5a3199aa…`，一次查询为 in_progress；本轮不轮询，尚不宣称 REMOTE GO。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
 - **下一刀唯一任务：**修复 head 的 exact-main CI 绿后执行 §170 Research Recovery Loop v1 + Lookup/Standard calibration；用户真实 `opus5.5` 轨迹是 golden regression。Deep Research 单独任务合同，复用现有 Evidence/Synthesis/Auditor；§169-M3 暂后移。
 - **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
 - **权威证据位置：**
@@ -18107,3 +18107,57 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **验证：**相关前端14 passed；全量368 passed / 92 files，tsc + vite build PASS。隔离端口5175、Chromium/Firefox/WebKit及移动配置共53 browser tests PASS / 1.7m，完整运行保留 global teardown 的53份 artifact gate；单项目诊断运行的 artifact 数不足不是生产故障。生产改动仅 WorkspaceView 入口，不重复后端 L3。diff-check/scope audit PASS。已知大 JS chunk warning 为既有性能债。修复发布后只记录一次新 exact-main run；未 green 前状态为 REMOTE PENDING。
 
 **接续：**按用户最新授权，main 收口后先做搜索恢复控制，再校准预算。简单新事实查询应先搜再消歧，短追问继承原研究对象；不能搜“快去”或自动要求用户重新授权。Lookup/Standard 与独立 Deep Research 的冻结范围见下一批 §170，均不得降低 evidence/citation/judge 权限。
+
+## 170. Research Recovery Loop v1 与三级研究路线（2026-10-04，CONTRACT FROZEN / IMPLEMENTATION NEXT）
+
+**来源与执行权：**用户真实应用轨迹和两份同步路线决定本合同；文档中的外部产品描述不是本仓库验收证据。先以 §169.10 修复 head 的 exact-main CI 闭环，再执行本批。一个 coherent slice 完成控制策略、预算槽、golden regression 和验收，减少微提交和重复 CI。§169-M3 暂后移；Deep 是后续独立任务合同，不借本批声称完整深度研究已实现。
+
+### 170.1 模式边界
+
+| 模式 | 任务 | 本批边界 |
+| --- | --- | --- |
+| Lookup | 单对象的近期事实，典型 `请联网研究：opus5.5` | 按复杂度选择，不能仅因“研究”二字升级 Deep；目标10–30s、1–3 reads、1–2 queries。存在恢复缺口时用明确的受限恢复策略，而不是零正文提前回答。 |
+| Standard | 多来源核对、有限横向比较 | 本批主线；先修 Recovery Policy，再校准预算。起始保留60s hard；75s 为需要实测支持的第二阶段，最终60–90s体验目标不等于当前硬预算授权。 |
+| Deep | 多维决策报告、多实体研究图 | 显式 Deep 请求至少选 Deep；按复杂度升级。独立 ResearchPlan / RQs / evidence needs / adaptive search-read / backtracking / conflict / progress-steering / convergence。不得只将 Standard 的 reads、timeout 放大。 |
+
+三级共享既有 **Evidence → Synthesis → Final Answer Auditor**；不创建第二套 Deep evidence 或 judge authority。G18 当前 escalation/Deep 入口不构成本合同全部实现。
+
+### 170.2 Recovery 控制与预算槽
+
+1. 外部数据策略允许网络后，未知名称也先检索，再依据读到的来源消歧；不再次要求用户授权或自行提供官方入口。
+2. 同一许可历史内的“claude啊？”给原主题加限定；“快去”“刚刚你没有搜？”承接原查询。历史仅提供 query lead，不充当 evidence。history off / ask / deny 仍按原策略执行；新实体/新主题不得错误继承旧研究。
+3. `NEEDS_MORE_RESEARCH` 与 epistemic `UNKNOWN` 分离；仅候选、零正文、无关主页不构成已完成。可恢复动作和信息收益仍存在且 finalization reserve 保留时，禁止提前 Finalize。
+4. 顺序按缺口选 **alternate read → query rewrite → authoritative-domain refinement → release/docs/model-list page refinement**。域与别名仅是搜索假设，不证明厂商归属、版本存在或语义支持。搜索摘要仍为候选；读取成功仍不等于 page adequacy 或 qualified judge pass。
+5. Standard v1 hard reads=5，其中 base=3、recovery reserve=2；仅 research_required + answer gate blocked + recoverable action 存在才能动 reserve。单源6000 chars不变，总量16000→24000；正常任务不应为了用完预算而读取五页。
+6. query rewrite≤2；authoritative-domain refinement至少保留1次机会、最多2次；alternate recovery reads≤2，均受总查询/读取/时间上限约束。base 读取不能吞光权威域恢复槽。
+7. Standard model-call cap≤6保持；恢复动作优先复用确定性调度，不新增模型调用来绕 cap。当前60s硬预算内保留10–15s finalization reserve（初始12s，research deadline≤48s）。需区分 provider timeout 与整个任务 deadline，单页超时仍可换候选；取消/迟到结果不得写回。
+8. 先用60s跑真实 golden case；仅反复证实控制已正确且仍卡时间尾部，才单独启用 soft60s/hard75s，同时保留finalization reserve。不能仅因 provider/scheduling 低效放大 hard cap。
+9. 停止原因结构化：read-backed progress / evidence saturation / budget exhaustion / hard tool failure / cancelled，保留 attempts、query、拒绝原因、counter 和已取得证据。恢复耗尽不证明对象不存在。
+10. meaningful evidence gain 判定与 budget 同时约束。官方模型列表、release/news、docs/API IDs已覆盖却无增益时，即使有时间也可以 saturation stop；重复URL、重复主页、重复内容不得无限重试。多问题覆盖未完成时，单页相关不能把整个比较研究写成 complete。
+
+### 170.3 独立 Deep Research v1 设计目标
+
+以下为 **Study Agent 工程起始目标**，不是其他产品的内部参数；正式 Deep implementation batch 前需将 scheduler、reserve、admission 和验收冻结为独立合同。
+
+| 资源 | soft target | hard cap |
+| --- | --- | --- |
+| wall clock | 3min | 8min |
+| queries | 12 | 24 |
+| document reads | 20 | 40 |
+| deep/full reads | 8 | 16 |
+| model/reasoning turns | 10 | 20 |
+| extracted chars | 100k | 250k |
+
+ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和 evidence needs；允许因新实体、矛盾、未覆盖方面调整后续研究。主停止依据为问题覆盖、独立支持和信息增益收敛，hard cap 保留为安全边界；最近读取无 new claims/entities/conflicts/coverage gain 时可提前停止。进度、用户 steering 与 cancel 要可恢复；不得因运行数分钟自动提高 publication/confirmed memory 权限。默认 judge abstain、§162 release NO-GO、现有 citation/support 审计边界保持。
+
+### 170.4 失败样本、实施恢复点与验收
+
+**已定位：**真实初始 `web_lookup_ed3dea992f594f45b3f32ffdb7170216` 的 explicit research 落到12s模型tool loop后超时、零正文；普通追问则按当前消息原文搜，“快去”读了快手。Claude主页不覆盖指定版本。SearXNG8080未运行，但现有BingRSS fallback能返回针对原主题的官方候选；这是控制/运行环境与预算叠加问题，不能归结为用户必须先消歧，也不能用 snippet 冒充完成。
+
+**安全保存点：**主分支 `codex/search-first-research`，base=`5a3199aa…`。未验证原型保存为 stash 对象 `c331e713a9f9e40f1f3662be056b610f311383b6`，具名 **search-first-research prototype before exact-main gate 20261004**，含6个tracked修改及2个新模块 conversation_query/research_recovery；没有发布或接管运行中的服务。恢复时按名称/对象SHA定位，避免依赖易变 stash index。原型还缺预算槽/完整接线/测试，存在旧30s、6reads、8000chars临时默认值，不能直接作为候选生产 head。用 stash apply 保留备份，修到本合同再清理。
+
+**impact set：**conversation_query/recovery新测试 + persistent_web_agent、web_tool_agent、llm_tool_loop_budget、web_query_normalizer、web_lookup_research_contract、research_web_lookup_dispatch、research_evidence_chat_truth、external_data_policy、chat_service、chat_turn_cancellation、answer_publication_gate；将最终impact与L2集合写入 tests/stage_gates.json。触及公共 tool_evidence projection 时必须对最终候选跑一次L3，不能以仅某个新模块通过替代。保留现有 GitHub planned tools、默认 reader chain、来源绑定及历史许可语义。
+
+**golden 首案：**完整 replay `请联网研究：opus5.5 → 是最新的a÷模型… → claude啊？ → 刚刚你没有搜？ → 快去`，断言主题/版本不丢、不搜快去、不采用无关主页；首候选失效会换页和改写，官方域恢复机会不丢，正文与候选投影分开。包含官方未发现版本、read timeout、disabled provider、无关/重复正文、budget/reserve耗尽、cancel/late-write、新主题及history策略negative controls。mock golden 保证稳定，真实 fallback + read + DeepSeek回答仅跑一次明确标记的qualification，不当作常规测试或qualified truth。
+
+**下一执行动作：**下一轮只查已知 `37137943243` 的 exact-main结果；success后用保存原型执行 §170.2 整刀实现与golden预算校准，再一次提交/PR及exact-head CI。failure则只读失败gate并在修复slice闭环。没有新一轮架构review或权限询问需求。
