@@ -113,6 +113,7 @@
       "tests/test_rq1c_bounded_qualification.py"
     ],
     "release-benchmark-pilot": [
+        "tests/test_release_benchmark_semantic_probe.py",
         "tests/test_release_benchmark_answer_pilot.py",
       "tests/test_release_benchmark_recorded_pilot.py",
       "tests/test_release_benchmark_replay.py",
