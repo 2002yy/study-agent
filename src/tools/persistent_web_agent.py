@@ -18,6 +18,8 @@ from src.tools.web_agent import (
     _env_int,
 )
 from src.web.query_normalizer import normalize_web_query
+from src.web.conversation_query import conversation_search_query
+from src.web.research_recovery import recover_public_research, recovery_budget
 
 if TYPE_CHECKING:
     from src.application.web_lookup_service import WebLookupService
@@ -201,46 +203,28 @@ class PersistentWebToolAgent(WebToolAgent):
         ]
         try:
             if (
-                not research_intent
-                and not _requires_planned_tools(user_input)
+                not _requires_planned_tools(user_input)
                 and self.submit_tool_loop is None
             ):
-                focused_query = (
-                    query_context.canonical_query or query_context.raw_query or user_input
+                focused_query = conversation_search_query(
+                    user_input, conversation_context
                 )
-                result = self.gateway.search_exact(focused_query, max_results=5)
-                calls = [
-                    {
-                        "name": "web_search",
-                        "arguments": {"query": focused_query, "max_results": 5},
-                        "result": result,
-                    }
-                ]
-                results = result.get("results") if isinstance(result, dict) else None
-                first_url = ""
-                if isinstance(results, list):
-                    for item in results:
-                        if isinstance(item, dict):
-                            first_url = str(item.get("url") or item.get("link") or "").strip()
-                            if first_url:
-                                break
-                read_method = getattr(self.gateway, "read", None)
-                if first_url and callable(read_method):
-                    try:
-                        read_result = read_method(first_url, max_chars=8000)
-                    except Exception as exc:
-                        read_result = {
-                            "ok": False,
-                            "url": first_url,
-                            "error": f"{type(exc).__name__}: {exc}",
-                        }
-                    calls.append(
-                        {
-                            "name": "web_read",
-                            "arguments": {"url": first_url, "max_chars": 8000},
-                            "result": read_result,
-                        }
-                    )
+                if not focused_query:
+                    raise ValueError("没有可承接的研究主题；请提供要查询的名称或问题")
+                budget = recovery_budget(focused_query)
+                answer_deadline = time.monotonic() + budget.hard_seconds
+                calls = recover_public_research(
+                    self.gateway,
+                    focused_query,
+                    budget=budget,
+                    should_cancel=lambda: bool(
+                        run is not None
+                        and self.research_service is not None
+                        and self.research_service.tool_trace_cancel_requested(
+                            run.id, operation_id
+                        )
+                    ),
+                )
                 trace_error = persistence_error
                 if run is not None:
                     preview = WebToolTrace(calls=tuple(calls), run_id=run.id)
@@ -252,7 +236,10 @@ class PersistentWebToolAgent(WebToolAgent):
                     )
                 return WebToolTrace(
                     calls=tuple(calls),
-                    error=trace_error,
+                    answer_deadline=answer_deadline,
+                    error=("ResearchCancelled: Research cancelled by user"
+                           if calls[-1].get("result", {}).get("status") == "cancelled"
+                           else trace_error),
                     run_id=(run.id if run else ""),
                 )
 
@@ -288,15 +275,17 @@ class PersistentWebToolAgent(WebToolAgent):
                     maximum=5,
                 ),
                 should_cancel=(
-                    lambda: time.monotonic() >= deadline
-                    or (
-                        self.research_service.tool_trace_cancel_requested(
-                            run.id, operation_id
+                    lambda: (
+                        time.monotonic() >= deadline
+                        or (
+                            self.research_service.tool_trace_cancel_requested(
+                                run.id, operation_id
+                            )
+                            if self.research_service is not None
+                            and run is not None
+                            and operation_id
+                            else False
                         )
-                        if self.research_service is not None
-                        and run is not None
-                        and operation_id
-                        else False
                     )
                 ),
                 timeout=float(total_budget),
@@ -367,9 +356,7 @@ class PersistentWebToolAgent(WebToolAgent):
         every round, not just the first page of hits.
         """
         stripped = user_input.strip()
-        query = (
-            stripped[len(DEEP_RESEARCH_PREFIX):].strip() or stripped
-        )
+        query = stripped[len(DEEP_RESEARCH_PREFIX) :].strip() or stripped
         error = ""
         calls: list[dict[str, Any]] = []
         run = None
@@ -472,7 +459,5 @@ class PersistentWebToolAgent(WebToolAgent):
             max_impact_files=int(arguments.get("max_impact_files", 40)),
             max_edges=int(arguments.get("max_edges", 160)),
             max_provider_requests=int(arguments.get("max_provider_requests", 24)),
-            max_pages_per_collection=int(
-                arguments.get("max_pages_per_collection", 10)
-            ),
+            max_pages_per_collection=int(arguments.get("max_pages_per_collection", 10)),
         )

@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并。main 修复 head=`5a3199aa1d879e432bdb8f3103507c0528f0e62c`（base=`a0e000ad`），已推送。主工作树 `codex/search-first-research` 已同步该 main，仅记录 §170 合同；未验证的八文件恢复草稿已保存为具名 stash（见 §170.4）。最终本地 docs-only HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` CI success，合并收口 CLOSED。当前 `codex/search-first-research` 以该 main 为 base，合同提交 `c068dc0b4819cebe1bd56d7633d5596433030911`，§170 Lookup/Standard 恢复实现与验收见 §170.5–§170.6；最终实现 head 以 `git rev-parse HEAD` / 对应 PR 为准。原型 stash 保留为安全备份，已被本批实现替代。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：全部 PR 合并验收（§169.10）。**#147 PR CI `37134505231` / `6fee3798` success 后已合并。旧 main CI `37135080098` / `a0e000ad` failure 已修复，五组浏览器53/53、前端368/368及build通过。新 exact-main run=`37137943243` / push / `5a3199aa…`，一次查询为 in_progress；本轮不轮询，尚不宣称 REMOTE GO。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**修复 head 的 exact-main CI 绿后执行 §170 Research Recovery Loop v1 + Lookup/Standard calibration；用户真实 `opus5.5` 轨迹是 golden regression。Deep Research 单独任务合同，复用现有 Evidence/Synthesis/Auditor；§169-M3 暂后移。
-- **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
+- **当前动作：§170 Research Recovery Loop v1 实现收口。**§169.10 exact-main run=`37137943243` / push / `5a3199aa…` completed/success，全部 PR 合并验收 CLOSED。本批保留 Lookup 30s / Standard 60s hard，不扩75s、不新增 provider、不实现独立 Deep runtime。当前实现的远端状态按其 exact-head PR CI 单独记录；main 的绿灯不覆盖本批。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务：**先核对本批 exact-head PR CI；绿后对 Lookup/Standard 做有界分布校准，测成功/恢复任务 p50/p95、deadline exhaustion、recovery slots 和 unique docs/families。只有调度健康仍稳定卡60s尾部，才另刀考虑75s。Deep Research 只留合同，§169-M3 暂后移。
+- **当前先决门：**LOCAL GO。named L2 `research-recovery-v1` 20文件202 passed / 88.39s；Ruff、diff-check、package/secret scan PASS；expanded mypy baseline PASS（current122 / baseline128，无新增错误）。backend L3 3292 passed / 6 skipped，两个clean-checkout前置拒绝在提交后所属测试2/2通过，生产代码未变，分段证据见 §170.6。真实隔离 `opus5.5` 回归 research7.922s / total12.844s，2 reads / 2 canonical docs / 2 source families，采用官方发布页；diagnostic only，未授予语义资格或写入真实用户会话。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18098,7 +18098,7 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **唯一下一步：**核对 #147 新 head 的已记录 PR run；success 后合并 #147，再记录最终 main SHA/run。完成后继续 §169-M3 read-only Resume + Review convergence；release/judge 权限不因代码合并提升。
 
-### 169.10 exact-main 浏览器回归修复（2026-10-04，LOCAL GO / REMOTE PENDING）
+### 169.10 exact-main 浏览器回归修复（2026-10-04，CLOSED / REMOTE GO）
 
 **合并事实：**#147 `6fee37984b632d362db1919302551bdcef9fc749` 的 PR run `37134505231` success；全部17个 PR 已合并，main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。该 exact-main push run `37135080098` failure，原因是 browser_e2e；后端/RAG/Ruff/package/secrets/mypy baseline/前端/real-stack gates 均通过。旧 head 的 success 不覆盖这个失败。
 
@@ -18108,7 +18108,9 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **接续：**按用户最新授权，main 收口后先做搜索恢复控制，再校准预算。简单新事实查询应先搜再消歧，短追问继承原研究对象；不能搜“快去”或自动要求用户重新授权。Lookup/Standard 与独立 Deep Research 的冻结范围见下一批 §170，均不得降低 evidence/citation/judge 权限。
 
-## 170. Research Recovery Loop v1 与三级研究路线（2026-10-04，CONTRACT FROZEN / IMPLEMENTATION NEXT）
+**最终门：**exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` 的 push run `37137943243` completed/success（2026-10-04 核对）。全部17个 PR 合并与 main 修复验收 CLOSED。该结果仅覆盖 main 修复 head，不覆盖后续 §170 实现。
+
+## 170. Research Recovery Loop v1 与三级研究路线（2026-10-04，LOCAL GO / REMOTE PENDING）
 
 **来源与执行权：**用户真实应用轨迹和两份同步路线决定本合同；文档中的外部产品描述不是本仓库验收证据。先以 §169.10 修复 head 的 exact-main CI 闭环，再执行本批。一个 coherent slice 完成控制策略、预算槽、golden regression 和验收，减少微提交和重复 CI。§169-M3 暂后移；Deep 是后续独立任务合同，不借本批声称完整深度研究已实现。
 
@@ -18160,4 +18162,27 @@ ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和
 
 **golden 首案：**完整 replay `请联网研究：opus5.5 → 是最新的a÷模型… → claude啊？ → 刚刚你没有搜？ → 快去`，断言主题/版本不丢、不搜快去、不采用无关主页；首候选失效会换页和改写，官方域恢复机会不丢，正文与候选投影分开。包含官方未发现版本、read timeout、disabled provider、无关/重复正文、budget/reserve耗尽、cancel/late-write、新主题及history策略negative controls。mock golden 保证稳定，真实 fallback + read + DeepSeek回答仅跑一次明确标记的qualification，不当作常规测试或qualified truth。
 
-**下一执行动作：**下一轮只查已知 `37137943243` 的 exact-main结果；success后用保存原型执行 §170.2 整刀实现与golden预算校准，再一次提交/PR及exact-head CI。failure则只读失败gate并在修复slice闭环。没有新一轮架构review或权限询问需求。
+**历史执行动作（已完成）：**已查 `37137943243` exact-main success，已apply保存原型并完成 §170.2 实现及golden验收。当前唯一下一步由 §0 / §170.6 指定，不再重查旧main或恢复旧原型。
+
+### 170.5 候选调度与终止语义补充（2026-10-04，FROZEN / IMPLEMENTED）
+
+**用户补充执行权：**本刀收口于 tier policy、Lookup/Standard recovery、topic inheritance、candidate diversity/dedup、provider/deadline stop semantics、finalization reserve、late-result containment、golden trajectories。禁止借机新增 provider、扩大 wall clock 或实施 Deep runtime。
+
+- Recovery reserve 买新的证据机会。CandidateScheduler 在网络读取前排除 exact URL、canonical scheduling family、语言/地区变体及已知 redirect target；被排除的候选不占 read/recovery slot。canonical identity 仅用于调度，不替换实际 URL、不跨语言/重定向授权 citation。
+- 排序依次考虑失败站点惩罚、authority、来源 host family 多样性与既有 relevance。未知失败一次降权、两次本轮 cooldown；明确 region/access wall 一次即 cooldown。host failure memory 只属于本次运行，不建立长期 reputation。
+- `PROVIDER_EXHAUSTED`、`DEADLINE_EXHAUSTED`、`CANDIDATE_EXHAUSTED`、`EVIDENCE_SATURATED` 分开持久记录。timeout / unavailable 减少可执行路径，不提高知识置信度。零正文且候选重复是候选耗尽；已有有效部分正文而后续有界路径重复才可标记 evidence saturation，仍不等于答案充分或对象不存在。
+- 第二 golden trajectory：高价值官方发布页已发现，第一 docs locale 因地区限制不可用；同文档族不会连续吞槽，改读不同官方 host 的发布页。断言 release 不被重复路径饿死、同族重试受限、run-local host 状态隔离。
+
+### 170.6 实现与验收交接（2026-10-04）
+
+**实现：**public chat research 绕过12s模型 tool planner，直接确定性 search/read recovery，保留 GitHub planned tools 与旧 G18 Deep 接线。Lookup 为2 base+1 reserve reads、2 queries、30s hard/10s finalization reserve；Standard 为3+2 reads、4 queries、60s hard/12s reserve，单源6000、总24000。固定恢复阶段为 alternate / rewrite / authoritative-domain / release-docs refinement，authority 槽不被初始读取吃光；未新增恢复模型调用，≤6 cap不扩。独立 bulk WebLookupService 的旧 ResearchReadBudget 默认未被全局替换。
+
+**接线边界：**经许可的 user history 提供原主题 query lead，短追问保留版本而新实体/新主题重新查询；history/web policy不放宽。正文缺目标版本、无关或重复内容以负标志 answer_eligible=false 排除，snippet仍为候选。read时间/content digest 与模型inference provenance分开。recovery summary进入既有 tool trace，提供状态、budget/counter、host cooldown和多样性指标。绝对 finalization deadline 只由服务器产生，限制同步/异步生成及claim-binding调用；迟到network/inference worker不拥有写回权限。无数据库schema/cursor迁移。
+
+**真实缺陷与闭环：**初次隔离联网检索确已发现官方 release，但两个 docs 语言变体均重定向地区限制页，耗尽低价值路径后零可用正文；原样本保留于仓库外 `D:/study-agent-validation/recovery-live-20261004/result.json`。最小直接读取验证 docs→region wall、release→可读正文，故根因是候选调度，不是搜索未找到或预算太小。修复后的 production composition 样本 `D:/study-agent-validation/recovery-live-final-20261004/result.json`：research7.922s / total12.844s，1 search、2 reads、0 reserve reads、2 unique canonical docs / 2 source families；docs host本轮cooldown，采用1条Anthropic官方发布页，DeepSeek `deepseek-flash` generation_calls=1。代码digest/source-read时间/内容digest/provider/model已绑定，回答不再重复请求联网授权。qualified_judge=false、answer_validation=null；仅诊断，不生成semantic release标签、confirmed memory或admission；不从单样本推断p50/p95。
+
+**候选门：**L1 impact `research_recovery` 为17文件，全部纳入L2 `research-recovery-v1` 20文件202 passed / 88.39s。测试覆盖五轮真实topic replay、locale/redirect starvation、官方版本未发现、timeout≠saturation、重复正文、字符/读取/reserve、disabled provider、cancel/late-write、history策略、新主题、同步/异步finalization截止及既有run持久化。Ruff / diff-check / package与secret scan PASS；expanded mypy current122 / baseline128，无新增错误。最终backend L3首跑3292 passed / 6 skipped / 2 failed，1131.22s；两项均为既有 test_rq1c_protocol_probes 的 exact_checkout_git_sha 在未提交工作树拒绝执行（clean tracked checkout precondition），不是恢复路径断言失败。生产实现保持不变，阶段提交后在干净checkout复跑该owner文件2 passed / 2.51s；全套用例分段验证3294 passed / 6 skipped，没有将首跑伪写为全绿。仅追加此docs结果后amend，按§4.5不重跑L3。日志 `D:/study-agent-validation/research-recovery-{L3,clean-checkout-probes}-20261004.log`。LOCAL GO；自身exact-head PR CI绿前 REMOTE PENDING，远端run/head证据记录于对应PR body。
+
+**Git / 可恢复状态：**分支 `codex/search-first-research`，review base=`5a3199aa1d879e432bdb8f3103507c0528f0e62c`，合同head=`c068dc0b4819cebe1bd56d7633d5596433030911`；最终实现commit/PR head见Git及PR。原stash `c331e713a9f9e40f1f3662be056b610f311383b6` 已apply并完成本批修正，备份保留但不再是NEXT。仅本批18个production/test路径及本状态文档，未改frontend、provider配置、默认reader chain或持久化schema。所有完整日志、隔离DB、真实样本位于仓库外，不写真实用户thread。
+
+**已知限制 / 下一步：**canonical/locale/authority规则是调度启发式，literal target coverage不是完整question coverage，后者明确not_semantically_evaluated；read-backed仅进度而非qualified semantic pass。SearXNG8080当前未运行，既有BingRSS fallback仍可工作，部署可用性另查。保持§162 judge NOT QUALIFIED / authority NONE / release NO-GO，Deep独立runtime未实施。单次阶段提交→exact-head PR CI；绿后仅做Lookup/Standard有界分布校准，先确认调度健康再考虑75s。

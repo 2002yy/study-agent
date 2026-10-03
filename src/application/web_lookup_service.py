@@ -27,6 +27,7 @@ from src.web.tool_evidence import (
     tool_call_errors,
     tool_source_items,
 )
+from src.web.research_recovery import recovery_summary
 
 
 class WebLookupGateway(Protocol):
@@ -728,6 +729,7 @@ class WebLookupService:
             "tool_trace": {
                 "calls": display_calls,
                 "evidence_calls": evidence_calls,
+                "recovery": recovery_summary(calls),
                 "evidence_status": (
                     "read_backed"
                     if evidence_calls
