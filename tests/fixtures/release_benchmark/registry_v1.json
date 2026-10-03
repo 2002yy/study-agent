@@ -111,11 +111,11 @@
     },
     {
       "case_id": "REL-F-CHART-001",
-      "revision": 1,
+      "revision": 2,
       "mode": "frozen",
       "modality": "chart",
       "primary_focus": "visual_value",
-      "question": "On the archived NASA GISTEMP annual-means chart, describe the direction of the black curve from the late nineteenth century to its final plotted years and identify the plotted time and vertical scales. Avoid a current-year value.",
+      "question": "On the archived NASA GISTEMP annual-means chart, describe the direction of the upper black temperature-mean curve in the upper plot from the late nineteenth century to its final plotted years and identify the plotted time and vertical scales. Avoid a current-year value.",
       "aspects": [
         "trend",
         "axes and archive limit"
@@ -137,13 +137,13 @@
           "snapshot_path": "tests/fixtures/release_benchmark/sources/nasa_giss_history_annual.pdf",
           "sha256": "f69125bf96d017a0df5406d77f4cac950668f3e65faabee036af04cefebd196f",
           "page": 1,
-          "region": "main graph including axes and black curve"
+          "region": "upper temperature-means portion, axes, and upper black curve"
         }
       ],
       "frozen_at": "2026-09-28T06:33:32Z",
       "freshness_requirement": null,
       "visual_evidence_required": true,
-      "content_sha256": "7d2fa07b15453affaeeeea562c2f696384d2725d603c374388871806f7d455a2"
+      "content_sha256": "7fcb7c2bec31a9f7850a33cb31646d9cc2dc77b996458a2b437187f4579c35a8"
     },
     {
       "case_id": "REL-F-MIXED-001",
