@@ -51,4 +51,7 @@ def test_workflow_preserves_gates_and_uploads_diagnostics_once():
     for name in BROWSER_STEPS:
         assert "workflow_dispatch" in by_id[name]["if"]
         assert "refs/heads/main" in by_id[name]["if"]
+    assert "steps.frontend.outcome == 'success'" in by_id["playwright_install"]["if"]
+    for name in ("browser_e2e", "real_stack_browser_e2e"):
+        assert "steps.playwright_install.outcome == 'success'" in by_id[name]["if"]
     assert "steps.mypy.outcome" in by_id["mypy_baseline"]["env"]["MYPY_OUTCOME"]

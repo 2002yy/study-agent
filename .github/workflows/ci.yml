@@ -134,7 +134,7 @@ jobs:
           } > ../frontend.log 2>&1
 
       - name: Install Playwright browsers
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.frontend.outcome == 'success'
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -144,7 +144,7 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
 
       - name: Run browser Golden Journeys
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -154,7 +154,7 @@ jobs:
           npm run test:e2e > ../browser-e2e.log 2>&1
 
       - name: Run real-stack browser gates
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
