@@ -610,6 +610,19 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
+            if decision.web_allowed and (
+                task_contract.task_intent == "research"
+                or web_tools.to_dict().get("recovery") is not None
+            ):
+                context_blocks.append(
+                    "用户已授权本轮联网研究。优先依据实际读取的相关来源回答原研究主题；"
+                    "不要因模型不认识术语就让用户先解释、提供链接或再次授权搜索。"
+                    "简短追问与催促承接前文主题。搜索或读取失败时简要说明实际失败，"
+                    "不要归咎于用户命名错误；未找到不能证明不存在。只有已检索仍有"
+                    "无法区分的多个指代时才提出必要澄清，不长篇重复证据规则。"
+                    "本轮受限检索恢复已执行；直接给出可支持的回答或简短失败说明，"
+                    "不要以‘是否要我去查’或‘如果你愿意我可以继续搜’结束回答。"
+                )
             if decision.web_allowed and not web_tools.used:
                 if task_contract.task_intent == "research":
                     context_blocks.append(
@@ -742,6 +755,7 @@ class ExternalDataPolicyChatService(ChatService):
                     self.repository.release_chat_operation(thread.id, operation_id)
             raise
         return PreparedChatTurn(
+            research_deadline=web_tools.answer_deadline,
             thread=self.repository.get_chat_thread(thread.id) or thread,
             turn=streaming,
             messages=messages,
