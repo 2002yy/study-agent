@@ -1,5 +1,159 @@
 {
   "schema_version": "release-benchmark-gold-v1",
-  "registry_digest": "848f6446d4be1e40b588f97cfb08b8e2daeed0e84f76fd280f4513b2ee80ce70",
-  "reviews": []
+  "registry_digest": "0cc68df9f1e9fb278e89dbc794be0466773439064bd42df730cebf9ff571db15",
+  "reviews": [
+    {
+      "case_id": "REL-F-TEXT-001",
+      "case_content_sha256": "1fdb878afd27bf088589ce8751b479888ffcdcee4447ce7c7db5809df5be35c5",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "definitions": "Assess against the original source and stated limitations.",
+        "cause and local factor": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "surge_vs_tide": [
+          "NOAA-SURGE"
+        ],
+        "wind_driver": [
+          "NOAA-SURGE"
+        ],
+        "local_factor": [
+          "NOAA-SURGE"
+        ]
+      }
+    },
+    {
+      "case_id": "REL-F-PDF-001",
+      "case_content_sha256": "14d88dbde34626eb12a6a6800542a34203492c63552a878934d57839da4c299a",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "same lunar face": "Assess against the original source and stated limitations.",
+        "surface regions": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "synchronous_rotation": [
+          "NASA-MOON"
+        ],
+        "highlands_vs_maria": [
+          "NASA-MOON"
+        ]
+      }
+    },
+    {
+      "case_id": "REL-F-IMAGE-001",
+      "case_content_sha256": "9b8da99384dbcf326df378a2f137e787e84ca3411c248fcaf9c7e51d2a24abfd",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "visual labels": "Assess against the original source and stated limitations.",
+        "diagram limit": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "reservoir_position": [
+          "USGS-SHIELD"
+        ],
+        "central_vent_position": [
+          "USGS-SHIELD"
+        ],
+        "illustration_limit": [
+          "USGS-SHIELD"
+        ]
+      }
+    },
+    {
+      "case_id": "REL-F-CHART-001",
+      "case_content_sha256": "7d2fa07b15453affaeeeea562c2f696384d2725d603c374388871806f7d455a2",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "trend": "Assess against the original source and stated limitations.",
+        "axes and archive limit": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "black_curve_trend": [
+          "NASA-GISS-CHART"
+        ],
+        "axis_scales": [
+          "NASA-GISS-CHART"
+        ],
+        "archive_limit": [
+          "NASA-GISS-CHART"
+        ]
+      }
+    },
+    {
+      "case_id": "REL-F-MIXED-001",
+      "case_content_sha256": "da9cf0179a347278b5477694d4bc03c6787057ffaa7d540fe730bdb0471c725a",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "watch versus warning": "Assess against the original source and stated limitations.",
+        "precautions and layout": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "watch_warning_difference": [
+          "NWS-HEAT"
+        ],
+        "two_precautions": [
+          "NWS-HEAT"
+        ],
+        "panel_locations": [
+          "NWS-HEAT"
+        ]
+      }
+    },
+    {
+      "case_id": "REL-L-TEXT-001",
+      "case_content_sha256": "a2463d7f0a9ee5115bd7eed2f543d2c1ad406b145bceb4dbcb197077fa2f5c4b",
+      "annotator": "codex-draft",
+      "reviewer": "unassigned",
+      "state": "pending",
+      "source_verified": false,
+      "leakage_checked": false,
+      "difficulty_checked": false,
+      "modality_checked": false,
+      "aspect_rubric": {
+        "latest event or empty feed": "Assess against the original source and stated limitations.",
+        "provenance and freshness": "Assess against the original source and stated limitations."
+      },
+      "unit_sources": {
+        "latest_event_selection": [
+          "USGS-M45-DAY"
+        ],
+        "event_details_or_empty": [
+          "USGS-M45-DAY"
+        ],
+        "event_locator": [
+          "USGS-M45-DAY"
+        ]
+      }
+    }
+  ]
 }

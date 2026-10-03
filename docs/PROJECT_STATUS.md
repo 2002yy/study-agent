@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**`codex/release-benchmark-registry`（基于 §151 Draft PR #146 的 `d98acd6`；§153 registry/recorded-score 独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **分支 / head：**`codex/release-benchmark-pilot`（基于 §153 Draft PR #148 的 `5274e9a`；§154 首批候选来源与文本冻结重放独立分支）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§153 Release Benchmark registry、gold 与 recorded-score 合同本地实现**（见 §153）。§151 `d98acd6` exact-head PR CI `36338069294`、push CI `36338044533` 均 success；Draft PR #146 未合并。§152 CI 清理在独立 Draft PR #147 的 `3c71a36` exact-head PR CI `36339981942`、push CI `36339961292` 双绿，但本分支不包含该改动。§153 已建严格 case/gold 对象、只读准入盘点与离线观察评分；当前正式 release case **0/56**，RQCE v1 仍 NO-GO。`58b561f` 的 PR CI `36384659500` 与 push CI `36384624012` 因 detect-secrets 将空 manifest 的 `plan_digest` / `registry_digest` SHA 误报为密钥而失败；本地定点复扫 0 命中，CI 精确排除规则已修复。**唯一下一步 = 修复 head 的 exact-head CI；绿后采集首批独立来源 case、建立外部复核凭证和实际 frozen replay 接口**。
+- **当前动作：§154 首批 release 候选来源与真实文本冻结重放**（见 §154）。§153 修复 head `5274e9a` 的 PR CI `36385752388`、push CI `36385748164` 均 success；Draft PR #148 未合并。当前 registry 有 **6 个 pending 候选**（5 frozen、1 live），正式准入 **0/56**；真实 `WebLookupService` 文本离线 pilot 已执行，二进制模态与外部独立复核尚未完成，RQCE v1 仍 NO-GO。**唯一下一步 = 本分支本地收口后 exact-head CI；绿后建立可信外部复核凭证与 PDF/image/chart/mixed 模态重放**。
 - **当前先决门：**§151 父 head `d98acd6` 的 exact-head PR/push CI 均 success；§153 仍须自己的新 head CI。旧 SHA 绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 合同已冻结；§153 registry/gold/recorded-score 本地完成；56 个槽位，正式准入仍 0/56、NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一刀采集独立来源并建立可信复核与真实 replay 接口。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 合同已冻结；§153 registry/scorer 完成；§154 六个 pending 来源候选与文本真实 replay 本地完成；正式准入仍 0/56、NO-GO。** frozen/live 分离，旧开发/资格/holdout 不计 release 分数；下一刀是可信外部复核与二进制多模态 replay。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -13930,6 +13930,18 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **本地验证**：正负 pilot 覆盖 digest/source 漂移、live 快照污染、独立复核边界、未知/未读 citation、时间窗口、缺测分母、成本单位和硬错误；`release-benchmark-registry` L2 + stage gate policy **104 passed**，Ruff 全库 clean、mypy baseline **122 ≤ 128 / NEW=0**、package helper **1520 files**、`git diff --check` clean。只新增 eval 模块/工具/fixture 壳与测试，不触发生产或共享核心模型 L3；本分支 exact-head 远端门仍待执行。
 
 **明确未完成与唯一下一实现刀**：尚无 56 个独立来源 case、实际 frozen 执行器、外部独立复核凭证、合格语义 judge、pilot 阈值或真正 release 评分；现有工具只消费记录，不证明上游是否真的禁网。下一刀采集首批覆盖不同 mode/modality/focus 的原始来源，建立可核验的独立复核流程和真 frozen replay 接口，再以正负控制校准 scorer；不把结构化记录冒充真实资格运行。
+
+## §154 Release Benchmark first-source pilot（2026-09-28）
+
+**范围与先决门**：从 §153 Draft PR #148 的 `5274e9a` 切出 `codex/release-benchmark-pilot`。父 head 的 PR CI `36385752388`、push CI `36385748164` 均 success。本刀只触及 eval 候选、来源快照、离线 pilot、测试和 CI digest 误报规则；不接生产 answer/reader/stop/gate，也不把候选算作 release 准入。
+
+**来源与候选**：从 NOAA、NASA、USGS、NWS 官方原始位置取得五份 frozen 文件，按字节 SHA-256 绑定 registry；`.gitattributes` 对快照目录关闭换行变换与文本 diff，确保 checkout 保留来源字节；另建 USGS magnitude 4.5+ past-day feed 的 live locator，不保存 live 正文。六案分为 frozen text/PDF/image/chart/mixed 各一、live text 一案，均有问题子项、required units、限制与视觉 page/region（单图 page 1 作为位置约定）。PDF 已渲染检查：NASA Moon 的答案文字在 page 2，GISTEMP 历史图在 page 1；USGS GIF 已目视确认标注。每案 gold 保持 `pending`、`reviewer=unassigned`、四项复核位 false；无独立复核凭证，准入仍 **0/56**。
+
+**真实文本重放**：`FrozenTextGateway` 只接受 frozen/text、精确问题和来源 URL allowlist；构造与每次 read 都重验来源字节，HTML 仅由本地 snapshot 提取可见文字。`run_frozen_text_pilot` 通过实际 `WebLookupService` 与临时 SQLite 执行，并在执行期拦截本 Python 进程的 socket connect。NOAA pilot 结果为 `completed / found / sources_read`，来源 read 状态 `read`，SHA 与 registry 一致。此 guard 不是 OS 层禁网证明，输出只属 diagnostic transcript，不自动变成 scorer observation 或 release 分数。PDF/image/chart/mixed 仍需各自 reader replay。
+
+**本地门禁与失败样本**：新增测试验证真实服务读取、未知 URL、问题漂移、快照变字节、二进制模态拒绝、socket 禁止；本刀 L2 impact/stage gate **100 passed**，Ruff clean，mypy baseline **122 ≤ 128 / NEW=0**，package helper **1522 files**，`git diff --check` clean。新增 registry source `sha256` 被 detect-secrets 高熵规则误报，已精确排除该 JSON key，定点复扫 0 命中。新增项只在 eval seam，不触发共享核心模型或生产 authority 的 L3。
+
+**限制与唯一下一步**：当前没有真实外部独立 reviewer attestation、二进制多模态真实 replay、合格语义 judge、先验阈值或 56 个准入执行；scorer 保持 `NO_GO`。先完成本分支 exact-head PR/push CI；绿后建立与 case/source/gold digest 绑定且不能由作者自填的外部复核凭证，并接 PDF/image/chart/mixed 来源的真实 reader replay。只在这些证据成立后推进正式 release 评分。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
