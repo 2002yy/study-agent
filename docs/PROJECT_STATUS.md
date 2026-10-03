@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支 `codex/review-workspace-ui`，基于 Draft PR #158 / `codex/retention-review-turns` 的 `20da9c74e0260e02cfff971e8d0ef0e0495140ca`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**当前执行分支 `codex/document-reading`，基于设计稿提交 `e06f161f937d098075bb55d7da8b61cee82c61d4`；production base 为 Draft PR #159 / `codex/review-workspace-ui` 的 `af5ddef283e142c2d72b78a5513406f6f1ae4ce8`。最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：用户要求的 UI 实页检查及优化 LOCAL GO（§169.5），待新分支 exact-head CI。**§169-M2B 后端真实复习链路 CLOSED，Draft PR #158 的 exact-head CI `37123206375` / `20da9c74` 已 success（未 merge）。真实 prompt → 显式绑定 answer → 精确 evaluation → explicit closure → 原子 understanding 写入已闭环，见 §169.4。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务 = §169-M3 Resume + Review 合流**：先检查当前分支已记录的 exact-head PR CI；绿后冻结最小只读合流契约，再实现线程打开时分别呈现 primary NextStep、到期 revision 和 current-turn gap。保持三者权威分离，不引入 scheduler 或自动导航真值写入。
-- **当前先决门：**后端完整回归与旧 shadow 测试竞态闭环见 §169.4，最终 PR CI `37123206375` / event `pull_request` / head `20da9c74e0260e02cfff971e8d0ef0e0495140ca` completed/success。本 UI 批次仅 CSS、页面语言/标题和旧 CSS 契约断言，无后端生产行为/fixture/依赖变更，不重跑 backend L3；前端影响测试 22 passed、build PASS、三种 viewport 实页验收 PASS。新的 exact-head CI 尚待确认，首个 run snapshot 保存当前 PR body；不轮询，不借基础绿灯宣称 UI REMOTE GO。
+- **当前动作：文档与对话并排已接到正式页面，§169.7 只读资料阅读 v1 LOCAL GO（实现 closeout 见 §169.8），新 head 远端 CI 待记录。**前一刀 UI Draft PR #159 exact-head CI `37124339800` / `af5ddef2` 已 success；PR #158 后端 exact-head CI `37123206375` / `20da9c74` 已 success（未 merge）。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务：**先核对本批已记录的 exact-head PR CI；绿后回到 §169-M3，只读呈现 primary NextStep、到期 revision 与 current-turn gap。读取正文不升级 evidence/support，也不推算 PDF page/region。原三种学习真值的权威分离不重开。
+- **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18037,3 +18037,53 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **截图（仓库外）：**`D:/study-agent-validation/retention-review-20261003/ui-after-desktop.png`、`ui-after-mobile.png`、`ui-after-narrow-tools.png`；before/loaded截图同目录。实际浏览器和本地服务保持可用以便用户查看。当前 UI 分支 final head 用 `git rev-parse HEAD`，exact-head CI snapshot 记录其 Draft PR body；绿色前 UI REMOTE PENDING。
 
 **下一步：**核对本 UI 批次已记录的 exact-head CI；绿后按 §169-M3 冻结只读 resume/review 合流契约并实现。此次没有复习 UI 接线、scheduler、Goal/NextStep 写入或 judge qualification。
+
+### 169.6 用户选择：文档与对话并排（2026-10-03，LOCAL DESIGN COMPLETE）
+
+**当前选择：**用户要求联网参考 UI，并明确选择“资料阅读：文档与对话并排”。阅读成为主工作区，对话持续可见；手机使用资料/对话切换。原 §169-M3 排期顺延，review/NextStep/understanding 的冻结权威没有改变。
+
+**设计参考（官方资料）：**
+
+| 参考 | 查证内容 | 本项目采用的交互方向 |
+| --- | --- | --- |
+| [Readwise Reader](https://docs.readwise.io/reader/docs/faqs/appearance) | 正文字号/行距/行宽设置、可折叠目录与辅助侧面板。 | 正文有稳定阅读宽度，字号可调，提供专注阅读。 |
+| [Zotero PDF Reader](https://www.zotero.org/support/pdf_reader) | 阅读器内的笔记面板；标注带 PDF 页引用，Show on Page 可回到原上下文。 | 段落与提问保持可见关联，引用回到原文位置。 |
+| [Google Notebook 官方说明](https://support.google.com/gemininotebook/answer/16179559?hl=en) | 点击回答引用，跳到来源中的对应引文并查看上下文。 | 引用是原文导航入口，有真实定位才跳转。 |
+
+上述交互方向是本项目的设计判断，不采用其他产品的证据/学习写入策略。
+
+**可恢复设计产物：**[`design/reading-workspace-prototype.html`](design/reading-workspace-prototype.html)，standalone HTML，直接用浏览器打开。当前本地预览 `http://127.0.0.1:8766/reading-workspace-prototype.html`，服务退出后可用 `.venv/Scripts/python.exe -m http.server 8766 --bind 127.0.0.1 --directory docs/design` 恢复。明确标注原创示例讲义、预写回答、未连接真实资料或模型。桌面资料/目录 194px、正文自适应、对话 430px；≤820px 采用资料/对话切换。正文与对话独立滚动；引用定位并突出段落；“解释这一段”带入可移除的段落上下文；专注阅读、字号调整、键盘发送、参考弹窗均可操作。示例发送只记到当前页面，不调用 API，不写学习真值，不进行模型推断。
+
+**现有能力边界（基于 `af5ddef2` 的直接 owner 检查）：**`WorkspaceView.tsx` 将 `SourcesPanel` 放在 SlideOver 内；`SourcesPanel.tsx` 展示回答证据、长期资料/SessionAttachments、检索诊断，诊断中的 `sources/context` 是片段与模型上下文。已查看的资料/附件前端入口没有完整正文阅读接线。仅移动 SourcesPanel 不能称为完整文档阅读器。
+
+**下一刀范围：**只读资料阅读 v1。先检查长期资料与会话附件的原文保存/读取 owner，冻结只读访问与 locator 合同，再接到独立 reader 区和现有 ChatPanel。提供原文不存在/暂不可读/无定位状态；来源可见性遵守既有长期资料或会话附件边界。定位依赖真实 source identity、版本与行号/page/region，不凭片段偏移推算。段落提问为用户显式引用上下文，不自动升级为 Evidence/Claim 或已掌握结论。不增加自动搜索、scheduler、MemoryRun 或模型权限；不把当前示例内容写入生产资料。
+
+**设计稿 QA：**已有 Playwright Chromium，无新增依赖。1600×900：reader=976px、chat=430px；引用准确落入可见正文并获得焦点，解释按钮填入输入框/上下文，专注阅读可恢复并排，参考弹窗 Escape 关闭，Ctrl+Enter 仅本地发送。390×844：引用自动切到资料，段落提问自动切到对话，往返后 scrollTop=629.3333 保持不变。360×520：输入区处于 viewport 内，对话仍可滚动。三个 viewport 均无横向溢出；pageerror/console error=[]。只验证设计稿 Chromium，不宣称正式原文、PDF、真实引用、模型回答、Firefox/WebKit 已验收。
+
+**证据与 Git：**设计分支 `codex/reading-workspace-design` / base `af5ddef283e142c2d72b78a5513406f6f1ae4ce8`，最终 docs-only head 以 `git rev-parse HEAD` 为准。PR #159 仍是该 base exact head，CI `37124339800` / `pull_request` completed/success，Draft 未 merge；此次无新的远端交付或 CI。截图在仓库外 `D:/study-agent-validation/retention-review-20261003/ui-reading-proposal-{desktop,citation,mobile,mobile-chat}.png`。不为设计稿重跑生产回归；Ruff、`git diff --check`、唯一 inline script 的 Node syntax 检查 PASS；scope 仅本段 handoff 与设计稿。另修复并验收设计稿从桌面专注阅读切换到手机后，对话 tab 正确恢复显示。本地 HTTP preview 200，首开 favicon 404 已用内联 favicon 消除，fresh page console errors=[]；提交后核对 tracked clean。
+
+### 169.7 只读资料阅读 v1 合同（2026-10-03，FROZEN）
+
+**执行分支：**`codex/document-reading`，base `e06f161f937d098075bb55d7da8b61cee82c61d4`，production base 为 PR #159 `af5ddef2`。
+
+- 表示层为 `document-reading-v1 / indexed_text`，读既有 `RagDocument.text` 整份解析正文的有界行窗口，不拼接检索 chunks。Markdown/TXT 为规范化正文，PDF/DOCX 明示解析文字版，图片描述不冒充图片原文。本刀不新增 PDF raster/region viewer。
+- 只读 GET `/knowledge-base/documents/{document_id}/reading` 和 `/sessions/{thread_id}/attachments/{attachment_id}/reading`；不接受调用者文件路径/index_path。长期资料取当前配置的索引；临时附件必须 repository owner thread 精确匹配、ready 且索引 document metadata 的 thread/attachment 双匹配。不存在/跨会话=404，未就绪/版本不匹配=409。
+- 返回源 identity/revision/content hash/parser、representation、绝对 start/end/total lines 与正文窗口。窗口最多200行、64KiB UTF-8，无静默截断；超限=413，范围非法=422；旧记录沿用既有 document_id/content_hash 与 revision_id/content_hash fallback。每次翻页必须绑定已返回 revision；索引删除或替换后拒绝继续读旧版本。
+- 采用行号的来源定位只针对同一已解析正文。回答证据通过同一个 turn 的 chunk_id 精确查到 document_id/revision_id/source_path 与有效 start/end lines 才有阅读跳转；临时附件还须有明确 attachment/thread metadata。缺定位/旧 snapshot 不猜测文件名或 PDF 页码。阅读接口二次校验版本和定位范围。
+- reader 与 ChatPanel 并排，窄屏资料/对话切换，正文保持挂载与阅读位置；显式切换/新建/归档会话清除读取及选段状态，临时附件在会话身份变化时立即失效，迟到请求不能展示其他会话资料。无会话时打开的长期资料，仅第一次提问分配会话 ID 时保持正文和阅读位置（首次 ID 分配不是用户切换话题）。关闭阅读不丢对话草稿。选段提问只由用户显式带入引用文本，超过4000字符须缩小选段，不静默截断、不自动发送、不改变RAG开关，不覆写现有草稿；沿用原有发送/隐私策略。正文窗口过长时允许用户显式缩小窗口至最少1行，仍受64KiB上限约束。
+- 此读取不新增 evidence/gold/claim、判断资格或学习真值，不执行网络来源读取、embedding、vision、search 或模型，不改变 eligibility，支持查看已排除/旧版本资料但明确显示其状态。不修改持久化 schema、citation support、默认 reader chain 或 stop/gate。
+- impact set：新阅读接口测试 + session attachment routes/lifecycle + RAG runs/evidence API/eligibility + RAG loader/chunker；前端新 reader/locator 与 SourcesPanel、SessionAttachments、EvidenceTrail、ChatPanel/transition owner tests。按只读子阶段运行 L1/L2；仅发生 §4.4 escalation 条件才加 L3。
+
+### 169.8 只读资料阅读 v1 实现收尾（2026-10-03，LOCAL GO / REMOTE PENDING）
+
+**实现：**两条只读路由复用既有完整 `RagDocument.text`，提供最多200行/64KiB UTF-8窗口，保留 identity/revision/parser/eligibility 元信息。GET不接受任意 index/file path，不读原始路径、不重新解析、不写索引/DB、不调用模型/embedding/vision。会话附件 repository 与索引 metadata 双重归属、ready 门和 revision 门均 fail-closed。单一 reading feature context 与 provider/layout，接既有 ChatPanel、SourcesPanel 和 SessionAttachments；顶部“阅读资料”进入资料列表，阅读正文关闭 drawer 并保留并排对话。窗口过长允许显式缩小100→20→4→1；选段最大4000字符，超过则禁用并提示缩小，不静默截断。
+
+**引用与导航：**EvidenceTrail 的定位按钮只在同一 turn 的唯一 chunk_id、准确 source/doc/revision/有效行范围与当前资料绑定成立时出现；GET再次验证源/版本/范围。现有临时 chunk 仅带 file_type/char_count、缺 attachment/thread metadata 的引用不提供定位按钮，临时附件仍可从附件列表直接打开；这是已知 v1 边界，不通过文件名猜归属。临时读状态在会话身份变化时立即隐藏并 abort，导航 guard 真正执行 switch/new/archive 时递增 presentation token 清除所有阅读状态；保留原有异步 callback return/guard 语义。首次聊天分配 ID 保留此前打开的长期正文；此 UX 边界已补回合同与测试，不赋予临时跨会话权限。
+
+**验证：**后端新测试13 passed；`tests/stage_gates.json` 已记录 impact `document_reading` 和 L2 `document-reading-v1`，七个 owner/邻接文件74 passed / 30.68s。最终前端全量368 passed / 92 files / 5.91s，涵盖来源入口、临时附件入口、回答采用引用跳转、版本错误清空旧正文、窗口缩小、迟到请求丢弃、首次 ID 分配与显式切换分离；tsc + vite build PASS。Ruff / diff-check / scope audit PASS；按当前CI声明执行 expanded mypy + no-new-errors baseline，current=122 / baseline=128，PASS。backend schema/cursor/核心model/gate无变更，无L3 escalation；远端全量回归由本 head 单次PR CI执行。
+
+**实页 QA：**正式 Vite `http://127.0.0.1:5174/`，proxy→本地 uvicorn8001；原设计预览8766独立存在。已有索引的真实正文读取200，不要求历史 source_path 对应原文件仍存在。Chromium1600×900 reader约706px/chat约614px并排；390×844与360×520无横向溢出，最终手机 reader/footer铺满viewport，窄屏composer bottom=520。选段明示title/revision/lines，追加到已有草稿；关闭阅读后草稿保持；观测非GET requests=[]、fresh page console/page errors=[]、bad responses=[]，未调用provider或执行session/archive/upload写入。浏览器隔离 mock 长文样例（明确UI验收样例，未写入真实资料/证据）验证 scrollTop800→800 与分页1→101→1，各请求绑定qa-revision。
+
+**缺陷闭环：**首轮移动端新wrapper缺flex-grow，短正文阅读区只占460px，补 `.reading-layout { flex:1 }` 后 reading/footer bottom=844。新增测试曾误用Playwright `exact` option到Testing Library，并提供了不完整typed RAG fixture；build gate检出，已修正断言/fixture后tsc通过。既有 >500kB JS chunk warning保留为单独性能债，不增依赖或打包策略。
+
+**交付与限制：**本批独立分支 `codex/document-reading`，review base `af5ddef2`，代码与已验证设计稿一起进入新的Draft PR；最终head/run/PR通过对应PR body和 `git rev-parse HEAD` 恢复。推送后只记录一次exact-head CI，不轮询、不merge、不以旧CI宣称本批REMOTE GO。截图仓库外 `D:/study-agent-validation/retention-review-20261003/reading-v1-real-{desktop,mobile}.png`。PDF/DOCX当前为解析文字版；Markdown正文文字显示标题/行号，完整Markdown富排版、原PDF页面/region viewer、跨刷新阅读位置持久化尚未实现。机械引用定位不构成新的语义支持判断或judge qualification。

@@ -1,0 +1,140 @@
+.reading-layout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.reading-layout > .chat-column { flex: 1; }
+.reading-layout.has-document {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(400px, 1fr);
+}
+.reading-mobile-tabs { display: none; }
+.reading-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 22px;
+  border-bottom: 1px solid var(--border);
+  background: #f0f7f6;
+}
+.reading-entry button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 12px;
+  background: white;
+  border: 1px solid #bad7d3;
+  border-radius: 7px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+.reading-entry span { font-size: 12px; color: var(--muted); }
+.document-reader {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #edf2f5;
+  border-right: 1px solid var(--border);
+}
+.document-reader-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 17px;
+  background: white;
+  border-bottom: 1px solid var(--border);
+}
+.document-reader-toolbar > div:first-child { min-width: 0; }
+.document-reader-toolbar strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.document-reader-toolbar small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.document-reader-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.document-reader-actions button,
+.document-reader-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 35px;
+  min-height: 35px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  font-size: 12px;
+}
+.document-reader button:disabled { opacity: .45; cursor: not-allowed; }
+.document-reader button:focus-visible,
+.reading-entry button:focus-visible,
+.reading-mobile-tabs button:focus-visible { outline: 3px solid #79bdb8; outline-offset: 2px; }
+.document-reader-body { flex: 1; min-height: 0; overflow: auto; padding: 24px; scrollbar-gutter: stable; }
+.document-paper {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 30px 32px 45px;
+  background: white;
+  border: 1px solid #e0e8eb;
+  border-radius: 3px;
+  color: #20313c;
+  line-height: 1.95;
+}
+.document-reading-label { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; margin-bottom: 24px; }
+.document-text-line { position: relative; padding: 2px 0; white-space: pre-wrap; overflow-wrap: anywhere; scroll-margin: 24px; }
+.document-line-number { position: absolute; right: calc(100% + 8px); top: 7px; color: #a1adb5; font-size: 10px; user-select: none; }
+.document-text-line.blank-line { height: 14px; padding: 0; }
+.document-text-line.blank-line .document-line-number { display: none; }
+.document-heading { font-weight: 700; line-height: 1.55; margin: 14px 0 10px; }
+.document-heading.heading-1 { font-size: 1.55em; margin-top: 5px; }
+.document-heading.heading-2 { font-size: 1.22em; }
+.citation-located { background: #fff3cf; box-shadow: -5px 0 #dcad38; }
+.citation-located:focus { outline: 2px solid #dcad38; outline-offset: 3px; }
+.reading-eligibility-note { padding: 10px 12px; font-size: 12px; line-height: 1.8; background: #fff5dc; border: 1px solid #e3d2aa; border-radius: 5px; }
+.document-reader-selection,
+.document-reader-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); background: #fbfcfc; padding: 9px 16px; color: var(--muted); font-size: 11px; }
+.document-reader-selection button { min-height: 35px; padding: 7px 10px; color: var(--accent-strong); background: #edf7f5; border: 1px solid #bddbd6; border-radius: 6px; font-size: 12px; }
+.document-reader-footer { padding-block: 6px; }
+.document-reader-footer > div { display: flex; gap: 5px; }
+.document-reader-footer button { min-height: 30px; min-width: 32px; }
+.reading-empty { max-width: 600px; margin: 24px auto; padding: 22px; background: white; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; line-height: 1.8; }
+.reading-empty button { padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; background: white; }
+.reading-layout.reading-focused { grid-template-columns: 1fr; }
+.reading-focused > .chat-column { display: none; }
+.has-document .chat-column .topbar { padding: 15px 18px; flex-wrap: wrap; gap: 10px; }
+.has-document .topbar-copy h1 { font-size: 19px; }
+.has-document .topbar-copy p { display: none; }
+.has-document .conversation { padding: 20px 16px; }
+.has-document .composer { padding-inline: 16px; }
+.evidence-reading-link { margin-left: 5px; padding: 3px 7px; border: 1px solid #d6ca9e; border-radius: 5px; background: #fff8e2; color: #77571a; font-size: 11px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .reading-layout.has-document { display: flex; }
+  .reading-mobile-tabs { display: flex; gap: 6px; padding: 4px 12px; border-bottom: 1px solid var(--border); background: white; }
+  .reading-mobile-tabs button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 6px; min-height: 44px; background: white; color: var(--muted); font-size: 13px; }
+  .reading-mobile-tabs button[aria-pressed="true"] { background: #edf7f5; color: var(--accent-strong); font-weight: 700; }
+  .has-document > .document-reader { flex: 1; }
+  .has-document > .chat-column { display: none; }
+  .reading-chat-active > .document-reader { display: none; }
+  .reading-chat-active > .chat-column { display: flex; }
+  .reading-focus-button { display: none !important; }
+  .document-reader-toolbar { padding: 10px 13px; }
+  .document-reader-actions button { min-height: 44px; min-width: 38px; }
+  .document-reader-body { padding: 0; background: white; }
+  .document-paper { border: 0; padding: 26px 25px 35px 34px; }
+  .document-reader-selection { padding: 8px 12px; }
+  .document-reader-selection button { min-height: 44px; }
+  .document-reader-selection span { max-width: 150px; }
+  .document-reader-footer button { min-height: 36px; }
+  .reading-entry { padding: 7px 14px; }
+  .reading-entry button { min-height: 44px; }
+  .reading-entry span { font-size: 11px; }
+}

@@ -7,13 +7,18 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from src.application.runtime_repository import (
     get_session_attachment_service,
 )
 from src.application.session_attachment_service import AttachmentLimitError
+from src.application.document_reading import (
+    DocumentReadingResponse,
+    ReadingUnavailable,
+    read_session_document,
+)
 from src.domain.runtime_entities import SessionAttachment
 
 router = APIRouter(tags=["attachments"])
@@ -126,6 +131,27 @@ def list_session_attachments(
         max_files_per_thread=MAX_FILES_PER_THREAD,
         total_bytes=sum(attachment.size_bytes for attachment in attachments),
     )
+
+
+@router.get(
+    "/sessions/{thread_id}/attachments/{attachment_id}/reading",
+    response_model=DocumentReadingResponse,
+)
+def read_session_attachment(
+    thread_id: str,
+    attachment_id: str,
+    service: SessionAttachmentServiceDependency,
+    start_line: int = Query(default=1, ge=1),
+    limit: int = Query(default=100, ge=1, le=200),
+    expected_revision: str = "",
+) -> DocumentReadingResponse:
+    try:
+        return read_session_document(
+            service, thread_id, attachment_id, start_line=start_line,
+            limit=limit, expected_revision=expected_revision,
+        )
+    except ReadingUnavailable as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.delete(

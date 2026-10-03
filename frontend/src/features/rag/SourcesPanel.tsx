@@ -24,6 +24,7 @@ import {
   type EvidenceStatus,
 } from "./evidenceEligibilityApi";
 import { SessionAttachments } from "./SessionAttachments";
+import { useReadingWorkspace } from "../reading/ReadingContext";
 
 type SourceRow = {
   key: string;
@@ -163,6 +164,7 @@ export function SourcesPanel({
   onDeleteDocument,
   onSetEvidenceStatus,
   onRebuildKnowledge,
+  initialTab = "answer",
 }: {
   lastChat: ChatResponse | null;
   ragSearch: RagQueryResponse | null;
@@ -175,8 +177,10 @@ export function SourcesPanel({
     status: EvidenceStatus,
   ) => Promise<void> | void;
   onRebuildKnowledge?: () => void;
+  initialTab?: SourcesTab;
 }) {
-  const [activeTab, setActiveTab] = useState<SourcesTab>("answer");
+  const [activeTab, setActiveTab] = useState<SourcesTab>(initialTab);
+  const reading = useReadingWorkspace();
   const [statusOverrides, setStatusOverrides] = useState<Record<string, EvidenceStatus>>({});
   const [evidenceError, setEvidenceError] = useState("");
   const activeSource = ragSearch ?? lastChat?.rag;
@@ -325,6 +329,11 @@ export function SourcesPanel({
                         <span>{evidenceStatusLabel(documentStatus)}</span>
                         <em title={document.source_path}>{document.source_path}</em>
                         <div className="inline-actions">
+                          {reading ? <button className="ghost-action compact" type="button"
+                            onClick={() => reading.open({scope:"knowledge",documentId:document.document_id,
+                              revision:document.revision_id,sourcePath:document.source_path})}>
+                            <FileText size={14}/>阅读正文
+                          </button> : null}
                           {documentStatus === "active" ? (
                             <>
                               <button

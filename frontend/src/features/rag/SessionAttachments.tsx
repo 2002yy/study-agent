@@ -1,5 +1,6 @@
 import { AlertTriangle, FilePlus2, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useReadingWorkspace } from "../reading/ReadingContext";
 
 import {
   deleteSessionAttachment,
@@ -50,6 +51,7 @@ function stageLine(entry: SessionAttachmentInfo["stage_history"][number]): strin
 }
 
 export function SessionAttachments({ sessionId }: { sessionId?: string | null }) {
+  const reading = useReadingWorkspace();
   const [listing, setListing] = useState<SessionAttachmentListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -207,6 +209,12 @@ export function SessionAttachments({ sessionId }: { sessionId?: string | null })
                 </ul>
               </details>
               <div className="inline-actions">
+                {reading && attachment.status === "ready" && !/\.(png|jpe?g|gif|webp)$/i.test(attachment.filename) ? (
+                  <button className="ghost-action compact" type="button"
+                    onClick={() => reading.open({scope:"session",threadId:sessionId ?? undefined,attachmentId:attachment.id})}>
+                    阅读正文
+                  </button>
+                ) : null}
                 {attachment.status === "failed" ? (
                   <button
                     className="ghost-action compact"

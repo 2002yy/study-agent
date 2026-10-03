@@ -59,6 +59,9 @@ export type RagIndexResponse = {
 
 export type RagChunk = {
   chunk_id?: string;
+  document_id?: string;
+  revision_id?: string;
+  metadata?: Record<string, unknown>;
   source_path?: string;
   title?: string;
   start_line?: number;
