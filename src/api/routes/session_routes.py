@@ -17,12 +17,15 @@ from src.api.models.common import (
 )
 from src.api.models.memory import MemoryRunResponse
 from src.api.models.learner_model import LearnerModelSnapshotResponse
-from src.api.models.learning_review import LearningReviewPageResponse
+from src.api.models.learning_review import (
+    LearningReviewPageResponse,
+    ReviewPromptPreviewResponse,
+)
 from src.application.helpers import runtime_settings_payload
 from src.application.learner_model import LearnerModelService
 from src.application.learning_closure_service import LearningClosureNotEligible
 from src.application.learning_revalidation import LearningRevalidationService
-from src.application.learning_review import LearningReviewService
+from src.application.learning_review import LearningReviewService, ReviewUnavailable
 from src.application.runtime_repository import (
     get_learning_closure_service,
     get_learner_model_service,
@@ -57,6 +60,28 @@ def get_learning_reviews(
     return LearningReviewPageResponse(
         **service.build(session_id, limit=limit, offset=offset, due_only=due_only).to_dict()
     )
+
+
+@router.get(
+    "/sessions/{session_id}/reviews/{revision_id}/prompt",
+    response_model=ReviewPromptPreviewResponse,
+)
+def preview_review_prompt(
+    session_id: str,
+    revision_id: str,
+    service: LearningReviewServiceDependency,
+    session_service: SessionServiceDependency,
+) -> ReviewPromptPreviewResponse:
+    if session_service.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        return ReviewPromptPreviewResponse(
+            **service.preview_prompt(session_id, revision_id).to_dict()
+        )
+    except ReviewUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/sessions", response_model=SessionListResponse)

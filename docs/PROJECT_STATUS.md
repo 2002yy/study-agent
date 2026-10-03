@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**本刀执行分支 `codex/retention-review-read`，基于 Draft PR #155 / `codex/release-benchmark-semantic-calibration` 的 `2b6e9d0a091f1796fd9105baa28b2e7b045f5ea6`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**本刀执行分支 `codex/retention-review-prompt`，基于 Draft PR #156 / `codex/retention-review-read` 的 `96664a7c086dc069bbe6482e8ed9f6ff02b883f2`；当前最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§169-B1 LOCAL GO，远程 CI 待确认。**复习读取服务/API 已完成（§169.2），生产候选 `2bf5a78b8c4f833e8680259748f9f47c03a04ed8` 的 L3 为 3176 passed / 6 skipped；后续只更新 handoff。§164 runtime adjudication 仍仅保留 G1 objective gate，G2/G3/G4 不获运行时裁决权。§165 / §168 lifecycle 已实现，重复观察不自动 confirmed。§162 自动 semantic judge = NOT QUALIFIED，authority NONE，release NO-GO，未重新打开资格评估。
-- **下一刀唯一任务 = §169-M2 显式复习轮次接线**：先取得本分支 exact-head PR CI，再将用户显式选择的 due claim 接入真实 turn / 既有 evaluation / closure-only writer；pass 增加 UnderstandingEvidence，fail 不降级既有理解、不重置 due。保持 NextStep / ReviewProjection / current gap 的权威分离，不新增 scheduler 或自动裁决。
-- **当前先决门：**基础 `2b6e9d0` exact-head PR CI `37046367948` success；本分支完成本地门，新的 exact-head PR CI 尚待确认，不能借用基础绿灯。feature branches 不跑重复 push CI；PR 的首次 exact-head run snapshot 保存在 PR body，可按 `codex/retention-review-read` 查找。不轮询等 CI、不宣称 REMOTE GO。
+- **当前动作：§169-M2A LOCAL GO，M2 end-to-end 仍 OPEN。**§169-B1 exact-head PR CI `37111608755` success（`96664a7c`），未 merge。显式 due revision 题目预览已实现，绑定契约及当前 owner inventory 冻结于 §169.3；预览不创建 turn、不授权 validation、不写 understanding。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务 = §169-M2B 真实复习 turn / evaluation / closure 接线**：先取得本分支 exact-head PR CI，再执行 §169.3 的绑定契约，覆盖生产 PolicyChatService 与基类 seam。pass 为同一 revision 增加 evidence；fail/partial 不降级、不重置 due；原子 freshness 检查和 attempt-level 幂等必须在 closure owner 内完成。保持 NextStep / ReviewProjection / current gap 的权威分离。
+- **当前先决门：**基础 `96664a7c` 的 PR run `37111608755` 已 success；本分支 L2 60 passed / Ruff PASS / mypy no-new-errors，新的 exact-head CI 尚待确认。此刀是普通只读 adapter，无 schema/core model/cutover，不重跑已通过的完整 L3；下一刀真实 runtime/closure 改动需自己的 L3。feature branches 不跑重复 push CI；首次 CI snapshot 保存在本分支 PR body。不轮询、不借基础绿灯宣称当前 REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -17968,3 +17968,38 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **远程收口：**最终文档提交后 push 并创建独立 stacked Draft PR，以 `codex/release-benchmark-semantic-calibration` 为 base。只查询一次 final exact-head CI；run ID/event/head/status 保存在 PR body。尚未有该 HEAD success，不能宣称 REMOTE GO / DELIVERED，也不 merge。
 
 **唯一下一刀：**取得 exact-head CI 后，进入 §169-M2 显式复习轮次；保持 existing evaluation + closure-only writer，不产生新的自动 judge authority。
+
+### 169.3 §169-M2A Explicit prompt preview + turn binding contract（2026-10-03）
+
+**前置门已过：**PR #156 / `96664a7c086dc069bbe6482e8ed9f6ff02b883f2` 的 pull_request run `37111608755` completed/success；tracked/untracked clean，无 merge。本刀分支 `codex/retention-review-prompt`，从该 HEAD 开始，复用已有 B1 inventory 和 L3，不重新审查冻结裁决。
+
+**本刀完成，LOCAL GO / REMOTE PENDING：**`GET /sessions/{session_id}/reviews/{revision_id}/prompt` 显式选择当前 focused goal 中最新、已有 pass、仍 due 的 revision。返回 `status=preview`、只读 question、revision/goal/thread 和 last_validated_at。缺 session/scope/validation 返回 404；fresh pass 已使其 not_due 返回 409。服务复用既有 review projection，直接查找当前 revision，不受列表首页 100 条的限制，也不查询其他 revisions 的 learner response。结果不是签名凭证、不是真实 prompt turn、不能提交为验证授权。
+
+**M2B binding contract（冻结）：**
+
+1. **用户显式选择，服务端重新解析。**preview 字段都是展示信息；客户端 claim text / due / result / metadata 不成为 authority。开始真实 review 时重新读取 thread、focused goal、latest linked revision、last pass；旧/跨线程/跨目标/不再 due 的请求不能开始正式复习。源码 freshness 继续由已有 revalidation 负责，不以复习宣称旧 revision 对当前源码仍有效。
+2. **真实 prompt 走已有 ChatTurn 生命周期。**使用现有 operation ownership / cancellation / completion，不新增 ReviewItem 或独立 turn writer。服务端保存 `review-turn-v1` binding（thread/goal/revision/last_validated_at/prompt_turn_id/method），对应真实 assistant question。preview 本身不得成为完成 turn 或 validation prompt。
+3. **答案必须显式绑定该 prompt turn。**服务端重读同线程、completed、带可信 review binding 的 prompt；不能凭 chat_history、conversation_instruction 或客户端 JSON 推断正式复习。continuation/retry 保持原绑定，不能换 revision/goal。普通 chat 无 binding，默认行为不变。
+4. **复用既有 evaluation，不扩大裁决权。**review evaluation 的 objective / expected concepts / evidence 来源为该目标与 revision；局限于这一轮评估输入，不能改 legacy confirmed_points、durable goal objective 或 G2/G3/G4 authority。provider/外发策略沿用现状，unavailable / needs_semantic_review 不成为 pass。评估必须回答所选 revision，不能把另一个 claim 的 accept 挂过来。
+5. **closure 输入保存完整绑定。**绑定必须来自持久化 ChatTurn，而非 LLM 生成候选；精确关联 prompt turn、completed answer turn、evaluation ID、revision、goal、source thread version/hash。对话字符预算不能悄悄截断或丢弃正式绑定。answer 不是 latest completed source、evaluation 不匹配或 binding 不可识别时 fail closed，不能降级到普通 candidate / MemoryRun promotion。
+6. **唯一 writer 仍是 LearningClosureTruthService。**review 分支只为既有同一 revision 增加 UnderstandingEvidence，不生成新的 Claim/ClaimRevision、不重新让模型选择 target。pass 更新最后验证时间；fail/partial 可以保存该轮真实 attempt，但不降级 prior pass、不重置 due。suspected misconception 仍按 §168 closure-only 规则；不自动 confirmed。
+7. **原子 freshness + attempt 幂等。**在写 evidence 的同一事务内检查目标仍属于该 thread/current goal、revision 未 supersede、expected last pass 未变化及 closure source/answer/evaluation 所有权。不能先检查、后无保护 insert。幂等键绑定 closure run / answer turn / evaluation，稳定 UnderstandingEvidence ID：同一 attempt retry 只写一次；不同真实 attempt 即使 prompt/回答文字完全相同，也能产生新的验证时间。相同键不同绑定必须冲突，不 silent overwrite。
+8. **失败不是导航重写。**保持现有 Goal status 和 primary NextStep；review 的 fail/partial 仍是已处理 review attempt，不能因为普通 `_DURABLE_TRUTH_SUCCESS` 未识别 review 状态而走 legacy memory fallback。取消、未完成、stale 或越权没有理解证据写入。
+
+**当前 seam inventory（base `96664a7c`，仅针对 review 直接 owner，非 repo-wide scan）：**
+
+| Owner | 当前事实 / M2B 要求 |
+| --- | --- |
+| `src/application/policy_chat_service.py:PolicyChatService.start_turn` | 生产有独立 preparation/evaluate_learner seam；不能只 patch 基类 |
+| `src/application/chat_service.py:ChatService.start_turn` | 基类生命周期与 tests 的另一 seam；共享绑定解析，避免两套权威 |
+| `src/api/models/chat.py:ChatRequest` / `src/api/routes/chat_routes.py:_chat_command` | 当前没有正式 review binding；客户端参数只能选 prompt，不携带可信结果 |
+| `src/application/closure_input_builder.py:_recent_dialogue/_final_evaluation` | 仅对话摘录且 final eval 向前找；正式 review 必须固定精确 answer/eval 并保存绑定 |
+| `src/application/learning_closure_truth.py:commit/_matching_understanding` | 现有 candidate path 与按 method/prompt/response 去重；review 需 target-bound 独立分支和 attempt-level 幂等 |
+| `src/application/learning_closure_service.py:_DURABLE_TRUTH_SUCCESS` | 目前只认普通 claim/hypothesis 状态；明确处理 review failed/partial，防止 memory fallback |
+| `src/repositories/learning_truth_repository.py:commit_semantic_closure` | 既有事务 owner；freshness/source/attempt checks 与 evidence insert 必须共享事务边界 |
+
+**本刀验证：**named `retention-review-read` L2 **60 passed，26.26s**（包括 real closure SQLite dump 零写入、due 边界、跨 scope / superseded / unverified 拒绝、fresh pass 重查、首页外 target、HTTP 404/409）；Ruff PASS；mypy 122 / baseline 128，no new errors；`git diff --check` PASS。只读 application/API adapter 与局部 reader helper，没有 schema/shared domain/core/cutover 变更；按 staged policy 不强制 L3。基础完整 L3 3176 passed / 6 skipped 保留为基础证据，不冒充本 HEAD 的新全量结果。
+
+**M2B 最小验收：**真实 prompt → completed answer → exact evaluation → explicit closure → 同一 revision 新 pass → due 前移；同时证明 reject/unavailable 不重置 due、相同回答的新 attempt 可更新、同 attempt retry 不重复、stale revision/last-pass/source CAS 拒绝、cross-thread/goal/eval mismatch 拒绝、cancelled/partial turn 不写、preview/ordinary chat 不写、Goal/NextStep 不变。直接 seam impact set 在实际实现时登记；改到 runtime/closure 写边界需 L3，使用 D: TEMP/TMP / 专用 basetemp。
+
+**下一步：**本分支 exact-head CI 绿后实施上述 M2B 完整批次。M2 end-to-end 仍 OPEN，不能将本刀的题目预览宣称为已能正式计入复习通过。

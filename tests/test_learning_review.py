@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.application.learning_review import LearningReviewService
+from src.application.learning_review import LearningReviewService, ReviewUnavailable
 from src.domain.learning_truth import (
     ClaimRevision,
     ClaimRevisionBundle,
@@ -40,7 +40,9 @@ class ReviewReader:
         self.validate(revision_id, date, result)
 
     def validate(self, revision_id, date, result="pass"):
-        evidence = UnderstandingEvidence(verified_at=date, user_response="private response")
+        evidence = UnderstandingEvidence(
+            verified_at=date, user_response="private response"
+        )
         self.validations.setdefault(revision_id, []).append(
             (evidence, UnderstandingClaimResult(evidence.id, revision_id, result))
         )
@@ -91,4 +93,52 @@ def test_later_fail_does_not_reset_due_but_new_pass_does():
 @pytest.mark.parametrize("limit,offset", [(0, 0), (101, 0), (20, -1)])
 def test_invalid_page_bounds_fail_before_read(limit, offset):
     with pytest.raises(ValueError, match="page bounds"):
-        LearningReviewService(ReviewReader()).build("thread", limit=limit, offset=offset)
+        LearningReviewService(ReviewReader()).build(
+            "thread", limit=limit, offset=offset
+        )
+
+
+def test_prompt_preview_is_explicit_due_revision_without_response_leak():
+    reader = ReviewReader()
+    reader.add("revision", "concept", "2026-09-26T00:00:00Z")
+    service = LearningReviewService(reader)
+    preview = service.preview_prompt("thread", "revision", now=NOW)
+    assert preview.claim_revision_id == "revision" and preview.goal_id == "goal"
+    assert "concept" in preview.question
+    assert preview.status == "preview" and preview.source == "derived_read_only"
+    assert "private response" not in str(preview.to_dict())
+    assert len(reader.validations["revision"]) == 1
+
+
+def test_prompt_lookup_is_not_limited_to_first_page():
+    reader = ReviewReader()
+    for index in range(105):
+        reader.add(f"revision-{index}", f"concept-{index}", "2026-09-01T00:00:00Z")
+    preview = LearningReviewService(reader).preview_prompt(
+        "thread", "revision-104", now=NOW
+    )
+    assert preview.claim_revision_id == "revision-104"
+    assert reader.reads == ["revision-104"]
+
+
+@pytest.mark.parametrize("target", ["old", "foreign", "unverified", "missing"])
+def test_prompt_rejects_superseded_foreign_unverified_and_missing_revisions(target):
+    reader = ReviewReader()
+    reader.add("old", "concept", "2026-09-01T00:00:00Z")
+    reader.add("latest", "concept", "2026-09-01T00:00:00Z")
+    reader.add("unverified", "another", "2026-09-01T00:00:00Z", "fail")
+    reader.goals["other"] = LearningGoal(id="other-goal")
+    reader.revisions["other-goal"] = []
+    reader.add("foreign", "foreign", "2026-09-01T00:00:00Z", goal_id="other-goal")
+    with pytest.raises(ReviewUnavailable):
+        LearningReviewService(reader).preview_prompt("thread", target, now=NOW)
+
+
+def test_prompt_freshly_rechecks_due_after_new_pass():
+    reader = ReviewReader()
+    reader.add("revision", "concept", "2026-09-01T00:00:00Z")
+    service = LearningReviewService(reader)
+    service.preview_prompt("thread", "revision", now=NOW)
+    reader.validate("revision", "2026-10-02T00:00:00Z")
+    with pytest.raises(ValueError, match="no longer due"):
+        service.preview_prompt("thread", "revision", now=NOW)

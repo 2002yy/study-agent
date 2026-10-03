@@ -24,3 +24,13 @@ class LearningReviewPageResponse(BaseModel):
     limit: int
     offset: int
     source: Literal["derived_read_only"]
+
+
+class ReviewPromptPreviewResponse(BaseModel):
+    thread_id: str
+    goal_id: str
+    claim_revision_id: str
+    last_validated_at: str
+    question: str
+    status: Literal["preview"]
+    source: Literal["derived_read_only"]
