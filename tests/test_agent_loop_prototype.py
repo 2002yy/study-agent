@@ -160,4 +160,8 @@ def test_timeout_exits_with_case_timeout() -> None:
 def test_same_inputs_produce_identical_outcomes() -> None:
     first = _run(planner_fn=_plan_next("q1", "q2"))
     second = _run(planner_fn=_plan_next("q1", "q2"))
-    assert first.to_dict() == second.to_dict()
+    first_result = first.to_dict()
+    second_result = second.to_dict()
+    assert 0 <= first_result.pop("elapsed_seconds") < 60.0
+    assert 0 <= second_result.pop("elapsed_seconds") < 60.0
+    assert first_result == second_result

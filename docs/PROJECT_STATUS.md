@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**`codex/rq1c-bounded-qualification`（Draft PR #142）。本节随每次 docs 提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
+- **分支 / head：**`codex/persistent-research-memory`（基于 Draft PR #142 的 `8c3153a`；§150 实现候选 `66681b0`）。本节随 docs 收口提交前移 head；**权威 HEAD 一律以 `git rev-parse HEAD` 为准**，不得回用旧 SHA。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§150 Persistent Research State v1 合同已冻结**（§150，本次仅 docs）；§149 Auditor 在 clean candidate `c8c9618` 本地 full pytest 2819 passed / 2 skipped，`366b741` 的 PR/push exact-head CI 均 success。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。路线 7 阶段（§144.0）：① RQ → ② Multimodal Reader v1 → ③ Brief → ④ Synthesis → ⑤ Auditor → ⑥ Persistent Research State → ⑦ Benchmark。**唯一下一刀 = §150.4 的 v1 实现批次**（严格模型 + 专用事务存储 + terminal-run 发布 + 同 thread 有界只读 recall）；不得顺手改 RQ-A/C/D、stop/gate、`MemoryRun` 或默认 answer/reader 路径。§149 默认 judge abstain，当前不具备可信 confirmed 写入资格。P3/A4/A5 按需，非 NEXT。
-- **当前先决门：**本次 docs-only 头推远程后只核验该新 HEAD 的 exact-head CI，再开始 §150 实现；不因 docs 改动重跑本地 L3，也不以旧 SHA 的 CI 冒充新 HEAD 交付。
+- **当前动作：§150 Persistent Research State v1 本地实现 CLOSED、远端待门禁**（§150.5；`66681b0` L3 2827 passed / 2 skipped）。已完成独立 schema、事务 repository、显式 terminal-run `unresolved` 发布与同 thread 只读 recall；默认运行链未注入历史线索，`confirmed` 因缺合格 Auditor 授权继续 fail-closed。首个远端 head `50a3210` 的 push/PR CI 被既知 wall-clock 断言 flake 阻断，已按 §150.6 做窄修。§143 / P1 / RS routing 已收口，P1 维持 qualified、默认 OFF 的观察期。**唯一下一步 = 本刀独立 Draft PR 的新 exact-head CI 交付门**；门绿后进入路线 ⑧ 的 Benchmark 合同冻结，不提前宣称 §150 远端 DELIVERED 或 RQCE v1 Freeze。
+- **当前先决门：**父 PR #142 `8c3153a` exact-head PR/push CI 均 success；§150 本地 L0/L1/L2/L3 已绿。文档收口不重跑本地 L3；新远端 head 必须单独核验 push/PR CI，旧 SHA 的绿灯不可复用。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -52,7 +52,7 @@
 | ④ | §147 ResearchBriefProjection | CLOSED；从既有 research state 派生、non-persisted、synthesis-facing；既有 gate-owned `ResearchBrief` 不变。confidence 由确定性代码给出，missing 与 limitations 分开。 |
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
-| ⑦ | Persistent Research / Project Memory v1 | **§150 合同已冻结，未实现。** 下一刀按 §150.4 实现；从 within-run state 扩展到 cross-run continuity，不把历史答案直接当事实。 |
+| ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 本地 CLOSED、远端待门禁。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权；从 within-run state 扩展到可回滚的 cross-run continuity。 |
 | ⑧ | 50–60 task Release Benchmark | 计划中；frozen 可复现集 + live 变化集，分别量 retrieval、required-unit/adequacy、conflict、visual semantic value、assertion/citation coverage、Auditor 漏检/误拒/repair、latency/cost/fail-closed/usefulness。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
@@ -60,7 +60,7 @@
 
 ### 下一主线的合同入口：Persistent Research / Project Memory（§150 已冻结）
 
-§150 已冻结状态所有权、持久化/恢复、版本兼容及与既有 `ResearchState` 的关系。Recall 须检查相关性、新鲜度与当前有效性，Merge 保留 `confirmed / superseded / contradicted / stale / unresolved` 的区分与来源。具体 v1 权限、模型、读写边界和验收以 §150 为准；该阶段尚未实现 schema 或默认启用功能。
+§150 已冻结状态所有权、持久化/恢复、版本兼容及与既有 `ResearchState` 的关系；显式 v1 已按 §150.5 实现。Recall 检查相关性、新鲜度与来源有效性。`confirmed / superseded / contradicted` 的合格审计发布和自动归并仍待独立合同与授权；当前只发布 `unresolved`，不自动启用。
 
 ### 旁路与门禁
 
@@ -13837,7 +13837,7 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 
 **最终本地门禁（clean candidate `c8c9618`）**：full `pytest -q tests` **2819 passed / 2 skipped / 0 failed**（880.61s）；此前 L1 54 passed、Ruff 全库 clean、mypy baseline 122 ≤ 128 且 NEW=0、`git diff --check` clean。该完整回归覆盖上述 protocol probes 与 cross-layer 用例。本节仅判定本地 CLOSED；推远程后仍以新 exact-head CI 为准，不把旧 SHA 的 CI 复用为交付证据。
 
-## §150 Persistent Research State v1 contract（冻结，2026-09-27；路线 ⑥）
+## §150 Persistent Research State v1 contract（冻结，2026-09-27；路线 ⑦）
 
 **先决门已满足**：Draft PR #142 的 `366b741a77b4f9085498f6fdd6af503445f646a0` exact-head 两条 CI `36316878544`（PR）/ `36316875855`（push）均 completed/success；工作树 clean。本节只冻结下一阶段合同，不实现 schema、repository 或 runtime 接线。
 
@@ -13867,6 +13867,25 @@ claim 归属的 evidence_ref 校验与 visual citation page/region 校验，组�
 ### 150.4 下一实现刀及验收（冻结）
 
 下一刀在独立可回滚的实现批次完成：`research-memory-v1` 严格模型与 parser → 专用事务 repository → 从 terminal run 发布 revision → 同 thread 有界只读 recall。先保持显式调用/默认不自动注入。测试至少覆盖：schema/owner/source ref fail-closed；unapproved 不产生 confirmed；同键幂等与不同 digest 冲突；CAS 并发及 crash-before/after-commit；跨 thread 隔离；旧证据不能直接作为新证据；stale/undated/conflict 的召回语义；default-off 与既有 stop/gate/MemoryRun 不变。持久化 schema 属 L3 强制触发，按 `AGENTS.md` 跑 impact set、stage gate、一次 clean candidate full suite、独立静态/CI 门禁。
+
+### 150.5 显式 v1 实现与本地收口（2026-09-27）
+
+**决策：本地 CLOSED，远端尚待 exact-head CI。** 独立分支 `codex/persistent-research-memory` 基于父 PR #142 的 `8c3153a`；实现提交 `32e2ec6`，question authority 窄修 `66681b091e3ef37a71fadf7c4356d419f4610462`。分支与最新工作树状态以 §0 和 Git 实测为准。
+
+- `src/web/research/persistent_memory.py`：新增 `research-memory-v1` 严格 revision/claim/ref parser、canonical state digest、topic/freshness；旧 evidence ID 存为 `source_run_id:evidence_id`，不能充当新 run 的 Evidence。未知 schema、错误 owner/ref、伪造 audit pass 或 confirmed 均 fail-closed。
+- SQLite migration 24 新增独立 `research_memory_threads` CAS cursor 和 `research_memory_revisions` 唯一 `(source_run_id,source_run_version)`；`src/repositories/research_memory_repository.py` 在 `BEGIN IMMEDIATE` 内重验来源 run 的 owner、terminal/version、活动 operation、active state、server-owned IDs 与 digest，再以一个事务完成 revision 追加、prior refs 同 owner 核对和 cursor 递增。重试同 digest 返回原 revision，不同 digest 报冲突，失败回滚 cursor 与 revision。
+- `src/application/research_memory_service.py` 是**显式入口**：从 run 自己的 `query` 取 question/topic，RQ-A/C 与 §147 Projection 派生 claim coverage、冲突、gaps、limitations 和有界来源定位；当前所有 claim 只能发布 `unresolved`。默认执行路径、stop/gate、Synthesis/Auditor citation、通用 `MemoryRun` 均未接线。Recall 同 owner thread 最多 20 条，按时间与 ID 倒序，给出 exact topic relevance、freshness 与 bounded unavailable reason；旧记录只作历史研究线索。
+- `tests/stage_gates.json` 新增 `research_memory` impact set 和 `research-memory-stack` L2 gate；`tests/test_research_memory.py` 覆盖 v23→24 升级、显式发布、idempotency、不同 digest、CAS、事务注入失败、跨 thread、来源 version 漂移、损坏记录、stale/undated/conflict 与未授权 confirmed。
+
+**候选 `66681b0` 门禁**：L1 58 passed；L2 70 passed；clean-head L3 `pytest -q tests` **2827 passed / 2 skipped / 0 failed，906.84s**；Ruff 全库 clean；mypy baseline 122 ≤ 128、NEW=0；package helper exit 0（1514 files）；`git diff --check` clean。首个 L3 在发现 question-source 绑定需收紧时主动中止，**未**当作通过；上述 L3 是修正后 clean `66681b0` 的唯一完整结果。文档收口不改变运行行为，按分层门禁不重复 L3。
+
+**限制与下一步**：当前没有绑定 source state/draft digest 的 qualified semantic Auditor，故没有 confirmed 结论，也不自动把历史 lead 填入当前 Evidence Gate、引用或答案；superseded/contradicted 自动归并与跨 thread/project 权限另立合同。唯一下一步为本刀独立 Draft PR 的 exact-head CI；绿后再冻结路线 ⑧ Benchmark 合同。父 PR #142 的 RQ1-C 手动 Live12 仍 NO-GO，不因本刀改变。
+
+### 150.6 首轮 exact-head CI 阻断与窄修（2026-09-28）
+
+Draft PR #145 首个 head `50a3210aa568fc1bf47e03956463fba0351387a7` 的 PR run `36327674106` 与 push run `36327639592` 均 completed/failure；两者唯一 pytest 失败均为 `test_agent_loop_prototype::test_same_inputs_produce_identical_outcomes`，`elapsed_seconds` 在同输入的两次真实执行间为 `0.001` 与 `0.0`。PR run 其余 `2822 passed / 6 skipped`，pytest 后的门因 enforce 失败而未运行。§107.6 已在旧 head、旧 production 上证明该 wall-clock 相等断言属于负载敏感 flake；这不是 §150 运行逻辑差异。
+
+只修该测试：两个 outcome 的确定性字段继续逐项相等，`elapsed_seconds` 改为各自检查非负且小于 60 秒预算；已有 timeout 测试继续覆盖真实超时退出。`test_agent_loop_prototype.py` + `test_cross_layer_regression.py` 聚焦 **28 passed**，Ruff 全库与 `git diff --check` clean；无 production、fixture、依赖或 runtime 配置改动，按分层门禁不重跑本地 L3。远端须以**窄修后新 head** 的 push/PR CI 为准，旧 run 不得作交付证据。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 

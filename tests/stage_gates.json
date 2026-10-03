@@ -58,6 +58,13 @@
       "tests/test_crawl4ai_timeout_propagation.py",
       "tests/test_crawl4ai_shutdown_contract.py"
     ],
+    "research_memory": [
+      "tests/test_research_memory.py",
+      "tests/test_research_quality_state.py",
+      "tests/test_research_brief_projection.py",
+      "tests/test_research_web_lookup_dispatch.py",
+      "tests/test_runtime_sqlite_repository.py"
+    ],
     "read_adequacy": [
       "tests/test_read_adequacy_probe.py"
     ],
@@ -68,6 +75,15 @@
     ]
   },
   "stage_gates": {
+    "research-memory-stack": [
+      "tests/test_research_memory.py",
+      "tests/test_research_quality_state.py",
+      "tests/test_research_brief_projection.py",
+      "tests/test_research_web_lookup_dispatch.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_web_lookup_research_contract.py",
+      "tests/test_web_lookup_run.py"
+    ],
     "p2-a-retrieval-stack": [
       "tests/test_failure_taxonomy.py",
       "tests/test_health_breaker.py",
