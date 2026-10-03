@@ -7,6 +7,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Feature-branch pushes used to trigger both a push run and a PR run of the same
 # workflow at the same head. Only pull_request (plus main pushes and manual runs)
 # triggers now, and superseded runs on the same ref are cancelled.

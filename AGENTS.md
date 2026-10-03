@@ -114,7 +114,7 @@ If a review fix changes only a small production area, rerun affected focused tes
 - **L2** (sub-phase close): L0 + L1 + the named stage gate.
 - **L3** (major-phase close / cutover / pre-release): L0 + L1 + L2 + full pytest, then Ruff → `git diff --check` → worktree cleanliness → diff-scope audit.
 
-mypy runs only if the repository declares a baseline/config; this repository currently declares none, so it is not part of the gate.
+mypy runs when the repository declares a baseline/config. This repository has `config/mypy_baseline.json` and enforces it in CI; include the no-new-errors baseline check in applicable candidate gates.
 
 Do not interleave repeated full-suite runs between small fixes when focused tests can provide the needed signal.
 

@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支 `codex/document-reading`，基于设计稿提交 `e06f161f937d098075bb55d7da8b61cee82c61d4`；production base 为 Draft PR #159 / `codex/review-workspace-ui` 的 `af5ddef283e142c2d72b78a5513406f6f1ae4ce8`。最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**用户已授权将全部开放 PR 合并到 main。#142、#145–#146、#148–#160 已合并，main 为 `45e2b94f96f08663ab4c294ef79ca6c892730ce7`。剩余 #147 在 `codex/ci-repository-cleanup` 修复冲突，执行 worktree 为 `D:/study-agent-validation/merge-main-20261003`；原 `codex/document-reading` 工作树保持 clean。最终执行 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：文档与对话并排已接到正式页面，§169.7 只读资料阅读 v1 LOCAL GO（实现 closeout 见 §169.8），新 head 远端 CI 待记录。**前一刀 UI Draft PR #159 exact-head CI `37124339800` / `af5ddef2` 已 success；PR #158 后端 exact-head CI `37123206375` / `20da9c74` 已 success（未 merge）。§164 仍仅 G1 runtime gate；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**先核对本批已记录的 exact-head PR CI；绿后回到 §169-M3，只读呈现 primary NextStep、到期 revision 与 current-turn gap。读取正文不升级 evidence/support，也不推算 PDF page/region。原三种学习真值的权威分离不重开。
+- **当前动作：全部 PR 合并收口（§169.9）。**只读资料阅读 #160 exact-head CI `37133312617` / `6aa4b3e2` 已 success，正式代码已进入 main；其余已合并 PR 均核对原 exact-head CI 与未解决 review threads。#147 保留当前 CI 聚合/取消策略与最新交接文档，只补回 `contents: read` 权限及 mypy baseline 指令。冲突修复的新 head 仍须自己的 CI；最终 main CI 尚待核对。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务：**核对 #147 冲突修复 head 的 PR CI；绿后以 expected-head 保护合并到 main，再记录最终 exact-main CI。全部合并收口后回到 §169-M3，只读呈现 primary NextStep、到期 revision 与 current-turn gap。
 - **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -18087,3 +18087,13 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **缺陷闭环：**首轮移动端新wrapper缺flex-grow，短正文阅读区只占460px，补 `.reading-layout { flex:1 }` 后 reading/footer bottom=844。新增测试曾误用Playwright `exact` option到Testing Library，并提供了不完整typed RAG fixture；build gate检出，已修正断言/fixture后tsc通过。既有 >500kB JS chunk warning保留为单独性能债，不增依赖或打包策略。
 
 **交付与限制：**本批独立分支 `codex/document-reading`，review base `af5ddef2`，代码与已验证设计稿一起进入新的Draft PR；最终head/run/PR通过对应PR body和 `git rev-parse HEAD` 恢复。推送后只记录一次exact-head CI，不轮询、不merge、不以旧CI宣称本批REMOTE GO。截图仓库外 `D:/study-agent-validation/retention-review-20261003/reading-v1-real-{desktop,mobile}.png`。PDF/DOCX当前为解析文字版；Markdown正文文字显示标题/行号，完整Markdown富排版、原PDF页面/region viewer、跨刷新阅读位置持久化尚未实现。机械引用定位不构成新的语义支持判断或judge qualification。
+
+### 169.9 全部开放 PR 合并收口（2026-10-03）
+
+**授权与已完成：**用户明确要求将全部开放 PR 合并到 main。初始开放17个：连续链 #142、#145、#146、#148–#160，以及旁支 #147。初始核对当前 heads、原 exact-head CI、依赖、mergeability、review threads；#142 的5条历史线程已 resolved，其余无未解决线程。保留 merge commits，逐个改为 main base 并以 `--match-head-commit` 保护已验证 head，未 squash、未删除分支。16个连续链 PR 已 MERGED，main=`45e2b94f96f08663ab4c294ef79ca6c892730ce7`；#160 的 PR CI `37133312617` / `6aa4b3e2` completed/success。
+
+**剩余 #147：**原 head `3c71a360` 与最新 main 的 workflow/status 有两处冲突。独立 worktree `D:/study-agent-validation/merge-main-20261003` 合入上述 main，保留最新单次 diagnostics 上传、PR/main/manual 触发与 superseded-run cancellation；旧的多 artifact/双事件 CI 策略已被 §169.2 替代，不恢复。保留 #147 的 `permissions: contents: read` 与 mypy baseline 指令修正。相对 main 的最终差异仅 workflow、AGENTS、此状态文档，production/test/fixture 无差异。旧 §152 当前状态不覆盖最新 handoff；其清理意图与冲突处理由本段记录。
+
+**验证与待门禁：**CI outcome/secret allowlist/package/workflow registry 四个 owner 文件71 passed / 16.05s；Ruff 全库 PASS，UTF-8 YAML 权限与 concurrency 不变量 PASS，diff-check/scope audit PASS。workflow/指令/docs-only 不重跑 L3；新 #147 head 必须单独 PR CI 通过，之后 expected-head 合并，再核对最终 exact-main CI；在两项完成前不称全部合并交付 CLOSED。Git fetch 一次下载阻塞，确认仅为本次 fetch 的 remote-https/index-pack 等待；停止该次下载后用 low-speed timeout 重取 main 成功，无 production 修复。所有证据日志在仓库外。
+
+**唯一下一步：**核对 #147 新 head 的已记录 PR run；success 后合并 #147，再记录最终 main SHA/run。完成后继续 §169-M3 read-only Resume + Review convergence；release/judge 权限不因代码合并提升。
