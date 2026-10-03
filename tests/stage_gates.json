@@ -123,6 +123,15 @@
       "tests/test_learning_truth_repository.py",
       "tests/test_runtime_sqlite_repository.py"
     ],
+    "document_reading": [
+      "tests/test_document_reading.py",
+      "tests/test_session_attachment_routes.py",
+      "tests/test_session_attachments.py",
+      "tests/test_rag_runs.py",
+      "tests/test_rag_evidence_api.py",
+      "tests/test_rag_evidence_eligibility.py",
+      "tests/test_rag.py"
+    ],
     "ci_outcome_consolidation": [
       "tests/test_ci_outcomes.py",
       "tests/test_ci_detect_secrets_allowlist.py",
@@ -130,6 +139,15 @@
     ]
   },
   "stage_gates": {
+    "document-reading-v1": [
+      "tests/test_document_reading.py",
+      "tests/test_session_attachment_routes.py",
+      "tests/test_session_attachments.py",
+      "tests/test_rag_runs.py",
+      "tests/test_rag_evidence_api.py",
+      "tests/test_rag_evidence_eligibility.py",
+      "tests/test_rag.py"
+    ],
     "release-benchmark-review": [
       "tests/test_release_benchmark_review.py",
       "tests/test_release_benchmark_replay.py",

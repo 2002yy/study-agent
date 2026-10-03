@@ -19,6 +19,7 @@ import {
 import type { EvidenceRef } from "./evidenceHelpers";
 import { ExternalDataDisclosure } from "./ExternalDataDisclosure";
 import "./evidenceTrail.css";
+import { useReadingWorkspace } from "../reading/ReadingContext";
 
 const STATUS_LABELS: Record<EvidenceRef["status"], string> = {
   selected: "已采用",
@@ -83,10 +84,12 @@ function EvidenceRow({
   ref,
   supported,
   diagnostic = false,
+  onRead,
 }: {
   ref: EvidenceRef;
   supported: boolean;
   diagnostic?: boolean;
+  onRead?: () => void;
 }) {
   return (
     <div className={`evidence-ref-row${diagnostic ? " is-diagnostic" : ""}`}>
@@ -111,6 +114,7 @@ function EvidenceRow({
       {diagnostic && ref.score > 0 ? (
         <span className="evidence-ref-score">{ref.score.toFixed(2)}</span>
       ) : null}
+      {onRead ? <button className="evidence-reading-link" type="button" onClick={onRead}>定位正文</button> : null}
       {diagnostic && (ref.providerStatus || ref.selectionReason || ref.rejectionReason) ? (
         <span className="evidence-ref-meta">
           {[
@@ -129,6 +133,7 @@ function EvidenceRow({
 }
 
 export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
+  const reading = useReadingWorkspace();
   const [open, setOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [copyResult, setCopyResult] = useState<{ target: CopyTarget; state: CopyState } | null>(null);
@@ -141,6 +146,10 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
   const citations = rag ? buildCitations(rag) : [];
   const evidenceRefs = normalizeEvidence(evidence);
   const supportedIds = new Set(pedagogy?.evidence_ids ?? []);
+  const readAction = (ref: EvidenceRef) => {
+    const target = ref.type === "local" ? reading?.citation(ref.id,ref.source,rag?.results ?? []) : null;
+    return target && reading ? () => reading.open(target) : undefined;
+  };
   const adoptedRefs = evidenceRefs.filter(
     (ref) => ref.status === "selected" || supportedIds.has(ref.id),
   );
@@ -228,6 +237,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
                     key={ref.id}
                     ref={ref}
                     supported={supportedIds.has(ref.id)}
+                    onRead={readAction(ref)}
                   />
                 ))}
               </div>
@@ -308,6 +318,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
                                 ref={ref}
                                 supported={supportedIds.has(ref.id)}
                                 diagnostic
+                                onRead={readAction(ref)}
                               />
                             ))}
                         </div>
