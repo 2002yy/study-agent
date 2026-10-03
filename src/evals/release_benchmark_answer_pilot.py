@@ -119,6 +119,7 @@ def generate_frozen_answer(
         raise ValueError("frozen reader did not complete a registered source read")
     with block_python_network():
         read = gateway.read(source.locator, max_chars=6000)
+    read_observed_at = _now()
     if (read["source_sha256"] != source.sha256 or read["url"] != source.locator
             or not read["content"].strip()):
         raise ValueError("frozen source context binding failed")
@@ -140,6 +141,7 @@ def generate_frozen_answer(
         "code_sha": code_sha,
         "reader_run_id": pilot["run_id"],
         "reader_network_guard": pilot["network_guard"],
+        "read_observed_at": read_observed_at,
         "inference_network": "remote_model_api",
         "provider": provider,
         "model": model,
@@ -194,7 +196,8 @@ def build_answer_review_packet(bundle: dict[str, object], registry: ReleaseRegis
             "prompt_sha256", "messages", "raw_model_response", "claims",
             "answer", "semantic_assessment", "release_observation", "release_gate",
         }
-        if (set(row) != expected_keys or row["schema_version"] != SCHEMA
+        if (set(row) not in (expected_keys, expected_keys | {"read_observed_at"})
+                or row["schema_version"] != SCHEMA
                 or row["case_content_sha256"] != case.content_sha256
                 or row["code_sha"] != bundle["code_sha"]
                 or row["reader_network_guard"] != "python_socket_connect_blocked"
@@ -207,6 +210,17 @@ def build_answer_review_packet(bundle: dict[str, object], registry: ReleaseRegis
                 or not isinstance(row["provider"], str) or not row["provider"]
                 or not isinstance(row["model"], str) or not row["model"]):
             raise ValueError("answer diagnostic fields are invalid")
+        if "read_observed_at" in row:
+            try:
+                instants = [datetime.fromisoformat(row[key].replace("Z", "+00:00"))
+                            for key in ("started_at", "read_observed_at",
+                                        "model_started_at", "model_ended_at")]
+            except (AttributeError, ValueError) as exc:
+                raise ValueError("answer read or model timestamp is invalid") from exc
+            if (any(instant.tzinfo is None or instant.utcoffset() != timezone.utc.utcoffset(
+                instant
+            ) for instant in instants) or instants != sorted(instants)):
+                raise ValueError("answer read or model timestamp is invalid")
         expected_source = {
             "source_id": source.source_id, "locator": source.locator,
             "page": source.page, "region": source.region,

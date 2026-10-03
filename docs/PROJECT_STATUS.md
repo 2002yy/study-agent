@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支为 `codex/release-benchmark-semantic-probe`，父 Draft PR #152 在 `codex/release-benchmark-answer-pilot`；§159 最新 DeepSeek 语义探针代码 head `87d39a61dbbae7d3243c75b81a98eeb6dde3bd71`。§155 正式复核目标仍是 Draft PR #150 的 `codex/release-benchmark-attestation` exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；各分支权威 HEAD 以各自 `git rev-parse HEAD` 为准。
+- **分支 / head：**当前执行分支为 `codex/release-benchmark-remote-observation`；父 Draft PR #153 的类型修复 head 为 `e4d944b21dbad055e691a78500c885165e6c3b71`，§160 真实答案和观测绑定代码 head `ea11142041c68cbd3dc84041c0003971e0fc4c5c`。§155 正式复核目标仍是 Draft PR #150 的 exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；当前分支最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,7 +29,7 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§159 两案 DeepSeek 语义探针已完成**（见 §159）。用户明确允许本个人项目用 DeepSeek API，后续 frozen 的约束调整为**来源快照/读取离线、模型推理可联网且如实记录**；旧 `observation-v1` 的全离线语义不追溯修改。flash 答案与 pro 探针都绑定来源和答案 digest，第二次探针检出 6/6 目标负控制，但存在多余 issue 分类，**没有合格语义 judge 或正式标签**。六案准入仍 **6/56**，视觉三案 unavailable、live missing，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 冻结并实现新版本的 frozen-source + remote-inference observation/score 路径，包含读时点、答案 digest、网络/模型 provenance；然后校准语义裁定，不能直接拿本探针填正式指标。**
+- **当前动作：§160 远端推理观测 v2 已实现并真实计分**（见 §160）。DeepSeek flash 两案答案绑定冻结来源离线读取和代码 head `ea11142`；v2 明示远端推理、读时点、答案及 bundle digest。2/6 案 completed、4 案 missing、正式语义标签 0；旧 v1 仍只接受全离线 replay。六案准入 **6/56**，视觉三案和 live 仍缺正式答案/观察，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对本轮 `review_packet.json` 冻结独立语义裁定与负控制校准规则，再决定是否允许正式语义标签；不得把 §159 诊断直接晋升。**
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +53,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 六案准入 6/56；§157 五案 reader pilot；§158 两案真实答案；§159 DeepSeek pro 语义探针完成，release 仍 NO-GO。** 用户允许冻结来源读后远端模型推理；旧 v1 全离线记录不追溯改义。下一门是带网络/答案 provenance 的新版记录及正式语义裁定。 |
+| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 六案准入 6/56；§157 五案 reader pilot；§158 两案真实答案；§159 DeepSeek pro 语义探针；§160 两案 remote-inference v2 正式观测/机械计分，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是对 v2 答案的独立、可校准语义裁定。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -13984,6 +13984,16 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 **用户裁定**：本个人项目可使用 DeepSeek API 完成模型推理。对后续版本，`frozen` 固定的是**原始来源快照、定位和无外网读取**，模型推理可显式远端执行，必须记录 provider/model、答案与 prompt digest、读时点和网络使用。§151 / `release-benchmark-observation-v1` 的 `offline_replay + network_disabled=true` 仍按原定义解析，不把远端推理结果伪报为 v1；新评分路径需要版本化 schema 与新运行记录。
 
 **本刀实现与真实结果**：独立 `codex/release-benchmark-semantic-probe` 分支用 DeepSeek pro 对 §158 flash 答案和每案三个盲化控制（错引、漏答、无证据断言）做有界结构化诊断。所有 prompt、raw response、来源/答案绑定和模型身份保存在 `docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_PROBE_2026-09-29/`。初次代码 head `9732ba6` 的 artifact SHA `a1639397fc06e00289cf4ba89c29369861e26096e22acd9950bfc8aabe7cf63c`：2/6 控制检出，错引均漏判，unsupported issue 与 supported 汇总维度冲突。修正明确 locator/page 校验与维度一致性要求后，在代码 head `87d39a61dbbae7d3243c75b81a98eeb6dde3bd71` 重跑，artifact SHA `d93e1dd8f8949dd88d015334289245868f383b8ed82bbb077e03551b58ab7622`：6/6 目标维度检出、8/8 维度一致；但 5/6 控制另有多余 issue 类型，judge 仍未校准。两次对真实答案均报 covered/supported/supported，无 issue；这只属诊断，两个模型同属 DeepSeek 家族，无独立人工/qualified 标签。`formal_semantic_label=false`、`release_observation=false`、release **NO-GO**。聚焦 4 passed、`release-benchmark-pilot` L2 **123 passed**、Ruff 与 diff check clean。唯一下一刀是新版本 remote-inference observation/score 路径，随后独立校准语义评估，不能把本次 pro 输出晋升为正式指标。
+
+## §160 frozen 来源 + 远端推理观测 v2（2026-09-29）
+
+**契约与实现**：Draft PR #153 的 mypy 门发现 5 个语义探针类型错误，已在父 head `e4d944b` 作纯类型修复；当前分支另修 1 个 v2 类型错误，mypy baseline 122/128、无新增。`release-benchmark-observation-v2` 仅接受 `frozen_source_remote_inference`：来源快照和 `WebLookupService` 读仍受 Python socket guard 保护，模型 API 在 guard 后联网；记录 `source_network_disabled=true`、`network_disabled=false`、`inference_network=remote_model_api`、provider/model、准确读时点、canonical answer bundle SHA 和逐案 answer SHA。旧 observation-v1 的 `offline_replay + network_disabled=true` 原义不变。v2 parser 禁止自填 observed 语义指标；scorer 输出独立 `release-benchmark-score-v2`，不会把 §159 的 pro 探针判词视为合格标签。工具只在 tracked clean 且 answer bundle 的 code SHA 等于当前 HEAD 时生成观测，重验 frozen source、prompt、引用、答案及规范 JSON 字节。
+
+**真实执行证据**：代码 head `ea11142041c68cbd3dc84041c0003971e0fc4c5c`；`docs/research_quality/RELEASE_BENCHMARK_REMOTE_OBSERVATION_2026-09-29/` 保存 `answer_bundle.json`、`observation.json`、`score.json`、`review_packet.json`。答案 bundle 字节 SHA-256 `90d5264345ce23da3158ad4796e549fc04bcbb024ad021399aa21fc56ed49ace`，与 observation 和 review packet 的绑定一致；两案分别在 `2026-09-29T12:35:09.252Z`、`2026-09-29T12:35:11.934Z` 读到注册来源。通用 scorer 从保存的 observation 重读得到 score-v2、2 completed / 4 missing、正式语义标签 0、release **NO-GO**；准入仍 6/56。视觉三案无 qualified vision adapter，live 缺人工来源核验，不从旧诊断产物补写本轮记录。
+
+**验证与故障归因**：L2 `release-benchmark-pilot` 131 passed；相关聚焦 24 passed；Ruff 全 src/tools/tests clean；mypy baseline 122 ≤ 128、无新错误；clean code HEAD 的 L3 **2891 passed / 2 skipped**。首次 L3 曾在未提交 tracked 改动时出现两项 RQ1-C clean-checkout 前置门失败；提交代码后两项单独 2 passed，随后 clean HEAD L3 全绿。父 PR #153 的旧 head `4a423a1` CI 失败对应 mypy 新增错误；类型修复 head `e4d944b` 的 push run `36568865632` 与 PR run `36568871829` 在首次查询时仍 in_progress，不能视作绿。当前 v2 PR 的 exact-head CI 另行确认，不借用父 head 结果。Python socket guard 不是 OS 层断网证明；本轮也没有合格语义裁定或 release GO。
+
+**下一刀**：以本轮 review packet 与答案 digests 为固定输入，先冻结可执行的独立语义裁定/负控制准入规则，再决定是否写入正式 question coverage、grounding、citation 指标；不得让同家族 DeepSeek 诊断自行授予 qualified judge 身份。
 
 ## §145 Artifact / evidence hygiene（2026-09-25）
 

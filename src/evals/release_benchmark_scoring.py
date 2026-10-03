@@ -27,7 +27,9 @@ from src.evals.release_benchmark_registry import (
 )
 
 OBSERVATION_SCHEMA_VERSION = "release-benchmark-observation-v1"
+REMOTE_OBSERVATION_SCHEMA_VERSION = "release-benchmark-observation-v2"
 SCORE_SCHEMA_VERSION = "release-benchmark-score-v1"
+REMOTE_SCORE_SCHEMA_VERSION = "release-benchmark-score-v2"
 METRICS = (
     "original_source_recall", "read_success", "required_unit_coverage",
     "conflict_preservation", "visual_value", "question_coverage",
@@ -64,6 +66,7 @@ class CaseObservation:
     source_reads: tuple[SourceRead, ...]
     metrics: tuple[tuple[str, MetricLabel], ...]
     hard_failures: tuple[HardFailure, ...]
+    answer_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,10 @@ class RecordedRun:
     configuration_digest: str
     started_at: str
     ended_at: str
+    schema_version: str = OBSERVATION_SCHEMA_VERSION
+    source_network_disabled: bool | None = None
+    inference_network: str | None = None
+    answer_bundle_sha256: str | None = None
 
 
 def eligible_metrics(case: ReleaseCase) -> tuple[str, ...]:
@@ -122,14 +129,20 @@ def load_recording(path: str | Path, plan: ReleaseBenchmarkPlan,
 def parse_recording(raw: Any, plan: ReleaseBenchmarkPlan,
                     registry: ReleaseRegistry, gold: ReleaseGold,
                     expected_code_sha: str) -> RecordedRun:
-    data = _object(raw, {
+    schema = raw.get("schema_version") if isinstance(raw, dict) else None
+    if schema not in {OBSERVATION_SCHEMA_VERSION, REMOTE_OBSERVATION_SCHEMA_VERSION}:
+        raise ValueError("unsupported release observation schema")
+    remote = schema == REMOTE_OBSERVATION_SCHEMA_VERSION
+    fields = {
         "schema_version", "code_sha", "plan_digest", "registry_digest", "gold_digest",
         "mode", "captured_at", "execution_kind", "network_disabled", "configuration",
         "reader_flags", "budgets", "model_versions", "tool_versions", "time_window",
         "cases",
-    }, "release observation")
-    if data["schema_version"] != OBSERVATION_SCHEMA_VERSION:
-        raise ValueError("unsupported release observation schema")
+    }
+    if remote:
+        fields |= {"source_network_disabled", "inference_network",
+                   "answer_bundle_sha256"}
+    data = _object(raw, fields, "release observation")
     code_sha = data["code_sha"]
     if (not isinstance(code_sha, str) or not _SHA.fullmatch(code_sha)
             or code_sha != expected_code_sha):
@@ -141,7 +154,16 @@ def parse_recording(raw: Any, plan: ReleaseBenchmarkPlan,
     mode = data["mode"]
     if mode not in {"frozen", "live"}:
         raise ValueError("invalid release observation mode")
-    if mode == "frozen":
+    if remote:
+        if (mode != "frozen"
+                or data["execution_kind"] != "frozen_source_remote_inference"
+                or data["network_disabled"] is not False
+                or data["source_network_disabled"] is not True
+                or data["inference_network"] != "remote_model_api"
+                or not isinstance(data["answer_bundle_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", data["answer_bundle_sha256"])):
+            raise ValueError("remote frozen observation network or answer binding invalid")
+    elif mode == "frozen":
         if data["execution_kind"] != "offline_replay" or data["network_disabled"] is not True:
             raise ValueError("frozen replay must declare offline execution")
     elif data["execution_kind"] != "manual_live" or data["network_disabled"] is not False:
@@ -156,6 +178,10 @@ def parse_recording(raw: Any, plan: ReleaseBenchmarkPlan,
                (isinstance(item, str) and len(item) > 200)
                for name, item in value.items()):
             raise ValueError(f"invalid release observation {key}")
+    if remote and (data["model_versions"].get("answer") in {None, "none"}
+                   or data["configuration"].get("answer_bundle_sha256")
+                   != data["answer_bundle_sha256"]):
+        raise ValueError("remote frozen observation model or bundle mismatch")
     window = _object(data["time_window"], {"started_at", "ended_at"}, "time window")
     start = _timestamp(window["started_at"], "run start")
     end = _timestamp(window["ended_at"], "run end")
@@ -168,7 +194,8 @@ def parse_recording(raw: Any, plan: ReleaseBenchmarkPlan,
     if not isinstance(rows, list):
         raise ValueError("invalid release observation cases")
     known = {case.case_id: case for case in registry.cases if case.mode == mode}
-    observations = tuple(_parse_case_observation(row, known, start, end) for row in rows)
+    observations = tuple(_parse_case_observation(row, known, start, end, remote=remote)
+                         for row in rows)
     ids = [case.case_id for case in observations]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate release observation case")
@@ -180,14 +207,21 @@ def parse_recording(raw: Any, plan: ReleaseBenchmarkPlan,
                                "configuration", "reader_flags", "budgets",
                                "model_versions", "tool_versions",
                            )
-                       }), start, end)
+                       }), start, end, schema,
+                       data["source_network_disabled"] if remote else None,
+                       data["inference_network"] if remote else None,
+                       data["answer_bundle_sha256"] if remote else None)
 
 
 def _parse_case_observation(raw: Any, cases: dict[str, ReleaseCase],
-                            started_at: str, ended_at: str) -> CaseObservation:
-    data = _object(raw, {
+                            started_at: str, ended_at: str,
+                            *, remote: bool = False) -> CaseObservation:
+    fields = {
         "case_id", "state", "reason", "source_reads", "metrics", "hard_failures",
-    }, "case observation")
+    }
+    if remote:
+        fields.add("answer_sha256")
+    data = _object(raw, fields, "case observation")
     case = cases.get(data["case_id"])
     if case is None:
         raise ValueError("observation references unknown or wrong-mode case")
@@ -213,6 +247,18 @@ def _parse_case_observation(raw: Any, cases: dict[str, ReleaseCase],
         raise ValueError("observation metric is not eligible")
     if state != "completed" and labels:
         raise ValueError("unavailable case cannot carry metric labels")
+    answer_sha256 = data["answer_sha256"] if remote else None
+    if remote:
+        if state == "completed":
+            if (not isinstance(answer_sha256, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", answer_sha256)
+                    or not read_ok_ids):
+                raise ValueError("completed remote answer lacks digest or read")
+        elif answer_sha256 is not None:
+            raise ValueError("unavailable remote case cannot claim an answer")
+        if any(name in SEMANTIC_METRICS and item.get("state") == "observed"
+               for name, item in labels.items() if isinstance(item, dict)):
+            raise ValueError("remote semantic labels need separate verified authority")
     if not isinstance(data["hard_failures"], list):
         raise ValueError("invalid release hard failures")
     failures = tuple(_parse_hard_failure(item, case) for item in data["hard_failures"])
@@ -220,7 +266,8 @@ def _parse_case_observation(raw: Any, cases: dict[str, ReleaseCase],
         raise ValueError("duplicate release hard failure")
     return CaseObservation(case.case_id, state, reason, reads,
                            tuple((name, _parse_metric(value, name, case, read_ok_ids))
-                                 for name, value in labels.items()), failures)
+                                 for name, value in labels.items()), failures,
+                           answer_sha256)
 
 
 def _parse_source_read(raw: Any, case: ReleaseCase,
@@ -330,10 +377,19 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
     if any(run.plan_digest != plan_digest(plan) or run.registry_digest != registry.digest
            or run.gold_digest != gold.digest for run in recordings):
         raise ValueError("recording provenance differs from release manifests")
-    if any(run.mode not in {"frozen", "live"} or
-           (run.mode == "frozen") != run.network_disabled or
-           run.execution_kind != ("offline_replay" if run.mode == "frozen" else "manual_live")
-           for run in recordings):
+    if any(not (
+        (run.schema_version == OBSERVATION_SCHEMA_VERSION and (
+            (run.mode == "frozen" and run.network_disabled is True
+             and run.execution_kind == "offline_replay") or
+            (run.mode == "live" and run.network_disabled is False
+             and run.execution_kind == "manual_live")
+        )) or
+        (run.schema_version == REMOTE_OBSERVATION_SCHEMA_VERSION
+         and run.mode == "frozen" and run.network_disabled is False
+         and run.source_network_disabled is True
+         and run.inference_network == "remote_model_api"
+         and run.execution_kind == "frozen_source_remote_inference")
+    ) for run in recordings):
         raise ValueError("recording execution mode differs from network boundary")
     admission = admission_report(plan, registry, gold)
     reviewed = {review.case_id for review in gold.reviews if review.structurally_reviewed}
@@ -368,7 +424,7 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
                     ),
                     "evidence_refs": [], "assessor_kind": "none", "assessor_id": None,
                 }
-        cases.append({
+        case_row = {
             "case_id": case.case_id, "mode": case.mode, "modality": case.modality,
             "primary_focus": case.primary_focus,
             "release_admitted": case.case_id in reviewed,
@@ -388,7 +444,10 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
                  "evidence_refs": list(failure.evidence_refs)}
                 for failure in observed.hard_failures
             ] if observed else [],
-        })
+        }
+        if observed and observed.answer_sha256 is not None:
+            case_row["answer_sha256"] = observed.answer_sha256
+        cases.append(case_row)
     hard_failures = [{"case_id": item["case_id"], **failure}
                      for item in cases for failure in item["hard_failures"]]
     strata = {
@@ -405,7 +464,10 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
     hard_failure_counts = {code: sum(item["code"] == code for item in hard_failures)
                            for code in sorted(HARD_FAILURES)}
     return {
-        "schema_version": SCORE_SCHEMA_VERSION,
+        "schema_version": (REMOTE_SCORE_SCHEMA_VERSION if any(
+            run.schema_version == REMOTE_OBSERVATION_SCHEMA_VERSION
+            for run in recordings
+        ) else SCORE_SCHEMA_VERSION),
         "code_sha": recordings[0].code_sha if recordings else None,
         "recordings": [
             {"mode": run.mode, "execution_kind": run.execution_kind,
@@ -413,7 +475,11 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
              "recording_digest": run.recording_digest,
              "configuration_digest": run.configuration_digest,
              "started_at": run.started_at, "ended_at": run.ended_at,
-             "captured_at": run.captured_at}
+             "captured_at": run.captured_at,
+             **({"source_network_disabled": run.source_network_disabled,
+                 "inference_network": run.inference_network,
+                 "answer_bundle_sha256": run.answer_bundle_sha256}
+                if run.schema_version == REMOTE_OBSERVATION_SCHEMA_VERSION else {})}
             for run in recordings
         ],
         "plan_digest": plan_digest(plan), "registry_digest": registry.digest,
