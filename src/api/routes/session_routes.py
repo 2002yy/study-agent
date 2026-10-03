@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.models.common import (
     SessionArchiveResponse,
@@ -17,15 +17,18 @@ from src.api.models.common import (
 )
 from src.api.models.memory import MemoryRunResponse
 from src.api.models.learner_model import LearnerModelSnapshotResponse
+from src.api.models.learning_review import LearningReviewPageResponse
 from src.application.helpers import runtime_settings_payload
 from src.application.learner_model import LearnerModelService
 from src.application.learning_closure_service import LearningClosureNotEligible
 from src.application.learning_revalidation import LearningRevalidationService
+from src.application.learning_review import LearningReviewService
 from src.application.runtime_repository import (
     get_learning_closure_service,
     get_learner_model_service,
     get_learning_revalidation_service,
     get_learning_resume_service,
+    get_learning_review_service,
     get_session_service,
 )
 from src.application.session_service import SessionService
@@ -35,6 +38,25 @@ SessionServiceDependency = Annotated[SessionService, Depends(get_session_service
 LearnerModelServiceDependency = Annotated[
     LearnerModelService, Depends(get_learner_model_service)
 ]
+LearningReviewServiceDependency = Annotated[
+    LearningReviewService, Depends(get_learning_review_service)
+]
+
+
+@router.get("/sessions/{session_id}/reviews", response_model=LearningReviewPageResponse)
+def get_learning_reviews(
+    session_id: str,
+    service: LearningReviewServiceDependency,
+    session_service: SessionServiceDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    due_only: bool = False,
+) -> LearningReviewPageResponse:
+    if session_service.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return LearningReviewPageResponse(
+        **service.build(session_id, limit=limit, offset=offset, due_only=due_only).to_dict()
+    )
 
 
 @router.get("/sessions", response_model=SessionListResponse)
