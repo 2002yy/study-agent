@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LearningReviewItemResponse(BaseModel):
@@ -34,3 +34,15 @@ class ReviewPromptPreviewResponse(BaseModel):
     question: str
     status: Literal["preview"]
     source: Literal["derived_read_only"]
+
+
+class StartReviewPromptRequest(BaseModel):
+    turn_id: str = Field(min_length=1)
+    operation_id: str = Field(min_length=1)
+
+
+class StartReviewPromptResponse(BaseModel):
+    thread_id: str
+    prompt_turn_id: str
+    question: str
+    status: Literal["completed"]

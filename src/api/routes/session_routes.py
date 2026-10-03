@@ -20,6 +20,8 @@ from src.api.models.learner_model import LearnerModelSnapshotResponse
 from src.api.models.learning_review import (
     LearningReviewPageResponse,
     ReviewPromptPreviewResponse,
+    StartReviewPromptRequest,
+    StartReviewPromptResponse,
 )
 from src.application.helpers import runtime_settings_payload
 from src.application.learner_model import LearnerModelService
@@ -35,6 +37,8 @@ from src.application.runtime_repository import (
     get_session_service,
 )
 from src.application.session_service import SessionService
+from src.application.chat_service import ChatService, TurnCancelled
+from src.application.runtime_repository import get_chat_service
 
 router = APIRouter(tags=["sessions"])
 SessionServiceDependency = Annotated[SessionService, Depends(get_session_service)]
@@ -44,6 +48,36 @@ LearnerModelServiceDependency = Annotated[
 LearningReviewServiceDependency = Annotated[
     LearningReviewService, Depends(get_learning_review_service)
 ]
+ReviewChatServiceDependency = Annotated[ChatService, Depends(get_chat_service)]
+
+
+@router.post(
+    "/sessions/{session_id}/reviews/{revision_id}/start",
+    response_model=StartReviewPromptResponse,
+)
+def start_review_prompt(
+    session_id: str,
+    revision_id: str,
+    request: StartReviewPromptRequest,
+    service: ReviewChatServiceDependency,
+    session_service: SessionServiceDependency,
+) -> StartReviewPromptResponse:
+    if session_service.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        turn = service.start_review_prompt(
+            session_id, revision_id, turn_id=request.turn_id, operation_id=request.operation_id
+        )
+    except ReviewUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TurnCancelled as exc:
+        raise HTTPException(status_code=409, detail="Review prompt cancelled") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return StartReviewPromptResponse(
+        thread_id=session_id, prompt_turn_id=turn.id, question=turn.assistant_message,
+        status="completed",
+    )
 
 
 @router.get("/sessions/{session_id}/reviews", response_model=LearningReviewPageResponse)
