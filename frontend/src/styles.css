@@ -855,7 +855,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 16px 24px 22px;
+  padding: 16px max(24px, calc((100% - 960px) / 2)) 22px;
   border-top: 1px solid var(--border);
   background: #fbfcfc;
 }
@@ -884,6 +884,27 @@ button {
   background: #172024;
   border-color: #172024;
   color: #ffffff;
+}
+
+.composer .send-button {
+  align-self: end;
+  min-width: 88px;
+  min-height: 44px;
+  height: 44px;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.composer .send-button:disabled {
+  opacity: 1;
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.composer .stop-button {
+  background: #8f1d1d;
+  border-color: #8f1d1d;
 }
 
 .stop-button {
@@ -1946,6 +1967,27 @@ button {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--accent-strong);
+  gap: 12px;
+}
+.session-sidebar-header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.session-sidebar-header strong {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.session-sidebar-header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.session-sidebar-header .ghost-action {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 36px;
+  white-space: nowrap;
 }
 .session-sidebar-list {
   flex: 1;

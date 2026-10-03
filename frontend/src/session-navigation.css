@@ -68,6 +68,8 @@
 .session-nav-group,
 .session-history-group {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 6px;
 }
 
@@ -87,6 +89,7 @@
 
 .session-sidebar-row {
   position: relative;
+  min-width: 0;
 }
 
 .session-sidebar-row-main {

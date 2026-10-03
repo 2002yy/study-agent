@@ -13,12 +13,13 @@ function narrowScreenRules(): string {
 }
 
 describe("narrow-screen layout contract", () => {
-  it("keeps the G7 primary action hierarchy aligned with three mobile controls", () => {
+  it("keeps the primary action and three mobile controls in one compact row", () => {
     const rules = narrowScreenRules();
 
-    expect(rules).toContain("grid-template-columns: repeat(3, 44px)");
+    expect(rules).toContain("flex-wrap: nowrap");
     expect(rules).toContain(".topbar-actions .end-session-button");
-    expect(rules).toContain("grid-column: 1 / -1");
+    expect(rules).toContain("flex: 0 0 auto");
+    expect(rules).not.toContain("grid-column: 1 / -1");
     expect(rules).not.toContain("repeat(6, 38px)");
   });
 
