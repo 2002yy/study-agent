@@ -15,6 +15,8 @@ import type { ChatResponse, MemoryStatusResponse } from "../../types";
 import { DurableEvidenceTrail } from "../evidence/DurableEvidenceTrail";
 import { phaseLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
 import { latestMemorySection } from "../single-chat/ChatPanel";
+import { FireflyDefaultLesson } from "./FireflyDefaultLesson";
+import { useFireflyLessonController } from "./FireflyLessonContext";
 import {
   revalidateClaim,
   type LearningResumeClaim,
@@ -362,6 +364,12 @@ export function LearningPanel({
   visitedPhases: string[];
   memoryStatus: MemoryStatusResponse | null;
 }) {
+  const fireflyLesson = useFireflyLessonController();
+  const durableActive = resume?.source === "durable" && resume.status === "active";
+  if (fireflyLesson?.state.active && !durableActive) {
+    return <FireflyDefaultLesson controller={fireflyLesson} />;
+  }
+
   if (resume?.source === "durable") {
     return (
       <DurablePanel

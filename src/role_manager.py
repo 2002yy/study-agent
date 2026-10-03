@@ -1,6 +1,8 @@
 import os
 import re
 
+from src.turn_context import unpack_scene_turn_context
+
 ROLES_DIR = os.path.join(os.path.dirname(__file__), "..", "roles")
 
 FALLBACKS = {
@@ -112,7 +114,8 @@ def build_role_prompt(
         "8. 禁止跑偏",
         "9. 动态记录区",
     ]
-    if scene == "group":
+    actual_scene, _ = unpack_scene_turn_context(scene)
+    if actual_scene == "group":
         selected_keys.extend(["6. 微信群风格", "7. 与其他角色的互动方式"])
     # Teaching actions belong to PedagogyProtocol. Role prompts deliberately
     # omit the old teaching/project/paper sections so they cannot override the
