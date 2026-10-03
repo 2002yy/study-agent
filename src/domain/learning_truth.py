@@ -122,3 +122,17 @@ class NextStep:
     is_primary: bool = False
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
+
+
+@dataclass(frozen=True)
+class LearnerMisconception:
+    """168: durable misconception. An observation is not this; see 168.2."""
+
+    id: str = field(default_factory=lambda: new_id("misconception"))
+    goal_id: str = ""
+    description: str = ""
+    status: str = "suspected"
+    occurrence_count: int = 1
+    source_eval_ref: str = ""
+    first_seen_at: str = field(default_factory=utc_now)
+    last_seen_at: str = field(default_factory=utc_now)

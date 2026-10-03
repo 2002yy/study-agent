@@ -1,8 +1,18 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Feature-branch pushes used to trigger both a push run and a PR run of the same
+# workflow at the same head. Only pull_request (plus main pushes and manual runs)
+# triggers now, and superseded runs on the same ref are cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -35,7 +45,10 @@ jobs:
       - name: Run pytest
         id: pytest
         continue-on-error: true
-        run: pytest -q --tb=short > pytest.log 2>&1
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          pytest -q --tb=short --durations=30 2>&1 | tee pytest.log
 
       - name: Upload pytest diagnostics
         if: always()
@@ -43,7 +56,7 @@ jobs:
         with:
           name: pytest-log
           path: pytest.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Run RAG K1 local quality baseline
@@ -87,14 +100,16 @@ jobs:
         id: secrets
         continue-on-error: true
         run: |
-          pip install detect-secrets 2>/dev/null
           # docs/research_quality/*.json are machine-generated evidence artifacts whose
           # content is dominated by hashes/ids (query_sha256, git_sha, candidate ids...),
           # so the entropy detectors only ever produce false positives there. They are
           # still scanned for key-like patterns by tools/package_project_helper.py.
+          # tests/fixtures/release_benchmark/*.json hold the same kind of frozen
+          # digests (source_text_sha256, content_sha256), so their hash-bearing
+          # keys are excluded by name below rather than by widening the scan.
           detect-secrets scan --disable-plugin KeywordDetector \
             --exclude-files '.*\.(pyc|jpg|png|zip)$|docs[\\/]research_quality[\\/].*\.json$' \
-            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256|plan_digest|registry_digest|"sha256")[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
+            --exclude-lines '(base_sha|head_sha|commit_sha|file_sha|tree_sha|ref|source_artifact_head)[^A-Za-z0-9]+[0-9a-f]{40}|(fingerprint_sha256|observation_sha256|input_sha256|response_sha256|content_sha256|candidate_sha256|source_text_sha256|plan_digest|registry_digest|"sha256")[^A-Za-z0-9]+[0-9a-f]{64}|id[^A-Za-z0-9]+MDIzOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFk[A-Za-z0-9+/=]+' \
             .github README.md docs src tests tools config templates roles changelog assets frontend .env.example \
             > detect-secrets-report.json 2>&1
           python - <<'PY'
@@ -124,7 +139,7 @@ jobs:
         with:
           name: detect-secrets-report
           path: detect-secrets-report.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce detect-secrets result
@@ -144,7 +159,7 @@ jobs:
         with:
           name: mypy-log
           path: mypy.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce mypy baseline
@@ -174,7 +189,7 @@ jobs:
         with:
           name: frontend-log
           path: frontend.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce frontend result
@@ -184,6 +199,7 @@ jobs:
           exit 1
 
       - name: Install Playwright browsers
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -198,16 +214,17 @@ jobs:
         with:
           name: playwright-install-log
           path: playwright-install.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Enforce Playwright browser install
-        if: steps.playwright_install.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'failure'
         run: |
           tail -300 playwright-install.log
           exit 1
 
       - name: Run browser Golden Journeys
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -229,12 +246,13 @@ jobs:
           retention-days: 7
 
       - name: Enforce browser Golden Journeys
-        if: steps.browser_e2e.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.browser_e2e.outcome == 'failure'
         run: |
           tail -300 browser-e2e.log
           exit 1
 
       - name: Run real-stack browser gates
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
@@ -257,7 +275,7 @@ jobs:
           retention-days: 7
 
       - name: Enforce real-stack browser gates
-        if: steps.real_stack_browser_e2e.outcome == 'failure'
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.real_stack_browser_e2e.outcome == 'failure'
         run: |
           tail -300 real-stack-browser-e2e.log
           exit 1

@@ -1,0 +1,35 @@
+{
+  "condition": "durable_truth_empty_no_closure",
+  "observation_count": 5,
+  "overall_classification": {
+    "NOT_COMPARABLE": 5
+  },
+  "per_dimension": {
+    "freshness": {
+      "EXPECTED_DIVERGENCE": 5
+    },
+    "goal_objective": {
+      "NOT_COMPARABLE": 5
+    },
+    "misconception": {
+      "MATCH": 5
+    },
+    "next_step": {
+      "MATCH": 5
+    },
+    "understanding": {
+      "NOT_COMPARABLE": 5
+    }
+  },
+  "schema_version": "learner-state-parity-collection-v1",
+  "shadow_status": {
+    "ok": 5
+  },
+  "turns": [
+    "explain how hashing works",
+    "hashing maps keys to buckets using a hash function",
+    "hashing is sort of like sorting",
+    "the moon does not rotate on its own axis",
+    "what is the weather today"
+  ]
+}

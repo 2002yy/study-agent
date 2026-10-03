@@ -178,4 +178,18 @@ CREATE UNIQUE INDEX idx_next_steps_one_active_primary
 
 CREATE INDEX idx_next_steps_goal_status
     ON next_steps(goal_id, status, updated_at DESC);
+
+CREATE TABLE learner_misconceptions (
+    id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES learning_goals(id),
+    description TEXT NOT NULL CHECK(length(trim(description)) > 0),
+    status TEXT NOT NULL CHECK(status IN ('suspected', 'confirmed', 'resolved')),
+    occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK(occurrence_count >= 1),
+    source_eval_ref TEXT NOT NULL DEFAULT '',
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_learner_misconceptions_goal_status
+    ON learner_misconceptions(goal_id, status, last_seen_at DESC);
 """

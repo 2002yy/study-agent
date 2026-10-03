@@ -23,7 +23,9 @@ from src.application.learning_source_evidence import (
     LearningSourceEvidenceService,
 )
 from src.domain.learning_closure import LearningClosureRun
+from src.domain.runtime_entities import utc_now
 from src.domain.learning_truth import (
+    LearnerMisconception,
     ClaimRevisionBundle,
     LearningGoal,
     LearningTopic,
@@ -97,6 +99,9 @@ class LearningClosureTruthService:
             objective=objective,
             repo_url=source["repo_url"],
         )
+
+        # 168: observations become suspected durable misconceptions; never auto-confirmed.
+        self._promote_misconceptions(goal.id, evaluation)
 
         convergence = self.source_evidence.search_and_converge(
             source["repo_url"],
@@ -348,6 +353,52 @@ class LearningClosureTruthService:
             ),
             None,
         )
+
+    def _promote_misconceptions(
+        self, goal_id: str, evaluation: PedagogyEvalRun
+    ) -> None:
+        """168.2: first sighting -> suspected; repeat -> count+1; NEVER auto-confirm."""
+        descriptions: list[str] = []
+        if evaluation.semantic_result is not None:
+            descriptions.extend(
+                str(item) for item in evaluation.semantic_result.misconceptions
+            )
+        raw = evaluation.deterministic_result.get("misconceptions", ())
+        if isinstance(raw, (list, tuple)):
+            descriptions.extend(str(item) for item in raw)
+        seen: set[str] = set()
+        for description in descriptions:
+            text = description.strip()
+            if not text or text.lower() in seen:
+                continue
+            seen.add(text.lower())
+            existing = self.repository.find_misconception_by_description(
+                goal_id, text
+            )
+            if existing is None:
+                self.repository.create_misconception(
+                    LearnerMisconception(
+                        goal_id=goal_id,
+                        description=text,
+                        status="suspected",
+                        occurrence_count=1,
+                        source_eval_ref=evaluation.id,
+                    )
+                )
+            else:
+                # Repeat observation raises the count but never confirms.
+                self.repository.update_misconception(
+                    LearnerMisconception(
+                        id=existing.id,
+                        goal_id=goal_id,
+                        description=existing.description,
+                        status=existing.status,
+                        occurrence_count=existing.occurrence_count + 1,
+                        source_eval_ref=existing.source_eval_ref,
+                        first_seen_at=existing.first_seen_at,
+                        last_seen_at=utc_now(),
+                    )
+                )
 
     def _ensure_primary_next_step(self, goal_id: str, text: str) -> NextStep | None:
         existing = self._active_primary_next_step(goal_id)

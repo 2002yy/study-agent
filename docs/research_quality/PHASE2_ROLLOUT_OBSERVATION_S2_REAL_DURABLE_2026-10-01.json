@@ -1,0 +1,217 @@
+{
+  "schema_version": "phase2-rollout-observation-v1",
+  "contract": "164.33",
+  "environment": "controlled harness with real durable truth (multi-sample)",
+  "sample_count": 2,
+  "invariants": {
+    "I2_reader_exactly_once": true,
+    "reader_calls_per_sample": {
+      "diff": 4,
+      "equal": 4
+    }
+  },
+  "aborts": {
+    "A5_objective_conflict_on_equal": false,
+    "G1_audit": [
+      {
+        "sample": "diff",
+        "objectives_equal": false,
+        "goal_objective_parity": "CONFLICT",
+        "overall_parity": "CONFLICT"
+      },
+      {
+        "sample": "equal",
+        "objectives_equal": true,
+        "goal_objective_parity": "MATCH",
+        "overall_parity": "NOT_COMPARABLE"
+      }
+    ]
+  },
+  "edge_cases": {
+    "I5_flag_off_emits_nothing": {
+      "emitted": false,
+      "pass": true
+    },
+    "I3_fail_open": {
+      "turn_error": "",
+      "emitted": false,
+      "pass": true
+    }
+  },
+  "samples": [
+    {
+      "next_step_probe_165": {
+        "legacy_unresolved_gap": "",
+        "durable_next_step_text": "read back the objective after closure",
+        "classification": "DURABLE_ONLY"
+      },
+      "durable_next_step_text": "read back the objective after closure",
+      "legacy_unresolved_gap": "",
+      "I6_persisted_objective": "recover durable resume",
+      "I6_persistence_unchanged": true,
+      "I1_I4_durable_goals_before": 1,
+      "I1_I4_durable_goals_after": 1,
+      "parity_overall": "CONFLICT",
+      "parity_goal_objective": "CONFLICT",
+      "sample_id": "diff",
+      "expectation": "durable_preferred_with_diverging_objective",
+      "legacy_objective": "recover durable resume",
+      "durable_objective": "recover session recovery by durable owner",
+      "closure": {
+        "create": "preview_ready",
+        "commit": "completed"
+      },
+      "turn_count": 4,
+      "adjudication_emitted": 4,
+      "durable_preferred_turns": 4,
+      "gate_counts": {
+        "G1": 4
+      },
+      "decision_counts": {
+        "durable_preferred": 4
+      },
+      "reader_calls": 4,
+      "records": [
+        {
+          "turn_index": 0,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 2,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 3,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "next_step_probe_165": {
+        "legacy_unresolved_gap": "",
+        "durable_next_step_text": "read back the objective after closure",
+        "classification": "DURABLE_ONLY"
+      },
+      "durable_next_step_text": "read back the objective after closure",
+      "legacy_unresolved_gap": "",
+      "I6_persisted_objective": "recover durable resume",
+      "I6_persistence_unchanged": true,
+      "I1_I4_durable_goals_before": 1,
+      "I1_I4_durable_goals_after": 1,
+      "parity_overall": "NOT_COMPARABLE",
+      "parity_goal_objective": "MATCH",
+      "sample_id": "equal",
+      "expectation": "gate_match_no_conflict",
+      "legacy_objective": "recover durable resume",
+      "durable_objective": "recover durable resume",
+      "closure": {
+        "create": "preview_ready",
+        "commit": "completed"
+      },
+      "turn_count": 4,
+      "adjudication_emitted": 4,
+      "durable_preferred_turns": 4,
+      "gate_counts": {
+        "G1": 4
+      },
+      "decision_counts": {
+        "durable_preferred": 4
+      },
+      "reader_calls": 4,
+      "records": [
+        {
+          "turn_index": 0,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 2,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "turn_index": 3,
+          "adjudication_present": true,
+          "used_durable": true,
+          "decisions": [
+            {
+              "decision": "durable_preferred",
+              "field": "objective",
+              "gate": "G1",
+              "reason": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

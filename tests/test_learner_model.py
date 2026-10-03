@@ -6,6 +6,7 @@ import pytest
 
 from src.application.learner_model import LearnerModelService, parse_confirmed_profile
 from src.domain.learning_truth import (
+    NextStep,
     ClaimRevision,
     ClaimRevisionBundle,
     LearningClaim,
@@ -73,6 +74,15 @@ class FakeTruthReader:
             id="understanding-current",
             user_response="raw understanding response must remain private",
         )
+        # 165-B: an active primary durable next step, so the snapshot projection
+        # that reads it is exercised rather than merely not crashing.
+        self.next_step = NextStep(
+            id="next-step-primary",
+            goal_id=self.goal.id,
+            text="Review the recovery boundary",
+            status="active",
+            is_primary=True,
+        )
         self.calls: list[tuple[str, str]] = []
 
     def get_focus_goal(self, thread_id: str):
@@ -105,6 +115,10 @@ class FakeTruthReader:
                 ),
             )
         ]
+
+    def list_next_steps_for_goal(self, goal_id: str):
+        self.calls.append(("list_next_steps_for_goal", goal_id))
+        return [self.next_step]
 
     def list_hypotheses_for_goal(self, goal_id: str):
         self.calls.append(("list_hypotheses_for_goal", goal_id))
@@ -220,6 +234,11 @@ def test_snapshot_is_deterministic_immutable_and_uses_read_operations_only() -> 
 
     assert first == second
     assert first.to_dict() == second.to_dict()
+    # 165-B: the primary durable next step is projected read-only.
+    assert first.next_step_id == "next-step-primary"
+    assert first.next_step_text == "Review the recovery boundary"
+    assert first.next_step_status == "active"
+    assert ("list_next_steps_for_goal", "goal-current") in truth.calls
     assert not hasattr(first, "id")
     assert not hasattr(first, "created_at")
     assert all(

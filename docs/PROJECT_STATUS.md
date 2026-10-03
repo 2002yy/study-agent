@@ -11,7 +11,7 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**当前执行分支为 `codex/release-benchmark-remote-observation`；父 Draft PR #153 的类型修复 head 为 `e4d944b21dbad055e691a78500c885165e6c3b71`，§160 真实答案和观测绑定代码 head `ea11142041c68cbd3dc84041c0003971e0fc4c5c`。§155 正式复核目标仍是 Draft PR #150 的 exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；当前分支最终 HEAD 以 `git rev-parse HEAD` 为准。
+- **分支 / head：**当前执行分支为 `codex/release-benchmark-semantic-calibration`，父 Draft PR #154 head `adb409c73b4c491da34f3748d6836d23f04620d2`；§161 校准执行代码 head `c41816a386d5120a4c152b874598feb14e61fffb`。§155 正式复核目标仍是 Draft PR #150 的 exact head `961306441a3e088b06d3cccbcba2b0822c9d8846`；当前分支最终 HEAD 以 `git rev-parse HEAD` 为准。
 - **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
@@ -29,7 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§160 远端推理观测 v2 已实现并真实计分**（见 §160）。DeepSeek flash 两案答案绑定冻结来源离线读取和代码 head `ea11142`；v2 明示远端推理、读时点、答案及 bundle digest。2/6 案 completed、4 案 missing、正式语义标签 0；旧 v1 仍只接受全离线 replay。六案准入 **6/56**，视觉三案和 live 仍缺正式答案/观察，release gate / RQCE v1 **NO-GO**。**唯一下一步 = 对本轮 `review_packet.json` 冻结独立语义裁定与负控制校准规则，再决定是否允许正式语义标签；不得把 §159 诊断直接晋升。**
+- **当前动作：§164-C1b-1 前置审计完成（inner read = class B，无需改 LearnerModelService）；下一步 = C1b-1 runtime wiring**（见 §164.1–§164.14 / §172.1）。§162 CLOSED：**自动 semantic judge = NOT QUALIFIED**，Authority granted = NONE，release **NO-GO**。**§164-C1 测量核心 + C1b-0/0.1 隔离原语已实现**（§164.11 / §164.13）：中性投影、确定性分类器、fail-open observer、**admission token 绑定 future 生命周期**、CAPACITY==WORKERS==2 零 backlog、有界 telemetry；**共 45 tests passed**（parity 22 + isolation 23）。**生产 ChatService 未改动**。**§164.14 审计结论**：LearnerModelService.build = **class B（operationally bounded）** —— 固定数量本地查询、无网络/递归/retry，且 usy_timeout=30000 使锁等待有界；**因此不为 shadow 侵入生产读取链**。**limitation 措辞已修正**：worker 终止**有界**（inner read 自身边界，最坏约 30s），但**不受 outer 250ms budget 约束**；退化语义 = 锁竞争时 shadow 最长不可用约 30s，期间 production 完全继续。**双轨**：主线 A = §164-C1b-1 wiring→C2→§164-D→§165→…→§171；并行 B = §172.1。六案准入 **6/56**，RQCE v1 / Study Agent v1 **NO-GO**。
+- **下一刀唯一任务 = §164-C1b-1 runtime wiring + 无侵入证明**（§164.15 六步 / 八场景 / 独立 latency 测试）；门未过则 §164-C1 保持 OPEN。**Post-§164 Interaction Coordination Layer 只是 design note（见其专节），不是下一刀，也不得混入 C1** —— C1 必须原样闭合后才谈协调架构。
 - **当前先决门：**§155 实现 head `9613064` 的 exact-head PR/push CI 已 success。后续任何提交若改变 PR HEAD，必须重新核对该 HEAD 的 CI；旧 SHA 绿灯不可移作新 HEAD 证据。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -53,7 +54,7 @@
 | ⑤ | §148 Synthesis | CLOSED；Projection 是控制面，referenced EvidencePayload 是只读数据面。`SynthesisDraft` 有 assertion/ref/citation/stance/limitations，validator 挡无 ref、越权、stance 与限制丢失；默认 extractive writer、0 model calls，真实 LLM writer 未接入。 |
 | ⑥ | §149 Final Answer Auditor | **本地与 `366b741` exact-head CI CLOSED**；机械层复用 §148 validator，语义层经可注入 judge seam；默认 abstain/fail-closed，不声称具备真实语义审核。结构化报告 question coverage 与 evidence grounding；最多一次 bounded repair，用尽后 audited-but-not-approved。 |
 | ⑦ | Persistent Research / Project Memory v1 | **§150 显式 v1 exact-head CI CLOSED，PR #145 Draft 未合并。** 同 thread 终态 run 可发布 unresolved 历史线索并有界召回；默认不注入，confirmed 未授权。 |
-| ⑧ | 50–60 task Release Benchmark | **§151 计划已冻结；§153 registry/scorer、§154 六个来源候选、§155 verifier 与 PDF/视觉诊断已落地；§156 六案准入 6/56；§157 五案 reader pilot；§158 两案真实答案；§159 DeepSeek pro 语义探针；§160 两案 remote-inference v2 正式观测/机械计分，release 仍 NO-GO。** 旧 v1 全离线记录不追溯改义。下一门是对 v2 答案的独立、可校准语义裁定。 |
+| ⑧ | 50–60 task Release Benchmark | **§151–§161：六案准入、两案真实答案、remote-inference v2 机械计分；§161 同家族探针 fail（1/6 特异性）。§162 已 CLOSED：基础设施/盲传输/provenance/资格合同全部 CLOSED，GPT-5.6-Sol 资格 = FAIL，自动 semantic judge = NOT QUALIFIED，Authority granted = NONE。** 失败刻画 = 可复现的 citation_support 轴欠判（三次一致）；holdout 对 GPT 家族 FINAL FAIL。**RQCE v1 落法：机械检查 AVAILABLE，语义标签仅独立人工或 abstain，release 在语义标签覆盖满足前 NO-GO。** 不再为 PASS 更换模型。 |
 | ⑨ | RQCE v1 Freeze | 仅在前述能力接线、资格门与 Benchmark 通过后裁定；当前不得称 RQCE v1 已冻结。 |
 | ⑩ | Study Agent 上层能力 | RQCE v1 后再做 Learner Model → Concept Graph → Teaching Planner → Exercise / Misconception Detection / Spaced Review，形成持续的学习进度与下一步教学决策。 |
 | ⑪ | Project / Coding Agent 融合 | 更后阶段；`learn → research → plan → implement → validate → remember` 为方向，非当前承诺。 |
@@ -6975,7 +6976,7 @@ L1 tests ⏳ 未写              verdict ❌ 未出
 
 ### 120.1 已修（本刀）
 
-1. **PDF 下载改为 
+1. **PDF 下载改为
 ead1(4096) 小粒度 partial read** + min(remaining, IO_QUANTUM=0.25s) pin 到 socket timeout；deadline_at 为唯一权威。Content-Length 只用于 accounting/guard，**不再驱动大块 blocking read**。
 2. **quantum socket timeout 不再当 transport failure**：TimeoutError/OSError 来自 quantum 时 continue 并重查 absolute deadline（此前会提前返回 url）。
 3. **transport 回退路径泄漏修复**：非 deadline 失败时也删除临时文件。
@@ -7062,7 +7063,8 @@ NEXT     wall =  188.0ms  provider_success=true（真实 PDF 正文）
 2. **PDF timeout 不走 crawler invalidation**：PDF 下载阶段没有受污染的 browser context（实测 invalidation 也确实是 0ms，但语义上不应调用）。
 3. **PdfDownloadDeadline 直接 canonicalize**：udget_exhausted + dequacy_reason=pdf_download_deadline，而不是 ridge_failure:bridge_read_timeout。
 4. **bridge 读超时后重新同步 IPC**（丢弃残留行 / 重启 worker），否则超时一次会污染后续请求。
-5. **PDF 总预算含 parse**：etch(deadline_at) 后检查 remaining 再 parse，保证 fetch+parse+projection 整体不超 3.0s。
+5. **PDF 总预算含 parse**：
+etch(deadline_at) 后检查 remaining 再 parse，保证 fetch+parse+projection 整体不超 3.0s。
 
 ### 121.4 Gate C 的 PASS 条件（钉死）
 
@@ -7098,13 +7100,13 @@ wait_for(readline) 在 Windows 上**不是可取消的 pipe read**：caller 超�
 
 | 项 | 实现 |
 | --- | --- |
-| 
-equest_id | bridge 每请求生成 
+|
+equest_id | bridge 每请求生成
 N，worker **原样 echo**；不再依赖 stdout 行顺序配对 |
-| 单一 persistent stdout reader | _pump 成为 worker 生命周期内**唯一** reader，按 
+| 单一 persistent stdout reader | _pump 成为 worker 生命周期内**唯一** reader，按
 equest_id 分发到 _pending[request_id] |
 | late response | pending 中已无该 id ⇒ 计 late_responses 并**丢弃**，绝不交给后续请求 |
-| 事件通道 | 无 
+| 事件通道 | 无
 equest_id 的 READY/BYE/STATS 走独立 _events 队列 |
 | worker 侧 | 所有诊断已改到 **stderr**（_tl / [pdf]），stdout 仅协议 |
 
@@ -7124,7 +7126,7 @@ C               wall=5016ms  deadline_hit=None         <- C 也超时
 - _broadcast 与 _next 都用 if not hasattr(self, _events) 惰性创建 _events，dataclass 上未声明该字段；reader 线程与主线程可能各建一个，导致 READY 之外的投递路径异常；
 - 需确认 _pump 线程是否在第一次迭代就异常退出（未捕获异常会静默终止线程，
 eader_alive 仍为 True）。
-- 建议下刀：把 _events 显式声明为 dataclass 字段（init=False），并给 _pump 加 try/except 记录 
+- 建议下刀：把 _events 显式声明为 dataclass 字段（init=False），并给 _pump 加 try/except 记录
 eader_error，先证明 reader 活着。
 
 ### 122.4 状态
@@ -7149,8 +7151,8 @@ A3-2 verdict                     PENDING
 
 1. **_events 改为显式 dataclass 字段**（原先由 _broadcast/_next 在**两个线程**里用 hasattr 惰性创建，可能各建一个 Queue）。**这一处修复是有效的** —— 修后一次运行中 reader 正常投递：late_responses=1、B 拿到自己的响应（
 id=r2、5804 chars、31ms）、**未被 A 的迟到响应污染**。
-2. **_pump 全包 try/except**：新增 
-eader_error / 
+2. **_pump 全包 try/except**：新增
+eader_error /
 eader_alive / lines_seen 诊断；异常不再静默杀死线程。
 3. **stderr drain 线程**：新增 _drain_stderr，保留 200 行 tail 供调试。
 
@@ -7204,7 +7206,7 @@ focused 四门 / 12-row cohort / L1 / verdict   ⏳ / ⏳ / ⏳ / ❌
 | # | bug | 证据 |
 | --- | --- | --- |
 | 1 | _events 由 _broadcast/_next 在**两个线程**里 hasattr 惰性创建 ⇒ 可能各建一个 Queue | 修前 reader 完全不投递；修后开始正常投递 |
-| 2 | **stats/shutdown 回复未 echo 
+| 2 | **stats/shutdown 回复未 echo
 equest_id** ⇒ 在 correlation-ID 协议下被 reader 当**广播**，永远无法 resolve pending[r1] | 时间线 W4_parsed rid=r1 op=stats 之后 **无 W5**，lines_seen=2（READY + 那条广播） |
 | — | cwd spawn parity（前台直连用 cwd=REPO_ROOT，bridge 未设） | 记为 **parity correction**，未主张为根因 |
 
@@ -7214,7 +7216,7 @@ B = [B0 before stdin.write rid=r1, B1 after write, B2 after flush, B3 poll=None]
 W = [W0_ready_written, W1_request_loop_entered, W2_before_readline,
      W3_after_readline bytes=36, W4_parsed rid=r1 op=stats, W2_before_readline]
 `
-⇒ 请求写出/到达/解析全部正常，**只差 W5（响应未发）**，而原因是 ops 分支没回 
+⇒ 请求写出/到达/解析全部正常，**只差 W5（响应未发）**，而原因是 ops 分支没回
 equest_id。
 
 ### 124.2 ✅ 稳定门（用户要求：20× 独立 startup）
@@ -7229,9 +7231,9 @@ eader_error=''、poll=None、lines_seen 正确、无 stale/late 污染。
 
 ### 124.3 本刀已实现（协议层，全部保留）
 
-- 
+-
 equest_id 关联（worker **原样 echo**，含 ops 分支）
-- **单一 persistent stdout reader**（按 
+- **单一 persistent stdout reader**（按
 equest_id 分发到 _pending）
 - **late response 丢弃**（late_responses 计数，绝不交给后续请求）
 - **stdin 单写锁**（with self._write_lock: write → flush）
@@ -9511,11 +9513,11 @@ tools/run_f2_characterization.py   （新增；不改任何生产代码）
 ```
 
 **边界测量**：	otal_wall_ms 由 harness 包住 ridge.request()；queue_wait_ms 取自 worker ledger；
-worker_handle_ms（=cancellation.actual_return_ms）作为**独立可观测量**报告，**不冒充 
+worker_handle_ms（=cancellation.actual_return_ms）作为**独立可观测量**报告，**不冒充
 eader_execution_ms**（§143.8）；
 
-eader_execution_ms / 
-ormalization_ms / provenance_ms 在 raw provider call 边界**不可分离** -> 显式置 
+eader_execution_ms /
+ormalization_ms / provenance_ms 在 raw provider call 边界**不可分离** -> 显式置
 ull。
 
 ### 143.17 §143-A2 validation（1 fixture × 3 repeats，no production changes）
@@ -13995,6 +13997,3124 @@ Release GO 必须同时满足：56 个独立 case 全部准入、冻结/直播�
 
 **下一刀**：以本轮 review packet 与答案 digests 为固定输入，先冻结可执行的独立语义裁定/负控制准入规则，再决定是否写入正式 question coverage、grounding、citation 指标；不得让同家族 DeepSeek 诊断自行授予 qualified judge 身份。
 
+## §161 语义探针校准合同（2026-09-29）
+
+**冻结判据**：§159 的 6/6 目标检出只是必要条件。以同一真实答案为基线，每案三种单点负控制还需保持非目标维度：错 locator 仅使 citation support 失效；删去子问题仅使 question coverage 变 partial；添加无来源支持的句子使 evidence grounding 与 citation support 失效，但不改变 question coverage。各控制必须指出目标 issue，重复或不相干的 issue 与维度漂移均使 specificity fail；原答案的模型诊断需三维 supported 且无 issue。检查器逐条重建 frozen source prompt，从保存的 raw response 重算判词、控制和 digest，拒绝伪造评估字段、prompt 与不可能的时间顺序。
+
+**权限边界**：校准结果是 `release-benchmark-semantic-calibration-v1` 诊断侧车。即使 specificity 6/6，也始终 `qualified_judge=false`、`formal_semantic_label=false`、`release_observation=false`、release **NO-GO**；同家族 DeepSeek pro 不得靠自评取得独立语义权威。不得修改 §160 observation 或把 §159 / 本节模型判断写成 scorer 的 observed 语义指标。真实执行结果和下一步在本节续记。
+
+**真实结果与证据**：父 §159/§160 的 exact-head push/PR CI 均已 success：PR #153 head `e4d944b` 对应 `36568865632` / `36568871829`；PR #154 head `adb409c` 对应 `36570994413` / `36571035881`。对 §160 answer bundle 在 `adb409c` 执行 DeepSeek pro，保存的 probe SHA-256 `cc077b526092d7fac95c56d567b18c31e323933565fcc4c8fbc23ffcfcdae643`；在校准代码 head `c41816a` 逐条离线重放，calibration SHA-256 `eabc3b04fc5aac004c1c564e2271b3486269a5b35bf757601cc85c9337191bbe`。产物与逐案失败原因在 `docs/research_quality/RELEASE_BENCHMARK_SEMANTIC_CALIBRATION_2026-09-29/`。实际答案诊断 2/2 clean、目标控制 6/6 检出，但非目标 specificity **1/6**，因此校准 **fail**；没有新语义分数。§161 聚焦 **11 passed**、`release-benchmark-pilot` L2 **138 passed**、Ruff clean、mypy baseline 122 ≤ 128 / NEW=0。此刀仅加诊断校准器/测试/文档，未触及生产默认或共享核心，按分层政策不强制 L3；当前分支 exact-head 远端 CI 另核。
+
+**下一刀**：固定 §160 答案与 §161 控制，选用独立于 DeepSeek flash 的复核者；需要可追溯模型/人工身份、同一来源与 rubric 输入、6/6 目标检出和 6/6 specificity，再由独立权限机制允许正式语义标签。当前 DeepSeek pro 仍为 diagnostic，不因用户个人项目而改写测试结果。
+
+## §162 独立 reviewer 资格证明与校准合同（冻结 v1，2026-10-01；路线 ⑧）
+
+**本刀成功定义（冻结）**：不是"得到一个新语义评分"，而是**第一次建立一条不能自授、可追溯、盲评、与答案模型家族独立、并经 6/6 + 6/6 控制校准的正式 judge 资格路径**。
+
+**范围（冻结）**：§162 = 独立 reviewer 的**资格证明 + 校准**。
+**明确非范围**：不重新评分 Release；不直接产出正式标签；不接 image / chart / live（属 §163 B1）；不改生产 reader / answer / stop / gate；不改 §160 / §161 已存 artifact；不动 12 PR 堆叠链（不 rebase）。
+
+**C1 核心输入（必须完全冻结）**
+
+```text
+ReviewerInput
+├─ answer_bundle_ref          # §160 frozen answer
+├─ source_bundle_ref          # 同一 frozen sources
+├─ rubric_ref                 # §161 frozen rubric
+├─ control_set_ref            # §161 三类控制
+├─ input_manifest_hash
+└─ blind_case_id              # reviewer 不见原 case 身份 / 既有标签 / DeepSeek 结果
+```
+
+```text
+ReviewerProvenance
+├─ reviewer_kind              # model | manual_human
+├─ provider
+├─ model_family
+├─ model_id / revision
+├─ invocation_id
+├─ timestamp
+├─ input_manifest_hash
+├─ rubric_hash
+├─ controls_hash
+└─ qualification_authority
+```
+
+**C2 资格硬约束（冻结）**
+
+**"模型家族 ≠ 答案模型"是必要条件，不是充分条件。** 资格还要求：
+
+1. reviewer **不知道 §161 DeepSeek 的判断结果**；
+2. reviewer **不得看到 expected label**；
+3. reviewer 只能产生 `review_observation`，**不能自己写 `qualified_judge=true`**；
+4. calibration checker 决定"表现是否达门"；
+5. **另一个 authority seam** 决定"是否授予 judge 资格"；
+6. **judge 资格**与**某 case 的正式 label 权限**再分开。
+
+**C3 四个 seam（冻结，禁止折叠）**
+
+```text
+reviewer
+    ↓ observations
+calibration checker
+    ↓ calibration_pass
+qualification authority
+    ↓ qualified_judge
+case-label authority
+    ↓ semantic_label
+```
+
+**反模式（冻结禁止）**：不得出现 `if calibration_pass: qualified_judge = True`。
+形式独立、实质自我授权的实现一律视为违约。
+
+**C4 A3 校准门（冻结，不放宽）**
+
+```text
+target_detection == 6/6     # TP / FN
+specificity      == 6/6     # TN / FP
+```
+
+- 定义为**两个独立布尔门**；**禁止**折成总 accuracy / F1 / 11-of-12。
+- 理由（§161 暴露）：能"发现问题" ≠ 能"正确区分哪些不是问题"；`6/6 + 1/6` 是高敏感、严重过判的 reviewer，平均分会掩盖它。
+- 控制集输出必须保留逐项 confusion 信息（TP/FN、TN/FP），供后续扩 calibration 时不重新定义语义。
+
+**C5 A4 授权（冻结，逐案）**
+
+即便 §162 calibration 12/12，通过的只是：**该 reviewer 有资格被用于正式标签裁决**。
+**不是**：§160 的两个 answer 自动升级为正式标签。
+
+```text
+§162 calibration PASS
+        ↓
+qualified_judge granted
+        ↓
+重新对正式 case 执行独立 review
+        ↓
+逐 case provenance + verdict
+        ↓
+label authority 接受
+        ↓
+official semantic label
+```
+
+**C6 执行顺序（冻结）**
+
+```text
+A1 contract freeze（本刀）
+↓
+A2 reviewer seam + provenance
+↓
+A3 blind calibration
+↓
+exact-head CI
+↓
+若 PASS：A4 authority decision
+若 FAIL：NO-GO，禁止晋升，调查 reviewer / contract
+↓
+再考虑 merge stack / hygiene
+↓
+§163+
+```
+
+**C7 calibration-set discipline（冻结，2026-10-01；A3-B2 FAIL 后确立）**：
+
+```text
+1) 一套 calibration set 一旦被某个 reviewer 执行过并暴露失败位置，即标记
+   CONSUMED_FOR_QUALIFICATION_SELECTION；保留为 diagnostic regression，
+   不再作为"改 prompt / 换模型后"的 qualification gate。
+2) 禁止对同一 set 的失败位置做定向重提示后重考（calibration-set overfitting）；
+   即使第二次得到 6/6 + 6/6，也不可用于资格授予。
+3) 禁止模型轮换直到有人通过（reviewer selection bias）：换 reviewer 必须配 fresh holdout。
+4) 资格评估必须在 reviewer 执行**之前**冻结 fresh holdout 的 expected axes。
+5) operator 若已知失败位置或期望值，不得充当 manual_human reviewer。
+6) fresh holdout 必须保留至少一个结构：
+   unsupported claim + 结构合法 citation + 真实 locator + locator 语义上不支持该 claim，
+   且**不得复用**已暴露的失败 item 内容。
+```
+
+**C8 多家族资格化政策（冻结，2026-10-01；任何后续 family 资格化的前置条件）**：
+
+```text
+1) 固定 reviewer 顺序（如 GPT -> Claude -> Gemini），每家**只允许一次**；
+2) 所有结果**全部报告**，不得只报 PASS 的那一家；
+3) 不得因前一家表现修改 prompt / rubric / holdout；
+4) 不满足以上任一条时，该结果只能记为 comparative / diagnostic，
+   **不得作为资格授予依据**。
+理由：reviewer-selection 决策若发生在看到前一家 FAIL 之后，最终 PASS 会带
+reviewer-selection bias，无法与前次 FAIL 并列解释。
+```
+
+**明确不做**：不为 `.workbuddy/` 插正式 commit（本机 `.git/info/exclude` 处理即可）；
+不在 §162 前开始级联 rebase；§162 不顺手接 image / chart / live。
+
+### 162.1 A2 实现（2026-10-01，单刀；governance plumbing only）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_semantic_controls.py         新增：共享校准原语（唯一语义定义）
+src/evals/release_benchmark_reviewer_qualification.py    新增：A2 治理管道（四 seam）
+src/evals/release_benchmark_semantic_calibration.py      修改：委托共享原语（输出逐字节等价）
+tests/test_release_benchmark_reviewer_qualification.py   新增：23 tests
+tests/stage_gates.json                                   修改：新测试注册进 release-benchmark-pilot
+```
+
+**四 seam（不可折叠，禁止共享 mutable state 串权）**：
+
+```text
+ReviewerAdapter      -> ReviewObservation       （只产事实）
+check_calibration    -> CalibrationResult       （只产事实）
+decide_qualification -> QualificationDecision   （显式授权动作）
+decide_case_label    -> LabelDecision           （第二次显式授权动作）
+```
+
+**关键实现事实（全部 fail-closed）**：
+
+```text
+ReviewObservation **无** qualified_judge 字段（类型层剥夺权力，而非运行时检查）；
+  携带 qualified_judge / approved / label 形状键的响应 -> REASON_REVIEWER_CLAIMED_AUTHORITY
+盲输入拒绝：expected-label 泄漏 / prior-verdict(§161) 泄漏 / 未授权 case identity /
+           blind_case_id 缺失 / manifest hash 不符
+独立性：reviewer family 缺失 / answer family 缺失 / 两家族相同 -> 拒绝
+门：两个独立布尔 + 完整 TP/FN/TN/FP；**不存在 blended accuracy/F1**
+decide_qualification：失败校准上授权 -> REASON_GRANT_ON_FAILED_CALIBRATION；
+                     默认态 = QualificationDecision.not_evaluated()（NOT_EVALUATED）
+decide_case_label：未授权 reviewer -> REASON_LABEL_WITHOUT_QUALIFICATION；
+                   accepted 但无 label payload -> 拒绝
+```
+
+**反模式机器级永久防线（专门测试）**：`calibration_pass=True` 且**未调用** authority →
+`QualificationDecision.not_evaluated().qualified_judge is False`。
+
+**§161 复用而非复制**：控制期望表与逐控制判定移入共享原语；§161 `calibrate_semantic_probe`
+改为委托，输出逐字节等价；§161 既有 7 tests 全绿，**frozen artifact 未改**。
+
+**A3 状态 = BLOCKED_EXTERNAL_REVIEWER**：
+
+```text
+reason: 仓内无满足 §162 独立家族合同的 reviewer。
+DeepSeek flash = answer model；DeepSeek pro = 同家族，disallowed（**不是 fallback**，
+而是明确 negative control：6/6 检出 + 1/6 特异性 = 严重过判）。
+manual_human 保留为正式 fallback，等 A2 闭合后再裁定 A3 走独立模型家族还是具名人工。
+```
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1576 files |
+git diff --check ok | secret-like literal self-check clean
+L1: tests/test_release_benchmark_reviewer_qualification.py = 23 passed
+L2: release-benchmark-pilot stage gate = 90 passed
+L3 @ 61626e1（clean head）：2921 passed / 2 skipped / 0 failed
+```
+
+**本轮失败样本（test-infra，非本刀回归）**：首次 L3 出现
+`tests/test_research_answer_streaming.py::test_research_stream_processes_cancel_while_binder_runs_off_loop`
+失败，断言在 `assert await asyncio.to_thread(entered.wait, 0.5)`（0.5s 预算在全量负载下超时）。
+隔离 1 passed、整文件 8 passed、同一 head 重跑 L3 全绿 → 判定为**负载相关既有 timing flake**，
+与本刀（eval-only，未触生产 runtime/streaming）无关。记为 test-infra 债；硬化留独立窄刀。
+
+**未做**：零真实 reviewer invocation、零 provider SDK、零正式标签、零 B1 模态扩展；
+未改 §160 / §161 artifact；未动 12 PR 堆叠链。
+
+### 162.2 A3 路径冻结（2026-10-01）：external independent-family model reviewer via 人工桥接
+
+**裁定**：A3 reviewer = **一个全新、隔离上下文的会话中的 GPT-5.6 Sol**，作为 external
+independent-family model reviewer；通过**人工 copy/paste bridge** 消费 frozen packet 并返回
+`ReviewObservation`。
+
+- **当前聊天不得参与评分**：它已见过 §161 `6/6 detection / 1/6 specificity` 与治理设计/失败结论，
+  构成 prior-verdict 污染，违反 C2 盲评要求。
+- **不接 OpenAI SDK、不改 A2 协议、不接 B1、不把 UI reviewer 接进生产。**
+
+**身份（满足 C2 独立性）**：
+
+```text
+reviewer_kind = model
+provider      = OpenAI
+model_family  = GPT
+answer_family = DeepSeek      -> model_family != answer_model_family 成立
+```
+
+**`invocation_id` 语义冻结（澄清，非改义）**：已核对 §162 契约原文，A1 只把 `invocation_id`
+列为 `ReviewerProvenance` 字段名，**未定义其语义**；A2 实现为 harness 分配。现**显式冻结**为：
+
+> 由 qualification harness 为每次 reviewer invocation 分配的、唯一且可追踪的运行 ID
+> （如 `rq-review-20261001-001`），**不是** provider 返回的 API request ID。
+
+可追溯性由四元组决定，而非供应商内部 ID：
+
+```text
+哪一份冻结输入 -> 给了哪个 reviewer -> 得到哪一份原始输出 -> 哪次校准消费了它
+```
+
+因此必须同时记录：`input_manifest_hash` / `output_hash` / `model_family` / `model_id` / `timestamp`。
+未来若改回 provider request ID 语义，属合同变更，必须显式重开 A1 条款，不得静默改义。
+
+**packet 允许清单（只包含这些）**：
+
+```text
+review_run_id / input_manifest_hash / rubric / frozen source material /
+candidate answer 或 assertion / blind_case_id / 要求的输出 schema
+```
+
+**packet 禁止清单（绝对不含）**：
+
+```text
+§161 DeepSeek Pro 输出 / target·control 标记 / expected label / case 原始身份 /
+6/6 + 1/6 结果 / "这是一条 negative control" 之类提示 /
+"另一个 reviewer specificity 很差，请严格避免误报" 之类**方向性提示**
+```
+
+方向性提示本身即污染：class balance 与 expected 分布都会引导模型凑分布。
+
+**输出强制窄 schema（沿用 A2 `ReviewObservation` 字段，不允许新模型自由设计 JSON）**：
+
+```json
+{"blind_case_id": "...", "question_coverage": "covered|partial|unverified",
+ "evidence_grounding": "supported|gap|unverified",
+ "citation_support": "supported|gap|unverified",
+ "issues": [{"issue_type": "...", "reason": "...", "evidence_refs": ["..."]}],
+ "dimension_consistent": true}
+```
+
+**禁止**它：计算 calibration 分数 / 判断自己是否 qualified / 猜 target·control / 输出 `approved` /
+输出正式 semantic label。它只负责 observation（A2 类型层已剥夺这些字段）。
+
+**class-balance 防泄漏**：不得告知"其中 6 个有问题、6 个没问题"；每个 `blind_case_id`
+**独立判断**；即使 batch 也**绝不暴露 target/control 数量与比例**。`blind_case_id` 必须
+**不含 variant 语义**（如 `rq-review-20261001-001-item-03`），variant 只存在于**不发送**的私有 manifest。
+
+**结果语义（不变）**：
+
+```text
+6/6 detection AND 6/6 specificity -> calibration_pass = true
+  -> 仍只是 eligible_for_authority_review
+  -> 再由 QualificationAuthority 显式授权
+任何一项不满（如 6/6 + 5/6）-> FAIL，不因"是 GPT"放宽
+```
+
+**A3 执行顺序**：
+
+```text
+A3-A 本刀：合同冻结 + 盲 packet 生成器 + ingest/validate harness（零真实 invocation）
+A3-B 用户在新会话执行 packet -> 人工回填原始输出
+A3-C ingest 校验 + shared checker -> 校准结果 -> QualificationAuthority 显式裁定
+```
+
+### 162.3 A3-A 实现（2026-10-01，单刀；零真实 invocation）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_blind_review.py             新增：盲 packet 生成 + ingest harness
+src/evals/release_benchmark_semantic_probe.py           修改：materialize_review_items 公开（行为等价）
+src/evals/release_benchmark_semantic_controls.py        修改：dimension_consistency_holds 提升为共享规则
+src/evals/release_benchmark_reviewer_qualification.py   修改：canonical_hash 公开（无协议变化）
+tests/test_release_benchmark_blind_review.py            新增：20 tests
+tests/stage_gates.json                                  注册两个新测试文件
+```
+
+**packet 事实**：
+
+```text
+items[]：blind_case_id(opaque) / question / aspects / aspect_rubric /
+         source_id / source_locator / source_page / source_region / source_text / answer
+顺序：按 canonical_hash(f"{run}|{case}|{variant}") 排序 -> 确定性且 variant-blind
+manifest（**不发送**）：blind_case_id -> case_id / variant / answer_sha256
+input_manifest_hash = H(review_run_id, answer_bundle_sha256, registry_sha256, gold_sha256)
+```
+
+**本轮自查发现并修正的泄漏（值得记录）**：指令初稿写了 "do not guess whether an item is a
+control" —— 这句话本身**泄漏"存在 control"**。已删除，并加回归
+`test_packet_never_reveals_that_controls_exist`（禁止 control / expected / gold / specificity /
+balance / another reviewer / over-flag / false positive 出现在 packet 文本）。指令仍必须列出允许的
+issue_type 词表（`coverage_gap|unsupported_claim|wrong_citation|overstatement|other`）—— 那是
+**输出 schema 词表**，不是答案键；因此测试改为**结构性断言**（item 的键/值不得等于 variant），
+不再做全文字符串扫描。
+
+**ingest 事实（全部 fail-closed）**：
+
+```text
+响应形状：恰好 {review_run_id, observations}；多余顶层键 -> REASON_RESPONSE_SHAPE
+每个 manifest item 必须恰好出现一次：缺失 / 未知 id / 重复 -> 各自 reason
+reviewer 自带 dimension_consistent -> REASON_SELF_REPORTED_CONSISTENCY
+authority 形状字段（qualified_judge / approved / label）-> A2 REASON_REVIEWER_CLAIMED_AUTHORITY
+同家族 reviewer / 答案家族缺失 -> 拒绝
+```
+
+**code-owned 一致性**：`dimension_consistency_holds` 提取进共享原语，§161 与 §162 同源；
+ingest 用 `dataclasses.replace` 覆写为**计算值** —— 模型自报不被信任。
+
+**artifact**（`release-benchmark-blind-review-ingest-v1`）携带 `output_hash`（原始响应字节）、
+`input_manifest_hash`、`invocation_id` + `invocation_id_kind=harness_assigned_run_id`、
+`reviewer` 身份、`answer_model_families`、`calibration`（含完整 TP/FN/TN/FP）、
+`eligible_for_authority_review`；并且**恒为** `qualified_judge=false`、
+`formal_semantic_label=false`、`release_observation=false`、`release_gate=NO_GO`。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1577 files |
+git diff --check ok | secret-like literal self-check clean
+L1: tests/test_release_benchmark_blind_review.py = 20 passed
+L2: release-benchmark-pilot stage gate = 110 passed
+L3 @ edc4c75（clean head）：2941 passed / 2 skipped / 0 failed
+```
+
+**未做 / 下一步**：本刀**零真实 invocation**、零 provider SDK、零正式标签。A3-B = 由 operator 在
+**全新隔离会话**（**非本聊天**）粘贴 `render_packet_text(packet)` 并把原始响应回填；A3-C =
+ingest 校验 + shared checker → `calibration_pass` → 再由 QualificationAuthority 显式裁定
+（`6/6 + 5/6` 亦 FAIL，不因是 GPT 放宽）。
+
+### 162.4 A3-B0 实现（2026-10-01，单刀；operator transport CLI）
+
+**交付**：
+
+```text
+tools/run_release_benchmark_blind_review.py          新增：两模式 transport CLI
+tests/test_release_benchmark_blind_review_cli.py     新增：13 tests
+tests/test_release_benchmark_blind_review.py         +1 词汇表不变量测试（共 21）
+src/evals/release_benchmark_blind_review.py          修改：packet_sha256 / transport / ISSUE_TYPE_VOCABULARY
+src/evals/release_benchmark_semantic_probe.py        修改：materialize 输出加 answer_provider
+tests/stage_gates.json                               注册 CLI 测试
+```
+
+**CLI（仅参数解析 + 文件 I/O）**：
+
+```text
+--emit-packet --review-run-id X --output DIR
+  -> packet.txt              # 唯一可发送；REVIEWER-VISIBLE BEGIN/END 边界包裹
+  -> private_manifest.json   # repo-only，含 packet_sha256
+  -> ingest_template.json    # 回填便利，空 axes，无期望值
+--ingest --review-run-id X --response F --manifest F --output F
+  -> ingested_review.json + raw_reviewer_response.txt（**原始字节保留**）
+```
+
+**边界（冻结并测试）**：
+
+```text
+CLI 不计算、不输出 qualification decision（无 "qualification" 键；qualified_judge 恒 false）
+6/6 + 6/6 也只停在 calibration_pass / eligible_for_authority_review
+--ingest 重新从 frozen state 派生 packet；packet_sha256 不符 -> 拒绝
+manifest 属别的 run -> 拒绝
+operator 记为 transport=manual_copy_paste；reviewer_kind=model / provider=OpenAI / model_family=GPT
+  -> 人工只是 transport，不参与 verdict（避免审计把 copy/paste 误读为 manual review）
+answer_model_families 从 frozen bundle 的 provider 机械推导
+packet 只经库契约生成 -> 不存在第二份漂移的 packet 定义
+```
+
+**哈希链（可机械回放，而非只信最终 JSON）**：
+
+```text
+packet_sha256 + input_manifest_hash
+   -> raw_reviewer_response.txt + output_hash
+   -> ingested_review.json（归一化事实）
+```
+
+**本轮自查修正（记录）**：词汇表不变量测试初版对 item payload 做 token 扫描，被 `other`
+（普通英文词，合法出现在 frozen source text）误伤 → 改为**结构性断言**（词汇表只在 packet 层
+声明一次；item 不得带自己的词汇表字段）。同类"过度字符串扫描"在本阶段已出现两次，后续
+guard 默认用结构断言。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1578 files |
+git diff --check ok | secret-like literal self-check clean
+L1: blind_review 21 + cli 13 passed
+L2: release-benchmark-pilot stage gate = 124 passed
+L3 @ 9690359（clean head）：2955 passed / 2 skipped / 0 failed
+```
+
+**未做 / 下一步**：零真实 invocation、零 provider SDK、零正式标签。A3-B1 = 生成 frozen packet；
+A3-B2 = **全新隔离会话**（**非本聊天**）执行盲复核；A3-B3 = ingest + calibration；
+A3-C = QualificationAuthority 显式裁定。
+
+### 162.5 A3-B2 首次独立家族盲复核（2026-10-01）：calibration FAIL
+
+**执行**：packet `rq-review-20261001-001`（`packet_sha256 60ded5ea…b32642`；8 items = 2 real answers +
+3 controls × 2 cases）；reviewer = OpenAI / GPT / `gpt-5.6-sol`（`reviewer_kind=model`）；
+`transport=manual_copy_paste`（operator 只搬运字节，不参与 verdict）；answer family = deepseek
+→ 独立性成立；原始响应 sha256 `7e6098a5…d73b08`（**逐字节保留**）。
+
+**结果**：
+
+```text
+target detection 6/6（FN 0）| specificity 4/6（FP 2）| real answers clean 2/2
+target_gate_pass true | specificity_gate_pass false | calibration_pass **false**
+-> eligible_for_authority_review=false / qualified_judge=false /
+   formal_semantic_label=false / release_gate=NO_GO
+```
+
+**失败位置**：两个 `unsupported_claim` 控制。reviewer 命中目标轴（`evidence_grounding=gap`）并给出
+正确 issue type，但把 `citation_support` 留在 `supported`，而冻结期望是 `gap`（注入的假句带有指向
+真实 locator 的引用，冻结 rubric 明确"citation 不是来源支持该句的证明"）。
+
+**性质**：
+
+- **不是检出问题**：6/6 目标全部命中，2/2 真实答案 clean，两处违规都不是虚假 issue。
+- **与同家族探针失败模式不同**：DeepSeek pro = 6/6 检出 + 1/6 特异性（广泛过判）；
+  GPT = 6/6 + 4/6（单轴欠判）。
+- **不能据此判定该 reviewer 普遍不合格**；只能说在冻结的 §161 期望表下它未复现所需维度映射。
+- **未放宽门、未授予任何东西**：`6/6 + 4/6` 照合同 FAIL。
+
+**本刀同时修掉一个真实缺陷**：`--ingest` 曾以**文本模式**回写原始响应 → LF 结尾被写成 CRLF，
+保留文件与收到的字节不再一致，`output_hash` 会描述"重新编码"而非"实际载荷"。现改为读写 bytes +
+对原始字节取哈希 + 要求字节能解码为被解析文本（防"哈希一份、解析另一份"），artifact 记录
+`raw_response_bytes_preserved`；CRLF 回归已覆盖。真实运行的 `raw == response` 字节一致即直接证据。
+
+**权威证据**：`docs/research_quality/RELEASE_BENCHMARK_BLIND_REVIEW_2026-10-01/`
+（`FINDINGS.md` / `private_manifest.json` / `reviewer_response.json` / `raw_reviewer_response.txt` /
+`ingested_review.json`）。
+
+**未做 / 下一步（需显式裁定，本刀不代决）**：
+
+```text
+(a) 合同问题：unsupported-but-cited 句是否必须同时打破 citation_support？
+    -> 改冻结期望表 = 重开合同，须显式裁定，不得静默编辑
+(b) reviewer 问题：换另一个独立家族，或以更明确的 citation-support 规则重提示
+    -> 后者有滑向 steering 的风险，需单独评审
+两条分支都未执行；本 artifact 即为已记录结果。A3 仍 FAIL，release NO-GO。
+```
+
+**裁定与收口（2026-10-01，用户裁定；无代码语义变更）**：
+
+```text
+A3-B2                   = FAIL
+cause class             = REVIEWER_AXIS_UNDERDISCRIMINATION
+contract decision       = RETAIN FROZEN EXPECTATION（不重开合同，不改 unsupported_claim 期望轴）
+qualification           = NONE
+current calibration set = CONSUMED_FOR_QUALIFICATION_SELECTION
+                          RETAINED_AS_DIAGNOSTIC_REGRESSION
+```
+
+**保留冻结期望的理由**：`citation_support` 评估的是"这个 citation 是否**语义上支持**它所附着的 claim"，
+不是"locator 是否真实存在/可解析"。两轴不重复：
+
+```text
+evidence_grounding : 这句话在允许的 evidence 里有没有依据？
+citation_support   : 它挂着的这个具体 citation，是否真的支持这句话？
+```
+
+真实 locator 不能把"不支持这句话"变成"支持"；反之真陈述也可能挂错来源（`EG=supported` + `CS=gap`）。
+GPT 在 item-05/06 的读法（"claim 没证据，但 citation 指向真实来源，所以 citation 算 supported"）
+属**轴语义混淆**，不是冻结表设计错误。
+
+**同时更正本复盘中的一个弱论据**：不能说"DeepSeek pro 与 GPT 两个独立数据点都指向该格最紧"。
+DeepSeek pro 的 `1/6` 是**广泛过判**；除非能证明它的错误同样集中在
+`unsupported_claim -> citation_support` 这一格，否则它**不构成**关于该格的第二个独立证据。
+准确结论是：**GPT 暴露了 `citation_support` 与 citation existence/validity 之间的 reviewer
+解释风险；但冻结 rubric 已给出语义定义，故本轮不足以证明 contract 错误。**
+
+**本刀不做**：不 retry、不 steering、不模型轮换、不改合同；旧 set 转 diagnostic regression（见 C7）。
+
+**唯一下一步 = §162 A3-D：fresh independent qualification holdout** —— 结构仍为 6 target + 6 specificity，
+但必须是**新实例 / 新 source / 新 claim 表面形式**，且 expected axes 在 reviewer 执行**前**冻结；
+必须保留至少一个 `unsupported claim + 结构合法 citation + 真实 locator + locator 语义上不支持该 claim`
+结构，且不复用 item-05/06 内容。reviewer 来源优先级：① 另一真正独立模型家族；② 独立 `manual_human`
+（不得由已知失败位置的人充当）；③ **不得**重提示同一 GPT 考旧题。
+
+### 162.6 A3-D 实现（2026-10-01，单刀；fresh qualification holdout，**冻结不执行**）
+
+**交付**：
+
+```text
+tests/fixtures/release_benchmark/holdout_v1.json                新增：冻结的资格 holdout
+tests/test_release_benchmark_qualification_holdout.py           新增：10 tests
+tests/stage_gates.json                                          注册进 release-benchmark-pilot
+```
+
+**可行性发现（影响设计，已记录）**：盲 packet 只携带**文本**（`source_text` 是字符串），
+因此**视觉主导的 claim 无法通过当前 packet 做盲评**。核对仓内 5 份冻结快照：
+
+```text
+noaa_storm_surge.html          已消费（TEXT-001）
+nasa_moon_lithograph.pdf       已消费（PDF-001）
+nws_heat_safety_onepager.pdf   未使用，文本充足（page1 3070 / page2 2054 chars）-> 选为 holdout source
+nasa_giss_history_annual.pdf   未使用，但仅 120 chars 可提取（趋势为视觉内容）-> 不可用于文本盲评
+usgs_shield_volcano.gif        无文本
+```
+
+结论：在**不新增来源、不改 packet 合同**的前提下，可用的**新文本来源只有一个**。因此 holdout 采用
+**同一新 source 的两个 instance**（page 1 watch/warning 面板 / page 2 heat index），而非两个独立来源。
+**若要两个独立来源，需另冻一份新来源（联网获取 + 冻结）—— 属独立刀，等裁定。**
+
+**结构（冻结）**：
+
+```text
+RQ-HOLDOUT-2026-10-01  content_sha256 d99fc107…
+source: NWS-HEAT（registry 已登记，字节 SHA 校验）
+instance A  page 1  watch vs warning 面板
+instance B  page 2  heat index 定义与算例
+每个 instance：1 baseline（covered/supported/supported）+ 3 controls
+  wrong_citation    -> covered/supported/gap        + wrong_citation
+  missing_aspect    -> partial/supported/supported  + coverage_gap
+  unsupported_claim -> covered/gap/gap              + unsupported_claim
+合计 6 controls -> 6 target + 6 specificity
+```
+
+**两个强化设计选择**：
+
+```text
+1) wrong_citation 控制改用"真实但无关的已登记 locator"（USGS / GISTEMP），不再用 invalid.example
+   -> 避免 reviewer 靠"URL 明显是假的"走捷径，直接考语义。
+2) unsupported_claim 控制严格保留鉴别结构：
+   假句 + 结构合法 citation + 指向真实冻结 locator + locator 语义上不支持该句。
+   内容与已消费 item-05/06 完全不同（不同 source、不同 claim、不同表面形式）。
+```
+
+**answer provenance（冻结，防误读）**：holdout 候选答案**由冻结快照文本手工构造**，**不是模型输出**；
+expected axes 因此可由快照直接证明，而非从某模型行为反推（fixture `answer_provenance` 记录）。
+
+**构造者回避**：fixture 作者知道全部 expected axes，**不得**担任本 holdout 的 reviewer（C7 规则 5），
+已在 fixture `constructor_disqualification` 记录。
+
+**验证**：
+
+```text
+ruff clean | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: test_release_benchmark_qualification_holdout = 10 passed
+L2: release-benchmark-pilot stage gate = 137 passed
+本刀只新增 fixture + test，未改 src/ 生产路径 -> 按 §153/§154/§155 先例不强制 L3（CI 的 pytest 覆盖）
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet**。A3-D-2 = 用 holdout 生成盲 packet
+（需一个新的 packet 构建入口，从 holdout 而非 answer bundle 取材）；A3-D-3 = 选定 reviewer
+（①另一独立家族 / ②独立 manual_human，均须未见本 holdout 与消费集失败位置）后执行一次盲校准。
+
+### 162.7 A3-D-1b Cluster B + composite 冻结（2026-10-01，单刀；仍**不执行**）
+
+**裁定**：Cluster B 采用**方案 1（NOAA tides）**；不为 publisher 完全独立阻塞 §162 —— 本阶段要验证的是
+semantic-binding 规则能否迁移到**新 source / 新 claim / 新表面形式**，而非 publisher-level domain independence。
+
+**交付**：
+
+```text
+tests/fixtures/release_benchmark/sources/noaa_tides_2026-10-01.html   新增冻结来源（29,594 bytes）
+tests/fixtures/release_benchmark/holdout_cluster_b_v1.json            新增 Cluster B（2 instances × 4 项）
+tests/fixtures/release_benchmark/qualification_holdout_v1.json        新增 composite manifest
+tests/test_release_benchmark_qualification_holdout.py                 改为按 cluster 参数化
+tests/test_release_benchmark_qualification_composite.py               新增 composite gates 测试
+tests/stage_gates.json                                                注册
+```
+
+**Cluster B 事实**：
+
+```text
+cluster_id      CLUSTER-B-NOAA-TIDES
+source          NOAA-TIDES  字节 sha256 276fa82d74dff8d524d33f37f84e46ccd9d1d7e744006ef4c124c0855963459c
+excerpt         visible-text 提取，1349 字符，sha256 d24f71c4…
+content_sha256  0f5fd6a73d5dde9a760c67b19fb6d81e980b0272b8d26ddc374731d646a41fa8
+instances       RQ-HO-C-TIDE-CAUSE（成因 / 起源与推进）
+                RQ-HO-D-CREST-RANGE（峰谷 / 潮差）
+controls        6（每 instance：wrong_citation / missing_aspect / unsupported_claim）
+```
+
+**Cluster A 未被改写**（保持 `content_sha256 d99fc107…`）；composite **引用**它而非复制。
+
+**composite manifest（冻结）**：
+
+```text
+RQ-QUAL-HOLDOUT-v1  content_sha256 e5da77caec1905a361c9720bf6b384a1225da76a7e09c07c5a8515f575c133b9
+clusters      CLUSTER-A-NWS-HEAT(6 controls) + CLUSTER-B-NOAA-TIDES(6 controls)
+gate_rule     per_cluster  = "target_detection all AND specificity all"
+              overall_pass = "cluster_A_pass AND cluster_B_pass"
+              blended_total_forbidden = true
+independence  document / topic / claim_instance = true ; publisher = false
+known_limitation  Cluster A 与 B 来自相关的美国政府气象 / 海洋出版生态；资格只证明
+                  cross-document/cross-topic 泛化，不证明 publisher-level 泛化
+```
+
+**反平均化守卫（测试）**：composite 文本禁止出现 `average` / `mean` / `total_score` / `accuracy` / `f1`，
+且 `gate_rule` 必须含 `AND`、`blended_total_forbidden` 必须为 `true` —— 防止"NWS 全对 + Source B 错两项"
+被总分掩盖。Cluster 必须**逐 cluster 全过**。
+
+**表面形式纪律**：Cluster B 的 `unsupported_claim` **不做成教学式显眼题**，仅保持冻结结构
+（假句 + 合法 citation 语法 + 真实冻结 locator + 语义不支持），避免无意带上对旧失败的针对性。
+
+**验证**：
+
+```text
+ruff clean | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: holdout（按 cluster 参数化，两 cluster）+ composite = 35 passed
+L2: release-benchmark-pilot stage gate = 162 passed
+仍只新增 source / fixture / test，未改 src/ 生产路径 -> 不强制 L3
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet**。D-2 = 让 packet / ingest 支持 composite
+holdout（按 cluster 生成 packet、按 cluster 出校准结果、**按 cluster 判门**）；D-3 才选 reviewer。
+
+### 162.8 A3-D-2 实现（2026-10-01，单刀；composite transport + per-cluster ingest）
+
+**交付**：
+
+```text
+src/evals/release_benchmark_blind_review.py              新增 build_holdout_packet / ingest_holdout_review_run
+                                                         + 共享行校验 helper（_validated_observations）
+tests/test_release_benchmark_qualification_transport.py  新增：13 tests
+tests/stage_gates.json                                   注册
+```
+
+**五条实现边界（按裁定逐条落地）**：
+
+```text
+1) packet 隐藏 composite 结构：不含 cluster 标签 / 每 cluster 数量 / gate rule / composite 字段；
+   cluster 归属、instance id、gate rule 只在 repo 侧 manifest；item 顺序仍 variant-blind。
+2) ingest 输出为树：
+   cluster_results[cluster_id] = {target_detected/target_total/target_missed,
+                                  specificity_correct/total/violations, confusion,
+                                  target_gate_pass, specificity_gate_pass, cluster_pass, items}
+   overall_pass = all(cluster_pass)
+   **不产生任何聚合计数**：无 overall_tp / overall_tn / overall_accuracy /
+   overall_score / total_correct（测试级 denylist）。
+3) eligible_for_authority_review == overall_pass；任一 cluster 失败即
+   eligible=false / qualified_judge=false / formal_semantic_label=false / release_gate=NO_GO。
+4) 反平均化行为级回归：A 全对 + B（6/6 检出、5/6 特异性）-> overall=false、eligible=false；
+   对称 case（A 失败、B 全对）-> overall=false。不只靠字段禁词。
+5) artifact 携带完整 digest 链：composite_manifest_sha256 / cluster_fixture_sha256（两 cluster）/
+   cluster_source_sha256（两 source）/ packet_sha256 / output_hash
+   -> 可机械证明"reviewer 实际看到的 packet 正是执行前冻结的两套 holdout"。
+```
+
+**共享校验路径**：单 run 与 composite 共用 `_validated_observations`，避免两条路径漂移；
+单 run manifest 仍用旧的 frozen refs，**已记录的 artifact 校验行为不变**（旧 blind-review / CLI 测试全绿）。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | 字面量自检 clean | package helper OK: 1596 files | git diff --check ok
+L1: qualification transport = 13 passed
+L2: release-benchmark-pilot stage gate = 175 passed
+本刀仅 eval 工具路径，未改生产 runtime -> 不强制本地 L3（CI 的 full pytest 为该 head 的等价覆盖）
+```
+
+**未做 / 下一步**：**未选 reviewer、未执行、未生成 packet 文件**。D-3 = 选择**真正未污染**的 reviewer
+（不能是 holdout 构造者，且最好未见过消费集 item-05/06 的具体失败位置）后，执行**单次** fresh
+qualification attempt；只有 `overall_pass = A AND B` 才进入 QualificationAuthority。
+
+### 162.9 A3-D-3 执行（2026-10-01）：fresh composite holdout **FAIL**，且**复现**旧签名
+
+**执行**（单次、无提示、无 retry、无换 session 重抽）：
+
+```text
+holdout        RQ-QUAL-HOLDOUT-v1   composite sha256 e5da77ca…
+clusters       A = NWS-HEAT  (fixture d99fc107… / source 3663875d…)
+               B = NOAA-TIDES (fixture 0f5fd6a7… / source 276fa82d…)
+packet_sha256  f8d3ff81af3adff8f5ee69222642fb4703290fa034e68e73cea8b3048f4168f5
+items          16 | reviewer = OpenAI / GPT / gpt-5.6-sol | 全新隔离会话
+transport      manual_copy_paste（operator 只搬运，不参与 verdict）
+output_hash    afcaf52dc360d741e3b59582226b0a05bb117cb80d02d801117862bd933fbab8
+```
+
+**结果**：
+
+```text
+CLUSTER-A-NWS-HEAT    target 6/6  specificity 4/6  clean 2/2  pass=false
+CLUSTER-B-NOAA-TIDES  target 6/6  specificity 4/6  clean 2/2  pass=false
+overall_pass=false | eligible_for_authority_review=false
+qualified_judge=false | formal_semantic_label=false | release_gate=NO_GO
+```
+
+**失败签名（与 A3-B2 完全一致）**：4 个失败全部是 `unsupported_claim` 控制，均为
+`EG=gap`（目标检出）但 `CS=supported`（期望 `gap`）。`missing_aspect` 与 `wrong_citation`
+全部精确命中，**无任何虚假 issue**；两 cluster 的真实答案均 clean（2/2）。
+
+**性质升级**：这是**首次跨文档、跨主题、fresh holdout 的复现** —— 消费集尝试
+（`rq-review-20261001-001`）同样是 `6/6 + 4/6`、同样只错在 `unsupported_claim` 的 `citation_support`。
+故结论从"单次轴语义不稳定"升级为 **reproducible reviewer-family failure mode**：
+对该家族，"citation 能解析到真实来源" 与 "citation 支持该句" 未被区分。
+**冻结期望未改、未放宽**；未授予任何资格。
+
+**范围限制（记录以防说大）**：只刻画一个家族 / 版本，不推广到所有模型；不证明换家族会通过；
+不构成合同缺陷（`citation_support` 已在冻结 rubric 中按语义定义，且该定义已交付 reviewer）；
+消费集 repeat 与本次 fresh attempt 一致，是关于 reviewer 的证据，不是 holdout 设计问题。
+
+**证据**：`docs/research_quality/RELEASE_BENCHMARK_QUALIFICATION_HOLDOUT_2026-10-01/`
+（`FINDINGS.md` / `private_manifest.json` / `reviewer_response.json` / `raw_reviewer_response.txt` /
+`ingested_review.json`）。`packet.txt` 可由冻结 fixture 机械重生成，故只记录 digest、不提交。
+
+**未做**：未 retry、未给提示、未换 session 重抽；未进入 QualificationAuthority（不可用）。
+
+**下一步（需显式裁定，本刀不代决）**：
+
+```text
+(a) 接受该家族刻画，作为当前"合格语义判定"能力的边界；
+(b) 用同一冻结 holdout 去资格化另一个 reviewer 家族
+    （须记录"reviewer 家族在两次尝试之间改变"这一解释性代价）。
+```
+
+### 162.10 §162 CLOSED（2026-10-01）：自动 semantic judge = **NOT QUALIFIED**
+
+**最终状态（冻结，产品裁定）**：
+
+```text
+§162 Independent Semantic Reviewer Qualification
+
+Infrastructure:             CLOSED
+Blind transport/provenance: CLOSED
+Qualification contract:     CLOSED
+GPT-5.6-Sol qualification:  FAIL
+
+Failure characterization:
+  reproducible semantic-axis under-discrimination on citation_support
+  for unsupported-but-validly-cited claims
+
+Qualified automatic judge:  NONE
+Authority granted:          NONE
+Formal semantic labels:     NONE from automatic reviewer
+Release:                    NO-GO
+```
+
+**证据链（三次一致）**：
+
+```text
+consumed calibration   rq-review-20261001-001   6/6 detection + 4/6 specificity
+fresh holdout A        CLUSTER-A-NWS-HEAT       6/6 + 4/6
+fresh holdout B        CLUSTER-B-NOAA-TIDES     6/6 + 4/6
+同一 signature：unsupported_claim -> EG=gap ✅ / CS=supported ❌
+clean baseline / missing_aspect / wrong_citation 全部稳定正确
+-> 定性 = REPRODUCIBLE_REVIEWER_FAMILY_FAILURE_MODE（非 prompt 运气、非单题噪声）
+```
+
+**RQCE v1 落法（冻结）**：
+
+```text
+Automatic semantic judge:        NOT QUALIFIED
+Mechanical / deterministic:      AVAILABLE
+Semantic labels:
+  - independent manual_human -> allowed when explicitly reviewed
+  - otherwise                -> abstain / unlabeled
+Release gate:                    NO_GO until required semantic-label coverage is satisfied
+```
+
+原则：**机器能确定的继续机器确定；需要语义裁决的地方不伪造自动权威。**
+
+**holdout 状态（冻结）**：
+
+```text
+RQ-QUAL-HOLDOUT-v1
+  GPT family qualification result: FINAL FAIL
+  future other-family runs:        comparative / diagnostic only
+```
+
+**未做**：不再为得到 PASS 而更换模型；本阶段**不执行 (b)**；未授予任何 authority；
+未放宽 `citation_support` 期望；未改写 Cluster A / composite / 已提交 artifact。
+
+**未来入口**：若 Claude / Gemini / API 自然接入，另开 **§162-v2 reviewer bakeoff / qualification**，
+并**在执行前**重新预注册 reviewer-selection policy（见 C8）与 fresh holdout。
+
+## §163 Learning / Pedagogy Asset Reconciliation（2026-10-01；新主线 A 入口）
+
+**路线重构（冻结）**：项目不再按"Research 做完才开始 Teaching"理解，而按**三线合流**：
+旧教学资产 + 新研究底座 + 未来统一学习闭环。
+
+**总目标（重新定义）**：能持续研究、形成可信证据、记住用户长期学习状态，并按掌握程度决定
+**下一步教什么 / 怎么教 / 怎么验证 / 什么时候复习**的个人 Study Agent。Research Engine 是
+**教学系统的可信知识输入层**，不是另一个独立产品。
+
+**双轨（冻结）**：
+
+```text
+主线 A：Study Loop Integration   §163 -> §164 -> §165 -> §166 -> §167 -> §168 -> §169 -> §170 -> §171
+并行 B：Release reliability      6/56 -> 56/56；manual semantic labels；vision/live；threshold freeze；GO/NO-GO
+```
+
+理由：§162 已证明当前自动 semantic judge 不够资格，但这**不阻塞** Learner Model 开发；
+否则会为证明研究引擎 100% 可发布而长期停做学习功能，反而偏离项目初衷。
+
+**§163 目标产物**：一张权威矩阵。**本阶段不新增功能**，只做 inventory / authority mapping /
+dependency mapping / migration decision。
+
+### 163.1 盘点结果（READ-ONLY 代码事实，2026-10-01）
+
+| 旧 contract | 当前实现位置 | 持久化 | 写入者 | 是否在 chat turn 运行时 | 决策（提案） |
+| --- | --- | --- | --- | --- | --- |
+| LearningTopic | `domain/learning_truth.py:15` / `learning_topics`(v17) | 是 | `LearningClosureTruthService` | 否（仅 closure API） | **KEEP**（升为 v2 顶层主题） |
+| LearningGoal | `learning_truth.py:24` + `learning_goal_contexts`(v18) | 是 | closure services | 否 | **KEEP + MERGE**（与 research question / project goal 建 bridge） |
+| ResumePoint | **无类**；`LearningResumeService.build()` 返回 dict | 否（派生） | 无（只读） | 否（`/learning-resume`） | **UPGRADE** 为 typed projection（§170） |
+| NextStep | `learning_truth.py:117` / `next_steps`(v17，唯一 primary active 索引) | 是 | closure commit | 否 | **★1 写入权待裁定** |
+| Objective | `LearningGoal.objective` + 旧 `LearningState.objective` | 是（双路径） | closure / legacy planner | **是**（legacy） | **MERGE**：durable goal 为 authority，legacy 降为 turn-local |
+| Observation（学习） | **不存在** | — | — | — | **NEW**（§167；命名须与 research 侧 `*Observation` 区分） |
+| Assessment（学习） | **不存在**（最近似 `PedagogyEvalRun.final_decision`） | — | — | — | **★2 NEW**（§167；须与 semantic judge 权限边界一致） |
+| UnderstandingEvidence | `learning_truth.py:90` / `understanding_evidence`(v17) | 是 | closure commit | 否 | **KEEP + 升级为 mastery 唯一事实输入**（§164） |
+| EvidenceSet | **文档虚构**；关系化为 `claim_revision_evidence` + `EvidenceBinding` | 是（关系化） | closure | 否 | **KEEP 关系化设计**（不新建表）+ 与 Research Evidence 建 bridge（不统一 schema） |
+| misconception | `pedagogy/types.py:94` 等，内嵌 `pedagogy_eval_runs` JSON | 是（内嵌） | `PedagogyEvaluationService` | **是** | **UPGRADE** 为 lifecycle（§168） |
+| prerequisite | (a) `learning_goal_prerequisites`(v17) **dormant 仅测试**；(b) `role="supporting_prerequisite"` **live** | 是 | (b) `LearningSourceEvidenceService` | (b) 是 | **★3** (a) RETIRE 或升为 §165 图边 |
+| freshness | `learning_freshness.py:58`，**明确不持久化** | 否（on-demand） | 无 | 是（resume/revalidation 读） | **KEEP**（纯 deterministic） |
+| retention | **不存在**（文档明确 deferred） | — | — | — | **NEW**（§169，非 Anki） |
+| review_due | **不存在** | — | — | — | **NEW**（§169） |
+| PedagogyTurnPlan | `pedagogy/types.py:105`，序列化进 `chat_turns` | 是（JSON） | `PedagogyEngine.plan` | **是** | **UPGRADE 为 TeachingPlan v2 祖先**（§166，不废掉） |
+| Socratic Rediscovery | `pedagogy/socratic.py:13` + protocol 字符串 | 是（JSON） | `PedagogyEngine.plan` | **是** | **KEEP 为教学 strategy**（非独立流程） |
+| Closure | `LearningClosureRun` + 三个 service + component migration | 是 | closure services | 否（仅 API） | **★4 MERGE** 为单一 authority |
+
+### 163.2 关键结构发现（决定迁移策略）
+
+```text
+F1 **两套并行 learning state 共存**：旧 = chat_turns/chat_threads JSON（learning_state /
+   pedagogy_snapshot / pedagogy_eval_runs）驱动每个 chat turn；新 = 归一化真值表 learning_*，
+   **只在显式 post-session closure commit 写入**。对账核心 = 这两套的收敛策略。
+F2 ResumePoint / EvidenceSet 是**文档虚构**：按符号名找不到（实现分别是 dict 投影与关系化绑定）。
+F3 学习域的 Observation / Assessment **不存在**；同名符号全在 research/eval 侧
+   （VisionObservation / CaseObservation / ReviewObservation / CandidateSemanticAssessment / source_assessment）。
+F4 prerequisite 有两个无关含义（见矩阵），且 `prerequisite_gap` **不存在**。
+F5 retention / review_due / spaced review **完全不存在**。
+F6 **mastery 被刻意设为不可表示**：无分数字段、无表；LLM 不能断言 mastery；
+   `LLMSemanticEvaluator` 的 accept 只能间接、且必须经显式 closure commit + 用户确认才落成 durable pass。
+F7 **两套 schema 版本机制**：`pedagogy_eval_runs` 走全局 `MIGRATIONS` v13；
+   `learning_closure_runs` 走 repository 内 ad-hoc component migration v1。
+F8 dormant：`add_prerequisite` / `list_prerequisite_ids`（仅测试）；
+   `get_learning_semantic_closure_service` 工厂无生产调用者。
+```
+
+### 163.3 需裁定的四项（★，本刀不代决）
+
+```text
+★1 NextStep 写入权：Planner 还是 Learner Model？（现状：closure 写 / resume 读）
+★2 学习域 Assessment 的权限边界：机器评价 ≠ semantic label，如何与 §162 结论一致
+★3 prerequisite(a) dormant 目标间边：RETIRE，还是升级为 §165 Concept Graph 的边？
+★4 三个 closure service（LearningClosureService / LearningClosureTruthService /
+   LearningSemanticClosureService）是否 MERGE 为单一 authority
+```
+
+### 163.4 四项裁定（冻结，2026-10-01）
+
+**总原则（冻结）**：
+
+> **Planner 负责提议，Learner Model 负责投影，Closure 负责授权写入。**
+> **任何模块不得同时"观察 + 判断 + 改长期真值"。**
+
+**★1 NextStep 写入权**：
+
+```text
+Teaching Planner -> NextStepCandidate -> closure review
+                 -> LearningClosureTruthService -> durable NextStep
+
+权限：Planner                 PROPOSE
+      LearnerModel            READ（只读 derived projection，不因 §164 获得写权）
+      ClosureTruthAuthority   COMMIT / REPLACE PRIMARY
+      User                    可在 closure review 中确认 / 改写
+理由：NextStep 有"唯一 active primary"约束，属长期状态变更，
+      不能让每一次 Planner 推理随手覆盖。
+```
+
+**★2 Learning Assessment 权限边界**：
+
+```text
+PedagogyAssessment
+├─ objective_ref / response_ref
+├─ result: pass | partial | fail | abstain
+├─ basis / evidence_refs
+└─ evaluator_kind / confidence / provenance
+
+允许：deterministic evaluator -> assessment；LLM evaluator -> assessment
+禁止：assessment.pass -> mastery=true
+      assessment.pass -> UnderstandingEvidence(pass) **直写**
+必须：Assessment -> closure candidate -> explicit closure review -> durable UnderstandingEvidence
+```
+
+**硬边界（与 §162 的接口）**：
+
+> 若 Assessment 的正确性依赖一个**尚无权威来源支持的外部事实**，机器**不得**凭自身世界知识
+> 把它升级成 durable pass；无可信 evidence 时 -> `assessment = abstain`，或要求 research / manual review。
+
+原则：**机器可以评价学习表现；机器不能因为评价了学习表现，就顺便取得事实真值权。**
+（Assessment 回答"用户这次表现如何"；Semantic authority 回答"外部事实真伪" —— §162 失败的是后者。）
+
+**★3 prerequisite dormant 边**：
+
+```text
+learning_goal_prerequisites:
+  RETIRE_AS_AUTHORITY
+  SEMANTIC_IDEA -> §165 ConceptGraph
+  NO SILENT TABLE REPURPOSING
+
+§165 新建：Concept -prerequisite_of-> Concept
+           LearningGoal -objectives-> Concept[]
+理由：Goal 与 Concept 不是一个层级；goal→goal 边过粗，且用户换 Goal 后知识依赖不应消失。
+（若日后发现真实历史数据，写显式 migration，不把原表偷偷改义。）
+```
+
+**★4 三个 Closure Service**：
+
+```text
+不物理合成 God Service；MERGE AUTHORITY SURFACE / KEEP INTERNAL SEPARATION
+
+LearningClosureService          = workflow / orchestration（**唯一公共入口**）
+LearningSemanticClosureService  = semantic mapping / normalization（**无 commit authority**）
+LearningClosureTruthService     = sole durable truth writer
+
+链路：Chat runtime -> LearningClosureService -> SemanticClosureService
+                 -> review / confirmation -> ClosureTruthService -> learning_* truth
+```
+
+**★ 最终冻结表**：
+
+| 项目 | 裁定 |
+| --- | --- |
+| ★1 NextStep | Planner **PROPOSE**；LearnerModel **READ**；ClosureTruth **COMMIT** |
+| ★2 Assessment | 机器可评价，但只是 pedagogical assessment；**不得**成为 formal semantic label，**不得**直写 mastery / UnderstandingEvidence |
+| ★3 prerequisite | 当前 goal→goal authority **退休**；语义思想迁入 §165 新 Concept→Concept graph |
+| ★4 closure services | **不**物理合成一个 God Service；合并公共 authority surface，内部保持 orchestration / semantic mapping / durable commit 三层 |
+
+### 163.5 §164 重新定位（冻结）
+
+```text
+§164 Unified Learner State v2 —— Projection & Authority Contract
+```
+
+核心**不是**建一张 `learner_state` 大表，而是统一：
+
+```text
+durable truth -> LearnerModelSnapshot -> chat-turn readable learner context
+```
+
+并继续坚持现在**已经成立**的原则（属继承，不是新建）：
+
+```text
+没有 mastery score
+LLM 不能直接宣布 mastery
+assessment ≠ mastery
+LearnerModel ≠ writer
+Planner ≠ truth authority
+```
+
+**本阶段最大新增工作**：
+
+> 把 chat runtime 已经产生的 `PedagogyEvalRun` / misconception / objective 等，**可靠地变成
+> closure candidate**；然后让下一轮 chat **真正读取 durable LearnerModel**，而不是继续依赖 legacy JSON。
+
+（对应 §163.2 的 F1：两套并行 learning state 的收敛。）
+
+### 163.6 新路线图（冻结顺序）与 Memory 形态
+
+```text
+§163 资产对账（本刀）
+§164 Unified Learner State v2 —— mastery 必须来自证据（Objective -> UnderstandingEvidence[]
+     -> deterministic/bounded aggregation -> MasteryState）；状态 unknown/introduced/guided/
+     assisted/independent/retained；**independent 必须来自新场景下无关键提示的独立应用成功**
+§165 Concept / Prerequisite Graph —— 只解决三问：依赖什么 / 卡住是否前置 / 下一步补哪个节点
+§166 Teaching Planner v2 —— 输出 TeachingPlan（objective / prerequisite action / strategy /
+     explanation depth / example need / question / hint budget / success criterion）
+§167 Exercise + Assessment —— recall / transfer / independent application
+     -> Observation -> Assessment -> UnderstandingEvidence
+§168 Misconception Lifecycle —— suspected / supported / confirmed / resolved + evidence
+     （**不得因一次答错写入永久记忆**）
+§169 Spaced Review / Retention —— 首版非 SM-2：mastery strength + last independent evidence
+     + elapsed time + previous review performance -> review_due
+§170 Resume / Next-Step orchestration
+§171 Research × Teaching integration —— 已有可信知识够则直接教；不够 / 时效高 / 有争议才 research
+        ↓
+   Study Agent v1 Freeze
+再后：Project / Coding Agent（learn -> research -> plan -> implement -> validate -> remember）
+```
+
+```text
+Persistent Memory（冻结方向）
+├─ Knowledge / Research plane
+└─ Learner / Pedagogy plane
+通过引用连接（UnderstandingEvidence -> objective -> concept -> knowledge_ref / research_brief_ref）；
+**不硬合成单一 schema**，但可机械追踪。
+```
+
+## §164 Unified Learner State v2 — Projection & Authority Contract（契约冻结 v1，2026-10-01）
+
+**本刀范围（§164-A）**：**只冻结合同**；不写 migration、不改 chat runtime、不新增表、不改 schema。
+
+**本刀要解决的真实结构问题**：§163.2 **F1** —— 两套并行 learning state 并存
+（chat turn 依赖 legacy `learning_state` / `pedagogy_snapshot`；normalized `learning_*` durable truth
+只在显式 closure 后写入）。目标是把这条断层**建桥**，而不是再造第三套 learning state。
+
+### 164.1 合同块 A — Projection authority
+
+```text
+durable truth (learning_* 真值表)
+        ↓ read-only projection
+LearnerModelSnapshot
+        ↓ turn-readable learner context
+chat turn
+
+durable truth        = authority（唯一真值）
+LearnerModelSnapshot = derived / read-only / **not persisted**
+turn context         = snapshot 的派生视图
+```
+
+### 164.2 合同块 B + F — Candidate production；候选 ≠ 评价
+
+```text
+PedagogyEvalRun / misconception detection / objective / turn context
+        ↓ CandidateAssembler
+LearningClosureCandidate
+        ↓ review / confirmation
+ClosureTruth commit
+```
+
+```text
+PedagogyEvalRun         = **一次回合的评价记录**
+LearningClosureCandidate = "我们准备把哪些东西写进长期学习真值？"
+两者权限不同：PedagogyEvalRun **不得**直接成为 durable truth。
+```
+
+`LearningClosureCandidate` 至少携带：
+
+```text
+candidate_id
+goal_ref / objective_ref
+proposed_understanding[]
+proposed_misconceptions[]
+proposed_next_steps[]
+source_turn_ids[]
+pedagogy_eval_refs[]
+authority_requirements
+abstentions[]
+provenance
+```
+
+**只允许 propose**；**禁止**任何 `committed=true` 之类越权字段（**类型层不得存在**）。
+
+### 164.3 合同块 C — Read cutover state machine（三阶段）
+
+```text
+Phase 1 — shadow read
+  legacy = authority；durable learner context = 旁路读取；记录差异；**不影响 chat**
+
+Phase 2 — dual read / bounded preference
+  durable truth 优先；legacy 仅 compatibility fallback；差异进入 telemetry / test evidence
+
+Phase 3 — durable authority
+  LearnerModelSnapshot = chat-turn learner context authority
+  legacy JSON = compatibility projection / retire candidate
+```
+
+### 164.4 合同块 G — Semantic-equivalence migration gate
+
+**切换依据不是 JSON 字段相等，而是关键学习语义不冲突**：
+
+```text
+goal / objective       是否一致
+known understanding    是否不冲突
+next step              是否一致 / 有可解释差异
+misconception          是否有遗漏 / 新增
+freshness              durable-only 允许（legacy 无此概念）
+```
+
+Phase 1 必须**预先定义 equivalence / expected divergence**；未定义不得进入 Phase 2。
+两个系统语义本来就不完全一样，**不得**要求 `legacy == durable` 的逐字段相等。
+
+### 164.5 合同块 D + H — Assessment abstention 与可路由 taxonomy
+
+```text
+ABSTAIN_NO_AUTHORITATIVE_EVIDENCE -> Research
+ABSTAIN_CONFLICTING_EVIDENCE      -> Research / manual review
+ABSTAIN_INSUFFICIENT_RESPONSE     -> ask learner / exercise
+ABSTAIN_OUTSIDE_OBJECTIVE         -> **不更新 learner truth**
+ABSTAIN_EVALUATOR_UNCERTAIN       -> bounded evaluator retry / human
+```
+
+**abstain 必须可路由、可审计**，不得是一个死状态；每次 abstain 记录 reason + provenance。
+这把 §162 的"不会就 abstain"变成**产品行为**，而不是死状态。
+
+### 164.6 Invariant（冻结）：LearnerModelSnapshot 永远可重建
+
+```text
+cache != authority
+```
+
+snapshot 允许缓存，但**必须能从 durable truth 重新构建**；
+**不得**因为"chat turn 要快速读取"就把 snapshot 持久化成第二份真值。
+
+### 164.7 合同块 E — Explicit non-goals（明确不做）
+
+```text
+不建 learner_state 大表
+不给 LLM mastery 写权
+不让 PedagogyEvalRun 直接成为 durable truth
+不让 LearnerModel 成为 writer
+不让 Planner 成为 truth authority
+本刀不写 migration / 不改 chat runtime
+```
+
+### 164.8 实现顺序（冻结）
+
+```text
+§164-A 合同冻结（本刀）
+§164-B candidate assembler
+§164-C shadow durable learner read
+§164-D semantic parity evidence
+§164-E dual-read cutover
+§164-F legacy retirement decision
+```
+
+### 164.9 §164-B 实现（2026-10-01，单刀）：candidate assembler
+
+**交付**：
+
+```text
+src/domain/learning_closure_candidate.py            新增：候选对象 + abstain taxonomy
+src/application/learning_candidate_assembler.py     新增：纯投影 assembler
+tests/test_learning_candidate_assembler.py          新增：24 tests
+```
+
+**六条约束的落地**：
+
+```text
+1) 纯投影：输入仅 PedagogyEvalRun + objective + misconceptions + source_turn_id；
+   不调 LLM、不做语义判断、不建 durable goal、不决定 mastery、不调 ClosureTruth
+   -> **依赖级测试**：AST 解析 assembler 的 import，禁止 repositories / sqlite /
+      learning_truth_repository / closure services / runtime_repository；
+      并断言源码不出现 commit( / create_* / complete( / chat( 等调用
+2) candidate_id 无长期身份语义：lcc_* 前缀；测试断言 != eval_ref != objective_ref
+3) proposed_understanding 引用 evaluation 而非复制成事实：
+   ProposedUnderstanding{objective_ref, claim_ref, proposed_result, pedagogy_eval_ref,
+   basis, authority_required=closure_review}；accept -> proposed_result="pass"
+4) misconception 只做 proposal：ProposedMisconception{description, pedagogy_eval_ref,
+   basis, authority_required}；**不建生命周期、不建表**（§168 负责）。
+   字段名用 `description` 而非 `label` —— `label` 保留给 semantic-label authority
+5) abstain 按维度独立，不 void 整个 candidate：
+   例：understanding 取 ABSTAIN_NO_AUTHORITATIVE_EVIDENCE 时仍可 propose next_step="research"
+6) 幂等：semantic_fingerprint 覆盖提案内容但**排除 candidate_id**；
+   同输入两次组装 -> fingerprint 相同、candidate_id 不同
+```
+
+**abstain taxonomy（五类，全部可路由）**：
+
+```text
+NO_AUTHORITATIVE_EVIDENCE -> research
+CONFLICTING_EVIDENCE      -> research_or_manual_review
+INSUFFICIENT_RESPONSE     -> ask_learner_or_exercise
+OUTSIDE_OBJECTIVE         -> no_learner_truth_update
+EVALUATOR_UNCERTAIN       -> bounded_evaluator_retry_or_human
+```
+
+触发映射（**只读既有事实，不新增判断**）：`blocked_by_policy` -> NO_AUTHORITATIVE_EVIDENCE；
+`unavailable` / `attempted_failed` -> EVALUATOR_UNCERTAIN；空响应或 `is_claim=False` -> INSUFFICIENT_RESPONSE；
+objective 为空 -> OUTSIDE_OBJECTIVE；semantic 引用不在允许集内的 evidence -> NO_AUTHORITATIVE_EVIDENCE；
+调用方显式传入冲突证据 -> CONFLICTING_EVIDENCE。
+
+**禁止字段（类型层 + payload 层双断言）**：`committed` / `mastery` / `mastered` / `qualified` /
+`durable_id` / `truth_id` / `understanding_evidence_id` / `next_step_id` / `goal_id` /
+`label` / `semantic_label` / `approved`。
+
+**验证**：
+
+```text
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1609 files |
+git diff --check ok | secret-like literal self-check clean
+L1: test_learning_candidate_assembler = 24 passed
+```
+
+**桥停在 closure boundary 之前**：本刀**不**新增 convenience path（candidate -> auto commit），
+测试环境也没有；candidate 生成得再完整也不提交。
+
+**未做 / 下一步**：不改 chat runtime 读写路径、不写 migration、不改 schema。
+§164-C = 让 chat turn **shadow-read** durable LearnerModel，并第一次量化 legacy 与 durable
+两套学习状态的差异（含 equivalence / expected divergence 定义）。
+
+### 164.10 §164-C0 Semantic Parity Contract（冻结 v1，2026-10-01）
+
+**本刀范围**：只冻结 parity 合同；**不改 chat runtime、不接 durable read、不新增语义比较器**。
+§164-C 拆为 **C0 合同 → C1 production-inert shadow read → C2 parity evidence collection**。
+
+**要回答的问题**：同一个用户、同一个学习线程下，legacy state 与 durable LearnerModel
+**到底算不算语义一致**？
+
+**比较对象不是原始对象**，而是两边各自产出一个**中性比较投影**：
+
+```text
+Legacy LearningState           -> LegacyLearnerProjection
+                                        \
+                                         -> SemanticParityResult
+                                        /
+LearnerModelSnapshot           -> DurableLearnerProjection
+```
+
+两个 projection **只为迁移测量服务**，**不得**成为第三套 learner state authority。
+
+**分类词表（冻结；不得只返回 equal=true/false）**：
+
+```text
+MATCH
+COMPATIBLE
+EXPECTED_DIVERGENCE
+MISSING_LEGACY
+MISSING_DURABLE
+CONFLICT
+NOT_COMPARABLE
+```
+
+**五个维度的合同（冻结）**：
+
+| 维度 | 合同 |
+| --- | --- |
+| 1 Goal / Objective | **不要求字符串相等**：exact ref match / canonical identity / known linkage → `MATCH`/`COMPATIBLE`；同主题不同粒度 → `COMPATIBLE`；不同主题 → `CONFLICT`；**机械不可判 → `NOT_COMPARABLE`** |
+| 2 Understanding | **硬门**：durable `pass` 与 legacy `failed`/未解 misconception → `CONFLICT`；legacy `unknown` + durable `confirmed` → `MISSING_LEGACY`（**不是冲突**） |
+| 3 NextStep | 允许差异（两套路径产生方式不同）：`MATCH` / `LEGACY_ONLY` / `DURABLE_ONLY` / `EXPLAINED_DIVERGENCE` / `CONFLICT`；Phase 1 **只收数据，不预设差异即 bug** |
+| 4 Misconception | 当前 misconception 在 chat runtime live、durable 尚无正式 lifecycle（§168）：legacy 有 / durable 无 → **默认 `EXPECTED_DIVERGENCE`**（否则会因 §168 未实现而永久打红） |
+| 5 Freshness | durable/on-demand 侧已有能力且不持久化：durable 有 / legacy 无 → **固定 `EXPECTED_DIVERGENCE`**，**绝不因此阻止 Phase 2** |
+
+**禁止**：§164-C **不得新增 LLM semantic comparator**。第一版只允许 exact ref match、
+canonical goal/objective identity、known linkage；无法机械判断即 `NOT_COMPARABLE`。
+（否则又会为了 parity 引入一个新的自动 semantic judge —— 与 §162 结论直接冲突。）
+
+**C1 — production-inert shadow read（冻结）**：
+
+```text
+允许：legacy context 正常驱动当前 turn；旁路 durable LearnerModelSnapshot
+      -> parity projection -> comparison -> telemetry
+禁止：durable result -> 改 prompt / pedagogy plan / retrieval / next step / closure
+```
+
+> **读到了，但不能影响任何用户可观察行为。**
+
+机器级 invariant 与回归（冻结）：
+
+```text
+shadow_read_enabled != durable_authority_enabled
+shadow OFF response == shadow ON response
+  （至少对 route / plan / persisted turn state / closure eligibility 做行为等价断言）
+```
+
+**C2 — Parity artifact（冻结）**：
+
+```text
+LearnerStateParityObservation
+├─ thread_id
+├─ turn_id
+├─ legacy_projection_hash
+├─ durable_projection_hash
+├─ dimensions { goal_objective, understanding, next_step, misconception, freshness }
+├─ overall_classification
+├─ expected_divergences[]
+├─ conflicts[]
+└─ provenance
+```
+
+**命名边界**：可以叫 `ParityObservation`，但**不得**把它塞进 learning domain 的 `Observation`
+概念里 —— 该概念在代码中**并不存在**，而 research/eval 侧已有大量同名碰撞
+（`VisionObservation` / `CaseObservation` / `ReviewObservation`）。
+
+**Phase-2 gate（冻结：本阶段不设阈值）**：§164-C 只做 characterization，回答
+"多少 MATCH / EXPECTED_DIVERGENCE / MISSING_* / 真实 CONFLICT"；**不写死百分比**。
+阈值属 **§164-D semantic parity gate**，须在看到真实分布后**预注册**，
+避免"先定无依据阈值 → 看数据 → 再改阈值"。
+
+**§164-C 成功定义（冻结）**：**不是**"durable LearnerModel 已开始影响聊天"，而是
+
+> **在完全不改变 chat 行为的前提下，每个 turn 都能得到一份可解释、可重放的
+> legacy-vs-durable 语义差异观测。**
+
+即：shadow read works + production behavior unchanged + differences classified +
+expected divergence explicit + **no new semantic judge** + **no new learner authority**。
+
+**未做 / 下一步**：本刀只冻结合同。§164-C1 = 实现 production-inert shadow read
+（含 `shadow OFF == shadow ON` 行为等价回归）；§164-C2 = 产出
+`LearnerStateParityObservation` 并开始收集真实分布。
+
+### 164.11 §164-C1 测量核心实现（2026-10-01）：parity projections + deterministic classifier + fail-open shadow read
+
+**交付**：
+
+`	ext
+src/domain/learner_state_parity.py              新增：中性投影 + 分类词表 + 确定性分类器
+src/application/learner_state_parity_observer.py 新增：投影构建 + fail-open shadow observer + collector
+tests/test_learner_state_parity.py               新增：22 tests
+`
+
+**五条约束的落地（截至本刀）**：
+
+`	ext
+2) DurableLearnerProjection **只从 LearnerModelSnapshot 构建**（confirmed points 取
+   claim_states 中 understanding_status == "confirmed" 的 claim_id），**不跨层读 learning_* 表**；
+   有依赖级 AST 测试证明 observer 与 parity domain 不 import repositories / sqlite /
+   learning_truth_repository / learning_closure* / runtime_repository / session_service
+3) **fail-open**：snapshot 缺失 -> shadow_status=unavailable；投影/分类器异常 -> shadow_status=error
+   且 provenance 记录异常类型；**任何情况都不向 chat 抛异常**
+5) parity artifact 走**独立 namespace** learner_state_parity_observations
+   （collector 为内存 evidence store），**不写 learning_* durable truth**
+`
+
+**分类器（确定性、无模型）**：MATCH / COMPATIBLE / EXPECTED_DIVERGENCE / MISSING_LEGACY /
+MISSING_DURABLE / CONFLICT / NOT_COMPARABLE；next_step 另有 LEGACY_ONLY / DURABLE_ONLY /
+EXPLAINED_DIVERGENCE。五维合同全部落地（objective 粒度差 -> COMPATIBLE、不同主题 -> CONFLICT；
+durable confirmed 撞 legacy 未解 gap -> CONFLICT，legacy unknown + durable confirmed -> MISSING_LEGACY；
+next_step 差异 -> EXPLAINED_DIVERGENCE；misconception / freshness -> EXPECTED_DIVERGENCE）。
+**未引入 LLM comparator**；机械不可判 -> NOT_COMPARABLE。
+
+**未做（下一刀 = §164-C1b，chat runtime 接线）**：
+
+`	ext
+1) 约束①的 hook 点：**plan 已确定之后、turn side effects 完成之前**（不进入 planning input）
+4) 约束④的行为等价两层证明：route / selected pedagogy mode / **prompt·context inputs** /
+   retrieval plan / response / persisted LearningState / PedagogyEvalRun / closure eligibility
+   —— shadow OFF == shadow ON，尤其锁 prompt/context inputs（输出相同但 durable 已悄悄进入
+   prompt 仍属 contract breach）
+`
+
+本刀只交付**可独立验证的测量核心**：投影、分类、artifact、fail-open、namespace 隔离与
+读到了但不影响任何行为的模块级无副作用证明。**尚未接入 chat turn**，因此
+影子读真的跑了 这一条成功标准**尚未达成**，留 §164-C1b。
+
+**验证**：
+
+`	ext
+ruff clean | mypy baseline 122 <= 128 / NEW=0 | package helper OK: 1611 files |
+git diff --check ok | secret-like literal self-check clean
+L1: test_learner_state_parity = 22 passed
+`
+
+### 164.12 §164-C1b 合同冻结（turn-start parity + hook 点 + 等价门）
+
+**核心合同：parity 比较的是哪个时间点？冻结为 turn-start parity**
+
+`	ext
+已有 legacy state
+        ↓
+生成 plan / route / retrieval / prompt-context inputs
+        ↓
+【这些输入全部冻结后】
+        ↓
+C1b shadow hook：legacy projection + durable LearnerModelSnapshot + parity observation
+        ↓
+继续原有 chat runtime
+`
+
+理由：若 hook 放在本 turn 的 evaluation / persistence **之后**，就会变成
+legacy 已吸收本 turn 新状态、durable 仍是未 closure commit 的旧真值
+→ **人为制造大量 MISSING_DURABLE / EXPECTED_DIVERGENCE**。
+**两边必须代表同一个逻辑时刻。**
+
+**hook 点（已实地核对 ChatService.start_turn，2026-10-01；按三条件选位置，不按函数名）**：
+
+`	ext
+1) route / pedagogy plan 已确定             -> route 368-415、pedagogy_plan 402
+2) retrieval / prompt-context 已 materialize -> retrieval_plan 422、rag 428-450、
+                                                context_blocks 452-476、messages 477-491
+3) 尚未发生本 turn 的 learner-state mutation / eval persistence
+                                            -> update_chat_turn(..., pedagogy_snapshot=...) 在 527
+`
+
+**结论：天然 hook 点 = streaming_truth 构造完成（521）之后、update_chat_turn（527）之前。**
+该点已满足三条件，**无需重排生产流程**。
+legacy 侧取 learning_state_before（turn 起点的 legacy state），**不是**
+ext_learning_state。
+
+**七层行为等价分两组**：
+
+`	ext
+第一组（证明 shadow 未进入决策链）：route / pedagogy mode·PedagogyTurnPlan /
+                                    retrieval plan / **prompt·context inputs**
+   -> 比较**结构化 canonical snapshot/hash**，不比最终 prompt 字符串（避免 formatting 噪声）
+第二组（证明未改变输出与状态）：response / persisted LearningState / PedagogyEvalRun / closure eligibility
+   -> response 若模型非确定性，用既有 deterministic fake / model fixture 锁死测试环境
+`
+
+**failure-path 回归（两条，冻结）**：
+
+`	ext
+A. LearnerModelSnapshot read throws          -> OFF behavior == ON behavior
+B. parity collector / telemetry write throws -> OFF behavior == ON behavior
+两种都只允许留下 shadow_status = unavailable / error；
+不得让 chat request 失败，不得改变 closure eligibility。
+`
+
+**事务边界（冻结）**：
+
+`	ext
+production transaction -> 正常完成
+shadow telemetry        -> best-effort / fail-open（**不在 transaction authority 内**）
+`
+
+禁止 chat transaction { save turn; save pedagogy; save parity observation } ——
+否则 telemetry 虽不参与业务决策，却会通过事务失败**间接影响生产行为**。
+
+**C1b 成功门（冻结）**：
+
+`	ext
+REAL_RUNTIME_SHADOW_READ = true
+AND decision inputs:            route / plan / retrieval / prompt-context  equal
+AND observable/state effects:   response / persisted legacy state /
+                                pedagogy eval / closure eligibility      equal
+AND shadow failure:             chat remains unchanged
+AND durable data never becomes planning input
+`
+
+满足后才可宣布 **§164-C1 CLOSED：durable LearnerModel 已真实进入 chat turn 的 shadow path，
+但 authority 仍为 0**。然后 C2 才开始收真实 parity 分布；
+**C2 结果无论多难看都不回头改 C1** —— C1 只证明测量仪没有改变被测对象。
+
+### 164.13 §164-C1b 合同补强（latency / cancellation isolation + 两个实现细节）
+
+**新增机器级 invariant（冻结）**：
+
+```text
+shadow failure / slowness / cancellation
+must not delay or cancel the production turn beyond a bounded shadow budget
+```
+
+**为什么必须补**：即使 observer 永不写业务状态，只要 durable snapshot read 卡住（如 3s），
+`shadow ON` 就会让 turn 多等 → 上游 timeout / 用户取消 → `update_chat_turn` 甚至可能没执行。
+**从产品角度它仍然改变了生产行为。** 仅冻结 exception fail-open + transaction isolation 不够。
+
+**结构（冻结）：把"采样时点"与"telemetry 落地"分开**
+
+```text
+521
+ ↓
+capture immutable turn-start shadow inputs
+   - learning_state_before
+   - thread / turn refs
+   - **已在 hook 之前生成好的 decision-input hashes**
+ ↓
+bounded durable snapshot read / projection        <- 有界预算，绝不无限 await
+ ↓
+527 production update proceeds
+
+telemetry collection / write
+ -> **在 production transaction 之外**
+ -> best-effort
+```
+
+```text
+snapshot timeout -> shadow_status = unavailable -> **立即继续 legacy path**
+```
+
+**新增 3 条 regression（冻结）**：
+
+```text
+1. durable snapshot read stalls      -> bounded timeout -> production turn 正常完成
+2. shadow task / call is cancelled   -> cancellation **不向 chat turn 传播**
+3. telemetry collector is slow       -> production persistence / response path **不等它**
+```
+
+（与既有研究链中的 bounded timeout / cancellation isolation 同一原则。）
+
+**实现细节（冻结）**：
+
+```text
+① 七层等价里的 prompt / context hash **必须在 hook 之前生成**。
+   -> 机械证明 observer **不可能参与 hash 所代表的 planning input**，
+      而不是 hook 后再"回头重建"一份 context 去比较。
+② parity observation **允许丢**：
+   `chat turn success + parity artifact missing` = **合法状态**；
+   反向 `parity artifact success + chat turn rollback/failure because parity`
+   = **永久禁止**。
+```
+
+**C1b 成功门（最终版，冻结）**：
+
+```text
+REAL_RUNTIME_SHADOW_READ
+AND decision-input equivalence
+AND output / state equivalence
+AND exception fail-open
+AND timeout fail-open
+AND cancellation isolation
+AND telemetry latency isolation
+AND no durable planning input
+AND no transaction authority
+```
+
+满足后 **§164-C1 才可真正 CLOSED**；到那时才能确信：
+看到的 legacy vs durable 差异**是系统本身的差异，而不是测量仪把系统扰动出来的差异**。
+
+### 164.14 §164-C1b-1 前置：inner durable read 审计（2026-10-01）
+
+**按 A/B/C 三分类审计 LearnerModelService.build(thread_id) 的完整读取链**（只读审计，未改代码）：
+
+`	ext
+truth.get_focus_goal(thread_id)                  1 次本地查询
+read_confirmed_profile()                         注入的 Callable，非网络
+truth.list_goal_revisions(goal.id)               1 次本地查询，随后 **切片到 _MAX_CLAIM_STATES = 12**
+  └─ 每个 claim state（<=12）：
+       truth.list_understanding_for_revision(rev)   1 次查询
+       （可选 fallback：list_revisions(claim_id) + 再查，次数受该 claim 的 revision 数限制）
+       truth.get_claim(claim_id)                    1 次查询
+truth.list_hypotheses_for_goal(goal.id)          1 次本地查询
+evaluations.list_for_thread(thread_id)           1 次本地查询
+`
+
+`	ext
+结构上：**固定数量本地 SQLite 查询**（受 12 × 小常数限制）；
+        **无网络、无递归、无外部 worker、无 retry 循环** -> 满足 A 的结构条件
+等待上：sqlite3.connect(self.path, timeout=30.0) + PRAGMA busy_timeout = 30000
+        （src/infrastructure/sqlite/database.py:563,566）
+        -> 锁等待被**有界在 30s**，满足 B 的操作条件
+`
+
+**分类结论：B（operationally bounded），且结构上同时满足 A。不是 C（potentially unbounded）。**
+
+**因此不修改 LearnerModelService**（避免为 shadow 侵入生产读取链）。
+
+**但这条审计修正了 limitation 的措辞（重要）**：
+
+`	ext
+原措辞：indefinitely stuck worker may survive caller timeout
+修正后：worker 终止**不是无界**，而是受 inner read 自身边界约束
+        （有界查询数 + busy_timeout 30s）；outer 250ms budget 只约束 caller 延迟，
+        **不**约束 worker 终止。
+
+**不得写"最坏约 30s 后 worker 必然结束"**：30s 是**单次 SQLite busy wait** 上界，
+不是整个 `build()` 的总 deadline；多个查询理论上可分别等待，且 `busy_timeout`
+不是通用的 SQL / 文件系统执行 deadline。
+
+**资源安全来自结构封顶，而不是来自"必然结束"**：
+```text
+最多 2 个 outstanding workers | 0 intentional backlog | 饱和后立即 reject | production continues
+```
+**即使 inner reader 极端异常，退化规模仍被封顶为两个 shadow worker** ——
+这一点比声称"30 秒必结束"更重要、也更可证。
+
+**`read_confirmed_profile` 绑定已按实际生产路径核实（非类型推断）**：
+```text
+runtime_repository.py:389  read_confirmed_profile=lambda: read_memory_file("learner_profile.md")
+memory.py:60               read_memory_file -> read_text_file(MEMORY_DIR / name)
+=> 当前生产绑定 = 本地单文件读取，无外部 I/O、无网络
+```
+`
+
+**由此得到的真实退化语义（有界且可接受）**：若两次读取同时遭遇锁竞争，
+两个 admission token 会被占用至多约 30s，期间所有 shadow 调用 capacity_exhausted
+立即返回、production 完全继续 —— 即 **shadow 最长不可用约 30s，而不是永久**。
+
+**C1 CLOSED 时的措辞（冻结）**：
+
+`	ext
+可宣布：REAL_RUNTIME_SHADOW_READ = true
+        production decision/state behavior invariant verified;
+        caller latency / executor backlog / thread count / telemetry backlog bounded;
+        worker termination bounded by the inner durable read (bounded query count
+        + sqlite busy_timeout 30s), **not** by the outer shadow budget.
+
+不可写成：shadow lifecycle fully bounded by the outer budget
+`
+
+### 164.15 §164-C1b-1 接线边界（冻结 v1，2026-10-01；实现待独立刀）
+
+**边界 1 — shadow 开关默认 OFF**
+
+```text
+learner_state_shadow_read = false   # default
+```
+"代码已接线" 与 "生产测量已启用" 是**两件事**；测试与后续 C2 characterization 再显式打开。
+
+**边界 2 — 250ms 是最大允许扰动，不是性能合格声明**
+
+```text
+normal -> 实际耗时
+stall  -> 最多等 budget 后 fail-open
+```
+C1 只能证明**延迟有界**，**不得**写成 latency-neutral。真实 `p50 / p95 / p99`、
+timeout rate、capacity_exhausted rate 留给 **C2**。**不得为了"做到完全异步"而改变
+turn-start sampling 语义。**
+
+**边界 3 — publish 必须真的 non-blocking，且命名要精确**
+
+```text
+sample / parity
+  ↓
+update_chat_turn succeeds
+  ↓
+telemetry.put_nowait(...)
+  ↓
+继续生产路径
+```
+**禁止** `update succeeds -> await / wait for sink`。
+命名：不要写 `production_turn_commit=confirmed`（这里只证明 `start_turn` 对应状态已持久化），
+精确写法为：
+
+```text
+turn_start_persistence_confirmed = true
+```
+避免把"527 更新成功"说成整个 turn 生命周期已完成。
+
+**边界 4 — shadow outcome 在业务逻辑里是真正死端**
+
+```python
+shadow_outcome = _observe_learner_state_parity(...)
+# only telemetry consumes shadow_outcome
+
+update_chat_turn(...)
+```
+**禁止**任何 `if shadow_outcome...: change_plan() / change_state() / change_closure()`；
+**连**"shadow unavailable 时 fallback 到另一个 learner context"这类看似合理的便利逻辑也不得出现。
+
+**C1 CLOSED 的门（最终，冻结）**：
+
+```text
+REAL_RUNTIME_SHADOW_READ = true
+feature flag default = OFF
+decision inputs invariant              ✅
+production state / output invariant    ✅
+exception isolation                    ✅
+caller latency bounded                 ✅
+capacity / backlog bounded             ✅
+telemetry non-blocking / drop-safe     ✅
+no durable planning input              ✅
+no transaction authority               ✅
+exact-head tests / CI                  ✅
+```
+
+验收矩阵：`TurnBehaviorSnapshot` 八项 × 八场景（OFF / normal / snapshot throws / snapshot stalls /
+capacity exhausted / parity·classifier throws / telemetry throws / telemetry slow），
+**全部要求 production snapshot == OFF baseline**；
+另**单独**测 latency（`stall / rejected / error -> 调用方额外等待有界`），
+**不混进**语义等价。并显式验证 `prompt_context_hash` 是**在 shadow hook 之前**算出的，
+而不只是 ON/OFF 恰好相等。
+
+**验收方法四条（2026-10-01 补充；防弱证明）**：
+
+`	ext
+1) 每个场景各自配对 baseline，不得共用一个全局 OFF baseline：
+   same fixture / same user turn / same persisted starting state / same deterministic seams
+   OFF -> Snapshot A；ON(该场景) -> Snapshot B；assert A == B
+   否则 fixture drift 会混进证据。
+
+2) Snapshot 八项只覆盖 production-observable behavior：
+   不得把 shadow telemetry / classifier status 塞进去（否则 ON 天生与 OFF 不等价）。
+   它回答的仍是：如果不知道 observer 存在，生产 turn 看起来是否完全一样？
+   八项定义以本节冻结版本为准，本刀不重新设计。
+
+3) 真实 runtime 证据必须是 invocation proof，不是 artifact proof：
+   flag ON -> real ChatService.start_turn(...) -> reader invocation count == 1
+   -> 输入 lineage / hashes 对应本次真实 turn -> production turn 正常完成
+   -> observation eventually published
+   artifact 只是后果，不能替代"真实 ChatService 调用了 shadow seam"的证明。
+
+4) latency 测的是生产关键路径增量，不是 helper 自身耗时：
+   测 T(ON failure mode) - T(OFF baseline) 存在预先冻结的有界上限；
+   不得只测 "shadow helper returned within X ms"。
+   telemetry slow 单独确认：publish 在 update_chat_turn 成功之后且 non-blocking，
+   故 slow telemetry 不得延长用户可观察的 production critical path。
+`
+
+**C1 三层证据状态（2026-10-01，d8ecdd9）**：
+
+`	ext
+A wiring correctness        OK（flag + 双闸门 / hash-before-shadow / 正确 hook 时点 /
+                              legacy = turn-start / dead-end / persistence 后 publish /
+                              fail-open + non-blocking）
+B default-path non-regress  OK（flag OFF，focused production chat regression = 76 passed）
+C enabled-path invariance   NOT DONE（ON 下 chat 级 8x8 matrix / bounded latency /
+                              real invocation 均未做）
+=> REAL_RUNTIME_SHADOW_READ = true ; 164-C1 = CLOSED  (2026-10-01, 644c41a)
+
+### 164.16 §164-C1 CLOSED（2026-10-01，644c41a）
+
+**证据（三层全部成立）**：
+
+`	ext
+A wiring correctness         OK
+B default-path non-regress   OK（flag OFF，focused production chat regression 107 passed）
+C enabled-path invariance    OK（15 tests，见下）
+
+C 明细（tests/test_learner_state_shadow_acceptance.py）：
+  确定性对照      off vs off 相等（先证明夹具确定，off/on 差异才有意义）
+  8 场景配对等价  off baseline vs on(normal / reader throws / reader stalls /
+                  capacity exhausted / projection error / telemetry throws /
+                  telemetry slow) —— **各自配对，不共用全局 baseline**
+  latency 增量    stall / rejected / error 的 T(on)-T(off) <= LATENCY_DELTA_BOUND_SECONDS
+                  （**上限在看到结果前冻结**）
+  invocation proof 真实 start_turn 调用 reader **恰好 1 次**；flag OFF 时 **0 次**；
+                  未接 reader 时 0 次；发布出的 observation 携带本次 turn 的 prompt_context_hash
+`
+
+**本刀发现（值得记录）**：首次运行时 7 组配对**全部失败**，差异字段为 route_hash /
+pedagogy_eval_hash / persisted_learning_state_hash。**确定性对照立即证明这是夹具问题而非 wiring 回归**：
+每轮生成的 ped_eval_<hex> 身份直接进入被哈希载荷、并嵌套在 route 的 learning_state 内；
+初版 id 清洗正则漏掉了它（该标识含**两个**下划线）。
+**教训**：没有确定性对照，就会把夹具噪声误判成 shadow 破坏生产行为。
+
+**C1 结论措辞（按 §164.14 冻结版）**：
+
+`	ext
+REAL_RUNTIME_SHADOW_READ = true
+production decision/state behavior invariant verified;
+caller latency / executor backlog / thread count / telemetry backlog bounded;
+worker termination bounded by the inner durable read (bounded query count
+  + sqlite busy_timeout 30s per lock wait), NOT by the outer shadow budget.
+`
+**不得**写成 shadow lifecycle fully bounded by the outer budget。
+
+**测量仪就此冻结**：§164-C1 CLOSED 后不得再改 observer / 分类器 / 隔离原语语义。
+下一步进入 §164-C2：真实/代表性 turn 上收 legacy vs durable 的 7 类分布 × 五维，
+为 §164-D 预注册 Phase 2 gate 提供数据。
+
+### 164.17 §164-C2 纪律（冻结，2026-10-01）
+
+```text
+1. exact-head CI 只查一次（不轮询）
+2. green -> 进入 §164-C2
+3. C2 只收分布，不调仪器
+4. 产出 7 类 x 五维真实 parity 数据
+5. 用这些数据为 §164-D 预注册 Phase 2 gate
+```
+
+**核心纪律（防 tuned-to-pass）**：C2 中若某一类比例"难看"，**第一反应不能是修 observer** ——
+先把它作为**真实分布**记录下来；只有数据证明**测量本身违反冻结合同**，才另开问题。
+否则会把 calibration data 污染成 tuned-to-pass data。
+
+**两条不可被后续文档简化掉的结论**：
+
+```text
+a) 外层 shadow budget **不能**证明 worker 生命周期被它界定；
+   worker 终止边界来自 inner durable read 自身的有限查询数与 SQLite busy_timeout（单次锁等待 30s）。
+b) off-vs-off 确定性对照是**证据有效性的前置门**（非测试洁癖）：
+   本刀 7 组配对同时失败时，正是该对照把归因从"shadow wiring 回归"纠正为"夹具噪声"。
+```
+
+**测量故障 vs 真实分歧（冻结区分）**：
+
+```text
+"测出来 durable 与 legacy 不一致" **不是测量故障**。
+EXPECTED_DIVERGENCE / CONFLICT / 缺失 / 较差的分布，都可能是 C2 要发现的**真实产品现状**。
+
+只有当能证明 observer / classifier **违反 C1 已冻结的测量合同**时，才另开 measurement-defect 问题；
+且**不得在 C2 数据采集过程中修正后继续混算** —— 修正必须切断数据集（修前/修后不得合并统计）。
+```
+
+**C2 的核心不是追求漂亮比例，而是保持数据的"不可后见之明性"**，
+这样 §164-D 的 Phase 2 gate 才是由观测数据**预注册**出来的，而不是反过来按希望的结果塑造。
+
+### 164.18 §164-C2 采样空间与统计纪律（冻结 v1，2026-10-01）
+
+**C2 采样空间 = legacy 实质状态 × durable 实质状态（2×2）**：
+
+```text
+                     durable empty            durable populated
+legacy empty      A  已采：5 turns           C  待采
+                     NOT_COMPARABLE 主导
+legacy populated  B  下一批（本刀冻结规则）   D  **最关键**：真正可观察
+                     预计 MISSING_DURABLE /      MATCH / COMPATIBLE /
+                     维度级不可比                CONFLICT / divergence
+```
+
+**已确立的真实 stratum（A 批，`692817e`，原样保留）**：当前 no-closure 普通 turn 区间
+**不是**"legacy 与 durable 大量冲突"，而是**双方都缺乏实质状态**，故 overall 被
+`NOT_COMPARABLE` 主导。该 stratum 的语义 = **legacy sparse + durable absent**。
+
+**三条统计纪律（冻结）**：
+
+```text
+1. A 批 5 turns **原样保留为独立 stratum**；不得因为后续批次"更有信息量"而覆盖或淡化。
+2. **population 改变必须显式记录**；不得把 A / B / D 的计数无条件相加成一个"漂亮总百分比"，
+   除非先定义好目标 population / weighting。
+3. **看到下一批结果前先写清 inclusion rule**（见下），继续保持不可后见之明性。
+```
+
+**B 批 inclusion rule（本刀冻结，先于结果）**：
+
+```text
+选择标准：**能确定产生 legacy `objective` / `confirmed_points` 的 Socratic 多轮对话**
+          （即走 socratic 路径、由 pedagogy engine 填充 objective 与 confirmed_points）。
+禁止标准：**不得依据最终 parity 类别挑样本**（不得先看分类结果再决定纳入/排除）。
+预期读数（先写下来，防止事后改口）：
+  若这些 turn 仍无 durable closure，结果**未必**变成大量 MATCH/CONFLICT，
+  更可能从 NOT_COMPARABLE 转向 **MISSING_DURABLE 或维度级不可比**
+  —— 这不是失败，而是在测 **persistence timing / representation asymmetry**。
+```
+
+**D 批才是真正检验"两个状态系统承载同一学习事实时到底多一致"的批次**（两边都有 substantive state）。
+
+**§164-D 的前置条件**：至少覆盖到 **D**，Phase 2 gate 才有足够依据决定：
+哪些差异是正常迁移期现象 / 哪些类别或维度必须设门 / 门按 overall 还是**按 population stratum 分层**。
+
+**artifact 操作事实（不再动 C2 代码或 repo 语义）**：`docs/research_quality/*.json` 被 ignore 是已知规则；
+后续 C2 artifact 一律 **`git add -f`**，并在提交前确认文件确实 tracked。
+
+### 164.19 §164-C2 B 批执行与诊断（2026-10-01，`--population B`）
+
+**执行**：同一工具、同一冻结 observer/classifier/isolation，仅换预注册 population
+（socratic 模式 + 4 轮 empirical 主题多轮）。artifact
+`docs/research_quality/LEARNER_STATE_PARITY_C2_B_2026-10-01.json`（**`git add -f`**）。
+
+**结果（与 A 批同形）**：
+
+```text
+observation_count 4 | shadow_status ok: 4
+overall            NOT_COMPARABLE: 4
+per_dimension      goal_objective NOT_COMPARABLE:4 | understanding NOT_COMPARABLE:4
+                   next_step MATCH:4 | misconception MATCH:4 | freshness EXPECTED_DIVERGENCE:4
+```
+
+**诊断（决定性，未动分类器）**：
+
+```text
+(a) mode 字面量**精确匹配** engine 的 socratic 字面量 -> socratic 路径**确实进入**
+(b) 但 classify_knowledge 对这 4 个 turn 全部返回 **derivable**（非 empirical/conventional）
+    -> `external = False` -> `plan_socratic` 的 external 分支（唯一设置
+       `objective = state.objective or text` 的分支）**未执行**
+    -> legacy objective **仍为空** -> goal_objective 两侧皆空 -> NOT_COMPARABLE
+```
+
+**结论**：本批 **未达成** "legacy substantive"；它与 A 批同形并非测量故障，也非 classifier 问题，
+而是 **population 构造未满足自己冻结的 inclusion rule**（"能确定产生 legacy objective /
+confirmed_points"）。**未调仪器。**
+
+**新增纪律（冻结）：stratum 标签必须跟随"观测到的状态"，而不是"意图中的状态"。**
+因此本批**如实记录为 legacy-sparse**，**不得**因为原意是 B 就标成 B；真正的 B 象限仍待
+**修正后的 population**。
+
+**修正后的 B 批 inclusion rule（冻结，先于下一批结果）**：
+
+```text
+纳入条件（必须同时满足）：
+  1) mode = socratic（与 engine 字面量精确一致）
+  2) **`classify_knowledge(turn) in {empirical, conventional}`**（否则 external 分支不执行，
+     legacy objective 不会被填充）
+禁止：依据最终 parity 类别挑样本；依据结果调整分类器或 classifier 口径。
+```
+
+**A 层子样本归属（冻结，保留 provenance，不合并计数）**：
+
+```text
+A1  ordinary / no-closure      legacy sparse / durable absent   5 turns
+A2  socratic + derivable       legacy sparse / durable absent   4 turns
+B   legacy substantive / durable absent                         **仍未采到**
+```
+A1 与 A2 parity 分布同形但**机制不同**，故**不得**揉成 `A=9` 而丢失 provenance。
+两者共同说明：**legacy sparse 不只是普通问答现象** —— 即使进入 Socratic，
+只要 knowledge classification 落到 `derivable`，legacy 仍可能保持 sparse。
+
+**关键新事实（冻结）**：
+
+> **"进入 Socratic 路径" ≠ "legacy 已产生 substantive learning state"。**
+> stratum 划分从"按对话形式推断状态"推进到"**按实际状态语义划层**"。
+
+**B′ 证据链（冻结，stratum 与 parity 完全解耦）**：
+
+```text
+1. inclusion precondition 已在结果前冻结
+2. classify_knowledge ∈ {empirical, conventional}
+3. real Socratic path executed
+4. **observed legacy state 确认 substantive**
+5. durable observed empty
+----------------------------------------
+到这里才证明：这个样本真的属于 B
+6. **然后**才查看 7 类 × 五维 parity
+```
+
+**precondition ≠ label 判据（冻结）**：
+`mode=socratic AND classify_knowledge ∈ {empirical,conventional}` 只视为
+**population construction precondition**；即便 `external=True` 是当前代码里触发 `objective` 的
+**必要路径**，也**不得**偷换成"必然成功产生 substantive state"。
+执行后仍须按观测状态归层：**确有 substantive → 标 B；仍 sparse → 不得标 B**。
+
+**B′ 预期（保持为预期，不升级为断言）**：durable 尚无 closure，因此**预期**更容易看到
+`MISSING_DURABLE` / 维度级不可比；**若实际不是，记录真实结果**。
+
+**B′ 候选筛选（2026-10-01，记录 actual kind；属 construction，不改 classifier）**：
+
+```text
+首轮英文候选 10 条 -> **全部 `derivable`**（含"最强飓风年份""火星几颗卫星""谁写伊利亚特"）
+根因（读代码确认）：`classify_knowledge` 是**中文标记词**分类器
+  EXTERNAL_FACT_MARKERS 形如 哪一年 / 什么时候 / 谁写的 / 最新版本 / 实测数据 / 版本 / api 文档
+  -> **英文候选永远无法满足 precondition**（语言不匹配，非 precondition 不可满足）
+
+中文候选复验（10 条，actual kind 如实记录）：
+  empirical   : 「哪一年出现了史上最强的飓风」「最新的 Python 版本是多少」
+  derivable   : 其余 8 条（含「谁写的伊利亚特」「火星有几颗卫星」「海平面水的沸点是多少度」）
+```
+
+**结论**：B′ precondition **可满足**；候选集由**实际 kind 数据**确定，而非按对话形式推断。
+**须记录的 construction 事实**：筛选必须使用**中文标记词命中**的输入；
+否则会出现"我们选了 empirical 问题"却与运行时实际 kind 不符的情况。
+
+**B′ artifact 字段（冻结；三层证据分字段保存，禁止只存最终 stratum）**：
+
+```text
+construction_precondition
+  mode
+  knowledge_kind_declared        # 筛选时声明的
+  knowledge_kind_actual          # 运行时实际 classify_knowledge 结果
+observed_state
+  legacy_substantive             # true/false（只读检查）
+  legacy_objective_present
+  legacy_confirmed_points_count
+  durable_substantive            # true/false
+stratum_assignment               # B / A2 / other（**按 observed state 判定**）
+parity
+  overall
+  five_dimensions
+```
+
+**边界（冻结）**：观测状态检查只属 **collection harness / labeling logic**；
+**不得**反向影响 observer、parity classifier、knowledge classifier 语义、isolation 或生产 runtime 行为。
+**`substantive` 判据不得为了"终于采到 B"而放松。**
+
+**B′ 外推边界（冻结，§164-D 回看时必须保留）**：
+
+```text
+本批 B′ 若最终成立，首先只证明的是：
+  **"当前中文 marker 可触达 population 下"的 B 分布**
+**不得**自然外推为"语言无关的所有 Socratic 外部事实 turn"。
+英文候选全部落 `derivable` 本身就是一个 **construction / population-coverage 事实**，
+应保留 provenance；但**现在仍然不应该修 knowledge classifier**。
+```
+
+**B′ 执行边界（冻结）**：
+
+```text
+允许：population / collection-side observed-state inspection / artifact schema·labeling
+禁止：observer semantics / parity classifier semantics / knowledge classifier semantics /
+      isolation / production runtime / substantive 判据
+```
+
+**B stratum 成立条件（唯一）**：执行后确实出现
+
+```text
+legacy_substantive = true
+durable_substantive = false
+```
+否则**按实际状态重新归层**，**不为填满 2×2 表格而强行贴标签**。
+
+### 164.20 §164-C2 B′ 执行结果（2026-10-01）：precondition 满足但 **stratum = A**
+
+**执行**：population 换成已筛出的中文 empirical 候选；工具新增**只读 observed-state 检查**
+与四层字段（`construction_precondition` / `observed_state` / `stratum_assignment` / `parity`），
+其中 `stratum_assignment` **只由 `observed_state` 重算**（不读 declared kind、不读 parity）。
+artifact：`docs/research_quality/LEARNER_STATE_PARITY_C2_B_PRIME_2026-10-01.json`（`git add -f`）。
+
+**结果**：
+
+```text
+construction_precondition   mode=socratic | declared=empirical | **actual=empirical**  ✅ precondition 满足
+observed_state              legacy_substantive = **false** | legacy_objective_present=false
+                            legacy_confirmed_points_count=0 | durable_substantive=false
+stratum_assignment          **A**（由 observed_state 判定；**不是** B）
+parity                      overall NOT_COMPARABLE x2（五维同 A 批形状）
+```
+
+**诊断（未动仪器、未动 classifier）**：`plan_socratic` 的 external 分支把
+`objective = state.objective or text` 写在**本轮之后的 state**上；而
+`prepared.learning_state_before` 是**本轮开始前**的状态。
+故在**每轮独立 thread** 的构造下，首轮 `objective` 必为空 —— 这不是 classifier 问题，
+也不是 instrument 问题，而是 **population construction 缺了"同 thread 累积"**。
+
+**修正后的构造要求（冻结，先于下一批结果）**：
+
+```text
+B 象限要求 legacy 侧已承载实质状态，而 objective 只在**同一 thread 的后续轮次**才可见。
+=> B′ 必须构造为**同一 thread 的多轮**（前一轮写入 objective/confirmed_points，
+   后一轮的 learning_state_before 才能观测到 substantive）。
+仍禁止：依据 parity 结果挑样本；调整 substantive 判据；改 classifier / observer / isolation。
+```
+
+**本轮 artifact 原样保留**：它是真实观测（"precondition 满足但状态仍 sparse"），
+provenance 不丢；**不得**改标为 B。
+
+### 164.21 §164-C2 provenance 与 B″ 证据链（冻结，2026-10-01）
+
+**C2 provenance（保留，不并入 A 普通子样本而消失）**：
+
+```text
+A1  ordinary / no-closure            5 turns   sparse / absent
+A2  socratic + derivable             4 turns   sparse / absent
+A3  socratic + actual empirical，**但独立首轮**  2 turns  sparse / absent
+    -> 独立机制：**classifier precondition 满足 ≠ turn-start state 已 substantive**
+B   substantive / absent             尚未取得（下一步 same-thread multi-turn）
+```
+A3 **不得**被并入 A1/A2 而消失 —— 它证明的是：
+**状态写入发生在 turn 内，而 shadow 比较观察的是 turn-start snapshot**（persistence timing provenance）。
+
+**问题定位（冻结表述）**：
+
+> `external=True` 解决的是"**本轮会不会写入** substantive state"，
+> 但 B stratum 要求的是"**本轮开始时** legacy 已经有 substantive state"。
+
+```text
+turn N    learning_state_before = sparse
+          -> plan_socratic external 分支写入 next_learning_state.objective -> 持久化
+turn N+1  同一 thread：learning_state_before = 上轮持久化状态 -> 此时才可能 substantive
+```
+故"同一 thread 多轮"**不是人为造 B**，而是**匹配实际状态传播时序**。
+
+**B″ 证据链（冻结）**：
+
+```text
+Turn 1  same thread / socratic / actual kind ∈ {empirical, conventional}
+        -> 真实执行
+        -> **显式记录 Turn 1 post-state 与 persistence evidence**（不得只假设写成功）
+Turn 2  same thread
+        -> 获取 learning_state_before
+        -> observed legacy_substantive ? / observed durable_substantive ?
+        -> **先据此确定 stratum**
+        -------------------------------- 最后才读 parity
+```
+
+**机械证明要求（冻结）**：至少对用于 `substantive` 判定的字段，须能证明
+
+```text
+turn1_post_state  ==  turn2_learning_state_before
+```
+否则 B″ 若再失败，将无法区分是"没写进去 / 没持久化 / 没跨 turn 读回来 / stratum 本身问题"。
+**仍属 collection-side provenance**，不改 observer / classifier / runtime。
+
+**未取得 B 时的纪律**：继续按**真实状态**分层，**不为填表改定义**。
+
+### 164.22 §164-C2 B″ 状态传播链与投影比较（冻结，2026-10-01）
+
+**B″ 验证的是一条完整状态传播链**（不只是"多跑一轮"）：
+
+```text
+write -> persist -> next-turn reload -> observed-state classification -> parity
+```
+**前三步必须先成立**，才能解释后两步。
+
+**审计点（冻结）**：`turn1_post_state == turn2_learning_state_before` 的比较
+**必须比较"冻结的 substantive projection"，而不是整个状态对象全量相等** ——
+否则时间戳 / 版本号 / 运行元数据等**非语义字段**可能制造假失败。
+
+```text
+projection 定义：**沿用当前已定义的 substantive 判据**（objective 是否非空 +
+confirmed_points 数量），**不新增、不放宽字段**。
+```
+
+**B″ 判定顺序（冻结）**：
+
+```text
+Turn 1 post-state substantive?
+        ↓
+persistence evidence valid?
+        ↓
+Turn 2 before-state **reproduces substantive fields**?
+        ↓
+legacy_substantive / durable_substantive
+        ↓
+assign stratum
+        ↓
+最后读取 parity
+```
+
+若最终为 `true / false`，才正式取得**首个 B stratum**；否则保留实际 provenance，
+继续定位状态传播链，**而不是调整分类定义**。
+
+### 164.23 §164-C2 B″ 结果：**首个真正 B stratum 已取得**（2026-10-01）
+
+**执行**：same-thread 多轮（Turn 1 写入 → 完成生命周期 → Turn 2 同 thread 读取），
+冻结 substantive projection 跨 turn 比较；artifact
+`docs/research_quality/LEARNER_STATE_PARITY_C2_B2_2026-10-01.json`（`git add -f`）。
+
+**完整传播链全部成立**：
+
+```text
+Turn 1（writer）
+  turn1_before_state_projection  objective=\"\" / confirmed_points=0   （sparse）
+  turn1_post_state_projection    objective=\"哪一年出现了史上最强的飓风\" / 0
+  turn1_persisted_projection     同上
+  persistence_evidence_valid     **true**（post-state == persisted）
+Turn 2（reader，same thread）
+  turn2_before_state_projection  同上
+  projection_reproduced          **true**（turn2_before == turn1_post）
+-----------------------------------------------
+observed_state        legacy_substantive=**true** / objective_present=true / durable_substantive=**false**
+stratum_assignment    **B**   ← 只由 observed_state 判定
+parity                overall NOT_COMPARABLE
+                      five_dimensions: goal_objective=**MISSING_DURABLE** /
+                      understanding=NOT_COMPARABLE / next_step=MATCH /
+                      misconception=MATCH / freshness=EXPECTED_DIVERGENCE
+```
+
+**与预注册预期对照（先写后测）**：B′/B″ 前冻结的预期是"durable 尚无 closure →
+**预期**更易看到 `MISSING_DURABLE` / 维度级不可比"。实测在 **`goal_objective` 维度命中
+`MISSING_DURABLE`** —— 预期成立，且**未据此回改任何口径**。
+
+**artifact 已知不精确（如实记录，不改口径）**：`knowledge_kind_declared` 当前是
+**population 级常量**（硬编码 "empirical"），而 `knowledge_kind_actual` 是**逐 turn 实测**。
+Turn 2 的 actual = `derivable`（它是 reader 角色，不要求满足 precondition）。
+后续如需精确，应把 declared 也改为逐 turn 记录；**这不影响 stratum 判定**（stratum 只用 observed_state）。
+
+**C2 现状**：
+
+```text
+A1  ordinary / no-closure                 ✅ 5   sparse / absent
+A2  socratic + derivable                  ✅ 4   sparse / absent
+A3  socratic + empirical / independent T1 ✅ 2   sparse / absent
+B   substantive / absent                  ✅ **已取得**（B″ same-thread Turn 2）
+D   substantive / substantive             ⏳ later
+```
+
+**仍冻结未改**：observer / parity classifier / knowledge classifier / isolation / production runtime /
+substantive 判据。
+
+### 164.24 §164-C2 D 象限构造合同（冻结，2026-10-01）
+
+**D 不等于"两边都有东西"** —— 那只说明两侧非空，**不一定**说明两侧正在描述**同一个学习事实**。
+
+**D 成立条件（冻结）**：
+
+```text
+1. legacy substantive 已观测成立
+2. **production-supported closure 真正发生**
+3. durable substantive write **已观测并持久化**
+4. 后续 parity observation 时：legacy_substantive = true 且 durable_substantive = true
+5. 两侧 provenance 属于**同一学习连续性 / 同一待比较事实**
+-------------------------------------------- 到这里才 assign D
+6. **最后**才读取 parity
+```
+
+**D 的传播链从 B 扩展为**：
+
+```text
+legacy write -> legacy persist -> closure -> durable write -> durable persist
+  -> subsequent observation -> dual-state classification -> parity
+```
+
+**两条不得偷换的区分（冻结）**：
+
+```text
+a) **closure happened ≠ durable substantive**
+   必须**实际读回** durable state 之后才能判 durable_substantive = true。
+b) **两边 substantive ≠ 两边语义对齐**
+   lineage / provenance 必须先成立，才能把 D 当作"同一学习事实双承载"的样本。
+```
+
+**continuation scope 不得预设（冻结）**：B 已暴露真实 runtime 的 active-operation 生命周期约束；
+D 可能还有"closure 对 thread 生命周期意味着什么"这一真实约束。
+**不得为复刻 B 而强行规定 D 必须 same-thread**：
+
+```text
+closure 后若允许 same-thread continuation -> 用 same thread
+closure 后若 production contract 要求另一种 continuation scope -> 按真实 contract 构造
+关键：**lineage 必须可证明**，而不是接口形式必须一样。**不要为了采 D 改 runtime。**
+```
+
+**D artifact 分层 provenance（冻结，至少能回答）**：
+
+```text
+legacy_before_projection
+closure_evidence
+durable_post_closure_projection
+durable_persistence_evidence
+observation_legacy_projection
+observation_durable_projection
+continuity / lineage evidence
+
+observed_state      legacy_substantive / durable_substantive
+stratum_assignment  D / other
+parity              overall / five_dimensions
+```
+
+**artifact schema 精化说明**：未来 artifact 可把 `knowledge_kind_declared` 改为**逐 turn**记录
+（collection-side schema 精化）；**旧 B artifact 原样冻结、不回写**。
+
+**失败时的纪律**：若 closure 后 durable 仍为空 / legacy 消失 / continuity 断掉，
+**全部按真实状态记录**，**不为取得 D 而改 runtime 或 substantive 定义**。
+
+**§164-D Phase 2 gate 仍不得预注册**：B 只证明了迁移时序；只有 D 才开始提供 semantic parity 核心数据。
+
+### 164.25 §164-C2 D 执行顺序与解释纪律（冻结，2026-10-01）
+
+**D 的证明对象（冻结表述）**：
+
+> **D 不是"双非空"，而是"同一学习事实在 legacy 与 durable 两侧同时形成
+> substantive、可持久化、可追溯的**双承载**"。**
+
+**执行顺序（冻结）：先确认 production closure 的真实 authority 与 continuation 语义，再构造样本。**
+
+```text
+**不得**因为 durable store 有写接口就直接调用 —— 那只能证明"测试代码能写 durable"，
+不能证明"**production-supported closure 真正产生 durable truth**"。
+```
+
+**有效 D 链（冻结）**：
+
+```text
+已有 legacy substantive
+  -> 走**真实 closure 入口**
+  -> closure 成功的**生产证据**
+  -> durable truth **实际读回**
+  -> durable_substantive = true
+  -> durable persistence 成立
+  -> 按**真实 continuation contract** 产生后续 observation
+  -> legacy = true / durable = true
+  -> continuity / lineage 对应**同一学习事实**
+-------------------------------------------- assign D
+  -> **最后**读取 parity
+```
+
+**若 closure 改变 thread / session 生命周期**：这本身就是 C2 的**真实产品事实** ——
+应**记录 continuation scope**，**而不是绕过 production contract**。
+
+**D 结果解释纪律（冻结）**：
+
+```text
+即使首个 D 出现 `MATCH`，也**不能**立刻概括为"迁移语义一致" ——
+它首先只证明**该 D construction stratum 下这一条事实链**的 parity。
+反之若出现 `CONFLICT`，同样先作为**真实 semantic divergence** 记录，**不调仪器**。
+```
+
+**阶段性问题升级（冻结表述）**：从"durable 为什么还是空？"升级为
+
+> **"production closure 写出的 durable truth，能否与既有 legacy learning state
+> 在同一事实 lineage 上同时存在；若能，它们到底怎么对应？"**
+
+**下一刀第一步（建议）**：按 §164.14 inner-read 审计的方式，先审计 **closure 入口的真实 authority**
+（哪个入口是 production-supported、它写什么、写后如何读回、continuation scope 是什么），
+**再**构造 D 样本。
+
+### 164.26 §164-C2 closure authority map（只读审计，2026-10-01）
+
+**Q1 真实入口（production-supported，非测试 helper / store writer）**：
+
+```text
+POST /learning-closure-runs            -> LearningClosureService.create_and_execute(thread_id)   （orchestration）
+POST /learning-closure-runs/{id}/commit -> LearningClosureService.commit(run_id)
+                                        -> **LearningClosureTruthService.commit(run)**          （**唯一 durable writer**）
+```
+
+**Q2 前置条件（不满足即拒绝/不写，且各自返回 typed status）**：
+
+```text
+入口前：_closure_contract
+  有 task_contract  -> closure_eligibility 必须 in _ALLOWED_CLOSURES，否则 LearningClosureNotEligible
+  否则 legacy 推断  -> learning_state.objective 非空 或 protocol in _LEGACY_LEARNING_PROTOCOLS
+                       -> eligibility = learning_summary（project_execution 则 project_summary）
+  两者皆无        -> raise LearningClosureNotEligible
+commit 内（按序，任一失败即返回非提交状态）：
+  closure_eligibility != "learning_summary"          -> not_learning_closure
+  generated_result 无 durable_learning_candidate     -> no_candidate
+  candidate 来源不可解析                              -> candidate_source_missing
+  无 evaluation                                      -> evaluation_missing
+  evaluation.final_decision != "accept"              -> validation_not_accepted
+  claim 不属于该 evaluation                          -> candidate_claim_mismatch
+```
+
+**Q3 实际写入的 durable truth 与 lineage 绑定**：
+
+```text
+_focus_or_create_goal(run, objective, repo_url)
+  先按 **run.thread_id** 列出现有 goals，命中 active/blocked 且 **归一化 objective 相同** -> focus_goal(复用)
+  否则新建
+  => **lineage key = thread_id + 归一化 objective**
+随后：understanding_evidence（_commit_or_reuse_outcome）/ primary NextStep（_ensure_primary_next_step）/
+      claim revisions 与 evidence bindings
+（非仅"调用了 repository.save"）
+```
+
+**Q4 写后如何经 production read path 读回**：
+
+```text
+C1 冻结的 durable read authority = LearnerModelService.build(thread_id)
+  -> get_focus_goal(thread_id) -> list_goal_revisions -> ...
+closure 把 goal 绑定在 run.thread_id；read authority 也以 thread_id 为键
+=> **closure -> durable -> read 链在 thread_id 上对齐：该链存在**（不是直查底层表替代）
+```
+
+**Q5 closure 后 continuation scope —— 部分确认，仍有未验证项（如实标注）**：
+
+```text
+已确认：closure 是 **API-triggered on a thread**，不是 chat turn；
+        B 观测到的 active-operation 约束是 **per-turn**（由 complete_turn 释放），**非 per-closure**
+        -> closure 本身**不**因 active-operation 机制终结 thread
+已确认：后续 turn 的 closure_eligibility 由**该 turn 自己的** task_contract / learning_state 推导，
+        不依赖 closure 历史
+**未验证（不得当作已确认）**：
+        LearningClosureService.commit 是否以其他方式标记 thread/run 从而**限制后续 turn 或再次 closure**
+        （仅见 _mark_completed_summary(run) 暗示 run 级完成）
+```
+
+**结论（冻结表述）**：**D 具备合法 production construction path** ——
+closure → durable 写入 → C1 read authority 读回，三者在 `thread_id` 上对齐。
+但 Q5 的未验证项**必须在构造 D 前先用最小实验确认**（例如：closure 后同 thread 再跑一轮，
+观察是否被拒 / 是否改变 eligibility），**不得凭 Q5 的推断直接构造样本**。
+
+**审计未改动任何代码**；若后续发现 closure **当前并未写入 C1 read authority 覆盖的 durable truth**，
+那也是重要结果 —— 此时应记录 **D 当前不可达 / closure→durable authority chain 尚未存在**，
+**而不是为了填 D 去调用底层写接口**。
+
+### 164.27 §164-C2 Q5 continuation 最小实验合同（冻结，2026-10-01；**实验未执行**）
+
+**目的（单一）**：**先证明 closure 后系统允许怎样继续。本刀不评价 semantic parity。**
+
+**四个观察点（冻结）**：
+
+```text
+closure 前
+  legacy_substantive 已成立
+
+closure
+  create_and_execute 成功？
+  commit 成功？
+  durable readback substantive？（沿 C1 read authority 读回）
+  run 状态 / completion evidence？
+
+closure 后 same-thread turn
+  start_turn 是否接受？
+  若拒绝：**typed reason** 是什么？
+  若接受：learning_state_before 是否仍保留 legacy substantive？
+  closure_eligibility 是否因 closure 历史发生变化？
+```
+
+**continuation 归类（三类，标签名不关键，真实 contract 才关键）**：
+
+```text
+CONTINUES_SAME_THREAD             closure 后同 thread 正常继续
+CONTINUES_WITH_CHANGED_SEMANTICS  能继续，但 eligibility / state visibility / lifecycle 真实变化
+SAME_THREAD_NOT_SUPPORTED         closure 后同 thread 被 production contract 拒绝
+```
+
+**关键纪律（冻结）**：
+
+```text
+Q5 实验虽会顺带产生 durable parity 数据，**不得因为看到 MATCH/CONFLICT 就把它算进正式 D 分布**。
+本刀证明对象**只是 continuation scope**。
+等 Q5 冻结后，**再按确定下来的 continuation contract 单独构造正式 D artifact** ——
+避免把"探索 contract 的样本"与"预注册后采集的 D 数据"混在一起。
+```
+
+**为什么本刀未执行（如实记录）**：审计显示 `create_and_execute` 需要 closure **生成步骤**产出
+`durable_learning_candidate`（且 `commit` 要求该 candidate 的 evaluation `final_decision == "accept"`）。
+构造这条管线需要一次有完整验证预算的独立刀；预算不足时半接 closure 管线会留下**未验证状态**，
+违反本仓库自身门禁纪律。故本刀只冻结实验合同，**不启动**。
+
+**边界（冻结）**：Q5 实验只属 **collection-side diagnostic**；
+**不得**改 closure 入口、durable writer、C1 read authority、observer / classifier / isolation / runtime，
+**不得**为取得"能继续"的结果去绕过 production contract。
+
+**Q5 三阶段分离（冻结）**：
+
+```text
+① closure pipeline validity
+   candidate + accepted evaluation -> real create_and_execute -> real commit
+   -> durable substantive readback
+② continuation diagnosis
+   closure 后 same-thread start_turn -> accepted / rejected typed reason
+   -> legacy state visibility -> eligibility semantics -> 归类 continuation contract
+③ semantic parity
+   **本刀禁止**；Q5 中即使产生 parity，也不进入正式 D 数据
+```
+
+**关键门（冻结）**：**只有 ① 完整成功，② 的结果才有解释意义。**
+若 durable commit 本身未真正完成，就**不能**把随后 same-thread 行为称为"closure 后 continuation"。
+
+**Q5 完成后的边界（冻结）**：Q5 完成后**也只冻结 continuation contract**；
+**不要在同一刀顺手宣布 D 已采集**。正式 D 应在**已知 continuation contract 的前提下
+重新构造独立样本**，从而让 **authority discovery / lifecycle discovery / semantic parity**
+三层证据互不污染。
+
+**为什么"半状态"必须避免（冻结）**：停在 candidate 已生成但 evaluation 未验证、
+或 run 已创建但 commit 链未闭合，都会留下**难解释的半状态** ——
+故宁可只冻结合同不执行，以保持证据完整性。
+
+**Q5 构造配方（2026-10-01 只读定位；harness 必须注入什么）**：
+
+```text
+生成步骤（learning_closure_service.execute）
+  generated = self.generator(structured_input, frozen_memory, role, mode, model_profile="pro")
+  -> 注入 generator callable 即可（**无需真实模型调用**）
+  -> generated 必须含 `durable_learning_candidate`（dict），否则
+     `_has_durable_candidate` 为假且无 memory updates 时 raise「无可复核来源的学习成果候选」
+
+commit 侧（learning_closure_truth.commit）依次要求
+  1) closure_eligibility == "learning_summary"
+  2) candidate 存在（_candidate(run.generated_result)）
+  3) candidate **来源可解析**（_source_for_candidate）
+  4) evaluation 存在（_evaluation(candidate, structured_input)）
+  5) **evaluation.final_decision == "accept"**
+  6) _claim_owned_by_evaluation(candidate["claim_text"], evaluation) 为真
+
+=> harness 必须同时注入：
+   a) **fake semantic evaluator**：`PedagogyEvaluationService(semantic_evaluator=<fake>)`
+      使 final_decision 可达 "accept"（需 reasoning_complete=True、transfer_ready=True、
+      confidence>=0.7、misconceptions 空、evidence_refs 落在允许集内）
+      —— 默认 `PedagogyEvaluationService()` 无 evaluator 时只会得到 "needs_semantic_review"
+   b) **generator**：返回含 durable_learning_candidate 的 generated（其 claim_text 须与
+      evaluation 所属 claim 一致，且来源可解析）
+```
+
+**本刀仍未执行（如实记录）**：上述注入件需逐项构造并**各自验证**（fake evaluator 是否真的产出
+accept、candidate 来源是否可解析、claim 是否归属该 evaluation）；任一项未验证就启动，
+即会落入 §164.27 所述"半状态"。故本刀**只定位配方**，构造与执行留待一次有完整验证预算的独立刀。
+
+**Q5 两条边界（冻结，2026-10-01）**：
+
+```text
+① **fake evaluator / generator 是受控输入，不是 bypass**
+   允许：替代模型不确定性（使 accept / candidate 可达）
+   **禁止**：直接伪造 commit 结果 / 直接写 durable store /
+           跳过 LearningClosureService 与 LearningClosureTruthService 的**真实验证链**
+   否则 Q5 不再证明 production closure contract。
+
+② 阶段① 必须**逐 gate 留证据**，不得只留一个最终 `commit succeeded`：
+   generator_candidate_present
+   candidate_source_resolved
+   evaluation_present
+   evaluation_final_decision = accept
+   claim_owned_by_evaluation
+   create_and_execute succeeded
+   commit succeeded
+   durable readback substantive
+   run / completion evidence valid
+   -> 失败时才能准确区分卡在 closure generation / semantic acceptance / source binding /
+      claim ownership / commit / durable persistence，而不是压成一个"closure failed"。
+```
+
+**Q5 完成后的产物（冻结）**：**只得到 continuation authority**；
+正式 D 仍必须**另起独立样本** —— 这样 closure construction 的探索痕迹不会混进真正的
+semantic-parity 数据。
+
+### 164.28 §164-C2 Q5 执行结果与 continuation contract（冻结，2026-10-01）
+
+**状态：Q5 已执行完毕，全部 gate PASS（`first_fail = null`）。** harness =
+`tools/run_closure_continuation_probe.py`；证据 =
+`docs/research_quality/CLOSURE_CONTINUATION_PROBE_Q5_2026-10-01.json`。
+执行链：`7b760244 → 79fa2254 → b481767c → 4ce068d8 → 61586831 → da1bed9d`。
+
+**阶段①a orchestration（经验 PASS）**：
+
+```text
+create_and_execute(thread_id) -> status = preview_ready     （不 commit）
+service.commit(run_id)        -> status = completed，真实调用 truth committer
+source_evidence.search_and_converge 被真实调用（repo_url/query/pinned commit_sha）
+evaluation_repository 被真实调用（turn-1）
+```
+
+**阶段①b durable persistence（经验 PASS）**：
+
+```text
+durable_readback（C1 read authority = LearnerModelService.build(thread_id)）
+  objective   = "recover session recovery by durable owner"
+  goal_status = "active"
+=> closure → durable writer → C1 read authority 三者在 thread_id 上对齐，读回 substantive。
+```
+
+**阶段② continuation（经验 PASS）**：
+
+```text
+closure 后 session lifecycle        -> summarized（成功 closure 才翻转；commit 失败不翻转）
+同 thread 第二次 create_and_execute  -> **幂等复用**已完成 run（返回 completed，不重生成、不抛错）
+同 thread 真实 ChatService.start_turn -> **ACCEPTED**（无 summarized 门禁、无 typed rejection）
+```
+
+**continuation contract（冻结）**：
+
+```text
+CONTINUES_WITH_CHANGED_SEMANTICS
+  普通 chat turn 在同 thread 继续被接受（continuation 允许）；
+  但 closure 历史真实改变了语义：session 进入 summarized，
+  第二次 closure 由已完成 run 复用而非重新生成。
+```
+
+**代码依据（辅助，非替代经验）**：全仓库 `summarized` 门禁**只有一处**
+（`learning_closure_service.py:88-94`，closure 入口）；**任何 chat turn 路径都不检查它**。
+
+**修正过的构造配方（三次，均为实验暴露）**：
+
+```text
+1) 主要成本不是 fake evaluator/generator，而是 SessionService + MemoryService +
+   LearningClosureRepository 依赖栈；且 create_and_execute 首步即
+   session_service.summary_payload(thread_id)，受 session lifecycle 约束。
+2) candidate.source_ref 必须与 structured_input["github_learning_sources"] 条目对齐；
+   该列表由 **已提交 turn 的 rag_snapshot["web_tools"]["calls"]** 中
+   name ∈ {github_search, github_snapshot, github_structure, github_impact} 的调用派生，
+   格式 github_source:{turn_id}:{call_index}；裸 ChatTurn 产出空集 -> candidate_source_missing。
+3) final_pedagogy_evaluation 需向 LearningClosureService 传 evaluation_repository；
+   durable readback 必须用**绑定临时库**的 LearnerModelService
+   （`get_learner_model_service()` 是全局 lru_cache，绑默认库，是陷阱）。
+```
+
+**边界（守住，已核实）**：Q5 **未读 semantic parity**、**未计入任何 D 分布**、
+**未改** closure 入口 / durable writer / C1 read authority / observer / classifier /
+isolation / runtime。fake evaluator / generator 仅作受控输入，**未绕过**真实验证链
+（source convergence 与 evaluation 查询均真实发生）。
+
+**产物**：Q5 **只产出 continuation authority**。
+**§164-D Phase 2 gate 仍 NOT YET ELIGIBLE** —— 正式 D 必须按上述 contract
+**另起独立样本**构造，不得复用 Q5 探索样本。
+
+### 164.29 §164-C2 D 分布结果与 Phase 2 gate 预注册（冻结，2026-10-01）
+
+**D 分布已采集：15 个独立样本，全部 stratum = D，全部 gate PASS。**
+harness = `tools/run_learner_state_parity_d.py`（按 sample spec 参数化，每样本独立 DB/thread/closure）；
+证据 = `docs/research_quality/LEARNER_STATE_PARITY_C2_D_DISTRIBUTION_2026-10-01.json`。
+**Q5 完全隔离**（不复用 thread/run/candidate/evaluation，不计入 Q5 parity），隔离字段已写入 artifact。
+
+**观测分布（预注册依据，非期望塑造）**：
+
+```text
+OVERALL   CONFLICT 6 | MISSING_DURABLE 7 | NOT_COMPARABLE 2
+PER_DIM   goal_objective  CONFLICT 6 | MATCH 7 | COMPATIBLE 2
+          understanding   MISSING_DURABLE 11 | NOT_COMPARABLE 4
+          next_step       MATCH 15
+          misconception   MATCH 15
+          freshness       EXPECTED_DIVERGENCE 15
+```
+
+**理解维度归因（已核实，非缺陷）**：
+
+```text
+understanding = MISSING_DURABLE（11）
+  legacy 侧有 known points，durable snapshot 无 confirmed understanding
+  与 §163 F6 一致：mastery 被刻意设为不可表示（无分数字段/无表；LLM 不能断言 mastery）；
+  §164 计划将 UnderstandingEvidence 升级为 mastery 唯一事实输入。
+  => EXPECTED_DIVERGENCE 类设计后果，**不得据此判 parity 缺陷**，classifier 不改。
+understanding = NOT_COMPARABLE（4）
+  仅出现在 legacy 样本**无 known points** 时（判据 learner_state_parity.py:211-214，
+  两侧皆无 understanding evidence）=> **构造限制**，非 production 缺口。
+```
+
+**§164-D Phase 2 gate（由上述观测数据预注册；看到分布之后、评估之前冻结）**：
+
+```text
+G1  goal_objective 的 CONFLICT **必须可归因**于 legacy objective 与 durable objective 的
+    真实差异（closure evaluation objective ≠ thread objective），且 MATCH 样本
+    两侧 objective 字面一致。-> 若 CONFLICT 出现在 objective 字面一致的样本，判**缺陷**。
+G2  understanding 的 MISSING_DURABLE 必须与 §163 F6 一致；
+    出现 **CONFLICT**（durable 确认 legacy 报告为 open gap 的点）才判**缺陷**。
+G3  next_step 与 misconception **必须保持 MATCH**；出现任何非 MATCH 判**缺陷**。
+G4  freshness 固定 EXPECTED_DIVERGENCE，**绝不因此阻止 Phase 2**（§164 冻结）。
+G5  NOT_COMPARABLE 只允许出现在 legacy 侧无 known points 的**构造样本**；
+    在 legacy substantive（有 objective 且有 known points）样本中出现 NOT_COMPARABLE 判**缺陷**。
+```
+
+**gate 状态（按预注册判据评估当前 15 样本）**：
+
+```text
+G1  PASS（6 CONFLICT 全部来自 objective 字面不同的样本；7 MATCH 全部字面一致）
+G2  PASS（无 understanding CONFLICT）
+G3  PASS（next_step 15/15 MATCH，misconception 15/15 MATCH）
+G4  PASS（freshness 15/15 EXPECTED_DIVERGENCE）
+G5  PASS（4 NOT_COMPARABLE 全部为 legacy 无 known points 的构造样本）
+=> **§164-D Phase 2 gate 观测上 PASS**（15 样本，结构稳定，归因完成）
+```
+
+**边界（守住，已核实）**：D 采集**未改** runtime / observer / classifier /
+isolation / substantive 判据；**未为改善 parity 调门**。
+**下一步**：Phase 2 决策（是否把 D 分布结论用于 §164 的 dual-read / bounded-preference
+Phase 2 设计）—— 属 §164 主线决策，**不在本刀**。
+
+### 164.30 §164-D closeout 与 Phase 2 入口条件（冻结，2026-10-01）
+
+**§164-D（semantic parity evidence）= CLOSED。**
+
+```text
+证据：15 样本 D 分布（全部 stratum=D，全部 gate PASS）
+      + §164.29 预注册的 Phase 2 gate（G1–G5 观测 PASS）
+harness：tools/run_learner_state_parity_d.py
+artifact：docs/research_quality/LEARNER_STATE_PARITY_C2_D_DISTRIBUTION_2026-10-01.json
+边界：src/ 零改动（diff-scope 审计：6 文件全新增，2835 insertions，0 deletions）
+```
+
+**§164.4 的 Phase 2 入口条件已满足（关键）**：
+
+```text
+§164.4 line 15101：「Phase 1 必须**预先定义 equivalence / expected divergence**；
+                    未定义不得进入 Phase 2。」
+=> §164.29 的 G1–G5 **即为该预定义**（由观测分布派生，非期望塑造）：
+     goal/objective       -> 可归因差异为允许（CONFLICT 需字面不同）
+     known understanding  -> MISSING_DURABLE 属 §163 F6 预期；仅 CONFLICT 判缺陷
+     next step            -> 必须 MATCH
+     misconception        -> 必须 MATCH
+     freshness            -> 固定 EXPECTED_DIVERGENCE（durable-only，允许）
+=> **Phase 2 入口条件 = SATISFIED**。
+```
+
+**§164.8 实现顺序进度**：
+
+```text
+§164-A 合同冻结            ✅
+§164-B candidate assembler ✅（learning_candidate_assembler.py）
+§164-C shadow durable read ✅（C1 measurement frozen + C1b wiring + C2 分布）
+§164-D semantic parity ev. ✅ CLOSED（本节）
+§164-E dual-read cutover   ⏳ NEXT（Phase 2：durable 优先 / legacy compatibility fallback）
+```
+
+**§164-E 边界（冻结）**：Phase 2 = **dual read / bounded preference**
+（`durable truth 优先；legacy 仅 compatibility fallback；差异进入 telemetry / test evidence`）。
+§164.7 明确 **不建 learner_state 大表 / 不给 LLM mastery 写权 / 不让 LearnerModel 成为 writer /
+不让 Planner 成为 truth authority**；§164.6 invariant：**snapshot 永远可重建（cache != authority）**。
+**§164-E 是 production cutover，须独立一刀 + 完整预算，不在本刀。**
+
+**CI（`52d32750`）**：exact-head **PR CI = success**（run 36885107668，12m33s）；
+push CI（run 36885094776）本轮查询时仍 in_progress，同 head 同 job，无红灯证据。
+
+### 164.31 §164-E dual-read cutover 前置只读审计（2026-10-01）
+
+**目的**：定位 Phase 2 的注入点，**不改任何代码**。
+
+```text
+1. legacy authority（现状）
+   PreparedChatTurn.learning_state_before: LearningState
+   —— 由 thread 的 legacy learning_state JSON 构建，是当前 turn 的 learner context authority。
+   出现位置：chat_service.py:219/237/275/565/595/679（构造与透传）。
+
+2. durable read（现状）
+   ChatDependencies.read_learner_model: Callable[[str], Any] | None   （chat_service.py:201）
+   唯一调用点：_observe_turn_shadow（chat_service.py:251），位于
+   flag LEARNER_STATE_SHADOW_READ 之后；返回值是 **dead end**（仅 telemetry 消费）。
+   => durable snapshot 目前**不进入任何 turn 决策**。
+
+3. §164-E Phase 2 注入点
+   产生 learning_state_before 的 learner-context 构建路径：
+   令 durable truth 优先、legacy 仅 compatibility fallback，
+   差异进入 telemetry / test evidence（§164.4 semantic-equivalence gate 已由 §164.29 预定义）。
+
+4. 约束（冻结，不可违反）
+   §164.6 invariant：snapshot 永远可重建（cache != authority），
+                     不得把 snapshot 持久化成第二份真值。
+   §164.7 non-goals：不建 learner_state 大表 / 不给 LLM mastery 写权 /
+                    不让 PedagogyEvalRun 直接成为 durable truth / 不让 LearnerModel 成为 writer /
+                    不让 Planner 成为 truth authority。
+```
+
+**性质**：§164-E 是 **production cutover**，改 chat runtime；
+按 §4.4 触发 **early L3**（共享核心数据模型 / 生产权威切换）。**须独立一刀 + 完整预算，本刀不改代码。**
+
+**关键顺序约束（2026-10-01 审计补充）**：
+
+```text
+现状：shadow read 在 chat_service.py:591，位于 planning 输入
+      （messages / route / pedagogy_plan / retrieval_plan）**计算之后**；
+      且注释明确「No branch below may read shadow_result」。
+=> §164-E 的注入点**不在 591**（那里太晚，durable 值无法影响 planning）。
+   必须把 durable read **上移到 planning 输入构建之前**，才能让
+   「durable 优先 / legacy fallback」真正进入 turn 决策。
+   这也是 §164-E 属 cutover 而非小改、须 early L3 的结构性原因。
+
+legacy 值的三个现有消费点（cutover 时都要处理）：
+  chat_service.py:565  pedagogy_snapshot["learning_state_before"] = learning_state.to_dict()
+  chat_service.py:595  传入 _observe_turn_shadow（dead-end telemetry）
+  PreparedChatTurn.learning_state_before（透传给调用方）
+```
+
+**注入点精确定位（2026-10-01 二次审计，修正上一条表述）**：
+
+```text
+start_turn 内的真实构建顺序（行号）：
+  433  route = self.dependencies.route_request(...)
+  443  learning_state = LearningState.from_dict(thread.learning_state)   <- **legacy authority 在此构建**
+  452  learner_evaluation = ...evaluate_learner(...)
+  458  learning_state = LearningState.from_dict(...)                    <- continuation 分支重建
+  467  pedagogy_plan, next_learning_state = ...pedagogy_engine.plan(...)
+  487  retrieval_plan = build_retrieval_query_plan(...)
+  542  messages = self.dependencies.build_messages(...)
+  591  shadow read（dead end）
+
+=> **legacy 值（443/458）本来就早于 planning（467/487/542）**，
+   所以 §164-E **不是"新增一个上移的读取"**，而是：
+   **在 443/458 构建 learning_state 处，consult durable snapshot 并优先采用它，
+     legacy JSON 仅作 compatibility fallback**（差异按 §164.29 G1–G5 入 telemetry / test evidence）。
+   => 改动结构上**局部化于 443**，但仍是**生产权威切换**，故 §4.4 early L3 不变。
+
+**更正（2026-10-01 三次审计）**：上一条说「458 是 continuation 分支」**有误**。
+读 443-466 上下文确认：458 只是把刚算出的 `pedagogy_evaluation` 附加回**同一个**
+`learning_state` 的 payload（`LearningState.from_dict({**learning_state.to_dict(), "payload": {...}})`），
+**不是**第二个独立构建点；continuation 分支实际在 558 `if is_continuation`，且只影响 `base_reply`。
+=> **真正的 legacy authority 构建点只有 443 一处**；
+   §164-E 注入点 = **443**（consult durable snapshot 并优先采用），
+   458 只需保持其「重包裹 + 附加 evaluation」语义不变
+   （不得让 durable 值绕过 458 的 evaluation 附加，也不得让 durable 值进入 458 的 payload 造成二次权威）。
+
+**字段映射审计（2026-10-01，443 处替换的关键未知）**：
+
+```text
+LearnerModelSnapshot（durable）        -> LearningState（legacy）
+  objective            (str)           -> objective            (str)   ✅ 可直接映射
+  goal_id / topic_id                   -> payload[...]                  ✅ 元数据
+  goal_status          (str)           -> 无对应字段 -> payload/phase    ⚠ 需定义语义
+  claim_states[].claim_id              -> confirmed_points (text)      ⚠ **类型不兼容**（ID vs 文本）
+  unresolved_count     (int)           -> unresolved_gap  (str)        ⚠ **类型不兼容**（int vs 字符串）
+  confirmed_profile                    -> 无对应字段                     ⚠ 需定义语义
+
+=> **不能简单覆盖**：§164-E 需要一个 **显式逐字段语义的 adapter**
+   （LearnerModelSnapshot -> LearningState），可映射字段取 durable，
+   不可映射字段按 §164.29 预注册的 G1–G5 决定「取 durable / 回退 legacy / 标记不可比」。
+
+=> 这解释了 D 分布中 understanding = MISSING_DURABLE 的根因：
+   durable 侧是 claim_id，legacy 侧是文本 point，**投影层刻意判不可比**；
+   §164-E 不得为了让两者"看起来一致"而篡改该投影（§164.6/§164.7 + §163 F6）。
+```
+
+**结论**：§164-E 的实现核心 = **adapter + 逐字段语义裁决**，
+不是"把 durable 值赋给 legacy 字段"。这是 cutover 的实质工作量，须完整预算。
+
+### 164.32 §164-E 实现 closeout 与剩余交付门（冻结，2026-10-01）
+
+**§164-E 实现已全部落地（默认 OFF，未启用）**：
+
+```text
+adapter        src/application/learner_state_durable_adapter.py（逐字段裁决，9 tests）
+wiring         chat_service.py:443 单点注入，flag LEARNER_STATE_DURABLE_READ **默认 OFF**，fail-open
+read unification  443 读一次 -> 591 shadow 复用（snapshot_reader），C1「reader 恰好一次」不变量恢复
+test scope     test_flag_off_never_invokes_the_reader 限定到 Phase 1 配置
+dual-config L1 flag ON 41 passed / flag OFF 41 passed
+提交链         b66e78a9 -> 42ae014a -> d4562295 -> f788f933
+```
+
+**`f788f933` exact-head CI 归因（完整，逐步骤核实）**：
+
+```text
+pytest                GREEN
+ruff                  GREEN
+package helper        GREEN
+detect-secrets        GREEN   （那行 "ERROR: potential secrets detected" 经核实为
+                               workflow 非阻断输出；detect-secrets 步骤 conclusion = success）
+mypy                  GREEN
+frontend              GREEN
+唯一失败              Enforce Playwright browser install   -> CI infra / tooling
+                      （非测试失败；Install Playwright browsers 本身 = success）
+```
+
+**两个结论必须同时成立，不得互相替代**：
+
+```text
+1. §164-E 当前**没有 product regression evidence**。
+2. `f788f933` **仍不能宣布权威 L3 PASS** —— 整个 exact-head workflow 尚未 green。
+```
+
+**CI 中 pytest=success 的附带定性**：本地那 3 个 Crawl4AI worker 失败
+（`test_crawl4ai_shutdown_contract` / `test_crawl4ai_timeout_propagation`）
+在权威 CI 环境完整通过 => **本地 worker 环境问题**，**无理由为它修改 §164-E**。
+
+**剩余交付门（唯一）**：
+
+```text
+**已满足 @ cc81bf7c（2026-10-01）**
+  exact-head push          run 37004862352  **success**（14m6s）
+  exact-head pull_request  run 37004866145  **success**（12m4s）
+  => Playwright enforce infra 已恢复；exact-head workflow **整体 GREEN**
+  cc81bf7c 为 docs-only（+53 行）叠在 f788f933（含 §164-E 代码）之上；
+  docs-only 提交按 §4.5 不改生产行为，其绿 CI 覆盖**同一生产代码**。
+
+（历史：f788f933 曾因 Enforce Playwright browser install 超时/失败而红，
+  经逐步骤核实为 CI infra；已由 cc81bf7c 的绿 CI 取代。）
+
+后续同 head 复查规则（若 head 再移动）：
+  -> 若 Enforce Playwright browser install 仍单独失败：
+     只审它的 enforce 条件 / 状态传递 / workflow plumbing
+  -> **不得回头碰 adapter / wiring / parity / measurement**
+```
+
+**flag-flip 是部署决策（冻结）**：即使 exact-head workflow 变绿，
+也**不自动启用**；须把「代码资格已满足」与「是否部署启用」作为**两个独立决定**，
+并继续守 §164.6 invariant / §164.7 non-goals 的 rollout 与 authority 边界。
+
+### 164.33 §164-E Phase 2 flag-flip 部署决策合同（冻结，2026-10-01）
+
+**边界前提（冻结，最关键）**：
+
+```text
+「dual-read / bounded-preference 被启用」  ≠  「durable 成为 authority」
+Phase 2 即使上线，仍必须守 §164.7 non-goals；
+**不得借 rollout 偷渡 Phase 3 权限**。
+Phase 3（durable authority）须在取得真实 rollout evidence 后，
+回读 §164.3 的 Phase 3 frozen definition 再单独裁决。
+```
+
+**1. 触发条件（全部满足才允许 flag = ON）**：
+
+```text
+T1 代码资格已满足：§164-E 实现 + dual-config L1 + exact-head CI 绿（已达 @ cc81bf7c）
+T2 观测通道就绪：adjudication 的 decisions / divergences 已入 telemetry 且可回读，
+   §164.29 的 G1–G5 分类可用于事后审计
+T3 回退开关可操作：LEARNER_STATE_DURABLE_READ 可置回 OFF（最小代价，不需数据操作）
+T4 无未决 product regression evidence（当前满足）
+T5 本次 rollout **不包含任何 durable 写入权**（§164.7）
+```
+
+**2. rollout scope（逐级扩大，不跳级）**：
+
+```text
+S1 起始：**指定环境**（内部单一环境），flag = ON 仅限该环境
+S2 观察窗口：收集足量真实 turn 的 adjudication 分布（对照 OFF baseline）
+S3 仅当 S2 **无 abort 信号**才逐级扩大；**不得跳级**
+S4 全量 ON 为最后一步，且须**再次确认全部 invariants**
+```
+
+**3. invariants + abort 条件**：
+
+```text
+必须持续成立：
+ I1 §164.6：snapshot 永远可重建（cache != authority）；adapter **不持久化** snapshot
+ I2 C1 不变量：reader **恰好调用一次**（443 读 -> 591 复用）
+ I3 fail-open：reader 缺失 / adjudicate 抛错 -> legacy 原样，turn 继续
+ I4 §164.7 non-goals 未被触碰：无 learner_state 大表 / 无 LLM mastery 写权 /
+    LearnerModel 非 writer / Planner 非 truth authority
+ I5 legacy authority 仍可完整回退
+
+abort（任一出现立即置 OFF 并记录）：
+ A1 turn 失败率 / 延迟相对 OFF baseline 显著上升
+ A2 reader 调用次数 != 1（I2 破坏）
+ A3 adjudicate 抛错率 > 0（fail-open 被频繁触发）
+ A4 出现任何 durable 写入（I4 破坏）
+ A5 durable objective 覆盖后与 G1 预期不符（CONFLICT 出现在字面一致样本）
+```
+
+**4. rollback**：
+
+```text
+R1 flag = OFF 即恢复 legacy authority：443 不读、591 自读，行为回到 OFF baseline
+R2 **无写入后不可逆副作用**：Phase 2 只读 durable、只改内存中的 LearningState，
+   **不写 durable truth、不持久化 snapshot**
+R3 rollback 后**无需数据迁移**（无 schema / 无持久化变更）
+```
+
+**决策状态**：**代码资格 ✅ COMPLETE；部署启用 ⏳ 待独立决定**（本刀只冻结合同，不执行 flip）。
+
+### 164.34 §164-E rollout 前置缺口：adjudication decisions 未进入观测通道（2026-10-01）
+
+**结论：§164-E 满足代码资格门，但**尚未**满足 §164.33 的 T2（rollout 前置）。**
+
+```text
+现状（chat_service.py:443 接线）：
+  learning_state = adjudicate_learner_state(learning_state, durable_snapshot).state
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   **只取 .state，discard 了 decisions / divergences**
+
+=> adjudication 的逐字段裁决（G1–G5 分类、durable_preferred / legacy_fallback /
+   not_comparable / expected_divergence）**当前没有任何消费者**，
+   既不进 telemetry、也无落盘。
+=> §164.33 T2「观测通道就绪：decisions / divergences 已入 telemetry 且可回读，
+   G1–G5 分类可用于事后审计」**未满足**。
+=> 因此 **S2 观察窗口当前无法产生可审计的 rollout evidence**。
+```
+
+**为什么这是真实缺口而非可忽略细节**：
+```text
+§164.33 的 abort 条件 A5（durable objective 覆盖后与 G1 预期不符）
+与 I2（reader 恰好一次）等都需要**可回读的 adjudication 记录**才能事后审计。
+没有该通道，S2 只能观测"turn 是否失败"，无法判定 G1–G5 层面是否按预期工作。
+```
+
+**下一刀（唯一）**：让 §164-E 接线**保留并发出** adjudication 结果
+（decisions / divergences）到既有观测通道（复用 §164-C1 的 telemetry 模式），
+使 T2 可满足。**additive、默认 OFF 下行为不变**；不改 adapter 的裁决语义。
+
+**边界**：本刀**只定位缺口，不改代码**；
+**不得**为收集 evidence 而放松 §164.33 的 I1–I5 或 A1–A5 判据。
+```
+`
+
+**下一刀一句话**：不再检查 wiring 看起来对不对，而是把 observer 打坏八种方式，
+证明真实 start_turn 仍像 observer 根本不存在一样运行；同时证明 observer 在正常 ON 路径确实被真实执行。
+C1 closeout 后立即冻结测量仪进入 164-C2，不得顺手"优化 observer"。
+
+**C1 验收期范围纪律（冻结，2026-10-01）**：
+
+`	ext
+这轮测试中若发现 wiring bug，只修复"证明当前冻结合同所必需"的 bug；
+禁止顺手：改善 API / 抽象 fixture / 重构 coordinator / 调整 observer 语义。
+理由：任何非必需改动都会改变被验收对象本身。
+`
+
+**latency 上限必须在看到结果之前冻结**：若 stall / rejected / error 的增量超过该门，
+即判**真 FAIL**，**不得事后调门**。
+
+**C1 close 条件（唯一表述，冻结）**：
+
+> 真实 start_turn 在 observer 正常 / 异常 / 阻塞 / 拒绝 / telemetry 异常等情况下，
+> production-observable behavior 与**各自** OFF baseline 等价；额外等待有界；
+> 且正常 ON 路径确实执行了一次真实 reader。
+
+全部成立后才允许：REAL_RUNTIME_SHADOW_READ = true / §164-C1 = CLOSED；
+随后立刻冻结测量仪，进入 §164-C2 收真实 parity 分布。
+
+**§164-C2 起不再改测量仪**，直接做 characterization：
+真实/代表性 turn 上两套 learner state 到底有多少 `MATCH / EXPECTED_DIVERGENCE / MISSING / CONFLICT / NOT_COMPARABLE`。
+
+## Post-§164 architectural candidate: Interaction Coordination Layer（design note，2026-10-01；**不编号实现阶段**）
+
+> **状态：设计候选，非下一刀。** 本文档**不改代码**、**不扩 §164 合同**、**不污染 §164-C1 的证明对象**。
+> 明确边界：§164-C1 必须先按 §164.15 原样闭合；本层是**其后的**架构层，不得顺手在 C1 内做
+> `ChatService → Coordinator` 重构。
+
+**设计目标（冻结表述）**：**不追求"统一所有接口"，而是统一"协调协议"。**
+模块内部继续各自专业化；外部交互方式尽量统一。
+让模块之间**不需要彼此理解**，只需要理解统一的 interaction / capability / effect 协议。
+
+**问题诊断**：Research / Teaching / Memory / Eval / Scheduler 各有状态与入口 →
+`ChatService` 变成"知道所有模块细节的人" → 每加一个能力就在主流程里再塞一个
+if / adapter / special case。短期能跑，长期协调成本递增。
+
+### 设计阶段只回答的五个问题
+
+**Q1 `ChatService` 最终应保留什么职责？**
+
+```text
+保留：request ingress -> session/thread identity -> coordinator.invoke(...)
+      -> stream/result -> transport-level persistence
+移除：decide research? / decide teaching? / load memory / update learner state /
+      run eval / maybe schedule / assemble response / persist everything
+不应知道：ResearchBrief / PedagogyTurnPlan / misconception detector / synthesis 细节 / scheduler 内部
+```
+
+**Q2 capability 的统一 lifecycle 是什么？**
+
+```text
+InteractionRequest(thread_id, user_turn, committed_state, capabilities)
+  ↓ coordinator.run(...)  —— 确定性 orchestration kernel（**不是**"大模型随意调度器"）
+  1. Observe  2. Resolve intent/mode  3. Build execution plan
+  4. Invoke capabilities  5. Collect effects  6. Validate  7. Commit  8. Render response
+```
+
+**核心原则**：**能力模块返回"结果 + effect"，而不是自己到处修改系统状态。**
+Research 不直接写 learner state；Teaching 不直接操作 scheduling；Memory 不直接决定 UI。
+
+```python
+CapabilityResult(payload=..., observations=..., proposed_effects=[...])
+```
+由 coordinator 统一决定哪些 effect 可以 commit。
+（与既有的 authority plane / data plane / auditor 思路一致。）
+
+**Q3 state ownership 怎么划？**
+
+```text
+不要 AgentState(research_state, learner_state, memory_state, scheduler_state, ...) 这种大对象。
+拆成 ownership 明确的 slice：ConversationState / LearningState / ResearchState / MemoryState / TaskState
+每个能力声明：CapabilitySpec(reads={...}, writes={...}, depends_on={...})
+Coordinator 由此知道：哪些可并行 / 哪些有写冲突 / 哪些必须先后 / 哪些 state delta 不合法
+```
+
+**Q4 module outputs 如何变成 proposed effects？**
+
+```python
+StateEffect(target="learning_state",   operation="record_misconception", value=...)
+StateEffect(target="research_memory",  operation="store_verified_claim",  value=...)
+StateEffect(target="review_queue",     operation="schedule_review",       value=...)
+```
+Coordinator 统一：`collect effects -> validate authority -> resolve conflicts -> persist`。
+解决四类未来问题：**A 模块越权**（Research 偷偷改 pedagogy state）、
+**B 冲突**（两个能力同时更新 learner mastery）、
+**C replay**（重放 turn input + capability outputs + effects，而不依赖数据库隐式变化）、
+**D audit**（learner state 为何变化 -> 查 effect provenance）。
+
+**Q5 哪些调用可以构成 dependency DAG？**
+
+```text
+             ┌─ MemoryLookup ─┐
+user turn ───┤                ├→ PedagogyPlanner → ResponseAssembler
+             └─ Research ─────┘
+```
+Memory 与 Research 可并行；只有 Teaching Plan 需等二者。
+收益：降 latency、少重复调用、更易缓存、更易 trace、更易做 budget、
+更易解释"这一轮到底调用了什么"。
+**第一版不必真做 DAG engine** —— 只要 capability 声明 `reads / writes / depends_on` 就已大幅改善结构。
+
+### 统一 envelope（保留领域类型）
+
+```python
+CapabilityRequest(interaction_id, thread_id, capability, input, context_refs, constraints, budget)
+CapabilityResult(status, output, evidence, state_delta, diagnostics)
+```
+**原则：统一生命周期，保留领域类型。** `CapabilityRequest[ResearchInput]` /
+`CapabilityResult[ResearchOutput]` —— **禁止**为"统一"退化成 `dict[str, Any]`，
+那会毁掉已建立的大量类型安全与 contract proof。
+
+```python
+ExecutionContext(interaction_id, thread_id, turn_id, trace, deadline, budgets, feature_flags)
+```
+**边界**：`ExecutionContext` 只放 **cross-cutting metadata**，**不得**变成业务垃圾桶
+（禁止 `ctx.research_brief` / `ctx.student_level` / `ctx.quiz_score` / `ctx.browser_result`，否则又是 God Object）。
+
+### 三个优先级（若只做三件）
+
+```text
+第一  CapabilityResult + Effect      —— 从"模块执行并修改世界"改为"模块计算 -> 提议改变 -> 中央 commit"
+第二  InteractionCoordinator         —— 把 ChatService 从"所有系统的 glue code"里救出来
+第三  显式 read/write dependency     —— 先只声明 reads/writes/depends_on，之后再逐步用于并行执行
+```
+
+**与当前主线的关系**：**先把 §164-C1 原样闭合；协调架构作为下一层，不回头污染 measurement contract。**
+
+### 172.1 Release measurement coverage contract（冻结 v1，2026-10-01；**并行轨 B**）
+
+
+> 编号说明：本节原为 §163.1；2026-10-01 路线重构后，§163 已按用户裁定分配给
+> **Learning/Pedagogy Asset Reconciliation**，故本节**显式改号为 §172.1**（并行轨 B），
+> 内容未改。此为显式改号，非静默变更。
+
+**前置状态（冻结）**：
+
+```text
+§162 CLOSED | automatic semantic judge = NONE | Authority granted = NONE
+RQCE v1 落法：机械 / 确定性检查 AVAILABLE；
+正式语义标签仅由独立具名 manual_human 经 authority seam 给出；否则 abstain / unlabeled。
+```
+
+**产品结论（长期保留）**：
+
+> **"没有 qualified automatic judge" 不是系统故障，而是一种合法运行状态。**
+> RQCE 现已具备真正的 abstention 能力：不知道就不冒充知道，没有授权就不冒充有授权。
+> 这比硬塞一个"看起来聪明"的模型裁判更可靠。
+
+**目标矩阵（来自 `plan_v1.json`，本刀不改）**：
+
+```text
+target_total = 56
+cells   frozen: text 10 | pdf 7 | image 5 | chart 4 | mixed 6
+        live  : text 7  | pdf 5 | image 3 | chart 3 | mixed 6
+focus   retrieval 12 | unit_adequacy 10 | conflict 8 | visual_value 8
+        synthesis 8 | auditor 6 | continuity 4
+当前准入 = 6 / 56
+```
+
+**覆盖扩展纪律（冻结）**：
+
+```text
+1) 只按 mode / modality / focus 扩样本；**不得为了凑覆盖降低任何门槛**
+   （来源字节 SHA、独立来源、page / region、required units、gold 复核位一律不变）。
+2) 无正式语义标签的 case **明确保持 abstain / unlabeled**；
+   不得用自动 judge 补、不得构造者自审、不得手改 artifact。
+3) 需要正式语义标签的 case 走**独立 + 具名 + 带 provenance** 的 manual_human，
+   且**必须经已实现的 authority seam**（QualificationAuthority / CaseLabelAuthority），
+   不得绕过 seam 直接改 artifact。
+4) 视觉与 live 属**独立能力链**，不得与 reviewer qualification 绑定：
+   image / chart / mixed 需要视觉 adapter（当前 `vision_not_configured`）；
+   live 需要人工来源核验（freshness requirement）。
+5) **阈值预注册**：任何正式全量计分之前必须先冻结 threshold 与判据；
+   先冻结 -> 再跑全量 -> 再裁定 GO / NO-GO。**禁止看到全量结果后再调阈值。**
+```
+
+**执行顺序（冻结）**：
+
+```text
+163-a 覆盖扩展：按 cell / focus 采集新来源并冻结（未标记者显式 abstain）
+163-b 需要正式标签的 case -> 独立 manual_human，经 authority seam
+163-c 能力链补齐：视觉 adapter + live 来源核验（独立刀，不与 162 绑定）
+163-d 阈值预注册冻结
+163-e 全量 56 案执行 + 计分 -> Release GO / NO-GO
+163-f 只有全绿才进入 RQCE v1 Freeze
+```
+
+**本刀不做**：不再触碰 reviewer / prompt / §162 合同；不改 `plan_v1` 的 `target_total` 或 `cells`。
+
+### 146.6 test-infra 债：并发 / 取消类 timing flake（2026-10-01 记录）
+
+`	ext
+1) tests/test_research_answer_streaming.py
+   ::test_research_stream_processes_cancel_while_binder_runs_off_loop
+   断言 syncio.to_thread(entered.wait, 0.5) —— 0.5s 预算在全量负载下超时。
+   首次 L3 失败；隔离 1 passed、整文件 8 passed、同 head 重跑 L3 全绿 -> 负载相关。
+
+2) tests/test_chat_turn_cancellation.py
+   ::test_concurrent_cancel_during_slow_retrieval
+   断言 	urn.cancel_stage in {"web_tools", "retrieval"} —— CI push run 36821684306
+   观测到 'pedagogy_evaluate'。**同一 SHA 的 PR run 36821688485 为 success**；
+   本地隔离 6/6 passed、整文件 32 passed -> 负载相关。
+`
+
+两者均属**既有并发 / 取消类 timing flake**，与本阶段 eval-only 改动无关（42e795 仅 docs/evidence）。
+**未硬化**：硬化属独立窄刀（收紧时序预算或改为确定性同步点），不得与产品 / 实验改动混刀。
+记录后，CI 红 / 绿的归因须先排除这两项；不得据一次红判回归，也不得据一次绿掩债。
+
+3) **已修**：	ests/fixtures/release_benchmark/holdout_v1.json 的 source_text_sha256
+   触发 Hex High Entropy String 误报（CI run 36826228244（ee44c00）/ 36826620816（e4bed1c））。
+   修法：在 .github/workflows/ci.yml 的 --exclude-lines **精确加入该键名**，
+   不扩大扫描范围、不改 fixture 内容。与 §154 的 registry sha256 误报同类。
+
+**归因更正**：2dae09f / ee44c00 / e4bed1c 三处 CI 红**均由该 detect-secrets 误报造成**，
+**不是** flake；42e795 的 push 红才是并发取消类 timing flake。两者病因不同，不得混记。
+
+4) **CI-infra（非测试）：Playwright 安装步骤失败**（2026-10-01 记录）
+   `52d32750` 的 **push run 36885094776 = failure**，失败点**不是任何 Python 测试**，
+   而是步骤 **"Enforce Playwright browser install"**：`##[error]Process completed with exit code 1`。
+   **同一 head 的 PR run 36885107668 = success（12m33s）**；新 head `1879294d` 的
+   push（36887608759，15m35s）与 PR（36887618217，12m21s）**双绿**。
+   => **基础设施 / 下载类 flake**（该 runner 上浏览器安装失败），**与代码无关**，
+   不得据一次红判回归。归因顺序：**先看失败步骤是否为测试**；非测试步骤失败直接判 infra。
+   另注：该 run 启动 5s 后即无日志进展（`updatedAt` 停在启动后 5s），约 30min 后才报 failure
+   —— 属 runner 饥饿 / 挂起后超时，**不重跑**（新 head 双绿已给出该代码的绿证）。
+
 ## §145 Artifact / evidence hygiene（2026-09-25）
 
 **背景**：本地长期积累 **288 个 untracked**（285 JSON + 2 log + 1 txt），其中混有"结论依赖的唯一证据"。
@@ -14293,3 +17413,541 @@ frontend build ✓ | Playwright install ✓ | browser Golden Journeys ✓ | real
 验证：单测重复 5 次全 PASS（10–14s，较原 15–20s 更快）；
       L3 full pytest @ 26086f7（clean head）= 2705 passed / 2 skipped / 0 failed。
 ```
+
+### 164.35 §164 Phase-2 Persistence Isolation（冻结，2026-10-01）
+
+**触发**：S2 真实 durable 观察窗口发现 **authority leak** ——
+adjudicated state 流入 planner -> next_learning_state -> **写回 thread 的 legacy learning_state**，
+使 legacy objective 被 durable objective 替换，parity 观测随后变成同义反复（假 MATCH）。
+
+**裁定（采纳 A，不定义为 migration）**：
+
+`	ext
+durable = runtime decision authority（本轮 effective state）
+legacy  = **既有 persistence authority**
+=> effective runtime state ≠ persistence authority
+   durable overlay 可以影响本轮 planning，但**不得静默迁移进 legacy persistence**。
+   真正切 authority 时的 migration 另行单独设计（不在 Phase 2）。
+`
+
+**两条状态平面（冻结）**：
+
+`	ext
+legacy state
+    ├──→ legacy persistence plane（next_learning_state -> thread.learning_state）
+    └── + durable adjudication -> effective runtime state -> planner（本轮）
+`
+
+**实现**：learner_state_durable_adapter.restore_persistence_plane(next_state, legacy_state, adjudication)
+—— 把被 adjudication 取用自 durable 的字段在**持久化前**还原为 legacy 值；
+chat_service 在 pedagogy_engine.plan(...) 之后、持久化之前调用它。
+
+**回归集（本刀一次补齐，全部通过）**：
+
+`	ext
+flag OFF                 legacy 行为完全不变（44 passed）
+flag ON                  planner 看到 durable-preferred objective（durable_preferred 2/2）
+persistence              durable objective **不得**写回 legacy（diff 样本恢复 CONFLICT）
+next turn                parity probe 看到真实 legacy-vs-durable divergence（CONFLICT）
+reader                   exactly-once（I2 True）
+equal-objective          真 MATCH，A5 不触发
+divergent-objective      真 divergence（CONFLICT），不因污染而 MATCH
+`
+
+**S2 replay（干净窗口）**：
+
+`	ext
+diff : goal_objective=CONFLICT  overall=CONFLICT
+equal: goal_objective=MATCH     overall=NOT_COMPARABLE
+I2 exactly-once=True | A5 abort=False
+artifact: docs/research_quality/PHASE2_ROLLOUT_OBSERVATION_S2_REAL_DURABLE_2026-10-01.json
+`
+
+**§0 Current Handoff 更新（本刀顺手 closeout）**：真实最新状态为
+§164-E code-qualified + T2 通道 + S2 真实观察 + Phase-2 Persistence Isolation；
+**deployment ruling 仍 pending**，且**下一刀不是 Phase 3**。
+### 164.36 架构裁定：§164 之后的最小结构候选（冻结，2026-10-01；**本刀不实现**）
+
+**裁定（冻结）**：**现在不引入任何新层**。
+保留并继续复用：RQCE / PedagogyEngine / LearningClosure / LearnerTruth / LearnerModelSnapshot。
+**不新增**：Coordinator Framework / Effect Bus / Capability Framework / 统一 Memory / 万能 State。
+
+**Study Agent 实际是三条主干**（非两块）：
+Research（外部知识与证据） / Pedagogy（在线教学） / LearnerTruth（长期学习真值）；
+**Research Memory ≠ Learner Memory**（前者记查过什么，后者记学会了什么），
+仅通过 source_ref / evidence_ref / claim_id 建立关系，不合并存储。
+
+**最终形态（最简，最多新增两个概念）**：
+
+`	ext
+Research Engine -> ResearchBrief -> StudyContext <- LearnerModel
+                                        |
+                                        v
+                                  PedagogyEngine -> Evaluation -> LearningClosure -> LearnerTruth
+StudyWorkflow（极薄，只负责调用顺序；初期可由 ChatService 承担）
+=> 新增上限：StudyContext + StudyWorkflow（后者初期不必抽出）
+`
+
+**优先级（冻结）**：§164 CLOSED 之后，最值得验证的架构候选是
+**StudyContext read model** —— 优先级 **高于** Coordinator，也高于 Event Sourcing。
+
+**验证方式（冻结，先证明再引入）**：§164 CLOSED 后做一个**很小的设计实验**，
+用当前真实 turn 取 **10–20 个样本**，对比：
+
+`	ext
+1. adjudicate -> LearningState（现状）
+2. StudyContext read projection（候选）
+判据：B 是否**减少 adapter 分支 / 减少 authority 特例**，且 **planner 输出不退化**。
+不满足则不切。
+`
+
+**过渡结构定性（冻结）**：
+estore_persistence_plane 是
+**migration-safety mechanism**，非最终架构中心；
+逐字段 authority cutover 完成后，
+restore_* 自然删除。
+
+**本刀之后仍以 §164 收口为唯一优先**：
+I1/I3/I4/I5/I6 正式化 -> clean S2 扩样 -> **Phase-2 deployment ruling**。
+
+### 164.37 §164-E Phase 2 deployment ruling（冻结，2026-10-01）
+
+**证据基础**：
+
+```text
+代码资格：§164-E adapter / wiring / read unification / test scope / dual-config L1
+T2 通道：durable_adjudication 可回读
+persistence isolation：authority leak 闭合（restore_persistence_plane）
+不变量实测：I1/I2/I3/I4/I5/I6 + A5 全部通过（clean S2，4 turns/样本）
+exact-head push CI @8530f09e = success（13m18s，含 mypy baseline）<- 代码绿证
+exact-head PR   CI @8530f09e = infra 停摆（非红、非代码；不重跑）
+=> 判定使用 push-green 作为代码绿证；不宣称"双 CI 通过"。
+```
+
+**T / S / R 映射**：
+
+```text
+T1 代码资格已满足          ✅（CI push 绿）
+T2 观测通道可回读          ✅（durable_adjudication 入 turn 记录）
+T3 回退开关可操作          ✅（LEARNER_STATE_DURABLE_READ 默认 OFF，置回即恢复）
+T4 无未决 regression       ✅（mypy 回归已修；I1–I6/A5 实测）
+T5 不含 durable 写入权     ✅（I1/I4：durable goal 计数 1 -> 1）
+
+S1 指定环境起始            ✅（受控 harness，进程内 flag）
+S2 观察窗口（对照 OFF）    ✅（diff CONFLICT / equal MATCH；I2 exactly-once）
+S3 逐级扩大                ⏳ 部署执行项（本裁定只封板资格，不执行扩大）
+S4 全量 ON                 ⏳ 部署执行项
+
+R1 flag OFF 恢复 legacy    ✅（I5：flag OFF 无记录；行为不变）
+R2 无不可逆副作用          ✅（I6：持久化 objective 仍为 legacy；Phase 2 只读 durable）
+R3 无需数据迁移            ✅（无 schema / 无持久化变更）
+```
+
+**裁定**：
+
+```text
+Phase 2 = QUALIFIED FOR CONTROLLED DEPLOYMENT
+
+即：durable objective 可作为受 flag 控制的 runtime decision authority；
+legacy persistence authority 保留；失败自动回落 legacy。
+
+明确不是：
+  migration
+  full durable authority cutover
+  Phase 3
+  legacy retirement
+```
+
+**边界（冻结）**：本裁定**只封板资格**，不执行 flag-flip；
+实际启用仍按 §164.33 的 S1–S4 逐级扩大，且 deployment 是**独立操作决定**。
+**§164-E 至此 CLOSED**；下一阶段为 §164 CLOSED 后的 **StudyContext 对比实验**（§164.36）。
+
+## §165 NextStep lifecycle
+
+### 165.1 §165-A NextStep lifecycle qualification（只读审计，2026-10-01）
+
+**范围**：只回答 5 个问题；**不做 authority cutover**。
+**StudyContext 状态**：`validated candidate, deferred`（§164.36 实验证明其不退化，但未证明降复杂度；
+**不再做合成实验**，等 §165/§168 制造真实压力后再一次裁定）。
+
+```text
+Q1 durable NextStep 的 owner 是谁
+   -> learning_closure_truth.py（closure truth 边界内）
+      _ensure_primary_next_step(goal_id, text) 创建 NextStep(is_primary=True)
+      _active_primary_next_step(goal_id) 读取当前 primary
+      learning_semantic_closure.py 亦构造 NextStep
+
+Q2 谁可以 create / replace / complete
+   -> 仅 closure 写路径（LearningClosureTruthService）。
+      status 字段存在（默认 "active"）=> complete/replace 语义**已在模型内**，
+      但**当前无普通 turn 或 API 的写入口**。
+
+Q3 LearnerModel 怎么读取当前 primary next step
+   -> **读不到**：LearnerModelSnapshot 字段为
+      thread_id/source/goal_id/topic_id/objective/goal_status/claim_states/
+      unresolved_count/evaluation/confirmed_profile
+      —— **无 next_step 字段**。
+   => 这正是 §164 G3 = legacy_fallback 的根因（投影未暴露 durable NextStep）。
+
+Q4 legacy unresolved_gap(str) vs durable NextStep
+   -> durable NextStep = 富对象：id / goal_id / text / status / is_primary /
+      created_at / updated_at
+      legacy unresolved_gap = **单个字符串**
+   => 仅 text 可能对齐；id/status/is_primary/resume 语义**无 legacy 对应**
+   => 判定：**not comparable（同 G2 性质）**，不得强转成字符串。
+
+Q5 ordinary chat 能否偷偷写 durable NextStep
+   -> **不能**：chat_service.py 与 src/api/ **零引用**
+      LearningClosureTruthService / learning_closure_truth。
+```
+
+**结论（重要，第一次真实生产证据）**：durable NextStep **已经需要**
+`id / status / is_primary / resume semantics`，而 legacy 只有一个字符串
+=> **这正是 §164.36 预判的情形**：StudyContext 的必要性首次获得**真实生产证据**
+（而非合成实验）。但**本刀仍不引入 StudyContext**，只记录。
+
+**下一步（§165 后续，非本刀）**：
+
+```text
+① durable NextStep lifecycle 本身先闭合（owner / create / replace / complete）
+② read projection：把 primary NextStep 加入 LearnerModelSnapshot
+③ shadow / parity：判定与 legacy unresolved_gap 的可比性
+④ 再决定 runtime authority（不照抄 objective 的接法）
+⑤ 最后才切换
+```
+
+**搜索边界（冻结）**：NextStep 可指向"需要 research"，但**不得** `NextStep -> 直接调用 RQCE`；
+保持 `LearnerTruth(下一步是什么) / Chat-runtime(是否需要 research) / Research Engine(怎么查)` 的边界。
+
+### 165.2 §165-B read projection 结果（2026-10-01）
+
+```text
+LearnerModelSnapshot 新增（additive，默认空）：next_step_id / next_step_text / next_step_status
+LearnerModelService.build 从 truth 读取 active+primary NextStep 并填充
+LearningTruthReader protocol 补 list_next_steps_for_goal
+=> **read projection 缺口已闭合**（此前 G3 回退 legacy 的根因）
+边界：**projection only** —— 无 authority 变更、无 runtime 切换
+提交：4cfa689f
+```
+
+### 165.3 §165-C parity 判定：**触及冻结测量仪，需显式版本裁决**（2026-10-01）
+
+**关键治理点**：判定 durable NextStep vs legacy `unresolved_gap` 的可比性，
+必须让 parity 投影携带 durable next step；但该投影位于
+`src/application/learner_state_parity_observer.py::build_durable_projection`
+—— **属 §164-C1 冻结的测量仪**（`next_steps=()` 为冻结值）。
+
+```text
+现状：build_durable_projection.next_steps = ()（冻结）
+      => next_step 维度恒为 MATCH（两侧皆空）或 LEGACY_ONLY
+      与 D 分布观察一致（next_step: MATCH 15）
+
+若要真实判定，必须把 snapshot.next_step_text 接入 durable.next_steps
+=> **这是修改冻结测量仪**，§164-C2 明文禁止"改测量仪"。
+```
+
+**裁决（本刀只记录，不执行）**：两条合法路径，**不得静默改投影**：
+
+```text
+路径 1（推荐）：**测量仪版本升级**（instrument v2）
+  显式声明：parity 观测增加 next_step durable 侧来源；记录版本号与新基线；
+  旧 v1 结果保留为历史，不混算。
+路径 2：**独立的 next-step 比较器**
+  不动 parity instrument；为 NextStep 单独写一个只读比较器（与 G2 同理）。
+```
+
+**判据预告（基于 `_classify_next_step` 既有规则，不改）**：durable `NextStep.text`
+与 legacy `unresolved_gap` 若文本不同，按既有规则为 `EXPLAINED_DIVERGENCE`
+（"different producers, not necessarily a defect"）—— **不是 defect**。
+
+**下一步（§165 后续）**：先做路径 1 或 2 的裁决，再取真实判定；
+**在裁决前不得改 `build_durable_projection`**。
+
+### 165.4 §165 G3 正式裁决（冻结，2026-10-01）：双语义并存，不做 cutover
+
+**依据**：§165-C 真实输入 `DURABLE_ONLY` + 合成 `EXPLAINED_DIVERGENCE`（两者均非 defect 类）。
+
+```text
+legacy unresolved_gap = 当前教学轮次的即时缺口 / pedagogy-local state  -> **legacy authority**
+durable NextStep      = closure 后确认的跨 turn 学习行动 / resume anchor -> **durable authority**
+=> durable NextStep **≠** legacy unresolved_gap
+   **不是** durable-preferred / legacy-fallback，
+   而是**两个不同维度，各自拥有语义与 authority**。
+```
+
+**运行时规则（冻结）**：
+
+```text
+durable 有 / legacy 空   -> resume / cross-turn 用 durable；**不填充 unresolved_gap**
+durable 空 / legacy 有   -> 当前教学继续用 legacy gap
+两者文本相同             -> 仍视为两个来源，**不因此合并 ownership**
+两者不同                 -> **正常 coexistence，不是 conflict**
+durable reader 失败      -> **不影响** legacy 当前轮教学
+=> **不得给 adjudicate() 再加 next_step -> unresolved_gap 分支**
+```
+
+## §168 Misconception lifecycle
+
+### 168.1 §168-A Misconception lifecycle qualification（只读审计，2026-10-01）
+
+**问题一：legacy misconception 到底是什么？**
+
+```text
+= **本轮 evaluator 的 observation**
+  PedagogyEvalRun.semantic_result.misconceptions + deterministic_result["misconceptions"]
+  => 是"这一轮观察到的疑似误区"，**不是长期事实**。
+```
+
+**问题二：durable misconception 应该是什么？（当前答案：尚不存在）**
+
+```text
+ProposedMisconception（learning_closure_candidate.py:96）存在，但其 docstring 明文：
+  "A suspected misconception. **Lifecycle states belong to 168, not here.**"
+  "…a misconception proposal is not [the semantic-label authority]"
+=> 只有 **proposal**，**没有 durable truth**；lifecycle 被显式留给 §168。
+```
+
+**问题三：谁有写 authority？**
+
+```text
+**当前无人**：无 durable misconception 持久化。
+  learning_semantic_closure.py:128-132 仅**收集** run 的 misconceptions；
+  parity observer 注释："The durable misconception lifecycle does not exist yet (168)"。
+```
+
+**问题四：read projection？**
+
+```text
+**无**：build_durable_projection 的 misconception_labels 冻结为 ()（§164-C1 instrument）。
+=> 与 §165-C 同理，真实比较需要独立 comparator（路径 2），**不得改冻结 instrument**。
+```
+
+**结论（§168 的预判得到证实）**：
+
+```text
+observation ≠ durable truth
+=> G4 与 G3 **不同**：G4 是 **observation vs durable truth（promotion / validation 语义）**。
+```
+
+**融合规则汇总（StudyContext 价值的关键证据）**：
+
+```text
+G1 objective      -> **override**（replacement semantics）
+G2 understanding  -> **heterogeneous representations**（claim IDs vs text points，不可比）
+G3 next_step      -> **coexist**（双语义并存）
+G4 misconception  -> **observation vs durable truth**（promotion / validation）
+```
+
+**本刀边界（冻结）**：**不假设** durable misconception 应替换 legacy；
+**不改** runtime authority；**不给 adjudicate() 加 misconception 分支**；
+**不改** §164-C1 冻结 instrument。
+
+**下一步（§168 后续）**：durable misconception 最小语义 + 写 authority 定义
+-> read projection（独立 comparator，路径 2）-> G4 authority 裁决
+-> **§165+§168 之后**做最终 StudyContext A/B（届时可**直接计数**：
+A 的 adjudication 分支 / restore 特例 / coercion / authority exception
+vs B 的 read-time projection rule 与是否消除 writeback 防护）。
+
+### 168.2 §168-B durable misconception 最小语义 + 写 authority（冻结，2026-10-01）
+
+**设计依据**：`ProposedMisconception` 已有 `description / pedagogy_eval_ref / basis /
+authority_required`，且其 docstring 明确 `label` 属 semantic-label authority、proposal 不是它。
+=> durable 侧**沿用"描述而非标签"**的纪律。
+
+**最小 durable 语义（冻结）**：
+
+```text
+LearnerMisconception（durable，最小字段集）
+  id
+  goal_id
+  description        <- 描述，**不是 label**（label 属 semantic-label authority）
+  status             <- "suspected" | "confirmed" | "resolved"
+  occurrence_count   <- 观察计数（promotion 的依据）
+  first_seen_at / last_seen_at
+  source_eval_ref    <- 首次观察的 evaluation 引用
+=> **不引入** priority / severity / 教学动作字段（无真实压力前不加）。
+```
+
+**promotion 语义（冻结，§168 的核心）**：
+
+```text
+observation（legacy，本轮 evaluator）  ≠  durable truth
+=> 首次观察**不得**直接成为 confirmed：
+   第一次 -> status = "suspected"（occurrence_count = 1）
+   再次观察 -> occurrence_count += 1（**仍不自动 confirmed**，阈值留待真实数据裁定）
+   confirmed 需要**显式验证**（后续刀定义），不得由计数自动升级
+=> **ordinary chat 永远不能写**；LLM 亦不可断言
+```
+
+**写 authority（冻结）**：
+
+```text
+唯一写路径 = LearningClosureTruthService（closure commit boundary）
+  —— 与 Claim / Understanding / NextStep 同一边界；
+  ordinary chat / API / PedagogyEngine / LearnerModel **均不可写**。
+```
+
+**读 projection（冻结为下一步，不在本刀）**：
+
+```text
+durable misconception **不进入** §164-C1 冻结 instrument 的 build_durable_projection；
+真实比较走**独立 comparator（路径 2）**，与 §165-C 同法。
+```
+
+**本刀边界（冻结）**：**只冻结语义与 authority 契约**；
+**不实现**持久化 / 写路径 / read projection（留作 §168-C）；
+**不改** runtime authority；**不改** §164-C1 冻结 instrument；**不给 adjudicate() 加分支**。
+
+### 168.3 §168-C 实现结果（2026-10-01）
+
+```text
+触点 1-3（存储层，提交 3f0d5f73）：
+  LearnerMisconception（description 而非 label；默认 suspected / count=1）
+  learner_misconceptions 表（status CHECK 三态 + count CHECK >=1 + (goal_id,status,last_seen_at) 索引）
+  repository: create / get / list_for_goal / find_by_description / update + 行映射
+触点 4（写路径，提交 5029254e）：
+  LearningClosureTruthService._promote_misconceptions（semantic + deterministic 来源）
+    首见 -> suspected / count=1；重复 -> count+=1，**status 不变（不自动 confirmed）**
+  commit 路径在 _focus_or_create_goal 之后调用；唯一写路径 = closure 边界
+三个硬门：ordinary chat ≠ writer ✅｜重复 ≠ 自动 confirmed ✅｜无半接状态 ✅
+测试：存储层 5 + promotion 4；回归 closure truth / commit boundary 全绿
+```
+
+### 168.4 §168-D 结果与 G4 证据（提交 592a79b3）
+
+```text
+label 关系（复用冻结语义，未改 instrument）：
+  neither / both same text / durable confirmed -> MATCH
+  legacy only / durable suspected only / different text -> EXPECTED_DIVERGENCE
+  => misconception 维度**从无 CONFLICT**
+★ 关键：label 关系**无法区分 observation 与 durable truth**
+  同文本在 suspected 与 confirmed 下**都是 MATCH**
+  => 冻结的 label 比较器对 **promotion / validation 语义盲**；
+     promotion 状态必须**旁路携带**，不能由 label 推断。
+```
+
+### 168.5 §168 G4 authority 裁决（冻结，2026-10-01）
+
+```text
+legacy misconception = **本轮 evaluator observation**（transient）
+durable misconception = **带生命周期的 durable record**（suspected -> … -> confirmed/resolved）
+=> G4 = **observation vs durable truth（promotion / validation）**
+   既非字段偏好，也非冻结 classifier 可表达
+=> **G4 不做 authority cutover**：legacy observation 继续用于本轮教学；
+   durable record 作为**独立维度**（promotion 状态由 status 表达）。
+   **不得给 adjudicate() 加 misconception 分支。**
+```
+
+### 168.6 §164.36 最终 StudyContext A/B 裁决（冻结，2026-10-01）
+
+**这是 §164.36 约定的最终裁决实验（不再逐轮抽象验证）。**
+
+**A 的实测复杂度（直接计数）**：
+
+```text
+gate branches      : 5（G1–G5），7 处 gate= 决策点
+decision kinds     : 4（durable_preferred / legacy_fallback / not_comparable / expected_divergence）
+chat_service 特例  : ~7（legacy 副本 / snapshot 初始化 / adjudication 初始化 / flag 检查 /
+                       reader 调用 / adjudicate 调用 / fail-open 复位 / 发射）
+restore 特例       : 1（objective 还原）
+adapter 规模       : 217 行
+```
+
+**B 的评估（基于四种真实融合规则）**：
+
+```text
+G1 override / G2 heterogeneous / G3 coexist / G4 promotion
+=> 这 4 条融合规则是**领域固有**（两套系统真实不同），
+   **不是 A 的产物**；B 只能**搬移**它们（adjudicate+restore -> read projection），
+   **不能消除**。
+B 相对 A 的实际节省：约 2 处特例（无需 restore、无需 writeback 防护）
+B 的额外成本：新增 StudyContext 类型 + projection 层 + 新的 read-time 规则位置
+```
+
+**裁决**：
+
+```text
+**B 未明显降低复杂度** -> 按 §164.36 冻结判据：
+**StudyContext 保持 deferred（除非未来出现新的真实压力）**。
+维持现状 A：`LearningState + adjudication` + 独立 comparator（§165-C / §168-D）。
+```
+
+**理由（冻结）**：复杂度来自**领域的四种真实差异**，而非当前接法；
+引入 B 会新增结构而不消除规则。**功能先向前走，让真实复杂度决定是否需要抽象。**
+
+## §169 Retention / Review
+
+### 169.1 §169-A Retention / Review Contract（冻结，2026-10-01）
+
+**阶段目标（冻结）**：不是"做一个复习算法"，而是闭合产品能力 ——
+**系统不仅知道"你学过什么"，还知道"哪些理解已过时或该重新验证、下一次从哪里继续"。**
+
+**四个问题的回答**：
+
+```text
+Q1 什么东西可以 review？
+   -> **已确认的 Understanding**（durable UnderstandingEvidence + UnderstandingResult）
+      即"曾经 pass 过、但时间在流逝"的理解单元。
+      **不是**：未确认的 proposal / suspected misconception / 本轮 legacy gap。
+
+Q2 什么触发 review due？
+   -> **纯时间维度**：`now - last_validated_at >= interval`
+      interval 初版 = **固定常量**（不引入 SM-2 / FSRS / difficulty-stability）。
+      后续若真实数据表明固定 interval 不够，再演进（见 M3 后决策）。
+   -> **不因** misconception / next step / gap 触发 review（各自语义独立）。
+
+Q3 review 成功/失败产生什么 durable evidence？
+   -> 一次 review = 一次**真实 turn + evaluation**，走既有 closure 边界：
+      review pass -> 新增 UnderstandingEvidence（更新 last_validated_at）
+      review fail -> 不降级既有 Understanding；作为本轮 observation（可进 §168 suspected）
+   -> **不新增**独立的 review-result 真值类型；复用 UnderstandingEvidence。
+
+Q4 谁有权更新 review 状态？
+   -> 与既有 authority 一致：**只有 LearningClosureTruthService**（closure 边界）。
+      ordinary chat / API / PedagogyEngine / LearnerModel **均不可写**。
+   -> 若采用纯读投影（§169-B），则 **无独立 review 状态可写**：
+      "due/not_due" 是**派生视图**，不是持久化真值。
+```
+
+**最小模型（优先验证"不新增实体"，§169-B）**：
+
+```text
+UnderstandingEvidence timestamps
+        +
+latest validation result
+        ↓
+  ReviewProjection（派生，只读）
+  ├─ due        （now - last_validated_at >= interval）
+  ├─ not_due
+  └─ reason
+```
+
+**冻结边界（不做）**：
+
+```text
+✗ StudyContext / universal coordinator / effect bus
+✗ G2/G3/G4 runtime adjudication（已收缩为 G1-only）
+✗ 现在做 misconception confirmed（等真实 review 需求）
+✗ 现在做完整 spaced repetition：SM-2 / FSRS / difficulty-stability /
+  personalized forgetting curve / scheduler daemon / notification
+```
+
+**三者语义独立（冻结，M3 合流时不得重新揉合）**：
+
+```text
+durable NextStep       = 跨轮恢复锚点（该继续做什么）
+ReviewProjection       = 该不该复习（时间维度）
+current-turn legacy gap = 这一轮正在解决什么（pedagogy-local）
+```
+
+**里程碑（冻结）**：
+
+```text
+M1 Review Contract（本节）      -> due/not_due 语义冻结
+M2 Review works end-to-end      -> 到期 -> 出题/解释 -> 评估 -> 写 UnderstandingEvidence
+M3 Resume + Review 合流         -> 打开线程时正确回答：
+                                   继续上次 NextStep / 先复习已到期 Claim / 处理当前 gap
+```
+
+**下一步（§169-B，非本刀）**：实现 ReviewProjection（纯读，优先不新增实体），
+先证明"纯读投影是否够用"；不够才考虑 ReviewItem persistence。

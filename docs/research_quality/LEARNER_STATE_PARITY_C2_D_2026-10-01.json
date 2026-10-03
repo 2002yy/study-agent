@@ -1,0 +1,97 @@
+{
+  "schema_version": "learner-state-parity-collection-v1",
+  "population": "D",
+  "condition": "legacy_substantive_then_real_closure",
+  "q5_isolation": {
+    "reuses_q5_thread": false,
+    "reuses_q5_run": false,
+    "counts_q5_parity": false,
+    "q5_role": "construction_and_continuation_authority_only"
+  },
+  "legacy_before_projection": {
+    "objective": "recover durable resume",
+    "protocol": "socratic_rediscovery",
+    "known_points_count": 0
+  },
+  "closure_evidence": {
+    "create_and_execute_status": "preview_ready",
+    "commit_status": "completed",
+    "commit_error": "",
+    "run_id": "closure_48ccaca3d5754d8381413b4e1a2b4d05",
+    "thread_id": "d-thread"
+  },
+  "durable_post_closure_projection": {
+    "goal_id": "goal_ecf6ea2c476292ddc365c4a0",
+    "objective": "recover session recovery by durable owner",
+    "confirmed_points_count": 0,
+    "unresolved_count": 0
+  },
+  "durable_persistence_evidence": {
+    "source": "derived_read_only",
+    "goal_status": "active",
+    "valid": true
+  },
+  "observation_legacy_projection": {
+    "objective": "recover durable resume",
+    "confirmed_points_count": 0
+  },
+  "continuity": {
+    "same_thread": true,
+    "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+    "lineage_thread_id_aligned": true
+  },
+  "stratum_assignment": "D",
+  "observed_state": {
+    "legacy_substantive": true,
+    "durable_substantive": true
+  },
+  "parity": {
+    "overall": "CONFLICT",
+    "five_dimensions": {
+      "goal_objective": "CONFLICT",
+      "understanding": "NOT_COMPARABLE",
+      "next_step": "MATCH",
+      "misconception": "MATCH",
+      "freshness": "EXPECTED_DIVERGENCE"
+    }
+  },
+  "gates": [
+    {
+      "gate": "legacy_substantive",
+      "status": "PASS",
+      "detail": "recover durable resume"
+    },
+    {
+      "gate": "closure_preview_ready",
+      "status": "PASS",
+      "detail": "preview_ready"
+    },
+    {
+      "gate": "closure_committed",
+      "status": "PASS",
+      "detail": "completed"
+    },
+    {
+      "gate": "durable_substantive",
+      "status": "PASS",
+      "detail": "recover session recovery by durable owner"
+    },
+    {
+      "gate": "subsequent_turn_accepted",
+      "status": "PASS",
+      "detail": "accepted"
+    },
+    {
+      "gate": "stratum_is_D",
+      "status": "PASS",
+      "detail": "D"
+    },
+    {
+      "gate": "parity_recorded",
+      "status": "PASS",
+      "detail": "CONFLICT"
+    }
+  ],
+  "all_pass": true,
+  "first_fail": null
+}

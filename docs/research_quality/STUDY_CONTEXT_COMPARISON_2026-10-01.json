@@ -1,0 +1,61 @@
+{
+  "schema_version": "study-context-comparison-v1",
+  "contract": "164.36",
+  "note": "harness-local prototype; no production change",
+  "case_count": 4,
+  "planner_agreement": 4,
+  "rows": [
+    {
+      "case": "durable-objective + claims",
+      "A_effective_objective": "recover session recovery",
+      "B_effective_objective": "recover session recovery",
+      "B_objective_source": "durable",
+      "A_planner_move": "direct_explain",
+      "B_planner_move": "direct_explain",
+      "planner_agrees": true,
+      "A_understanding_comparable": false,
+      "B_carries_durable_claim_ids": 2,
+      "B_carries_legacy_points": 1,
+      "B_can_attach_research_brief": true
+    },
+    {
+      "case": "durable-objective only",
+      "A_effective_objective": "recover session recovery",
+      "B_effective_objective": "recover session recovery",
+      "B_objective_source": "durable",
+      "A_planner_move": "direct_explain",
+      "B_planner_move": "direct_explain",
+      "planner_agrees": true,
+      "A_understanding_comparable": false,
+      "B_carries_durable_claim_ids": 0,
+      "B_carries_legacy_points": 1,
+      "B_can_attach_research_brief": true
+    },
+    {
+      "case": "no durable objective",
+      "A_effective_objective": "recover durable resume",
+      "B_effective_objective": "recover durable resume",
+      "B_objective_source": "legacy",
+      "A_planner_move": "direct_explain",
+      "B_planner_move": "direct_explain",
+      "planner_agrees": true,
+      "A_understanding_comparable": false,
+      "B_carries_durable_claim_ids": 1,
+      "B_carries_legacy_points": 1,
+      "B_can_attach_research_brief": true
+    },
+    {
+      "case": "equal objectives",
+      "A_effective_objective": "recover durable resume",
+      "B_effective_objective": "recover durable resume",
+      "B_objective_source": "durable",
+      "A_planner_move": "direct_explain",
+      "B_planner_move": "direct_explain",
+      "planner_agrees": true,
+      "A_understanding_comparable": false,
+      "B_carries_durable_claim_ids": 1,
+      "B_carries_legacy_points": 1,
+      "B_can_attach_research_brief": true
+    }
+  ]
+}

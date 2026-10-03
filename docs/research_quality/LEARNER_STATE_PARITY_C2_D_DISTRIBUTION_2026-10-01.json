@@ -1,0 +1,1517 @@
+{
+  "schema_version": "learner-state-parity-collection-v1",
+  "population": "D",
+  "condition": "legacy_substantive_then_real_closure",
+  "sample_count": 15,
+  "q5_isolation": {
+    "reuses_q5_thread": false,
+    "reuses_q5_run": false,
+    "counts_q5_parity": false,
+    "q5_role": "construction_and_continuation_authority_only"
+  },
+  "stratum_from_observed_state": [
+    "D"
+  ],
+  "overall_classification": {
+    "CONFLICT": 6,
+    "NOT_COMPARABLE": 2,
+    "MISSING_DURABLE": 7
+  },
+  "per_dimension": {
+    "freshness": {
+      "EXPECTED_DIVERGENCE": 15
+    },
+    "goal_objective": {
+      "CONFLICT": 6,
+      "MATCH": 7,
+      "COMPATIBLE": 2
+    },
+    "misconception": {
+      "MATCH": 15
+    },
+    "next_step": {
+      "MATCH": 15
+    },
+    "understanding": {
+      "NOT_COMPARABLE": 4,
+      "MISSING_DURABLE": 11
+    }
+  },
+  "understanding_attribution": {
+    "MISSING_DURABLE": "legacy carries known points; durable snapshot reports no confirmed understanding",
+    "NOT_COMPARABLE": "neither side carries understanding evidence (objective-only legacy sample)",
+    "note": "understanding MISSING_DURABLE is a real D signature, not a construction artifact"
+  },
+  "samples": [
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "s1",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "recover durable resume",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 0
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_3e659baf9c0249f3a1a0b96775b90e3a",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_00a0a64eb09c58c1667b007a",
+        "objective": "recover session recovery by durable owner",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "recover durable resume",
+        "confirmed_points_count": 0
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "NOT_COMPARABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "recover durable resume"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "recover session recovery by durable owner"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "s2",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "understand graph traversal",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 0
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_128b1537c7ea4c118904c4391b43c5d1",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_400e30f52713e869c85650c2",
+        "objective": "understand graph traversal",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "understand graph traversal",
+        "confirmed_points_count": 0
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "NOT_COMPARABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "NOT_COMPARABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "understand graph traversal"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "understand graph traversal"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "NOT_COMPARABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "s3",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "learn binary search bounds",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 0
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_667c187ed5a844e4bed7c9d92b2e9c4f",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_206eebe0ea5c44f2c708cd7f",
+        "objective": "learn binary search invariant",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "learn binary search bounds",
+        "confirmed_points_count": 0
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "NOT_COMPARABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "learn binary search bounds"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "learn binary search invariant"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "e1",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "recover durable resume",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 2
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_6ab32112c5644e70abe8416c080edc92",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_4911355aa5a8b3c5b080b19e",
+        "objective": "recover session recovery by durable owner",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "recover durable resume",
+        "confirmed_points_count": 2
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "recover durable resume"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "recover session recovery by durable owner"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "e2",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "understand graph traversal",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 2
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_ba9370e2f35345eebd24fbdb82f4476e",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_60ea22866475b722ea448688",
+        "objective": "understand graph traversal",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "understand graph traversal",
+        "confirmed_points_count": 2
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "understand graph traversal"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "understand graph traversal"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "e3",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "learn binary search bounds",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_93fb40213ba94d1d9907c5105e15a730",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_d799773cefa8a2382b04859d",
+        "objective": "learn binary search invariant",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "learn binary search bounds",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "learn binary search bounds"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "learn binary search invariant"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "e4",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "study hash collisions",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 0
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_11cf709b1bf84348ade93e42a76a1429",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_c1aa5b225248f82ee867ca8f",
+        "objective": "study hash collisions",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "study hash collisions",
+        "confirmed_points_count": 0
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "NOT_COMPARABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "NOT_COMPARABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "study hash collisions"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "study hash collisions"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "NOT_COMPARABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f1",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "analyze recursion depth",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 2
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_3f3526440cff4da0add0da0c4efc3aef",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_bf2e5d1f52a8379edd220e45",
+        "objective": "analyze recursion depth",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "analyze recursion depth",
+        "confirmed_points_count": 2
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "analyze recursion depth"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "analyze recursion depth"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f2",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "compare sorting algorithms",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_741a1795464a40588b64a94caf7cebbe",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_e51a54287269544c88f65cae",
+        "objective": "compare sorting complexity",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "compare sorting algorithms",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "compare sorting algorithms"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "compare sorting complexity"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f3",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "explain TCP handshake",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 2
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_51b37450524d4fc6b17f61e5f068f9e0",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_44512123d1fd1c7e6feb3103",
+        "objective": "explain TCP handshake",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "explain TCP handshake",
+        "confirmed_points_count": 2
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "explain TCP handshake"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "explain TCP handshake"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f4",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "study cache eviction",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_eb7197fc58ba423992da72765459fd92",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_ac2f411590cb38f247e61d81",
+        "objective": "study cache eviction policy",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "study cache eviction",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "COMPATIBLE",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "study cache eviction"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "study cache eviction policy"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f5",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "understand deadlock avoidance",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_c00369938689437fac0463ee4d220107",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_45a483f6df3c29266e097411",
+        "objective": "understand deadlock avoidance",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "understand deadlock avoidance",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "understand deadlock avoidance"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "understand deadlock avoidance"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f6",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "learn index structures",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_5dc372216b6a4e82a3fcde8edb33ab51",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_59865ed70d36c6109d3e64a3",
+        "objective": "learn B-tree index layout",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "learn index structures",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "CONFLICT",
+        "five_dimensions": {
+          "goal_objective": "CONFLICT",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "learn index structures"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "learn B-tree index layout"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "CONFLICT"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f7",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "trace memory paging",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_6a1d83025038437cbfd84368ccb62e89",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_fb6f334c7b6a9e5805230aa9",
+        "objective": "trace memory paging",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "trace memory paging",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "MATCH",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "trace memory paging"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "trace memory paging"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    },
+    {
+      "schema_version": "learner-state-parity-collection-v1",
+      "population": "D",
+      "condition": "legacy_substantive_then_real_closure",
+      "sample_id": "f8",
+      "q5_isolation": {
+        "reuses_q5_thread": false,
+        "reuses_q5_run": false,
+        "counts_q5_parity": false,
+        "q5_role": "construction_and_continuation_authority_only"
+      },
+      "legacy_before_projection": {
+        "objective": "review event loop",
+        "protocol": "socratic_rediscovery",
+        "known_points_count": 1
+      },
+      "closure_evidence": {
+        "create_and_execute_status": "preview_ready",
+        "commit_status": "completed",
+        "commit_error": "",
+        "run_id": "closure_e05ec95fda2c4089863b440c3c33b2cf",
+        "thread_id": "d-thread"
+      },
+      "durable_post_closure_projection": {
+        "goal_id": "goal_04d91d1dc231ca48a489a58b",
+        "objective": "review event loop scheduling",
+        "confirmed_points_count": 0,
+        "unresolved_count": 0
+      },
+      "durable_persistence_evidence": {
+        "source": "derived_read_only",
+        "goal_status": "active",
+        "valid": true
+      },
+      "observation_legacy_projection": {
+        "objective": "review event loop",
+        "confirmed_points_count": 1
+      },
+      "continuity": {
+        "same_thread": true,
+        "closure_continuation_contract": "CONTINUES_WITH_CHANGED_SEMANTICS",
+        "lineage_thread_id_aligned": false
+      },
+      "stratum_assignment": "D",
+      "observed_state": {
+        "legacy_substantive": true,
+        "durable_substantive": true
+      },
+      "parity": {
+        "overall": "MISSING_DURABLE",
+        "five_dimensions": {
+          "goal_objective": "COMPATIBLE",
+          "understanding": "MISSING_DURABLE",
+          "next_step": "MATCH",
+          "misconception": "MATCH",
+          "freshness": "EXPECTED_DIVERGENCE"
+        }
+      },
+      "gates": [
+        {
+          "gate": "legacy_substantive",
+          "status": "PASS",
+          "detail": "review event loop"
+        },
+        {
+          "gate": "closure_preview_ready",
+          "status": "PASS",
+          "detail": "preview_ready"
+        },
+        {
+          "gate": "closure_committed",
+          "status": "PASS",
+          "detail": "completed"
+        },
+        {
+          "gate": "durable_substantive",
+          "status": "PASS",
+          "detail": "review event loop scheduling"
+        },
+        {
+          "gate": "subsequent_turn_accepted",
+          "status": "PASS",
+          "detail": "accepted"
+        },
+        {
+          "gate": "stratum_is_D",
+          "status": "PASS",
+          "detail": "D"
+        },
+        {
+          "gate": "parity_recorded",
+          "status": "PASS",
+          "detail": "MISSING_DURABLE"
+        }
+      ],
+      "all_pass": true,
+      "first_fail": null
+    }
+  ]
+}

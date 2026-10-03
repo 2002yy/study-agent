@@ -1,0 +1,85 @@
+{
+  "schema_version": "misconception-parity-probe-v1",
+  "namespace": "learner-misconception-parity-probe-168",
+  "contract": "168-D",
+  "note": "independent thin comparator; reuses the frozen classifier for the label relation and reports the promotion state separately; does NOT modify the 164 parity instrument; results are 168 evidence only",
+  "case_count": 6,
+  "label_relations": [
+    "EXPECTED_DIVERGENCE",
+    "MATCH"
+  ],
+  "rows": [
+    {
+      "case": "neither side",
+      "legacy_observations": [],
+      "durable_descriptions": [],
+      "label_relation": "MATCH",
+      "durable_statuses": [],
+      "any_promoted": false
+    },
+    {
+      "case": "legacy observation only",
+      "legacy_observations": [
+        "replays full history"
+      ],
+      "durable_descriptions": [],
+      "label_relation": "EXPECTED_DIVERGENCE",
+      "durable_statuses": [],
+      "any_promoted": false
+    },
+    {
+      "case": "durable suspected only",
+      "legacy_observations": [],
+      "durable_descriptions": [
+        "replays full history"
+      ],
+      "label_relation": "EXPECTED_DIVERGENCE",
+      "durable_statuses": [
+        "suspected"
+      ],
+      "any_promoted": false
+    },
+    {
+      "case": "both, same text",
+      "legacy_observations": [
+        "replays full history"
+      ],
+      "durable_descriptions": [
+        "replays full history"
+      ],
+      "label_relation": "MATCH",
+      "durable_statuses": [
+        "suspected"
+      ],
+      "any_promoted": false
+    },
+    {
+      "case": "both, different text",
+      "legacy_observations": [
+        "replays full history"
+      ],
+      "durable_descriptions": [
+        "bucket drift"
+      ],
+      "label_relation": "EXPECTED_DIVERGENCE",
+      "durable_statuses": [
+        "suspected"
+      ],
+      "any_promoted": false
+    },
+    {
+      "case": "durable confirmed",
+      "legacy_observations": [
+        "replays full history"
+      ],
+      "durable_descriptions": [
+        "replays full history"
+      ],
+      "label_relation": "MATCH",
+      "durable_statuses": [
+        "confirmed"
+      ],
+      "any_promoted": true
+    }
+  ]
+}

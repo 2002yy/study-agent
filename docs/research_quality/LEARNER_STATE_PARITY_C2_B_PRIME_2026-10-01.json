@@ -1,0 +1,89 @@
+{
+  "condition": "durable_truth_empty_no_closure",
+  "observation_count": 2,
+  "overall_classification": {
+    "NOT_COMPARABLE": 2
+  },
+  "per_dimension": {
+    "freshness": {
+      "EXPECTED_DIVERGENCE": 2
+    },
+    "goal_objective": {
+      "NOT_COMPARABLE": 2
+    },
+    "misconception": {
+      "MATCH": 2
+    },
+    "next_step": {
+      "MATCH": 2
+    },
+    "understanding": {
+      "NOT_COMPARABLE": 2
+    }
+  },
+  "population": "B_PRIME",
+  "records": [
+    {
+      "construction_precondition": {
+        "knowledge_kind_actual": "empirical",
+        "knowledge_kind_declared": "empirical",
+        "mode": "苏格拉底"
+      },
+      "observed_state": {
+        "durable_substantive": false,
+        "legacy_confirmed_points_count": 0,
+        "legacy_objective_present": false,
+        "legacy_substantive": false
+      },
+      "parity": {
+        "five_dimensions": {
+          "freshness": "EXPECTED_DIVERGENCE",
+          "goal_objective": "NOT_COMPARABLE",
+          "misconception": "MATCH",
+          "next_step": "MATCH",
+          "understanding": "NOT_COMPARABLE"
+        },
+        "overall": "NOT_COMPARABLE"
+      },
+      "stratum_assignment": "A",
+      "turn": "哪一年出现了史上最强的飓风"
+    },
+    {
+      "construction_precondition": {
+        "knowledge_kind_actual": "empirical",
+        "knowledge_kind_declared": "empirical",
+        "mode": "苏格拉底"
+      },
+      "observed_state": {
+        "durable_substantive": false,
+        "legacy_confirmed_points_count": 0,
+        "legacy_objective_present": false,
+        "legacy_substantive": false
+      },
+      "parity": {
+        "five_dimensions": {
+          "freshness": "EXPECTED_DIVERGENCE",
+          "goal_objective": "NOT_COMPARABLE",
+          "misconception": "MATCH",
+          "next_step": "MATCH",
+          "understanding": "NOT_COMPARABLE"
+        },
+        "overall": "NOT_COMPARABLE"
+      },
+      "stratum_assignment": "A",
+      "turn": "最新的 Python 版本是多少"
+    }
+  ],
+  "schema_version": "learner-state-parity-collection-v1",
+  "shadow_status": {
+    "ok": 2
+  },
+  "stratum_from_observed_state": [
+    "A"
+  ],
+  "stratum_hint": "legacy_substantive_durable_absent",
+  "turns": [
+    "哪一年出现了史上最强的飓风",
+    "最新的 Python 版本是多少"
+  ]
+}
