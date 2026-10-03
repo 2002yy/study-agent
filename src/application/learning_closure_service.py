@@ -5,8 +5,6 @@ from __future__ import annotations
 import builtins
 from collections.abc import Callable
 from dataclasses import asdict
-import hashlib
-import json
 import logging
 from typing import Any, Protocol
 
@@ -14,7 +12,10 @@ from src.after_session import after_session_to_memory_updates
 from src.application.closure_input_builder import build_structured_closure_input
 from src.application.memory_service import MemoryService
 from src.application.session_service import SessionService
-from src.domain.learning_closure import LearningClosureRun
+from src.domain.learning_closure import (
+    LearningClosureRun,
+    canonical_closure_source_hash as _canonical_hash,
+)
 from src.domain.runtime_entities import new_id
 from src.memory import read_memory_bundle
 from src.repositories.learning_closure_repository import LearningClosureRepository
@@ -32,7 +33,9 @@ _LEGACY_LEARNING_PROTOCOLS = {
     "feynman_diagnosis",
     "project_execution",
 }
-_DURABLE_TRUTH_SUCCESS = {"claim_validated", "claim_unverified", "hypothesis"}
+_DURABLE_TRUTH_SUCCESS = {
+    "claim_validated", "claim_unverified", "hypothesis", "review_pass", "review_fail", "review_partial"
+}
 
 
 class LearningClosureNotEligible(ValueError):
@@ -49,16 +52,6 @@ class LearningTruthCommitter(Protocol):
 
 Generator = Callable[..., dict[str, Any]]
 MemoryBundleLoader = Callable[[str], dict[str, str]]
-
-
-def _canonical_hash(value: dict[str, Any]) -> str:
-    payload = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class LearningClosureService:
@@ -152,7 +145,7 @@ class LearningClosureService:
                 last_turn = dict(snapshot.get("last_turn") or {})
                 structured_input = self._structured_input_for_run(run)
                 frozen_memory = structured_input.get("memory_context")
-                generated = self.generator(
+                generated = {"review_attempt": structured_input["review_attempt"]} if "review_attempt" in structured_input else self.generator(
                     structured_input,
                     {
                         str(key): str(value)
@@ -171,8 +164,9 @@ class LearningClosureService:
                 )
 
             self._ensure_active(run.id, operation_id)
-            updates = self._memory_updates(generated)
-            has_durable_candidate = self._has_durable_candidate(generated)
+            is_review = "review_attempt" in (run.committed_snapshot.get("structured_input") or {})
+            updates = [] if is_review else self._memory_updates(generated)
+            has_durable_candidate = is_review or self._has_durable_candidate(generated)
             if not updates and not has_durable_candidate:
                 raise ValueError("无可靠且有来源的学习成果候选")
 
@@ -252,7 +246,10 @@ class LearningClosureService:
                 run.thread_id,
                 last_completed_turn_id=run.last_completed_turn_id,
             )
-            has_durable_candidate = self._has_durable_candidate(run.generated_result)
+            is_review = "review_attempt" in (run.committed_snapshot.get("structured_input") or {})
+            has_durable_candidate = is_review or self._has_durable_candidate(run.generated_result)
+            if is_review and run.memory_run_id:
+                raise ValueError("Review cannot commit a MemoryRun")
             if has_durable_candidate and self.learning_truth_committer is None:
                 commit_stage = "learning_truth"
                 raise ValueError("Durable learning truth committer is unavailable")

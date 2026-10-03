@@ -498,6 +498,31 @@ class LearningTruthRepository:
                 raise
         return evidence
 
+    def commit_review_attempt(self, *, run, binding, evaluation, understanding, result):
+        """Review CAS, replay detection and evidence insert share one commit boundary."""
+        from src.repositories.review_attempt_guard import guard_review_attempt, require
+
+        claim_result = UnderstandingClaimResult(understanding.id, binding.claim_revision_id, result)
+        self._validate_understanding_results(understanding, (claim_result,))
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                existing = connection.execute("SELECT * FROM understanding_evidence WHERE id = ?", (understanding.id,)).fetchone()
+                guard_review_attempt(connection, run=run, binding=binding, evaluation=evaluation, replay=existing is not None)
+                if existing is not None:
+                    rows = connection.execute("SELECT claim_revision_id, result FROM understanding_evidence_claims WHERE understanding_evidence_id = ?", (understanding.id,)).fetchall()
+                    require(existing["method"] == understanding.method and existing["prompt"] == understanding.prompt and existing["user_response"] == understanding.user_response, "attempt key payload conflict")
+                    require([(row[0], row[1]) for row in rows] == [(binding.claim_revision_id, result)], "attempt key target conflict")
+                    stored_understanding = _understanding_from_row(existing)
+                else:
+                    self._insert_understanding(connection, understanding, (claim_result,))
+                    stored_understanding = understanding
+                connection.commit()
+                return stored_understanding
+            except Exception:
+                connection.rollback()
+                raise
+
     def commit_semantic_closure(
         self,
         *,

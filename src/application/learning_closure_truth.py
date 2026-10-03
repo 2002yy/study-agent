@@ -18,11 +18,13 @@ from src.application.learning_outcome_commit import (
     LearningOutcomeCommitService,
 )
 from src.application.learning_semantic_closure import LearningSemanticClosureService
+from src.application.learning_semantic_closure import _map_evaluation_result
 from src.application.learning_source_evidence import (
     EvidenceConvergenceResult,
     LearningSourceEvidenceService,
 )
 from src.domain.learning_closure import LearningClosureRun
+from src.domain.review_turn import ReviewTurnBinding
 from src.domain.runtime_entities import utc_now
 from src.domain.learning_truth import (
     LearnerMisconception,
@@ -76,6 +78,9 @@ class LearningClosureTruthService:
     def commit(self, run: LearningClosureRun) -> LearningClosureTruthResult:
         if run.closure_eligibility != "learning_summary":
             return LearningClosureTruthResult(status="not_learning_closure")
+        structured_input = _structured_input(run)
+        if "review_attempt" in structured_input:
+            return self._commit_review(run, structured_input)
 
         candidate = _candidate(run.generated_result)
         if candidate is None:
@@ -176,6 +181,32 @@ class LearningClosureTruthService:
             claim_revision_id=revision.id,
             understanding_id=closure.understanding.id if closure.understanding else "",
             validation_status=closure.validation_status,
+        )
+
+    def _commit_review(self, run, structured_input) -> LearningClosureTruthResult:
+        attempt = structured_input["review_attempt"]
+        if not isinstance(attempt, dict) or set(attempt) != {"binding", "answer_turn_id", "evaluation_id"}:
+            raise ValueError("Invalid frozen review attempt")
+        binding = ReviewTurnBinding.from_dict(attempt["binding"])
+        if attempt["answer_turn_id"] != run.last_completed_turn_id:
+            raise ValueError("Review answer source mismatch")
+        evaluation = self.evaluation_repository.get_for_turn(run.last_completed_turn_id)
+        if evaluation is None or evaluation.id != attempt["evaluation_id"]:
+            raise ValueError("Review evaluation missing/mismatched")
+        if evaluation.final_decision == "accept" and not _claim_owned_by_evaluation(binding.claim_text, evaluation):
+            raise ValueError("Review accepted a different claim")
+        result = _map_evaluation_result(evaluation)
+        understanding = UnderstandingEvidence(
+            id=_stable_id("understanding_review", run.id, run.last_completed_turn_id, evaluation.id),
+            method=binding.method, prompt=binding.question, user_response=evaluation.learner_input,
+        )
+        stored = self.repository.commit_review_attempt(
+            run=run, binding=binding, evaluation=evaluation, understanding=understanding, result=result,
+        )
+        return LearningClosureTruthResult(
+            status="review_" + result, goal_id=binding.goal_id,
+            claim_revision_id=binding.claim_revision_id, understanding_id=stored.id,
+            validation_status=result,
         )
 
     def _evaluation(

@@ -179,6 +179,7 @@ class ChatCommand:
     turn_id: str | None = None
     operation_id: str | None = None
     answer_validation: dict[str, Any] | None = None
+    review_prompt_turn_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -381,8 +382,80 @@ class ChatService:
             assistant_message=reply,
         )
 
+    def start_review_prompt(
+        self, thread_id: str, revision_id: str, *, turn_id: str, operation_id: str
+    ) -> ChatTurn:
+        from src.application.learning_review import LearningReviewService
+        from src.domain.review_turn import ReviewTurnBinding, read_review_snapshot
+        from src.repositories.learning_truth_repository import LearningTruthRepository
+        from src.task_intent import default_contract
+
+        if not turn_id.strip() or not operation_id.strip():
+            raise ValueError("Review prompt requires turn and operation IDs")
+        existing = self.repository.get_chat_turn(turn_id)
+        if existing is not None:
+            binding = read_review_snapshot(existing.route_snapshot.get("review"), phase="prompt")
+            if (existing.thread_id, binding.claim_revision_id, existing.operation_id) != (
+                thread_id, revision_id, operation_id
+            ) or existing.status != "completed":
+                raise ValueError("Review prompt replay conflicts with existing turn")
+            return existing
+        if self.repository.get_chat_thread(thread_id) is None:
+            raise ValueError("Review session not found")
+        truth = LearningTruthRepository(self.repository.database)
+        preview = LearningReviewService(truth).preview_prompt(thread_id, revision_id)
+        goal = truth.get_focus_goal(thread_id)
+        bundle = truth.get_revision(revision_id)
+        if goal is None or goal.id != preview.goal_id or bundle is None:
+            raise ValueError("Review source changed")
+        binding = ReviewTurnBinding(
+            thread_id, goal.id, revision_id, preview.last_validated_at, turn_id,
+            preview.question, bundle.revision.claim_text, goal.objective,
+            tuple(item.source.id for item in bundle.evidence),
+        )
+        binding = ReviewTurnBinding.from_dict(binding.to_dict())
+        route = {
+            "review": binding.snapshot("prompt"),
+            "task_contract": replace(default_contract("explain_back"), source_policy="local_only").to_dict(),
+        }
+        self.repository.acquire_chat_operation(thread_id, operation_id)
+        try:
+            self.repository.add_chat_turn(ChatTurn(
+                id=turn_id, thread_id=thread_id, operation_id=operation_id,
+                user_message="开始复习", status="pending", route_snapshot=route,
+            ))
+            self._make_cancel_check(turn_id, operation_id)("review_prompt")
+            completed = self.repository.update_chat_turn(
+                turn_id, assistant_message=binding.question, status="completed",
+                route_snapshot=route, pedagogy_snapshot={"move": "invite_explanation", "phase": "review"},
+                expected_status="pending", expected_operation_id=operation_id,
+                enforce_operation_owner=True, forbid_cancel_requested=True, release_operation=True,
+            )
+            if completed is None:
+                raise ValueError("Review prompt disappeared")
+            return completed
+        except TurnCancelled:
+            self._settle_cancelled_preparation(
+                turn_id=turn_id, operation_id=operation_id, stage="review_prompt", assistant_message=""
+            )
+            raise
+        except Exception:
+            with suppress(Exception):
+                pending = self.repository.get_chat_turn(turn_id)
+                if pending and pending.status == "pending" and pending.operation_id == operation_id:
+                    self.repository.update_chat_turn(
+                        turn_id, assistant_message="", status="failed", expected_status="pending",
+                        expected_operation_id=operation_id, enforce_operation_owner=True, release_operation=True,
+                    )
+                else:
+                    self.repository.release_chat_operation(thread_id, operation_id)
+            raise
+
     def start_turn(self, command: ChatCommand) -> PreparedChatTurn:
         command, existing, retry_parent = self._validate_turn_command(command)
+        from src.application.review_turn_context import resolve_review_answer, review_evaluation_inputs
+
+        review_binding = resolve_review_answer(self.repository, command, existing or retry_parent)
         runtime_modes = self._runtime_modes(command.performance_mode)
         context_mode = command.context_mode or runtime_modes.context_mode
         settings = _session_settings(command, context_mode)
@@ -476,10 +549,18 @@ class ChatService:
                 )
             )
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
+            eval_state, expected_concepts, evidence_ids = review_evaluation_inputs(
+                review_binding, learning_state, expected_concepts, evidence_ids
+            )
+            if review_binding is not None:
+                from src.task_intent import default_contract
+
+                route["review"] = review_binding.snapshot("answer")
+                route["task_contract"] = default_contract("explain_back").to_dict()
             cancel_check("pedagogy_evaluate")
             learner_evaluation = self.dependencies.pedagogy_evaluation.evaluate_learner(
                 learner_input=command.user_input,
-                state=learning_state,
+                state=eval_state,
                 expected_concepts=expected_concepts,
                 evidence=evidence_ids,
             )
@@ -1175,6 +1256,12 @@ class ChatService:
                 )
         if gate_blocked_pedagogy:
             committed_state = prepared.learning_state_before
+        if "review" in prepared.route:
+            committed_state = LearningState.from_dict(prepared.thread.learning_state)
+        committed_payload = (
+            dict(prepared.thread.learning_state)
+            if "review" in prepared.route else committed_state.to_dict()
+        )
         pedagogy_snapshot = {
             **prepared.turn.pedagogy_snapshot,
             "assistant_evaluation": {
@@ -1204,10 +1291,10 @@ class ChatService:
         updated = self.repository.complete_chat_turn_with_pedagogy(
             prepared.turn.id,
             assistant_message=reply,
-            learning_state=committed_state.to_dict(),
+            learning_state=committed_payload,
             route_snapshot={
                 **prepared.route,
-                "learning_state": committed_state.to_dict(),
+                "learning_state": committed_payload,
                 "web_context_used": prepared.web_context_used,
                 "is_continuation": prepared.is_continuation,
                 "is_continuation_resolved": prepared.is_continuation,

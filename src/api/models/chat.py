@@ -50,6 +50,7 @@ class ChatRequest(BaseModel):
     partial_reply: str = ""
     turn_id: str | None = None
     operation_id: str | None = None
+    review_prompt_turn_id: str | None = None
 
 
 class CancelTurnRequest(BaseModel):
