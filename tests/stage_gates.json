@@ -107,6 +107,11 @@
       "tests/test_learner_model_api.py",
       "tests/test_learner_model_integration.py",
       "tests/test_learning_truth_repository.py"
+    ],
+    "ci_outcome_consolidation": [
+      "tests/test_ci_outcomes.py",
+      "tests/test_ci_detect_secrets_allowlist.py",
+      "tests/test_mypy_baseline.py"
     ]
   },
   "stage_gates": {
