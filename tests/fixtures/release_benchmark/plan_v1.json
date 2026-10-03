@@ -1,0 +1,25 @@
+{
+  "schema_version": "release-benchmark-plan-v1",
+  "target_total": 56,
+  "cells": [
+    {"mode": "frozen", "modality": "text", "count": 10},
+    {"mode": "frozen", "modality": "pdf", "count": 7},
+    {"mode": "frozen", "modality": "image", "count": 5},
+    {"mode": "frozen", "modality": "chart", "count": 4},
+    {"mode": "frozen", "modality": "mixed", "count": 6},
+    {"mode": "live", "modality": "text", "count": 7},
+    {"mode": "live", "modality": "pdf", "count": 5},
+    {"mode": "live", "modality": "image", "count": 3},
+    {"mode": "live", "modality": "chart", "count": 3},
+    {"mode": "live", "modality": "mixed", "count": 6}
+  ],
+  "focus_targets": {
+    "retrieval": 12,
+    "unit_adequacy": 10,
+    "conflict": 8,
+    "visual_value": 8,
+    "synthesis": 8,
+    "auditor": 6,
+    "continuity": 4
+  }
+}
