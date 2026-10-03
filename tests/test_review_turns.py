@@ -578,3 +578,35 @@ def test_same_attempt_key_with_different_payload_is_rejected(harness, monkeypatc
     failed = h.closures.commit(run.id)
     assert failed.status == "failed" and "payload conflict" in failed.error
     assert len(h.truth.list_understanding_for_revision(h.revision.id)) == 2
+
+
+def test_http_stale_revision_answer_is_conflict_without_writes(harness):
+    h = harness
+    p = prompt(h)
+    h.truth.commit_revision(
+        ClaimRevision(
+            claim_id=h.revision.claim_id,
+            claim_text="Changed claim",
+            source_commit="a" * 40,
+            reason="meaning_changed",
+        ),
+        h.truth.get_revision(h.revision.id).evidence,
+        goal_id=h.goal.id,
+    )
+    app.dependency_overrides[get_chat_service] = lambda: h.chat
+    try:
+        response = TestClient(app).post(
+            "/chat",
+            json={
+                "session_id": h.session.id,
+                "user_input": ANSWER,
+                "review_prompt_turn_id": p.id,
+                "web_policy": "off",
+            },
+        )
+        assert response.status_code == 409, response.text
+        assert len(h.runtime.list_chat_turns(h.session.id)) == 1
+        assert len(h.truth.list_understanding_for_revision(h.revision.id)) == 1
+        assert h.runtime.get_chat_thread(h.session.id).active_operation_id is None
+    finally:
+        app.dependency_overrides.pop(get_chat_service, None)

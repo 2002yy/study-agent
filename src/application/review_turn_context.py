@@ -3,7 +3,7 @@
 from dataclasses import replace
 from typing import Protocol
 
-from src.application.learning_review import LearningReviewService
+from src.application.learning_review import LearningReviewService, ReviewUnavailable
 from src.domain.review_turn import ReviewTurnBinding, read_review_snapshot, review_time
 from src.pedagogy.types import LearningState
 from src.repositories.learning_truth_repository import LearningTruthRepository
@@ -29,9 +29,12 @@ def require_current_review(
         or goal.objective != binding.objective
     ):
         raise ValueError("Review goal changed")
-    preview = LearningReviewService(truth).preview_prompt(
-        binding.thread_id, binding.claim_revision_id
-    )
+    try:
+        preview = LearningReviewService(truth).preview_prompt(
+            binding.thread_id, binding.claim_revision_id
+        )
+    except ReviewUnavailable as exc:
+        raise ValueError("Review revision changed or unavailable") from exc
     if review_time(preview.last_validated_at) != review_time(binding.last_validated_at):
         raise ValueError("Review validation changed")
     revision = truth.get_revision(binding.claim_revision_id)

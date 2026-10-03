@@ -18012,6 +18012,8 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **影响集：**`retention_review_turns`（L1）及 `retention-review-turns`（L2）登记于 `tests/stage_gates.json`，覆盖两条 chat seam、cancellation、external policy、publication、memory consent、closure/source、truth/runtime repositories 和 read projections。测试使用 fake semantic/provider；没有新 judge qualification 或真实 DeepSeek evidence run。
 
-**候选证据：**专属测试初次 38 passed；新增 transaction cancel/digest/eval tamper 及 same-key conflict 验证纳入候选。Ruff PASS；mypy current 122 / baseline 128，无新错误。L2/L3 和远端证据待填；tracked code candidate 必须 clean 后运行一次 L3。
+**候选证据：**L2 `retention-review-turns` 266 passed；额外 same-key conflict 2 passed。复核修复后的专属测试 + 两条 chat seam 回归 82 passed，Ruff PASS；mypy current 122 / baseline 128，无新错误。L3 和远端证据待填；tracked code candidate 必须 clean 后运行一次 L3。
+
+**复核修复：**`54db5a9a` 初次 L3 在约 15% 时因 candidate 被复核缺口失效而主动中止（不是测试失败，不计通过）。出题后 revision 被替换时，`ReviewUnavailable` 原为 LookupError，会逃过 `/chat` 的 ValueError→409 映射；共享 resolver 将其转换为明确冲突，并以两条 seam 的 HTTP negative case 证明 409、无 answer/understanding 新写入、operation 未占用。新的 code candidate 独立完成 L3，保留中止原因，不复用旧 head 结果。
 
 **已知边界：**后端显式 API 链路；没有复习 UI、后台 scheduler、ReviewItem、自动 Goal completion 或新 judge authority。§162 资格门、§164 G1-only runtime 保持。
