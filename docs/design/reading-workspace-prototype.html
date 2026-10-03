@@ -4,109 +4,366 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" href="data:,">
-  <title>Study Agent · 阅读与对话设计稿</title>
+  <title>Study Agent · 流萤超击破体系</title>
   <style>
-    :root{color-scheme:light;--bg:#f3f6f8;--paper:#fff;--ink:#20313c;--muted:#657782;--line:#dce5e9;--teal:#137c76;--soft:#edf6f5;--quote:#fff2d0;--quote-ink:#745000;--reading-size:18px;--chat-width:430px;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
-    *{box-sizing:border-box}body{margin:0;min-width:320px}button,input,textarea{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #6dbcb7;outline-offset:3px}button{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:8px 12px;min-height:38px}button:hover{background:var(--soft)}a{color:var(--teal)}.primary{background:var(--teal);border-color:var(--teal);color:white}.primary:hover{background:#0c625d}.muted{color:var(--muted)}.small{font-size:12px}.demo{height:30px;display:flex;align-items:center;justify-content:center;background:#e8f0f5;color:#486477;font-size:12px;padding:0 12px;gap:6px}.topbar{height:65px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--paper);border-bottom:1px solid var(--line);gap:12px}.brand{display:flex;align-items:center;gap:11px;white-space:nowrap}.brandmark{width:30px;height:32px;background:var(--soft);border-left:3px solid var(--teal);border-radius:3px;display:grid;place-items:center;color:var(--teal);font-size:18px;font-weight:700}.brand strong{font-size:16px;letter-spacing:-.3px}.brand span{font-size:12px;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:10px}.top-actions button{font-size:12px}.mobile-tabs{display:none}.workspace{display:grid;grid-template-columns:194px minmax(0,1fr) var(--chat-width);height:calc(100dvh - 95px);min-height:0}.library{padding:26px 16px;border-right:1px solid var(--line);background:#f7f9fa;overflow:auto}.library h2{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 12px}.library .document{display:flex;gap:10px;padding:12px 10px;background:white;border:1px solid #bdd8d5;border-radius:8px;font-size:13px;line-height:1.6}.filemark{color:var(--teal);font-size:19px}.document strong{display:block;font-size:13px}.document small{color:var(--muted);font-size:11px}.library nav{margin-top:34px}.library nav a{display:block;margin:3px 0;padding:9px 10px;font-size:12px;text-decoration:none;color:var(--muted);border-radius:5px;border-left:2px solid transparent}.library nav a.active{background:#eaf1f2;color:var(--ink);border-left-color:var(--teal)}.library .note{font-size:11px;color:var(--muted);line-height:1.9;margin-top:35px;padding:0 10px}.reader{display:flex;flex-direction:column;min-width:0;min-height:0;background:#edf2f5}.reader-tools{background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:57px;padding:10px 22px}.reader-tools .title{font-size:13px;font-weight:600;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.toolgroup{display:flex;align-items:center;gap:6px;white-space:nowrap}.toolgroup button{font-size:12px;min-height:32px;padding:5px 9px}.reader-scroll{overflow:auto;min-height:0;flex:1;scroll-behavior:smooth;scrollbar-gutter:stable;padding:28px 30px 40px}.paper{max-width:720px;min-height:100%;margin:auto;background:white;padding:46px 54px 52px;border:1px solid #e3e9ec;box-shadow:0 2px 10px #20313c04;border-radius:3px}.paper .eyebrow{font-size:12px;color:var(--teal);font-weight:600;letter-spacing:.5px}.paper h1{font-size:32px;line-height:1.45;letter-spacing:-.8px;margin:15px 0}.paper .subtitle{font-size:14px;color:var(--muted);line-height:1.9;margin:0 0 33px}.article-section{scroll-margin-top:24px}.paper h2{font-size:21px;font-weight:650;margin:32px 0 17px;line-height:1.5}.paper p,.paper li{font-size:var(--reading-size);line-height:1.95;margin:0 0 18px;overflow-wrap:anywhere}.paper ul{padding-left:23px}.passage{border-left:3px solid #dfb346;padding:15px 18px 12px;background:#fff9eb;margin:20px -2px 22px;scroll-margin-top:24px;border-radius:0 5px 5px 0}.passage p{margin:0 0 11px}.passage button{font-size:12px;border-color:#e2d4ad;color:var(--quote-ink);background:#fffdf7;min-height:34px}.passage.located{outline:2px solid #e2b84f;outline-offset:5px}.passage .locator{font-size:11px;color:var(--quote-ink);display:block;margin-bottom:8px}.example{padding:17px 18px;background:#f4f7fa;border-radius:5px;margin:22px 0}.example p{font-size:15px;margin:0}.paper-footer{border-top:1px solid var(--line);padding-top:20px;margin-top:30px;font-size:12px;color:var(--muted);line-height:1.8}.reader-status{min-height:31px;font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;padding:6px 22px;border-top:1px solid var(--line);background:#f8fafb}.reader-status strong{font-weight:500;color:var(--teal)}.chat{background:white;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0}.chat-title{min-height:57px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:10px 23px;gap:8px}.chat-title strong{font-size:14px}.chat-title span{font-size:11px;color:var(--muted)}.conversation{overflow:auto;min-height:0;flex:1;padding:26px 25px;scrollbar-gutter:stable}.user-message{font-size:14px;line-height:1.8;margin-left:25px;padding:13px 16px;background:#f0f4f7;border-radius:10px 10px 2px 10px;overflow-wrap:anywhere}.assistant{margin-top:26px}.assistant-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--teal);margin-bottom:12px}.assistant-label small{color:var(--muted);font-weight:400;font-size:10px}.assistant p,.assistant li{font-size:14px;line-height:1.9;margin:0 0 13px}.assistant ol{padding-left:22px;margin:14px 0}.assistant .answer-key{font-size:16px;font-weight:600;line-height:1.8}.citation{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline;color:var(--quote-ink);background:var(--quote);border:0;border-radius:4px;font-size:11px;min-height:25px;padding:2px 7px}.citation:hover{background:#ffe7a2}.context-preview{border-left:2px solid #dfb346;padding:9px 12px;margin:16px 0;background:#fffbf1;font-size:12px;line-height:1.8;color:#735c2b}.suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-top:24px}.suggestions button{font-size:11px;min-height:32px;padding:6px 10px;border-color:#d2e3e1;color:var(--teal)}.composer{border-top:1px solid var(--line);padding:17px 19px 14px;background:white}.selection-context{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding:9px 11px;background:#fff9eb;border:1px solid #ebdcb4;border-radius:5px}.selection-context .text{font-size:11px;line-height:1.65;flex:1}.selection-context .text strong{display:block;font-weight:600;color:var(--quote-ink)}.selection-context button{border:0;background:transparent;min-height:28px;width:28px;padding:0;flex-shrink:0;font-size:18px;color:var(--muted)}[hidden]{display:none!important}.input-box{border:1px solid #c5d4d8;border-radius:9px;padding:10px;background:white}.input-box:focus-within{border-color:#75aaa5;box-shadow:0 0 0 2px #137c7610}.input-box textarea{border:0;resize:none;width:100%;height:58px;line-height:1.65;font-size:13px;background:white;color:var(--ink);padding:0 3px;outline:none}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px}.composer-actions .hint{font-size:10px;color:var(--muted)}.composer-actions button{min-height:34px;font-size:12px;padding:7px 15px}.composer-foot{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:var(--muted)}.local-note{font-size:12px;color:var(--muted);line-height:1.8;padding:12px 0}.reading-focus .workspace{grid-template-columns:194px minmax(0,1fr)}.reading-focus .chat{display:none}.reading-focus .paper{max-width:800px}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24434b;color:white;max-width:calc(100% - 30px);padding:12px 18px;border-radius:8px;box-shadow:0 7px 25px #20313c20;font-size:12px;line-height:1.7;z-index:4}.refs{max-width:510px;border:1px solid var(--line);border-radius:12px;padding:28px;color:var(--ink);box-shadow:0 20px 70px #20313c20}.refs::backdrop{background:#20313c55}.refs h2{font-size:20px;margin:0 0 20px}.refs li{font-size:14px;line-height:1.8;margin-bottom:15px}.refs button{float:right}.refs p{font-size:12px;color:var(--muted);line-height:1.8}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-    @media(min-width:1200px){.paper p,.paper li{letter-spacing:.15px}}
-    @media(max-width:1199px){:root{--chat-width:390px}.workspace{grid-template-columns:minmax(0,1fr) var(--chat-width)}.library{display:none}.reading-focus .workspace{grid-template-columns:1fr}.paper{padding:34px 36px}.reader-scroll{padding:22px 20px}.topbar{padding:0 20px}}
-    @media(max-width:820px){.demo{font-size:10px;height:28px}.topbar{height:59px;padding:0 16px}.brand span,.focus-control{display:none}.top-actions button{min-height:34px;font-size:11px;padding:6px 9px}.mobile-tabs{display:flex;height:45px;gap:6px;background:white;border-bottom:1px solid var(--line);padding:4px 15px}.mobile-tabs button{flex:1;border:0;background:white;min-height:36px;font-size:13px}.mobile-tabs button[aria-pressed=true]{color:var(--teal);background:var(--soft);font-weight:650}.workspace{height:calc(100dvh - 132px);display:block}.reader,.chat{height:100%}.chat{border-left:0;display:none}.view-chat .reader{display:none}.view-chat .chat{display:flex}.reader-tools{padding:10px 16px;min-height:49px;gap:8px}.reader-tools .title{font-size:12px}.toolgroup{gap:3px}.toolgroup button{font-size:11px;padding:5px 8px}.reader-scroll{padding:0;background:white}.paper{border:0;border-radius:0;padding:26px 23px 36px;box-shadow:none}.paper h1{font-size:27px;line-height:1.45;letter-spacing:-.5px}.paper h2{font-size:20px;margin-top:29px}.paper .subtitle{font-size:13px;margin-bottom:29px}.paper p,.paper li{font-size:calc(var(--reading-size) - 1px);line-height:1.95}.passage{padding:13px 14px}.reader-status{padding:6px 16px;min-height:29px;font-size:10px}.chat-title{min-height:49px;padding:10px 19px}.conversation{padding:22px 20px}.composer{padding:12px 15px}.composer-foot{font-size:9px}.refs{width:calc(100% - 32px);padding:23px}.reading-focus .chat{display:none}.toast{bottom:16px;width:max-content}}
-    @media(prefers-reduced-motion:reduce){.reader-scroll{scroll-behavior:auto}}
+    :root{color-scheme:light;--bg:#f3f6f8;--paper:#fff;--ink:#20313c;--muted:#657782;--line:#dce5e9;--teal:#137c76;--soft:#edf6f5;--quote:#fff2d0;--quote-ink:#745000;--reading-size:16px;--chat-width:430px;--card:#fbfcfd;--fire:#a94e34;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+    *{box-sizing:border-box}body{margin:0;min-width:320px}button,input,select,textarea{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #6dbcb7;outline-offset:3px}button{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:8px 12px;min-height:38px}button:hover{background:var(--soft)}a{color:var(--teal)}.primary{background:var(--teal);border-color:var(--teal);color:white}.primary:hover{background:#0c625d}.muted{color:var(--muted)}.small{font-size:12px}[hidden]{display:none!important}
+    .demo{height:30px;display:flex;align-items:center;justify-content:center;background:#e8f0f5;color:#486477;font-size:12px;padding:0 12px;gap:6px}.topbar{height:65px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--paper);border-bottom:1px solid var(--line);gap:12px}.brand{display:flex;align-items:center;gap:11px;white-space:nowrap}.brandmark{width:30px;height:32px;background:var(--soft);border-left:3px solid var(--teal);border-radius:3px;display:grid;place-items:center;color:var(--teal);font-size:18px;font-weight:700}.brand strong{font-size:16px;letter-spacing:-.3px}.brand span{font-size:12px;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:10px}.top-actions button{font-size:12px}.mobile-tabs{display:none}
+    .workspace{display:grid;grid-template-columns:194px minmax(0,1fr) var(--chat-width);height:calc(100dvh - 95px);min-height:0}.library{padding:26px 16px;border-right:1px solid var(--line);background:#f7f9fa;overflow:auto}.library h2{font-size:12px;color:var(--muted);font-weight:600;margin:0 0 12px}.library .document{display:flex;gap:10px;padding:12px 10px;background:white;border:1px solid #bdd8d5;border-radius:8px;font-size:13px;line-height:1.6}.filemark{color:var(--teal);font-size:19px}.document strong{display:block;font-size:13px}.document small{color:var(--muted);font-size:11px}.library nav{margin-top:25px}.library nav a{display:block;margin:2px 0;padding:7px 9px;font-size:11.5px;text-decoration:none;color:var(--muted);border-radius:5px;border-left:2px solid transparent}.library nav a.active{background:#eaf1f2;color:var(--ink);border-left-color:var(--teal)}.library nav .nav-sep{height:1px;background:var(--line);margin:9px 8px}.library .note{font-size:11px;color:var(--muted);line-height:1.8;margin-top:25px;padding:0 10px}
+    .reader{display:flex;flex-direction:column;min-width:0;min-height:0;background:#edf2f5}.reader-tools{background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:57px;padding:10px 22px}.reader-tools .title{font-size:13px;font-weight:600;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.toolgroup{display:flex;align-items:center;gap:6px;white-space:nowrap}.toolgroup button{font-size:12px;min-height:32px;padding:5px 9px}.reader-scroll{overflow:auto;min-height:0;flex:1;scroll-behavior:smooth;scrollbar-gutter:stable;padding:28px 30px 40px}
+    .paper{max-width:720px;min-height:100%;margin:auto;background:white;padding:34px 28px 48px;border:1px solid #e3e9ec;box-shadow:0 2px 10px #20313c04;border-radius:3px}.paper .eyebrow{font-size:12px;color:var(--teal);font-weight:600;letter-spacing:.4px}.paper h1{font-size:28px;line-height:1.42;letter-spacing:-.7px;margin:12px 0}.paper .subtitle{font-size:13px;color:var(--muted);line-height:1.85;margin:0 0 24px;max-width:630px}.article-section{scroll-margin-top:20px}.lesson-card{width:100%;max-width:640px;margin:0 auto 16px;padding:18px 22px 19px;border:1px solid #e1e8eb;border-radius:10px;background:var(--card);box-shadow:0 1px 2px #20313c06;scroll-margin-top:20px}.lesson-card h2{font-size:20px;line-height:1.45;margin:0 0 12px;font-weight:650;letter-spacing:-.2px}.lesson-card h3{font-size:14px;margin:16px 0 8px}.lesson-card p,.lesson-card li{font-size:var(--reading-size);line-height:1.72;margin:0 0 11px;overflow-wrap:anywhere}.lesson-card ul{padding-left:20px;margin:8px 0}.lesson-card table{width:100%;border-collapse:collapse;margin:10px 0 5px;font-size:13px;line-height:1.55}.lesson-card th,.lesson-card td{padding:7px 8px;border-bottom:1px solid #e5ecef;text-align:left;vertical-align:top}.lesson-card th{color:var(--muted);font-weight:600;background:#f5f8f9}.lesson-card code,.calc{font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace;font-size:12px}.kicker{font-size:11px;color:var(--teal);font-weight:650;letter-spacing:.35px;margin-bottom:7px}.data-row{display:flex;gap:7px;flex-wrap:wrap;margin:11px 0}.data-pill{font-size:12px;padding:5px 8px;border:1px solid #d8e6e4;border-radius:999px;background:#f4faf9;color:#285f5b}.warning{font-size:12px;line-height:1.65;padding:9px 11px;border-left:3px solid #d6a33b;background:#fff8e8;color:#675027;border-radius:0 5px 5px 0;margin:10px 0}.calc{white-space:pre-line;line-height:1.65;padding:10px 12px;background:#f1f5f7;border-radius:7px;margin:10px 0;color:#324a55}.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;margin:10px 0}.flow span{padding:6px 8px;background:#edf6f5;border-radius:6px}.flow b{color:#7b8b93}.compact-note{font-size:12px!important;color:var(--muted);line-height:1.65!important}.card-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.card-actions button,.segmented button,.choice-row button{min-height:32px;padding:5px 9px;font-size:12px}.segmented,.choice-row{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.segmented button[aria-pressed=true],.choice-row button[aria-pressed=true]{border-color:#8bbab6;background:#e8f4f3;color:#0c625d;font-weight:650}.panel{padding-top:4px}.panel[hidden]{display:none}.mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.mini-stat{padding:9px 10px;border:1px solid #e1e8eb;background:white;border-radius:7px}.mini-stat strong{display:block;font-size:15px}.mini-stat span{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px}.compare-line{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin:7px 0;font-size:12px}.meter{height:8px;background:#e8eef1;border-radius:999px;overflow:hidden}.meter>span{display:block;height:100%;background:#6ba8a3;border-radius:999px}.source-note{font-size:10.5px;color:#778891;margin-top:10px}
+    details{border-top:1px solid #e4ebee;margin-top:12px;padding-top:9px}summary{cursor:pointer;color:var(--teal);font-size:12px;font-weight:600;list-style:none}summary::-webkit-details-marker{display:none}summary::after{content:"＋";float:right;color:#789}details[open] summary::after{content:"−"}.detail-body{padding-top:10px}
+    .prediction{margin-top:12px;padding:11px 12px;border-radius:8px;background:#fff8e8;border:1px solid #ead8a9}.prediction summary{color:#795b17}.prediction p{font-size:13px!important;margin-top:8px!important}
+    .boss-lab,.decision-lab{width:100%;max-width:640px;margin:18px auto;padding:19px 22px;border:1px solid #bad6d3;border-radius:11px;background:#f8fcfb;scroll-margin-top:20px}.boss-lab h2,.decision-lab h2{font-size:20px;margin:0 0 6px}.lab-sub{font-size:12px;color:var(--muted);line-height:1.65}.boss-bars{margin:14px 0}.bar-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:7px 0 4px}.bar{height:17px;background:#dce5e9;border-radius:5px;overflow:hidden;position:relative}.bar-fill{height:100%;background:#739fa5;transition:width .2s}.bar-cloud{height:100%;background:#dab46a;transition:width .2s}.boss-result{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:12px 13px;background:white;border-radius:8px;border:1px solid #e0eaeb}.boss-result strong{font-size:28px;color:var(--teal)}.boss-result span{font-size:12px;color:var(--muted)}.lock-grid{display:grid;grid-template-columns:1fr auto;gap:7px 16px;padding:12px;background:white;border-radius:8px;font-size:13px}.yes{color:#137c76;font-weight:700}.no{color:#a05643;font-weight:700}
+    .decision-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0}.decision-form label{font-size:11px;color:var(--muted)}.decision-form select{width:100%;margin-top:4px;border:1px solid #cfdde1;border-radius:6px;padding:7px;background:white;color:var(--ink)}.decision-output{padding:13px;background:white;border:1px solid #dce8e8;border-radius:8px;margin-top:12px}.decision-output strong{display:block;color:var(--teal);font-size:17px;margin-bottom:6px}.decision-output p{font-size:13px;line-height:1.7;margin:0 0 8px}.reason-list{display:grid;gap:5px;font-size:12px}.reason-list span{padding:5px 7px;background:#f3f8f7;border-radius:5px}
+    .paper-footer{border-top:1px solid var(--line);padding-top:18px;margin:25px auto 0;max-width:640px;font-size:11px;color:var(--muted);line-height:1.75}.reader-status{min-height:31px;font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;padding:6px 22px;border-top:1px solid var(--line);background:#f8fafb}.reader-status strong{font-weight:500;color:var(--teal)}
+    .chat{background:white;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0}.chat-title{min-height:57px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:10px 23px;gap:8px}.chat-title strong{font-size:14px}.chat-title span{font-size:11px;color:var(--muted)}.conversation{overflow:auto;min-height:0;flex:1;padding:26px 25px;scrollbar-gutter:stable}.user-message{font-size:14px;line-height:1.8;margin-left:25px;padding:13px 16px;background:#f0f4f7;border-radius:10px 10px 2px 10px;overflow-wrap:anywhere}.assistant{margin-top:26px}.assistant-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--teal);margin-bottom:12px}.assistant-label small{color:var(--muted);font-weight:400;font-size:10px}.assistant p,.assistant li{font-size:14px;line-height:1.85;margin:0 0 12px}.assistant ol{padding-left:22px;margin:12px 0}.assistant .answer-key{font-size:16px;font-weight:600;line-height:1.75}.citation{display:inline-flex;align-items:center;gap:4px;vertical-align:baseline;color:var(--quote-ink);background:var(--quote);border:0;border-radius:4px;font-size:11px;min-height:25px;padding:2px 7px}.citation:hover{background:#ffe7a2}.context-preview{border-left:2px solid #dfb346;padding:9px 12px;margin:15px 0;background:#fffbf1;font-size:12px;line-height:1.75;color:#735c2b}.suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-top:20px}.suggestions button{font-size:11px;min-height:32px;padding:6px 10px;border-color:#d2e3e1;color:var(--teal)}.composer{border-top:1px solid var(--line);padding:17px 19px 14px;background:white}.selection-context{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding:9px 11px;background:#fff9eb;border:1px solid #ebdcb4;border-radius:5px}.selection-context .text{font-size:11px;line-height:1.65;flex:1}.selection-context .text strong{display:block;font-weight:600;color:var(--quote-ink)}.selection-context button{border:0;background:transparent;min-height:28px;width:28px;padding:0;flex-shrink:0;font-size:18px;color:var(--muted)}.input-box{border:1px solid #c5d4d8;border-radius:9px;padding:10px;background:white}.input-box:focus-within{border-color:#75aaa5;box-shadow:0 0 0 2px #137c7610}.input-box textarea{border:0;resize:none;width:100%;height:58px;line-height:1.65;font-size:13px;background:white;color:var(--ink);padding:0 3px;outline:none}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px}.composer-actions .hint{font-size:10px;color:var(--muted)}.composer-actions button{min-height:34px;font-size:12px;padding:7px 15px}.composer-foot{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:var(--muted)}.local-note{font-size:12px;color:var(--muted);line-height:1.8;padding:12px 0}
+    .reading-focus .workspace{grid-template-columns:194px minmax(0,1fr)}.reading-focus .chat{display:none}.reading-focus .paper{max-width:800px}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24434b;color:white;max-width:calc(100% - 30px);padding:12px 18px;border-radius:8px;box-shadow:0 7px 25px #20313c20;font-size:12px;line-height:1.7;z-index:4}.refs{max-width:580px;border:1px solid var(--line);border-radius:12px;padding:28px;color:var(--ink);box-shadow:0 20px 70px #20313c20}.refs::backdrop{background:#20313c55}.refs h2{font-size:20px;margin:0 0 16px}.refs h3{font-size:14px;margin:18px 0 8px}.refs li{font-size:13px;line-height:1.75;margin-bottom:8px}.refs button{float:right}.refs p{font-size:12px;color:var(--muted);line-height:1.75}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    @media(min-width:1200px){.lesson-card p,.lesson-card li{letter-spacing:.1px}}
+    @media(max-width:1199px){:root{--chat-width:390px}.workspace{grid-template-columns:minmax(0,1fr) var(--chat-width)}.library{display:none}.reading-focus .workspace{grid-template-columns:1fr}.paper{padding:30px 22px}.reader-scroll{padding:22px 20px}.topbar{padding:0 20px}}
+    @media(max-width:820px){.demo{font-size:10px;height:28px}.topbar{height:59px;padding:0 16px}.brand span,.focus-control{display:none}.top-actions button{min-height:34px;font-size:11px;padding:6px 9px}.mobile-tabs{display:flex;height:45px;gap:6px;background:white;border-bottom:1px solid var(--line);padding:4px 15px}.mobile-tabs button{flex:1;border:0;background:white;min-height:36px;font-size:13px}.mobile-tabs button[aria-pressed=true]{color:var(--teal);background:var(--soft);font-weight:650}.workspace{height:calc(100dvh - 132px);display:block}.reader,.chat{height:100%}.chat{border-left:0;display:none}.view-chat .reader{display:none}.view-chat .chat{display:flex}.reader-tools{padding:10px 16px;min-height:49px;gap:8px}.reader-tools .title{font-size:12px}.toolgroup{gap:3px}.toolgroup button{font-size:11px;padding:5px 8px}.reader-scroll{padding:0;background:white}.paper{border:0;border-radius:0;padding:22px 15px 34px;box-shadow:none}.paper h1{font-size:25px}.lesson-card,.boss-lab,.decision-lab{padding:16px 15px;border-radius:8px}.lesson-card h2,.boss-lab h2,.decision-lab h2{font-size:18px}.lesson-card p,.lesson-card li{font-size:calc(var(--reading-size) - 1px)}.mini-grid,.decision-form{grid-template-columns:1fr}.reader-status{padding:6px 16px;min-height:29px;font-size:10px}.chat-title{min-height:49px;padding:10px 19px}.conversation{padding:22px 20px}.composer{padding:12px 15px}.composer-foot{font-size:9px}.refs{width:calc(100% - 32px);padding:23px}.reading-focus .chat{display:none}.toast{bottom:16px;width:max-content}.compare-line{grid-template-columns:100px 1fr}}
+    @media(prefers-reduced-motion:reduce){.reader-scroll{scroll-behavior:auto}.bar-fill,.bar-cloud{transition:none}}
   </style>
 </head>
 <body>
-  <div class="demo"><strong>交互设计稿</strong><span>· 示例讲义与预写回答，未连接真实资料或模型</span></div>
+  <div class="demo"><strong>交互设计稿</strong><span>· 流萤超击破体系示例，未连接真实资料或模型</span></div>
   <header class="topbar">
     <div class="brand"><div class="brandmark" aria-hidden="true">S</div><strong>Study Agent</strong><span>阅读工作台</span></div>
-    <div class="top-actions"><button class="focus-control" id="focus" aria-pressed="false">专注阅读</button><button id="show-refs">设计参考 ↗</button></div>
+    <div class="top-actions"><button class="focus-control" id="focus" aria-pressed="false">专注阅读</button><button id="show-refs">数据口径 ↗</button></div>
   </header>
   <nav class="mobile-tabs" aria-label="切换工作区"><button id="read-tab" aria-pressed="true">资料</button><button id="chat-tab" aria-pressed="false">对话</button></nav>
   <main class="workspace">
     <aside class="library" aria-label="资料与目录">
       <h2>当前资料</h2>
-      <div class="document"><span class="filemark" aria-hidden="true">▤</span><div><strong>数据库索引讲义</strong><small>示例文档 · 3 个小节</small></div></div>
-      <nav aria-label="文档目录"><h2>目录</h2><a href="#intro" class="active">查询为什么会变快</a><a href="#cost">索引的维护成本</a><a href="#choice">什么时候值得建索引</a></nav>
-      <p class="note">边读边问。<br>点回答中的引用，<br>回到原文上下文。</p>
+      <div class="document"><span class="filemark" aria-hidden="true">▤</span><div><strong>流萤超击破体系</strong><small>示例分析 · 10 张卡 + 2 个实验</small></div></div>
+      <nav aria-label="文档目录">
+        <h2>目录</h2>
+        <a href="#firefly-story" class="active">流萤与萨姆</a>
+        <a href="#firefly-loop">一轮怎么打</a>
+        <a href="#break-math">超击破怎么算</a>
+        <a href="#eidolons">六个星魂</a>
+        <a href="#dahlia">大丽花</a>
+        <a href="#fugue">忘归人</a>
+        <a href="#lingsha">灵砂与加拉赫</a>
+        <a href="#teams">配队怎么升级</a>
+        <a href="#damage-ledger">满配伤害账</a>
+        <a href="#environments">换怪以后</a>
+        <div class="nav-sep"></div>
+        <a href="#boss-lab">首领实验</a>
+        <a href="#decision-lab">一金怎么花</a>
+      </nav>
+      <p class="note">先看数据，再看结论。<br>卡片默认收紧，细节原地展开。<br>实验结果可直接切换。</p>
     </aside>
+
     <section class="reader" aria-label="资料阅读">
-      <div class="reader-tools"><span class="title">数据库索引讲义</span><div class="toolgroup"><button id="font-down" aria-label="减小阅读字号">A−</button><button id="font-up" aria-label="增大阅读字号">A＋</button></div></div>
+      <div class="reader-tools"><span class="title">流萤超击破体系 · 4.2 加强后口径</span><div class="toolgroup"><button id="font-down" aria-label="减小阅读字号">A−</button><button id="font-up" aria-label="增大阅读字号">A＋</button></div></div>
       <div class="reader-scroll" id="reader-scroll" tabindex="0" aria-label="文档正文，可滚动">
         <article class="paper">
-          <div class="eyebrow">数据库基础 / 示例讲义</div>
-          <h1>查询更快，<br>为什么写入可能更慢？</h1>
-          <p class="subtitle">从一次查找，到每一次维护。理解索引带来的收益，也理解它付出的成本。</p>
-          <section class="article-section" id="intro"><h2>查询为什么会变快</h2>
-            <p>如果没有可用的索引，数据库可能需要逐行检查表中的记录，寻找满足条件的行。数据量越大，需要检查的内容通常越多。</p>
-            <p>索引提供了另一条寻找记录的路径。可以把它理解为一份按特定字段组织的目录：先在目录里定位，再找到需要的记录。</p>
-            <div class="example"><p>例如，按订单编号查询一笔订单时，合适的索引可以帮助缩小查找范围。收益取决于查询方式、数据分布和执行计划。</p></div>
+          <div class="eyebrow">崩坏：星穹铁道 / 机制分析</div>
+          <h1>流萤的超击破队，<br>一金到底买到了什么？</h1>
+          <p class="subtitle">从按钮、星魂、光锥，到大丽花、忘归人、灵砂和怪物环境。数值统一采用常见的 10 / 20 / 30 削韧尺度；当期环境与长期机制分开看。</p>
+
+          <section class="lesson-card article-section" id="firefly-story">
+            <div class="kicker">01 · 流萤与萨姆</div>
+            <h2>为什么会有“完全燃烧”</h2>
+            <p>流萤是星核猎手，也是机械装甲“萨姆”的驾驶者。她出生于格拉默的战争兵器体系，失熵症让“有限时间”一直跟着她。战斗里也有一条明确倒计时：开大后高速行动，尽量在完全燃烧结束前多打几次。</p>
+            <div class="data-row"><span class="data-pill">终结技 240 能量</span><span class="data-pill">开大立即行动</span><span class="data-pill">倒计时速度 70</span></div>
+            <div class="warning"><strong>版本口径：</strong>这里按 4.2 加强后的流萤。若攻略仍写 35% / 50% 超击破，或把 2 魂写成旧冷却逻辑，那份数据已经过期。</div>
+            <details data-detail-group="story"><summary>展开角色经历</summary><div class="detail-body"><p>格拉默铁骑以对抗虫群为目的制造战士与装甲。流萤以“兵器”的身份开始人生，后来作为星核猎手行动。匹诺康尼剧情把她对“作为普通人生活”的愿望、萨姆身份和对既定命运的反抗放到了一起。</p><p class="compact-note">这一段区分两层：人物经历来自官方设定；“有限生命 → 完全燃烧 → 抢行动”的对应关系属于玩法设计解读。</p></div></details>
           </section>
-          <section class="article-section" id="cost"><h2>索引的维护成本</h2>
-            <p>表中的数据会变化，而索引必须保持与数据一致。它也需要占用存储空间。</p>
-            <div class="passage" id="maintenance" tabindex="-1">
-              <span class="locator">§ 索引的维护成本 · 第 2 段</span>
-              <p id="passage-text">每当插入、删除记录，或更新索引涉及的字段时，数据库还需要维护相应的索引。因此，索引可能加快某些查询，同时增加写入的工作量。</p>
-              <button id="explain">解释这一段 →</button>
+
+          <section class="lesson-card article-section" id="firefly-loop">
+            <div class="kicker">02 · 一轮怎么打</div>
+            <h2>战技充能，开大，然后和倒计时赛跑</h2>
+            <div class="flow"><span>普通战技充能</span><b>→</b><span>终结技 · 完全燃烧</span><b>→</b><span>强化战技连续出手</span></div>
+            <table><thead><tr><th>操作</th><th>削韧</th><th>同时发生什么</th></tr></thead><tbody>
+              <tr><td>普攻</td><td>10</td><td>回复 20 能量</td></tr>
+              <tr><td>普通战技</td><td>20</td><td>消耗 40% 最大生命；最多回复 144 能量；行动提前 25%</td></tr>
+              <tr><td>强化普攻</td><td>15</td><td>回复 20% 最大生命</td></tr>
+              <tr><td><strong>强化战技</strong></td><td><strong>30 / 两侧15</strong></td><td>回复 25% 最大生命；给目标与相邻目标植入火弱点</td></tr>
+              <tr><td>终结技</td><td>—</td><td>行动提前100%；速度+60；强化攻击弱点击破效率+50%</td></tr>
+            </tbody></table>
+            <div class="calc">基础速度 104 + 完全燃烧 60 = 164
+约每 61 行动值行动一次
+倒计时速度 70 → 约 143 行动值</div>
+            <details data-detail-group="loop"><summary>天赋、秘技和生存细节</summary><div class="detail-body"><p>普通战技一次可回复最大能量的 60%，240 能量上限对应 144 点。天赋让低生命流萤获得减伤；完全燃烧期间保持较高减伤和效果抵抗。秘技能在每波开场给敌人植入火弱点。</p></div></details>
+          </section>
+
+          <section class="lesson-card article-section" id="break-math">
+            <div class="kicker">03 · 超击破怎么算</div>
+            <h2>这一拳更看削了多少韧</h2>
+            <div class="calc">常规直伤
+攻击属性 × 技能倍率 × 暴击 × 增伤 …
+
+超击破
+角色等级 × 削韧值 × (1 + 击破特攻)
+× 超击破倍率 × 防御区 × 抗性区 × 击破易伤</div>
+            <div class="data-row"><span class="data-pill">300%击破特攻 → 150%超击破</span><span class="data-pill">强化战技基础削韧 30</span><span class="data-pill">自身效率加成后 30 → 45</span></div>
+            <details class="prediction" data-detail-group="break"><summary>你先猜：50%暴击伤害 / 50%弱点击破效率，选哪个？</summary><div class="detail-body"><p>选弱点击破效率。强化战技从 30 削韧升到 45；多出的 15 点同时进入超击破计算，还可能把弱点击破提前一个行动。暴击伤害不参与超击破。</p></div></details>
+            <details data-detail-group="break"><summary>展开 3 个额外能力和算例</summary><div class="detail-body"><p><strong>击破延时：</strong>完全燃烧期间 +25% 击破特攻；强化攻击完成弱点击破后，倒计时延后 10%，每次完全燃烧最多 3 次。143 行动值的倒计时，三次共约延后 42.9 行动值；裸 164 速度的第 4 次行动约在 183 行动值，某些轴会因此多塞进一动。</p><p><strong>超击破：</strong>击破特攻达到 150% / 300% 时，流萤自身获得 100% / 150% 超击破。</p><p><strong>攻击转击破：</strong>攻击超过 1800 后，每多 10 攻击转成 0.8% 击破特攻。2300 攻击对应额外 40% 击破特攻。</p></div></details>
+          </section>
+
+          <section class="lesson-card article-section" id="eidolons">
+            <div class="kicker">04 · 六个星魂</div>
+            <h2>每一魂改的是哪一条账</h2>
+            <div class="segmented" data-tabs="firefly-e"><button aria-pressed="false" data-panel-target="ff-e1">1魂</button><button aria-pressed="true" data-panel-target="ff-e2">2魂</button><button aria-pressed="false" data-panel-target="ff-e3">3魂</button><button aria-pressed="false" data-panel-target="ff-e4">4魂</button><button aria-pressed="false" data-panel-target="ff-e5">5魂</button><button aria-pressed="false" data-panel-target="ff-e6">6魂</button><button aria-pressed="false" data-panel-target="ff-cone">光锥</button></div>
+            <div class="panel" id="ff-e1" hidden><p><strong>1魂：</strong>强化战技无视 15% 防御，并且不消耗战技点。频繁强化战技不再把队友的战技点循环压紧。</p></div>
+            <div class="panel" id="ff-e2"><p><strong>2魂：</strong>完全燃烧期间，强化攻击完成击杀或弱点击破后，立即获得 1 个额外回合；每个萨姆自身回合重新获得一次触发资格。</p><div class="calc">30 × (1 + 50%) = 45 削韧
+触发后再打一发 = 再增加 45 削韧
++ 再结算一次超击破
++ 再检查击杀 / 弱点击破
++ 再获得一次延长倒计时的机会</div></div>
+            <div class="panel" id="ff-e3" hidden><p><strong>3魂：</strong>战技等级 +2、普攻等级 +1。普通技能数值提高，超击破不会读取普通攻击倍率。</p></div>
+            <div class="panel" id="ff-e4" hidden><p><strong>4魂：</strong>完全燃烧期间额外 +50% 效果抵抗。技能本身已经提供较高效果抵抗时，这一魂主要提高抗控制稳定性。</p></div>
+            <div class="panel" id="ff-e5" hidden><p><strong>5魂：</strong>终结技等级 +2、天赋等级 +2。终结技速度和击破相关数值继续上涨，没有新增触发条件。</p></div>
+            <div class="panel" id="ff-e6" hidden><p><strong>6魂：</strong>完全燃烧期间获得 20% 火属性抗性穿透，强化攻击再获得 50% 弱点击破效率。只算流萤自身，强化战技从 45 削韧提高到 60。</p></div>
+            <div class="panel" id="ff-cone" hidden><table><thead><tr><th>光锥</th><th>主要得到什么</th></tr></thead><tbody><tr><td>梦应归于何处 · 叠影1</td><td>60%击破特攻；目标受到流萤造成的击破伤害+24%；减速</td></tr><tr><td>记一位星神的陨落 · 叠影5</td><td>免费五星；高攻击可经额外能力转为击破特攻</td></tr><tr><td>铭记于心的约定 · 叠影5</td><td>四星；直接补击破特攻</td></tr></tbody></table><p class="compact-note">固定测试模型曾给出约 117.76% / 100% / 98.14% 的相对结果；队友提供的击破特攻和易伤越多，专武边际会变化。</p></div>
+          </section>
+
+          <section class="lesson-card article-section" id="dahlia">
+            <div class="kicker">05 · 大丽花</div>
+            <h2>流萤 45 削韧，进领域以后可以先看到 80</h2>
+            <div class="calc">只有流萤：30 × 1.5 = 45
+大丽花领域：30 × 2.0 = 60
+流萤植入火弱点后额外固定削韧：60 + 20 = 80</div>
+            <p>领域持续 3 回合，全队弱点击破效率 +50%；敌人尚未进入弱点击破状态时，也能按削韧量产生超击破。</p>
+            <div class="segmented" data-tabs="dahlia"><button aria-pressed="true" data-panel-target="dh-skill">技能</button><button aria-pressed="false" data-panel-target="dh-e">星魂</button><button aria-pressed="false" data-panel-target="dh-cone">光锥</button></div>
+            <div class="panel" id="dh-skill"><ul><li>终结技：全体削韧约20，施加败谢，约18%减防，并植入共舞者对应弱点。</li><li>天赋：共舞者攻击破韧目标时获得额外超击破；另一位共舞者攻击后，大丽花还能触发追加攻击。</li><li>每两次追加攻击回复1战技点。</li><li>火属性队友用攻击植入弱点时，对目标再造成20固定火削韧；大丽花回复10%最大能量，累计最多50%。</li></ul></div>
+            <div class="panel" id="dh-e" hidden><table><tbody><tr><td><strong>1魂</strong></td><td>共舞者额外超击破倍率再+40个百分点；首次攻击额外削最大韧性25%，最低10、最高300</td></tr><tr><td><strong>2魂</strong></td><td>全敌全属性抗性-20%；新敌入场自动获得败谢</td></tr><tr><td>3魂</td><td>终结技、普攻等级</td></tr><tr><td>4魂</td><td>追加攻击多5段；目标受到伤害+12%</td></tr><tr><td>5魂</td><td>战技、天赋等级</td></tr><tr><td><strong>6魂</strong></td><td>共舞者+150%击破特攻；追加攻击后共舞者行动提前20%</td></tr></tbody></table><div class="data-row"><span class="data-pill">300韧性 → 首击额外75</span><span class="data-pill">600 → 150</span><span class="data-pill">1200 → 300</span><span class="data-pill">1800 → 300封顶</span></div></div>
+            <div class="panel" id="dh-cone" hidden><p><strong>勿忘她的火焰 · 叠影1：</strong>60%击破特攻；大丽花与指定队友的击破伤害提高约32%；植入弱点还能帮助战技点循环。</p><p><strong>决心如汗珠般闪耀：</strong>走减防路线；多段攻击利于覆盖。<br><strong>新手任务开始前：</strong>偏能量循环，让终结技覆盖更频繁。</p></div>
+          </section>
+
+          <section class="lesson-card article-section" id="fugue">
+            <div class="kicker">06 · 忘归人</div>
+            <h2>600 韧性的首领，会多出 240 点云火昭</h2>
+            <div class="mini-grid"><div class="mini-stat"><strong>600</strong><span>原最大韧性</span></div><div class="mini-stat"><strong>+240</strong><span>云火昭 = 40%</span></div></div>
+            <p>原韧性清空以后继续削云火昭；云火昭归零时，再结算一次弱点击破。攻击已破韧目标时，忘归人的天赋还提供 100% 超击破。</p>
+            <div class="data-row"><span class="data-pill">300 → +120</span><span class="data-pill">600 → +240</span><span class="data-pill">1200 → +480</span><span class="data-pill">1800 → +720</span></div>
+            <div class="segmented" data-tabs="fugue"><button aria-pressed="true" data-panel-target="fg-skill">技能</button><button aria-pressed="false" data-panel-target="fg-e">星魂</button><button aria-pressed="false" data-panel-target="fg-cone">光锥</button></div>
+            <div class="panel" id="fg-skill"><ul><li>狐祈：给一名队友击破特攻；没有对应弱点时也能以50%效率削韧；该队友攻击还能帮助施加约18%减防。</li><li>终结技：全体20削韧，并且无视弱点属性。</li><li>达到220%击破特攻后，每次敌人击破给其他队友+18%击破特攻，持续2回合，可叠2层。</li></ul><p class="compact-note">狐祈可以给灵砂。流萤已经能植火弱，灵砂拿到跨弱点削韧后，整队更容易一起处理韧性条。</p></div>
+            <div class="panel" id="fg-e" hidden><table><tbody><tr><td><strong>1魂</strong></td><td>狐祈目标+50%弱点击破效率</td></tr><tr><td><strong>2魂</strong></td><td>每次敌人弱点击破回3能量；终结技后全队行动提前24%</td></tr><tr><td>3魂</td><td>战技、普攻等级</td></tr><tr><td><strong>4魂</strong></td><td>狐祈目标击破伤害+20%</td></tr><tr><td>5魂</td><td>终结技、天赋等级</td></tr><tr><td><strong>6魂</strong></td><td>自身+50%弱点击破效率；狐祈扩展到全队</td></tr></tbody></table></div>
+            <div class="panel" id="fg-cone" hidden><p><strong>长路终有归途 · 叠影1：</strong>击破时让敌人受到的击破伤害+18%，可叠2层，最高36%。云火昭让同一敌人更容易连续发生两次弱点击破。</p><p><strong>决心如汗珠般闪耀：</strong>继续叠减防。<br><strong>孤独的疗愈：</strong>击破特攻与能量。<br><strong>新手任务开始前：</strong>更多终结技；2魂后也意味着更频繁的全队24%行动提前。</p></div>
+          </section>
+
+          <section class="lesson-card article-section" id="lingsha">
+            <div class="kicker">07 · 灵砂与加拉赫</div>
+            <h2>生存位也在削韧和放大击破伤害</h2>
+            <div class="segmented" data-tabs="sustain"><button aria-pressed="true" data-panel-target="ls-panel">灵砂</button><button aria-pressed="false" data-panel-target="ga-panel">加拉赫</button></div>
+            <div class="panel" id="ls-panel"><div class="data-row"><span class="data-pill">终结技全体削韧20</span><span class="data-pill">受到的击破伤害+25%</span><span class="data-pill">浮元立即行动</span></div><p>浮元有独立行动条，会群体火削韧、补单体攻击、治疗并解控。</p><table><tbody><tr><td><strong>1魂</strong></td><td>自身+50%弱点击破效率；敌人击破后防御-20%</td></tr><tr><td><strong>2魂</strong></td><td>终结技后全队+40%击破特攻，3回合</td></tr><tr><td>3魂</td><td>终结技、天赋等级</td></tr><tr><td>4魂</td><td>浮元额外治疗最低生命角色</td></tr><tr><td>5魂</td><td>战技、普攻等级</td></tr><tr><td><strong>6魂</strong></td><td>浮元在场时全敌全属性抗性-20%；每次浮元再多4段攻击，合计额外20基础削韧</td></tr></tbody></table><details data-detail-group="lingsha"><summary>光锥怎么选</summary><div class="detail-body"><p><strong>唯有香如故 · 叠影1：</strong>60%击破特攻；终结技后的团队易伤最高约18%。<br><strong>等价交换：</strong>给低能量队友充能。<br><strong>一场术后对话：</strong>提高能量循环。<br><strong>何物为真：</strong>提高灵砂自己的击破参与。</p></div></details></div>
+            <div class="panel" id="ga-panel" hidden><div class="data-row"><span class="data-pill">强化普攻削韧30</span><span class="data-pill">击破易伤约12%</span><span class="data-pill">战技点循环宽松</span></div><p>加拉赫成本低、产战技点快，单体削韧也很高。缺灵砂时，他仍然能把流萤队的基本循环撑起来；换成灵砂以后，群体削韧、解控和高金乘区会更完整。</p></div>
+          </section>
+
+          <section class="lesson-card article-section" id="teams">
+            <div class="kicker">08 · 配队怎么升级</div>
+            <h2>从四星队一路换到高配</h2>
+            <div class="segmented" data-tabs="teams"><button aria-pressed="true" data-panel-target="team-start">起步</button><button aria-pressed="false" data-panel-target="team-dahlia">加入大丽花</button><button aria-pressed="false" data-panel-target="team-old">老牌配置</button><button aria-pressed="false" data-panel-target="team-high">高配</button></div>
+            <div class="panel" id="team-start"><p><strong>流萤 / 同谐主 / 艾丝妲 / 加拉赫</strong></p><div class="mini-grid"><div class="mini-stat"><strong>同谐主</strong><span>提供超击破；4魂可分享自身15%击破特攻</span></div><div class="mini-stat"><strong>艾丝妲</strong><span>全队+50速度；最高约+70%攻击</span></div><div class="mini-stat"><strong>加拉赫</strong><span>强化普攻30削韧；击破易伤；战技点</span></div><div class="mini-stat"><strong>流萤</strong><span>自身植火弱，4.2后已有完整超击破能力</span></div></div></div>
+            <div class="panel" id="team-dahlia" hidden><p><strong>流萤 / 大丽花 / 同谐主 / 加拉赫</strong></p><div class="data-row"><span class="data-pill">未破韧也能超击破</span><span class="data-pill">+50%弱点击破效率</span><span class="data-pill">减防与战技点循环</span></div></div>
+            <div class="panel" id="team-old" hidden><p><strong>流萤 / 阮·梅 / 同谐主 / 加拉赫</strong></p><p>阮·梅提供弱点击破效率、抗性穿透、速度与更长的破韧窗口。账号已经有这套时仍能正常使用。</p></div>
+            <div class="panel" id="team-high" hidden><p><strong>流萤 / 大丽花 / 忘归人 / 灵砂</strong></p><table><tbody><tr><td>流萤</td><td>主削韧 / 主超击破 / 2魂额外回合</td></tr><tr><td>大丽花</td><td>提前出伤 / 削韧 / 减防 / 战技点</td></tr><tr><td>忘归人</td><td>第二条韧性 / 再次击破 / 减防</td></tr><tr><td>灵砂</td><td>生存 / 副削韧 / 击破易伤 / 解控</td></tr></tbody></table></div>
+          </section>
+
+          <section class="lesson-card article-section" id="damage-ledger">
+            <div class="kicker">09 · 满配伤害账</div>
+            <h2>同一发强化战技，队伍会同时改五条轨道</h2>
+            <div class="compare-line"><span>削韧</span><div class="meter"><span style="width:72%"></span></div></div>
+            <p class="compact-note">30 → 流萤自身45 → 大丽花60 → 忘归人1魂75……</p>
+            <div class="compare-line"><span>超击破倍率</span><div class="meter"><span style="width:88%"></span></div></div>
+            <p class="compact-note">流萤150% + 忘归人100% + 大丽花60% = 310%；大丽花1魂后约350%。只看这一层约 +12.9%，还没算固定削韧。</p>
+            <details data-detail-group="ledger"><summary>防御区、抗性区和易伤从哪来</summary><div class="detail-body"><table><tbody><tr><td>防御</td><td>大丽花约18%减防 + 忘归人约18%减防 + 灵砂1魂20%减防 + 流萤1魂15%无视防御</td></tr><tr><td>抗性</td><td>大丽花2魂-20%全属性抗性 + 流萤6魂20%火属性抗性穿透 + 灵砂6魂-20%全属性抗性</td></tr><tr><td>击破易伤</td><td>流萤专武24%（仅自身）+ 忘归人专武18%×2 + 灵砂终结技25% + 灵砂专武最高18% + 大丽花专武击破增幅</td></tr><tr><td>循环</td><td>战技点、能量、行动提前、额外回合</td></tr></tbody></table><p class="compact-note">这些来源落在不同伤害区或时间轴上，不能把标称百分比直接相加成“一金总提升”。</p></div></details>
+          </section>
+
+          <section class="lesson-card article-section" id="environments">
+            <div class="kicker">10 · 换怪以后</div>
+            <h2>同一笔投入，碰到不同怪会换价</h2>
+            <table><thead><tr><th>怪物情况</th><th>更容易升值的配置</th></tr></thead><tbody><tr><td>超长韧性</td><td>大丽花1魂、忘归人1魂、流萤6魂</td></tr><tr><td>锁韧</td><td>大丽花0魂</td></tr><tr><td>反复恢复韧性</td><td>流萤2魂、忘归人</td></tr><tr><td>多波次</td><td>流萤2魂、大丽花2魂</td></tr><tr><td>高防御</td><td>流萤1魂、灵砂1魂、减防来源</td></tr><tr><td>高抗性</td><td>大丽花2魂、流萤6魂、灵砂6魂</td></tr><tr><td>控制与生存压力高</td><td>灵砂</td></tr><tr><td>低生存压力竞速</td><td>可减少生存投入，换更激进的辅助</td></tr></tbody></table>
+            <div class="segmented" data-tabs="modes"><button aria-pressed="true" data-panel-target="mode-moc">混沌回忆</button><button aria-pressed="false" data-panel-target="mode-as">末日幻影</button><button aria-pressed="false" data-panel-target="mode-pf">虚构叙事</button><button aria-pressed="false" data-panel-target="mode-aa">异相仲裁</button></div>
+            <div class="panel" id="mode-moc"><p>更看轮次、稳定循环和首领阶段。流萤能否把完全燃烧窗口完整打出来，会直接影响压轮次能力。</p></div>
+            <div class="panel" id="mode-as" hidden><p>首领机制和韧性权重更高。一次弱点击破有时还会触发场地奖励，因此“击破一次值多少”可能远高于那一跳伤害。</p></div>
+            <div class="panel" id="mode-pf" hidden><p>大量刷新和击杀链会给2魂提供更多击杀触发，但流萤主要是扩散攻击，全屏处理能力仍取决于当期怪物结构。</p></div>
+            <div class="panel" id="mode-aa" hidden><p>高压与特殊机制占比更高。敌方控制、生存压力、锁韧和抗性会明显改变灵砂、大丽花及高金星魂的价值。</p></div>
+          </section>
+
+          <section class="boss-lab article-section" id="boss-lab">
+            <div class="kicker">首领实验</div>
+            <h2>换一条韧性，再算一次</h2>
+            <p class="lab-sub">只计算流萤强化战技主目标的削韧，用来观察机制差异。队友攻击、首领阶段机制和实际伤害不计入。</p>
+            <div class="choice-row" id="boss-toughness"><button aria-pressed="false" data-toughness="300">300韧性</button><button aria-pressed="true" data-toughness="600">600韧性</button><button aria-pressed="false" data-toughness="1200">1200韧性</button><button aria-pressed="false" data-toughness="lock">锁韧</button></div>
+            <div class="choice-row" id="boss-investment"><button aria-pressed="true" data-profile="ff">流萤0魂</button><button aria-pressed="false" data-profile="dh0">+大丽花0魂</button><button aria-pressed="false" data-profile="dh1">+大丽花1魂</button><button aria-pressed="false" data-profile="fg1">+忘归人1魂</button><button aria-pressed="false" data-profile="ff6">+流萤6魂</button></div>
+            <div id="boss-normal">
+              <div class="boss-bars"><div class="bar-label"><span>原韧性</span><span id="boss-toughness-label">600</span></div><div class="bar"><div class="bar-fill" id="boss-fill" style="width:100%"></div></div><div id="cloud-wrap" hidden><div class="bar-label"><span>云火昭</span><span id="cloud-label">240</span></div><div class="bar"><div class="bar-cloud" id="cloud-fill" style="width:40%"></div></div></div></div>
+              <div class="boss-result"><div><span id="boss-formula">每发：30 × 1.5 = 45</span><div class="compact-note" id="boss-first">没有首击额外削韧</div></div><strong id="boss-count">14 次</strong></div>
+              <p class="compact-note" id="boss-caption">约需 14 次强化战技清空原韧性。</p>
             </div>
-            <p>这不意味着所有更新都会同样变慢。影响与更新的字段、索引结构、并发情况和数据库实现有关。仅凭“索引数量多”还不足以判断一次具体操作的耗时。</p>
+            <div id="boss-lock" hidden><div class="lock-grid"><span>弱点击破</span><b class="no">×</b><span>流萤2魂 · 弱点击破触发</span><b class="no">×</b><span>大丽花领域 · 超击破</span><b class="yes">✓</b><span>流萤2魂 · 击杀触发</span><b class="yes">✓</b><span>击破延长完全燃烧</span><b class="no">×</b></div><details class="prediction" data-detail-group="boss"><summary>你先猜：已经能打出超击破，流萤2魂会不会跟着触发？</summary><div class="detail-body"><p>不会因为超击破本身触发。2魂检查流萤有没有完成击杀或弱点击破。锁韧期间没有弱点击破；这一击若直接击杀目标，击杀条件仍然成立。</p></div></details></div>
           </section>
-          <section class="article-section" id="choice"><h2>什么时候值得建索引</h2>
-            <p>判断一个索引是否有价值，需要把查询收益和维护成本放在同一个使用场景里看。</p>
-            <ul><li>先看常见查询如何筛选、连接和排序。</li><li>再看表的写入频率，以及索引涉及的字段是否经常更新。</li><li>用实际执行计划和测量结果验证收益。</li></ul>
-            <p>合适的索引服务于具体查询。为所有字段都建立索引，并不能保证整体性能更好。</p>
+
+          <section class="decision-lab article-section" id="decision-lab">
+            <div class="kicker">一金怎么花</div>
+            <h2>先把你的配置和卡点放进来</h2>
+            <div class="decision-form">
+              <label>流萤<select id="cfg-firefly"><option value="0">0魂</option><option value="1">1魂</option><option value="2">2魂</option><option value="6">6魂</option></select></label>
+              <label>流萤光锥<select id="cfg-cone"><option value="free">免费 / 四星</option><option value="sig">专武叠影1</option></select></label>
+              <label>大丽花<select id="cfg-dahlia"><option value="none">未拥有</option><option value="0">0魂</option><option value="1">1魂</option><option value="2">2魂</option><option value="6">6魂</option></select></label>
+              <label>忘归人<select id="cfg-fugue"><option value="none">未拥有</option><option value="0">0魂</option><option value="1">1魂</option><option value="2">2魂</option><option value="6">6魂</option></select></label>
+              <label>生存位<select id="cfg-sustain"><option value="gallagher">加拉赫</option><option value="lingsha0">灵砂0魂</option><option value="lingsha1">灵砂1魂+</option><option value="none">无生存位</option></select></label>
+              <label>已有辅助<select id="cfg-support"><option value="hmc">同谐主</option><option value="ruan">阮·梅</option><option value="both">同谐主 + 阮·梅</option></select></label>
+            </div>
+            <p class="lab-sub">你现在最难受的是？</p>
+            <div class="choice-row" id="pain-row"><button aria-pressed="true" data-pain="toughness">破韧太慢</button><button aria-pressed="false" data-pain="locked">锁韧没伤害</button><button aria-pressed="false" data-pain="sp">战技点太紧</button><button aria-pressed="false" data-pain="damage">单次伤害不足</button><button aria-pressed="false" data-pain="actions">行动次数不够</button><button aria-pressed="false" data-pain="survival">生存 / 控制</button></div>
+            <div class="decision-output" id="decision-output"><strong>优先看：大丽花0魂</strong><p>这一金会同时补弱点击破效率、未破韧阶段的超击破、减防、固定火削韧、战技点回收和流萤的再启动能量。</p><div class="reason-list"><span>次选 · 流萤1魂：0战技点 + 15%无视防御</span><span>次选 · 流萤专武：提高单次击破伤害</span></div></div>
+            <p class="compact-note">这里只给“优先看 / 可以比较”。怪物、已有角色和目标模式改变后，推荐会跟着切换。</p>
           </section>
-          <footer class="paper-footer">这份讲义为设计稿原创示例，不属于项目证据库。<br>正式版本仅对具备真实定位信息的引用提供跳转。</footer>
+
+          <footer class="paper-footer">数据口径：流萤采用 4.2 加强后机制；削韧统一使用常见 10 / 20 / 30 尺度。首领实验只计算流萤主目标削韧，不等同于实战通关回合。默认示例为交互设计稿，不连接真实游戏数据服务。</footer>
         </article>
       </div>
-      <div class="reader-status"><span id="position">正在阅读 · 查询为什么会变快</span><strong id="jump-status">原文与对话保持在同一工作区</strong></div>
+      <div class="reader-status"><span id="position">正在阅读 · 流萤与萨姆</span><strong id="jump-status">卡片、实验与对话保持在同一工作区</strong></div>
     </section>
+
     <section class="chat" aria-label="学习对话">
-      <div class="chat-title"><strong>和资料聊一聊</strong><span>当前资料 · 数据库索引讲义</span></div>
+      <div class="chat-title"><strong>和资料聊一聊</strong><span>当前资料 · 流萤超击破体系</span></div>
       <div class="conversation" id="conversation" tabindex="0" aria-label="对话记录，可滚动">
-        <div class="user-message">为什么索引能加速查询，却可能拖慢写入？</div>
+        <div class="user-message">流萤2魂和专武，为什么很多情况下会先看2魂？</div>
         <div class="assistant">
           <div class="assistant-label">Study Agent <small>预写示例回答</small></div>
-          <p class="answer-key">查询时少找一些，<br>写入时多维护一份。</p>
-          <p>你可以把索引看作目录。查询时，目录帮助定位记录；修改数据时，相关目录也要跟着更新。</p>
-          <ol><li><strong>查询：</strong>合适的索引可以缩小查找范围。</li><li><strong>写入：</strong>插入、删除或修改索引字段，可能带来额外的维护工作。<button class="citation" data-target="maintenance" aria-label="查看引用：索引的维护成本，第2段">讲义 § 维护成本 ↗</button></li></ol>
-          <div class="context-preview">“索引可能加快某些查询，同时增加写入的工作量。”</div>
-          <p>具体会增加多少成本，仍需要结合实际负载测量。讲义没有给出固定比例。</p>
-          <div class="suggestions"><button data-question="举一个订单表的例子">举个例子</button><button data-question="帮我比较哪些字段适合建索引">比较适用场景</button></div>
+          <p class="answer-key">专武提高每次击破的质量；<br>2魂能直接增加一次完整行动。</p>
+          <p>完全燃烧里，强化战技基础削韧30。只算流萤自己的50%弱点击破效率，一发就是45削韧。2魂在流萤完成击杀或弱点击破时插入一个额外回合，于是又多一发45削韧，以及一整次超击破结算。</p>
+          <p>这份收益还会随怪物变化。多波次和可反复击破的首领会给2魂更多触发机会。<button class="citation" data-target="eidolons" aria-label="查看六个星魂">看 2魂数据 ↗</button></p>
+          <div class="context-preview">“击杀 / 弱点击破 → 额外回合 → 再次强化战技。”</div>
+          <p>专武仍然有稳定价值。要比较两者，可以把自己的配置放进“一金怎么花”，再切一次首领韧性。</p>
+          <div class="suggestions"><button data-question="我的流萤1魂、大丽花0魂，下一金怎么花？">按我的配置算</button><button data-target="boss-lab">打开首领实验</button></div>
         </div>
       </div>
       <form class="composer" id="ask-form">
-        <div class="selection-context" id="selection-context" hidden><div class="text"><strong>正在讨论 · 维护成本，第 2 段</strong><span>插入、删除或更新索引字段，需要维护相应索引。</span></div><button type="button" id="clear-context" aria-label="移除引用段落">×</button></div>
-        <div class="input-box"><label class="visually-hidden" for="question">向资料提问</label><textarea id="question" placeholder="问当前资料，或点左侧“解释这一段”"></textarea><div class="composer-actions"><span class="hint">Ctrl / ⌘ + Enter 发送</span><button class="primary" id="send" type="submit" disabled>发送 ↑</button></div></div>
-        <div class="composer-foot"><span>回答有引用时，可返回原文核对</span><span>仅本地演示</span></div>
+        <div class="selection-context" id="selection-context" hidden><div class="text"><strong>正在讨论 · 大丽花1魂</strong><span>首击额外削最大韧性25%，最低10、最高300。</span></div><button type="button" id="clear-context" aria-label="移除引用段落">×</button></div>
+        <div class="input-box"><label class="visually-hidden" for="question">向资料提问</label><textarea id="question" placeholder="问当前资料，或带着某张卡继续追问"></textarea><div class="composer-actions"><span class="hint">Ctrl / ⌘ + Enter 发送</span><button class="primary" id="send" type="submit" disabled>发送 ↑</button></div></div>
+        <div class="composer-foot"><span>回答有引用时，可返回对应卡片核对</span><span>仅本地演示</span></div>
       </form>
     </section>
   </main>
+
   <div class="toast" role="status" id="toast" hidden></div>
-  <dialog class="refs" id="refs" aria-labelledby="refs-title"><h2 id="refs-title">参考了哪些阅读体验</h2><ul><li><a href="https://docs.readwise.io/reader/docs/faqs/appearance" target="_blank" rel="noopener noreferrer">Readwise Reader</a><br>正文排版与可折叠的辅助面板。</li><li><a href="https://www.zotero.org/support/pdf_reader" target="_blank" rel="noopener noreferrer">Zotero</a><br>标注、笔记与原文位置之间的往返。</li><li><a href="https://support.google.com/gemininotebook/answer/16179559?hl=en" target="_blank" rel="noopener noreferrer">Google Notebook 官方文档</a><br>点击回答引用，回到对应资料中的上下文。</li></ul><p>这些是交互参考。本设计稿不连接任何上述服务，也不实现真实模型或文档读取。</p><button id="close-refs">关闭</button></dialog>
+  <dialog class="refs" id="refs" aria-labelledby="refs-title">
+    <h2 id="refs-title">数据口径与交互参考</h2>
+    <h3>数据口径</h3>
+    <ul><li>流萤按 4.2 加强后的技能与星魂文本整理；旧版超击破倍率和旧2魂冷却不进入计算。</li><li>削韧统一用 10 / 20 / 30 制。部分数据库显示 30 / 60 / 90，只是整体乘3。</li><li>角色、星魂和光锥数值以官方资料、当前角色数据库与交叉核验攻略为依据；首领实验明确标注为简化模型。</li><li>当期深渊环境属于易变数据；卡片里只保留可迁移的模式与怪物机制分析。</li></ul>
+    <h3>阅读体验参考</h3>
+    <p>保留正文与对话并排、引用返回原位置、卡片原地展开等交互。设计稿不连接游戏、第三方攻略站或模型服务。</p>
+    <button id="close-refs">关闭</button>
+  </dialog>
+
   <script>
     const $ = id => document.getElementById(id);
     const reader = $('reader-scroll');
     const question = $('question');
     let toastTimer;
-    function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').hidden=true},3500)}
+    function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').hidden=true},2800)}
     function view(mode){if(mode==='chat'){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读'}document.body.classList.toggle('view-chat',mode==='chat');$('read-tab').setAttribute('aria-pressed',String(mode==='read'));$('chat-tab').setAttribute('aria-pressed',String(mode==='chat'))}
-    function reveal(target){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读';view('read');const node=$(target);node.scrollIntoView({block:'center'});if(target==='maintenance'){node.classList.add('located');$('jump-status').textContent='已定位 · 维护成本，第 2 段';node.focus({preventScroll:true})}}
+    function reveal(target){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读';view('read');const node=$(target);if(!node)return;node.scrollIntoView({block:'center'});node.animate?.([{outlineColor:'#e2b84f'},{outlineColor:'transparent'}],{duration:1100})}
     $('read-tab').onclick=()=>view('read');$('chat-tab').onclick=()=>view('chat');
     document.querySelectorAll('[data-target]').forEach(button=>button.onclick=()=>reveal(button.dataset.target));
     document.querySelectorAll('.library nav a').forEach(link=>link.onclick=event=>{event.preventDefault();reveal(link.getAttribute('href').slice(1))});
+
+    document.querySelectorAll('[data-tabs]').forEach(group=>{
+      group.querySelectorAll('button[data-panel-target]').forEach(button=>{
+        button.onclick=()=>{
+          group.querySelectorAll('button[data-panel-target]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+          const card=group.closest('.lesson-card');
+          card?.querySelectorAll('.panel').forEach(panel=>panel.hidden=panel.id!==button.dataset.panelTarget);
+        };
+      });
+    });
+    document.querySelectorAll('details[data-detail-group]').forEach(detail=>{
+      detail.addEventListener('toggle',()=>{
+        if(!detail.open)return;
+        const group=detail.dataset.detailGroup;
+        document.querySelectorAll(`details[data-detail-group="${group}"]`).forEach(other=>{if(other!==detail)other.open=false});
+      });
+    });
+
+    const bossProfiles={
+      ff:{label:'流萤0魂',per:45,bonus:false,cloud:false,formula:'30 × 1.5 = 45'},
+      dh0:{label:'+大丽花0魂',per:80,bonus:false,cloud:false,formula:'30 × 2.0 + 20 = 80'},
+      dh1:{label:'+大丽花1魂',per:80,bonus:true,cloud:false,formula:'30 × 2.0 + 20 = 80'},
+      fg1:{label:'+忘归人1魂',per:95,bonus:true,cloud:true,formula:'30 × 2.5 + 20 = 95'},
+      ff6:{label:'+流萤6魂',per:110,bonus:true,cloud:true,formula:'30 × 3.0 + 20 = 110'},
+    };
+    let toughness=600, profile='ff';
+    function bossCount(total,p){
+      const bonus=p.bonus?Math.min(total*.25,300):0;
+      return Math.max(1,Math.ceil((total-bonus)/p.per));
+    }
+    function updateBoss(){
+      const locked=toughness==='lock';
+      $('boss-normal').hidden=locked;$('boss-lock').hidden=!locked;
+      if(locked)return;
+      const total=Number(toughness), p=bossProfiles[profile], bonus=p.bonus?Math.min(total*.25,300):0, count=bossCount(total,p);
+      $('boss-toughness-label').textContent=String(total);
+      $('boss-formula').textContent='每发：'+p.formula;
+      $('boss-first').textContent=bonus?`首击另加 ${bonus} 固定削韧`:'没有首击额外削韧';
+      $('boss-count').textContent=count+' 次';
+      $('boss-caption').textContent=`${p.label}：约需 ${count} 次强化战技清空原韧性。`;
+      $('cloud-wrap').hidden=!p.cloud;
+      $('cloud-label').textContent=String(total*.4);
+      $('cloud-fill').style.width='40%';
+      const first=Math.min(total,p.per+bonus);
+      $('boss-fill').style.width=Math.max(8,100-first/total*100)+'%';
+    }
+    document.querySelectorAll('#boss-toughness button').forEach(button=>button.onclick=()=>{
+      document.querySelectorAll('#boss-toughness button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+      toughness=button.dataset.toughness==='lock'?'lock':Number(button.dataset.toughness);updateBoss();
+    });
+    document.querySelectorAll('#boss-investment button').forEach(button=>button.onclick=()=>{
+      document.querySelectorAll('#boss-investment button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+      profile=button.dataset.profile;updateBoss();
+    });
+    updateBoss();
+
+    let pain='toughness';
+    const selects=['cfg-firefly','cfg-cone','cfg-dahlia','cfg-fugue','cfg-sustain','cfg-support'];
+    function decision(title,body,reasons=[]){
+      $('decision-output').innerHTML=`<strong>${title}</strong><p>${body}</p><div class="reason-list">${reasons.map(reason=>`<span>${reason}</span>`).join('')}</div>`;
+    }
+    function updateDecision(){
+      const ff=$('cfg-firefly').value, cone=$('cfg-cone').value, dh=$('cfg-dahlia').value, fg=$('cfg-fugue').value, sustain=$('cfg-sustain').value;
+      if(pain==='survival'){
+        if(sustain==='gallagher') return decision('可以比较：灵砂0魂','群体削韧、浮元独立行动、解控与击破易伤会一起进入队伍。',['预算有限时加拉赫仍能继续用']);
+        if(sustain==='lingsha0') return decision('可以比较：灵砂1魂','生存位继续留场，同时得到50%弱点击破效率和敌人击破后的20%减防。',['高压环境与高防御首领都会放大这笔投入']);
+        return decision('先保留当前生存配置','当前选择已经覆盖生存位；下一金可回到削韧、行动或伤害短板。');
+      }
+      if(dh==='none') return decision('优先看：大丽花0魂','这一金同时补50%弱点击破效率、未破韧阶段的超击破、减防、固定火削韧、战技点回收和流萤再启动能量。',['流萤1魂：0战技点 + 15%无视防御','流萤专武：提高单次击破伤害']);
+      if(pain==='locked') return decision('优先看：大丽花0魂已解决主要问题','领域让锁韧阶段仍可按削韧量产生超击破；这不会自动触发流萤2魂的弱点击破条件。',['接下来按首领抗性、战技点或行动需求继续投']);
+      if(ff==='0' && (pain==='sp'||pain==='actions')) return decision('优先看：流萤1魂 → 2魂路线','1魂先把强化战技战技点消耗降到0并增加15%无视防御；再向2魂走，会获得击杀/弱点击破后的额外回合。',['1魂先修循环','2魂再扩行动数']);
+      if(ff==='1' && pain==='actions') return decision('优先看：流萤2魂','击杀或弱点击破会直接增加一个完整回合。专武提高单次击破质量，两笔投入打在不同位置。',['2魂：多打一整次','专武：每次打得更重']);
+      if((ff==='2'||ff==='6') && dh==='0' && pain==='toughness') return decision('优先看：大丽花1魂','1200韧性的简化实验里，大丽花0魂约15发，1魂约12发；首击额外削300韧性，共舞者超击破倍率也会上涨。',['高韧首领收益更明显','可去首领实验切600/1200比较']);
+      if((ff==='2'||ff==='6') && dh==='0' && (pain==='damage'||pain==='sp')) return decision('可以比较：大丽花专武叠影1','60%击破特攻、击破伤害增幅与战技点循环都更偏稳定单次输出；大丽花1魂更偏削韧时点。',['专武：单次伤害 / 战技点','1魂：首击削韧 / 共舞者超击破']);
+      if(dh==='1' && pain==='damage') return decision('可以比较：大丽花2魂','全敌全属性抗性-20%，新敌入场自动获得败谢；高抗性和多波次环境会额外放大价值。',['抗性区独立于削韧区','转波次不必重新等铺状态']);
+      if(fg==='0' && pain==='actions') return decision('可以比较：忘归人2魂','每次敌人弱点击破都会给忘归人回能；终结技让全队行动提前24%。',['更频繁终结技','整队时间轴一起前移']);
+      if(cone==='free' && pain==='damage') return decision('可以比较：流萤专武叠影1','专武给60%击破特攻、流萤专属击破易伤和减速。已有高金辅助后，边际收益需要和星魂继续对比。',['免费五星仍能完整跑机制']);
+      return decision('先看当前怪物的短板','现有配置已经覆盖主要结构件；高防御看减防，高抗性看抗性区，多波次看2魂与大丽花2魂。',['首领实验可以先切一次韧性']);
+    }
+    document.querySelectorAll('#pain-row button').forEach(button=>button.onclick=()=>{
+      document.querySelectorAll('#pain-row button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+      pain=button.dataset.pain;updateDecision();
+    });
+    selects.forEach(id=>$(id).onchange=updateDecision);
+    updateDecision();
+
     function updateSend(){$('send').disabled=!question.value.trim()}
     function prompt(text,withPassage=false){document.body.classList.remove('reading-focus');$('focus').setAttribute('aria-pressed','false');$('focus').textContent='专注阅读';view('chat');$('selection-context').hidden=!withPassage;question.value=text;updateSend();question.focus()}
-    $('explain').onclick=()=>prompt('请用一个具体例子解释这一段的索引维护成本。',true);
     document.querySelectorAll('[data-question]').forEach(button=>button.onclick=()=>prompt(button.dataset.question));
     $('clear-context').onclick=()=>{$('selection-context').hidden=true;question.focus()};
     question.oninput=updateSend;
     $('ask-form').onsubmit=event=>{event.preventDefault();const text=question.value.trim();if(!text)return;const message=document.createElement('div');message.className='user-message';message.style.marginTop='24px';message.textContent=text;const note=document.createElement('p');note.className='local-note';note.textContent='已记录到本地演示。设计稿不请求模型，正式版本会在这里继续回答。';$('conversation').append(message,note);$('conversation').scrollTop=$('conversation').scrollHeight;question.value='';updateSend();toast('问题已加入本地演示对话，未发送到任何服务。')};
     question.onkeydown=event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();$('ask-form').requestSubmit()}};
-    let readingSize=18;
-    function resizeText(delta){readingSize=Math.max(16,Math.min(22,readingSize+delta));document.documentElement.style.setProperty('--reading-size',readingSize+'px');$('font-down').disabled=readingSize===16;$('font-up').disabled=readingSize===22;toast('阅读字号：'+readingSize+'px')}
+
+    let readingSize=16;
+    function resizeText(delta){readingSize=Math.max(15,Math.min(19,readingSize+delta));document.documentElement.style.setProperty('--reading-size',readingSize+'px');$('font-down').disabled=readingSize===15;$('font-up').disabled=readingSize===19;toast('阅读字号：'+readingSize+'px')}
     $('font-down').onclick=()=>resizeText(-1);$('font-up').onclick=()=>resizeText(1);
     $('focus').onclick=()=>{const active=document.body.classList.toggle('reading-focus');$('focus').setAttribute('aria-pressed',String(active));$('focus').textContent=active?'恢复并排':'专注阅读'};
     const sections=[...document.querySelectorAll('.article-section')];
-    reader.onscroll=()=>{const top=reader.getBoundingClientRect().top;let current=sections[0];for(const section of sections){if(section.getBoundingClientRect().top<top+reader.clientHeight*.4)current=section}document.querySelectorAll('.library nav a').forEach(link=>link.classList.toggle('active',link.getAttribute('href')==='#'+current.id));$('position').textContent='正在阅读 · '+current.querySelector('h2').textContent};
+    reader.onscroll=()=>{const top=reader.getBoundingClientRect().top;let current=sections[0];for(const section of sections){if(section.getBoundingClientRect().top<top+reader.clientHeight*.4)current=section}document.querySelectorAll('.library nav a').forEach(link=>link.classList.toggle('active',link.getAttribute('href')==='#'+current.id));const title=current.querySelector('h2')?.textContent||current.querySelector('.kicker')?.textContent||'流萤超击破体系';$('position').textContent='正在阅读 · '+title};
     $('show-refs').onclick=()=>$('refs').showModal();$('close-refs').onclick=()=>$('refs').close();
     $('refs').onclick=event=>{if(event.target===$('refs')){const bounds=$('refs').getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)$('refs').close()}};
   </script>
