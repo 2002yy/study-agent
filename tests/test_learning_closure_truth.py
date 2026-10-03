@@ -199,6 +199,11 @@ def test_explicit_closure_reconverges_source_then_commits_claim_and_understandin
     review = LearningReviewService(truth)
     assert not review.build("thread-1", now=verified).items[0].due
     assert review.build("thread-1", now=verified + timedelta(days=7)).items[0].due
+    preview = review.preview_prompt(
+        "thread-1", first.claim_revision_id, now=verified + timedelta(days=7)
+    )
+    assert preview.claim_revision_id == first.claim_revision_id
+    assert preview.status == "preview"
     assert review.build("another-thread", now=verified).items == ()
     with database.connect() as connection:
         assert "\n".join(connection.iterdump()) == before
