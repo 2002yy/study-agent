@@ -114,14 +114,21 @@ def _recording(registry, gold, *, mode: str = "frozen") -> dict:
     }
 
 
-def test_empty_release_registry_and_gold_remain_no_go() -> None:
+def test_owner_accepted_six_case_gold_remains_release_no_go() -> None:
     registry = load_registry(FIXTURES / "registry_v1.json", ROOT, PLAN)
     gold = load_gold(FIXTURES / "gold_v1.json", registry)
     report = admission_report(PLAN, registry, gold)
     score = score_recordings(PLAN, registry, gold, ())
-    assert report["admitted_release_cases"] == 0
-    assert report["missing_release_cases"] == 56
+    assert report["schema_version"] == "release-benchmark-admission-v2"
+    assert report["admission_basis"] == "structural_gold_review"
+    assert report["reviewed_candidate_cases"] == 6
+    assert report["admitted_release_cases"] == 6
+    assert report["missing_release_cases"] == 50
+    assert report["pending_admission"] == []
     assert score["target_denominator"] == 56
+    assert score["admitted_release_cases"] == 6
+    assert "release_cases_incomplete" in score["reasons"]
+    assert "release_observations_incomplete" in score["reasons"]
     assert score["release_gate"] == "NO_GO"
 
 
@@ -188,7 +195,7 @@ def test_gold_and_recording_bind_exact_case_and_manifest_digests(tmp_path) -> No
     _, registry = _registry(tmp_path, case)
     gold_raw, gold = _gold(registry, case)
     assert admission_report(PLAN, registry, gold)["reviewed_candidate_cases"] == 1
-    assert admission_report(PLAN, registry, gold)["admitted_release_cases"] == 0
+    assert admission_report(PLAN, registry, gold)["admitted_release_cases"] == 1
     gold_raw["reviews"][0]["case_content_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="matching case revision"):
         parse_gold(gold_raw, registry)
@@ -214,7 +221,8 @@ def test_pilot_counts_missing_metrics_and_hard_failure_without_approval(tmp_path
     assert report["metrics"]["evidence_grounding"]["unavailable"] == 1
     assert report["strata"]["mode"]["frozen"]["planned"] == 32
     assert report["strata"]["mode"]["live"]["reviewed_candidates"] == 0
-    assert report["unadmitted_cases"] == 56
+    assert report["admission_basis"] == "structural_gold_review"
+    assert report["unadmitted_cases"] == 55
     assert report["release_gate"] == "NO_GO"
     negative = deepcopy(positive)
     negative["cases"][0]["hard_failures"] = [{

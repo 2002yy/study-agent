@@ -370,7 +370,8 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
                 }
         cases.append({
             "case_id": case.case_id, "mode": case.mode, "modality": case.modality,
-            "primary_focus": case.primary_focus, "release_admitted": False,
+            "primary_focus": case.primary_focus,
+            "release_admitted": case.case_id in reviewed,
             "state": observed.state if observed else "missing",
             "reason": observed.reason if observed else "observation_missing",
             "source_reads": [
@@ -419,6 +420,7 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
         "gold_digest": gold.digest, "target_denominator": plan.target_total,
         "registered_cases": admission["registered_cases"],
         "reviewed_candidate_cases": admission["reviewed_candidate_cases"],
+        "admission_basis": admission["admission_basis"],
         "admitted_release_cases": admission["admitted_release_cases"],
         "unadmitted_cases": admission["missing_release_cases"],
         "missing_observations": sum(item["state"] == "missing" for item in cases),
@@ -426,7 +428,9 @@ def score_recordings(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
         "hard_failures": hard_failures, "hard_failure_counts": hard_failure_counts,
         "release_gate": "NO_GO",
         "reasons": [
-            "external_independent_review_not_attested",
+            *(["release_cases_incomplete"] if admission["missing_release_cases"] else []),
+            *(["release_observations_incomplete"]
+              if any(item["state"] == "missing" for item in cases) else []),
             "release_thresholds_and_judge_qualification_not_locked",
             *(["hard_safety_error"] if hard_failures else []),
         ],

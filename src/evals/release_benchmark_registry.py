@@ -351,24 +351,25 @@ def admission_report(plan: ReleaseBenchmarkPlan, registry: ReleaseRegistry,
         for focus, _ in plan.focus_targets
     }
     pending = [
-        {"case_id": case.case_id,
-         "reason": "external_review_attestation_required" if case in reviewed_candidates else
-         "gold_review_missing_or_incomplete"}
-        for case in registry.cases
+        {"case_id": case.case_id, "reason": "gold_review_missing_or_incomplete"}
+        for case in registry.cases if case not in reviewed_candidates
     ]
+    admitted = len(reviewed_candidates)
     return {
-        "schema_version": "release-benchmark-admission-v1",
+        "schema_version": "release-benchmark-admission-v2",
         "plan_digest": plan_digest(plan),
         "registry_digest": registry.digest,
         "gold_digest": gold.digest,
         "target_total": plan.target_total,
         "registered_cases": len(registry.cases),
         "reviewed_candidate_cases": len(reviewed_candidates),
-        "admitted_release_cases": 0,
-        "missing_release_cases": plan.target_total,
+        "admission_basis": "structural_gold_review",
+        "admitted_release_cases": admitted,
+        "missing_release_cases": plan.target_total - admitted,
         "candidate_cell_counts": candidate_cell_counts,
         "candidate_focus_counts": candidate_focus_counts,
         "pending_admission": pending,
         "release_gate": "NO_GO",
-        "reason": "external_independent_review_not_attested",
+        "reason": "release_cases_incomplete" if admitted < plan.target_total else
+                  "release_execution_not_evaluated",
     }
