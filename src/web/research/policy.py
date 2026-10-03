@@ -51,6 +51,10 @@ _ALL_SOURCE_ROLES: tuple[SourceRole, ...] = (
     "aggregator",
 )
 
+#: Public authority ordering (best -> worst). Shared with RQ-C conflict ranking so
+#: there is exactly one authority order in the engine.
+SOURCE_ROLE_AUTHORITY_ORDER: tuple[SourceRole, ...] = _ALL_SOURCE_ROLES
+
 
 @dataclass(frozen=True)
 class EvidencePolicy:

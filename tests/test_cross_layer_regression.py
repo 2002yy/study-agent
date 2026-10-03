@@ -350,16 +350,14 @@ def test_news_discuss_session_isolation():
 # ── 10. Query change invalidates later stage buttons ────────────────────
 
 
-def test_news_query_change_invalidates_downstream_stages(monkeypatch):
+def test_news_query_change_invalidates_downstream_stages(runtime_test_context):
     """Simulate the frontend logic: when searchedQuery differs from input,
     downstream stages should be disabled."""
     client = TestClient(app)
-    from src import api
+    from src.application.news_service import NewsDependencies
 
-    monkeypatch.setattr(
-        api,
-        "run_search_stage",
-        lambda query, max_items: [
+    runtime_test_context.news_service.dependencies = NewsDependencies(
+        search=lambda query, max_items: [
             {
                 "title": f"News {index}",
                 "url": f"https://example.com/{index}",

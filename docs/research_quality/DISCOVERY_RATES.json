@@ -1,0 +1,11 @@
+{
+  "reviewer_type": "opencode",
+  "cases_total": 12,
+  "cases_with_likely_target": 1,
+  "model_target_fact_candidate_rate": 0.0833,
+  "model_likely_target_read_rate": 0.0,
+  "model_target_fact_present_rate": null,
+  "model_extractor_capture_rate": null,
+  "target_fact_harvest_rate": "unobserved",
+  "note": "model-assisted rates from agreed pass A/B labels; they are not human_* rates and harvest stays unobserved"
+}

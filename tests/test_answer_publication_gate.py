@@ -705,3 +705,185 @@ def test_g16_audit_records_rejected_binding_outcome(tmp_path) -> None:
     )
     assert binding["status"] == "rejected"
     assert "producer_refused" not in json.dumps(binding)
+
+
+# --- BLOCK-only answer reasoning policy (anti-drift invariants) ---------------
+#
+# Gate=BLOCK is known before generation (no eligible evidence rows, or no
+# attempt budget) and the release gate then replaces whatever the model wrote
+# with RESEARCH_ANSWER_BLOCKED_COPY. Measured on real production prompts, the
+# default answer call spends 1330-2083 hidden reasoning tokens (16-41s) for
+# output that is discarded, so the blocked branch must not reason - while any
+# other gate outcome must keep the production default.
+
+
+def _generation_calls(seen: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in seen if item.get("task_name") == "single_chat"]
+
+
+def test_block_without_evidence_rows_disables_answer_thinking(tmp_path) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        seen.append(dict(kwargs))
+        return "candidate text that the release gate will discard"
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[]))
+
+    # Published surface is unchanged: the blocked copy still wins.
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    assert turn.assistant_message == RESEARCH_ANSWER_BLOCKED_COPY
+    assert _audit(turn)["phases"]["answer_claim_binding"]["error_type"] == (
+        "missing_evidence_brief"
+    )
+    generation = _generation_calls(seen)
+    assert generation, "expected the blocked branch to still generate"
+    assert generation[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+
+
+def test_block_without_attempt_budget_disables_answer_thinking(tmp_path) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        seen.append(dict(kwargs))
+        return ANSWER
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(
+        service, repository, _command(rows=[_row()], allowed_attempts=0)
+    )
+
+    assert reply == RESEARCH_ANSWER_BLOCKED_COPY
+    generation = _generation_calls(seen)
+    assert generation[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+    binding = _audit(turn)["phases"]["answer_claim_binding"]
+    assert binding["outcome"] == "budget_exhausted"
+
+
+def test_block_disables_thinking_on_the_streaming_surface(tmp_path) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def stream_chat(*args: Any, **kwargs: Any) -> Any:
+        seen.append(dict(kwargs))
+        return iter(["part", " two"])
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        return ANSWER
+
+    repository = RuntimeRepository(RuntimeDatabase(tmp_path / "runtime.db"))
+    dependencies = ChatDependencies(
+        load_runtime_modes=lambda: RuntimeModes(
+            memory_mode="preview", performance_mode="standard"
+        ),
+        read_memory_bundle=lambda context_mode: {},
+        build_role_prompt=lambda role, **kwargs: f"role:{role}",
+        route_request=lambda **kwargs: {
+            "role": "nahida",
+            "mode": "普通",
+            "model_profile": "flash",
+            "reason": "test",
+        },
+        retrieve_local_knowledge=lambda *args, **kwargs: _FakeRagResult(),
+        build_messages=lambda **kwargs: [
+            {"role": "system", "content": kwargs["role_prompt"]},
+            {"role": "user", "content": kwargs["user_input"]},
+        ],
+        chat=chat_fn,
+        stream_chat=stream_chat,
+        chat_max_tokens=lambda performance_mode: 1000,
+        resolve_web_tools=lambda *args, **kwargs: WebToolTrace(enabled=False),
+        pedagogy_evaluation=PedagogyEvaluationService(),
+    )
+    service = ChatService(repository, dependencies)
+    prepared = service.start_turn(_command(rows=[]))
+    list(service.stream(prepared))
+
+    assert seen and seen[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+
+
+def test_substantive_answer_keeps_production_thinking_default(tmp_path) -> None:
+    """Gate != BLOCK must never inherit the blocked-branch reasoning policy."""
+
+    seen: list[dict[str, Any]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        seen.append(dict(kwargs))
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, _turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    generation = _generation_calls(seen)
+    assert generation
+    assert generation[0].get("extra_body") is None
+
+
+def test_bounded_policy_flag_applies_thinking_off_to_gate_pass_answers(
+    tmp_path, monkeypatch
+) -> None:
+    """§40c diagnostic override: gate-pass answers run bounded thinking-off."""
+
+    monkeypatch.setenv("RESEARCH_ANSWER_BOUNDED_POLICY", "on")
+    seen: list[dict[str, Any]] = []
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        seen.append(dict(kwargs))
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, _turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    generation = _generation_calls(seen)
+    assert generation
+    assert generation[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+    binding = [
+        call for call in seen if call.get("task_name") == "answer_claim_binding"
+    ]
+    assert binding
+    assert binding[0].get("extra_body") == {"thinking": {"type": "disabled"}}
+
+
+def test_consistency_gate_flags_evidence_denial_despite_valid_binding(
+    tmp_path, monkeypatch
+) -> None:
+    """§40c: an answer that denies evidence must not publish over a supports ledger."""
+
+    monkeypatch.setenv("RESEARCH_ANSWER_CONSISTENCY_GATE", "on")
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return "本轮没有任何证据可以支持该结论。"
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。"
+    audit = turn.rag_snapshot.get("answer_validation_audit") or {}
+    binding_phase = (audit.get("phases") or {}).get("answer_claim_binding") or {}
+    assert binding_phase.get("outcome") == "rejected"
+    assert str(binding_phase.get("error_type") or "").startswith("consistency_failed")
+
+
+def test_consistency_gate_publishes_clean_answer(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_ANSWER_CONSISTENCY_GATE", "on")
+
+    def chat_fn(*args: Any, **kwargs: Any) -> str:
+        if kwargs.get("task_name") == "answer_claim_binding":
+            return _binding_payload([_segment_entry("s1", support=(EVIDENCE_ID,))])
+        return CANDIDATE
+
+    service, repository = _service(tmp_path, chat_fn)
+    reply, turn = _run_turn(service, repository, _command(rows=[_row()]))
+
+    assert reply == CANDIDATE
+    consistency = turn.rag_snapshot.get("answer_consistency") or {}
+    assert consistency.get("ok") is True
+    assert consistency.get("codes") == []

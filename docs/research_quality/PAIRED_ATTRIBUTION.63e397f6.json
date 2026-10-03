@@ -1,0 +1,5057 @@
+{
+  "attribution_allowed": true,
+  "baseline": {
+    "ref": "0ea2689",
+    "sha": "0ea26896f1b46d8b455e0faf95cca70380675146"
+  },
+  "calibration_cases": [
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "label": "C1",
+      "rationale": "Search reaches a primary source directly; no lead discovery and no evidence-lead follow-up was needed in the recorded holdout runs.",
+      "shape": "direct-primary"
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "label": "C2",
+      "rationale": "Recorded holdout runs show lead_discovery_succeeded + lead_read_started, i.e. a lead_only candidate had to be read before evidence existed.",
+      "shape": "candidate-lead"
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "label": "C3",
+      "rationale": "Recorded holdout runs show relation=lead follow-ups (evidence_lead_followup_started), i.e. a read page had to hand a deeper asset to a bounded follow-up.",
+      "shape": "evidence-lead"
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "label": "C4",
+      "rationale": "Recorded holdout runs show evidence_lead_followup_skipped_insufficient_budget and a run that reached the research window boundary; this is the case most sensitive to the reserved tail.",
+      "shape": "deadline-stress"
+    }
+  ],
+  "candidate": {
+    "ref": "63e397f",
+    "sha": "63e397f61bf25b2b971fd813448271014c374ab3"
+  },
+  "case_deltas": [
+    {
+      "baseline_gate_statuses": [
+        "block",
+        "block",
+        "block",
+        "block",
+        "block",
+        "block"
+      ],
+      "baseline_statuses": [
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "baseline_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "candidate_gate_statuses": [
+        "block",
+        "block",
+        "block"
+      ],
+      "candidate_statuses": [
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "candidate_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "case_id": "rq1c-academic-primary-attention",
+      "lead_actions": {
+        "baseline_runs": [
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          }
+        ],
+        "candidate_runs": [
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          },
+          {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          }
+        ]
+      },
+      "metrics": {
+        "answer_binding_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_binding_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.125,
+            "p50": 29.016,
+            "p90": 30.125,
+            "samples": [
+              29.016,
+              13.485,
+              30.125
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_stage_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.735,
+            "p50": 29.516,
+            "p90": 30.735,
+            "samples": [
+              29.516,
+              14.063,
+              30.735
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "artifact_write_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.016,
+            "p50": 0.0,
+            "p90": 0.016,
+            "samples": [
+              0.016,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "candidate_count": {
+          "baseline": {
+            "count": 6,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        },
+        "elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 53.39,
+            "p50": 51.016,
+            "p90": 53.39,
+            "samples": [
+              44.922,
+              52.562,
+              49.375,
+              46.672,
+              51.016,
+              53.39
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 53.625,
+            "p50": 52.281,
+            "p90": 53.625,
+            "samples": [
+              52.281,
+              35.984,
+              53.625
+            ]
+          },
+          "delta_p50": 1.265,
+          "direction": "lower_is_better"
+        },
+        "finalization_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 30.812,
+            "p50": 28.813,
+            "p90": 30.812,
+            "samples": [
+              21.641,
+              30.656,
+              26.625,
+              25.172,
+              28.813,
+              30.812
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.828,
+            "p50": 29.609,
+            "p90": 30.828,
+            "samples": [
+              29.609,
+              14.14,
+              30.828
+            ]
+          },
+          "delta_p50": 0.796,
+          "direction": "lower_is_better"
+        },
+        "model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "projection_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "provider_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 4.0,
+            "p50": 4.0,
+            "p90": 4.0,
+            "samples": [
+              4.0,
+              4.0,
+              4.0,
+              4.0,
+              4.0,
+              4.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 4.0,
+            "p50": 4.0,
+            "p90": 4.0,
+            "samples": [
+              4.0,
+              4.0,
+              4.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "read_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 4.0,
+            "p50": 4.0,
+            "p90": 4.0,
+            "samples": [
+              4.0,
+              4.0,
+              4.0,
+              4.0,
+              4.0,
+              4.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 4.0,
+            "p50": 4.0,
+            "p90": 4.0,
+            "samples": [
+              4.0,
+              4.0,
+              4.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "reads": {
+          "baseline": {
+            "count": 6,
+            "max": 3.0,
+            "p50": 3.0,
+            "p90": 3.0,
+            "samples": [
+              3.0,
+              3.0,
+              3.0,
+              3.0,
+              3.0,
+              3.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 3.0,
+            "p50": 3.0,
+            "p90": 3.0,
+            "samples": [
+              3.0,
+              3.0,
+              3.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "research_elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 23.281,
+            "p50": 22.578,
+            "p90": 23.281,
+            "samples": [
+              23.281,
+              21.906,
+              22.75,
+              21.5,
+              22.203,
+              22.578
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 22.797,
+            "p50": 22.672,
+            "p90": 22.797,
+            "samples": [
+              22.672,
+              21.844,
+              22.797
+            ]
+          },
+          "delta_p50": 0.094,
+          "direction": "lower_is_better"
+        },
+        "research_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "support_clusters": {
+          "baseline": {
+            "count": 6,
+            "max": 3.0,
+            "p50": 2.0,
+            "p90": 3.0,
+            "samples": [
+              2.0,
+              2.0,
+              3.0,
+              2.0,
+              1.0,
+              2.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 3.0,
+            "p50": 3.0,
+            "p90": 3.0,
+            "samples": [
+              2.0,
+              3.0,
+              3.0
+            ]
+          },
+          "delta_p50": 1.0,
+          "direction": "higher_is_better"
+        }
+      },
+      "phases": {
+        "assessment": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.954,
+            "p50": 1.782,
+            "p90": 1.954,
+            "samples": [
+              1.782,
+              1.516,
+              1.954
+            ]
+          }
+        },
+        "extraction": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 4.562,
+            "p50": 3.641,
+            "p90": 4.562,
+            "samples": [
+              4.562,
+              3.624,
+              3.641
+            ]
+          }
+        },
+        "read": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.047,
+            "p50": 1.828,
+            "p90": 2.047,
+            "samples": [
+              1.828,
+              1.719,
+              2.047
+            ]
+          }
+        },
+        "search": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 11.53,
+            "p50": 11.483,
+            "p90": 11.53,
+            "samples": [
+              11.454,
+              11.483,
+              11.53
+            ]
+          }
+        }
+      }
+    },
+    {
+      "baseline_gate_statuses": [
+        "block",
+        "block",
+        "block",
+        "block",
+        "block",
+        "block"
+      ],
+      "baseline_statuses": [
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "baseline_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "candidate_gate_statuses": [
+        "block",
+        "block",
+        "block"
+      ],
+      "candidate_statuses": [
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "candidate_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "case_id": "rq1c-numeric-uk-inflation",
+      "lead_actions": {
+        "baseline_runs": [
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          }
+        ],
+        "candidate_runs": [
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          }
+        ]
+      },
+      "metrics": {
+        "answer_binding_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_binding_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.11,
+            "p50": 30.094,
+            "p90": 30.11,
+            "samples": [
+              17.157,
+              30.094,
+              30.11
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_stage_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.657,
+            "p50": 30.532,
+            "p90": 30.657,
+            "samples": [
+              17.969,
+              30.532,
+              30.657
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "artifact_write_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.015,
+            "p50": 0.0,
+            "p90": 0.015,
+            "samples": [
+              0.0,
+              0.015,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "candidate_count": {
+          "baseline": {
+            "count": 6,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        },
+        "elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 50.844,
+            "p50": 43.797,
+            "p90": 50.844,
+            "samples": [
+              40.969,
+              37.61,
+              43.797,
+              40.812,
+              50.844,
+              50.375
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 53.625,
+            "p50": 53.594,
+            "p90": 53.625,
+            "samples": [
+              42.875,
+              53.625,
+              53.594
+            ]
+          },
+          "delta_p50": 9.797,
+          "direction": "lower_is_better"
+        },
+        "finalization_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 28.578,
+            "p50": 20.766,
+            "p90": 28.578,
+            "samples": [
+              17.094,
+              15.891,
+              20.766,
+              17.937,
+              28.578,
+              27.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.734,
+            "p50": 30.578,
+            "p90": 30.734,
+            "samples": [
+              18.047,
+              30.578,
+              30.734
+            ]
+          },
+          "delta_p50": 9.812,
+          "direction": "lower_is_better"
+        },
+        "model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "projection_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "provider_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 9.0,
+            "p50": 9.0,
+            "p90": 9.0,
+            "samples": [
+              9.0,
+              9.0,
+              9.0,
+              9.0,
+              9.0,
+              9.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 9.0,
+            "p50": 9.0,
+            "p90": 9.0,
+            "samples": [
+              9.0,
+              9.0,
+              9.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "read_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "reads": {
+          "baseline": {
+            "count": 6,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "research_elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 23.875,
+            "p50": 23.031,
+            "p90": 23.875,
+            "samples": [
+              23.875,
+              21.719,
+              23.031,
+              22.875,
+              22.266,
+              23.375
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 24.828,
+            "p50": 23.047,
+            "p90": 24.828,
+            "samples": [
+              24.828,
+              23.047,
+              22.86
+            ]
+          },
+          "delta_p50": 0.016,
+          "direction": "lower_is_better"
+        },
+        "research_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "support_clusters": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        }
+      },
+      "phases": {
+        "assessment": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.374,
+            "p50": 4.063,
+            "p90": 5.374,
+            "samples": [
+              5.374,
+              3.642,
+              4.063
+            ]
+          }
+        },
+        "extraction": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.672,
+            "p50": 1.25,
+            "p90": 1.672,
+            "samples": [
+              1.063,
+              1.672,
+              1.25
+            ]
+          }
+        },
+        "read": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.579,
+            "p50": 1.313,
+            "p90": 1.579,
+            "samples": [
+              1.579,
+              1.312,
+              1.313
+            ]
+          }
+        },
+        "search": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 13.265,
+            "p50": 13.156,
+            "p90": 13.265,
+            "samples": [
+              13.265,
+              13.156,
+              13.092
+            ]
+          }
+        }
+      }
+    },
+    {
+      "baseline_gate_statuses": [
+        "block",
+        "block",
+        "block",
+        "block",
+        "block",
+        "block"
+      ],
+      "baseline_statuses": [
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "baseline_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "candidate_gate_statuses": [
+        "block",
+        "block",
+        "block"
+      ],
+      "candidate_statuses": [
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "candidate_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "case_id": "rq1c-provenance-xz",
+      "lead_actions": {
+        "baseline_runs": [
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          }
+        ],
+        "candidate_runs": [
+          {
+            "no_lead_candidate": 3
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          }
+        ]
+      },
+      "metrics": {
+        "answer_binding_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_binding_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.125,
+            "p50": 30.125,
+            "p90": 30.125,
+            "samples": [
+              27.859,
+              30.125,
+              30.125
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_stage_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.703,
+            "p50": 30.657,
+            "p90": 30.703,
+            "samples": [
+              28.437,
+              30.657,
+              30.703
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "artifact_write_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "candidate_count": {
+          "baseline": {
+            "count": 6,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        },
+        "elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 57.407,
+            "p50": 54.829,
+            "p90": 57.407,
+            "samples": [
+              52.657,
+              47.531,
+              54.829,
+              56.407,
+              47.125,
+              57.407
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 55.688,
+            "p50": 55.469,
+            "p90": 55.688,
+            "samples": [
+              53.109,
+              55.469,
+              55.688
+            ]
+          },
+          "delta_p50": 0.64,
+          "direction": "lower_is_better"
+        },
+        "finalization_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 30.798,
+            "p50": 27.298,
+            "p90": 30.798,
+            "samples": [
+              27.298,
+              22.828,
+              27.001,
+              30.72,
+              21.578,
+              30.798
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.766,
+            "p50": 30.719,
+            "p90": 30.766,
+            "samples": [
+              28.531,
+              30.719,
+              30.766
+            ]
+          },
+          "delta_p50": 3.421,
+          "direction": "lower_is_better"
+        },
+        "model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "projection_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "provider_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 8.0,
+            "p50": 8.0,
+            "p90": 8.0,
+            "samples": [
+              8.0,
+              8.0,
+              8.0,
+              8.0,
+              8.0,
+              8.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 8.0,
+            "p50": 8.0,
+            "p90": 8.0,
+            "samples": [
+              8.0,
+              8.0,
+              8.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "read_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "reads": {
+          "baseline": {
+            "count": 6,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.0,
+            "p50": 2.0,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              2.0,
+              2.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "research_elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 27.828,
+            "p50": 25.687,
+            "p90": 27.828,
+            "samples": [
+              25.359,
+              24.703,
+              27.828,
+              25.687,
+              25.547,
+              26.609
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 24.922,
+            "p50": 24.75,
+            "p90": 24.922,
+            "samples": [
+              24.578,
+              24.75,
+              24.922
+            ]
+          },
+          "delta_p50": -0.937,
+          "direction": "lower_is_better"
+        },
+        "research_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "support_clusters": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 0.0,
+            "p90": 1.0,
+            "samples": [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              0.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 1.0,
+          "direction": "higher_is_better"
+        }
+      },
+      "phases": {
+        "assessment": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.751,
+            "p50": 1.578,
+            "p90": 1.751,
+            "samples": [
+              1.563,
+              1.578,
+              1.751
+            ]
+          }
+        },
+        "extraction": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 4.157,
+            "p50": 3.906,
+            "p90": 4.157,
+            "samples": [
+              3.844,
+              3.906,
+              4.157
+            ]
+          }
+        },
+        "read": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 3.75,
+            "p50": 3.281,
+            "p90": 3.75,
+            "samples": [
+              3.75,
+              3.219,
+              3.281
+            ]
+          }
+        },
+        "search": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 12.782,
+            "p50": 12.703,
+            "p90": 12.782,
+            "samples": [
+              12.577,
+              12.703,
+              12.782
+            ]
+          }
+        }
+      }
+    },
+    {
+      "baseline_gate_statuses": [
+        "block",
+        "block",
+        "block",
+        "block",
+        "block",
+        "block"
+      ],
+      "baseline_statuses": [
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "baseline_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "candidate_gate_statuses": [
+        "block",
+        "block",
+        "block"
+      ],
+      "candidate_statuses": [
+        "partial",
+        "partial",
+        "partial"
+      ],
+      "candidate_stop_reasons": [
+        "evidence_saturated",
+        "evidence_saturated",
+        "evidence_saturated"
+      ],
+      "case_id": "rq1c-unverifiable-python-security",
+      "lead_actions": {
+        "baseline_runs": [
+          {
+            "duplicate_url_rejected": 1,
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 4
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          }
+        ],
+        "candidate_runs": [
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          }
+        ]
+      },
+      "metrics": {
+        "answer_binding_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_binding_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "answer_generation_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.109,
+            "p50": 30.094,
+            "p90": 30.109,
+            "samples": [
+              30.109,
+              30.094,
+              30.094
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "answer_stage_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.672,
+            "p50": 30.609,
+            "p90": 30.672,
+            "samples": [
+              30.609,
+              30.672,
+              30.594
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "artifact_write_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "candidate_count": {
+          "baseline": {
+            "count": 6,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        },
+        "elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 54.391,
+            "p50": 47.234,
+            "p90": 54.391,
+            "samples": [
+              49.641,
+              47.234,
+              44.281,
+              40.687,
+              38.719,
+              54.391
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 53.641,
+            "p50": 52.094,
+            "p90": 53.641,
+            "samples": [
+              53.641,
+              51.688,
+              52.094
+            ]
+          },
+          "delta_p50": 4.86,
+          "direction": "lower_is_better"
+        },
+        "finalization_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 30.641,
+            "p50": 25.249,
+            "p90": 30.641,
+            "samples": [
+              28.813,
+              25.249,
+              22.703,
+              19.687,
+              17.672,
+              30.641
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 30.813,
+            "p50": 30.719,
+            "p90": 30.813,
+            "samples": [
+              30.719,
+              30.813,
+              30.719
+            ]
+          },
+          "delta_p50": 5.47,
+          "direction": "lower_is_better"
+        },
+        "model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 7.0,
+            "p50": 7.0,
+            "p90": 7.0,
+            "samples": [
+              7.0,
+              7.0,
+              7.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "projection_seconds": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": null,
+          "direction": "lower_is_better"
+        },
+        "provider_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 5.0,
+            "p50": 5.0,
+            "p90": 5.0,
+            "samples": [
+              5.0,
+              5.0,
+              5.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "read_attempts": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "reads": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 1.0,
+            "p50": 1.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "research_elapsed_seconds": {
+          "baseline": {
+            "count": 6,
+            "max": 23.75,
+            "p50": 21.578,
+            "p90": 23.75,
+            "samples": [
+              20.828,
+              21.985,
+              21.578,
+              21.0,
+              21.047,
+              23.75
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 22.922,
+            "p50": 21.375,
+            "p90": 22.922,
+            "samples": [
+              22.922,
+              20.875,
+              21.375
+            ]
+          },
+          "delta_p50": -0.203,
+          "direction": "lower_is_better"
+        },
+        "research_model_calls": {
+          "baseline": {
+            "count": 6,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 6.0,
+            "p50": 6.0,
+            "p90": 6.0,
+            "samples": [
+              6.0,
+              6.0,
+              6.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "lower_is_better"
+        },
+        "support_clusters": {
+          "baseline": {
+            "count": 6,
+            "max": 1.0,
+            "p50": 0.0,
+            "p90": 1.0,
+            "samples": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "samples": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "delta_p50": 0.0,
+          "direction": "higher_is_better"
+        }
+      },
+      "phases": {
+        "assessment": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.626,
+            "p50": 2.234,
+            "p90": 2.626,
+            "samples": [
+              2.626,
+              2.234,
+              1.484
+            ]
+          }
+        },
+        "discovery": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 0.891,
+            "p50": 0.86,
+            "p90": 0.891,
+            "samples": [
+              0.86,
+              0.891,
+              0.672
+            ]
+          }
+        },
+        "extraction": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 3.047,
+            "p50": 2.375,
+            "p90": 3.047,
+            "samples": [
+              2.375,
+              2.328,
+              3.047
+            ]
+          }
+        },
+        "read": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 2.0,
+            "p50": 1.079,
+            "p90": 2.0,
+            "samples": [
+              2.0,
+              1.079,
+              1.031
+            ]
+          }
+        },
+        "search": {
+          "baseline": {
+            "count": 0,
+            "max": null,
+            "p50": null,
+            "p90": null,
+            "samples": []
+          },
+          "candidate": {
+            "count": 3,
+            "max": 11.796,
+            "p50": 11.78,
+            "p90": 11.796,
+            "samples": [
+              11.78,
+              11.736,
+              11.796
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "case_timeout_seconds": 300.0,
+  "comparison_status": "stable",
+  "external_baseline": {
+    "attribution_allowed": true,
+    "compared": [
+      "F1",
+      "F3"
+    ],
+    "drifts": [],
+    "fingerprint_errors": [],
+    "material_provider_changes": [],
+    "status": "stable"
+  },
+  "external_tolerances": {
+    "deepseek": {
+      "absolute_ms": 2000.0,
+      "relative": 1.0
+    },
+    "provider": {
+      "absolute_ms": 3000.0,
+      "relative": 1.0
+    },
+    "reader": {
+      "absolute_ms": 2000.0,
+      "relative": 1.0
+    }
+  },
+  "fingerprints": {
+    "F0": {
+      "deepseek": {
+        "assessor": {
+          "attempt_count": 1,
+          "elapsed_ms": 625.0,
+          "finish_reason": "stop",
+          "input_tokens": 896,
+          "output_tokens": 41,
+          "status": "completed"
+        },
+        "extractor": {
+          "attempt_count": 1,
+          "elapsed_ms": 1156.0,
+          "finish_reason": "stop",
+          "input_tokens": 548,
+          "output_tokens": 144,
+          "status": "completed"
+        },
+        "model_name": "deepseek-flash",
+        "planner": {
+          "attempt_count": 1,
+          "elapsed_ms": 1406.0,
+          "finish_reason": "stop",
+          "input_tokens": 1659,
+          "output_tokens": 55,
+          "status": "completed"
+        },
+        "provider_profile": "deepseek"
+      },
+      "errors": [],
+      "fingerprint_id": "a197e90522dd786f",
+      "logger_note": "reader uses a fixed internal timeout and is not yet clamped to the research window (known limitation, see PROJECT_STATUS §25)",
+      "providers": {
+        "elapsed_ms": 10453.0,
+        "overall": "partial",
+        "providers": {
+          "bing_rss": {
+            "attempts": 1,
+            "elapsed_ms": 328.0,
+            "reason": "results_found",
+            "result_count": 5,
+            "status": "ok"
+          },
+          "duckduckgo_html": {
+            "attempts": 1,
+            "elapsed_ms": 6015.0,
+            "reason": "wallclock_timeout",
+            "result_count": 0,
+            "status": "failed"
+          },
+          "searxng": {
+            "attempts": 2,
+            "elapsed_ms": 4110.0,
+            "reason": "url_error",
+            "result_count": 0,
+            "status": "failed"
+          }
+        },
+        "query": "python 3.13 release notes"
+      },
+      "reader": {
+        "content_chars": 844,
+        "elapsed_ms": 641.0,
+        "error": "",
+        "ok": true,
+        "url": "https://www.python.org/downloads/"
+      },
+      "schema_version": "rq1c-environment-fingerprint-v1",
+      "timestamp": "2026-09-14T09:25:07.893009Z"
+    },
+    "F1": {
+      "deepseek": {
+        "assessor": {
+          "attempt_count": 1,
+          "elapsed_ms": 781.0,
+          "finish_reason": "stop",
+          "input_tokens": 896,
+          "output_tokens": 41,
+          "status": "completed"
+        },
+        "extractor": {
+          "attempt_count": 1,
+          "elapsed_ms": 1313.0,
+          "finish_reason": "stop",
+          "input_tokens": 548,
+          "output_tokens": 144,
+          "status": "completed"
+        },
+        "model_name": "deepseek-flash",
+        "planner": {
+          "attempt_count": 1,
+          "elapsed_ms": 1422.0,
+          "finish_reason": "stop",
+          "input_tokens": 1659,
+          "output_tokens": 55,
+          "status": "completed"
+        },
+        "provider_profile": "deepseek"
+      },
+      "errors": [],
+      "fingerprint_id": "0c9fe919d0839889",
+      "logger_note": "reader uses a fixed internal timeout and is not yet clamped to the research window (known limitation, see PROJECT_STATUS §25)",
+      "providers": {
+        "elapsed_ms": 10438.0,
+        "overall": "partial",
+        "providers": {
+          "bing_rss": {
+            "attempts": 1,
+            "elapsed_ms": 360.0,
+            "reason": "results_found",
+            "result_count": 5,
+            "status": "ok"
+          },
+          "duckduckgo_html": {
+            "attempts": 1,
+            "elapsed_ms": 6000.0,
+            "reason": "wallclock_timeout",
+            "result_count": 0,
+            "status": "failed"
+          },
+          "searxng": {
+            "attempts": 2,
+            "elapsed_ms": 4078.0,
+            "reason": "url_error",
+            "result_count": 0,
+            "status": "failed"
+          }
+        },
+        "query": "python 3.13 release notes"
+      },
+      "reader": {
+        "content_chars": 844,
+        "elapsed_ms": 610.0,
+        "error": "",
+        "ok": true,
+        "url": "https://www.python.org/downloads/"
+      },
+      "schema_version": "rq1c-environment-fingerprint-v1",
+      "timestamp": "2026-09-14T09:35:07.570279Z"
+    },
+    "F2": {
+      "deepseek": {
+        "assessor": {
+          "attempt_count": 1,
+          "elapsed_ms": 734.0,
+          "finish_reason": "stop",
+          "input_tokens": 896,
+          "output_tokens": 41,
+          "status": "completed"
+        },
+        "extractor": {
+          "attempt_count": 1,
+          "elapsed_ms": 953.0,
+          "finish_reason": "stop",
+          "input_tokens": 548,
+          "output_tokens": 140,
+          "status": "completed"
+        },
+        "model_name": "deepseek-flash",
+        "planner": {
+          "attempt_count": 1,
+          "elapsed_ms": 1485.0,
+          "finish_reason": "stop",
+          "input_tokens": 1659,
+          "output_tokens": 55,
+          "status": "completed"
+        },
+        "provider_profile": "deepseek"
+      },
+      "errors": [],
+      "fingerprint_id": "a2028b0906c3bba9",
+      "logger_note": "reader uses a fixed internal timeout and is not yet clamped to the research window (known limitation, see PROJECT_STATUS §25)",
+      "providers": {
+        "elapsed_ms": 10469.0,
+        "overall": "partial",
+        "providers": {
+          "bing_rss": {
+            "attempts": 1,
+            "elapsed_ms": 344.0,
+            "reason": "results_found",
+            "result_count": 5,
+            "status": "ok"
+          },
+          "duckduckgo_html": {
+            "attempts": 1,
+            "elapsed_ms": 6016.0,
+            "reason": "wallclock_timeout",
+            "result_count": 0,
+            "status": "failed"
+          },
+          "searxng": {
+            "attempts": 2,
+            "elapsed_ms": 4109.0,
+            "reason": "url_error",
+            "result_count": 0,
+            "status": "failed"
+          }
+        },
+        "query": "python 3.13 release notes"
+      },
+      "reader": {
+        "content_chars": 844,
+        "elapsed_ms": 656.0,
+        "error": "",
+        "ok": true,
+        "url": "https://www.python.org/downloads/"
+      },
+      "schema_version": "rq1c-environment-fingerprint-v1",
+      "timestamp": "2026-09-14T09:45:54.374884Z"
+    },
+    "F3": {
+      "deepseek": {
+        "assessor": {
+          "attempt_count": 1,
+          "elapsed_ms": 1000.0,
+          "finish_reason": "stop",
+          "input_tokens": 896,
+          "output_tokens": 41,
+          "status": "completed"
+        },
+        "extractor": {
+          "attempt_count": 1,
+          "elapsed_ms": 1047.0,
+          "finish_reason": "stop",
+          "input_tokens": 548,
+          "output_tokens": 144,
+          "status": "completed"
+        },
+        "model_name": "deepseek-flash",
+        "planner": {
+          "attempt_count": 1,
+          "elapsed_ms": 1203.0,
+          "finish_reason": "stop",
+          "input_tokens": 1659,
+          "output_tokens": 56,
+          "status": "completed"
+        },
+        "provider_profile": "deepseek"
+      },
+      "errors": [],
+      "fingerprint_id": "d92c1b6a307574e4",
+      "logger_note": "reader uses a fixed internal timeout and is not yet clamped to the research window (known limitation, see PROJECT_STATUS §25)",
+      "providers": {
+        "elapsed_ms": 10469.0,
+        "overall": "partial",
+        "providers": {
+          "bing_rss": {
+            "attempts": 1,
+            "elapsed_ms": 344.0,
+            "reason": "results_found",
+            "result_count": 5,
+            "status": "ok"
+          },
+          "duckduckgo_html": {
+            "attempts": 1,
+            "elapsed_ms": 6016.0,
+            "reason": "wallclock_timeout",
+            "result_count": 0,
+            "status": "failed"
+          },
+          "searxng": {
+            "attempts": 2,
+            "elapsed_ms": 4109.0,
+            "reason": "url_error",
+            "result_count": 0,
+            "status": "failed"
+          }
+        },
+        "query": "python 3.13 release notes"
+      },
+      "reader": {
+        "content_chars": 844,
+        "elapsed_ms": 625.0,
+        "error": "",
+        "ok": true,
+        "url": "https://www.python.org/downloads/"
+      },
+      "schema_version": "rq1c-environment-fingerprint-v1",
+      "timestamp": "2026-09-14T09:56:13.694254Z"
+    }
+  },
+  "generated_at": "2026-09-14T09:56:29.535072+00:00",
+  "measurement_runner": {
+    "path": "tools/run_rq1c_calibration.py",
+    "qualification_guard": "the strict 12-case qualification entrypoint is untouched; this runner drives a diagnostic subset of the same frozen manifest",
+    "sources": {
+      "baseline": "injected",
+      "candidate": "checkout"
+    }
+  },
+  "repeats_per_ref_per_case": 3,
+  "reserve_calibration": {
+    "distributions": {
+      "answer_binding": {
+        "count": 12,
+        "max": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "samples": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "answer_generation": {
+        "count": 12,
+        "max": 30.125,
+        "p50": 30.094,
+        "p90": 30.125,
+        "samples": [
+          17.157,
+          30.094,
+          30.11,
+          30.109,
+          30.094,
+          30.094,
+          29.016,
+          13.485,
+          30.125,
+          27.859,
+          30.125,
+          30.125
+        ]
+      },
+      "answer_stage": {
+        "count": 12,
+        "max": 30.735,
+        "p50": 30.609,
+        "p90": 30.703,
+        "samples": [
+          17.969,
+          30.532,
+          30.657,
+          30.609,
+          30.672,
+          30.594,
+          29.516,
+          14.063,
+          30.735,
+          28.437,
+          30.657,
+          30.703
+        ]
+      },
+      "artifact_write": {
+        "count": 12,
+        "max": 0.016,
+        "p50": 0.0,
+        "p90": 0.015,
+        "samples": [
+          0.0,
+          0.015,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.016,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "finalization": {
+        "count": 36,
+        "max": 30.828,
+        "p50": 28.531,
+        "p90": 30.798,
+        "samples": [
+          17.094,
+          15.891,
+          20.766,
+          28.813,
+          25.249,
+          22.703,
+          21.641,
+          30.656,
+          26.625,
+          27.298,
+          22.828,
+          27.001,
+          18.047,
+          30.578,
+          30.734,
+          30.719,
+          30.813,
+          30.719,
+          29.609,
+          14.14,
+          30.828,
+          28.531,
+          30.719,
+          30.766,
+          17.937,
+          28.578,
+          27.0,
+          19.687,
+          17.672,
+          30.641,
+          25.172,
+          28.813,
+          30.812,
+          30.72,
+          21.578,
+          30.798
+        ]
+      },
+      "projection": {
+        "count": 12,
+        "max": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "samples": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "research": {
+        "count": 36,
+        "max": 27.828,
+        "p50": 22.875,
+        "p90": 25.547,
+        "samples": [
+          23.875,
+          21.719,
+          23.031,
+          20.828,
+          21.985,
+          21.578,
+          23.281,
+          21.906,
+          22.75,
+          25.359,
+          24.703,
+          27.828,
+          24.828,
+          23.047,
+          22.86,
+          22.922,
+          20.875,
+          21.375,
+          22.672,
+          21.844,
+          22.797,
+          24.578,
+          24.75,
+          24.922,
+          22.875,
+          22.266,
+          23.375,
+          21.0,
+          21.047,
+          23.75,
+          21.5,
+          22.203,
+          22.578,
+          25.687,
+          25.547,
+          26.609
+        ]
+      }
+    },
+    "finalization_max_seconds": 30.828,
+    "finalization_p50_seconds": 28.531,
+    "finalization_p90_seconds": 30.798,
+    "note": "A reserve calibrated from p90 needs several samples per ref; keep FINALIZATION_RESERVE_SECONDS unchanged until the breakdown says which step actually dominates.",
+    "research_max_seconds": 27.828,
+    "research_p50_seconds": 22.875,
+    "sample_adequate_for_reserve": true,
+    "sample_count": 36
+  },
+  "runs": {
+    "A1": {
+      "case_runs": {
+        "rq1c-academic-primary-attention__r1": {
+          "elapsed_seconds": 46.121,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:29:58.041626+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=44.922s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 44.922}\n"
+        },
+        "rq1c-academic-primary-attention__r2": {
+          "elapsed_seconds": 53.828,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:30:44.164167+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=52.562s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 52.562}\n"
+        },
+        "rq1c-academic-primary-attention__r3": {
+          "elapsed_seconds": 50.636,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:31:37.993053+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=49.375s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 49.375}\n"
+        },
+        "rq1c-numeric-uk-inflation__r1": {
+          "elapsed_seconds": 46.416,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:25:22.859947+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=40.969s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 40.969}\n"
+        },
+        "rq1c-numeric-uk-inflation__r2": {
+          "elapsed_seconds": 38.856,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:26:09.276967+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=37.61s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 37.61}\n"
+        },
+        "rq1c-numeric-uk-inflation__r3": {
+          "elapsed_seconds": 45.059,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:26:48.133200+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=43.797s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 43.797}\n"
+        },
+        "rq1c-provenance-xz__r1": {
+          "elapsed_seconds": 53.9,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:32:28.629224+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=52.657s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 52.657}\n"
+        },
+        "rq1c-provenance-xz__r2": {
+          "elapsed_seconds": 48.857,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:33:22.530700+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=47.531s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 47.531}\n"
+        },
+        "rq1c-provenance-xz__r3": {
+          "elapsed_seconds": 56.041,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:34:11.388718+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=54.829s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 54.829}\n"
+        },
+        "rq1c-unverifiable-python-security__r1": {
+          "elapsed_seconds": 50.881,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:27:33.192365+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=49.641s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 49.641}\n"
+        },
+        "rq1c-unverifiable-python-security__r2": {
+          "elapsed_seconds": 48.455,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:28:24.073089+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=47.234s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 47.234}\n"
+        },
+        "rq1c-unverifiable-python-security__r3": {
+          "elapsed_seconds": 45.512,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:29:12.529568+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=44.281s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 44.281}\n"
+        }
+      },
+      "cases": [
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 40.969,
+          "finalization_breakdown": {},
+          "finalization_seconds": 17.094,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 23.875,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 37.61,
+          "finalization_breakdown": {},
+          "finalization_seconds": 15.891,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 21.719,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 43.797,
+          "finalization_breakdown": {},
+          "finalization_seconds": 20.766,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 23.031,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 49.641,
+          "finalization_breakdown": {},
+          "finalization_seconds": 28.813,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 20.828,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 47.234,
+          "finalization_breakdown": {},
+          "finalization_seconds": 25.249,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 21.985,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 44.281,
+          "finalization_breakdown": {},
+          "finalization_seconds": 22.703,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 21.578,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 44.922,
+          "finalization_breakdown": {},
+          "finalization_seconds": 21.641,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 23.281,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 2,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 52.562,
+          "finalization_breakdown": {},
+          "finalization_seconds": 30.656,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 21.906,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 2,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 49.375,
+          "finalization_breakdown": {},
+          "finalization_seconds": 26.625,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 22.75,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 3,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 52.657,
+          "finalization_breakdown": {},
+          "finalization_seconds": 27.298,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 25.359,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 47.531,
+          "finalization_breakdown": {},
+          "finalization_seconds": 22.828,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 24.703,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 54.829,
+          "finalization_breakdown": {},
+          "finalization_seconds": 27.001,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 27.828,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        }
+      ],
+      "missing_cases": [],
+      "ref": "0ea26896f1b46d8b455e0faf95cca70380675146"
+    },
+    "A2": {
+      "case_runs": {
+        "rq1c-academic-primary-attention__r1": {
+          "elapsed_seconds": 48.028,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:50:53.185620+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=46.672s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 46.672}\n"
+        },
+        "rq1c-academic-primary-attention__r2": {
+          "elapsed_seconds": 52.347,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:51:41.215229+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=51.016s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 51.016}\n"
+        },
+        "rq1c-academic-primary-attention__r3": {
+          "elapsed_seconds": 55.042,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:52:33.563579+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=53.39s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 53.39}\n"
+        },
+        "rq1c-numeric-uk-inflation__r1": {
+          "elapsed_seconds": 42.091,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:46:09.413832+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=40.812s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 40.812}\n"
+        },
+        "rq1c-numeric-uk-inflation__r2": {
+          "elapsed_seconds": 52.204,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:46:51.504532+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=50.844s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 50.844}\n"
+        },
+        "rq1c-numeric-uk-inflation__r3": {
+          "elapsed_seconds": 51.74,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:47:43.709858+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=50.375s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 50.375}\n"
+        },
+        "rq1c-provenance-xz__r1": {
+          "elapsed_seconds": 57.733,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:53:28.606029+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=56.407s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 56.407}\n"
+        },
+        "rq1c-provenance-xz__r2": {
+          "elapsed_seconds": 48.502,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:54:26.339075+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=47.125s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 47.125}\n"
+        },
+        "rq1c-provenance-xz__r3": {
+          "elapsed_seconds": 58.701,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:55:14.842195+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=57.407s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 57.407}\n"
+        },
+        "rq1c-unverifiable-python-security__r1": {
+          "elapsed_seconds": 42.023,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:48:35.449688+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=40.687s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 40.687}\n"
+        },
+        "rq1c-unverifiable-python-security__r2": {
+          "elapsed_seconds": 40.095,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:49:17.473558+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=38.719s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 38.719}\n"
+        },
+        "rq1c-unverifiable-python-security__r3": {
+          "elapsed_seconds": 55.616,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:49:57.569293+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=54.391s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 54.391}\n"
+        }
+      },
+      "cases": [
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 40.812,
+          "finalization_breakdown": {},
+          "finalization_seconds": 17.937,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 22.875,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 50.844,
+          "finalization_breakdown": {},
+          "finalization_seconds": 28.578,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 22.266,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 50.375,
+          "finalization_breakdown": {},
+          "finalization_seconds": 27.0,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 23.375,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 40.687,
+          "finalization_breakdown": {},
+          "finalization_seconds": 19.687,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 21.0,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 38.719,
+          "finalization_breakdown": {},
+          "finalization_seconds": 17.672,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 21.047,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 54.391,
+          "finalization_breakdown": {},
+          "finalization_seconds": 30.641,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 23.75,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 46.672,
+          "finalization_breakdown": {},
+          "finalization_seconds": 25.172,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 21.5,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 2,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 51.016,
+          "finalization_breakdown": {},
+          "finalization_seconds": 28.813,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 22.203,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 53.39,
+          "finalization_breakdown": {},
+          "finalization_seconds": 30.812,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 22.578,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 2,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 56.407,
+          "finalization_breakdown": {},
+          "finalization_seconds": 30.72,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 25.687,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 47.125,
+          "finalization_breakdown": {},
+          "finalization_seconds": 21.578,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 25.547,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": null
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": null,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": null,
+          "answer_stage_call_count": 0,
+          "answer_stage_seconds": null,
+          "artifact_write_seconds": null,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 57.407,
+          "finalization_breakdown": {},
+          "finalization_seconds": 30.798,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {},
+          "phase_seconds": {},
+          "projection_seconds": null,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 26.609,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": null
+        }
+      ],
+      "missing_cases": [],
+      "ref": "0ea26896f1b46d8b455e0faf95cca70380675146"
+    },
+    "B": {
+      "case_runs": {
+        "rq1c-academic-primary-attention__r1": {
+          "elapsed_seconds": 53.461,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:40:40.789267+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=52.281s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 52.281}\n"
+        },
+        "rq1c-academic-primary-attention__r2": {
+          "elapsed_seconds": 37.17,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:41:34.251526+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=35.984s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 35.984}\n"
+        },
+        "rq1c-academic-primary-attention__r3": {
+          "elapsed_seconds": 54.818,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:42:11.422547+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-academic-primary-attention: status=partial 路 elapsed=53.625s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 53.625}\n"
+        },
+        "rq1c-numeric-uk-inflation__r1": {
+          "elapsed_seconds": 47.471,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:35:22.734240+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=42.875s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 42.875}\n"
+        },
+        "rq1c-numeric-uk-inflation__r2": {
+          "elapsed_seconds": 54.878,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:36:10.206618+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=53.625s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 53.625}\n"
+        },
+        "rq1c-numeric-uk-inflation__r3": {
+          "elapsed_seconds": 54.775,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:37:05.084655+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-numeric-uk-inflation: status=partial 路 elapsed=53.594s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 53.594}\n"
+        },
+        "rq1c-provenance-xz__r1": {
+          "elapsed_seconds": 54.355,
+          "returncode": 0,
+          "started_at": "2026-09-14T09:43:06.241282+00:00",
+          "status": "ok",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=53.109s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 0, \"total_elapsed_seconds\": 53.109}\n"
+        },
+        "rq1c-provenance-xz__r2": {
+          "elapsed_seconds": 56.686,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:44:00.596625+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=55.469s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 55.469}\n"
+        },
+        "rq1c-provenance-xz__r3": {
+          "elapsed_seconds": 56.913,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:44:57.283808+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-provenance-xz: status=partial 路 elapsed=55.688s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 55.688}\n"
+        },
+        "rq1c-unverifiable-python-security__r1": {
+          "elapsed_seconds": 54.797,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:37:59.860618+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=53.641s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 53.641}\n"
+        },
+        "rq1c-unverifiable-python-security__r2": {
+          "elapsed_seconds": 52.876,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:38:54.657774+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=51.688s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 51.688}\n"
+        },
+        "rq1c-unverifiable-python-security__r3": {
+          "elapsed_seconds": 53.254,
+          "returncode": 2,
+          "started_at": "2026-09-14T09:39:47.535083+00:00",
+          "status": "failed",
+          "stderr_tail": "",
+          "stdout_tail": "[1/1] rq1c-unverifiable-python-security: status=partial 路 elapsed=52.094s\n{\"budget_violation_cases\": 0, \"case_count\": 1, \"runner_error_cases\": 1, \"total_elapsed_seconds\": 52.094}\n"
+        }
+      },
+      "cases": [
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 17.157,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 17.969,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 42.875,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 17.157,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 17.157,
+                "outcome": "ok",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 17.969,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 18.0,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 24.875,
+            "total_seconds": 42.875
+          },
+          "finalization_seconds": 18.047,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 8,
+            "extraction": 2,
+            "read": 2,
+            "search": 9
+          },
+          "phase_seconds": {
+            "assessment": 5.374,
+            "extraction": 1.063,
+            "read": 1.579,
+            "search": 13.265
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 24.828,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.094,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.532,
+          "artifact_write_seconds": 0.015,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 53.625,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.094,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.094,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.532,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.015,
+            "finalization_seconds": 30.532,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 23.093,
+            "total_seconds": 53.625
+          },
+          "finalization_seconds": 30.578,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 8,
+            "extraction": 2,
+            "read": 2,
+            "search": 9
+          },
+          "phase_seconds": {
+            "assessment": 3.642,
+            "extraction": 1.672,
+            "read": 1.312,
+            "search": 13.156
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 23.047,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.11,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.657,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-numeric-uk-inflation",
+          "category": "current_numeric_primary",
+          "elapsed_seconds": 53.594,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.11,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.11,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.657,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.688,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 22.906,
+            "total_seconds": 53.594
+          },
+          "finalization_seconds": 30.734,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 8,
+            "extraction": 2,
+            "read": 2,
+            "search": 9
+          },
+          "phase_seconds": {
+            "assessment": 4.063,
+            "extraction": 1.25,
+            "read": 1.313,
+            "search": 13.092
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 9,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 22.86,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.109,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.609,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 53.641,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.109,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.109,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.609,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.641,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 23.0,
+            "total_seconds": 53.641
+          },
+          "finalization_seconds": 30.719,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 4,
+            "discovery": 1,
+            "extraction": 1,
+            "read": 2,
+            "search": 5
+          },
+          "phase_seconds": {
+            "assessment": 2.626,
+            "discovery": 0.86,
+            "extraction": 2.375,
+            "read": 2.0,
+            "search": 11.78
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 22.922,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.094,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.672,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 51.688,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.094,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.094,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.672,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.688,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 21.0,
+            "total_seconds": 51.688
+          },
+          "finalization_seconds": 30.813,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 4,
+            "discovery": 1,
+            "extraction": 1,
+            "read": 2,
+            "search": 5
+          },
+          "phase_seconds": {
+            "assessment": 2.234,
+            "discovery": 0.891,
+            "extraction": 2.328,
+            "read": 1.079,
+            "search": 11.736
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 20.875,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.094,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.594,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-unverifiable-python-security",
+          "category": "unanswerable_unverifiable",
+          "elapsed_seconds": 52.094,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.094,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.094,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.594,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.61,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 21.484,
+            "total_seconds": 52.094
+          },
+          "finalization_seconds": 30.719,
+          "gate_status": "block",
+          "lead_actions": {
+            "duplicate_url_rejected": 1,
+            "lead_discovery_succeeded": 1,
+            "lead_read_started": 1,
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 4,
+            "discovery": 1,
+            "extraction": 1,
+            "read": 2,
+            "search": 5
+          },
+          "phase_seconds": {
+            "assessment": 1.484,
+            "discovery": 0.672,
+            "extraction": 3.047,
+            "read": 1.031,
+            "search": 11.796
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 5,
+          "read_attempts": 1,
+          "reads": 1,
+          "research_elapsed_seconds": 21.375,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 29.016,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 29.516,
+          "artifact_write_seconds": 0.016,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 52.281,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 29.016,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 29.016,
+                "outcome": "ok",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 29.516,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.016,
+            "finalization_seconds": 29.531,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 22.75,
+            "total_seconds": 52.281
+          },
+          "finalization_seconds": 29.609,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 4,
+            "extraction": 3,
+            "read": 4,
+            "search": 4
+          },
+          "phase_seconds": {
+            "assessment": 1.782,
+            "extraction": 4.562,
+            "read": 1.828,
+            "search": 11.454
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 22.672,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 2,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 13.485,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 14.063,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 35.984,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 13.485,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 13.485,
+                "outcome": "ok",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 14.063,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 14.078,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 21.906,
+            "total_seconds": 35.984
+          },
+          "finalization_seconds": 14.14,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 5,
+            "extraction": 3,
+            "read": 4,
+            "search": 4
+          },
+          "phase_seconds": {
+            "assessment": 1.516,
+            "extraction": 3.624,
+            "read": 1.719,
+            "search": 11.483
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 21.844,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 3,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.125,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.735,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-academic-primary-attention",
+          "category": "academic_primary",
+          "elapsed_seconds": 53.625,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.125,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.125,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.735,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.766,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 22.859,
+            "total_seconds": 53.625
+          },
+          "finalization_seconds": 30.828,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 2,
+            "evidence_lead_no_deeper_url": 2,
+            "no_lead_candidate": 5
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 5,
+            "extraction": 3,
+            "read": 4,
+            "search": 4
+          },
+          "phase_seconds": {
+            "assessment": 1.954,
+            "extraction": 3.641,
+            "read": 2.047,
+            "search": 11.53
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 4,
+          "read_attempts": 4,
+          "reads": 3,
+          "research_elapsed_seconds": 22.797,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 3,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 27.859,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 28.437,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 53.109,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 27.859,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 27.859,
+                "outcome": "ok",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 28.437,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 28.452,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 24.657,
+            "total_seconds": 53.109
+          },
+          "finalization_seconds": 28.531,
+          "gate_status": "block",
+          "lead_actions": {
+            "no_lead_candidate": 3
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 6,
+            "extraction": 2,
+            "read": 2,
+            "search": 8
+          },
+          "phase_seconds": {
+            "assessment": 1.563,
+            "extraction": 3.844,
+            "read": 3.75,
+            "search": 12.577
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 24.578,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 0,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.125,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.657,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 55.469,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.125,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.125,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.657,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.672,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 24.797,
+            "total_seconds": 55.469
+          },
+          "finalization_seconds": 30.719,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 8,
+            "extraction": 2,
+            "read": 2,
+            "search": 8
+          },
+          "phase_seconds": {
+            "assessment": 1.578,
+            "extraction": 3.906,
+            "read": 3.219,
+            "search": 12.703
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 24.75,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": 0.0
+        },
+        {
+          "answer_binding_model_calls": 0,
+          "answer_binding_seconds": 0.0,
+          "answer_generation_model_calls": 1,
+          "answer_generation_seconds": 30.125,
+          "answer_stage_call_count": 1,
+          "answer_stage_seconds": 30.703,
+          "artifact_write_seconds": 0.0,
+          "candidate_count": 5,
+          "case_id": "rq1c-provenance-xz",
+          "category": "provenance_duplicate",
+          "elapsed_seconds": 55.688,
+          "finalization_breakdown": {
+            "answer_claim_binding_seconds": 0.0,
+            "answer_generation_seconds": 30.125,
+            "answer_stage_call_count": 1,
+            "answer_stage_calls": [
+              {
+                "elapsed_seconds": 30.125,
+                "outcome": "RuntimeError",
+                "phase": "answer_generation"
+              }
+            ],
+            "answer_stage_seconds": 30.703,
+            "answer_stage_tokens": null,
+            "artifact_write_seconds": 0.0,
+            "finalization_seconds": 30.719,
+            "notes": [
+              "gate settle and checkpointing run inside the research phase",
+              "answer-stage token usage is not surfaced at the production chat boundary"
+            ],
+            "other_seconds": 0.0,
+            "post_research_projection_seconds": 0.0,
+            "research_seconds": 24.969,
+            "total_seconds": 55.688
+          },
+          "finalization_seconds": 30.766,
+          "gate_status": "block",
+          "lead_actions": {
+            "evidence_lead_followup_started": 1,
+            "evidence_lead_no_deeper_url": 1,
+            "no_lead_candidate": 4
+          },
+          "model_calls": 7,
+          "phase_calls": {
+            "assessment": 8,
+            "extraction": 2,
+            "read": 2,
+            "search": 8
+          },
+          "phase_seconds": {
+            "assessment": 1.751,
+            "extraction": 4.157,
+            "read": 3.281,
+            "search": 12.782
+          },
+          "projection_seconds": 0.0,
+          "provider_attempts": 8,
+          "read_attempts": 2,
+          "reads": 2,
+          "research_elapsed_seconds": 24.922,
+          "research_model_calls": 6,
+          "status": "partial",
+          "stop_reason": "evidence_saturated",
+          "support_clusters": 1,
+          "unclassified_answer_seconds": 0.0
+        }
+      ],
+      "missing_cases": [],
+      "ref": "63e397f61bf25b2b971fd813448271014c374ab3"
+    }
+  },
+  "schema_version": "rq1c-paired-attribution-v1"
+}

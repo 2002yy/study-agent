@@ -46,26 +46,51 @@ Otherwise:
 
 When a repo-wide scan is performed, save the useful result as a durable inventory/report so later batches do not repeat the same scan.
 
-## 4. Test execution policy
+## 4. Test execution policy — Staged Regression Policy (L0–L3)
 
-### 4.1 During implementation
+Frozen 2026-09-23 (see `docs/PROJECT_STATUS.md` §109). Applies from **P2-A3 onward**. Supersedes the previous default of "run full pytest per candidate head".
 
-Run focused tests only.
+### 4.1 The four layers
 
-Focused tests should cover:
+| Layer | When it runs | Content |
+| --- | --- | --- |
+| **L0 quick gate** | every commit | Ruff + `git diff --check` + tracked worktree clean |
+| **L1 focused** | every implementation slice | the slice's own module tests + every directly affected test (the slice's *impact set*) |
+| **L2 stage integration** | every sub-phase CLOSED (Ax / Bx / Cx) | the sub-phase's whole stack + adjacent contract tests + key regressions |
+| **L3 full regression** | major phase CLOSED (P2-A / P2-B / …), production cutover, pre-release | full `pytest tests` |
 
-- directly changed modules;
-- serialization/compatibility boundaries touched by the change;
-- crash/resume or concurrency regressions when relevant;
-- existing tests that reference the modified core symbols.
+Default rhythm: **small slice → focused; sub-phase → integration; major phase → full.**
 
-Use `rg`/symbol search to find affected existing tests instead of guessing filenames.
+### 4.2 L1 impact sets (never a single test file)
 
-### 4.2 Full pytest gate
+Every slice declares an **impact set**, not one filename. Named sets live in `tests/stage_gates.json`. Derivation rule:
 
-Run the single full backend pytest suite **once per candidate head**, after focused tests are green and the production-code diff is considered complete.
+> the slice's own test file(s) + every test that references a symbol the slice touched + the layer directly below it.
 
-A second full pytest run is justified only when, after the previous full run, one of these changed:
+Example (A3 browser adapter): its own test + `test_progressive_routing.py` + `test_scheduling.py` + `test_candidate_resolution.py` + the browser/fallback subset of `test_active_research_runtime.py`.
+
+### 4.3 L2 stage integration gate
+
+Run pytest over the named stage gate in `tests/stage_gates.json` — e.g. `p2-a-retrieval-stack` = A0 taxonomy + A1 breaker + A2 lifecycle/routing/scheduling/chain + A3 browser. This is the retrieval-subsystem regression; synthesis, agent loop and unrelated modules are **not** included.
+
+Do not build a framework for this. A manifest plus plain `pytest <paths>` is enough.
+
+### 4.4 Mandatory early L3 (escalate regardless of layer)
+
+Run full pytest immediately when a change touches:
+
+1. shared core data models — `RuntimeReadOutcome`, candidate lifecycle, routing/scheduling contract, Evidence/Support/Gate;
+2. production authority cutover (e.g. the A2d-4 single-execution-authority switch);
+3. persistence schema / cursor compatibility;
+4. a broad cross-layer refactor;
+5. a focused test failing for an unknown reason;
+6. behaviour drift that cannot be proven locally contained.
+
+Ordinary adapters, instrumentation, fixtures and provider integration do **not** force L3.
+
+### 4.5 L3 rules
+
+Run the full backend pytest suite **once per candidate head**. A second full run is justified only when, after the previous full run, one of these changed:
 
 - production code;
 - runtime behavior;
@@ -83,19 +108,19 @@ Do **not** rerun the full suite for changes limited to:
 
 If a review fix changes only a small production area, rerun affected focused tests first. Run the full suite again only when the fix creates a new candidate production head.
 
-### 4.3 Gate order
+### 4.6 Gate order
 
-For a candidate head, use this order unless the task has a stricter frozen gate:
+- **L0 + L1** (default per slice): Ruff → affected focused tests → `git diff --check` → worktree cleanliness → diff-scope audit.
+- **L2** (sub-phase close): L0 + L1 + the named stage gate.
+- **L3** (major-phase close / cutover / pre-release): L0 + L1 + L2 + full pytest, then Ruff → `git diff --check` → worktree cleanliness → diff-scope audit.
 
-1. affected focused tests;
-2. single full pytest;
-3. Ruff;
-4. mypy with repository baseline / `NEW=0` rule;
-5. `git diff --check`;
-6. `git status --short` / worktree cleanliness;
-7. diff-scope audit.
+mypy runs only if the repository declares a baseline/config; this repository currently declares none, so it is not part of the gate.
 
 Do not interleave repeated full-suite runs between small fixes when focused tests can provide the needed signal.
+
+### 4.7 Retro-application note
+
+Under this policy A2d-1/2/3 and A3-0 would **not** have required L3; A2d-4 (authority cutover) and A2e (sub-phase close) did. Historical full runs remain valid evidence — do not re-run them merely to "comply".
 
 ## 5. Verbose command-output policy
 

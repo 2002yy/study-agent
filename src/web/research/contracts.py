@@ -16,6 +16,12 @@ from src.domain.evidence import (
     ClaimEvidenceLinkV1,
     EvidenceLifecycleStatus,
 )
+from src.web.research.evidence_units import (
+    EvidenceUnit,
+    RequiredUnit,
+    parse_evidence_units,
+    parse_required_units,
+)
 
 RESEARCH_STATE_SCHEMA_VERSION = "research-state-v1"
 
@@ -136,6 +142,8 @@ class EvidenceRequirement:
     requires_successful_read: bool = True
     max_age_days: int | None = None
     requires_dated_evidence: bool = False
+    #: Content units the claim needs; declared claim-side, never inferred.
+    required_units: tuple[RequiredUnit, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -145,6 +153,7 @@ class EvidenceRequirement:
             "requires_successful_read": self.requires_successful_read,
             "max_age_days": self.max_age_days,
             "requires_dated_evidence": self.requires_dated_evidence,
+            "required_units": [unit.to_dict() for unit in self.required_units],
         }
 
 
@@ -188,6 +197,8 @@ class ResearchEvidence:
     lifecycle_status: EvidenceLifecycleStatus = "candidate"
     extraction_status: ResearchEvidenceExtractionStatus = "not_attempted"
     published_at: str = ""
+    #: Units this evidence actually covers (text or visual), locator-backed.
+    units: tuple[EvidenceUnit, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -197,6 +208,7 @@ class ResearchEvidence:
             "lifecycle_status": self.lifecycle_status,
             "extraction_status": self.extraction_status,
             "published_at": self.published_at,
+            "units": [unit.to_dict() for unit in self.units],
         }
 
 
@@ -650,6 +662,7 @@ def _parse_requirement(raw: Any) -> EvidenceRequirement:
             "requires_successful_read",
             "max_age_days",
             "requires_dated_evidence",
+            "required_units",
         },
         "evidence requirement",
     )
@@ -672,6 +685,7 @@ def _parse_requirement(raw: Any) -> EvidenceRequirement:
                 data.get("requires_dated_evidence", False),
                 "requires dated evidence",
             ),
+            required_units=parse_required_units(data.get("required_units")),
         )
     )
 
@@ -723,6 +737,7 @@ def _parse_evidence(raw: Any) -> ResearchEvidence:
             "lifecycle_status",
             "extraction_status",
             "published_at",
+            "units",
         },
         "research evidence",
     )
@@ -747,6 +762,7 @@ def _parse_evidence(raw: Any) -> ResearchEvidence:
                 "evidence extraction status",
             ),
             published_at=_optional_date(data.get("published_at"), "evidence published at"),
+            units=parse_evidence_units(data.get("units")),
         )
     )
 
@@ -998,6 +1014,9 @@ def _validate_requirement(value: EvidenceRequirement) -> EvidenceRequirement:
         requires_dated_evidence=_boolean(
             value.requires_dated_evidence, "requires dated evidence"
         ),
+        required_units=parse_required_units(
+            [unit.to_dict() for unit in value.required_units]
+        ),
     )
 
 
@@ -1038,6 +1057,7 @@ def _validate_evidence(value: ResearchEvidence) -> ResearchEvidence:
             "evidence extraction status",
         ),
         published_at=_optional_date(value.published_at, "evidence published at"),
+        units=parse_evidence_units([unit.to_dict() for unit in value.units]),
     )
 
 

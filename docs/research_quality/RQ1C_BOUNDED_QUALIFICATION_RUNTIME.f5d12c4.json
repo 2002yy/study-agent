@@ -1,0 +1,4652 @@
+{
+  "schema_version": "rq1c-bounded-qualification-runtime-v1",
+  "git_sha": "f5d12c4ccd7d564fa675e706ef63521ef0bef767",
+  "started_at": "2026-09-13T17:57:35.754394Z",
+  "completed_at": "2026-09-13T18:08:23.565824Z",
+  "manifest": {
+    "path": "tests/fixtures/research_quality/rq1c_bounded_holdout_manifest.json",
+    "sha256": "e113972478034bfdaba1b4b21161988addd9b011d35a9549752dc2a16b89b807",
+    "case_count": 12
+  },
+  "leakage_contract": {
+    "runtime_case_keys": [
+      "category",
+      "id",
+      "question"
+    ],
+    "rubric_loaded_by_runner": false,
+    "stores_page_bodies": false,
+    "stores_research_query_text": false,
+    "captures_production_final_answer": true,
+    "second_web_acquisition_during_synthesis": false
+  },
+  "wallclock_contract": {
+    "product_soft_timeout_seconds": 45,
+    "product_hard_timeout_seconds": 60,
+    "hosted_cpu_exempt": false,
+    "reason": "",
+    "qualification_hosted_cpu_case_hard_timeout_seconds": null,
+    "qualification_hosted_cpu_answer_timeout_seconds": null
+  },
+  "configured_budget": {
+    "max_candidates": 20,
+    "max_reads": 8,
+    "max_model_calls": 8,
+    "soft_timeout_seconds": 45,
+    "hard_timeout_seconds": 60
+  },
+  "cases": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "category": "current_policy",
+      "question": "According to Docker's current official documentation, what pull-rate limits apply to unauthenticated users and authenticated Personal users on Docker Hub?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 60.156,
+      "runner_error_type": "RuntimeError",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "unavailable",
+        "source": "none",
+        "text": "",
+        "content_sha256": "",
+        "reason": "production_chat_failed",
+        "turn_id": "",
+        "turn_status": "",
+        "validation": {}
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "b806d86c0a063f81221d9bec749a22261dc4e2ebcf184a0b6bc338406b4d96f4",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "6da659515c4610368409f1c27b2acf4678233fbc996137cb017d45282efcdab6",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "c8a71d825a8d5f90712c22beb8f671247108050953ee3c63a8af2f276fa7ca4d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "94dae8f909a081c44a9dbf2e91997b3eb7b01c3bea62d485f411cdadb602630c",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "b4a94fce8ab2f4cd71d46dd8e1ff88d42b134f5001e323c36ca6f0a0efc1a6b7",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "f6278eb1c75696c72de6b4ead0f4cd393f81a6c3352af09e1e73f808a2d87d1f",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3c6143ab17fc2f763d2c06e2c7e7e7503b387b774646dd6816ce6210122cebfc",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "5adb15b8292c1ca88b3cfcc39cc2f9fcc978cc0ab765754cb4b6347a218c1bbd",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 1,
+        "read_attempt_count": 2,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 60.156,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [
+        "hard_timeout_exceeded"
+      ],
+      "sources": [
+        {
+          "candidate_id": "candidate_c54944ac30ee3982",
+          "title": "Docker: Accelerated Container Application Development",
+          "url": "https://www.docker.com/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "failed",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_1745d16bcdad18b4",
+          "extraction_statuses": []
+        },
+        {
+          "candidate_id": "candidate_1c5a78f3a85e9f50",
+          "title": "Docker中文网",
+          "url": "https://docker.github.net.cn/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "independent_secondary",
+          "cluster_id": "candidate_cluster_c6585a5e8fb7c531",
+          "extraction_statuses": [
+            "extractor_failed"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_1745d16bcdad18b4",
+        "candidate_cluster_c6585a5e8fb7c531"
+      ],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_4bbfa56e3fbe8612b74fa7d8"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:eligible_support_clusters=0/1",
+          "critical:claim_4bbfa56e3fbe8612b74fa7d8:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_16a80be314575cf7e2349792"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 1,
+        "reads": [
+          {
+            "candidate_id": "candidate_c54944ac30ee3982",
+            "content_chars": 0,
+            "error_code": "read_failed",
+            "evidence_id": "",
+            "status": "failed"
+          },
+          {
+            "candidate_id": "candidate_1c5a78f3a85e9f50",
+            "content_chars": 261,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 2,
+          "rejected": 6
+        },
+        "relevance": {
+          "topic_only": 2,
+          "off_target": 6
+        },
+        "source_role": {
+          "primary": 1,
+          "independent_secondary": 2,
+          "community": 1,
+          "aggregator": 4
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1664,
+            "output_tokens": 85,
+            "total_tokens": 1749,
+            "elapsed_seconds": 1.656
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "category": "current_support_policy",
+      "question": "Which PostgreSQL major versions are currently supported by the PostgreSQL project, and when does the oldest currently supported major version reach end of life?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 56.703,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-current-support-postgresql",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "23ce73f7d7cd0da9807aa99a7c6c7d8cd5b2e8b3c7f12667e3059986190e21ef",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "f8caee9c5b8ed99d5bf77a0744e9f1f48f7b77f07ae7905038520e720058aee6",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3af444b728b2329a2546ddfbcbf84f0c9d71c3c9d89d2af228393408b1823e27",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "8fc39b46f2dc3d9834f1e4f0693dfab5e466a1661d2f206cdc292eb5c8cbf874",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d727946067c5e58af30af2725dd8bd8b0b5716491af3e648dfa89788721586ff",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d8cc7b634cf4e5697a6c1ae554d5a541cabef1afcbdd81ed772c50cf47237878",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "a30dd49f1bf0b1893e8bdf53a9c6eeb43c762ca132bdd93749d0103405c34a8a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "77b8edebad8ce634fcde5d82473f2a0a917b6cdc9e119368edb8035f49d51454",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "ff4126aa33395fb5f4cc73ce257c7bd1b1b30349ac3c7bc55d1566fdf644b322",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 1,
+        "read_attempt_count": 1,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 56.703,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_71266c81157df786",
+          "title": "PostgreSQL: The world's most advanced open source database",
+          "url": "https://www.postgresql.org/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "primary",
+          "cluster_id": "candidate_cluster_abbdcccad3c6501f",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_abbdcccad3c6501f"
+      ],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_e68413b832ef784eb003fbed"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_e68413b832ef784eb003fbed:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_71266c81157df78676ca4e6c",
+            "claim_id": "claim_e68413b832ef784eb003fbed",
+            "relation": "lead",
+            "strength": 0.05,
+            "source_role": "primary",
+            "source_cluster_id": "candidate_cluster_abbdcccad3c6501f",
+            "url": "https://www.postgresql.org/",
+            "title": "PostgreSQL: The world's most advanced open source database",
+            "published_at": "",
+            "locator": "PostgreSQL is a powerful, open source object-relational database system",
+            "anchored_spans": [
+              "PostgreSQL is a powerful, open source object-relational database system"
+            ],
+            "caveats": [
+              "The excerpt does not mention any PostgreSQL version numbers or support policy."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_cded581f77169537ec639490"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 1,
+        "lead_discovery": {
+          "no_lead_candidate": 4
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 1,
+        "reads": [
+          {
+            "candidate_id": "candidate_71266c81157df786",
+            "content_chars": 524,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 4
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 6,
+          "eligible": 1,
+          "lead_only": 1
+        },
+        "relevance": {
+          "off_target": 6,
+          "answer_relevant": 1,
+          "topic_only": 1
+        },
+        "source_role": {
+          "aggregator": 4,
+          "community": 1,
+          "primary": 2,
+          "independent_secondary": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1664,
+            "output_tokens": 84,
+            "total_tokens": 1748,
+            "elapsed_seconds": 1.39
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-numeric-uk-bank-rate",
+      "category": "current_numeric_primary",
+      "question": "What Bank Rate was set at the most recent Bank of England Monetary Policy Committee decision, and on what date was that decision announced?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 56.922,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-numeric-uk-bank-rate",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "2312992e63a673a95c66fc7a9d0d67efab9f7d93aac5cd96ae24d4b71da4f0c6",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "a7db19ef2a4a22e74f4eca9b57e93d88991c947f0aa5d6d5dec6eaac7f161c4b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "657dd35fdeae841f978212df625524cb40483d36e81261567a264cf52d290921",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "95ddd1afb515cc3d2faf2500d2b002a968fdae1551d34b69ede3de51e93f0b62",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "c338a798ff1b1cce096b7057898682c732b4b2f45d967e963c8948e05ee06839",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "8a78885402478f135b7e2df5f451f2a9af9dac903381b4065586042d1250c11b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "c20674f9aaf8d0c925ded7daeefd3767c05327948e5ac5ba12f908a115d635ac",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "11a4e2188e8834e18a0f326f92aabb67736a747afa3155ffa5b27ebaeb8d15ad",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "bd0167c90424096164046d555516d7adb534fe06572df0ed8b98b5ed153c5685",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 56.922,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_6e3436a268dcfa16722712d9"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_6e3436a268dcfa16722712d9:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_a17c155035fcda7949612907"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 9
+        },
+        "relevance": {
+          "off_target": 9
+        },
+        "source_role": {
+          "aggregator": 8,
+          "authoritative_secondary": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1664,
+            "output_tokens": 84,
+            "total_tokens": 1748,
+            "elapsed_seconds": 0.813
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-numeric-uk-inflation",
+      "category": "current_numeric_primary",
+      "question": "What is the latest UK Consumer Prices Index (CPI) 12-month inflation rate published by the Office for National Statistics, and which month does it cover?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 47.281,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-numeric-uk-inflation",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "795348b6025d68fb55f721223ff4706594f6d906a22eb3a90aff02fc21949701",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "ed446070ad2dffc18464780b54136e21023ed6b7fb7fcd4fffd747c522b5fd7d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "8fef1dafb5bd45ef3119b3a9b994adac724dd2d01f820305a3c0ac854b06f779",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "ab0f8b080a469db909b8e71279857ff9a7fb56567deccc3892c4f755681119bf",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "04bcb87283ce62d2473c6323b4fa02c13db9c1a8e017d1875a46ad700d1c5fa7",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "c497f87bbf0b1c19d11fc2f81d1fe264a3e5fa507a08e9a32d07af8c0ef6f09d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "20dfe80c477cadc346e38a706144402ce2cb96f1bcc2f8a8bc9c5158edfcf50b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "28e2bcc81a05f26b5faa09cc2c9f2d34b6a370bd1ff3607b074b9ade92053837",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "fd60b988c02d263593c514d3f68b8117692b0d17b25f457e301601a3569a6ba3",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 2,
+        "read_attempt_count": 3,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 47.281,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_a604eb8a03efa82d",
+          "title": "Welcome to GOV.UK",
+          "url": "https://www.gov.uk/",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "authoritative_secondary",
+          "cluster_id": "candidate_cluster_42dc72ea81c295ea",
+          "extraction_statuses": [
+            "eligible"
+          ]
+        },
+        {
+          "candidate_id": "candidate_a0d5bb5d62bfc842",
+          "title": "Month（英语单词）_百度百科",
+          "url": "https://baike.baidu.com/item/Month/2949174",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "failed",
+          "source_role": "aggregator",
+          "cluster_id": "candidate_cluster_6c21a91aef1e8b42",
+          "extraction_statuses": []
+        },
+        {
+          "candidate_id": "candidate_bd26eb2f437c82a3",
+          "title": "month是什么意思_month的翻译_音标_读音_用法_例句_爱 ...",
+          "url": "https://www.iciba.com/word?w=month",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "read",
+          "source_role": "aggregator",
+          "cluster_id": "candidate_cluster_3f5a186205b77213",
+          "extraction_statuses": [
+            "extractor_failed"
+          ]
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_3f5a186205b77213",
+        "candidate_cluster_42dc72ea81c295ea",
+        "candidate_cluster_6c21a91aef1e8b42"
+      ],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_8cfbaad64efd391a10446baf"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_8cfbaad64efd391a10446baf:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [
+          {
+            "evidence_id": "web_a604eb8a03efa82d7da0ba0e",
+            "claim_id": "claim_8cfbaad64efd391a10446baf",
+            "relation": "lead",
+            "strength": 0.05,
+            "source_role": "authoritative_secondary",
+            "source_cluster_id": "candidate_cluster_42dc72ea81c295ea",
+            "url": "https://www.gov.uk/",
+            "title": "Welcome to GOV.UK",
+            "published_at": "",
+            "locator": "We’d like to set additional cookies to understand how you use GOV.UK",
+            "anchored_spans": [
+              "We’d like to set additional cookies to understand how you use GOV.UK"
+            ],
+            "caveats": [
+              "The excerpt is a cookie-consent notice and contains no CPI or inflation data."
+            ]
+          }
+        ],
+        "open_gap_ids": [
+          "gap_9afa1718188e117d61676a63"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 1,
+        "lead_discovery": {
+          "no_lead_candidate": 4
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 2,
+        "reads": [
+          {
+            "candidate_id": "candidate_a604eb8a03efa82d",
+            "content_chars": 125,
+            "error_code": "",
+            "evidence_id": "web_a604eb8a03efa82d7da0ba0e",
+            "status": "success"
+          },
+          {
+            "candidate_id": "candidate_a0d5bb5d62bfc842",
+            "content_chars": 0,
+            "error_code": "read_failed",
+            "evidence_id": "",
+            "status": "failed"
+          },
+          {
+            "candidate_id": "candidate_bd26eb2f437c82a3",
+            "content_chars": 6000,
+            "error_code": "",
+            "evidence_id": "",
+            "status": "success"
+          }
+        ],
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": true,
+            "no_gain_incremented": false,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 4
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 3,
+          "rejected": 5
+        },
+        "relevance": {
+          "topic_only": 3,
+          "off_target": 5
+        },
+        "source_role": {
+          "authoritative_secondary": 2,
+          "independent_secondary": 1,
+          "aggregator": 4,
+          "community": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1669,
+            "output_tokens": 86,
+            "total_tokens": 1755,
+            "elapsed_seconds": 0.984
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "category": "simple_factual_primary",
+      "question": "What open-source license does Astral's uv project use according to its official repository?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 50.203,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-simple-license-uv",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 4,
+        "audits": [
+          {
+            "query_sha256": "ae21ea1a1ed55e54875e372f4072304aefb3710a0b81f2f6ffa9ca821c482602",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "630ca422822bb967fa63fd975dc4949e50966aa4dd3e0e2a865da1317d518644",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "b1bd5c6d6d2bae56c89590ba3cb87bf33c56811bb77f06c57cbd1a93d0b26825",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "df7345e8679775d98953f0770002fbe14f763ad61772ce8e7140bab8d32cde7c",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 5,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 4,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 5,
+        "elapsed_seconds": 50.203,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_f01727a40abd225d1821d2f5"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_f01727a40abd225d1821d2f5:eligible_support_clusters=0/1",
+          "critical:claim_f01727a40abd225d1821d2f5:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_49286b7f2968524cac7e617b"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 5,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 5
+        },
+        "relevance": {
+          "off_target": 5
+        },
+        "source_role": {
+          "unknown": 3,
+          "aggregator": 2
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1655,
+            "output_tokens": 59,
+            "total_tokens": 1714,
+            "elapsed_seconds": 0.562
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-academic-primary-attention",
+      "category": "academic_primary",
+      "question": "In the original 'Attention Is All You Need' paper, which optimizer and learning-rate schedule were used to train the Transformer?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 52.25,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-academic-primary-attention",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "c6b0650b58e93cded954fcd7d3ced1ef77a557aa8ad46dfd0b5e9ea780858cbc",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 4,
+        "audits": [
+          {
+            "query_sha256": "b6684cbb2417963c8138a2e0a11fd4a3250b1b021018e3933ce0a749475516e4",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3fc6da936d9e8c9eb0f57e0710e30e6daa9f75c0528f8c776fdfada160db5aba",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "386d5d12504e9214d81e96bbfe182dd797f2fe64a9fccb581ad6c7d9fb21d79c",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "5e1c2997454493833298c7ad17d1e86e65ea8b86498838f88303d2c4693f62bc",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 18,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 4,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 5,
+        "elapsed_seconds": 52.25,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_1e653c7a79424be5baec50c1"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_1e653c7a79424be5baec50c1:eligible_support_clusters=0/1",
+          "critical:claim_1e653c7a79424be5baec50c1:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_e3a891f1c59c84cef97c4c46"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 18,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 6
+        },
+        "relevance": {
+          "off_target": 6
+        },
+        "source_role": {
+          "aggregator": 5,
+          "community": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1663,
+            "output_tokens": 55,
+            "total_tokens": 1718,
+            "elapsed_seconds": 0.907
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-provenance-xz",
+      "category": "provenance_duplicate",
+      "question": "For CVE-2024-3094 in XZ Utils, which sources constitute original or primary technical disclosure, and which widely circulated reports are secondary or republished accounts?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 56.579,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-provenance-xz",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "70a4d3ffb63f295a86090ed4d7a3be73d60a84632442184fdcd048f5440e27c8",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "a89ff50111ce7145961f2288d50cdc7bb49e35bebc38f5978ce4a568348c4a72",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "05bf51e633ca5518542884e1c4cb53a83e03cf787932dfb3486f3b51735fdf91",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "6cdd5ecd2f488586cf391e74584468bd185e5e356ee0713f21764f817d3763c5",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "75d2800920d13293d71699a599fea399e2d605c4472e032f45ef744c426b58c1",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "98cfc42f82641056072cc75e2f188f05158b262622d9df1c8be9d578053c70ff",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "5917cd92e8b4e7c8b618ce84e2a89f82bc4a81061b11609a082a8180448629d8",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "6dccf2f2f6499401e64f95a62471e4d1c9fec1c2bfcbe7ae6b068ae06d09bb1d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 56.579,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_5c08de143345ae3ba01b8be7"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_5c08de143345ae3ba01b8be7:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_a5126dcb37154eb5f36fda2a"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 9
+        },
+        "relevance": {
+          "off_target": 9
+        },
+        "source_role": {
+          "aggregator": 9
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1674,
+            "output_tokens": 81,
+            "total_tokens": 1755,
+            "elapsed_seconds": 1.375
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-conflict-python-gil",
+      "category": "historical_current_conflict",
+      "question": "What is the current status of free-threaded Python in the latest stable Python release, and how should older official descriptions of it as experimental be interpreted today?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 55.344,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-conflict-python-gil",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "c0f181cfc48f33d11fd3754e92205e8b922ac9eae7049103532c021680a11204",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "ecf3f299d79812f0f6e4c760cf2081322b4145b96ce5567f3cc20c6f43e71786",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "520b67df9d3b5bf29bc946bc7a7c85c66a7d3313b67bde6296498ba80dab323c",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "2e6a0397db85ae49ad700808025d98716109548f966fd88c43746dbb86c2a04b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "08d8206ab79a0297929d8c8a6822ac8f4e4d38847e8e46a8666f83ac08448188",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "2130f37ee52b74812b88fff2a4bfe0de9b6fe2f61eea12c8dd3436b3ac9acdad",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "4079fcd2eed453910002bac1fccd74fdf67a2eea84352c83e802f228bf0a62f3",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "4d2f4b6d59f62983043d29ad1db56cb70810f77fbb5a83d0b98d722b17dd2644",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 15,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 55.344,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_73a91aa26c0bfdbf937663a0"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_73a91aa26c0bfdbf937663a0:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_0ddafad4704343f58286f895"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 15,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 10
+        },
+        "relevance": {
+          "off_target": 10
+        },
+        "source_role": {
+          "aggregator": 8,
+          "community": 1,
+          "independent_secondary": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1670,
+            "output_tokens": 81,
+            "total_tokens": 1751,
+            "elapsed_seconds": 0.734
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-community-rust-async",
+      "category": "community_experience",
+      "question": "What benefits and recurring pain points do Rust developers currently report when using async Rust in production, and which parts are community experience rather than official language guarantees?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 56.719,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-community-rust-async",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "f7099fdd214027425818e493cd8e5073028dfa97da08fa16436b63b3d04e9a0f",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d528f78d9bcbcb4ac65aaa0776af12e79c7c07539d86f440b084d2dec31e57e9",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "cecf9eb7c5712694f3b63f7672328269e21d24650d43ba367fe25f3831362d18",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "70d025e59e52e21ddbbed3cd58c8f928479946320912510689c3230d6d5986ff",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d6ba11d93b608b78244a64c43913ed97d1162bb0e7aabefa85596fbd6479fc9b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "7d113e0698157d4cd41e5d3d9e201f601a26d1b38f37ed79523c5e5b49c085a7",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "2a6d6cc190628d8980e852d5348c33639e5058aeb79ba9357ce5e277949eee26",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "2d680fb95d35af4cf6d8ce9ef6c39ec814bb61b2954d86bcc432245f9e032282",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 0,
+        "read_attempt_count": 1,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 56.719,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_3ef53c8ff2ce2a04",
+          "title": "首页 - PRTS - 玩家共同构筑的明日方舟中文Wiki",
+          "url": "https://prts.wiki/w/%E9%A6%96%E9%A1%B5",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "failed",
+          "source_role": "community",
+          "cluster_id": "candidate_cluster_0ccb3dc9b6d32819",
+          "extraction_statuses": []
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_0ccb3dc9b6d32819"
+      ],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_01c024d857db1c8f2c898070"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_01c024d857db1c8f2c898070:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_4aad6d77220c1e5546235a16"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "reads": [
+          {
+            "candidate_id": "candidate_3ef53c8ff2ce2a04",
+            "content_chars": 0,
+            "error_code": "read_failed",
+            "evidence_id": "",
+            "status": "failed"
+          }
+        ],
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 8,
+          "lead_only": 1
+        },
+        "relevance": {
+          "off_target": 8,
+          "topic_only": 1
+        },
+        "source_role": {
+          "aggregator": 8,
+          "community": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1668,
+            "output_tokens": 89,
+            "total_tokens": 1757,
+            "elapsed_seconds": 0.609
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-causal-cloudflare-2025",
+      "category": "causal_primary_postmortem",
+      "question": "According to Cloudflare's primary postmortem and independent technical reporting, what directly triggered the June 12, 2025 Cloudflare outage, and what contributing factors made the incident broader or harder to recover from?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 49.328,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-causal-cloudflare-2025",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "6e88987f5c9f86191455629c14c5581f31d19a1eca37a6039294b62e12a098c6",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "1f2e11c95b21518c4dd935fee12551a9f92ddab06ee405b210a5d1149ee3460d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "aefa2d27b9ce72cc227f5d4ee8a998a9957edba8986f586c0deb4325abb8785a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "4d5e541495cb1e0d9179c6e22fc27516662158de631e584911935962128c9c73",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "ad424298e4baff6f9a18cfefcad2347e867e52ad76e8ecb5ba0aa93091324901",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "101823945eb520c8a821a8a551998fb3e764605c3c1b89ea483d9e2a30da31e4",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "71c5c402ac1c385b76692c308461034d44994b008c37b75cec33ff20f47d28e3",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "931de85ba56c98a17ad8a74a126a85e9176c391e9a082415a045c34ab4a2f97e",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3af8a1b5ec0709dbbc2a5b18739083f313768c0b8af713b7e232fc8ccfcd6b0a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 49.328,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_72f555560a55182a9133c4b0"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_72f555560a55182a9133c4b0:eligible_support_clusters=0/1",
+          "critical:claim_72f555560a55182a9133c4b0:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_18b59d7f600af5af0c020812"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 9
+        },
+        "relevance": {
+          "off_target": 9
+        },
+        "source_role": {
+          "aggregator": 9
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1681,
+            "output_tokens": 87,
+            "total_tokens": 1768,
+            "elapsed_seconds": 0.875
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "category": "historical_current_mix",
+      "question": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 54.281,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-historical-current-node-modules",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 8,
+        "audits": [
+          {
+            "query_sha256": "c677b87811e27d4491086fa05606d9b4c4cb44ace9b18f0b923bd963d70ae504",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "3419ac5f08df18695c10da88dde5103c25d2c853c8c68bad1b4c65e925dac6ea",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "fb8f85917e6f8f2d4e4c8b112e7cf9577f3951dc529fc4cfa9bcc5e3447f5742",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "24f23a7c81b0e420103bfe29d600162391d817cbe11962644862260aa253881c",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "04faae04116f202be323b359f4ab9f95ece76c9808c214e9ec2fe3a91aef476d",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "aec4c8dede858b87d20a821615ac5cdcaa6ed530a2218088a48be78d6965fdfd",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "e3c615872fcea3c39760bde2b68aa65d0ea57325b56d30f1680df83c64445b94",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "bebb2e1c9ffc5a66a2bfb15f20ab88e2759873912b101f8f904abf8047f2ac2a",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 10,
+        "read_count": 0,
+        "read_attempt_count": 0,
+        "research_model_call_count": 6,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 7,
+        "elapsed_seconds": 54.281,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [],
+      "cluster_ids": [],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_12f2e27e721cd432efe9a19e"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_12f2e27e721cd432efe9a19e:eligible_support_clusters=0/1",
+          "critical:claim_12f2e27e721cd432efe9a19e:primary_required"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_54b8ad481192136909a894d4"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 10,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "rejected": 9
+        },
+        "relevance": {
+          "off_target": 9
+        },
+        "source_role": {
+          "aggregator": 8,
+          "community": 1
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1666,
+            "output_tokens": 87,
+            "total_tokens": 1753,
+            "elapsed_seconds": 0.609
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    },
+    {
+      "case_id": "rq1c-unverifiable-python-security",
+      "category": "unanswerable_unverifiable",
+      "question": "Which exact vulnerabilities will be fixed in the next Python security release before the Python Security Response Team publicly announces them?",
+      "reference_date": "2026-09-13",
+      "elapsed_seconds": 51.015,
+      "runner_error_type": "",
+      "run": {
+        "status": "partial",
+        "provider_status": "insufficient",
+        "stop_reason": "evidence_saturated",
+        "stage": "completed"
+      },
+      "answer": {
+        "status": "available",
+        "source": "production_chat",
+        "text": "联网检索结果未能通过证据核验，本次回答未发布基于联网来源的结论。",
+        "content_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+        "reason": "",
+        "turn_id": "rq1c-turn-rq1c-unverifiable-python-security",
+        "turn_status": "completed",
+        "validation": {
+          "schema_version": "answer-validation-audit-v1",
+          "candidate_answer_sha256": "ed921de6da9511ab71850630d3ff426b66f24ba064a428d4cc617d24ec4d19fc",
+          "learner_answer_sha256": "4e8549b6bda1a8aa9b0b73eb62bc10de51d608ce9f5ea6cd98c067ac2eea6ad4",
+          "phases": {
+            "answer_generation": {
+              "attempted": true,
+              "model_calls": 1,
+              "attempts": 1,
+              "outcome": "completed",
+              "error_type": ""
+            },
+            "answer_claim_binding": {
+              "attempted": true,
+              "model_calls": 0,
+              "attempts": 0,
+              "outcome": "rejected",
+              "error_type": "missing_evidence_brief"
+            }
+          }
+        },
+        "claim_snapshot_status": "unavailable",
+        "evidence_ref_count": 0
+      },
+      "search": {
+        "attempt_count": 4,
+        "audits": [
+          {
+            "query_sha256": "43e9bee555f06a79f7fd0424c00f3ad8a09c6effbddc4f19f4d7312273efe1c2",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "failed",
+                "reason": "challenge",
+                "attempts": 1,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "failed",
+                "reason": "timeout",
+                "attempts": 2,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "93f433d0f5d93dc8289ac9a5faf9a77118eee791ea4826fb26d05189ec8b5c6b",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "160d2ad9eff171afcea785cfec8e24a7e6262a900e27a2b7a4b43804c397df17",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          },
+          {
+            "query_sha256": "d0c72fee279dbaf8c4f384f18b6cff9739fbdb47d91c4a90596c4228ca9c7b94",
+            "providers_attempted": [
+              "searxng",
+              "bing_rss",
+              "duckduckgo_html"
+            ],
+            "provider_outcomes": [
+              {
+                "provider": "searxng",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              },
+              {
+                "provider": "bing_rss",
+                "status": "ok",
+                "reason": "results_found",
+                "attempts": 1,
+                "result_count": 5
+              },
+              {
+                "provider": "duckduckgo_html",
+                "status": "skipped",
+                "reason": "skipped_provider_degraded",
+                "attempts": 0,
+                "result_count": 0
+              }
+            ]
+          }
+        ]
+      },
+      "budget_observed": {
+        "candidate_count": 5,
+        "read_count": 0,
+        "read_attempt_count": 1,
+        "research_model_call_count": 4,
+        "answer_generation_model_call_count": 1,
+        "answer_binding_model_call_count": 0,
+        "model_call_count": 5,
+        "elapsed_seconds": 51.015,
+        "unclassified_answer_model_call_count": 0
+      },
+      "budget_contract_violations": [],
+      "sources": [
+        {
+          "candidate_id": "candidate_d5517cfdf0f83e96",
+          "title": "NVD - Vulnerabilities",
+          "url": "https://nvd.nist.gov/vuln",
+          "source": "Bing RSS",
+          "published_at": "",
+          "read_status": "failed",
+          "source_role": "authoritative_secondary",
+          "cluster_id": "candidate_cluster_46bd5de271b1070a",
+          "extraction_statuses": []
+        }
+      ],
+      "cluster_ids": [
+        "candidate_cluster_46bd5de271b1070a"
+      ],
+      "gate": {
+        "status": "block",
+        "open_critical_claim_ids": [
+          "claim_e464acc8be8f8f4078d8d11c"
+        ],
+        "conditional_wording_required": true
+      },
+      "brief": {
+        "schema_version": "research-evidence-brief-v1",
+        "gate_reasons": [
+          "critical:claim_e464acc8be8f8f4078d8d11c:eligible_support_clusters=0/2"
+        ],
+        "eligible_evidence": [],
+        "open_gap_ids": [
+          "gap_4c54fa183ef9ee2d3f07b958"
+        ],
+        "unresolved_conflict_count": 0
+      },
+      "metrics": {
+        "candidate_count": 5,
+        "cluster_count": 0,
+        "lead_discovery": {
+          "no_lead_candidate": 3
+        },
+        "open_critical_gap_count": 1,
+        "phase": "unavailable",
+        "read_count": 0,
+        "reads": [
+          {
+            "candidate_id": "candidate_d5517cfdf0f83e96",
+            "content_chars": 0,
+            "error_code": "read_failed",
+            "evidence_id": "",
+            "status": "failed"
+          }
+        ],
+        "wave_progress": [
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 1
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 2
+          },
+          {
+            "discovered_candidates_added": 0,
+            "discovery_progress": false,
+            "evidence_progress": false,
+            "no_gain_incremented": true,
+            "wave_index": 3
+          }
+        ]
+      },
+      "evidence_path": {
+        "eligibility": {
+          "lead_only": 1,
+          "rejected": 4
+        },
+        "relevance": {
+          "topic_only": 1,
+          "off_target": 4
+        },
+        "source_role": {
+          "authoritative_secondary": 1,
+          "aggregator": 4
+        },
+        "lead_read_ids": [],
+        "lead_discovery_count": 0,
+        "lead_discovered_candidates": []
+      },
+      "planner": {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": "completed",
+            "error_type": "",
+            "finish_reason": "stop",
+            "input_tokens": 1660,
+            "output_tokens": 68,
+            "total_tokens": 1728,
+            "elapsed_seconds": 0.687
+          }
+        ],
+        "stores_raw_model_text": false
+      }
+    }
+  ],
+  "summary": {
+    "case_count": 12,
+    "runner_error_cases": 1,
+    "budget_violation_cases": 1,
+    "reviewable_answer_cases": 11,
+    "completed_runs": 0,
+    "partial_runs": 12,
+    "failed_runs": 0,
+    "qualification_decision": "NEEDS_INDEPENDENT_REVIEW"
+  }
+}

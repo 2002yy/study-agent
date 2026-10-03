@@ -1,0 +1,175 @@
+{
+  "cells": [
+    {
+      "anchored_spans": [
+        "Node.js 有两种模块系统：CommonJS 模块和 ECMAScript 模块",
+        "Node.js 也支持浏览器和其他 JavaScript 运行时使用的 ECMAScript 模块 标准",
+        "调用 require() 总是使用 CommonJS 模块加载器。调用 import() 总是使用 ECMAScript 模块加载器"
+      ],
+      "caveats": [
+        "The excerpt is a Chinese translation of the Node.js v26 documentation and does not explicitly contrast current guidance with older CommonJS-versus-ES-modules guidance."
+      ],
+      "cell": "A",
+      "claim_key": "offline_question",
+      "harness_key": "offline_harness",
+      "locator": "Node.js 有两种模块系统：CommonJS 模块和 ECMAScript 模块",
+      "reason": "",
+      "relation": "supports",
+      "status": "completed",
+      "strength": 0.7
+    },
+    {
+      "anchored_spans": [
+        "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+        "Calling require() always use the CommonJS module loader. Calling import() always use the ECMAScript module loader."
+      ],
+      "caveats": [
+        "The excerpt is a navigation/index page and introductory CommonJS documentation; it does not provide detailed current guidance on how module-system recommendations differ from older CommonJS-versus-ES-modules guidance."
+      ],
+      "cell": "B",
+      "claim_key": "offline_question",
+      "harness_key": "runtime_harness",
+      "locator": "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+      "reason": "",
+      "relation": "background",
+      "status": "completed",
+      "strength": 0.35
+    },
+    {
+      "anchored_spans": [
+        "CommonJS 模块是为 Node.js 打包 JavaScript 代码的最初方式",
+        "Node.js 也支持浏览器和其他 JavaScript 运行时使用的 ECMAScript 模块 标准",
+        "Node.js 有两种模块系统：CommonJS 模块和 ECMAScript 模块"
+      ],
+      "caveats": [
+        "The excerpt describes the two module systems and default CommonJS treatment but does not explicitly contrast current guidance with older guidance."
+      ],
+      "cell": "C",
+      "claim_key": "runtime_comparison_claim",
+      "harness_key": "offline_harness",
+      "locator": "CommonJS 模块是为 Node.js 打包 JavaScript 代码的最初方式",
+      "reason": "",
+      "relation": "background",
+      "status": "completed",
+      "strength": 0.3
+    },
+    {
+      "anchored_spans": [
+        "CommonJS 模块是为 Node.js 打包 JavaScript 代码的最初方式",
+        "Node.js 也支持浏览器和其他 JavaScript 运行时使用的 ECMAScript 模块 标准",
+        "Node.js 有两种模块系统：CommonJS 模块和 ECMAScript 模块"
+      ],
+      "caveats": [
+        "The excerpt describes the current dual module system and default detection rules but does not explicitly contrast them with older guidance, so it only partially addresses the comparison question."
+      ],
+      "cell": "D",
+      "claim_key": "runtime_comparison_claim",
+      "harness_key": "runtime_harness",
+      "locator": "CommonJS 模块是为 Node.js 打包 JavaScript 代码的最初方式",
+      "reason": "",
+      "relation": "qualifies",
+      "status": "completed",
+      "strength": 0.55
+    },
+    {
+      "anchored_spans": [
+        "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+        "Node.js 有两种模块系统：CommonJS 模块和 ECMAScript 模块。"
+      ],
+      "caveats": [
+        "The excerpt is from a Chinese-language Node.js documentation page and does not specify a version number beyond the page title."
+      ],
+      "cell": "E",
+      "claim_key": "runtime_atomic_claim",
+      "harness_key": "offline_harness",
+      "locator": "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+      "reason": "",
+      "relation": "supports",
+      "status": "completed",
+      "strength": 0.95
+    },
+    {
+      "anchored_spans": [
+        "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+        "Node.js also supports the ECMAScript modules standard used by browsers and other JavaScript runtimes."
+      ],
+      "caveats": [
+        "The excerpt is from a Chinese-language Node.js documentation page and the claim asks about 'current Node.js' generally; the page title indicates v26 documentation, but the excerpt itself does not state a version number."
+      ],
+      "cell": "F",
+      "claim_key": "runtime_atomic_claim",
+      "harness_key": "runtime_harness",
+      "locator": "Node.js has two module systems: CommonJS modules and ECMAScript modules.",
+      "reason": "",
+      "relation": "supports",
+      "status": "completed",
+      "strength": 0.9
+    }
+  ],
+  "claims": [
+    {
+      "created_by": "hybrid_selection_chain",
+      "created_reason": "§38b diagnostic chain",
+      "key": "offline_question",
+      "kind": "factual",
+      "min_independent_sources": 1,
+      "priority": "critical",
+      "requires_primary_source": false,
+      "requires_successful_read": true,
+      "state": "pending",
+      "text": "What module systems does current Node.js officially support, and how does current guidance differ from older CommonJS-versus-ES-modules guidance?"
+    },
+    {
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:causal_analysis",
+      "key": "runtime_comparison_claim",
+      "kind": "analytical",
+      "min_independent_sources": 1,
+      "priority": "major",
+      "requires_primary_source": false,
+      "requires_successful_read": true,
+      "state": "pending",
+      "text": "how does current guidance differ from older CommonJS-versus-ES-modules guidance?"
+    },
+    {
+      "created_by": "runtime_claim_planner",
+      "created_reason": "policy_profile:official_statement",
+      "key": "runtime_atomic_claim",
+      "kind": "factual",
+      "min_independent_sources": 1,
+      "priority": "critical",
+      "requires_primary_source": true,
+      "requires_successful_read": true,
+      "state": "unresolved",
+      "text": "What module systems does current Node.js officially support"
+    }
+  ],
+  "content_chars": 6000,
+  "content_sha256": "c8d4e733712fdd44e4d0a58df26a46f4dcf2b6b25a13efd7a251568d76f6162e",
+  "diagnostic_only": true,
+  "generated_at": "2026-09-19T05:12:35.011371+00:00",
+  "harnesses": [
+    {
+      "key": "offline_harness",
+      "published_at": "",
+      "source_cluster_id": "hybrid_cluster",
+      "source_role": "primary",
+      "title": "CommonJS 模块 | Node.js v26 文档"
+    },
+    {
+      "key": "runtime_harness",
+      "published_at": "",
+      "source_cluster_id": "candidate_cluster_7dcd0f42b64fcd24",
+      "source_role": "primary",
+      "title": "CommonJS 模块 | Node.js v26 文档"
+    }
+  ],
+  "model_name": "deepseek-flash",
+  "model_profile": "flash",
+  "provider_profile": "deepseek",
+  "qualification_evidence": false,
+  "schema_version": "claim-shape-disambiguation-v1",
+  "source_capture": "docs/research_quality/SELECTION_AUTHORITY.node.capture2.json",
+  "target_url": "https://nodejs.cn/api/modules.html",
+  "thinking_mode": "disabled_for_structured_research_calls"
+}

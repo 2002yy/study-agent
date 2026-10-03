@@ -166,6 +166,38 @@ _LEAD_SCHEDULABLE_SIGNALS = {
     "new_contradiction",
 }
 
+# Lead discovery is a separate, deterministic scheduling path (v1). It does not
+# reuse the evidence-gain signals above: `new_provenance_lead` is an *Evidence*
+# stage gain (lead links on Gate-eligible evidence), while lead discovery is a
+# *Discovery* stage action. Lead reads never produce eligible evidence.
+LEAD_DISCOVERY_INTENTS = frozenset({"primary", "provenance", "verification"})
+
+
+def is_schedulable_lead(
+    item: RankedCandidate,
+    *,
+    lead_budget_available: bool,
+    gap_needs_primary: bool,
+) -> bool:
+    """Deterministic v1 lead-scheduling rule.
+
+    A candidate is schedulable as a lead when all of these hold:
+    - it is ``lead_only`` (``rejected`` is never read; ``eligible`` goes to an
+      evidence read instead);
+    - its query intents include a primary/provenance/verification intent;
+    - the open gap still lacks the corresponding primary/provenance evidence;
+    - a bounded lead-read budget is still available.
+
+    No model prediction is required: the assessor already performed the
+    important filter (``off_target`` -> ``rejected``).
+    """
+
+    if item.eligibility != "lead_only":
+        return False
+    if not lead_budget_available or not gap_needs_primary:
+        return False
+    return bool(LEAD_DISCOVERY_INTENTS.intersection(item.candidate.intents))
+
 
 def _lead_is_schedulable(item: RankedCandidate, policy: ReadSchedulerPolicy) -> bool:
     if not policy.allow_provenance_leads:
@@ -234,10 +266,12 @@ def _validate_budget(budget: ResearchBudget) -> None:
 
 
 __all__ = [
+    "LEAD_DISCOVERY_INTENTS",
     "ReadSchedulerPolicy",
     "ReadSchedulingCancelled",
     "ReadWavePlan",
     "ReadWaveStatus",
     "is_schedulable_candidate",
+    "is_schedulable_lead",
     "plan_read_wave",
 ]

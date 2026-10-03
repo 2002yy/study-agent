@@ -1,0 +1,695 @@
+{
+ "schema": "f2-c-economics-v1",
+ "reps": 5,
+ "fallback_preflight": "ready",
+ "labels": {
+  "simple_static": "NONE",
+  "technical_docs": "NONE",
+  "js_heavy": "ESSENTIAL",
+  "session_sensitive": "ESSENTIAL",
+  "selected_pdf": "MATERIAL",
+  "document_path": "UNRESOLVED_FOR_TASK"
+ },
+ "latency": {
+  "simple_static": {
+   "probe_median_wall_ms": 1.7,
+   "probe_p95_wall_ms": 20.2,
+   "default_median_wall_ms": 0.2,
+   "default_p95_wall_ms": 0.3,
+   "specialist_median_wall_ms": 230.4,
+   "specialist_p95_wall_ms": 243.9
+  },
+  "technical_docs": {
+   "probe_median_wall_ms": 1.5,
+   "probe_p95_wall_ms": 20.0,
+   "default_median_wall_ms": 0.2,
+   "default_p95_wall_ms": 0.3,
+   "specialist_median_wall_ms": 231.5,
+   "specialist_p95_wall_ms": 245.1
+  },
+  "js_heavy": {
+   "probe_median_wall_ms": 1.3,
+   "probe_p95_wall_ms": 19.0,
+   "default_median_wall_ms": 0.2,
+   "default_p95_wall_ms": 0.4,
+   "specialist_median_wall_ms": 1332.8,
+   "specialist_p95_wall_ms": 1346.9
+  },
+  "document_path": {
+   "probe_median_wall_ms": 1.6,
+   "probe_p95_wall_ms": 20.1,
+   "default_median_wall_ms": 0.2,
+   "default_p95_wall_ms": 0.3,
+   "specialist_median_wall_ms": 228.5,
+   "specialist_p95_wall_ms": 233.0
+  },
+  "session_sensitive": {
+   "probe_median_wall_ms": 1.4,
+   "probe_p95_wall_ms": 17.4,
+   "default_median_wall_ms": 11.4,
+   "default_p95_wall_ms": 32.9,
+   "specialist_median_wall_ms": 340.9,
+   "specialist_p95_wall_ms": 346.3
+  },
+  "selected_pdf": {
+   "probe_median_wall_ms": 1.4,
+   "probe_p95_wall_ms": 1.8,
+   "default_median_wall_ms": 4.1,
+   "default_p95_wall_ms": 6.9,
+   "specialist_median_wall_ms": 30.3,
+   "specialist_p95_wall_ms": 33.1
+  }
+ },
+ "content_types": {
+  "simple_static": "text/html; charset=utf-8",
+  "technical_docs": "text/html; charset=utf-8",
+  "js_heavy": "text/html; charset=utf-8",
+  "document_path": "text/html; charset=utf-8",
+  "session_sensitive": "",
+  "selected_pdf": "application/pdf"
+ },
+ "default_observed": {
+  "simple_static": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  },
+  "technical_docs": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  },
+  "js_heavy": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  },
+  "document_path": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  },
+  "session_sensitive": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http",
+    "wigolo_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "http_denied",
+     "attempted": true,
+     "usable_content": false,
+     "adequacy_reason": "read_failed"
+    },
+    {
+     "backend": "wigolo_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  },
+  "selected_pdf": {
+   "terminal_outcome": "resolve",
+   "terminal_reason": "usable_content",
+   "backend_path": [
+    "native_http",
+    "wigolo_http"
+   ],
+   "steps": [
+    {
+     "backend": "native_http",
+     "retrieval_state": "backend_failure",
+     "attempted": true,
+     "usable_content": false,
+     "adequacy_reason": "read_failed"
+    },
+    {
+     "backend": "wigolo_http",
+     "retrieval_state": "success",
+     "attempted": true,
+     "usable_content": true,
+     "adequacy_reason": "ok"
+    }
+   ]
+  }
+ },
+ "rules": [
+  {
+   "name": "p0_ext_pdf",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url:extension",
+   "triggered": [
+    "selected_pdf"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [
+      "selected_pdf"
+     ],
+     "missed": []
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [
+    "selected_pdf"
+   ],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "selected_pdf": 30.3
+   },
+   "incremental_median_wall_ms": 30.3,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p0_path_session",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url_path",
+   "triggered": [
+    "session_sensitive"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [
+      "session_sensitive"
+     ],
+     "missed": [
+      "js_heavy"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.5,
+   "essential_missed": [
+    "js_heavy"
+   ],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "session_sensitive": 340.9
+   },
+   "incremental_median_wall_ms": 340.9,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p0_path_js",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url_path",
+   "triggered": [
+    "js_heavy"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [
+      "js_heavy"
+     ],
+     "missed": [
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.5,
+   "essential_missed": [
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "js_heavy": 1332.8
+   },
+   "incremental_median_wall_ms": 1332.8,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p0_path_document",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url_path",
+   "triggered": [
+    "document_path"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": [
+      "document_path"
+     ]
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [
+    "document_path"
+   ],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "document_path": 228.5
+   },
+   "incremental_median_wall_ms": 228.5,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p0_essential_targets",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url_path(union:session|js)",
+   "triggered": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [
+      "js_heavy",
+      "session_sensitive"
+     ],
+     "missed": []
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 1.0,
+   "essential_missed": [],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "js_heavy": 1332.8,
+    "session_sensitive": 340.9
+   },
+   "incremental_median_wall_ms": 836.8,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": true
+  },
+  {
+   "name": "p0_all_targeted",
+   "signal_class": "P0_zero_fetch",
+   "signal": "url_path+ext(union)",
+   "triggered": [
+    "document_path",
+    "js_heavy",
+    "selected_pdf",
+    "session_sensitive"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [
+      "js_heavy",
+      "session_sensitive"
+     ],
+     "missed": []
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [
+      "selected_pdf"
+     ],
+     "missed": []
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": [
+      "document_path"
+     ]
+    }
+   },
+   "essential_recall": 1.0,
+   "essential_missed": [],
+   "none_false_positives": [],
+   "material_capture": [
+    "selected_pdf"
+   ],
+   "unresolved_no_gain_escalation": [
+    "document_path"
+   ],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "document_path": 228.5,
+    "js_heavy": 1332.8,
+    "selected_pdf": 30.3,
+    "session_sensitive": 340.9
+   },
+   "incremental_median_wall_ms": 284.7,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": true
+  },
+  {
+   "name": "p1_ct_pdf",
+   "signal_class": "P1_metadata_costed",
+   "signal": "content_type",
+   "triggered": [
+    "selected_pdf"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [
+      "selected_pdf"
+     ],
+     "missed": []
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [
+    "selected_pdf"
+   ],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "selected_pdf": 31.7
+   },
+   "incremental_median_wall_ms": 31.7,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p1_ct_non_html",
+   "signal_class": "P1_metadata_costed",
+   "signal": "content_type",
+   "triggered": [
+    "selected_pdf"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [
+      "selected_pdf"
+     ],
+     "missed": []
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [
+    "selected_pdf"
+   ],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "selected_pdf": 31.7
+   },
+   "incremental_median_wall_ms": 31.7,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p2_did_not_resolve",
+   "signal_class": "P2_post_default",
+   "signal": "terminal_outcome",
+   "triggered": [],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {},
+   "incremental_median_wall_ms": 0.0,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p2_short_doc_or_invalid",
+   "signal_class": "P2_post_default",
+   "signal": "step shape",
+   "triggered": [],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [],
+     "missed": [
+      "js_heavy",
+      "session_sensitive"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [],
+     "missed": [
+      "selected_pdf"
+     ]
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.0,
+   "essential_missed": [
+    "js_heavy",
+    "session_sensitive"
+   ],
+   "none_false_positives": [],
+   "material_capture": [],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {},
+   "incremental_median_wall_ms": 0.0,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  },
+  {
+   "name": "p2_default_escalated",
+   "signal_class": "P2_post_default",
+   "signal": "backend_path",
+   "triggered": [
+    "selected_pdf",
+    "session_sensitive"
+   ],
+   "confusion": {
+    "ESSENTIAL": {
+     "hit": [
+      "session_sensitive"
+     ],
+     "missed": [
+      "js_heavy"
+     ]
+    },
+    "NONE": {
+     "false_positive": []
+    },
+    "MATERIAL": {
+     "captured": [
+      "selected_pdf"
+     ],
+     "missed": []
+    },
+    "UNRESOLVED_FOR_TASK": {
+     "no_current_gain_escalation": []
+    }
+   },
+   "essential_recall": 0.5,
+   "essential_missed": [
+    "js_heavy"
+   ],
+   "none_false_positives": [],
+   "material_capture": [
+    "selected_pdf"
+   ],
+   "unresolved_no_gain_escalation": [],
+   "false_positive_rate": 0.0,
+   "incremental_wall_ms_by_triggered": {
+    "selected_pdf": 30.3,
+    "session_sensitive": 340.9
+   },
+   "incremental_median_wall_ms": 185.6,
+   "false_positive_wall_cost_ms": 0.0,
+   "gate_pass": false
+  }
+ ],
+ "pareto_front": [
+  "p0_essential_targets",
+  "p0_all_targeted"
+ ],
+ "gate_passers": [
+  "p0_essential_targets",
+  "p0_all_targeted"
+ ],
+ "conclusion": "SOME_RULES_MEET_GATE",
+ "note": "At least one preregistered rule meets ESSENTIAL recall=100% and NONE false positives=0 on this frozen cohort. C is characterization on this cohort only, not a generalization proof; routing review decides."
+}

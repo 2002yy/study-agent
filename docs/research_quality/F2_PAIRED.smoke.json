@@ -1,0 +1,105 @@
+{
+ "schema": "f2-paired-v1",
+ "pairs": 1,
+ "seed": 143,
+ "smoke": {
+  "passed": true,
+  "checks": {
+   "default_used_real_run_chain": true,
+   "default_backend_path_present": true,
+   "default_from_shared_measurement_entry": true,
+   "default_backend_path_in_active_chain": true,
+   "crawl4ai_used_existing_executor": true,
+   "same_expected_units_on_both_sides": true,
+   "harness_added_fetches_zero": true,
+   "harness_followed_links_itself_false": true,
+   "default_unit_set_present": true,
+   "crawl4ai_unit_set_present": true,
+   "default_wall_ms_positive": true,
+   "crawl4ai_wall_ms_positive": true
+  }
+ },
+ "raw": [
+  {
+   "category": "simple_static",
+   "fixture": "/structured-spec.html",
+   "expected_critical_units": [
+    "2026-08-01",
+    "ES modules",
+    "CommonJS",
+    "supported"
+   ],
+   "default": {
+    "backend_path": [
+     "native_http"
+    ],
+    "useful": true,
+    "units_recovered": 4,
+    "units_total": 4,
+    "unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "wall_ms": 2031.2,
+    "fallback_used": false,
+    "terminal_outcome": "exhaust",
+    "reader_usable_content": false,
+    "runtime_origin": {
+     "entry": "run_single_read_measurement",
+     "backend_path_in_active_chain": true,
+     "steps_are_chain_step_results": true
+    }
+   },
+   "crawl4ai": {
+    "useful": false,
+    "units_recovered": 0,
+    "units_total": 4,
+    "unit_set": [],
+    "wall_ms": 218.3,
+    "fallback_used": false,
+    "terminal_outcome": "invalid_content",
+    "reader_usable_content": false
+   },
+   "_invariants": {
+    "default_used_real_run_chain": true,
+    "default_backend_path_present": true,
+    "default_from_shared_measurement_entry": true,
+    "default_backend_path_in_active_chain": true,
+    "crawl4ai_used_existing_executor": true,
+    "same_expected_units_on_both_sides": true,
+    "harness_added_fetches": 0,
+    "harness_followed_links_itself": false,
+    "ssrf_guard_relaxed_for_local_fixture": true,
+    "default_unit_set": [
+     "2026-08-01",
+     "ES modules",
+     "CommonJS",
+     "supported"
+    ],
+    "crawl4ai_unit_set": [],
+    "default_wall_ms_positive": true,
+    "crawl4ai_wall_ms_positive": true
+   },
+   "pair_index": 0,
+   "order": "default-first"
+  }
+ ],
+ "aggregate": {
+  "simple_static": {
+   "classification_status": "RESOLVED",
+   "specialist_gain": "NONE",
+   "default_content_consistent": true,
+   "crawl4ai_content_consistent": true,
+   "default_units": "4/4",
+   "crawl4ai_units": "0/4",
+   "default_useful": true,
+   "crawl4ai_useful": false,
+   "default_backend_path": "native_http",
+   "default_median_wall": 2031.2,
+   "crawl4ai_median_wall": 218.3,
+   "delta_wall_ms": -1812.9
+  }
+ }
+}

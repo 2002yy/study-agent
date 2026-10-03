@@ -17,6 +17,7 @@ from src.web.research.model_gateway import (
     ResearchModelCallAudit,
 )
 from src.web.research.evidence_gain import EvidenceGainResult, SaturationState
+from src.web.research.lead_discovery import LeadDiscoveryPayload
 from src.web.research.failure_contracts import (
     ResearchFailureCode,
     require_research_failure_code,
@@ -72,6 +73,21 @@ _MAX_CURSOR_ITEMS = 100
 # P1-C batch 2: durable gain history keeps only the most recent entries so a
 # long multi-wave run can never outgrow the cursor serialization limit.
 _MAX_GAIN_HISTORY_ENTRIES = 24
+# Slice 1: bounded lead discovery keeps at most the run-level lead-read budget
+# of durable discovery payloads (never evidence).
+MAX_LEAD_READS_PER_RUN = 2
+_MAX_LEAD_DISCOVERIES = MAX_LEAD_READS_PER_RUN
+# Slice 2: bounded re-entry of lead-discovered URLs. Discovery depth 1 only
+# (no lead -> lead -> lead recursion), and a small run-level cap so discovery
+# can never refill the candidate pool or the budget.
+MAX_LEAD_DISCOVERY_DEPTH = 1
+MAX_LEAD_DISCOVERED_CANDIDATES_PER_RUN = 4
+# Evidence Lead Follow-up admission (strict; shares the frozen read/model/time
+# budget - it never adds budget of its own).
+MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN = 2
+MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_WAVE = 1
+EVIDENCE_LEAD_FOLLOWUP_MIN_REMAINING_SECONDS = 20.0
+_MAX_EVIDENCE_LEAD_FOLLOWUPS = MAX_EVIDENCE_LEAD_FOLLOWUPS_PER_RUN
 # Frozen wave ceiling for the bounded multi-wave loop: saturation (2 batches,
 # 3 for critical/conflict) always fits, and the ceiling guards against any
 # endless loop if gain/saturation bookkeeping were ever inconsistent.
@@ -162,6 +178,11 @@ class RuntimeCandidate:
     intents: tuple[str, ...] = ()
     providers: tuple[str, ...] = ()
     first_seen_rank: int = 0
+    # Slice 2 provenance: a candidate discovered by a bounded lead read records
+    # how it was found. Provenance only - identity stays the canonical URL.
+    parent_lead_candidate_id: str = ""
+    discovery_method: str = ""
+    discovery_depth: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -175,12 +196,22 @@ class RuntimeCandidate:
             "intents": list(self.intents),
             "providers": list(self.providers),
             "first_seen_rank": self.first_seen_rank,
+            "parent_lead_candidate_id": self.parent_lead_candidate_id,
+            "discovery_method": self.discovery_method,
+            "discovery_depth": self.discovery_depth,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "RuntimeCandidate":
+        compatible = dict(raw)
+        # Slice 2 added lead-discovery provenance. Pre-Slice-2 cursors have no
+        # provenance fields; accept only those absent fields so a durable
+        # checkpoint survives the upgrade.
+        compatible.setdefault("parent_lead_candidate_id", "")
+        compatible.setdefault("discovery_method", "")
+        compatible.setdefault("discovery_depth", 0)
         data = _strict_mapping(
-            raw,
+            compatible,
             {
                 "id",
                 "url",
@@ -192,6 +223,9 @@ class RuntimeCandidate:
                 "intents",
                 "providers",
                 "first_seen_rank",
+                "parent_lead_candidate_id",
+                "discovery_method",
+                "discovery_depth",
             },
             "runtime candidate",
         )
@@ -208,6 +242,13 @@ class RuntimeCandidate:
             first_seen_rank=_bounded_int(
                 data.get("first_seen_rank"), 0, 10000, "first_seen_rank"
             ),
+            parent_lead_candidate_id=_optional_text(
+                data.get("parent_lead_candidate_id"), 300
+            ),
+            discovery_method=_optional_text(data.get("discovery_method"), 50),
+            discovery_depth=_bounded_int(
+                data.get("discovery_depth"), 0, 5, "discovery_depth"
+            ),
         )
 
 
@@ -218,6 +259,13 @@ class RuntimeReadOutcome:
     evidence_id: str = ""
     content_chars: int = 0
     error_code: str = ""
+    # §98 P2-A2a: one durable attempt fact. ``retrieval_state`` is the canonical
+    # outcome (empty on legacy rows) and ``backend`` names who produced it. A
+    # policy skip never records an outcome at all, so every row here is a real
+    # attempt; neither field decides candidate lifecycle - that belongs to
+    # candidate_resolution.
+    backend: str = ""
+    retrieval_state: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -226,13 +274,29 @@ class RuntimeReadOutcome:
             "evidence_id": self.evidence_id,
             "content_chars": self.content_chars,
             "error_code": self.error_code,
+            "backend": self.backend,
+            "retrieval_state": self.retrieval_state,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "RuntimeReadOutcome":
+        # §98 A2a added the attempt-fact fields. Pre-A2a cursors have none of
+        # them; accept only those absent fields so durable checkpoints survive
+        # the upgrade (the same shim pattern B5 and P1-C batch 2 used).
+        compatible = dict(raw)
+        compatible.setdefault("backend", "")
+        compatible.setdefault("retrieval_state", "")
         data = _strict_mapping(
-            raw,
-            {"candidate_id", "status", "evidence_id", "content_chars", "error_code"},
+            compatible,
+            {
+                "candidate_id",
+                "status",
+                "evidence_id",
+                "content_chars",
+                "error_code",
+                "backend",
+                "retrieval_state",
+            },
             "runtime read outcome",
         )
         status = _required_text(data.get("status"), 50, "read status")
@@ -248,6 +312,8 @@ class RuntimeReadOutcome:
                 data.get("content_chars"), 0, 10_000_000, "content_chars"
             ),
             error_code=_optional_text(data.get("error_code"), 200),
+            backend=_optional_text(data.get("backend"), 120),
+            retrieval_state=_optional_text(data.get("retrieval_state"), 80),
         )
 
 
@@ -492,6 +558,16 @@ class ResearchRuntimeCursor:
     gain_history: tuple[dict[str, Any], ...] = ()
     no_gain_batches_by_claim: dict[str, int] = field(default_factory=dict)
     no_gain_batches_by_gap: dict[str, int] = field(default_factory=dict)
+    # Lead discovery (Slice 1): bounded lead reads and their discovery assets.
+    # Leads are discovery assets, never evidence: the durable cursor stores the
+    # typed LeadDiscoveryPayload only, and lead reads spend the same shared
+    # read/model budget as evidence reads.
+    lead_read_ids: tuple[str, ...] = ()
+    lead_discoveries: tuple[dict[str, Any], ...] = ()
+    # Evidence Lead Follow-up: an eligible evidence link with relation="lead"
+    # means the read page did not answer the claim but points deeper. Bounded
+    # per wave/run; consumes the already-read content (never re-reads).
+    evidence_lead_followups: tuple[dict[str, Any], ...] = ()
     schema_version: str = RESEARCH_RUNTIME_SCHEMA_VERSION
 
     @property
@@ -500,7 +576,26 @@ class ResearchRuntimeCursor:
 
     @property
     def completed_read_ids(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(item.candidate_id for item in self.read_outcomes))
+        """Candidates whose **reader chain has ended** (§98 A2a).
+
+        This used to be "any candidate with a read outcome", which conflated a
+        policy skip or a retriable failure with a finished candidate. The single
+        authority is :mod:`candidate_resolution`; this property only asks it.
+        """
+
+        from src.web.research.candidate_resolution import terminal_candidate_ids
+
+        return terminal_candidate_ids(self.read_outcomes)
+
+    def read_resolutions(self) -> dict[str, Any]:
+        """Per-candidate lifecycle, for diagnostics and scheduling (§98 A2a)."""
+
+        from src.web.research.candidate_resolution import (
+            group_facts_by_candidate,
+            resolve_candidates,
+        )
+
+        return resolve_candidates(group_facts_by_candidate(self.read_outcomes))
 
     def to_dict(self) -> dict[str, Any]:
         # The cursor serializer never fails open on an unknown schema version:
@@ -535,6 +630,11 @@ class ResearchRuntimeCursor:
             "gain_history": [dict(item) for item in self.gain_history],
             "no_gain_batches_by_claim": dict(self.no_gain_batches_by_claim),
             "no_gain_batches_by_gap": dict(self.no_gain_batches_by_gap),
+            "lead_read_ids": list(self.lead_read_ids),
+            "lead_discoveries": [dict(item) for item in self.lead_discoveries],
+            "evidence_lead_followups": [
+                dict(item) for item in self.evidence_lead_followups
+            ],
         }
 
     @classmethod
@@ -553,6 +653,12 @@ class ResearchRuntimeCursor:
         compatible.setdefault("gain_history", [])
         compatible.setdefault("no_gain_batches_by_claim", {})
         compatible.setdefault("no_gain_batches_by_gap", {})
+        # Slice 1 added bounded lead discovery. Pre-Slice-1 cursors have no
+        # lead state; accept only those absent fields so durable checkpoints
+        # survive the upgrade.
+        compatible.setdefault("lead_read_ids", [])
+        compatible.setdefault("lead_discoveries", [])
+        compatible.setdefault("evidence_lead_followups", [])
         data = _strict_mapping(
             compatible,
             {
@@ -574,6 +680,9 @@ class ResearchRuntimeCursor:
                 "gain_history",
                 "no_gain_batches_by_claim",
                 "no_gain_batches_by_gap",
+                "lead_read_ids",
+                "lead_discoveries",
+                "evidence_lead_followups",
             },
             "research runtime cursor",
         )
@@ -675,6 +784,35 @@ class ResearchRuntimeCursor:
                         ),
                     }
                 ).no_gain_batches_by_gap
+            ),
+            lead_read_ids=_text_tuple(
+                data.get("lead_read_ids"), _MAX_CURSOR_ITEMS, 300
+            ),
+            lead_discoveries=tuple(
+                LeadDiscoveryPayload.from_dict(item).to_dict()
+                for item in _object_list(
+                    data.get("lead_discoveries"), "lead_discoveries"
+                )[-_MAX_LEAD_DISCOVERIES:]
+            ),
+            evidence_lead_followups=tuple(
+                _strict_mapping(
+                    item,
+                    {
+                        "wave_index",
+                        "evidence_id",
+                        "source_candidate_id",
+                        "method",
+                        "added_candidate_ids",
+                        "hint_domain",
+                        "trusted_primary_domain",
+                        "hint_terms",
+                    },
+                    "evidence lead follow-up",
+                )
+                for item in _object_list(
+                    data.get("evidence_lead_followups"),
+                    "evidence_lead_followups",
+                )[-_MAX_EVIDENCE_LEAD_FOLLOWUPS:]
             ),
         )
         _validate_cursor_links(cursor)
@@ -875,8 +1013,19 @@ def _validate_cursor_links(cursor: ResearchRuntimeCursor) -> None:
         raise ValueError("runtime read plan references unknown candidate")
     if any(item.candidate_id not in candidate_set for item in cursor.read_outcomes):
         raise ValueError("runtime read outcome references unknown candidate")
-    if len(cursor.completed_read_ids) != len(cursor.read_outcomes):
-        raise ValueError("runtime read outcomes must be unique per candidate")
+    # §101 A2d-1: one outcome per (candidate, backend) attempt, not one per
+    # candidate. A candidate may legitimately have several attempt outcomes once
+    # more than one reader exists (native_http then wigolo_http); network retries
+    # inside one attempt stay in that attempt's own detail, so a second outcome
+    # for the same backend is still a bug.
+    outcome_keys = [
+        (item.candidate_id, item.backend or "native_http")
+        for item in cursor.read_outcomes
+    ]
+    if len(outcome_keys) != len(set(outcome_keys)):
+        raise ValueError(
+            "runtime read outcomes must be unique per candidate and backend"
+        )
 
     call_ids = [item.call_id for item in cursor.model_calls]
     if len(call_ids) != len(set(call_ids)):

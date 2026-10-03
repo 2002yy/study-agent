@@ -219,3 +219,64 @@ def test_active_gateway_reuses_existing_reader() -> None:
 
     assert result == {"ok": True, "content": "body"}
     assert reader.calls == [("https://example.test/article", 1234)]
+
+
+class DeadlineSearchBackend:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+        self.deadlines: list[float | None] = []
+
+    def search_exact(
+        self,
+        query: str,
+        *,
+        max_results: int = 5,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        self.deadlines.append(deadline)
+        return self.payload
+
+
+def test_deadline_is_forwarded_only_to_deadline_aware_backend() -> None:
+    deadline_backend = DeadlineSearchBackend(_payload())
+    deadline_gateway = ActiveResearchGateway(search_backend=deadline_backend)
+    deadline_gateway.search_detailed("query", deadline=123.5)
+    assert deadline_backend.deadlines == [123.5]
+
+    legacy_backend = FakeSearchBackend([_payload()])
+    legacy_gateway = ActiveResearchGateway(search_backend=legacy_backend)
+    legacy_gateway.search_detailed("query", deadline=123.5)
+    assert legacy_backend.calls == [("query", 10)]
+    assert legacy_gateway.last_search_audit() is not None
+
+
+class DeadlineReadGateway:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, float | None]] = []
+
+    def read(
+        self,
+        url: str,
+        *,
+        max_chars: int = 6000,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append((url, max_chars, timeout))
+        return {"ok": True, "content": "body"}
+
+
+def test_read_timeout_is_forwarded_only_to_timeout_aware_gateway() -> None:
+    """Evidence reads share the research-window deadline when supported."""
+
+    deadline_reader = DeadlineReadGateway()
+    deadline_gateway = ActiveResearchGateway(read_gateway=deadline_reader)
+    deadline_gateway.read("https://example.test/article", max_chars=1234, timeout=3.5)
+    assert deadline_reader.calls == [("https://example.test/article", 1234, 3.5)]
+
+    legacy_reader = FakeReadGateway()
+    legacy_gateway = ActiveResearchGateway(read_gateway=legacy_reader)
+    result = legacy_gateway.read(
+        "https://example.test/article", max_chars=1234, timeout=3.5
+    )
+    assert result == {"ok": True, "content": "body"}
+    assert legacy_reader.calls == [("https://example.test/article", 1234)]

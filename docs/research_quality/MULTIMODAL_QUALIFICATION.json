@@ -1,0 +1,131 @@
+{
+ "schema_version": "multimodal-qualification-v1",
+ "scenarios": [
+  {
+   "id": "Q1_default_inert",
+   "gate": {
+    "max_vision_calls": 0,
+    "declared_metadata": true
+   },
+   "fetched": false,
+   "vision_called": false,
+   "units": 0,
+   "vision_calls": 0,
+   "read_site_e2e_reference": "tests/test_read_site_visual_evidence.py",
+   "verdict": "PASS"
+  },
+  {
+   "id": "Q2_enabled_declared",
+   "gate": {
+    "max_vision_calls": 1,
+    "declared_metadata": true
+   },
+   "fetched": true,
+   "vision_called": true,
+   "units": 1,
+   "vision_calls": 1,
+   "unit": {
+    "unit_id": "fig4",
+    "source_type": "chart",
+    "source": "https://cdn.example.com/figure4.png",
+    "page": 4,
+    "region": "bbox:10,10,200,120",
+    "content": "",
+    "observation": "Figure 4: feature X is unsupported on Windows.",
+    "supports": [],
+    "contradicts": [],
+    "confidence": 0.0,
+    "provenance": "https://cdn.example.com/figure4.png#page=4#region=bbox:10,10,200,120"
+   },
+   "verdict": "PASS"
+  },
+  {
+   "id": "Q3_semantic_value",
+   "rq_a_c_d_before": {
+    "adequacy": "insufficient",
+    "claim_state": "partially_satisfied",
+    "conflict_status": "none",
+    "conflict_preferred_side": "",
+    "coverage_recommendation": "continue_candidate"
+   },
+   "rq_a_c_d_after": {
+    "adequacy": "adequate",
+    "claim_state": "satisfied",
+    "conflict_status": "none",
+    "conflict_preferred_side": "",
+    "coverage_recommendation": "stop_candidate"
+   },
+   "rq_c_with_contradiction": {
+    "adequacy": "adequate",
+    "claim_state": "contested",
+    "conflict_status": "preferred_side",
+    "conflict_preferred_side": "support",
+    "coverage_recommendation": "stop_candidate"
+   },
+   "verdict": "PASS"
+  },
+  {
+   "id": "Q4_fail_closed",
+   "ssrf": {
+    "fetcher_reason": "image_url_not_public",
+    "outcome_reason": "image_url_not_public",
+    "units": 0,
+    "vision_calls": 0
+   },
+   "provider_failure": {
+    "outcome_reason": "vision_description_failed",
+    "units": 0,
+    "vision_calls": 1
+   },
+   "text_read_guarantee": "tests/test_read_site_visual_evidence.py",
+   "verdict": "PASS"
+  },
+  {
+   "id": "Q5_provenance",
+   "unit": {
+    "unit_id": "fig4",
+    "source_type": "chart",
+    "source": "https://cdn.example.com/figure4.png",
+    "page": 4,
+    "region": "bbox:10,10,200,120",
+    "content": "",
+    "observation": "Figure 4: feature X is unsupported on Windows.",
+    "supports": [],
+    "contradicts": [],
+    "confidence": 0.0,
+    "provenance": "https://cdn.example.com/figure4.png#page=4#region=bbox:10,10,200,120"
+   },
+   "audit": [
+    {
+     "purpose": "image_description",
+     "provider": "deepseek",
+     "model": "",
+     "data_categories": [
+      "image_content"
+     ],
+     "status": "normalized",
+     "image_id": "fig4",
+     "evidence_id": "fig4",
+     "reason": "normalized_from_vision"
+    }
+   ],
+   "verdict": "PASS"
+  },
+  {
+   "id": "Q6_budget",
+   "max_vision_calls_with_time_left": 1,
+   "max_vision_calls_near_deadline": 0,
+   "vision_calls_used": 1,
+   "reads_used_before": 0,
+   "reads_used_after": 0,
+   "verdict": "PASS"
+  }
+ ],
+ "verdict": "PASS",
+ "read_site_e2e_reference": "tests/test_read_site_visual_evidence.py",
+ "notes": [
+  "Deterministic: injected fetcher/adapter, no network, no model call.",
+  "Default-inert: max_vision_calls=0 means no fetch and no vision call.",
+  "Read-site-level invariants are locked by the referenced e2e test."
+ ]
+}

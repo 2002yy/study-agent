@@ -7,16 +7,27 @@ turn an unread page or a malformed response into eligible evidence.
 
 from __future__ import annotations
 
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import date
 import json
 from math import isfinite
+from os import getenv
 from typing import Any, Mapping
 
+from openai import OpenAI
+
+from src.llm_client import (
+    get_client,
+    research_structured_output_capabilities,
+)
 from src.web.research.candidate_assessment import (
-    CANDIDATE_ASSESSMENT_SCHEMA_VERSION,
+    CANDIDATE_ASSESSMENT_GAIN_SIGNAL_CODES,
+    CANDIDATE_ASSESSMENT_RELEVANCE_CODES,
+    CANDIDATE_ASSESSMENT_SOURCE_ROLE_CODES,
+    CANDIDATE_ASSESSMENT_WIRE_SCHEMA_VERSION,
     build_candidate_assessment_request,
-    parse_candidate_assessment_response,
+    parse_compact_candidate_assessment_response,
 )
 from src.web.research.candidate_pool import CandidatePoolItem
 from src.web.research.candidate_ranking import CandidateSemanticAssessment
@@ -26,15 +37,32 @@ from src.web.research.model_gateway import (
     AttemptStartedHook,
     ResearchModelCallAudit,
     ResearchModelGateway,
+    merge_research_extra_body,
+    with_json_object_contract,
 )
 from src.web.research.source_cluster import CandidateClusterAssignment
 
 EVIDENCE_EXTRACTION_SCHEMA_VERSION = "research-evidence-extraction-v1"
+CANDIDATE_ASSESSMENT_MAX_ATTEMPTS_PER_INVOCATION = 1
+CANDIDATE_ASSESSMENT_TIMEOUT_SECONDS = 15.0
+CANDIDATE_ASSESSMENT_BASE_MAX_TOKENS = 100
+CANDIDATE_ASSESSMENT_MAX_TOKENS_PER_CANDIDATE = 100
+CANDIDATE_ASSESSMENT_WINDOW_MAX_TOKENS = 220
 
 _ASSESSMENT_SYSTEM_PROMPT = """You classify public web search candidates for one research claim.
-Return strict JSON matching candidate-assessment-v1. Cover every candidate_id exactly once.
-Judge whether the candidate can answer the claim, not whether it merely shares topic words.
-Do not invent URLs, candidate IDs, publication dates, source clusters, or evidence."""
+Return strict compact JSON matching ca2. Return one row per input candidate, in input order;
+i is its zero- or one-based array position; use one convention consistently for all rows.
+Use integer codes: r relevance 0=answer_relevant 1=topic_only 2=off_target 3=unknown;
+s source role 0=unknown 1=primary 2=authoritative_secondary 3=independent_secondary
+4=community 5=aggregator; g gain signals 0=new_primary 1=new_independent_cluster
+2=new_contradiction 3=new_provenance_lead 4=freshness_update 5=claim_status_improvement.
+rc and sc are confidences from 0 to 1.
+This is pre-read lead triage: judge whether opening the candidate page could produce evidence,
+not whether the bounded search snippet already proves the claim. If title, snippet, or URL
+plausibly points to a claim-bearing page but metadata is insufficient, use topic_only or unknown
+and include new_provenance_lead. Use off_target only for a clear mismatch. Leave
+expected_gain_signals empty only when reading has no plausible evidence or provenance gain.
+Do not invent URLs, candidate indexes, publication dates, source clusters, or evidence."""
 
 _EXTRACTION_SYSTEM_PROMPT = """You extract one bounded evidence link from a successfully read public page.
 Return strict JSON matching research-evidence-extraction-v1. Use only the supplied page excerpt.
@@ -44,12 +72,78 @@ anchored_spans must be short verbatim anchors present in the supplied excerpt. I
 does not bear on the claim, use relation=lead with low strength; never invent evidence."""
 
 _RELATIONS = {"supports", "contradicts", "qualifies", "background", "lead"}
+
 _SOURCE_ROLES = {
     "primary",
     "authoritative_secondary",
     "independent_secondary",
     "community",
     "aggregator",
+}
+_CANDIDATE_ASSESSMENT_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "research_candidate_assessment_compact",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["v", "a"],
+            "properties": {
+                "v": {
+                    "type": "string",
+                    "enum": [CANDIDATE_ASSESSMENT_WIRE_SCHEMA_VERSION],
+                },
+                "a": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "i",
+                            "r",
+                            "rc",
+                            "s",
+                            "sc",
+                            "g",
+                        ],
+                        "properties": {
+                            "i": {"type": "integer", "minimum": 0, "maximum": 100},
+                            "r": {
+                                "type": "integer",
+                                "enum": list(CANDIDATE_ASSESSMENT_RELEVANCE_CODES),
+                            },
+                            "rc": {
+                                "type": "number",
+                                "minimum": 0.0,
+                                "maximum": 1.0,
+                            },
+                            "s": {
+                                "type": "integer",
+                                "enum": list(CANDIDATE_ASSESSMENT_SOURCE_ROLE_CODES),
+                            },
+                            "sc": {
+                                "type": "number",
+                                "minimum": 0.0,
+                                "maximum": 1.0,
+                            },
+                            "g": {
+                                "type": "array",
+                                "maxItems": len(CANDIDATE_ASSESSMENT_GAIN_SIGNAL_CODES),
+                                "uniqueItems": True,
+                                "items": {
+                                    "type": "integer",
+                                    "enum": list(CANDIDATE_ASSESSMENT_GAIN_SIGNAL_CODES),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
 }
 _EXTRACTION_FIELDS = {
     "schema_version",
@@ -64,6 +158,27 @@ _EXTRACTION_FIELDS = {
     "caveats",
     "published_at",
 }
+
+# For providers without wire-level json_schema (e.g. DeepSeek), the extraction
+# call runs on json_object transport, so the exact output contract must be
+# carried in the prompt. Derived from the real field set/enums to avoid drift.
+# The strict _parse_extraction keeps final authority in all transports.
+_JSON_OBJECT_EXTRACTION_CONTRACT = (
+    "\n\nOutput contract (STRICT, must match exactly):\n"
+    "Return ONE JSON object with EXACTLY these top-level keys and no others:\n"
+    + json.dumps(sorted(_EXTRACTION_FIELDS), ensure_ascii=False)
+    + "\n"
+    + f'- "schema_version" must be exactly "{EVIDENCE_EXTRACTION_SCHEMA_VERSION}".\n'
+    + "- Echo candidate_id, claim_id, source_role, source_cluster_id, and "
+    "published_at exactly as supplied.\n"
+    + f'- "relation" must be one of {json.dumps(sorted(_RELATIONS))}.\n'
+    + '- "strength" is a number between 0 and 1.\n'
+    + '- "locator" and every entry of "anchored_spans" must be short verbatim '
+    "substrings of the supplied page excerpt.\n"
+    + '- "caveats" is an array of strings (use an empty array when there are none).\n'
+    + "Never add keys from the input envelope (such as claim_text or page) and "
+    "never omit any listed key."
+)
 
 
 @dataclass(frozen=True)
@@ -96,9 +211,110 @@ class EvidenceExtractionResult:
     reason: str = ""
 
 
+class _CandidateAssessorCompletions:
+    """Inject the assessment structured-output transport per provider capability.
+
+    Wire-level ``json_schema`` providers keep the strict schema response_format.
+    ``json_object``-only providers (e.g. DeepSeek) carry the same dynamic schema
+    (rows pinned to the candidate count) as a system-prompt contract and disable
+    provider-side thinking; ``parse_compact_candidate_assessment_response`` keeps
+    final authority either way.
+    """
+
+    def __init__(self, inner: Any, *, provider_profile: str) -> None:
+        self._inner = inner
+        self._provider_profile = provider_profile
+        mode, thinking_off = research_structured_output_capabilities(provider_profile)
+        self._wire_json_schema = mode == "json_schema"
+        self._thinking_off_extra_body = thinking_off
+
+    def create(self, **kwargs: Any) -> Any:
+        messages = kwargs.get("messages")
+        if (
+            not isinstance(messages, list)
+            or not messages
+            or not isinstance(messages[-1], Mapping)
+        ):
+            raise ValueError("candidate assessment request messages invalid")
+        try:
+            request_payload = json.loads(str(messages[-1]["content"]))
+            candidate_count = len(request_payload["candidates"])
+        except (IndexError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError("candidate assessment request envelope invalid") from exc
+        if not 1 <= candidate_count <= 100:
+            raise ValueError("candidate assessment request count invalid")
+        if self._wire_json_schema:
+            response_format = deepcopy(_CANDIDATE_ASSESSMENT_RESPONSE_FORMAT)
+            rows_schema = response_format["json_schema"]["schema"]["properties"]["a"]
+            rows_schema["minItems"] = candidate_count
+            rows_schema["maxItems"] = candidate_count
+            kwargs["response_format"] = response_format
+            return self._inner.create(**kwargs)
+        schema = deepcopy(_CANDIDATE_ASSESSMENT_RESPONSE_FORMAT["json_schema"]["schema"])
+        rows_schema = schema["properties"]["a"]
+        rows_schema["minItems"] = candidate_count
+        rows_schema["maxItems"] = candidate_count
+        kwargs["messages"] = with_json_object_contract(messages, schema)
+        merged = merge_research_extra_body(
+            kwargs.get("extra_body"), self._thinking_off_extra_body
+        )
+        if merged is not None:
+            kwargs["extra_body"] = merged
+        return self._inner.create(**kwargs)
+
+
+class _CandidateAssessorChat:
+    def __init__(self, inner: Any, *, provider_profile: str) -> None:
+        self.completions = _CandidateAssessorCompletions(
+            inner.completions, provider_profile=provider_profile
+        )
+
+
+class _CandidateAssessorClient:
+    """Inject strict assessment JSON Schema while preserving lazy clients."""
+
+    def __init__(self, inner: Any, *, provider_profile: str) -> None:
+        self._inner = inner
+        self._provider_profile = provider_profile
+
+    @property
+    def chat(self) -> _CandidateAssessorChat:
+        return _CandidateAssessorChat(
+            self._resolved_inner().chat, provider_profile=self._provider_profile
+        )
+
+    def with_options(self, **kwargs: Any) -> _CandidateAssessorClient:
+        return _CandidateAssessorClient(
+            self._resolved_inner().with_options(**kwargs),
+            provider_profile=self._provider_profile,
+        )
+
+    def _resolved_inner(self) -> Any:
+        if self._inner is not None:
+            return self._inner
+        return get_client(provider_profile=self._provider_profile)
+
+
 class RuntimeCandidateAssessor:
-    def __init__(self, model_gateway: ResearchModelGateway) -> None:
-        self.model_gateway = model_gateway
+    def __init__(
+        self,
+        model_gateway: ResearchModelGateway,
+        *,
+        timeout_cap_seconds: float = CANDIDATE_ASSESSMENT_TIMEOUT_SECONDS,
+    ) -> None:
+        if isinstance(timeout_cap_seconds, bool):
+            raise ValueError("candidate assessment timeout cap must be positive")
+        try:
+            timeout_cap = float(timeout_cap_seconds)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "candidate assessment timeout cap must be positive"
+            ) from exc
+        if not isfinite(timeout_cap) or timeout_cap <= 0:
+            raise ValueError("candidate assessment timeout cap must be positive")
+        self._durable_max_attempts = model_gateway.max_attempts
+        self.timeout_cap_seconds = timeout_cap
+        self.model_gateway = _candidate_assessor_gateway(model_gateway)
 
     def assess(
         self,
@@ -114,6 +330,19 @@ class RuntimeCandidateAssessor:
         call_id_suffix: str = "",
         attempt_start: int = 1,
     ) -> CandidateAssessmentResult:
+        if (
+            isinstance(attempt_start, bool)
+            or not isinstance(attempt_start, int)
+            or attempt_start < 1
+        ):
+            raise ValueError("attempt_start must be a positive integer")
+        if attempt_start > self._durable_max_attempts:
+            return CandidateAssessmentResult(
+                status="unavailable",
+                assessments={},
+                audits=(),
+                reason="model_call_attempts_exhausted",
+            )
         request = build_candidate_assessment_request(candidates, claim=claim)
         freshness = {
             item.id: _freshness_score(
@@ -124,7 +353,16 @@ class RuntimeCandidateAssessor:
             for item in candidates
         }
         payload = request.to_dict()
-        result = self.model_gateway.complete_structured(
+        # One invocation may spend only one physical request. Durable runtime
+        # recovery can still resume the same logical call at attempt two, but
+        # a slow assessment cannot consume both attempts and starve all reads
+        # inside one 60-second run.
+        call_gateway = copy(self.model_gateway)
+        call_gateway.max_attempts = attempt_start
+        assessment_timeout = self.timeout_cap_seconds
+        if timeout_seconds is not None:
+            assessment_timeout = min(assessment_timeout, float(timeout_seconds))
+        result = call_gateway.complete_structured(
             logical_call_id=(
                 f"research_candidate_assessment:{run_id}:{claim.id}:1{call_id_suffix}"
             ),
@@ -134,8 +372,8 @@ class RuntimeCandidateAssessor:
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             audit_payload=payload,
-            response_schema_version=CANDIDATE_ASSESSMENT_SCHEMA_VERSION,
-            parse=lambda raw: parse_candidate_assessment_response(
+            response_schema_version=CANDIDATE_ASSESSMENT_WIRE_SCHEMA_VERSION,
+            parse=lambda raw: parse_compact_candidate_assessment_response(
                 _mapping(raw, "candidate assessment response"),
                 request=request,
                 cluster_assignments=assignments,
@@ -146,19 +384,30 @@ class RuntimeCandidateAssessor:
                 "research_claim": 1,
                 "candidate_metadata": len(candidates),
             },
-            max_tokens=min(4000, 250 + len(candidates) * 120),
+            max_tokens=min(
+                4000,
+                CANDIDATE_ASSESSMENT_WINDOW_MAX_TOKENS,
+                CANDIDATE_ASSESSMENT_BASE_MAX_TOKENS
+                + len(candidates) * CANDIDATE_ASSESSMENT_MAX_TOKENS_PER_CANDIDATE,
+            ),
             temperature=0.0,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=assessment_timeout,
             on_attempt_started=on_attempt_started,
             on_attempt_finished=on_attempt_finished,
             attempt_start=attempt_start,
         )
         if not result.completed or result.value is None:
+            reason = result.reason
+            if (
+                reason == "model_call_attempts_exhausted"
+                and attempt_start < self._durable_max_attempts
+            ):
+                reason = "candidate_assessment_attempt_failed"
             return CandidateAssessmentResult(
                 status=result.status,
                 assessments=result.value or {},
                 audits=result.audits,
-                reason=result.reason,
+                reason=reason,
             )
         return CandidateAssessmentResult(
             status=result.status,
@@ -166,6 +415,39 @@ class RuntimeCandidateAssessor:
             audits=result.audits,
             reason=result.reason,
         )
+
+
+def _candidate_assessor_gateway(
+    shared: ResearchModelGateway,
+) -> ResearchModelGateway:
+    gateway = copy(shared)
+    gateway.max_attempts = CANDIDATE_ASSESSMENT_MAX_ATTEMPTS_PER_INVOCATION
+
+    base_url = (getenv("RESEARCH_CANDIDATE_ASSESSOR_BASE_URL") or "").strip()
+    model_name = (getenv("RESEARCH_CANDIDATE_ASSESSOR_MODEL_NAME") or "").strip()
+    api_key = (getenv("RESEARCH_CANDIDATE_ASSESSOR_API_KEY") or "").strip()
+    dedicated = (base_url, model_name, api_key)
+    if any(dedicated) and not all(dedicated):
+        raise RuntimeError(
+            "dedicated candidate assessor requires "
+            "RESEARCH_CANDIDATE_ASSESSOR_BASE_URL, "
+            "RESEARCH_CANDIDATE_ASSESSOR_MODEL_NAME, and "
+            "RESEARCH_CANDIDATE_ASSESSOR_API_KEY"
+        )
+    if all(dedicated):
+        client: Any = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            max_retries=0,
+        )
+        gateway._model_name = model_name  # noqa: SLF001
+    else:
+        client = gateway._client  # noqa: SLF001
+    gateway._client = _CandidateAssessorClient(  # noqa: SLF001
+        client,
+        provider_profile=gateway.provider_profile,
+    )
+    return gateway
 
 
 class RuntimeEvidenceExtractor:
@@ -211,6 +493,14 @@ class RuntimeEvidenceExtractor:
                 "excerpt": excerpt,
             },
         }
+        # Transport stays json_object for every provider; thinking-off is a
+        # provider capability so reasoning cannot consume the bounded budget.
+        extraction_mode, thinking_off_extra_body = research_structured_output_capabilities(
+            self.model_gateway.provider_profile
+        )
+        extraction_system_prompt = _EXTRACTION_SYSTEM_PROMPT + (
+            _JSON_OBJECT_EXTRACTION_CONTRACT if extraction_mode == "json_object" else ""
+        )
         result = self.model_gateway.complete_structured(
             logical_call_id=(
                 f"research_evidence_extract:{run_id}:{claim.id}:{candidate.id}:1"
@@ -218,7 +508,7 @@ class RuntimeEvidenceExtractor:
             ),
             purpose="research_evidence_extraction",
             messages=[
-                {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
+                {"role": "system", "content": extraction_system_prompt},
                 {"role": "user", "content": json.dumps(request, ensure_ascii=False)},
             ],
             audit_payload=request,
@@ -247,6 +537,7 @@ class RuntimeEvidenceExtractor:
             on_attempt_started=on_attempt_started,
             on_attempt_finished=on_attempt_finished,
             attempt_start=attempt_start,
+            extra_body=thinking_off_extra_body,
         )
         return EvidenceExtractionResult(
             status=result.status,
@@ -364,6 +655,11 @@ def _date_text(value: Any) -> str:
 
 
 __all__ = [
+    "CANDIDATE_ASSESSMENT_MAX_ATTEMPTS_PER_INVOCATION",
+    "CANDIDATE_ASSESSMENT_BASE_MAX_TOKENS",
+    "CANDIDATE_ASSESSMENT_MAX_TOKENS_PER_CANDIDATE",
+    "CANDIDATE_ASSESSMENT_WINDOW_MAX_TOKENS",
+    "CANDIDATE_ASSESSMENT_TIMEOUT_SECONDS",
     "CandidateAssessmentResult",
     "EVIDENCE_EXTRACTION_SCHEMA_VERSION",
     "EvidenceExtractionResult",

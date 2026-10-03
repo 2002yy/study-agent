@@ -1,0 +1,465 @@
+{
+  "schema_version": "known-target-recall-audit-v1",
+  "mode": "audit",
+  "diagnostic_only": true,
+  "qualification_evidence": false,
+  "generated_at": "2026-09-19T12:30:40.516905+00:00",
+  "targets": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "url": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "entity_terms": [
+        "docker"
+      ],
+      "page_terms": [
+        "pull",
+        "usage",
+        "limits",
+        "pulls"
+      ],
+      "exact_title": "Pull usage and limits",
+      "semantic_query": "Docker Hub pull rate limits"
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "url": "https://www.postgresql.org/support/versioning/",
+      "entity_terms": [
+        "postgresql",
+        "postgres"
+      ],
+      "page_terms": [
+        "versioning",
+        "policy",
+        "supported"
+      ],
+      "exact_title": "PostgreSQL Versioning Policy",
+      "semantic_query": "PostgreSQL supported versions policy"
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "url": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "entity_terms": [
+        "uv",
+        "astral"
+      ],
+      "page_terms": [
+        "license",
+        "mit"
+      ],
+      "exact_title": "uv LICENSE-MIT",
+      "semantic_query": "uv open source license"
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "url": "https://nodejs.cn/api/modules.html",
+      "entity_terms": [
+        "node",
+        "node.js",
+        "nodejs"
+      ],
+      "page_terms": [
+        "modules",
+        "commonjs",
+        "ecmascript"
+      ],
+      "exact_title": "Node.js two module systems",
+      "semantic_query": "Node.js supported module systems"
+    }
+  ],
+  "rows": [
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal",
+      "query_relevance": "direct_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal official docs",
+      "query_relevance": "direct_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal announcement",
+      "query_relevance": "direct_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal independent verification",
+      "query_relevance": "direct_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker's Docker",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker's Docker official docs",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker's Docker announcement",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker's Docker independent verification",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker Hub pull-rate limits apply unauthenticated users authenticated Personal site:www.docker.com",
+      "query_relevance": "direct_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-policy-container-registry",
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "query": "Docker's Docker site:www.docker.com pull-rate",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": false,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project official docs",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project announcement",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project independent verification",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life official docs",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life announcement",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life independent verification",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project site:www.postgresql.org",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life site:www.postgresql.org",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "target": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "query": "Astral's open-source license Astral uv project use repository",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "target": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "query": "Astral's open-source license Astral uv project use repository official docs",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "target": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "query": "Astral's open-source license Astral uv project use repository announcement",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-simple-license-uv",
+      "target": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "query": "Astral's open-source license Astral uv project use repository independent verification",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "Node.js module systems officially support",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "Node.js module systems officially support official docs",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "Node.js module systems officially support announcement",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "Node.js module systems officially support independent verification",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "CommonJS-versus-ES-modules guidance differ older",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": true,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": true,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "CommonJS-versus-ES-modules guidance differ older official docs",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": true,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": true,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "CommonJS-versus-ES-modules guidance differ older announcement",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": true,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": true,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "CommonJS-versus-ES-modules guidance differ older independent verification",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": true,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": true,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-historical-current-node-modules",
+      "target": "https://nodejs.cn/api/modules.html",
+      "query": "Node.js module systems officially support site:nodejs.org",
+      "query_relevance": "weak_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL major versions supported project site:postgresql.org Global Development Group",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    },
+    {
+      "case_id": "rq1c-current-support-postgresql",
+      "target": "https://www.postgresql.org/support/versioning/",
+      "query": "PostgreSQL oldest supported major version reach end life site:postgresql.org Global Development Group",
+      "query_relevance": "plausible_targeting",
+      "provider_target_returned": false,
+      "provider_same_domain_returned": true,
+      "provider_near_page_returned": false,
+      "result_count": 5
+    }
+  ],
+  "summary": {
+    "rq1c-current-policy-container-registry": {
+      "target": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "queries": 10,
+      "query_relevance": {
+        "direct_targeting": 5,
+        "plausible_targeting": 1,
+        "weak_targeting": 4
+      },
+      "provider_target_returned": 0,
+      "provider_same_domain_returned": 0,
+      "provider_near_page_returned": 0
+    },
+    "rq1c-current-support-postgresql": {
+      "target": "https://www.postgresql.org/support/versioning/",
+      "queries": 12,
+      "query_relevance": {
+        "plausible_targeting": 12
+      },
+      "provider_target_returned": 0,
+      "provider_same_domain_returned": 12,
+      "provider_near_page_returned": 0
+    },
+    "rq1c-simple-license-uv": {
+      "target": "https://github.com/astral-sh/uv/blob/main/LICENSE-MIT",
+      "queries": 4,
+      "query_relevance": {
+        "plausible_targeting": 4
+      },
+      "provider_target_returned": 0,
+      "provider_same_domain_returned": 4,
+      "provider_near_page_returned": 0
+    },
+    "rq1c-historical-current-node-modules": {
+      "target": "https://nodejs.cn/api/modules.html",
+      "queries": 9,
+      "query_relevance": {
+        "weak_targeting": 9
+      },
+      "provider_target_returned": 4,
+      "provider_same_domain_returned": 9,
+      "provider_near_page_returned": 4
+    }
+  }
+}
