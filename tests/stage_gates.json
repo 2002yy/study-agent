@@ -136,6 +136,12 @@
       "tests/test_ci_outcomes.py",
       "tests/test_ci_detect_secrets_allowlist.py",
       "tests/test_mypy_baseline.py"
+    ],
+    "identity_evidence_binding": [
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_candidate_resolution.py",
+      "tests/test_web_query_normalizer.py",
+      "tests/test_domain_targeted.py"
     ]
   },
   "stage_gates": {

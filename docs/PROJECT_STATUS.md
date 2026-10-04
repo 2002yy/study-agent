@@ -8,6 +8,11 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 独立后续：Identity Resolution / Evidence Binding 基础层。** branch `codex/research-identity-evidence-binding` 从main `5c9409fc` 开始，不叠加/扩大研究候选#171。合同 [`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`](research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md)。模型可提议意图/候选/跨度；确定性层按产品版本方案解析身份，并验证reader派生标题、read id/URL/digest、逐字原文跨度和段落边界。相邻版本、混合标题、伪造引用/来源、脚本文字、子标题越界均UNKNOWN；绑定只证明出处与版本范围，不授予事实支持/官方权威/发布许可。
+
+**基础证据 / 未完成项：** L1命名impact set `identity_evidence_binding` 93PASS/24.54s（26项直接身份/跨度负控+候选/查询/域名相邻测试）；两模块mypy无错误，Ruff/diff-check通过。仅增加未被生产调用的模块，没有切换gateway/chat/persistence/Gate，不因inert基础模块重复后端L3。已知边界：heading-only、UTF-8解压后HTML、每个子标题均保守终止父范围，其他anchor kinds仍UNKNOWN；没有新模型提取器/付费源/登录。**Python日期/身份生产修复、Opus真实版本隔离、正式资格均尚未完成。** 唯一下一刀：待#171 exact-head CI/最终审查/合并主线后，接Python verified identity与实际发布日期字段、真实ChatService/SQLite及版本/日期负控，再做Opus真实heading绑定，不把基础单测当资格封板。
+
+
 **2026-10-05 当前 main CI 窄修（覆盖下方历史 SHA/NEXT）：** base/main `95663fe9336f28f86e6df1170596337d246da29e`，#167 已合并；首次 exact-main run `37211534994` queued，未重复查询。Firefly main 的 `cf059186` / CI `37206335479` 浏览器失败已定位：默认课程展开占据窄屏对话空间、flex 消息被压缩、恢复上下文到达后面板保持错误的初始 open、键盘首个输入前有过多控制。分支 `codex/main-firefly-browser-repair` 仅修前端高度分配/消息不压缩/初始 composer focus/durable 到达时收起，保留空工作台默认流萤示例；不改 backend/research/Evidence/验收断言。
 
 **本地门：** 最终同一候选单元 **403 passed/103 files/31.79s**，TypeScript/Vite build PASS，浏览器 **53 passed/2.5m**（desktop/mobile/narrow Chromium + Firefox/WebKit），真实栈 **14 passed/1.0m**。已查看 desktop 与360×520 narrow截图，输入框/证据按钮正常。并发 Vitest worker 崩溃/Vite退出、最终真实栈一次12 PASS/2 reload资源失败（`ERR_INSUFFICIENT_RESOURCES`，系统可用内存约100MB）均保留失败样本，不计全绿；限制 Node heap384MB 后恢复 focused4 PASS，真实栈全14 PASS，可用内存回升约1.2GB；不终止其他应用。最终串行、unit maxWorkers2，未修改验收断言。窄修不触及后端，无需重复 backend L3。最终输出 `D:/study-agent-validation/main-firefly-candidate-{unit,build,browser}.log` / `main-firefly-candidate-real-stack-bounded.log`；diff-check PASS，最终差异review无未解决 finding。唯一下一步：push/open PR 后记录 exact-head CI 一次；当前 SHA green 才 expected-head 合并，再在后续 turn 验 exact-main。远端门未完成，不称 REMOTE GO。
