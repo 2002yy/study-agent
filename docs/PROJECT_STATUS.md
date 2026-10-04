@@ -11,8 +11,8 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，合并基线 main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。当前 `codex/main-browser-closeout` 修复 exact-main 浏览器入口回归，独立 worktree `D:/study-agent-validation/main-browser-closeout-20261004`；原工作树 `codex/search-first-research` 保留未发布的恢复策略草稿。最终执行 HEAD 以 `git rev-parse HEAD` 为准。
-- **工作树：**`git status --porcelain --untracked-files=no` 为空（tracked clean）。
+- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` CI success，合并收口 CLOSED。当前 `codex/search-first-research` 以该 main 为 base，合同提交 `c068dc0b4819cebe1bd56d7633d5596433030911`，§170 Lookup/Standard 恢复实现与验收见 §170.5–§170.6；最终实现 head 以 `git rev-parse HEAD` / 对应 PR 为准。原型 stash 保留为安全备份，已被本批实现替代。
+- **工作树：**§171.7启动修复提交`dd7850e7`；§171.8真实失败修复+§172语义恢复提交`93fdd50ee636cc04eebbd547eeed0e3e30c73e8a`，共25文件，L3时工作树clean。当前收口仅docs，head/clean以Git为准。PR #161保持OPEN；本轮推送后单次exact-head CI快照写`D:\study-agent-validation\semantic-delivery-ci.json`，旧28b82dab CI不覆盖新候选。桌面两个入口已备份部署。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
   - `§143-A` specialist warm cost profile ✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：全部 PR 合并验收（§169.10）。**#147 PR CI `37134505231` / `6fee3798` success 后已合并。最终 main CI `37135080098` / `push` / `a0e000ad` failure：浏览器来源入口误开资料 tab。修复已通过五组浏览器测试53/53及前端368/368、build；等待修复 head 的 exact-main CI，不以关闭浏览器检查替代验收。§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**修复 head 的 exact-main CI 绿后执行 §170 Research Recovery Loop v1 + Lookup/Standard calibration；用户真实 `opus5.5` 轨迹是 golden regression。Deep Research 单独任务合同，复用现有 Evidence/Synthesis/Auditor；§169-M3 暂后移。
-- **当前先决门：**后端新阅读测试13 passed，named L2 `document-reading-v1` 七个文件74 passed；最终前端全量368 passed / 92 files，tsc + vite build PASS、Ruff/diff-check PASS。正式 Chromium 页面1600×900、390×844、360×520 验证已有索引正文、并排/专注/手机切换、选段提问与草稿保留；GET-only，无模型调用/真值写入。隔离浏览器长文样例验证 scrollTop=800 往返保留与版本绑定分页。无持久化兼容/核心模型/生产权威切换，不重复 backend L3；远端仍按既有单次 PR CI执行，不借前一 head 绿灯宣称本批 REMOTE GO。
+- **当前动作：§173 搜索调研与合并前复核，见§173。**用户授权合并main并依据详细调研改善搜索。c17cad84 PR CI37188774241已success；复核发现重定向丢正文、回退weak overlap和中文新题继承仍需修复，故旧绿灯不作新增修复交付证据。16次真实manifest完成，4/16 read-backed；外部搜索质量与回答完整性仍未通过。保持30/60s、3/5 reads及≤6模型调用，未新增provider/Deep。
+- **下一刀唯一任务：**完成§173候选与exact-head PR CI，按用户授权合并#161；用户随后明确授权流萤UI也本次合并，保留独立集成提交/PR与页面验证，最终核对exact-main门。之后仅处理报告中的§171-B精确页面/比较两端证据机会，不自动扩大样本或75s。流萤源分支origin/codex/firefly-default-lesson@743e537b，原先无PR。
+- **当前先决门：**LOCAL GO。最终focused92 passed / 36.76s；named L2 `semantic-recovery-v1` 25文件276 passed / 131.90s；backend L3 **3345 passed / 6 skipped / 1057.84s**，clean候选93fdd50e。Ruff、diff-check、package1608文件、secret scan0、mypy current122/baseline128无新增错误。四turn真实隔离诊断见§172.5；当前未获得新exact-head CI结果，不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18098,7 +18098,7 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 
 **唯一下一步：**核对 #147 新 head 的已记录 PR run；success 后合并 #147，再记录最终 main SHA/run。完成后继续 §169-M3 read-only Resume + Review convergence；release/judge 权限不因代码合并提升。
 
-### 169.10 exact-main 浏览器回归修复（2026-10-04，LOCAL GO / REMOTE PENDING）
+### 169.10 exact-main 浏览器回归修复（2026-10-04，CLOSED / REMOTE GO）
 
 **合并事实：**#147 `6fee37984b632d362db1919302551bdcef9fc749` 的 PR run `37134505231` success；全部17个 PR 已合并，main=`a0e000adb9fba31b5a442dba3c7210ac465dd471`。该 exact-main push run `37135080098` failure，原因是 browser_e2e；后端/RAG/Ruff/package/secrets/mypy baseline/前端/real-stack gates 均通过。旧 head 的 success 不覆盖这个失败。
 
@@ -18107,3 +18107,288 @@ M3 Resume + Review 合流         -> 打开线程时正确回答：
 **验证：**相关前端14 passed；全量368 passed / 92 files，tsc + vite build PASS。隔离端口5175、Chromium/Firefox/WebKit及移动配置共53 browser tests PASS / 1.7m，完整运行保留 global teardown 的53份 artifact gate；单项目诊断运行的 artifact 数不足不是生产故障。生产改动仅 WorkspaceView 入口，不重复后端 L3。diff-check/scope audit PASS。已知大 JS chunk warning 为既有性能债。修复发布后只记录一次新 exact-main run；未 green 前状态为 REMOTE PENDING。
 
 **接续：**按用户最新授权，main 收口后先做搜索恢复控制，再校准预算。简单新事实查询应先搜再消歧，短追问继承原研究对象；不能搜“快去”或自动要求用户重新授权。Lookup/Standard 与独立 Deep Research 的冻结范围见下一批 §170，均不得降低 evidence/citation/judge 权限。
+
+**最终门：**exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` 的 push run `37137943243` completed/success（2026-10-04 核对）。全部17个 PR 合并与 main 修复验收 CLOSED。该结果仅覆盖 main 修复 head，不覆盖后续 §170 实现。
+
+## 170. Research Recovery Loop v1 与三级研究路线（2026-10-04，LOCAL GO / REMOTE PENDING）
+
+**来源与执行权：**用户真实应用轨迹和两份同步路线决定本合同；文档中的外部产品描述不是本仓库验收证据。先以 §169.10 修复 head 的 exact-main CI 闭环，再执行本批。一个 coherent slice 完成控制策略、预算槽、golden regression 和验收，减少微提交和重复 CI。§169-M3 暂后移；Deep 是后续独立任务合同，不借本批声称完整深度研究已实现。
+
+### 170.1 模式边界
+
+| 模式 | 任务 | 本批边界 |
+| --- | --- | --- |
+| Lookup | 单对象的近期事实，典型 `请联网研究：opus5.5` | 按复杂度选择，不能仅因“研究”二字升级 Deep；目标10–30s、1–3 reads、1–2 queries。存在恢复缺口时用明确的受限恢复策略，而不是零正文提前回答。 |
+| Standard | 多来源核对、有限横向比较 | 本批主线；先修 Recovery Policy，再校准预算。起始保留60s hard；75s 为需要实测支持的第二阶段，最终60–90s体验目标不等于当前硬预算授权。 |
+| Deep | 多维决策报告、多实体研究图 | 显式 Deep 请求至少选 Deep；按复杂度升级。独立 ResearchPlan / RQs / evidence needs / adaptive search-read / backtracking / conflict / progress-steering / convergence。不得只将 Standard 的 reads、timeout 放大。 |
+
+三级共享既有 **Evidence → Synthesis → Final Answer Auditor**；不创建第二套 Deep evidence 或 judge authority。G18 当前 escalation/Deep 入口不构成本合同全部实现。
+
+### 170.2 Recovery 控制与预算槽
+
+1. 外部数据策略允许网络后，未知名称也先检索，再依据读到的来源消歧；不再次要求用户授权或自行提供官方入口。
+2. 同一许可历史内的“claude啊？”给原主题加限定；“快去”“刚刚你没有搜？”承接原查询。历史仅提供 query lead，不充当 evidence。history off / ask / deny 仍按原策略执行；新实体/新主题不得错误继承旧研究。
+3. `NEEDS_MORE_RESEARCH` 与 epistemic `UNKNOWN` 分离；仅候选、零正文、无关主页不构成已完成。可恢复动作和信息收益仍存在且 finalization reserve 保留时，禁止提前 Finalize。
+4. 顺序按缺口选 **alternate read → query rewrite → authoritative-domain refinement → release/docs/model-list page refinement**。域与别名仅是搜索假设，不证明厂商归属、版本存在或语义支持。搜索摘要仍为候选；读取成功仍不等于 page adequacy 或 qualified judge pass。
+5. Standard v1 hard reads=5，其中 base=3、recovery reserve=2；仅 research_required + answer gate blocked + recoverable action 存在才能动 reserve。单源6000 chars不变，总量16000→24000；正常任务不应为了用完预算而读取五页。
+6. query rewrite≤2；authoritative-domain refinement至少保留1次机会、最多2次；alternate recovery reads≤2，均受总查询/读取/时间上限约束。base 读取不能吞光权威域恢复槽。
+7. Standard model-call cap≤6保持；恢复动作优先复用确定性调度，不新增模型调用来绕 cap。当前60s硬预算内保留10–15s finalization reserve（初始12s，research deadline≤48s）。需区分 provider timeout 与整个任务 deadline，单页超时仍可换候选；取消/迟到结果不得写回。
+8. 先用60s跑真实 golden case；仅反复证实控制已正确且仍卡时间尾部，才单独启用 soft60s/hard75s，同时保留finalization reserve。不能仅因 provider/scheduling 低效放大 hard cap。
+9. 停止原因结构化：read-backed progress / evidence saturation / budget exhaustion / hard tool failure / cancelled，保留 attempts、query、拒绝原因、counter 和已取得证据。恢复耗尽不证明对象不存在。
+10. meaningful evidence gain 判定与 budget 同时约束。官方模型列表、release/news、docs/API IDs已覆盖却无增益时，即使有时间也可以 saturation stop；重复URL、重复主页、重复内容不得无限重试。多问题覆盖未完成时，单页相关不能把整个比较研究写成 complete。
+
+### 170.3 独立 Deep Research v1 设计目标
+
+以下为 **Study Agent 工程起始目标**，不是其他产品的内部参数；正式 Deep implementation batch 前需将 scheduler、reserve、admission 和验收冻结为独立合同。
+
+| 资源 | soft target | hard cap |
+| --- | --- | --- |
+| wall clock | 3min | 8min |
+| queries | 12 | 24 |
+| document reads | 20 | 40 |
+| deep/full reads | 8 | 16 |
+| model/reasoning turns | 10 | 20 |
+| extracted chars | 100k | 250k |
+
+ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和 evidence needs；允许因新实体、矛盾、未覆盖方面调整后续研究。主停止依据为问题覆盖、独立支持和信息增益收敛，hard cap 保留为安全边界；最近读取无 new claims/entities/conflicts/coverage gain 时可提前停止。进度、用户 steering 与 cancel 要可恢复；不得因运行数分钟自动提高 publication/confirmed memory 权限。默认 judge abstain、§162 release NO-GO、现有 citation/support 审计边界保持。
+
+### 170.4 失败样本、实施恢复点与验收
+
+**已定位：**真实初始 `web_lookup_ed3dea992f594f45b3f32ffdb7170216` 的 explicit research 落到12s模型tool loop后超时、零正文；普通追问则按当前消息原文搜，“快去”读了快手。Claude主页不覆盖指定版本。SearXNG8080未运行，但现有BingRSS fallback能返回针对原主题的官方候选；这是控制/运行环境与预算叠加问题，不能归结为用户必须先消歧，也不能用 snippet 冒充完成。
+
+**安全保存点：**主分支 `codex/search-first-research`，base=`5a3199aa…`。未验证原型保存为 stash 对象 `c331e713a9f9e40f1f3662be056b610f311383b6`，具名 **search-first-research prototype before exact-main gate 20261004**，含6个tracked修改及2个新模块 conversation_query/research_recovery；没有发布或接管运行中的服务。恢复时按名称/对象SHA定位，避免依赖易变 stash index。原型还缺预算槽/完整接线/测试，存在旧30s、6reads、8000chars临时默认值，不能直接作为候选生产 head。用 stash apply 保留备份，修到本合同再清理。
+
+**impact set：**conversation_query/recovery新测试 + persistent_web_agent、web_tool_agent、llm_tool_loop_budget、web_query_normalizer、web_lookup_research_contract、research_web_lookup_dispatch、research_evidence_chat_truth、external_data_policy、chat_service、chat_turn_cancellation、answer_publication_gate；将最终impact与L2集合写入 tests/stage_gates.json。触及公共 tool_evidence projection 时必须对最终候选跑一次L3，不能以仅某个新模块通过替代。保留现有 GitHub planned tools、默认 reader chain、来源绑定及历史许可语义。
+
+**golden 首案：**完整 replay `请联网研究：opus5.5 → 是最新的a÷模型… → claude啊？ → 刚刚你没有搜？ → 快去`，断言主题/版本不丢、不搜快去、不采用无关主页；首候选失效会换页和改写，官方域恢复机会不丢，正文与候选投影分开。包含官方未发现版本、read timeout、disabled provider、无关/重复正文、budget/reserve耗尽、cancel/late-write、新主题及history策略negative controls。mock golden 保证稳定，真实 fallback + read + DeepSeek回答仅跑一次明确标记的qualification，不当作常规测试或qualified truth。
+
+**历史执行动作（已完成）：**已查 `37137943243` exact-main success，已apply保存原型并完成 §170.2 实现及golden验收。当前唯一下一步由 §0 / §170.6 指定，不再重查旧main或恢复旧原型。
+
+### 170.5 候选调度与终止语义补充（2026-10-04，FROZEN / IMPLEMENTED）
+
+**用户补充执行权：**本刀收口于 tier policy、Lookup/Standard recovery、topic inheritance、candidate diversity/dedup、provider/deadline stop semantics、finalization reserve、late-result containment、golden trajectories。禁止借机新增 provider、扩大 wall clock 或实施 Deep runtime。
+
+- Recovery reserve 买新的证据机会。CandidateScheduler 在网络读取前排除 exact URL、canonical scheduling family、语言/地区变体及已知 redirect target；被排除的候选不占 read/recovery slot。canonical identity 仅用于调度，不替换实际 URL、不跨语言/重定向授权 citation。
+- 排序依次考虑失败站点惩罚、authority、来源 host family 多样性与既有 relevance。未知失败一次降权、两次本轮 cooldown；明确 region/access wall 一次即 cooldown。host failure memory 只属于本次运行，不建立长期 reputation。
+- `PROVIDER_EXHAUSTED`、`DEADLINE_EXHAUSTED`、`CANDIDATE_EXHAUSTED`、`EVIDENCE_SATURATED` 分开持久记录。timeout / unavailable 减少可执行路径，不提高知识置信度。零正文且候选重复是候选耗尽；已有有效部分正文而后续有界路径重复才可标记 evidence saturation，仍不等于答案充分或对象不存在。
+- 第二 golden trajectory：高价值官方发布页已发现，第一 docs locale 因地区限制不可用；同文档族不会连续吞槽，改读不同官方 host 的发布页。断言 release 不被重复路径饿死、同族重试受限、run-local host 状态隔离。
+
+### 170.6 实现与验收交接（2026-10-04）
+
+**实现：**public chat research 绕过12s模型 tool planner，直接确定性 search/read recovery，保留 GitHub planned tools 与旧 G18 Deep 接线。Lookup 为2 base+1 reserve reads、2 queries、30s hard/10s finalization reserve；Standard 为3+2 reads、4 queries、60s hard/12s reserve，单源6000、总24000。固定恢复阶段为 alternate / rewrite / authoritative-domain / release-docs refinement，authority 槽不被初始读取吃光；未新增恢复模型调用，≤6 cap不扩。独立 bulk WebLookupService 的旧 ResearchReadBudget 默认未被全局替换。
+
+**接线边界：**经许可的 user history 提供原主题 query lead，短追问保留版本而新实体/新主题重新查询；history/web policy不放宽。正文缺目标版本、无关或重复内容以负标志 answer_eligible=false 排除，snippet仍为候选。read时间/content digest 与模型inference provenance分开。recovery summary进入既有 tool trace，提供状态、budget/counter、host cooldown和多样性指标。绝对 finalization deadline 只由服务器产生，限制同步/异步生成及claim-binding调用；迟到network/inference worker不拥有写回权限。无数据库schema/cursor迁移。
+
+**真实缺陷与闭环：**初次隔离联网检索确已发现官方 release，但两个 docs 语言变体均重定向地区限制页，耗尽低价值路径后零可用正文；原样本保留于仓库外 `D:/study-agent-validation/recovery-live-20261004/result.json`。最小直接读取验证 docs→region wall、release→可读正文，故根因是候选调度，不是搜索未找到或预算太小。修复后的 production composition 样本 `D:/study-agent-validation/recovery-live-final-20261004/result.json`：research7.922s / total12.844s，1 search、2 reads、0 reserve reads、2 unique canonical docs / 2 source families；docs host本轮cooldown，采用1条Anthropic官方发布页，DeepSeek `deepseek-flash` generation_calls=1。代码digest/source-read时间/内容digest/provider/model已绑定，回答不再重复请求联网授权。qualified_judge=false、answer_validation=null；仅诊断，不生成semantic release标签、confirmed memory或admission；不从单样本推断p50/p95。
+
+**候选门：**L1 impact `research_recovery` 为17文件，全部纳入L2 `research-recovery-v1` 20文件202 passed / 88.39s。测试覆盖五轮真实topic replay、locale/redirect starvation、官方版本未发现、timeout≠saturation、重复正文、字符/读取/reserve、disabled provider、cancel/late-write、history策略、新主题、同步/异步finalization截止及既有run持久化。Ruff / diff-check / package与secret scan PASS；expanded mypy current122 / baseline128，无新增错误。最终backend L3首跑3292 passed / 6 skipped / 2 failed，1131.22s；两项均为既有 test_rq1c_protocol_probes 的 exact_checkout_git_sha 在未提交工作树拒绝执行（clean tracked checkout precondition），不是恢复路径断言失败。生产实现保持不变，阶段提交后在干净checkout复跑该owner文件2 passed / 2.51s；全套用例分段验证3294 passed / 6 skipped，没有将首跑伪写为全绿。仅追加此docs结果后amend，按§4.5不重跑L3。日志 `D:/study-agent-validation/research-recovery-{L3,clean-checkout-probes}-20261004.log`。LOCAL GO；自身exact-head PR CI绿前 REMOTE PENDING，远端run/head证据记录于对应PR body。
+
+**Git / 可恢复状态：**分支 `codex/search-first-research`，review base=`5a3199aa1d879e432bdb8f3103507c0528f0e62c`，合同head=`c068dc0b4819cebe1bd56d7633d5596433030911`；最终实现commit/PR head见Git及PR。原stash `c331e713a9f9e40f1f3662be056b610f311383b6` 已apply并完成本批修正，备份保留但不再是NEXT。仅本批18个production/test路径及本状态文档，未改frontend、provider配置、默认reader chain或持久化schema。所有完整日志、隔离DB、真实样本位于仓库外，不写真实用户thread。
+
+**已知限制 / 下一步：**canonical/locale/authority规则是调度启发式，literal target coverage不是完整question coverage，后者明确not_semantically_evaluated；read-backed仅进度而非qualified semantic pass。SearXNG8080当前未运行，既有BingRSS fallback仍可工作，部署可用性另查。保持§162 judge NOT QUALIFIED / authority NONE / release NO-GO，Deep独立runtime未实施。单次阶段提交→exact-head PR CI；绿后仅做Lookup/Standard有界分布校准，先确认调度健康再考虑75s。
+
+## 171. 真实失败驱动的 Research Completion v1（2026-10-04，PLAN DEFINED / IMPLEMENTATION NOT STARTED）
+
+**用户执行权：**“后续方向是？先按刚刚的真实失败规划定义”。本节定义接续目标、边界、验收与执行顺序；本轮只改本状态文档，不运行新的付费qualification、不改生产实现、不推送新head打断PR #161的exact-head CI。§170已经冻结的预算、reader/provider策略、证据与judge权限沿用，不重开架构讨论。
+
+### 171.1 产品目标与完成定义
+
+用户授权联网后，Agent应在同一轮内完成 **保留问题 → 先搜获取指代线索 → 读能回答问题的正文 → 判断缺口 → 有界恢复 → 给出带来源的答案或简短受阻说明**。未知术语不是提前澄清理由；仅在初次检索后仍有多个影响回答的合理指代、且无法靠已有许可路径区分时，才提出一个具体澄清问题。不得再次询问是否允许搜索，或将寻找官方入口默认转交用户。
+
+分开记录三件事，避免一个completed同时代替全部含义：
+
+| 维度 | 表达什么 | 不构成什么 |
+| --- | --- | --- |
+| execution state | 运行是否已终止、是否可重试 | 用户问题已回答 |
+| question coverage | 用户主要方面是否有对应回答、哪些仍缺失 | 这些回答均有证据 |
+| evidence grounding | 对应回答使用了哪些实际读取正文、支持/矛盾/限制是否足够 | qualified semantic judge或release admission |
+
+交付状态按已有模型/投影可容纳的字段表达：**answered / partial / blocked / clarification_needed**。本阶段是应用诊断/展示约定，不单独创建新的publication authority。answered要求主要方面都有有依据的对应回答；partial保留已支持部分和具体缺口；blocked用于无可用正文或外部执行受阻；clarification_needed须记录已经尝试的消歧及剩余指代。stop_reason单独保存，不能从“流程结束”或一个模型版本字符串推导answered。
+
+### 171.2 失败链与剩余工作
+
+| 真实失败 | §170已有修复或证据 | 后续必须证明 |
+| --- | --- | --- |
+| 不认识opus5.5便要求用户解释/给链接/再授权 | public研究直接search/read，回答提示约束重复授权 | 跨主题均先搜；确需澄清时指出查到的具体歧义，而非以模型旧知识拒绝 |
+| 只返回候选、没读正文就Finalize | base/reserve恢复、候选与正文分开 | 仍有可执行且有收益的路径时不提前回答“无法确认”；关键页面被实际读取 |
+| “claude啊？”丢版本，“快去”搜到快手 | permitted user-history query lead + transcript golden | 多轮保持entity/version/原问题；新主题不串旧题，history/web限制仍生效 |
+| 搜索已发现release，却连续读同文档的语言变体 | canonical/locale/redirect去重、diversity、run-local cooldown | 不仅一个厂商成功；失败候选不饿死已发现的高价值候选，来源host数不冒充独立证据数 |
+| 首页/仅提到版本被当成足够正文 | homepage拒绝、literal target检查、answer_eligible负标志 | 按用户问的日期/能力/API/价格/比较等方面识别正文缺口；版本命中不等于page adequacy |
+| 连续超时被当作充分搜索，迟到结果污染当前轮 | provider/deadline/candidate/saturation分离、deadline/late-write隔离 | 不同失败情形有一致reason和可恢复策略；外部失败不能补齐question coverage |
+| 来源横幅、正文、表格中的实际次数互相矛盾 | server-owned recovery trace已具备原始计数 | UI与回答展示同一turn/run的真实采用来源、尝试读取和终止状态，候选不进入引用清单 |
+| 回答长篇解释证据规则，反复让用户推动下一步 | §170回答提示已收紧；真实修复样本不再问授权 | 有证据先回答用户问题，无证据简短说明缺口/原因并提供可执行retry；诊断细节收起 |
+
+**证据限制：**原失败样本15.406s研究、17.984s总时长、3次尝试读取但0条可用正文；修复样本7.922s研究、12.844s总时长、2次尝试读取、1条采用正文、2个canonical docs/source host families。可证明本次路径改善，不能证明总体成功率/p95、正文完整性或答案所有断言受支持。read_backed之后仍可能存在问题覆盖、截断及citation挂错等缺口。
+
+### 171.3 A — 失败矩阵与有界校准（唯一下一实施刀）
+
+**交付：**复用现有测试与§170诊断结构，补一个可重复的校准manifest/runner和简明报告；不构建新的评测平台。先固定任务、预期轨迹、回答关键方面、已知负例与计数口径，再运行。fixture只作调度/契约控制，不充当真实联网来源；live正文和inference分别绑定provenance。复用既有source digest规则。
+
+固定八类轨迹：①未知近期实体；②原五轮topic replay与长历史；③locale/redirect/region starvation；④无关首页/只提版本/正文截断；⑤provider暂时失败但存在替代候选；⑥不存在对应版本证据或全路径不可用；⑦Standard多对象/多方面问题；⑧新主题、history/web deny、取消和late-write负控。这里是八类验收维度，不把八类当成八个全部已通过的真实任务。
+
+本地live起始最多 **8个预先冻结任务（Lookup4 / Standard4）× 2轮 = 16次研究执行**，串行运行，每次用隔离thread/DB，保留30s/60s与10s/12s reserve，不在CI常态联网、不为更多样本自动重跑。已有Opus样本作为历史锚点；新运行绑定当时完整exact head、query/history policy、provider/model、开始/结束/read时间和source/answer digest。变动事实以每次实际来源判读，不能将历史预期答案硬钉为最新事实。如果环境整体不可用，保存样本并标记校准受阻，不用零证据“通过”结束本阶段。
+
+**指标：**分别按tier及是否进入recovery报告任务数/分母、成功与全部执行的耗时、research/first usable body/finalization时间、p50/p95、deadline/provider/candidate exhaustion率、base/reserve slots、重复候选跳过数、unique canonical docs / attempted reads、unique source host families / attempted reads、adopted bodies、未回答方面、重复授权/多余澄清。候选数、尝试读取数、成功读取数、采用正文数四者分开；语义question coverage继续标明是否评估，不用target_coverage替代。小样本p95仅为观察，不宣称稳定分布或统计显著改进。
+
+**A关闭门：**offline八类轨迹和既有L1/L2全部通过；完整真实manifest已执行或明确受阻；每个预先可回答锚点都经诊断复核关键方面、实际正文与引用绑定，失效来源保留原因，不能事后将失败改成成功任务定义。最终报告给出每个缺口的owner与最小复现，区分“调度违规”“环境受阻”“读到却未回答”。只有报告支持时才进入B对应生产修复；样本不赋予qualified judge或release语义标签。
+
+### 171.4 B — 按问题缺口驱动的完成控制
+
+**目标：**从固定恢复阶段，逐步接到“用户还缺哪一方面、下一动作可能补什么”。优先从既有task_contract/history/research state派生本轮问题与证据需求，复用现有RQ/Evidence/Synthesis/Auditor；不另立第二套claim/evidence authority或长期memory。需要增加模型/序列化字段时，单刀明确兼容边界，不能借本规划静默迁移。
+
+- 正文adequacy针对原问题：查发布日期读release，查API/可用性读models/API文档，比较题两边及关键维度均需对应支持。名称/版本匹配只能帮助找候选。
+- 记录每个主要方面的covered/partial/unanswered/not_evaluated，以及支持、矛盾、不可读取或截断缺口；缺口决定alternate candidate、query rewrite、page-type/domain refinement。
+- recovery继续条件同时满足：仍有具体未回答方面、存在未尝试的可执行路径、预期能产生新证据、保留finalization reserve。仅剩同族镜像或已失败路径，不因有剩余秒数继续烧预算。
+- 达到足够覆盖即可结束；证据/执行路径耗尽时返回partial/blocked及实际原因；不足以评估semantic coverage时保持not_evaluated，不能让unqualified模型自评pass直接打开publication gate。
+- 扩展必须由A报告中的真实失败驱动。先修证明存在的缺口，不一次性重写scheduler/planner、增加provider或全局host reputation。
+
+**B验收：**相关正文有版本字符串但不能回答关键方面的负例被拒绝；多方面只覆盖一项不会answered；权威精确页面不会被相关但低收益主页饿死；保留现有预算/取消/迟到/策略边界。交付复用§171.1的三维诊断与既有publication gate，semantic abstain不退化为confirmed写入权。
+
+### 171.5 C — 回答与界面一致交付
+
+**目标：**让用户看见实际完成程度和下一步，减少需要反复催促才能完成研究的交互。
+
+- 来源清单仅显示本turn/run真实采用的正文；搜索候选在诊断区，读取失败与拒绝原因可展开。source/progress UI、回答引用与统计采用同一个服务端trace，不让模型自行声明“读了两页”。
+- answered先给问题答案和来源；partial先给已支持部分并明确剩余方面；blocked简要说明实际失败、保留原topic/version，提供重试入口。重试仍经过当前history/web策略，许可仍有效时不重复询问，被撤回的许可不沿用。不要以“是否要我现在查”收尾。
+- 统一执行状态与交付状态的文案；执行completed但问题blocked不显示“研究已完成”。progress/retry只读展示遵守现有thread/run身份，旧turn迟到事件不得覆盖新turn。
+- 自动重试若超出当前run预算属于新run，需可见次数/取消与幂等边界；本规划不授权无限循环、悄悄重放收费研究或跨turn扩大权限。
+
+**C验收：**重放原“快手来源/Claude主页/0正文却称已读取”轨迹，来源、计数、状态和正文全部一致；桌面/手机实际页面检查；失败retry保留原题而新topic独立，重复点击不产生重复活跃研究。任何生产改动按声明impact运行L1/L2，触及核心authority/persistence再按既有门升级L3。
+
+### 171.6 预算与Deep的后续入口
+
+**75s需要单独证据门：**A/B先证明没有重复路径饥饿、错误query、无关正文提前终止、provider scheduling低效或模型finalization超时掩盖问题。若至少三个不同Standard任务在两轮中均只因健康研究接近60s窗口而缺最后一个有价值动作，才定义独立60/75s配对试验；仍保留finalization reserve与≤6 model calls，不直接永久更改hard cap。小样本p95或单次成功不足以授权扩容。
+
+**Deep保持后续合同：**A→B→C闭环并证明Lookup/Standard能稳定自主交付后，再执行§170.3的独立Deep ResearchPlan/RQs/adaptive recovery/conflict/convergence/progress-steering实现。沿用同一Evidence→Synthesis→Auditor，不靠更长timeout冒充深度研究。学习状态Resume/Review在该产品基础稳定后接续；§162 release NO-GO与judge authority NONE不因本路线自动改变。
+
+**规划定义时恢复点：**PR #161 exact head=`28b82daba9ad4a54f936e3de1120a169791f6303`，CI run=`37144598634` / pull_request / in_progress（当轮单次核对）；本地backend8001已加载该head，frontend5174可试用。规划定义时dirty scope仅 `docs/PROJECT_STATUS.md`，规划暂存本地，待§170远端收口后随下一独立batch提交，避免为规划文字重启已在运行的生产CI。后续启动修复增加的本地修改见§0/§171.7；未重新查询该CI。主线下一步仍是核对该已知run；绿后执行A，不抢跑B/C/Deep或再次联网刷Opus样本。
+
+### 171.7 桌面启动修复与Docker故障（2026-10-04，LAUNCHER LOCAL GO / DOCKER NOT RECOVERED）
+
+**用户任务：**修复桌面 `Study Agent 一键启动.cmd`。随后Docker Desktop报告Secrets Engine无法将 `engine.sock` 重命名为 `engine.sock.stale`；用户明确授权管理员保留目录修复并确认UAC。此支线不改变§171-A/B/C计划。
+
+**实现：**桌面CMD改为薄封装，透传参数与失败退出码，仅失败时pause；UTF-8 BOM的桌面PowerShell委托仓库入口，默认8001/5174。仓库入口支持指定端口、strictPort、后端/当前前端标题/API代理身份检查、隐藏服务进程与 `logs/launcher/` 日志；先打开就绪应用，再后台准备搜索。搜索worker使用原manager路径及run-local启动互斥，健康SearXNG复用，非SearXNG占用8080仍拒绝。启动摘要仅查询 `probe=false`，不阻塞于真实搜索。manager增加BOM并将预期的daemon/container非零native probes作为false/null处理，修复Windows PowerShell 5.1继承Stop时被stderr提前终止的问题。
+
+**本机部署与备份：**桌面 `C:/Users/Zhang/Desktop/Study Agent 一键启动.cmd`、`C:/Users/Zhang/Desktop/study-agent-launcher.ps1` 已部署；同目录原文件备份后缀 `.backup-20261004-025851`。manager备份为 `tools/manage-searxng.ps1.backup-20261004-030539`（ignored）。Docker故障期间桌面默认不自动拉起Docker；健康SearXNG仍可复用，既有备用检索配置继续生效。用户可显式传 `-StartSearXNG` 后台准备Docker；`-SkipSearXNG`优先。仓库入口仍默认后台准备搜索。已有8000/5173及8001/5174服务保留。
+
+**证据（只覆盖本地启动修复）：**L1 impact=`test_start_script.py`、`test_searxng_management.py`、`test_web_provider_health.py`：13 passed / 3.60s；Ruff与diff-check PASS。桌面/仓库启动器/manager的PowerShell 5.1 parser均0 errors；native失败探针负例正常返回false/null。实际CMD复用exit0约1s；隔离8110/5275冷启动exit0 / 4.1s，API、前端、代理均HTTP200，已清理仅本次隔离进程；相同前后端端口负例exit1正确透传。最终安全桌面默认exit0 / 1.28s，未启动Docker进程。PS5原始HTTP UTF-8字节解码修复中文标题误判；曾出现终端等待整个子进程树358s，改用独立Start-Process/WaitForExit证明启动器本身4.1s退出，未误改应用。启动器范围未触及核心模型/authority/schema，按L1收口，未重复L3。
+
+**Docker实际结果：NOT RECOVERED。**停止并核对Docker目录下相关进程，服务 `com.docker.service` 为Stopped；故障目录不是reparse point，内部仅两枚零字节AF_UNIX reparse sockets，目录ACL为Zhang/SYSTEM/Administrators FullControl。普通权限Rename-Item与Directory.Move均Access Denied；直接socket删除被自动安全审查拒绝，未执行。获授权后以RunAs启动管理员脚本 `D:/study-agent-validation/repair-docker-secret-socket.ps1`，脚本通过管理员检查但目录重命名仍Access Denied，未生成备份目录、未重启Docker。只读 `fsutil reparsepoint query engine.sock` 返回错误1920。ACL/进程证据不足以确定底层原因，不把其写成已修复或确认锁定。
+
+**失败留存：**`D:/study-agent-validation/docker-socket-before-repair-20261004.json` 保存原socket元数据；`docker-secret-socket-repair-result.json` 保存管理员运行时间、failed及原错误。Docker公开报告存在相同AF_UNIX启动故障与保留父目录的恢复办法（[docker/for-win #15064](https://github.com/docker/for-win/issues/15064)），本机该办法未成功。未重置Docker、删除镜像/卷、改Docker配置、全局关闭WSL或重启Windows。
+
+**恢复点与下一动作：**启动修复范围六个tracked文件本地未提交，桌面可直接打开 `http://127.0.0.1:5174/`；远端head仍28b82dab，既有CI不覆盖这些修改。本机Docker需另行恢复；可在用户方便时重启Windows后再执行保留目录的管理员脚本，重启是否能解除故障尚未验证。若能恢复，必须再核对daemon、固定版本Ensure和SearXNG `/healthz`，不能仅凭进程启动宣称联网恢复。之后研究修复与主线最新动作见§0/§171.8/§172。
+
+### 171.8 用户真实失败的局部修复（2026-10-04，LOCAL VALIDATED / UNCOMMITTED / SEMANTIC RECOVERY NEXT）
+
+**失败事实：**只读本机SQLite定位用户提供的opus轨迹，原首轮自动进入旧Deep分支，实际query=`pus5.5是什么？性能如何？对比？`，原因是非显式Deep请求也无条件裁掉Deep前缀长度。后两轮控制语句被字面搜索为“直接去。不要一次失败就返回”及“再查查”，字典正文被视为相关证据。原始诊断保留于 `D:/study-agent-validation/opus-real-failure-inspection.json`，未写用户会话。
+
+**本刀修复：**普通显式研究保持Lookup/Standard分流；旧自动Deep路径仅在前缀真实存在时裁前缀。完整控制语句在授权history内承接原题，缺history则不搜索控制词，明确新主题（含“赵翠”）不覆盖为旧题；ResearchRun query保存实际承接主题。模型上下文携带本轮实际query，避免复制历史来源/失败声明。恢复查询仅移除已复现的独立问句尾部以聚焦模型实体，保留完整原题及对比实体；不继续发展自然语言规则解析器。裸2–4字中文主题正文须有完整词项，禁止只凭“赵”字正文给“赵翠”生成证据。聊天run刷新只展示，不自动再次附到下一轮；手动lookup/retry选入聊天仍保留。source notice区分“未读”与“读过但不可用于回答”，fetch成功不自动成为adopted source。
+
+**精确文件范围（11）：**`src/web/conversation_query.py`、`src/web/research_recovery.py`、`src/tools/persistent_web_agent.py`、`src/application/policy_chat_service.py`、`src/api/routes/chat_routes.py`；对应 `tests/test_conversation_research_query.py`、`tests/test_research_recovery.py`、`tests/test_persistent_web_agent.py`、`tests/test_chat_stream_cancellation.py`；`frontend/src/features/web-lookup/webLookupControllerCore.ts`及其controller test。既有启动修复另保留，不混称研究修改。
+
+**本地证据：**首轮focused76 passed；query聚焦与完整中文词项追加后的focused64 passed / 18.09s。最终L2=`research-recovery-v1` 20文件 + legacy Deep judge/run相邻2文件，231 passed / 85.75s；此前修复中的229-pass候选因真实query聚焦缺陷被更新，最终证据以231为准。frontend相关controller/recovery/chat三文件25 passed，TS/Vite build PASS；原有bundle size warning未另刀处理。expanded mypy current122 / baseline128 / 无新增，Ruff与diff-check PASS。不重复L3；未改共享核心模型、持久化schema或publication authority。tracked worktree仍17文件dirty，尚未满足独立commit/remote gate，不称远端交付。
+
+**真实联网与推理：**两个隔离SQLite诊断run均保留原题，未写真实会话。`followup-live-20261004-145116/result.json`：修复分流/承接后但query尚未聚焦，5 reads、4 searches、0可用正文，21.906s研究/25.188s总耗时；因此继续修query而非宣称成功。`followup-live-20261004-145352/result.json`：query聚焦后Standard研究22.828s/总28.469s，3 searches、4 reads、2条采用正文（Anthropic发布页 `/claude-opus-5-5` 与产品页 `/claude/opus`）、1次recovery read；DeepSeek flash一次generation，对三方面给出回答，未要求重新授权/解释名称。SearXNG连接拒绝仍存在，由已有备用检索完成；区域不可用docs冷却，未污染采用来源。artifact绑定输入、source SHA/read时间、provider/model及生产文件SHA；diagnostic only / qualified_judge=false，不授予语义pass或confirmed memory权限。最终追加的裸中文词项guard只影响2–4字纯中文主题，Opus真实样本不进入该分支；用focused中文负/正例验证，不为此重复真实Opus联网。
+
+**边界：**这是已复现缺陷修复和一个真实成功样本，不是分布校准完成。独立评测覆盖、通用省略/指代、动态RQ拆解、真正semantic relevance/answer sufficiency仍未实现；下一刀按§172改由有界模型语义建议驱动，现有规则只保留可测试的安全兜底。
+
+## 172. Research Semantic Recovery v1（2026-10-04，LOCAL CLOSED / REMOTE PENDING）
+
+**用户方向：**给DeepSeek完整、有界的当前研究episode，做turn interpretation、RQ→query planning和语义相关性建议；不默认发送完整聊天，不让模型接管预算/权限/证据authority。用户2026-10-04附文与§171.8实测为本合同依据。
+
+### 172.1 责任边界与episode
+
+- 运行时维护原始问题、task/episode identity、当前子问题、未闭合方面、尝试与失败、候选/证据引用、当前限制和剩余预算。原始问题/版本名不能被字符串裁剪或模型改写覆盖；模型改写只成为搜索建议。
+- 模型解释当前消息是 `NEW_RESEARCH | CONTINUE_ACTIVE_RESEARCH | REFINE_RESEARCH | ANSWER | ABSTAIN`，建议subject、RQ、constraints_delta及下一动作。用户显式停止与取消先由运行时处理，不等模型；模型ANSWER也不越过已有Evidence/Publication Gate。
+- episode绑定当前thread，研究run绑定当前turn/operation；active task与每次run不混同。新题保存/暂停旧episode，重试指向旧episode的原题/未闭合问题。跨thread、旧operation、客户端任意task id不能成为承接authority。
+- 复用已有run/checkpoint/CAS能力时需记录真实episode来源及版本；若必须新增cursor/schema或改变兼容性，按L3门实施。不能仅从最后一条助手结论推导active topic，更不能把历史memory当新证据。
+
+### 172.2 有界模型协议与上下文
+
+`ResearchTurnInterpreter`与`ResearchQueryPlanner`保持逻辑分离，可在同一次薄DeepSeek调用中返回两份严格结构：`task_id / intent / subject / constraints_delta / unresolved_questions / suggested_next_action / proposed_queries[0..3]`。query按RQ绑定，不能只把完整用户问题清洗成一个query。模型简短reason是诊断，非隐式chain-of-thought或写入授权。
+
+- L0：原始问题、最新消息、active task、open questions、当前限制。
+- L1：已尝试query/domain、失败原因、有界候选与证据摘要；检索字段一律作为不可信数据。
+- L2：出现指代歧义时取同thread相关片段；严格服从当前history/cloud-context/memory授权。
+- L3：完整历史不默认外发。允许的上下文扩展仍限同run预算；无法确定则ABSTAIN/必要澄清，不能搜“再查查”等控制话语。
+- 结构化输入总字符设硬上限，序列化必须显式记录截断/省略；原始问题保留原文identity与digest，不能静默截掉实体。超出可解释预算需明确context-limited而非声称已理解。
+- caller先检查外发许可与剩余deadline/model-call额度，再发模型请求。解释/规划最多一次模型调用；相关性采用批量判断，最多两次（candidate与读后body），均计入现有每run≤6 model-call cap，保留writer/finalization额度。禁止另起未计数LLM retry。
+- 每次调用bounded timeout且不能用掉finalization reserve；迟到返回不改episode/trace/active run。解析失败、timeout、错误id、越权query或未知枚举均拒绝。只有已知原题与已验证确定性承接可作fallback；不得退回“搜索未知控制词”。
+
+### 172.3 确定性admission与Evidence Relevance Gate
+
+- 严格parser负责enum/type/数量/长度/task绑定，不相信模型给出的authority、预算、permission、source id或qualified标志。`constraints_delta`只能修改允许的研究偏好，不能扩大预算、域名/私有资源许可或撤销取消。
+- 原始问题→RQ→query保持映射；query需要新证据机会，遵守已有canonical/locale/redirect去重、host cooldown、provider/deadline stop semantics与finalization reserve。不新增provider，不扩Lookup30s/Standard60s、不实现独立Deep runtime。
+- `FETCH_SUCCESS`、`RELATED_TO_RQ`、`EVIDENCE_ACCEPTED`为不同状态。候选与正文对active RQ做语义相关性检查；失败字典/主页/错版本可留诊断，不能显示adopted、进入writer证据上下文或支持claim。
+- relevance pass只允许继续证据处理；不等于evidence supports claim、不等于RQ-A/C/D adequate、不等于Auditor pass。当前DeepSeek不是qualified judge，§162 release/confirmed authority保持原边界。
+- information gain与question coverage作为模型建议经运行时对照真实已读证据/未闭合RQ验证。可恢复且有新证据机会时不得premature finalize；无外部路径/预算则准确返回blocked/partial，不以timeout推导saturation或事实不存在。
+
+### 172.4 唯一下一实施batch与验收
+
+一批实现 `strict episode/decision projection → bounded DeepSeek interpreter+RQ/query planner → runtime admission → candidate/body relevance gate → production Lookup/Standard接线 → golden与真实诊断`。不再零碎扩展问句/重试正则；旧规则是受测fallback，语义主路径由结构化episode驱动。
+
+必须锁住用户真实轨迹：
+
+| 输入/事件 | 预期 |
+| --- | --- |
+| Q0：联网研究：opus5.5是什么？性能如何？对比？ | NEW_RESEARCH，原题完整，建立identity/capability/comparison三个RQ及聚焦query建议 |
+| T1：直接去。不要一次失败就返回 | CONTINUE，允许偏好delta；原题/预算保持，不搜“直接去” |
+| T2：再查查 | CONTINUE，不搜“再查查”，依未闭合RQ/既有失败改查询路径 |
+| 读取“再/直接/赵”字典页 | fetch可成功，relevance拒绝，不成为adopted/citation/答案事实 |
+| T3：赵翠 | NEW_RESEARCH，旧episode保存/暂停，新题不沿用Opus证据；只读“赵”不回答整个人名 |
+
+另外覆盖“那和前一个比呢”“官方没有的话找社区测试”“换个方向，别搜发布新闻”“继续，特别看看长上下文”、明确停止、history禁止、恶意候选文本、模型无效JSON/越权id、timeout/迟到，以及新题/旧题切换并发。语义样本用独立fixture/negative controls验证，不靠实现正则生成答案。
+
+先L1声明完整impact set，再L2研究/聊天/来源UI合同；碰到episode持久化兼容或authority cutover按L3。少量隔离真实DeepSeek/SearXNG-or-configured-fallback观察记录provider/model、所有模型调用、attempt/read trace、source/answer SHA与耗时，不向真实用户会话写验收数据，不把诊断golden变成qualified judge/release标签。保留原budget作为baseline，语义调用若造成deadline回归先修调度，不直接扩大hard cap。
+
+**范围边界：**§171-A分布、B完整问题覆盖与C统一交付仍OPEN；以下四turn诊断不代替这些阶段验收。
+
+### 172.5 本地实现与真实失败闭环
+
+- `src/web/semantic_recovery.py`：严格`research-episode-v1`/decision/relevance parser；完整原题与SHA、固定RQ id、允许的偏好delta、有界失败/来源线索。结构化输入≤16000字符，显式省略/截断；超限不静默截断原题。首次provisional container明确`active_task_exists=false`；最新消息置前，旧episode不决定新题intent。
+- production factory注入现有configured DeepSeek flash adapter：一次interpret+plan、一次candidate batch、一次body batch；每次≤5秒、JSON object、thinking disabled、SDK retries=0。调用共享Lookup30s/Standard60s hard与finalization reserve；正文批审另在research窗口内保留5秒。最多三次研究语义调用，加writer/binder计入≤6；generation入口和binder剩余额度均受限。
+- episode保存在已有`ResearchRun.research_context`，未新增表/cursor/schema。当前thread有界查询、原题digest与source run/version校验；只由当前operation的终态CAS更新。新题另建task并关联previous task，旧run保留；ABSTAIN/解析失败不把未知控制词当query，已知原题或受测retry可兜底。history禁止时不召回/外发旧episode。
+- 模型建议不能改原题或已有RQ文本；continuation中已有id的措辞由代码恢复，移除id则拒绝。`FETCH_SUCCESS`与`RELATED_TO_RQ`分离，所有临时正文在一次body gate成功前禁止进入writer/adopted sources；无效输出/timeout保持fail-closed。相关性只记录`relevance_only`，不授予RQ adequacy、Auditor、confirmed memory或release authority。
+- official recovery提前到第二查询槽。语义query复用既有实体拼写normalizer；被拒候选在run内记住。跨phase有界pending候选队列（≤20）保留已发现未读的官方发布页，避免地区受限docs吃掉阶段slot后发布页失踪；canonical/locale/host cooldown仍有效。
+- 外发审计分开physical call status与parser validation，拒绝模型输出仍如实记录已经外发；沿用`recent_chat`/`web_results`类别，episode承接也计作历史外发，服从history许可。
+
+**失败样本与修复原因：**
+
+1. `D:\study-agent-validation\semantic-live-20261004-153950\result.json`：首次容器被模型误认为既有研究，CONTINUE被runtime拒绝；兜底搜索原题含指令词，得到“联网”解释。修正active flag、latest-message优先、既有query normalization，不改原题identity。
+2. `semantic-live-20261004-154317`/`154536`：intent已正确，但官方页在第二phase被发现后因docs地区失败/阶段cap而失去调度机会。修正pending队列与official槽位；禁止仅靠扩预算掩盖失败。
+3. L2和focused各一次命中Windows float ULP：0.10000000009313226被测试误判超过0.1。仅在测试给10ns算术误差容差，仍断言absolute deadline终止并丢弃late token；生产deadline不变。
+
+**最终隔离真实诊断：**`D:\study-agent-validation\semantic-live-20261004-154902\result.json`，configured provider=`deepseek`、model=`deepseek-flash`。首问NEW、T1/T2 CONTINUE、赵翠NEW；首问与两次重试分别2条相关正文，官方发布页真实读取，控制词从未作为query；赵翠0 adopted，字典被拒，旧episode保存。总耗时26.641 / 13.453 / 13.735 / 6.906秒；语义调用3 / 3 / 3 / 2，首问writer1。artifact含每次语义输出/耗时、read URL/SHA/timestamp、answer SHA、生产文件digest；首问走真实policy chat+writer，后三turn走同一production agent+repository seam。全程隔离数据库，未写用户会话。
+
+该真实诊断之后仅修外发审计标签与writer耗尽拒绝边界；检索、解释prompt、source读取及相关性判断未变，未为审计元数据重复出网。诊断不是qualified judge标签，也不证明独立榜单已核验或所有任务都成功；默认release/confirmed authority仍NONE。
+
+**验证状态：**named L1 `semantic_recovery`、L2 `semantic-recovery-v1`（25文件）已登记。最终L2与L3结果待下段落收口；Ruff和mypy baseline current122/baseline128，无新增错误。一次进行中的L3在17%时因外发审计分类修复而终止，该部分日志不作通过证据；最终候选只跑一次完整L3。启动修复及§171.8前轮修改均保留。
+
+### 172.6 候选收口与交付门
+
+- review range：`28b82daba9ad4a54f936e3de1120a169791f6303..93fdd50ee636cc04eebbd547eeed0e3e30c73e8a`。启动5文件独立提交`dd7850e7`；研究20文件含本status提交`93fdd50e`。没有丢弃前轮修改、扩大预算或更改既有provider/reader/gate配置。
+- L1最终影响集：`semantic-final-impact.log` **92 passed / 36.76s**；own+候选队列+底层恢复此前58 passed / 19.28s。launcher原有测试3 passed，前轮13项native/impact证据仍见§171.7；frontend前轮25 tests/build证据见§171.8，frontend本轮生产树未继续修改。
+- L2：`semantic-candidate-L2.log` **276 passed / 131.90s**。L3：`semantic-final-L3.log` **3345 passed / 6 skipped / 1057.84s**。该完整L3在commit93fdd50e、clean checkout跑完，源码未再改；之后仅docs closeout，不再重复全量。
+- Ruff PASS；expanded mypy current122 / baseline128，NEW=0；`git diff --check` PASS；package helper1608 files PASS，detect-secrets0 findings。API8001 health200，当前factory已包含semantic adapter，Docker故障不阻止Bing RSS fallback。
+- 已复核边界：strict identity/type/cap、private query拒绝、同thread/version继承、新题与旧run并发不覆盖新active、cancel/late rejection、history-off、invalid JSON/id、候选拒绝记忆、跨phase官方页保留、fetch-success/related/adopted区分、physical egress与validation分开、writer/binder共享调用上限。真实诊断仍只证明此次四turn观察，不代表独立benchmark或qualified semantic release。
+- 本轮final docs commit后的head以Git为准；push后只查一次该head CI，快照记录head、run id/event/status/conclusion到`D:\study-agent-validation\semantic-delivery-ci.json`。无新exact-head绿灯前保持REMOTE PENDING；后续窗口只查该快照的已知run，不沿用旧CI，也不轮询等待。
+- 后续唯一执行片：exact-head门绿后做§171-A有界真实任务校准；不扩大Deep/provider/75s，不再重开已冻结episode/parser设计。旧版没有semantic episode的聊天记录不会被自动赋予新task identity；需要新的明确研究问题建立v1 episode，不以历史助手结论当当前原题或证据。
+
+## 173. 搜索调研、复核修复与main合并（2026-10-04）
+
+**执行权：**用户要求合并main、定位流萤UI、详细调研搜索并据结果改进；随后明确选择本次一起合并流萤UI。搜索和UI保留独立提交/复核范围。原#161 exact-head c17cad84 CI37188774241 success，但三个旧review findings复核后仍存在缺口，新增修复不能借旧绿灯直接合并。
+
+**搜索合同与报告：**[SEARCH_CALIBRATION_V1.md](research_quality/SEARCH_CALIBRATION_V1.md)，冻结8题×2次、五层诊断、八类offline控制、source/answer/inference provenance与人工question coverage边界。manifest `config/research_calibration_v1.json`；显式runner `tools/run_research_calibration.py`，仓库外隔离DB，原始calls在resolve seam采集，失败不会被展示过滤掉。
+
+**实际结果：**16次结束，Lookup0/8、Standard4/8有采用正文；Lookup总p50/p95=9.703/14.203s，Standard15.953/26.781s，小样本仅观察。SearXNG8080 connection refused，现有Bing RSS多次泛主页，DDG challenge；没有修Docker/加provider。§171-A真实整体可靠性仍partial/blocked。实际正文与完整回答分别保存，未由相关RQ标签推导事实支持/answered。
+
+**本片修复：**discovery绑定实际请求URL、保留合法公开redirect destination；回退正文拒绝weak overlap；兼容回退未知“刚刚发布的豆包”不继承旧题；最后phase释放未使用hard read slots而不是一页地区失败后提前停止；模型短query/官方域线索接入且精简官方版本发现查询；gateway实际hostname过滤单正向site限定域外结果，复杂OR/negative语法不擅自解析。预算30/60s、3/5reads、单源6k、总16k/24k及≤6模型调用不变。
+
+**定向证据：**修复后两题诊断（不重算分布）`D:/study-agent-validation/research-calibration-fix-20261004/result.json`：Opus Lookup17.266s、2read/2adopted，含官方发布页；Python仍0正文，保留query填充导致泛主页失败。进一步精简scoped version query后，单次production gateway search/read seam取得Python官方3.14.0精确发布页和合法discovery-linked正文；`python-official-seam-20261004.json`含source payload，属于链路验收，不冒充完整研究答案。原16次artifact与日志同目录research-calibration-20261004。
+
+**当前验证：**own+直接影响focused100 passed/29.47s；较大L1 181 passed/64.08s；named L2初次290 passed/114.12s，之后官方query精简仅own focused已复跑。最终联合候选L2/L3、mypy、UI构建/浏览器证据及CI由下一收口记录，未完成前不称REMOTE GO。
+
+**流萤位置：**源分支origin/codex/firefly-default-lesson@743e537b（两提交：合同901e50ae、实现743e537b），默认课件/首领实验/一金决策，22文件含turn_context transport，不是已部署main功能。本次用户明确要求一起合并，按独立集成分支复核现有workspace/恢复/角色边界，真实桌面与窄屏页面后再合并。
+
+**边界/下一片：**release judge仍NOT QUALIFIED/authority NONE。交付后仅按本报告进行§171-B精确页面发现与比较两端证据机会；不新增provider/75s/Deep、不伪称§171-A全部通过。

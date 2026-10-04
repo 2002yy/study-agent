@@ -27,6 +27,7 @@ from src.web.tool_evidence import (
     tool_call_errors,
     tool_source_items,
 )
+from src.web.research_recovery import recovery_summary
 
 
 class WebLookupGateway(Protocol):
@@ -674,10 +675,15 @@ class WebLookupService:
         source_block: str,
         error: str = "",
         operation_id: str | None = None,
+        semantic_episode: dict[str, Any] | None = None,
+        semantic_events: list[dict[str, Any]] | None = None,
     ) -> WebLookupRun:
+        explicit_operation = operation_id is not None
         operation_id = operation_id or new_id("web_tool")
         run = self.get(run_id)
         if run.status != "running" or run.active_operation_id != operation_id:
+            if explicit_operation:
+                raise ResearchCancelled("Stale tool trace operation")
             run = self.repository.begin_operation(
                 run_id,
                 operation_id=operation_id,
@@ -728,6 +734,7 @@ class WebLookupService:
             "tool_trace": {
                 "calls": display_calls,
                 "evidence_calls": evidence_calls,
+                "recovery": recovery_summary(calls),
                 "evidence_status": (
                     "read_backed"
                     if evidence_calls
@@ -742,6 +749,24 @@ class WebLookupService:
             },
             "run_attempt": int(run.research_context.get("run_attempt") or 0) + 1,
         }
+        if semantic_episode is not None:
+            from dataclasses import replace
+            from src.web.semantic_recovery import ResearchEpisode
+
+            episode = ResearchEpisode.parse(semantic_episode, thread_id=run.owner_thread_id or "")
+            if episode.task_id != run.id:
+                parent = self.get(episode.source_run_id)
+                prior = parent.research_context.get("semantic_episode")
+                if parent.owner_thread_id != run.owner_thread_id or parent.version != episode.source_run_version:
+                    raise ValueError("Episode source owner/version mismatch")
+                if not isinstance(prior, dict) or prior.get("task_id") != episode.task_id or prior.get("original_sha256") != semantic_episode["original_sha256"]:
+                    raise ValueError("Episode original identity mismatch")
+            context["semantic_episode"] = replace(episode, source_run_id=run.id,
+                                                   source_run_version=run.version + 1).to_dict()
+        # Absence is a barrier: never revive an older episode behind a newer turn.
+        context["semantic_episode_barrier"] = semantic_events is not None
+        if semantic_events is not None:
+            context["semantic_events"] = semantic_events
         attempts = [
             *run.query_attempts,
             {
@@ -789,6 +814,26 @@ class WebLookupService:
             ),
             operation_id=operation_id,
         )
+
+    def active_semantic_episode(self, thread_id: str):
+        from src.web.semantic_recovery import ResearchEpisode
+
+        if not thread_id:
+            return None
+        for run in self.repository.list_by_owner_thread(thread_id, limit=20):
+            if run.research_context.get("run_kind") != "chat_tool_loop":
+                continue
+            raw = run.research_context.get("semantic_episode")
+            if raw is None:
+                return None
+            try:
+                episode = ResearchEpisode.parse(raw, thread_id=thread_id)
+                if episode.source_run_id != run.id or episode.source_run_version != run.version:
+                    return None
+                return episode
+            except ValueError:
+                return None
+        return None
 
     def begin_tool_trace(self, run_id: str) -> str:
         operation_id = new_id("web_tool")

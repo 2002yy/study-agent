@@ -115,6 +115,21 @@ describe("useWebLookupController", () => {
     expect(result.current.useInChat).toBe(false);
   });
 
+  it("refreshes a chat-owned run without attaching its sources to the next question", async () => {
+    apiMocks.loadResearchRun.mockResolvedValue(runPayload({
+      run_id: "chat-owned", research_context: { run_kind: "chat_tool_loop" },
+    }));
+    const { result } = renderHook(() => useWebLookupController({
+      query: "opus5.5", setOperationError: vi.fn(), activeRunId: undefined,
+      setActiveRunId: vi.fn(),
+    }));
+    await act(async () => { await result.current.refreshRun("chat-owned"); });
+    expect(result.current.result?.run_id).toBe("chat-owned");
+    expect(result.current.useInChat).toBe(false);
+    act(() => result.current.setUseInChat(true));
+    expect(result.current.useInChat).toBe(true);
+  });
+
   it("rehydrates and resumes a pending run instead of creating another", async () => {
     apiMocks.loadResearchRun.mockResolvedValue(
       runPayload({ run_id: "web_lookup_saved", query_text: "saved", status: "pending", stage: "planned", news_items: [] }),
