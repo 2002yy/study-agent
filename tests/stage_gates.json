@@ -29,6 +29,13 @@
     }
   },
   "impact_sets": {
+    "discovery_platform_contracts_v1": [
+      "tests/test_discovery_platform_contracts.py",
+      "tests/test_anonymous_platform_probe.py",
+      "tests/test_research_provider_search.py",
+      "tests/test_source_assessment.py",
+      "tests/test_web_tool_agent.py"
+    ],
     "a0_taxonomy": [
       "tests/test_failure_taxonomy.py"
     ],
