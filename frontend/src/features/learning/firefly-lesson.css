@@ -192,13 +192,22 @@
 }
 
 .firefly-table-wrap {
+  max-width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .firefly-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.firefly-character-data .firefly-table th:first-child,
+.firefly-character-data .firefly-table td:first-child,
+.firefly-character-data .firefly-table th:nth-child(2),
+.firefly-character-data .firefly-table td:nth-child(2) {
+  white-space: nowrap;
 }
 
 .firefly-table th,
@@ -389,6 +398,10 @@
   .firefly-card,
   .firefly-interactive {
     padding: 16px;
+  }
+
+  .firefly-character-data .firefly-table {
+    min-width: 700px;
   }
 
   .firefly-config-grid {

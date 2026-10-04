@@ -299,7 +299,7 @@ export function buildFireflyConversationContext(state: FireflyLessonState): stri
     `首领实验：${boss} / ${BOSS_INVESTMENT_LABELS[state.investment]}${hits === null ? "；锁韧期间不显示虚假攻击次数" : `；简化模型需要${hits}次流萤强化战技` }。`,
     `配队路线：${TEAM_ROUTE_LABELS[state.teamRoute]}；模式：${MODE_LABELS[state.mode]}。`,
     `一金配置：${oneGoldSummary(state.oneGold)}；痛点：${PAIN_POINT_LABELS[state.painPoint]}；当前候选：${recommendation.title}。`,
-    "回答与当前卡片/实验状态相关的问题时，优先引用这些状态，不要重新泛泛介绍；首领实验只统计流萤主目标削韧，是教学简化模型。",
+    "回答与当前卡片/实验状态相关的问题时，优先引用这些状态，不要重新泛泛介绍；首领实验只统计流萤主目标削韧，是简化计算模型。",
     "这段界面状态只服务默认示例问答，不得写入 durable learner truth，也不得把抽取建议记成用户长期事实。",
   ].join("\n");
 }
