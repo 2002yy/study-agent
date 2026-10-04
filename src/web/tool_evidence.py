@@ -90,7 +90,15 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
             url = _public_url(result.get("url") or arguments.get("url"))
             if not _is_true(result.get("ok")) or not url:
                 continue
-            if url.casefold() not in discovered_urls:
+            requested_url = _public_url(arguments.get("url"))
+            # Discovery authorizes the actual read request. The server reader
+            # may return a different public canonical URL after redirects.
+            # Never add that destination to the search results to manufacture
+            # discovery provenance, or accept an undiscovered request because
+            # its response claims a previously discovered destination.
+            if requested_url.casefold() not in discovered_urls:
+                continue
+            if result.get("requested_url") and result["requested_url"] != requested_url:
                 continue
             if not isinstance(content, str) or not content.strip():
                 continue
@@ -134,8 +142,10 @@ def evidence_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         call
         for call in trusted_tool_calls(calls)
-        if str(call.get("name") or "") == "web_read"
-        or str(call.get("name") or "").startswith("github_")
+        if (
+            str(call.get("name") or "") == "web_read"
+            and call.get("result", {}).get("answer_eligible") is not False
+        ) or str(call.get("name") or "").startswith("github_")
     ]
 
 
@@ -179,7 +189,7 @@ def diagnostic_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "name": str(call.get("name") or "web_tool"),
                 "arguments": dict(arguments),
                 "status": str(result.get("status") or ""),
-                "reason": str(result.get("reason") or ""),
+                "reason": str(result.get("reason") or result.get("adequacy_reason") or ""),
                 "error": str(result.get("error") or "")[:1000],
                 "provider_errors": [
                     str(value)[:1000]

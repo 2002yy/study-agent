@@ -163,6 +163,7 @@ def get_learning_source_evidence_service():
 def get_web_tool_agent():
     from src.tools.persistent_web_agent import PersistentWebToolAgent
     from src.web.persistent_tool_gateway import PersistentGeneralWebGateway
+    from src.web.semantic_recovery import configured_completion
 
     return PersistentWebToolAgent(
         gateway=PersistentGeneralWebGateway(
@@ -170,6 +171,7 @@ def get_web_tool_agent():
             work_item_service=get_github_work_item_service(),
         ),
         research_service=get_web_lookup_service(),
+        semantic_completion=configured_completion,
     )
 
 

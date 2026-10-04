@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from typing import Any, AsyncIterator, Callable, Iterator
+
+from src.application.research_deadline import (
+    bounded_model_call,
+    bounded_stream,
+    remaining_seconds,
+    request_options,
+)
 
 from src.application.answer_claim_binder import (
     ANSWER_CLAIM_BINDER_PRODUCER,
@@ -81,9 +89,14 @@ def _answer_attempt_budget(prepared: Any) -> int:
     plan = prepared.answer_validation or {}
     raw_allowed = plan.get("allowed_attempts")
     try:
-        return 0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
+        allowed = 0 if raw_allowed == 0 else max(1, min(int(raw_allowed or 1), 2))
     except (TypeError, ValueError):
-        return 1
+        allowed = 1
+    semantic = ((getattr(prepared, "rag", {}) or {}).get("web_tools") or {}).get("semantics")
+    if isinstance(semantic, dict):
+        remaining = 6 - int(semantic.get("model_calls", 0)) - _route_generation_calls(prepared.route)
+        allowed = min(allowed, max(0, remaining))
+    return allowed
 
 
 def _evidence_rows_present(prepared: Any) -> bool:
@@ -226,6 +239,7 @@ class PreparedChatTurn:
     disclosure_policy: str
     learner_evaluation: PedagogyEvalRun
     answer_validation: dict[str, Any] | None = None
+    research_deadline: float | None = None
 
 
 def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str):
@@ -780,6 +794,7 @@ class ChatService:
                     self.repository.release_chat_operation(thread.id, operation_id)
             raise
         return PreparedChatTurn(
+            research_deadline=web_tools.answer_deadline,
             thread=self.repository.get_chat_thread(thread.id) or thread,
             turn=streaming,
             messages=messages,
@@ -799,6 +814,12 @@ class ChatService:
             answer_validation=command.answer_validation,
         )
 
+    def _check_research_model_budget(self, prepared: PreparedChatTurn, next_calls: int) -> None:
+        semantic = (prepared.rag.get("web_tools") or {}).get("semantics")
+        if isinstance(semantic, dict) and int(semantic.get("model_calls", 0)) + next_calls > 6:
+            self.fail_turn(prepared)
+            raise TimeoutError("research_model_call_budget_exhausted")
+
     def _begin_generation_call(self, prepared: PreparedChatTurn) -> bool:
         """Durably record one server-initiated generation call before invocation.
 
@@ -808,6 +829,7 @@ class ChatService:
         """
         operation_id = prepared.turn.operation_id or ""
         next_calls = _route_generation_calls(prepared.route) + 1
+        self._check_research_model_budget(prepared, next_calls)
         route_snapshot = {
             **prepared.route,
             "answer_generation_calls": next_calls,
@@ -842,6 +864,11 @@ class ChatService:
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
+        try:
+            remaining_seconds(prepared.research_deadline)
+        except TimeoutError:
+            self.fail_turn(prepared)
+            raise
         if not self._begin_generation_call(prepared):
             self._settle_cancelled_preparation(
                 turn_id=prepared.turn.id,
@@ -857,13 +884,17 @@ class ChatService:
                 operation_id=prepared.turn.operation_id or "",
             )
         try:
-            suffix = self.dependencies.chat(
-                prepared.messages,
-                model_profile=prepared.route["model_profile"],
-                max_tokens=max_tokens,
-                task_name="single_chat",
-                request_max_retries=0,
-                extra_body=_answer_generation_extra_body(prepared),
+            suffix = bounded_model_call(
+                prepared.research_deadline,
+                lambda: self.dependencies.chat(
+                    prepared.messages,
+                    model_profile=prepared.route["model_profile"],
+                    max_tokens=max_tokens,
+                    task_name="single_chat",
+                    request_max_retries=0,
+                    extra_body=_answer_generation_extra_body(prepared),
+                    **request_options(prepared.research_deadline),
+                ),
             )
         except TurnCancelled:
             self._settle_cancelled_preparation(
@@ -917,37 +948,45 @@ class ChatService:
             raise
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
+        remaining_seconds(prepared.research_deadline)
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
         if not self._begin_generation_call(prepared):
             return
-        yield from self.dependencies.stream_chat(
-            prepared.messages,
-            model_profile=prepared.route["model_profile"],
-            max_tokens=max_tokens,
-            task_name="single_chat",
-            should_cancel=should_cancel,
-            request_max_retries=0,
-            extra_body=_answer_generation_extra_body(prepared),
+        yield from bounded_stream(
+            prepared.research_deadline,
+            self.dependencies.stream_chat(
+                prepared.messages,
+                model_profile=prepared.route["model_profile"],
+                max_tokens=max_tokens,
+                task_name="single_chat",
+                should_cancel=should_cancel,
+                request_max_retries=0,
+                extra_body=_answer_generation_extra_body(prepared),
+                **request_options(prepared.research_deadline),
+            ),
         )
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
+        remaining_seconds(prepared.research_deadline)
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
         started = self._begin_generation_call(prepared)
         if not started:
             return
-        async for token in self.dependencies.async_stream_chat(
-            prepared.messages,
-            model_profile=prepared.route["model_profile"],
-            max_tokens=max_tokens,
-            task_name="single_chat",
-            request_max_retries=0,
-            extra_body=_answer_generation_extra_body(prepared),
-        ):
-            yield token
+        async with asyncio.timeout(remaining_seconds(prepared.research_deadline)):
+            async for token in self.dependencies.async_stream_chat(
+                prepared.messages,
+                model_profile=prepared.route["model_profile"],
+                max_tokens=max_tokens,
+                task_name="single_chat",
+                request_max_retries=0,
+                extra_body=_answer_generation_extra_body(prepared),
+                **request_options(prepared.research_deadline),
+            ):
+                yield token
 
     def _record_claim_binding_call(
         self,
@@ -1076,18 +1115,22 @@ class ChatService:
                 final_answer=candidate,
                 evidence_rows=rows,
             ),
-            model_fn=lambda messages: self.dependencies.chat(
-                list(messages),
-                model_profile=prepared.route["model_profile"],
-                max_tokens=self.dependencies.chat_max_tokens(
-                    prepared.runtime_modes.performance_mode
-                ),
-                task_name="answer_claim_binding",
-                request_max_retries=0,
-                extra_body=(
-                    THINKING_DISABLED_EXTRA_BODY
-                    if _answer_bounded_policy_enabled()
-                    else None
+            model_fn=lambda messages: bounded_model_call(
+                prepared.research_deadline,
+                lambda: self.dependencies.chat(
+                    list(messages),
+                    model_profile=prepared.route["model_profile"],
+                    max_tokens=self.dependencies.chat_max_tokens(
+                        prepared.runtime_modes.performance_mode
+                    ),
+                    task_name="answer_claim_binding",
+                    request_max_retries=0,
+                    extra_body=(
+                        THINKING_DISABLED_EXTRA_BODY
+                        if _answer_bounded_policy_enabled()
+                        else None
+                    ),
+                    **request_options(prepared.research_deadline),
                 ),
             ),
             max_attempts=allowed_attempts,
@@ -1638,11 +1681,15 @@ def _web_context_provenance(
 
 def _tool_context(history: list[dict[str, Any]]) -> str:
     recent = history[-6:]
-    return "\n".join(
+    from src.web.conversation_query import research_query_lead
+
+    lead = research_query_lead(history)
+    context = "\n".join(
         f"{str(message.get('role', 'user'))}: {str(message.get('content', ''))[:500]}"
         for message in recent
         if isinstance(message, dict)
     )
+    return f"Research query lead: {lead[:500]}\n{context}" if lead else context
 
 
 def _continuation_instruction(command: ChatCommand) -> str:
