@@ -75,3 +75,41 @@ def test_trafilatura_is_asked_to_keep_tables(monkeypatch):
     )
     assert captured.get("include_tables") is True
     assert "3.14.0" in text
+
+
+# --- author / byline metadata ---------------------------------------------------
+
+
+def test_author_is_read_from_meta_tags():
+    from src.news.article_extractor import extract_article_author
+
+    html = '<html><head><meta name="author" content="Jane Doe"></head><body>x</body></html>'
+    assert extract_article_author(html) == "Jane Doe"
+
+
+def test_author_reads_og_article_author():
+    from src.news.article_extractor import extract_article_author
+
+    html = '<meta property="article:author" content="Ada Lovelace">'
+    assert extract_article_author(html) == "Ada Lovelace"
+
+
+def test_missing_author_is_empty_not_guessed():
+    from src.news.article_extractor import extract_article_author
+
+    assert extract_article_author("<html><body>no byline</body></html>") == ""
+
+
+def test_author_field_survives_the_reader_result(monkeypatch):
+    from src.news import readers
+    from src.news.readers.local_reader import read_html_locally
+
+    monkeypatch.setattr(
+        readers.local_reader,
+        "extract_article_text",
+        lambda html, url="", max_chars=5000: ("a" * 200, "trafilatura"),
+    )
+    html = '<meta name="author" content="Grace Hopper">'
+    result = read_html_locally(html, url="https://example.com/post")
+    assert result.ok is True
+    assert result.author == "Grace Hopper"

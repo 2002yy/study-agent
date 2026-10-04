@@ -149,6 +149,50 @@ def decode_html_payload(payload: bytes, content_type: str) -> str:
     return payload.decode("utf-8", errors="ignore")
 
 
+def extract_article_author(html: str, url: str = "") -> str:
+    """Best-effort article byline. Deterministic and bounded; never fabricated.
+
+    Returns ``""`` when no author can be established - a missing byline is reported as
+    missing, never guessed. Tables and release pages usually have no author, so this is
+    genuinely empty for them.
+    """
+
+    candidate = ""
+    try:
+        import trafilatura
+
+        metadata = trafilatura.extract_metadata(html, default_url=url or None)
+        if metadata is not None:
+            candidate = str(getattr(metadata, "author", "") or "")
+    except Exception:
+        candidate = ""
+    if not candidate.strip():
+        candidate = _author_from_meta_tags(html)
+    return _clean_author(candidate)
+
+
+def _author_from_meta_tags(html: str) -> str:
+    patterns = (
+        r'<meta[^>]+name=["\']author["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']author["\']',
+        r'<meta[^>]+property=["\']article:author["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+property=["\']og:article:author["\'][^>]+content=["\']([^"\']+)["\']',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, html or "", re.I)
+        if match and match.group(1).strip():
+            return match.group(1)
+    return ""
+
+
+def _clean_author(value: str) -> str:
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    # Bound the field; a byline is short. Reject an obvious non-byline blob.
+    if not text or len(text) > 200:
+        return ""
+    return text
+
+
 def extract_article_text_with_trafilatura(
     html: str,
     url: str = "",
