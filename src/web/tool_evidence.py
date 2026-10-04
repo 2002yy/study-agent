@@ -63,6 +63,20 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not isinstance(projected, dict):
             continue
 
+        if name == "official_resolve":
+            from src.web.research.official_resolver import valid_candidate
+
+            arguments = raw_call.get("arguments") or {}
+            query = str(arguments.get("query") or "")
+            valid = [dict(item) for item in result.get("results") or [] if isinstance(item, dict)
+                     and valid_candidate(query, str(item.get("url") or ""))]
+            if not valid:
+                continue
+            projected["results"] = valid
+            discovered_urls.update(str(item["url"]).casefold() for item in valid)
+            trusted.append(call)
+            continue
+
         if name == "web_search":
             if str(result.get("status") or "") != "ok":
                 continue

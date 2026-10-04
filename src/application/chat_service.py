@@ -145,12 +145,19 @@ def _configured_llm_provider() -> str:
 
 def answer_validation_active(prepared: PreparedChatTurn) -> bool:
     """True when the publication gate actually runs for this turn."""
-    if prepared.answer_validation is None:
-        return False
     policy = prepared.route.get("external_data_policy")
     if isinstance(policy, dict) and policy.get("web_allowed") is False:
         return False
-    return True
+    return prepared.answer_validation is not None or _official_publication_required(prepared)
+
+
+def _official_publication_required(prepared: PreparedChatTurn) -> bool:
+    from src.web.research.official_resolver import official_plan
+
+    tools = (prepared.rag or {}).get("web_tools") or {}
+    contract = prepared.route.get("task_contract") or {}
+    return bool(tools.get("enabled") and (official_plan(prepared.turn.user_message)
+                or contract.get("task_intent") == "research"))
 
 
 class TurnCancelled(Exception):
@@ -861,6 +868,9 @@ class ChatService:
             prepared.turn.id, prepared.turn.operation_id or ""
         )
         cancel_check("generate_pre")
+        if answer_validation_active(prepared) and prepared.answer_validation is None:
+            remaining_seconds(prepared.research_deadline)
+            return self.complete_turn(prepared, "").assistant_message
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
@@ -949,6 +959,8 @@ class ChatService:
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
         remaining_seconds(prepared.research_deadline)
+        if answer_validation_active(prepared) and prepared.answer_validation is None:
+            return
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
@@ -970,6 +982,8 @@ class ChatService:
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
         remaining_seconds(prepared.research_deadline)
+        if answer_validation_active(prepared) and prepared.answer_validation is None:
+            return
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode
         )
@@ -1233,7 +1247,17 @@ class ChatService:
     def complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
         gate_blocked_pedagogy = False
-        if answer_validation_active(prepared):
+        if answer_validation_active(prepared) and prepared.answer_validation is None:
+            from src.web.research.official_publication import publish_official_fields
+
+            reply, field_audit = publish_official_fields(
+                prepared.turn.user_message, ((prepared.rag or {}).get("web_tools") or {}).get("calls") or [], reply)
+            field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
+            prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})
+            published_rag = deepcopy(prepared.rag)
+            # A diagnostic field-backed answer never advances learning authority.
+            gate_blocked_pedagogy = True
+        elif answer_validation_active(prepared):
             reply, claims_snapshot, audit_phases, gate_blocked_pedagogy = (
                 self._gate_research_answer(prepared, reply)
             )
@@ -1353,6 +1377,8 @@ class ChatService:
 
     def interrupt_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
+        if _official_publication_required(prepared):
+            reply = ""
         interrupted_truth = _normalized_turn_truth(
             turn=prepared.turn,
             fallback_turn_id=prepared.turn.id,
@@ -1394,6 +1420,8 @@ class ChatService:
 
     def fail_turn(self, prepared: PreparedChatTurn, suffix: str = "") -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
+        if _official_publication_required(prepared):
+            reply = ""
         failed_truth = _normalized_turn_truth(
             turn=prepared.turn,
             fallback_turn_id=prepared.turn.id,
@@ -1511,7 +1539,16 @@ class ChatService:
         if existing.status not in {"streaming", "interrupted"}:
             return existing, False
         stored_reply = assistant_message
-        if existing.assistant_message:
+        from src.web.research.official_resolver import official_plan
+
+        server_tools = existing.rag_snapshot.get("web_tools") or {}
+        server_contract = existing.route_snapshot.get("task_contract") or {}
+        gated_partial = bool(server_tools.get("enabled") and (
+            official_plan(existing.user_message) or server_contract.get("task_intent") == "research"
+        ))
+        if gated_partial:
+            stored_reply = ""
+        if existing.assistant_message and not gated_partial:
             stored_reply = _preferred_partial_reply(
                 existing.assistant_message,
                 assistant_message,

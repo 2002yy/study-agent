@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前执行权：research-source-quality-v2。** 用户明确停止把 #161/#164 当作待合并大包；旧分支仅供提取零件。从已合并 #169 的 main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8` 建立 `codex/research-source-quality-v2`，工作树 `D:/study-agent-validation/research-source-quality-v2`。合同入口 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。已拆成两个 donor commits：`9028fb89` 搜索 recovery/deadline/lifecycle + 实际漏斗；`132fe011` gzip/deflate 真正有界解压、表格/作者、release-link ranking。无旧 UI/startup/扩候选池/provider multiplication/旧 qualification artifact。
+
+**新实现：** 官方地址优先（PyPI FastAPI、SQLite变化/特定版本、Python版本页、arXiv元数据），失败后通用 recovery；地址是 resolver seed，不冒充搜索结果。发布出口使用已读官方 metadata 的 field/digest/span，缺失作者不补写、相邻版本不替代；未知显式研究若无 claim-bound plan 则 abstain，已有显式 Evidence Gate 不旁路。SSE 缓冲，不泄漏未验证前缀；字段式回答不调用 prose 模型、不推进学习授权。Opus overview 尚无 exact-version reader，保守拒绝，不声称不存在该版本。
+
+**证据 / 下一步：** 第一轮相关 L1 99 PASS，迁移+reader+官方栈 L2 326 PASS/140.36s；后续发布门 focused49 PASS，mypy122/baseline128 NEW0、Ruff/diff-check PASS。最后字段式零模型调用入口与测试正在收尾；必须最终 L1/L3 + clean-head 五题真实 production ChatService/SQLite 样本，分别核查 Source 与 Answer。未通过不 merge、不称 GO。旧 #161/#164 不再拥有 NEXT；#168 平台合同为后续独立能力。main exact CI `37219334273` 首次 in_progress，尚未重复查询。
+
+**新增 UI 旁路（2026-10-05）：** 用户要求学习状态/证据/研究/设置/错误文案一次中文化，内部变量/API/枚举、外部标题/输入/回答/URL/代码/正式名称不动；独立 main 分支 bounded slice，一个提交/一次 CI，不混入本研究候选。研究线原目标继续保留。
+
 **2026-10-05 当前 main CI 窄修（覆盖下方历史 SHA/NEXT）：** base/main `95663fe9336f28f86e6df1170596337d246da29e`，#167 已合并；首次 exact-main run `37211534994` queued，未重复查询。Firefly main 的 `cf059186` / CI `37206335479` 浏览器失败已定位：默认课程展开占据窄屏对话空间、flex 消息被压缩、恢复上下文到达后面板保持错误的初始 open、键盘首个输入前有过多控制。分支 `codex/main-firefly-browser-repair` 仅修前端高度分配/消息不压缩/初始 composer focus/durable 到达时收起，保留空工作台默认流萤示例；不改 backend/research/Evidence/验收断言。
 
 **本地门：** 最终同一候选单元 **403 passed/103 files/31.79s**，TypeScript/Vite build PASS，浏览器 **53 passed/2.5m**（desktop/mobile/narrow Chromium + Firefox/WebKit），真实栈 **14 passed/1.0m**。已查看 desktop 与360×520 narrow截图，输入框/证据按钮正常。并发 Vitest worker 崩溃/Vite退出、最终真实栈一次12 PASS/2 reload资源失败（`ERR_INSUFFICIENT_RESOURCES`，系统可用内存约100MB）均保留失败样本，不计全绿；限制 Node heap384MB 后恢复 focused4 PASS，真实栈全14 PASS，可用内存回升约1.2GB；不终止其他应用。最终串行、unit maxWorkers2，未修改验收断言。窄修不触及后端，无需重复 backend L3。最终输出 `D:/study-agent-validation/main-firefly-candidate-{unit,build,browser}.log` / `main-firefly-candidate-real-stack-bounded.log`；diff-check PASS，最终差异review无未解决 finding。唯一下一步：push/open PR 后记录 exact-head CI 一次；当前 SHA green 才 expected-head 合并，再在后续 turn 验 exact-main。远端门未完成，不称 REMOTE GO。

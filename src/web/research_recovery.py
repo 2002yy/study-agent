@@ -15,6 +15,7 @@ from src.web.source_assessment import assess_sources
 from src.web.recovery_candidates import CandidateScheduler
 from src.web.tool_evidence import _public_url, evidence_tool_calls
 from src.web.semantic_recovery import ResearchSemanticSession
+from src.web.research.official_resolver import official_plan
 from src.web.query_normalizer import normalize_web_query
 
 
@@ -130,6 +131,9 @@ def recover_public_research(
     )
     if semantic_session is None:
         return calls
+    if any(call.get("result", {}).get("method") == "official_metadata_http_v2"
+           for call in evidence_tool_calls(calls)):
+        return calls  # parsed fields bypass relevance advice, never the publication gate
     reads = [call for call in calls if call.get("name") == "web_read"
              and call.get("result", {}).get("ok") is True
              and call["result"].get("answer_eligible") is not False]
@@ -195,6 +199,11 @@ def _recover_public_research(
     if semantic_session is not None:
         deadline -= 5  # body-batch time is part of research, never writer reserve
     calls: list[dict[str, Any]] = []
+    dispositions: dict[str, dict[str, str]] = {}
+
+    def disposition(url: str, state: str, reason: str = "") -> None:
+        if url and dispositions.get(url, {}).get("state") != "dispatched":
+            dispositions[url] = {"candidate_id": url, "state": state, "reason": reason}
     scheduler = CandidateScheduler()
     body_digests: set[str] = set()
     semantic_rejected_urls: set[str] = set()
@@ -288,7 +297,15 @@ def _recover_public_research(
             future.cancel()
             pool.shutdown(wait=False, cancel_futures=True)
 
+    plan = official_plan(query)
+    if plan and getattr(gateway, "supports_official_metadata", False) is True:
+        phases.insert(0, ("official_resolver", query, 2))
+
     def checkpoint(state: str, reason: str) -> None:
+        if state != "needs_more_research":
+            for row in dispositions.values():
+                if row["state"] in {"eligible", "discovered"}:
+                    row.update(state="run_blocked", reason=reason)
         calls.append(
             {
                 "name": "research_recovery",
@@ -310,6 +327,7 @@ def _recover_public_research(
                     },
                     "question_coverage": "not_semantically_evaluated",
                     "candidate_scheduler": scheduler.snapshot(),
+                    "candidate_dispositions": list(dispositions.values()),
                     "provider_failures": provider_failures,
                     "stop_reason": {
                         "evidence_saturation": "EVIDENCE_SATURATED",
@@ -335,6 +353,7 @@ def _recover_public_research(
         )
 
     def reject(url: str, reason: str) -> None:
+        disposition(url, "filtered", reason)
         calls.append(
             {
                 "name": "research_candidate",
@@ -365,9 +384,12 @@ def _recover_public_research(
             if phase in {"query_rewrite", "page_type_refinement"}:
                 rewrites += 1
             try:
-                result = invoke(
-                    lambda: gateway.search_exact(search_query, max_results=5)
-                )
+                if phase == "official_resolver" and plan:
+                    result = {"status": "ok", "reason": "known_official_addresses_not_search_results",
+                              "results": [{"url": url, "title": f"{plan.entity} {plan.version} official metadata", "snippet": ""}
+                                          for url in plan.urls]}
+                else:
+                    result = invoke(lambda: gateway.search_exact(search_query, max_results=5))
                 if not isinstance(result, dict):
                     raise ValueError("invalid_search_result")
             except (RecoveryCancelled, RecoveryDeadline):
@@ -380,7 +402,7 @@ def _recover_public_research(
                 }
             calls.append(
                 {
-                    "name": "web_search",
+                    "name": "official_resolve" if phase == "official_resolver" else "web_search",
                     "arguments": {
                         "query": search_query,
                         "max_results": 5,
@@ -405,7 +427,11 @@ def _recover_public_research(
                 if isinstance(items, list)
                 else []
             )
+            for item in candidates:
+                disposition(str(item.get("url") or item.get("link") or ""), "discovered")
             selected, rejected = assess_sources(candidates, canonical_query=rewritten)
+            for row in selected:
+                disposition(str(row["assessment"].get("url") or ""), "eligible")
             for candidate in rejected:
                 reject(
                     str(candidate["assessment"].get("url", "")),
@@ -425,7 +451,7 @@ def _recover_public_research(
                 selected.sort(key=lambda row: not any(marker.search(
                     str(row["item"].get("title", "")) + " " + str(row["item"].get("snippet", ""))
                     + " " + str(row["assessment"].get("url", ""))) for marker in markers))
-            if semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
+            if phase != "official_resolver" and semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
                 window = selected[:5]
                 try:
                     relevance = semantic_session.relevance("research_candidate_relevance", [
@@ -445,7 +471,7 @@ def _recover_public_research(
             if semantic_session is not None:
                 pending_candidates = selected[:20]
             phase_reads = last_novel = 0
-            for candidate in selected:
+            for candidate_index, candidate in enumerate(selected):
                 active()
                 assessment = candidate["assessment"]
                 url = _public_url(assessment.get("url"))
@@ -462,6 +488,8 @@ def _recover_public_research(
                     reject(url, rejection)
                     continue
                 if phase_reads >= phase_cap or reads >= budget.max_reads:
+                    for pending in selected[candidate_index:]:
+                        disposition(str(pending["assessment"].get("url") or ""), "run_blocked", "read_cap")
                     break
                 limit = min(
                     budget.max_source_chars, budget.max_total_chars - used_chars
@@ -472,6 +500,7 @@ def _recover_public_research(
                 if reads >= budget.base_reads:
                     recovery_reads += 1
                 scheduler.begin(url)
+                disposition(url, "dispatched")
                 reads += 1
                 phase_reads += 1
                 last_novel += 1
@@ -487,6 +516,10 @@ def _recover_public_research(
                     if not isinstance(body, dict):
                         raise ValueError("invalid_read_result")
                 except (RecoveryCancelled, RecoveryDeadline):
+                    calls.append({"name": "web_read", "arguments": {"url": url, "max_chars": limit},
+                                  "result": {"ok": False, "url": url, "error_code": "read_interrupted",
+                                             "read_started_at": read_started_at,
+                                             "read_completed_at": datetime.now(timezone.utc).isoformat()}})
                     raise
                 except Exception as exc:
                     body = {
@@ -513,7 +546,9 @@ def _recover_public_research(
                 matches = {
                     i for i, marker in enumerate(markers) if marker.search(content)
                 }
-                if markers and not matches:
+                if plan and body.get("method") == "official_metadata_http_v2" and plan.version and body.get("source_version") != plan.version:
+                    body.update(answer_eligible=False, adequacy_reason="requested_official_version_mismatch")
+                elif markers and not matches:
                     body.update(
                         answer_eligible=False,
                         adequacy_reason="requested_model_version_absent",
@@ -525,7 +560,7 @@ def _recover_public_research(
                 elif content and digest in body_digests:
                     body.update(answer_eligible=False, adequacy_reason="duplicate_body")
                     last_novel -= 1
-                elif not markers and semantic_session is None:
+                elif phase != "official_resolver" and not markers and semantic_session is None:
                     assessed, _ = assess_sources(
                         [{"title": content, "url": url}], canonical_query=query
                     )
@@ -544,6 +579,9 @@ def _recover_public_research(
                     }
                 )
                 evidence = evidence_tool_calls(calls)
+                if phase == "official_resolver" and body.get("method") == "official_metadata_http_v2" and evidence:
+                    checkpoint("read_backed", "official_fields_read_not_answer_authority")
+                    return calls
                 if evidence and evidence[-1].get("arguments", {}).get("url") == url:
                     covered.update(matches)
                 enough_targets = not markers or len(covered) == len(markers)

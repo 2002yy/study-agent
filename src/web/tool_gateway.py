@@ -153,6 +153,8 @@ def _canonical_read_error_code(reason: str) -> str:
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
+    supports_official_metadata = True
+
     def __init__(
         self,
         github_reader: GitHubSourceReader | None = None,
@@ -392,6 +394,11 @@ class GeneralWebGateway:
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None
     ) -> dict[str, Any]:
         value = str(url or "").strip()
+        from src.web.research.official_resolver import read_official_metadata
+
+        official = read_official_metadata(value, timeout=timeout or 10, max_chars=max_chars)
+        if official is not None:
+            return official
         if self.github_reader.supports(value):
             return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(

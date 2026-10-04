@@ -157,8 +157,13 @@ class PersistentWebToolAgent(WebToolAgent):
     ) -> WebToolTrace:
         if not _env_flag("WEB_TOOL_ENABLED", default=True):
             return WebToolTrace(enabled=False)
+        from src.web.research.official_resolver import official_plan
+
+        known_source = (getattr(self.gateway, "supports_official_metadata", False) is True
+                        and official_plan(user_input) is not None)
         if (
             self.semantic_completion is not None
+            and not known_source
             and self.research_service is not None
             and not _requires_planned_tools(user_input)
             and not user_input.strip().startswith(DEEP_RESEARCH_PREFIX)

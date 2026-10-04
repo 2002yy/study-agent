@@ -53,6 +53,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="New directory outside this repository")
     parser.add_argument("--cases", nargs="*", help="Optional bounded subset of frozen case IDs")
     parser.add_argument("--repetitions", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--env-file", type=Path, help="Existing local environment file for an isolated worktree")
     args = parser.parse_args()
     output = args.output.resolve()
     if output == ROOT or ROOT in output.parents:
@@ -70,7 +71,7 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=False)
     sys.path.insert(0, str(ROOT))
     from dotenv import load_dotenv
-    load_dotenv(ROOT / ".env")
+    load_dotenv(args.env_file or ROOT / ".env")
     os.environ["STUDY_AGENT_RUNTIME_DB"] = str(output / "runtime.db")
     os.environ["STUDY_AGENT_CURRENT_EXPORT_DIR"] = str(output / "current")
     os.environ["STUDY_AGENT_ARCHIVE_EXPORT_DIR"] = str(output / "archive")
@@ -111,7 +112,9 @@ def main() -> int:
     agent.resolve = observe_resolve
     files = ["src/web/semantic_recovery.py", "src/web/research_recovery.py", "src/web/tool_evidence.py",
              "src/web/conversation_query.py", "src/tools/persistent_web_agent.py", "src/application/chat_service.py",
-             "src/application/policy_chat_service.py", "src/application/web_lookup_service.py"]
+             "src/application/policy_chat_service.py", "src/application/web_lookup_service.py",
+             "src/web/research/official_resolver.py", "src/web/research/official_publication.py",
+             "src/web/research/candidate_funnel.py", "src/web/tool_gateway.py", "src/news/article_extractor.py"]
     result = {
         "schema_version": "research-calibration-result-v1", "qualified_judge": False,
         "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
@@ -160,6 +163,7 @@ def main() -> int:
                     except Exception:
                         pass  # Preserve the original failure and completed trace.
             trace = prepared.rag.get("web_tools", {}) if prepared else {}
+            published_turn = chat.repository.get_chat_turn(prepared.turn.id) if prepared else None
             raw_calls = list(observed_traces[-1].calls) if len(observed_traces) > trace_offset else []
             episode = None
             if trace.get("run_id"):
@@ -190,6 +194,8 @@ def main() -> int:
                 "recovery_used": bool(recovery.get("recovery_reads") or len(searches) > 1),
                 "recovery_reads": recovery.get("recovery_reads", 0), "scheduler": scheduler,
                 "stop_reason": recovery.get("stop_reason", "NO_RECOVERY_TRACE"),
+                "candidate_funnel": (getattr(run, "research_context", {}) or {}).get("candidate_funnel", {}),
+                "official_field_publication": (published_turn.rag_snapshot or {}).get("official_field_publication", {}) if published_turn else {},
                 "semantic_calls": len(inference_events) - event_offset,
                 "writer_calls": prepared.route.get("answer_generation_calls", 0) if prepared else 0,
                 "question_coverage": "not_semantically_evaluated", "answer": answer, "answer_sha256": sha(answer),
