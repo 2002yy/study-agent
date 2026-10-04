@@ -191,7 +191,18 @@ def main() -> int:
             adopted_requested = {call.get("arguments", {}).get("url") for call in adopted}
             official_domains = tuple(case.get("official_domains", []))
             candidates_all = [item for search in searches for item in search.get("result", {}).get("results", [])]
-            official_urls = {item["url"] for item in candidates_all if any(in_scope(item.get("url", ""), domain) for domain in official_domains)}
+            def expected_publisher_url(url):
+                if any(in_scope(url, domain) for domain in official_domains):
+                    return True
+                parsed = urlparse(url)
+                for prefix in case.get("official_url_prefixes", []):
+                    expected = urlparse(prefix)
+                    if parsed.hostname == expected.hostname and (parsed.path.rstrip("/") == expected.path.rstrip("/")
+                            or parsed.path.startswith(expected.path.rstrip("/") + "/")):
+                        return True
+                return False
+
+            official_urls = {item["url"] for item in candidates_all if expected_publisher_url(item.get("url", ""))}
             official_reads = [call for call in reads if call.get("arguments", {}).get("url") in official_urls]
             official_adopted = [call for call in adopted if call.get("arguments", {}).get("url") in official_urls]
             for name, entry in provider_counts.items():

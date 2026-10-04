@@ -90,8 +90,10 @@
         "准确版本或许可标识"
       ],
       "official_domains": [
-        "github.com",
         "docs.searxng.org"
+      ],
+      "official_url_prefixes": [
+        "https://github.com/searxng/searxng"
       ]
     },
     {
