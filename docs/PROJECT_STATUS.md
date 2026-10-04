@@ -18538,6 +18538,18 @@ reader 转移到 discovery（无官方 release 页候选），需在 discovery �
 掩盖；attention 行的作者 grounding 需人工复核。Source-quality / Search-answer 仍 **NO-GO**，
 main 仍 `5a3199a`。
 
+**FastAPI 行根因追查（§174.3.1）**：两轮 `official_candidate_found=true`、`candidate_count=10`、
+**`attempted_reads=0`**、`stop_reason=CANDIDATE_EXHAUSTED`。provider_metrics 显示
+`searxng` results 0（`unresponsive_engines: brave:timeout; duckduckgo:CAPTCHA;
+google cse:HTTP connection error; startpage:CAPTCHA; wikipedia:timeout` +
+`run_local_provider_degraded`）、`duckduckgo_html` `search_budget_exhausted`、
+`bing_rss` results 20/unique 10 但 **bodies_read 0**。**这不是 reader 缺陷**：修复前后
+都没有发生读取，§175 无从作用。按 §174.1 属 **external provider degradation**（上游引擎
+CAPTCHA/timeout + run-local cooldown），**不得**伪装成配置缺失或 evidence saturation，
+**不得**据此扩大候选数。关闭本行需在 provider 健康时复跑；0 reads 亦提示候选→读取
+eligibility 值得单独诊断（candidate 有 10 个却零次尝试），但**须先有健康 provider 基线**，
+不得在降级环境上下结论。
+
 集成代码已push到`codex/firefly-main-integration`，Draft PR
 [#164](https://github.com/2002yy/study-agent/pull/164)暂以#161分支为base，
 独立diff含流萤既有提交与Discovery改进。#161 exact-head50b54259 CI success，
