@@ -19,6 +19,10 @@ import time
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.application.active_research_runtime import ACTIVE_RESEARCH_METRICS_KEY  # noqa: E402
 
 
 def sha(value: str) -> str:
@@ -240,6 +244,14 @@ def main() -> int:
                 "recovery_used": bool(recovery.get("recovery_reads") or len(searches) > 1),
                 "recovery_reads": recovery.get("recovery_reads", 0), "scheduler": scheduler,
                 "stop_reason": recovery.get("stop_reason", "NO_RECOVERY_TRACE"),
+                # §174.3.1 observation-only: per-candidate reasons + zero-read
+                # summary, so a later zero-read run is explainable offline.
+                "candidate_resolution_trace": (
+                    (getattr(run, "research_context", {}) or {}).get(
+                        ACTIVE_RESEARCH_METRICS_KEY
+                    )
+                    or {}
+                ).get("candidate_resolution_trace") or {},
                 "semantic_calls": len(inference_events) - event_offset,
                 "writer_calls": prepared.route.get("answer_generation_calls", 0) if prepared else 0,
                 "question_coverage": "not_semantically_evaluated", "answer": answer, "answer_sha256": sha(answer),
