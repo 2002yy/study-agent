@@ -18550,6 +18550,37 @@ CAPTCHA/timeout + run-local cooldown），**不得**伪装成配置缺失或 evi
 eligibility 值得单独诊断（candidate 有 10 个却零次尝试），但**须先有健康 provider 基线**，
 不得在降级环境上下结论。
 
+**§174.3.2 D 刀：真实 run owner / completion path 定位（2026-10-04，head `9eef9670`）**
+
+用临时调用栈 marker（`repository.complete()` 处，仅本地日志、不进 artifact、已清理）
+一次真实复跑（fastapi-release）得到**唯一**调用链：
+
+```text
+run_research_calibration <module> → main
+  → policy_chat_service.start_turn
+    → observe_resolve → persistent_web_agent.resolve → _resolve_semantic
+      → **web_lookup_service.record_tool_trace**（L792）
+        → web_lookup_repository.complete（L814）
+```
+
+**裁定（冻结）**：
+
+1. 真实完成者 = **`web_lookup_service.record_tool_trace`**，**不是** `execute()` 的 stage loop。
+   ⇒ A/B/C 刀所有插入都落在**从不执行**的 `execute()` 路径上（这解释了全部失败）。
+2. `record_tool_trace` 内 **无 `assess_sources`、无候选过滤、`rejected_sources=[]`**；
+   `context` 在 L731 由 `{**run.research_context, ...}` 构建，L792 `complete()`。
+3. 候选来自 **tool calls**：`display_calls`（web_search）/ `evidence_calls`（web_read）；
+   `selected_sources` 仅由 `evidence_items`（读过的）构建。
+   ⇒ **"10 候选 0 读取"的决策发生在 `persistent_web_agent` 的 tool loop**，
+   不在 `web_lookup_service`，也不在 `assess_sources`。
+4. 因此 §174.3.1 中"10 条 directness=unmatched"假设**未证实**（该路径根本不到 assess）。
+5. 事实丢失类型 = **控制流路径错误**（非 A 身份断裂 / B 快照 / C 白名单 / D 覆盖）。
+
+**E 刀（唯一正确方向）**：在 `persistent_web_agent` 的 tool loop **真实派发决策点**记录
+disposition（哪些候选进入 read、哪些没有及其代码自有原因），经 `record_tool_trace` 的
+`context` 传播，由 runner 原样序列化。验收：`research_context_keys` 含
+`candidate_dispositions`，trace6 `candidate_count=10`、`not_observed<10`。
+
 集成代码已push到`codex/firefly-main-integration`，Draft PR
 [#164](https://github.com/2002yy/study-agent/pull/164)暂以#161分支为base，
 独立diff含流萤既有提交与Discovery改进。#161 exact-head50b54259 CI success，
