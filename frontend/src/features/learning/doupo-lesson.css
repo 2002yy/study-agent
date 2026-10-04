@@ -1,0 +1,497 @@
+.doupo-lesson-shell {
+  width: min(820px, 100%);
+}
+
+.doupo-interactions {
+  gap: 18px;
+}
+
+.doupo-card-depth {
+  display: grid;
+  gap: 12px;
+}
+
+.doupo-scene-setup,
+.doupo-card-conclusion,
+.doupo-transfer-note {
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.doupo-scene-setup {
+  border: 1px solid #d8e4e2;
+  background: #f8fbfa;
+}
+
+.doupo-scene-setup strong,
+.doupo-card-conclusion strong,
+.doupo-transfer-note strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.doupo-scene-setup p,
+.doupo-card-conclusion p,
+.doupo-transfer-note p {
+  margin: 0;
+  color: #4e5d64;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.doupo-exercise {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.doupo-exercise legend {
+  padding: 0 6px;
+  color: #304148;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.doupo-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.doupo-option {
+  min-height: 52px;
+  border: 1px solid #d7dfe2;
+  border-radius: 10px;
+  background: #fff;
+  color: #46565d;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.doupo-option:hover {
+  border-color: #a9c7c3;
+  background: #f8fbfa;
+}
+
+.doupo-option.is-selected {
+  border-color: #83b8b1;
+  background: #eef7f5;
+  color: #265f59;
+  box-shadow: inset 0 0 0 1px #b7d9d4;
+}
+
+.doupo-prediction-state {
+  display: grid;
+  gap: 2px;
+  border-left: 3px solid #b0bec3;
+  background: #f5f7f8;
+  padding: 8px 10px;
+  color: #536168;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doupo-prediction-state.is-hit {
+  border-left-color: #6eb29f;
+  background: #eff8f4;
+}
+
+.doupo-prediction-state.is-rethink {
+  border-left-color: #c9a45a;
+  background: #fff8e9;
+}
+
+.doupo-prediction-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.doupo-reveal-button,
+.doupo-secondary-button {
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.doupo-reveal-button {
+  border: 1px solid #91bdb7;
+  background: #eef7f5;
+  color: var(--accent-strong);
+}
+
+.doupo-reveal-button:disabled {
+  cursor: not-allowed;
+  border-color: #d8dfe1;
+  background: #f4f5f6;
+  color: #929a9f;
+}
+
+.doupo-secondary-button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #526169;
+}
+
+.doupo-evidence-ledger {
+  display: grid;
+  gap: 8px;
+}
+
+.doupo-evidence-beat {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 9px;
+  border: 1px solid #e1e6e8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 10px;
+}
+
+.doupo-evidence-beat > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #eef4f3;
+  color: #53756f;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.doupo-evidence-beat strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #35464d;
+  font-size: 12px;
+}
+
+.doupo-evidence-beat p {
+  margin: 0;
+  color: #5a676d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.doupo-card-conclusion {
+  border: 1px solid #b9d6d1;
+  background: #eef7f5;
+}
+
+.doupo-transfer-note {
+  border: 1px dashed #c9d2d5;
+  background: #fbfcfc;
+}
+
+.doupo-knowledge-wrap {
+  overflow-x: auto;
+}
+
+.doupo-knowledge-table {
+  min-width: 760px;
+}
+
+.doupo-knowledge-table th,
+.doupo-knowledge-table td {
+  vertical-align: middle;
+}
+
+.doupo-knowledge-guess {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 108px;
+  border: 1px solid #d9e0e2;
+  border-radius: 9px;
+  background: #fff;
+  padding: 6px 7px;
+  color: #536168;
+}
+
+.doupo-knowledge-guess span {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.doupo-knowledge-guess small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.doupo-knowledge-guess.is-match {
+  border-color: #8dbdae;
+  background: #eef8f4;
+}
+
+.doupo-knowledge-guess.is-miss {
+  border-color: #d4b575;
+  background: #fff8e8;
+}
+
+.doupo-experiment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.doupo-chart-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid #e0e6e8;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+}
+
+.doupo-valuation-chart {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  height: auto;
+}
+
+.doupo-chart-grid {
+  stroke: #e9edef;
+  stroke-width: 1;
+}
+
+.doupo-chart-y-label,
+.doupo-chart-x-label {
+  fill: #7a868b;
+  font-size: 10px;
+}
+
+.doupo-chart-x-label.is-active {
+  fill: #285f59;
+  font-weight: 800;
+}
+
+.doupo-chart-cursor {
+  stroke: #9fb7b4;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.doupo-valuation-line {
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doupo-valuation-point {
+  stroke-width: 1.5;
+  fill: #fff;
+}
+
+.doupo-series.series-reader .doupo-valuation-line,
+.doupo-series.series-reader .doupo-valuation-point,
+.doupo-legend-item.series-reader i {
+  stroke: #2f756c;
+  background: #2f756c;
+}
+
+.doupo-series.series-clan .doupo-valuation-line,
+.doupo-series.series-clan .doupo-valuation-point,
+.doupo-legend-item.series-clan i {
+  stroke: #6b7eaf;
+  background: #6b7eaf;
+}
+
+.doupo-series.series-city .doupo-valuation-line,
+.doupo-series.series-city .doupo-valuation-point,
+.doupo-legend-item.series-city i {
+  stroke: #b38245;
+  background: #b38245;
+}
+
+.doupo-series.series-nalan .doupo-valuation-line,
+.doupo-series.series-nalan .doupo-valuation-point,
+.doupo-legend-item.series-nalan i {
+  stroke: #a45f7a;
+  background: #a45f7a;
+}
+
+.doupo-series.series-yunlan .doupo-valuation-line,
+.doupo-series.series-yunlan .doupo-valuation-point,
+.doupo-legend-item.series-yunlan i {
+  stroke: #67757b;
+  background: #67757b;
+}
+
+.doupo-chart-legend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.doupo-legend-item {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid #e1e6e8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 7px;
+  color: #526169;
+  font-size: 10px;
+}
+
+.doupo-legend-item i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+}
+
+.doupo-legend-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doupo-legend-item strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.doupo-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.doupo-profile-grid article {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.doupo-profile-grid article > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.doupo-profile-grid h4 {
+  margin: 4px 0 6px;
+  font-size: 16px;
+}
+
+.doupo-profile-grid p {
+  margin: 0;
+  color: #536168;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.doupo-merge-button {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #a8c8c4;
+  border-radius: 10px;
+  background: #eef7f5;
+  color: var(--accent-strong);
+  padding: 10px 12px;
+  font-weight: 750;
+}
+
+.doupo-merge-button.is-merged {
+  background: #e3f2ef;
+}
+
+.doupo-repricing-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.doupo-repricing-list > div {
+  border-left: 3px solid #9cc8c2;
+  background: #f8fbfa;
+  padding: 8px 10px;
+}
+
+.doupo-repricing-list strong {
+  font-size: 12px;
+}
+
+.doupo-repricing-list p {
+  margin: 2px 0 0;
+  color: #536168;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doupo-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.doupo-gate {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: #44545b;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.doupo-gate.is-on {
+  border-color: #9ac7c1;
+  background: #eef7f5;
+}
+
+.doupo-gate strong {
+  color: var(--accent-strong);
+}
+
+.doupo-gate span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.doupo-gate small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.doupo-gate-result {
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #f4f7f7;
+  padding: 10px 12px;
+  color: #405057;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .doupo-option-grid,
+  .doupo-profile-grid,
+  .doupo-gate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doupo-chart-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

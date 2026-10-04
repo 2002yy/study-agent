@@ -15,6 +15,11 @@ import {
 import { abandonInterruptedTurn } from "../features/chat/recoveryApi";
 import { useMemoryController } from "../features/learning-memory/memoryController";
 import {
+  buildFireflyConversationContext,
+  createDefaultFireflyLessonState,
+  type FireflyLessonState,
+} from "../features/learning/defaultFireflyLesson";
+import {
   getLearningResume,
   type LearningResumeResponse,
 } from "../features/learning/learningResumeApi";
@@ -62,7 +67,9 @@ export type LearningRecoveryInput = Pick<
   | "lastRag"
   | "lastSessionId"
   | "cachedMessages"
->;
+> & {
+  fireflyLessonState?: FireflyLessonState;
+};
 
 export type LearningRecoveryState = Pick<
   WorkspaceRecovery,
@@ -77,6 +84,7 @@ export type LearningRecoveryState = Pick<
   chatSettings: ChatSettings;
   keepCurrentRole: boolean;
   conversationInstruction: string;
+  fireflyLessonState: FireflyLessonState;
   isSending: boolean;
 };
 
@@ -102,6 +110,9 @@ export function useLearningSessionRuntime(options: {
   );
   const [keepCurrentRole, setKeepCurrentRole] = useState(false);
   const [conversationInstruction, setConversationInstruction] = useState("");
+  const [fireflyLessonState, setFireflyLessonState] = useState<FireflyLessonState>(
+    createDefaultFireflyLessonState,
+  );
   const [learningResumeState, setLearningResumeState] =
     useState<LearningResumeState | null>(null);
   const [learningResumeErrorState, setLearningResumeErrorState] =
@@ -123,6 +134,21 @@ export function useLearningSessionRuntime(options: {
   const clearChatArtifacts = useCallback(
     () => artifactPortRef.current.clearChatArtifacts(),
     [],
+  );
+
+  const updateFireflyLesson = useCallback((patch: Partial<FireflyLessonState>) => {
+    setFireflyLessonState((current) => ({ ...current, ...patch }));
+  }, []);
+  const resetFireflyLesson = useCallback(() => {
+    setFireflyLessonState(createDefaultFireflyLessonState());
+  }, []);
+  const fireflyLesson = useMemo(
+    () => ({
+      state: fireflyLessonState,
+      update: updateFireflyLesson,
+      reset: resetFireflyLesson,
+    }),
+    [fireflyLessonState, resetFireflyLesson, updateFireflyLesson],
   );
 
   const memoryRunId = state.activeMemoryRunId;
@@ -155,6 +181,18 @@ export function useLearningSessionRuntime(options: {
       dispatch({ type: "SET_SESSION_SUMMARY", summary }),
   });
 
+  const defaultLessonContext = useMemo(
+    () => buildFireflyConversationContext(fireflyLessonState),
+    [fireflyLessonState],
+  );
+  const effectiveConversationInstruction = useMemo(
+    () =>
+      [conversationInstruction.trim(), defaultLessonContext.trim()]
+        .filter(Boolean)
+        .join("\n\n"),
+    [conversationInstruction, defaultLessonContext],
+  );
+
   const chatController = useChatController({
     chatSettings,
     chatSettingsDefaults: CHAT_SETTINGS_DEFAULTS,
@@ -166,7 +204,7 @@ export function useLearningSessionRuntime(options: {
     setRagEnabled: options.evidence.setRagEnabled,
     keepCurrentRole,
     setKeepCurrentRole,
-    conversationInstruction,
+    conversationInstruction: effectiveConversationInstruction,
     setConversationInstruction,
     webLookupSource: options.evidence.webLookupSource,
     webLookupRunId: options.evidence.webLookupRunId,
@@ -255,6 +293,7 @@ export function useLearningSessionRuntime(options: {
     (recovery: LearningRecoveryInput | null) => {
       if (!recovery) {
         chatController.setMessages(seedMessages);
+        setFireflyLessonState(createDefaultFireflyLessonState());
         return false;
       }
 
@@ -280,6 +319,23 @@ export function useLearningSessionRuntime(options: {
 
       const restoredThreadId =
         recovery.singleChatSessionId ?? recovery.sessionId ?? "";
+      if (recovery.fireflyLessonState) {
+        const defaults = createDefaultFireflyLessonState();
+        setFireflyLessonState({
+          ...defaults,
+          ...recovery.fireflyLessonState,
+          oneGold: {
+            ...defaults.oneGold,
+            ...recovery.fireflyLessonState.oneGold,
+          },
+        });
+      } else if (restoredThreadId) {
+        setFireflyLessonState({
+          ...createDefaultFireflyLessonState(),
+          active: false,
+        });
+      }
+
       if (restoredThreadId) {
         void chatController.hydrateSession(
           restoredThreadId,
@@ -329,6 +385,7 @@ export function useLearningSessionRuntime(options: {
         chatSettings,
         keepCurrentRole,
         conversationInstruction,
+        fireflyLessonState,
         lastRoute: chatController.lastChat?.route,
         lastRag: chatController.lastChat?.rag,
         lastSessionId: chatController.lastChat?.session_id,
@@ -348,6 +405,7 @@ export function useLearningSessionRuntime(options: {
       chatSettings,
       keepCurrentRole,
       conversationInstruction,
+      fireflyLessonState,
       restore,
       hydrateRuntimeSettings,
     ],
@@ -363,6 +421,20 @@ export function useLearningSessionRuntime(options: {
       ? learningResumeErrorState.error
       : "";
 
+  useEffect(() => {
+    if (
+      learningResume?.source === "durable" &&
+      learningResume.status === "active" &&
+      fireflyLessonState.active
+    ) {
+      setFireflyLessonState((current) => ({ ...current, active: false }));
+    }
+  }, [
+    learningResume?.source,
+    learningResume?.status,
+    fireflyLessonState.active,
+  ]);
+
   const view = useMemo(
     () => ({
       activeSession,
@@ -373,6 +445,7 @@ export function useLearningSessionRuntime(options: {
       visitedPhases: state.pedagogyPhases,
       learningResume,
       learningResumeError,
+      fireflyLesson,
       refreshLearningResume,
       abandonRecovery,
     }),
@@ -385,6 +458,7 @@ export function useLearningSessionRuntime(options: {
       state.pedagogyPhases,
       learningResume,
       learningResumeError,
+      fireflyLesson,
       refreshLearningResume,
       abandonRecovery,
     ],
@@ -403,6 +477,7 @@ export function useLearningSessionRuntime(options: {
     setLearningClosureRunId,
     memoryController,
     chatController,
+    fireflyLesson,
     bindArtifactPort,
     recovery,
     view,

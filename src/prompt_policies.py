@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.turn_context import unpack_scene_turn_context
+
 SINGLE_CHAT_SCENE = "single"
 GROUP_CHAT_SCENE = "group"
 
@@ -42,10 +44,21 @@ SCENE_POLICIES = {
 
 
 def normalize_scene(scene: str | None) -> str:
-    if scene in SCENE_POLICIES:
-        return scene
+    actual_scene, _ = unpack_scene_turn_context(scene)
+    if actual_scene in SCENE_POLICIES:
+        return actual_scene
     return SINGLE_CHAT_SCENE
 
 
 def scene_policy(scene: str | None) -> str:
-    return SCENE_POLICIES[normalize_scene(scene)]
+    actual_scene, turn_context = unpack_scene_turn_context(scene)
+    policy = SCENE_POLICIES[normalize_scene(actual_scene)]
+    clean_context = turn_context.strip()
+    if not clean_context:
+        return policy
+    return (
+        policy
+        + "\n\n[Current interface context — this turn only]\n"
+        + clean_context
+        + "\nDo not treat this interface state as durable learner memory or persist it as a user preference."
+    )

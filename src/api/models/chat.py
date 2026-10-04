@@ -5,9 +5,13 @@ Extracted from src/api.py — Batch 3 refactor.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.task_intent import TaskIntent
+from src.turn_context import (
+    pack_scene_turn_context,
+    unpack_conversation_instruction,
+)
 
 
 class ChatMessage(BaseModel):
@@ -52,6 +56,20 @@ class ChatRequest(BaseModel):
     operation_id: str | None = None
     review_prompt_turn_id: str | None = None
 
+    @model_validator(mode="after")
+    def split_transient_turn_context(self) -> ChatRequest:
+        instruction, turn_context = unpack_conversation_instruction(
+            self.conversation_instruction
+        )
+        if not turn_context:
+            return self
+        # The durable instruction is restored before the request reaches the
+        # application service.  The UI context rides only in `scene`, which is
+        # a per-turn command field and is not written to ChatThread/ChatTurn.
+        self.conversation_instruction = instruction
+        self.scene = pack_scene_turn_context(self.scene, turn_context)
+        return self
+
 
 class CancelTurnRequest(BaseModel):
     expected_operation_id: str = Field(min_length=1)
@@ -88,6 +106,12 @@ class CommitTurnRequest(BaseModel):
     conversation_instruction: str = ""
     turn_id: str | None = None
     operation_id: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def discard_transient_turn_context(self) -> CommitTurnRequest:
+        instruction, _ = unpack_conversation_instruction(self.conversation_instruction)
+        self.conversation_instruction = instruction
+        return self
 
 
 class CommitTurnResponse(BaseModel):
