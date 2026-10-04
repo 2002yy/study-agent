@@ -7,12 +7,21 @@ const read = (path: string) =>
 
 const wrapperSource = read("./FireflyDefaultLesson.tsx");
 const lessonSource = read("./FireflyMechanicsLesson.tsx");
+const archiveSource = read("./FireflyCoreDataArchive.tsx");
+const panelSource = read("./FireflyCharacterDataPanel.tsx");
 const modelSource = read("./defaultFireflyLesson.ts");
 const mechanicsModelSource = read("./fireflyLessonModel.ts");
 const doupoSource = read("./DoupoDefaultLesson.tsx");
 const doupoModelSource = read("./defaultDoupoLesson.ts");
 const stripSource = read("./LearningStrip.tsx");
-const visibleCopy = `${wrapperSource}\n${lessonSource}\n${modelSource}\n${mechanicsModelSource}`;
+const visibleCopy = [
+  wrapperSource,
+  lessonSource,
+  archiveSource,
+  panelSource,
+  modelSource,
+  mechanicsModelSource,
+].join("\n");
 const doupoVisibleCopy = `${wrapperSource}\n${doupoSource}\n${stripSource}`;
 
 describe("Firefly default lesson copy contract", () => {
@@ -25,6 +34,24 @@ describe("Firefly default lesson copy contract", () => {
     expect(visibleCopy).not.toContain("核心在于");
     expect(visibleCopy).not.toContain("本质上");
     expect(visibleCopy).not.toMatch(/不是[^。\n]{0,36}而是/);
+  });
+
+  it("reads like a player analysis page rather than an instructor script", () => {
+    const instructorPhrases = [
+      "先分清",
+      "怎么读",
+      "为什么开大以后",
+      "为什么强化普攻",
+      "为什么和流萤",
+      "这一步得到了什么",
+      "还缺什么 / 付出了什么",
+      "必须先问",
+      "教学值",
+      "教学简化模型",
+    ];
+    for (const phrase of instructorPhrases) {
+      expect(visibleCopy).not.toContain(phrase);
+    }
   });
 
   it("keeps the visible route vocabulary aligned with the four required stages", () => {

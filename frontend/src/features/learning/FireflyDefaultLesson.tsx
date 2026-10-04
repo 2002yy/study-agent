@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { DoupoDefaultLesson } from "./DoupoDefaultLesson";
+import { FireflyCoreDataArchive } from "./FireflyCoreDataArchive";
 import { FireflyDefaultLesson as FireflyMechanicsLesson } from "./FireflyMechanicsLesson";
 import {
   createDefaultFireflyLessonState,
@@ -64,7 +65,10 @@ export function FireflyDefaultLesson({
       {lessonKind === "doupo" ? (
         <DoupoDefaultLesson controller={doupoController} />
       ) : (
-        <FireflyMechanicsLesson controller={controller} />
+        <>
+          <FireflyMechanicsLesson controller={controller} />
+          <FireflyCoreDataArchive />
+        </>
       )}
     </div>
   );
