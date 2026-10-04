@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 最新联网方向（优先于下方历史交接）：** 用户要求 A Candidate→Read 漏斗、B Web/Platform 分层合同、C 按操作资格化匿名 specialist；MediaCrawler 是可替换 provider。首批 B站/YouTube/RSS/V2EX；XHS、知乎增强、Reddit、X 的登录能力以后处理。Exa/Tavily 默认 inert，D 才做固定问题 Discovery A/B。主线实际 main/base 为 `95663fe9336f28f86e6df1170596337d246da29e`（#167 已合并，首次 exact-main CI `37211534994` queued）；#161/#164 的来源/答案门仍 NO-GO。A 实现另在 `codex/firefly-main-integration` 的 `bc9fac7410f573bb5f57afb35e6740c14a5de905`，L2 336 passed；本分支 `codex/platform-capability-contract` 独立承载 B 合同与 C 公开诊断，不切换生产执行权。
+
+**本刀证据 / 下一步：** L1 46 passed/18.96s（合同、doctor、现有 provider、source assessment、web tool）；Ruff/diff-check PASS；mypy 122/baseline128，NEW=0。独立环境安装 bili-cli 0.6.2、yt-dlp 2026.8.19、feedparser；公开 RSS 50 条、V2EX 10 条，B站直接 HTTP 412，YouTube HTML 超过 500KB 上限。匿名 CLI YouTube 搜索观察到 3 条元数据；B站初次 Windows stdout 编码解析失败，UTF-8 重试的 envelope 仍需正确解析，不能据此称 empty/qualified。全部 `qualified=false`，不访问 Cookie/浏览器 profile，不授予 Evidence。artifact：`D:/study-agent-validation/anonymous-public-probe-installed-20261005.json`、`anonymous-cli-probe-20261005.json`、`anonymous-cli-probe-bili-utf8-20261005.json`。下一刀：完成匿名 specialist request-bound search/detail/subtitle 合同实现与资格化；B站 CLI 的真实返回先解析 `data` envelope。Git/PR/CI 以实际 HEAD 为准；本刀未跑 L3，因合同未注册、无生产 cutover。
+
+**B 冻结合同：** `DiscoveryRequest/Hit/Batch/Provider` 只产候选，保留多 provider provenance；legacy adapter 复用 run-owned provider 的原查询、limit、deadline，无法满足 domain/freshness/live 时显式 unavailable。`PlatformRequest/Hit/Batch` 绑定 request_id/platform/limit，区分 auth_required/empty/unavailable/cancelled/deadline；community observation 不自动升级官方事实。按 platform + operation 记录 primary/fallback/auth expectation/qualification，README 不能授予 qualified。登录态由 sidecar 持有，不进入项目合同。generic Web/Crawl4AI 原有 default-inert 边界不变。HTTP doctor 的 8s 是 socket timeout、500KB 是 body cap，不是 search/detail 或强 wallclock 资格。新模块未注册，生产 runtime 仍旧路径。
+
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
