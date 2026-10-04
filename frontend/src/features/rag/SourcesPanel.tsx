@@ -35,7 +35,7 @@ type SourceRow = {
   lineRange: string;
   score: number;
   matchedTerms: string[];
-  scoreBreakdown: Record<string, number>;
+  scoreBreakdown: Record<string, unknown>;
 };
 
 type SourcesTab = "answer" | "library" | "diagnostics";
@@ -114,6 +114,18 @@ function lifecycleLabel(status: EvidenceRef["status"]): string {
   if (status === "read") return "已阅读";
   if (status === "rejected") return "已排除";
   return "候选";
+}
+
+function diagnosticValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "—";
+  }
 }
 
 function EvidenceReference({
@@ -440,7 +452,7 @@ export function SourcesPanel({
                           <details className="inline-details">
                             <summary>查看检索评分详情</summary>
                             <dl>{Object.entries(row.scoreBreakdown).map(([key, value]) => (
-                              <div key={key}><dt>{scoreLabel(key)}</dt><dd>{formatScore(value)}</dd></div>
+                              <div key={key}><dt>{scoreLabel(key)}</dt><dd>{diagnosticValue(value)}</dd></div>
                             ))}</dl>
                           </details>
                         ) : null}
