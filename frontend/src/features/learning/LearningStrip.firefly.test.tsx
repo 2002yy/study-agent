@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { render, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { useMemo, useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { FireflyLessonProvider } from "./FireflyLessonContext";
 import { LearningStrip } from "./LearningStrip";
+import type { LearningResumeResponse } from "./learningResumeApi";
 import {
   createDefaultFireflyLessonState,
   type FireflyLessonState,
 } from "./defaultFireflyLesson";
 
-function DefaultLessonStripHarness() {
+function DefaultLessonStripHarness({ resume = null }: { resume?: LearningResumeResponse | null }) {
   const [state, setState] = useState<FireflyLessonState>(
     createDefaultFireflyLessonState,
   );
@@ -27,7 +28,7 @@ function DefaultLessonStripHarness() {
   return (
     <FireflyLessonProvider controller={controller}>
       <LearningStrip
-        resume={null}
+        resume={resume}
         resumeError=""
         lastChat={null}
         visitedPhases={[]}
@@ -47,5 +48,18 @@ describe("LearningStrip Firefly default entry", () => {
     expect(container.textContent).toContain("默认示例 · 10张机制卡");
     expect(container.textContent).toContain("换一条韧性，再算一次");
     expect(container.textContent).toContain("手里只有一金");
+  });
+
+  it("collapses the sample when durable context arrives and lets the learner open it once", () => {
+    const { container, rerender } = render(<DefaultLessonStripHarness />);
+    const resume: LearningResumeResponse = {
+      source: "durable", status: "no_active_goal", topic: {}, goal: {},
+      claims: [], claim_count: 0, unresolved: [], next_step: {}, optional_next_steps: [],
+    };
+    rerender(<DefaultLessonStripHarness resume={resume} />);
+    const toggle = within(container).getByRole("button", { name: /流萤超击破体系/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 });

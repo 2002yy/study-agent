@@ -563,6 +563,10 @@ button {
   gap: 14px;
 }
 
+.conversation > * {
+  flex-shrink: 0;
+}
+
 .home-brief {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
@@ -2060,6 +2064,7 @@ button {
   min-height: 0;
 }
 .learning-strip {
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   background: var(--surface-strong);
 }
@@ -2092,8 +2097,25 @@ button {
 .learning-strip-detail {
   border-top: 1px solid var(--border);
   background: var(--surface);
-  max-height: 60vh;
+  /* Expanded examples keep a usable conversation and composer below them. */
+  max-height: min(35dvh, max(80px, calc(100dvh - 470px)));
   overflow-y: auto;
+}
+
+@media (max-width: 760px) {
+  .learning-strip {
+    display: flex;
+    flex-direction: column;
+    max-height: 25dvh;
+  }
+
+  .learning-strip-toggle {
+    flex-shrink: 0;
+  }
+
+  .learning-strip-detail {
+    min-height: 0;
+  }
 }
 .learning-strip-detail .learning-panel {
   border-right: 0;
