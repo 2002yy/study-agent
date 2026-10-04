@@ -314,6 +314,20 @@ def _stems(value: str) -> set[str]:
     }
 
 
+# §175 ③: release/download/changelog pages carry the authoritative version and its
+# links. This is a *ranking preference only* - a soft secondary key, never a filter
+# and never an authority signal. relation/strength/binding stay with the extractor.
+_RELEASE_PATH_STEMS = frozenset(
+    {"release", "releas", "changelog", "download", "downloads", "tag", "version"}
+)
+
+
+def _release_affinity(path: str) -> int:
+    """1 when the path looks like a release/download/changelog surface, else 0."""
+
+    return 1 if (_stems(path) & _RELEASE_PATH_STEMS) else 0
+
+
 def rank_domain_urls(
     urls: Iterable[str],
     *,
@@ -358,14 +372,19 @@ def rank_domain_urls(
     if not documents or not term_stems:
         return []
 
-    scored: list[tuple[float, int, str]] = []
+    scored: list[tuple[float, int, int, str]] = []
     for url, path, stems in documents:
         matched = stems & term_stems
         if not matched:
             continue
-        scored.append((-float(len(matched)), path.count("/"), url))
-    scored.sort(key=lambda item: (item[0], item[1], item[2]))
-    return [url for _neg, _depth, url in scored[: max(1, int(limit))]]
+        # Order: claim-term matches, then release-page affinity, then shallower
+        # path, then lexicographic. The release key only breaks ties among equal
+        # term matches, so it is a preference and never a filter.
+        scored.append(
+            (-float(len(matched)), -_release_affinity(path), path.count("/"), url)
+        )
+    scored.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+    return [url for _neg, _rel, _depth, url in scored[: max(1, int(limit))]]
 
 
 def extract_candidate_links(
