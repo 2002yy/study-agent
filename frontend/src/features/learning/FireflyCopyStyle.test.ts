@@ -2,15 +2,14 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const lessonSource = readFileSync(
-  fileURLToPath(new URL("./FireflyDefaultLesson.tsx", import.meta.url)),
-  "utf8",
-);
-const modelSource = readFileSync(
-  fileURLToPath(new URL("./defaultFireflyLesson.ts", import.meta.url)),
-  "utf8",
-);
-const visibleCopy = `${lessonSource}\n${modelSource}`;
+const read = (path: string) =>
+  readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+
+const wrapperSource = read("./FireflyDefaultLesson.tsx");
+const lessonSource = read("./FireflyMechanicsLesson.tsx");
+const modelSource = read("./defaultFireflyLesson.ts");
+const mechanicsModelSource = read("./fireflyLessonModel.ts");
+const visibleCopy = `${wrapperSource}\n${lessonSource}\n${modelSource}\n${mechanicsModelSource}`;
 
 describe("Firefly default lesson copy contract", () => {
   it("does not regress to the old database-index default material", () => {
