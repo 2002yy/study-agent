@@ -252,6 +252,17 @@ def main() -> int:
                     )
                     or {}
                 ).get("candidate_resolution_trace") or {},
+                "research_context_keys": sorted(
+                    (getattr(run, "research_context", {}) or {}).keys()
+                ),
+                "metrics_keys": sorted(
+                    (
+                        (getattr(run, "research_context", {}) or {}).get(
+                            ACTIVE_RESEARCH_METRICS_KEY
+                        )
+                        or {}
+                    ).keys()
+                ),
                 "semantic_calls": len(inference_events) - event_offset,
                 "writer_calls": prepared.route.get("answer_generation_calls", 0) if prepared else 0,
                 "question_coverage": "not_semantically_evaluated", "answer": answer, "answer_sha256": sha(answer),
