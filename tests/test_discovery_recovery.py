@@ -103,6 +103,24 @@ def test_all_degraded_providers_are_external_failure_not_missing_configuration(m
     assert result["providers_attempted"] == []
 
 
+def test_zero_read_release_filter_is_recorded_at_the_decision_site():
+    class HomepageGateway:
+        def search_exact(self, *args, **kwargs):
+            return {"status": "ok", "results": [item("https://fastapi.tiangolo.com/", "FastAPI")]}
+
+        def read(self, *args, **kwargs):
+            raise AssertionError("Filtered homepages must not consume reads")
+
+    calls = recover_public_research(HomepageGateway(), "FastAPI当前最新版本及发布日期是什么？")
+    summary = recovery_summary(calls)
+    assert summary["reads"] == 0
+    assert summary["candidate_dispositions"] == [{
+        "candidate_id": "https://fastapi.tiangolo.com/",
+        "state": "filtered_release", "reason": "not_release_candidate",
+    }]
+    assert evidence_tool_calls(calls) == []
+
+
 def test_adaptive_second_query_preserves_reads_for_discovered_official_release(monkeypatch):
     query = "FastAPI当前最新版本及发布日期是什么？"
     monkeypatch.setattr("src.web.tool_gateway.searxng_enabled", lambda: True)
@@ -137,3 +155,4 @@ def test_adaptive_second_query_preserves_reads_for_discovered_official_release(m
     assert len(evidence_tool_calls(calls)) == 1
     assert recovery_summary(calls)["candidate_pool_cap"] == 25
     assert recovery_summary(calls)["limits"]["reads"] == 3
+    assert recovery_summary(calls)["candidate_dispositions"][-1]["state"] == "dispatched"

@@ -343,6 +343,7 @@ def main() -> int:
                 "candidate_resolution_trace": _resolution_trace_from_context(
                     getattr(run, "research_context", {}) or {}, searches, reads
                 ),
+                "candidate_funnel": (getattr(run, "research_context", {}) or {}).get("candidate_funnel", {}),
                 "research_context_keys": sorted(
                     (getattr(run, "research_context", {}) or {}).keys()
                 ),

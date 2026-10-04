@@ -11,6 +11,8 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
+**最新用户 steering（2026-10-04，优先于下方旧交接）：**联网改造按 §176 的 A→B→C→D→E→F→G 执行；A 先闭合实际 tool-loop Candidate Funnel，B 冻结 Web/Platform 分层合同，C 先做 MediaCrawler 知乎/小红书/B站公开页面和匿名资格化，登录以后另处理；D 才做 Exa/Tavily Discovery A/B，adapter 默认 inert。不得在 A 前接收费 provider、再叠 recovery heuristic，或把社区观点提升成事实支持。Crawl4AI 原有显式资格/默认 inert 边界保留。远端 main 已因 PR #167 合并推进至 `95663fe9336f28f86e6df1170596337d246da29e`，main CI `37211534994` 首次快照 queued；#161/#164 未合并，Source-quality/Search-answer 仍 NO-GO。此前 main Firefly `cf059186` 的 CI `37206335479` 浏览器失败另作窄修。
+
 - **分支 / head：**`main` / `origin/main`仍为`5a3199aa1d879e432bdb8f3103507c0528f0e62c`。父PR #161 head `50b54259ed1acdf01fb08717e7fa6cd8fbcc480d`，exact-head PR CI `37191670314` success；三条旧review finding已修复并resolve。当前集成分支`codex/firefly-main-integration`，生产/诊断候选`1dc2ac52`，最终docs head/dirty以Git为准。
 - **工作树 / 流萤：**已引入用户指定的现有正式提交`fc96e3cb`，merge-base ancestor检查exit0；它与743e537b树一致，合并只绑定现有历史，不重新实现UI。合并曾自动复制validator与CSS冲突，已保留唯一validator和实际窄屏修复。当前没有合并main；用户新增条件要求FastAPI/SQLite真实失败闭合后才能合并。
 - **已关闭阶段：**
@@ -31,6 +33,7 @@
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
 - **当前动作：§174 adaptive宽Discovery观察，main保持NO-GO。** 第一波12、缺口后下一规划查询24；Lookup/Standard池上限25/80，实际数量取决于provider，不能声称必得40–80。正文3/5、30/60s、≤6模型调用不变。新8×2观察使用独立manifest，完整结果与限制见§174.1及`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
 - **下一刀唯一任务：**在已获授权的研究改进范围内，先冻结并实现“有界HTTP解压 + 发布页结构化内容保留 + 从实际官方页面发现release链接”的Reader质量合同，修复FastAPI release页面缺失和SQLite表格数据被丢；保持真实链接来源、禁止编造search result/证据授权。两题Source-quality与Search-answer通过后，才做最终组合L3并按用户授权合并#161与流萤集成，验exact-main CI。
+- **上条下一刀已被用户 §176 steering 替代：**先完成 A 的实际候选漏斗证据，不以增加搜索恢复规则关闭 FastAPI 行。未取得来源内容的发布问题保留失败 baseline；研究集成的最终来源/答案门与 exact-head/exact-main 门未因此自动变绿。
 - **§175 Reader 质量有界合同（冻结，2026-10-04，`codex/firefly-main-integration`）：**
   - **范围**：只修复 reader **正文路径的信息丢失**。不改搜索量、不改 wallclock、不新增 provider、不开 Deep、不引入新依赖。
   - **① HTTP 传输解压（已实现 `a8267f60`）**：fetch 路径必须处理 `Content-Encoding`（`gzip`/`x-gzip`/`deflate`/raw-deflate），**有界**（解压上限 8MB），best-effort、**永不抛异常**（未知编码/损坏/超大 → 原样返回）。禁止把压缩字节（`1f8b0800…`）交给 HTML/文本解码器。落点：`article_fetcher._fetch_html_payload` / `_fetch_text_payload` / `link_resolver`。
@@ -18593,3 +18596,95 @@ disposition（哪些候选进入 read、哪些没有及其代码自有原因）�
 先以Python gzip、SQLite表格、FastAPI发布导航、论文作者缺失为golden
 negative controls；修完再用原问题/正文/断言验证两题发布门，最终L3与
 exact-head/exact-main门仍是main合并前必需。
+
+## §176 分层 Discovery / Platform 改造（用户 steering，2026-10-04）
+
+冻结顺序：**A Candidate Funnel → B 统一 Web/Platform contracts → C MediaCrawler
+sidecar 匿名资格化（知乎、小红书、B站）→ D Exa/Tavily Discovery A/B → E 两级
+Router → F 社区/事实证据边界 → G E2E qualification**。A 完成前不接收费
+provider；premium adapter 第一版 inert、不使用 Answer/Agent/Deep endpoint。
+生产 primary 晋级另看 target-page@10 至少 +20pp、official-hit@5 不降、危险
+unsupported claim 不增、搜索 p95 <5s；样本量/标注权威在 D 前预注册。
+Discovery、Reader、Evidence 与 synthesis 的权威分别保留；质量/权威排序只是
+调度提示。Crawl4AI 不因本设计自动启用，也不把 read success 当 adequacy。
+
+### 176.1 A — 实际 Candidate Funnel
+
+根因已核实：聊天研究 owner 为 `chat_tool_loop`；staged reader 的 `candidate_items`
+未进入并不能证明内部候选身份断裂。真正执行过滤的是 `recover_public_research`。
+旧 calibration 假设 `candidate_dispositions` 已存在，但生产路径从未写入。
+本刀在实际 release/domain、assessment、semantic、scheduler、read-cap 决策点
+记录 disposition；调用终止时为尚未读取候选记录具体阻断原因；取消/超时中的
+read 保留失败 attempt，不允许已发生读取从 trace 消失。没有修改搜索数、排序、
+预算、reader-chain、Evidence authority 或答案支持判据。
+
+新增 `candidate-funnel-v1`：candidate_id、provider/rank、生命周期、skip reason、
+实际报告的 reader method（缺失时明确 logical gateway executor）、read outcome、
+assessment observation 和 answer-context read-body refs。refs 绑定 requested/final
+URL、call index、正文 SHA256 与 `[0,len(body))` 文本范围；**这不是 formal Support
+或 claim-level supporting span**，未观测 citation 数为 null。源摘要不符、重复
+dispatch、缺失决定均显式报 gate failure，不编造成功/拒绝原因。
+
+G0-1/2/3/4 的本地 positive/negative controls：未知零读取、明确过滤、重复
+dispatch、取消中的真实 attempt、redirect、拒绝正文、篡改 digest、private URL、
+多 provider duplicate provenance、SQLite restore。此前 L1 60 passed/18.93s，
+新增取消回归 22 passed/5.75s；命名 semantic stack L2 335 passed/133.51s
+为取消记录补强前结果，最终 candidate gate 以本刀后续记录为准。mypy 在修复
+一个新 assignment error 后为 122/baseline128、NEW=0；Ruff passed。
+
+真实同题 FastAPI 一次有界复跑：13.172s，10 个唯一候选、0 reads、0 adopted；
+**10/10 `not_release_candidate`，gate_failures=[]**。没有 hidden staged loop，
+provider 返回的教程/主页确实被 release filter 排除；这是可解释的 discovery
+失败 baseline，不能称 Source-quality/Search-answer PASS。原始 artifact
+`D:/study-agent-validation/funnel-A-live-20261004/result.json` 含运行 head、dirty
+paths 与 production_file_digests，不能伪称 clean-head release qualification。
+
+### 176.2 B/C 的接线边界与匿名选择
+
+用户选择**先公开页面/匿名能力验证，登录以后处理**。默认不复用用户浏览器
+profile/Cookie，不传聊天历史；sidecar 与主进程依赖分离。先冻结 search/detail
+合同与 request/job ownership、deadline、cancel、export provenance，尚未批准自动
+登录、全平台并发或批量采集。原 `ResearchProviderSearch` 作为 legacy provider
+保留，不把收费 provider 塞进其原有 all-enabled-provider 策略。
+
+MediaCrawler upstream inspected head `83c638b9d1b4daf72cc9824773a2b5687c120a52`：
+`POST /crawler/start` 返回 started、`GET /crawler/status` 是共享 singleton 状态，
+**并不是同步 `search → hits` API**；adapter 必须自己隔离 job 与结果，不能把
+start success 或旧 export 当本请求搜索成功。upstream 支持 `zhihu/xhs/bili`，
+search/detail、显式 notes/comments cap；第一轮限制每请求 3 hits、1 detail，
+评论默认关闭，视频 metadata 不等于字幕或视频理解。
+
+许可为 NON-COMMERCIAL LEARNING LICENSE 1.1，仅非商业学习研究，禁止大规模
+采集；sidecar 不能免除许可限制。上游 API/许可已核实：
+[crawler API](https://github.com/NanmiCoder/MediaCrawler/blob/83c638b9d1b4daf72cc9824773a2b5687c120a52/api/routers/crawler.py)、
+[schema](https://github.com/NanmiCoder/MediaCrawler/blob/83c638b9d1b4daf72cc9824773a2b5687c120a52/api/schemas/crawler.py)、
+[LICENSE](https://github.com/NanmiCoder/MediaCrawler/blob/83c638b9d1b4daf72cc9824773a2b5687c120a52/LICENSE)。
+
+当前没有 Exa/Tavily key；没有真实付费 A/B，没有 MediaCrawler live qualification，
+不宣称 default provider promotion 或平台可用。当前唯一下一片：完成 A final gate
+与提交，随后独立 B contract + C bounded anonymous qualification；main browser
+regression 独立窄修，#161/#164 合并门保留。
+
+### 176.3 最新平台方向与 A final gate（2026-10-04）
+
+用户第四份补充替代“MediaCrawler 是所有社交平台底座”的假设：先做
+`PlatformCapabilityRegistry`，MediaCrawler 只是可替换 specialist。首批匿名
+验证 B站（轻量 CLI）、YouTube（yt-dlp）、RSS、V2EX；小红书、知乎增强、
+Reddit、Twitter 等需要用户 session 的功能保持 unavailable，不读用户 Cookie。
+每个平台按**具体 operation**区分 anonymous/optional-auth/auth-bound，不能用
+“某平台可匿名”推断字幕、评论、搜索等所有能力均可用。README 宣称仅为
+qualification 输入，不能当本机实时能力证据；sidecar 保管账号凭证，主 SQLite、
+trace、Git 与 CI 不保存 Cookie。视频 metadata 不升格为视频内容证据，社区发言
+只支持社区评价，不支持未核实的官方事实。
+
+A final L2：`semantic-recovery-v1` + candidate funnel/resolution tests **336 passed /
+144.23s**；取消相关 impact set 67 passed/24.52s；新取消 negative control 所在
+模块 22 passed/5.75s；Ruff clean，mypy **122/baseline128、NEW=0**。本刀为
+diagnostic wiring/attempt accounting，不是生产 authority cutover，不触发单刀
+L3；研究+UI组合候选最终 L3 仍未完成。A 可解释零读取的本地门 CLOSED，
+Source-quality/Search-answer 仍 NO-GO。远端 final head/CI 由 push 后快照记录。
+
+Agent Reach 已核对 [官方 README](https://github.com/Panniantong/Agent-Reach/blob/main/README.md)，
+借鉴其 registry/doctor/primary-fallback 结构，**没有安装全家桶，也没有自动
+修改用户配置或启用平台 session**。下一片：B 可替换 Discovery/Platform 合同
+和 C 匿名 doctor；不把匿名不可用伪报为 zero results 或账户授权已取得。
