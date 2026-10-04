@@ -169,6 +169,13 @@ def main() -> int:
             reads = [call for call in raw_calls if call.get("name") == "web_read"]
             searches = [call for call in raw_calls if call.get("name") == "web_search"]
             adopted = evidence_tool_calls(raw_calls)
+            planned_queries = []
+            for event in inference_events[event_offset:]:
+                if event["stage"] == "research_turn_interpretation" and event.get("response"):
+                    try:
+                        planned_queries = json.loads(event["response"]).get("proposed_queries", [])
+                    except (ValueError, AttributeError):
+                        pass
             provider_counts = {}
             provider_urls = {}
             for search in searches:
@@ -201,7 +208,7 @@ def main() -> int:
                 "first_successful_read_seconds": round((datetime.fromisoformat(first_successful)
                     - datetime.fromisoformat(started_at)).total_seconds(), 3) if first_successful else None,
                 "provider_metrics": provider_counts,
-                "queries_planned": len(episode.get("query_plan", [])) if episode else 0,
+                "queries_planned": len(planned_queries), "query_plan": planned_queries,
                 "raw_results": sum(v["results"] for v in provider_counts.values()),
                 "unique_urls": len(set().union(*provider_urls.values())) if provider_urls else 0,
                 "candidate_count": sum(len(call.get("result", {}).get("results", [])) for call in searches),
