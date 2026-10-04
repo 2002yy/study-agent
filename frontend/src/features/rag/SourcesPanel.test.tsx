@@ -50,7 +50,18 @@ const baseRag: ChatResponse["rag"] = {
         title: "dependency resolver",
         line_range: "L10-L30",
         matched_terms: ["dependency", "resolver"],
-        score_breakdown: { lexical: 0.8, vector: 0.95 },
+        score_breakdown: {
+          fusion: "rrf",
+          rrf_k: 60,
+          lexical_rank: 1,
+          lexical_score: 0.8,
+          lexical_normalized: 0.82,
+          lexical_rrf: 0.016393,
+          vector_rank: 2,
+          vector_score: 0.95,
+          vector_rrf: 0.016129,
+          combined_score: 0.032522,
+        } as unknown as Record<string, number>,
       },
       {
         rank: 2,
@@ -173,7 +184,7 @@ describe("SourcesPanel three-layer ownership", () => {
     expect(screen.queryByText("candidate context must stay diagnostic")).not.toBeInTheDocument();
   });
 
-  it("shows lifecycle, candidates, scores, and context only in diagnostics", () => {
+  it("shows lifecycle, candidates, complete hybrid diagnostics, and context only in diagnostics", () => {
     renderPanel();
     fireEvent.click(screen.getByRole("tab", { name: "检索诊断" }));
 
@@ -183,6 +194,16 @@ describe("SourcesPanel three-layer ownership", () => {
     expect(within(diagnostics).getByText("相关度：0.420")).toBeVisible();
     expect(within(diagnostics).getByText("生命周期：候选")).toBeVisible();
     expect(within(diagnostics).getByText("candidate context must stay diagnostic")).toBeInTheDocument();
+    fireEvent.click(within(diagnostics).getAllByText("查看检索评分详情")[0]);
+    expect(within(diagnostics).getByText("融合方式")).toBeVisible();
+    expect(within(diagnostics).getByText("rrf")).toBeVisible();
+    expect(within(diagnostics).getByText("融合平滑常数")).toBeVisible();
+    expect(within(diagnostics).getByText("60")).toBeVisible();
+    expect(within(diagnostics).getByText("关键词排序")).toBeVisible();
+    expect(within(diagnostics).getByText("关键词融合贡献")).toBeVisible();
+    expect(within(diagnostics).getByText("语义排序")).toBeVisible();
+    expect(within(diagnostics).getByText("语义融合贡献")).toBeVisible();
+    expect(within(diagnostics).getByText("融合后评分")).toBeVisible();
     expect(screen.queryByText("FastAPI source notes")).not.toBeInTheDocument();
   });
 
