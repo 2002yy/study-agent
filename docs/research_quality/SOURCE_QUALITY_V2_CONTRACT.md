@@ -15,7 +15,28 @@ The existing Gate remains the authority for explicit answer-validation plans. Kn
 
 PyPI upload timestamps are labelled package-upload timestamps, not fabricated release announcements. SQLite changes are limited to one release section. arXiv authors come exclusively from citation metadata, missing authors stay missing, v1 submission history is distinguished from citation/update dates. A models overview without an exact-version reader cannot authorize Opus claims; absence in a page is not proof of model nonexistence.
 
-## Required evidence before merge
+## Main merge gate (user revision, 2026-10-05)
+
+Merge readiness and final qualification are separate decisions. A bounded version
+may enter main with documented gaps when verified source paths improve on main,
+actual ChatService/SQLite observations support the shipped capabilities, unsupported
+facts and interrupted prefixes cannot bypass publication checks, regressions pass,
+the reviewed head has green CI, and no known dangerous regression remains.
+
+The verified delivery paths are FastAPI, SQLite and arXiv. Official registry seeds
+are still candidates rather than evidence: exact registered identity authorizes a
+read, while only validated response metadata authorizes publication. Python and
+Opus remain documented follow-up gaps; this merge does not mark the phase CLOSED.
+Unbound research without a claim-validation plan conservatively withholds prose;
+the existing explicit answer-validation Gate remains available. This is a known
+answer-coverage limitation, not a general semantic synthesis qualification.
+
+Ship production recovery/scheduling, official-first routing, bounded readers,
+candidate/read diagnostics, publication safety and regression tests. Do not ship
+temporary benchmark scripts/manifests/artifacts, failed experimental mechanisms,
+Python hacks, unverified Opus assumptions or unrelated frontend changes.
+
+## Final qualification gate (not CLOSED)
 
 - Python official version page is readable, with actual date field.
 - FastAPI official metadata/release record identifies the requested/current version with precisely labelled date provenance.
@@ -23,6 +44,11 @@ PyPI upload timestamps are labelled package-upload timestamps, not fabricated re
 - arXiv authors have actual metadata support; absent/tampered author fields and publication spans are rejected.
 - Opus adjacent-version material cannot escape the answer gate; missing exact-version evidence yields an explicit abstention.
 - All five live observations use actual production gateway/recovery and final ChatService/SQLite publication, not browser-tool snapshots or an alternative fetch-only path. Bind base/head, source/module digests, source times and resulting answers. A clean exact-head observation is mandatory; preserve old failed rows.
-- Focused impact set, named retrieval integration gate, one final backend L3, Ruff, mypy no-new-errors, diff/scope/clean checks, exact-head CI, final review and exact-main CI. No merge merely because mocks or relevance checks pass.
+- Full benchmark qualification remains required before CLOSED. No qualification merely because mocks or relevance checks pass.
+
+The main merge still requires the focused impact set, retrieval integration gate,
+one final backend L3, Ruff, mypy no-new-errors, diff/scope/clean checks, exact-head
+CI and final review, followed by exact-main CI. Live failed samples are retained
+outside the repository and distinguish source acquisition from final publication.
 
 Premium Web Search (Exa/Tavily), free rescue and Platform Specialists remain separate follow-up layers. No paid keys, login profiles, automatic specialist promotion, new semantic judge or community-as-official authority in this batch.

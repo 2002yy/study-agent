@@ -475,6 +475,10 @@ def _recover_public_research(
                 active()
                 assessment = candidate["assessment"]
                 url = _public_url(assessment.get("url"))
+                # Registry seeds use exact project/paper identity, not lexical
+                # overlap between a human paper title and its numeric arXiv URL.
+                if phase == "official_resolver" and plan and url in plan.urls:
+                    assessment["worth_reading"] = True
                 if url in semantic_rejected_urls:
                     reject(url, "semantic_candidate_already_rejected")
                     continue

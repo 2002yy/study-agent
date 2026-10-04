@@ -91,6 +91,22 @@ def test_arxiv_metadata_does_not_guess_missing_authors():
     assert fields["citation_date"] == "2017/06/12"
 
 
+def test_registered_paper_seed_is_read_even_without_title_words_in_url(monkeypatch):
+    metadata(monkeypatch, b'<meta name="citation_title" content="Attention Is All You Need">'
+             b'<meta name="citation_arxiv_id" content="1706.03762">'
+             b'<meta name="citation_author" content="Source Author">'
+             b'<div class="submission-history">[v1] Mon, 12 Jun 2017 17:57:34 UTC</div>')
+    gateway = GeneralWebGateway()
+    monkeypatch.setattr(gateway, "search_exact", lambda *args, **kwargs: pytest.fail("registered paper must be read first"))
+    query = "Attention Is All You Need作者及首次提交日期"
+    calls = recover_public_research(gateway, query)
+    assert recovery_summary(calls)["reads"] == 1
+    answer, audit = publish_official_fields(query, calls, "Guessed Author")
+    assert "Source Author" in answer and "Guessed Author" not in answer
+    assert "Mon, 12 Jun 2017" in answer
+    assert audit["status"] == "field_backed"
+
+
 def test_adjacent_opus_version_and_unverified_fields_are_not_publishable(monkeypatch):
     metadata(monkeypatch, fastapi_payload())
     calls = recover_public_research(GeneralWebGateway(), "FastAPI当前最新版本及发布日期")

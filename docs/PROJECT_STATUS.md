@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-05 最新用户裁定：research-source-quality-v2 为 MERGE CANDIDATE，QUALIFICATION NOT CLOSED。** 本条覆盖下方历史MERGE NO_GO与五题全过才合并的规则。主线门为：较main的明确改善、已修路径真实ChatService/SQLite证据、事实与中断出口安全、回归/当前head CI/最终审查通过、无已知危险回归、缺口明示。最终资格门仍要求Python官方读取、Opus版本隔离及完整benchmark；合并不授予CLOSED或qualified judge。合同已同步 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。
+
+**本轮窄修 / 范围：** arXiv注册的官方seed不再被标题/数字URL的通用词面筛选误排；身份只授权读取，正式作者/日期仍须真实metadata与digest/span支持。负控不允许猜作者，L1 61 PASS/18.71s。临时校准脚本和manifest从合并差异删除，保存在 `D:/study-agent-validation/run-source-quality-observation.py` 和 `source-quality-v2-live-manifest.json`。无Firefly/UI/候选池扩张/付费源/登录态；Python未加hack，Opus未加入未验证版本假设。generic research无claim-bound验证计划会保守拒答，这是已知答案覆盖限制；正式ResearchRun验证计划的既有Gate保持权威。普通学习/聊天与学习授权合同不受新metadata门替代。
+
+**执行状态 / 下一步：** branch codex/research-source-quality-v2，base main5c9409；原L3 3401 PASS仅绑定旧生产head dc6430b7，不能借作本次修复的完整回归。本轮待L2/新head一次L3、Ruff/mypy、clean-head FastAPI/SQLite/arXiv真实发布，以及main对照和范围审查。完成后新PR→main，exact-head CI记录一次，green再expected-head合并；exact-main仍需验证，研究资格保持NOT CLOSED。UI #170当前head e02f67c1，已知run37225132421在本turn复核仍in_progress，独立处理，不再同turn轮询。
+
+
 **2026-10-05 research v2 候选门关闭为 NO_GO（覆盖下方执行中状态）：** 生产head `dc6430b7b0ac3201a9140d25b1c334de37a81a0a`，base main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8`，branch `codex/research-source-quality-v2`；三个生产提交9028fb89/132fe011/dc6430b7分别迁移调度与漏斗、有界reader、官方resolver与字段发布硬门。末轮L1 67 PASS及partial-commit回归16 PASS；L2 326 PASS；同一生产head完整L3 **3401 PASS/6 skipped/1133.99s**；mypy122/baseline128 NEW0、Ruff/diff-check PASS。本次追加仅记录证据，不重跑完整套件。
 
 **clean-head真实证据：** artifact `D:/study-agent-validation/source-quality-v2-live-20261005/result.json` 记录head dc6430b7、dirty_paths=[]、生产文件digest、官方读取时间、真实ChatService/SQLite发布文本与assertion refs；manifest `D:/study-agent-validation/source-quality-v2-live-manifest.json` 的五个用户验收问题取代旧八题中的五个并保留三项未执行项，明确独立acceptance诊断，不修改旧冻结manifest、不授予semantic judge资格。FastAPI和SQLite实际field-backed，PyPI日期仅标包上传日期；Python官方metadata版本3.14.0被通用3.14模型marker拒绝，日期未提取；arXiv官方seed在read前被标unrelated_or_invalid_candidate而过滤，CSDN读到正文仍不能发布作者；Opus普通正文不能代替exact-version metadata，最终abstain。**发布通过2/5，绝不合并研究，也不借全绿L3冒称五题通过。** 已有interrupt/fail及客户端partial-commit出口抑制未验证前缀，字段式答复不调用prose模型，不授权学习状态。
