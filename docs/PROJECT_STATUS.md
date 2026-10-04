@@ -31,6 +31,14 @@
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
 - **当前动作：§174 adaptive宽Discovery观察，main保持NO-GO。** 第一波12、缺口后下一规划查询24；Lookup/Standard池上限25/80，实际数量取决于provider，不能声称必得40–80。正文3/5、30/60s、≤6模型调用不变。新8×2观察使用独立manifest，完整结果与限制见§174.1及`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
 - **下一刀唯一任务：**在已获授权的研究改进范围内，先冻结并实现“有界HTTP解压 + 发布页结构化内容保留 + 从实际官方页面发现release链接”的Reader质量合同，修复FastAPI release页面缺失和SQLite表格数据被丢；保持真实链接来源、禁止编造search result/证据授权。两题Source-quality与Search-answer通过后，才做最终组合L3并按用户授权合并#161与流萤集成，验exact-main CI。
+- **§175 Reader 质量有界合同（冻结，2026-10-04，`codex/firefly-main-integration`）：**
+  - **范围**：只修复 reader **正文路径的信息丢失**。不改搜索量、不改 wallclock、不新增 provider、不开 Deep、不引入新依赖。
+  - **① HTTP 传输解压（已实现 `a8267f60`）**：fetch 路径必须处理 `Content-Encoding`（`gzip`/`x-gzip`/`deflate`/raw-deflate），**有界**（解压上限 8MB），best-effort、**永不抛异常**（未知编码/损坏/超大 → 原样返回）。禁止把压缩字节（`1f8b0800…`）交给 HTML/文本解码器。落点：`article_fetcher._fetch_html_payload` / `_fetch_text_payload` / `link_resolver`。
+  - **② 结构化内容保留**：release/download 页**表格**必须保留（`include_tables=True`，已实现 `a8267f60`）；**作者/byline** 尽力保留（extractor metadata → `author`/`article:author` meta 回退，已实现 `e3519b24`），**缺失即空、绝不编造**。
+  - **③ 真实链接来源**：release 链接只能来自**实际官方页面**（同域 anchor / sitemap / 官方 API），必须携带 provenance；**禁止编造 search result、禁止越权证据授权**。发现只影响**排序偏好**；relation/strength/binding eligibility 仍由 extractor + Gate 决定。
+  - **边界（不做）**：不改 `ACTIVE_READER_CHAIN`；不自动升级 backend；read budget 不变（正文3/5、30/60s、≤6 模型调用）；不把 read 成功当 semantic adequacy。
+  - **验收 golden**：① Python-3140 release 页（gzip + 版本表格）② FastAPI 发布导航（真实 release 链接）③ 论文作者缺失（byline 保留）。三项通过 + focused + L1；`git diff --check` 单独确认。
+  - **状态**：① ② 已实现并推送（`a8267f60` CI success / `e3519b24` in_progress）；③ 待实现（须先按本合同冻结排序契约）。
 - **当前先决门：**Discovery工程L1最终117 passed/40.37s，named L2 336 passed/129.94s，最后pool/cooldown局部修复已focused覆盖；frontend389 tests/build，mypy122/baseline128无新增错误，package1626，secret scan0，Ruff/diff-check通过。Firefly desktop/390×667、锁韧/计算、配置→一金建议与输入框命中通过。Source-quality / Search-answer未闭合。组合L3先前启动后因locale不足误判及用户新增adaptive范围失效而取消，没有有效组合L3，不引用旧3345/6代替。主线不合并、不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
