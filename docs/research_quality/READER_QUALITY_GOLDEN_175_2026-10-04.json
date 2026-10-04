@@ -1,0 +1,56 @@
+{
+  "contract": "§175 Reader quality bounded contract",
+  "branch": "codex/firefly-main-integration",
+  "head": "c1f9a612",
+  "date": "2026-10-04",
+  "kind": "golden_evidence_run",
+  "note": "Not a qualification or release label. Exercises the three contract goldens against the real pages over the local wigolo daemon.",
+  "daemon": {
+    "command": "WIGOLO_RERANKER=off npx -y wigolo@0.2.1 serve",
+    "health_path": "/health",
+    "fetch_path": "/v1/fetch"
+  },
+  "goldens": {
+    "transport_decompression": {
+      "url": "https://www.python.org/downloads/release/python-3140/",
+      "server_content_encoding": "gzip",
+      "server_first_bytes_hex": "1f8b0800",
+      "reader_html_chars": 53365,
+      "reader_has_mojibake": false,
+      "result": "PASS",
+      "meaning": "The server really sends gzip with the documented 1f8b0800 signature; the reader now returns real HTML instead of binary garbage."
+    },
+    "structured_tables": {
+      "url": "https://www.python.org/downloads/release/python-3140/",
+      "has_3140": true,
+      "has_3141": false,
+      "result": "PASS",
+      "meaning": "The release version that lives in the page table survives extraction; a non-existent sibling version is correctly absent."
+    },
+    "author_byline": {
+      "python_org_release_page_author": "",
+      "github_release_page_author": "Fastapi",
+      "result": "PASS",
+      "meaning": "A page with no byline reports empty (never guessed); a page with an author keeps it."
+    },
+    "release_link_discovery": {
+      "page": "https://www.python.org/downloads/release/python-3140/",
+      "terms": ["python", "release", "3140"],
+      "discovered": [
+        "https://www.python.org/downloads/release/python-3148",
+        "https://discuss.python.org/t/python-3-14-0-alpha-1/68039",
+        "https://mail.python.org/mailman/listinfo/python-dev",
+        "https://policies.python.org/python.org/Privacy-Notice",
+        "https://www.python.org/events/python-events"
+      ],
+      "result": "PASS",
+      "meaning": "A real release URL is discovered from the actual official page and ranks first; discovery is a ranking preference and carries the URL as provenance."
+    }
+  },
+  "verdict": "ALL_GOLDENS_PASS",
+  "limitations": [
+    "Single run per URL; no repeat/stability sampling.",
+    "Release-link discovery validated on one official page only.",
+    "Not a semantic-adequacy or release label."
+  ]
+}
