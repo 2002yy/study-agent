@@ -4,13 +4,109 @@
   "repetitions": 2,
   "max_executions": 16,
   "cases": [
-    {"id": "opus-comparison", "tier": "standard", "query": "联网研究：opus5.5是什么？性能如何？对比？", "aspects": ["准确版本身份", "性能数字与条件", "比较双方与限制"]},
-    {"id": "python-release", "tier": "lookup", "query": "联网研究：Python 3.14什么时候发布？", "aspects": ["对应版本", "官方发布日期"]},
-    {"id": "fastapi-release", "tier": "lookup", "query": "联网研究：FastAPI当前最新版本及发布日期是什么？", "aspects": ["当前版本", "官方发布记录及日期"]},
-    {"id": "sqlite-release", "tier": "lookup", "query": "联网研究：SQLite当前最新版本及发布日期是什么？", "aspects": ["当前版本", "官方发布记录及日期"]},
-    {"id": "http-retry", "tier": "standard", "query": "联网研究：RFC 9110中GET和POST重试的条件对比，有什么限制？", "aspects": ["幂等性", "自动重试条件", "例外限制"]},
-    {"id": "attention-paper", "tier": "lookup", "query": "联网研究：Attention Is All You Need论文的作者及首次提交日期是什么？", "aspects": ["原始论文作者", "首次提交日期"]},
-    {"id": "searxng-license", "tier": "lookup", "query": "联网研究：SearXNG开源许可证是什么？", "aspects": ["仓库许可证", "准确版本或许可标识"]},
-    {"id": "earthquake-latest", "tier": "lookup", "query": "联网研究：USGS过去一小时全球地震feed中最新事件的时间、地点和震级是什么？", "aspects": ["读取时点", "最新事件时间", "地点与震级", "缺失字段及并列限制"]}
+    {
+      "id": "opus-comparison",
+      "tier": "standard",
+      "query": "联网研究：opus5.5是什么？性能如何？对比？",
+      "aspects": [
+        "准确版本身份",
+        "性能数字与条件",
+        "比较双方与限制"
+      ],
+      "official_domains": [
+        "anthropic.com",
+        "platform.claude.com"
+      ]
+    },
+    {
+      "id": "python-release",
+      "tier": "lookup",
+      "query": "联网研究：Python 3.14什么时候发布？",
+      "aspects": [
+        "对应版本",
+        "官方发布日期"
+      ],
+      "official_domains": [
+        "python.org"
+      ]
+    },
+    {
+      "id": "fastapi-release",
+      "tier": "lookup",
+      "query": "联网研究：FastAPI当前最新版本及发布日期是什么？",
+      "aspects": [
+        "当前版本",
+        "官方发布记录及日期"
+      ],
+      "official_domains": [
+        "fastapi.tiangolo.com",
+        "pypi.org"
+      ]
+    },
+    {
+      "id": "sqlite-release",
+      "tier": "lookup",
+      "query": "联网研究：SQLite当前最新版本及发布日期是什么？",
+      "aspects": [
+        "当前版本",
+        "官方发布记录及日期"
+      ],
+      "official_domains": [
+        "sqlite.org"
+      ]
+    },
+    {
+      "id": "http-retry",
+      "tier": "standard",
+      "query": "联网研究：RFC 9110中GET和POST重试的条件对比，有什么限制？",
+      "aspects": [
+        "幂等性",
+        "自动重试条件",
+        "例外限制"
+      ],
+      "official_domains": [
+        "rfc-editor.org",
+        "ietf.org"
+      ]
+    },
+    {
+      "id": "attention-paper",
+      "tier": "lookup",
+      "query": "联网研究：Attention Is All You Need论文的作者及首次提交日期是什么？",
+      "aspects": [
+        "原始论文作者",
+        "首次提交日期"
+      ],
+      "official_domains": [
+        "arxiv.org"
+      ]
+    },
+    {
+      "id": "searxng-license",
+      "tier": "lookup",
+      "query": "联网研究：SearXNG开源许可证是什么？",
+      "aspects": [
+        "仓库许可证",
+        "准确版本或许可标识"
+      ],
+      "official_domains": [
+        "github.com",
+        "docs.searxng.org"
+      ]
+    },
+    {
+      "id": "earthquake-latest",
+      "tier": "lookup",
+      "query": "联网研究：USGS过去一小时全球地震feed中最新事件的时间、地点和震级是什么？",
+      "aspects": [
+        "读取时点",
+        "最新事件时间",
+        "地点与震级",
+        "缺失字段及并列限制"
+      ],
+      "official_domains": [
+        "usgs.gov"
+      ]
+    }
   ]
 }

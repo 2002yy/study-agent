@@ -78,6 +78,7 @@ def main() -> int:
     from src.application.runtime_repository import get_chat_service, get_web_lookup_service, get_web_tool_agent
     from src.llm_client import get_provider_settings
     from src.web.recovery_candidates import canonical_document, source_family
+    from src.web.discovery import in_scope
     from src.web.semantic_recovery import configured_completion
     from src.web.tool_evidence import evidence_tool_calls
 
@@ -188,6 +189,11 @@ def main() -> int:
                     entry["reasons"].append(stat.get("reason", ""))
                     provider_urls.setdefault(name, set()).update(stat.get("urls", []))
             adopted_requested = {call.get("arguments", {}).get("url") for call in adopted}
+            official_domains = tuple(case.get("official_domains", []))
+            candidates_all = [item for search in searches for item in search.get("result", {}).get("results", [])]
+            official_urls = {item["url"] for item in candidates_all if any(in_scope(item.get("url", ""), domain) for domain in official_domains)}
+            official_reads = [call for call in reads if call.get("arguments", {}).get("url") in official_urls]
+            official_adopted = [call for call in adopted if call.get("arguments", {}).get("url") in official_urls]
             for name, entry in provider_counts.items():
                 discovered = provider_urls[name]
                 entry["unique_urls"] = len(discovered)
@@ -208,6 +214,10 @@ def main() -> int:
                 "first_successful_read_seconds": round((datetime.fromisoformat(first_successful)
                     - datetime.fromisoformat(started_at)).total_seconds(), 3) if first_successful else None,
                 "provider_metrics": provider_counts,
+                "official_candidate_found": bool(official_urls), "official_candidate_urls": sorted(official_urls),
+                "official_bodies_read": len(official_reads), "official_bodies_adopted": len(official_adopted),
+                "question_covered": "manual_review_required",
+                "domain_diversity": len({source_family(item.get("url", "")) for item in candidates_all}),
                 "queries_planned": len(planned_queries), "query_plan": planned_queries,
                 "raw_results": sum(v["results"] for v in provider_counts.values()),
                 "unique_urls": len(set().union(*provider_urls.values())) if provider_urls else 0,
