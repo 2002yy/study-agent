@@ -33,48 +33,95 @@ def percentile(values: list[float], fraction: float) -> float | None:
     return round(sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)], 3) if values else None
 
 
-def _resolution_trace_from_context(searches: list[dict], reads: list[dict]) -> dict:
-    """§174.3.1 observation-only per-candidate trace, from the runner's own facts.
+def _resolution_trace_from_context(ctx: dict, searches: list[dict], reads: list[dict]) -> dict:
+    """§174.3.1 observation-only per-candidate trace.
 
-    Candidates come from the search calls and reads from the read calls, both of which the
-    runner already holds. This path does not expose the reader-chain resolution facts, so a
-    candidate's disposition is reported as ``not_observed`` rather than inferred. Never
-    raises.
+    Prefers the dispositions the decision site itself recorded (the structural gate plus
+    the worth-reading gate, with the code's own reasons). Falls back to counting the
+    runner's search results as ``not_observed`` when that wiring is absent - the fallback
+    is the last resort, not the answer. Never raises.
     """
 
     try:
-        candidates = [
-            item
-            for call in searches
-            for item in ((call.get("result") or {}).get("results") or [])
-            if isinstance(item, dict)
-        ]
+        dispositions = ctx.get("candidate_dispositions")
+        if isinstance(dispositions, list) and dispositions:
+            entries = []
+            for index, item in enumerate(dispositions):
+                if not isinstance(item, dict):
+                    continue
+                state = str(item.get("state") or "not_observed")
+                reason = str(item.get("reason") or "")
+                entries.append(
+                    {
+                        "candidate_index": index,
+                        "candidate_id": str(item.get("candidate_id") or ""),
+                        "state": state,
+                        "entered_read": state == "dispatched",
+                        "blocking_stage": (
+                            ""
+                            if state == "dispatched"
+                            else "dispatch"
+                            if state == "eligible_for_read"
+                            else "assessment"
+                            if state.startswith("filtered")
+                            else "read_eligibility"
+                            if state.startswith("eligible")
+                            else "not_observed"
+                        ),
+                        "skip_reason": reason,
+                        "defer_reason": reason if state != "dispatched" else "",
+                        "final_status": (
+                            "selected"
+                            if state == "dispatched"
+                            else "pending"
+                            if state == "eligible_for_read"
+                            else "rejected"
+                        ),
+                    }
+                )
+            source = "web_lookup_service.candidate_dispositions"
+        else:
+            candidates = [
+                item
+                for call in searches
+                for item in ((call.get("result") or {}).get("results") or [])
+                if isinstance(item, dict)
+            ]
+            entries = [
+                {
+                    "candidate_index": index,
+                    "candidate_id": str(item.get("url") or ""),
+                    "state": "not_observed",
+                    "entered_read": False,
+                    "blocking_stage": "not_observed",
+                    "skip_reason": "",
+                    "defer_reason": "",
+                    "final_status": "pending",
+                }
+                for index, item in enumerate(candidates)
+            ]
+            source = "runner.search_calls_fallback"
+
+        state_counts: dict[str, int] = {}
+        reason_counts: dict[str, int] = {}
+        for entry in entries:
+            state_counts[entry["state"]] = state_counts.get(entry["state"], 0) + 1
+            reason = entry["skip_reason"] or entry["blocking_stage"] or entry["state"]
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
         attempted = len(reads)
-        entries = [
-            {
-                "candidate_index": index,
-                "candidate_id": str(item.get("url") or ""),
-                "state": "not_observed",
-                "entered_read": False,
-                "blocking_stage": "not_observed",
-                "skip_reason": "",
-                "defer_reason": "",
-                "final_status": "pending",
-            }
-            for index, item in enumerate(candidates)
-        ]
-        state_counts = {"not_observed": len(entries)} if entries else {}
         zero = ""
         if entries and attempted == 0:
-            zero = f"0 reads = {len(entries)}\u00d7not_observed"
+            zero = "0 reads = " + " + ".join(
+                f"{count}\u00d7{state}" for state, count in sorted(state_counts.items())
+            )
         return {
             "candidate_count": len(entries),
             "attempted_reads": attempted,
             "state_counts": state_counts,
-            "reason_counts": dict(state_counts),
+            "reason_counts": reason_counts,
             "zero_read_reason_summary": zero,
             "candidates": entries,
-            "source": "runner.search_calls",
+            "source": source,
         }
     except Exception:
         return {}
@@ -294,7 +341,7 @@ def main() -> int:
                 # §174.3.1 observation-only: per-candidate reasons + zero-read
                 # summary, so a later zero-read run is explainable offline.
                 "candidate_resolution_trace": _resolution_trace_from_context(
-                    searches, reads
+                    getattr(run, "research_context", {}) or {}, searches, reads
                 ),
                 "research_context_keys": sorted(
                     (getattr(run, "research_context", {}) or {}).keys()
