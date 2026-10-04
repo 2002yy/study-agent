@@ -94,6 +94,15 @@ def test_large_tutorial_pool_without_official_source_is_insufficient():
     assert "weak_top_candidates" in quality["reasons"]
 
 
+def test_all_degraded_providers_are_external_failure_not_missing_configuration(monkeypatch):
+    monkeypatch.setattr("src.web.tool_gateway.searxng_enabled", lambda: True)
+    result = GeneralWebGateway().search_exact("Python", excluded_providers=frozenset(
+        {"searxng", "bing_rss", "duckduckgo_html"}))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "providers_degraded_for_run"
+    assert result["providers_attempted"] == []
+
+
 def test_adaptive_second_query_preserves_reads_for_discovered_official_release(monkeypatch):
     query = "FastAPI当前最新版本及发布日期是什么？"
     monkeypatch.setattr("src.web.tool_gateway.searxng_enabled", lambda: True)

@@ -218,7 +218,7 @@ class GeneralWebGateway:
             reason = "results_found"
         elif not providers_enabled:
             status = "unavailable"
-            reason = "no_search_provider_enabled"
+            reason = "providers_degraded_for_run" if outcome.get("providers_configured") else "no_search_provider_enabled"
         elif provider_errors and len(provider_errors) >= len(
             outcome["providers_attempted"]
         ):
@@ -378,20 +378,22 @@ class GeneralWebGateway:
                     future.cancel()
                 pool.shutdown(wait=False, cancel_futures=True)
 
+        primary_enabled = searxng_enabled()
         rescues = [provider for provider, enabled in (
             ("bing_rss", _env_flag("WEB_ENABLE_BING_RSS", default=True)),
             ("duckduckgo_html", _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True))) if enabled]
+        configured = (["searxng"] if primary_enabled else []) + rescues
         rescues = [provider for provider in rescues if provider not in excluded_providers]
         for provider in sorted(excluded_providers):
             stats.append({"provider": provider, "attempted": False, "results": 0, "unique_urls": 0, "reason": "run_local_provider_degraded"})
-        if searxng_enabled() and "searxng" not in excluded_providers:
+        if primary_enabled and "searxng" not in excluded_providers:
             # Reserve half the stage for rescue if the metasearch service is
             # blocked or only returns homogeneous / irrelevant candidates.
             wave(["searxng"], min(provider_timeout, total_timeout / 2 if rescues else total_timeout))
         if not discovery_sufficient(results, query, limit):
             wave(rescues, max(0, min(provider_timeout, deadline - time.monotonic() - min(.15, total_timeout * .05))))
         return {"results": rank_candidates(results, query, limit), "provider_errors": errors,
-                "providers_attempted": attempted, "provider_stats": stats}
+                "providers_attempted": attempted, "provider_stats": stats, "providers_configured": configured}
 
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None
