@@ -33,11 +33,18 @@ export function researchStepLabel(value: string | null | undefined): string {
 }
 export function scoreLabel(value: string): string {
   const labels: Record<string, string> = {
-    score: "相关度", relevance: "相关度", keyword: "关键词匹配",
-    keyword_score: "关键词匹配", lexical: "关键词匹配", lexical_score: "关键词匹配",
-    semantic: "语义相关度", semantic_score: "语义相关度", vector: "语义相关度",
+    score: "相关度", relevance: "相关度",
+    keyword: "关键词匹配", keyword_score: "关键词匹配",
+    lexical: "关键词匹配", lexical_score: "关键词原始评分",
+    lexical_rank: "关键词排序", lexical_normalized: "关键词归一化评分",
+    lexical_rrf: "关键词融合贡献",
+    semantic: "语义相关度", semantic_score: "语义相关度",
+    vector: "语义相关度", vector_score: "语义原始评分",
+    vector_rank: "语义排序", vector_rrf: "语义融合贡献",
     authority: "来源权威度", authority_score: "来源权威度",
     bm25: "关键词匹配", rerank: "综合排序评分", total: "综合评分",
+    fusion: "融合方式", rrf_k: "融合平滑常数",
+    combined_score: "融合后评分", backend_score: "增强语义评分",
   };
   return labelFor(labels, value, "其他评分");
 }
