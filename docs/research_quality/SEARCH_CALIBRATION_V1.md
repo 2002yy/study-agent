@@ -192,3 +192,22 @@ SearXNG360search engine定向可发现SQLite changes/releaselog；不是默认ge
 来自真实读过HTML、受public/DNS/redirect与同源/预算限制，不伪造search
 candidate、不把discovery-only导航页放进答案证据。两题真实Source-quality/
 Search-answer通过后，才做有效最终组合L3及main合并。
+
+
+### 最终adaptive 8×2：Source-quality尚未通过
+
+artifact `D:/study-agent-validation/adaptive-discovery-calibration-20261004/result.json`，
+候选1dc2ac52。16/16执行，无异常；官方域候选16/16，官方域读过12/16、
+采用7/16，最大unique22，不冒充40–80实际召回或完整回答覆盖。
+最大reads5，semantic+writer最多4，elapsed中位15.406s/最大31.281s。
+
+FastAPI0/2有效正文，SQLite0/2，Python1/2；Opus、论文、许可各2/2 related
+正文，但related不是assertion support。arXiv提取正文没有作者名单，回答
+仍引用它列8作者；Opus相邻版本页也被related model标全RQ相关。
+因此Search-answer不批PASS。详细四门表见PROJECT_STATUS §174.2。
+
+新的确定根因：Python官方release响应gzip（`1f8b0800`），现路径未解压
+即HTML提取，得到二进制乱码；SQLite下载表格被include_tables=False丢。
+下一片须以有界transport decoding + 结构化内容/元数据 + 实际HTML
+release链接发现修复Reader质量；不能再仅归因搜索量或提高wallclock。
+Draft PR164承载当前可review代码，main仍NO-GO。

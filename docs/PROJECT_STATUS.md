@@ -30,7 +30,7 @@
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
 - **当前动作：§174 adaptive宽Discovery观察，main保持NO-GO。** 第一波12、缺口后下一规划查询24；Lookup/Standard池上限25/80，实际数量取决于provider，不能声称必得40–80。正文3/5、30/60s、≤6模型调用不变。新8×2观察使用独立manifest，完整结果与限制见§174.1及`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
-- **下一刀唯一任务：**在已获授权的研究改进范围内，先冻结并实现“发布页结构化内容保留 + 从实际官方页面发现release链接”的有界合同，修复FastAPI release页面缺失和SQLite表格数据被丢；保持真实链接来源、禁止编造search result/证据授权。两题Source-quality与Search-answer通过后，才做最终组合L3并按用户授权合并#161与流萤集成，验exact-main CI。
+- **下一刀唯一任务：**在已获授权的研究改进范围内，先冻结并实现“有界HTTP解压 + 发布页结构化内容保留 + 从实际官方页面发现release链接”的Reader质量合同，修复FastAPI release页面缺失和SQLite表格数据被丢；保持真实链接来源、禁止编造search result/证据授权。两题Source-quality与Search-answer通过后，才做最终组合L3并按用户授权合并#161与流萤集成，验exact-main CI。
 - **当前先决门：**Discovery工程L1最终117 passed/40.37s，named L2 336 passed/129.94s，最后pool/cooldown局部修复已focused覆盖；frontend389 tests/build，mypy122/baseline128无新增错误，package1626，secret scan0，Ruff/diff-check通过。Firefly desktop/390×667、锁韧/计算、配置→一金建议与输入框命中通过。Source-quality / Search-answer未闭合。组合L3先前启动后因locale不足误判及用户新增adaptive范围失效而取消，没有有效组合L3，不引用旧3345/6代替。主线不合并、不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -18474,8 +18474,52 @@ Bing多个不同release/changelog/quoted/path queries返回几乎相同教程列
 SearXNG服务healthy但general默认引擎受限。独立engine probe 360search可
 找到SQLite changes/releaselog，FastAPI仍主页/教程；未偷偷改部署配置。
 
-当前新的完整adaptive 8×2使用候选1dc2ac52独立隔离DB，artifact目录
-`D:/study-agent-validation/adaptive-discovery-calibration-20261004`；结果完成后
-收口。旧观察/定向观察独立保留。新的official指标按manifest publisher域/
+最终完整adaptive 8×2使用候选1dc2ac52独立隔离DB，artifact目录
+`D:/study-agent-validation/adaptive-discovery-calibration-20261004`，已完成16/16。旧观察/定向观察独立保留。新的official指标按manifest publisher域/
 repo namespace判断候选，不把任意github.com仓库都认证为官方，更不授权
 claim支持、formal judge或release benchmark。用户合并条件未满足前不merge。
+
+
+### 174.2 最终adaptive观察结果与远端review入口
+
+实现/诊断候选`1dc2ac525445aad95732171af33308332b2c2b0b`；final docs head
+以Git/PR为准。8题×2无执行异常，相关正文7/16，**不等于7题回答通过**。
+官方域/namespace候选16/16；官方域正文读过12/16；官方正文采用7/16。
+实际最大unique URLs22，未达到40–80目标召回，80只是容量。最大reads5、
+观察到的semantic+writer calls4；总耗时中位15.406s、最大31.281s。
+来源为实时服务；不同分布/运行时点不能按6→7宣称因果收益。
+
+| 题型（每题2轮） | 官方域候选 | 官方正文读过 | 官方正文采用 | Search-answer裁定 |
+| --- | --- | --- | --- | --- |
+| Opus身份/性能/比较 | 2/2 | 2/2 | 2/2 | 未批准；相邻版本模型页也被related judge接受，不能等同完整数字支持 |
+| Python发布日期 | 2/2 | 2/2 | 1/2 | 不稳定；一轮正确发布页正文成为二进制乱码 |
+| FastAPI版本/日期 | 2/2 | 0/2 | 0/2 | FAIL；有官方主页，没有可用release正文 |
+| SQLite版本/日期 | 2/2 | 2/2 | 0/2 | FAIL；版本表格在正文提取中被丢弃 |
+| RFC重试条件 | 2/2 | 0/2 | 0/2 | FAIL；相关官方候选没有进入有效读取 |
+| Attention论文作者/日期 | 2/2 | 2/2 | 2/2 | FAIL grounding；正文含首次提交日期，却没有作者名单，回答仍列作者并引用元数据 |
+| SearXNG许可 | 2/2 | 2/2 | 2/2 | 核心许可有readme/元数据支持；额外法律解读未审，不作整答PASS |
+| 最新USGS地震 | 2/2 | 2/2 | 0/2 | FAIL；网页不能替代实时结构化feed |
+
+Python wire最小验证：官方python-3140 URL返回`Content-Encoding:gzip`，
+前20bytes以`1f8b0800`起始。当前正文路径未解压即作HTML解析；这不是
+CLI中文编码问题。JSON artifact中的中文答案无replacement字符，stdout
+诊断须用`python -X utf8`。论文arXiv正文2255chars，首次日期存在，但
+Ashish Vaswani/Noam Shazeer/Illia Polosukhin均不存在；其回答列作者不能
+以“related_to_rq”辩称已grounded。
+
+裁定：**Discovery工程GO、Firefly UI GO；Source-quality / Search-answer
+NO-GO，main仍5a3199a。** 新完整观察不是qualification/release label。
+组合L3仍待合格生产候选，旧跑因scope失效取消；没有宣称完整回归PASS。
+
+集成代码已push到`codex/firefly-main-integration`，Draft PR
+[#164](https://github.com/2002yy/study-agent/pull/164)暂以#161分支为base，
+独立diff含流萤既有提交与Discovery改进。#161 exact-head50b54259 CI success，
+不覆盖集成head。#164 exact-head CI单次快照输出至
+`D:/study-agent-validation/adaptive-discovery-delivery.json`；未完成前不称远端交付。
+
+唯一下一执行片：有界Reader质量合同（HTTP压缩解码、结构化表格/头部
+元数据保留、实际官方HTML链接发现及真实边provenance），保持read3/5、
+30/60s、model≤6、公网/DNS/redirect检查，不新增搜索provider或开启Deep。
+先以Python gzip、SQLite表格、FastAPI发布导航、论文作者缺失为golden
+negative controls；修完再用原问题/正文/断言验证两题发布门，最终L3与
+exact-head/exact-main门仍是main合并前必需。
