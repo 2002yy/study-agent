@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
-from src.web.discovery import rank_candidates
+from src.web.discovery import discovery_sufficient, rank_candidates
 from src.web.tool_gateway import GeneralWebGateway
 
 
@@ -69,3 +69,8 @@ def test_nonversion_homepage_cannot_outrank_exact_release():
                             item("https://python.org/downloads/python-3140/", "Python 3.14 release"),
                             item("https://python.org/downloads/python-3130/", "Python 3.13 release")], "Python 3.14", 12)
     assert "3140" in rows[0]["url"]
+
+
+def test_locale_variants_cannot_close_primary_discovery():
+    rows = [item(f"https://docs.python.org/{locale}/3.14/release") for locale in ("en", "zh", "ja")]
+    assert not discovery_sufficient(rows, "site:python.org Python 3.14", 12)

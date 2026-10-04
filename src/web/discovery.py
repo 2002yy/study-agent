@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from src.web.tool_evidence import _public_url
+from src.web.recovery_candidates import canonical_document
 
 
 def scoped_domain(query: str) -> str:
@@ -76,5 +77,6 @@ def rank_candidates(items: list[dict[str, Any]], query: str, limit: int) -> list
 def discovery_sufficient(items: list[dict[str, Any]], query: str, limit: int) -> bool:
     good = [item for item in rank_candidates(items, query, limit) if candidate_score(item, query) >= .65]
     hosts = {(urlparse(item["url"]).hostname or "").lower() for item in good}
+    documents = {canonical_document(item["url"]) for item in good}
     # A scoped official query can intentionally return one source family.
-    return len(good) >= min(3, limit) and (bool(scoped_domain(query)) or len(hosts) >= 2)
+    return len(documents) >= min(3, limit) and (bool(scoped_domain(query)) or len(hosts) >= 2)
