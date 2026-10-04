@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 from src.web.source_assessment import assess_sources
 from src.web.recovery_candidates import CandidateScheduler
 from src.web.tool_evidence import _public_url, evidence_tool_calls
+from src.web.semantic_recovery import ResearchSemanticSession
+from src.web.query_normalizer import normalize_web_query
 
 
 class RecoveryCancelled(RuntimeError):
@@ -90,6 +92,17 @@ def _target_pattern(target: tuple[str, str]) -> re.Pattern[str]:
 
 def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
     spaced = re.sub(r"(?<=[A-Za-z])(?=\d)", " ", query)
+    if model_targets(spaced):
+        # Keep named models/comparison subjects while removing standalone
+        # question clauses that swamp a search engine's entity lookup. The
+        # full original question remains the answer target and durable query.
+        spaced = re.sub(
+            r"(?:是什么|性能如何|表现如何|性能怎么样|对比(?:如何)?)"
+            r"(?=[？?，,；;。]|$)",
+            " ",
+            spaced,
+        )
+        spaced = " ".join(re.sub(r"[？?，,；;。]+", " ", spaced).split())
     if re.search(r"opus|claude|sonnet|haiku", spaced, re.IGNORECASE):
         if "claude" not in spaced.casefold():
             spaced = f"Claude {spaced}"
@@ -98,24 +111,99 @@ def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
 
 
 def recover_public_research(
+    gateway: Any, query: str, *,
+    should_cancel: Callable[[], bool] = lambda: False,
+    budget: RecoveryBudget | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+    started_at: float | None = None, answer_deadline: float | None = None,
+    semantic_session: ResearchSemanticSession | None = None,
+    query_plan: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
+    calls = _recover_public_research(
+        gateway, query, should_cancel=should_cancel, budget=budget, monotonic=monotonic,
+        started_at=started_at, answer_deadline=answer_deadline,
+        semantic_session=semantic_session, query_plan=query_plan,
+    )
+    if semantic_session is None:
+        return calls
+    reads = [call for call in calls if call.get("name") == "web_read"
+             and call.get("result", {}).get("ok") is True
+             and call["result"].get("answer_eligible") is not False]
+    # All provisional bodies stay outside persisted/writer evidence until this
+    # one batched read-after-fetch check completes. No model can rescue a body
+    # already rejected by deterministic provenance/version/dedup checks.
+    for call in reads:
+        call["result"]["answer_eligible"] = False
+        call["result"]["adequacy_reason"] = "semantic_relevance_pending"
+    if reads:
+        try:
+            decisions = semantic_session.relevance("research_body_relevance", [
+                {"id": f"body-{i}", "url": str(call["arguments"]["url"]),
+                 "text": str(call["result"].get("content") or call["result"].get("readme") or "")[:1800],
+                 "truncated": "true" if len(str(call["result"].get("content") or call["result"].get("readme") or "")) > 1800 else "false"}
+                for i, call in enumerate(reads)
+            ])
+            if should_cancel():
+                raise RecoveryCancelled("cancelled")
+            for i, call in enumerate(reads):
+                rqs = decisions[f"body-{i}"]
+                call["result"].update(answer_eligible=bool(rqs), related_rq_ids=rqs,
+                                      adequacy_reason="related_to_rq_not_claim_support" if rqs else "semantic_unrelated_body")
+                semantic_session.body_questions.update(rqs)
+        except Exception:
+            for call in reads:
+                call["result"]["adequacy_reason"] = "semantic_relevance_unavailable"
+    summary = recovery_summary(calls) or {}
+    accepted = evidence_tool_calls(calls)
+    if should_cancel():
+        for call in reads:
+            call["result"]["answer_eligible"] = False
+        summary.update(status="cancelled", stop_reason="CANCELLED", reason="user_cancelled")
+    elif accepted:
+        required = {q["id"] for q in semantic_session.episode.questions} if semantic_session.episode else set()
+        targets = summary.get("target_coverage", {})
+        related_all = required <= semantic_session.body_questions and targets.get("covered", 0) >= targets.get("required", 0)
+        summary.update(status="read_backed" if related_all else "partial",
+                       stop_reason="READ_BACKED_PROGRESS", reason="rq_related_bodies_not_adequacy")
+    elif summary.get("status") in {"read_backed", "evidence_saturation"}:
+        summary.update(status="candidate_exhausted", stop_reason="CANDIDATE_EXHAUSTED", reason="no_related_body")
+    summary["question_coverage"] = {"related": sorted(semantic_session.body_questions), "kind": "relevance_only"}
+    summary["semantic_model_calls"] = len(semantic_session.events)
+    calls.append({"name": "research_recovery", "arguments": {"query": query}, "result": summary})
+    return calls
+
+
+def _recover_public_research(
     gateway: Any,
     query: str,
     *,
     should_cancel: Callable[[], bool] = lambda: False,
     budget: RecoveryBudget | None = None,
     monotonic: Callable[[], float] = time.monotonic,
+    started_at: float | None = None,
+    answer_deadline: float | None = None,
+    semantic_session: ResearchSemanticSession | None = None,
+    query_plan: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     budget = budget or recovery_budget(query)
-    started = monotonic()
-    deadline = started + budget.hard_seconds - budget.finalization_reserve
+    started = monotonic() if started_at is None else started_at
+    deadline = min(started + budget.hard_seconds, answer_deadline or float("inf")) - budget.finalization_reserve
+    if semantic_session is not None:
+        deadline -= 5  # body-batch time is part of research, never writer reserve
     calls: list[dict[str, Any]] = []
     scheduler = CandidateScheduler()
     body_digests: set[str] = set()
+    semantic_rejected_urls: set[str] = set()
+    pending_candidates: list[dict[str, Any]] = []
     covered: set[int] = set()
     searches = reads = used_chars = recovery_reads = authority_queries = rewrites = 0
     provider_failures = 0
-    rewritten, domains = _rewrite(query)
+    search_topic = normalize_web_query(query).canonical_query
+    rewritten, domains = _rewrite(search_topic)
     markers = [_target_pattern(target) for target in model_targets(rewritten)]
+    # A bare short Chinese topic must appear whole in the body. Matching only
+    # one character (e.g. a surname dictionary entry) is not topic evidence.
+    literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
     authority = " OR ".join(f"site:{domain}" for domain in domains)
     authority_query = (
         f"({authority}) {rewritten}"
@@ -125,7 +213,7 @@ def recover_public_research(
     # Initial/alternate reads cannot consume the final authority recovery slots.
     phases = (
         [
-            ("initial", query, 2),
+            ("initial", search_topic, 2),
             (
                 "authoritative_domain",
                 f"{authority_query} release models documentation",
@@ -134,7 +222,7 @@ def recover_public_research(
         ]
         if budget.mode == "lookup"
         else [
-            ("initial", query, 2),
+            ("initial", search_topic, 2),
             ("query_rewrite", f"{rewritten} official", 1),
             ("authoritative_domain", authority_query, 1),
             (
@@ -144,6 +232,17 @@ def recover_public_research(
             ),
         ]
     )
+    if query_plan:
+        # Apply the existing entity spelling normalizer to *search advice*, not
+        # the immutable original question. Official recovery runs before the
+        # comparison tail can consume all remaining reads.
+        query_plan = [{**row, "query": _rewrite(normalize_web_query(row["query"]).canonical_query)[0]}
+                      for row in query_plan]
+        planned = query_plan[: min(3, budget.max_queries - 1)]
+        official_query = f"site:{domains[0]} {rewritten}" if domains else authority_query
+        phases = [("semantic_query", planned[0]["query"], 2),
+                  ("authoritative_domain", official_query, 1)] + [
+                      ("semantic_query", row["query"], 1) for row in planned[1:]]
 
     def active() -> None:
         if should_cancel():
@@ -179,6 +278,7 @@ def recover_public_research(
                 "name": "research_recovery",
                 "arguments": {"query": query},
                 "result": {
+                    "query": query,
                     "status": state,
                     "reason": reason,
                     "mode": budget.mode,
@@ -262,6 +362,7 @@ def recover_public_research(
                         "query": search_query,
                         "max_results": 5,
                         "recovery_stage": phase,
+                        "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query],
                     },
                     "result": result,
                 }
@@ -287,12 +388,47 @@ def recover_public_research(
                     str(candidate["assessment"].get("url", "")),
                     candidate["assessment"]["rejection_reason"],
                 )
+            if semantic_session is not None:
+                # Discovery survives a phase's read cap. A release page found
+                # behind a blocked docs locale must not disappear when the next
+                # query returns only homepages or duplicate language variants.
+                combined = [*pending_candidates, *selected]
+                unique = {str(row["assessment"].get("url", "")): row for row in combined}
+                selected = list(unique.values())
             selected = scheduler.order(selected, domains)
+            if markers:
+                # Exact named versions outrank adjacent versions even when the
+                # advisory relevance judge considers the whole family related.
+                selected.sort(key=lambda row: not any(marker.search(
+                    str(row["item"].get("title", "")) + " " + str(row["item"].get("snippet", ""))
+                    + " " + str(row["assessment"].get("url", ""))) for marker in markers))
+            if semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
+                window = selected[:5]
+                try:
+                    relevance = semantic_session.relevance("research_candidate_relevance", [
+                        {"id": f"candidate-{i}", "url": str(row["assessment"].get("url", "")),
+                         "text": str(row["item"].get("title", ""))[:300] + " " + str(row["item"].get("snippet", ""))[:500]}
+                        for i, row in enumerate(window)
+                    ])
+                except Exception:
+                    relevance = {}
+                for i, row in enumerate(window):
+                    if not relevance.get(f"candidate-{i}"):
+                        semantic_rejected_urls.add(str(row["assessment"].get("url", "")))
+                        reject(str(row["assessment"].get("url", "")), "semantic_unrelated_or_unavailable_candidate")
+                selected = [row for i, row in enumerate(window) if relevance.get(f"candidate-{i}")]
+                for row in selected:
+                    row["assessment"]["worth_reading"] = True
+            if semantic_session is not None:
+                pending_candidates = selected[:20]
             phase_reads = last_novel = 0
             for candidate in selected:
                 active()
                 assessment = candidate["assessment"]
                 url = _public_url(assessment.get("url"))
+                if url in semantic_rejected_urls:
+                    reject(url, "semantic_candidate_already_rejected")
+                    continue
                 if not url or not assessment.get("worth_reading"):
                     reject(url, "unrelated_or_invalid_candidate")
                     continue
@@ -359,10 +495,14 @@ def recover_public_research(
                         answer_eligible=False,
                         adequacy_reason="requested_model_version_absent",
                     )
+                elif literal_topic and literal_topic not in content:
+                    body.update(
+                        answer_eligible=False, adequacy_reason="literal_topic_absent"
+                    )
                 elif content and digest in body_digests:
                     body.update(answer_eligible=False, adequacy_reason="duplicate_body")
                     last_novel -= 1
-                elif not markers:
+                elif not markers and semantic_session is None:
                     assessed, _ = assess_sources(
                         [{"title": content, "url": url}], canonical_query=query
                     )
@@ -384,6 +524,8 @@ def recover_public_research(
                 enough_targets = not markers or len(covered) == len(markers)
                 # Related reads are progress only, not semantic question coverage.
                 if (
+                    semantic_session is None
+                    and
                     evidence
                     and enough_targets
                     and (budget.mode == "lookup" or len(evidence) >= 2)

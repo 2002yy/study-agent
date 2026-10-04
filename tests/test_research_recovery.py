@@ -127,6 +127,55 @@ def test_homepage_and_unrelated_body_do_not_finalize_before_authority_refinement
     assert "wrong" not in WebToolTrace(calls=tuple(calls)).context_block()
 
 
+def test_multi_aspect_opus_golden_rejects_dictionary_and_reads_alternate_sources():
+    gateway = Gateway(
+        [[item("dictionary"), item("release")], [item("benchmark")]],
+        {
+            "dictionary": "Dictionary fixture: the meaning of retry.",
+            "release": "Fixture: Claude Opus 5.5 release body.",
+            "benchmark": "Fixture: Claude Opus 5.5 performance comparison body.",
+        },
+    )
+    query = "opus5.5是什么？性能如何？对比？"
+    trace = WebToolTrace(calls=tuple(recover_public_research(gateway, query)))
+    data = trace.to_dict()
+    assert data["recovery"]["query"] == query
+    assert data["recovery"]["mode"] == "standard"
+    assert data["recovery"]["reads"] == 3
+    assert data["recovery"]["question_coverage"] == "not_semantically_evaluated"
+    assert len(data["used_sources"]) == 2
+    assert all(not row["url"].endswith("dictionary") for row in data["used_sources"])
+    assert "Dictionary fixture" not in trace.context_block()
+    assert gateway.queries[0] == query
+    assert gateway.queries[1] == "Claude opus 5.5 official"
+
+
+def test_model_query_rewrite_keeps_both_comparison_subjects():
+    gateway = Gateway([[], [], [], []], {})
+    query = "opus5.5对比Gemini3.1性能如何？"
+    calls = recover_public_research(gateway, query)
+    assert recovery_summary(calls)["query"] == query
+    assert "opus 5.5" in gateway.queries[1]
+    assert "Gemini 3.1" in gateway.queries[1]
+    assert "性能如何" not in gateway.queries[1]
+
+
+def test_short_chinese_topic_does_not_adopt_a_one_character_dictionary_entry():
+    gateway = Gateway(
+        [[item("dictionary", title="赵的意思")], [item("person", title="赵翠")]],
+        {
+            "dictionary": "赵：dictionary fixture for a surname.",
+            "person": "赵翠：fixture entry containing the complete requested name.",
+        },
+    )
+    trace = WebToolTrace(calls=tuple(recover_public_research(gateway, "赵翠")))
+    assert len(gateway.reads) == 2
+    assert [row["url"] for row in trace.to_dict()["used_sources"]] == [item("person")["url"]]
+    assert "dictionary fixture" not in trace.context_block()
+    rejected = next(call for call in trace.calls if call["name"] == "web_read")
+    assert rejected["result"]["adequacy_reason"] == "literal_topic_absent"
+
+
 def test_standard_reserves_two_reads_and_two_authority_queries():
     searches = [[item("a"), item("b")], [item("c")], [item("d")], [item("e")]]
     bodies = {key: f"Unrelated unique body {key}" for key in "abcde"}

@@ -326,6 +326,8 @@ class WebToolTrace:
             "error": self.error or derived_error,
             "run_id": self.run_id,
             "recovery": recovery_summary(list(self.calls)),
+            "semantics": next((dict(call["result"]) for call in reversed(self.calls)
+                               if call.get("name") == "research_semantics"), None),
         }
 
 

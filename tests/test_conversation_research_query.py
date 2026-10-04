@@ -63,3 +63,31 @@ def test_research_directive_is_removed_before_search():
 def test_lookup_followup_does_not_require_chinese_research_prefix(initial):
     lead = _tool_context([{"role": "user", "content": initial}])
     assert "opus5.5" in conversation_search_query("快去", lead).casefold()
+
+
+@pytest.mark.parametrize("text", [
+    "直接去。不要一次失败就返回", "再查查", "继续查", "再搜一下", "retry",
+])
+def test_retry_controls_preserve_the_whole_original_question(text):
+    original = "联网研究：opus5.5是什么？性能如何？对比？"
+    history = [{"role": "user", "content": original}]
+    for control in ["直接去。不要一次失败就返回", "再查查", text]:
+        assert conversation_search_query(control, _tool_context(history)) == (
+            "opus5.5是什么？性能如何？对比？"
+        )
+        history.extend([
+            {"role": "assistant", "content": "Read an unrelated dictionary."},
+            {"role": "user", "content": control},
+        ])
+
+
+@pytest.mark.parametrize("text", ["直接去。不要一次失败就返回", "再查查"])
+def test_retry_control_without_history_never_becomes_a_dictionary_query(text):
+    assert conversation_search_query(text, "") == ""
+
+
+@pytest.mark.parametrize("text", ["赵翠", "再查查Python", "直接查Python", "再查查是什么意思"])
+def test_new_subject_or_command_definition_is_not_inherited(text):
+    assert conversation_search_query(text, "Research query lead: opus5.5") == (
+        normalize_web_query(text).canonical_query
+    )

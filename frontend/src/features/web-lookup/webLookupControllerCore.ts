@@ -250,7 +250,9 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
     try {
       const response = await loadResearchRun(runId);
       setResult(response);
-      setUseInChat(isUsable(response));
+      // A chat-owned run already supplied this turn's evidence. Refreshing its
+      // status must not silently attach it again to the next user question.
+      setUseInChat(false);
       options.setActiveRunId(response.run_id);
     } catch (error) {
       options.setOperationError(

@@ -15,7 +15,12 @@ _RESEARCH_REQUEST = re.compile(
     re.IGNORECASE,
 )
 _RESUME = re.compile(
-    r"^(?:快去|去吧|继续|重试|再试|直接查|直接搜|去查|去搜|查吧|搜吧)[！!。？?\s]*$",
+    r"^(?:快去|去吧|继续(?:查(?:查)?|搜(?:搜)?|研究)?|重试|再试(?:试)?|"
+    r"再(?:查(?:查|一下)?|搜(?:搜|一下)?|搜索|检索|研究)|"
+    r"直接(?:去|查|搜)|去查|去搜|查吧|搜吧|retry|try again|keep searching)"
+    r"[！!。？?，,；;\s]*"
+    r"(?:(?:不要|别)(?:一次|一(?:次)?失败|失败|搜不到|查不到|没找到)"
+    r"(?:失败)?就(?:返回|结束|停止|停下|放弃)[！!。？?\s]*)?$",
     re.IGNORECASE,
 )
 _FOLLOWUP = re.compile(
@@ -37,6 +42,11 @@ def research_topic(user_message: str) -> str:
         user_message.strip()
     )
     return normalize_web_query(match.group(1)).canonical_query if match else ""
+
+
+def is_research_resume(user_message: str) -> bool:
+    """Recognize whole control requests; a supplied new subject must win."""
+    return _RESUME.fullmatch(user_message.strip()) is not None
 
 
 def research_query_lead(history: list[dict]) -> str:
@@ -61,7 +71,7 @@ def conversation_search_query(user_input: str, context: str) -> str:
         research_topic(user_input)
         or _NEW_TOPIC.search(user_input)
         or not (
-            _RESUME.fullmatch(user_input.strip())
+            is_research_resume(user_input)
             or _FOLLOWUP.search(user_input.strip())
         )
     ):
@@ -69,7 +79,9 @@ def conversation_search_query(user_input: str, context: str) -> str:
     lead = re.match(r"Research query lead: ([^\n]+)", context)
     topic = lead.group(1) if lead else ""
     if not topic:
-        return "" if _RESUME.fullmatch(user_input.strip()) else current
+        return "" if is_research_resume(user_input) else current
+    if is_research_resume(user_input):
+        return topic
     # Corrections such as "Claude啊？" add a search qualifier without replacing
     # the original version. No manufacturer/model aliases are invented here.
     qualifiers = re.findall(r"[A-Za-z][A-Za-z0-9._-]{1,40}", user_input)

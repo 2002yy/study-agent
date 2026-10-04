@@ -281,3 +281,62 @@ def test_explicit_research_searches_first_and_cannot_adopt_search_only_output():
     assert trace.used is False
     assert trace.to_dict()["evidence_status"] == "candidate_only"
     assert trace.context_block() == ""
+
+
+def test_multi_aspect_explicit_research_uses_standard_recovery_not_legacy_deep():
+    created_queries = []
+
+    class ResearchService:
+        def create(self, query, **_kwargs):
+            created_queries.append(query)
+            return SimpleNamespace(id="research-ordinary")
+
+        def execute(self, *_args):
+            raise AssertionError("Standard research must not enter legacy Deep")
+
+        def begin_tool_trace(self, _run_id):
+            return "operation-test"
+
+        def tool_trace_cancel_requested(self, *_args):
+            return False
+
+        def record_tool_trace(self, *_args, **_kwargs):
+            pass
+
+    agent = PersistentWebToolAgent(
+        gateway=FakeGateway(), research_service=ResearchService(),
+    )
+    topic = "opus5.5是什么？性能如何？对比？"
+    initial = "联网研究：" + topic
+    history = "Research query lead: " + topic
+    traces = [agent.resolve(initial, research_intent=True)]
+    traces.extend(agent.resolve(control, conversation_context=history) for control in [
+        "直接去。不要一次失败就返回", "再查查",
+    ])
+    assert created_queries == [topic] * 3
+    for trace in traces:
+        summary = trace.to_dict()["recovery"]
+        assert summary["mode"] == "standard"
+        assert summary["query"] == topic
+        assert summary["limits"]["hard_seconds"] == 60
+        assert all("opus5.5" in call["arguments"]["query"] or "opus 5.5" in call["arguments"]["query"].casefold()
+                   for call in trace.calls if call["name"] == "web_search")
+
+
+def test_auto_deep_does_not_slice_an_absent_explicit_prefix(monkeypatch):
+    queries = []
+
+    class ResearchService:
+        def create(self, query, **_kwargs):
+            queries.append(query)
+            return SimpleNamespace(id="auto-deep")
+
+        def execute(self, _run_id):
+            return SimpleNamespace(id="auto-deep", research_context={}, query_attempts=[])
+
+    monkeypatch.setattr(persistent_web_agent, "_requires_deep_research", lambda _text: True)
+    trace = PersistentWebToolAgent(research_service=ResearchService()).resolve(
+        "opus5.5 performance comparison"
+    )
+    assert not trace.error
+    assert queries == ["opus5.5 performance comparison"]

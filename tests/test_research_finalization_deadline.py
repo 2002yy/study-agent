@@ -89,7 +89,8 @@ def test_async_stream_has_absolute_deadline_even_when_provider_keeps_connection_
     service, _ = _service(tmp_path)
 
     async def source(*_args, **kwargs):
-        assert 0 < kwargs["timeout"] <= 0.1
+        # Subtracting a large Windows monotonic timestamp can add a few ULPs.
+        assert 0 < kwargs["timeout"] <= 0.1 + 1e-8
         yield "prefix"
         await asyncio.sleep(1)
         yield "late"
