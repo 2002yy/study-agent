@@ -126,7 +126,9 @@ function describeDataCategories(call: ExternalDataCallAudit): string {
 }
 
 function providerName(value: string): string {
-  const normalized = value.split(":", 1)[0].trim();
+  const original = value.trim();
+  if (!original || original === "unknown") return "其他服务";
+  const [prefix, ...suffixParts] = original.split(":");
   const labels: Record<string, string> = {
     openai: "OpenAI",
     deepseek: "DeepSeek",
@@ -135,7 +137,8 @@ function providerName(value: string): string {
     bing_rss: "Bing RSS",
     duckduckgo_html: "DuckDuckGo",
   };
-  return labelFor(labels, normalized, "其他服务");
+  const displayPrefix = labelFor(labels, prefix, prefix);
+  return suffixParts.length ? `${displayPrefix}:${suffixParts.join(":")}` : displayPrefix;
 }
 
 export function summarizeExternalData(evidence: TurnEvidence): DisclosureSummary | null {
@@ -255,7 +258,7 @@ export function ExternalDataDisclosure({ evidence }: { evidence: TurnEvidence })
         ) : null}
       </ul>
       <small>
-        搜索源：{summary.providers.length ? summary.providers.join("、") : "本轮无可展示的 provider 记录"}
+        搜索源：{summary.providers.length ? summary.providers.join("、") : "本轮无可展示的服务商记录"}
       </small>
     </section>
   );
