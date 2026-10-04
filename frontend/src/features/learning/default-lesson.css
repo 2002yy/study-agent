@@ -1,0 +1,55 @@
+.default-lesson-frame {
+  width: 100%;
+}
+
+.default-lesson-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(720px, calc(100% - 40px));
+  margin: 12px auto 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.default-lesson-switcher > span {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.default-lesson-switcher button {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #4b5960;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.default-lesson-switcher button.is-active {
+  border-color: #9bc9c3;
+  background: #eaf6f3;
+  color: var(--accent-strong);
+}
+
+.default-lesson-switcher .default-lesson-reset {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+@media (max-width: 640px) {
+  .default-lesson-switcher {
+    width: calc(100% - 24px);
+    flex-wrap: wrap;
+  }
+
+  .default-lesson-switcher .default-lesson-reset {
+    margin-left: 0;
+  }
+}
