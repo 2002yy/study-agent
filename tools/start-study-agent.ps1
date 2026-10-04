@@ -1,11 +1,20 @@
 ﻿param(
     [switch]$Install,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$SkipSearXNG,
+    [ValidateRange(1024, 65535)][int]$BackendPort = 8000,
+    [ValidateRange(1024, 65535)][int]$FrontendPort = 5173
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+$BackendUrl = "http://127.0.0.1:$BackendPort"
+$FrontendUrl = "http://127.0.0.1:$FrontendPort"
+$LogRoot = Join-Path $Root "logs\launcher"
+$SearchStartupPending = $false
+New-Item -ItemType Directory -Path $LogRoot -Force | Out-Null
+if ($BackendPort -eq $FrontendPort) { throw "BackendPort and FrontendPort must differ" }
 
 function Fail([string]$Message) {
     Write-Host "启动失败：$Message" -ForegroundColor Red
@@ -45,8 +54,8 @@ function Test-Listening([int]$Port) {
 
 function Test-BackendIdentity {
     try {
-        $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 3
-        return $health.service -eq "study-agent"
+        $health = Invoke-RestMethod -Uri "$BackendUrl/health" -TimeoutSec 3
+        return $health.service -eq "study-agent" -and $health.status -eq "ok"
     } catch {
         return $false
     }
@@ -54,8 +63,15 @@ function Test-BackendIdentity {
 
 function Test-FrontendIdentity {
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 3
-        return $response.Content -match "<title>Study Agent Console</title>"
+        $response = Invoke-WebRequest -Uri $FrontendUrl -UseBasicParsing -TimeoutSec 3
+        # Vite may omit charset; Windows PowerShell 5.1 otherwise decodes UTF-8
+        # Chinese titles as Latin-1. Decode the original bytes explicitly.
+        $html = [Text.Encoding]::UTF8.GetString($response.RawContentStream.ToArray())
+        $index = [IO.File]::ReadAllText((Join-Path $Root "frontend\index.html"), [Text.Encoding]::UTF8)
+        $title = [regex]::Match($index, '<title>[^<]+</title>').Value
+        if (-not $title -or $html -notmatch [regex]::Escape($title)) { return $false }
+        $health = Invoke-RestMethod -Uri "$FrontendUrl/health" -TimeoutSec 3
+        return $health.service -eq "study-agent" -and $health.status -eq "ok"
     } catch {
         return $false
     }
@@ -79,7 +95,7 @@ function Wait-Until([scriptblock]$Probe, [int]$TimeoutSeconds = 45) {
     return $false
 }
 
-function Start-PowerShellWindow([string]$Title, [string]$Command) {
+function Start-PowerShellWindow([string]$Title, [string]$Command, [string]$LogName) {
     $safeTitle = $Title.Replace("'", "''")
     $fullCommand = (
         "`$Host.UI.RawUI.WindowTitle = '$safeTitle'" +
@@ -88,28 +104,9 @@ function Start-PowerShellWindow([string]$Title, [string]$Command) {
     )
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($fullCommand))
     Start-Process powershell.exe -ArgumentList @(
-        "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
-    ) | Out-Null
-}
-
-function Test-DockerReady([string]$Docker) {
-    & $Docker info --format "{{.ServerVersion}}" *> $null
-    return $LASTEXITCODE -eq 0
-}
-
-function Start-DockerDesktop([string]$Docker) {
-    if (Test-DockerReady $Docker) { return $true }
-
-    $desktopCandidates = @(
-        "C:\Program Files\Docker\Docker\Docker Desktop.exe",
-        (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe")
-    ) | Select-Object -Unique
-    $desktop = $desktopCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if (-not $desktop) { return $false }
-
-    Write-Host "正在启动 Docker Desktop，以恢复本地 SearXNG..." -ForegroundColor Cyan
-    Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
-    return Wait-Until { Test-DockerReady $Docker } 120
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-OutputFormat", "Text", "-EncodedCommand", $encoded
+    ) -WindowStyle Hidden -RedirectStandardOutput (Join-Path $LogRoot "$LogName.stdout.log") `
+        -RedirectStandardError (Join-Path $LogRoot "$LogName.stderr.log") | Out-Null
 }
 
 function Start-SearXNG {
@@ -117,6 +114,12 @@ function Start-SearXNG {
         if (-not (Test-SearXNGIdentity)) {
             Fail "端口 8080 已被非 Study Agent SearXNG 服务占用"
         }
+        return $true
+    }
+
+    if ($SkipSearXNG) {
+        Write-Warning "已跳过 SearXNG 启动；应用继续使用当前可用的检索提供方。"
+        return $false
     }
 
     $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
@@ -124,28 +127,30 @@ function Start-SearXNG {
         Write-Warning "找不到 Docker CLI；应用仍会启动，但 SearXNG 状态为 unavailable。"
         return $false
     }
-    $docker = $dockerCommand.Source
-    if (-not (Start-DockerDesktop $docker)) {
-        Write-Warning "Docker Desktop 未能在 120 秒内就绪；应用仍会启动，但 SearXNG 状态为 unavailable。"
-        return $false
-    }
-
     $manager = Join-Path $PSScriptRoot "manage-searxng.ps1"
     if (-not (Test-Path -LiteralPath $manager -PathType Leaf)) {
         Write-Warning "找不到固定版本 SearXNG manager；应用仍会启动，但 SearXNG 状态为 unavailable。"
         return $false
     }
-    try {
-        & $manager -Action Ensure
-    } catch {
-        Write-Warning "固定版本 SearXNG 未就绪：$($_.Exception.Message)"
-        return $false
-    }
-    if (-not (Wait-Until { Test-SearXNGIdentity } 60)) {
-        Write-Warning "SearXNG 未在 60 秒内通过 /healthz；应用仍会启动，但联网研究可能降级。"
-        return $false
-    }
-    return $true
+    # Preserve the manager's original PSScriptRoot. Search preparation must not
+    # block opening the application; the manager owns Docker/container readiness.
+    $managerQuoted = $manager.Replace("'", "''")
+    $searchCommand = @"
+`$ErrorActionPreference = 'Stop'
+`$searchMutex = New-Object Threading.Mutex(`$false, 'Local\StudyAgentSearXNGLauncher')
+if (-not `$searchMutex.WaitOne(0)) { `$searchMutex.Dispose(); exit 0 }
+try {
+    `$manager = '$managerQuoted'
+    & `$manager -Action Ensure
+} finally {
+    `$searchMutex.ReleaseMutex()
+    `$searchMutex.Dispose()
+}
+"@
+    Start-PowerShellWindow "Study Agent Search" $searchCommand "searxng"
+    $script:SearchStartupPending = $true
+    Write-Host "SearXNG 正在后台准备；学习工作台可先使用。日志：$LogRoot" -ForegroundColor Cyan
+    return $false
 }
 
 function Write-HealthLine([string]$Label, [string]$Status, [ConsoleColor]$Color) {
@@ -155,17 +160,19 @@ function Write-HealthLine([string]$Label, [string]$Status, [ConsoleColor]$Color)
 function Write-StartupSummary([bool]$SearXNGStarted) {
     Write-Host ""
     Write-Host "Study Agent 运行状态" -ForegroundColor Cyan
-    Write-HealthLine "后端 API" "ready · http://127.0.0.1:8000" Green
-    Write-HealthLine "前端 Web" "ready · http://127.0.0.1:5173" Green
+    Write-HealthLine "后端 API" "ready · $BackendUrl" Green
+    Write-HealthLine "前端 Web" "ready · $FrontendUrl" Green
 
-    if ($SearXNGStarted -and (Test-SearXNGIdentity)) {
+    if (($SearXNGStarted -or $SearchStartupPending) -and (Test-SearXNGIdentity)) {
         Write-HealthLine "SearXNG 服务" "ready · http://127.0.0.1:8080" Green
+    } elseif ($SearchStartupPending) {
+        Write-HealthLine "SearXNG 服务" "starting · 后台准备中，当前可用检索提供方仍可使用" Yellow
     } else {
         Write-HealthLine "SearXNG 服务" "unavailable · 应用可用，联网研究将降级" Yellow
     }
 
     try {
-        $providerHealth = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/providers?probe=true" -TimeoutSec 10
+        $providerHealth = Invoke-RestMethod -Uri "$BackendUrl/health/providers?probe=false" -TimeoutSec 3
         $provider = $providerHealth.providers | Where-Object { $_.name -eq "searxng" } | Select-Object -First 1
         if ($provider) {
             $providerColor = if ($provider.status -eq "ready") { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }
@@ -226,37 +233,35 @@ if ($Install -or -not (Test-Path "frontend\node_modules")) {
     }
 }
 
-$SearXNGStarted = Start-SearXNG
-
 $rootQuoted = $Root.Replace("'", "''")
 $pythonQuoted = $Python.Replace("'", "''")
 
-if (Test-Listening 8000) {
+if (Test-Listening $BackendPort) {
     if (-not (Test-BackendIdentity)) {
-        Fail "端口 8000 已被非 Study Agent 服务占用"
+        Fail "端口 $BackendPort 已被非 Study Agent 服务占用"
     }
 } else {
     $backend = [string]::Join([Environment]::NewLine, @(
         ("Set-Location '{0}'" -f $rootQuoted),
-        ("& '{0}' -m uvicorn src.api.app:app --host 127.0.0.1 --port 8000 --reload" -f $pythonQuoted)
+        ("& '{0}' -m uvicorn src.api.app:app --host 127.0.0.1 --port {1} --reload" -f $pythonQuoted, $BackendPort)
     ))
-    Start-PowerShellWindow "Study Agent API :8000" $backend
+    Start-PowerShellWindow "Study Agent API :$BackendPort" $backend "api-$BackendPort"
 }
 
 # Child processes inherit these values. The API token is never embedded in the
 # encoded PowerShell command or exposed in process command-line arguments.
-$env:VITE_DEV_API_TARGET = "http://127.0.0.1:8000"
+$env:VITE_DEV_API_TARGET = $BackendUrl
 $env:VITE_STUDY_AGENT_API_TOKEN = [string]$env:STUDY_AGENT_API_TOKEN
-if (Test-Listening 5173) {
+if (Test-Listening $FrontendPort) {
     if (-not (Test-FrontendIdentity)) {
-        Fail "端口 5173 已被非 Study Agent 服务占用"
+        Fail "端口 $FrontendPort 已被非 Study Agent 服务占用或代理未就绪"
     }
 } else {
     $frontend = [string]::Join([Environment]::NewLine, @(
         ("Set-Location '{0}\frontend'" -f $rootQuoted),
-        ("& '{0}' run dev -- --host 127.0.0.1" -f $Npm)
+        ("& '{0}' run dev -- --host 127.0.0.1 --port {1} --strictPort" -f $Npm, $FrontendPort)
     ))
-    Start-PowerShellWindow "Study Agent Web :5173" $frontend
+    Start-PowerShellWindow "Study Agent Web :$FrontendPort" $frontend "web-$FrontendPort"
 }
 
 if (-not (Wait-Until { Test-BackendIdentity })) {
@@ -266,6 +271,9 @@ if (-not (Wait-Until { Test-FrontendIdentity })) {
     Fail "前端未在限定时间内通过身份检查"
 }
 
+Write-Host "Study Agent 已就绪：$FrontendUrl" -ForegroundColor Green
+if (-not $NoBrowser) { Start-Process $FrontendUrl }
+$SearXNGStarted = Start-SearXNG
 Write-StartupSummary $SearXNGStarted
-Write-Host "Study Agent 已就绪：http://127.0.0.1:5173" -ForegroundColor Green
-if (-not $NoBrowser) { Start-Process "http://127.0.0.1:5173" }
+Write-Host "启动日志：$LogRoot" -ForegroundColor Cyan
+exit 0

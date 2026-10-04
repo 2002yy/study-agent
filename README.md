@@ -50,10 +50,10 @@ Windows 下可直接双击 [`tools/start-study-agent.bat`](tools/start-study-age
 启动器会：
 
 1. 读取 `.env`，在首次运行时创建 `.venv` 并按需安装前后端依赖；
-2. 启动 Docker Desktop（若需要），并通过仓库固定 digest 的 Compose 基线复用/恢复仅绑定 `127.0.0.1:8080` 的 `study-agent-searxng`；
-3. 启动 FastAPI `127.0.0.1:8000` 与 React/Vite `127.0.0.1:5173`；
-4. 验证服务身份，显示后端、前端、SearXNG 和真实检索探针状态；
-5. 输出桌面、窄屏、屏幕阅读器、对比度和实体手机人工检查清单，然后打开浏览器。
+2. 启动或复用 FastAPI `127.0.0.1:8000` 与 React/Vite `127.0.0.1:5173`（端口可指定，前端不会自动漂移）；
+3. 验证当前前端标题、后端身份与前端API代理就绪，然后打开浏览器；
+4. 在后台启动 Docker Desktop（若需要），通过固定 digest 的 Compose 基线复用/恢复仅绑定 `127.0.0.1:8080` 的 `study-agent-searxng`，不阻塞工作台打开；
+5. 显示运行/配置状态和人工检查清单；实际联网探针可在设置或manager中另行执行。后台服务日志在 `logs/launcher/`。
 
 如果 Docker/SearXNG 暂时不可用，学习工作台仍会启动并明确显示联网研究降级；如果 `8080` 被非 SearXNG 服务占用，启动器会 fail-closed。普通启动不会更新或拉取镜像；首次迁移或未来 digest 升级必须显式运行 `tools\upgrade-searxng.bat`，由 `18080` candidate 通过健康与真实搜索后再切换。实体手机验收需要另行部署手机可达地址，并按 [`docs/MOBILE_ACCEPTANCE_D4D.md`](docs/MOBILE_ACCEPTANCE_D4D.md) 留下人工记录；本机一键启动不会冒充这项证据。
 
@@ -62,11 +62,15 @@ Windows 下可直接双击 [`tools/start-study-agent.bat`](tools/start-study-age
 ```powershell
 .\tools\start-study-agent.bat -Install   # 强制刷新依赖
 .\tools\start-study-agent.bat -NoBrowser # 启动但不自动打开浏览器
+.\tools\start-study-agent.bat -BackendPort 8001 -FrontendPort 5174 # 指定另一组端口
+.\tools\start-study-agent.bat -SkipSearXNG # 本次只启动应用，保留已有检索配置
 .\tools\manage-searxng.bat -Action Status -ProbeSearch # 查看固定版本与真实搜索状态
 .\tools\upgrade-searxng.bat # 显式 candidate 升级；不会自动删除旧容器
 ```
 
 SearXNG 的仓库配置、ignored secret/proxy layering、备份、回滚与 7 天 retained-container 清理流程见 [`docs/WEB_SEARCH_SETUP.md`](docs/WEB_SEARCH_SETUP.md)。
+
+本机桌面 `Study Agent 一键启动.cmd` 调用同一仓库入口，默认8001/5174，定位当前验证实例；脚本从自身目录寻找 `study agent`，参数和失败退出码均透传。已有8000/5173实例不会被停止。本机Docker当前有engine.sock故障，桌面默认复用健康SearXNG但不自动拉起Docker，现有备用检索配置继续有效；修复Docker后可向桌面入口传 `-StartSearXNG` 显式后台启动。仓库入口仍按上述默认流程后台准备搜索服务。
 
 ## 已完成的核心学习闭环
 

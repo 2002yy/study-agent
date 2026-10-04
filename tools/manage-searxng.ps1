@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("Ensure", "Upgrade", "Status", "ListRetained", "RemoveRetained")]
     [string]$Action = "Status",
@@ -28,6 +28,9 @@ function Get-DockerCommand {
 }
 
 function Test-DockerReady([string]$DockerPath) {
+    # An unavailable daemon is a probe result, not a terminating native stderr
+    # error under Windows PowerShell 5.1's inherited Stop preference.
+    $ErrorActionPreference = "Continue"
     & $DockerPath info --format "{{.ServerVersion}}" *> $null
     return $LASTEXITCODE -eq 0
 }
@@ -59,6 +62,8 @@ function Start-DockerIfNeeded([string]$DockerPath) {
 }
 
 function Get-Container([string]$DockerPath, [string]$Name) {
+    # Missing containers must return null so Ensure can create/recover them.
+    $ErrorActionPreference = "Continue"
     $json = & $DockerPath container inspect $Name 2> $null
     if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
     return ($json | ConvertFrom-Json)[0]
