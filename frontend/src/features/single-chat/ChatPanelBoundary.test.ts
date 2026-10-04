@@ -20,7 +20,7 @@ describe("active ChatPanel interaction boundary", () => {
     expect(source).toContain("enterToSend = true");
     expect(source).toContain("? !event.shiftKey");
     expect(source).toContain("event.ctrlKey || event.metaKey");
-    expect(source).toContain('"Ctrl+Enter 发送 · Enter 换行"');
+    expect(source).toContain('"控制键 + 回车键发送 · 回车键换行"');
   });
 
   it("copies only the assistant message body", () => {

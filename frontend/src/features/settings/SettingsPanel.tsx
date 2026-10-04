@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, Database, Loader2, SearchCheck, Settings, SlidersHorizontal } from "lucide-react";
 
 import { checkSearchProviderHealth, saveRuntimeSettings } from "../../api";
+import { humanizeUiError, labelFor } from "../../utils/uiLabels";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { StatusDot } from "../../components/StatusDot";
 import { roleLabel, roleOptions } from "../roles/roleCatalog";
@@ -86,12 +87,12 @@ function ComposerSendKeySettings({
           onChange={(event) => void update(event.target.checked)}
           type="checkbox"
         />
-        <span>按 Enter 发送消息</span>
+        <span>按回车键发送消息</span>
       </label>
       <small className="field-hint">
         {enterToSend
-          ? "当前：Enter 发送，Shift+Enter 换行。"
-          : "当前：Ctrl+Enter 发送，Enter 换行。"}
+          ? "当前：回车键发送，按住上档键再按回车键换行。"
+          : "当前：控制键 + 回车键发送，回车键换行。"}
       </small>
     </section>
   );
@@ -109,14 +110,14 @@ const modeDescriptions: Record<string, string> = {
   auto: "根据学习行为选择协议；需要直接解释时不会强制进入提问流程。",
   普通: "直接、完整地回答当前问题；必要时才澄清。",
   苏格拉底: "通过问题、反例和有限线索帮助你完成关键推理。",
-  费曼: "先由你解释，AI定位理解缺口，再补充并让你重新说明。",
+  费曼: "先由你解释，模型定位理解缺口，再补充并让你重新说明。",
   项目: "围绕当前项目阶段给出最小修改、实施顺序、验证方式和主要风险。",
 };
 
 const modelOptions = [
   ["auto", "自动"],
-  ["flash", "Flash"],
-  ["pro", "Pro"],
+  ["flash", "快速档"],
+  ["pro", "高质量档"],
 ] as const;
 
 const modelDescriptions: Record<string, string> = {
@@ -196,7 +197,7 @@ function providerSummary(health: SearchProviderHealthResponse): string {
   const preferred = health.providers.find((provider) => provider.role === "preferred");
   const fallbacks = health.providers
     .filter((provider) => provider.role !== "preferred" && provider.enabled)
-    .map((provider) => providerLabels[provider.name] ?? provider.name);
+    .map((provider) => labelFor(providerLabels, provider.name, "其他搜索源"));
   const fallbackText = fallbacks.length > 0 ? `；可尝试 ${fallbacks.join("、")} 降级` : "";
 
   if (health.status === "ready") {
@@ -263,7 +264,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     } catch (error) {
       if (!controller.signal.aborted) {
         setProviderHealth(null);
-        setProviderHealthError(error instanceof Error ? error.message : String(error));
+        setProviderHealthError(humanizeUiError(error, "联网搜索检测失败，请稍后重试。"));
       }
     } finally {
       if (providerCheckController.current === controller) {
@@ -526,7 +527,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
               <ul className="provider-health-list" aria-label="联网搜索源状态">
                 {providerHealth.providers.map((provider) => (
                   <li key={provider.name}>
-                    <span>{providerLabels[provider.name] ?? provider.name}</span>
+                    <span>{labelFor(providerLabels, provider.name, "其他搜索源")}</span>
                     <strong>{providerStateLabel(provider)}</strong>
                   </li>
                 ))}

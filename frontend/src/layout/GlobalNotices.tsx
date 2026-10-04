@@ -1,9 +1,10 @@
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
+import { humanizeUiError } from "../utils/uiLabels";
 
 function NoticeDetails({ message }: { message: string }) {
   return (
     <details className="global-notice-details">
-      <summary>查看详情</summary>
+      <summary>开发者诊断</summary>
       <div>{message}</div>
     </details>
   );
@@ -49,7 +50,8 @@ export function GlobalNotices({
         <AlertTriangle aria-hidden="true" size={16} />
         <div className="global-notice-content">
           <strong>操作没有完成</strong>
-          <div>{operationError}</div>
+          <div>{humanizeUiError(operationError, "本次操作未能完成，请稍后重试。")}</div>
+          <NoticeDetails message={operationError} />
         </div>
         <div className="global-notice-actions">
           <button className="ghost-action compact" onClick={onOpenSettings} type="button">
@@ -74,7 +76,7 @@ export function GlobalNotices({
       <div className="global-notice-content">
         <strong>部分功能暂不可用</strong>
         <details className="global-notice-details">
-          <summary>查看详情：{partialErrors.map(([key]) => key).join(", ")}</summary>
+          <summary>开发者诊断</summary>
           {partialErrors.map(([key, message]) => (
             <div key={key}><strong>{key}</strong>: {message}</div>
           ))}

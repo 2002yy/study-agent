@@ -6,6 +6,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { uiStatusLabel, uiReasonLabel, scoreLabel, humanizeUiError } from "../../utils/uiLabels";
 
 import type {
   ChatResponse,
@@ -34,7 +35,7 @@ type SourceRow = {
   lineRange: string;
   score: number;
   matchedTerms: string[];
-  scoreBreakdown: Record<string, number>;
+  scoreBreakdown: Record<string, unknown>;
 };
 
 type SourcesTab = "answer" | "library" | "diagnostics";
@@ -115,6 +116,18 @@ function lifecycleLabel(status: EvidenceRef["status"]): string {
   return "候选";
 }
 
+function diagnosticValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "—";
+  }
+}
+
 function EvidenceReference({
   evidence,
   supported,
@@ -145,10 +158,10 @@ function EvidenceReference({
       {diagnostic ? (
         <div className="sources-evidence-meta">
           <span>生命周期：{lifecycleLabel(evidence.status)}</span>
-          {evidence.score > 0 ? <span>分数：{formatScore(evidence.score)}</span> : null}
-          {evidence.providerStatus ? <span>Provider：{evidence.providerStatus}</span> : null}
-          {evidence.selectionReason ? <span>采用原因：{evidence.selectionReason}</span> : null}
-          {evidence.rejectionReason ? <span>排除原因：{evidence.rejectionReason}</span> : null}
+          {evidence.score > 0 ? <span>相关度：{formatScore(evidence.score)}</span> : null}
+          {evidence.providerStatus ? <span>来源状态：{uiStatusLabel(evidence.providerStatus)}</span> : null}
+          {evidence.selectionReason ? <span>采用原因：{uiReasonLabel(evidence.selectionReason)}</span> : null}
+          {evidence.rejectionReason ? <span>排除原因：{uiReasonLabel(evidence.rejectionReason)}</span> : null}
         </div>
       ) : null}
     </div>
@@ -230,7 +243,7 @@ export function SourcesPanel({
       setStatusOverrides((current) => ({ ...current, [documentId]: nextStatus }));
     } catch (error) {
       setEvidenceError(
-        `资料状态更新失败：${error instanceof Error ? error.message : "更新失败"}`,
+        humanizeUiError(error, "资料状态更新失败，请稍后重试。"),
       );
     }
   };
@@ -438,7 +451,9 @@ export function SourcesPanel({
                         {Object.keys(row.scoreBreakdown).length ? (
                           <details className="inline-details">
                             <summary>查看检索评分详情</summary>
-                            <pre>{JSON.stringify(row.scoreBreakdown, null, 2)}</pre>
+                            <dl>{Object.entries(row.scoreBreakdown).map(([key, value]) => (
+                              <div key={key}><dt>{scoreLabel(key)}</dt><dd>{diagnosticValue(value)}</dd></div>
+                            ))}</dl>
                           </details>
                         ) : null}
                       </div>

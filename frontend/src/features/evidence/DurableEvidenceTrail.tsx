@@ -7,8 +7,8 @@ function lineLabel(source: LearningResumeEvidence): string {
   const start = source.start_line;
   const end = source.end_line;
   if (typeof start !== "number") return "";
-  if (typeof end === "number" && end !== start) return `L${start}–L${end}`;
-  return `L${start}`;
+  if (typeof end === "number" && end !== start) return `第 ${start}–${end} 行`;
+  return `第 ${start} 行`;
 }
 
 function sourceUrl(source: LearningResumeEvidence): string {
@@ -57,11 +57,11 @@ export function DurableEvidenceTrail({
   if (!hasPrimary && !supporting.length) return null;
 
   return (
-    <div className="evidence-trail durable-evidence-trail" aria-label="Claim 源码证据">
+    <div className="evidence-trail durable-evidence-trail" aria-label="学习命题源码证据">
       {hasPrimary ? (
-        <section className="evidence-primary" aria-label="Primary Evidence">
+        <section className="evidence-primary" aria-label="主要证据">
           <div className="evidence-unified-header">
-            <span>Primary Evidence</span>
+            <span>主要证据</span>
           </div>
           <div className="evidence-primary-list">
             <SourceRow source={primary} />
@@ -72,7 +72,7 @@ export function DurableEvidenceTrail({
       {supporting.length ? (
         <details className="evidence-diagnostics durable-supporting">
           <summary className="evidence-diagnostics-toggle">
-            <ChevronDown size={13} /> Supporting Evidence {supporting.length}
+            <ChevronDown size={13} /> 补充证据 {supporting.length}
           </summary>
           <div className="evidence-diagnostics-body">
             {supporting.map((source, index) => (

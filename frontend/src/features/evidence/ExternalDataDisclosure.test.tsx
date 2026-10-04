@@ -50,6 +50,15 @@ const rag = {
         status: "blocked_by_policy",
         result: "blocked_by_policy",
       },
+      {
+        call_id: "answer_generation:2",
+        purpose: "answer_generation",
+        provider: "openrouter",
+        data_categories: ["current_question"],
+        data_counts: { current_question: 1 },
+        status: "completed",
+        result: "completed",
+      },
     ],
     web_search_performed: true,
     history_sent_to_model: true,
@@ -87,10 +96,13 @@ describe("ExternalDataDisclosure", () => {
     expect(screen.getByText(/本地资料/)).toHaveTextContent("已向模型发送 1 个相关片段");
     expect(screen.getByText(/搜索源/)).toHaveTextContent("SearXNG");
     expect(screen.getByText(/逐调用记录/)).toHaveTextContent(
-      "回答生成 → openai → 已完成",
+      "回答生成 → OpenAI → 已完成",
     );
     expect(screen.getByText(/逐调用记录/)).toHaveTextContent(
-      "检索词向量化 → openai:text-embedding-3-small → 已被策略阻止，未外发",
+      "检索词向量化 → OpenAI:text-embedding-3-small → 已被策略阻止，未外发",
+    );
+    expect(screen.getByText(/逐调用记录/)).toHaveTextContent(
+      "回答生成 → openrouter → 已完成",
     );
   });
 

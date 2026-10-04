@@ -480,8 +480,8 @@ export function ChatPanel(props: ChatPanelProps) {
             placeholder="输入你的问题，或继续当前学习..."
             title={
               enterToSend
-                ? "Enter 发送 · Shift+Enter 换行"
-                : "Ctrl+Enter 发送 · Enter 换行"
+                ? "回车键发送 · 按住上档键再按回车键换行"
+                : "控制键 + 回车键发送 · 回车键换行"
             }
             value={input}
           />

@@ -26,9 +26,9 @@ export const KNOWN_RESEARCH_STOP_REASONS = [
 export type KnownResearchStopReason = (typeof KNOWN_RESEARCH_STOP_REASONS)[number];
 
 export const RESEARCH_STOP_REASON_LABELS = {
-  evidence_gate_pass: "Evidence Gate 已通过；本轮结论只使用通过校验的证据。",
+  evidence_gate_pass: "证据校验已通过；本轮结论只使用通过校验的证据。",
   evidence_budget_exhausted: "研究预算已用尽；仍有关键证据缺口，结论保持为部分结果。",
-  evidence_gap_open: "Evidence Gate 未通过；仍有关键证据缺口，结论保持为部分结果。",
+  evidence_gap_open: "证据校验未通过；仍有关键证据缺口，结论保持为部分结果。",
   evidence_saturated: "当前可用来源已趋于饱和；仍有证据缺口，结论保持为部分结果。",
   wave_limit_exhausted: "已达到本轮研究轮次上限；仍有证据缺口，结论保持为部分结果。",
   claim_planning_blocked_by_policy: "外部数据策略未授权研究规划；本轮未继续调用外部模型。",

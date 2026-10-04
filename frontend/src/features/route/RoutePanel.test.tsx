@@ -64,7 +64,7 @@ describe("RoutePanel", () => {
   it("renders RAG status, result count and web tool usage", () => {
     render(<RoutePanel lastChat={baseChat} />);
 
-    expect(screen.getByText("RAG 状态").nextElementSibling).toHaveTextContent("success");
+    expect(screen.getByText("RAG 状态").nextElementSibling).toHaveTextContent("成功");
     expect(screen.getByText("引用数量").nextElementSibling).toHaveTextContent("3");
     expect(screen.getByText("模型联网工具").nextElementSibling).toHaveTextContent("本轮未调用");
   });

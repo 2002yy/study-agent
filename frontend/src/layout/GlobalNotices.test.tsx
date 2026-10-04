@@ -27,7 +27,7 @@ describe("GlobalNotices", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("无法连接学习服务");
     expect(screen.getByText("503 provider down")).not.toBeVisible();
-    fireEvent.click(screen.getByText("查看详情"));
+    fireEvent.click(screen.getByText("开发者诊断"));
     expect(screen.getByText("503 provider down")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     fireEvent.click(screen.getByRole("button", { name: "设置" }));

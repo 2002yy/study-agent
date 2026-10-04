@@ -1,3 +1,4 @@
+import { humanizeUiError } from "../../utils/uiLabels";
 import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -103,7 +104,7 @@ export function ExternalDataPolicySettings({
       await onSaved();
       setMessage("外发数据策略已保存");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "策略保存失败");
+      setMessage(humanizeUiError(error, "策略保存失败，请稍后重试。"));
     } finally {
       setIsSaving(false);
     }
