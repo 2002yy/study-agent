@@ -10,6 +10,7 @@ const lessonSource = read("./FireflyMechanicsLesson.tsx");
 const modelSource = read("./defaultFireflyLesson.ts");
 const mechanicsModelSource = read("./fireflyLessonModel.ts");
 const doupoSource = read("./DoupoDefaultLesson.tsx");
+const doupoModelSource = read("./defaultDoupoLesson.ts");
 const stripSource = read("./LearningStrip.tsx");
 const visibleCopy = `${wrapperSource}\n${lessonSource}\n${modelSource}\n${mechanicsModelSource}`;
 const doupoVisibleCopy = `${wrapperSource}\n${doupoSource}\n${stripSource}`;
@@ -44,10 +45,10 @@ describe("Doupo delight-loop copy contract", () => {
     expect(doupoVisibleCopy).not.toContain("诊断");
   });
 
-  it("keeps the visible frame centered on the delight-loop mechanics", () => {
+  it("keeps the visible frame and model-owned stages centered on the delight-loop mechanics", () => {
     expect(doupoSource).toContain("爽点循环总图");
     expect(doupoSource).toContain("旧估值");
-    expect(doupoSource).toContain("公开硬证据");
+    expect(doupoModelSource).toContain('"hard-evidence": "公开硬证据"');
     expect(doupoSource).toContain("回溯重构");
     expect(stripSource).toContain("旧账 → 兑现 → 新债");
   });
