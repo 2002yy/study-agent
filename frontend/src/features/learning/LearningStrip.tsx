@@ -20,16 +20,11 @@ type LearningStripProps = {
 export function LearningStrip(props: LearningStripProps) {
   const lesson = useFireflyLessonController();
   const [open, setOpen] = useState(() => Boolean(lesson?.state.active));
-  const durableActive =
-    props.resume?.source === "durable" && props.resume.status === "active";
+  const durableActive = props.resume?.source === "durable" && props.resume.status === "active";
 
-  if (
-    lesson?.state.active &&
-    lesson.state.lessonKind === "doupo" &&
-    !durableActive
-  ) {
+  if (lesson?.state.active && lesson.state.lessonKind === "doupo" && !durableActive) {
     return (
-      <div className="learning-strip firefly-learning-strip" aria-label="默认斗破课程">
+      <div className="learning-strip firefly-learning-strip" aria-label="默认斗破爽点分析">
         <button
           aria-expanded={open}
           className="learning-strip-toggle trustworthy-learning-summary durable-learning-summary"
@@ -41,16 +36,16 @@ export function LearningStrip(props: LearningStripProps) {
           </span>
           <span className="learning-strip-status-item learning-strip-objective">
             <Sparkles size={12} />
-            <span>《斗破苍穹》认知翻转</span>
+            <span>《斗破苍穹》爽点循环</span>
           </span>
           <span className="learning-strip-status-item learning-strip-phase">
-            默认示例 · 10张叙事卡
+            4组样本 · 10张结构卡
           </span>
           <span className="learning-strip-status-item learning-strip-next">
-            <span>人物知识 · 估值曲线 · 身份合并</span>
+            <span>认知债 · 估值滞后 · 身份并账</span>
           </span>
           <span className="learning-verification-badge pending_validation">
-            重新估值七门
+            旧账 → 兑现 → 新债
           </span>
         </button>
         {open ? (

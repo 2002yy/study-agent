@@ -22,8 +22,7 @@ export function FireflyDefaultLesson({
         controller.update({
           doupo: { ...controller.state.doupo, ...patch },
         }),
-      reset: () =>
-        controller.update({ doupo: createDefaultDoupoLessonState() }),
+      reset: () => controller.update({ doupo: createDefaultDoupoLessonState() }),
     }),
     [controller],
   );
@@ -34,7 +33,7 @@ export function FireflyDefaultLesson({
 
   return (
     <div className="default-lesson-frame">
-      <div className="default-lesson-switcher" role="tablist" aria-label="默认课程示例">
+      <div className="default-lesson-switcher" role="tablist" aria-label="默认分析示例">
         <span>示例</span>
         <button
           aria-selected={lessonKind === "firefly"}
@@ -52,7 +51,7 @@ export function FireflyDefaultLesson({
           role="tab"
           type="button"
         >
-          斗破叙事
+          斗破爽点循环
         </button>
         <button
           className="default-lesson-reset"

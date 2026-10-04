@@ -38,15 +38,16 @@ function DoupoStripHarness() {
   );
 }
 
-describe("LearningStrip Doupo default entry", () => {
-  it("summarizes the active narrative example instead of leaving the Firefly label behind", () => {
+describe("LearningStrip Doupo delight-loop entry", () => {
+  it("summarizes the active analysis instead of presenting it as a course or gate audit", () => {
     const { container } = render(<DoupoStripHarness />);
     const toggle = within(container).getByRole("button", {
-      name: /《斗破苍穹》认知翻转/,
+      name: /《斗破苍穹》爽点循环/,
     });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(container.textContent).toContain("默认示例 · 10张叙事卡");
-    expect(container.textContent).toContain("人物知识 · 估值曲线 · 身份合并");
-    expect(container.textContent).toContain("重新估值七门");
+    expect(container.textContent).toContain("4组样本 · 10张结构卡");
+    expect(container.textContent).toContain("认知债 · 估值滞后 · 身份并账");
+    expect(container.textContent).toContain("旧账 → 兑现 → 新债");
+    expect(container.textContent).not.toContain("重新估值七门");
   });
 });
