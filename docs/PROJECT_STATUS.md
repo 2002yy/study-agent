@@ -11,8 +11,8 @@
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
-- **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` CI success，合并收口 CLOSED。当前 `codex/search-first-research` 以该 main 为 base，合同提交 `c068dc0b4819cebe1bd56d7633d5596433030911`，§170 Lookup/Standard 恢复实现与验收见 §170.5–§170.6；最终实现 head 以 `git rev-parse HEAD` / 对应 PR 为准。原型 stash 保留为安全备份，已被本批实现替代。
-- **工作树：**§171.7启动修复提交`dd7850e7`；§171.8真实失败修复+§172语义恢复提交`93fdd50ee636cc04eebbd547eeed0e3e30c73e8a`，共25文件，L3时工作树clean。当前收口仅docs，head/clean以Git为准。PR #161保持OPEN；本轮推送后单次exact-head CI快照写`D:\study-agent-validation\semantic-delivery-ci.json`，旧28b82dab CI不覆盖新候选。桌面两个入口已备份部署。
+- **分支 / head：**`main` / `origin/main`仍为`5a3199aa1d879e432bdb8f3103507c0528f0e62c`。父PR #161 head `50b54259ed1acdf01fb08717e7fa6cd8fbcc480d`，exact-head PR CI `37191670314` success；三条旧review finding已修复并resolve。当前集成分支`codex/firefly-main-integration`，生产/诊断候选`1dc2ac52`，最终docs head/dirty以Git为准。
+- **工作树 / 流萤：**已引入用户指定的现有正式提交`fc96e3cb`，merge-base ancestor检查exit0；它与743e537b树一致，合并只绑定现有历史，不重新实现UI。合并曾自动复制validator与CSS冲突，已保留唯一validator和实际窄屏修复。当前没有合并main；用户新增条件要求FastAPI/SQLite真实失败闭合后才能合并。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
   - `§143-A` specialist warm cost profile ✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§174 宽 Discovery / 有界 Reader 与流萤 UI main 集成。** 当前分支 `codex/firefly-main-integration`，base研究修复50b54259，已合并流萤源743e537b（集成241a9636）；最终head/dirty以Git为准。用户最新要求 SearXNG primary、质量不足才 Bing/DDG rescue，避免默认三路重复检索。每query12候选、保留15候选，Read仍3/5、time30/60、模型≤6；未新增provider/Deep或qualified judge。
-- **下一刀唯一任务：**完成§174 focused/L2/最终组合候选L3、frontend/build与mypy无新增错误；执行独立的新8×2 provider观察，复核答案缺口；按已获授权依次合并#161及流萤/Discovery集成PR，验exact-main CI。旧green不覆盖新head。新manifest与操作方案见`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
-- **当前先决门：**最终集成门待完成。父研究50b54259已有focused181/L2 290；此前93fdd50e L3 3345/6仅历史证据。流萤frontend389 tests与build通过，隔离页面1600×900/390×667已验证配置联动、锁韧计算和输入框命中。SearXNG容器healthy、8080通，但general engines受CAPTCHA/限流/连接失败，搜索可用性仍不成立；不得把容器健康称为搜索恢复。
+- **当前动作：§174 adaptive宽Discovery观察，main保持NO-GO。** 第一波12、缺口后下一规划查询24；Lookup/Standard池上限25/80，实际数量取决于provider，不能声称必得40–80。正文3/5、30/60s、≤6模型调用不变。新8×2观察使用独立manifest，完整结果与限制见§174.1及`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
+- **下一刀唯一任务：**在已获授权的研究改进范围内，先冻结并实现“发布页结构化内容保留 + 从实际官方页面发现release链接”的有界合同，修复FastAPI release页面缺失和SQLite表格数据被丢；保持真实链接来源、禁止编造search result/证据授权。两题Source-quality与Search-answer通过后，才做最终组合L3并按用户授权合并#161与流萤集成，验exact-main CI。
+- **当前先决门：**Discovery工程L1最终117 passed/40.37s，named L2 336 passed/129.94s，最后pool/cooldown局部修复已focused覆盖；frontend389 tests/build，mypy122/baseline128无新增错误，package1626，secret scan0，Ruff/diff-check通过。Firefly desktop/390×667、锁韧/计算、配置→一金建议与输入框命中通过。Source-quality / Search-answer未闭合。组合L3先前启动后因locale不足误判及用户新增adaptive范围失效而取消，没有有效组合L3，不引用旧3345/6代替。主线不合并、不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18433,3 +18433,49 @@ Opus/Python找到官方发布页，FastAPI/SQLite仍多教程或泛主页；均�
 `firefly-mobile-short.png`。页面仅favicon404，无应用错误。
 
 最终测试、8×2观察与远端门结果在本节收口后追加；当前不能称REMOTE GO。
+
+
+### 174.1 Adaptive expansion 与四门收口（用户最新 steering）
+
+第一波每query12；pool不足、官方线索缺失、source family单一、Top5相关弱时，
+下一条有区别的已规划query扩到24。保留Lookup25 / Standard80 unique URL
+候选容量，不重复同query假装扩召回。Bing RSS实际常只给10条；API cap
+不是实际召回量。跨query tracking/fragment去重并合并provider来源，未读
+候选保留，read/char/time/model cap不变。locale文档族不足不能使primary
+满足候选充足判定。run-local provider cooldown仅作用本次研究；全degraded
+是external failure，不伪装成配置不存在或evidence saturation。
+
+发布意图保留release/latest/version/changelog，已知官方域来自规划线索只
+用于候选优先级，不认证事实。教程不得花掉发布问题read slots；有明确
+缺口才进入官方域恢复。一次模型candidate窗口仍最多5，未评估尾部保留
+待正文门。数字覆盖/当前版本/比较两端仍不可由related RQ标签冒充。
+
+Firefly正式source `fc96e3cb`已经是HEAD祖先，merge340c462d无UI内容复制。
+窄屏fix独立且有可点击输入框截图。历史743e537b树与fc96e3cb一致，最终
+main只拥有一份实现。首领锁韧、计算展开、大丽花配置改变建议D→A可复核。
+
+四门：
+1. Discovery：deterministic provider fallback/去重/来源/late containment、
+   release ranking、自适应第二query12→24、read保留、cooldown回归通过。
+2. Source-quality：旧固定12新分布8×2有6/16取得相关正文，但不是完整
+   问题覆盖；不能与旧v1不同分布4/16直接当效果对照。
+3. Search-answer：FastAPI/SQLite最新版本与日期仍未闭合，不宣布解决。
+4. Firefly UI：页面与389 frontend tests/build通过，合并仍随整体条件等待。
+
+Adaptive发布三题×2定向观察：
+`D:/study-agent-validation/adaptive-release-check-20261004/result.json`。
+Python2/2采用正文（17.047/16.031s）；FastAPI0/2（11.531/10.828s、0reads）；
+SQLite0/2（14.469/13.687s、1read各）。这是更快的正确拒绝，不是研究成功。
+
+SQLite actual reader seam：download.html→local_trafilatura只有875chars
+模板说明，完全没有版本或日期。代码include_tables=False；不能据此次搜索
+失败仅扩大候选数，后续必须保留来源结构化内容与其可追溯链接。
+Bing多个不同release/changelog/quoted/path queries返回几乎相同教程列表；
+SearXNG服务healthy但general默认引擎受限。独立engine probe 360search可
+找到SQLite changes/releaselog，FastAPI仍主页/教程；未偷偷改部署配置。
+
+当前新的完整adaptive 8×2使用候选1dc2ac52独立隔离DB，artifact目录
+`D:/study-agent-validation/adaptive-discovery-calibration-20261004`；结果完成后
+收口。旧观察/定向观察独立保留。新的official指标按manifest publisher域/
+repo namespace判断候选，不把任意github.com仓库都认证为官方，更不授权
+claim支持、formal judge或release benchmark。用户合并条件未满足前不merge。

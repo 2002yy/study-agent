@@ -168,3 +168,27 @@ google cse连接失败。不能将健康检查写成搜索恢复PASS。
 定向engine探针：bing无结果、wikipedia timeout、github可返回候选。
 GitHub搜索成功仅证明特定engine网络通，不授权取代通用搜索。
 未改本机secret或服务配置；保留失败事实，不通过切换引擎伪造通过。
+
+
+## 第三步 steering：adaptive 12→24（实际实施）
+
+当前每query12起步；候选不足/官方来源缺失/单域/Top5偏弱时，后续不同
+规划query扩大24。Lookup池上限25，Standard池上限80；上限是容量，不
+保证40–80实际unique URLs。正文仍3/5，不提高模型/时间/字符预算。
+跨query去tracking/fragment identity合并来源，保留未读候选。
+发布意图对release/changelog/download候选加权、教程降权；有官方规划域
+时教程不消耗版本问句读取；provider blocked/timeout使用run-local cooldown。
+Late worker不写结果；全cooldown返回providers_degraded_for_run，非配置缺失。
+
+四门分别记录：Discovery工程 / Source-quality / Search-answer / Firefly。
+当前工程与UI通过，FastAPI/SQLite最新版本和日期未闭合，main NO-GO。
+定向发布三题×2：Python2/2有正文，FastAPI0/2、SQLite0/2；数字仅诊断。
+SQLite下载页的875字符只有模板说明，版本表格被include_tables=False丢掉。
+这是后续Reader/actual-link discovery合同的直接触发证据，不能靠加候选掩盖。
+SearXNG360search engine定向可发现SQLite changes/releaselog；不是默认general
+恢复通过，也未直接修改服务engine设置。
+
+下一执行片应先冻结“有界结构化正文+实际官方页面链接发现”，保证新链接
+来自真实读过HTML、受public/DNS/redirect与同源/预算限制，不伪造search
+candidate、不把discovery-only导航页放进答案证据。两题真实Source-quality/
+Search-answer通过后，才做有效最终组合L3及main合并。
