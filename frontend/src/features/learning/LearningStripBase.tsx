@@ -10,7 +10,7 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ChatResponse, MemoryStatusResponse } from "../../types";
 import { phaseLabel } from "../pedagogy/pedagogyLabels";
@@ -103,9 +103,13 @@ export function LearningStrip({
   memoryStatus: MemoryStatusResponse | null;
 }) {
   const fireflyLesson = useFireflyLessonController();
-  const [open, setOpen] = useState(() => Boolean(fireflyLesson?.state.active));
+  const durableContext = resume?.source === "durable";
+  const [open, setOpen] = useState(() => Boolean(fireflyLesson?.state.active && !durableContext));
   const contract = taskContractFromRoute(lastChat?.route);
   const durableActive = resume?.source === "durable" && resume.status === "active";
+  useEffect(() => {
+    if (durableContext) setOpen(false);
+  }, [durableContext]);
 
   if (fireflyLesson?.state.active && !durableActive) {
     return (

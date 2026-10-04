@@ -474,6 +474,7 @@ export function ChatPanel(props: ChatPanelProps) {
           </details>
           <textarea
             aria-label="输入学习问题"
+            autoFocus
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleComposerKeyDown}
             placeholder="输入你的问题，或继续当前学习..."

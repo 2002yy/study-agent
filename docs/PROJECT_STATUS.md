@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前 main CI 窄修（覆盖下方历史 SHA/NEXT）：** base/main `95663fe9336f28f86e6df1170596337d246da29e`，#167 已合并；首次 exact-main run `37211534994` queued，未重复查询。Firefly main 的 `cf059186` / CI `37206335479` 浏览器失败已定位：默认课程展开占据窄屏对话空间、flex 消息被压缩、恢复上下文到达后面板保持错误的初始 open、键盘首个输入前有过多控制。分支 `codex/main-firefly-browser-repair` 仅修前端高度分配/消息不压缩/初始 composer focus/durable 到达时收起，保留空工作台默认流萤示例；不改 backend/research/Evidence/验收断言。
+
+**本地门：** 最终同一候选单元 **403 passed/103 files/31.79s**，TypeScript/Vite build PASS，浏览器 **53 passed/2.5m**（desktop/mobile/narrow Chromium + Firefox/WebKit），真实栈 **14 passed/1.0m**。已查看 desktop 与360×520 narrow截图，输入框/证据按钮正常。并发 Vitest worker 崩溃/Vite退出、最终真实栈一次12 PASS/2 reload资源失败（`ERR_INSUFFICIENT_RESOURCES`，系统可用内存约100MB）均保留失败样本，不计全绿；限制 Node heap384MB 后恢复 focused4 PASS，真实栈全14 PASS，可用内存回升约1.2GB；不终止其他应用。最终串行、unit maxWorkers2，未修改验收断言。窄修不触及后端，无需重复 backend L3。最终输出 `D:/study-agent-validation/main-firefly-candidate-{unit,build,browser}.log` / `main-firefly-candidate-real-stack-bounded.log`；diff-check PASS，最终差异review无未解决 finding。唯一下一步：push/open PR 后记录 exact-head CI 一次；当前 SHA green 才 expected-head 合并，再在后续 turn 验 exact-main。远端门未完成，不称 REMOTE GO。
+
+**联网路线未被窄修覆盖：** 用户最新方向是 A 漏斗→B Discovery/Platform 分层合同→C 首批匿名 B站/YouTube/RSS/V2EX 按操作资格化；MediaCrawler 可替换，登录后处理，付费 D 才 A/B。A 实现另在 `bc9fac7410f573bb5f57afb35e6740c14a5de905`，L2 336 passed、exact-head CI `37213889771` success；docs head `68240f0dfb2b32cb18ca8f6495c294d4e627a2d5` CI `37217804057` 首次 in_progress。B Draft #168 (`codex/platform-capability-contract`，head 以 Git 为准)，L1 46 passed/mypy NEW0，生产 inert。匿名 CLI B站/YouTube 各3条搜索元数据，RSS50/V2EX10；均不授予 detail/subtitles/Evidence qualified。#161/#164 Source-quality/Search-answer 和最终组合 L3/exact-head/exact-main 门仍未闭合，不能借本刀合并研究集成。
+
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
