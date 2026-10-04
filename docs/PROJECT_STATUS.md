@@ -8,6 +8,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-05 research v2 候选门关闭为 NO_GO（覆盖下方执行中状态）：** 生产head `dc6430b7b0ac3201a9140d25b1c334de37a81a0a`，base main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8`，branch `codex/research-source-quality-v2`；三个生产提交9028fb89/132fe011/dc6430b7分别迁移调度与漏斗、有界reader、官方resolver与字段发布硬门。末轮L1 67 PASS及partial-commit回归16 PASS；L2 326 PASS；同一生产head完整L3 **3401 PASS/6 skipped/1133.99s**；mypy122/baseline128 NEW0、Ruff/diff-check PASS。本次追加仅记录证据，不重跑完整套件。
+
+**clean-head真实证据：** artifact `D:/study-agent-validation/source-quality-v2-live-20261005/result.json` 记录head dc6430b7、dirty_paths=[]、生产文件digest、官方读取时间、真实ChatService/SQLite发布文本与assertion refs；manifest `D:/study-agent-validation/source-quality-v2-live-manifest.json` 的五个用户验收问题取代旧八题中的五个并保留三项未执行项，明确独立acceptance诊断，不修改旧冻结manifest、不授予semantic judge资格。FastAPI和SQLite实际field-backed，PyPI日期仅标包上传日期；Python官方metadata版本3.14.0被通用3.14模型marker拒绝，日期未提取；arXiv官方seed在read前被标unrelated_or_invalid_candidate而过滤，CSDN读到正文仍不能发布作者；Opus普通正文不能代替exact-version metadata，最终abstain。**发布通过2/5，绝不合并研究，也不借全绿L3冒称五题通过。** 已有interrupt/fail及客户端partial-commit出口抑制未验证前缀，字段式答复不调用prose模型，不授权学习状态。
+
+**唯一研究下一刀：** 修已验证官方seed的候选/read身份门：arXiv注册seed不能被通用URL相关度误排；Python已匹配规范版本应使用身份门而非模型名marker，并获得真实官方发布日期字段。补对应负控，重复受影响真实问题后验证新候选head；Opus仍保持相邻版本负控/明确缺口，不猜作者、日期或版本。#161/#164继续仅供取零件，#168平台合同独立后置。
+
+**用户新增UI任务另线完成：** main独立branch `codex/ui-chinese-terminology` 生产head `e02f67c187e3b22704ba28125505608ee71e71aa`，中文术语/未知状态/错误渲染边界一个提交。16项专门渲染回归、unit419、build、浏览器53、真实栈14均PASS；原始API/枚举/合同及外部内容不变。其PR/CI状态查 `D:/study-agent-validation/ui-chinese-ci-state.json`，没有把UI混入本研究分支。研究生产候选先push保存分支，不创建可合并PR，不跑额外重复CI。原工作树和其他分支未动。
+
 **2026-10-05 当前执行权：research-source-quality-v2。** 用户明确停止把 #161/#164 当作待合并大包；旧分支仅供提取零件。从已合并 #169 的 main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8` 建立 `codex/research-source-quality-v2`，工作树 `D:/study-agent-validation/research-source-quality-v2`。合同入口 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。已拆成两个 donor commits：`9028fb89` 搜索 recovery/deadline/lifecycle + 实际漏斗；`132fe011` gzip/deflate 真正有界解压、表格/作者、release-link ranking。无旧 UI/startup/扩候选池/provider multiplication/旧 qualification artifact。
 
 **新实现：** 官方地址优先（PyPI FastAPI、SQLite变化/特定版本、Python版本页、arXiv元数据），失败后通用 recovery；地址是 resolver seed，不冒充搜索结果。发布出口使用已读官方 metadata 的 field/digest/span，缺失作者不补写、相邻版本不替代；未知显式研究若无 claim-bound plan 则 abstain，已有显式 Evidence Gate 不旁路。SSE 缓冲，不泄漏未验证前缀；字段式回答不调用 prose 模型、不推进学习授权。Opus overview 尚无 exact-version reader，保守拒绝，不声称不存在该版本。
