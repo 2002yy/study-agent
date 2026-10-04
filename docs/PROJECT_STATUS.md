@@ -12,7 +12,7 @@
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
 - **分支 / head：**全部17个开放 PR（#142、#145–#160）已合并，exact-main `5a3199aa1d879e432bdb8f3103507c0528f0e62c` CI success，合并收口 CLOSED。当前 `codex/search-first-research` 以该 main 为 base，合同提交 `c068dc0b4819cebe1bd56d7633d5596433030911`，§170 Lookup/Standard 恢复实现与验收见 §170.5–§170.6；最终实现 head 以 `git rev-parse HEAD` / 对应 PR 为准。原型 stash 保留为安全备份，已被本批实现替代。
-- **工作树：**远端head=`28b82daba9ad4a54f936e3de1120a169791f6303`，PR #161已推送。§171.7启动修复、§171.8真实失败修复与§172语义恢复共25文件候选已完成本地focused验证；本轮按startup/research分别提交，当前head/clean状态以Git为准。桌面两个入口已备份并部署。旧CI仅覆盖远端28b82dab，不覆盖新候选。
+- **工作树：**§171.7启动修复提交`dd7850e7`；§171.8真实失败修复+§172语义恢复提交`93fdd50ee636cc04eebbd547eeed0e3e30c73e8a`，共25文件，L3时工作树clean。当前收口仅docs，head/clean以Git为准。PR #161保持OPEN；本轮推送后单次exact-head CI快照写`D:\study-agent-validation\semantic-delivery-ci.json`，旧28b82dab CI不覆盖新候选。桌面两个入口已备份部署。
 - **已关闭阶段：**
   - `P2-A3` 检索栈（taxonomy/breaker/lifecycle/routing/scheduling/chain/browser）✅ CLOSED
   - `§143-A` specialist warm cost profile ✅ CLOSED
@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§172 Research Semantic Recovery已实现，最终候选回归/远端门待收口，见§172.5。**真实四turn诊断已通过，首次容器误判、指令词query污染与已发现官方页跨phase失踪均留失败样本及回归。保持Lookup30s/Standard60s hard和共享≤6模型调用，不增加provider或独立Deep runtime。桌面启动LOCAL GO，Docker管理员修复未成功；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**在干净§172候选上完成L3及exact-head远端门；绿后进入§171-A真实失败矩阵的有界校准，测恢复任务延迟/unique canonical docs/source families/RQ覆盖缺口。B/C交付合同继续有效，75s、独立Deep及§169-M3仍后置；不重新设计episode、不继续堆自然语言正则、不重复查询旧28b82dab CI。
-- **当前先决门：**LOCAL GO。named L2 `research-recovery-v1` 20文件202 passed / 88.39s；Ruff、diff-check、package/secret scan PASS；expanded mypy baseline PASS（current122 / baseline128，无新增错误）。backend L3 3292 passed / 6 skipped，两个clean-checkout前置拒绝在提交后所属测试2/2通过，生产代码未变，分段证据见 §170.6。真实隔离 `opus5.5` 回归 research7.922s / total12.844s，2 reads / 2 canonical docs / 2 source families，采用官方发布页；diagnostic only，未授予语义资格或写入真实用户会话。
+- **当前动作：§172 LOCAL CLOSED / REMOTE PENDING，见§172.5–§172.6。**真实四turn诊断通过，L3在93fdd50e干净候选完成。保持Lookup30s/Standard60s hard和共享≤6模型调用，不增加provider或独立Deep runtime。桌面启动LOCAL GO，Docker管理员修复未成功；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
+- **下一刀唯一任务：**按本轮CI快照中的head/run核对PR #161 exact-head门；绿后进入§171-A真实失败矩阵有界校准，测恢复任务延迟、canonical docs/source families与RQ覆盖缺口。B/C交付合同继续有效，75s、独立Deep及§169-M3仍后置；不重新设计episode、不继续堆自然语言正则、不重复查询旧28b82dab CI。
+- **当前先决门：**LOCAL GO。最终focused92 passed / 36.76s；named L2 `semantic-recovery-v1` 25文件276 passed / 131.90s；backend L3 **3345 passed / 6 skipped / 1057.84s**，clean候选93fdd50e。Ruff、diff-check、package1608文件、secret scan0、mypy current122/baseline128无新增错误。四turn真实隔离诊断见§172.5；当前未获得新exact-head CI结果，不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18293,7 +18293,7 @@ ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和
 
 **边界：**这是已复现缺陷修复和一个真实成功样本，不是分布校准完成。独立评测覆盖、通用省略/指代、动态RQ拆解、真正semantic relevance/answer sufficiency仍未实现；下一刀按§172改由有界模型语义建议驱动，现有规则只保留可测试的安全兜底。
 
-## 172. Research Semantic Recovery v1（2026-10-04，IMPLEMENTED / FINAL REGRESSION PENDING）
+## 172. Research Semantic Recovery v1（2026-10-04，LOCAL CLOSED / REMOTE PENDING）
 
 **用户方向：**给DeepSeek完整、有界的当前研究episode，做turn interpretation、RQ→query planning和语义相关性建议；不默认发送完整聊天，不让模型接管预算/权限/证据authority。用户2026-10-04附文与§171.8实测为本合同依据。
 
@@ -18364,3 +18364,13 @@ ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和
 该真实诊断之后仅修外发审计标签与writer耗尽拒绝边界；检索、解释prompt、source读取及相关性判断未变，未为审计元数据重复出网。诊断不是qualified judge标签，也不证明独立榜单已核验或所有任务都成功；默认release/confirmed authority仍NONE。
 
 **验证状态：**named L1 `semantic_recovery`、L2 `semantic-recovery-v1`（25文件）已登记。最终L2与L3结果待下段落收口；Ruff和mypy baseline current122/baseline128，无新增错误。一次进行中的L3在17%时因外发审计分类修复而终止，该部分日志不作通过证据；最终候选只跑一次完整L3。启动修复及§171.8前轮修改均保留。
+
+### 172.6 候选收口与交付门
+
+- review range：`28b82daba9ad4a54f936e3de1120a169791f6303..93fdd50ee636cc04eebbd547eeed0e3e30c73e8a`。启动5文件独立提交`dd7850e7`；研究20文件含本status提交`93fdd50e`。没有丢弃前轮修改、扩大预算或更改既有provider/reader/gate配置。
+- L1最终影响集：`semantic-final-impact.log` **92 passed / 36.76s**；own+候选队列+底层恢复此前58 passed / 19.28s。launcher原有测试3 passed，前轮13项native/impact证据仍见§171.7；frontend前轮25 tests/build证据见§171.8，frontend本轮生产树未继续修改。
+- L2：`semantic-candidate-L2.log` **276 passed / 131.90s**。L3：`semantic-final-L3.log` **3345 passed / 6 skipped / 1057.84s**。该完整L3在commit93fdd50e、clean checkout跑完，源码未再改；之后仅docs closeout，不再重复全量。
+- Ruff PASS；expanded mypy current122 / baseline128，NEW=0；`git diff --check` PASS；package helper1608 files PASS，detect-secrets0 findings。API8001 health200，当前factory已包含semantic adapter，Docker故障不阻止Bing RSS fallback。
+- 已复核边界：strict identity/type/cap、private query拒绝、同thread/version继承、新题与旧run并发不覆盖新active、cancel/late rejection、history-off、invalid JSON/id、候选拒绝记忆、跨phase官方页保留、fetch-success/related/adopted区分、physical egress与validation分开、writer/binder共享调用上限。真实诊断仍只证明此次四turn观察，不代表独立benchmark或qualified semantic release。
+- 本轮final docs commit后的head以Git为准；push后只查一次该head CI，快照记录head、run id/event/status/conclusion到`D:\study-agent-validation\semantic-delivery-ci.json`。无新exact-head绿灯前保持REMOTE PENDING；后续窗口只查该快照的已知run，不沿用旧CI，也不轮询等待。
+- 后续唯一执行片：exact-head门绿后做§171-A有界真实任务校准；不扩大Deep/provider/75s，不再重开已冻结episode/parser设计。旧版没有semantic episode的聊天记录不会被自动赋予新task identity；需要新的明确研究问题建立v1 episode，不以历史助手结论当当前原题或证据。
