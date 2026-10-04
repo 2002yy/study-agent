@@ -12,7 +12,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from src.web.source_assessment import assess_sources
-from src.web.discovery import in_scope, pool_quality, release_candidate, release_intent, scoped_domain
+from src.web.discovery import in_scope, pool_quality, release_candidate, release_intent, scoped_domain, url_identity
 from src.web.tool_gateway import GeneralWebGateway
 from src.web.recovery_candidates import CandidateScheduler
 from src.web.tool_evidence import _public_url, evidence_tool_calls
@@ -423,8 +423,11 @@ def _recover_public_research(
                     degraded_providers.add(stat["provider"])
             for item in candidates:
                 url = _public_url(item.get("url"))
-                if url and (url in discovery_pool or len(discovery_pool) < pool_limit):
-                    discovery_pool[url] = item
+                key = url_identity(url) if url else ""
+                if key and (key in discovery_pool or len(discovery_pool) < pool_limit):
+                    previous = discovery_pool.get(key, {})
+                    discovery_pool[key] = {**item, "providers": list(dict.fromkeys([
+                        *previous.get("providers", []), *item.get("providers", [])]))}
             quality = pool_quality(list(discovery_pool.values()), search_query, domains, standard=budget.mode == "standard")
             if not quality["sufficient"]:
                 candidate_limit = 24
