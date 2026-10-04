@@ -38,7 +38,7 @@
   - **③ 真实链接来源**：release 链接只能来自**实际官方页面**（同域 anchor / sitemap / 官方 API），必须携带 provenance；**禁止编造 search result、禁止越权证据授权**。发现只影响**排序偏好**；relation/strength/binding eligibility 仍由 extractor + Gate 决定。
   - **边界（不做）**：不改 `ACTIVE_READER_CHAIN`；不自动升级 backend；read budget 不变（正文3/5、30/60s、≤6 模型调用）；不把 read 成功当 semantic adequacy。
   - **验收 golden**：① Python-3140 release 页（gzip + 版本表格）② FastAPI 发布导航（真实 release 链接）③ 论文作者缺失（byline 保留）。三项通过 + focused + L1；`git diff --check` 单独确认。
-  - **状态**：① ② 已实现并推送（`a8267f60` CI success / `e3519b24` in_progress）；③ 待实现（须先按本合同冻结排序契约）。
+  - **状态**：① ② 已实现并推送（`a8267f60` CI success / `e3519b24` 由 `9bd38dcc` 覆盖 success）；③ 已实现（`d516d7f2`：release/download/changelog 路径作为**次级排序键**，不覆盖 term 匹配、不过滤、不授予 authority）。三项 golden 实跑待做。
 - **当前先决门：**Discovery工程L1最终117 passed/40.37s，named L2 336 passed/129.94s，最后pool/cooldown局部修复已focused覆盖；frontend389 tests/build，mypy122/baseline128无新增错误，package1626，secret scan0，Ruff/diff-check通过。Firefly desktop/390×667、锁韧/计算、配置→一金建议与输入框命中通过。Source-quality / Search-answer未闭合。组合L3先前启动后因locale不足误判及用户新增adaptive范围失效而取消，没有有效组合L3，不引用旧3345/6代替。主线不合并、不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
