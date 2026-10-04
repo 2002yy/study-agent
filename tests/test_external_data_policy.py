@@ -633,3 +633,37 @@ def test_ask_mode_does_not_treat_manual_web_context_as_consent(tmp_path):
         "run_id": "",
         "source": "manual",
     }
+
+
+def test_server_rendered_publication_does_not_invent_answer_egress(tmp_path):
+    service, _captured = _service(tmp_path)
+    prepared = service.start_turn(
+        PolicyChatCommand(
+            user_input="FastAPI当前最新版本及发布日期",
+            thread_id="chat-server-rendered-publication",
+            task_intent="research",
+            web_policy="auto",
+            cloud_context_policy="allow_local_evidence",
+        )
+    )
+
+    service.generate(prepared)
+
+    execution = prepared.rag["external_data_policy"]
+    assert prepared.route.get("answer_generation_calls", 0) == 0
+    assert not any(
+        call.get("purpose") == "answer_generation"
+        for call in execution["external_calls"]
+    )
+    assert execution["history_sent_to_model"] is False
+    assert execution["learning_state_sent_to_model"] is False
+    assert execution["memory_context_sent_to_model"] is False
+    assert execution["local_evidence_sent_to_model"] is False
+
+    stored = service.repository.get_chat_turn(prepared.turn.id)
+    assert stored is not None
+    stored_execution = stored.rag_snapshot["external_data_policy"]
+    assert not any(
+        call.get("purpose") == "answer_generation"
+        for call in stored_execution["external_calls"]
+    )

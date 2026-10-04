@@ -113,3 +113,43 @@ def test_author_field_survives_the_reader_result(monkeypatch):
     result = read_html_locally(html, url="https://example.com/post")
     assert result.ok is True
     assert result.author == "Grace Hopper"
+
+
+def test_author_propagates_through_fetch_cache_and_gateway(monkeypatch):
+    from src.news import article_fetcher
+    from src.news.readers.base import ReaderResult
+    from src.web.tool_gateway import GeneralWebGateway
+
+    article_fetcher._ARTICLE_CACHE.clear()
+    monkeypatch.setattr(
+        article_fetcher,
+        "_is_fetchable_article_url",
+        lambda _url: True,
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "_fetch_html_payload",
+        lambda _url, timeout, max_bytes: (
+            '<meta name="author" content="Grace Hopper">',
+            "https://example.com/post",
+            "text/html",
+            "",
+        ),
+    )
+    monkeypatch.setattr(
+        article_fetcher,
+        "read_html_locally",
+        lambda html, url="", max_chars=5000: ReaderResult(
+            text="article body " * 20,
+            method="trafilatura",
+            author="Grace Hopper",
+        ),
+    )
+
+    first = article_fetcher.fetch_article_read_result("https://example.com/post")
+    second = article_fetcher.fetch_article_read_result("https://example.com/post")
+    gateway = GeneralWebGateway().read("https://example.com/post")
+
+    assert first.author == "Grace Hopper"
+    assert second.author == "Grace Hopper"
+    assert gateway["author"] == "Grace Hopper"

@@ -855,6 +855,7 @@ class ExternalDataPolicyChatService(ChatService):
         operation_id = prepared.turn.operation_id or ""
         next_calls = _route_generation_calls(prepared.route) + 1
         self._check_research_model_budget(prepared, next_calls)
+        self._record_answer_call(prepared, "attempted")
         route_snapshot = {
             **prepared.route,
             "answer_generation_calls": next_calls,
@@ -883,20 +884,12 @@ class ExternalDataPolicyChatService(ChatService):
         return True
 
     def generate(self, prepared: PreparedChatTurn) -> str:
-        self._record_answer_call(prepared, "attempted")
         return super().generate(prepared)
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
-        def audited_stream() -> Iterator[str]:
-            self._record_answer_call(prepared, "attempted")
-            yield from super(ExternalDataPolicyChatService, self).stream(
-                prepared, should_cancel=should_cancel
-            )
-
-        return audited_stream()
+        return super().stream(prepared, should_cancel=should_cancel)
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
-        self._record_answer_call(prepared, "attempted")
         async for token in super().stream_async(prepared):
             yield token
 

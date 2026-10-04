@@ -109,3 +109,37 @@ def test_async_stream_has_absolute_deadline_even_when_provider_keeps_connection_
     with pytest.raises(TimeoutError):
         asyncio.run(consume())
     assert received == ["prefix"]
+
+
+def test_expired_official_publication_deadline_settles_turn(tmp_path):
+    from src.application.chat_service import answer_validation_active
+
+    service, repository = _service(tmp_path)
+    prepared = service.start_turn(
+        ChatCommand(user_input="official release", thread_id="deadline-official")
+    )
+    prepared = replace(
+        prepared,
+        research_deadline=time.monotonic() - 1,
+        route={
+            **prepared.route,
+            "task_contract": {"task_intent": "research"},
+        },
+        rag={
+            **prepared.rag,
+            "web_tools": {"enabled": True, "calls": []},
+        },
+    )
+    assert answer_validation_active(prepared)
+
+    with pytest.raises(TimeoutError):
+        service.generate(prepared)
+
+    restored = repository.get_chat_turn(prepared.turn.id)
+    assert restored is not None
+    assert restored.status == "failed"
+    thread = repository.get_chat_thread(prepared.thread.id)
+    assert thread is not None
+    assert thread.active_operation_id is None
+    assert not restored.assistant_message
+    assert prepared.route.get("answer_generation_calls", 0) == 0

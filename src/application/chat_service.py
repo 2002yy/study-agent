@@ -869,7 +869,11 @@ class ChatService:
         )
         cancel_check("generate_pre")
         if answer_validation_active(prepared) and prepared.answer_validation is None:
-            remaining_seconds(prepared.research_deadline)
+            try:
+                remaining_seconds(prepared.research_deadline)
+            except TimeoutError:
+                self.fail_turn(prepared)
+                raise
             return self.complete_turn(prepared, "").assistant_message
         max_tokens = self.dependencies.chat_max_tokens(
             prepared.runtime_modes.performance_mode

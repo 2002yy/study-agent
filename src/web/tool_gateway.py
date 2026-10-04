@@ -413,13 +413,16 @@ class GeneralWebGateway:
                 "error": result.reason or "page_read_failed",
                 "error_code": _canonical_read_error_code(result.reason),
             }
-        return {
+        response = {
             "ok": True,
             "kind": "web_page",
             "url": result.final_url or result.requested_url,
             "method": result.method,
             "content": result.text,
         }
+        if result.author:
+            response["author"] = result.author
+        return response
 
     def github_search(
         self,
