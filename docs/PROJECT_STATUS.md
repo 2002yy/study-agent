@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前权威进度（覆盖下方旧 SHA / NEXT）：** main `95663fe9336f28f86e6df1170596337d246da29e`（#167 已合并；exact-main CI `37211534994` 只记录首次 queued，不以旧绿灯交付）。本分支 `codex/firefly-main-integration` 的 A 漏斗实现 `bc9fac7410f573bb5f57afb35e6740c14a5de905` 已推送：实际 decision-site disposition、read digest/context refs、取消/超时 started attempt 记账；L2 **336 passed/144.23s**，mypy122/baseline128 NEW0、Ruff/diff-check PASS。真实 FastAPI 10 候选/0 read 均明确 not_release_candidate，仍是 Discovery 失败，Source/Answer 未闭合。
+
+**最新方向与独立 B/C：** 按操作的 Platform Capability Registry；MediaCrawler 可替换，先匿名 B站/YouTube/RSS/V2EX，登录以后处理。B 已在 `codex/platform-capability-contract` / Draft PR #168 推送（生产 inert），L1 **46 passed/18.96s**、mypy NEW0。公开 RSS50、V2EX10；带 auth 拒绝 guard 的 bili-cli 0.6.2、ignore-config 的 yt-dlp 各观察到3条搜索元数据。B站直接 HTTP412、YouTube HTML超500KB仍保留失败；CLI Windows编码/envelope误判样本已保存并更正。所有 `qualified=false`，未证 detail/subtitles/Evidence。证据与独立环境位于 `D:/study-agent-validation/anonymous-*`、`D:/study-agent-sidecars/anonymous-platforms/.venv`，不读 Cookie/profile、不新增付费 key。Exa/Tavily D 才 A/B。
+
+**下一刀：** 完成 C 的匿名 specialist request-bound search/detail 合同实现与资格化；主线 Firefly CI 修复另在 `D:/study-agent-validation/main-firefly-browser-repair`、branch `codex/main-firefly-browser-repair`。#161/#164 保留来源/答案质量与最终组合 L3/exact-head/exact-main 门，不能因 B 合同或网页可达而合并。各 worktree 仅提交自己的显式路径，最终 SHA/dirty 以 Git 为准。
+
 > **§0 治理规则（冻结）**：本节只维护"当前权威状态 + 下一动作"。历史细节留在对应 §143.x 段落，**不复制实验史**。
 > §0 若再次腐烂，属独立 docs-governance 债务，不得与产品/实验改动混刀。
 
