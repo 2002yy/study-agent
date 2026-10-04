@@ -226,7 +226,7 @@ export function oneGoldRecommendation(state: FireflyLessonState): OneGoldRecomme
   ) {
     return {
       key: "B",
-      title: "流萤2魂 vs 流萤专武",
+      title: "流萤2魂 与 流萤专武",
       summary: "这里选的是“多打一整次”和“每次打得更重”的区别。",
       details: ["2魂：击杀/弱点击破后获得额外回合", "专武：击破特攻、专属击破易伤、减速"],
     };
@@ -238,7 +238,7 @@ export function oneGoldRecommendation(state: FireflyLessonState): OneGoldRecomme
   ) {
     return {
       key: "D",
-      title: "大丽花1魂 vs 大丽花专武",
+      title: "大丽花1魂 与 大丽花专武",
       summary: "一边买削韧时点与共舞者超击破，一边买单次伤害与战技点循环。",
       details: ["1魂：削韧时点 / 共舞者超击破", "专武：单次击破伤害 / 战技点循环"],
     };

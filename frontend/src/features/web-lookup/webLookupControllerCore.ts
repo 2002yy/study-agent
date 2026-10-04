@@ -1,3 +1,4 @@
+import { humanizeUiError } from "../../utils/uiLabels";
 import { useEffect, useState } from "react";
 
 import { operationRegistry } from "../../app/operationRegistry";
@@ -68,7 +69,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       setUseInChat(isUsable(response));
       if (response.status === "failed") {
         options.setOperationError(
-          `联网研究失败，可重试：${response.error || "研究服务不可用"}`,
+          humanizeUiError(response.error, "本次研究未能完成，请稍后重试。"),
         );
       }
     } catch (error) {
@@ -77,7 +78,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
         (error instanceof DOMException && error.name === "AbortError")
       ) return;
       options.setOperationError(
-        `${errorPrefix}：${error instanceof Error ? error.message : errorPrefix}`,
+        humanizeUiError(error, `${errorPrefix}，请稍后重试。`),
       );
     } finally {
       if (operationRegistry.isCurrent(operation.operationId, operation.generationId)) {
@@ -210,7 +211,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       .catch((error) => {
         if (active) {
           options.setOperationError(
-            `联网结果恢复失败：${error instanceof Error ? error.message : "记录不存在"}`,
+            humanizeUiError(error, "联网结果恢复失败，请稍后重试。"),
           );
           options.setActiveRunId(undefined);
         }
@@ -238,7 +239,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       })
       .catch((error) => {
         options.setOperationError(
-          `停止联网研究失败：${error instanceof Error ? error.message : "取消请求失败"}`,
+          humanizeUiError(error, "停止联网研究失败，请稍后重试。"),
         );
       })
       .finally(() => {
@@ -254,7 +255,7 @@ export function useWebLookupController(options: WebLookupControllerOptions) {
       options.setActiveRunId(response.run_id);
     } catch (error) {
       options.setOperationError(
-        `联网研究状态刷新失败：${error instanceof Error ? error.message : "记录不存在"}`,
+        humanizeUiError(error, "联网研究状态刷新失败，请稍后重试。"),
       );
     }
   };

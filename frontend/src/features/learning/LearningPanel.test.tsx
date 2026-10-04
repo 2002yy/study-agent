@@ -131,7 +131,7 @@ describe("LearningPanel durable resume", () => {
     expect(text).toContain("理解 durable ResumeContext");
     expect(text).toContain("最新 Revision 决定恢复时看到的 Claim 文本");
     expect(text).toContain("已验证理解");
-    expect(text).toContain("Primary Evidence");
+    expect(text).toContain("主要证据");
     expect(text).toContain("LearningResumeService.build");
     expect(text).toContain("跨设备恢复仍需后续验证");
     expect(text).toContain("验证恢复 API 的浏览器行为");
@@ -163,8 +163,8 @@ describe("LearningPanel durable resume", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("当前没有进行中的 durable Goal");
-    expect(text).toContain("不会读取旧 learning_state");
+    expect(text).toContain("当前没有进行中的已保存的学习目标");
+    expect(text).toContain("不会读取旧学习状态");
     expect(text).not.toContain("旧目标不得覆盖 durable");
     expect(text).not.toContain("旧 confirmed point 不得变 Claim");
   });
@@ -194,9 +194,9 @@ describe("LearningPanel durable resume", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("legacy confirmed_points");
+    expect(text).toContain("旧版已确认点");
     expect(text).toContain("旧 confirmed point 不得变 Claim");
-    expect(text).toContain("不是 Claims");
+    expect(text).toContain("不是学习命题");
     expect(text).not.toContain("Durable Claims");
     expect(text).not.toContain("已掌握知识点");
   });
@@ -252,7 +252,7 @@ describe("LearningPanel durable resume", () => {
 
       const text = container.textContent ?? "";
       expect(text).toContain("源码已变动");
-      expect(text).toContain("Primary 源码已实质变更");
+      expect(text).toContain("原因待确认");
       const button = within(container).getByRole("button", { name: /重新验证/ });
       expect(button).toBeInTheDocument();
       fireEvent.click(button);
@@ -288,7 +288,7 @@ describe("LearningPanel durable resume", () => {
 
       const text = container.textContent ?? "";
       expect(text).toContain("源码新鲜度暂不可用");
-      expect(text).toContain("NetworkError");
+      expect(text).toContain("评估失败，请稍后重试。");
       expect(
         within(container).queryByRole("button", { name: /重新验证/ }),
       ).toBeNull();

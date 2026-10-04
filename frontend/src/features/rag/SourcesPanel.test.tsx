@@ -180,7 +180,7 @@ describe("SourcesPanel three-layer ownership", () => {
     const diagnostics = screen.getByRole("tabpanel");
     expect(within(diagnostics).getByRole("heading", { name: "证据生命周期" })).toBeVisible();
     expect(within(diagnostics).getAllByText("candidate guide").length).toBeGreaterThan(0);
-    expect(within(diagnostics).getByText("分数：0.420")).toBeVisible();
+    expect(within(diagnostics).getByText("相关度：0.420")).toBeVisible();
     expect(within(diagnostics).getByText("生命周期：候选")).toBeVisible();
     expect(within(diagnostics).getByText("candidate context must stay diagnostic")).toBeInTheDocument();
     expect(screen.queryByText("FastAPI source notes")).not.toBeInTheDocument();

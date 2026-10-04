@@ -1,3 +1,4 @@
+import { labelFor } from "../../utils/uiLabels";
 import { Cloud, Database, History, Search } from "lucide-react";
 
 import type {
@@ -119,7 +120,7 @@ function describeDataCategories(call: ExternalDataCallAudit): string {
   return call.data_categories
     .map((category) => {
       const count = call.data_counts?.[category];
-      return `${categoryLabels[category] ?? category}${typeof count === "number" ? ` ${count}` : ""}`;
+      return `${labelFor(categoryLabels, category, "其他数据")}${typeof count === "number" ? ` ${count}` : ""}`;
     })
     .join("、");
 }
@@ -127,11 +128,14 @@ function describeDataCategories(call: ExternalDataCallAudit): string {
 function providerName(value: string): string {
   const normalized = value.split(":", 1)[0].trim();
   const labels: Record<string, string> = {
+    openai: "OpenAI",
+    deepseek: "DeepSeek",
+    github: "GitHub",
     searxng: "SearXNG",
     bing_rss: "Bing RSS",
     duckduckgo_html: "DuckDuckGo",
   };
-  return labels[normalized] ?? normalized;
+  return labelFor(labels, normalized, "其他服务");
 }
 
 export function summarizeExternalData(evidence: TurnEvidence): DisclosureSummary | null {
@@ -244,7 +248,7 @@ export function ExternalDataDisclosure({ evidence }: { evidence: TurnEvidence })
             <span>
               逐调用记录：
               {policy.external_calls?.map((call) => (
-                `${purposeLabels[call.purpose] ?? call.purpose} → ${call.provider} → ${statusLabels[call.status] ?? call.status}（${describeDataCategories(call) || "未记录数据类别"}）`
+                `${labelFor(purposeLabels, call.purpose, "其他用途")} → ${providerName(call.provider)} → ${labelFor(statusLabels, call.status, "其他状态")}（${describeDataCategories(call) || "未记录数据类别"}）`
               )).join("；")}
             </span>
           </li>

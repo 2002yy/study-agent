@@ -89,7 +89,7 @@ describe("ChatResearchRecovery", () => {
       />,
     );
 
-    expect(container).toHaveTextContent("正在执行 Evidence Gate");
+    expect(container).toHaveTextContent("正在执行证据校验");
     expect(container).toHaveTextContent("候选 12");
     expect(container).toHaveTextContent("已读 5");
     expect(container).toHaveTextContent("独立证据簇 3");
@@ -97,7 +97,7 @@ describe("ChatResearchRecovery", () => {
   });
 
   it.each([
-    ["completed", "evidence_gate_pass", "Evidence Gate 已通过"],
+    ["completed", "evidence_gate_pass", "证据校验已通过"],
     ["partial", "evidence_gap_open", "仍有关键证据缺口"],
     ["partial", "evidence_budget_exhausted", "研究预算已用尽"],
     ["failed", "active_runtime_unavailable", "未把未经校验的结果当成结论"],

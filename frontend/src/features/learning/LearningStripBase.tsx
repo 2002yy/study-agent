@@ -30,8 +30,8 @@ function nonLearningResultLabel(taskIntent: string): string {
 function durableUnderstandingSummary(resume: LearningResumeResponse) {
   if (!resume.claims.length) {
     return {
-      label: "等待形成 Claim",
-      detail: "当前 Goal 尚无 source-backed Claim。",
+      label: "等待形成学习命题",
+      detail: "当前学习目标尚无 有来源依据的学习命题。",
       className: "pending_validation",
       icon: CircleHelp,
     };
@@ -42,7 +42,7 @@ function durableUnderstandingSummary(resume: LearningResumeResponse) {
   if (staleCount) {
     return {
       label: `${staleCount} 条源码已变动`,
-      detail: "存在依据的源码已实质变更、尚未重新验证的 Claim。",
+      detail: "存在依据的源码已实质变更、尚未重新验证的学习命题。",
       className: "stale_source",
       icon: RotateCcw,
     };
@@ -56,7 +56,7 @@ function durableUnderstandingSummary(resume: LearningResumeResponse) {
   if (counts.attempted) {
     return {
       label: `${counts.attempted} 条待重验`,
-      detail: "存在已尝试但当前未通过验证的 Claim。",
+      detail: "存在已尝试但当前未通过验证的学习命题。",
       className: "needs_reteach",
       icon: RotateCcw,
     };
@@ -64,7 +64,7 @@ function durableUnderstandingSummary(resume: LearningResumeResponse) {
   if (counts.partial) {
     return {
       label: `${counts.partial} 条部分理解`,
-      detail: "存在 UnderstandingEvidence=partial 的 Claim。",
+      detail: "存在部分通过的理解验证证据的学习命题。",
       className: "pending_semantic_review",
       icon: ShieldQuestion,
     };
@@ -72,14 +72,18 @@ function durableUnderstandingSummary(resume: LearningResumeResponse) {
   if (counts.proposed) {
     return {
       label: `${counts.proposed} 条待验证`,
-      detail: "存在已有源码依据但尚无 UnderstandingEvidence 的 Claim。",
+      detail: "存在已有源码依据但尚无理解验证证据的学习命题。",
       className: "pending_validation",
       icon: CircleHelp,
     };
   }
+  if (counts.confirmed !== resume.claims.length) {
+    return { label: "状态未知", detail: "部分学习命题的理解验证状态暂无法确认。",
+      className: "pending_validation", icon: CircleHelp };
+  }
   return {
     label: `${counts.confirmed} 条已验证`,
-    detail: "当前展示的 Claim 均有 durable pass UnderstandingEvidence。",
+    detail: "当前展示的学习命题均有 已保存且已通过的理解验证证据。",
     className: "verified",
     icon: CheckCircle2,
   };
@@ -174,8 +178,8 @@ export function LearningStrip({
     return (
       <div className="learning-strip" aria-label="学习恢复状态">
         <div className="learning-strip-toggle non-learning-status">
-          <span className="learning-strip-summary">正在读取 durable ResumeContext…</span>
-          <span className="learning-strip-gap">未确认 legacy_fallback 前不读取旧学习状态</span>
+          <span className="learning-strip-summary">正在读取学习恢复状态…</span>
+          <span className="learning-strip-gap">未确认旧版兼容状态前不读取旧学习状态</span>
         </div>
       </div>
     );
@@ -195,7 +199,7 @@ export function LearningStrip({
           </span>
           <span className="learning-strip-status-item learning-strip-objective">
             <AlertTriangle size={12} />
-            <span>durable 学习状态暂不可用</span>
+            <span>已保存的学习状态暂不可用</span>
           </span>
           <span className="learning-strip-status-item learning-strip-phase">不回退旧状态</span>
           <span className="learning-strip-status-item learning-strip-next">
@@ -228,11 +232,11 @@ export function LearningStrip({
     const SummaryIcon = summary.icon;
     const objective = noActiveGoal
       ? "当前没有进行中的学习目标"
-      : resume.goal.objective || resume.topic.title || "当前 durable Goal";
+      : resume.goal.objective || resume.topic.title || "当前已保存的学习目标";
     const next = noActiveGoal
-      ? "已有 durable context，不回退旧 learning_state"
+      ? "学习状态已保存，不回退旧学习状态"
       : resume.unresolved[0]?.text
-        ? `Hypothesis：${resume.unresolved[0].text}`
+        ? `待验证假设：${resume.unresolved[0].text}`
         : resume.next_step.text
           ? `下一步：${resume.next_step.text}`
           : "下一步：未记录";
@@ -254,8 +258,8 @@ export function LearningStrip({
           </span>
           <span className="learning-strip-status-item learning-strip-phase">
             {noActiveGoal
-              ? "durable · no active Goal"
-              : `Claims ${resume.claims.length}/${resume.claim_count}`}
+              ? "已保存 · 没有进行中的学习目标"
+              : `学习命题 ${resume.claims.length}/${resume.claim_count}`}
           </span>
           <span
             className={`learning-strip-status-item learning-strip-next${resume.unresolved.length ? " has-gap" : ""}`}
@@ -265,10 +269,10 @@ export function LearningStrip({
           </span>
           <span
             className={`learning-verification-badge ${noActiveGoal ? "pending_validation" : summary.className}`}
-            title={noActiveGoal ? "durable context 已存在；没有 active Goal。" : summary.detail}
+            title={noActiveGoal ? "已保存的学习状态 已存在；没有进行中的学习目标。" : summary.detail}
           >
             {noActiveGoal ? <CircleHelp size={12} /> : <SummaryIcon size={12} />}
-            {noActiveGoal ? "无 active Goal" : summary.label}
+            {noActiveGoal ? "没有进行中的学习目标" : summary.label}
           </span>
         </button>
         {open ? (
@@ -312,7 +316,7 @@ export function LearningStrip({
           <span>{objective}</span>
         </span>
         <span className="learning-strip-status-item learning-strip-phase">
-          {legacy.phase ? phaseLabel(legacy.phase) : "legacy fallback"}
+          {legacy.phase ? phaseLabel(legacy.phase) : "旧版兼容"}
         </span>
         <span className="learning-strip-status-item learning-strip-next">
           <span>{next}</span>
