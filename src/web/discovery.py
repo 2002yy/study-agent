@@ -42,7 +42,38 @@ def candidate_score(item: dict[str, Any], query: str) -> float:
     # the product name. A one-word entity lookup can still use the homepage.
     if len(tokens) > 1 and urlparse(str(item.get("url", ""))).path.strip("/") in {"", "en", "zh"}:
         score *= .4
+    if release_intent(query):
+        score += .6 if release_candidate(item) else -.4
     return score
+
+
+def release_intent(query: str) -> bool:
+    return bool(re.search(r"最新.*(?:版本|发布)|当前.*版本|发布日期|什么时候发布|release|changelog|latest.*version", query, re.I))
+
+
+def release_candidate(item: dict[str, Any]) -> bool:
+    text = " ".join(str(item.get(key) or "") for key in ("url", "title", "snippet"))
+    if re.search(r"tutorial|beginner|教程|入门", text, re.I):
+        return False
+    return bool(re.search(r"release|changelog|changes\.html|chronology|download|发布|版本更新", text, re.I))
+
+
+def pool_quality(items: list[dict[str, Any]], query: str, domains: tuple[str, ...], *, standard: bool) -> dict[str, Any]:
+    ranked = rank_candidates(items, query, 80 if standard else 25)
+    families = {(urlparse(row["url"]).hostname or "").lower().removeprefix("www.") for row in ranked}
+    official = [row for row in ranked if any(in_scope(row["url"], domain) for domain in domains)]
+    top_good = sum(candidate_score(row, query) >= .65 for row in ranked[:5])
+    missing = []
+    if len(ranked) < (20 if standard else 10):
+        missing.append("candidate_shortage")
+    if len(families) < 2:
+        missing.append("single_source_family")
+    if domains and not official:
+        missing.append("official_source_missing")
+    if top_good < 2:
+        missing.append("weak_top_candidates")
+    return {"sufficient": not missing, "reasons": missing, "unique_urls": len(ranked),
+            "source_families": len(families), "official_candidates": len(official), "top5_relevant": top_good}
 
 
 def rank_candidates(items: list[dict[str, Any]], query: str, limit: int) -> list[dict[str, Any]]:

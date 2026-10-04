@@ -176,6 +176,7 @@ class GeneralWebGateway:
         max_results: int = 5,
         now: datetime | None = None,
         deadline: float | None = None,
+        excluded_providers: frozenset[str] = frozenset(),
     ) -> dict[str, Any]:
         """Search one already-planned query without creating more variants."""
 
@@ -184,7 +185,7 @@ class GeneralWebGateway:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        limit = max(1, min(max_results, 12))
+        limit = max(1, min(max_results, 24))
         if not focused:
             return {
                 "status": "invalid_query",
@@ -195,7 +196,7 @@ class GeneralWebGateway:
                 "searched_at": current.isoformat(),
             }
 
-        outcome = self._search_single(focused, limit) if deadline is None else self._search_single(focused, limit, deadline=deadline)
+        outcome = self._search_single(focused, limit) if deadline is None and not excluded_providers else self._search_single(focused, limit, deadline=deadline, excluded_providers=excluded_providers)
         results = list(outcome["results"])
         # Engines do not consistently honor site: syntax. A single positive
         # domain constraint is enforceable locally; complex OR/negative queries
@@ -250,7 +251,7 @@ class GeneralWebGateway:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        limit = max(1, min(max_results, 12))
+        limit = max(1, min(max_results, 24))
         if not normalization.raw_query:
             return {
                 **normalization.to_dict(),
@@ -307,7 +308,7 @@ class GeneralWebGateway:
             "searched_at": current.isoformat(),
         }
 
-    def _search_single(self, query: str, limit: int, *, deadline: float | None = None) -> dict[str, Any]:
+    def _search_single(self, query: str, limit: int, *, deadline: float | None = None, excluded_providers: frozenset[str] = frozenset()) -> dict[str, Any]:
         provider_timeout = _env_float("WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0)
         total_timeout = _env_float("WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0)
         deadline = min(deadline, time.monotonic() + total_timeout) if deadline is not None else time.monotonic() + total_timeout
@@ -380,7 +381,10 @@ class GeneralWebGateway:
         rescues = [provider for provider, enabled in (
             ("bing_rss", _env_flag("WEB_ENABLE_BING_RSS", default=True)),
             ("duckduckgo_html", _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True))) if enabled]
-        if searxng_enabled():
+        rescues = [provider for provider in rescues if provider not in excluded_providers]
+        for provider in sorted(excluded_providers):
+            stats.append({"provider": provider, "attempted": False, "results": 0, "unique_urls": 0, "reason": "run_local_provider_degraded"})
+        if searxng_enabled() and "searxng" not in excluded_providers:
             # Reserve half the stage for rescue if the metasearch service is
             # blocked or only returns homogeneous / irrelevant candidates.
             wave(["searxng"], min(provider_timeout, total_timeout / 2 if rescues else total_timeout))
