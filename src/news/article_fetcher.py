@@ -20,6 +20,7 @@ from urllib.request import (
 from src.news.article_extractor import (
     article_method_label as _article_method_label,
     decode_html_payload as _decode_html_payload,
+    decompress_transport_payload as _decompress_transport_payload,
 )
 from src.news.domain_policy import article_priority_adjustment, should_fetch_article
 from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firecrawl
@@ -217,6 +218,11 @@ def _fetch_html_payload(
         payload = response.read(max_bytes + 1)
         if len(payload) > max_bytes:
             payload = payload[:max_bytes]
+        # Undo a transport Content-Encoding before decoding: a gzip body would
+        # otherwise be handed to the HTML/text decoder as binary garbage.
+        payload = _decompress_transport_payload(
+            payload, response.headers.get("Content-Encoding", "")
+        )
 
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
@@ -260,6 +266,11 @@ def _fetch_text_payload(
         payload = response.read(max_bytes + 1)
         if len(payload) > max_bytes:
             payload = payload[:max_bytes]
+        # Undo a transport Content-Encoding before decoding: a gzip body would
+        # otherwise be handed to the HTML/text decoder as binary garbage.
+        payload = _decompress_transport_payload(
+            payload, response.headers.get("Content-Encoding", "")
+        )
 
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
