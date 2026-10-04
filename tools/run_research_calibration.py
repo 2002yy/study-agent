@@ -33,6 +33,53 @@ def percentile(values: list[float], fraction: float) -> float | None:
     return round(sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)], 3) if values else None
 
 
+def _resolution_trace_from_context(searches: list[dict], reads: list[dict]) -> dict:
+    """§174.3.1 observation-only per-candidate trace, from the runner's own facts.
+
+    Candidates come from the search calls and reads from the read calls, both of which the
+    runner already holds. This path does not expose the reader-chain resolution facts, so a
+    candidate's disposition is reported as ``not_observed`` rather than inferred. Never
+    raises.
+    """
+
+    try:
+        candidates = [
+            item
+            for call in searches
+            for item in ((call.get("result") or {}).get("results") or [])
+            if isinstance(item, dict)
+        ]
+        attempted = len(reads)
+        entries = [
+            {
+                "candidate_index": index,
+                "candidate_id": str(item.get("url") or ""),
+                "state": "not_observed",
+                "entered_read": False,
+                "blocking_stage": "not_observed",
+                "skip_reason": "",
+                "defer_reason": "",
+                "final_status": "pending",
+            }
+            for index, item in enumerate(candidates)
+        ]
+        state_counts = {"not_observed": len(entries)} if entries else {}
+        zero = ""
+        if entries and attempted == 0:
+            zero = f"0 reads = {len(entries)}\u00d7not_observed"
+        return {
+            "candidate_count": len(entries),
+            "attempted_reads": attempted,
+            "state_counts": state_counts,
+            "reason_counts": dict(state_counts),
+            "zero_read_reason_summary": zero,
+            "candidates": entries,
+            "source": "runner.search_calls",
+        }
+    except Exception:
+        return {}
+
+
 def summarize(rows: list[dict]) -> dict:
     groups = {}
     for tier in ("lookup", "standard"):
@@ -246,12 +293,9 @@ def main() -> int:
                 "stop_reason": recovery.get("stop_reason", "NO_RECOVERY_TRACE"),
                 # §174.3.1 observation-only: per-candidate reasons + zero-read
                 # summary, so a later zero-read run is explainable offline.
-                "candidate_resolution_trace": (
-                    (getattr(run, "research_context", {}) or {}).get(
-                        ACTIVE_RESEARCH_METRICS_KEY
-                    )
-                    or {}
-                ).get("candidate_resolution_trace") or {},
+                "candidate_resolution_trace": _resolution_trace_from_context(
+                    searches, reads
+                ),
                 "research_context_keys": sorted(
                     (getattr(run, "research_context", {}) or {}).keys()
                 ),
