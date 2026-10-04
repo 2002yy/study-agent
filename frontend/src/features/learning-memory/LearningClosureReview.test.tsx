@@ -143,7 +143,7 @@ describe("LearningClosureReview", () => {
     expect(review.confirmed).not.toContain(
       "恢复 durable learning state 不需要重放完整聊天 turns。",
     );
-    expect(review.impactLabels).toContain("可恢复的源码 Claim 与证据");
+    expect(review.impactLabels).toContain("可恢复的源码学习命题与证据");
 
     render(
       <LearningClosureReview
@@ -159,7 +159,7 @@ describe("LearningClosureReview", () => {
     expect(
       screen.getByText("恢复 durable learning state 不需要重放完整聊天 turns。"),
     ).toBeTruthy();
-    expect(screen.getByText("可恢复的源码 Claim 与证据")).toBeTruthy();
+    expect(screen.getByText("可恢复的源码学习命题与证据")).toBeTruthy();
     expect(
       (screen.getByRole("button", {
         name: "确认并保存学习成果",

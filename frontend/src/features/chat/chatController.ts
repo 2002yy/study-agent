@@ -1,3 +1,4 @@
+import { humanizeUiError } from "../../utils/uiLabels";
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   archiveSession,
@@ -521,7 +522,7 @@ export function useChatController(options: ControllerOptions) {
       const message = isAbort
         ? "已停止生成"
         : error instanceof Error
-          ? error.message
+          ? humanizeUiError(error, "本次回答未能完成，请稍后重试。")
           : "聊天请求失败";
       const fullPartial = extraOpts.partialReply
         ? extraOpts.partialReply + streamedReply

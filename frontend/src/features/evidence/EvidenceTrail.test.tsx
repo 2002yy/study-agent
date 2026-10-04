@@ -120,13 +120,13 @@ describe("EvidenceTrail display layering", () => {
     expect(container).toHaveTextContent("Selected source");
     expect(container).not.toHaveTextContent("已采用");
     expect(container).not.toHaveTextContent("0.82");
-    expect(container).not.toHaveTextContent("research_run:research-1");
+    expect(container).not.toHaveTextContent("采用原因：原因待确认");
 
     fireEvent.click(screen.getByRole("button", { name: "显示诊断详情" }));
 
     expect(container).toHaveTextContent("已采用");
     expect(container).toHaveTextContent("0.82");
-    expect(container).toHaveTextContent("research_run:research-1");
+    expect(container).toHaveTextContent("采用原因：原因待确认");
   });
 
   it("does not present candidate, read, or rejected refs as adopted evidence", () => {
@@ -164,7 +164,7 @@ describe("EvidenceTrail display layering", () => {
     expect(container).toHaveTextContent("候选");
     expect(container).toHaveTextContent("已阅读");
     expect(container).toHaveTextContent("已排除");
-    expect(container).toHaveTextContent("duplicate");
+    expect(container).toHaveTextContent("重复来源");
   });
 
   it("labels legacy sources without read truth as unknown candidates", () => {
@@ -186,7 +186,7 @@ describe("EvidenceTrail display layering", () => {
     fireEvent.click(screen.getByRole("button", { name: "显示诊断详情" }));
 
     expect(container).toHaveTextContent("Legacy source");
-    expect(container).toHaveTextContent("legacy candidate · 历史验证状态未知");
+    expect(container).toHaveTextContent("旧版候选 · 验证状态未知");
     expect(container.querySelector(".evidence-summary-flag")).toBeNull();
   });
 
@@ -288,8 +288,8 @@ describe("formatEvidencePlainText", () => {
 
     expect(text).toContain("证据诊断");
     expect(text).toContain("[已采用]");
-    expect(text).toContain("score=0.95");
-    expect(text).toContain("provider=partial");
-    expect(text).toContain("reason=research_run:research-1");
+    expect(text).toContain("相关度：0.95");
+    expect(text).toContain("来源状态：部分通过");
+    expect(text).toContain("采用原因：原因待确认");
   });
 });

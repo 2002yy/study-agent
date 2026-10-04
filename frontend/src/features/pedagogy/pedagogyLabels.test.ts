@@ -7,8 +7,8 @@ describe("pedagogyLabels", () => {
     expect(moveLabel("elicit_claim")).toBe("引出主张");
     expect(moveLabel("direct_explain")).toBe("直接讲解");
   });
-  it("falls back to raw code for unknown moves", () => {
-    expect(moveLabel("unknown_move")).toBe("unknown_move");
+  it("uses a Chinese fallback for unknown moves", () => {
+    expect(moveLabel("unknown_move")).toBe("其他步骤");
   });
   it("labels all backend protocol codes in Chinese", () => {
     expect(protocolLabel("socratic")).toBe("苏格拉底");
@@ -27,8 +27,8 @@ describe("pedagogyLabels", () => {
     expect(phaseLabel("test_assumption")).toBe("例子验证");
     expect(phaseLabel("re_explain")).toBe("重新解释");
   });
-  it("falls back to raw code for unknown phases", () => {
-    expect(phaseLabel("unknown_phase")).toBe("unknown_phase");
+  it("uses a Chinese fallback for unknown phases", () => {
+    expect(phaseLabel("unknown_phase")).toBe("其他阶段");
   });
   it("dedupes phase trail preserving order", () => {
     expect(phaseTrail(["orientation", "library_fact", "library_fact", "scaffold"]))

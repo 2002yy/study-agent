@@ -27,7 +27,7 @@ export function roleAvatarUrl(roleId: string | undefined): string {
 
 export function roleLabel(roleId: string | undefined): string {
   if (!roleId || roleId === "auto") {
-    return "Study Agent";
+    return "学习助手";
   }
-  return roleOptions.find(([value]) => value === roleId)?.[1] ?? roleId;
+  return roleOptions.find(([value]) => value === roleId)?.[1] ?? "学习助手";
 }

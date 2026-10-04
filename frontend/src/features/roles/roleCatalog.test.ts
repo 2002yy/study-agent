@@ -27,14 +27,14 @@ describe("roleCatalog", () => {
   });
 
   it("labels auto and missing roles as Study Agent", () => {
-    expect(roleLabel("auto")).toBe("Study Agent");
-    expect(roleLabel(undefined)).toBe("Study Agent");
+    expect(roleLabel("auto")).toBe("学习助手");
+    expect(roleLabel(undefined)).toBe("学习助手");
   });
 
   it("labels known roles with Chinese names and falls back to the id", () => {
     expect(roleLabel("firefly")).toBe("流萤");
     expect(roleLabel("nahida")).toBe("纳西妲");
-    expect(roleLabel("weird")).toBe("weird");
+    expect(roleLabel("weird")).toBe("学习助手");
   });
 
   it("maps Chinese speaker names to role ids", () => {

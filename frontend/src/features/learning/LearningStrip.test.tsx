@@ -133,7 +133,7 @@ describe("LearningStrip durable resume status", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("durable Goal 优先");
-    expect(text).toContain("Claims 1/1");
+    expect(text).toContain("学习命题 1/1");
     expect(text).toContain("下一步：继续 durable 下一步");
     expect(text).toContain("1 条已验证");
     expect(text).not.toContain("旧目标");
@@ -187,7 +187,7 @@ describe("LearningStrip durable resume status", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("当前没有进行中的学习目标");
-    expect(text).toContain("不回退旧 learning_state");
+    expect(text).toContain("不回退旧学习状态");
     expect(text).not.toContain("旧目标");
     expect(text).not.toContain("旧缺口");
     expect(text).not.toContain("旧 confirmed point");
