@@ -382,6 +382,11 @@
 }
 
 @media (max-width: 760px) {
+  .learning-strip-detail.firefly-learning-detail {
+    /* Leave room for the wrapped course header, chat header and composer. */
+    max-height: min(40dvh, max(80px, calc(100dvh - 470px)));
+  }
+
   .firefly-lesson-panel {
     padding: 14px 10px 24px !important;
   }
