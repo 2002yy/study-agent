@@ -18519,6 +18519,25 @@ Ashish Vaswani/Noam Shazeer/Illia Polosukhin均不存在；其回答列作者不
 NO-GO，main仍5a3199a。** 新完整观察不是qualification/release label。
 组合L3仍待合格生产候选，旧跑因scope失效取消；没有宣称完整回归PASS。
 
+### 174.3 Reader 修复后的定向验收（§175 落地，2026-10-04）
+
+head `01e227ef`（codex/firefly-main-integration），manifest `research_calibration_discovery_v1.json`
+原样，仅取受 §175 影响的 4 题 × 2 轮，串行隔离，实时 provider。
+artifact：`docs/research_quality/READER_QUALITY_ACCEPTANCE_174_2026-10-04.json`。
+**不是 qualification / release label**（`qualified_judge=false`、`question_coverage=manual_review_required`）。
+
+| 题型 | §174.2 基线 | §174.3 观察 | 判定 |
+| --- | --- | --- | --- |
+| Python 发布日期 | 不稳定；一轮正文成为二进制乱码 | rep1/rep2 均引用 Python 官方发布页，给出 2025-10-07 | **gzip 修复闭合** |
+| SQLite 版本/日期 | FAIL；版本表格被 `include_tables=False` 丢弃 | rep1/rep2 adopted 正文，从 sqlite.org/download.html 提取 **3.53.4**；日期如实报告缺失 | **表格修复闭合** |
+| FastAPI 版本/日期 | FAIL；0/2 reads，无可用 release 正文 | 仍 0/2 reads（`CANDIDATE_EXHAUSTED`），**诚实拒绝**不编造 | **未闭合；属 discovery 缺口，非 reader 缺口** |
+| Attention 作者/日期 | FAIL grounding；正文无作者名单 | rep1/rep2 列出 8 位作者 + 2017-06-12；byline 元数据现已保留 | **待人工确认 grounding** |
+
+结论：§175 的 gzip 与表格修复在**真实页面上直接闭合 2 行**；FastAPI 行证明失败点已从
+reader 转移到 discovery（无官方 release 页候选），需在 discovery 侧处理，不得据此扩大候选数
+掩盖；attention 行的作者 grounding 需人工复核。Source-quality / Search-answer 仍 **NO-GO**，
+main 仍 `5a3199a`。
+
 集成代码已push到`codex/firefly-main-integration`，Draft PR
 [#164](https://github.com/2002yy/study-agent/pull/164)暂以#161分支为base，
 独立diff含流萤既有提交与Discovery改进。#161 exact-head50b54259 CI success，
