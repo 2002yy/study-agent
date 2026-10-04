@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { humanizeUiError } from "./utils/uiLabels";
 import App from "./App";
 import { WorkspaceProvider } from "./app/WorkspaceProvider";
 import { seedMessages } from "./features/single-chat/chatHistory";
@@ -32,7 +33,7 @@ class AppErrorBoundary extends React.Component<React.PropsWithChildren, AppError
       return (
         <div className="app-error-boundary">
           <strong>前端渲染异常</strong>
-          <p>{this.state.error.message}</p>
+          <p>{humanizeUiError(this.state.error, "学习界面暂时无法显示，请刷新页面重试。")}</p>
           <button type="button" onClick={() => window.location.reload()}>
             刷新页面
           </button>

@@ -1,3 +1,5 @@
+import { labelFor } from "../../utils/uiLabels";
+
 const MOVE_LABELS: Record<string, string> = {
   elicit_claim: "引出主张",
   clarify_definition: "澄清定义",
@@ -61,15 +63,15 @@ const PHASE_LABELS: Record<string, string> = {
 };
 
 export function moveLabel(move: string): string {
-  return MOVE_LABELS[move] ?? move;
+  return labelFor(MOVE_LABELS, move, "其他步骤");
 }
 
 export function protocolLabel(protocol: string): string {
-  return PROTOCOL_LABELS[protocol] ?? (protocol || "自动");
+  return labelFor(PROTOCOL_LABELS, protocol, protocol ? "其他方式" : "自动");
 }
 
 export function phaseLabel(phase: string): string {
-  return PHASE_LABELS[phase] ?? phase;
+  return labelFor(PHASE_LABELS, phase, "其他阶段");
 }
 
 export function phaseTrail(phases: string[]): string[] {

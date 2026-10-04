@@ -1,3 +1,4 @@
+import { humanizeUiError } from "../../utils/uiLabels";
 import { useState } from "react";
 
 import { saveRuntimeSettings } from "../../api";
@@ -41,7 +42,7 @@ export function useSettingsController(options: {
       await options.refresh();
     } catch (error) {
       options.setOperationError(
-        `设置保存失败：${error instanceof Error ? error.message : "设置保存失败"}`
+        humanizeUiError(error, "设置保存失败，请稍后重试。")
       );
     } finally {
       setIsSaving(false);

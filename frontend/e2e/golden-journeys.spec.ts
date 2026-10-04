@@ -125,7 +125,8 @@ test("chat failure exposes one-click retry and restores the answer", async ({ pa
   await composer.fill(FIRST_QUESTION);
   await composer.press("Enter");
 
-  await expect(page.getByText(/聊天请求失败：503/).first()).toBeVisible();
+  await expect(page.getByText("生成中断：本次回答未能完成，请稍后重试。", { exact: true })).toBeVisible();
+  await expect(page.getByText(/聊天请求失败：503/)).toHaveCount(0);
   const retry = page.getByRole("button", { name: "重新生成" });
   await expect(retry).toBeVisible();
   successArtifacts.push(

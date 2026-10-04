@@ -9,6 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { uiStatusLabel, uiReasonLabel } from "../../utils/uiLabels";
 import type { TurnEvidence } from "../../types";
 import { moveLabel, protocolLabel } from "../pedagogy/pedagogyLabels";
 import {
@@ -62,13 +63,13 @@ export function formatEvidencePlainText(
       lines.push(`${title}（${evidenceTypeLabel(ref.type)}）${ref.url ? ` ${ref.url}` : ""}`);
       continue;
     }
-    const score = ref.score > 0 ? ` score=${ref.score.toFixed(2)}` : "";
-    const provider = ref.providerStatus ? ` provider=${ref.providerStatus}` : "";
+    const score = ref.score > 0 ? ` 相关度：${ref.score.toFixed(2)}` : "";
+    const provider = ref.providerStatus ? ` 来源状态：${uiStatusLabel(ref.providerStatus)}` : "";
     const reason = ref.rejectionReason || ref.selectionReason;
     lines.push(
       `[${STATUS_LABELS[ref.status]}] ${title}（${evidenceTypeLabel(ref.type)}）${
         ref.url ? ` ${ref.url}` : ""
-      }${score}${provider}${reason ? ` reason=${reason}` : ""}`,
+      }${score}${provider}${reason ? ` ${ref.rejectionReason ? "排除" : "采用"}原因：${uiReasonLabel(reason)}` : ""}`,
     );
   }
   return lines.join("\n");
@@ -112,17 +113,15 @@ function EvidenceRow({
         <span className="evidence-ref-title">{ref.title || ref.source}</span>
       )}
       {diagnostic && ref.score > 0 ? (
-        <span className="evidence-ref-score">{ref.score.toFixed(2)}</span>
+        <span className="evidence-ref-score">相关度：{ref.score.toFixed(2)}</span>
       ) : null}
       {onRead ? <button className="evidence-reading-link" type="button" onClick={onRead}>定位正文</button> : null}
       {diagnostic && (ref.providerStatus || ref.selectionReason || ref.rejectionReason) ? (
         <span className="evidence-ref-meta">
           {[
-            ref.providerStatus === "legacy_unknown"
-              ? "legacy candidate · 历史验证状态未知"
-              : ref.providerStatus,
-            ref.selectionReason,
-            ref.rejectionReason,
+            ref.providerStatus ? `来源状态：${uiStatusLabel(ref.providerStatus)}` : "",
+            ref.selectionReason ? `采用原因：${uiReasonLabel(ref.selectionReason)}` : "",
+            ref.rejectionReason ? `排除原因：${uiReasonLabel(ref.rejectionReason)}` : "",
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -282,7 +281,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
                   </div>
 
                   {webError ? (
-                    <div className="evidence-error">联网工具错误：{webError}</div>
+                    <div className="evidence-error">联网来源暂不可用，请稍后重试。</div>
                   ) : null}
 
                   <ExternalDataDisclosure evidence={evidence} />
@@ -380,7 +379,7 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
                         <FileText size={13} /> 阅读 {read.url}
                       </div>
                       <p className="web-preview">
-                        {read.error ? `读取失败：${read.error}` : read.preview}
+                        {read.error ? "来源读取失败，请稍后重试。" : read.preview}
                       </p>
                     </div>
                   ))}

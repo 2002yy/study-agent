@@ -107,7 +107,7 @@ describe("SettingsPanel provider health", () => {
     expect(button).toBeEnabled();
     fireEvent.click(button);
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("503 provider probe unavailable"));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("联网搜索检测失败，请稍后重试。"));
     expect(screen.getByText("检测失败，联网搜索当前不可确认。")).toBeVisible();
   });
 });

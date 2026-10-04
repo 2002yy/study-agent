@@ -10,6 +10,7 @@ import {
   Target,
 } from "lucide-react";
 import { useState } from "react";
+import { humanizeUiError, uiReasonLabel } from "../../utils/uiLabels";
 
 import type { ChatResponse, MemoryStatusResponse } from "../../types";
 import { DurableEvidenceTrail } from "../evidence/DurableEvidenceTrail";
@@ -27,25 +28,25 @@ import { projectTrustworthyLearningStatus } from "./trustworthyLearningStatus";
 const UNDERSTANDING_META = {
   confirmed: {
     label: "已验证理解",
-    detail: "最近一次 durable UnderstandingEvidence 为 pass。",
+    detail: "最近一次已保存的理解验证证据已通过校验。",
     icon: CheckCircle2,
     className: "verified",
   },
   partial: {
     label: "部分理解",
-    detail: "已有验证证据，但当前只支持 partial。",
+    detail: "已有验证证据，但当前只支持部分通过。",
     icon: ShieldQuestion,
     className: "pending_semantic_review",
   },
   attempted: {
     label: "已尝试，尚未通过",
-    detail: "已有验证尝试，但当前不能视为 confirmed。",
+    detail: "已有验证尝试，但当前不能视为已确认。",
     icon: RotateCcw,
     className: "needs_reteach",
   },
   proposed: {
     label: "待验证",
-    detail: "Claim 已有 durable source evidence，但尚无 UnderstandingEvidence。",
+    detail: "学习命题的来源证据已保存，尚无理解验证证据。",
     icon: CircleHelp,
     className: "pending_validation",
   },
@@ -55,14 +56,14 @@ function validationMethodLabel(method?: string): string {
   if (method === "explain") return "解释验证";
   if (method === "apply") return "应用验证";
   if (method === "practice") return "练习验证";
-  return method || "尚无验证";
+  return method ? "其他验证方式" : "尚无验证";
 }
 
 function freshnessNote(claim: LearningResumeClaim): string {
   const freshness = claim.freshness;
   const reason = freshness?.reason || freshness?.primary?.reason;
-  if (reason) return reason;
-  return "Claim 依据的 primary 源码已发生实质变更，尚未对最新源码重新验证。";
+  if (reason) return uiReasonLabel(reason);
+  return "学习命题依据的主要源码已发生实质变更，尚未对最新源码重新验证。";
 }
 
 function ClaimCard({
@@ -74,7 +75,10 @@ function ClaimCard({
   sessionId?: string;
   onRevalidated?: () => void;
 }) {
-  const meta = UNDERSTANDING_META[claim.understanding_status];
+  const meta = Object.prototype.hasOwnProperty.call(UNDERSTANDING_META, claim.understanding_status)
+    ? UNDERSTANDING_META[claim.understanding_status] : {
+    label: "状态未知", detail: "理解验证状态暂无法确认。", icon: CircleHelp, className: "pending_validation",
+  };
   const StatusIcon = meta.icon;
   const latest = claim.latest_validation;
   const [revalidating, setRevalidating] = useState(false);
@@ -89,7 +93,7 @@ function ClaimCard({
       onRevalidated?.();
     } catch (error) {
       setRevalidateError(
-        error instanceof Error ? error.message : "重新验证失败",
+        humanizeUiError(error, "重新验证失败，请稍后重试。"),
       );
     } finally {
       setRevalidating(false);
@@ -105,7 +109,7 @@ function ClaimCard({
         </span>
       </div>
       <p className="durable-claim-meta">
-        {[claim.claim_kind, claim.scope].filter(Boolean).join(" · ") || "durable Claim"}
+       已保存的学习命题
       </p>
       <p className="durable-validation-note">
         {latest?.method
@@ -137,7 +141,7 @@ function ClaimCard({
       ) : claim.freshness?.status === "unavailable" ? (
         <p className="durable-freshness-note muted">
           源码新鲜度暂不可用：
-          {claim.freshness.unavailable_reason || "评估失败"}
+          评估失败，请稍后重试。
         </p>
       ) : null}
       <DurableEvidenceTrail
@@ -167,16 +171,16 @@ function DurablePanel({
           <div className="card-label">
             <Target size={13} /> 当前学习目标
           </div>
-          <p>当前没有进行中的 durable Goal。</p>
+          <p>当前没有进行中的已保存的学习目标。</p>
           <small>
-            这个会话已经拥有 durable learning context，因此不会读取旧 learning_state 或 confirmed_points 来恢复目标。
+            这个会话的学习状态已保存，因此不会读取旧学习状态或已确认点来恢复目标。
           </small>
         </section>
       </aside>
     );
   }
 
-  const objective = resume.goal.objective || resume.topic.title || "当前 durable Goal";
+  const objective = resume.goal.objective || resume.topic.title || "当前已保存的学习目标";
   const primaryNextStep = resume.next_step.text?.trim() || "";
 
   return (
@@ -187,17 +191,17 @@ function DurablePanel({
 
       <section className="learning-card objective-card">
         <div className="card-label">
-          <Target size={13} /> 当前 Goal
+          <Target size={13} /> 当前学习目标
         </div>
         <p>{objective}</p>
         {resume.topic.title && resume.topic.title !== objective ? (
-          <small>Topic：{resume.topic.title}</small>
+          <small>主题：{resume.topic.title}</small>
         ) : null}
       </section>
 
       <section className="learning-card durable-claims-card">
         <div className="card-label">
-          <CheckCircle2 size={13} /> Durable Claims
+          <CheckCircle2 size={13} />已保存的学习命题
         </div>
         {resume.claims.length ? (
           <>
@@ -212,17 +216,17 @@ function DurablePanel({
               ))}
             </ul>
             <p className="learning-evidence-note">
-              当前展示最近 {resume.claims.length} 条；该 Goal 共 {resume.claim_count} 条 Claim。理解状态来自 durable UnderstandingEvidence，不换算为掌握百分比。
+              当前展示最近 {resume.claims.length} 条；该学习目标共 {resume.claim_count} 条学习命题。理解状态来自已保存的理解验证证据，不换算为掌握百分比。
             </p>
           </>
         ) : (
-          <p className="muted">当前 Goal 尚未形成 source-backed Claim。</p>
+          <p className="muted">当前学习目标尚未形成有来源依据的学习命题。</p>
         )}
       </section>
 
       <section className={`learning-card gap-card${resume.unresolved.length ? " has-gap" : ""}`}>
         <div className="card-label">
-          <AlertTriangle size={13} /> 未解决 Hypothesis
+          <AlertTriangle size={13} /> 未解决待验证假设
         </div>
         {resume.unresolved.length ? (
           <ul className="durable-hypothesis-list">
@@ -234,16 +238,16 @@ function DurablePanel({
             ))}
           </ul>
         ) : (
-          <p className="muted">当前没有记录未解决 Hypothesis。</p>
+          <p className="muted">当前没有记录未解决待验证假设。</p>
         )}
       </section>
 
       <section className="learning-card durable-next-step-card">
-        <div className="card-label">Primary NextStep</div>
+        <div className="card-label">主要下一步</div>
         {primaryNextStep ? (
           <p>{primaryNextStep}</p>
         ) : (
-          <p className="muted">当前没有 active Primary NextStep。</p>
+          <p className="muted">当前没有进行中的主要下一步。</p>
         )}
       </section>
     </aside>
@@ -279,8 +283,8 @@ function LegacyPanel({
 
       <section className="learning-card legacy-compat-card">
         <div className="card-label">兼容边界</div>
-        <p>这个 thread 尚未获得 durable Goal context，因此后端明确返回 legacy_fallback。</p>
-        <small>以下内容只用于继续旧会话，不会升级为 formal Claim 或 confirmed mastery。</small>
+        <p>这个会话尚未保存学习目标，当前显示旧版兼容状态。</p>
+        <small>以下内容只用于继续旧会话，不会升级为正式学习命题或已确认掌握。</small>
       </section>
 
       <section className="learning-card objective-card">
@@ -325,7 +329,7 @@ function LegacyPanel({
 
       <section className="learning-card legacy-points-card">
         <div className="card-label">
-          <History size={13} /> legacy confirmed_points
+          <History size={13} /> 旧版已确认点
         </div>
         {legacyPoints.length ? (
           <ul className="legacy-point-list">
@@ -334,9 +338,9 @@ function LegacyPanel({
             ))}
           </ul>
         ) : (
-          <p className="muted">没有旧 confirmed_points。</p>
+          <p className="muted">没有旧已确认点。</p>
         )}
-        <small>这些条目不是 Claims，也不作为 verified mastery 呈现。</small>
+        <small>这些条目不是学习命题，也不作为已确认掌握呈现。</small>
       </section>
 
       <details className="learning-card memory-snapshot">
@@ -398,9 +402,9 @@ export function LearningPanel({
       <section className="learning-card">
         <div className="card-label">学习恢复状态</div>
         <p className="muted">
-          {resumeError ? `暂时无法读取 durable ResumeContext：${resumeError}` : "正在读取 durable ResumeContext…"}
+          {resumeError ? `暂时无法读取学习恢复状态：${humanizeUiError(resumeError, "学习恢复状态读取失败，请稍后重试。")}` : "正在读取学习恢复状态…"}
         </p>
-        <small>未得到后端明确的 legacy_fallback 前，不使用旧 learning_state 作为恢复真相。</small>
+        <small>未得到后端明确的旧版兼容状态前，不使用旧学习状态作为恢复真相。</small>
       </section>
     </aside>
   );

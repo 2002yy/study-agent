@@ -2,6 +2,7 @@ import { Loader2, RotateCcw } from "lucide-react";
 import type { ChatResearchProgress } from "../../types";
 import type { ResearchLookupResponse } from "./researchApi";
 import { researchStopReasonDisplay } from "./researchStopReason";
+import { researchStepLabel, labelFor } from "../../utils/uiLabels";
 
 const stageLabels: Record<string, string> = {
   planned: "正在规划研究",
@@ -9,7 +10,7 @@ const stageLabels: Record<string, string> = {
   assessing: "正在筛选来源",
   reading: "正在读取来源",
   synthesizing: "正在整理证据",
-  gating: "正在执行 Evidence Gate",
+  gating: "正在执行证据校验",
   completed: "研究完成",
   failed: "研究失败",
   cancelled: "研究已停止",
@@ -47,7 +48,7 @@ function runDetail(run: ResearchLookupResponse): string {
   if (run.status === "cancelled") {
     return "已停止本次研究；需要时可从已保存的进度重试";
   }
-  return stageLabels[run.stage] || "联网研究已结束";
+  return labelFor(stageLabels, run.stage, "联网研究已结束");
 }
 
 function lineageDetails(run: ResearchLookupResponse) {
@@ -93,7 +94,7 @@ export function ChatResearchRecovery({
         <Loader2 className="spin" size={16} />
         <div>
           <strong>
-            {stageLabels[progress.stage] ?? "联网研究进行中"}
+            {labelFor(stageLabels, progress.stage, "联网研究进行中")}
             {isDeep ? `（第 ${progress.round} 轮）` : ""}
           </strong>
           <span>
@@ -105,7 +106,7 @@ export function ChatResearchRecovery({
           </span>
           {isDeep && progress.last_step_text ? (
             <span className="research-step-line">
-              最近一步（{progress.last_step_kind}）：{progress.last_step_text}
+              最近一步（{researchStepLabel(progress.last_step_kind)}）：{progress.last_step_text}
             </span>
           ) : null}
         </div>
@@ -124,10 +125,10 @@ export function ChatResearchRecovery({
         <div>
           <strong>
             {progress.stop_reason === "evidence_gate_pass"
-              ? "研究完成 · Evidence Gate 已通过"
+              ? "研究完成 · 证据校验已通过"
               : progress.status === "partial"
                 ? "研究仅得到部分结果"
-                : stageLabels[progress.stage] ?? "联网研究已结束"}
+                : labelFor(stageLabels, progress.stage, "联网研究已结束")}
           </strong>
           <span>
             {terminalProgressDetail(progress)} {progressMetrics(progress)}。
@@ -172,7 +173,7 @@ export function ChatResearchRecovery({
   const recovered = run.status === "completed" && run.provider_status === "found";
   if (!canRetry && !canResume && !isBusy && !(recovered && useInChat)) return null;
   const detail = runDetail(run);
-  const heading = run.status === "partial" ? "研究得到部分可用结果" : stageLabels[run.stage] ?? "联网研究可恢复";
+  const heading = run.status === "partial" ? "研究得到部分可用结果" : labelFor(stageLabels, run.stage, "联网研究可恢复");
 
   return (
     <div className={`memory-note ${recovered ? "" : "warn"}`} role="status">

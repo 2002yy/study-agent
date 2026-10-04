@@ -40,7 +40,7 @@ const IMPACT_LABELS: Record<string, string> = {
   revision_notes: "仍需补强的内容",
   session_archive: "本次学习归档",
 };
-const DURABLE_IMPACT_LABEL = "可恢复的源码 Claim 与证据";
+const DURABLE_IMPACT_LABEL = "可恢复的源码学习命题与证据";
 
 function candidatesFrom(run: LearningClosureRunResponse): ClosureCandidate[] {
   const raw = run.generated_result.candidates;
@@ -227,7 +227,7 @@ export function LearningClosureReview({
           <span className="closure-review-kicker">保存前确认</span>
           <h2 id="closure-review-title">回顾这次学习</h2>
           <p>
-            已确认内容与缺口来自已提交状态；源码 Claim 仍是待确认候选，确认时后端会重新收敛固定 commit 的源码证据。
+            已确认内容与缺口来自已保存的状态；源码学习命题仍需确认，保存时会重新核对固定源码版本的证据。
           </p>
         </div>
         <ShieldCheck aria-hidden="true" size={22} />
@@ -245,7 +245,7 @@ export function LearningClosureReview({
             ))}
           </ul>
           <p className="closure-review-empty">
-            这里还不是“已掌握”。确认后仍需通过真实 PedagogyEvalRun、源码重新收敛和 UnderstandingEvidence 边界。
+            这里还不能视为“已掌握”。确认后仍需通过教学评估，核对源码与理解验证证据。
           </p>
         </section>
       ) : null}

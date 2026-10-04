@@ -1,3 +1,5 @@
+import { labelFor } from "./uiLabels";
+
 export function formatScore(value: number | undefined): string {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "-";
@@ -17,12 +19,13 @@ export function translateStatus(value: string | undefined): string {
     error: "错误",
     preview: "预览",
     succeeded: "成功",
+    success: "成功",
     failed: "失败",
     blocked: "已阻止",
     started: "已开始",
     running: "运行中"
   };
-  return labels[value ?? ""] ?? (value || "-");
+  return labelFor(labels, value, value ? "其他状态" : "状态未知");
 }
 
 export function basename(path: string): string {
