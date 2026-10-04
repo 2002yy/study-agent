@@ -24,7 +24,7 @@ def _item(url: str, title: str, snippet: str = "") -> dict[str, str]:
     return {"url": url, "title": title, "snippet": snippet, "source": "fixture"}
 
 
-def test_legacy_gateway_still_stops_after_first_nonempty_provider(
+def test_gateway_stops_rescue_after_diverse_relevant_primary_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(tool_gateway, "searxng_enabled", lambda: True)
@@ -32,7 +32,9 @@ def test_legacy_gateway_still_stops_after_first_nonempty_provider(
         tool_gateway,
         "search_searxng",
         lambda *args, **kwargs: [
-            {"title": "first", "link": "https://example.test/first"}
+            {"title": "query result", "link": "https://example.test/first"},
+            {"title": "query result", "link": "https://second.test/second"},
+            {"title": "query result", "link": "https://third.test/third"}
         ],
     )
     monkeypatch.setenv("WEB_ENABLE_BING_RSS", "1")

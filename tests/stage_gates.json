@@ -179,7 +179,9 @@
       "tests/test_answer_claim_turn_lifecycle.py",
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_discovery_recovery.py",
+      "tests/test_research_provider_search.py"
     ]
   },
   "stage_gates": {
@@ -353,7 +355,9 @@
       "tests/test_answer_claim_turn_lifecycle.py",
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_discovery_recovery.py",
+      "tests/test_research_provider_search.py"
     ]
   },
   "force_l3_triggers": [

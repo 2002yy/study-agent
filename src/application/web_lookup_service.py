@@ -28,6 +28,7 @@ from src.web.tool_evidence import (
     tool_source_items,
 )
 from src.web.research_recovery import recovery_summary
+from src.web.research.candidate_funnel import candidate_funnel
 
 
 class WebLookupGateway(Protocol):
@@ -731,6 +732,8 @@ class WebLookupService:
         context = {
             **run.research_context,
             "source_truth_version": 2,
+            "candidate_dispositions": (recovery_summary(calls) or {}).get("candidate_dispositions", []),
+            "candidate_funnel": candidate_funnel(calls, (recovery_summary(calls) or {}).get("candidate_dispositions", [])),
             "tool_trace": {
                 "calls": display_calls,
                 "evidence_calls": evidence_calls,

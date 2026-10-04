@@ -7,6 +7,7 @@ import {
   History,
   RotateCcw,
   ShieldQuestion,
+  Sparkles,
   Target,
 } from "lucide-react";
 import { useState } from "react";
@@ -14,6 +15,7 @@ import { useState } from "react";
 import type { ChatResponse, MemoryStatusResponse } from "../../types";
 import { phaseLabel } from "../pedagogy/pedagogyLabels";
 import { taskContractFromRoute, taskIntentLabel } from "../task/taskContract";
+import { useFireflyLessonController } from "./FireflyLessonContext";
 import { LearningPanel } from "./LearningPanel";
 import type { LearningResumeResponse } from "./learningResumeApi";
 import { projectTrustworthyLearningStatus } from "./trustworthyLearningStatus";
@@ -100,9 +102,53 @@ export function LearningStrip({
   visitedPhases: string[];
   memoryStatus: MemoryStatusResponse | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const fireflyLesson = useFireflyLessonController();
+  const [open, setOpen] = useState(() => Boolean(fireflyLesson?.state.active));
   const contract = taskContractFromRoute(lastChat?.route);
   const durableActive = resume?.source === "durable" && resume.status === "active";
+
+  if (fireflyLesson?.state.active && !durableActive) {
+    return (
+      <div className="learning-strip firefly-learning-strip" aria-label="默认流萤课程">
+        <button
+          aria-expanded={open}
+          className="learning-strip-toggle trustworthy-learning-summary durable-learning-summary"
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
+          <span className="learning-strip-chevron">
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </span>
+          <span className="learning-strip-status-item learning-strip-objective">
+            <Sparkles size={12} />
+            <span>流萤超击破体系</span>
+          </span>
+          <span className="learning-strip-status-item learning-strip-phase">
+            默认示例 · 10张机制卡
+          </span>
+          <span className="learning-strip-status-item learning-strip-next">
+            <span>首领实验 · 一金怎么花</span>
+          </span>
+          <span className="learning-verification-badge pending_validation">
+            4.2加强后口径
+          </span>
+        </button>
+        {open ? (
+          <div className="learning-strip-detail firefly-learning-detail">
+            <LearningPanel
+              resume={resume}
+              resumeError={resumeError}
+              sessionId={sessionId}
+              onRevalidated={onRevalidated}
+              lastChat={lastChat}
+              visitedPhases={visitedPhases}
+              memoryStatus={memoryStatus}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   if (contract && !contract.learning_state_enabled && !durableActive) {
     return (

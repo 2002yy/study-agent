@@ -1,7 +1,7 @@
 """Research-only multi-provider search orchestration.
 
-Legacy ``GeneralWebGateway.search_exact`` intentionally keeps its first-nonempty
-provider semantics. Deep research needs a different policy: every enabled
+``GeneralWebGateway.search_exact`` uses bounded primary plus quality-triggered
+rescue. This research adapter has a different policy: every enabled
 provider is attempted, transient failures get at most one explicit retry, and
 provider provenance is preserved without copying the underlying network
 transports.

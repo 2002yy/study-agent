@@ -298,6 +298,35 @@ def test_cancel_during_blocked_network_returns_without_late_trace_mutation():
     assert evidence_tool_calls(calls) == []
 
 
+def test_cancelled_read_keeps_its_attempt_in_the_candidate_funnel():
+    from src.web.research.candidate_funnel import candidate_funnel
+
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    class BlockedReadGateway:
+        def search_exact(self, *args, **kwargs):
+            return {"status": "ok", "results": [item("release")]}
+
+        def read(self, *args, **kwargs):
+            entered.set()
+            release.wait(timeout=2)
+            finished.set()
+            return {"ok": True, "content": "late Opus 5.5 body"}
+
+    try:
+        calls = recover_public_research(BlockedReadGateway(), "opus5.5", should_cancel=entered.is_set)
+        snapshot = repr(calls)
+        funnel = candidate_funnel(calls, recovery_summary(calls)["candidate_dispositions"])
+        assert funnel["attempted_reads"] == 1
+        assert funnel["gate_failures"] == []
+        assert funnel["evidence_adopted"] == 0
+        assert funnel["candidates"][0]["read_outcome"][0]["error"] == "RecoveryCancelled"
+    finally:
+        release.set()
+    assert finished.wait(timeout=2)
+    assert repr(calls) == snapshot
+
+
 @pytest.mark.parametrize(
     "query,mode",
     [
@@ -360,6 +389,8 @@ def test_recovery_diagnostics_and_evidence_survive_real_repository_restore(
         owner_turn_id="turn",
     )
     restored = service.get(trace.run_id)
+    assert restored.research_context["candidate_dispositions"]
+    assert any(row["state"] == "dispatched" for row in restored.research_context["candidate_dispositions"])
     assert (
         restored.research_context["tool_trace"]["recovery"]
         == trace.to_dict()["recovery"]

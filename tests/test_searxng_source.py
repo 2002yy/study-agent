@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
+import threading
+from urllib.parse import parse_qs, urlparse
 
 from src.news.search_sources.searxng_source import (
     build_searxng_search_url,
@@ -21,6 +24,31 @@ class _FakeResponse:
 
     def read(self, _limit: int = -1) -> bytes:
         return self._payload
+
+
+def test_concurrent_searches_keep_their_own_provider_failure(monkeypatch):
+    from src.news.search_sources import searxng_source
+
+    monkeypatch.setenv("WEB_ENABLE_SEARXNG", "true")
+    monkeypatch.setenv("SEARXNG_BASE_URL", "https://search.example.com")
+    both_failed = threading.Barrier(2)
+
+    def fail(request, timeout):
+        query = parse_qs(urlparse(request.full_url).query)["q"][0]
+        raise OSError(f"provider failure for {query}")
+
+    monkeypatch.setattr(searxng_source, "urlopen", fail)
+
+    def search(query):
+        assert searxng_source.search_searxng(query) == []
+        both_failed.wait(timeout=2)
+        return searxng_source.get_last_searxng_error()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(search, "first-query")
+        second = pool.submit(search, "second-query")
+        assert "first-query" in first.result()
+        assert "second-query" in second.result()
 
 
 def test_build_searxng_search_url_rejects_missing_or_unsafe_base_url(monkeypatch):

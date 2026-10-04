@@ -133,3 +133,81 @@ Lookup Opus 17.266秒、2次读取/2条采用正文，含官方精确发布页�
 §171-A 仅在八类控制通过、manifest 原样执行、每个可回答锚点关键方面和
 引用经复核、剩余缺口有 owner/repro 后关闭。本轮 source availability 差，
 不把 fail-closed 误称成功；§171-A calibration remains partial/blocked。
+
+
+## 第二批：宽 Discovery / 有界 Reader（用户最新授权）
+
+2026-10-04：最新要求以 SearXNG 为 primary，候选不足、低相关、同质或
+provider failure 时才用 Bing RSS / DDG HTML rescue；不默认每个 query 都
+重复调用三路。与 Kimi 的循环理念一致，但不复制其深度研究量级：
+[Kimi 官方介绍](https://www.kimi.com/help/deep-research/deep-research-overview)
+描述平均74关键词/206网址，以及依据中间结果调整路径。
+[SearXNG Search API](https://docs.searxng.org/dev/search_api.html)
+允许查询、category/engine 等控制；引擎成功返回仍须本地相关性筛选。
+
+冻结本批：每 query 最多12候选；Lookup最多2 / Standard最多4 queries
+即理论24/48候选机会，URL重复后实际数量可更少，不声称必得30–60。
+保留15条未读候选，排序后最多5条进入一次候选语义窗口；未评估尾部
+仍需确定性筛选、正文相关性及既有证据门，不因未被窗口选中就丢弃。
+Read仍为3/5、chars16k/24k、time30/60s、模型调用≤6。
+4–8queries、6–12reads及coverage-driven wave属于后续待实测合同，不在
+本批偷偷放宽。各provider统计和晚到结果隔离必须有回归证明。
+
+新manifest：`config/research_calibration_discovery_v1.json`，8题×2。
+包括Opus比较、Python/FastAPI/SQLite发布、HTTP重试、原始论文、开源许可、
+实时地震；新增分布独立报告，不覆盖旧v1的16次失败。
+执行：`tools/run_research_calibration.py --manifest config/research_calibration_discovery_v1.json --output NEW_OUTSIDE_REPO_DIR`。
+每题记录provider attempted/results/unique_urls/bodies_read/bodies_adopted，
+完整答案、原题/RQ、query/candidate/read轨迹、source SHA/read time、代码摘要。
+provider贡献允许重叠，同URL被两路找到不被误计成两份独立证据。
+read-backed仍仅来源可用性；问题覆盖和数字支持须读正文逐项人工复核。
+
+部署复核：当前Docker29.8.1与study-agent-searxng容器healthy、8080通；
+Python general搜索仍0结果，底层brave限流、DDG/startpage CAPTCHA、
+google cse连接失败。不能将健康检查写成搜索恢复PASS。
+定向engine探针：bing无结果、wikipedia timeout、github可返回候选。
+GitHub搜索成功仅证明特定engine网络通，不授权取代通用搜索。
+未改本机secret或服务配置；保留失败事实，不通过切换引擎伪造通过。
+
+
+## 第三步 steering：adaptive 12→24（实际实施）
+
+当前每query12起步；候选不足/官方来源缺失/单域/Top5偏弱时，后续不同
+规划query扩大24。Lookup池上限25，Standard池上限80；上限是容量，不
+保证40–80实际unique URLs。正文仍3/5，不提高模型/时间/字符预算。
+跨query去tracking/fragment identity合并来源，保留未读候选。
+发布意图对release/changelog/download候选加权、教程降权；有官方规划域
+时教程不消耗版本问句读取；provider blocked/timeout使用run-local cooldown。
+Late worker不写结果；全cooldown返回providers_degraded_for_run，非配置缺失。
+
+四门分别记录：Discovery工程 / Source-quality / Search-answer / Firefly。
+当前工程与UI通过，FastAPI/SQLite最新版本和日期未闭合，main NO-GO。
+定向发布三题×2：Python2/2有正文，FastAPI0/2、SQLite0/2；数字仅诊断。
+SQLite下载页的875字符只有模板说明，版本表格被include_tables=False丢掉。
+这是后续Reader/actual-link discovery合同的直接触发证据，不能靠加候选掩盖。
+SearXNG360search engine定向可发现SQLite changes/releaselog；不是默认general
+恢复通过，也未直接修改服务engine设置。
+
+下一执行片应先冻结“有界结构化正文+实际官方页面链接发现”，保证新链接
+来自真实读过HTML、受public/DNS/redirect与同源/预算限制，不伪造search
+candidate、不把discovery-only导航页放进答案证据。两题真实Source-quality/
+Search-answer通过后，才做有效最终组合L3及main合并。
+
+
+### 最终adaptive 8×2：Source-quality尚未通过
+
+artifact `D:/study-agent-validation/adaptive-discovery-calibration-20261004/result.json`，
+候选1dc2ac52。16/16执行，无异常；官方域候选16/16，官方域读过12/16、
+采用7/16，最大unique22，不冒充40–80实际召回或完整回答覆盖。
+最大reads5，semantic+writer最多4，elapsed中位15.406s/最大31.281s。
+
+FastAPI0/2有效正文，SQLite0/2，Python1/2；Opus、论文、许可各2/2 related
+正文，但related不是assertion support。arXiv提取正文没有作者名单，回答
+仍引用它列8作者；Opus相邻版本页也被related model标全RQ相关。
+因此Search-answer不批PASS。详细四门表见PROJECT_STATUS §174.2。
+
+新的确定根因：Python官方release响应gzip（`1f8b0800`），现路径未解压
+即HTML提取，得到二进制乱码；SQLite下载表格被include_tables=False丢。
+下一片须以有界transport decoding + 结构化内容/元数据 + 实际HTML
+release链接发现修复Reader质量；不能再仅归因搜索量或提高wallclock。
+Draft PR164承载当前可review代码，main仍NO-GO。

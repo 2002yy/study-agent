@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
 
 from src.web.query_normalizer import normalize_web_query
 from src.web.tool_gateway import GeneralWebGateway
@@ -68,7 +67,7 @@ def test_detailed_search_reports_empty_without_inferring_nonexistence(monkeypatc
     gateway = GeneralWebGateway()
     attempted: list[str] = []
 
-    def empty_search(query: str, limit: int):
+    def empty_search(query: str, limit: int, **kwargs):
         attempted.append(query)
         return {
             "results": [],
@@ -92,11 +91,11 @@ def test_detailed_search_reports_empty_without_inferring_nonexistence(monkeypatc
     assert "nonexistent" not in str(payload).lower()
 
 
-def test_detailed_search_prefers_canonical_variant_and_stops_after_results(monkeypatch):
+def test_detailed_search_keeps_canonical_results_but_tries_variants_when_weak(monkeypatch):
     gateway = GeneralWebGateway()
     attempted: list[str] = []
 
-    def search(query: str, limit: int):
+    def search(query: str, limit: int, **kwargs):
         attempted.append(query)
         if query == "GPT-5.6 Sol":
             return {
@@ -127,41 +126,6 @@ def test_detailed_search_prefers_canonical_variant_and_stops_after_results(monke
 
     assert payload["status"] == "ok"
     assert payload["reason"] == "results_found"
-    assert attempted == ["GPT-5.6 Sol"]
+    assert attempted[0] == "GPT-5.6 Sol"
+    assert len(attempted) > 1
     assert payload["results"][0]["title"] == "Official model page"
-
-
-def test_provider_fallbacks_share_one_bounded_search_budget(monkeypatch):
-    gateway = GeneralWebGateway()
-    clock = iter((0.0, 0.0, 7.9, 8.0))
-    captured: dict[str, float] = {}
-
-    monkeypatch.setenv("WEB_ENABLE_SEARXNG", "true")
-    monkeypatch.setenv("WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", "6")
-    monkeypatch.setenv("WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", "8")
-    monkeypatch.setattr("src.web.tool_gateway.time.monotonic", lambda: next(clock))
-    monkeypatch.setattr("src.web.tool_gateway.searxng_enabled", lambda: True)
-    monkeypatch.setattr(
-        "src.web.tool_gateway.search_searxng",
-        lambda _query, *, timeout, **_kwargs: captured.update(timeout=timeout) or [],
-    )
-    monkeypatch.setattr(
-        "src.web.tool_gateway.get_last_searxng_error", lambda: "provider_timeout"
-    )
-    monkeypatch.setattr(
-        gateway,
-        "_search_bing_rss",
-        lambda *_args: pytest.fail("Bing must not start after the total budget"),
-    )
-    monkeypatch.setattr(
-        gateway,
-        "_search_duckduckgo",
-        lambda *_args: pytest.fail("DuckDuckGo must not start after the total budget"),
-    )
-
-    payload = gateway.search_exact("bounded fallback")
-
-    assert captured["timeout"] == 6.0
-    assert payload["status"] == "unavailable"
-    assert "bing_rss:search_budget_exhausted" in payload["provider_errors"]
-    assert "duckduckgo_html:search_budget_exhausted" in payload["provider_errors"]

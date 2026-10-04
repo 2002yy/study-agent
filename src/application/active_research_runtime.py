@@ -183,6 +183,7 @@ from src.web.research.failure_taxonomy import (
     classify,
 )
 from src.web.research.candidate_resolution import resolution_summary
+from src.web.research.candidate_resolution import candidate_resolution_trace
 from src.web.research.chain_executor import (
     ChainAttemptRequest,
     ChainStepResult,
@@ -2636,6 +2637,18 @@ class ActiveResearchRuntimeExecutor:
                     context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
                         "candidate_resolution"
                     ] = resolution_summary(cursor.read_outcomes)
+                    # §174.3.1 observation-only: per-candidate reasons plus a
+                    # zero-read summary, so a run that ends with candidates but no
+                    # reads can be explained offline. Planned candidates are passed
+                    # explicitly, otherwise a zero-read run would project nothing.
+                    context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
+                        "candidate_resolution_trace"
+                    ] = candidate_resolution_trace(
+                        cursor.read_outcomes,
+                        candidate_ids=[
+                            str(item.id) for item in cursor.candidates
+                        ],
+                    )
                     checkpoint()
 
                 if read_loop_stop_reason:

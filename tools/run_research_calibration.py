@@ -19,6 +19,10 @@ import time
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.application.active_research_runtime import ACTIVE_RESEARCH_METRICS_KEY  # noqa: E402
 
 
 def sha(value: str) -> str:
@@ -27,6 +31,100 @@ def sha(value: str) -> str:
 
 def percentile(values: list[float], fraction: float) -> float | None:
     return round(sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)], 3) if values else None
+
+
+def _resolution_trace_from_context(ctx: dict, searches: list[dict], reads: list[dict]) -> dict:
+    """§174.3.1 observation-only per-candidate trace.
+
+    Prefers the dispositions the decision site itself recorded (the structural gate plus
+    the worth-reading gate, with the code's own reasons). Falls back to counting the
+    runner's search results as ``not_observed`` when that wiring is absent - the fallback
+    is the last resort, not the answer. Never raises.
+    """
+
+    try:
+        dispositions = ctx.get("candidate_dispositions")
+        if isinstance(dispositions, list) and dispositions:
+            entries = []
+            for index, item in enumerate(dispositions):
+                if not isinstance(item, dict):
+                    continue
+                state = str(item.get("state") or "not_observed")
+                reason = str(item.get("reason") or "")
+                entries.append(
+                    {
+                        "candidate_index": index,
+                        "candidate_id": str(item.get("candidate_id") or ""),
+                        "state": state,
+                        "entered_read": state == "dispatched",
+                        "blocking_stage": (
+                            ""
+                            if state == "dispatched"
+                            else "dispatch"
+                            if state == "eligible_for_read"
+                            else "assessment"
+                            if state.startswith("filtered")
+                            else "read_eligibility"
+                            if state.startswith("eligible")
+                            else "not_observed"
+                        ),
+                        "skip_reason": reason,
+                        "defer_reason": reason if state != "dispatched" else "",
+                        "final_status": (
+                            "selected"
+                            if state == "dispatched"
+                            else "pending"
+                            if state == "eligible_for_read"
+                            else "rejected"
+                        ),
+                    }
+                )
+            source = "web_lookup_service.candidate_dispositions"
+        else:
+            candidates = [
+                item
+                for call in searches
+                for item in ((call.get("result") or {}).get("results") or [])
+                if isinstance(item, dict)
+            ]
+            entries = [
+                {
+                    "candidate_index": index,
+                    "candidate_id": str(item.get("url") or ""),
+                    "state": "not_observed",
+                    "entered_read": False,
+                    "blocking_stage": "not_observed",
+                    "skip_reason": "",
+                    "defer_reason": "",
+                    "final_status": "pending",
+                }
+                for index, item in enumerate(candidates)
+            ]
+            source = "runner.search_calls_fallback"
+
+        state_counts: dict[str, int] = {}
+        reason_counts: dict[str, int] = {}
+        for entry in entries:
+            state_counts[entry["state"]] = state_counts.get(entry["state"], 0) + 1
+            reason = entry["skip_reason"] or entry["blocking_stage"] or entry["state"]
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        attempted = len(reads)
+        zero = ""
+        if entries and attempted == 0:
+            zero = "0 reads = " + " + ".join(
+                f"{count}\u00d7{state}" for state, count in sorted(state_counts.items())
+            )
+        return {
+            "candidate_count": len(entries),
+            "attempted_reads": attempted,
+            "state_counts": state_counts,
+            "reason_counts": reason_counts,
+            "zero_read_reason_summary": zero,
+            "candidates": entries,
+            "source": source,
+        }
+    except Exception:
+        return {}
 
 
 def summarize(rows: list[dict]) -> dict:
@@ -78,6 +176,7 @@ def main() -> int:
     from src.application.runtime_repository import get_chat_service, get_web_lookup_service, get_web_tool_agent
     from src.llm_client import get_provider_settings
     from src.web.recovery_candidates import canonical_document, source_family
+    from src.web.discovery import in_scope
     from src.web.semantic_recovery import configured_completion
     from src.web.tool_evidence import evidence_tool_calls
 
@@ -110,7 +209,8 @@ def main() -> int:
 
     agent.resolve = observe_resolve
     files = ["src/web/semantic_recovery.py", "src/web/research_recovery.py", "src/web/tool_evidence.py",
-             "src/web/conversation_query.py", "src/tools/persistent_web_agent.py", "src/application/chat_service.py",
+             "src/web/conversation_query.py", "src/web/tool_gateway.py", "src/web/discovery.py",
+             "src/news/search_sources/searxng_source.py", "src/tools/persistent_web_agent.py", "src/application/chat_service.py",
              "src/application/policy_chat_service.py", "src/application/web_lookup_service.py"]
     result = {
         "schema_version": "research-calibration-result-v1", "qualified_judge": False,
@@ -168,6 +268,46 @@ def main() -> int:
             reads = [call for call in raw_calls if call.get("name") == "web_read"]
             searches = [call for call in raw_calls if call.get("name") == "web_search"]
             adopted = evidence_tool_calls(raw_calls)
+            planned_queries = []
+            for event in inference_events[event_offset:]:
+                if event["stage"] == "research_turn_interpretation" and event.get("response"):
+                    try:
+                        planned_queries = json.loads(event["response"]).get("proposed_queries", [])
+                    except (ValueError, AttributeError):
+                        pass
+            provider_counts = {}
+            provider_urls = {}
+            for search in searches:
+                for stat in search.get("result", {}).get("provider_stats", []):
+                    name = stat["provider"]
+                    entry = provider_counts.setdefault(name, {"attempted": 0, "results": 0, "unique_urls": 0,
+                                                              "bodies_read": 0, "bodies_adopted": 0, "reasons": []})
+                    entry["attempted"] += int(stat.get("attempted", False))
+                    entry["results"] += stat.get("results", 0)
+                    entry["reasons"].append(stat.get("reason", ""))
+                    provider_urls.setdefault(name, set()).update(stat.get("urls", []))
+            adopted_requested = {call.get("arguments", {}).get("url") for call in adopted}
+            official_domains = tuple(case.get("official_domains", []))
+            candidates_all = [item for search in searches for item in search.get("result", {}).get("results", [])]
+            def expected_publisher_url(url):
+                if any(in_scope(url, domain) for domain in official_domains):
+                    return True
+                parsed = urlparse(url)
+                for prefix in case.get("official_url_prefixes", []):
+                    expected = urlparse(prefix)
+                    if parsed.hostname == expected.hostname and (parsed.path.rstrip("/") == expected.path.rstrip("/")
+                            or parsed.path.startswith(expected.path.rstrip("/") + "/")):
+                        return True
+                return False
+
+            official_urls = {item["url"] for item in candidates_all if expected_publisher_url(item.get("url", ""))}
+            official_reads = [call for call in reads if call.get("arguments", {}).get("url") in official_urls]
+            official_adopted = [call for call in adopted if call.get("arguments", {}).get("url") in official_urls]
+            for name, entry in provider_counts.items():
+                discovered = provider_urls[name]
+                entry["unique_urls"] = len(discovered)
+                entry["bodies_read"] = sum(call.get("arguments", {}).get("url") in discovered for call in reads)
+                entry["bodies_adopted"] = len(adopted_requested & discovered)
             recovery = trace.get("recovery") or {}
             scheduler = recovery.get("candidate_scheduler") or {}
             urls = [call["arguments"]["url"] for call in reads]
@@ -182,6 +322,14 @@ def main() -> int:
                 "research_seconds": research_seconds, "finalization_seconds": generation_seconds,
                 "first_successful_read_seconds": round((datetime.fromisoformat(first_successful)
                     - datetime.fromisoformat(started_at)).total_seconds(), 3) if first_successful else None,
+                "provider_metrics": provider_counts,
+                "official_candidate_found": bool(official_urls), "official_candidate_urls": sorted(official_urls),
+                "official_bodies_read": len(official_reads), "official_bodies_adopted": len(official_adopted),
+                "question_covered": "manual_review_required",
+                "domain_diversity": len({source_family(item.get("url", "")) for item in candidates_all}),
+                "queries_planned": len(planned_queries), "query_plan": planned_queries,
+                "raw_results": sum(v["results"] for v in provider_counts.values()),
+                "unique_urls": len(set().union(*provider_urls.values())) if provider_urls else 0,
                 "candidate_count": sum(len(call.get("result", {}).get("results", [])) for call in searches),
                 "attempted_reads": len(reads), "successful_reads": sum(call["result"].get("ok") is True for call in reads),
                 "adopted_bodies": len(adopted), "unique_canonical_docs": len({canonical_document(url) for url in urls}),
@@ -190,6 +338,23 @@ def main() -> int:
                 "recovery_used": bool(recovery.get("recovery_reads") or len(searches) > 1),
                 "recovery_reads": recovery.get("recovery_reads", 0), "scheduler": scheduler,
                 "stop_reason": recovery.get("stop_reason", "NO_RECOVERY_TRACE"),
+                # §174.3.1 observation-only: per-candidate reasons + zero-read
+                # summary, so a later zero-read run is explainable offline.
+                "candidate_resolution_trace": _resolution_trace_from_context(
+                    getattr(run, "research_context", {}) or {}, searches, reads
+                ),
+                "candidate_funnel": (getattr(run, "research_context", {}) or {}).get("candidate_funnel", {}),
+                "research_context_keys": sorted(
+                    (getattr(run, "research_context", {}) or {}).keys()
+                ),
+                "metrics_keys": sorted(
+                    (
+                        (getattr(run, "research_context", {}) or {}).get(
+                            ACTIVE_RESEARCH_METRICS_KEY
+                        )
+                        or {}
+                    ).keys()
+                ),
                 "semantic_calls": len(inference_events) - event_offset,
                 "writer_calls": prepared.route.get("answer_generation_calls", 0) if prepared else 0,
                 "question_coverage": "not_semantically_evaluated", "answer": answer, "answer_sha256": sha(answer),

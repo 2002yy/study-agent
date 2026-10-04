@@ -7,6 +7,7 @@ general web search, explicit page reads, and bounded GitHub repository access.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
@@ -26,6 +27,7 @@ from src.news.search_sources.searxng_source import (
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
+from src.web.discovery import discovery_sufficient, rank_candidates
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -173,6 +175,8 @@ class GeneralWebGateway:
         *,
         max_results: int = 5,
         now: datetime | None = None,
+        deadline: float | None = None,
+        excluded_providers: frozenset[str] = frozenset(),
     ) -> dict[str, Any]:
         """Search one already-planned query without creating more variants."""
 
@@ -181,7 +185,7 @@ class GeneralWebGateway:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        limit = max(1, min(max_results, 12))
+        limit = max(1, min(max_results, 24))
         if not focused:
             return {
                 "status": "invalid_query",
@@ -192,7 +196,7 @@ class GeneralWebGateway:
                 "searched_at": current.isoformat(),
             }
 
-        outcome = self._search_single(focused, limit)
+        outcome = self._search_single(focused, limit) if deadline is None and not excluded_providers else self._search_single(focused, limit, deadline=deadline, excluded_providers=excluded_providers)
         results = list(outcome["results"])
         # Engines do not consistently honor site: syntax. A single positive
         # domain constraint is enforceable locally; complex OR/negative queries
@@ -214,7 +218,7 @@ class GeneralWebGateway:
             reason = "results_found"
         elif not providers_enabled:
             status = "unavailable"
-            reason = "no_search_provider_enabled"
+            reason = "providers_degraded_for_run" if outcome.get("providers_configured") else "no_search_provider_enabled"
         elif provider_errors and len(provider_errors) >= len(
             outcome["providers_attempted"]
         ):
@@ -231,6 +235,7 @@ class GeneralWebGateway:
             "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
+            "provider_stats": list(outcome.get("provider_stats", [])),
             "searched_at": current.isoformat(),
         }
 
@@ -246,7 +251,7 @@ class GeneralWebGateway:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        limit = max(1, min(max_results, 12))
+        limit = max(1, min(max_results, 24))
         if not normalization.raw_query:
             return {
                 **normalization.to_dict(),
@@ -262,9 +267,14 @@ class GeneralWebGateway:
         provider_errors: list[str] = []
         results: list[dict[str, str]] = []
         saw_available_provider = False
+        provider_stats: list[dict[str, Any]] = []
+        variant_deadline = time.monotonic() + _env_float("WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0)
         for variant in normalization.query_variants:
+            if attempted and variant_deadline - time.monotonic() < .25:
+                break
             attempted.append(variant)
-            exact = self.search_exact(variant, max_results=limit, now=current)
+            exact = self.search_exact(variant, max_results=limit, now=current, deadline=variant_deadline)
+            provider_stats.extend({**row, "query": variant} for row in exact.get("provider_stats", []))
             if exact["status"] != "unavailable":
                 saw_available_provider = True
             for error in exact.get("provider_errors", []):
@@ -272,11 +282,8 @@ class GeneralWebGateway:
                     provider_errors.append(str(error))
             if exact["status"] == "unavailable" and exact.get("provider_errors"):
                 break
-            results = _dedupe_results(
-                [*results, *list(exact.get("results", []))],
-                limit,
-            )
-            if results:
+            results = rank_candidates([*results, *list(exact.get("results", []))], normalization.canonical_query, limit)
+            if discovery_sufficient(results, normalization.canonical_query, limit):
                 break
 
         if results:
@@ -295,98 +302,98 @@ class GeneralWebGateway:
             "status": status,
             "reason": reason,
             "attempted_queries": attempted,
+            "provider_stats": provider_stats,
             "results": results,
             "provider_errors": provider_errors,
             "searched_at": current.isoformat(),
         }
 
-    def _search_single(self, query: str, limit: int) -> dict[str, Any]:
-        provider_timeout = _env_float(
-            "WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS",
-            6.0,
-            minimum=1.0,
-            maximum=8.0,
-        )
-        total_timeout = _env_float(
-            "WEB_SEARCH_TOTAL_TIMEOUT_SECONDS",
-            8.0,
-            minimum=3.0,
-            maximum=10.0,
-        )
-        deadline = time.monotonic() + total_timeout
-        results: list[dict[str, str]] = []
-        provider_errors: list[str] = []
-        providers_attempted: list[str] = []
+    def _search_single(self, query: str, limit: int, *, deadline: float | None = None, excluded_providers: frozenset[str] = frozenset()) -> dict[str, Any]:
+        provider_timeout = _env_float("WEB_SEARCH_PROVIDER_TIMEOUT_SECONDS", 6.0, minimum=1.0, maximum=8.0)
+        total_timeout = _env_float("WEB_SEARCH_TOTAL_TIMEOUT_SECONDS", 8.0, minimum=3.0, maximum=10.0)
+        deadline = min(deadline, time.monotonic() + total_timeout) if deadline is not None else time.monotonic() + total_timeout
+        results: list[dict[str, Any]] = []
+        errors: list[str] = []
+        attempted: list[str] = []
+        stats: list[dict[str, Any]] = []
 
-        def remaining_timeout(provider: str) -> float:
-            remaining = deadline - time.monotonic()
-            if remaining < 0.25:
-                provider_errors.append(f"{provider}:search_budget_exhausted")
-                return 0.0
-            return min(provider_timeout, remaining)
+        def call(provider: str, timeout: float) -> tuple[list[dict[str, Any]], str]:
+            if provider == "searxng":
+                raw = search_searxng(query, max_results=limit, timeout=timeout,
+                                     categories=os.getenv("WEB_SEARXNG_CATEGORIES", "general"))
+                rows = [{"title": str(item.get("title", "")),
+                         "url": str(item.get("link") or item.get("resolved_link") or ""),
+                         "snippet": str(item.get("search_excerpt") or item.get("summary") or ""),
+                         "source": str(item.get("source") or "SearXNG"),
+                         "published_at": str(item.get("published_at") or "")}
+                        for item in raw[:limit] if item.get("title") and (item.get("link") or item.get("resolved_link"))]
+                return rows, "" if rows else get_last_searxng_error()
+            transport = self._search_bing_rss if provider == "bing_rss" else self._search_duckduckgo
+            rows, error = transport(query, limit, timeout)
+            return list(rows), error
 
-        if searxng_enabled():
-            providers_attempted.append("searxng")
-            timeout = remaining_timeout("searxng")
-            searx_results = (
-                search_searxng(
-                    query,
-                    max_results=limit,
-                    timeout=timeout,
-                    categories=os.getenv("WEB_SEARXNG_CATEGORIES", "general"),
-                )
-                if timeout
-                else []
-            )
-            if searx_results:
-                results = [
-                    {
-                        "title": str(item.get("title", "")),
-                        "url": str(
-                            item.get("link") or item.get("resolved_link") or ""
-                        ),
-                        "snippet": str(
-                            item.get("search_excerpt") or item.get("summary") or ""
-                        ),
-                        "source": str(item.get("source") or "SearXNG"),
-                        "published_at": str(item.get("published_at") or ""),
-                    }
-                    for item in searx_results[:limit]
-                    if item.get("title")
-                    and (item.get("link") or item.get("resolved_link"))
-                ]
-            else:
-                error = get_last_searxng_error()
-                if error:
-                    provider_errors.append(f"searxng:{error}")
+        def wave(providers: list[str], seconds: float) -> None:
+            if not providers:
+                return
+            pool = ThreadPoolExecutor(max_workers=len(providers), thread_name_prefix="search-discovery")
+            started = time.monotonic()
+            futures = {}
 
-        if not results and _env_flag("WEB_ENABLE_BING_RSS", default=True):
-            providers_attempted.append("bing_rss")
-            timeout = remaining_timeout("bing_rss")
-            if timeout:
-                bing_results, bing_error = self._search_bing_rss(
-                    query, limit, timeout
-                )
-                results = bing_results
-                if bing_error:
-                    provider_errors.append(bing_error)
+            def timed_call(provider: str, timeout: float):
+                begin = time.monotonic()
+                rows, error = call(provider, timeout)
+                return rows, error, round(time.monotonic() - begin, 3)
+            try:
+                for provider in providers:
+                    remaining = min(seconds, deadline - time.monotonic())
+                    if remaining <= 0:
+                        stats.append({"provider": provider, "attempted": False, "results": 0,
+                                      "unique_urls": 0, "reason": "search_budget_exhausted"})
+                        continue
+                    attempted.append(provider)
+                    futures[provider] = pool.submit(timed_call, provider, min(provider_timeout, remaining))
+                done, _ = wait(futures.values(), timeout=max(0, min(seconds, deadline - time.monotonic())))
+                # Only this caller mutates returned telemetry. Late results are
+                # abandoned and cannot change the candidate pool or run state.
+                for provider, future in futures.items():
+                    rows: list[dict[str, Any]] = []
+                    error = "search_budget_exhausted"
+                    elapsed = round(time.monotonic() - started, 3)
+                    if future in done:
+                        try:
+                            rows, error, elapsed = future.result()
+                        except Exception as exc:
+                            error = type(exc).__name__
+                    if error:
+                        errors.append(error if error.startswith(provider + ":") else f"{provider}:{error}")
+                    annotated = [{**row, "providers": [provider]} for row in rows[:limit]]
+                    retained = rank_candidates(annotated, query, limit)
+                    stats.append({"provider": provider, "attempted": True, "results": len(rows),
+                                  "unique_urls": len(retained), "reason": error or "results_returned",
+                                  "elapsed_seconds": elapsed,
+                                  "urls": [row["url"] for row in retained]})
+                    results.extend(annotated)
+            finally:
+                for future in futures.values():
+                    future.cancel()
+                pool.shutdown(wait=False, cancel_futures=True)
 
-        if not results and _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True):
-            providers_attempted.append("duckduckgo_html")
-            timeout = remaining_timeout("duckduckgo_html")
-            if timeout:
-                ddg_results, ddg_error = self._search_duckduckgo(
-                    query, limit, timeout
-                )
-                results = ddg_results
-                if ddg_error:
-                    provider_errors.append(ddg_error)
-
-        return {
-            "results": _dedupe_results(results, limit),
-            "provider_errors": provider_errors,
-            "providers_attempted": providers_attempted,
-        }
+        primary_enabled = searxng_enabled()
+        rescues = [provider for provider, enabled in (
+            ("bing_rss", _env_flag("WEB_ENABLE_BING_RSS", default=True)),
+            ("duckduckgo_html", _env_flag("WEB_ENABLE_DUCKDUCKGO", default=True))) if enabled]
+        configured = (["searxng"] if primary_enabled else []) + rescues
+        rescues = [provider for provider in rescues if provider not in excluded_providers]
+        for provider in sorted(excluded_providers):
+            stats.append({"provider": provider, "attempted": False, "results": 0, "unique_urls": 0, "reason": "run_local_provider_degraded"})
+        if primary_enabled and "searxng" not in excluded_providers:
+            # Reserve half the stage for rescue if the metasearch service is
+            # blocked or only returns homogeneous / irrelevant candidates.
+            wave(["searxng"], min(provider_timeout, total_timeout / 2 if rescues else total_timeout))
+        if not discovery_sufficient(results, query, limit):
+            wave(rescues, max(0, min(provider_timeout, deadline - time.monotonic() - min(.15, total_timeout * .05))))
+        return {"results": rank_candidates(results, query, limit), "provider_errors": errors,
+                "providers_attempted": attempted, "provider_stats": stats, "providers_configured": configured}
 
     def read(
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None

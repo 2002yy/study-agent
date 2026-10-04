@@ -12,6 +12,8 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from src.web.source_assessment import assess_sources
+from src.web.discovery import in_scope, pool_quality, release_candidate, release_intent, scoped_domain, url_identity
+from src.web.tool_gateway import GeneralWebGateway
 from src.web.recovery_candidates import CandidateScheduler
 from src.web.tool_evidence import _public_url, evidence_tool_calls
 from src.web.semantic_recovery import ResearchSemanticSession
@@ -195,10 +197,26 @@ def _recover_public_research(
     if semantic_session is not None:
         deadline -= 5  # body-batch time is part of research, never writer reserve
     calls: list[dict[str, Any]] = []
+    # §174.3.1 truth-source: the dispatch decision site records each candidate's
+    # disposition itself, with the reason this code actually holds. The payload is a
+    # mutable dict carried inside ``calls``, so every return path preserves it.
+    dispositions_payload: dict[str, Any] = {"candidates": []}
+    calls.append(
+        {
+            "name": "research_candidate_dispositions",
+            "arguments": {},
+            "result": dispositions_payload,
+        }
+    )
     scheduler = CandidateScheduler()
     body_digests: set[str] = set()
     semantic_rejected_urls: set[str] = set()
     pending_candidates: list[dict[str, Any]] = []
+    discovery_pool: dict[str, dict[str, Any]] = {}
+    dispositions: dict[str, dict[str, str]] = {}
+    pool_limit = 80 if budget.mode == "standard" else 25
+    candidate_limit = 12
+    degraded_providers: set[str] = set()
     covered: set[int] = set()
     searches = reads = used_chars = recovery_reads = authority_queries = rewrites = 0
     provider_failures = 0
@@ -242,6 +260,7 @@ def _recover_public_research(
         # comparison tail can consume all remaining reads.
         query_plan = [{**row, "query": _rewrite(normalize_web_query(row["query"]).canonical_query)[0]}
                       for row in query_plan]
+        domains = tuple(dict.fromkeys([*domains, *(scoped_domain(row["query"]) for row in query_plan if scoped_domain(row["query"]))]))
         planned = query_plan[: min(3, budget.max_queries - 1)]
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
@@ -289,6 +308,10 @@ def _recover_public_research(
             pool.shutdown(wait=False, cancel_futures=True)
 
     def checkpoint(state: str, reason: str) -> None:
+        if state != "needs_more_research":
+            for row in dispositions.values():
+                if row["state"] in {"not_observed", "eligible", "eligible_for_read"}:
+                    row.update(state="run_blocked", reason=reason)
         calls.append(
             {
                 "name": "research_recovery",
@@ -310,7 +333,12 @@ def _recover_public_research(
                     },
                     "question_coverage": "not_semantically_evaluated",
                     "candidate_scheduler": scheduler.snapshot(),
+                    "candidate_pool": pool_quality(list(discovery_pool.values()), rewritten, domains, standard=budget.mode == "standard"),
+                    "discovery_limit": candidate_limit,
+                    "candidate_pool_cap": pool_limit,
+                    "provider_cooldown": sorted(degraded_providers),
                     "provider_failures": provider_failures,
+                    "candidate_dispositions": [dict(row) for row in dispositions.values()],
                     "stop_reason": {
                         "evidence_saturation": "EVIDENCE_SATURATED",
                         "provider_exhausted": "PROVIDER_EXHAUSTED",
@@ -335,6 +363,7 @@ def _recover_public_research(
         )
 
     def reject(url: str, reason: str) -> None:
+        disposition(url, "filtered", reason)
         calls.append(
             {
                 "name": "research_candidate",
@@ -342,6 +371,20 @@ def _recover_public_research(
                 "result": {"status": "rejected", "reason": reason},
             }
         )
+        dispositions_payload["candidates"].append(
+            {
+                "candidate_id": str(url or ""),
+                "disposition": "filtered_before_dispatch",
+                "reason": str(reason or ""),
+            }
+        )
+
+    def disposition(url: str, state: str, reason: str = "") -> None:
+        key = url_identity(url) if url else ""
+        if key and (key in dispositions or len(dispositions) < pool_limit):
+            # A later duplicate or filter does not erase a real dispatch.
+            if dispositions.get(key, {}).get("state") != "dispatched":
+                dispositions[key] = {"candidate_id": url, "state": state, "reason": reason}
 
     last_novel = 0
     last_search_ok = False
@@ -366,7 +409,7 @@ def _recover_public_research(
                 rewrites += 1
             try:
                 result = invoke(
-                    lambda: gateway.search_exact(search_query, max_results=5)
+                    lambda: gateway.search_exact(search_query, max_results=candidate_limit, **({"excluded_providers": frozenset(degraded_providers)} if isinstance(gateway, GeneralWebGateway) and degraded_providers else {}))
                 )
                 if not isinstance(result, dict):
                     raise ValueError("invalid_search_result")
@@ -383,7 +426,7 @@ def _recover_public_research(
                     "name": "web_search",
                     "arguments": {
                         "query": search_query,
-                        "max_results": 5,
+                        "max_results": candidate_limit,
                         "recovery_stage": phase,
                         "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query],
                     },
@@ -405,6 +448,34 @@ def _recover_public_research(
                 if isinstance(items, list)
                 else []
             )
+            for stat in result.get("provider_stats", []):
+                if stat.get("attempted") and not stat.get("results") and any(
+                    marker in str(stat.get("reason", "")).lower() for marker in
+                    ("captcha", "challenge", "too many requests", "search_budget_exhausted", "timeout")):
+                    degraded_providers.add(stat["provider"])
+            for item in candidates:
+                url = _public_url(item.get("url"))
+                disposition(url, "not_observed", "not_yet_assessed")
+                key = url_identity(url) if url else ""
+                if key and (key in discovery_pool or len(discovery_pool) < pool_limit):
+                    previous = discovery_pool.get(key, {})
+                    discovery_pool[key] = {**item, "providers": list(dict.fromkeys([
+                        *previous.get("providers", []), *item.get("providers", [])]))}
+            quality = pool_quality(list(discovery_pool.values()), search_query, domains, standard=budget.mode == "standard")
+            if not quality["sufficient"]:
+                candidate_limit = 24
+            # A tutorial's lexical overlap cannot spend a version/release read.
+            # If official candidates are missing, preserve read slots for the
+            # next scoped query instead of draining them on weak initial pages.
+            if release_intent(query):
+                for item in candidates:
+                    url = str(item.get("url", ""))
+                    if not release_candidate(item):
+                        disposition(url, "filtered_release", "not_release_candidate")
+                    elif domains and not any(in_scope(url, domain) for domain in domains):
+                        disposition(url, "filtered_domain", "outside_proposed_domain")
+                candidates = [item for item in candidates if release_candidate(item) and
+                              (not domains or any(in_scope(str(item.get("url", "")), domain) for domain in domains))]
             selected, rejected = assess_sources(candidates, canonical_query=rewritten)
             for candidate in rejected:
                 reject(
@@ -419,6 +490,8 @@ def _recover_public_research(
                 unique = {str(row["assessment"].get("url", "")): row for row in combined}
                 selected = list(unique.values())
             selected = scheduler.order(selected, domains)
+            for row in selected:
+                disposition(str(row["assessment"].get("url", "")), "eligible", "awaiting_read_gate")
             if markers:
                 # Exact named versions outrank adjacent versions even when the
                 # advisory relevance judge considers the whole family related.
@@ -439,13 +512,15 @@ def _recover_public_research(
                     if not relevance.get(f"candidate-{i}"):
                         semantic_rejected_urls.add(str(row["assessment"].get("url", "")))
                         reject(str(row["assessment"].get("url", "")), "semantic_unrelated_or_unavailable_candidate")
+                remaining_candidates = selected[5:]
                 selected = [row for i, row in enumerate(window) if relevance.get(f"candidate-{i}")]
                 for row in selected:
                     row["assessment"]["worth_reading"] = True
+                selected.extend(remaining_candidates)
             if semantic_session is not None:
-                pending_candidates = selected[:20]
+                pending_candidates = selected[:pool_limit]
             phase_reads = last_novel = 0
-            for candidate in selected:
+            for candidate_index, candidate in enumerate(selected):
                 active()
                 assessment = candidate["assessment"]
                 url = _public_url(assessment.get("url"))
@@ -462,6 +537,9 @@ def _recover_public_research(
                     reject(url, rejection)
                     continue
                 if phase_reads >= phase_cap or reads >= budget.max_reads:
+                    for pending in selected[candidate_index:]:
+                        disposition(str(pending["assessment"].get("url", "")),
+                                    "eligible_for_read", "phase_or_run_read_cap")
                     break
                 limit = min(
                     budget.max_source_chars, budget.max_total_chars - used_chars
@@ -472,6 +550,7 @@ def _recover_public_research(
                 if reads >= budget.base_reads:
                     recovery_reads += 1
                 scheduler.begin(url)
+                disposition(url, "dispatched")
                 reads += 1
                 phase_reads += 1
                 last_novel += 1
@@ -486,7 +565,13 @@ def _recover_public_research(
                     )
                     if not isinstance(body, dict):
                         raise ValueError("invalid_read_result")
-                except (RecoveryCancelled, RecoveryDeadline):
+                except (RecoveryCancelled, RecoveryDeadline) as exc:
+                    # The dispatched request is still an attempt even when the
+                    # caller cancels or its research window expires mid-read.
+                    calls.append({"name": "web_read", "arguments": {"url": url, "max_chars": limit},
+                                  "result": {"ok": False, "url": url, "error_code": type(exc).__name__,
+                                             "read_started_at": read_started_at,
+                                             "read_completed_at": datetime.now(timezone.utc).isoformat()}})
                     raise
                 except Exception as exc:
                     body = {

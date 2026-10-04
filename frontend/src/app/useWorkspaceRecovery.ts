@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+import type { FireflyLessonState } from "../features/learning/defaultFireflyLesson";
 import type { ApiSnapshot } from "../types";
 import type { EvidenceRecoveryPort } from "./useEvidenceRuntime";
 import type { ExtensionRecoveryPort } from "./useExtensionRuntime";
@@ -8,6 +9,10 @@ import {
   useWorkspacePersistence,
   type WorkspaceRecovery,
 } from "./WorkspacePersistence";
+
+type FireflyWorkspaceRecovery = WorkspaceRecovery & {
+  fireflyLessonState?: FireflyLessonState;
+};
 
 export function useWorkspaceRecovery(options: {
   snapshot: ApiSnapshot;
@@ -27,30 +32,32 @@ export function useWorkspaceRecovery(options: {
         return;
       }
       extension.restore(parsed);
+      const recovery = parsed as FireflyWorkspaceRecovery;
       if (
         learning.restore({
-          singleChatSessionId: parsed.singleChatSessionId,
-          sessionId: parsed.sessionId,
-          memoryRunId: parsed.memoryRunId,
-          learningClosureRunId: parsed.learningClosureRunId,
-          chatSettings: parsed.chatSettings,
-          keepCurrentRole: parsed.keepCurrentRole,
-          conversationInstruction: parsed.conversationInstruction,
-          lastRoute: parsed.lastRoute,
-          lastRag: parsed.lastRag,
-          lastSessionId: parsed.lastSessionId,
-          cachedMessages: parsed.cachedMessages,
+          singleChatSessionId: recovery.singleChatSessionId,
+          sessionId: recovery.sessionId,
+          memoryRunId: recovery.memoryRunId,
+          learningClosureRunId: recovery.learningClosureRunId,
+          chatSettings: recovery.chatSettings,
+          keepCurrentRole: recovery.keepCurrentRole,
+          conversationInstruction: recovery.conversationInstruction,
+          fireflyLessonState: recovery.fireflyLessonState,
+          lastRoute: recovery.lastRoute,
+          lastRag: recovery.lastRag,
+          lastSessionId: recovery.lastSessionId,
+          cachedMessages: recovery.cachedMessages,
         })
       ) {
         sessionSettingsRestoredRef.current = true;
       }
       if (
         evidence.restore({
-          ragQueryRunId: parsed.ragQueryRunId,
-          ragWriteRunId: parsed.ragWriteRunId,
-          webLookupRunId: parsed.webLookupRunId,
-          ragSettings: parsed.ragSettings,
-          ragEnabled: parsed.ragEnabled,
+          ragQueryRunId: recovery.ragQueryRunId,
+          ragWriteRunId: recovery.ragWriteRunId,
+          webLookupRunId: recovery.webLookupRunId,
+          ragSettings: recovery.ragSettings,
+          ragEnabled: recovery.ragEnabled,
         })
       ) {
         sessionSettingsRestoredRef.current = true;

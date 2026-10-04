@@ -1,0 +1,402 @@
+.firefly-lesson-panel {
+  display: block !important;
+  width: 100%;
+  padding: 18px 20px 28px !important;
+  background: #f6f8f9;
+}
+
+.firefly-lesson-shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.firefly-lesson-hero {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.firefly-lesson-hero h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.firefly-lesson-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.firefly-version-note {
+  border-left: 3px solid var(--accent);
+  background: #eef7f5;
+  padding: 8px 10px;
+  color: #36565a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.firefly-directory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.firefly-chip,
+.firefly-tab,
+.firefly-choice,
+.firefly-expand,
+.firefly-link-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: #415159;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.firefly-chip.is-active,
+.firefly-tab.is-active,
+.firefly-choice.is-active {
+  border-color: #84bdb7;
+  background: #e8f5f2;
+  color: var(--accent-strong);
+}
+
+.firefly-card-list {
+  display: grid;
+  gap: 16px;
+}
+
+.firefly-card {
+  width: min(640px, 100%);
+  min-height: 170px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 18px 22px 20px;
+  box-shadow: 0 8px 24px rgba(23, 32, 36, 0.045);
+}
+
+.firefly-card.is-active {
+  border-color: #a7cfca;
+  box-shadow: 0 10px 28px rgba(19, 124, 118, 0.08);
+}
+
+.firefly-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.firefly-card-index {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.firefly-card h3,
+.firefly-interactive h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.firefly-card-summary {
+  margin: 12px 0 0;
+  color: #26353b;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.firefly-data-row,
+.firefly-choice-row,
+.firefly-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.firefly-data-row {
+  margin-top: 13px;
+}
+
+.firefly-data-pill {
+  border-radius: 8px;
+  background: #f0f4f5;
+  color: #415159;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.firefly-expand {
+  flex: 0 0 auto;
+}
+
+.firefly-card-detail {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8edef;
+  color: #314047;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.firefly-card-detail h4,
+.firefly-interactive h4 {
+  margin: 0 0 7px;
+  font-size: 15px;
+  color: #213036;
+}
+
+.firefly-card-detail p,
+.firefly-card-detail ul,
+.firefly-card-detail ol,
+.firefly-interactive p,
+.firefly-interactive ul {
+  margin: 0;
+}
+
+.firefly-card-detail ul,
+.firefly-card-detail ol,
+.firefly-interactive ul {
+  padding-left: 20px;
+}
+
+.firefly-card-detail li + li,
+.firefly-interactive li + li {
+  margin-top: 4px;
+}
+
+.firefly-formula,
+.firefly-flow {
+  margin: 0;
+  border: 1px solid #dde7e8;
+  border-radius: 10px;
+  background: #f7fafa;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  color: #284047;
+  font: 600 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.firefly-table-wrap {
+  overflow-x: auto;
+}
+
+.firefly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.firefly-table th,
+.firefly-table td {
+  border-bottom: 1px solid #e7edef;
+  padding: 8px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.firefly-table th {
+  color: #4a5c63;
+  font-size: 12px;
+}
+
+.firefly-table td.number,
+.firefly-table th.number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.firefly-note {
+  border-radius: 10px;
+  background: #fff8e9;
+  color: #73531b;
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.firefly-interactions {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.firefly-interactive {
+  width: min(640px, 100%);
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 20px 22px;
+}
+
+.firefly-interactive > header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.firefly-interactive > header p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.firefly-control-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.firefly-control-label {
+  color: #4a5c63;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.firefly-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  border-radius: 12px;
+  background: #edf7f5;
+  padding: 13px 14px;
+}
+
+.firefly-result strong {
+  font-size: 18px;
+  color: var(--accent-strong);
+}
+
+.firefly-toughness-bars {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.firefly-bar {
+  position: relative;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6ecee;
+}
+
+.firefly-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #4d9f98;
+}
+
+.firefly-bar.cloudflame > span {
+  background: #b0c9c6;
+}
+
+.firefly-config-summary {
+  margin: 10px 0 0;
+  border: 1px solid #e2e8ea;
+  border-radius: 10px;
+  background: #fafcfc;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.firefly-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.firefly-field {
+  display: grid;
+  gap: 5px;
+  color: #4a5c63;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.firefly-field select {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 8px;
+  color: var(--text);
+}
+
+.firefly-recommendation {
+  margin-top: 14px;
+  border-left: 3px solid var(--accent);
+  background: #f0f8f6;
+  padding: 12px 14px;
+}
+
+.firefly-recommendation strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--accent-strong);
+  font-size: 16px;
+}
+
+.firefly-recommendation p {
+  line-height: 1.65;
+}
+
+.firefly-recommendation ul {
+  margin-top: 8px;
+}
+
+.firefly-footer {
+  width: min(640px, 100%);
+  margin: 18px auto 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.firefly-close {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .learning-strip-detail.firefly-learning-detail {
+    /* Leave room for the wrapped course header, chat header and composer. */
+    max-height: min(40dvh, max(80px, calc(100dvh - 470px)));
+  }
+
+  .firefly-lesson-panel {
+    padding: 14px 10px 24px !important;
+  }
+
+  .firefly-card,
+  .firefly-interactive {
+    padding: 16px;
+  }
+
+  .firefly-config-grid {
+    grid-template-columns: 1fr;
+  }
+}

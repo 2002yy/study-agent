@@ -1,0 +1,216 @@
+{
+  "contract": "§175 reader quality — targeted acceptance",
+  "head": "01e227ef46c5e1b2cbaeff81987aa3556fa68eba",
+  "branch": "codex/firefly-main-integration",
+  "date": "2026-10-04",
+  "kind": "targeted_observation",
+  "manifest": {
+    "schema_version": "research-calibration-discovery-v1",
+    "scope": "Explicit provider recovery observation; preserves the earlier v1 failures; no judge authority",
+    "repetitions": 2,
+    "max_executions": 16,
+    "cases": [
+      {
+        "id": "opus-comparison",
+        "tier": "standard",
+        "query": "联网研究：opus5.5是什么？性能如何？对比？",
+        "aspects": [
+          "准确版本身份",
+          "性能数字与条件",
+          "比较双方与限制"
+        ],
+        "official_domains": [
+          "anthropic.com",
+          "platform.claude.com"
+        ]
+      },
+      {
+        "id": "python-release",
+        "tier": "lookup",
+        "query": "联网研究：Python 3.14什么时候发布？",
+        "aspects": [
+          "对应版本",
+          "官方发布日期"
+        ],
+        "official_domains": [
+          "python.org"
+        ]
+      },
+      {
+        "id": "fastapi-release",
+        "tier": "lookup",
+        "query": "联网研究：FastAPI当前最新版本及发布日期是什么？",
+        "aspects": [
+          "当前版本",
+          "官方发布记录及日期"
+        ],
+        "official_domains": [
+          "fastapi.tiangolo.com",
+          "pypi.org"
+        ]
+      },
+      {
+        "id": "sqlite-release",
+        "tier": "lookup",
+        "query": "联网研究：SQLite当前最新版本及发布日期是什么？",
+        "aspects": [
+          "当前版本",
+          "官方发布记录及日期"
+        ],
+        "official_domains": [
+          "sqlite.org"
+        ]
+      },
+      {
+        "id": "http-retry",
+        "tier": "standard",
+        "query": "联网研究：RFC 9110中GET和POST重试的条件对比，有什么限制？",
+        "aspects": [
+          "幂等性",
+          "自动重试条件",
+          "例外限制"
+        ],
+        "official_domains": [
+          "rfc-editor.org",
+          "ietf.org"
+        ]
+      },
+      {
+        "id": "attention-paper",
+        "tier": "lookup",
+        "query": "联网研究：Attention Is All You Need论文的作者及首次提交日期是什么？",
+        "aspects": [
+          "原始论文作者",
+          "首次提交日期"
+        ],
+        "official_domains": [
+          "arxiv.org"
+        ]
+      },
+      {
+        "id": "searxng-license",
+        "tier": "lookup",
+        "query": "联网研究：SearXNG开源许可证是什么？",
+        "aspects": [
+          "仓库许可证",
+          "准确版本或许可标识"
+        ],
+        "official_domains": [
+          "docs.searxng.org"
+        ],
+        "official_url_prefixes": [
+          "https://github.com/searxng/searxng"
+        ]
+      },
+      {
+        "id": "earthquake-latest",
+        "tier": "lookup",
+        "query": "联网研究：USGS过去一小时全球地震feed中最新事件的时间、地点和震级是什么？",
+        "aspects": [
+          "读取时点",
+          "最新事件时间",
+          "地点与震级",
+          "缺失字段及并列限制"
+        ],
+        "official_domains": [
+          "usgs.gov"
+        ]
+      }
+    ]
+  },
+  "manifest_sha256": "1f605c02c52ed47ed423293e519c4576ec67c5f036cc482bd72f82506efbf5c2",
+  "selected_cases": [
+    "python-release",
+    "fastapi-release",
+    "sqlite-release",
+    "attention-paper"
+  ],
+  "repetitions": 2,
+  "provider": "deepseek",
+  "network_mode": "live",
+  "qualified_judge": false,
+  "question_coverage": "manual_review_required",
+  "note": "Targeted re-run of the four rows the reader fixes touch. Not a qualification or release label.",
+  "runs": [
+    {
+      "case_id": "python-release",
+      "repetition": 1,
+      "elapsed_seconds": 19.218,
+      "attempted_reads": 2,
+      "adopted_bodies": 1,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "Python 3.14 的正式稳定版已经发布了。\n\n**发布时间：2025 年 10 月 7 日**\n\n这是 Python 3.14.0 的稳定版发布日期，来自 Python 官方发布页面 [web-2]。\n\n---\n\n把时间线拆开看，会更清楚：\n\n| 阶段 | 说明 |\n|---|---|\n| 3.14.0 稳定版 | **2025 年 10 月 7 日** 正式发布 |\n| 后续维护版本 | 3.14.1、3.14.2……按惯例在之后陆续发布，属于同一 3.14 系列 |\n\n也就是说，\"Python 3.14 什么时候发布\"这个问题的答案取决于你指的是哪个节点：\n- 如果你问的是**第一个正式可用版本**，就是 2025 年 10 月 7 日的 3.14.0；\n- 如果你问的是**某个具体小版本**（比如 3.14.1），那需要单独查该版本。\n\n---\n\n顺带一提，3.14 系列相对 "
+    },
+    {
+      "case_id": "fastapi-release",
+      "repetition": 1,
+      "elapsed_seconds": 12.282,
+      "attempted_reads": 0,
+      "adopted_bodies": 0,
+      "stop_reason": "CANDIDATE_EXHAUSTED",
+      "official_candidate_found": true,
+      "answer_head": "本轮研究没能完成。\n\n实际发生的情况是：这一轮没有取得任何已读取的正文或结构化一手证据，只有搜索线索，没有可引用的来源内容。在这种状态下，我不能凭记忆或搜索摘要给你一个版本号和日期——那会是把\"看起来像答案的东西\"当成答案。\n\n按结构拆一下这里缺的是什么：\n\n- **目标事实**：FastAPI 的最新版本号 + 发布日期。这属于会随时间变化的经验事实，必须由实时来源支撑。\n- **缺失环节**：没有实际读取到 PyPI 发布页或官方 release notes 的内容。\n- **因此不能推出的**：具体版本号、具体日期、以及\"当前最新\"这个判断本身。\n\n需要说明一点：**未找到不等于不存在**。这次是读取环节没有拿到证据，不是\"FastAPI 没有新版本\"。\n\n要拿到这个答案，最直接的两个一手来源是：\n\n1. **PyPI 的 FastAPI 项目页**（`pypi.org/projec"
+    },
+    {
+      "case_id": "sqlite-release",
+      "repetition": 1,
+      "elapsed_seconds": 16.015,
+      "attempted_reads": 1,
+      "adopted_bodies": 1,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "SQLite 当前最新版本是 **3.53.4**。\n\n来源依据：SQLite 官方下载页（sqlite.org/download.html）的源码与二进制分发包均标注为 version 3.53.4，包括 amalgamation 源码、Windows DLL、Linux/macOS 命令行工具等。\n\n关于发布日期，本轮检索到的下载页内容里**没有出现明确的日期字段**，只确认了版本号。所以我可以确定版本是 3.53.4，但无法从这次读取的内容中给出可靠的发布日期。\n\n如果你需要精确的发布日期，可以看这两个官方页面的对应条目：\n- `sqlite.org/chronology.html`（版本时间线）\n- `sqlite.org/changes.html`（变更日志，每个版本标题旁通常带日期）\n\n结构上说明一下：版本号和发布日期在 SQLite 官方站点是**两个不同页面承载的信息**—"
+    },
+    {
+      "case_id": "attention-paper",
+      "repetition": 1,
+      "elapsed_seconds": 17.844,
+      "attempted_reads": 3,
+      "adopted_bodies": 1,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "**《Attention Is All You Need》作者与首次提交日期**\n\n**作者（8人，按论文署名顺序）：**\n1. Ashish Vaswani\n2. Noam Shazeer\n3. Niki Parmar\n4. Jakob Uszkoreit\n5. Llion Jones\n6. Aidan N. Gomez\n7. Łukasz Kaiser\n8. Illia Polosukhin\n\n**首次提交日期：2017年6月12日**（arXiv v1，UTC 17:57:34）\n\n**来源：** arXiv 页面 abs/1706.03762 的 Submission history 明确列出 `[v1] Mon, 12 Jun 2017 17:57:34 UTC`，提交人邮箱署名 Llion Jones [web-2]。\n\n**一个容易踩的坑：** 常被引用的\"2017年6月\"是"
+    },
+    {
+      "case_id": "python-release",
+      "repetition": 2,
+      "elapsed_seconds": 12.86,
+      "attempted_reads": 3,
+      "adopted_bodies": 2,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "Python 3.14 的正式稳定版发布于 **2025 年 10 月 7 日**。\n\n关键时间点：\n\n- **3.14.0（首个稳定版）**：2025 年 10 月 7 日。这是 3.14 系列的第一个正式版本，包含新特性与优化 [web-2]。\n- **后续维护版本**：3.14 进入定期维护节奏，例如 3.14.7 发布于 2026 年 8 月 5 日，属于该系列的第 7 个维护版本 [web-3]。\n\n需要区分的两个概念：\n\n- **\"发布\"指 3.14.0 稳定版**：2025 年 10 月 7 日。在此之前还有 alpha、beta、rc 等预发布阶段，但那些不是正式版。\n- **\"3.14 系列\"**：从 2025 年 10 月起持续维护，后续会有 3.14.1、3.14.2……等 bugfix 版本，直到 3.14 生命周期结束。\n\n如果你关心的是某个具体版本号（比如 3."
+    },
+    {
+      "case_id": "fastapi-release",
+      "repetition": 2,
+      "elapsed_seconds": 11.765,
+      "attempted_reads": 0,
+      "adopted_bodies": 0,
+      "stop_reason": "CANDIDATE_EXHAUSTED",
+      "official_candidate_found": true,
+      "answer_head": "本轮研究没能完成。\n\n具体来说，这一轮没有取到任何已读取的正文或一手证据，所以我现在无法给你一个可信的版本号和发布日期——那会变成凭印象编造，而不是研究结果。\n\n能确认的只有缺口本身：\n\n- **候选来源**：搜索线索指向 FastAPI 的发布渠道（GitHub Releases、PyPI 页面），但本轮没有实际读取到其中任何一页的正文。\n- **读取状态**：失败。没有拿到可引用的结构化证据。\n- **因此**：版本号、发布日期、是否含破坏性变更，这些全部处于未验证状态。\n\n需要说明一点：没读到，不等于不存在，也不等于没有新版本。只是这一轮的工具链路没走通，不能拿它当结论。\n\n如果你希望我下一轮把这件事查实，可以直接说“继续查 FastAPI 版本”，我会重新走一遍检索并只基于实际读取到的页面给结论。"
+    },
+    {
+      "case_id": "sqlite-release",
+      "repetition": 2,
+      "elapsed_seconds": 13.656,
+      "attempted_reads": 1,
+      "adopted_bodies": 1,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "根据 SQLite 官方下载页（sqlite.org/download.html）的当前内容：\n\n**最新版本：SQLite 3.53.4**\n\n官方页面上的源码包、amalgamation、各平台预编译二进制（Windows DLL、命令行工具等）均标注为 3.53.4 [web-2]。\n\n不过有一点需要说清楚：**该页面没有直接给出 3.53.4 的发布日期**。它只提供了版本号和文件信息，发布时间需要另查 SQLite 的 changelog 或 release timeline 页面才能确认。\n\n另外，该页面提到存在 \"Pre-release Snapshots\"（预发布快照，文件名带 `YYYYMMDDHHMM` 时间戳），所以 3.53.4 是当前正式发布版本，但若你看到更新的快照，那是未正式发布的开发版。\n\n如果你需要精确到日期，我可以再去读 SQLite 的 changel"
+    },
+    {
+      "case_id": "attention-paper",
+      "repetition": 2,
+      "elapsed_seconds": 15.672,
+      "attempted_reads": 3,
+      "adopted_bodies": 1,
+      "stop_reason": "READ_BACKED_PROGRESS",
+      "official_candidate_found": true,
+      "answer_head": "**结论：**\n\n- **论文标题**：Attention Is All You Need\n- **首次提交日期**：**2017年6月12日**（arXiv v1，UTC 17:57:34）\n- **作者**：Ashish Vaswani、Noam Shazeer、Niki Parmar、Jakob Uszkoreit、Llion Jones、Aidan N. Gomez、Łukasz Kaiser、Illia Polosukhin（共8人）\n\n**依据：** arXiv 页面（arXiv:1706.03762）的提交历史明确列出 v1 时间为 Mon, 12 Jun 2017 17:57:34 UTC，提交人邮箱显示为 Llion Jones。这是该论文首次公开提交的时间点；后续 v2–v7 均为修订版本，最近一次修订在 2023 年 8 月 2 日。\n\n**一个容易混淆的点：** 论"
+    }
+  ]
+}

@@ -406,6 +406,132 @@ def resolution_summary(
     }
 
 
+# --------------------------------------------------------------------------- #
+# §174.3.1 observation-only per-candidate resolution trace.
+#
+# A pure projection of the runtime state machine's own facts, so a later run that
+# ends with ``candidate_count > 0`` and ``attempted_reads == 0`` can be explained
+# offline without guessing. It changes no decision: no ordering, policy, budget,
+# backend order or fallback semantics. Whatever the runtime did not observe is
+# reported as ``not_observed`` rather than inferred.
+# --------------------------------------------------------------------------- #
+
+NOT_OBSERVED = "not_observed"
+
+_BLOCKING_STAGE_BY_STATE = {
+    POLICY_DEFERRED: "policy",
+    RUN_BLOCKED: "budget_window",
+    CHAIN_EXHAUSTED: "backend_chain",
+    FALLBACK_PENDING: "awaiting_fallback",
+}
+
+
+def _blocking_stage(resolution: CandidateResolution) -> str:
+    """The stage that directly stopped this candidate entering a read, or ""."""
+
+    if resolution.attempted_backends:
+        return ""
+    return _BLOCKING_STAGE_BY_STATE.get(resolution.state, NOT_OBSERVED)
+
+
+def _final_status(resolution: CandidateResolution) -> str:
+    if resolution.usable_content:
+        return "selected"
+    if resolution.terminal:
+        return "rejected"
+    return "pending"
+
+
+def candidate_resolution_trace(
+    outcomes: Iterable[Any],
+    *,
+    candidate_ids: Sequence[str] = (),
+    backend_chain: Sequence[str] = DEFAULT_READER_CHAIN,
+) -> dict[str, Any]:
+    """Observation-only per-candidate trace plus a request-level zero-read summary.
+
+    ``candidate_ids`` is the planned candidate order (optional). When given, every
+    planned candidate appears even if it produced no outcome - such a candidate is
+    reported as ``not_observed`` rather than silently dropped, so a count mismatch
+    stays visible.
+    """
+
+    grouped = group_facts_by_candidate(outcomes)
+    resolved = resolve_candidates(grouped, backend_chain=backend_chain)
+    ordered = list(candidate_ids) if candidate_ids else sorted(resolved)
+
+    entries: list[dict[str, Any]] = []
+    for index, candidate_id in enumerate(ordered):
+        resolution = resolved.get(candidate_id)
+        if resolution is None:
+            entries.append(
+                {
+                    "candidate_index": index,
+                    "candidate_id": candidate_id,
+                    "state": NOT_OBSERVED,
+                    "entered_read": False,
+                    "blocking_stage": NOT_OBSERVED,
+                    "attempted_backends": [],
+                    "remaining_backends": [],
+                    "skip_reason": "",
+                    "defer_reason": "",
+                    "policy_deferred": False,
+                    "budget_ineligible": False,
+                    "final_status": "pending",
+                }
+            )
+            continue
+        entries.append(
+            {
+                "candidate_index": index,
+                "candidate_id": candidate_id,
+                "state": resolution.state,
+                "entered_read": bool(resolution.attempted_backends),
+                "blocking_stage": _blocking_stage(resolution),
+                "attempted_backends": list(resolution.attempted_backends),
+                "remaining_backends": list(resolution.remaining_backends),
+                "skip_reason": resolution.skip_reason,
+                "defer_reason": (
+                    resolution.skip_reason
+                    if resolution.state == POLICY_DEFERRED
+                    else ""
+                ),
+                "policy_deferred": resolution.state == POLICY_DEFERRED,
+                "budget_ineligible": resolution.state == RUN_BLOCKED,
+                "final_status": _final_status(resolution),
+            }
+        )
+
+    state_counts: dict[str, int] = {}
+    reason_counts: dict[str, int] = {}
+    for entry in entries:
+        state_counts[entry["state"]] = state_counts.get(entry["state"], 0) + 1
+        reason = (
+            entry["skip_reason"]
+            or entry["defer_reason"]
+            or entry["blocking_stage"]
+            or entry["state"]
+        )
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+    attempted_reads = sum(len(entry["attempted_backends"]) for entry in entries)
+    zero_read_reason_summary = ""
+    if entries and attempted_reads == 0:
+        parts = [
+            f"{count}\u00d7{state}" for state, count in sorted(state_counts.items())
+        ]
+        zero_read_reason_summary = "0 reads = " + " + ".join(parts)
+
+    return {
+        "candidate_count": len(entries),
+        "attempted_reads": attempted_reads,
+        "state_counts": state_counts,
+        "reason_counts": reason_counts,
+        "zero_read_reason_summary": zero_read_reason_summary,
+        "candidates": entries,
+    }
+
+
 __all__ = [
     "ALTERNATE_ELIGIBLE_STATES",
     "AttemptFact",
@@ -414,6 +540,7 @@ __all__ = [
     "DEFAULT_READER_CHAIN",
     "FAILED_ERROR_CODE",
     "FALLBACK_PENDING",
+    "NOT_OBSERVED",
     "POLICY_DEFERRED",
     "RESOLUTION_STATES",
     "RESOLVED",
@@ -422,6 +549,7 @@ __all__ = [
     "SKIP_PREFIX",
     "TERMINAL_STATES",
     "attempt_fact_from_outcome",
+    "candidate_resolution_trace",
     "error_code_for_skip",
     "group_facts_by_candidate",
     "resolve_candidate",

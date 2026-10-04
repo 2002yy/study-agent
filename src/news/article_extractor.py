@@ -2,8 +2,47 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 from html.parser import HTMLParser
+import zlib
+
+# Bounded transport decompression. The fetcher never sends ``Accept-Encoding`` on its
+# own, but servers (e.g. the official Python release pages) may still answer with
+# ``Content-Encoding: gzip``; without undoing it the body reached the HTML decoder as
+# binary garbage. The cap bounds a decompression bomb.
+_MAX_DECOMPRESSED_BYTES = 8_000_000
+_GZIP_ENCODINGS = {"gzip", "x-gzip"}
+
+
+def decompress_transport_payload(
+    payload: bytes,
+    content_encoding: str,
+    *,
+    max_bytes: int = _MAX_DECOMPRESSED_BYTES,
+) -> bytes:
+    """Undo a transport Content-Encoding, bounded. Best-effort; never raises.
+
+    Returns the payload unchanged when it was not encoded, when the encoding is
+    unknown, or when decompression fails - a corrupt body must not become a crash.
+    """
+
+    normalized = (content_encoding or "").strip().lower()
+    if not payload or normalized in {"", "identity"}:
+        return payload
+    try:
+        if normalized in _GZIP_ENCODINGS:
+            decompressed = gzip.decompress(payload)
+        elif normalized == "deflate":
+            try:
+                decompressed = zlib.decompress(payload, -zlib.MAX_WBITS)
+            except zlib.error:
+                decompressed = zlib.decompress(payload)
+        else:
+            return payload
+    except Exception:
+        return payload
+    return decompressed[:max_bytes]
 
 
 class ArticleTextExtractor(HTMLParser):
@@ -110,6 +149,50 @@ def decode_html_payload(payload: bytes, content_type: str) -> str:
     return payload.decode("utf-8", errors="ignore")
 
 
+def extract_article_author(html: str, url: str = "") -> str:
+    """Best-effort article byline. Deterministic and bounded; never fabricated.
+
+    Returns ``""`` when no author can be established - a missing byline is reported as
+    missing, never guessed. Tables and release pages usually have no author, so this is
+    genuinely empty for them.
+    """
+
+    candidate = ""
+    try:
+        import trafilatura
+
+        metadata = trafilatura.extract_metadata(html, default_url=url or None)
+        if metadata is not None:
+            candidate = str(getattr(metadata, "author", "") or "")
+    except Exception:
+        candidate = ""
+    if not candidate.strip():
+        candidate = _author_from_meta_tags(html)
+    return _clean_author(candidate)
+
+
+def _author_from_meta_tags(html: str) -> str:
+    patterns = (
+        r'<meta[^>]+name=["\']author["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']author["\']',
+        r'<meta[^>]+property=["\']article:author["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+property=["\']og:article:author["\'][^>]+content=["\']([^"\']+)["\']',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, html or "", re.I)
+        if match and match.group(1).strip():
+            return match.group(1)
+    return ""
+
+
+def _clean_author(value: str) -> str:
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    # Bound the field; a byline is short. Reject an obvious non-byline blob.
+    if not text or len(text) > 200:
+        return ""
+    return text
+
+
 def extract_article_text_with_trafilatura(
     html: str,
     url: str = "",
@@ -122,7 +205,9 @@ def extract_article_text_with_trafilatura(
             html,
             url=url or None,
             include_comments=False,
-            include_tables=False,
+            # Release / download pages carry their version information in tables; the
+            # previous ``include_tables=False`` dropped exactly that content.
+            include_tables=True,
             favor_precision=True,
         )
         return clean_article_text(text or "", max_chars=max_chars)
