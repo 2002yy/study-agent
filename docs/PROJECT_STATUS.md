@@ -29,9 +29,9 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§173 搜索调研与合并前复核，见§173。**用户授权合并main并依据详细调研改善搜索。c17cad84 PR CI37188774241已success；复核发现重定向丢正文、回退weak overlap和中文新题继承仍需修复，故旧绿灯不作新增修复交付证据。16次真实manifest完成，4/16 read-backed；外部搜索质量与回答完整性仍未通过。保持30/60s、3/5 reads及≤6模型调用，未新增provider/Deep。
-- **下一刀唯一任务：**完成§173候选与exact-head PR CI，按用户授权合并#161；用户随后明确授权流萤UI也本次合并，保留独立集成提交/PR与页面验证，最终核对exact-main门。之后仅处理报告中的§171-B精确页面/比较两端证据机会，不自动扩大样本或75s。流萤源分支origin/codex/firefly-default-lesson@743e537b，原先无PR。
-- **当前先决门：**LOCAL GO。最终focused92 passed / 36.76s；named L2 `semantic-recovery-v1` 25文件276 passed / 131.90s；backend L3 **3345 passed / 6 skipped / 1057.84s**，clean候选93fdd50e。Ruff、diff-check、package1608文件、secret scan0、mypy current122/baseline128无新增错误。四turn真实隔离诊断见§172.5；当前未获得新exact-head CI结果，不称REMOTE GO。
+- **当前动作：§174 宽 Discovery / 有界 Reader 与流萤 UI main 集成。** 当前分支 `codex/firefly-main-integration`，base研究修复50b54259，已合并流萤源743e537b（集成241a9636）；最终head/dirty以Git为准。用户最新要求 SearXNG primary、质量不足才 Bing/DDG rescue，避免默认三路重复检索。每query12候选、保留15候选，Read仍3/5、time30/60、模型≤6；未新增provider/Deep或qualified judge。
+- **下一刀唯一任务：**完成§174 focused/L2/最终组合候选L3、frontend/build与mypy无新增错误；执行独立的新8×2 provider观察，复核答案缺口；按已获授权依次合并#161及流萤/Discovery集成PR，验exact-main CI。旧green不覆盖新head。新manifest与操作方案见`docs/research_quality/SEARCH_CALIBRATION_V1.md`。
+- **当前先决门：**最终集成门待完成。父研究50b54259已有focused181/L2 290；此前93fdd50e L3 3345/6仅历史证据。流萤frontend389 tests与build通过，隔离页面1600×900/390×667已验证配置联动、锁韧计算和输入框命中。SearXNG容器healthy、8080通，但general engines受CAPTCHA/限流/连接失败，搜索可用性仍不成立；不得把容器健康称为搜索恢复。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
   - §143-C：§143.122–§143.131；artifact `docs/research_quality/F2_C_ECONOMICS.json`
@@ -18392,3 +18392,44 @@ ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和
 **流萤位置：**源分支origin/codex/firefly-default-lesson@743e537b（两提交：合同901e50ae、实现743e537b），默认课件/首领实验/一金决策，22文件含turn_context transport，不是已部署main功能。本次用户明确要求一起合并，按独立集成分支复核现有workspace/恢复/角色边界，真实桌面与窄屏页面后再合并。
 
 **边界/下一片：**release judge仍NOT QUALIFIED/authority NONE。交付后仅按本报告进行§171-B精确页面发现与比较两端证据机会；不新增provider/75s/Deep、不伪称§171-A全部通过。
+
+
+## 174. Primary wide Discovery / bounded rescue / Firefly 集成（2026-10-04）
+
+用户授权本次合并研究与流萤到main，并将first-nonempty根因纳入修复。
+新要求以SearXNG宽召回为先；候选少、弱相关或高度同质时在剩余stage预算
+用Bing/DDG救援，不对每个query默认重复调用全部providers。
+
+实现：gateway在provider调用层硬限wallclock，primary保留一半rescue时间；
+rescue两路并行，caller单独拥有candidate/trace，late workers不得写入结果。
+URL去tracking/fragment dedup保留实际URL与provider来源；单site约束、
+title/snippet/query tokens、版本命中、主页降权、同等相关性域多样性只作
+发现排序，不赋予事实支持或正式官方认证。SearXNG error改thread-local，
+避免跨研究并发串入另一run故障。
+
+Production recovery每query5→12候选；原有Lookup2 / Standard4 queries、
+Read3/5、chars16k/24k、30/60s、≤6模型调用不变。候选窗口仍5、候选尾部
+保留待后续正文门，不因尚未模型评估就永久丢掉；pending pool限15。
+尚未实现完整pre-read多query wave或coverage-driven iterative搜索，不能
+声称必得30–60 unique URLs或完整回答所有RQ；扩大Read需独立实测依据。
+
+新验收manifest是`config/research_calibration_discovery_v1.json`，8×2涵盖
+版本、比较、标准、论文、开源许可、实时feed；不覆盖旧v1 16次失败。
+runner增加provider attempted/results/unique_urls/bodies_read/bodies_adopted、
+代码摘要和queries planned/raw/unique指标；provider贡献可重叠，不算独立证据。
+
+部署：Docker29.8.1、study-agent-searxng healthy，8080可达。general搜索
+失败源是底层brave限流、DDG/startpage CAPTCHA、google cse连接失败。
+定向github engine能取30候选，但其范围不能替代general研究。
+4query smoke artifact：`D:/study-agent-validation/discovery-provider-smoke-20261004.json`；
+Opus/Python找到官方发布页，FastAPI/SQLite仍多教程或泛主页；均需正文验收。
+未改secret、未改部署配置、未引入新搜索provider。
+
+流萤：用户确认本次一起合并，source743e537b已整合。页面默认课程包含
+10张机制卡、首领实验、一金配置；锁韧与展开计算实际点击通过；大丽花
+1魂→未拥有时建议D→A；窄屏课程高度调整使390×667输入框可命中，无
+横向溢出。preview使用独立DB与8002/5175，不操作用户原聊天数据。
+截图在`D:/study-agent-validation/firefly-config-desktop.png`与
+`firefly-mobile-short.png`。页面仅favicon404，无应用错误。
+
+最终测试、8×2观察与远端门结果在本节收口后追加；当前不能称REMOTE GO。

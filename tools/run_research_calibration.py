@@ -110,7 +110,8 @@ def main() -> int:
 
     agent.resolve = observe_resolve
     files = ["src/web/semantic_recovery.py", "src/web/research_recovery.py", "src/web/tool_evidence.py",
-             "src/web/conversation_query.py", "src/tools/persistent_web_agent.py", "src/application/chat_service.py",
+             "src/web/conversation_query.py", "src/web/tool_gateway.py", "src/web/discovery.py",
+             "src/news/search_sources/searxng_source.py", "src/tools/persistent_web_agent.py", "src/application/chat_service.py",
              "src/application/policy_chat_service.py", "src/application/web_lookup_service.py"]
     result = {
         "schema_version": "research-calibration-result-v1", "qualified_judge": False,
@@ -168,6 +169,23 @@ def main() -> int:
             reads = [call for call in raw_calls if call.get("name") == "web_read"]
             searches = [call for call in raw_calls if call.get("name") == "web_search"]
             adopted = evidence_tool_calls(raw_calls)
+            provider_counts = {}
+            provider_urls = {}
+            for search in searches:
+                for stat in search.get("result", {}).get("provider_stats", []):
+                    name = stat["provider"]
+                    entry = provider_counts.setdefault(name, {"attempted": 0, "results": 0, "unique_urls": 0,
+                                                              "bodies_read": 0, "bodies_adopted": 0, "reasons": []})
+                    entry["attempted"] += int(stat.get("attempted", False))
+                    entry["results"] += stat.get("results", 0)
+                    entry["reasons"].append(stat.get("reason", ""))
+                    provider_urls.setdefault(name, set()).update(stat.get("urls", []))
+            adopted_requested = {call.get("arguments", {}).get("url") for call in adopted}
+            for name, entry in provider_counts.items():
+                discovered = provider_urls[name]
+                entry["unique_urls"] = len(discovered)
+                entry["bodies_read"] = sum(call.get("arguments", {}).get("url") in discovered for call in reads)
+                entry["bodies_adopted"] = len(adopted_requested & discovered)
             recovery = trace.get("recovery") or {}
             scheduler = recovery.get("candidate_scheduler") or {}
             urls = [call["arguments"]["url"] for call in reads]
@@ -182,6 +200,10 @@ def main() -> int:
                 "research_seconds": research_seconds, "finalization_seconds": generation_seconds,
                 "first_successful_read_seconds": round((datetime.fromisoformat(first_successful)
                     - datetime.fromisoformat(started_at)).total_seconds(), 3) if first_successful else None,
+                "provider_metrics": provider_counts,
+                "queries_planned": len(episode.get("query_plan", [])) if episode else 0,
+                "raw_results": sum(v["results"] for v in provider_counts.values()),
+                "unique_urls": len(set().union(*provider_urls.values())) if provider_urls else 0,
                 "candidate_count": sum(len(call.get("result", {}).get("results", [])) for call in searches),
                 "attempted_reads": len(reads), "successful_reads": sum(call["result"].get("ok") is True for call in reads),
                 "adopted_bodies": len(adopted), "unique_canonical_docs": len({canonical_document(url) for url in urls}),

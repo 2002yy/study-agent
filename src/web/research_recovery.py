@@ -366,7 +366,7 @@ def _recover_public_research(
                 rewrites += 1
             try:
                 result = invoke(
-                    lambda: gateway.search_exact(search_query, max_results=5)
+                    lambda: gateway.search_exact(search_query, max_results=12)
                 )
                 if not isinstance(result, dict):
                     raise ValueError("invalid_search_result")
@@ -383,7 +383,7 @@ def _recover_public_research(
                     "name": "web_search",
                     "arguments": {
                         "query": search_query,
-                        "max_results": 5,
+                        "max_results": 12,
                         "recovery_stage": phase,
                         "rq_ids": [row["rq_id"] for row in query_plan or [] if row["query"] == search_query],
                     },
@@ -439,11 +439,13 @@ def _recover_public_research(
                     if not relevance.get(f"candidate-{i}"):
                         semantic_rejected_urls.add(str(row["assessment"].get("url", "")))
                         reject(str(row["assessment"].get("url", "")), "semantic_unrelated_or_unavailable_candidate")
+                remaining_candidates = selected[5:]
                 selected = [row for i, row in enumerate(window) if relevance.get(f"candidate-{i}")]
                 for row in selected:
                     row["assessment"]["worth_reading"] = True
+                selected.extend(remaining_candidates)
             if semantic_session is not None:
-                pending_candidates = selected[:20]
+                pending_candidates = selected[:15]
             phase_reads = last_novel = 0
             for candidate in selected:
                 active()

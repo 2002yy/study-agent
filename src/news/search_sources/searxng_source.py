@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
@@ -17,11 +18,11 @@ from src.news.url_normalizer import is_probable_article_page_url
 from src.web.security import validate_service_endpoint
 
 
-_LAST_SEARXNG_ERROR = ""
+_ERROR_STATE = threading.local()
 
 
 def get_last_searxng_error() -> str:
-    return _LAST_SEARXNG_ERROR
+    return getattr(_ERROR_STATE, "error", "")
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -157,8 +158,7 @@ def search_searxng(
     categories: str | None = None,
 ) -> list[dict]:
     """Return normalized news items from SearXNG or [] on any failure."""
-    global _LAST_SEARXNG_ERROR
-    _LAST_SEARXNG_ERROR = ""
+    _ERROR_STATE.error = ""
 
     if not searxng_enabled():
         return []
@@ -192,16 +192,16 @@ def search_searxng(
         with urlopen(req, timeout=timeout) as response:
             content_type = response.headers.get("Content-Type", "")
             if "json" not in content_type.lower():
-                _LAST_SEARXNG_ERROR = (
+                _ERROR_STATE.error = (
                     f"Unexpected Content-Type: {content_type!r}"
                 )
                 return []
             payload = response.read(500_000)
     except Exception as exc:
-        _LAST_SEARXNG_ERROR = f"{type(exc).__name__}: {exc}"
+        _ERROR_STATE.error = f"{type(exc).__name__}: {exc}"
         return []
 
     results = _parse_searxng_results(payload, max_results)
     if not results:
-        _LAST_SEARXNG_ERROR = _unresponsive_engine_error(payload)
+        _ERROR_STATE.error = _unresponsive_engine_error(payload)
     return [item.to_news_item() for item in results]
