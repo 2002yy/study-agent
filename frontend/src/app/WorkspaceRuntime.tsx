@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { FireflyLessonProvider } from "../features/learning/FireflyLessonContext";
 import { useWorkspace } from "./WorkspaceProvider";
 import { useWorkspaceBootstrap } from "./WorkspaceBootstrap";
 import { useEvidenceRuntime } from "./useEvidenceRuntime";
@@ -77,29 +78,31 @@ export default function WorkspaceRuntime() {
   });
 
   return (
-    <WorkspaceView
-      snapshot={snapshot}
-      refresh={refresh}
-      fileInputRef={fileInputRef}
-      controllers={controllers}
-      learningView={learning.view}
-      extensionView={extension.view}
-      ui={{
-        input,
-        setInput,
-        ragEnabled: evidence.ragEnabled,
-        setRagEnabled: evidence.setRagEnabled,
-        chatSettings: learning.chatSettings,
-        setChatSettings: learning.setChatSettings,
-        ragSettings: evidence.ragSettings,
-        setRagSettings: evidence.setRagSettings,
-        keepCurrentRole: learning.keepCurrentRole,
-        setKeepCurrentRole: learning.setKeepCurrentRole,
-        conversationInstruction: learning.conversationInstruction,
-        setConversationInstruction: learning.setConversationInstruction,
-        operationError,
-        setOperationError,
-      }}
-    />
+    <FireflyLessonProvider controller={learning.fireflyLesson}>
+      <WorkspaceView
+        snapshot={snapshot}
+        refresh={refresh}
+        fileInputRef={fileInputRef}
+        controllers={controllers}
+        learningView={learning.view}
+        extensionView={extension.view}
+        ui={{
+          input,
+          setInput,
+          ragEnabled: evidence.ragEnabled,
+          setRagEnabled: evidence.setRagEnabled,
+          chatSettings: learning.chatSettings,
+          setChatSettings: learning.setChatSettings,
+          ragSettings: evidence.ragSettings,
+          setRagSettings: evidence.setRagSettings,
+          keepCurrentRole: learning.keepCurrentRole,
+          setKeepCurrentRole: learning.setKeepCurrentRole,
+          conversationInstruction: learning.conversationInstruction,
+          setConversationInstruction: learning.setConversationInstruction,
+          operationError,
+          setOperationError,
+        }}
+      />
+    </FireflyLessonProvider>
   );
 }
