@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # Feature-branch pushes used to trigger both a push run and a PR run of the same
 # workflow at the same head. Only pull_request (plus main pushes and manual runs)
@@ -33,7 +34,63 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
+      - name: Classify pull request scope
+        id: ci_scope
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Main pushes/manual runs retain the complete historical gate. The
+          # optimization is deliberately limited to pull requests whose changed
+          # paths are known to be frontend-independent research work.
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "scope=full" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_file_list="${RUNNER_TEMP}/ci-changed-files.txt"
+          if ! gh api --paginate \
+            "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename' > "$changed_file_list"; then
+            echo "::warning::Could not classify PR paths; falling back to full CI scope."
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -s "$changed_file_list" ]; then
+            echo "::warning::PR path list was empty; falling back to full CI scope."
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          frontend_required=false
+          while IFS= read -r path; do
+            case "$path" in
+              src/web/research/*|tests/*|docs/*|AGENTS.md|tools/run_research_*|tools/run_rag_*|tools/run_answer_claim_*)
+                ;;
+              *)
+                frontend_required=true
+                break
+                ;;
+            esac
+          done < "$changed_file_list"
+
+          if [ "$frontend_required" = "true" ]; then
+            echo "scope=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "scope=research-backend-only" >> "$GITHUB_OUTPUT"
+          fi
+          echo "frontend_required=${frontend_required}" >> "$GITHUB_OUTPUT"
+          echo "CI scope: $(tail -n 1 "$GITHUB_OUTPUT"), changed files: $(wc -l < "$changed_file_list")"
+
       - uses: actions/setup-node@v4
+        if: steps.ci_scope.outputs.frontend_required == 'true'
         with:
           node-version: "24"
           cache: npm
@@ -128,8 +185,14 @@ jobs:
         id: frontend
         continue-on-error: true
         working-directory: frontend
+        env:
+          FRONTEND_REQUIRED: ${{ steps.ci_scope.outputs.frontend_required }}
         run: |
           set -o pipefail
+          if [ "$FRONTEND_REQUIRED" != "true" ]; then
+            echo "Skipped: PR contains only frontend-independent research/backend paths." > ../frontend.log
+            exit 0
+          fi
           {
             npm ci
             npm test
