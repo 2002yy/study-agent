@@ -1,0 +1,16 @@
+{
+  "schema_version": "research-calibration-v1",
+  "scope": "171-A diagnostic only; no release or judge authority",
+  "repetitions": 2,
+  "max_executions": 16,
+  "cases": [
+    {"id": "lookup-opus", "tier": "lookup", "query": "联网研究：opus5.5是什么？", "aspects": ["版本身份", "官方发布或明确缺口"], "families": ["unknown_entity", "redirect"]},
+    {"id": "lookup-python", "tier": "lookup", "query": "联网研究：Python 3.14什么时候发布？", "aspects": ["发布日期", "对应版本的官方来源"], "families": ["recent_entity", "locale"]},
+    {"id": "lookup-fastapi", "tier": "lookup", "query": "联网研究：FastAPI yield依赖的清理代码什么时候运行？", "aspects": ["生命周期", "版本变化或作用域限制"], "families": ["page_adequacy", "technical_docs"]},
+    {"id": "lookup-sqlite", "tier": "lookup", "query": "联网研究：SQLite WAL模式能同时有几个写入者？", "aspects": ["写入并发限制", "读写并发的区别"], "families": ["technical_docs", "page_adequacy"]},
+    {"id": "standard-opus", "tier": "standard", "query": "联网研究：opus5.5是什么？性能如何？对比？", "aspects": ["版本身份", "性能与测试条件", "比较对象及可比限制"], "families": ["real_failure", "multi_aspect", "provider_recovery"]},
+    {"id": "standard-python", "tier": "standard", "query": "联网研究：Python 3.14自由线程与普通构建对比，GIL、兼容性和性能有哪些区别？", "aspects": ["GIL", "扩展兼容性", "性能与条件"], "families": ["multi_aspect", "truncation"]},
+    {"id": "standard-sqlite", "tier": "standard", "query": "联网研究：SQLite WAL和rollback journal对比，读写并发、checkpoint和网络文件系统有哪些限制？", "aspects": ["并发", "checkpoint", "网络文件系统"], "families": ["multi_aspect", "source_diversity"]},
+    {"id": "standard-web-frameworks", "tier": "standard", "query": "联网研究：FastAPI和Flask对比，ASGI与WSGI、异步支持和部署限制有哪些区别？", "aspects": ["ASGI与WSGI", "异步支持", "部署限制"], "families": ["multi_entity", "source_diversity"]}
+  ]
+}

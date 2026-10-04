@@ -90,7 +90,15 @@ def trusted_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
             url = _public_url(result.get("url") or arguments.get("url"))
             if not _is_true(result.get("ok")) or not url:
                 continue
-            if url.casefold() not in discovered_urls:
+            requested_url = _public_url(arguments.get("url"))
+            # Discovery authorizes the actual read request. The server reader
+            # may return a different public canonical URL after redirects.
+            # Never add that destination to the search results to manufacture
+            # discovery provenance, or accept an undiscovered request because
+            # its response claims a previously discovered destination.
+            if requested_url.casefold() not in discovered_urls:
+                continue
+            if result.get("requested_url") and result["requested_url"] != requested_url:
                 continue
             if not isinstance(content, str) or not content.strip():
                 continue

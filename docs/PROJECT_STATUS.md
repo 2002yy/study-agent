@@ -29,8 +29,8 @@
   - **P2 static allowlist / C2 adaptive routing = DEFER**。
   - **generic auto classifier / specialist-first = REJECT**（§143-C 证明无可泛化信号）。
 - **明确未实现 / 未启用（勿误认为已有）：**P1 代码默认 `OFF`（未自动激活）；无 P3 PDF 规则；无 C2 / 在线学习 / specialist-result feedback；`ACTIVE_READER_CHAIN` 未改。
-- **当前动作：§172 LOCAL CLOSED / REMOTE PENDING，见§172.5–§172.6。**真实四turn诊断通过，L3在93fdd50e干净候选完成。保持Lookup30s/Standard60s hard和共享≤6模型调用，不增加provider或独立Deep runtime。桌面启动LOCAL GO，Docker管理员修复未成功；§162 judge NOT QUALIFIED / authority NONE / release NO-GO 未变。
-- **下一刀唯一任务：**按本轮CI快照中的head/run核对PR #161 exact-head门；绿后进入§171-A真实失败矩阵有界校准，测恢复任务延迟、canonical docs/source families与RQ覆盖缺口。B/C交付合同继续有效，75s、独立Deep及§169-M3仍后置；不重新设计episode、不继续堆自然语言正则、不重复查询旧28b82dab CI。
+- **当前动作：§173 搜索调研与合并前复核，见§173。**用户授权合并main并依据详细调研改善搜索。c17cad84 PR CI37188774241已success；复核发现重定向丢正文、回退weak overlap和中文新题继承仍需修复，故旧绿灯不作新增修复交付证据。16次真实manifest完成，4/16 read-backed；外部搜索质量与回答完整性仍未通过。保持30/60s、3/5 reads及≤6模型调用，未新增provider/Deep。
+- **下一刀唯一任务：**完成§173候选与exact-head PR CI，按用户授权合并#161；用户随后明确授权流萤UI也本次合并，保留独立集成提交/PR与页面验证，最终核对exact-main门。之后仅处理报告中的§171-B精确页面/比较两端证据机会，不自动扩大样本或75s。流萤源分支origin/codex/firefly-default-lesson@743e537b，原先无PR。
 - **当前先决门：**LOCAL GO。最终focused92 passed / 36.76s；named L2 `semantic-recovery-v1` 25文件276 passed / 131.90s；backend L3 **3345 passed / 6 skipped / 1057.84s**，clean候选93fdd50e。Ruff、diff-check、package1608文件、secret scan0、mypy current122/baseline128无新增错误。四turn真实隔离诊断见§172.5；当前未获得新exact-head CI结果，不称REMOTE GO。
 - **权威证据位置：**
   - §143-B：§143.110–§143.117；artifact `docs/research_quality/F2_PAIRED.threshold_safe.json`（另有 diagnostic-invalid `F2_PAIRED.json`）
@@ -18374,3 +18374,21 @@ ResearchPlan 先拆 RQs，每个问题记录 SAT/PARTIAL/UNSAT/NOT_EVALUATED 和
 - 已复核边界：strict identity/type/cap、private query拒绝、同thread/version继承、新题与旧run并发不覆盖新active、cancel/late rejection、history-off、invalid JSON/id、候选拒绝记忆、跨phase官方页保留、fetch-success/related/adopted区分、physical egress与validation分开、writer/binder共享调用上限。真实诊断仍只证明此次四turn观察，不代表独立benchmark或qualified semantic release。
 - 本轮final docs commit后的head以Git为准；push后只查一次该head CI，快照记录head、run id/event/status/conclusion到`D:\study-agent-validation\semantic-delivery-ci.json`。无新exact-head绿灯前保持REMOTE PENDING；后续窗口只查该快照的已知run，不沿用旧CI，也不轮询等待。
 - 后续唯一执行片：exact-head门绿后做§171-A有界真实任务校准；不扩大Deep/provider/75s，不再重开已冻结episode/parser设计。旧版没有semantic episode的聊天记录不会被自动赋予新task identity；需要新的明确研究问题建立v1 episode，不以历史助手结论当当前原题或证据。
+
+## 173. 搜索调研、复核修复与main合并（2026-10-04）
+
+**执行权：**用户要求合并main、定位流萤UI、详细调研搜索并据结果改进；随后明确选择本次一起合并流萤UI。搜索和UI保留独立提交/复核范围。原#161 exact-head c17cad84 CI37188774241 success，但三个旧review findings复核后仍存在缺口，新增修复不能借旧绿灯直接合并。
+
+**搜索合同与报告：**[SEARCH_CALIBRATION_V1.md](research_quality/SEARCH_CALIBRATION_V1.md)，冻结8题×2次、五层诊断、八类offline控制、source/answer/inference provenance与人工question coverage边界。manifest `config/research_calibration_v1.json`；显式runner `tools/run_research_calibration.py`，仓库外隔离DB，原始calls在resolve seam采集，失败不会被展示过滤掉。
+
+**实际结果：**16次结束，Lookup0/8、Standard4/8有采用正文；Lookup总p50/p95=9.703/14.203s，Standard15.953/26.781s，小样本仅观察。SearXNG8080 connection refused，现有Bing RSS多次泛主页，DDG challenge；没有修Docker/加provider。§171-A真实整体可靠性仍partial/blocked。实际正文与完整回答分别保存，未由相关RQ标签推导事实支持/answered。
+
+**本片修复：**discovery绑定实际请求URL、保留合法公开redirect destination；回退正文拒绝weak overlap；兼容回退未知“刚刚发布的豆包”不继承旧题；最后phase释放未使用hard read slots而不是一页地区失败后提前停止；模型短query/官方域线索接入且精简官方版本发现查询；gateway实际hostname过滤单正向site限定域外结果，复杂OR/negative语法不擅自解析。预算30/60s、3/5reads、单源6k、总16k/24k及≤6模型调用不变。
+
+**定向证据：**修复后两题诊断（不重算分布）`D:/study-agent-validation/research-calibration-fix-20261004/result.json`：Opus Lookup17.266s、2read/2adopted，含官方发布页；Python仍0正文，保留query填充导致泛主页失败。进一步精简scoped version query后，单次production gateway search/read seam取得Python官方3.14.0精确发布页和合法discovery-linked正文；`python-official-seam-20261004.json`含source payload，属于链路验收，不冒充完整研究答案。原16次artifact与日志同目录research-calibration-20261004。
+
+**当前验证：**own+直接影响focused100 passed/29.47s；较大L1 181 passed/64.08s；named L2初次290 passed/114.12s，之后官方query精简仅own focused已复跑。最终联合候选L2/L3、mypy、UI构建/浏览器证据及CI由下一收口记录，未完成前不称REMOTE GO。
+
+**流萤位置：**源分支origin/codex/firefly-default-lesson@743e537b（两提交：合同901e50ae、实现743e537b），默认课件/首领实验/一金决策，22文件含turn_context transport，不是已部署main功能。本次用户明确要求一起合并，按独立集成分支复核现有workspace/恢复/角色边界，真实桌面与窄屏页面后再合并。
+
+**边界/下一片：**release judge仍NOT QUALIFIED/authority NONE。交付后仅按本报告进行§171-B精确页面发现与比较两端证据机会；不新增provider/75s/Deep、不伪称§171-A全部通过。

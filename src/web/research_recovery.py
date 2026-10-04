@@ -105,7 +105,11 @@ def _rewrite(query: str) -> tuple[str, tuple[str, ...]]:
         spaced = " ".join(re.sub(r"[？?，,；;。]+", " ", spaced).split())
     if re.search(r"opus|claude|sonnet|haiku", spaced, re.IGNORECASE):
         if "claude" not in spaced.casefold():
-            spaced = f"Claude {spaced}"
+            if spaced.startswith("site:") and " " in spaced:
+                scope, topic = spaced.split(" ", 1)
+                spaced = f"{scope} Claude {topic}"
+            else:
+                spaced = f"Claude {spaced}"
         return spaced, ("anthropic.com", "platform.claude.com")
     return spaced, ()
 
@@ -239,10 +243,22 @@ def _recover_public_research(
         query_plan = [{**row, "query": _rewrite(normalize_web_query(row["query"]).canonical_query)[0]}
                       for row in query_plan]
         planned = query_plan[: min(3, budget.max_queries - 1)]
-        official_query = f"site:{domains[0]} {rewritten}" if domains else authority_query
+        official_query = next(
+            (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
+            f"site:{domains[0]} {rewritten}" if domains else authority_query,
+        )
+        # The live RSS fallback returned generic homepages when release/date/
+        # schedule padding was appended, but found the exact official release
+        # for the scoped entity/version. This is a discovery query only: the
+        # immutable original question and its requested facets stay intact.
+        scope = re.match(r"^(site:[A-Za-z0-9.-]+)\s", official_query)
+        if scope and model_targets(query):
+            entities = " ".join(f"{name} {version}" for name, version in model_targets(query))
+            official_query = _rewrite(f"{scope.group(1)} {entities}")[0]
         phases = [("semantic_query", planned[0]["query"], 2),
                   ("authoritative_domain", official_query, 1)] + [
-                      ("semantic_query", row["query"], 1) for row in planned[1:]]
+                      ("semantic_query", row["query"], 1) for row in planned[1:]
+                      if row["query"] != official_query]
 
     def active() -> None:
         if should_cancel():
@@ -330,7 +346,14 @@ def _recover_public_research(
     last_novel = 0
     last_search_ok = False
     try:
-        for phase, search_query, phase_cap in phases[: budget.max_queries]:
+        bounded_phases = phases[: budget.max_queries]
+        for phase_index, (phase, search_query, phase_cap) in enumerate(bounded_phases):
+            # Phase caps reserve future opportunities; at the final phase there
+            # is no later phase to reserve for. Spend unused slots on novel
+            # candidates rather than strand a discovered release behind a
+            # regional docs redirect. The run's read/char/deadline caps remain.
+            if phase_index == len(bounded_phases) - 1:
+                phase_cap = budget.max_reads - reads
             active()
             if reads >= budget.max_reads or budget.max_total_chars - used_chars < 500:
                 checkpoint("budget_exhausted", "read_or_text_limit")
@@ -506,7 +529,9 @@ def _recover_public_research(
                     assessed, _ = assess_sources(
                         [{"title": content, "url": url}], canonical_query=query
                     )
-                    if not assessed or not assessed[0]["assessment"]["worth_reading"]:
+                    if not assessed or assessed[0]["assessment"]["directness"] not in {
+                        "direct_title", "direct_snippet", "contextual"
+                    }:
                         body.update(
                             answer_eligible=False, adequacy_reason="unrelated_body"
                         )

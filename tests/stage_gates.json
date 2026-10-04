@@ -157,6 +157,7 @@
       "tests/test_answer_publication_gate.py"
     ],
     "semantic_recovery": [
+      "tests/test_recovery_source_boundaries.py",
       "tests/test_conversation_research_query.py",
       "tests/test_research_recovery.py",
       "tests/test_recovery_candidate_scheduler.py",
@@ -327,6 +328,7 @@
       "tests/test_source_assessment.py"
     ],
     "semantic-recovery-v1": [
+      "tests/test_recovery_source_boundaries.py",
       "tests/test_conversation_research_query.py",
       "tests/test_research_recovery.py",
       "tests/test_recovery_candidate_scheduler.py",

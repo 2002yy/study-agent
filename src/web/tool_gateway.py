@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
+import re
 import time
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
@@ -193,6 +194,19 @@ class GeneralWebGateway:
 
         outcome = self._search_single(focused, limit)
         results = list(outcome["results"])
+        # Engines do not consistently honor site: syntax. A single positive
+        # domain constraint is enforceable locally; complex OR/negative queries
+        # keep their existing behavior rather than inventing parser semantics.
+        domain_filter = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", focused)
+        filtered_count = 0
+        if domain_filter and not re.search(r"(?:\bOR\b|-site:|\bsite:)", focused[domain_filter.end(1):]):
+            domain = domain_filter.group(1).lower().rstrip(".")
+            scoped = [item for item in results if (
+                (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".") == domain
+                or (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".").endswith("." + domain)
+            )]
+            filtered_count = len(results) - len(scoped)
+            results = scoped
         provider_errors = list(outcome["provider_errors"])
         providers_enabled = bool(outcome["providers_attempted"])
         if results:
@@ -211,9 +225,10 @@ class GeneralWebGateway:
             reason = "providers_returned_no_results"
         return {
             "status": status,
-            "reason": reason,
+            "reason": "domain_constraint_rejected_results" if filtered_count and not results else reason,
             "query": focused,
             "results": results,
+            "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
             "searched_at": current.isoformat(),

@@ -28,6 +28,21 @@ _FOLLOWUP = re.compile(
     re.IGNORECASE,
 )
 
+# Conservative compatibility fallback for the recorded reference-only turns.
+# Broader conversational interpretation belongs to the semantic episode path;
+# an unknown sentence containing "刚刚" must keep its own subject.
+_REFERENCE_ONLY = frozenset({
+    "是最新的a÷模型。你联网没有找到内容吗？不太可能吧",
+    "？意思刚刚你没有搜？",
+    "意思刚刚你没有搜？",
+    "刚刚你没有搜？",
+    "刚才你没有搜？",
+    "你联网没有找到内容吗？",
+    "没有找到吗？",
+    "没找到吗？",
+    "不太可能吧",
+})
+
 
 _NEW_TOPIC = re.compile(r"(?:换个|另外|现在查|现在搜|现在研究|接下来查|顺便查)")
 _EN_RESEARCH_REQUEST = re.compile(
@@ -82,6 +97,10 @@ def conversation_search_query(user_input: str, context: str) -> str:
         return "" if is_research_resume(user_input) else current
     if is_research_resume(user_input):
         return topic
+    if user_input.strip() not in _REFERENCE_ONLY and not re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9._-]{1,40}啊[？?](?:你不知道吗[？?])?", user_input.strip()
+    ):
+        return current
     # Corrections such as "Claude啊？" add a search qualifier without replacing
     # the original version. No manufacturer/model aliases are invented here.
     qualifiers = re.findall(r"[A-Za-z][A-Za-z0-9._-]{1,40}", user_input)

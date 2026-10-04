@@ -25,7 +25,8 @@ def test_real_opus_followups_preserve_topic_beyond_recent_six_messages():
 
 
 @pytest.mark.parametrize(
-    "text", ["请联网研究：Python3.14", "另外查一下Java", "Python啊？", "opus6.5啊？"]
+    "text", ["请联网研究：Python3.14", "另外查一下Java", "Python啊？", "opus6.5啊？",
+             "刚刚发布的豆包模型怎么样？", "刚才看到的赵翠是谁？"]
 )
 def test_new_subject_is_not_replaced_by_old_research(text):
     assert (
