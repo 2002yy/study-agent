@@ -1,12 +1,30 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-04
+> 更新：2026-10-05
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-05 #173审查修复 / 当前执行权（覆盖下方旧候选和待跑状态）：** Python #172 exact-main CI37282534664 SUCCESS，已交付。Opus #173两项P2均已修复：显式空proxy环境设置不恢复系统代理；canonical reader排除nav/role=navigation及嵌套/void节点，导航model ID不能提供身份佐证。最终生产head `dbee9e5669b6701a7c21c730e8ff14c72f35727e`，base main124de1ca；直接影响集133 PASS/38.20s，命名L2 508 PASS/187.64s；同一干净head完整L3 **3522 passed, 6 skipped in 1202.92s (0:20:02)**，起止head一致、tracked dirty为空；Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查通过。旧2362b0e7结果归档，不借旧head全绿。
+
+**真实受影响发布路径：** `D:/study-agent-validation/python-review-live-dbee9e56/result.json` 和 `opus-review-live-dbee9e56/result.json` 均绑定该clean head及实际读取/代码/答案摘要；Python 2.469s、Opus 5.11s，均runtime Lookup、1官方read/1adopted、field_backed、零答案模型调用，实际ChatService/SQLite保存；Opus原始来源heading/model ID/quote跨度重放通过。原FastAPI/SQLite/arXiv样例及旧失败样本保留，未重跑无关实证。
+
+**下一门：** push更新#173、记录一次新exact-head CI与review状态到 `D:/study-agent-validation/opus-binding-pr-state.json`；旧dad7701a CI不授予新head。新head CI及最终review通过后expected-head合并并核对exact-main，再从新main执行独立Lookup预算/恢复/覆盖资格化。外部执行草案 `D:/study-agent-validation/lookup-qualification-protocol-draft.md` 已冻结验收维度，但不授予资格。Standard多源/比较/冲突、Deep计划/Evidence Gain/收敛/中断依序后置；所有档位与整体 **QUALIFICATION NOT CLOSED**。CI pending不称远端交付。
+
+**2026-10-05 当前三档路线（覆盖下方历史下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前正在加固三档可复用的 Identity Resolution + Evidence Binding 基础。Python 为 Lookup 版本/日期接入样例，Opus 为 exact-version/mixed-content 样例。顺序：共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源、比较双方与冲突资格化 → Deep 计划、Evidence Gain、收敛/饱和/中断合同与资格化。五个官方读取样例不授予任何档位或整体研究 CLOSED。三档目标预算与边界见 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)，本刀未改 runtime 预算。
+
+**已合入主线：** Python #172 head dd9bdaa4 的 exact-head pull_request CI37276697939 SUCCESS，review threads为空、最终范围审查通过，expected-head squash到 main `124de1cac8d884a274bc4c7bafcdb10a6f62e61d`；本机原工作树已ff到该main且clean。exact-main push CI37282534664首次in_progress，本turn不重复轮询，后续turn精确核对。#171此前exact-main CI37268947422已SUCCESS。主线合并与最终资格仍是不同门。
+
+**当前Opus候选：** branch `codex/research-opus-version-binding`，base main124de1ca，最终生产head `2362b0e7d2926ffffc23d86492f7122e1953763d`，13文件506新增/9删除。只接精确官方页、heading inline边界、h1/同段完整model ID一致性、绑定真实定位段落和字段发布；比较表、价格、能力/性能与模型prose无授权。新增Windows官方transport修正仅在没有显式环境代理时保留现有系统代理，NO_PROXY/显式代理优先仍有效，未修改.env/全局环境、未放宽redirect。首次真实失败根因为NO_PROXY-only环境令urllib忽略系统代理，307跳到区域不可用页；失败样本与旧94d7862d主动终止的L3已保留，不计通过。
+
+**最终本地门：** focused118 PASS/21.96s；命名Opus/官方/身份/Python+semantic-recovery整合493 PASS/131.21s；同一干净生产head完整L3 **3507 passed, 6 skipped in 1117.31s (0:18:37)**，起止head一致、tracked dirty均为空。mypy122/baseline128 NEW0，Ruff全src/tests/tools及diff-check PASS，最终增量/范围审查无未解决本地finding。完整结果 `D:/study-agent-validation/opus-binding-candidate-state.json` 与 `opus-binding-L3.log`；仅docs追加交接，不重复完整测试。
+
+**真实发布证据：** `D:/study-agent-validation/opus-binding-live-final-20261005/result.json` 绑定该clean head、源码/代码/答案摘要及读取时间；实际runtime Lookup，1官方read/1adopted/4.766s/零答案模型调用，ChatService/SQLite保存版本与定位原文。原始源重放核对heading/model ID/quote spans通过。传输改动影响的Python/FastAPI/SQLite/arXiv同head实证均field_backed、各1次官方读取/零答案模型调用，2.5–4.375s，产物 `official-transport-regression-2362b0e7/result.json`。本轮独立Lookup manifest保留原先性能/比较问题及其失败样本，不偷换覆盖。
+
+**唯一下一门：** 推送独立Opus PR，记录一次exact-head CI到 `D:/study-agent-validation/opus-binding-pr-state.json`；后续turn仅核对该run/current head和远端review，green及最终审查一致才expected-head合并，再验证exact-main。CI未通过不称远端交付。合并之后下一执行slice是Lookup预算/恢复/覆盖资格化；Standard多源/比较/冲突与Deep合同/资格化单独后置。性能比较仍无支持，UTF-8/保守heading范围/未支持家族与预发布规划仍为限制；全部tier与整体 **QUALIFICATION NOT CLOSED**。
 
 **2026-10-05 当前权威交接（覆盖下方旧候选/待跑状态）：** #171 已合入 main `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`，exact-main push CI `37268947422` SUCCESS；原工作树 main、clean，已验证的 FastAPI/SQLite/arXiv 改进已交付。Python 独立候选 branch `codex/research-identity-evidence-binding`，base 为该 main，最终生产 head `89a469b97d1efe7151c2b21b40768757a7f89fef`。干净同一 head 完整 L3 **3465 PASS / 6 skipped / 1216.16s**，起止 head 一致且 tracked dirty 为空；L1 76 PASS、L2 451 PASS、Ruff/diff-check PASS、mypy 122/baseline128 NEW0。完整结果 `D:/study-agent-validation/python-binding-candidate-state.json` 与 `python-binding-L3.log`。本次仅记录结果，不重跑已通过的完整套件。
 

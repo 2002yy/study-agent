@@ -16,7 +16,7 @@ from src.web.tool_evidence import evidence_tool_calls
 LABELS = {"project": "项目", "version": "版本", "distribution_uploaded_at": "PyPI 包首次上传时间",
           "release_date": "发布日期", "changes": "该版本变更", "paper_id": "arXiv ID",
           "title": "论文标题", "authors": "元数据列出的作者", "first_submission": "首次提交记录",
-          "citation_date": "论文元数据日期"}
+          "citation_date": "论文元数据日期", "official_positioning": "官方定位（原文）"}
 
 
 def publish_official_fields(query: str, calls: list[dict[str, Any]], candidate: str) -> tuple[str, dict[str, Any]]:
