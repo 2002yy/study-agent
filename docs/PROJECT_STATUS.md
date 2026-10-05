@@ -8,6 +8,11 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-05 #174 final review 修复 / 当前执行权（覆盖下方旧候选待合并状态）：** 远端 ec6d6ebffde57c01db078e13c8e87bd77d616ed9 的 pull_request CI37306743836 SUCCESS，但 final review 新增有效 P2：FastAPI 查询0.136、正文0.136.0时，恢复层规范化身份通过并提前停，发布层原始版本合同拒绝。旧head不能直接合并。最小修复令原生release身份采纳同时要求source_version与plan.version原始token相同，与现有发布合同一致；不增加短版本发布能力，不改预算/Gate/解析器，不纳入L5。
+
+**修复证据与下一门：** 新增回归证明该不一致不能覆盖目标/提前停/发布，完整版本与SQLite正例保留。Focused45 PASS/22.70s；命名L2 537 PASS/171.74s；Ruff/diff-check PASS，mypy122/baseline128 NEW0。提交干净新生产候选后执行一次L3，结果写D:/study-agent-validation/lookup-review-candidate-state.json与lookup-review-L3.log。旧cee5cdcf的10次真实读取仍保留其原head与原始来源，不冒充新head实测；这次只收紧恢复身份采纳，reader和已验证完整版本输入未变。新head exact-CI与final review完成后才protected merge，再exact-main验证；L5四类rescue-to-support另开，所有档位仍NOT CLOSED。
+
 **2026-10-05 Lookup停止修复最终本地门 / 当前执行权（覆盖下方中途和待跑状态）：** #173 exact-main CI37299562378 SUCCESS；当前#174独立分支base main9a359e2a，生产head `cee5cdcf624a2d01104b204652f21b53955d20c8`。原生字段身份采纳、保留读取摘要及目标覆盖计数修复完成，SQLite strict xfail已移除。16固定案例全PASS，12追加身份/摘要/跨度负控PASS，自身28 PASS/10.40s；最终命名L2 536 PASS/164.80s；同一干净生产head完整L3 **3550 passed, 6 skipped in 1098.35s (0:18:18)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量范围审查通过。无新增parser/站点、预算或发布Gate放宽。
 
 **冻结真实观察：** `D:/study-agent-validation/lookup-official-live-cee5cdcf/result.json` 同head、五题各两次/总10次，10/10 official-first、usable read及合同约定字段覆盖；均runtime Lookup、1官方读取即停、无通用搜索、零答案模型调用、实际ChatService/SQLite保存，1.438–7.781s。十个原始响应及分层摘要/读取时间保留；重放现有字段提取、Python/Opus原文绑定跨度与发布摘要通过。保留先前SQLite误判及初次失败样本，小样本不授予wall-time SLO。

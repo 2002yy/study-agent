@@ -1,10 +1,12 @@
 """Reader-owned release identity and scheduler integrity regressions."""
 import copy
+import json
 
 import pytest
 
 from src.web.research import official_resolver as resolver
-from src.web.research_recovery import recover_public_research
+from src.web.research.official_publication import publish_official_fields
+from src.web.research_recovery import recover_public_research, recovery_summary
 from src.web.tool_evidence import evidence_tool_calls
 from src.web.tool_gateway import GeneralWebGateway
 from tests.test_official_source_quality import fastapi_payload, metadata
@@ -28,6 +30,30 @@ def test_exact_native_release_identity_is_sufficient(monkeypatch):
     plan = resolver.official_plan("FastAPI 0.136.3发布版本")
     result = resolver.read_official_metadata(plan.urls[0], timeout=1, max_chars=6000)
     assert resolver.verified_release_identity(plan, plan.urls[0], result)
+
+
+def test_short_release_cannot_stop_when_publication_rejects_the_raw_version(monkeypatch):
+    data = json.loads(fastapi_payload())
+    data["info"]["version"] = "0.136.0"
+    metadata(monkeypatch, json.dumps(data).encode())
+    query = "FastAPI 0.136发布版本"
+    plan = resolver.official_plan(query)
+    result = resolver.read_official_metadata(plan.urls[0], timeout=1, max_chars=6000)
+    assert not resolver.verified_release_identity(plan, plan.urls[0], result)
+    gateway = GeneralWebGateway()
+    searches = []
+
+    def rescue(query, **_kwargs):
+        searches.append(query)
+        return {"status": "empty", "results": []}
+
+    monkeypatch.setattr(gateway, "search_exact", rescue)
+    calls = recover_public_research(gateway, query)
+    summary = recovery_summary(calls)
+    assert searches and summary["target_coverage"]["covered"] == 0
+    assert summary["stop_reason"] != "READ_BACKED_PROGRESS"
+    _, audit = publish_official_fields(query, calls, "Invented release facts")
+    assert audit["status"] == "abstained" and not audit["assertion_refs"]
 
 
 @pytest.mark.parametrize("mutation", ["flag_only", "content_digest", "transport_digest", "wrong_url", "wrong_source_version",

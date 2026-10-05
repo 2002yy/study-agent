@@ -208,7 +208,10 @@ def verified_release_identity(plan: OfficialPlan, url: str, result: dict[str, An
     requested = resolve_identity(plan.entity, plan.version)
     observed = resolve_identity(fields.get("project", ""), fields.get("version", ""))
     source = resolve_identity(plan.entity, str(result.get("source_version") or ""))
-    return requested is not None and observed == requested and source == observed
+    # Publication currently requires the same raw release token. Canonical
+    # identity alone cannot authorize a stop that leaves no publishable fields.
+    return (requested is not None and observed == requested and source == observed
+            and result.get("source_version") == plan.version)
 
 
 def verified_python_identity(plan: OfficialPlan, url: str, result: dict[str, Any]) -> bool:
