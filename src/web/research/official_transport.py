@@ -15,9 +15,13 @@ _WINDOWS = sys.platform == "win32"
 
 
 def official_proxy_settings() -> dict[str, str]:
-    configured = urllib.request.getproxies()
     explicit = any(key.casefold().endswith("_proxy") and key.casefold() != "no_proxy" for key in os.environ)
-    if not _WINDOWS or explicit or any(key != "no" and value for key, value in configured.items()):
+    if _WINDOWS and explicit:
+        # getproxies() itself can restore registry settings when an explicit
+        # empty variable leaves the environment mapping empty.
+        return urllib.request.getproxies_environment()
+    configured = urllib.request.getproxies()
+    if not _WINDOWS or any(key != "no" and value for key, value in configured.items()):
         return configured
     registry_reader = getattr(urllib.request, "getproxies_registry", None)
     if not callable(registry_reader):

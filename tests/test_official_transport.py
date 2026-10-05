@@ -14,6 +14,7 @@ def setup_proxies(monkeypatch, configured, system, *, windows=True):
             monkeypatch.delenv(key)
     monkeypatch.setattr(transport, "_WINDOWS", windows)
     monkeypatch.setattr(urllib.request, "getproxies", lambda: dict(configured))
+    monkeypatch.setattr(urllib.request, "getproxies_environment", lambda: dict(configured))
     monkeypatch.setattr(urllib.request, "getproxies_registry", lambda: dict(system), raising=False)
 
 
@@ -24,6 +25,19 @@ def test_explicitly_empty_proxy_does_not_reenable_registry(monkeypatch, key):
     monkeypatch.setattr(urllib.request, "getproxies_registry", lambda: pytest.fail("explicit disable is authoritative"))
     before = dict(os.environ)
     assert transport.official_proxy_settings() == {"no": "localhost"}
+    assert dict(os.environ) == before
+
+
+@pytest.mark.parametrize("key", ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"])
+def test_empty_proxy_without_bypass_does_not_use_cpython_registry_fallback(monkeypatch, key):
+    for variable in list(os.environ):
+        if variable.casefold().endswith("_proxy"):
+            monkeypatch.delenv(variable)
+    monkeypatch.setattr(transport, "_WINDOWS", True)
+    monkeypatch.setenv(key, "")
+    monkeypatch.setattr(urllib.request, "getproxies", lambda: pytest.fail("registry selection must not run"))
+    before = dict(os.environ)
+    assert transport.official_proxy_settings() == {}
     assert dict(os.environ) == before
 
 
