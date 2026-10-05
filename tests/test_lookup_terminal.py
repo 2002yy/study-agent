@@ -2,10 +2,11 @@
 from copy import deepcopy
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
-from src.web.research.lookup_terminal import decide_lookup_terminal, load_standard_handoff
+from src.web.research.lookup_terminal import decide_lookup_terminal, load_standard_handoff, requested_lookup_fields
 from src.web.research_recovery import recover_public_research
 from src.web.tool_gateway import GeneralWebGateway
 from tests.test_official_source_quality import metadata
@@ -119,6 +120,61 @@ def test_digest_recalculation_cannot_change_bound_source_snapshot():
     handoff["payload_sha256"] = _digest(handoff)
     with pytest.raises(ValueError, match="verified source snapshot"):
         load_standard_handoff(handoff)
+
+
+@pytest.mark.parametrize("query,expected", [
+    (QUERY, ("release_date",)),
+    ("FastAPI当前版本及发布日期", ("release_date", "version")),
+    ("FastAPI当前版本的PyPI上传时间", ("distribution_uploaded_at", "version")),
+    ("SQLite 3.53.4版本变化", ("changes", "version")),
+    ("Attention Is All You Need作者及首次提交日期", ("authors", "first_submission")),
+    ("Opus 5.5是什么", ("official_positioning",)),
+    ("Python 3.14发布日期和性能", ()),
+    ("Python 3.14发布日期和作者", ()),
+    ("Python 3.14发布日期和变化", ()),
+    ("未知项目发布日期", ()),
+])
+def test_field_plan_preserves_requested_semantics(query, expected):
+    assert requested_lookup_fields(query) == expected
+
+
+@pytest.mark.parametrize("kind", ["verified", "partial", "escalate", "policy_disabled"])
+def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypatch, kind):
+    from src.application.chat_service import ChatCommand
+    from src.repositories.runtime_repository import RuntimeRepository
+    from tests.test_chat_service import _service
+
+    service, repository = _service(tmp_path)
+    service.dependencies = replace(service.dependencies,
+                                   allow_standard_handoff=kind != "policy_disabled",
+                                   chat=lambda *_a, **_k: pytest.fail("no answer-model dispatch"))
+    if kind in {"verified", "partial"}:
+        html = b"<h1>Python 3.14.0</h1>"
+        if kind == "verified":
+            html += b"<p>Release date: Oct. 7, 2025</p>"
+        metadata(monkeypatch, html)
+        calls = recover_public_research(GeneralWebGateway(), QUERY)
+    else:
+        calls = relevant_calls()
+    prepared = service.start_turn(ChatCommand(user_input=QUERY, thread_id="terminal-production"))
+    prepared = replace(prepared,
+                       route={**prepared.route, "task_contract": {"task_intent": "research"}},
+                       rag={**prepared.rag, "web_tools": {"enabled": True, "calls": calls,
+                            "semantics": {"question_coverage": ["rq-date"]}, "run_id": "source-run"}})
+    service.generate(prepared)
+    saved = RuntimeRepository(repository.database).get_chat_turn(prepared.turn.id)
+    terminal = saved.rag_snapshot["lookup_terminal"]
+    assert terminal["owner"] == {"thread_id": "terminal-production", "turn_id": prepared.turn.id,
+                                 "run_id": "source-run"}
+    assert saved.rag_snapshot["official_field_publication"]["answer_generation_calls"] == 0
+    expected = "VERIFIED" if kind == "verified" else "ESCALATE_STANDARD" if kind == "escalate" else "SAFE_ABSTAIN"
+    assert terminal["state"] == expected
+    if kind == "escalate":
+        assert terminal["dispatch_status"] == "pending"
+        assert load_standard_handoff(terminal["handoff"])["unresolved_fields"] == ["release_date"]
+        assert saved.rag_snapshot["official_field_publication"]["assertion_refs"] == []
+    else:
+        assert terminal["handoff"] is None and terminal["dispatch_status"] == "not_requested"
 
 
 @pytest.mark.parametrize("field", ["schema_version", "usable_sources", "attempted", "publication_authority"])

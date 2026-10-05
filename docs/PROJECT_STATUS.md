@@ -1,12 +1,21 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-05
+> 更新：2026-10-06
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-06 #177生产保存接入候选 / 当前执行权：** #175 exact-main push CI37335741090已completed/success，head main d13a338e9d1c78a9077a6ca63ec766a9cd083c2a，主线交付闭环；#177仍draft/head1c8aa491，本轮fresh review无线程/新blocker。独立branch codex/lookup-terminal-handoff从该base继续，不动UI或旧工作树.mcp.json。
+
+**新增生产范围：** requested_lookup_fields从明确原始查询规划字段，不从实际返回字段反推；PyPI上传时间与发布日期区分，不支持的价格/性能/作者/变化组合安全保持未规划。ChatService.complete_turn的已有确定性官方出口将lookup_terminal及pending handoff/owner（thread/turn/run）写入实际rag_snapshot存储；已有官方发布审计与零答案模型性质保留。default allow_standard_handoff仅允许生成候选交接，不启动Standard、不改变用户模式或现有发布权限。三终态模块现在有真实保存调用；前述“无生产调用”旧记录已过期。
+
+**本轮证据/候选门：** 初轮模块38 PASS/9.63s，命名L1 165 PASS/61.40s，mypy122/baseline128 NEW0，Ruff/diff-check PASS；随后补2个未知组合facet负控并跑最终模块测试。真实ChatService→SQLite→新repository重读验证VERIFIED/SAFE_ABSTAIN/ESCALATE_STANDARD、owner与handoff、许可关闭、零writer调用。生产保存/共享依赖合同变更触发早期L3：提交干净候选后必须一次完整pytest，期间冻结tracked源码/文档；结果/头校验保存在D:/study-agent-validation/lookup-terminal-production-L3-state.json。
+
+**边界与下一步：** 当前只接入终态与待消费交接的生产保存，Standard实际续研、整体deadline传递、run ownership/cursor续跑与exactly-once读取复用仍未完成，不能称自动升档已运行或Lookup CLOSED。该候选L3通过后更新#177最终scope/CI/审查；下一独立执行slice接Standard消费端与预算/取消/恢复，禁止pending handoff授予事实发布权。UI #176独立。
+
 
 **2026-10-05 #175已保护合并 / Lookup三终态独立合同模块开发：** #175新增head24ca3549984a725c9b93aed4ff2f477c42871a7a只隔离CLI负控对浅Git历史的依赖，真实祖先测试保留；exact-head PR CI37333785533 completed/success，两条P2 resolved、最终增量审查PASS。expected-head squash合入main d13a338e9d1c78a9077a6ca63ec766a9cd083c2a，tree与reviewed head一致。exact-main push CI37335741090本轮首次in_progress，主线交付仍待该门；旧885 CI37330455339 pytest失败已由上述测试隔离修复消除，不借旧CI。原L5工作树有用户.mcp.json dirty，保持原样，不执行reset/清理。
 

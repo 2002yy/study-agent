@@ -1,4 +1,4 @@
-"""Lookup terminal contract. Production routing does not yet invoke this module.
+"""Lookup terminal and pending handoff contract used by the chat save exit.
 
 Semantic relevance is inherited only from the existing server session. The
 handoff is research context, never evidence-publication authority.
@@ -9,6 +9,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
+import re
 from typing import Any
 
 from src.web.research.official_publication import LABELS, publish_official_fields
@@ -18,6 +19,48 @@ from src.web.tool_evidence import trusted_tool_calls
 SCHEMA = "lookup-standard-handoff-v1"
 NORMAL_ENDS = {"read_backed", "partial", "candidate_exhausted", "budget_exhausted",
                "provider_exhausted", "evidence_saturation"}
+
+
+def requested_lookup_fields(query: str) -> tuple[str, ...]:
+    """Plan supported explicit facets from intent, never from returned fields.
+
+    Ambiguous or unsupported facets stay unplanned and therefore cannot be
+    called VERIFIED. A model planner may extend this contract separately.
+    """
+    from src.web.research.official_resolver import official_plan
+
+    plan = official_plan(query)
+    if plan is None:
+        return ()
+    fields: set[str] = set()
+    date = bool(re.search(r"日期|时间|什么时候|何时|date|when", query, re.I))
+    if plan.entity == "arxiv":
+        if re.search(r"作者|author", query, re.I):
+            fields.add("authors")
+        if re.search(r"首次|提交|first|submit", query, re.I):
+            fields.add("first_submission")
+        elif date:
+            fields.add("citation_date")
+        if re.search(r"标题|题目|title", query, re.I):
+            fields.add("title")
+    else:
+        if re.search(r"版本|version|最新|latest", query, re.I):
+            fields.add("version")
+        if date:
+            fields.add("distribution_uploaded_at" if plan.entity == "fastapi"
+                       and re.search(r"上传|upload", query, re.I) else "release_date")
+        if plan.entity == "sqlite" and re.search(r"变化|变更|更新|changes|changelog", query, re.I):
+            fields.add("changes")
+        if plan.entity == "opus" and re.search(r"是什么|定位|简介|what is|position", query, re.I):
+            fields.add("official_positioning")
+    # Unknown facts must not disappear behind a recognized date/version facet.
+    if re.search(r"价格|性能|跑分|参数|price|benchmark|performance", query, re.I):
+        return ()
+    if plan.entity != "arxiv" and re.search(r"作者|author|标题|title", query, re.I):
+        return ()
+    if plan.entity != "sqlite" and re.search(r"变化|变更|changes|changelog", query, re.I):
+        return ()
+    return tuple(sorted(fields))
 
 
 @dataclass(frozen=True)
