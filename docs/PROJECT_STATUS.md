@@ -8,6 +8,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 #175已保护合并 / Lookup三终态独立合同模块开发：** #175新增head24ca3549984a725c9b93aed4ff2f477c42871a7a只隔离CLI负控对浅Git历史的依赖，真实祖先测试保留；exact-head PR CI37333785533 completed/success，两条P2 resolved、最终增量审查PASS。expected-head squash合入main d13a338e9d1c78a9077a6ca63ec766a9cd083c2a，tree与reviewed head一致。exact-main push CI37335741090本轮首次in_progress，主线交付仍待该门；旧885 CI37330455339 pytest失败已由上述测试隔离修复消除，不借旧CI。原L5工作树有用户.mcp.json dirty，保持原样，不执行reset/清理。
+
+**本刀范围：** 从新main独立worktree D:/study-agent-validation/lookup-terminal-handoff、branch codex/lookup-terminal-handoff，新增src/web/research/lookup_terminal.py、tests/test_lookup_terminal.py及命名影响集lookup_terminal_handoff。纯合同模块目前无生产调用、不改ChatService/reader/gate/数据库或cursor，不自动切换用户模式。decide_lookup_terminal仅消费服务端请求字段计划、实际官方发布审计和已有semantic session来源关联；字段未齐不得VERIFIED；marker/read_backed不得冒充相关性核验；预算/相关性/取消/矛盾/身份冲突及Standard许可均需通过才返回ESCALATE_STANDARD。handoff保存既有calls、来源digest、已绑定known refs、unresolved fields、Lookup预算；publication_authority=false，加载时核对整体摘要并重算来源快照，复用不发起新网络读取。不宣称持久化cursor或生产Standard续研已接入。
+
+**证据：** 命名L1 153 PASS/57.95s；最终own tests26 PASS/5.93s，Ruff/diff-check PASS，mypy122/baseline128 NEW0。初次typing发现elapsed可为None的两处operator新错，已显式数值类型收窄，运行边界不变，最终own tests再过；没有重复完整L3。本模块未进入生产调用且未更改共享已有数据模型/持久化合同，不将此开发切片当生产切换；未来ChatService/持久化/Standard激活须早期L3。
+
+**唯一下一门：** 提交/推送独立contract模块草稿PR，记录一次exact-head CI；后续核对已知#175 exact-main CI37335741090和本PRcurrent head/review。主线门通过后，同一独立研究线完成requested claim planner、实际complete_turn/run持久化及Standard入口/总deadline/owner/cancel/resume去重接入；随后生产L3和真实交接验收。Lookup整体仍NOT CLOSED，Standard/Deep仍未资格化，UI #176独立。
+
+
 **本轮更正后候选证据：** 干净head2ed0b6ba0ff84dc92a759183ebb29b4ee3f72a7f完成新四例原公开HTML重放，产物D:/study-agent-validation/lookup-L5-public-source-capture/routing-contract-result.json；MAIN祖先门通过，第一二例read_backed/2读/有采用证据，第三例provider_exhausted/2读/有可读正文但无采用证据，第四例provider_exhausted/3读/无采用证据且邻近正文读取成功；全部abstained/零refs/零答案模型调用。原语料未重抓、未改写。最终命名L1 123 PASS/43.67s，Ruff/diff-check PASS，mypy122/baseline128 NEW0。本候选只完成L5观测门与两个P2 runner修复；三终态/handoff尚未生产接入，不能称Lookup CLOSED或Standard已运行。新head需exact-head CI及最终审查，不借1fe2811e/d9f33c7d旧CI。后续仅文档记录，不重复L3。
 
 
