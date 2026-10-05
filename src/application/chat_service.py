@@ -1272,6 +1272,7 @@ class ChatService:
                 prepared.turn.user_message, calls,
                 requested_fields=requested_lookup_fields(prepared.turn.user_message),
                 requested_rq_ids=rq_ids, allow_standard=self.dependencies.allow_standard_handoff,
+                recovery=tool_data.get("recovery"),
                 identity_conflict=any(
                     isinstance(call.get("result"), dict)
                     and call["result"].get("adequacy_reason") == "requested_official_version_mismatch"

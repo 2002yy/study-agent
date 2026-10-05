@@ -64,6 +64,19 @@ def test_escalation_preserves_sources_gap_and_budget_without_authority():
     assert handoff["usable_sources"][0]["result"]["content"] != calls[1]["result"]["content"]
 
 
+def test_persisted_trace_uses_separate_recovery_metadata_and_reloads():
+    from src.tools.web_agent import WebToolTrace
+
+    trace = WebToolTrace(calls=tuple(relevant_calls()), run_id="source-run").to_dict()
+    assert trace["recovery"]["status"] == "read_backed"
+    assert all(call["name"] != "research_recovery" for call in trace["calls"])
+    decision = decide(trace["calls"], recovery=trace["recovery"])
+    assert decision.state == "ESCALATE_STANDARD"
+    assert decision.handoff["attempted"] == trace["calls"]
+    assert decision.handoff["lookup_budget"] == trace["recovery"]
+    assert load_standard_handoff(json.loads(json.dumps(decision.handoff))) == decision.handoff
+
+
 @pytest.mark.parametrize("reason", ["unknown_relevance", "wrong_rq", "tampered_body", "no_source",
                                   "cancelled", "deadline", "wrong_mode", "wrong_query", "unrelated"])
 def test_unqualified_failures_do_not_escalate(reason):
@@ -145,6 +158,7 @@ def test_field_plan_preserves_requested_semantics(query, expected):
 def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypatch, kind):
     from src.application.chat_service import ChatCommand
     from src.repositories.runtime_repository import RuntimeRepository
+    from src.tools.web_agent import WebToolTrace
     from tests.test_chat_service import _service
 
     service, repository = _service(tmp_path)
@@ -159,11 +173,14 @@ def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypa
         calls = recover_public_research(GeneralWebGateway(), QUERY)
     else:
         calls = relevant_calls()
+    tool_data = WebToolTrace(calls=tuple(calls), run_id="source-run").to_dict()
+    tool_data["semantics"] = {"question_coverage": ["rq-date"]}
+    assert all(call["name"] != "research_recovery" for call in tool_data["calls"])
+    assert isinstance(tool_data["recovery"], dict)
     prepared = service.start_turn(ChatCommand(user_input=QUERY, thread_id="terminal-production"))
     prepared = replace(prepared,
                        route={**prepared.route, "task_contract": {"task_intent": "research"}},
-                       rag={**prepared.rag, "web_tools": {"enabled": True, "calls": calls,
-                            "semantics": {"question_coverage": ["rq-date"]}, "run_id": "source-run"}})
+                       rag={**prepared.rag, "web_tools": tool_data})
     service.generate(prepared)
     saved = RuntimeRepository(repository.database).get_chat_turn(prepared.turn.id)
     terminal = saved.rag_snapshot["lookup_terminal"]
@@ -174,6 +191,8 @@ def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypa
     assert terminal["state"] == expected
     if kind == "escalate":
         assert terminal["dispatch_status"] == "pending"
+        assert terminal["handoff"]["lookup_budget"] == tool_data["recovery"]
+        assert terminal["handoff"]["attempted"] == tool_data["calls"]
         assert load_standard_handoff(terminal["handoff"])["unresolved_fields"] == ["release_date"]
         assert saved.rag_snapshot["official_field_publication"]["assertion_refs"] == []
     else:

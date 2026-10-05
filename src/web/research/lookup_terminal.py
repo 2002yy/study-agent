@@ -120,18 +120,26 @@ def _verified_relevance_sources(calls: list[dict], rq_ids: set[str], summary: di
 
 def decide_lookup_terminal(query: str, calls: list[dict], *, requested_fields: tuple[str, ...],
                            requested_rq_ids: tuple[str, ...] = (), allow_standard: bool = False,
+                           recovery: dict[str, Any] | None = None,
                            identity_conflict: bool = False, contradiction: bool = False,
                            cancelled: bool = False) -> LookupTerminal:
     """Consume a server-owned field plan and semantic-session trace.
 
     Callers must not infer requested fields from whichever fields were found.
+    Persisted traces may carry recovery metadata separately from sanitized calls;
+    when supplied, that server-owned summary remains the terminal budget authority.
     No mode switch occurs here; the production adapter must enforce policy,
     overall deadline, durable ownership and exactly-once resume separately.
     """
     fields = set(requested_fields)
     if not fields or not fields <= LABELS.keys():
         return LookupTerminal("SAFE_ABSTAIN", "requested_claim_plan_unavailable")
-    summary = recovery_summary(calls) or {}
+    if recovery is None:
+        summary = recovery_summary(calls) or {}
+    elif isinstance(recovery, dict):
+        summary = deepcopy(recovery)
+    else:
+        return LookupTerminal("SAFE_ABSTAIN", "lookup_recovery_invalid")
     if cancelled or summary.get("status") == "cancelled":
         return LookupTerminal("SAFE_ABSTAIN", "cancelled")
     if identity_conflict or contradiction:
@@ -177,7 +185,8 @@ def load_standard_handoff(payload: dict) -> dict:
     decision = decide_lookup_terminal(snapshot["query"], snapshot["attempted"],
                                       requested_fields=tuple(snapshot["requested_fields"]),
                                       requested_rq_ids=tuple(snapshot["requested_rq_ids"]),
-                                      allow_standard=True)
+                                      allow_standard=True,
+                                      recovery=snapshot.get("lookup_budget"))
     if decision.handoff != payload:
         raise ValueError("handoff no longer matches verified source snapshot")
     return deepcopy(payload)
