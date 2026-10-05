@@ -31,7 +31,7 @@
 | ID | 案例 | 门 | 当前开发结果 |
 | --- | --- | --- | --- |
 | 01 | FastAPI 当前版本/包上传日期，保留日期语义 | L1/L3/L4 | 通过 |
-| 02 | SQLite 指定版本变化，官方充分证据立即停 | L1/L3 | 已知阻断，strict xfail |
+| 02 | SQLite 指定版本变化，官方充分证据立即停 | L1/L3 | 停止策略已修复，开发通过 |
 | 03 | arXiv 来源实际作者/首次提交时间 | L1/L3/L4 | 通过 |
 | 04 | Python 3.14 官方发布日期 | L1/L3/L4 | 通过 |
 | 05 | Opus 5.5 官方定位原文 | L1/L3/L4 | 通过 |
@@ -47,8 +47,8 @@
 | 15 | Python release date 缺失 | L3/L4 | 日期不补写；请求 coverage 未通过 |
 | 16 | 查询迟到，Lookup 截止且保留收尾 | L1/L4 | 不读迟到候选、安全拒绝 |
 
-开发检查：15 PASS、1 strict xfail。xfail 是明确未满足的合同，不是资格通过；
-unexpected pass 会使 CI 失败，修复后须移除标记并重新绑定证据。
+开发检查：16 PASS；原 SQLite strict xfail 已移除。停止策略采纳原生已验证项目/版本字段，
+并保留读取器摘要供完整性校验。新增身份/跨度/摘要负控，不能借候选自报标记或重算摘要绕过。
 保留初次失败样本 `D:/study-agent-validation/lookup-matrix-development.log`。
 不是全量网络资格结果：正式真实观察还须 exact-main CI 通过后执行，冻结五个官方问题、
 每题最多两次观察，总上限十次；逐项绑定 main/candidate/code/source/answer digests、读取时间、
@@ -56,9 +56,9 @@ unexpected pass 会使 CI 失败，修复后须移除标记并重新绑定证据
 
 ## 当前阻断及后续范围
 
-SQLite 指定版本的原生解析成功，但规范化正文 `project: SQLite\nversion: ...`
+旧失败根因：SQLite 指定版本的原生解析成功，但规范化正文 `project: SQLite\nversion: ...`
 未通过通用版本 marker，触发救援搜索。此前 latest 查询没有版本 marker，未覆盖此路径。
-下一运行策略修复应复用原生身份/字段验证，不能用候选自报 verified 标记，也不新增站点解析。
+当前修复复用原生身份/字段验证，检查官方精确 URL、读成功、项目/版本字段真实跨度、原始 content/transport 摘要及 source_version 一致性；不接受候选自报 verified，不新增站点解析。规范化身份采纳后同步更新 target coverage，再按原官方成功停止合同返回。恢复层不再覆盖原生摘要，从而保留篡改/截断失败证据。
 
 恢复得到普通正文时，现有保守发布出口缺少该正文的逐事实支持，必须拒绝。
 L2 可读性通过不代表 L3 可回答；不得为了验收绿灯放宽 Evidence Gate。

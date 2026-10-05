@@ -231,6 +231,7 @@
       "tests/test_answer_claim_partial_commit.py"
     ],
     "lookup_tier_qualification": [
+      "tests/test_lookup_official_identity.py",
       "tests/test_lookup_tier_qualification.py",
       "tests/test_official_transport.py",
       "tests/test_opus_version_binding.py",

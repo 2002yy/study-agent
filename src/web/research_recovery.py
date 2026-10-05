@@ -542,23 +542,31 @@ def _recover_public_research(
                 content = content[:limit]
                 used_chars += len(content)
                 digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                # Preserve reader-owned integrity proof. Rehashing an official
+                # result here would erase an invalid/truncated source digest.
+                if body.get("method") != "official_metadata_http_v2":
+                    body["content_sha256"] = digest
                 body.update(
-                    content_sha256=digest,
                     read_started_at=read_started_at,
                     read_completed_at=datetime.now(timezone.utc).isoformat(),
                 )
                 matches = {
                     i for i, marker in enumerate(markers) if marker.search(content)
                 }
-                from src.web.research.official_resolver import verified_opus_identity, verified_python_identity
+                from src.web.research.official_resolver import verified_opus_identity, verified_python_identity, verified_release_identity
 
                 verified_python = bool(phase == "official_resolver" and plan
                                        and verified_python_identity(plan, url, body))
                 verified_opus = bool(phase == "official_resolver" and plan
                                      and verified_opus_identity(plan, url, body))
-                if plan and body.get("method") == "official_metadata_http_v2" and plan.version and body.get("source_version") != plan.version:
+                verified_release = bool(phase == "official_resolver" and plan
+                                        and verified_release_identity(plan, url, body))
+                verified_official = verified_python or verified_opus or verified_release
+                if verified_official:
+                    matches.update(range(len(markers)))
+                if plan and body.get("method") == "official_metadata_http_v2" and plan.version and body.get("source_version") != plan.version and not verified_official:
                     body.update(answer_eligible=False, adequacy_reason="requested_official_version_mismatch")
-                elif markers and not matches and not (verified_python or verified_opus):
+                elif markers and not matches and not verified_official:
                     body.update(
                         answer_eligible=False,
                         adequacy_reason="requested_model_version_absent",
@@ -589,11 +597,11 @@ def _recover_public_research(
                     }
                 )
                 evidence = evidence_tool_calls(calls)
+                if evidence and evidence[-1].get("arguments", {}).get("url") == url:
+                    covered.update(matches)
                 if phase == "official_resolver" and body.get("method") == "official_metadata_http_v2" and evidence:
                     checkpoint("read_backed", "official_fields_read_not_answer_authority")
                     return calls
-                if evidence and evidence[-1].get("arguments", {}).get("url") == url:
-                    covered.update(matches)
                 enough_targets = not markers or len(covered) == len(markers)
                 # Related reads are progress only, not semantic question coverage.
                 if (

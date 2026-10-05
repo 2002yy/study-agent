@@ -38,11 +38,7 @@ def saved_exit(tmp_path, query, calls):
     return saved, audit
 
 
-@pytest.mark.parametrize("case_id,query,body,required", [
-    pytest.param(*row, id=row[0], marks=pytest.mark.xfail(strict=True,
-        reason="Lookup OPEN: exact SQLite fields fail generic version marker and trigger rescue"))
-    if row[0] == "sqlite" else pytest.param(*row, id=row[0]) for row in POSITIVES
-])
+@pytest.mark.parametrize("case_id,query,body,required", POSITIVES, ids=[row[0] for row in POSITIVES])
 def test_supported_official_lookup_stops_and_saves_bound_fields(monkeypatch, tmp_path, case_id, query, body, required):
     metadata(monkeypatch, body)
     gateway = GeneralWebGateway()
@@ -50,6 +46,7 @@ def test_supported_official_lookup_stops_and_saves_bound_fields(monkeypatch, tmp
     calls = recover_public_research(gateway, query)
     summary = recovery_summary(calls)
     assert summary["mode"] == "lookup" and summary["reads"] == 1
+    assert summary["target_coverage"]["covered"] == summary["target_coverage"]["required"]
     assert not any(call["name"] == "web_search" for call in calls)
     assert summary["limits"]["reads"] == 3 and summary["limits"]["hard_seconds"] == 30
     saved, audit = saved_exit(tmp_path, query, calls)

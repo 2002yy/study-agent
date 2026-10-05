@@ -7,6 +7,14 @@
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
+**2026-10-05 Lookup停止策略修复 / 当前执行权（覆盖下方待修/xfail/CI状态）：** #173 main9a359e2a exact-main CI37299562378 SUCCESS，主线交付闭环；#174原head6b62d622 CI37301552568 SUCCESS，远端review threads为空。原head绿灯不授予修复后的新head。当前仍在独立codex/lookup-tier-qualification分支、base该main，未合并#174。
+
+**当前修复：** 复用原生SQLite/FastAPI发布字段身份，要求精确官方URL、读成功、项目/版本真实跨度、content/transport摘要与source_version一致，不接受候选自报verified。恢复层保留原生content摘要（不重算掩盖篡改/截断），采纳身份后同步目标覆盖度，官方证据充分即停。未新增parser/站点、未改预算、未放宽发布Gate。SQLite strict xfail已移除；16个固定案例全PASS；新增12身份/摘要/跨度负控PASS，最终28项自身策略控制PASS/10.40s，命名Lookup+semantic-recovery L2 536 PASS/164.80s，mypy122/baseline128 NEW0、Ruff/diff-check PASS。计数修复之前的L2已主动停止，日志保留lookup-stop-L2-before-coverage-review.log，不计通过。
+
+**下一验证门：** 提交干净候选后执行冻结五题各两次、总上限十次真实gateway/recovery→ChatService/SQLite观察，保存原始源响应/分层摘要/读取时间/逐字段coverage与重放；同一干净候选一次L3，执行期间不写tracked源码/文档。产物D:/study-agent-validation/lookup-stop-candidate-state.json、lookup-stop-L3.log及lookup-qualification-live-manifest.json。此前正式主线门已绿，可以执行此次观察。观察和L3结束后更新#174、仅查询一次新exact-head CI，不借旧head全绿。
+
+**资格边界：** 16案例通过不等于Lookup CLOSED；通用恢复正文可读仍缺逐事实发布支持，L2可读性与L3覆盖分开计分，缺失发布日期不补写；小样本耗时不授予wall-time SLO。Standard多源/双方比较/冲突与Deep计划/gain/收敛/中断恢复依序后置，所有档位及整体QUALIFICATION NOT CLOSED。
+
 **2026-10-05 Lookup四门资格化 / 当前执行权（覆盖下方旧候选及待合并记录）：** #173 reviewed head ce81d9e1 exact-head pull_request CI37294671083 SUCCESS、两条P2已resolved、最终增量审查通过；expected-head squash合入 main `9a359e2a688fe42166f6cc6ab4eaeed4cf87b782`，本机原工作树main已ff且clean。exact-main push CI37299562378首次in_progress，本turn不重复轮询；因此已合并、尚不宣称exact-main远端交付闭环。#172此前main CI已SUCCESS。#173合入不等于Lookup CLOSED。
 
 **本刀范围：** 新分支 `codex/lookup-tier-qualification` 从该新main建立；只冻结四门L1预算/L2恢复/L3覆盖/L4安全拒绝，落成16个可执行案例与命名影响集，不改生产解析器/预算/发布权限。合同见 [`research_quality/LOOKUP_TIER_QUALIFICATION.md`](research_quality/LOOKUP_TIER_QUALIFICATION.md)。案例开发检查15 PASS、1 strict xfail；命名直接影响集345 PASS、1 strict xfail/95.37s，Ruff/diff-check PASS，明确不计资格通过；正式真实观察待exact-main验证后执行。危险负例经ChatService/临时SQLite出口拒绝，field-backed/拒绝路径均零答案模型调用。Reader后端成功只证明可读性，不授予逐事实支持。
