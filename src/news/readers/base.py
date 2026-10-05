@@ -12,6 +12,8 @@ class ReaderResult:
     text: str = ""
     method: str = ""
     error: str = ""
+    # Best-effort byline. Empty means "not established" - never guessed.
+    author: str = ""
 
     @property
     def ok(self) -> bool:

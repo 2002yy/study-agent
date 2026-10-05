@@ -20,6 +20,7 @@ from urllib.request import (
 from src.news.article_extractor import (
     article_method_label as _article_method_label,
     decode_html_payload as _decode_html_payload,
+    decompress_transport_payload as _decompress_transport_payload,
 )
 from src.news.domain_policy import article_priority_adjustment, should_fetch_article
 from src.news.readers.firecrawl_reader import firecrawl_enabled, read_with_firecrawl
@@ -40,11 +41,12 @@ class ArticleReadResult:
     final_url: str = ""
     content_type: str = ""
     reason: str = ""
+    author: str = ""
 
 
 # ── Cache ─────────────────────────────────────────────────────────────
 
-_ARTICLE_CACHE: dict[str, tuple[float, str, str]] = {}
+_ARTICLE_CACHE: dict[str, tuple[float, str, str, str]] = {}
 _ARTICLE_CACHE_TTL = 1800
 _ARTICLE_CACHE_MAX_SIZE = 32
 
@@ -217,6 +219,11 @@ def _fetch_html_payload(
         payload = response.read(max_bytes + 1)
         if len(payload) > max_bytes:
             payload = payload[:max_bytes]
+        # Undo a transport Content-Encoding before decoding: a gzip body would
+        # otherwise be handed to the HTML/text decoder as binary garbage.
+        payload = _decompress_transport_payload(
+            payload, response.headers.get("Content-Encoding", "")
+        )
 
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
@@ -260,6 +267,11 @@ def _fetch_text_payload(
         payload = response.read(max_bytes + 1)
         if len(payload) > max_bytes:
             payload = payload[:max_bytes]
+        # Undo a transport Content-Encoding before decoding: a gzip body would
+        # otherwise be handed to the HTML/text decoder as binary garbage.
+        payload = _decompress_transport_payload(
+            payload, response.headers.get("Content-Encoding", "")
+        )
 
     return _decode_html_payload(payload, content_type), final_url or url, content_type, ""
 
@@ -318,6 +330,7 @@ def fetch_article_read_result(
             ok=bool(cached[1]),
             text=cached[1],
             method=cached[2],
+            author=cached[3],
             requested_url=url,
             reason="" if cached[1] else "empty_cache_entry",
         )
@@ -327,7 +340,7 @@ def fetch_article_read_result(
             url, timeout=timeout, max_bytes=max_bytes
         )
         if reason:
-            _ARTICLE_CACHE[url] = (now, "", "")
+            _ARTICLE_CACHE[url] = (now, "", "", "")
             return ArticleReadResult(
                 ok=False,
                 requested_url=url,
@@ -343,11 +356,14 @@ def fetch_article_read_result(
                 max_chars=max_chars,
             )
             if local_result.ok:
-                _ARTICLE_CACHE[url] = (now, local_result.text, local_result.method)
+                _ARTICLE_CACHE[url] = (
+                    now, local_result.text, local_result.method, local_result.author
+                )
                 return ArticleReadResult(
                     ok=True,
                     text=local_result.text,
                     method=local_result.method,
+                    author=local_result.author,
                     requested_url=url,
                     final_url=final_url,
                     content_type=content_type,
@@ -356,7 +372,7 @@ def fetch_article_read_result(
         fallback_url = final_url or url
         text, method = _try_firecrawl(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
+            _ARTICLE_CACHE[url] = (now, text, method, "")
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -367,7 +383,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(fallback_url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
+            _ARTICLE_CACHE[url] = (now, text, method, "")
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -376,7 +392,7 @@ def fetch_article_read_result(
                 final_url=fallback_url,
             )
 
-        _ARTICLE_CACHE[url] = (now, "", "")
+        _ARTICLE_CACHE[url] = (now, "", "", "")
         return ArticleReadResult(
             ok=False,
             requested_url=url,
@@ -386,7 +402,7 @@ def fetch_article_read_result(
     except Exception as exc:
         text, method = _try_firecrawl(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
+            _ARTICLE_CACHE[url] = (now, text, method, "")
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -396,7 +412,7 @@ def fetch_article_read_result(
 
         text, method = _try_jina(url, timeout=timeout, max_chars=max_chars)
         if text:
-            _ARTICLE_CACHE[url] = (now, text, method)
+            _ARTICLE_CACHE[url] = (now, text, method, "")
             return ArticleReadResult(
                 ok=True,
                 text=text,
@@ -457,6 +473,7 @@ def _article_fetch_priority(item: dict, query_text: str = "") -> int:
 def _apply_article_read_result(item: dict, result: ArticleReadResult) -> None:
     item["article_url"] = result.requested_url
     item["article_content_type"] = result.content_type
+    item["article_author"] = result.author
 
     if result.ok and result.text:
         item["article_excerpt"] = result.text

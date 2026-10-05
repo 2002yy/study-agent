@@ -488,6 +488,28 @@ def test_research_task_does_not_query_local_knowledge(tmp_path):
     assert prepared.rag["result_count"] == 0
 
 
+@pytest.mark.parametrize("context_policy,expected", [("question_only", False), ("recent_chat", True)])
+def test_research_query_lead_obeys_history_permission(tmp_path, context_policy, expected):
+    service, captured = _service(tmp_path)
+    service.start_turn(PolicyChatCommand(
+        user_input="快去", thread_id=f"research-lead-{context_policy}",
+        chat_history=[{"role": "user", "content": "请联网研究：opus5.5"}],
+        web_policy="auto", cloud_context_policy=context_policy,
+    ))
+    assert captured["web_calls"] == 1
+    assert ("Research query lead: opus5.5" in captured["web_context"]) is expected
+
+
+@pytest.mark.parametrize("web_policy,consent", [("off", True), ("ask", False)])
+def test_research_recovery_cannot_override_network_permission(tmp_path, web_policy, consent):
+    service, captured = _service(tmp_path)
+    service.start_turn(PolicyChatCommand(
+        user_input="请联网研究：opus5.5", thread_id=f"research-permission-{web_policy}",
+        web_policy=web_policy, web_consent=consent, cloud_context_policy="recent_chat",
+    ))
+    assert captured["web_calls"] == 0
+
+
 def test_explicit_research_without_any_tool_call_is_forced_to_report_gap(tmp_path):
     service, captured = _service(tmp_path, web_trace=WebToolTrace())
 
@@ -611,3 +633,37 @@ def test_ask_mode_does_not_treat_manual_web_context_as_consent(tmp_path):
         "run_id": "",
         "source": "manual",
     }
+
+
+def test_server_rendered_publication_does_not_invent_answer_egress(tmp_path):
+    service, _captured = _service(tmp_path)
+    prepared = service.start_turn(
+        PolicyChatCommand(
+            user_input="FastAPI当前最新版本及发布日期",
+            thread_id="chat-server-rendered-publication",
+            task_intent="research",
+            web_policy="auto",
+            cloud_context_policy="allow_local_evidence",
+        )
+    )
+
+    service.generate(prepared)
+
+    execution = prepared.rag["external_data_policy"]
+    assert prepared.route.get("answer_generation_calls", 0) == 0
+    assert not any(
+        call.get("purpose") == "answer_generation"
+        for call in execution["external_calls"]
+    )
+    assert execution["history_sent_to_model"] is False
+    assert execution["learning_state_sent_to_model"] is False
+    assert execution["memory_context_sent_to_model"] is False
+    assert execution["local_evidence_sent_to_model"] is False
+
+    stored = service.repository.get_chat_turn(prepared.turn.id)
+    assert stored is not None
+    stored_execution = stored.rag_snapshot["external_data_policy"]
+    assert not any(
+        call.get("purpose") == "answer_generation"
+        for call in stored_execution["external_calls"]
+    )

@@ -9,13 +9,14 @@ from src.tools.persistent_web_agent import PersistentWebToolAgent
 
 class FakeGateway:
     def search_exact(self, query: str, *, max_results: int) -> dict:
+        self.query = query
         return {
             "status": "ok",
             "reason": "results_found",
             "query": query,
             "results": [
                 {
-                    "title": "Trusted search result",
+                    "title": f"{query} reference",
                     "url": "https://example.test/source",
                     "snippet": "source summary",
                 }
@@ -33,11 +34,11 @@ class FakeGateway:
             "verdict": {"status": "not_generated"},
         }
 
-    def read(self, url: str, *, max_chars: int) -> dict:
+    def read(self, url: str, *, max_chars: int, timeout: float | None = None) -> dict:
         return {
             "ok": True,
             "url": url,
-            "content": "full page body"[:max_chars],
+            "content": f"Reference body: {self.query}"[:max_chars],
             "method": "test_read",
         }
 
@@ -181,7 +182,9 @@ def test_persistent_agent_fails_soft_when_total_budget_expires(monkeypatch):
     assert "7 秒总预算" in captured["record"]["error"]
 
 
-def test_six_consecutive_timeouts_each_settle_without_shared_pool_starvation(monkeypatch):
+def test_six_consecutive_timeouts_each_settle_without_shared_pool_starvation(
+    monkeypatch,
+):
     executors: list[object] = []
 
     class FakeResearchService:
@@ -247,41 +250,93 @@ def test_ordinary_research_bypasses_slow_model_tool_planner():
     trace = agent.resolve("Search the official Python documentation")
 
     assert trace.used is True
-    assert trace.calls[0]["name"] == "web_search"
-    assert trace.calls[1]["name"] == "web_read"
-    assert trace.calls[0]["result"]["results"][0]["url"] == (
+    network_calls = [
+        row for row in trace.calls if row["name"] in {"web_search", "web_read"}
+    ]
+    assert [row["name"] for row in network_calls] == ["web_search", "web_read"]
+    assert network_calls[0]["result"]["results"][0]["url"] == (
         "https://example.test/source"
     )
 
 
-def test_explicit_research_uses_planner_and_cannot_adopt_search_only_output():
+def test_explicit_research_searches_first_and_cannot_adopt_search_only_output():
     captured: dict = {}
 
-    def run_loop(messages, **_kwargs):
-        captured["system"] = messages[0]["content"]
-        return [
-            {
-                "name": "web_search",
-                "arguments": {"query": "Opus 5"},
-                "result": {
-                    "status": "ok",
-                    "results": [
-                        {
-                            "title": "Candidate",
-                            "url": "https://example.test/candidate",
-                            "snippet": "candidate only",
-                        }
-                    ],
-                },
-            }
-        ]
+    def run_loop(*_args, **_kwargs):
+        raise AssertionError(
+            "A public research query must search before model planning"
+        )
+
+    class FailedReadGateway(FakeGateway):
+        def read(self, url, **kwargs):
+            captured["attempted"] = True
+            return {"ok": False, "url": url, "error": "offline_fixture"}
 
     trace = PersistentWebToolAgent(
-        gateway=FakeGateway(),  # type: ignore[arg-type]
+        gateway=FailedReadGateway(),  # type: ignore[arg-type]
         run_loop=run_loop,
     ).resolve("请联网研究：opus5", research_intent=True)
 
-    assert "Search results are candidates only" in captured["system"]
+    assert captured["attempted"] is True
     assert trace.used is False
     assert trace.to_dict()["evidence_status"] == "candidate_only"
     assert trace.context_block() == ""
+
+
+def test_multi_aspect_explicit_research_uses_standard_recovery_not_legacy_deep():
+    created_queries = []
+
+    class ResearchService:
+        def create(self, query, **_kwargs):
+            created_queries.append(query)
+            return SimpleNamespace(id="research-ordinary")
+
+        def execute(self, *_args):
+            raise AssertionError("Standard research must not enter legacy Deep")
+
+        def begin_tool_trace(self, _run_id):
+            return "operation-test"
+
+        def tool_trace_cancel_requested(self, *_args):
+            return False
+
+        def record_tool_trace(self, *_args, **_kwargs):
+            pass
+
+    agent = PersistentWebToolAgent(
+        gateway=FakeGateway(), research_service=ResearchService(),
+    )
+    topic = "opus5.5是什么？性能如何？对比？"
+    initial = "联网研究：" + topic
+    history = "Research query lead: " + topic
+    traces = [agent.resolve(initial, research_intent=True)]
+    traces.extend(agent.resolve(control, conversation_context=history) for control in [
+        "直接去。不要一次失败就返回", "再查查",
+    ])
+    assert created_queries == [topic] * 3
+    for trace in traces:
+        summary = trace.to_dict()["recovery"]
+        assert summary["mode"] == "standard"
+        assert summary["query"] == topic
+        assert summary["limits"]["hard_seconds"] == 60
+        assert all("opus5.5" in call["arguments"]["query"] or "opus 5.5" in call["arguments"]["query"].casefold()
+                   for call in trace.calls if call["name"] == "web_search")
+
+
+def test_auto_deep_does_not_slice_an_absent_explicit_prefix(monkeypatch):
+    queries = []
+
+    class ResearchService:
+        def create(self, query, **_kwargs):
+            queries.append(query)
+            return SimpleNamespace(id="auto-deep")
+
+        def execute(self, _run_id):
+            return SimpleNamespace(id="auto-deep", research_context={}, query_attempts=[])
+
+    monkeypatch.setattr(persistent_web_agent, "_requires_deep_research", lambda _text: True)
+    trace = PersistentWebToolAgent(research_service=ResearchService()).resolve(
+        "opus5.5 performance comparison"
+    )
+    assert not trace.error
+    assert queries == ["opus5.5 performance comparison"]
