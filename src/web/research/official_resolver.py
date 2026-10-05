@@ -185,6 +185,35 @@ def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None 
     raise ValueError("model_overview_requires_version_scoped_reader")
 
 
+def verified_release_identity(plan: OfficialPlan, url: str, result: dict[str, Any]) -> bool:
+    """Adopt existing native release fields, never a candidate's verified flag."""
+    if (plan.entity not in {"sqlite", "fastapi"} or not plan.version or url not in plan.urls
+            or result.get("url") != url or result.get("ok") is not True
+            or result.get("method") != "official_metadata_http_v2"
+            or not re.fullmatch(r"[0-9a-f]{64}", str(result.get("transport_sha256") or ""))):
+        return False
+    body = str(result.get("content") or "")
+    if hashlib.sha256(body.encode()).hexdigest() != result.get("content_sha256"):
+        return False
+    fields: dict[str, str] = {}
+    for item in result.get("official_fields") or []:
+        key, value = item.get("field"), item.get("value")
+        if key not in {"project", "version"}:
+            continue
+        start, end = item.get("start"), item.get("end")
+        if (key in fields or not isinstance(value, str) or type(start) is not int or type(end) is not int
+                or not 0 <= start < end <= len(body) or body[start:end] != f"{key}: {value}"):
+            return False
+        fields[key] = value
+    requested = resolve_identity(plan.entity, plan.version)
+    observed = resolve_identity(fields.get("project", ""), fields.get("version", ""))
+    source = resolve_identity(plan.entity, str(result.get("source_version") or ""))
+    # Publication currently requires the same raw release token. Canonical
+    # identity alone cannot authorize a stop that leaves no publishable fields.
+    return (requested is not None and observed == requested and source == observed
+            and result.get("source_version") == plan.version)
+
+
 def verified_python_identity(plan: OfficialPlan, url: str, result: dict[str, Any]) -> bool:
     """Reader-owned official fields, not a candidate/LLM identity flag."""
     if plan.entity != "python" or url not in plan.urls or result.get("method") != "official_metadata_http_v2":
