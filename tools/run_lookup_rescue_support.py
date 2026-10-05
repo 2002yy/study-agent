@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-MAIN = "7ff7451da608775324383968b4c7ed23c5687832"
+MAIN = "7ff7451da608775324383968b4c7ed23c5687832"  # pragma: allowlist secret -- public main commit, not a credential
 CASE_IDS = {"alternate_official", "nonofficial_direct", "related_missing_field", "unbound_exhaustion"}
 
 
