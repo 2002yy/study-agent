@@ -38,6 +38,14 @@ Python hacks, unverified Opus assumptions or unrelated frontend changes.
 
 ## Final qualification gate (not CLOSED)
 
+This is the source-quality gate for shared capabilities and Lookup examples, not
+the closure of all research tiers. The frozen order remains shared foundation →
+Lookup qualification → Standard multi-source/comparison/conflict qualification →
+Deep contract and multi-round Evidence Gain/saturation/interruption qualification.
+The three approximate strategy budgets and the current Opus activation boundary
+are recorded in `OPUS_LOOKUP_BINDING_CONTRACT.md`; they do not change runtime
+budgets in this slice. Passing Python/Opus does not close Standard or Deep.
+
 - Python official version page is readable, with actual date field.
 - FastAPI official metadata/release record identifies the requested/current version with precisely labelled date provenance.
 - SQLite official release section retains version, date and changes, excluding adjacent releases.

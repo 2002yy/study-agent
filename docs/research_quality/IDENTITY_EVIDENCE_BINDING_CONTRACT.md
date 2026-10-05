@@ -55,12 +55,16 @@ decoded-payload digest; wire transport digest remains distinct. This binds the
 source location, while the existing publication gate retains final authority.
 
 No new LLM extractor, paid or login provider is added. Other anchor kinds remain
-unknown. UTF-8 and conservative per-heading scope limitations remain. Opus is
-not activated: the mixed-version overview still cannot authorize model claims.
+unknown. UTF-8 and conservative per-heading scope limitations remain. Opus's
+independent activation is limited by `OPUS_LOOKUP_BINDING_CONTRACT.md`: an exact
+page may support its bound positioning quote; a mixed overview cannot authorize
+model claims, capabilities or comparisons.
 
 Acceptance: named identity/source-quality impact and retrieval integration gates,
 mypy no-new-errors, Ruff/diff/scope checks, one clean candidate backend L3 and a
 real Python ChatService/SQLite observation bound to code/source/answer digests and
 times. Do not modify tracked documents during the clean full suite. No general
 semantic-judge or learner-mastery authority is granted by these tests. Research
-qualification stays NOT CLOSED until Opus and the full benchmark pass.
+qualification stays NOT CLOSED. Python/Opus exercise the shared foundation through
+Lookup examples; Lookup budget/coverage, Standard multi-source/conflict/comparison
+and Deep Evidence Gain/convergence/interruption qualifications remain separate.

@@ -52,7 +52,13 @@ def official_plan(query: str) -> OfficialPlan | None:
             exact = identity.version
             return OfficialPlan(entity, exact, (f"https://www.python.org/downloads/release/python-{exact.replace('.', '')}/",))
         if entity == "opus" and version:
-            return OfficialPlan(entity, version, ("https://platform.claude.com/docs/en/models/overview",))
+            if re.search(re.escape(version) + r"(?:[A-Za-z]|[.+-][A-Za-z0-9])", query):
+                return None
+            identity = resolve_identity(entity, version)
+            if identity is None:
+                return None
+            return OfficialPlan(entity, identity.version,
+                                (f"https://platform.claude.com/docs/en/models/opus-{identity.version.replace('.', '-')}/overview",))
     identifier = re.search(r"(?:arxiv[:\s/]+|arxiv\.org/(?:abs|pdf)/)(\d{4}\.\d{4,5})(?:v\d+)?", query, re.I)
     if identifier or "attention is all you need" in query.casefold():
         paper_id = identifier.group(1) if identifier else "1706.03762"
@@ -71,6 +77,7 @@ def _supported_url(url: str) -> bool:
                 or re.fullmatch(r"https://sqlite\.org/releaselog/\d+_\d+_\d+\.html", url)
                 or re.fullmatch(r"https://www\.python\.org/downloads/release/python-\d+/", url)
                 or re.fullmatch(r"https://arxiv\.org/abs/\d{4}\.\d{4,5}", url)
+                or re.fullmatch(r"https://platform\.claude\.com/docs/en/models/opus-\d+-\d+(?:-\d+)?/overview", url)
                 or url == "https://platform.claude.com/docs/en/models/overview")
 
 
@@ -82,6 +89,10 @@ class _OfficialRedirect(HTTPRedirectHandler):
 
 
 def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None = None) -> dict[str, str]:
+    if url.startswith("https://platform.claude.com/docs/en/models/opus-"):
+        from src.web.research.model_profile import profile_fields
+
+        return profile_fields(url, payload, source_bindings)
     if "pypi.org" in url:
         value = json.loads(payload)
         info = value.get("info") or {}
@@ -191,6 +202,23 @@ def verified_python_identity(plan: OfficialPlan, url: str, result: dict[str, Any
     return requested is not None and observed == requested and result.get("source_version") == observed.version
 
 
+def verified_opus_identity(plan: OfficialPlan, url: str, result: dict[str, Any]) -> bool:
+    """Only the native exact-page profile can replace a generic text marker."""
+    if (plan.entity != "opus" or url not in plan.urls or result.get("url") != url
+            or result.get("method") != "official_metadata_http_v2"):
+        return False
+    body = str(result.get("content") or "")
+    if hashlib.sha256(body.encode()).hexdigest() != result.get("content_sha256"):
+        return False
+    fields = {item.get("field"): item.get("value") for item in result.get("official_fields") or []
+              if type(item.get("start")) is int and type(item.get("end")) is int
+              and 0 <= item["start"] < item["end"] <= len(body)
+              and body[item["start"]:item["end"]] == f"{item.get('field')}: {item.get('value')}"}
+    requested = resolve_identity(plan.entity, plan.version)
+    observed = resolve_identity(str(fields.get("project") or ""), str(fields.get("version") or ""))
+    return requested is not None and observed == requested and result.get("source_version") == observed.version
+
+
 def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[str, Any] | None:
     if not _supported_url(url):
         return None
@@ -201,6 +229,8 @@ def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[
             if len(payload) > 2_000_000:
                 raise ValueError("official_payload_limit")
             final_url = response.url
+            if "platform.claude.com" in url and final_url != url:
+                raise ValueError("model_profile_redirect_identity_changed")
             raw_digest = hashlib.sha256(payload).hexdigest()
             payload = decompress_transport_payload(payload, response.headers.get("Content-Encoding", ""))
         source_bindings: dict[str, Any] = {}

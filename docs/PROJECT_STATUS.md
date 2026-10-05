@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前三档路线 / Opus独立执行（覆盖下方旧下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前做的是三档可复用的 Identity Resolution + Evidence Binding 底座加固，Python 是 Lookup 生产接入样例，Opus 是 exact-version/mixed-content 样例。推进顺序为共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源/比较双方/冲突资格化 → Deep 计划/Evidence Gain/收敛/饱和/中断合同与资格化。五题或 Python/Opus 成功均不授予整个研究 CLOSED；仅已明确验证的字段和路径可交付。
+
+**交付与当前范围：** Python #172 head `dd9bdaa4d3ae1f4123489646eb06d30d7c76929a` 的 exact-head pull_request CI `37276697939` SUCCESS，review threads 为空、最终范围审查通过，expected-head squash 到 main `124de1cac8d884a274bc4c7bafcdb10a6f62e61d`；exact-main push CI `37282534664` 首次 in_progress，后续 turn 精确复核。Opus branch `codex/research-opus-version-binding` 从该 main 独立创建，合同 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)。本刀只接 exact 官方页、heading inline 边界、标题/同段 model ID 的一致性及绑定定位原文；不接性能/价格/比较事实、不改三档预算、不把比较问题改成单版本 Lookup。
+
+**首轮证据 / 下一门：** 直接模块/官方/Python/身份 focused 106 PASS/26.76s，保留相邻版本、扩展 token/ID、伪标记、跳转、脚本/导航/下一标题借用、比较原文及真实 ChatService/SQLite 发布负控。首次 102 PASS/2FAIL 的负控揭示模型 ID `+local` 前缀截断与规范化字段的通用 marker 误排；已改完整 ID token 边界与 native reader-owned Opus 身份门，两项绿且没有扩张证据权威。待命名 L2、Ruff/mypy、范围审查后提交 clean 候选，真实 production Opus 观察并跑一次 L3；测试运行期间不写 tracked 状态。当前尚未通过完整候选门、不合并 Opus、Lookup/Standard/Deep及整体资格均 NOT CLOSED。
+
+**最终Opus候选门（覆盖上一条待跑L2）：** 最终审查增加“正确ID不能掩盖第二个错误/扩展ID”及“Copy page控件不能冒充定位段落”负控；定位字段须为产品h1紧随的真实段落，仍绑定reader原文。最终命名impact+semantic-recovery整合 **485 PASS/136.58s**，Ruff/diff-check PASS，mypy无新增错误基线保持；最终范围审查无未解决本地finding。提交本刀后保持tracked clean，真实单版本Lookup观察使用独立外部manifest，不改旧性能/比较问题或借此宣告覆盖，产物 `D:/study-agent-validation/opus-binding-live-20261005/result.json`；一次clean-head L3由 `run-opus-final-L3.py` 写入 `opus-binding-candidate-state.json` 和 `opus-binding-L3.log`。测试未完成前不称候选通过，不开待合并Opus PR、不写tracked文档；通过后仅docs追加证据→新PR/一次exact-head CI。
+
 **2026-10-05 当前权威交接（覆盖下方旧候选/待跑状态）：** #171 已合入 main `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`，exact-main push CI `37268947422` SUCCESS；原工作树 main、clean，已验证的 FastAPI/SQLite/arXiv 改进已交付。Python 独立候选 branch `codex/research-identity-evidence-binding`，base 为该 main，最终生产 head `89a469b97d1efe7151c2b21b40768757a7f89fef`。干净同一 head 完整 L3 **3465 PASS / 6 skipped / 1216.16s**，起止 head 一致且 tracked dirty 为空；L1 76 PASS、L2 451 PASS、Ruff/diff-check PASS、mypy 122/baseline128 NEW0。完整结果 `D:/study-agent-validation/python-binding-candidate-state.json` 与 `python-binding-L3.log`。本次仅记录结果，不重跑已通过的完整套件。
 
 **Python真实发布证据：** `D:/study-agent-validation/python-binding-live-final-89a469b9/result.json` 绑定最终代码 head/digests、官方读取时间、源码响应及回答；真实 ChatService/SQLite 用 1 次官方读取、0 次答案模型调用，0.828s 发布 Python 3.14.0 与 2025-10-07。日期 refs 保存真实 `Release date: Oct. 7, 2025`、版本 heading/跨度以及 canonical text/decoded payload/transport 分层摘要，冻结源码响应重放验证通过。只证明该已读字段与路径，不授予语义评审或学习掌握权限。

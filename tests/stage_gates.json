@@ -206,6 +206,28 @@
       "tests/test_research_finalization_deadline.py",
       "tests/test_external_data_policy.py",
       "tests/test_recovery_candidate_scheduler.py"
+    ],
+    "opus_version_binding": [
+      "tests/test_opus_version_binding.py",
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_candidate_resolution.py",
+      "tests/test_web_query_normalizer.py",
+      "tests/test_domain_targeted.py",
+      "tests/test_python_release_binding.py",
+      "tests/test_official_source_quality.py",
+      "tests/test_research_recovery.py",
+      "tests/test_recovery_source_boundaries.py",
+      "tests/test_research_finalization_deadline.py",
+      "tests/test_external_data_policy.py",
+      "tests/test_recovery_candidate_scheduler.py",
+      "tests/test_candidate_funnel.py",
+      "tests/test_news_reader_transport.py",
+      "tests/test_release_link_ranking.py",
+      "tests/test_chat_service.py",
+      "tests/test_chat_stream_cancellation.py",
+      "tests/test_persistent_web_agent.py",
+      "tests/test_answer_claim_turn_lifecycle.py",
+      "tests/test_answer_claim_partial_commit.py"
     ]
   },
   "stage_gates": {

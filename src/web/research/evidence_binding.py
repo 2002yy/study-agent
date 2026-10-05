@@ -48,6 +48,10 @@ class _VisibleDocument(HTMLParser):
             self.hidden += 1
         if self.hidden:
             return
+        # Inline badges must not join a version token ("5.5Latest"). Preserve
+        # boundaries only within headings; other source quotes stay unchanged.
+        if self.heading and tag not in {"h1", "h2", "h3", "h4", "h5", "h6", "br"}:
+            self.append(" ")
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             self.append("\n")
             if self.sections:
@@ -63,6 +67,8 @@ class _VisibleDocument(HTMLParser):
             return
         if self.hidden:
             return
+        if self.heading and tag not in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.append(" ")
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"} and self.heading:
             self.sections[-1][1] = self.length
             self.heading = False
