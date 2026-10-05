@@ -8,6 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 Python最终候选与Opus诊断（覆盖下方第一轮运行）：** 最终审查发现stable标题正则可能截断3.14.0rc1/3.14.0a1/四段版本为3.14.0；已加token终止边界与三个负控。旧生产head993c8b0b的L3因此在约70%被主动终止，不借作全绿证明，日志保留`D:/study-agent-validation/python-binding-L3-superseded-993c8b0b.log`。新候选focused67PASS/16.28s，整合L2 442PASS/134.42s，Ruff/diff-check PASS，mypy122/baseline128 NEW0；只补身份token校验，无未知失败。提交后干净HEAD重跑一次L3及受影响真实Python ChatService/SQLite观察，测试执行期间不得写tracked状态文档，当前不打开待合并PR。
+
+**已经交付主线：** 本机原工作树已从clean旧donor分支切到main并ff到090678a2，dirty=[]；旧codex/firefly-main-integration分支和环境/数据保留。#171已merged，当前主线首次CI37268947422待后续turn精确复核。Python第一轮clean-head993c8b0b实证为1read/1adopted/1.328s、field_backed、writer0，SQLite保存Python3.14.0与2025-10-07，日期ref携带真实label/heading/span与transport/canonical/decoded payload digests；产物`D:/study-agent-validation/python-binding-live-20261005/result.json`。新token守卫后只重跑受影响Python实证，不重复不相关题。
+
+**Opus下一刀已有真实线索，未启用：** 匿名读取独立官方URL`https://platform.claude.com/docs/en/models/opus-5-5/overview`成功；当前resolver仍只指向混合models overview。实际heading变为`Claude Opus 5.5Latest`，当前reader未保留inline badge文本边界，binding返回heading_identity_missing_or_ambiguous。外部诊断用通用heading inline token分隔能将官方定位说明绑定到5.5标题；仍不授予性能/比较事实。冻结外部payload/digests与负例/修正假设在`D:/study-agent-validation/opus-exact-page-diagnostic-20261005/result.json`，可复现脚本`replay-opus-heading-diagnostic.py`。后续独立Opus slice需exact page resolver、reader token边界/模型ID交叉校验、相邻版本和比较双方绑定、真实production发布；不混入当前Python候选。全局研究资格仍NOT CLOSED。
+
+
 **2026-10-05 当前执行：#171已合入main，Python身份/日期接入为独立下一刀。** #171 head0c728db7 exact-head CI37267593688为success，三条远端review已resolved、最终增量自审通过，expected-head squash合并commit `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`。首次exact-main push CI37268947422为in_progress，本turn不重复轮询；原工作树保持clean旧donor分支，不覆盖用户运行进程。研究资格仍NOT CLOSED，不因主线合并宣告封板。
 
 **Python候选 / 范围：** branch `codex/research-identity-evidence-binding`合并最新main；正式身份层按产品规则规范化，Python3.14=3.14.0而非任意3.14.x；官方reader的已验证字段/URL/digest方可替代通用model marker，候选flag无授权。发布日期须位于匹配版本heading范围，标签大小写无关、日期格式与日历确定性校验；缺失/非法/相邻段落/多日期不补写。发布refs保留原文label/date quote、heading/span及canonical/decoded payload digest，transport digest独立。最新版本族/通配/预发布意图未被静默替换初始stable；Opus仍无生产读取授权。合同`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`同步。第一轮直接模块/官方发布focused61PASS；mypy122/baseline128 NEW0、Ruff通过；真实native官方读取已得到Python3.14.0及2025-10-07与真实版本标题/日期跨度，尚待干净commit的实际ChatService/SQLite观察。

@@ -49,6 +49,12 @@ def test_different_release_heading_cannot_use_requested_url():
         resolver._fields(URL, b"<h1>Python 3.14.1</h1><p>Release date: Oct. 7, 2025</p>")
 
 
+@pytest.mark.parametrize("version", ["3.14.0rc1", "3.14.0a1", "3.14.0.1"])
+def test_prerelease_or_extended_heading_is_not_truncated_to_stable(version):
+    with pytest.raises(ValueError, match="identity_mismatch"):
+        resolver._fields(URL, f"<h1>Python {version}</h1><p>Release date: Oct. 7, 2025</p>".encode())
+
+
 def test_bound_date_has_actual_read_span_and_quote():
     document = document_from_read("read-date", URL,
                                   b"<h1>Python 3.14.0</h1><p>Release date: Oct. 7, 2025</p>")

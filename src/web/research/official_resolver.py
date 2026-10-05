@@ -125,7 +125,7 @@ def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None 
         return fields
     if "python.org" in url:
         titles = document.xpath("//h1")
-        match = re.search(r"Python (\d+\.\d+\.\d+)", titles[0].text_content() if titles else "")
+        match = re.search(r"Python (\d+\.\d+\.\d+)(?![\w.])", titles[0].text_content() if titles else "")
         if not match or urlsplit(url).path != f"/downloads/release/python-{match[1].replace('.', '')}/":
             raise ValueError("python_release_identity_mismatch")
         fields = {"project": "Python", "version": match[1]}
