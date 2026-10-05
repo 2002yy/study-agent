@@ -8,6 +8,52 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**本轮更正后候选证据：** 干净head2ed0b6ba0ff84dc92a759183ebb29b4ee3f72a7f完成新四例原公开HTML重放，产物D:/study-agent-validation/lookup-L5-public-source-capture/routing-contract-result.json；MAIN祖先门通过，第一二例read_backed/2读/有采用证据，第三例provider_exhausted/2读/有可读正文但无采用证据，第四例provider_exhausted/3读/无采用证据且邻近正文读取成功；全部abstained/零refs/零答案模型调用。原语料未重抓、未改写。最终命名L1 123 PASS/43.67s，Ruff/diff-check PASS，mypy122/baseline128 NEW0。本候选只完成L5观测门与两个P2 runner修复；三终态/handoff尚未生产接入，不能称Lookup CLOSED或Standard已运行。新head需exact-head CI及最终审查，不借1fe2811e/d9f33c7d旧CI。后续仅文档记录，不重复L3。
+
+
+**2026-10-05 用户修订L5目标 / 当前执行权（覆盖下方“第三例须read_backed、来源不符阻止下一步”旧要求）：** 用户明确Lookup不需获得generic逐事实发布权，下一生产切片采用VERIFIED/SAFE_ABSTAIN/ESCALATE_STANDARD三终态；升档仅限正常有界结束、有已核验相关可用来源、未绑定请求claim、无身份冲突/确定性矛盾且有明确gap。合同已冻结于research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md末节。Standard结构化handoff保留来源/digest/核验状态/请求claim/已尝试动作/gap/预算，生产接入必须独立slice，不混入当前#175审查修复。
+
+**本PR纠正：** 保留MAIN祖先校验和逐例状态/read/evidence负控；第三例接受原真实观测provider_exhausted/2读/无采用证据，同时严格要求实际discovery-linked可读正文。第一二例仍read_backed/2读/采用证据，第四例exhausted/3读/无采用证据、邻近正文确有读取。全reader失败依然不能伪装PASS。只改资格runner/test，不放宽生产identity/publication，不改采集HTML。新的完整四例重放和验证结果待本轮干净head记录；旧失败保留为旧合同负例。原教程只是升档候选，未经相关性/身份核验不能称已生产升档。
+
+**下一门：** 当前#175审查修复与更正后的观测门验证→新exact-head CI/最终review→保护合并/exact-main；随后独立实施Lookup三终态及handoff，复用现有样本验收Standard续研。Generic publication仍NOT_QUALIFIED，Lookup整体仍NOT CLOSED，UI #176独立。
+
+
+**2026-10-05 #175审查阻断修复 / 当前执行权（覆盖下方原L5完成结论）：** 当前#175远端旧head d9f33c7d exact-head PR CI37326488134 completed/success，但新增2个P2（PRRT_kwDOSYWoX86pFWFS、PRRT_kwDOSYWoX86pFWFc）阻止合并：replay head未检查包含gated main；仅预算上限/最终拒绝不能证明每例恢复成立。本刀修复head 04a0ce63732332da71524a2c5aecf9bdba05a713，base仍main7ff7451d；只改tools/run_lookup_rescue_support.py与tests/test_lookup_rescue_replay.py，随后仅文档记录，不碰生产研究逻辑或预算。
+
+**修复与验收：** CLI开始读取来源前执行git merge-base --is-ancestor MAIN <captured HEAD>，失败拒绝；逐例冻结前三例read_backed/2读/有可用证据，第四例provider_exhausted/3读/无采用证据，且所有例仍要求abstained/零refs/零答案模型调用。工具22 PASS/7.71s，命名L1 lookup_rescue_support 119 PASS/51.54s，Ruff/diff-check PASS，mypy current122/baseline128 NEW0。负控包括真实Git旧祖先/无关root、全reader失败、四例分别错status/read count/evidence，CLI拒绝时无qualification文件。生产/共享fixture未变，不重复L3。
+
+**重要资格纠正：** 干净修复head对原5份公开HTML重放，新门正确失败：related_missing_field实际provider_exhausted、2 reads、usable_evidence=False，不满足第三例read_backed正控，exit1且没有生成P2-revalidated-result.json；日志 D:/study-agent-validation/lookup-L5-P2-public-replay.log。旧result.json保留为历史安全拒绝观察，不能再当四例资格PASS。不改写HTML、不放宽生产marker、不用拒绝成功冒充恢复成功。Lookup-Official仍QUALIFIED；L5四例来源资格未完成，Generic Rescue publication NOT_QUALIFIED；Lookup整体NOT CLOSED。
+
+**唯一下一门：** 推送两个P2修复及纠正记录，保存一次新exact-head CI，复核最终review；同时资格缺口为第三例需真实相关、无请求日期但达到现有read_backed的冻结公开来源，另做小证据切片，不新增parser或放宽发布权限。CI/审查及来源门未完整通过前不保护合并，不进入Standard实现，UI #176独立。
+
+
+**2026-10-05 L5公开来源冻结重放完成 / 当前执行权（覆盖下方旧pending记录）：** #174 exact-main push CI37314347931已completed/success，head main7ff7451da608775324383968b4c7ed23c5687832，与已审查合并提交一致，官方路径主线交付闭环完成。独立#175 branch codex/lookup-rescue-support-qualification，base上述main；公开来源重放绑定干净head fca4283da242953b7241ff15398735f2c16aef33，产物 D:/study-agent-validation/lookup-L5-public-source-capture/result.json。随后仅更新资格文档，不改研究生产行为。
+
+**来源与结果：** 捕获5份公开HTML，原始内容、SHA256、时间和reader摘要保存在同目录；仅2份首次TLS/超时失败，失败记录保留，换curl传输有界重试成功，其他来源未重抓。四例通过现有local reader→GeneralWebGateway/recovery→ChatService/临时SQLite真实保存出口；直达超时和搜索候选是受控注入，明确为frozen-source replay，不称live discovery。替代官方博客、非官方直接来源分别read_backed/2逻辑reads；教程相关页provider_exhausted/2 reads；3.13与3.15邻近版本组合provider_exhausted/3 reads。每例2查询阶段、0.312–2.266秒，均abstained、零assertion refs、零答案模型调用、dangerous publish=0。替代官方博客reader正文没有保留发布日期，不能算日期字段支持；非官方正文有直接日期仍无现有字段发布权限。通用target coverage只是marker覆盖，不能替代requested-field coverage。
+
+**资格结论与边界：** Lookup-Official QUALIFIED（#174官方路径及exact-main门）；Generic Rescue恢复与安全拒绝有公开来源重放证据，但publication NOT_QUALIFIED。Lookup整体仍NOT CLOSED，不能把4例安全拒绝冒充救援事实发布正控。未新增解析器特判、字段绑定权限、provider或预算改动。Standard多源/双方比较/冲突随后独立切片，Deep计划/gain/收敛/中断恢复后置；UI #176继续独立，不挡研究线。
+
+**CI修复与验证：** #175旧head d659801d的PR CI37317083177失败仅因secrets scanner将工具冻结的公开main SHA误报为高熵密钥；诊断保留 D:/study-agent-validation/lookup-L5-CI-diagnostics/ci-diagnostics/detect-secrets-report.json。仅该常量增加逐行allowlist注释，未放宽全仓扫描；定向扫描零finding，修复影响集10 PASS/5.17s。最终命名L1仍103 PASS/44.41s，Ruff/diff-check PASS；旧CI pytest及mypy no-new-errors通过。注释和资格文档不触发重复L3。新exact-head CI尚待推送记录，不借旧head结果授权合并。
+
+**唯一下一门：** 推送#175资格记录和扫描误报修复，记录一次新exact-head CI；后续核对该CI及最终审查，通过后expected-head保护合并、验证exact-main，再从干净main进入Standard S1/S2/S3资格合同与控件。#175合并不宣称Lookup整体或Generic Rescue发布资格关闭。
+
+
+
+**2026-10-05 独立L5来源重放工具开发 / 当前执行权：** branch codex/lookup-rescue-support-qualification，base main7ff7451d，草稿#175首head d507d9d5。本turn精确核对#174 main CI37314347931及#175 PR CI37315386314均仍in_progress，未轮询等待、未宣布主线/来源资格完成。开发准备继续，不执行正式重放。
+
+**新增能力：** tools/run_lookup_rescue_support.py严格要求exact-main成功JSON、干净候选、四个冻结案例、来源payload摘要及capture provenance；现有local reader/gateway/recovery→ChatService/临时SQLite出口，输出原始calls/来源/计数/coverage/stop/ref摘要。受控直达失败和搜索候选明确标注，不称live discovery。新增精确门/摘要篡改负控及完整工具synthetic smoke。初次smoke暴露Windows临时SQLite句柄未释放，工具finally显式关闭本轮连接修复；不改应用数据库、生产研究合同、预算或发布权限。工具6 PASS/2.76s；旧首轮影响集102 PASS/39.62s保留，最终命名L1影响集103 PASS/44.41s，Ruff/diff-check PASS。来源资格仍NOT_EXECUTED，Lookup整体NOT CLOSED。
+
+**唯一下一门：** 记录新head CI到D:/study-agent-validation/lookup-L5-pr-state.json；后续turn检查已知#174 exact-main与#175新CI/current head，再准备/核对真实公开来源capture并执行四case冻结重放。无逐字段支持则保持Generic Rescue publication NOT QUALIFIED；不扩大矩阵、不放宽Gate，Standard/Deep后置。
+
+
+**2026-10-05 #174已合并 / 独立L5开发准备（覆盖下方待合并记录）：** #174 reviewed head ddb0fd6ddbbff0aa0501bd25d54b594cb99eb69c，exact-head pull_request CI37312220879 SUCCESS，P2 resolved，final incremental review PASS；expected-head squash合入main7ff7451da608775324383968b4c7ed23c5687832。原工作树main已ff、clean，源码树与reviewed head一致。exact-main push CI37314347931本turn核对仍in_progress，不能称主线交付闭环；可恢复远端记录D:/study-agent-validation/lookup-qualification-pr-state.json。
+
+**本刀范围：** 新独立分支codex/lookup-rescue-support-qualification，base上述main，只添加L5四个synthetic运行合同控件、命名影响集及合同文档；不改生产parser/reader/发布权限/预算，不扩#174固定16案例。合同 [`research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md`](research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md)。真实GeneralWebGateway/recovery/ChatService/临时SQLite出口被保留，传输数据明确synthetic，离线开发验证不冒充正式来源资格化。首轮3.14请求/3.14.0通用body两例被精确marker拒绝，旧失败日志保留；正向body改为精确3.14以隔离发布支持问题，不放宽身份。
+
+**本刀开发证据：** 命名L1影响集97 PASS/43.15s；Ruff全src/tests/tools、diff-check PASS；没有生产或共享fixture改动，不重跑L3。前三例read_backed仍零发布refs，第四例3次逻辑read有界停止，四例零答案模型调用。
+
+**唯一下一门：** 提交独立测试/合同PR并记录一次exact-head CI，后续turn核对已知exact-main CI37314347931再开始来源绑定重放/正式L5。现有通用正文不具注册URL/native字段跨度发布权限；替代官方、非官方、相关缺字段均须拒绝无支持事实。正式证据不足时保持NOT QUALIFIED，不为关闭L5造临时权限。Lookup整体NOT CLOSED，Standard/Deep暂不执行。
+
 
 **2026-10-05 #174 review-fix 本地最终门 / 当前执行权：** 生产head `53d426037054be45c050d4a3226381b4020109ee`，base main9a359e2a；新增P2已通过最小原始版本token一致性修复解决。新候选Focused45 PASS，命名L2 537 PASS；同一干净head完整L3 **3551 passed, 6 skipped in 1156.68s (0:19:16)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查无未解决本地finding。完整结果D:/study-agent-validation/lookup-review-candidate-state.json；旧cee/ec6的CI/L3保持归档，不授予新head。旧cee真实10份来源的新代码冻结重放10/10，逐字段发布refs完全一致（lookup-review-frozen-replay.json）；未重跑不受影响的联网样本，也不冒充新head实测。
 
