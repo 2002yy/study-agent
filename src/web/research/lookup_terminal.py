@@ -60,6 +60,23 @@ def requested_lookup_fields(query: str) -> tuple[str, ...]:
         return ()
     if plan.entity != "sqlite" and re.search(r"变化|变更|changes|changelog", query, re.I):
         return ()
+    # Every requested facet must belong to this bounded grammar. Recognizing
+    # a date cannot erase an additional unknown request (e.g. download URL).
+    remainder = re.sub(r"attention\s+is\s+all\s+you\s+need", "", query, flags=re.I)
+    remainder = re.sub(r"https?://arxiv\.org/(?:abs|pdf)/\d{4}\.\d{4,5}(?:v\d+)?(?:\.pdf)?",
+                       "", remainder, flags=re.I)
+    remainder = re.sub(r"(?<![A-Za-z])(?:python|fastapi|sqlite|opus|arxiv|pypi)(?![A-Za-z])",
+                       "", remainder, flags=re.I)
+    remainder = re.sub(r"\d+(?:\.\d+)+", "", remainder)
+    chinese = ("什么时候", "告诉我", "是多少", "是什么", "何时", "当前", "目前", "现在", "最新",
+               "最近", "首次", "提交", "日期", "时间", "发布", "版本", "变化", "变更", "更新",
+               "作者", "标题", "题目", "简介", "定位", "上传", "查询", "查看", "记录", "请", "的", "及", "和", "与")
+    remainder = re.sub("|".join(chinese), "", remainder)
+    remainder = re.sub(r"\b(?:what|is|the|when|was|release|released|date|version|latest|current|and|of|"
+                       r"authors?|title|first|submission|submitted|changes|changelog|positioning|"
+                       r"upload|uploaded|time)\b", "", remainder, flags=re.I)
+    if re.sub(r"[\s,，。.!！?？:：、/]+", "", remainder):
+        return ()
     return tuple(sorted(fields))
 
 

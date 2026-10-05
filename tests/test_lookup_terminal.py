@@ -132,6 +132,9 @@ def test_digest_recalculation_cannot_change_bound_source_snapshot():
     ("Python 3.14发布日期和性能", ()),
     ("Python 3.14发布日期和作者", ()),
     ("Python 3.14发布日期和变化", ()),
+    ("Python 3.14 release date and download URL", ()),
+    ("Python 3.14发布日期和下载地址", ()),
+    ("Python 3.14发布日期及安装要求", ()),
     ("未知项目发布日期", ()),
 ])
 def test_field_plan_preserves_requested_semantics(query, expected):

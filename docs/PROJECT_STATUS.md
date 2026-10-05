@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**候选冻结前意图覆盖修复：** 最小复现Python3.14 release date and download URL被旧keyword planner错误规划为仅release_date。它会漏掉一个用户请求字段，不能保留为完整VERIFIED。已停止本轮尚未完成的87cad9c1 L3（只终止自己验证过的进程树，不操作应用/用户进程），部分日志不计通过，状态归档D:/study-agent-validation/lookup-terminal-L3-invalidated-state.json。新规划器按支持的窄查询语法移除明确项目/版本/字段/连接词后，任何剩余未识别请求均返回未规划；中文下载地址/安装要求与英文download URL负控均安全拒绝。最终模块43 PASS/10.15s，mypy NEW0；新命名影响集验证后提交新干净生产head，执行一次L3。该重跑因生产行为修复使旧候选失效，不是重复绿色L3。
+
+
 **2026-10-06 #177生产保存接入候选 / 当前执行权：** #175 exact-main push CI37335741090已completed/success，head main d13a338e9d1c78a9077a6ca63ec766a9cd083c2a，主线交付闭环；#177仍draft/head1c8aa491，本轮fresh review无线程/新blocker。独立branch codex/lookup-terminal-handoff从该base继续，不动UI或旧工作树.mcp.json。
 
 **新增生产范围：** requested_lookup_fields从明确原始查询规划字段，不从实际返回字段反推；PyPI上传时间与发布日期区分，不支持的价格/性能/作者/变化组合安全保持未规划。ChatService.complete_turn的已有确定性官方出口将lookup_terminal及pending handoff/owner（thread/turn/run）写入实际rag_snapshot存储；已有官方发布审计与零答案模型性质保留。default allow_standard_handoff仅允许生成候选交接，不启动Standard、不改变用户模式或现有发布权限。三终态模块现在有真实保存调用；前述“无生产调用”旧记录已过期。
