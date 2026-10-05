@@ -26,6 +26,29 @@ def validate_main_gate(proof: dict) -> None:
         raise ValueError("exact-main success proof required before L5 replay")
 
 
+def validate_replay_head(head: str, root: Path = ROOT) -> None:
+    result = subprocess.run(["git", "merge-base", "--is-ancestor", MAIN, head],
+                            cwd=root, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise ValueError("replay HEAD must contain the gated main commit")
+
+
+def validate_case_outcome(case_id: str, summary: dict, calls: list[dict]) -> None:
+    from src.web.tool_evidence import evidence_tool_calls
+
+    if case_id not in CASE_IDS:
+        raise ValueError("unknown L5 case")
+    exhausted = case_id == "unbound_exhaustion"
+    expected_status = "provider_exhausted" if exhausted else "read_backed"
+    expected_reads = 3 if exhausted else 2
+    has_evidence = bool(evidence_tool_calls(calls))
+    if (summary.get("status") != expected_status or summary.get("reads") != expected_reads
+            or has_evidence != (not exhausted)):
+        raise ValueError(f"{case_id}: required recovery outcome missing "
+                         f"(status={summary.get('status')}, reads={summary.get('reads')}, "
+                         f"usable_evidence={has_evidence})")
+
+
 def load_sources(path: Path) -> list[dict]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     cases = payload.get("cases", [])
@@ -104,6 +127,7 @@ def replay(cases: list[dict]) -> list[dict]:
         elapsed = time.monotonic() - started
         if len(queries) > 2 or summary["reads"] > 3 or elapsed > 30:
             raise ValueError("Lookup bounded replay exceeded its budget")
+        validate_case_outcome(case["id"], summary, calls)
         if audit["assertion_refs"] or audit["answer_generation_calls"] or audit["status"] != "abstained":
             raise ValueError("generic replay unexpectedly acquired publication authority")
         rows.append({"id": case["id"], "sources": [{k: v for k, v in source.items() if k != "html"}
@@ -124,6 +148,7 @@ def main() -> None:
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip():
         raise ValueError("clean candidate required")
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    validate_replay_head(head)
     cases = load_sources(args.manifest)
     rows = replay(cases)
     result = {"head": head, "base": MAIN, "kind": "frozen-source replay; not live discovery",
