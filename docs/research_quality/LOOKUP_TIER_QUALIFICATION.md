@@ -72,3 +72,12 @@ S3 冲突检测，按权威性/时效/来源判 resolved 或保留 unresolved，
 Deep：计划/gaps/waves，逐波新增支持的 Evidence Gain，证据不足继续、无 gain 收敛、
 改变搜索方向、截止/取消/恢复；durable 状态、证据与剩余预算保留，避免重复消费已完成工作。
 指标为 gain/wave、unresolved gaps、duplicate work、时间/预算、stop reason、resume correctness。
+
+## 本次生产候选证据
+
+生产head `cee5cdcf624a2d01104b204652f21b53955d20c8`，16固定控制及12追加负控通过，L2 536 PASS；
+完整干净head L3 3550 passed, 6 skipped in 1098.35s (0:18:18)。正式官方子集五题各两次、10/10合同约定字段覆盖，
+均1次官方read、零通用搜索/答案模型调用，1.438–7.781s；原始响应/摘要及字段重放通过。
+这些证明本次支持子集和停止修复，不授予通用恢复逐事实覆盖或wall-time SLO。
+原xfail已移除，旧误判/失败样本保留。Lookup整体资格保持NOT CLOSED。
+FastAPI 日期范围仅为明确标注的 PyPI 包上传时间，发布公告日期未核实；10/10 指合同约定的来源字段检查，不授予额外日期语义或整个问题的语义资格。

@@ -7,6 +7,14 @@
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
+
+**2026-10-05 Lookup停止修复最终本地门 / 当前执行权（覆盖下方中途和待跑状态）：** #173 exact-main CI37299562378 SUCCESS；当前#174独立分支base main9a359e2a，生产head `cee5cdcf624a2d01104b204652f21b53955d20c8`。原生字段身份采纳、保留读取摘要及目标覆盖计数修复完成，SQLite strict xfail已移除。16固定案例全PASS，12追加身份/摘要/跨度负控PASS，自身28 PASS/10.40s；最终命名L2 536 PASS/164.80s；同一干净生产head完整L3 **3550 passed, 6 skipped in 1098.35s (0:18:18)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量范围审查通过。无新增parser/站点、预算或发布Gate放宽。
+
+**冻结真实观察：** `D:/study-agent-validation/lookup-official-live-cee5cdcf/result.json` 同head、五题各两次/总10次，10/10 official-first、usable read及合同约定字段覆盖；均runtime Lookup、1官方读取即停、无通用搜索、零答案模型调用、实际ChatService/SQLite保存，1.438–7.781s。十个原始响应及分层摘要/读取时间保留；重放现有字段提取、Python/Opus原文绑定跨度与发布摘要通过。保留先前SQLite误判及初次失败样本，小样本不授予wall-time SLO。
+
+**唯一下一门：** 更新#174标题/描述，记录一次新exact-head CI和当前review到 `D:/study-agent-validation/lookup-qualification-pr-state.json`，不借6b62d622旧CI全绿。新head CI/review通过后expected-head合并、exact-main验证。此次可合并的停止/完整性修复不等于Lookup CLOSED；通用恢复正文仍不能转换为逐事实支持，故L2可读性与L3可回答性必须分开。下一独立Lookup slice验证恢复获得可发布支持的路径，不新增站点特判、不放宽Gate。Standard多源/比较/冲突、Deep计划/gain/收敛/中断恢复依序后置；所有档位及整体QUALIFICATION NOT CLOSED。
+
+
 **2026-10-05 Lookup停止策略修复 / 当前执行权（覆盖下方待修/xfail/CI状态）：** #173 main9a359e2a exact-main CI37299562378 SUCCESS，主线交付闭环；#174原head6b62d622 CI37301552568 SUCCESS，远端review threads为空。原head绿灯不授予修复后的新head。当前仍在独立codex/lookup-tier-qualification分支、base该main，未合并#174。
 
 **当前修复：** 复用原生SQLite/FastAPI发布字段身份，要求精确官方URL、读成功、项目/版本真实跨度、content/transport摘要与source_version一致，不接受候选自报verified。恢复层保留原生content摘要（不重算掩盖篡改/截断），采纳身份后同步目标覆盖度，官方证据充分即停。未新增parser/站点、未改预算、未放宽发布Gate。SQLite strict xfail已移除；16个固定案例全PASS；新增12身份/摘要/跨度负控PASS，最终28项自身策略控制PASS/10.40s，命名Lookup+semantic-recovery L2 536 PASS/164.80s，mypy122/baseline128 NEW0、Ruff/diff-check PASS。计数修复之前的L2已主动停止，日志保留lookup-stop-L2-before-coverage-review.log，不计通过。
