@@ -44,7 +44,7 @@ def official_plan(query: str) -> OfficialPlan | None:
             # A family/latest or prerelease request cannot silently become the
             # initial stable release. Those intents require a separate planner.
             if (version.count(".") == 1 and re.search(r"最新|最近|latest|newest", query, re.I)
-                    or re.search(re.escape(version) + r"(?:\.x|(?:a|b|rc)\d+)", query, re.I)):
+                    or re.search(re.escape(version) + r"(?:[A-Za-z]|[.+-][A-Za-z0-9])", query)):
                 return None
             identity = resolve_identity(entity, version)
             if identity is None:
@@ -125,7 +125,7 @@ def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None 
         return fields
     if "python.org" in url:
         titles = document.xpath("//h1")
-        match = re.search(r"Python (\d+\.\d+\.\d+)(?![\w.])", titles[0].text_content() if titles else "")
+        match = re.search(r"Python (\d+\.\d+\.\d+)(?![\w.+-])", titles[0].text_content() if titles else "")
         if not match or urlsplit(url).path != f"/downloads/release/python-{match[1].replace('.', '')}/":
             raise ValueError("python_release_identity_mismatch")
         fields = {"project": "Python", "version": match[1]}

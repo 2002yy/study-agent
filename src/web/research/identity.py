@@ -52,7 +52,7 @@ def same_identity(requested: ResearchIdentity, observed: ResearchIdentity) -> bo
 
 _ANCHOR = re.compile(
     r"(?<![\w])(?P<product>Claude\s+Opus|Claude\s+Sonnet|Python|FastAPI|SQLite|CUDA|Opus|Sonnet|Qwen|GPT)"
-    r"[\s-]*(?P<version>\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(?![\w.])", re.I,
+    r"[\s-]*(?P<version>\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(?![\w.+-])", re.I,
 )
 
 

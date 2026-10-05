@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 
 from src.web.research.evidence_binding import EvidenceProposal, document_from_read, verify_binding
-from src.web.research.identity import resolve_identity
+from src.web.research.identity import identities_in_text, resolve_identity
 
 
 @pytest.mark.parametrize("product,left,right,equal", [
@@ -20,6 +20,11 @@ def test_product_version_rules(product, left, right, equal):
                                             ("Opus", "latest"), ("Python", "3.14.x")])
 def test_unsupported_identity_remains_unknown(product, version):
     assert resolve_identity(product, version) is None
+
+
+@pytest.mark.parametrize("text", ["Python 3.14.0-rc1", "Python 3.14.0+local", "Python 3.14.0.1", "opus-5-5"])
+def test_unsupported_tokens_are_not_recognized_by_their_valid_prefix(text):
+    assert identities_in_text(text) == ()
 
 
 def sample(heading="Claude Opus 5.5", body="Target fact."):

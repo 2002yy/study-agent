@@ -16,7 +16,8 @@ URL = "https://www.python.org/downloads/release/python-3140/"
 
 
 @pytest.mark.parametrize("query", ["Python 3.14最新正式版发布变化", "Python 3.14.x发布变化",
-                                  "Python 3.14.0rc1发布时间"])
+                                  "Python 3.14.0rc1发布时间", "Python 3.14.0-rc1发布时间",
+                                  "Python 3.14.0+local发布时间", "Python 3.14.0.1发布时间"])
 def test_family_or_prerelease_intent_is_not_reinterpreted_as_initial_stable(query):
     assert resolver.official_plan(query) is None
 
@@ -49,7 +50,7 @@ def test_different_release_heading_cannot_use_requested_url():
         resolver._fields(URL, b"<h1>Python 3.14.1</h1><p>Release date: Oct. 7, 2025</p>")
 
 
-@pytest.mark.parametrize("version", ["3.14.0rc1", "3.14.0a1", "3.14.0.1"])
+@pytest.mark.parametrize("version", ["3.14.0rc1", "3.14.0a1", "3.14.0.1", "3.14.0-rc1", "3.14.0+local"])
 def test_prerelease_or_extended_heading_is_not_truncated_to_stable(version):
     with pytest.raises(ValueError, match="identity_mismatch"):
         resolver._fields(URL, f"<h1>Python {version}</h1><p>Release date: Oct. 7, 2025</p>".encode())

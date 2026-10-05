@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 最终token边界候选（覆盖下方中途候选）：** 查询/标题/通用heading身份解析统一防止把有效版本前缀截出不支持的token，负控覆盖rc1、-rc1、+local、额外数字段及hyphen模型ID；未支持的token不能被解释为initial stable或较早模型。最终focused76PASS/19.75s，合并source-quality/recovery/identity的L2 451PASS/174.76s，Ruff/diff-check通过，mypy仍122/baseline128 NEW0（新增正则/负控不改变类型）。生产候选补齐后重新绑定干净HEAD的真实Python发布和完整L3；日志/结果`D:/study-agent-validation/python-binding-L3.log`与`python-binding-candidate-state.json`。前两次L3分别绑定993c8b0b和6375651b，因审查后的生产token修复主动终止，保留superseded日志，不计全绿；新的生产head解释此次重跑，并非重复跑同一已验证head。执行期间不写tracked文档、不继续扩张生产变更。完整门通过后才开新PR/记录一次exact-head CI；原#171已合并，Python候选还未合并，Opus/全局资格保持未完成。
+
+
 **2026-10-05 Python最终候选与Opus诊断（覆盖下方第一轮运行）：** 最终审查发现stable标题正则可能截断3.14.0rc1/3.14.0a1/四段版本为3.14.0；已加token终止边界与三个负控。旧生产head993c8b0b的L3因此在约70%被主动终止，不借作全绿证明，日志保留`D:/study-agent-validation/python-binding-L3-superseded-993c8b0b.log`。新候选focused67PASS/16.28s，整合L2 442PASS/134.42s，Ruff/diff-check PASS，mypy122/baseline128 NEW0；只补身份token校验，无未知失败。提交后干净HEAD重跑一次L3及受影响真实Python ChatService/SQLite观察，测试执行期间不得写tracked状态文档，当前不打开待合并PR。
 
 **已经交付主线：** 本机原工作树已从clean旧donor分支切到main并ff到090678a2，dirty=[]；旧codex/firefly-main-integration分支和环境/数据保留。#171已merged，当前主线首次CI37268947422待后续turn精确复核。Python第一轮clean-head993c8b0b实证为1read/1adopted/1.328s、field_backed、writer0，SQLite保存Python3.14.0与2025-10-07，日期ref携带真实label/heading/span与transport/canonical/decoded payload digests；产物`D:/study-agent-validation/python-binding-live-20261005/result.json`。新token守卫后只重跑受影响Python实证，不重复不相关题。
