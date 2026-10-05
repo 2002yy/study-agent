@@ -8,7 +8,11 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**2026-10-05 #173审查修复 / 当前执行权：** #172 exact-main CI37282534664已SUCCESS。#173原headdad7701a的CI37288521788首次仍in_progress，不作为新候选证据；远端两个P2已确认有效，暂不合并。修复一：显式proxy变量存在时Windows直接采用getproxies_environment，显式空HTTP/HTTPS/ALL代理（含没有NO_PROXY）不能借CPython内置fallback恢复系统代理。770ec0cb的L3因该补充生产修复主动终止并保留superseded日志，不计通过。修复二：reader canonical text排除nav及role=navigation（含嵌套/void节点），标题范围内的导航model ID不得作为身份佐证；原始payload摘要不变、canonical摘要/跨度按实际内容重新生成。直接影响集133 PASS/38.20s，Ruff全src/tests/tools PASS，mypy122/baseline128 NEW0，增量审查通过；命名L2 508 PASS/187.64s。待提交clean候选后重跑受影响Python/Opus真实读/ChatService/SQLite与一次L3，再push当前PR并记录一次新head CI；review修复涉及共享binding，不能借旧3507全绿。三档下一路线仍Lookup预算/恢复/覆盖资格化→Standard多源/比较/冲突→Deep合同/收敛/中断资格化，所有资格保持NOT CLOSED。
+**2026-10-05 #173审查修复 / 当前执行权（覆盖下方旧候选和待跑状态）：** Python #172 exact-main CI37282534664 SUCCESS，已交付。Opus #173两项P2均已修复：显式空proxy环境设置不恢复系统代理；canonical reader排除nav/role=navigation及嵌套/void节点，导航model ID不能提供身份佐证。最终生产head `dbee9e5669b6701a7c21c730e8ff14c72f35727e`，base main124de1ca；直接影响集133 PASS/38.20s，命名L2 508 PASS/187.64s；同一干净head完整L3 **3522 passed, 6 skipped in 1202.92s (0:20:02)**，起止head一致、tracked dirty为空；Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查通过。旧2362b0e7结果归档，不借旧head全绿。
+
+**真实受影响发布路径：** `D:/study-agent-validation/python-review-live-dbee9e56/result.json` 和 `opus-review-live-dbee9e56/result.json` 均绑定该clean head及实际读取/代码/答案摘要；Python 2.469s、Opus 5.11s，均runtime Lookup、1官方read/1adopted、field_backed、零答案模型调用，实际ChatService/SQLite保存；Opus原始来源heading/model ID/quote跨度重放通过。原FastAPI/SQLite/arXiv样例及旧失败样本保留，未重跑无关实证。
+
+**下一门：** push更新#173、记录一次新exact-head CI与review状态到 `D:/study-agent-validation/opus-binding-pr-state.json`；旧dad7701a CI不授予新head。新head CI及最终review通过后expected-head合并并核对exact-main，再从新main执行独立Lookup预算/恢复/覆盖资格化。外部执行草案 `D:/study-agent-validation/lookup-qualification-protocol-draft.md` 已冻结验收维度，但不授予资格。Standard多源/比较/冲突、Deep计划/Evidence Gain/收敛/中断依序后置；所有档位与整体 **QUALIFICATION NOT CLOSED**。CI pending不称远端交付。
 
 **2026-10-05 当前三档路线（覆盖下方历史下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前正在加固三档可复用的 Identity Resolution + Evidence Binding 基础。Python 为 Lookup 版本/日期接入样例，Opus 为 exact-version/mixed-content 样例。顺序：共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源、比较双方与冲突资格化 → Deep 计划、Evidence Gain、收敛/饱和/中断合同与资格化。五个官方读取样例不授予任何档位或整体研究 CLOSED。三档目标预算与边界见 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)，本刀未改 runtime 预算。
 
