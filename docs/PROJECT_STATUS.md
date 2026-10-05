@@ -8,6 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 L5公开来源冻结重放完成 / 当前执行权（覆盖下方旧pending记录）：** #174 exact-main push CI37314347931已completed/success，head main7ff7451da608775324383968b4c7ed23c5687832，与已审查合并提交一致，官方路径主线交付闭环完成。独立#175 branch codex/lookup-rescue-support-qualification，base上述main；公开来源重放绑定干净head fca4283da242953b7241ff15398735f2c16aef33，产物 D:/study-agent-validation/lookup-L5-public-source-capture/result.json。随后仅更新资格文档，不改研究生产行为。
+
+**来源与结果：** 捕获5份公开HTML，原始内容、SHA256、时间和reader摘要保存在同目录；仅2份首次TLS/超时失败，失败记录保留，换curl传输有界重试成功，其他来源未重抓。四例通过现有local reader→GeneralWebGateway/recovery→ChatService/临时SQLite真实保存出口；直达超时和搜索候选是受控注入，明确为frozen-source replay，不称live discovery。替代官方博客、非官方直接来源分别read_backed/2逻辑reads；教程相关页provider_exhausted/2 reads；3.13与3.15邻近版本组合provider_exhausted/3 reads。每例2查询阶段、0.312–2.266秒，均abstained、零assertion refs、零答案模型调用、dangerous publish=0。替代官方博客reader正文没有保留发布日期，不能算日期字段支持；非官方正文有直接日期仍无现有字段发布权限。通用target coverage只是marker覆盖，不能替代requested-field coverage。
+
+**资格结论与边界：** Lookup-Official QUALIFIED（#174官方路径及exact-main门）；Generic Rescue恢复与安全拒绝有公开来源重放证据，但publication NOT_QUALIFIED。Lookup整体仍NOT CLOSED，不能把4例安全拒绝冒充救援事实发布正控。未新增解析器特判、字段绑定权限、provider或预算改动。Standard多源/双方比较/冲突随后独立切片，Deep计划/gain/收敛/中断恢复后置；UI #176继续独立，不挡研究线。
+
+**CI修复与验证：** #175旧head d659801d的PR CI37317083177失败仅因secrets scanner将工具冻结的公开main SHA误报为高熵密钥；诊断保留 D:/study-agent-validation/lookup-L5-CI-diagnostics/ci-diagnostics/detect-secrets-report.json。仅该常量增加逐行allowlist注释，未放宽全仓扫描；定向扫描零finding，修复影响集10 PASS/5.17s。最终命名L1仍103 PASS/44.41s，Ruff/diff-check PASS；旧CI pytest及mypy no-new-errors通过。注释和资格文档不触发重复L3。新exact-head CI尚待推送记录，不借旧head结果授权合并。
+
+**唯一下一门：** 推送#175资格记录和扫描误报修复，记录一次新exact-head CI；后续核对该CI及最终审查，通过后expected-head保护合并、验证exact-main，再从干净main进入Standard S1/S2/S3资格合同与控件。#175合并不宣称Lookup整体或Generic Rescue发布资格关闭。
+
+
 
 **2026-10-05 独立L5来源重放工具开发 / 当前执行权：** branch codex/lookup-rescue-support-qualification，base main7ff7451d，草稿#175首head d507d9d5。本turn精确核对#174 main CI37314347931及#175 PR CI37315386314均仍in_progress，未轮询等待、未宣布主线/来源资格完成。开发准备继续，不执行正式重放。
 
