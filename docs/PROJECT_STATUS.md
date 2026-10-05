@@ -8,6 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-06 #177生产保存接入本地最终门 / 当前执行权：** 最终生产head e529b77434d22fea7356f6aee48fe5c02cc3b2a0，base main d13a338e9d1c78a9077a6ca63ec766a9cd083c2a。命名L1 lookup_terminal_handoff 170 PASS/60.81s；最终模块43 PASS/10.15s；同一干净head完整L3 **3624 passed, 6 skipped in 1106.35s (0:18:26)**，起止head一致、dirty start/end均空。结果D:/study-agent-validation/lookup-terminal-production-L3-state.json和同名log。Ruff/diff-check PASS，mypy122/baseline128 NEW0，最终增量审查PASS；旧87cad9c1中止L3保持归档，不计资格。接下来仅结果文档，不重复完整L3。
+
+**交付范围：** 明确请求字段计划+三终态判定+真实ChatService/SQLite保存pending handoff/owner已接入；不支持的额外facet未被吞掉，上传时间不冒充发布日期，unknown relevance/矛盾/冲突/取消/超预算拒绝交接。owner来自服务端turn/thread/run；handoff保持source/body digest、bound known refs、unresolved fields和实际attempted calls，加载核对摘要及重算快照，不授予发布权。Standard实际消费、整体deadline跨档账本、run ownership/cursor续跑与exactly-once复用仍未实施；当前是pending，而不是自动续研成功。
+
+**唯一下一门：** 推送并更新#177范围为生产终态/pending交接保存，记录一次最终exact-head CI；后续turn核对该CI及当前final review，通过后expected-head保护合并/exact-main。下一独立生产slice实施Standard消费入口/seed来源复用/预算/取消恢复（准备D:/study-agent-validation/lookup-standard-consumer-preparation.md，不授予执行资格）。字段意图规划目前只支持窄语法，复杂问题安全未规划；所有研究档位整体仍NOT CLOSED，UI #176继续独立。
+
+
 **候选冻结前意图覆盖修复：** 最小复现Python3.14 release date and download URL被旧keyword planner错误规划为仅release_date。它会漏掉一个用户请求字段，不能保留为完整VERIFIED。已停止本轮尚未完成的87cad9c1 L3（只终止自己验证过的进程树，不操作应用/用户进程），部分日志不计通过，状态归档D:/study-agent-validation/lookup-terminal-L3-invalidated-state.json。新规划器按支持的窄查询语法移除明确项目/版本/字段/连接词后，任何剩余未识别请求均返回未规划；中文下载地址/安装要求与英文download URL负控均安全拒绝。最终模块43 PASS/10.15s，mypy NEW0；新命名影响集验证后提交新干净生产head，执行一次L3。该重跑因生产行为修复使旧候选失效，不是重复绿色L3。
 
 
