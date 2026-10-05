@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 #171 当前修复交接（覆盖下方旧head/CI状态）：** 远端追加了三项审查修复：官方发布deadline到期先fail_turn释放operation；外发审计只在generation-start CAS记录物理provider调用；author贯通结构化fetch/cache/news/gateway。拉取后head为a27bdce2，其exact-head pull_request CI37229402645为FAIL，完整pytest 3404PASS/1FAIL/6skipped/423.81s，Ruff/secrets/mypy baseline/frontend通过。唯一失败`tests/test_wechat.py::test_fetch_article_text_with_method_uses_cached_method`：旧夹具直接注入三元组，新作者缓存格式为四元组，触发IndexError。此次只给该夹具补空作者，生产代码不变；七文件影响集（wechat/reader transport/backends/firecrawl/external policy/deadline/stream cancellation）94PASS/28.96s、Ruff/diff-check通过，增量复核三项修复无未解决本地finding，不重复本地L3。资格继续NOT CLOSED，待新的exact-head CI后才能expected-head合并；不能借8b8d45d4旧绿CI。CI后端完整运行将验证当前生产代码与已修夹具。主线合并前不扩张#171去接Python/Opus；独立身份/绑定基础分支仍保存ad81cfe6，93项测试通过但生产接入尚未完成。
+
+
 
 **2026-10-05 最新用户裁定：research-source-quality-v2 为 MERGE CANDIDATE，QUALIFICATION NOT CLOSED。** 本条覆盖下方历史MERGE NO_GO与五题全过才合并的规则。主线门为：较main的明确改善、已修路径真实ChatService/SQLite证据、事实与中断出口安全、回归/当前head CI/最终审查通过、无已知危险回归、缺口明示。最终资格门仍要求Python官方读取、Opus版本隔离及完整benchmark；合并不授予CLOSED或qualified judge。合同已同步 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。
 
