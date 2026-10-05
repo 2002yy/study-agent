@@ -7,6 +7,14 @@
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
+**2026-10-05 Lookup四门资格化 / 当前执行权（覆盖下方旧候选及待合并记录）：** #173 reviewed head ce81d9e1 exact-head pull_request CI37294671083 SUCCESS、两条P2已resolved、最终增量审查通过；expected-head squash合入 main `9a359e2a688fe42166f6cc6ab4eaeed4cf87b782`，本机原工作树main已ff且clean。exact-main push CI37299562378首次in_progress，本turn不重复轮询；因此已合并、尚不宣称exact-main远端交付闭环。#172此前main CI已SUCCESS。#173合入不等于Lookup CLOSED。
+
+**本刀范围：** 新分支 `codex/lookup-tier-qualification` 从该新main建立；只冻结四门L1预算/L2恢复/L3覆盖/L4安全拒绝，落成16个可执行案例与命名影响集，不改生产解析器/预算/发布权限。合同见 [`research_quality/LOOKUP_TIER_QUALIFICATION.md`](research_quality/LOOKUP_TIER_QUALIFICATION.md)。案例开发检查15 PASS、1 strict xfail；命名直接影响集345 PASS、1 strict xfail/95.37s，Ruff/diff-check PASS，明确不计资格通过；正式真实观察待exact-main验证后执行。危险负例经ChatService/临时SQLite出口拒绝，field-backed/拒绝路径均零答案模型调用。Reader后端成功只证明可读性，不授予逐事实支持。
+
+**已发现阻断：** 指定SQLite3.53.4原生官方字段已解析、摘要/跨度有效，但恢复层通用marker判requested_model_version_absent，answer_eligible=false、target coverage0/1，继续救援直到阶段预算耗尽。latest实证没有覆盖该分支。失败样本及最小复现分别为 `D:/study-agent-validation/lookup-matrix-development.log`、`lookup-sqlite-stop-root-cause.json`。通用恢复正文仍缺少可发布逐事实支持；可读性恢复不得冒充覆盖通过。日期缺失只发布已确认字段、日期仍缺失。
+
+**唯一下一slice：** 核对已知exact-main CI37299562378后，修复Lookup停止策略对原生已验证版本身份的采纳，保留伪字段/摘要/跨度负控，不新增站点特判、不放宽Gate；移除SQLite strict xfail并重跑直接影响集，按共享合同影响判定L3。再执行冻结16案例/最多10次官方真实观察并按四门分别结论。当前Lookup、Standard、Deep及整体QUALIFICATION NOT CLOSED；Standard依S1多源补全/S2双方比较绑定/S3冲突处理，Deep再验计划/gain/收敛/中断恢复。
+
 
 **2026-10-05 #173审查修复 / 当前执行权（覆盖下方旧候选和待跑状态）：** Python #172 exact-main CI37282534664 SUCCESS，已交付。Opus #173两项P2均已修复：显式空proxy环境设置不恢复系统代理；canonical reader排除nav/role=navigation及嵌套/void节点，导航model ID不能提供身份佐证。最终生产head `dbee9e5669b6701a7c21c730e8ff14c72f35727e`，base main124de1ca；直接影响集133 PASS/38.20s，命名L2 508 PASS/187.64s；同一干净head完整L3 **3522 passed, 6 skipped in 1202.92s (0:20:02)**，起止head一致、tracked dirty为空；Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查通过。旧2362b0e7结果归档，不借旧head全绿。
 
