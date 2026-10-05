@@ -9,6 +9,11 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-05 #174 review-fix 本地最终门 / 当前执行权：** 生产head `53d426037054be45c050d4a3226381b4020109ee`，base main9a359e2a；新增P2已通过最小原始版本token一致性修复解决。新候选Focused45 PASS，命名L2 537 PASS；同一干净head完整L3 **3551 passed, 6 skipped in 1156.68s (0:19:16)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查无未解决本地finding。完整结果D:/study-agent-validation/lookup-review-candidate-state.json；旧cee/ec6的CI/L3保持归档，不授予新head。旧cee真实10份来源的新代码冻结重放10/10，逐字段发布refs完全一致（lookup-review-frozen-replay.json）；未重跑不受影响的联网样本，也不冒充新head实测。
+
+**唯一下一门：** 推送review-fix及docs-only结果，更新#174，记录一次新exact-head CI/current review；通过后expected-head合并、exact-main验证。L5四case rescue-to-support另开，不能因可读正文宣称逐事实支持；Lookup official路径与整体资格区分，Lookup/Standard/Deep均NOT CLOSED。
+
+
 **2026-10-05 #174 final review 修复 / 当前执行权（覆盖下方旧候选待合并状态）：** 远端 ec6d6ebffde57c01db078e13c8e87bd77d616ed9 的 pull_request CI37306743836 SUCCESS，但 final review 新增有效 P2：FastAPI 查询0.136、正文0.136.0时，恢复层规范化身份通过并提前停，发布层原始版本合同拒绝。旧head不能直接合并。最小修复令原生release身份采纳同时要求source_version与plan.version原始token相同，与现有发布合同一致；不增加短版本发布能力，不改预算/Gate/解析器，不纳入L5。
 
 **修复证据与下一门：** 新增回归证明该不一致不能覆盖目标/提前停/发布，完整版本与SQLite正例保留。Focused45 PASS/22.70s；命名L2 537 PASS/171.74s；Ruff/diff-check PASS，mypy122/baseline128 NEW0。提交干净新生产候选后执行一次L3，结果写D:/study-agent-validation/lookup-review-candidate-state.json与lookup-review-L3.log。旧cee5cdcf的10次真实读取仍保留其原head与原始来源，不冒充新head实测；这次只收紧恢复身份采纳，reader和已验证完整版本输入未变。新head exact-CI与final review完成后才protected merge，再exact-main验证；L5四类rescue-to-support另开，所有档位仍NOT CLOSED。
