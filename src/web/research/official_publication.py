@@ -53,6 +53,8 @@ def publish_official_fields(query: str, calls: list[dict[str, Any]], candidate: 
                          "content_sha256": digest, "transport_sha256": result["transport_sha256"],
                          "source_span": [start, end], "quote": body[start:end],
                          "kind": "parsed_official_metadata_field"})
+            if isinstance(field.get("source_binding"), dict):
+                refs[-1]["source_binding"] = field["source_binding"]
     if refs:
         sources = list(dict.fromkeys(str(ref["url"]) for ref in refs))
         answer = "以下仅包含本次官方来源实际提供的字段：\n\n" + "\n".join(lines)

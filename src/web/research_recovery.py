@@ -550,9 +550,13 @@ def _recover_public_research(
                 matches = {
                     i for i, marker in enumerate(markers) if marker.search(content)
                 }
+                from src.web.research.official_resolver import verified_python_identity
+
+                verified_python = bool(phase == "official_resolver" and plan
+                                       and verified_python_identity(plan, url, body))
                 if plan and body.get("method") == "official_metadata_http_v2" and plan.version and body.get("source_version") != plan.version:
                     body.update(answer_eligible=False, adequacy_reason="requested_official_version_mismatch")
-                elif markers and not matches:
+                elif markers and not matches and not verified_python:
                     body.update(
                         answer_eligible=False,
                         adequacy_reason="requested_model_version_absent",

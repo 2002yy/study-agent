@@ -36,18 +36,31 @@ those responsibilities. Comparisons need separate supported assertions and
 bindings for both identities; mixed-version quotes are rejected in this initial
 implementation.
 
-## Activation and qualification remain open
+## Python activation; broader qualification remains open
 
-These modules are initially inert: no gateway, chat, persistence or publication
-consumer has been switched. There is no new LLM extractor or paid/login provider.
-URL/metadata/release-ID anchor alternatives are not implemented and must remain
-unknown. Reader-side trusted provenance must be preserved when wiring callers;
-model-supplied HTML cannot be passed as a successful read.
+Base now includes merged research #171, main `090678a2`. Python's official
+resolver consumes product-specific exact identity; the recovery marker may be
+skipped only for matching reader-owned project/version fields, exact spans and
+body digest on the registered official URL. A candidate identity flag is never
+accepted. Other projects and generic search retain their existing marker gates.
+Python latest-family, wildcard and prerelease requests are not silently rewritten
+as the initial stable release; those intents still need separate planning.
 
-Next integration slice after research-source-quality-v2 delivery: use normalized
-verified Python identity instead of the generic model-name marker; extract the
-actual labelled release date with deterministic date validation; verify the
-real Python ChatService/SQLite result and wrong-version/missing-date controls.
-Opus follows with actual official version anchors and adjacent-version controls.
-Do not claim either gap fixed or final research qualification CLOSED from these
-foundation tests. This branch does not expand the current merge candidate.
+The Python release-date adapter uses the reader-owned heading document. Label
+matching is case-insensitive, dates accept explicit ISO or English month/day/year
+formats and validate the calendar, and absent/invalid/ambiguous/adjacent-section
+fields stay absent. Published parsed metadata includes a source-binding audit of
+the original label/date quote, heading and quote spans, canonical text digest and
+decoded-payload digest; wire transport digest remains distinct. This binds the
+source location, while the existing publication gate retains final authority.
+
+No new LLM extractor, paid or login provider is added. Other anchor kinds remain
+unknown. UTF-8 and conservative per-heading scope limitations remain. Opus is
+not activated: the mixed-version overview still cannot authorize model claims.
+
+Acceptance: named identity/source-quality impact and retrieval integration gates,
+mypy no-new-errors, Ruff/diff/scope checks, one clean candidate backend L3 and a
+real Python ChatService/SQLite observation bound to code/source/answer digests and
+times. Do not modify tracked documents during the clean full suite. No general
+semantic-judge or learner-mastery authority is granted by these tests. Research
+qualification stays NOT CLOSED until Opus and the full benchmark pass.

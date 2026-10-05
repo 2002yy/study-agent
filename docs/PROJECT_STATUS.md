@@ -8,6 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前执行：#171已合入main，Python身份/日期接入为独立下一刀。** #171 head0c728db7 exact-head CI37267593688为success，三条远端review已resolved、最终增量自审通过，expected-head squash合并commit `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`。首次exact-main push CI37268947422为in_progress，本turn不重复轮询；原工作树保持clean旧donor分支，不覆盖用户运行进程。研究资格仍NOT CLOSED，不因主线合并宣告封板。
+
+**Python候选 / 范围：** branch `codex/research-identity-evidence-binding`合并最新main；正式身份层按产品规则规范化，Python3.14=3.14.0而非任意3.14.x；官方reader的已验证字段/URL/digest方可替代通用model marker，候选flag无授权。发布日期须位于匹配版本heading范围，标签大小写无关、日期格式与日历确定性校验；缺失/非法/相邻段落/多日期不补写。发布refs保留原文label/date quote、heading/span及canonical/decoded payload digest，transport digest独立。最新版本族/通配/预发布意图未被静默替换初始stable；Opus仍无生产读取授权。合同`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`同步。第一轮直接模块/官方发布focused61PASS；mypy122/baseline128 NEW0、Ruff通过；真实native官方读取已得到Python3.14.0及2025-10-07与真实版本标题/日期跨度，尚待干净commit的实际ChatService/SQLite观察。
+
+**下一门：** L2（source-quality/recovery/identity合并impact）439PASS/136.43s。提交干净候选，运行一次完整backend L3并做真实Python发布；测试运行期间不写tracked状态文档。L3、真实evidence、范围review齐后新PR→一次exact-head CI，green才expected-head合并。全局资格仍NOT CLOSED，后续Opus真实版本绑定和benchmark独立完成。
+
+
 **2026-10-05 独立后续：Identity Resolution / Evidence Binding 基础层。** branch `codex/research-identity-evidence-binding` 从main `5c9409fc` 开始，不叠加/扩大研究候选#171。合同 [`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`](research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md)。模型可提议意图/候选/跨度；确定性层按产品版本方案解析身份，并验证reader派生标题、read id/URL/digest、逐字原文跨度和段落边界。相邻版本、混合标题、伪造引用/来源、脚本文字、子标题越界均UNKNOWN；绑定只证明出处与版本范围，不授予事实支持/官方权威/发布许可。
 
 **基础证据 / 未完成项：** L1命名impact set `identity_evidence_binding` 93PASS/24.54s（26项直接身份/跨度负控+候选/查询/域名相邻测试）；两模块mypy无错误，Ruff/diff-check通过。仅增加未被生产调用的模块，没有切换gateway/chat/persistence/Gate，不因inert基础模块重复后端L3。已知边界：heading-only、UTF-8解压后HTML、每个子标题均保守终止父范围，其他anchor kinds仍UNKNOWN；没有新模型提取器/付费源/登录。**Python日期/身份生产修复、Opus真实版本隔离、正式资格均尚未完成。** 唯一下一刀：待#171 exact-head CI/最终审查/合并主线后，接Python verified identity与实际发布日期字段、真实ChatService/SQLite及版本/日期负控，再做Opus真实heading绑定，不把基础单测当资格封板。
