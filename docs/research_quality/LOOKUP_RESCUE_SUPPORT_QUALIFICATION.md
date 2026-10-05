@@ -67,3 +67,21 @@ manifest的cases严格为上述四个id，每例query固定为 `Python 3.14什�
 结论：**Lookup-Official QUALIFIED；Generic Rescue recovery-only，publication NOT_QUALIFIED；Lookup整体NOT CLOSED。** 本轮证明已有恢复和拒绝合同成立，没有证明generic rescue可以发布requested claim。该缺口正式保留，不为关闭资格增加临时parser、伪造official_fields或放宽Evidence Gate。
 
 旧#175 head d659801d PR CI37317083177的唯一最终失败为公开main SHA的secrets误报；逐行公开值allowlist注释修复，定向扫描0 finding，10个受影响控件PASS/5.17s；其余生产行为未变，命名L1 103 PASS/44.41s仍有效。注释/文档更新不重跑完整L3。下一执行门是#175新exact-head CI和最终审查→保护合并→exact-main；随后另分支推进Standard多源补全/双方比较/冲突，Deep与UI不混入此PR。
+
+
+## P2审查修复：旧结果不再授予四例资格
+
+远端head d9f33c7d CI37326488134绿后新增2个P2，#175不得合并。本刀只补资格runner/test，不改生产研究逻辑：CLI执行前验证MAIN是实际记录HEAD的祖先；每例除预算/最终拒绝，还验证如下恢复合同。
+
+| case | status | reads | evidence_tool_calls采用证据 | publication |
+| --- | --- | --- | --- | --- |
+| alternate_official | read_backed | 2 | 必须有 | abstained |
+| nonofficial_direct | read_backed | 2 | 必须有 | abstained |
+| related_missing_field | read_backed | 2 | 必须有 | abstained |
+| unbound_exhaustion | provider_exhausted | 3 | 必须无 | abstained |
+
+修复head04a0ce63732332da71524a2c5aecf9bdba05a713：工具22 PASS/7.71s，命名影响集119 PASS/51.54s；真实临时Git仓库验证旧/无关HEAD拒绝，全reader失败及每例wrong status/read/evidence均拒绝；CLI负控验证未写产物。Ruff/diff-check PASS，mypy122/baseline128 NEW0，无L3重复。
+
+原公开语料在该干净head重放被**正确拒绝**：教程related_missing_field只有提取成功，无精确目标marker，实际provider_exhausted/2读/无采用证据。日志D:/study-agent-validation/lookup-L5-P2-public-replay.log，exit1；P2-revalidated-result.json不存在。前述旧result.json保留原始观察，但旧“4例完成”的资格结论被撤销；不修改源正文、不调整生产marker来迁就该样本。Lookup-Official独立资格不受影响；L5 frozen-source qualification未完成，Generic Rescue发布NOT_QUALIFIED，Lookup整体NOT CLOSED。
+
+下一步：修复head exact CI与最终review，并以单独小证据切片补真实第三例read_backed/缺日期来源；新的四例门完整通过才可认可来源资格。不把安全拒绝、旧CI或已解决线程当合并授权，Standard/Deep实现继续后置。

@@ -8,6 +8,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 #175审查阻断修复 / 当前执行权（覆盖下方原L5完成结论）：** 当前#175远端旧head d9f33c7d exact-head PR CI37326488134 completed/success，但新增2个P2（PRRT_kwDOSYWoX86pFWFS、PRRT_kwDOSYWoX86pFWFc）阻止合并：replay head未检查包含gated main；仅预算上限/最终拒绝不能证明每例恢复成立。本刀修复head 04a0ce63732332da71524a2c5aecf9bdba05a713，base仍main7ff7451d；只改tools/run_lookup_rescue_support.py与tests/test_lookup_rescue_replay.py，随后仅文档记录，不碰生产研究逻辑或预算。
+
+**修复与验收：** CLI开始读取来源前执行git merge-base --is-ancestor MAIN <captured HEAD>，失败拒绝；逐例冻结前三例read_backed/2读/有可用证据，第四例provider_exhausted/3读/无采用证据，且所有例仍要求abstained/零refs/零答案模型调用。工具22 PASS/7.71s，命名L1 lookup_rescue_support 119 PASS/51.54s，Ruff/diff-check PASS，mypy current122/baseline128 NEW0。负控包括真实Git旧祖先/无关root、全reader失败、四例分别错status/read count/evidence，CLI拒绝时无qualification文件。生产/共享fixture未变，不重复L3。
+
+**重要资格纠正：** 干净修复head对原5份公开HTML重放，新门正确失败：related_missing_field实际provider_exhausted、2 reads、usable_evidence=False，不满足第三例read_backed正控，exit1且没有生成P2-revalidated-result.json；日志 D:/study-agent-validation/lookup-L5-P2-public-replay.log。旧result.json保留为历史安全拒绝观察，不能再当四例资格PASS。不改写HTML、不放宽生产marker、不用拒绝成功冒充恢复成功。Lookup-Official仍QUALIFIED；L5四例来源资格未完成，Generic Rescue publication NOT_QUALIFIED；Lookup整体NOT CLOSED。
+
+**唯一下一门：** 推送两个P2修复及纠正记录，保存一次新exact-head CI，复核最终review；同时资格缺口为第三例需真实相关、无请求日期但达到现有read_backed的冻结公开来源，另做小证据切片，不新增parser或放宽发布权限。CI/审查及来源门未完整通过前不保护合并，不进入Standard实现，UI #176独立。
+
+
 **2026-10-05 L5公开来源冻结重放完成 / 当前执行权（覆盖下方旧pending记录）：** #174 exact-main push CI37314347931已completed/success，head main7ff7451da608775324383968b4c7ed23c5687832，与已审查合并提交一致，官方路径主线交付闭环完成。独立#175 branch codex/lookup-rescue-support-qualification，base上述main；公开来源重放绑定干净head fca4283da242953b7241ff15398735f2c16aef33，产物 D:/study-agent-validation/lookup-L5-public-source-capture/result.json。随后仅更新资格文档，不改研究生产行为。
 
 **来源与结果：** 捕获5份公开HTML，原始内容、SHA256、时间和reader摘要保存在同目录；仅2份首次TLS/超时失败，失败记录保留，换curl传输有界重试成功，其他来源未重抓。四例通过现有local reader→GeneralWebGateway/recovery→ChatService/临时SQLite真实保存出口；直达超时和搜索候选是受控注入，明确为frozen-source replay，不称live discovery。替代官方博客、非官方直接来源分别read_backed/2逻辑reads；教程相关页provider_exhausted/2 reads；3.13与3.15邻近版本组合provider_exhausted/3 reads。每例2查询阶段、0.312–2.266秒，均abstained、零assertion refs、零答案模型调用、dangerous publish=0。替代官方博客reader正文没有保留发布日期，不能算日期字段支持；非官方正文有直接日期仍无现有字段发布权限。通用target coverage只是marker覆盖，不能替代requested-field coverage。
