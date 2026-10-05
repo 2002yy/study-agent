@@ -85,3 +85,26 @@ manifest的cases严格为上述四个id，每例query固定为 `Python 3.14什�
 原公开语料在该干净head重放被**正确拒绝**：教程related_missing_field只有提取成功，无精确目标marker，实际provider_exhausted/2读/无采用证据。日志D:/study-agent-validation/lookup-L5-P2-public-replay.log，exit1；P2-revalidated-result.json不存在。前述旧result.json保留原始观察，但旧“4例完成”的资格结论被撤销；不修改源正文、不调整生产marker来迁就该样本。Lookup-Official独立资格不受影响；L5 frozen-source qualification未完成，Generic Rescue发布NOT_QUALIFIED，Lookup整体NOT CLOSED。
 
 下一步：修复head exact CI与最终review，并以单独小证据切片补真实第三例read_backed/缺日期来源；新的四例门完整通过才可认可来源资格。不把安全拒绝、旧CI或已解决线程当合并授权，Standard/Deep实现继续后置。
+
+
+## 用户修订：Lookup终态与Standard交接合同（下一生产切片）
+
+本节根据用户后续决定覆盖“related_missing_field必须read_backed”的旧验收要求。测试必须保留公开教程实际provider_exhausted状态，不修改系统迎合测试。本PR只纠正资格观测门；三终态生产路由及Standard接入另开独立slice，不借离线runner宣称生产已升档。
+
+runner仍严格校验已验收main祖先和逐例行为。当前固定公开语料门为：alternate_official/nonofficial_direct各read_backed、2读、有采用证据；related_missing_field为provider_exhausted、2读、无采用证据但有discovery-linked可读正文；unbound_exhaustion为provider_exhausted、3读、无采用证据且邻近版本正文实际读取成功。每例最终abstained。`trusted_tool_calls`仅证明发现关联正文可读，`evidence_tool_calls`才是现有采用证据；两者均不授予claim authority。全reader失败、空正文、错误status/read/adoption仍拒绝资格文件。alternate_official当前博客未保留日期，无绑定，不能称VERIFIED；新路由正控必须用真正已有字段绑定来源。
+
+下一生产终态冻结为：
+
+| 终态 | 条件 | 动作 |
+| --- | --- | --- |
+| VERIFIED | 请求事实均有有效绑定并通过发布门 | 确定性回答并停止；不升档 |
+| SAFE_ABSTAIN | 全provider失败、来源不相关、明确身份不匹配/确定性矛盾、无有价值的补证方向，或明确缺字段且无可行gap | 安全拒绝并停止 |
+| ESCALATE_STANDARD | Lookup正常有界结束；至少一条可用且经相关性核验的来源；请求claim仍未绑定；无确定性矛盾/身份不匹配；有明确可继续研究的gap | 输出结构化handoff，由Standard在自己的预算与合同内续研 |
+
+仅“可读”或provider_exhausted不触发升档。相关性不能用marker命中冒充语义支持；relevance未知时不自动升档。当前教程样本为升档候选，并非已通过相关性/身份核验的生产升档成功样例；可保持SAFE_ABSTAIN。generic prose不能因handoff获得新的事实发布权限。
+
+handoff至少保存：schema_version、reason=claim_support_insufficient、原query与requested_claims（product/version/field）、已验证known身份事实及其原来源ref、usable_sources（source/candidate id、canonical/requested URL、reader/body digest、实际read时间、采用/身份/相关性状态，正文按现有持久化ref保存）、unresolved gap（需要的字段及binding缺口）、attempted（resolver/query/reader outcome及去重键）、lookup预算/停止原因/消耗、resume cursor。没有绑定的身份不能写入verified known；所谓official direct failed必须保存实际失败call ref。
+
+Standard继承来源和已完成工作用于补缺，不继承Lookup发布权；不能重复消费已完成读取预算。Lookup剩余预算为0也不表示Standard没有预算，两档预算分别记账、共享overall deadline由后续生产合同确定。开始Standard前需产品策略允许，自动升档开关、档位切换、取消/恢复和UI提示在生产slice明确，当前不默默改用户所选模式。
+
+验收必须覆盖：已有bound fields→VERIFIED/零Standard调用；provider全挂、不相关、身份冲突、矛盾前提、无gap→SAFE_ABSTAIN/零升档；相关可读未绑定→ESCALATE_STANDARD且handoff完整、已有read不重复；第三例保留真实provider_exhausted且能根据相关性/身份是否核验区别升档候选与安全结束；Standard续研必须找到真实claim-bound支持，否则仍拒绝事实发布。Lookup CLOSED不要求generic publication authority，但必须上述生产路由/持久化/预算/发布门验收完成。当前只冻结合同，Lookup/Standard/Deep仍未关闭。

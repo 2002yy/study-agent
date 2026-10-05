@@ -54,6 +54,10 @@ def make_synthetic_cases():
                     "html": f"<article><h1>Python {version}</h1><p>"
                     + f"Python {version} language tutorial and examples. " * 20 + "</p></article>"}
                    for version in versions]
+        if name == "related_missing_field":
+            sources[0]["html"] = ("<article><h1>Language tutorial</h1><p>"
+                                  + "This page explains language syntax and examples. " * 20
+                                  + "</p></article>")
         cases.append({"id": name, "query": "Python 3.14什么时候发布", "sources": sources})
     return cases
 
@@ -100,16 +104,18 @@ def test_replay_head_must_descend_from_gated_main(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("case_id", sorted(CASE_IDS))
-@pytest.mark.parametrize("mutation", ["status", "reads", "evidence"])
+@pytest.mark.parametrize("mutation", ["status", "reads", "evidence", "body"])
 def test_wrong_case_outcome_is_rejected(successful_rows, case_id, mutation):
     row = next(row for row in successful_rows if row["id"] == case_id)
     summary = dict(row["summary"])
     calls = row["raw_calls"]
     if mutation == "status":
-        summary["status"] = "read_backed" if case_id == "unbound_exhaustion" else "provider_exhausted"
+        summary["status"] = "failed"
     elif mutation == "reads":
         summary["reads"] -= 1
-    elif case_id == "unbound_exhaustion":
+    elif mutation == "body":
+        calls = []
+    elif case_id in {"unbound_exhaustion", "related_missing_field"}:
         calls = next(row for row in successful_rows if row["id"] == "alternate_official")["raw_calls"]
     else:
         calls = []

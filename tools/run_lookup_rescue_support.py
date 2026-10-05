@@ -34,19 +34,21 @@ def validate_replay_head(head: str, root: Path = ROOT) -> None:
 
 
 def validate_case_outcome(case_id: str, summary: dict, calls: list[dict]) -> None:
-    from src.web.tool_evidence import evidence_tool_calls
+    from src.web.tool_evidence import evidence_tool_calls, trusted_tool_calls
 
     if case_id not in CASE_IDS:
         raise ValueError("unknown L5 case")
     exhausted = case_id == "unbound_exhaustion"
-    expected_status = "provider_exhausted" if exhausted else "read_backed"
+    related = case_id == "related_missing_field"
+    expected_status = "provider_exhausted" if exhausted or related else "read_backed"
     expected_reads = 3 if exhausted else 2
     has_evidence = bool(evidence_tool_calls(calls))
+    has_body = any(call["name"] == "web_read" for call in trusted_tool_calls(calls))
     if (summary.get("status") != expected_status or summary.get("reads") != expected_reads
-            or has_evidence != (not exhausted)):
+            or has_evidence != (not exhausted and not related) or not has_body):
         raise ValueError(f"{case_id}: required recovery outcome missing "
                          f"(status={summary.get('status')}, reads={summary.get('reads')}, "
-                         f"usable_evidence={has_evidence})")
+                         f"usable_evidence={has_evidence}, readable_body={has_body})")
 
 
 def load_sources(path: Path) -> list[dict]:

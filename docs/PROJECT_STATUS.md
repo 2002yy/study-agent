@@ -8,6 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 用户修订L5目标 / 当前执行权（覆盖下方“第三例须read_backed、来源不符阻止下一步”旧要求）：** 用户明确Lookup不需获得generic逐事实发布权，下一生产切片采用VERIFIED/SAFE_ABSTAIN/ESCALATE_STANDARD三终态；升档仅限正常有界结束、有已核验相关可用来源、未绑定请求claim、无身份冲突/确定性矛盾且有明确gap。合同已冻结于research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md末节。Standard结构化handoff保留来源/digest/核验状态/请求claim/已尝试动作/gap/预算，生产接入必须独立slice，不混入当前#175审查修复。
+
+**本PR纠正：** 保留MAIN祖先校验和逐例状态/read/evidence负控；第三例接受原真实观测provider_exhausted/2读/无采用证据，同时严格要求实际discovery-linked可读正文。第一二例仍read_backed/2读/采用证据，第四例exhausted/3读/无采用证据、邻近正文确有读取。全reader失败依然不能伪装PASS。只改资格runner/test，不放宽生产identity/publication，不改采集HTML。新的完整四例重放和验证结果待本轮干净head记录；旧失败保留为旧合同负例。原教程只是升档候选，未经相关性/身份核验不能称已生产升档。
+
+**下一门：** 当前#175审查修复与更正后的观测门验证→新exact-head CI/最终review→保护合并/exact-main；随后独立实施Lookup三终态及handoff，复用现有样本验收Standard续研。Generic publication仍NOT_QUALIFIED，Lookup整体仍NOT CLOSED，UI #176独立。
+
+
 **2026-10-05 #175审查阻断修复 / 当前执行权（覆盖下方原L5完成结论）：** 当前#175远端旧head d9f33c7d exact-head PR CI37326488134 completed/success，但新增2个P2（PRRT_kwDOSYWoX86pFWFS、PRRT_kwDOSYWoX86pFWFc）阻止合并：replay head未检查包含gated main；仅预算上限/最终拒绝不能证明每例恢复成立。本刀修复head 04a0ce63732332da71524a2c5aecf9bdba05a713，base仍main7ff7451d；只改tools/run_lookup_rescue_support.py与tests/test_lookup_rescue_replay.py，随后仅文档记录，不碰生产研究逻辑或预算。
 
 **修复与验收：** CLI开始读取来源前执行git merge-base --is-ancestor MAIN <captured HEAD>，失败拒绝；逐例冻结前三例read_backed/2读/有可用证据，第四例provider_exhausted/3读/无采用证据，且所有例仍要求abstained/零refs/零答案模型调用。工具22 PASS/7.71s，命名L1 lookup_rescue_support 119 PASS/51.54s，Ruff/diff-check PASS，mypy current122/baseline128 NEW0。负控包括真实Git旧祖先/无关root、全reader失败、四例分别错status/read count/evidence，CLI拒绝时无qualification文件。生产/共享fixture未变，不重复L3。
