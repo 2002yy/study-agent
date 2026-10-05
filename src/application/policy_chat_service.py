@@ -137,6 +137,11 @@ def _semantic_external_call(run: Any) -> dict[str, Any] | None:
 def _web_external_calls(web_call_rows: list[Any]) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
     for row in web_call_rows:
+        if isinstance(row, dict) and row.get("name") == "research_semantics":
+            for index, event in enumerate(row.get("result", {}).get("events", [])):
+                calls.append({**event, "call_id": f"research_semantics:{index + 1}",
+                              "result": event.get("validation", event.get("status", "unknown"))})
+            continue
         if not isinstance(row, dict) or row.get("name") != "web_search":
             continue
         raw_result = row.get("result")
@@ -516,6 +521,7 @@ class ExternalDataPolicyChatService(ChatService):
                     owner_thread_id=thread.id,
                     owner_turn_id=turn_id,
                     research_intent=task_contract.task_intent == "research",
+                    history_allowed=decision.history_allowed,
                 )
             else:
                 web_tools = WebToolTrace(enabled=False)
@@ -553,7 +559,7 @@ class ExternalDataPolicyChatService(ChatService):
                 units=evidence_units,
                 plan=pedagogy_plan,
             )
-            web_call_rows = web_tools.to_dict().get("calls") or []
+            web_call_rows = list(web_tools.calls)
             local_evidence_units = [
                 unit for unit in evidence_units if unit.type == "document_chunk"
             ]
@@ -610,6 +616,27 @@ class ExternalDataPolicyChatService(ChatService):
                 context_blocks.append(disclosed.private_context)
             if disclosed.context:
                 context_blocks.append(disclosed.context)
+            if decision.web_allowed and (
+                task_contract.task_intent == "research"
+                or web_tools.to_dict().get("recovery") is not None
+            ):
+                recovery = web_tools.to_dict().get("recovery") or {}
+                if recovery.get("query"):
+                    context_blocks.append(
+                        "本轮实际研究主题（搜索线索，不是证据）："
+                        + str(recovery["query"])
+                    )
+                context_blocks.append(
+                    "用户已授权本轮联网研究。优先依据实际读取的相关来源回答原研究主题；"
+                    "不要因模型不认识术语就让用户先解释、提供链接或再次授权搜索。"
+                    "简短追问与催促承接前文主题。搜索或读取失败时简要说明实际失败，"
+                    "不要归咎于用户命名错误；未找到不能证明不存在。只有已检索仍有"
+                    "无法区分的多个指代时才提出必要澄清，不长篇重复证据规则。"
+                    "本轮受限检索恢复已执行；直接给出可支持的回答或简短失败说明，"
+                    "不要以‘是否要我去查’或‘如果你愿意我可以继续搜’结束回答。"
+                    "历史回答中的来源清单和失败提示不是本轮工具结果；不要复制其"
+                    "联网完成/失败声明或旧来源预览，来源展示由服务端处理。"
+                )
             if decision.web_allowed and not web_tools.used:
                 if task_contract.task_intent == "research":
                     context_blocks.append(
@@ -742,6 +769,7 @@ class ExternalDataPolicyChatService(ChatService):
                     self.repository.release_chat_operation(thread.id, operation_id)
             raise
         return PreparedChatTurn(
+            research_deadline=web_tools.answer_deadline,
             thread=self.repository.get_chat_thread(thread.id) or thread,
             turn=streaming,
             messages=messages,
@@ -826,6 +854,8 @@ class ExternalDataPolicyChatService(ChatService):
         """Atomically reserve provider start and persist G16 answer egress truth."""
         operation_id = prepared.turn.operation_id or ""
         next_calls = _route_generation_calls(prepared.route) + 1
+        self._check_research_model_budget(prepared, next_calls)
+        self._record_answer_call(prepared, "attempted")
         route_snapshot = {
             **prepared.route,
             "answer_generation_calls": next_calls,
@@ -854,20 +884,12 @@ class ExternalDataPolicyChatService(ChatService):
         return True
 
     def generate(self, prepared: PreparedChatTurn) -> str:
-        self._record_answer_call(prepared, "attempted")
         return super().generate(prepared)
 
     def stream(self, prepared: PreparedChatTurn, *, should_cancel=None) -> Iterator[str]:
-        def audited_stream() -> Iterator[str]:
-            self._record_answer_call(prepared, "attempted")
-            yield from super(ExternalDataPolicyChatService, self).stream(
-                prepared, should_cancel=should_cancel
-            )
-
-        return audited_stream()
+        return super().stream(prepared, should_cancel=should_cancel)
 
     async def stream_async(self, prepared: PreparedChatTurn) -> AsyncIterator[str]:
-        self._record_answer_call(prepared, "attempted")
         async for token in super().stream_async(prepared):
             yield token
 

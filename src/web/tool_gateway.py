@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import os
+import re
 import time
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
@@ -152,6 +153,8 @@ def _canonical_read_error_code(reason: str) -> str:
 class GeneralWebGateway:
     """Expose bounded search, page reading, and GitHub browsing to model tools."""
 
+    supports_official_metadata = True
+
     def __init__(
         self,
         github_reader: GitHubSourceReader | None = None,
@@ -193,6 +196,19 @@ class GeneralWebGateway:
 
         outcome = self._search_single(focused, limit)
         results = list(outcome["results"])
+        # Engines do not consistently honor site: syntax. A single positive
+        # domain constraint is enforceable locally; complex OR/negative queries
+        # keep their existing behavior rather than inventing parser semantics.
+        domain_filter = re.fullmatch(r"site:([A-Za-z0-9.-]+)\s+[^()]+", focused)
+        filtered_count = 0
+        if domain_filter and not re.search(r"(?:\bOR\b|-site:|\bsite:)", focused[domain_filter.end(1):]):
+            domain = domain_filter.group(1).lower().rstrip(".")
+            scoped = [item for item in results if (
+                (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".") == domain
+                or (urlparse(item.get("url", "")).hostname or "").lower().rstrip(".").endswith("." + domain)
+            )]
+            filtered_count = len(results) - len(scoped)
+            results = scoped
         provider_errors = list(outcome["provider_errors"])
         providers_enabled = bool(outcome["providers_attempted"])
         if results:
@@ -211,9 +227,10 @@ class GeneralWebGateway:
             reason = "providers_returned_no_results"
         return {
             "status": status,
-            "reason": reason,
+            "reason": "domain_constraint_rejected_results" if filtered_count and not results else reason,
             "query": focused,
             "results": results,
+            "domain_filtered_count": filtered_count,
             "provider_errors": provider_errors,
             "providers_attempted": list(outcome["providers_attempted"]),
             "searched_at": current.isoformat(),
@@ -377,6 +394,11 @@ class GeneralWebGateway:
         self, url: str, *, max_chars: int = 6000, timeout: float | None = None
     ) -> dict[str, Any]:
         value = str(url or "").strip()
+        from src.web.research.official_resolver import read_official_metadata
+
+        official = read_official_metadata(value, timeout=timeout or 10, max_chars=max_chars)
+        if official is not None:
+            return official
         if self.github_reader.supports(value):
             return self.github_reader.read(value, max_chars=max_chars)
         result = fetch_article_read_result(
@@ -391,13 +413,16 @@ class GeneralWebGateway:
                 "error": result.reason or "page_read_failed",
                 "error_code": _canonical_read_error_code(result.reason),
             }
-        return {
+        response = {
             "ok": True,
             "kind": "web_page",
             "url": result.final_url or result.requested_url,
             "method": result.method,
             "content": result.text,
         }
+        if result.author:
+            response["author"] = result.author
+        return response
 
     def github_search(
         self,

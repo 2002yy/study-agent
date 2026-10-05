@@ -179,6 +179,7 @@ def test_fetch_article_text_with_method_uses_cached_method():
         time.time(),
         "cached text",
         "readability",
+        "",  # This cached source has no author metadata.
     )
 
     text, method = fetch_article_text_with_method("https://example.com/a")

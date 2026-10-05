@@ -217,11 +217,7 @@ async def chat_stream_endpoint(
                 and web_tools.get("error")
                 and web_tools.get("used") is not True
             ):
-                notice = (
-                    "联网搜索获得了候选链接，但尚未读取正文；本回答不将这些候选作为结论来源。\n\n"
-                    if web_tools.get("evidence_status") == "candidate_only"
-                    else "联网搜索失败，本回答未使用联网来源。\n\n"
-                )
+                notice = _web_failure_notice(web_tools)
                 # For a research-validation turn, this route-owned UI notice is
                 # not part of the model candidate and must not enter the binder
                 # or its answer hash.  The underlying web-tools truth remains
@@ -411,6 +407,25 @@ def _research_progress(run: Any) -> dict[str, Any]:
         "last_step_kind": (last_step or {}).get("kind"),
         "last_step_text": (last_step or {}).get("text"),
     }
+
+
+def _web_failure_notice(web_tools: dict[str, Any]) -> str:
+    if web_tools.get("evidence_status") != "candidate_only":
+        return "联网搜索失败，本回答未使用联网来源。\n\n"
+    attempted_read = any(
+        isinstance(call, dict) and call.get("name") == "web_read"
+        for key in ("calls", "diagnostic_calls")
+        for call in (web_tools.get(key) or [])
+    )
+    if attempted_read:
+        return (
+            "联网搜索获得了候选链接，已尝试读取，但未获得可用于回答的相关正文；"
+            "本回答不将这些候选作为结论来源。\n\n"
+        )
+    return (
+        "联网搜索获得了候选链接，但尚未读取正文；"
+        "本回答不将这些候选作为结论来源。\n\n"
+    )
 
 
 def _web_source_preview(web_tools: dict[str, Any]) -> str:

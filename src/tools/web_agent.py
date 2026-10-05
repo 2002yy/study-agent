@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from src.llm_client import ModelProfile, run_tool_loop
 from src.web.query_normalizer import normalize_web_query
+from src.web.research_recovery import recovery_summary
 from src.web.tool_evidence import (
     diagnostic_tool_calls,
     evidence_tool_calls,
@@ -239,6 +240,8 @@ class WebToolTrace:
     error: str = ""
     enabled: bool = True
     run_id: str = ""
+    # Process-local deadline; never serialized as durable evidence or authority.
+    answer_deadline: float | None = None
 
     @property
     def used(self) -> bool:
@@ -279,7 +282,11 @@ class WebToolTrace:
         derived_error = ""
         if self.calls and not evidence_calls:
             if candidate_count:
+                attempted_read = any(call.get("name") == "web_read" for call in self.calls)
                 derived_error = (
+                    "联网搜索返回候选，已尝试读取，但未获得能回答该问题的相关正文；"
+                    "本回答未使用这些候选作为结论来源"
+                    if attempted_read else
                     "联网搜索只得到候选链接，尚未读取正文；"
                     "本回答未使用这些候选作为结论来源"
                 )
@@ -318,6 +325,9 @@ class WebToolTrace:
             "provider_errors": call_errors,
             "error": self.error or derived_error,
             "run_id": self.run_id,
+            "recovery": recovery_summary(list(self.calls)),
+            "semantics": next((dict(call["result"]) for call in reversed(self.calls)
+                               if call.get("name") == "research_semantics"), None),
         }
 
 

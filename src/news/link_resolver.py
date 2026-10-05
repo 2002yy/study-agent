@@ -13,6 +13,9 @@ from urllib.request import (
 )
 
 from src.news.article_extractor import decode_html_payload as _decode_html_payload
+from src.news.article_extractor import (
+    decompress_transport_payload as _decompress_transport_payload,
+)
 from src.news.url_normalizer import (
     RedirectHop,
     RedirectResolutionResult,
@@ -234,6 +237,9 @@ def resolve_news_link_result(url: str, timeout: int = 6) -> RedirectResolutionRe
             content_type = response.headers.get("Content-Type", "")
             if "html" in content_type.lower():
                 payload = response.read(250_000)
+                payload = _decompress_transport_payload(
+                    payload, response.headers.get("Content-Encoding", "")
+                )
                 html = _decode_html_payload(payload, content_type)
                 extracted_url = _extract_resolved_url_from_google_news_html(html)
                 if extracted_url:

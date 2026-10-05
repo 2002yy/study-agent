@@ -6,7 +6,11 @@ import time
 from src.tools.web_agent import WebToolTrace
 
 from src.api.models.chat import ChatRequest
-from src.api.routes.chat_routes import _web_source_preview, chat_stream_endpoint
+from src.api.routes.chat_routes import (
+    _web_failure_notice,
+    _web_source_preview,
+    chat_stream_endpoint,
+)
 from src.application.chat_service import ChatDependencies, ChatService
 from src.context_builder import build_messages
 from src.mode_manager import RuntimeModes
@@ -19,6 +23,16 @@ class FakeRagResult:
 
     def to_dict(self):
         return {"status": "skipped", "context": "", "result_count": 0}
+
+
+def test_rejected_or_failed_read_is_not_reported_as_never_attempted():
+    notice = _web_failure_notice({
+        "evidence_status": "candidate_only",
+        "calls": [{"name": "web_search"}],
+        "diagnostic_calls": [{"name": "web_read", "ok": False}],
+    })
+    assert "已尝试读取" in notice
+    assert "尚未读取正文" not in notice
 
 
 class DisconnectRequest:

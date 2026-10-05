@@ -15,6 +15,38 @@
 
 **主线状态同步：** main30096e9f已含UI #170及两处review修复。研究候选新PR#171 head8b8d45d4378883970afb5aacca47d3f2bfe3dcc3，exact-head pull_request CI37227832827首次in_progress；下一turn只查询该run，不本轮轮询。研究主线仍MERGE CANDIDATE/QUALIFICATION NOT CLOSED，优先级高于下方main旧NO_GO记录。
 
+**2026-10-05 #171 当前修复交接（覆盖下方旧head/CI状态）：** 远端追加了三项审查修复：官方发布deadline到期先fail_turn释放operation；外发审计只在generation-start CAS记录物理provider调用；author贯通结构化fetch/cache/news/gateway。拉取后head为a27bdce2，其exact-head pull_request CI37229402645为FAIL，完整pytest 3404PASS/1FAIL/6skipped/423.81s，Ruff/secrets/mypy baseline/frontend通过。唯一失败`tests/test_wechat.py::test_fetch_article_text_with_method_uses_cached_method`：旧夹具直接注入三元组，新作者缓存格式为四元组，触发IndexError。此次只给该夹具补空作者，生产代码不变；七文件影响集（wechat/reader transport/backends/firecrawl/external policy/deadline/stream cancellation）94PASS/28.96s、Ruff/diff-check通过，增量复核三项修复无未解决本地finding，不重复本地L3。资格继续NOT CLOSED，待新的exact-head CI后才能expected-head合并；不能借8b8d45d4旧绿CI。CI后端完整运行将验证当前生产代码与已修夹具。主线合并前不扩张#171去接Python/Opus；独立身份/绑定基础分支仍保存ad81cfe6，93项测试通过但生产接入尚未完成。
+
+
+
+**2026-10-05 最新用户裁定：research-source-quality-v2 为 MERGE CANDIDATE，QUALIFICATION NOT CLOSED。** 本条覆盖下方历史MERGE NO_GO与五题全过才合并的规则。主线门为：较main的明确改善、已修路径真实ChatService/SQLite证据、事实与中断出口安全、回归/当前head CI/最终审查通过、无已知危险回归、缺口明示。最终资格门仍要求Python官方读取、Opus版本隔离及完整benchmark；合并不授予CLOSED或qualified judge。合同已同步 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。
+
+**本轮窄修 / 范围：** arXiv注册的官方seed不再被标题/数字URL的通用词面筛选误排；身份只授权读取，正式作者/日期仍须真实metadata与digest/span支持。负控不允许猜作者，L1 61 PASS/18.71s。临时校准脚本和manifest从合并差异删除，保存在 `D:/study-agent-validation/run-source-quality-observation.py` 和 `source-quality-v2-live-manifest.json`。无Firefly/UI/候选池扩张/付费源/登录态；Python未加hack，Opus未加入未验证版本假设。generic research无claim-bound验证计划会保守拒答，这是已知答案覆盖限制；正式ResearchRun验证计划的既有Gate保持权威。普通学习/聊天与学习授权合同不受新metadata门替代。
+
+**Python / Opus 根因补充（2026-10-05，尚未实施后续修复）：** 已用实际Python官方HTTP响应核实：服务端仍返回gzip，正确解压后h1为Python3.14.0，日期标签是`Release date:`；当前大小写敏感的`Release Date:`正则漏日期。另一处是官方source_version与plan.version已相等，但后续通用模型marker仍把用户3.14与正文3.14.0误判不匹配。后续窄修使用已验证项目/规范版本身份跳过词面误判，并在目标日期节点提取真实字段，补不同版本/无日期负控。Opus目前resolver只有混合多版本的models overview，reader明确拒绝该页作为exact-version证据；需实现具体官方版本记录与比较双方独立证据范围，尚未完成真实资格化。二者均不阻挡用户已授权的研究候选合并。当前head1621736真实FastAPI/SQLite/arXiv已全部field_backed（每题1次官方读取、零答案模型调用、SQLite保存与断言refs）；L2 329PASS、mypyNEW0，完整L3 3400PASS/2FAIL/6skipped（状态文档写入触发dirty-check资格守卫，待提交后局部复核），日志`D:/study-agent-validation/source-quality-merge-L3.log`。
+
+**执行状态 / 下一步（2026-10-05）：** production head1621736，base main5c9409；L1 61PASS、L2 329PASS/124.09s、mypy122/baseline128 NEW0、Ruff PASS。一次L3为3400PASS/2FAIL/6skipped/1161.93s；失败仅`tests/test_rq1c_protocol_probes.py`两项，因代理在L3过程中修改本状态文档而触发exact_checkout_git_sha clean-tracked守卫。保留失败样本，不声称该完整运行全绿；生产/fixtures未改，提交文档后在干净工作树重跑protocol与相邻git身份检查21PASS/31.74s，证明两项失败来自dirty状态；不因文档重复L3。真实FastAPI/SQLite/arXiv在干净生产head各1次官方读取、零答案模型调用、field_backed，产物`D:/study-agent-validation/source-quality-merge-live/result.json`。main后端同一三题真实ChatService/SQLite对照全部无可用正文，分别17.047/14.234/12.031s；新候选1.078/2.360/0.437s。单次小样本只证明这三条路径改善，不授予通用质量资格。范围复核40文件：backend/相关tests/两份合同状态文档，无frontend/config/tools临时文件，最终增量1621736无未解决代码finding。下一步：新PR→exact-head CI记录一次，green且最终审查通过再expected-head合并；exact-main待后续验证，资格NOT CLOSED。
+
+**独立后续边界：** 最新用户要求Identity Resolution与Evidence Binding正式解耦；分支`codex/research-identity-evidence-binding`从main5c9409独立起步，没有扩张当前研究PR。模型只能提出产品/版本/标题/跨度，程序验证产品特定版本规则、reader派生heading边界、read id/URL/digest/原文跨度；绑定只证明段落所属，不授予事实正确性/官方权威/发布许可。基础层L1 91PASS、模块mypy零错误，尚未接入生产出口/完成Python真实修复/Opus资格化。UI #170 exact-head CI37225132421已success，但远端两项P2（外发服务商身份/混合检索评分信息丢失）需修复后新head CI，UI独立不挡研究。
+
+
+**2026-10-05 research v2 候选门关闭为 NO_GO（覆盖下方执行中状态）：** 生产head `dc6430b7b0ac3201a9140d25b1c334de37a81a0a`，base main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8`，branch `codex/research-source-quality-v2`；三个生产提交9028fb89/132fe011/dc6430b7分别迁移调度与漏斗、有界reader、官方resolver与字段发布硬门。末轮L1 67 PASS及partial-commit回归16 PASS；L2 326 PASS；同一生产head完整L3 **3401 PASS/6 skipped/1133.99s**；mypy122/baseline128 NEW0、Ruff/diff-check PASS。本次追加仅记录证据，不重跑完整套件。
+
+**clean-head真实证据：** artifact `D:/study-agent-validation/source-quality-v2-live-20261005/result.json` 记录head dc6430b7、dirty_paths=[]、生产文件digest、官方读取时间、真实ChatService/SQLite发布文本与assertion refs；manifest `D:/study-agent-validation/source-quality-v2-live-manifest.json` 的五个用户验收问题取代旧八题中的五个并保留三项未执行项，明确独立acceptance诊断，不修改旧冻结manifest、不授予semantic judge资格。FastAPI和SQLite实际field-backed，PyPI日期仅标包上传日期；Python官方metadata版本3.14.0被通用3.14模型marker拒绝，日期未提取；arXiv官方seed在read前被标unrelated_or_invalid_candidate而过滤，CSDN读到正文仍不能发布作者；Opus普通正文不能代替exact-version metadata，最终abstain。**发布通过2/5，绝不合并研究，也不借全绿L3冒称五题通过。** 已有interrupt/fail及客户端partial-commit出口抑制未验证前缀，字段式答复不调用prose模型，不授权学习状态。
+
+**唯一研究下一刀：** 修已验证官方seed的候选/read身份门：arXiv注册seed不能被通用URL相关度误排；Python已匹配规范版本应使用身份门而非模型名marker，并获得真实官方发布日期字段。补对应负控，重复受影响真实问题后验证新候选head；Opus仍保持相邻版本负控/明确缺口，不猜作者、日期或版本。#161/#164继续仅供取零件，#168平台合同独立后置。
+
+**用户新增UI任务另线完成：** main独立branch `codex/ui-chinese-terminology` 生产head `e02f67c187e3b22704ba28125505608ee71e71aa`，中文术语/未知状态/错误渲染边界一个提交。16项专门渲染回归、unit419、build、浏览器53、真实栈14均PASS；原始API/枚举/合同及外部内容不变。其PR/CI状态查 `D:/study-agent-validation/ui-chinese-ci-state.json`，没有把UI混入本研究分支。研究生产候选先push保存分支，不创建可合并PR，不跑额外重复CI。原工作树和其他分支未动。
+
+**2026-10-05 当前执行权：research-source-quality-v2。** 用户明确停止把 #161/#164 当作待合并大包；旧分支仅供提取零件。从已合并 #169 的 main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8` 建立 `codex/research-source-quality-v2`，工作树 `D:/study-agent-validation/research-source-quality-v2`。合同入口 [`research_quality/SOURCE_QUALITY_V2_CONTRACT.md`](research_quality/SOURCE_QUALITY_V2_CONTRACT.md)。已拆成两个 donor commits：`9028fb89` 搜索 recovery/deadline/lifecycle + 实际漏斗；`132fe011` gzip/deflate 真正有界解压、表格/作者、release-link ranking。无旧 UI/startup/扩候选池/provider multiplication/旧 qualification artifact。
+
+**新实现：** 官方地址优先（PyPI FastAPI、SQLite变化/特定版本、Python版本页、arXiv元数据），失败后通用 recovery；地址是 resolver seed，不冒充搜索结果。发布出口使用已读官方 metadata 的 field/digest/span，缺失作者不补写、相邻版本不替代；未知显式研究若无 claim-bound plan 则 abstain，已有显式 Evidence Gate 不旁路。SSE 缓冲，不泄漏未验证前缀；字段式回答不调用 prose 模型、不推进学习授权。Opus overview 尚无 exact-version reader，保守拒绝，不声称不存在该版本。
+
+**证据 / 下一步：** 第一轮相关 L1 99 PASS，迁移+reader+官方栈 L2 326 PASS/140.36s；后续发布门 focused49 PASS，mypy122/baseline128 NEW0、Ruff/diff-check PASS。最后字段式零模型调用入口与测试正在收尾；必须最终 L1/L3 + clean-head 五题真实 production ChatService/SQLite 样本，分别核查 Source 与 Answer。未通过不 merge、不称 GO。旧 #161/#164 不再拥有 NEXT；#168 平台合同为后续独立能力。main exact CI `37219334273` 首次 in_progress，尚未重复查询。
+
+**新增 UI 旁路（2026-10-05）：** 用户要求学习状态/证据/研究/设置/错误文案一次中文化，内部变量/API/枚举、外部标题/输入/回答/URL/代码/正式名称不动；独立 main 分支 bounded slice，一个提交/一次 CI，不混入本研究候选。研究线原目标继续保留。
+
+**最新main集成记录：** UI #170已由远端合入main30096e9f，外发服务商身份与hybrid评分两处review修复也已在该main内容中；研究base只增加frontend和状态文档，backend未变。下方main的旧NO_GO是历史状态，由本节最新用户MERGE CANDIDATE裁定覆盖。
 
 **2026-10-05 当前 UI 中文术语 slice（覆盖下方历史 NEXT）：** 从 main `5c9409fca58ce569bd82601b98fe87c86ce3c9a8` 建立 `codex/ui-chinese-terminology`，工作树 `D:/study-agent-validation/ui-chinese-terminology`。一个提交、一条 PR、一次 exact-head CI。只改产品渲染边界：学习状态/源码证据/来源诊断/研究状态/设置/错误提示。Claim、Goal、Evidence Gate、快捷键和默认角色显示中文；API/数据库/后端枚举/选项值保持不变；外部标题、学习内容、回答、路径、URL及正式名称保留。检索评分为中文字段表，未知标签统一中文兜底；映射只读取自有键，constructor/toString/__proto__ 也不能泄漏或导致错误。未知理解状态显示状态未知，不升级为已验证。原始错误仅进入开发者诊断或开发者日志。
 
