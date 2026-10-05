@@ -36,7 +36,7 @@ class _VisibleDocument(HTMLParser):
         self.chunks: list[str] = []
         self.length = 0
         self.sections: list[list[int]] = []
-        self.hidden = 0
+        self.hidden: list[str] = []
         self.heading = False
 
     def append(self, value: str) -> None:
@@ -44,9 +44,12 @@ class _VisibleDocument(HTMLParser):
         self.length += len(value)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in {"script", "style"}:
-            self.hidden += 1
         if self.hidden:
+            if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+                self.hidden.append(tag)
+            return
+        if tag in {"script", "style", "nav"} or str(dict(attrs).get("role") or "").casefold() == "navigation":
+            self.hidden.append(tag)
             return
         # Inline badges must not join a version token ("5.5Latest"). Preserve
         # boundaries only within headings; other source quotes stay unchanged.
@@ -62,10 +65,10 @@ class _VisibleDocument(HTMLParser):
             self.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in {"script", "style"}:
-            self.hidden = max(0, self.hidden - 1)
-            return
         if self.hidden:
+            if tag in self.hidden:
+                index = len(self.hidden) - 1 - self.hidden[::-1].index(tag)
+                self.hidden = self.hidden[:index]
             return
         if self.heading and tag not in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             self.append(" ")

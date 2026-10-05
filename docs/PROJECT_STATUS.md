@@ -8,6 +8,8 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 #173审查修复 / 当前执行权：** #172 exact-main CI37282534664已SUCCESS。#173原headdad7701a的CI37288521788首次仍in_progress，不作为新候选证据；远端两个P2已确认有效，暂不合并。修复一：检查proxy环境变量是否存在，显式空HTTP/HTTPS/ALL代理也不能恢复系统代理。修复二：reader canonical text排除nav及role=navigation（含嵌套/void节点），标题范围内的导航model ID不得作为身份佐证；原始payload摘要不变、canonical摘要/跨度按实际内容重新生成。直接影响集127 PASS/27.45s，Ruff全src/tests/tools PASS，mypy122/baseline128 NEW0，增量审查通过；命名L2 502 PASS/166.74s。待提交clean候选后重跑受影响Python/Opus真实读/ChatService/SQLite与一次L3，再push当前PR并记录一次新head CI；review修复涉及共享binding，不能借旧3507全绿。三档下一路线仍Lookup预算/恢复/覆盖资格化→Standard多源/比较/冲突→Deep合同/收敛/中断资格化，所有资格保持NOT CLOSED。
+
 **2026-10-05 当前三档路线（覆盖下方历史下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前正在加固三档可复用的 Identity Resolution + Evidence Binding 基础。Python 为 Lookup 版本/日期接入样例，Opus 为 exact-version/mixed-content 样例。顺序：共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源、比较双方与冲突资格化 → Deep 计划、Evidence Gain、收敛/饱和/中断合同与资格化。五个官方读取样例不授予任何档位或整体研究 CLOSED。三档目标预算与边界见 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)，本刀未改 runtime 预算。
 
 **已合入主线：** Python #172 head dd9bdaa4 的 exact-head pull_request CI37276697939 SUCCESS，review threads为空、最终范围审查通过，expected-head squash到 main `124de1cac8d884a274bc4c7bafcdb10a6f62e61d`；本机原工作树已ff到该main且clean。exact-main push CI37282534664首次in_progress，本turn不重复轮询，后续turn精确核对。#171此前exact-main CI37268947422已SUCCESS。主线合并与最终资格仍是不同门。

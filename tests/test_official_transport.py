@@ -9,9 +9,22 @@ from src.web.research import official_transport as transport
 
 
 def setup_proxies(monkeypatch, configured, system, *, windows=True):
+    for key in list(os.environ):
+        if key.casefold().endswith("_proxy") and key.casefold() != "no_proxy":
+            monkeypatch.delenv(key)
     monkeypatch.setattr(transport, "_WINDOWS", windows)
     monkeypatch.setattr(urllib.request, "getproxies", lambda: dict(configured))
     monkeypatch.setattr(urllib.request, "getproxies_registry", lambda: dict(system), raising=False)
+
+
+@pytest.mark.parametrize("key", ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"])
+def test_explicitly_empty_proxy_does_not_reenable_registry(monkeypatch, key):
+    setup_proxies(monkeypatch, {"no": "localhost"}, {"https": "http://system.example:8080"})
+    monkeypatch.setenv(key, "")
+    monkeypatch.setattr(urllib.request, "getproxies_registry", lambda: pytest.fail("explicit disable is authoritative"))
+    before = dict(os.environ)
+    assert transport.official_proxy_settings() == {"no": "localhost"}
+    assert dict(os.environ) == before
 
 
 def test_no_proxy_alone_cannot_erase_windows_system_proxy(monkeypatch):

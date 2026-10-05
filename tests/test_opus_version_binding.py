@@ -90,6 +90,20 @@ def test_navigation_script_or_later_section_ids_cannot_validate_missing_intro_id
         resolver._fields(URL, data)
 
 
+@pytest.mark.parametrize("navigation", ['<nav><span>claude-opus-5-5</span></nav>',
+                                       '<div role="navigation"><div><button>claude-opus-5-5</button></div><br></div>'])
+def test_navigation_inside_heading_section_cannot_supply_model_id(navigation):
+    data = payload(model_id="").replace(b"<h2>", navigation.encode() + b"<h2>", 1)
+    with pytest.raises(ValueError, match="id_identity_mismatch"):
+        resolver._fields(URL, data)
+
+
+def test_nested_navigation_does_not_hide_following_real_content():
+    # Navigation later in the section must not hide the following content ID.
+    data = payload().replace(b"</p>", b'</p><nav><nav>wrong id</nav><div><img>claude-opus-5-1</div></nav>', 1)
+    assert resolver._fields(URL, data)["official_positioning"] == INTRO
+
+
 @pytest.mark.parametrize("other", ["claude-opus-5-1", "claude-opus-5-5+local", "claude-opus-5-5extended"])
 def test_valid_id_does_not_hide_a_second_mismatching_or_unsupported_token(other):
     data = payload().replace(b"<h2>", f"<button>{other}</button><h2>".encode(), 1)
