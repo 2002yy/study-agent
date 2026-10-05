@@ -1,24 +1,24 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-04
+> 更新：2026-10-05
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前事实、可复核证据、冻结边界和唯一下一步。历史状态全文已归档到 [`archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md`](archive/PROJECT_STATUS_PRE_RQ1C_CLOSURE_2026-09-08.md)；历史内容保留当时的时间语义，不再拥有当前执行权。
 
 ## 0. Current Handoff（cold-start 入口）
 
-**2026-10-05 当前三档路线 / Opus独立执行（覆盖下方旧下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前做的是三档可复用的 Identity Resolution + Evidence Binding 底座加固，Python 是 Lookup 生产接入样例，Opus 是 exact-version/mixed-content 样例。推进顺序为共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源/比较双方/冲突资格化 → Deep 计划/Evidence Gain/收敛/饱和/中断合同与资格化。五题或 Python/Opus 成功均不授予整个研究 CLOSED；仅已明确验证的字段和路径可交付。
+**2026-10-05 当前三档路线（覆盖下方历史下一刀）：** Lookup / Standard / Deep 三档冻结规划不变；当前正在加固三档可复用的 Identity Resolution + Evidence Binding 基础。Python 为 Lookup 版本/日期接入样例，Opus 为 exact-version/mixed-content 样例。顺序：共享底座 → Lookup 预算/恢复/覆盖资格化 → Standard 多源、比较双方与冲突资格化 → Deep 计划、Evidence Gain、收敛/饱和/中断合同与资格化。五个官方读取样例不授予任何档位或整体研究 CLOSED。三档目标预算与边界见 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)，本刀未改 runtime 预算。
 
-**交付与当前范围：** Python #172 head `dd9bdaa4d3ae1f4123489646eb06d30d7c76929a` 的 exact-head pull_request CI `37276697939` SUCCESS，review threads 为空、最终范围审查通过，expected-head squash 到 main `124de1cac8d884a274bc4c7bafcdb10a6f62e61d`；exact-main push CI `37282534664` 首次 in_progress，后续 turn 精确复核。Opus branch `codex/research-opus-version-binding` 从该 main 独立创建，合同 [`research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md`](research_quality/OPUS_LOOKUP_BINDING_CONTRACT.md)。本刀只接 exact 官方页、heading inline 边界、标题/同段 model ID 的一致性及绑定定位原文；不接性能/价格/比较事实、不改三档预算、不把比较问题改成单版本 Lookup。
+**已合入主线：** Python #172 head dd9bdaa4 的 exact-head pull_request CI37276697939 SUCCESS，review threads为空、最终范围审查通过，expected-head squash到 main `124de1cac8d884a274bc4c7bafcdb10a6f62e61d`；本机原工作树已ff到该main且clean。exact-main push CI37282534664首次in_progress，本turn不重复轮询，后续turn精确核对。#171此前exact-main CI37268947422已SUCCESS。主线合并与最终资格仍是不同门。
 
-**首轮证据 / 下一门：** 直接模块/官方/Python/身份 focused 106 PASS/26.76s，保留相邻版本、扩展 token/ID、伪标记、跳转、脚本/导航/下一标题借用、比较原文及真实 ChatService/SQLite 发布负控。首次 102 PASS/2FAIL 的负控揭示模型 ID `+local` 前缀截断与规范化字段的通用 marker 误排；已改完整 ID token 边界与 native reader-owned Opus 身份门，两项绿且没有扩张证据权威。待命名 L2、Ruff/mypy、范围审查后提交 clean 候选，真实 production Opus 观察并跑一次 L3；测试运行期间不写 tracked 状态。当前尚未通过完整候选门、不合并 Opus、Lookup/Standard/Deep及整体资格均 NOT CLOSED。
+**当前Opus候选：** branch `codex/research-opus-version-binding`，base main124de1ca，最终生产head `2362b0e7d2926ffffc23d86492f7122e1953763d`，13文件506新增/9删除。只接精确官方页、heading inline边界、h1/同段完整model ID一致性、绑定真实定位段落和字段发布；比较表、价格、能力/性能与模型prose无授权。新增Windows官方transport修正仅在没有显式环境代理时保留现有系统代理，NO_PROXY/显式代理优先仍有效，未修改.env/全局环境、未放宽redirect。首次真实失败根因为NO_PROXY-only环境令urllib忽略系统代理，307跳到区域不可用页；失败样本与旧94d7862d主动终止的L3已保留，不计通过。
 
-**最终Opus候选门（覆盖上一条待跑L2）：** 最终审查增加“正确ID不能掩盖第二个错误/扩展ID”及“Copy page控件不能冒充定位段落”负控；定位字段须为产品h1紧随的真实段落，仍绑定reader原文。最终命名impact+semantic-recovery整合 **485 PASS/136.58s**，Ruff/diff-check PASS，mypy无新增错误基线保持；最终范围审查无未解决本地finding。提交本刀后保持tracked clean，真实单版本Lookup观察使用独立外部manifest，不改旧性能/比较问题或借此宣告覆盖，产物 `D:/study-agent-validation/opus-binding-live-20261005/result.json`；一次clean-head L3由 `run-opus-final-L3.py` 写入 `opus-binding-candidate-state.json` 和 `opus-binding-L3.log`。测试未完成前不称候选通过，不开待合并Opus PR、不写tracked文档；通过后仅docs追加证据→新PR/一次exact-head CI。
+**最终本地门：** focused118 PASS/21.96s；命名Opus/官方/身份/Python+semantic-recovery整合493 PASS/131.21s；同一干净生产head完整L3 **3507 passed, 6 skipped in 1117.31s (0:18:37)**，起止head一致、tracked dirty均为空。mypy122/baseline128 NEW0，Ruff全src/tests/tools及diff-check PASS，最终增量/范围审查无未解决本地finding。完整结果 `D:/study-agent-validation/opus-binding-candidate-state.json` 与 `opus-binding-L3.log`；仅docs追加交接，不重复完整测试。
 
-**真实传输发现 / 新候选（覆盖上一条94d7862d门）：** clean head94d7862d 的首轮 live 为0adopted/3reads/保守拒答，不借作成功；外部逐层诊断确认加载项目.env后仅存在NO_PROXY/no_proxy，使Windows urllib.getproxies()从系统http/https/ftp映射变为仅no，忽略系统代理。实际307跳到`www.anthropic.com/app-unavailable-in-region`，现有跨host门正确拒绝；未加载该NO_PROXY-only环境的同一native请求拿到真实5.5官方页。新增official_transport仅在Windows且无显式环境代理时合并已有系统代理，保留NO_PROXY与显式代理优先级，不修改.env/全局环境、不放宽redirect或把不可用页当证据。第一轮live和两个增加不同诊断的失败样本保留在`D:/study-agent-validation/opus-binding-live*-20261005/result.json`；旧L3因新的生产传输修复主动终止，日志`opus-binding-L3-superseded-94d7862d.log`，不计全绿。新候选需代理/官方/身份/Python focused、整合impact、typing/scope后提交，再绑定新的clean head跑真实发布与一次完整L3。
+**真实发布证据：** `D:/study-agent-validation/opus-binding-live-final-20261005/result.json` 绑定该clean head、源码/代码/答案摘要及读取时间；实际runtime Lookup，1官方read/1adopted/4.766s/零答案模型调用，ChatService/SQLite保存版本与定位原文。原始源重放核对heading/model ID/quote spans通过。传输改动影响的Python/FastAPI/SQLite/arXiv同head实证均field_backed、各1次官方读取/零答案模型调用，2.5–4.375s，产物 `official-transport-regression-2362b0e7/result.json`。本轮独立Lookup manifest保留原先性能/比较问题及其失败样本，不偷换覆盖。
 
-**传输修正后的提交门：** focused **118 PASS/21.96s**，命名Opus/官方/身份/Python+semantic recovery整合 **493 PASS/131.21s**；mypy122/baseline128 NEW0、Ruff全src/tests/tools和diff-check PASS；增量审查无未解决finding。Windows系统代理选择、显式代理优先、NO_PROXY通配/localhost、非Windows、注册表缺失/不可读及不变更环境均有负控。新生产候选提交后先跑真实单版本Lookup发布与原始源重放（`D:/study-agent-validation/opus-binding-live-final-20261005/result.json`），成功后再跑一次clean-head L3；运行状态与最终head从`opus-binding-candidate-state.json`读取，运行中不写tracked文件。仍不得借旧head/失败live宣称合并或任一tier CLOSED。
+**唯一下一门：** 推送独立Opus PR，记录一次exact-head CI到 `D:/study-agent-validation/opus-binding-pr-state.json`；后续turn仅核对该run/current head和远端review，green及最终审查一致才expected-head合并，再验证exact-main。CI未通过不称远端交付。合并之后下一执行slice是Lookup预算/恢复/覆盖资格化；Standard多源/比较/冲突与Deep合同/资格化单独后置。性能比较仍无支持，UTF-8/保守heading范围/未支持家族与预发布规划仍为限制；全部tier与整体 **QUALIFICATION NOT CLOSED**。
 
 **2026-10-05 当前权威交接（覆盖下方旧候选/待跑状态）：** #171 已合入 main `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`，exact-main push CI `37268947422` SUCCESS；原工作树 main、clean，已验证的 FastAPI/SQLite/arXiv 改进已交付。Python 独立候选 branch `codex/research-identity-evidence-binding`，base 为该 main，最终生产 head `89a469b97d1efe7151c2b21b40768757a7f89fef`。干净同一 head 完整 L3 **3465 PASS / 6 skipped / 1216.16s**，起止 head 一致且 tracked dirty 为空；L1 76 PASS、L2 451 PASS、Ruff/diff-check PASS、mypy 122/baseline128 NEW0。完整结果 `D:/study-agent-validation/python-binding-candidate-state.json` 与 `python-binding-L3.log`。本次仅记录结果，不重跑已通过的完整套件。
 
