@@ -1,7 +1,8 @@
 """Lookup terminal and pending handoff contract used by the chat save exit.
 
-Semantic relevance is inherited only from the existing server session. The
-handoff is research context, never evidence-publication authority.
+Relevance may come from the existing semantic session or from the recovery
+pipeline's exact named-version identity proof. The handoff is research context,
+never evidence-publication authority.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import re
 from typing import Any
 
 from src.web.research.official_publication import LABELS, publish_official_fields
-from src.web.research_recovery import recovery_summary
+from src.web.research_recovery import model_targets, recovery_summary
 from src.web.tool_evidence import trusted_tool_calls
 
 SCHEMA = "lookup-standard-handoff-v1"
@@ -22,59 +23,71 @@ NORMAL_ENDS = {"read_backed", "partial", "candidate_exhausted", "budget_exhauste
 
 
 def requested_lookup_fields(query: str) -> tuple[str, ...]:
-    """Plan supported explicit facets from intent, never from returned fields.
+    """Plan only explicitly consumed supported facets from the original query.
 
-    Ambiguous or unsupported facets stay unplanned and therefore cannot be
-    called VERIFIED. A model planner may extend this contract separately.
+    Recognizing one supported facet must never erase an additional unknown
+    request.  The planner therefore removes only spans that were actually
+    mapped to a field, then rejects any remaining substantive text.
     """
     from src.web.research.official_resolver import official_plan
 
     plan = official_plan(query)
     if plan is None:
         return ()
+
+    remainder = query
     fields: set[str] = set()
-    date = bool(re.search(r"日期|时间|什么时候|何时|date|when", query, re.I))
+
+    def consume(pattern: str, field: str) -> bool:
+        nonlocal remainder
+        if not re.search(pattern, remainder, re.I):
+            return False
+        remainder = re.sub(pattern, " ", remainder, flags=re.I)
+        fields.add(field)
+        return True
+
     if plan.entity == "arxiv":
-        if re.search(r"作者|author", query, re.I):
-            fields.add("authors")
-        if re.search(r"首次|提交|first|submit", query, re.I):
-            fields.add("first_submission")
-        elif date:
-            fields.add("citation_date")
-        if re.search(r"标题|题目|title", query, re.I):
-            fields.add("title")
+        consume(r"(?:首次|初次)\s*(?:提交|submission)(?:\s*(?:日期|时间|date|time))?|first\s+submission(?:\s+date)?",
+                "first_submission")
+        consume(r"作者|authors?", "authors")
+        consume(r"标题|题目|title", "title")
+        consume(r"引用\s*(?:日期|时间)|citation\s+date", "citation_date")
     else:
-        if re.search(r"版本|version|最新|latest", query, re.I):
-            fields.add("version")
-        if date:
-            fields.add("distribution_uploaded_at" if plan.entity == "fastapi"
-                       and re.search(r"上传|upload", query, re.I) else "release_date")
-        if plan.entity == "sqlite" and re.search(r"变化|变更|更新|changes|changelog", query, re.I):
-            fields.add("changes")
-        if plan.entity == "opus" and re.search(r"是什么|定位|简介|what is|position", query, re.I):
-            fields.add("official_positioning")
-    # Unknown facts must not disappear behind a recognized date/version facet.
-    if re.search(r"价格|性能|跑分|参数|price|benchmark|performance", query, re.I):
+        # Consume field phrases, not generic words such as 时间/date.  In
+        # particular, 更新时间/current time must not become a release date.
+        consume(r"发布日期|发布\s*(?:日期|时间)|什么时候\s*发布|何时\s*发布|"
+                r"release\s+date|released\s+date|when\s+(?:was|is)\s+[^,，。!?？]{0,80}\s+released",
+                "release_date")
+        if plan.entity == "fastapi":
+            consume(r"(?:pypi\s*)?(?:上传|upload(?:ed)?)\s*(?:日期|时间|date|time)|"
+                    r"distribution\s+upload(?:ed)?(?:\s+at)?",
+                    "distribution_uploaded_at")
+        consume(r"(?:当前|目前|最新|最近)?\s*版本(?:号)?|(?:current|latest)\s+version|\bversion\b",
+                "version")
+        if plan.entity == "sqlite":
+            consume(r"变化|变更|更新内容|更新了什么|changes?|changelog", "changes")
+        if plan.entity == "opus":
+            consume(r"是什么|定位|简介|what\s+is|position(?:ing)?", "official_positioning")
+
+    if not fields:
         return ()
-    if plan.entity != "arxiv" and re.search(r"作者|author|标题|title", query, re.I):
-        return ()
-    if plan.entity != "sqlite" and re.search(r"变化|变更|changes|changelog", query, re.I):
-        return ()
-    # Every requested facet must belong to this bounded grammar. Recognizing
-    # a date cannot erase an additional unknown request (e.g. download URL).
-    remainder = re.sub(r"attention\s+is\s+all\s+you\s+need", "", query, flags=re.I)
+
+    # Remove only the identity/source grammar already proven by official_plan.
+    remainder = re.sub(r"attention\s+is\s+all\s+you\s+need", " ", remainder, flags=re.I)
     remainder = re.sub(r"https?://arxiv\.org/(?:abs|pdf)/\d{4}\.\d{4,5}(?:v\d+)?(?:\.pdf)?",
-                       "", remainder, flags=re.I)
-    remainder = re.sub(r"(?<![A-Za-z])(?:python|fastapi|sqlite|opus|arxiv|pypi)(?![A-Za-z])",
-                       "", remainder, flags=re.I)
-    remainder = re.sub(r"\d+(?:\.\d+)+", "", remainder)
-    chinese = ("什么时候", "告诉我", "是多少", "是什么", "何时", "当前", "目前", "现在", "最新",
-               "最近", "首次", "提交", "日期", "时间", "发布", "版本", "变化", "变更", "更新",
-               "作者", "标题", "题目", "简介", "定位", "上传", "查询", "查看", "记录", "请", "的", "及", "和", "与")
-    remainder = re.sub("|".join(chinese), "", remainder)
-    remainder = re.sub(r"\b(?:what|is|the|when|was|release|released|date|version|latest|current|and|of|"
-                       r"authors?|title|first|submission|submitted|changes|changelog|positioning|"
-                       r"upload|uploaded|time)\b", "", remainder, flags=re.I)
+                       " ", remainder, flags=re.I)
+    remainder = re.sub(r"(?<![A-Za-z])(?:python|fastapi|sqlite|opus|arxiv)(?![A-Za-z])",
+                       " ", remainder, flags=re.I)
+    if plan.entity == "fastapi":
+        remainder = re.sub(r"(?<![A-Za-z])pypi(?![A-Za-z])", " ", remainder, flags=re.I)
+    remainder = re.sub(r"\d+(?:\.\d+)+", " ", remainder)
+
+    # Grammatical glue is not a requested facet.  Potentially meaningful terms
+    # (更新时间, 下载, 安装, 性能, 作者 on non-arXiv, etc.) deliberately remain.
+    remainder = re.sub(r"告诉我|查询|查看|记录|请|是多少|当前|目前|最新|最近|现在|的|及|和|与",
+                       " ", remainder)
+    remainder = re.sub(r"\b(?:please|tell|me|the|and|of|current|latest|what|is|was)\b",
+                       " ", remainder, flags=re.I)
     if re.sub(r"[\s,，。.!！?？:：、/]+", "", remainder):
         return ()
     return tuple(sorted(fields))
@@ -92,27 +105,66 @@ def _digest(value: object) -> str:
                                     separators=(",", ":")).encode()).hexdigest()
 
 
-def _verified_relevance_sources(calls: list[dict], rq_ids: set[str], summary: dict) -> list[dict]:
+def _exact_target_pattern(query: str) -> re.Pattern[str] | None:
+    targets = model_targets(query)
+    if len(targets) != 1:
+        return None
+    name, version = targets[0]
+    digits = r"[\s._-]*".join(re.escape(part) for part in version.split("."))
+    return re.compile(
+        rf"(?<![A-Za-z0-9]){re.escape(name.rstrip('_-'))}[\s._-]*{digits}(?![\d.])",
+        re.I,
+    )
+
+
+def _verified_relevance_sources(
+    calls: list[dict], rq_ids: set[str], summary: dict, query: str
+) -> list[dict]:
+    """Return usable-but-unbound bodies with independently checked relevance.
+
+    Semantic sessions bind bodies to RQ ids.  The deterministic official Lookup
+    path intentionally skips that model call, so an exact single named-version
+    match may also establish *relevance only*.  Neither path grants claim support
+    or publication authority.
+    """
     coverage = summary.get("question_coverage")
-    if not isinstance(coverage, dict) or coverage.get("kind") != "relevance_only":
+    semantic_related: set[str] | None = None
+    deterministic_pattern: re.Pattern[str] | None = None
+
+    if isinstance(coverage, dict) and coverage.get("kind") == "relevance_only":
+        related = coverage.get("related")
+        if not isinstance(related, list) or not all(isinstance(item, str) for item in related):
+            return []
+        semantic_related = set(related)
+    elif coverage == "not_semantically_evaluated":
+        target_coverage = summary.get("target_coverage")
+        deterministic_pattern = _exact_target_pattern(query)
+        if (deterministic_pattern is None or not isinstance(target_coverage, dict)
+                or target_coverage.get("required") != 1
+                or type(target_coverage.get("covered")) is not int
+                or target_coverage.get("covered", 0) < 1):
+            return []
+    else:
         return []
-    related = coverage.get("related")
-    if not isinstance(related, list) or not all(isinstance(item, str) for item in related):
-        return []
+
     sources = []
     for call in trusted_tool_calls(calls):
         if call["name"] != "web_read":
             continue
         result = call["result"]
-        ids = result.get("related_rq_ids")
         body = result.get("content") or result.get("readme")
         if (result.get("answer_eligible") is False
-                or result.get("adequacy_reason") != "related_to_rq_not_claim_support"
-                or not isinstance(ids, list) or not ids
-                or not all(isinstance(item, str) for item in ids)
-                or not set(ids) <= rq_ids or not set(ids) <= set(related)
                 or not isinstance(body, str) or not body.strip()
                 or hashlib.sha256(body.encode()).hexdigest() != result.get("content_sha256")):
+            continue
+        if semantic_related is not None:
+            ids = result.get("related_rq_ids")
+            if (result.get("adequacy_reason") != "related_to_rq_not_claim_support"
+                    or not isinstance(ids, list) or not ids
+                    or not all(isinstance(item, str) for item in ids)
+                    or not set(ids) <= rq_ids or not set(ids) <= semantic_related):
+                continue
+        elif deterministic_pattern is None or not deterministic_pattern.search(body):
             continue
         sources.append(deepcopy(call))
     return sources
@@ -123,7 +175,7 @@ def decide_lookup_terminal(query: str, calls: list[dict], *, requested_fields: t
                            recovery: dict[str, Any] | None = None,
                            identity_conflict: bool = False, contradiction: bool = False,
                            cancelled: bool = False) -> LookupTerminal:
-    """Consume a server-owned field plan and semantic-session trace.
+    """Consume a server-owned field plan and bounded Lookup trace.
 
     Callers must not infer requested fields from whichever fields were found.
     Persisted traces may carry recovery metadata separately from sanitized calls;
@@ -162,7 +214,7 @@ def decide_lookup_terminal(query: str, calls: list[dict], *, requested_fields: t
     if not allow_standard:
         return LookupTerminal("SAFE_ABSTAIN", "standard_not_enabled")
     rq_ids = set(requested_rq_ids)
-    sources = _verified_relevance_sources(calls, rq_ids, summary)
+    sources = _verified_relevance_sources(calls, rq_ids, summary, query)
     if not sources:
         return LookupTerminal("SAFE_ABSTAIN", "no_verified_relevant_source")
     payload = {"schema_version": SCHEMA, "reason": "claim_support_insufficient", "query": query,

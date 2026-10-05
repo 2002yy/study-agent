@@ -30,6 +30,34 @@ def relevant_calls():
                             "kind": "relevance_only", "related": ["rq-date"]}}}]
 
 
+class OfficialFallbackGateway:
+    """Exact official read fails; generic recovery yields one named-version body."""
+
+    supports_official_metadata = True
+
+    def __init__(self, version: str = "3.14.0"):
+        self.version = version
+
+    def search_exact(self, query, *, max_results, now=None):
+        return {"status": "ok", "reason": "results_found", "query": query,
+                "results": [{"url": URL, "title": f"Python {self.version} overview",
+                             "snippet": "version discussion without a bound release date"}],
+                "provider_errors": [], "providers_attempted": ["fake"]}
+
+    def read(self, url, **_kwargs):
+        if "python.org" in url:
+            return {"ok": False, "url": url, "error": "simulated_official_reader_failure"}
+        return {"ok": True, "url": url,
+                "content": f"Python {self.version} overview without a bound release date."}
+
+
+def deterministic_trace(version: str = "3.14.0"):
+    from src.tools.web_agent import WebToolTrace
+
+    calls = recover_public_research(OfficialFallbackGateway(version), QUERY)
+    return WebToolTrace(calls=tuple(calls), run_id="source-run")
+
+
 def decide(calls, **kwargs):
     return decide_lookup_terminal(QUERY, calls, requested_fields=("release_date",),
                                   requested_rq_ids=("rq-date",), allow_standard=True, **kwargs)
@@ -75,6 +103,30 @@ def test_persisted_trace_uses_separate_recovery_metadata_and_reloads():
     assert decision.handoff["attempted"] == trace["calls"]
     assert decision.handoff["lookup_budget"] == trace["recovery"]
     assert load_standard_handoff(json.loads(json.dumps(decision.handoff))) == decision.handoff
+
+
+def test_real_official_lookup_fallback_reaches_escalation_without_semantic_session():
+    trace = deterministic_trace().to_dict()
+    assert trace["semantics"] is None
+    assert trace["recovery"]["question_coverage"] == "not_semantically_evaluated"
+    decision = decide_lookup_terminal(
+        QUERY, trace["calls"], requested_fields=requested_lookup_fields(QUERY),
+        allow_standard=True, recovery=trace["recovery"],
+    )
+    assert decision.state == "ESCALATE_STANDARD"
+    assert decision.handoff["requested_rq_ids"] == []
+    assert decision.handoff["publication_authority"] is False
+    assert load_standard_handoff(decision.handoff) == decision.handoff
+
+
+def test_deterministic_relevance_does_not_cross_bind_adjacent_version():
+    trace = deterministic_trace("3.13.0").to_dict()
+    decision = decide_lookup_terminal(
+        QUERY, trace["calls"], requested_fields=requested_lookup_fields(QUERY),
+        allow_standard=True, recovery=trace["recovery"],
+    )
+    assert decision.state == "SAFE_ABSTAIN"
+    assert decision.handoff is None
 
 
 @pytest.mark.parametrize("reason", ["unknown_relevance", "wrong_rq", "tampered_body", "no_source",
@@ -148,6 +200,10 @@ def test_digest_recalculation_cannot_change_bound_source_snapshot():
     ("Python 3.14 release date and download URL", ()),
     ("Python 3.14发布日期和下载地址", ()),
     ("Python 3.14发布日期及安装要求", ()),
+    ("Python 3.14发布日期和更新时间", ()),
+    ("Python 3.14现在时间", ()),
+    ("FastAPI当前版本及更新时间", ()),
+    ("Python 3.14更新时间", ()),
     ("未知项目发布日期", ()),
 ])
 def test_field_plan_preserves_requested_semantics(query, expected):
@@ -162,25 +218,26 @@ def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypa
     from tests.test_chat_service import _service
 
     service, repository = _service(tmp_path)
-    service.dependencies = replace(service.dependencies,
-                                   allow_standard_handoff=kind != "policy_disabled",
-                                   chat=lambda *_a, **_k: pytest.fail("no answer-model dispatch"))
     if kind in {"verified", "partial"}:
         html = b"<h1>Python 3.14.0</h1>"
         if kind == "verified":
             html += b"<p>Release date: Oct. 7, 2025</p>"
         metadata(monkeypatch, html)
         calls = recover_public_research(GeneralWebGateway(), QUERY)
+        trace = WebToolTrace(calls=tuple(calls), run_id="source-run")
     else:
-        calls = relevant_calls()
-    tool_data = WebToolTrace(calls=tuple(calls), run_id="source-run").to_dict()
-    tool_data["semantics"] = {"question_coverage": ["rq-date"]}
+        trace = deterministic_trace()
+    service.dependencies = replace(
+        service.dependencies,
+        allow_standard_handoff=kind != "policy_disabled",
+        resolve_web_tools=lambda *_a, **_k: trace,
+        chat=lambda *_a, **_k: pytest.fail("no answer-model dispatch"),
+    )
+    tool_data = trace.to_dict()
     assert all(call["name"] != "research_recovery" for call in tool_data["calls"])
     assert isinstance(tool_data["recovery"], dict)
+
     prepared = service.start_turn(ChatCommand(user_input=QUERY, thread_id="terminal-production"))
-    prepared = replace(prepared,
-                       route={**prepared.route, "task_contract": {"task_intent": "research"}},
-                       rag={**prepared.rag, "web_tools": tool_data})
     service.generate(prepared)
     saved = RuntimeRepository(repository.database).get_chat_turn(prepared.turn.id)
     terminal = saved.rag_snapshot["lookup_terminal"]
@@ -190,6 +247,7 @@ def test_real_chat_save_persists_terminal_and_pending_handoff(tmp_path, monkeypa
     expected = "VERIFIED" if kind == "verified" else "ESCALATE_STANDARD" if kind == "escalate" else "SAFE_ABSTAIN"
     assert terminal["state"] == expected
     if kind == "escalate":
+        assert tool_data["semantics"] is None
         assert terminal["dispatch_status"] == "pending"
         assert terminal["handoff"]["lookup_budget"] == tool_data["recovery"]
         assert terminal["handoff"]["attempted"] == tool_data["calls"]
