@@ -139,8 +139,7 @@ def test_cli_rejects_before_writing_artifact(tmp_path, synthetic_cases, monkeypa
     proof = tmp_path / "main-ci.json"
     proof.write_text(json.dumps(main_proof()), encoding="utf-8")
     output = tmp_path / "rejected-result.json"
-    head = subprocess.check_output(["git", "rev-parse", f"{MAIN}^" if failure == "older_head" else "HEAD"],
-                                   cwd=runner.ROOT, text=True).strip()
+    head = "synthetic-cli-head"
     monkeypatch.setattr(runner.subprocess, "check_output",
                         lambda args, **_kwargs: "" if args[1] == "status" else head)
     monkeypatch.setattr(runner, "load_sources", lambda _p: synthetic_cases)
@@ -148,7 +147,18 @@ def test_cli_rejects_before_writing_artifact(tmp_path, synthetic_cases, monkeypa
                         lambda *_a: SimpleNamespace(text="", method="failed_control", author=""))
     monkeypatch.setattr(runner.sys, "argv", ["runner", "--manifest", "unused.json", "--main-ci", str(proof),
                                             "--output", str(output)])
-    message = "must contain" if failure == "older_head" else "required recovery outcome"
+    if failure == "older_head":
+        def reject_head(_head):
+            raise ValueError("replay HEAD must contain the gated main commit")
+
+        monkeypatch.setattr(runner, "validate_replay_head", reject_head)
+        message = "must contain"
+    else:
+        # Ancestry is covered independently by test_replay_head_must_descend_from_gated_main.
+        # Keep this CLI control focused on the recovery-outcome gate so shallow CI checkouts
+        # cannot cause the ancestry check to mask an all-reader failure.
+        monkeypatch.setattr(runner, "validate_replay_head", lambda _head: None)
+        message = "required recovery outcome"
     with pytest.raises(ValueError, match=message):
         runner.main()
     assert not output.exists()
