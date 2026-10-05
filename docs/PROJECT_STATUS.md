@@ -9,6 +9,13 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-05 独立L5来源重放工具开发 / 当前执行权：** branch codex/lookup-rescue-support-qualification，base main7ff7451d，草稿#175首head d507d9d5。本turn精确核对#174 main CI37314347931及#175 PR CI37315386314均仍in_progress，未轮询等待、未宣布主线/来源资格完成。开发准备继续，不执行正式重放。
+
+**新增能力：** tools/run_lookup_rescue_support.py严格要求exact-main成功JSON、干净候选、四个冻结案例、来源payload摘要及capture provenance；现有local reader/gateway/recovery→ChatService/临时SQLite出口，输出原始calls/来源/计数/coverage/stop/ref摘要。受控直达失败和搜索候选明确标注，不称live discovery。新增精确门/摘要篡改负控及完整工具synthetic smoke。初次smoke暴露Windows临时SQLite句柄未释放，工具finally显式关闭本轮连接修复；不改应用数据库、生产研究合同、预算或发布权限。工具6 PASS/2.76s；旧首轮影响集102 PASS/39.62s保留，最终命名L1影响集103 PASS/44.41s，Ruff/diff-check PASS。来源资格仍NOT_EXECUTED，Lookup整体NOT CLOSED。
+
+**唯一下一门：** 记录新head CI到D:/study-agent-validation/lookup-L5-pr-state.json；后续turn检查已知#174 exact-main与#175新CI/current head，再准备/核对真实公开来源capture并执行四case冻结重放。无逐字段支持则保持Generic Rescue publication NOT QUALIFIED；不扩大矩阵、不放宽Gate，Standard/Deep后置。
+
+
 **2026-10-05 #174已合并 / 独立L5开发准备（覆盖下方待合并记录）：** #174 reviewed head ddb0fd6ddbbff0aa0501bd25d54b594cb99eb69c，exact-head pull_request CI37312220879 SUCCESS，P2 resolved，final incremental review PASS；expected-head squash合入main7ff7451da608775324383968b4c7ed23c5687832。原工作树main已ff、clean，源码树与reviewed head一致。exact-main push CI37314347931本turn核对仍in_progress，不能称主线交付闭环；可恢复远端记录D:/study-agent-validation/lookup-qualification-pr-state.json。
 
 **本刀范围：** 新独立分支codex/lookup-rescue-support-qualification，base上述main，只添加L5四个synthetic运行合同控件、命名影响集及合同文档；不改生产parser/reader/发布权限/预算，不扩#174固定16案例。合同 [`research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md`](research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md)。真实GeneralWebGateway/recovery/ChatService/临时SQLite出口被保留，传输数据明确synthetic，离线开发验证不冒充正式来源资格化。首轮3.14请求/3.14.0通用body两例被精确marker拒绝，旧失败日志保留；正向body改为精确3.14以隔离发布支持问题，不放宽身份。

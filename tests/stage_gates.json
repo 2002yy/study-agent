@@ -257,6 +257,7 @@
     ],
     "lookup_rescue_support": [
       "tests/test_lookup_rescue_support.py",
+      "tests/test_lookup_rescue_replay.py",
       "tests/test_lookup_tier_qualification.py",
       "tests/test_lookup_official_identity.py",
       "tests/test_official_source_quality.py",

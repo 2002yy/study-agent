@@ -36,6 +36,14 @@
 
 ## 下一门
 
+### 来源重放工具（开发准备）
+
+`tools/run_lookup_rescue_support.py --manifest <sources.json> --main-ci <main-ci.json> --output <result.json>` 要求精确main7ff7451d的push CI37314347931 completed/success记录和干净候选。main-ci文件保存 `gh run view 37314347931 --json databaseId,headSha,event,status,conclusion` 的原始JSON；未完成/错误head/失败记录全部拒绝。
+
+manifest的cases严格为上述四个id，每例query固定为 `Python 3.14什么时候发布`；前3例sources各1份、unbound_exhaustion为2份。每个source保存url、title、payload_path（相对manifest目录的已解码HTML）、payload_sha256、encoding、read_at和kind=captured_public_html。工具核对实际字节摘要，经现有local reader提取正文，走实际gateway/recovery/ChatService/临时SQLite，输出source provenance、raw calls、逻辑/后端计数、stop reason、摘要和发布refs。搜索候选与直达超时仍是受控注入，不能称live discovery或真实provider恢复。
+
+工具开发smoke只使用标明synthetic_development的生成HTML，不计正式来源资格。Windows首次smoke因SQLite上下文只提交事务、未关闭句柄而在临时目录清理时报WinError32；修复仅在工具中追踪并finally关闭其临时连接，没有修改应用数据库。最终工具6 PASS/2.76s、最终命名影响集103 PASS/44.41s，Ruff/diff-check PASS。主线门未通过前仍不执行正式重放。
+
 开发影响集 `lookup_rescue_support`：97 PASS/43.15s；Ruff全src/tests/tools及diff-check PASS。四例分别通过真实发布/保存出口验证零refs、零答案模型调用；前三例read_backed，第四例3次逻辑读有界停止。仅新增独立tests/docs/manifest，未触发生产合同变更或L3切换；#174已有完整3551/6 skip结果不重复跑。正式来源资格化仍未执行。
 
 后续turn核对已知exact-main run37314347931及exactSHA。绿后运行独立四例的来源绑定重放/资格检查，保存明确来源provenance与真实出口审计；如原始来源不足则保持资格未完成。Standard与Deep暂不执行。
