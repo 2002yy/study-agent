@@ -208,6 +208,7 @@
       "tests/test_recovery_candidate_scheduler.py"
     ],
     "opus_version_binding": [
+      "tests/test_official_transport.py",
       "tests/test_opus_version_binding.py",
       "tests/test_identity_evidence_binding.py",
       "tests/test_candidate_resolution.py",

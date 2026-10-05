@@ -53,6 +53,14 @@ from the rest of the page. Existing publication and interruption gates retain
 authority; model prose is withheld. A positioning quote is not a verified
 comparison, and the official label remains attached to the quoted statement.
 
+The live observation exposed a Windows transport prerequisite: a NO_PROXY-only
+environment hides registry proxies in CPython's default selection. The official
+reader restores system proxies only when there is no explicit environment proxy;
+existing bypass rules, including `*`, still apply. No environment/file mutation,
+credential logging, hostname/redirect relaxation or region-page evidence is
+permitted. This bounded transport correction also affects other official reads
+and therefore requires their impact set and a new clean-head L3.
+
 ## Gates and limitations
 
 Impact: Opus profile/identity/Python/official-source tests plus the source-quality

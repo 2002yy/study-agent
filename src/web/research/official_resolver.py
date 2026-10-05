@@ -11,12 +11,13 @@ import json
 import re
 from typing import Any
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from src.news.article_extractor import decompress_transport_payload
 from src.web.research.identity import resolve_identity
 from src.web.research.evidence_binding import document_from_read
 from src.web.research.release_date import extract_release_date
+from src.web.research.official_transport import official_proxy_settings
 
 
 @dataclass(frozen=True)
@@ -223,7 +224,7 @@ def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[
     if not _supported_url(url):
         return None
     try:
-        opener = build_opener(_OfficialRedirect())
+        opener = build_opener(ProxyHandler(official_proxy_settings()), _OfficialRedirect())
         with opener.open(Request(url, headers={"User-Agent": "StudyAgent/official-metadata-v2", "Accept-Encoding": "identity"}), timeout=max(0.1, min(timeout, 10))) as response:
             payload = response.read(2_000_001)
             if len(payload) > 2_000_000:
