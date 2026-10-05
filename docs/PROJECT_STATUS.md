@@ -9,6 +9,15 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-05 #174已合并 / 独立L5开发准备（覆盖下方待合并记录）：** #174 reviewed head ddb0fd6ddbbff0aa0501bd25d54b594cb99eb69c，exact-head pull_request CI37312220879 SUCCESS，P2 resolved，final incremental review PASS；expected-head squash合入main7ff7451da608775324383968b4c7ed23c5687832。原工作树main已ff、clean，源码树与reviewed head一致。exact-main push CI37314347931本turn核对仍in_progress，不能称主线交付闭环；可恢复远端记录D:/study-agent-validation/lookup-qualification-pr-state.json。
+
+**本刀范围：** 新独立分支codex/lookup-rescue-support-qualification，base上述main，只添加L5四个synthetic运行合同控件、命名影响集及合同文档；不改生产parser/reader/发布权限/预算，不扩#174固定16案例。合同 [`research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md`](research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md)。真实GeneralWebGateway/recovery/ChatService/临时SQLite出口被保留，传输数据明确synthetic，离线开发验证不冒充正式来源资格化。首轮3.14请求/3.14.0通用body两例被精确marker拒绝，旧失败日志保留；正向body改为精确3.14以隔离发布支持问题，不放宽身份。
+
+**本刀开发证据：** 命名L1影响集97 PASS/43.15s；Ruff全src/tests/tools、diff-check PASS；没有生产或共享fixture改动，不重跑L3。前三例read_backed仍零发布refs，第四例3次逻辑read有界停止，四例零答案模型调用。
+
+**唯一下一门：** 提交独立测试/合同PR并记录一次exact-head CI，后续turn核对已知exact-main CI37314347931再开始来源绑定重放/正式L5。现有通用正文不具注册URL/native字段跨度发布权限；替代官方、非官方、相关缺字段均须拒绝无支持事实。正式证据不足时保持NOT QUALIFIED，不为关闭L5造临时权限。Lookup整体NOT CLOSED，Standard/Deep暂不执行。
+
+
 **2026-10-05 #174 review-fix 本地最终门 / 当前执行权：** 生产head `53d426037054be45c050d4a3226381b4020109ee`，base main9a359e2a；新增P2已通过最小原始版本token一致性修复解决。新候选Focused45 PASS，命名L2 537 PASS；同一干净head完整L3 **3551 passed, 6 skipped in 1156.68s (0:19:16)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查无未解决本地finding。完整结果D:/study-agent-validation/lookup-review-candidate-state.json；旧cee/ec6的CI/L3保持归档，不授予新head。旧cee真实10份来源的新代码冻结重放10/10，逐字段发布refs完全一致（lookup-review-frozen-replay.json）；未重跑不受影响的联网样本，也不冒充新head实测。
 
 **唯一下一门：** 推送review-fix及docs-only结果，更新#174，记录一次新exact-head CI/current review；通过后expected-head合并、exact-main验证。L5四case rescue-to-support另开，不能因可读正文宣称逐事实支持；Lookup official路径与整体资格区分，Lookup/Standard/Deep均NOT CLOSED。
