@@ -9,6 +9,11 @@
 ## 0. Current Handoff（cold-start 入口）
 
 
+**2026-10-05 A研究笔记本状态化设计规范 / 当前用户任务：** 用户选定A作为日常主界面；B保留深度研究/推演，C保留成果/复盘。本刀独立branch codex/notebook-page-design-spec，base main7ff7451da608775324383968b4c7ed23c5687832，仅docs与生成参考图，应用/研究合同/依赖未改。页面级规范见 [`design/NOTEBOOK_PAGE_SPEC.md`](design/NOTEBOOK_PAGE_SPEC.md)：色板/字体/间距、桌面三栏、13寸右栏折叠、七组组件、学习/研究/输入状态、手绘边界与验收；八组文字token对比计算PASS，图像生成误差和真实浏览器待验边界已明确。
+
+**唯一设计下一slice：** 按规范实现A的七组primitives与主页面展示适配，真实1600×1000/1280×800浏览器验证状态/输入/来源定位；不全站自由重构、不顺带实现B/C。#175 L5研究来源资格化仍属独立线，沿用其已有handoff/CI记录；这次不重查或关闭研究资格，不把图内示例当实际学习或证据状态。
+
+
 **2026-10-05 #174 review-fix 本地最终门 / 当前执行权：** 生产head `53d426037054be45c050d4a3226381b4020109ee`，base main9a359e2a；新增P2已通过最小原始版本token一致性修复解决。新候选Focused45 PASS，命名L2 537 PASS；同一干净head完整L3 **3551 passed, 6 skipped in 1156.68s (0:19:16)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查无未解决本地finding。完整结果D:/study-agent-validation/lookup-review-candidate-state.json；旧cee/ec6的CI/L3保持归档，不授予新head。旧cee真实10份来源的新代码冻结重放10/10，逐字段发布refs完全一致（lookup-review-frozen-replay.json）；未重跑不受影响的联网样本，也不冒充新head实测。
 
 **唯一下一门：** 推送review-fix及docs-only结果，更新#174，记录一次新exact-head CI/current review；通过后expected-head合并、exact-main验证。L5四case rescue-to-support另开，不能因可读正文宣称逐事实支持；Lookup official路径与整体资格区分，Lookup/Standard/Deep均NOT CLOSED。
