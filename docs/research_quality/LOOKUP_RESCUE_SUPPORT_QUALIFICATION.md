@@ -108,3 +108,8 @@ handoff至少保存：schema_version、reason=claim_support_insufficient、原qu
 Standard继承来源和已完成工作用于补缺，不继承Lookup发布权；不能重复消费已完成读取预算。Lookup剩余预算为0也不表示Standard没有预算，两档预算分别记账、共享overall deadline由后续生产合同确定。开始Standard前需产品策略允许，自动升档开关、档位切换、取消/恢复和UI提示在生产slice明确，当前不默默改用户所选模式。
 
 验收必须覆盖：已有bound fields→VERIFIED/零Standard调用；provider全挂、不相关、身份冲突、矛盾前提、无gap→SAFE_ABSTAIN/零升档；相关可读未绑定→ESCALATE_STANDARD且handoff完整、已有read不重复；第三例保留真实provider_exhausted且能根据相关性/身份是否核验区别升档候选与安全结束；Standard续研必须找到真实claim-bound支持，否则仍拒绝事实发布。Lookup CLOSED不要求generic publication authority，但必须上述生产路由/持久化/预算/发布门验收完成。当前只冻结合同，Lookup/Standard/Deep仍未关闭。
+
+
+### 修订后观测门执行
+
+干净head2ed0b6ba0ff84dc92a759183ebb29b4ee3f72a7f，经祖先验证后用原5份未改写公开HTML完成四例，保存routing-contract-result.json；第三例仍provider_exhausted/2读/无采用证据，成功条件仅为相关候选正文确有发现关联读取，不冒充read_backed或请求字段支持。第一二例read_backed/2读，第四例exhausted/3读；四例均abstained/0 refs/0答案模型调用。最终L1 123 PASS/43.67s，Ruff/diff-check PASS，mypy NEW0。旧严格合同失败日志保留；新通过只授予修订的观测合同，不授予三终态生产资格、Standard升档成功或generic发布权。

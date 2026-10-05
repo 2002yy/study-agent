@@ -8,6 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**本轮更正后候选证据：** 干净head2ed0b6ba0ff84dc92a759183ebb29b4ee3f72a7f完成新四例原公开HTML重放，产物D:/study-agent-validation/lookup-L5-public-source-capture/routing-contract-result.json；MAIN祖先门通过，第一二例read_backed/2读/有采用证据，第三例provider_exhausted/2读/有可读正文但无采用证据，第四例provider_exhausted/3读/无采用证据且邻近正文读取成功；全部abstained/零refs/零答案模型调用。原语料未重抓、未改写。最终命名L1 123 PASS/43.67s，Ruff/diff-check PASS，mypy122/baseline128 NEW0。本候选只完成L5观测门与两个P2 runner修复；三终态/handoff尚未生产接入，不能称Lookup CLOSED或Standard已运行。新head需exact-head CI及最终审查，不借1fe2811e/d9f33c7d旧CI。后续仅文档记录，不重复L3。
+
+
 **2026-10-05 用户修订L5目标 / 当前执行权（覆盖下方“第三例须read_backed、来源不符阻止下一步”旧要求）：** 用户明确Lookup不需获得generic逐事实发布权，下一生产切片采用VERIFIED/SAFE_ABSTAIN/ESCALATE_STANDARD三终态；升档仅限正常有界结束、有已核验相关可用来源、未绑定请求claim、无身份冲突/确定性矛盾且有明确gap。合同已冻结于research_quality/LOOKUP_RESCUE_SUPPORT_QUALIFICATION.md末节。Standard结构化handoff保留来源/digest/核验状态/请求claim/已尝试动作/gap/预算，生产接入必须独立slice，不混入当前#175审查修复。
 
 **本PR纠正：** 保留MAIN祖先校验和逐例状态/read/evidence负控；第三例接受原真实观测provider_exhausted/2读/无采用证据，同时严格要求实际discovery-linked可读正文。第一二例仍read_backed/2读/采用证据，第四例exhausted/3读/无采用证据、邻近正文确有读取。全reader失败依然不能伪装PASS。只改资格runner/test，不放宽生产identity/publication，不改采集HTML。新的完整四例重放和验证结果待本轮干净head记录；旧失败保留为旧合同负例。原教程只是升档候选，未经相关性/身份核验不能称已生产升档。
