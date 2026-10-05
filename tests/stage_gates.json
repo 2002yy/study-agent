@@ -193,6 +193,19 @@
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",
       "tests/test_stage_gates_policy.py"
+    ],
+    "identity_evidence_binding": [
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_candidate_resolution.py",
+      "tests/test_web_query_normalizer.py",
+      "tests/test_domain_targeted.py",
+      "tests/test_python_release_binding.py",
+      "tests/test_official_source_quality.py",
+      "tests/test_research_recovery.py",
+      "tests/test_recovery_source_boundaries.py",
+      "tests/test_research_finalization_deadline.py",
+      "tests/test_external_data_policy.py",
+      "tests/test_recovery_candidate_scheduler.py"
     ]
   },
   "stage_gates": {

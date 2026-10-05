@@ -8,6 +8,36 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前权威交接（覆盖下方旧候选/待跑状态）：** #171 已合入 main `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`，exact-main push CI `37268947422` SUCCESS；原工作树 main、clean，已验证的 FastAPI/SQLite/arXiv 改进已交付。Python 独立候选 branch `codex/research-identity-evidence-binding`，base 为该 main，最终生产 head `89a469b97d1efe7151c2b21b40768757a7f89fef`。干净同一 head 完整 L3 **3465 PASS / 6 skipped / 1216.16s**，起止 head 一致且 tracked dirty 为空；L1 76 PASS、L2 451 PASS、Ruff/diff-check PASS、mypy 122/baseline128 NEW0。完整结果 `D:/study-agent-validation/python-binding-candidate-state.json` 与 `python-binding-L3.log`。本次仅记录结果，不重跑已通过的完整套件。
+
+**Python真实发布证据：** `D:/study-agent-validation/python-binding-live-final-89a469b9/result.json` 绑定最终代码 head/digests、官方读取时间、源码响应及回答；真实 ChatService/SQLite 用 1 次官方读取、0 次答案模型调用，0.828s 发布 Python 3.14.0 与 2025-10-07。日期 refs 保存真实 `Release date: Oct. 7, 2025`、版本 heading/跨度以及 canonical text/decoded payload/transport 分层摘要，冻结源码响应重放验证通过。只证明该已读字段与路径，不授予语义评审或学习掌握权限。
+
+**唯一下一门：** 本候选本地合并门通过，开独立 Python PR → 记录一次 exact-head CI → 后续 turn 精确核对 CI/远端 review → expected-head 合并并验证 exact-main；CI 未完成不得称远端交付。Opus 独立官方页与 inline badge 拼接根因已冻结为下方诊断，生产未启用；待 Python 合并后另做 exact-page resolver、reader 文本边界、版本绑定与真实发布负控。最新版本族/预发布规划仍为独立限制；研究整体 **QUALIFICATION NOT CLOSED**。
+
+**2026-10-05 最终token边界候选（覆盖下方中途候选）：** 查询/标题/通用heading身份解析统一防止把有效版本前缀截出不支持的token，负控覆盖rc1、-rc1、+local、额外数字段及hyphen模型ID；未支持的token不能被解释为initial stable或较早模型。最终focused76PASS/19.75s，合并source-quality/recovery/identity的L2 451PASS/174.76s，Ruff/diff-check通过，mypy仍122/baseline128 NEW0（新增正则/负控不改变类型）。生产候选补齐后重新绑定干净HEAD的真实Python发布和完整L3；日志/结果`D:/study-agent-validation/python-binding-L3.log`与`python-binding-candidate-state.json`。前两次L3分别绑定993c8b0b和6375651b，因审查后的生产token修复主动终止，保留superseded日志，不计全绿；新的生产head解释此次重跑，并非重复跑同一已验证head。执行期间不写tracked文档、不继续扩张生产变更。完整门通过后才开新PR/记录一次exact-head CI；原#171已合并，Python候选还未合并，Opus/全局资格保持未完成。
+
+
+**2026-10-05 Python最终候选与Opus诊断（覆盖下方第一轮运行）：** 最终审查发现stable标题正则可能截断3.14.0rc1/3.14.0a1/四段版本为3.14.0；已加token终止边界与三个负控。旧生产head993c8b0b的L3因此在约70%被主动终止，不借作全绿证明，日志保留`D:/study-agent-validation/python-binding-L3-superseded-993c8b0b.log`。新候选focused67PASS/16.28s，整合L2 442PASS/134.42s，Ruff/diff-check PASS，mypy122/baseline128 NEW0；只补身份token校验，无未知失败。提交后干净HEAD重跑一次L3及受影响真实Python ChatService/SQLite观察，测试执行期间不得写tracked状态文档，当前不打开待合并PR。
+
+**已经交付主线：** 本机原工作树已从clean旧donor分支切到main并ff到090678a2，dirty=[]；旧codex/firefly-main-integration分支和环境/数据保留。#171已merged，当前主线首次CI37268947422待后续turn精确复核。Python第一轮clean-head993c8b0b实证为1read/1adopted/1.328s、field_backed、writer0，SQLite保存Python3.14.0与2025-10-07，日期ref携带真实label/heading/span与transport/canonical/decoded payload digests；产物`D:/study-agent-validation/python-binding-live-20261005/result.json`。新token守卫后只重跑受影响Python实证，不重复不相关题。
+
+**Opus下一刀已有真实线索，未启用：** 匿名读取独立官方URL`https://platform.claude.com/docs/en/models/opus-5-5/overview`成功；当前resolver仍只指向混合models overview。实际heading变为`Claude Opus 5.5Latest`，当前reader未保留inline badge文本边界，binding返回heading_identity_missing_or_ambiguous。外部诊断用通用heading inline token分隔能将官方定位说明绑定到5.5标题；仍不授予性能/比较事实。冻结外部payload/digests与负例/修正假设在`D:/study-agent-validation/opus-exact-page-diagnostic-20261005/result.json`，可复现脚本`replay-opus-heading-diagnostic.py`。后续独立Opus slice需exact page resolver、reader token边界/模型ID交叉校验、相邻版本和比较双方绑定、真实production发布；不混入当前Python候选。全局研究资格仍NOT CLOSED。
+
+
+**2026-10-05 当前执行：#171已合入main，Python身份/日期接入为独立下一刀。** #171 head0c728db7 exact-head CI37267593688为success，三条远端review已resolved、最终增量自审通过，expected-head squash合并commit `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`。首次exact-main push CI37268947422为in_progress，本turn不重复轮询；原工作树保持clean旧donor分支，不覆盖用户运行进程。研究资格仍NOT CLOSED，不因主线合并宣告封板。
+
+**Python候选 / 范围：** branch `codex/research-identity-evidence-binding`合并最新main；正式身份层按产品规则规范化，Python3.14=3.14.0而非任意3.14.x；官方reader的已验证字段/URL/digest方可替代通用model marker，候选flag无授权。发布日期须位于匹配版本heading范围，标签大小写无关、日期格式与日历确定性校验；缺失/非法/相邻段落/多日期不补写。发布refs保留原文label/date quote、heading/span及canonical/decoded payload digest，transport digest独立。最新版本族/通配/预发布意图未被静默替换初始stable；Opus仍无生产读取授权。合同`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`同步。第一轮直接模块/官方发布focused61PASS；mypy122/baseline128 NEW0、Ruff通过；真实native官方读取已得到Python3.14.0及2025-10-07与真实版本标题/日期跨度，尚待干净commit的实际ChatService/SQLite观察。
+
+**下一门：** L2（source-quality/recovery/identity合并impact）439PASS/136.43s。提交干净候选，运行一次完整backend L3并做真实Python发布；测试运行期间不写tracked状态文档。L3、真实evidence、范围review齐后新PR→一次exact-head CI，green才expected-head合并。全局资格仍NOT CLOSED，后续Opus真实版本绑定和benchmark独立完成。
+
+
+**2026-10-05 独立后续：Identity Resolution / Evidence Binding 基础层。** branch `codex/research-identity-evidence-binding` 从main `5c9409fc` 开始，不叠加/扩大研究候选#171。合同 [`research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md`](research_quality/IDENTITY_EVIDENCE_BINDING_CONTRACT.md)。模型可提议意图/候选/跨度；确定性层按产品版本方案解析身份，并验证reader派生标题、read id/URL/digest、逐字原文跨度和段落边界。相邻版本、混合标题、伪造引用/来源、脚本文字、子标题越界均UNKNOWN；绑定只证明出处与版本范围，不授予事实支持/官方权威/发布许可。
+
+**基础证据 / 未完成项：** L1命名impact set `identity_evidence_binding` 93PASS/24.54s（26项直接身份/跨度负控+候选/查询/域名相邻测试）；两模块mypy无错误，Ruff/diff-check通过。仅增加未被生产调用的模块，没有切换gateway/chat/persistence/Gate，不因inert基础模块重复后端L3。已知边界：heading-only、UTF-8解压后HTML、每个子标题均保守终止父范围，其他anchor kinds仍UNKNOWN；没有新模型提取器/付费源/登录。**Python日期/身份生产修复、Opus真实版本隔离、正式资格均尚未完成。** 唯一下一刀：待#171 exact-head CI/最终审查/合并主线后，接Python verified identity与实际发布日期字段、真实ChatService/SQLite及版本/日期负控，再做Opus真实heading绑定，不把基础单测当资格封板。
+
+
+**主线状态同步：** main30096e9f已含UI #170及两处review修复。研究候选新PR#171 head8b8d45d4378883970afb5aacca47d3f2bfe3dcc3，exact-head pull_request CI37227832827首次in_progress；下一turn只查询该run，不本轮轮询。研究主线仍MERGE CANDIDATE/QUALIFICATION NOT CLOSED，优先级高于下方main旧NO_GO记录。
+
 **2026-10-05 #171 当前修复交接（覆盖下方旧head/CI状态）：** 远端追加了三项审查修复：官方发布deadline到期先fail_turn释放operation；外发审计只在generation-start CAS记录物理provider调用；author贯通结构化fetch/cache/news/gateway。拉取后head为a27bdce2，其exact-head pull_request CI37229402645为FAIL，完整pytest 3404PASS/1FAIL/6skipped/423.81s，Ruff/secrets/mypy baseline/frontend通过。唯一失败`tests/test_wechat.py::test_fetch_article_text_with_method_uses_cached_method`：旧夹具直接注入三元组，新作者缓存格式为四元组，触发IndexError。此次只给该夹具补空作者，生产代码不变；七文件影响集（wechat/reader transport/backends/firecrawl/external policy/deadline/stream cancellation）94PASS/28.96s、Ruff/diff-check通过，增量复核三项修复无未解决本地finding，不重复本地L3。资格继续NOT CLOSED，待新的exact-head CI后才能expected-head合并；不能借8b8d45d4旧绿CI。CI后端完整运行将验证当前生产代码与已修夹具。主线合并前不扩张#171去接Python/Opus；独立身份/绑定基础分支仍保存ad81cfe6，93项测试通过但生产接入尚未完成。
 
 

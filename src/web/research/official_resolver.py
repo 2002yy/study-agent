@@ -14,6 +14,9 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from src.news.article_extractor import decompress_transport_payload
+from src.web.research.identity import resolve_identity
+from src.web.research.evidence_binding import document_from_read
+from src.web.research.release_date import extract_release_date
 
 
 @dataclass(frozen=True)
@@ -38,7 +41,15 @@ def official_plan(query: str) -> OfficialPlan | None:
             url = f"https://sqlite.org/releaselog/{version.replace('.', '_')}.html" if version else "https://sqlite.org/changes.html"
             return OfficialPlan(entity, version, (url,))
         if entity == "python" and version:
-            exact = version if version.count(".") == 2 else version + ".0"
+            # A family/latest or prerelease request cannot silently become the
+            # initial stable release. Those intents require a separate planner.
+            if (version.count(".") == 1 and re.search(r"最新|最近|latest|newest", query, re.I)
+                    or re.search(re.escape(version) + r"(?:[A-Za-z]|[.+-][A-Za-z0-9])", query)):
+                return None
+            identity = resolve_identity(entity, version)
+            if identity is None:
+                return None
+            exact = identity.version
             return OfficialPlan(entity, exact, (f"https://www.python.org/downloads/release/python-{exact.replace('.', '')}/",))
         if entity == "opus" and version:
             return OfficialPlan(entity, version, ("https://platform.claude.com/docs/en/models/overview",))
@@ -70,7 +81,7 @@ class _OfficialRedirect(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _fields(url: str, payload: bytes) -> dict[str, str]:
+def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None = None) -> dict[str, str]:
     if "pypi.org" in url:
         value = json.loads(payload)
         info = value.get("info") or {}
@@ -114,13 +125,28 @@ def _fields(url: str, payload: bytes) -> dict[str, str]:
         return fields
     if "python.org" in url:
         titles = document.xpath("//h1")
-        match = re.search(r"Python (\d+\.\d+\.\d+)", titles[0].text_content() if titles else "")
-        if not match or match[1].replace(".", "") not in url:
+        match = re.search(r"Python (\d+\.\d+\.\d+)(?![\w.+-])", titles[0].text_content() if titles else "")
+        if not match or urlsplit(url).path != f"/downloads/release/python-{match[1].replace('.', '')}/":
             raise ValueError("python_release_identity_mismatch")
         fields = {"project": "Python", "version": match[1]}
-        date = re.search(r"Release Date:\s*([^\n]+)", document.text_content())
-        if date:
-            fields["release_date"] = date[1].strip()
+        identity = resolve_identity("python", match[1])
+        if identity is None:
+            raise ValueError("python_release_identity_mismatch")
+        read_document = document_from_read(hashlib.sha256(payload).hexdigest(), url, payload)
+        bound_date = extract_release_date(read_document, identity)
+        if bound_date:
+            fields["release_date"] = bound_date.value
+            if source_bindings is not None:
+                proposal = bound_date.binding.proposal
+                start, end = proposal.heading_span
+                source_bindings["release_date"] = {
+                    "kind": "verified_version_heading", "product": identity.product, "version": identity.version,
+                    "url": url, "read_id": proposal.read_id,
+                    "source_content_sha256": proposal.content_sha256,
+                    "decoded_payload_sha256": bound_date.binding.payload_sha256,
+                    "heading_span": list(proposal.heading_span), "heading_quote": read_document.text[start:end],
+                    "source_span": list(proposal.evidence_span), "quote": proposal.quote,
+                }
         return fields
     if "arxiv.org" in url:
         def meta(name: str) -> list[str]:
@@ -147,6 +173,24 @@ def _fields(url: str, payload: bytes) -> dict[str, str]:
     raise ValueError("model_overview_requires_version_scoped_reader")
 
 
+def verified_python_identity(plan: OfficialPlan, url: str, result: dict[str, Any]) -> bool:
+    """Reader-owned official fields, not a candidate/LLM identity flag."""
+    if plan.entity != "python" or url not in plan.urls or result.get("method") != "official_metadata_http_v2":
+        return False
+    if urlsplit(str(result.get("url") or "")).hostname != "www.python.org":
+        return False
+    body = str(result.get("content") or "")
+    if hashlib.sha256(body.encode()).hexdigest() != result.get("content_sha256"):
+        return False
+    fields = {item.get("field"): item.get("value") for item in result.get("official_fields") or []
+              if type(item.get("start")) is int and type(item.get("end")) is int
+              and 0 <= item["start"] < item["end"] <= len(body)
+              and body[item["start"]:item["end"]] == f"{item.get('field')}: {item.get('value')}"}
+    requested = resolve_identity(plan.entity, plan.version)
+    observed = resolve_identity(str(fields.get("project") or ""), str(fields.get("version") or ""))
+    return requested is not None and observed == requested and result.get("source_version") == observed.version
+
+
 def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[str, Any] | None:
     if not _supported_url(url):
         return None
@@ -159,7 +203,8 @@ def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[
             final_url = response.url
             raw_digest = hashlib.sha256(payload).hexdigest()
             payload = decompress_transport_payload(payload, response.headers.get("Content-Encoding", ""))
-        fields = _fields(url, payload)
+        source_bindings: dict[str, Any] = {}
+        fields = _fields(url, payload, source_bindings=source_bindings)
         content = "\n".join(f"{key}: {value}" for key, value in fields.items())
         if len(content) > max_chars:
             raise ValueError("official_normalized_body_limit")
@@ -168,6 +213,8 @@ def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[
             quote = f"{key}: {value}"
             start = content.index(quote)
             spans.append({"field": key, "value": value, "start": start, "end": start + len(quote)})
+            if key in source_bindings:
+                spans[-1]["source_binding"] = source_bindings[key]
         return {"ok": True, "url": final_url, "method": "official_metadata_http_v2", "content": content,
                 "content_sha256": hashlib.sha256(content.encode()).hexdigest(), "transport_sha256": raw_digest,
                 "official_fields": spans, "source_version": fields.get("version") or fields.get("paper_id") or ""}
