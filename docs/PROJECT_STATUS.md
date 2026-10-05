@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-05 当前权威交接（覆盖下方旧候选/待跑状态）：** #171 已合入 main `090678a27ef6b9ec5a0d319b2345ce1d8d3f3701`，exact-main push CI `37268947422` SUCCESS；原工作树 main、clean，已验证的 FastAPI/SQLite/arXiv 改进已交付。Python 独立候选 branch `codex/research-identity-evidence-binding`，base 为该 main，最终生产 head `89a469b97d1efe7151c2b21b40768757a7f89fef`。干净同一 head 完整 L3 **3465 PASS / 6 skipped / 1216.16s**，起止 head 一致且 tracked dirty 为空；L1 76 PASS、L2 451 PASS、Ruff/diff-check PASS、mypy 122/baseline128 NEW0。完整结果 `D:/study-agent-validation/python-binding-candidate-state.json` 与 `python-binding-L3.log`。本次仅记录结果，不重跑已通过的完整套件。
+
+**Python真实发布证据：** `D:/study-agent-validation/python-binding-live-final-89a469b9/result.json` 绑定最终代码 head/digests、官方读取时间、源码响应及回答；真实 ChatService/SQLite 用 1 次官方读取、0 次答案模型调用，0.828s 发布 Python 3.14.0 与 2025-10-07。日期 refs 保存真实 `Release date: Oct. 7, 2025`、版本 heading/跨度以及 canonical text/decoded payload/transport 分层摘要，冻结源码响应重放验证通过。只证明该已读字段与路径，不授予语义评审或学习掌握权限。
+
+**唯一下一门：** 本候选本地合并门通过，开独立 Python PR → 记录一次 exact-head CI → 后续 turn 精确核对 CI/远端 review → expected-head 合并并验证 exact-main；CI 未完成不得称远端交付。Opus 独立官方页与 inline badge 拼接根因已冻结为下方诊断，生产未启用；待 Python 合并后另做 exact-page resolver、reader 文本边界、版本绑定与真实发布负控。最新版本族/预发布规划仍为独立限制；研究整体 **QUALIFICATION NOT CLOSED**。
+
 **2026-10-05 最终token边界候选（覆盖下方中途候选）：** 查询/标题/通用heading身份解析统一防止把有效版本前缀截出不支持的token，负控覆盖rc1、-rc1、+local、额外数字段及hyphen模型ID；未支持的token不能被解释为initial stable或较早模型。最终focused76PASS/19.75s，合并source-quality/recovery/identity的L2 451PASS/174.76s，Ruff/diff-check通过，mypy仍122/baseline128 NEW0（新增正则/负控不改变类型）。生产候选补齐后重新绑定干净HEAD的真实Python发布和完整L3；日志/结果`D:/study-agent-validation/python-binding-L3.log`与`python-binding-candidate-state.json`。前两次L3分别绑定993c8b0b和6375651b，因审查后的生产token修复主动终止，保留superseded日志，不计全绿；新的生产head解释此次重跑，并非重复跑同一已验证head。执行期间不写tracked文档、不继续扩张生产变更。完整门通过后才开新PR/记录一次exact-head CI；原#171已合并，Python候选还未合并，Opus/全局资格保持未完成。
 
 
