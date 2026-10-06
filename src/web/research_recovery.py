@@ -82,9 +82,18 @@ def recovery_budget(query: str) -> RecoveryBudget:
     return LOOKUP_BUDGET
 
 
-def _target_pattern(target: tuple[str, str]) -> re.Pattern[str]:
+def target_identity_pattern(target: tuple[str, str]) -> re.Pattern[str]:
+    """Match one named version, allowing only a canonical zero-patch alias.
+
+    A two-component target such as Python 3.14 may appear in release material
+    as Python 3.14.0. Non-zero patches and adjacent minor versions remain
+    distinct identities.
+    """
     name, version = target
-    digits = r"[\s._-]*".join(re.escape(v) for v in version.split("."))
+    parts = version.split(".")
+    digits = r"[\s._-]*".join(re.escape(part) for part in parts)
+    if len(parts) == 2:
+        digits += r"(?:[\s._-]+0)?"
     return re.compile(
         rf"(?<![A-Za-z0-9]){re.escape(name.rstrip('_-'))}[\s._-]*{digits}(?![\d.])",
         re.IGNORECASE,
@@ -213,7 +222,7 @@ def _recover_public_research(
     provider_failures = 0
     search_topic = normalize_web_query(query).canonical_query
     rewritten, domains = _rewrite(search_topic)
-    markers = [_target_pattern(target) for target in model_targets(rewritten)]
+    markers = [target_identity_pattern(target) for target in model_targets(rewritten)]
     # A bare short Chinese topic must appear whole in the body. Matching only
     # one character (e.g. a surname dictionary entry) is not topic evidence.
     literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
