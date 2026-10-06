@@ -120,3 +120,20 @@ def test_eligibility_is_reported_not_acted_on():
     assert result['l3_eligible'] is True
     assert result['l3_required_for_merge'] is True
     assert 'action' not in result
+
+def test_ci_tooling_paths_are_recognised():
+    for path in (
+        '.github/workflows/ci.yml',
+        '.github/workflows/ci-l3.yml',
+        'tools/ci_scope.py',
+        'tools/check_ci_outcomes.py',
+    ):
+        assert classify_path(path) == 'ci-tooling', path
+
+
+def test_ci_tooling_does_not_require_frontend_or_l3():
+    result = classify(['tools/ci_scope.py', '.github/workflows/ci.yml'])
+    assert result['frontend_required'] is False
+    assert result['browser_required'] is False
+    assert result['l3_eligible'] is False
+    assert result['full_scope'] is False

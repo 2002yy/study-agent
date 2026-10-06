@@ -82,6 +82,16 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        "ci-tooling",
+        (
+            ".github/workflows/*",
+            "tools/ci_*.py",
+            "tools/check_ci_outcomes.py",
+            "tools/run_stage_gate.py",
+            "tests/test_ci_*.py",
+        ),
+    ),
+    (
         "docs",
         (
             "docs/*",
