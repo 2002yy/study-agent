@@ -42,6 +42,15 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        "standard",
+        (
+            "src/application/standard_*.py",
+            "src/repositories/standard_*.py",
+            "tests/test_standard_*.py",
+            "tests/test_lookup_terminal.py",
+        ),
+    ),
+    (
         "persistence",
         (
             "src/repositories/*",
@@ -111,6 +120,13 @@ _L3_CATEGORIES = frozenset({"qualification", "shared-core", "persistence"})
 # Categories that require the frontend toolchain.
 _FRONTEND_CATEGORIES = frozenset({"frontend"})
 
+# Category -> the named impact set in tests/stage_gates.json that covers it. The workflow
+# consumes this name; it must not keep its own list of test files.
+_IMPACT_SET_BY_CATEGORY: dict[str, str] = {
+    "standard": "standard_research_loop",
+    "research-backend": "research_recovery",
+}
+
 
 def classify_path(path: str) -> str:
     """Return the category for one path, or ``unknown``."""
@@ -145,18 +161,33 @@ def classify(paths: list[str]) -> dict:
     frontend_required = bool(_FRONTEND_CATEGORIES & category_set) or bool(unknown)
     browser_required = "browser" in category_set or bool(unknown)
     qualification_required = "qualification" in category_set or bool(unknown)
+    # Eligibility means "this change may be part of a final L3 candidate". It is NOT the
+    # same as "this PR must run L3 before merge": an intermediate slice that merely
+    # registers or updates an impact set is eligible but not required.
     l3_eligible = bool(_L3_CATEGORIES & category_set) or bool(unknown)
     full_scope = bool(unknown)
-    # Eligibility is a report, never an action: the fast tier must not start L3 on its own.
+
+    # The workflow consumes a named impact set instead of keeping its own file list.
+    # Only when the change set is unambiguous: no unknown path, and every category maps.
+    impact_set = ""
+    if not full_scope and categories:
+        mapped = {_IMPACT_SET_BY_CATEGORY.get(name) for name in categories}
+        if len(mapped) == 1:
+            impact_set = next(iter(mapped)) or ""
+
+    # L3 is explicitly triggered (ci-l3.yml / the run-l3 label), never inferred here.
+    l3_required_for_merge = False
+
     return {
         "categories": categories,
         "paths_by_category": {k: sorted(v) for k, v in by_category.items()},
         "unknown_paths": sorted(unknown),
+        "impact_set": impact_set,
         "frontend_required": frontend_required,
         "browser_required": browser_required,
         "qualification_required": qualification_required,
         "l3_eligible": l3_eligible,
-        "l3_required_for_merge": l3_eligible,
+        "l3_required_for_merge": l3_required_for_merge,
         "full_scope": full_scope,
         "scope": (
             "full"
@@ -188,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         # Machine-stable keys only; the workflow must not re-derive the routing itself.
         print(f"scope={result['scope']}")
+        print(f"impact_set={result['impact_set']}")
         print(f"frontend_required={'true' if result['frontend_required'] else 'false'}")
         print(f"browser_required={'true' if result['browser_required'] else 'false'}")
         print(

@@ -115,10 +115,11 @@ def test_qualification_required_only_for_qualification_or_unknown():
 
 
 def test_eligibility_is_reported_not_acted_on():
-    # A shared-core change is eligible, but the field is only a report.
+    # A shared-core change is eligible to be part of a final L3 candidate, but the field
+    # is only a report and L3 is never required per merge by the classifier.
     result = classify(['src/domain/evidence.py'])
     assert result['l3_eligible'] is True
-    assert result['l3_required_for_merge'] is True
+    assert result['l3_required_for_merge'] is False
     assert 'action' not in result
 
 def test_ci_tooling_paths_are_recognised():
@@ -155,3 +156,56 @@ def test_a_real_ci_tooling_change_set_is_not_unknown_and_not_full():
     assert result['full_scope'] is False
     assert result['frontend_required'] is False
     assert result['scope'] == 'tiered'
+
+
+# --- CI-2: standard routing, named impact sets, eligibility vs requirement ---------
+
+
+def test_standard_paths_are_recognised():
+    assert classify_path("tests/test_standard_research.py") == "standard"
+    assert classify_path("src/application/standard_execution.py") == "standard"
+    assert classify_path("src/repositories/standard_execution_repository.py") == "standard"
+
+
+def test_standard_change_is_not_unknown_and_not_full():
+    result = classify(["tests/test_standard_research.py", "src/application/standard_handoff.py"])
+    assert result["unknown_paths"] == []
+    assert result["full_scope"] is False
+    assert result["frontend_required"] is False
+
+
+def test_standard_change_selects_the_named_impact_set():
+    result = classify(["tests/test_standard_research.py"])
+    assert result["impact_set"] == "standard_research_loop"
+
+
+def test_research_change_selects_its_named_impact_set():
+    result = classify(["src/web/research/runtime.py"])
+    assert result["impact_set"] == "research_recovery"
+
+
+def test_multi_category_change_has_no_single_impact_set():
+    result = classify(["src/web/research/runtime.py", "tests/test_standard_research.py"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_unknown_path_yields_no_impact_set_and_full_scope():
+    result = classify(["mystery/thing.bin"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is True
+
+
+def test_ci_tooling_change_has_no_impact_set():
+    # A CI-tooling-only change is not covered by a product impact set; the workflow must
+    # fall back safely rather than guess one.
+    result = classify(["tools/ci_scope.py", ".github/workflows/ci.yml"])
+    assert result["impact_set"] == ""
+
+
+def test_eligibility_and_requirement_are_decoupled():
+    # Registering an impact set touches the qualification category: eligible, but an
+    # intermediate slice must not be reported as requiring L3 before merge.
+    result = classify(["tests/stage_gates.json"])
+    assert result["l3_eligible"] is True
+    assert result["l3_required_for_merge"] is False
