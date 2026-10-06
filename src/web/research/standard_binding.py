@@ -51,10 +51,19 @@ UNRESOLVED_STATES = (CONFLICT, SPAN_BOUND, INSUFFICIENT, NOT_EVALUATED)
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _SEMVER = re.compile(r"\b(\d+\.\d+(?:\.\d+)?)\b")
 
-# A date is only a *release* date when the span says so. "Documentation updated: 2025-10-07"
-# carries a valid date and no release relation, so it must not become support.
-_DATE_CUE = re.compile(r"\b(released?|release|shipped|published|launched|available)\b", re.I)
-_VERSION_CUE = re.compile(r"\b(version|released?|release|v)\b", re.I)
+# Explicit, enumerated grammar. A release date is proven only by one of these forms - we do
+# not add fuzzy synonyms ("published", "available") to raise coverage, because "the sentence
+# contains published and a date" is not a mechanical proof of a release date.
+_DATE_GRAMMAR = (
+    r"\brelease date\b\s*[:\-]?\s*(?P<d>\d{4}-\d{2}-\d{2})\b",
+    r"\breleased on\s+(?P<d>\d{4}-\d{2}-\d{2})\b",
+    r"\breleased\s+(?P<d>\d{4}-\d{2}-\d{2})\b",
+)
+_VERSION_GRAMMAR = (
+    r"\bversion\s*(?P<v>\d+\.\d+(?:\.\d+)?)",
+    r"\brelease[sd]?\s+(?P<v>\d+\.\d+(?:\.\d+)?)\b",
+    r"\bv(?P<v>\d+\.\d+(?:\.\d+)?)\b",
+)
 
 
 @dataclass(frozen=True)
@@ -110,24 +119,24 @@ def _to_iso(match: re.Match[str]) -> str | None:
 
 
 def _bind_date_relation(span: str) -> str | None:
-    """A release date, only when the span expresses the relation and the value is unique."""
+    """A release date, only when the span matches the grammar and the value is unique."""
 
     text = str(span)
-    if not _DATE_CUE.search(text):
-        return None
-    matches = list(_ISO_DATE.finditer(text))
-    if len(matches) != 1:
+    dates = list(_ISO_DATE.finditer(text))
+    if len(dates) != 1:
         # Two dates in one span is ambiguous; refuse rather than pick the first.
         return None
-    return _to_iso(matches[0])
+    if not any(re.search(pattern, text, re.I) for pattern in _DATE_GRAMMAR):
+        return None
+    return _to_iso(dates[0])
 
 
 def _bind_version_relation(span: str) -> str | None:
     text = str(span)
-    if not _VERSION_CUE.search(text):
-        return None
     matches = list(_SEMVER.finditer(text))
     if len(matches) != 1:
+        return None
+    if not any(re.search(pattern, text, re.I) for pattern in _VERSION_GRAMMAR):
         return None
     return matches[0].group(1)
 
@@ -336,8 +345,9 @@ def apply_bindings(
 ) -> dict[str, Any]:
     """Return a copy of the result with bindings recorded. Never grants authority.
 
-    A binding for a field the run never requested is ignored - bindings cannot invent gaps. A
-    supported field leaves ``unresolved_gaps``; every other status leaves it in place.
+    A binding for a field the run never requested is ignored - bindings cannot invent gaps.
+    ``unresolved_gaps`` is recomputed from the final support status, so a field that was
+    supported and is later re-bound as a conflict or a bound span returns to unresolved.
     ``publication_authority`` is forced back to ``False``: a verified support is evidence, not
     a publication licence.
     """
@@ -347,7 +357,6 @@ def apply_bindings(
         field: dict(state)
         for field, state in (result.get("gap_states") or {}).items()
     }
-    unresolved = list(result.get("unresolved_gaps") or [])
     conflicts: list[dict[str, Any]] = []
 
     for field, binding in bindings.items():
@@ -358,7 +367,6 @@ def apply_bindings(
         gap_states[field]["support_status"] = status
         if status == SUPPORT:
             gap_states[field]["research_state"] = "SUPPORTED"
-            unresolved = [name for name in unresolved if name != field]
         elif status == CONFLICT:
             gap_states[field]["research_state"] = "CONFLICT"
             conflicts.append(
@@ -366,6 +374,16 @@ def apply_bindings(
             )
         elif status == SPAN_BOUND:
             gap_states[field]["research_state"] = "SPAN_BOUND"
+
+    # Recomputed from the final state, not incrementally edited.
+    unresolved = [
+        field
+        for field, state in gap_states.items()
+        if str(state.get("support_status")) != SUPPORT
+    ]
+    for field in result.get("unresolved_gaps") or []:
+        if field not in gap_states and field not in unresolved:
+            unresolved.append(field)
 
     updated["gap_states"] = gap_states
     updated["conflicts"] = conflicts

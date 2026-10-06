@@ -373,3 +373,77 @@ def test_apply_bindings_does_not_mutate_the_input():
     apply_bindings(result, bind_fields(["release_date"], [_claim()], TRUSTED))
     assert result["unresolved_gaps"] == ["release_date"]
     assert result["publication_authority"] is False
+
+
+# --- review round 3: narrowed grammar and recomputed unresolved ------------------
+
+
+def test_published_with_a_date_is_still_span_bound():
+    # "published" is not in the release-date grammar; it must not raise coverage.
+    body = "Documentation published: 2025-10-07"
+    sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    binding = bind_field(
+        "release_date",
+        [_claim(source_sha256=sha, span_text=body)],
+        [TrustedSource(url=URL, content_sha256=sha, body=body, source_role="primary")],
+    )
+    assert binding["status"] == SPAN_BOUND
+    assert binding["supports"] == []
+
+
+def test_explicit_release_grammar_forms_are_accepted():
+    binder = relation_binder_for("release_date")
+    assert binder("Release date: 2025-10-07") == "2025-10-07"
+    assert binder("Released on 2025-10-07") == "2025-10-07"
+    assert binder("Released 2025-10-07") == "2025-10-07"
+
+
+def test_resolved_field_returns_to_unresolved_when_rebound_as_conflict():
+    result = {
+        "gap_states": {
+            "release_date": {
+                "research_state": "SUPPORTED",
+                "support_status": SUPPORT,
+                "source_urls": [URL],
+            }
+        },
+        "unresolved_gaps": [],
+        "publication_authority": False,
+        "conflicts": [],
+    }
+    bindings = bind_fields(
+        ["release_date"],
+        [
+            _claim(span_text="Release date: 2025-10-07"),
+            _claim(source_url=OTHER.url, source_sha256=OTHER_SHA, span_text=OTHER_BODY),
+        ],
+        TRUSTED + [OTHER],
+    )
+    updated = apply_bindings(result, bindings)
+    assert updated["gap_states"]["release_date"]["support_status"] == CONFLICT
+    assert updated["unresolved_gaps"] == ["release_date"]
+
+
+def test_resolved_field_returns_to_unresolved_when_rebound_as_span_bound():
+    body = "Documentation published: 2025-10-07"
+    sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    result = {
+        "gap_states": {
+            "release_date": {
+                "research_state": "SUPPORTED",
+                "support_status": SUPPORT,
+                "source_urls": [URL],
+            }
+        },
+        "unresolved_gaps": [],
+        "publication_authority": False,
+        "conflicts": [],
+    }
+    bindings = bind_fields(
+        ["release_date"],
+        [_claim(source_sha256=sha, span_text=body)],
+        [TrustedSource(url=URL, content_sha256=sha, body=body, source_role="primary")],
+    )
+    updated = apply_bindings(result, bindings)
+    assert updated["gap_states"]["release_date"]["support_status"] == SPAN_BOUND
+    assert updated["unresolved_gaps"] == ["release_date"]
