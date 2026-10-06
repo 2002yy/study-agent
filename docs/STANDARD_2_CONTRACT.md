@@ -41,4 +41,4 @@ StandardResearchResult 含 gap_states、acquired_sources、reused_sources、read
 - 模型声称事实成立或请求发布时，结果仍无 publication authority。
 - 能从 Lookup unresolved gap 产生明确计划、获取新增来源、形成可恢复 artifact；暂不验收发布答案。
 
-实现前按 touched symbols 声明 impact set。持久化/执行合同变化触发 early L3；先冻结 clean exact candidate 并执行 L3 preflight，再只跑一次完整 L3。CI 和最终审查只认新候选 head。不开自动 continuation，不宣称任何 tier CLOSED。
+实现前按 touched symbols 声明 impact set。**用户 2026-10-06 最新覆盖：Standard 整个阶段完成后才跑一次完整 L3，Standard-2 / 3 / 4 slice 使用 L0、命名 L1 与相应 L2；不按每个 slice 的持久化／authority 修改触发全量。** 总验收仍先冻结 clean exact candidate 并执行 L3 preflight。Standard-2 候选 `02747a42` 的提前全量运行已停止，不计 PASS、不自动重跑。CI 和最终审查只认新候选 head。不开自动 continuation，不宣称任何 tier CLOSED。

@@ -18,7 +18,9 @@
 
 **交接施工位置：** 独立 worktree `D:/study-agent-validation/standard-2-research-loop`，分支 `codex/standard-2-research-loop`，base `eb139900`。合同见 [`STANDARD_2_CONTRACT.md`](STANDARD_2_CONTRACT.md)。当前实现：一次有记录的模型规划、严格计划校验与摘要、复用优先队列、搜索结果插入读取队列、观察与 cursor 原子保存、跨进程恢复、取消／deadline 的诊断完成结果。执行与计费仍只认既有 SQLite journal；所有 gap 保持 unresolved / NOT_EVALUATED，publication_authority=false。
 
-**候选证据：** `standard_research_loop` 命名影响集 351 passed / 161.23s；旧执行基础 focused 50 passed。负控覆盖 planner 越权／篡改、未知 dispatch 禁止重发、旧 token fencing、独立 Python 进程恢复、保存观察前崩溃、取消与 deadline。两处新增 mypy 类型标注已修正，需以最终 no-new-errors 结果为准。正式 L3 尚待 clean candidate preflight；外部日志与候选 SHA 记录保存在 `D:/study-agent-validation/standard-2-{impact,mypy,l3}.log` 和 `standard-2-candidate.json`，不将临时证据混入生产 diff。
+**候选证据：** `standard_research_loop` 命名影响集 351 passed / 161.23s；旧执行基础 focused 50 passed。负控覆盖 planner 越权／篡改、未知 dispatch 禁止重发、旧 token fencing、独立 Python 进程恢复、保存观察前崩溃、取消与 deadline。mypy no-new-errors PASS（current 122 / baseline 128），Ruff、格式与 diff check PASS。生产候选 `02747a42d4671401c14751410720a05ec6fd7378` clean，preflight PASS；其全量回归运行至约 38% 后按用户新的阶段门停止，**INTERRUPTED，不计 PASS，不自动重跑**。外部日志与候选 SHA 记录保存在 `D:/study-agent-validation/standard-2-{impact,mypy,l3}.log` 和 `standard-2-candidate.json`，不将临时证据混入生产 diff。
+
+**测试门覆盖（用户 2026-10-06 最新明确指示）：** Standard 整个阶段完成后才跑一次完整 L3；Standard-2 / Standard-3 / Standard-4 slice 期间只跑 L0、命名 L1 impact set 与相应 L2 stage integration。该明确指示优先于旧 early-L3 默认触发规则；不能因每个 slice 涉及持久化／authority 再各跑全量。仍保留 exact-head CI、最终审查和 expected-head merge 门。
 
 **本机主 worktree：** `C:/Users/Zhang/Desktop/study agent` 位于 main，但 `.mcp.json`、`docs/PROJECT_STATUS.md`、`frontend/package.json`、`frontend/package-lock.json` 有既存修改，本轮保留原样，不用远端 main 覆盖。
 
@@ -29,7 +31,7 @@
 3. Standard-4：ChatService 的 Lookup → Standard 自动 continuation；此前不自动接线。
 4. Deep：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。
 
-**唯一下一门：** 冻结 Standard-2 clean candidate → preflight → 一次完整 L3 → 最终审查／独立 PR／exact-head CI。验证机器、事实绑定、自动续研、Deep、UI 不扩入本批。Lookup / Standard / Deep overall 均 **NOT CLOSED**。
+**唯一下一门：** Standard-2 最终审查／独立 PR／exact-head fast CI；然后独立 Standard-3 事实绑定 slice。完整 L3 留到 Standard 总验收。验证机器、事实绑定、自动续研、Deep、UI 不扩入本批。Lookup / Standard / Deep overall 均 **NOT CLOSED**。
 
 ## 0A. 冻结研究路线
 
