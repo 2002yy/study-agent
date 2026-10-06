@@ -231,9 +231,9 @@ def test_blocked_reason_is_bounded():
 
 
 def test_derive_target_requires_a_unique_target():
-    assert derive_target("release date of Python 3.14.0") == "Python 3.14.0"
-    assert derive_target("compare Python 3.13 and 3.14") == ""
-    assert derive_target("hello") == ""
+    assert derive_target("release date of Python 3.14.0") == ("Python", "3.14.0")
+    assert derive_target("compare Python 3.13 and 3.14") is None
+    assert derive_target("hello") is None
 
 
 def test_blocked_parent_is_recorded_without_authority(ctx):
@@ -249,3 +249,110 @@ def test_datetime_is_aware(ctx):
     _service, _repository, _runs, _parent, created, _gateway, _clock = ctx
     assert isinstance(created, datetime)
     assert created.tzinfo is not None
+
+
+# --- blocker: a live lease is contention, not an integrity failure ----------------
+
+
+def test_a_live_lease_defers_instead_of_blocking(ctx):
+    service, repository, runs, parent, created, gateway, clock = ctx
+    # Another owner holds a live lease on the child.
+    StandardExecution.start(
+        repository,
+        runs,
+        parent_turn_id=parent.id,
+        thread_id=parent.thread_id,
+        overall_deadline=created + timedelta(seconds=90),
+        clock=lambda: clock[0],
+    )
+    before = gateway.reads + gateway.queries
+
+    outcome = service.continue_pending(
+        parent_turn_id=parent.id, thread_id=parent.thread_id
+    )
+
+    assert outcome.status == "deferred"
+    assert outcome.reason == "lease_busy"
+    snap = snapshot(repository, parent)
+    assert snap["lookup_terminal"]["dispatch_status"] == "pending"
+    assert "standard_continuation" not in snap
+    assert gateway.reads + gateway.queries == before
+
+
+def test_lease_contention_is_a_value_error_subclass(ctx):
+    from src.repositories.standard_execution_repository import StandardResearchBusy
+
+    assert issubclass(StandardResearchBusy, ValueError)
+
+
+# --- G13: complete_turn really swallows a continuation failure --------------------
+
+
+def _chat_with(continuation):
+    from src.application.standard_chat_service import StandardContinuationChatService
+
+    chat = StandardContinuationChatService.__new__(StandardContinuationChatService)
+    chat._standard_continuation = continuation
+    return chat
+
+
+def test_complete_turn_swallows_a_continuation_failure(ctx, monkeypatch):
+    from src.application import policy_chat_service as pcs
+
+    _service, repository, _runs, parent, _created, _gateway, _clock = ctx
+    completed = repository.get_chat_turn(parent.id)
+    before = completed.assistant_message
+    monkeypatch.setattr(
+        pcs.ExternalDataPolicyChatService,
+        "complete_turn",
+        lambda self, prepared, suffix: completed,
+    )
+
+    class Exploding:
+        repository = None
+
+        def continue_pending(self, **_kwargs):
+            raise RuntimeError("boom")
+
+    result = _chat_with(Exploding()).complete_turn(prepared=None, suffix="")
+    assert result is completed
+    assert result.assistant_message == before
+
+
+def test_complete_turn_returns_the_refreshed_turn_when_continuation_fails(ctx, monkeypatch):
+    from src.application import policy_chat_service as pcs
+
+    _service, repository, _runs, parent, _created, _gateway, _clock = ctx
+    completed = repository.get_chat_turn(parent.id)
+    before = completed.assistant_message
+    monkeypatch.setattr(
+        pcs.ExternalDataPolicyChatService,
+        "complete_turn",
+        lambda self, prepared, suffix: completed,
+    )
+
+    class ExplodingWithRepo:
+        def __init__(self, repo):
+            self.repository = repo
+
+        def continue_pending(self, **_kwargs):
+            raise RuntimeError("boom")
+
+    result = _chat_with(ExplodingWithRepo(repository)).complete_turn(
+        prepared=None, suffix=""
+    )
+    assert result is not None
+    assert result.assistant_message == before
+
+
+def test_complete_turn_is_a_no_op_without_a_continuation_service(ctx, monkeypatch):
+    from src.application import policy_chat_service as pcs
+
+    _service, repository, _runs, parent, _created, _gateway, _clock = ctx
+    completed = repository.get_chat_turn(parent.id)
+    monkeypatch.setattr(
+        pcs.ExternalDataPolicyChatService,
+        "complete_turn",
+        lambda self, prepared, suffix: completed,
+    )
+    assert _chat_with(None).complete_turn(prepared=None, suffix="") is completed

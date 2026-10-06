@@ -16,7 +16,6 @@ from src.web.research.standard_binding_projection import (
     journal_work_key,
     project_mechanical_claims,
     project_trusted_sources,
-    target_identity_pattern,
 )
 
 BODY = "Python 3.14.0 was released on 2025-10-07. See the notes for 3.13."
@@ -96,7 +95,7 @@ def test_windows_split_on_sentence_boundaries():
 
 
 def test_target_and_relation_in_one_window_produces_a_claim():
-    claims = project_mechanical_claims(["release_date"], project_trusted_sources(_ledger()), target="Python 3.14.0")
+    claims = project_mechanical_claims(["release_date"], project_trusted_sources(_ledger()), target=("Python", "3.14.0"))
     assert len(claims) == 1
     assert claims[0].span_text == "Python 3.14.0 was released on 2025-10-07."
     assert claims[0].span_start == 0
@@ -107,7 +106,7 @@ def test_missing_relation_cue_produces_no_claim():
     body = "Python 3.14.0 updated on 2025-10-07."
     digest = hashlib.sha256(body.encode()).hexdigest()
     ledger = _ledger(body=body, digest=digest)
-    assert project_mechanical_claims(["release_date"], project_trusted_sources(ledger), target="Python 3.14.0") == []
+    assert project_mechanical_claims(["release_date"], project_trusted_sources(ledger), target=("Python", "3.14.0")) == []
 
 
 def test_target_absent_from_the_relation_window_produces_no_claim():
@@ -115,24 +114,25 @@ def test_target_absent_from_the_relation_window_produces_no_claim():
     body = "Python 3.13.0 was released on 2025-10-07."
     digest = hashlib.sha256(body.encode()).hexdigest()
     ledger = _ledger(body=body, digest=digest)
-    assert project_mechanical_claims(["release_date"], project_trusted_sources(ledger), target="Python 3.14.0") == []
+    assert project_mechanical_claims(["release_date"], project_trusted_sources(ledger), target=("Python", "3.14.0")) == []
 
 
 def test_no_target_produces_no_claim():
-    assert project_mechanical_claims(["release_date"], project_trusted_sources(_ledger()), target="") == []
+    assert project_mechanical_claims(["release_date"], project_trusted_sources(_ledger()), target=None) == []
 
 
 def test_field_without_a_relation_binder_is_skipped():
-    assert project_mechanical_claims(["motto"], project_trusted_sources(_ledger()), target="Python 3.14.0") == []
+    assert project_mechanical_claims(["motto"], project_trusted_sources(_ledger()), target=("Python", "3.14.0")) == []
 
 
-def test_target_identity_pattern_matches_tokens_in_order():
-    pattern = target_identity_pattern("Python 3.14")
-    assert pattern is not None
-    import re
+def test_identity_uses_the_canonical_pattern():
+    from src.web.research_recovery import target_identity_pattern
 
-    assert re.search(pattern, "the Python 3.14 release", re.I)
-    assert not re.search(pattern, "the Python release", re.I)
+    pattern = target_identity_pattern(("Python", "3.14"))
+    assert pattern.search("the Python 3.14 release")
+    assert pattern.search("Python 3.14.0 was released")
+    assert not pattern.search("Python 3.14.1 was released")
+    assert not pattern.search("Python 3.13 was released")
 
 
 # --- end to end through Standard-3 -------------------------------------------------
@@ -140,7 +140,7 @@ def test_target_identity_pattern_matches_tokens_in_order():
 
 def test_projected_claim_binds_through_standard_3():
     trusted = project_trusted_sources(_ledger())
-    claims = project_mechanical_claims(["release_date"], trusted, target="Python 3.14.0")
+    claims = project_mechanical_claims(["release_date"], trusted, target=("Python", "3.14.0"))
     bindings = bind_fields(["release_date"], claims, trusted)
     assert bindings["release_date"]["status"] == "SUPPORT"
     assert bindings["release_date"]["supports"][0]["normalized_value"] == "2025-10-07"
@@ -150,7 +150,36 @@ def test_projection_cannot_force_support_without_a_relation():
     body = "Python 3.14.0 documentation updated on 2025-10-07."
     digest = hashlib.sha256(body.encode()).hexdigest()
     trusted = project_trusted_sources(_ledger(body=body, digest=digest))
-    claims = project_mechanical_claims(["release_date"], trusted, target="Python 3.14.0")
+    claims = project_mechanical_claims(["release_date"], trusted, target=("Python", "3.14.0"))
     bindings = bind_fields(["release_date"], claims, trusted)
     assert bindings["release_date"]["status"] == "NOT_EVALUATED"
     assert bindings["release_date"]["supports"] == []
+
+
+# --- adjacent versions must never be confused (blocker: weak identity grammar) -----
+
+
+def _ledger_for(body):
+    digest = hashlib.sha256(body.encode()).hexdigest()
+    return _ledger(body=body, digest=digest)
+
+
+def test_canonical_zero_patch_alias_is_accepted():
+    claims = project_mechanical_claims(
+        ["release_date"], project_trusted_sources(_ledger_for("Python 3.14.0 was released on 2025-10-07.")), target=("Python", "3.14")
+    )
+    assert len(claims) == 1
+
+
+def test_adjacent_patch_is_not_the_same_identity():
+    claims = project_mechanical_claims(
+        ["release_date"], project_trusted_sources(_ledger_for("Python 3.14.1 was released on 2025-10-07.")), target=("Python", "3.14")
+    )
+    assert claims == []
+
+
+def test_adjacent_minor_is_not_the_same_identity():
+    claims = project_mechanical_claims(
+        ["release_date"], project_trusted_sources(_ledger_for("Python 3.13 was released on 2025-10-07.")), target=("Python", "3.14")
+    )
+    assert claims == []

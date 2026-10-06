@@ -263,7 +263,10 @@ class StandardExecutionRepository:
             if active != previous:
                 raise ValueError("Standard execution owner mismatch")
             if previous and now < datetime.fromisoformat(ledger["lease_until"]):
-                raise ValueError("Standard operation already leased")
+                # A live lease is contention, not an integrity failure: the caller must
+                # defer and retry, not mark the handoff blocked. StandardResearchBusy is a
+                # ValueError subclass, so existing except ValueError behaviour is unchanged.
+                raise StandardResearchBusy("Standard operation already leased")
             if operation_id in ledger["tokens"]:
                 raise ValueError("Standard resumed operation requires a fresh token")
             if len(ledger["tokens"]) >= 100:

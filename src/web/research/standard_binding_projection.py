@@ -27,6 +27,7 @@ import re
 from typing import Any, Iterable
 
 from src.web.research.standard_binding import Claim, TrustedSource, relation_binder_for
+from src.web.research_recovery import target_identity_pattern
 
 # Stable evidence boundaries: a claim never spans a sentence break.
 _WINDOW_SPLIT = re.compile(r"(?<=[.!?;])\s+|\n+")
@@ -107,27 +108,23 @@ def evidence_windows(body: str) -> list[tuple[str, int, int]]:
     return windows
 
 
-def target_identity_pattern(target: str) -> str | None:
-    """A pattern that matches the target's tokens in order, or None when there is no target."""
-
-    tokens = [tok for tok in re.split(r"\s+", str(target or "").strip()) if tok]
-    if not tokens:
-        return None
-    return r"\b" + r"\s*".join(re.escape(tok) for tok in tokens) + r"\b"
-
-
 def project_mechanical_claims(
     fields: Iterable[str],
     trusted: Iterable[TrustedSource],
     *,
-    target: str,
+    target: tuple[str, str] | None,
 ) -> list[Claim]:
-    """Deterministic candidate claims: relation and target identity in the same window."""
+    """Deterministic candidate claims: relation and target identity in the same window.
 
-    pattern = target_identity_pattern(target)
-    if pattern is None:
+    ``target`` is a canonical ``(name, version)`` identity, and matching uses the repository's
+    ``target_identity_pattern`` so that a query for 3.14 accepts 3.14 and its canonical 3.14.0
+    alias but never 3.14.1 or 3.13.
+    """
+
+    if target is None:
         # No unique target: refuse to propose anything rather than bind a neighbouring fact.
         return []
+    pattern = target_identity_pattern(target)
     claims: list[Claim] = []
     for field in fields:
         binder = relation_binder_for(field)
@@ -137,7 +134,7 @@ def project_mechanical_claims(
             for text, start, _end in evidence_windows(source.body):
                 if binder(text) is None:
                     continue
-                if not re.search(pattern, text, re.I):
+                if not pattern.search(text):
                     continue
                 claims.append(
                     Claim(
@@ -155,7 +152,7 @@ def project_binding_inputs(
     ledger: dict,
     fields: Iterable[str],
     *,
-    target: str,
+    target: tuple[str, str] | None,
 ) -> dict[str, Any]:
     """The whole projection, for the continuation service."""
 

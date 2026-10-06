@@ -20,7 +20,6 @@ false, and the assistant message is never touched.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Literal
@@ -38,7 +37,7 @@ from src.web.research.standard_binding_projection import (
     project_mechanical_claims,
     project_trusted_sources,
 )
-from src.web.research_recovery import LOOKUP_BUDGET, STANDARD_BUDGET
+from src.web.research_recovery import LOOKUP_BUDGET, STANDARD_BUDGET, model_targets
 
 CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
 
@@ -46,15 +45,13 @@ CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
 # total action budget is already bounded, so one extra call is enough to finish.
 MAX_ADVANCES = 2
 
-# A version-shaped target, e.g. "Python 3.14.0". Only a single unambiguous target is used.
-_TARGET = re.compile(r"\b([A-Za-z][A-Za-z0-9+._-]*\s+\d+(?:\.\d+)*)\b")
+# The canonical target identity lives in research_recovery; Standard-4 must not keep a second
+# identity grammar that would accept 3.14.1 for a query about 3.14.
+def derive_target(query: str) -> tuple[str, str] | None:
+    """The single unambiguous ``(name, version)`` target named by the query, or None."""
 
-
-def derive_target(query: str) -> str:
-    """The single unambiguous target named by the query, or "" when there is not exactly one."""
-
-    found = sorted({match.strip() for match in _TARGET.findall(str(query or ""))})
-    return found[0] if len(found) == 1 else ""
+    targets = model_targets(str(query or ""))
+    return targets[0] if len(targets) == 1 else None
 
 
 def blocked_reason(exc: BaseException) -> str:
