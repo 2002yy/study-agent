@@ -137,3 +137,21 @@ def test_ci_tooling_does_not_require_frontend_or_l3():
     assert result['browser_required'] is False
     assert result['l3_eligible'] is False
     assert result['full_scope'] is False
+
+def test_l3_preflight_test_is_ci_tooling():
+    assert classify_path('tests/test_l3_preflight.py') == 'ci-tooling'
+
+
+def test_a_real_ci_tooling_change_set_is_not_unknown_and_not_full():
+    # The exact paths of the CI-tiering pull request itself: none may be unknown, so the
+    # fast tier can actually engage instead of widening to the full gate.
+    paths = [
+        '.github/workflows/ci-l3.yml', '.github/workflows/ci.yml', 'AGENTS.md',
+        'tests/test_ci_outcomes.py', 'tests/test_ci_scope.py', 'tests/test_l3_preflight.py',
+        'tools/check_ci_outcomes.py', 'tools/ci_scope.py', 'tools/l3_preflight.py',
+    ]
+    result = classify(paths)
+    assert result['unknown_paths'] == []
+    assert result['full_scope'] is False
+    assert result['frontend_required'] is False
+    assert result['scope'] == 'tiered'
