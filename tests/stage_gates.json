@@ -293,6 +293,26 @@
       "tests/test_research_gate_server_ownership.py",
       "tests/test_pr143_rereview_regressions.py",
       "tests/test_web_tool_agent.py"
+    ],
+    "standard_research_loop": [
+      "tests/test_standard_research.py",
+      "tests/test_standard_handoff.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_chat_service.py",
+      "tests/test_research_recovery.py",
+      "tests/test_semantic_recovery.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_stage_gates_policy.py",
+      "tests/test_standard_execution.py",
+      "tests/test_research_run_recovery.py",
+      "tests/test_persistent_web_agent.py",
+      "tests/test_chat_turn_cancellation.py",
+      "tests/test_answer_publication_gate.py",
+      "tests/test_research_evidence_chat_truth.py",
+      "tests/test_external_data_policy.py",
+      "tests/test_research_gate_server_ownership.py",
+      "tests/test_pr143_rereview_regressions.py",
+      "tests/test_web_tool_agent.py"
     ]
   },
   "stage_gates": {
