@@ -46,6 +46,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "src/application/standard_*.py",
             "src/repositories/standard_*.py",
+            "src/web/research/standard_*.py",
             "tests/test_standard_*.py",
             "tests/test_lookup_terminal.py",
         ),
@@ -122,10 +123,18 @@ _FRONTEND_CATEGORIES = frozenset({"frontend"})
 
 # Category -> the named impact set in tests/stage_gates.json that covers it. The workflow
 # consumes this name; it must not keep its own list of test files.
+#
+# Only an exact, registered mapping belongs here. A broad mapping such as "any research
+# path -> one research set" would look fast while silently narrowing what is verified, so
+# an unregistered subsystem deliberately falls through to the full scope instead.
 _IMPACT_SET_BY_CATEGORY: dict[str, str] = {
     "standard": "standard_research_loop",
-    "research-backend": "research_recovery",
 }
+
+# Categories that do not choose an impact set on their own. A real slice almost always
+# carries docs and a stage-gate registration alongside its product change; those must not
+# blank the impact set and send the pull request back to the full suite.
+_IMPACT_NEUTRAL_CATEGORIES = frozenset({"docs", "ci-tooling", "qualification"})
 
 
 def classify_path(path: str) -> str:
@@ -168,12 +177,19 @@ def classify(paths: list[str]) -> dict:
     full_scope = bool(unknown)
 
     # The workflow consumes a named impact set instead of keeping its own file list.
-    # Only when the change set is unambiguous: no unknown path, and every category maps.
+    # Docs, CI tooling and a stage-gate registration ride along with a real slice, so they
+    # are ignored here. Every remaining product category must be registered and agree on a
+    # single set; an unknown path or an unregistered product category yields no impact set
+    # and therefore the full scope, never a narrower run than the change actually needs.
     impact_set = ""
-    if not full_scope and categories:
-        mapped = {_IMPACT_SET_BY_CATEGORY.get(name) for name in categories}
-        if len(mapped) == 1:
-            impact_set = next(iter(mapped)) or ""
+    if not full_scope:
+        product = [
+            name for name in categories if name not in _IMPACT_NEUTRAL_CATEGORIES
+        ]
+        if product and all(_IMPACT_SET_BY_CATEGORY.get(name) for name in product):
+            mapped = {_IMPACT_SET_BY_CATEGORY[name] for name in product}
+            if len(mapped) == 1:
+                impact_set = next(iter(mapped))
 
     # L3 is explicitly triggered (ci-l3.yml / the run-l3 label), never inferred here.
     l3_required_for_merge = False

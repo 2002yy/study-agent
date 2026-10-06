@@ -179,9 +179,12 @@ def test_standard_change_selects_the_named_impact_set():
     assert result["impact_set"] == "standard_research_loop"
 
 
-def test_research_change_selects_its_named_impact_set():
+def test_unregistered_research_change_falls_back_to_full_scope():
+    # No broad "any research path" mapping: an unregistered subsystem must not be routed
+    # to a narrower set than it needs, so it yields no impact set and the full suite runs.
     result = classify(["src/web/research/runtime.py"])
-    assert result["impact_set"] == "research_recovery"
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
 
 
 def test_multi_category_change_has_no_single_impact_set():
@@ -209,3 +212,55 @@ def test_eligibility_and_requirement_are_decoupled():
     result = classify(["tests/stage_gates.json"])
     assert result["l3_eligible"] is True
     assert result["l3_required_for_merge"] is False
+
+
+# --- CI-2 review fixes: a real slice carries docs and a gate registration -----------
+
+
+def test_real_standard_slice_still_selects_its_impact_set():
+    # A real Standard slice also touches docs and registers its impact set. Those must
+    # not blank the impact set and send the pull request back to the full suite.
+    result = classify([
+        "tests/test_standard_research.py",
+        "src/application/standard_handoff.py",
+        "docs/PROJECT_STATUS.md",
+        "tests/stage_gates.json",
+    ])
+    assert result["full_scope"] is False
+    assert result["impact_set"] == "standard_research_loop"
+    assert result["categories"] == ["docs", "qualification", "standard"]
+
+
+def test_docs_and_gate_registration_alone_select_no_impact_set():
+    result = classify(["docs/PROJECT_STATUS.md", "tests/stage_gates.json"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_product_category_without_a_mapping_yields_no_impact_set():
+    # learning-backend has no named set, so the fast tier must fall back safely rather
+    # than guess one.
+    result = classify(["src/application/chat_service.py"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_unknown_still_wins_over_a_mapped_category():
+    result = classify(["tests/test_standard_research.py", "mystery/x.bin"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is True
+
+
+# --- CI-2 review fix: a Standard research module is a Standard change ---------------
+
+
+def test_standard_research_module_routes_to_the_standard_set():
+    result = classify(["src/web/research/standard_plan.py"])
+    assert result["categories"] == ["standard"]
+    assert result["impact_set"] == "standard_research_loop"
+
+
+def test_standard_research_module_beats_the_broader_research_rule():
+    # The standard rule is checked before the general research rule.
+    assert classify_path("src/web/research/standard_plan.py") == "standard"
+    assert classify_path("src/web/research/runtime.py") == "research-backend"

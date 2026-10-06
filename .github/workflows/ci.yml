@@ -25,6 +25,10 @@ jobs:
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The classify step diffs the main-push range; a shallow clone would not have
+          # the before commit, which would silently fall back to the full scope.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
