@@ -225,3 +225,51 @@ Avoid narrating every shell command or repeating frozen background.
 A task is not more correct because it used more scans, longer logs, more full-suite reruns, or more CI polling.
 
 Prefer the smallest evidence set that proves the requested behavior while preserving the repository's frozen quality gates, crash/recovery guarantees, compatibility rules, and reviewability.
+
+
+## 14. Tiered validation discipline (frozen 2026-10-04)
+
+**Full L3 is a release/authority gate, not an iteration loop.**
+
+A recent full L3 ran for about eighteen minutes and then reported two failures that were
+nothing but a dirty qualification checkout. The lesson is not "run L3 more carefully"; it is
+that the prerequisites must be checked in seconds, before the expensive suite starts.
+
+### 14.1 Authority split
+
+| Concern | Authority |
+| --- | --- |
+| Development/verification discipline | this file (`AGENTS.md`) |
+| Machine execution | `.github/workflows/*` + `tools/*` |
+| Gate configuration | `tests/stage_gates.json` |
+| Implementation status | `docs/PROJECT_STATUS.md` (records progress only, not rules) |
+
+`PROJECT_STATUS.md` must not be the long-term source of a rule. Otherwise the document and
+the workflow drift apart.
+
+### 14.2 The four layers, with L3 deliberately rare
+
+| Layer | When | Content | Clean exact HEAD |
+| --- | --- | --- | --- |
+| L0 | every change | Ruff, `git diff --check`, tiny unit tests | no |
+| L1 | a bounded slice completes | the slice's tests + direct impact set | no |
+| L2 | a sub-phase is closing | the named stage gate (hundreds, not thousands) | preferred |
+| L3 | production authority cutover / major phase CLOSED / final merge candidate | full `pytest` | **yes** |
+
+### 14.3 Rules
+
+1. A bounded slice runs its named impact set. Ordinary development must not substitute
+   repeated full runs for impact analysis.
+2. Run full L3 only for a final candidate SHA, a production authority cutover, or an
+   explicit `force_l3_triggers` hit in `tests/stage_gates.json`.
+3. **L3 must pass a seconds-scale preflight first** (`tools/l3_preflight.py`): clean tracked
+   checkout, exact 40-character HEAD, CI SHA consistency, valid gate configuration. A
+   preflight failure must not start the full suite.
+4. Do not rerun L3 for an unchanged candidate. An old SHA's L3 must not be lent to a new SHA.
+5. A push must not automatically trigger repeated full runs. Pull requests default to the
+   fast tier; the full tier is triggered explicitly (label / merge-ready / dispatch).
+6. Target: most bounded slices run **zero** L3; a merge-ready PR runs **at most one** L3, and
+   a second only if the first exposed a real blocker that was then fixed.
+7. CI scope is derived from the changed paths (`tools/ci_scope.py`). A research-only change
+   must not pay for the frontend or browser gates; a frontend-only change must not pay for
+   the research qualification. Unknown paths widen the scope, never narrow it.
