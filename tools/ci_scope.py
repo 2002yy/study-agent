@@ -130,15 +130,22 @@ def classify(paths: list[str]) -> dict:
             by_category.setdefault(category, []).append(path)
 
     categories = sorted(by_category)
-    frontend_required = bool(_FRONTEND_CATEGORIES & set(categories)) or bool(unknown)
-    l3_eligible = bool(_L3_CATEGORIES & set(categories)) or bool(unknown)
+    category_set = set(categories)
+    frontend_required = bool(_FRONTEND_CATEGORIES & category_set) or bool(unknown)
+    browser_required = "browser" in category_set or bool(unknown)
+    qualification_required = "qualification" in category_set or bool(unknown)
+    l3_eligible = bool(_L3_CATEGORIES & category_set) or bool(unknown)
     full_scope = bool(unknown)
+    # Eligibility is a report, never an action: the fast tier must not start L3 on its own.
     return {
         "categories": categories,
         "paths_by_category": {k: sorted(v) for k, v in by_category.items()},
         "unknown_paths": sorted(unknown),
         "frontend_required": frontend_required,
+        "browser_required": browser_required,
+        "qualification_required": qualification_required,
         "l3_eligible": l3_eligible,
+        "l3_required_for_merge": l3_eligible,
         "full_scope": full_scope,
         "scope": (
             "full"
@@ -157,7 +164,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        with open(args.paths_file, encoding="utf-8") as handle:
+        # utf-8-sig tolerates a BOM, which some shells add when writing the list.
+        with open(args.paths_file, encoding="utf-8-sig") as handle:
             paths = [line.strip() for line in handle if line.strip()]
     except OSError as exc:
         print(f"ci_scope_unreadable: {type(exc).__name__}", file=sys.stderr)
@@ -167,9 +175,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
+        # Machine-stable keys only; the workflow must not re-derive the routing itself.
         print(f"scope={result['scope']}")
         print(f"frontend_required={'true' if result['frontend_required'] else 'false'}")
+        print(f"browser_required={'true' if result['browser_required'] else 'false'}")
+        print(
+            f"qualification_required="
+            f"{'true' if result['qualification_required'] else 'false'}"
+        )
         print(f"l3_eligible={'true' if result['l3_eligible'] else 'false'}")
+        print(
+            f"l3_required_for_merge="
+            f"{'true' if result['l3_required_for_merge'] else 'false'}"
+        )
+        print(f"full_scope={'true' if result['full_scope'] else 'false'}")
         print(f"categories={','.join(result['categories']) or 'none'}")
     return 0
 

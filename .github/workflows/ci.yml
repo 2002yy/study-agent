@@ -43,51 +43,43 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Main pushes/manual runs retain the complete historical gate. The
-          # optimization is deliberately limited to pull requests whose changed
-          # paths are known to be frontend-independent research work.
+          # Routing lives in tools/ci_scope.py (one source of truth, unit tested). The
+          # workflow must not re-derive it with its own path matching.
           if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
             echo "scope=full" >> "$GITHUB_OUTPUT"
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "browser_required=true" >> "$GITHUB_OUTPUT"
+            echo "qualification_required=true" >> "$GITHUB_OUTPUT"
+            echo "l3_eligible=true" >> "$GITHUB_OUTPUT"
+            echo "full_scope=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           changed_file_list="${RUNNER_TEMP}/ci-changed-files.txt"
           if ! gh api --paginate \
             "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
-            --jq '.[].filename' > "$changed_file_list"; then
-            echo "::warning::Could not classify PR paths; falling back to full CI scope."
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            --jq '.[].filename' > "$changed_file_list" || [ ! -s "$changed_file_list" ]; then
+            echo "::warning::Could not classify PR paths; widening to the full scope."
             echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "browser_required=true" >> "$GITHUB_OUTPUT"
+            echo "qualification_required=true" >> "$GITHUB_OUTPUT"
+            echo "l3_eligible=true" >> "$GITHUB_OUTPUT"
+            echo "full_scope=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [ ! -s "$changed_file_list" ]; then
-            echo "::warning::PR path list was empty; falling back to full CI scope."
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
-            echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          python tools/ci_scope.py --paths-file "$changed_file_list" >> "$GITHUB_OUTPUT"
+          echo "CI scope: $(grep '^scope=' "$GITHUB_OUTPUT" | tail -n 1), files: $(wc -l < "$changed_file_list")"
 
-          frontend_required=false
-          while IFS= read -r path; do
-            case "$path" in
-              src/web/research/*|tests/*|docs/*|AGENTS.md|tools/run_research_*|tools/run_rag_*|tools/run_answer_claim_*)
-                ;;
-              *)
-                frontend_required=true
-                break
-                ;;
-            esac
-          done < "$changed_file_list"
+      - name: Report L3 eligibility (never starts L3)
+        shell: bash
+        run: |
+          # Eligibility is a report. Starting L3 is ci-l3.yml's job, on an explicit
+          # trigger, so a shared-core push cannot silently launch a full run.
+          echo "L3_ELIGIBLE=${{ steps.ci_scope.outputs.l3_eligible }}"
+          echo "L3_REQUIRED_FOR_MERGE=${{ steps.ci_scope.outputs.l3_eligible }}"
 
-          if [ "$frontend_required" = "true" ]; then
-            echo "scope=full" >> "$GITHUB_OUTPUT"
-          else
-            echo "scope=research-backend-only" >> "$GITHUB_OUTPUT"
-          fi
-          echo "frontend_required=${frontend_required}" >> "$GITHUB_OUTPUT"
-          echo "CI scope: $(tail -n 1 "$GITHUB_OUTPUT"), changed files: $(wc -l < "$changed_file_list")"
 
       - uses: actions/setup-node@v4
         if: steps.ci_scope.outputs.frontend_required == 'true'
@@ -102,8 +94,26 @@ jobs:
           python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
+      - name: Run bounded impact set (narrow pull request)
+        id: pytest_impact
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.ci_scope.outputs.full_scope != 'true'
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          # The fast tier runs the slice's own impact set, not the full suite. The full
+          # suite is ci-l3.yml's job, on an explicit trigger.
+          python -m pytest -q --tb=short \
+            tests/test_ci_scope.py tests/test_l3_preflight.py \
+            tests/test_discovery_recovery.py 2>&1 | tee pytest.log
+
       - name: Run pytest
         id: pytest
+        if: >-
+          github.event_name != 'pull_request' ||
+          steps.ci_scope.outputs.full_scope == 'true'
         continue-on-error: true
         timeout-minutes: 30
         run: |
@@ -254,5 +264,6 @@ jobs:
         if: always()
         env:
           CI_STEP_RESULTS: ${{ toJSON(steps) }}
+          CI_FRONTEND_REQUIRED: ${{ steps.ci_scope.outputs.frontend_required }}
           CI_BROWSER_REQUIRED: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
         run: python tools/check_ci_outcomes.py

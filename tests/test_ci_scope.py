@@ -90,3 +90,33 @@ def test_mixed_change_unions_the_categories():
     assert result["categories"] == ["frontend", "research-backend"]
     assert result["frontend_required"] is True
     assert result["l3_eligible"] is False
+
+# --- machine-stable fields the workflow consumes --------------------------------
+
+
+def test_stable_fields_are_all_present():
+    result = classify(['src/web/research/runtime.py'])
+    for key in (
+        'scope', 'frontend_required', 'browser_required', 'qualification_required',
+        'l3_eligible', 'l3_required_for_merge', 'full_scope',
+    ):
+        assert key in result, key
+
+
+def test_browser_required_only_for_browser_or_unknown():
+    assert classify(['src/web/research/runtime.py'])['browser_required'] is False
+    assert classify(['src/web/research/crawl4ai_worker.py'])['browser_required'] is True
+    assert classify(['mystery/x.bin'])['browser_required'] is True
+
+
+def test_qualification_required_only_for_qualification_or_unknown():
+    assert classify(['src/web/research/runtime.py'])['qualification_required'] is False
+    assert classify(['tests/test_rq1c_protocol_probes.py'])['qualification_required'] is True
+
+
+def test_eligibility_is_reported_not_acted_on():
+    # A shared-core change is eligible, but the field is only a report.
+    result = classify(['src/domain/evidence.py'])
+    assert result['l3_eligible'] is True
+    assert result['l3_required_for_merge'] is True
+    assert 'action' not in result

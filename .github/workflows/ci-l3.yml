@@ -1,0 +1,83 @@
+name: ci-l3
+
+# Full L3 is a release/authority gate, not an iteration loop. It runs only when asked:
+# explicitly dispatched, or a pull request labelled for it. A normal push never starts it.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: ci-l3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  l3:
+    # A label event only counts for the intended label; a dispatch always counts.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'run-l3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: L3 preflight (fail fast, seconds)
+        run: python tools/l3_preflight.py
+
+      - name: Skip a duplicate L3 for an already-green SHA
+        id: duplicate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          # An unchanged candidate must not burn a second full run.
+          prior="$(gh run list \
+            --workflow ci-l3 \
+            --commit "$head_sha" \
+            --status success \
+            --limit 1 \
+            --json databaseId --jq 'length' 2>/dev/null || echo 0)"
+          if [ "${prior:-0}" != "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "SKIP_DUPLICATE_L3 sha=${head_sha} (already green)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run full pytest (L3)
+        if: steps.duplicate.outputs.skip != 'true'
+        run: |
+          set -o pipefail
+          python -m pytest tests -q -p no:cacheprovider 2>&1 | tee pytest-l3.log
+
+      - name: Enforce L3 outcome
+        if: steps.duplicate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          if grep -qE "[0-9]+ failed" pytest-l3.log; then
+            echo "::error::L3 reported failures"
+            exit 1
+          fi
