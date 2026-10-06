@@ -644,6 +644,8 @@ class ChatService:
                 command.user_input,
                 model_profile=route["model_profile"],
                 conversation_context=_tool_context(command.chat_history),
+                owner_thread_id=thread.id,
+                owner_turn_id=turn_id,
             )
             rag["web_tools"] = web_tools.to_dict()
             web_tool_error = str(rag["web_tools"].get("error") or "")
