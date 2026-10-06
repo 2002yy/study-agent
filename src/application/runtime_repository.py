@@ -178,7 +178,8 @@ def get_web_tool_agent():
 @lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatDependencies
-    from src.application.policy_chat_service import ExternalDataPolicyChatService
+    from src.application.standard_chat_service import StandardContinuationChatService
+    from src.application.standard_continuation import StandardContinuationService
     from src.pedagogy.evaluation import LLMSemanticEvaluator
     from src.task_contract import (
         TaskAwarePedagogyEngine,
@@ -186,15 +187,27 @@ def get_chat_service():
         route_request_with_task_contract,
     )
 
-    return ExternalDataPolicyChatService(
-        get_runtime_repository(),
+    # One repository and one web agent are frozen here and shared with the continuation, so the
+    # lookup resolver and the Standard gateway are the same production objects. No second
+    # gateway is constructed and no extra cache is introduced: this service's own lru_cache
+    # already owns the continuation lifetime.
+    repository = get_runtime_repository()
+    web_agent = get_web_tool_agent()
+
+    return StandardContinuationChatService(
+        repository,
         ChatDependencies(
             route_request=route_request_with_task_contract,
             pedagogy_engine=TaskAwarePedagogyEngine(),
             pedagogy_evaluation=TaskAwarePedagogyEvaluationService(
                 LLMSemanticEvaluator()
             ),
-            resolve_web_tools=get_web_tool_agent().resolve,
+            resolve_web_tools=web_agent.resolve,
+        ),
+        standard_continuation=StandardContinuationService(
+            repository,
+            get_web_lookup_repository(),
+            web_agent.gateway,
         ),
     )
 
