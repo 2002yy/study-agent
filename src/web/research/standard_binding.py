@@ -339,6 +339,23 @@ def bind_fields(
     }
 
 
+def research_state_for(status: str, source_urls: Any) -> str:
+    """Derive ``research_state`` from the final binding status (the Standard-2 machine).
+
+    A supported field is SUPPORTED; a conflict and a bound span are their own states; anything
+    else falls back to the Standard-2 state - a source was acquired, or the gap is still open.
+    Deriving this prevents a stale SUPPORTED from surviving alongside INSUFFICIENT.
+    """
+
+    if status == SUPPORT:
+        return "SUPPORTED"
+    if status == CONFLICT:
+        return "CONFLICT"
+    if status == SPAN_BOUND:
+        return "SPAN_BOUND"
+    return "SOURCE_ACQUIRED" if source_urls else "OPEN"
+
+
 def apply_bindings(
     result: dict[str, Any],
     bindings: Mapping[str, Mapping[str, Any]],
@@ -365,15 +382,14 @@ def apply_bindings(
             continue
         status = str(binding.get("status") or NOT_EVALUATED)
         gap_states[field]["support_status"] = status
-        if status == SUPPORT:
-            gap_states[field]["research_state"] = "SUPPORTED"
-        elif status == CONFLICT:
-            gap_states[field]["research_state"] = "CONFLICT"
+        # Derived from the final status, never left over from an earlier binding.
+        gap_states[field]["research_state"] = research_state_for(
+            status, gap_states[field].get("source_urls")
+        )
+        if status == CONFLICT:
             conflicts.append(
                 {"field": field, "conflicts": list(binding.get("conflicts") or [])}
             )
-        elif status == SPAN_BOUND:
-            gap_states[field]["research_state"] = "SPAN_BOUND"
 
     # Recomputed from the final state, not incrementally edited.
     unresolved = [

@@ -25,6 +25,7 @@ from src.web.research.standard_binding import (
     find_trusted_source,
     locate_span,
     relation_binder_for,
+    research_state_for,
     verify_claim,
 )
 
@@ -447,3 +448,58 @@ def test_resolved_field_returns_to_unresolved_when_rebound_as_span_bound():
     updated = apply_bindings(result, bindings)
     assert updated["gap_states"]["release_date"]["support_status"] == SPAN_BOUND
     assert updated["unresolved_gaps"] == ["release_date"]
+
+
+# --- review round 4: research_state is derived from the final status ---------------
+
+
+def _supported_result(source_urls=None):
+    return {
+        "gap_states": {
+            "release_date": {
+                "research_state": "SUPPORTED",
+                "support_status": SUPPORT,
+                "source_urls": [URL] if source_urls is None else source_urls,
+            }
+        },
+        "unresolved_gaps": [],
+        "publication_authority": False,
+        "conflicts": [],
+    }
+
+
+def test_research_state_is_derived_for_every_status():
+    assert research_state_for(SUPPORT, [URL]) == "SUPPORTED"
+    assert research_state_for(CONFLICT, [URL]) == "CONFLICT"
+    assert research_state_for(SPAN_BOUND, [URL]) == "SPAN_BOUND"
+    assert research_state_for(INSUFFICIENT, [URL]) == "SOURCE_ACQUIRED"
+    assert research_state_for(INSUFFICIENT, []) == "OPEN"
+    assert research_state_for(NOT_EVALUATED, [URL]) == "SOURCE_ACQUIRED"
+    assert research_state_for(NOT_EVALUATED, []) == "OPEN"
+
+
+def test_supported_field_rebound_as_insufficient_is_not_left_supported():
+    # A claim that fails identity binding yields INSUFFICIENT.
+    bindings = bind_fields(["release_date"], [_claim(source_sha256="a" * 64)], TRUSTED)
+    updated = apply_bindings(_supported_result(), bindings)
+    state = updated["gap_states"]["release_date"]
+    assert state["support_status"] == INSUFFICIENT
+    assert state["research_state"] != "SUPPORTED"
+    assert state["research_state"] == "SOURCE_ACQUIRED"
+    assert updated["unresolved_gaps"] == ["release_date"]
+
+
+def test_supported_field_rebound_as_not_evaluated_is_not_left_supported():
+    bindings = bind_fields(["release_date"], [], TRUSTED)
+    updated = apply_bindings(_supported_result(), bindings)
+    state = updated["gap_states"]["release_date"]
+    assert state["support_status"] == NOT_EVALUATED
+    assert state["research_state"] != "SUPPORTED"
+    assert state["research_state"] == "SOURCE_ACQUIRED"
+    assert updated["unresolved_gaps"] == ["release_date"]
+
+
+def test_insufficient_without_any_source_falls_back_to_open():
+    bindings = bind_fields(["release_date"], [_claim(source_sha256="a" * 64)], TRUSTED)
+    updated = apply_bindings(_supported_result(source_urls=[]), bindings)
+    assert updated["gap_states"]["release_date"]["research_state"] == "OPEN"
