@@ -8,18 +8,21 @@ The invariant it exists to protect:
 
     readable source != factual support != publication authority
 
-Two things must be mechanically true before a claim can support a field.
+Three things must be mechanically true before a claim can support a field.
 
 **Identity is bound, not merely non-empty.** A claim names a source; that source must be one
 of the trusted Standard-2 records, the body must hash to the recorded digest, and the URL and
 digest must match. A fabricated digest or a URL that does not correspond to a trusted record
 is rejected - it can never become support.
 
-**The value is derived, not asserted.** The caller proposes a span; the module locates it by
-exact offset and derives the normalized value with a deterministic normalizer for that field.
-A value the caller asserts is only accepted when it equals the derived one. If no
-deterministic normalizer exists for the field, the span is verified but the status is
-``SPAN_BOUND`` - never promoted to ``SUPPORT``.
+**The relation is proven, not inferred from a type.** A date in the span does not make the
+span a release date. Each field has a relation binder that requires the span to actually
+express that field's relation (a release cue for a release date), refuses when the value is
+ambiguous (two dates in one span), and otherwise declines. A declined relation yields
+``SPAN_BOUND`` - the span is verified, the value is not promoted to ``SUPPORT``.
+
+**The role comes from the source, not the claim.** Provenance is a property of the trusted
+record; a caller cannot label a third-party page as primary.
 
 A keyword appearing in the text is not support. Two sources that disagree produce a conflict;
 they are never averaged or overwritten. Anything undecidable abstains. Nothing here grants
@@ -42,8 +45,16 @@ NOT_EVALUATED = "NOT_EVALUATED"
 
 BINDING_STATES = (SUPPORT, CONFLICT, SPAN_BOUND, INSUFFICIENT, NOT_EVALUATED)
 
+# The statuses that leave a field unresolved.
+UNRESOLVED_STATES = (CONFLICT, SPAN_BOUND, INSUFFICIENT, NOT_EVALUATED)
+
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _SEMVER = re.compile(r"\b(\d+\.\d+(?:\.\d+)?)\b")
+
+# A date is only a *release* date when the span says so. "Documentation updated: 2025-10-07"
+# carries a valid date and no release relation, so it must not become support.
+_DATE_CUE = re.compile(r"\b(released?|release|shipped|published|launched|available)\b", re.I)
+_VERSION_CUE = re.compile(r"\b(version|released?|release|v)\b", re.I)
 
 
 @dataclass(frozen=True)
@@ -53,6 +64,7 @@ class TrustedSource:
     url: str
     content_sha256: str
     body: str
+    source_role: str = ""
 
     def digest_matches(self) -> bool:
         return hashlib.sha256(str(self.body).encode("utf-8")).hexdigest() == str(
@@ -62,14 +74,18 @@ class TrustedSource:
 
 @dataclass(frozen=True)
 class Claim:
-    """A proposed fact binding. The span must be verifiable in the body."""
+    """A proposed fact binding. The span must be verifiable in the body.
+
+    ``span_start`` is cross-checked against the located offset; ``span_end`` is *ignored* -
+    the recorded end is re-derived from the located span, so a caller cannot shorten or
+    lengthen the evidence it is credited with.
+    """
 
     field: str
     source_url: str
     source_sha256: str
     span_text: str
     normalized_value: str = ""
-    source_role: str = ""
     span_start: int = -1
     span_end: int = -1
 
@@ -81,15 +97,10 @@ class Claim:
             "span_text": self.span_text,
             "span_start": self.span_start,
             "span_end": self.span_end,
-            "normalized_value": self.normalized_value,
-            "source_role": self.source_role,
         }
 
 
-def _normalize_date(span: str) -> str | None:
-    match = _ISO_DATE.search(str(span))
-    if not match:
-        return None
+def _to_iso(match: re.Match[str]) -> str | None:
     try:
         return date(
             int(match.group(1)), int(match.group(2)), int(match.group(3))
@@ -98,30 +109,50 @@ def _normalize_date(span: str) -> str | None:
         return None
 
 
-def _normalize_version(span: str) -> str | None:
-    match = _SEMVER.search(str(span))
-    return match.group(1) if match else None
+def _bind_date_relation(span: str) -> str | None:
+    """A release date, only when the span expresses the relation and the value is unique."""
+
+    text = str(span)
+    if not _DATE_CUE.search(text):
+        return None
+    matches = list(_ISO_DATE.finditer(text))
+    if len(matches) != 1:
+        # Two dates in one span is ambiguous; refuse rather than pick the first.
+        return None
+    return _to_iso(matches[0])
 
 
-# Deterministic, field-level normalizers. A field with no normalizer yields SPAN_BOUND, not
-# SUPPORT - we will not promote "this text exists" to "this text means this value".
-_NORMALIZERS: dict[str, Callable[[str], str | None]] = {
-    "release_date": _normalize_date,
-    "date": _normalize_date,
-    "published": _normalize_date,
-    "version": _normalize_version,
-    "release_version": _normalize_version,
+def _bind_version_relation(span: str) -> str | None:
+    text = str(span)
+    if not _VERSION_CUE.search(text):
+        return None
+    matches = list(_SEMVER.finditer(text))
+    if len(matches) != 1:
+        return None
+    return matches[0].group(1)
+
+
+# Field-level relation binders. A field with no binder yields SPAN_BOUND, never SUPPORT -
+# we will not promote "this text exists" to "this text supports this field".
+_RELATIONS: dict[str, Callable[[str], str | None]] = {
+    "release_date": _bind_date_relation,
+    "date": _bind_date_relation,
+    "published": _bind_date_relation,
+    "version": _bind_version_relation,
+    "release_version": _bind_version_relation,
 }
 
 
-def normalizer_for(field: str) -> Callable[[str], str | None] | None:
+def relation_binder_for(field: str) -> Callable[[str], str | None] | None:
+    """The field's relation binder, or None when the relation cannot be mechanically proven."""
+
     name = str(field or "").lower()
-    if name in _NORMALIZERS:
-        return _NORMALIZERS[name]
+    if name in _RELATIONS:
+        return _RELATIONS[name]
     if name.endswith("_date") or name.endswith("_on"):
-        return _normalize_date
+        return _bind_date_relation
     if name.endswith("_version"):
-        return _normalize_version
+        return _bind_version_relation
     return None
 
 
@@ -183,17 +214,13 @@ def bind_field(
     """Bind one field from proposed claims. Never raises; undecidable abstains."""
 
     sources = list(trusted)
-    normalizer = normalizer_for(field)
+    relation = relation_binder_for(field)
 
-    verified: list[tuple[Claim, int, int, str | None]] = []
+    # claim, trusted source, span start, span end, derived value (None = not proven)
+    verified: list[tuple[Claim, TrustedSource, int, int, str | None]] = []
     rejected: list[dict[str, str]] = []
     for claim in claims:
         if claim.field != field:
-            continue
-        if not claim.source_url or not claim.source_sha256:
-            rejected.append(
-                {"source_url": claim.source_url, "reason": "unbound_source_identity"}
-            )
             continue
         source, reason = find_trusted_source(sources, claim)
         if source is None:
@@ -211,7 +238,7 @@ def bind_field(
             )
             continue
 
-        derived = normalizer(claim.span_text) if normalizer else None
+        derived = relation(claim.span_text) if relation else None
         if derived is not None and claim.normalized_value.strip():
             if claim.normalized_value.strip() != derived:
                 # The caller asserted a value the span does not yield.
@@ -222,7 +249,7 @@ def bind_field(
                     }
                 )
                 continue
-        verified.append((claim, start, end, derived))
+        verified.append((claim, source, start, end, derived))
 
     if not verified:
         return {
@@ -234,28 +261,31 @@ def bind_field(
             "rejected": rejected,
         }
 
-    def _record(claim: Claim, start: int, end: int, derived: str | None) -> dict[str, Any]:
+    def _record(
+        claim: Claim, source: TrustedSource, start: int, end: int, derived: str | None
+    ) -> dict[str, Any]:
         row = claim.to_dict()
-        # The recorded span and value are where the text is and what it yields, not what
-        # the caller claimed.
+        # The recorded span and value are where the text is and what it yields; the role is
+        # the source's, not the claim's.
         row["span_start"], row["span_end"] = start, end
         row["normalized_value"] = derived if derived is not None else ""
+        row["source_role"] = source.source_role
         return row
 
-    if any(derived is None for _, _, _, derived in verified):
-        # Span verified, value not derivable - honest about what was proven.
+    if any(derived is None for *_, derived in verified):
+        # Span verified, relation not proven - honest about what was shown.
         return {
             "field": field,
             "status": SPAN_BOUND,
             "supports": [],
             "conflicts": [],
-            "span_bound": [_record(c, s, e, d) for c, s, e, d in verified],
+            "span_bound": [_record(*row) for row in verified],
             "rejected": rejected,
         }
 
-    by_value: dict[str, list[tuple[Claim, int, int, str | None]]] = {}
+    by_value: dict[str, list[tuple[Claim, TrustedSource, int, int, str | None]]] = {}
     for row in verified:
-        by_value.setdefault(str(row[3]), []).append(row)
+        by_value.setdefault(str(row[4]), []).append(row)
 
     if len(by_value) > 1:
         # Disagreement is reported, never averaged or overwritten.
@@ -306,8 +336,10 @@ def apply_bindings(
 ) -> dict[str, Any]:
     """Return a copy of the result with bindings recorded. Never grants authority.
 
-    ``publication_authority`` is forced back to ``False``: a verified support is evidence,
-    not a publication licence.
+    A binding for a field the run never requested is ignored - bindings cannot invent gaps. A
+    supported field leaves ``unresolved_gaps``; every other status leaves it in place.
+    ``publication_authority`` is forced back to ``False``: a verified support is evidence, not
+    a publication licence.
     """
 
     updated = dict(result)
@@ -315,24 +347,28 @@ def apply_bindings(
         field: dict(state)
         for field, state in (result.get("gap_states") or {}).items()
     }
+    unresolved = list(result.get("unresolved_gaps") or [])
     conflicts: list[dict[str, Any]] = []
+
     for field, binding in bindings.items():
-        state = gap_states.setdefault(
-            field,
-            {"research_state": "OPEN", "support_status": NOT_EVALUATED, "source_urls": []},
-        )
+        if field not in gap_states:
+            # Not a requested field: never added to the result.
+            continue
         status = str(binding.get("status") or NOT_EVALUATED)
-        state["support_status"] = status
+        gap_states[field]["support_status"] = status
         if status == SUPPORT:
-            state["research_state"] = "SUPPORTED"
+            gap_states[field]["research_state"] = "SUPPORTED"
+            unresolved = [name for name in unresolved if name != field]
         elif status == CONFLICT:
-            state["research_state"] = "CONFLICT"
+            gap_states[field]["research_state"] = "CONFLICT"
             conflicts.append(
                 {"field": field, "conflicts": list(binding.get("conflicts") or [])}
             )
         elif status == SPAN_BOUND:
-            state["research_state"] = "SPAN_BOUND"
+            gap_states[field]["research_state"] = "SPAN_BOUND"
+
     updated["gap_states"] = gap_states
     updated["conflicts"] = conflicts
+    updated["unresolved_gaps"] = unresolved
     updated["publication_authority"] = False
     return updated
