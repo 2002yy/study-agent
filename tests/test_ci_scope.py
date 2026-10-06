@@ -264,3 +264,47 @@ def test_standard_research_module_beats_the_broader_research_rule():
     # The standard rule is checked before the general research rule.
     assert classify_path("src/web/research/standard_plan.py") == "standard"
     assert classify_path("src/web/research/runtime.py") == "research-backend"
+
+
+# --- third review: only prose and the manifest attachment are neutral -----------------
+
+
+def test_standard_plus_a_real_qualification_change_is_not_narrowed():
+    # A protocol-probe change is a real change, not an attachment: it must not be treated
+    # as riding along with the Standard slice.
+    result = classify([
+        "tests/test_standard_research.py",
+        "tests/test_rq1c_protocol_probes.py",
+    ])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_standard_plus_a_ci_tooling_change_is_not_narrowed():
+    result = classify([
+        "tests/test_standard_research.py",
+        "tools/ci_scope.py",
+    ])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_standard_plus_docs_and_manifest_attachment_is_still_narrowed():
+    result = classify([
+        "tests/test_standard_research.py",
+        "docs/PROJECT_STATUS.md",
+        "tests/stage_gates.json",
+    ])
+    assert result["impact_set"] == "standard_research_loop"
+
+
+def test_manifest_alone_is_not_a_slice():
+    result = classify(["tests/stage_gates.json"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False
+
+
+def test_other_qualification_path_alone_is_not_a_slice():
+    result = classify(["tests/test_rq1c_protocol_probes.py"])
+    assert result["impact_set"] == ""
+    assert result["full_scope"] is False

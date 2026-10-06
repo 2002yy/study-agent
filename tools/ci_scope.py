@@ -131,10 +131,22 @@ _IMPACT_SET_BY_CATEGORY: dict[str, str] = {
     "standard": "standard_research_loop",
 }
 
-# Categories that do not choose an impact set on their own. A real slice almost always
-# carries docs and a stage-gate registration alongside its product change; those must not
-# blank the impact set and send the pull request back to the full suite.
-_IMPACT_NEUTRAL_CATEGORIES = frozenset({"docs", "ci-tooling", "qualification"})
+# Categories that never choose an impact set on their own. Only prose does: a real slice
+# almost always carries docs alongside its product change.
+_IMPACT_NEUTRAL_CATEGORIES = frozenset({"docs"})
+
+# The stage-gate manifest may ride along with a product slice as its registration. It is
+# neutral *only* in that role; any other qualification path (a contract change, a protocol
+# probe) is a real change and must not be treated as an attachment.
+_MANIFEST_ATTACHMENT = "tests/stage_gates.json"
+
+
+def _is_impact_neutral(path: str, category: str) -> bool:
+    """True when this path must not block the product slice's impact set."""
+
+    if category in _IMPACT_NEUTRAL_CATEGORIES:
+        return True
+    return str(path or "").replace("\\", "/") == _MANIFEST_ATTACHMENT
 
 
 def classify_path(path: str) -> str:
@@ -183,11 +195,15 @@ def classify(paths: list[str]) -> dict:
     # and therefore the full scope, never a narrower run than the change actually needs.
     impact_set = ""
     if not full_scope:
-        product = [
-            name for name in categories if name not in _IMPACT_NEUTRAL_CATEGORIES
-        ]
-        if product and all(_IMPACT_SET_BY_CATEGORY.get(name) for name in product):
-            mapped = {_IMPACT_SET_BY_CATEGORY[name] for name in product}
+        # Only genuinely neutral paths are set aside. Every other category must be
+        # registered and agree on a single set, so a real qualification or CI change riding
+        # along with a product slice cannot be silently dropped from the run.
+        blocking: set[str] = set()
+        for name, paths in by_category.items():
+            if any(not _is_impact_neutral(p, name) for p in paths):
+                blocking.add(name)
+        if blocking and all(_IMPACT_SET_BY_CATEGORY.get(name) for name in blocking):
+            mapped = {_IMPACT_SET_BY_CATEGORY[name] for name in blocking}
             if len(mapped) == 1:
                 impact_set = next(iter(mapped))
 
