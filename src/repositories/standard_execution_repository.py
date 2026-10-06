@@ -19,10 +19,23 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research_recovery import STANDARD_BUDGET
 from src.web.research.lookup_terminal import load_standard_handoff
+from src.web.research.standard_plan import (
+    action,
+    build_result,
+    discovered_urls,
+    initial_actions,
+    public_url,
+    search_urls,
+    validate_plan,
+)
 
 
 SCHEMA = "standard-dispatch-journal-v1"
 LEASE_SECONDS = 15
+
+
+class StandardResearchBusy(ValueError):
+    """An active caller already owns planning or the next loop step."""
 
 
 def work_key(kind: str, target: str) -> str:
@@ -123,6 +136,7 @@ class StandardExecutionRepository:
         *,
         operation_id: str | None = None,
         write: bool = True,
+        finalizing: bool = False,
     ) -> Iterator[tuple[Any, dict, dict]]:
         if now.tzinfo is None:
             raise ValueError("invalid Standard clock")
@@ -190,14 +204,28 @@ class StandardExecutionRepository:
                 "turn_id": parent["id"],
             } or (source_context.get("operation") or {}).get("cancel_requested_at"):
                 raise ValueError("Standard source cancelled or owner mismatch")
-            if row["status"] not in {"pending", "running", "partial"} or (
-                context.get("operation") or {}
-            ).get("cancel_requested_at"):
-                raise ValueError("Standard cancelled or terminal")
-            if now < datetime.fromisoformat(
-                ledger["admitted_at"]
-            ) or now >= datetime.fromisoformat(ledger["deadline"]) - timedelta(
+            cancelled = bool(
+                (context.get("operation") or {}).get("cancel_requested_at")
+            )
+            expired = now >= datetime.fromisoformat(ledger["deadline"]) - timedelta(
                 seconds=STANDARD_BUDGET.finalization_reserve
+            )
+            diagnostic_only = finalizing and (cancelled or expired)
+            if (
+                row["status"]
+                not in (
+                    {"pending", "running", "partial", "cancelled"}
+                    if diagnostic_only
+                    else {"pending", "running", "partial"}
+                )
+                or cancelled
+                and not diagnostic_only
+            ):
+                raise ValueError("Standard cancelled or terminal")
+            if (
+                now < datetime.fromisoformat(ledger["admitted_at"])
+                or expired
+                and not diagnostic_only
             ):
                 raise ValueError("Standard deadline exhausted")
             if operation_id is not None:
@@ -206,6 +234,7 @@ class StandardExecutionRepository:
                     or (context.get("operation") or {}).get("active_operation_id")
                     != operation_id
                     or now >= datetime.fromisoformat(ledger["lease_until"])
+                    and not diagnostic_only
                 ):
                     raise ValueError("Standard stale operation")
             yield connection, context, ledger
@@ -275,6 +304,8 @@ class StandardExecutionRepository:
             _,
             ledger,
         ):
+            if (ledger.get("research") or {}).get("status") == "completed":
+                raise ValueError("Standard research already completed")
             key = work_key(kind, target)
             prior = ledger["entries"].get(key)
             if prior:
@@ -368,3 +399,277 @@ class StandardExecutionRepository:
                 "UPDATE web_lookup_runs SET status = 'partial', stage = 'standard_handoff' WHERE id = ?",
                 (run_id,),
             )
+
+    @staticmethod
+    def _handoff(connection: Any, ledger: dict) -> dict:
+        row = connection.execute(
+            "SELECT rag_snapshot FROM chat_turns WHERE id = ?",
+            (ledger["parent_turn_id"],),
+        ).fetchone()
+        return load_standard_handoff(
+            json.loads(row["rag_snapshot"])["lookup_terminal"]["handoff"]
+        )
+
+    def research_snapshot(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime
+    ) -> dict:
+        with self._transaction(
+            run_id, thread_id, now, operation_id=operation_id, write=False
+        ) as (connection, _, ledger):
+            return {
+                "handoff": self._handoff(connection, ledger),
+                "ledger": deepcopy(ledger),
+            }
+
+    def begin_research_plan(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime
+    ) -> dict:
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            _,
+            ledger,
+        ):
+            research = ledger.get("research")
+            if research is not None:
+                if research.get("schema") != "standard-research-loop-v1":
+                    raise ValueError("unknown Standard loop schema")
+                if (
+                    research["status"] == "planning"
+                    and research["planning_operation_id"] == operation_id
+                ):
+                    raise StandardResearchBusy("Standard planner already claimed")
+                if research["plan"] is not None:
+                    validate_plan(research["plan"], self._handoff(connection, ledger))
+                    if (
+                        hashlib.sha256(
+                            json.dumps(research["plan"], sort_keys=True).encode()
+                        ).hexdigest()
+                        != research["plan_sha256"]
+                    ):
+                        raise ValueError("Standard saved plan digest mismatch")
+                return {"invoke": False, "research": deepcopy(research)}
+            ledger["research"] = {
+                "schema": "standard-research-loop-v1",
+                "status": "planning",
+                "planner_calls": 1,
+                "planning_operation_id": operation_id,
+                "plan": None,
+                "actions": [],
+                "observations": [],
+                "next_cursor": 0,
+                "inflight": None,
+                "result": None,
+            }
+            ledger["lease_until"] = (now + timedelta(seconds=LEASE_SECONDS)).isoformat()
+            return {
+                "invoke": True,
+                "handoff": self._handoff(connection, ledger),
+                "budget": {
+                    "new_reads": ledger["new_reads"],
+                    "new_queries": ledger["new_queries"],
+                    "deadline": ledger["deadline"],
+                    "planner_calls": 1,
+                },
+            }
+
+    def save_research_plan(
+        self,
+        run_id: str,
+        thread_id: str,
+        operation_id: str,
+        now: datetime,
+        proposal: Any,
+    ) -> None:
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            _,
+            ledger,
+        ):
+            research = ledger["research"]
+            if (
+                research["status"] != "planning"
+                or research["planning_operation_id"] != operation_id
+            ):
+                raise ValueError("Standard planner owner/state mismatch")
+            handoff = self._handoff(connection, ledger)
+            plan = validate_plan(proposal, handoff)
+            research.update(
+                status="planned",
+                plan=plan,
+                actions=initial_actions(plan, handoff),
+                plan_sha256=hashlib.sha256(
+                    json.dumps(plan, sort_keys=True).encode()
+                ).hexdigest(),
+            )
+
+    def claim_research_step(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime
+    ) -> dict | None:
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            connection,
+            _,
+            ledger,
+        ):
+            research = ledger["research"]
+            if research["status"] != "planned":
+                raise ValueError("Standard research plan not executable")
+            if research["next_cursor"] >= len(research["actions"]):
+                return None
+            prior = research["inflight"]
+            if prior and prior["operation_id"] == operation_id:
+                raise StandardResearchBusy("Standard research step already claimed")
+            step = deepcopy(research["actions"][research["next_cursor"]])
+            handoff = self._handoff(connection, ledger)
+            fields = step.get("fields")
+            if (
+                step.get("kind") not in {"read", "search"}
+                or not isinstance(step.get("target"), str)
+                or not isinstance(fields, list)
+                or not fields
+                or not all(
+                    isinstance(field, str) and field in handoff["unresolved_fields"]
+                    for field in fields
+                )
+                or step.get("id") != work_key(step["kind"], step["target"])
+            ):
+                raise ValueError("invalid persisted Standard action")
+            if step["kind"] == "search":
+                if step["target"] not in {
+                    query
+                    for gap in research["plan"]["gaps"]
+                    for query in gap["queries"]
+                }:
+                    raise ValueError("Standard action escaped saved query plan")
+            else:
+                allowed = discovered_urls(handoff)
+                for saved in ledger["entries"].values():
+                    if saved["kind"] == "search" and saved["state"] == "completed":
+                        allowed.update(search_urls(saved["result"], handoff["query"]))
+                if not public_url(step["target"]) or step["target"] not in allowed:
+                    raise ValueError("Standard action has no discovery provenance")
+            entry = ledger["entries"].get(work_key(step["kind"], step["target"])) or {}
+            step.update(
+                operation_id=operation_id,
+                cursor=research["next_cursor"],
+                was_cached=entry.get("state") == "completed",
+            )
+            research["inflight"] = step
+            ledger["lease_until"] = (now + timedelta(seconds=LEASE_SECONDS)).isoformat()
+            return deepcopy(step)
+
+    def observe_research_step(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime, step: dict
+    ) -> None:
+        with self._transaction(run_id, thread_id, now, operation_id=operation_id) as (
+            _,
+            _,
+            ledger,
+        ):
+            research = ledger["research"]
+            if (
+                research["inflight"] != step
+                or research["next_cursor"] != step["cursor"]
+            ):
+                raise ValueError("Standard research cursor mismatch")
+            entry = ledger["entries"].get(work_key(step["kind"], step["target"])) or {}
+            if entry.get("state") not in {"completed", "failed"}:
+                raise ValueError("Standard observation requires a saved outcome")
+            result = entry.get("result") or {}
+            body = result.get("content") or result.get("readme") or ""
+            readable = (
+                step["kind"] == "read"
+                and entry["state"] == "completed"
+                and isinstance(body, str)
+                and bool(body.strip())
+                and (result.get("ok") is True or result.get("read_backed") is True)
+            )
+            observation = {
+                "action_id": step["id"],
+                "kind": step["kind"],
+                "target": step["target"],
+                "fields": step["fields"],
+                "outcome": entry["state"],
+                "readable": bool(readable),
+                "reused": step["was_cached"],
+                "origin": entry.get("origin", "standard"),
+                "content_sha256": hashlib.sha256(body.encode()).hexdigest()
+                if readable
+                else "",
+                "support_status": "NOT_EVALUATED",
+            }
+            research["observations"].append(observation)
+            if step["kind"] == "search" and entry["state"] == "completed":
+                known = {item["id"] for item in research["actions"]}
+                additions: list[dict] = []
+                for url in search_urls(result, research["plan"]["query"]):
+                    item = action("read", url, step["fields"], origin="discovery")
+                    if (
+                        item["id"] not in known
+                        and len(research["actions"]) + len(additions) < 48
+                    ):
+                        additions.append(item)
+                        known.add(item["id"])
+                research["actions"][step["cursor"] + 1 : step["cursor"] + 1] = additions
+            research["next_cursor"] += 1
+            research["inflight"] = None
+
+    def complete_research(
+        self, run_id: str, thread_id: str, operation_id: str, now: datetime, reason: str
+    ) -> dict:
+        allowed = {
+            "plan_exhausted",
+            "ready_for_binding",
+            "budget_exhausted",
+            "deadline",
+            "cancelled",
+            "result_unknown",
+            "planner_invalid",
+            "planner_failed",
+            "conflict_requires_binding",
+        }
+        if reason not in allowed:
+            raise ValueError("invalid Standard research stop reason")
+        with self._transaction(
+            run_id, thread_id, now, operation_id=operation_id, finalizing=True
+        ) as (connection, context, ledger):
+            research = ledger.setdefault(
+                "research",
+                {
+                    "schema": "standard-research-loop-v1",
+                    "status": "planning",
+                    "planner_calls": 0,
+                    "plan": None,
+                    "actions": [],
+                    "observations": [],
+                    "next_cursor": 0,
+                    "inflight": None,
+                    "result": None,
+                },
+            )
+            handoff = self._handoff(connection, ledger)
+            if research["schema"] != "standard-research-loop-v1":
+                raise ValueError("unknown Standard loop schema")
+            if research["plan"] is not None:
+                validate_plan(research["plan"], handoff)
+                if (
+                    hashlib.sha256(
+                        json.dumps(research["plan"], sort_keys=True).encode()
+                    ).hexdigest()
+                    != research["plan_sha256"]
+                ):
+                    raise ValueError("Standard saved plan digest mismatch")
+            if (context.get("operation") or {}).get("cancel_requested_at"):
+                reason = "cancelled"
+            elif now >= datetime.fromisoformat(ledger["deadline"]) - timedelta(
+                seconds=STANDARD_BUDGET.finalization_reserve
+            ):
+                reason = "deadline"
+            result = build_result(ledger, handoff, reason)
+            ledger["research"].update(status="completed", result=result, inflight=None)
+            ledger.update(operation_id="", lease_until="")
+            context["operation"]["active_operation_id"] = None
+            connection.execute(
+                "UPDATE web_lookup_runs SET status = ?, stage = 'standard_handoff' WHERE id = ?",
+                ("cancelled" if reason == "cancelled" else "partial", run_id),
+            )
+            return deepcopy(result)

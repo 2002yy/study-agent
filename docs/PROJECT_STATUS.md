@@ -8,24 +8,30 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：#178 Standard durable handoff consumer（未接自动规划）。** #177 的最终 PR head `72fc67e5` CI run `37418122175` 与 exact-main `8a5148e3c7d438e0ad5846b6d901f334d971e781` push CI `37420193931` 均 `completed/success`，main 验证已通过。#178 原 head `c5fe9d896d1a341aa90f59b6213cd025192905bf` 的 CI `37422145467` 也为 success；该绿灯不借给本轮新增代码。
+**当前执行权：Standard-2 持久化计划与可恢复循环候选验证。** #178 已 CLOSED：最终 head `978708602de57da39c71a1c5d21bcabc1e5655f2`，本地 clean-head L3 `3719 passed / 6 skipped / 1129.63s`，preflight PASS；exact-head PR fast CI `37448530911` success。最终本地静态审查没有 blocker；远端 threads / formal reviews 均为 0，不冒充远端批准。
 
-**施工身份：** worktree `D:/study-agent-validation/standard-handoff-consumer`，分支 `codex/standard-handoff-consumer`，base `8a5148e3`，PR #178 draft。本文件所在提交是新候选身份。草稿扩展成同一 handoff consumer 的持久化闭环；没有激活 API／自动续研或修改 UI、publisher、数据库 schema。
+**合并：** 按 expected-head `97870860` squash merge；main `eb139900a77f91f6f16c4b1ad69589b0f18d3d4a`，exact-main push CI `37464024389` completed / success。本轮已核对，不重复旧候选 L3。
 
-**本轮行为：**
+**已合范围：** durable child run、SQLite dispatch journal、single operation lease、reserve-before-network、持久化计费／cursor／deadline、Lookup 和完成结果复用、unknown 禁止自动重发、取消／接管 fencing、旧 executor／late result 拒绝、受限 provider worker。它不拥有研究规划、事实绑定、冲突裁决、自动续研或发布权。
 
-- ChatService 将真实 thread/turn owner 传给既有 persistent resolver；测试由 resolver 建立带 owner 的 source run，不再在聊天完成后人工补归属。
-- 入场对象只保存已验证快照，不调用 provider；StandardExecution 是唯一 dispatch adapter，预算和结果权威统一到 SQLite。
-- 使用现有 research child run / create_request_id 幂等创建一个子运行。`standard-dispatch-journal-v1` 保存在既有 research_context 中，含固定 deadline、来源版本／handoff hash、执行租约 token、cursor、预算和工作结果。
-- 每次新网络调用前，在 `BEGIN IMMEDIATE` 事务中核对真实 owner、parent/source/thread、取消、deadline、运行状态与 lease，先记录 reserved 并扣预算；成功结果再由同一 owner 保存。5 reads / 4 queries、单源 6000 / 总正文 24000 chars，失败也计费；Lookup 已读正文和成功搜索直接复用。
-- Standard 窗口最多 60 秒，保留 12 秒收尾；整体上限原 turn 创建 + 90 秒。恢复沿用首次 deadline，不能重新开始计时。provider 每次调用最多 8 秒，并观察持久化取消；迟到 worker 不能自行 checkpoint 或发布。
-- interrupt 持久化后可由新 token 恢复；lease 到期允许接管，旧 token 无法继续写入。completed 工作重放结果；失败／reserved 后崩溃留下的 unknown 工作禁止自动重发。**不宣称跨崩溃的外部请求 exactly-once**，只保证预算不重置、已知完成结果不重复消费、未知结果不会偷偷重试。
+**原 RQ1-C 事件：** 未冻结 clean HEAD 的旧 L3 出现两个资格前置失败；不是产品回归。它不计 PASS。新基线 `f55738bd` 上的 `97870860` clean-head L3 已通过，生产文件相对 `c974c61c` 没有变化。#179 已合并，新基线 exact-main CI `37444357260` success。
 
-**验证：** 入场／持久化共 50 个 controls；最初 47 项通过，派发边界后的 named impact set `315 passed / 118.97s`（含其中 49 项），独立 Python 子进程追加测试 `1 passed / 0.92s`，含 fresh repository 重建、并发启动／租约、crash-window、旧 owner 回写、取消／deadline、失败计费、正文预算和未知 schema。Ruff／格式／diff check PASS；mypy baseline `122 current / 128 baseline / 6 resolved`，无新增错误。mandatory early L3 修正候选正在运行，结果待记录。由于新增持久化 envelope 和执行合同，本轮必须完整 L3，不能沿用 #178 原 171-test 证据。静态审查发现 reservation 后 deadline 到达仍可能派发网络，已补 caller／worker preflight 和零网络调用负控；此前中止的 L3 不计 PASS，新生产候选重新跑一次完整 L3。
+**交接施工位置：** 独立 worktree `D:/study-agent-validation/standard-2-research-loop`，分支 `codex/standard-2-research-loop`，base `eb139900`。合同见 [`STANDARD_2_CONTRACT.md`](STANDARD_2_CONTRACT.md)。当前实现：一次有记录的模型规划、严格计划校验与摘要、复用优先队列、搜索结果插入读取队列、观察与 cursor 原子保存、跨进程恢复、取消／deadline 的诊断完成结果。执行与计费仍只认既有 SQLite journal；所有 gap 保持 unresolved / NOT_EVALUATED，publication_authority=false。
 
-**冻结边界：** Standard planner、claim decomposition、cross-source binding、比较／冲突与发布未接入；当前 primitives 只可由服务端显式消费。pending handoff 不等于自动执行；相关正文不等于事实发布权。Lookup / Standard / Deep overall 均 **NOT CLOSED**，UI 独立后置。
+**候选证据：** `standard_research_loop` 命名影响集 351 passed / 161.23s；旧执行基础 focused 50 passed。负控覆盖 planner 越权／篡改、未知 dispatch 禁止重发、旧 token fencing、独立 Python 进程恢复、保存观察前崩溃、取消与 deadline。mypy no-new-errors PASS（current 122 / baseline 128），Ruff、格式与 diff check PASS。生产候选 `02747a42d4671401c14751410720a05ec6fd7378` clean，preflight PASS；其全量回归运行至约 38% 后按用户新的阶段门停止，**INTERRUPTED，不计 PASS，不自动重跑**。外部日志与候选 SHA 记录保存在 `D:/study-agent-validation/standard-2-{impact,mypy,l3}.log` 和 `standard-2-candidate.json`，不将临时证据混入生产 diff。
 
-**唯一下一门：** 完成本候选 impact set + L3 → 最终静态审查 → 推送 #178 新 exact head 并核其 CI。绿后再独立接 Standard 受控 planner/claim-binding，验证从 Lookup unresolved gap 到可发布证据的真实路径；不跳过多源／比较／冲突资格验收。
+**测试门覆盖（用户 2026-10-06 最新明确指示）：** Standard 整个阶段完成后才跑一次完整 L3；Standard-2 / Standard-3 / Standard-4 slice 期间只跑 L0、命名 L1 impact set 与相应 L2 stage integration。该明确指示优先于旧 early-L3 默认触发规则；不能因每个 slice 涉及持久化／authority 再各跑全量。仍保留 exact-head CI、最终审查和 expected-head merge 门。
+
+**本机主 worktree：** `C:/Users/Zhang/Desktop/study agent` 位于 main，但 `.mcp.json`、`docs/PROJECT_STATUS.md`、`frontend/package.json`、`frontend/package-lock.json` 有既存修改，本轮保留原样，不用远端 main 覆盖。
+
+**新路线（用户 2026-10-06 冻结）：**
+
+1. Standard-2：持久化研究计划 + 可恢复执行循环，只负责去哪找、怎么继续、何时停止，输出研究结果 artifact。
+2. Standard-3：逐事实证据绑定、来源身份、冲突处理与 publication gate。
+3. Standard-4：ChatService 的 Lookup → Standard 自动 continuation；此前不自动接线。
+4. Deep：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。
+
+**唯一下一门：** Standard-2 最终审查／独立 PR／exact-head fast CI；然后独立 Standard-3 事实绑定 slice。完整 L3 留到 Standard 总验收。验证机器、事实绑定、自动续研、Deep、UI 不扩入本批。Lookup / Standard / Deep overall 均 **NOT CLOSED**。
 
 ## 0A. 冻结研究路线
 

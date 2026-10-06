@@ -92,43 +92,15 @@ class StandardExecution:
         )
         if reservation["cached"]:
             return reservation["result"]
-        end = datetime.fromisoformat(reservation["deadline"]) - timedelta(
-            seconds=STANDARD_BUDGET.finalization_reserve
-        )
-        remaining = (end - self.clock()).total_seconds()
-        if remaining <= 0:
-            raise ValueError("Standard deadline exhausted before dispatch")
-        call_end = time.monotonic() + min(8.0, remaining)
-
-        def invoke() -> dict:
-            self.journal.check(
-                self.run_id, self.thread_id, self.operation_id, self.clock()
-            )
-            if time.monotonic() >= call_end:
-                raise TimeoutError("Standard provider timeout")
-            return (
-                gateway.read(target, max_chars=STANDARD_BUDGET.max_source_chars)
-                if kind == "read"
-                else gateway.search_exact(target, max_results=8)
-            )
-
-        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="standard-dispatch")
-        future = pool.submit(invoke)
         try:
-            while True:
-                # Recheck repository cancellation/ownership without dispatching again.
-                self.journal.check(
-                    self.run_id, self.thread_id, self.operation_id, self.clock()
-                )
-                remaining = call_end - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Standard provider timeout")
-                try:
-                    result = future.result(timeout=min(0.1, remaining))
-                    break
-                except FutureTimeout:
-                    if future.done():
-                        raise
+            result = self._bounded_call(
+                lambda: (
+                    gateway.read(target, max_chars=STANDARD_BUDGET.max_source_chars)
+                    if kind == "read"
+                    else gateway.search_exact(target, max_results=8)
+                ),
+                reservation["deadline"],
+            )
             if not isinstance(result, dict):
                 raise ValueError("invalid Standard provider result")
             self.journal.finish(
@@ -155,6 +127,43 @@ class StandardExecution:
             except ValueError:
                 pass
             raise
+
+    def _bounded_call(self, fn: Callable[[], Any], deadline: str) -> Any:
+        """Only for work already reserved in the SQLite journal."""
+        end = datetime.fromisoformat(deadline) - timedelta(
+            seconds=STANDARD_BUDGET.finalization_reserve
+        )
+        remaining = (end - self.clock()).total_seconds()
+        if remaining <= 0:
+            raise ValueError("Standard deadline exhausted before dispatch")
+        call_end = time.monotonic() + min(8.0, remaining)
+
+        def invoke() -> dict:
+            self.journal.check(
+                self.run_id, self.thread_id, self.operation_id, self.clock()
+            )
+            if time.monotonic() >= call_end:
+                raise TimeoutError("Standard provider timeout")
+            return fn()
+
+        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="standard-dispatch")
+        future = pool.submit(invoke)
+        try:
+            while True:
+                # Recheck repository cancellation/ownership without dispatching again.
+                self.journal.check(
+                    self.run_id, self.thread_id, self.operation_id, self.clock()
+                )
+                remaining = call_end - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Standard provider timeout")
+                try:
+                    result = future.result(timeout=min(0.1, remaining))
+                    break
+                except FutureTimeout:
+                    if future.done():
+                        raise
+            return result
         finally:
             future.cancel()
             pool.shutdown(wait=False, cancel_futures=True)
