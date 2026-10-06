@@ -48,10 +48,12 @@ def test_workflow_preserves_gates_and_uploads_diagnostics_once():
     assert len(uploads) == 1 and uploads[0]["if"] == "always()"
     assert steps[-1]["if"] == "always()"
     assert "check_ci_outcomes.py" in steps[-1]["run"]
+    # Browser gates follow the classifier, not the event type (CI-2 push-routing repair).
     for name in BROWSER_STEPS:
-        assert "workflow_dispatch" in by_id[name]["if"]
-        assert "refs/heads/main" in by_id[name]["if"]
-    assert "steps.frontend.outcome == 'success'" in by_id["playwright_install"]["if"]
+        assert "steps.ci_scope.outputs.browser_required == 'true'" in by_id[name]["if"]
+        assert "workflow_dispatch" not in by_id[name]["if"]
+        assert "refs/heads/main" not in by_id[name]["if"]
+    assert "steps.node_deps.outcome == 'success'" in by_id["playwright_install"]["if"]
     for name in ("browser_e2e", "real_stack_browser_e2e"):
         assert "steps.playwright_install.outcome == 'success'" in by_id[name]["if"]
     assert "steps.mypy.outcome" in by_id["mypy_baseline"]["env"]["MYPY_OUTCOME"]
