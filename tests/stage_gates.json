@@ -295,6 +295,8 @@
       "tests/test_web_tool_agent.py"
     ],
     "standard_research_loop": [
+      "tests/test_standard_continuation.py",
+      "tests/test_standard_binding_projection.py",
       "tests/test_standard_binding.py",
       "tests/test_standard_research.py",
       "tests/test_standard_handoff.py",

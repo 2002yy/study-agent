@@ -673,3 +673,135 @@ class StandardExecutionRepository:
                 ("cancelled" if reason == "cancelled" else "partial", run_id),
             )
             return deepcopy(result)
+
+
+    # --- Standard-4: parent continuation artifact -------------------------------
+
+    CONTINUATION_SCHEMA = "standard-auto-continuation-v1"
+
+    def child_ledger(self, run_id: str, thread_id: str) -> dict:
+        """Read a Standard child journal for projection; owner-checked, no write."""
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT research_context, owner_thread_id FROM web_lookup_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+        if row is None or row["owner_thread_id"] != thread_id:
+            raise ValueError("Standard child owner mismatch")
+        ledger = (json.loads(row["research_context"]).get("standard")) or {}
+        if ledger.get("schema") != SCHEMA:
+            raise ValueError("invalid Standard journal")
+        return ledger
+
+    def continuation_artifact(self, parent_turn_id: str, thread_id: str) -> dict | None:
+        """The saved continuation artifact, if this parent already reached a terminal state."""
+
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT rag_snapshot, thread_id FROM chat_turns WHERE id = ?",
+                (parent_turn_id,),
+            ).fetchone()
+        if row is None or row["thread_id"] != thread_id:
+            return None
+        snapshot = json.loads(row["rag_snapshot"])
+        terminal = snapshot.get("lookup_terminal") or {}
+        artifact = snapshot.get("standard_continuation")
+        if (
+            terminal.get("dispatch_status") in {"completed", "blocked"}
+            and isinstance(artifact, dict)
+        ):
+            return deepcopy(artifact)
+        return None
+
+    def block_continuation(
+        self, parent_turn_id: str, thread_id: str, reason: str
+    ) -> dict:
+        """Record a deterministic integrity failure; only a bounded reason code is saved."""
+
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT rag_snapshot, thread_id FROM chat_turns WHERE id = ?",
+                (parent_turn_id,),
+            ).fetchone()
+            if row is None or row["thread_id"] != thread_id:
+                raise ValueError("Standard parent unavailable")
+            snapshot = json.loads(row["rag_snapshot"])
+            terminal = snapshot.get("lookup_terminal") or {}
+            if terminal.get("state") != "ESCALATE_STANDARD":
+                raise ValueError("no pending server-owned Standard handoff")
+            if terminal.get("dispatch_status") in {"completed", "blocked"}:
+                existing = snapshot.get("standard_continuation")
+                return deepcopy(existing) if isinstance(existing, dict) else {}
+            terminal["dispatch_status"] = "blocked"
+            artifact = {
+                "schema_version": self.CONTINUATION_SCHEMA,
+                "child_run_id": "",
+                "reason": str(reason),
+                "publication_authority": False,
+            }
+            snapshot["lookup_terminal"] = terminal
+            snapshot["standard_continuation"] = artifact
+            connection.execute(
+                "UPDATE chat_turns SET rag_snapshot = ? WHERE id = ?",
+                (json.dumps(snapshot, ensure_ascii=False), parent_turn_id),
+            )
+        return deepcopy(artifact)
+
+    def finalize_continuation(
+        self,
+        run_id: str,
+        thread_id: str,
+        now: datetime,
+        *,
+        artifact: dict,
+    ) -> dict:
+        """Transactionally verify the child and publish the parent artifact.
+
+        Reuses _transaction, which already re-verifies owner, parent completion, the pending
+        terminal, the handoff digest, the source run and the child parent_run_id.
+        """
+
+        with self._transaction(
+            run_id, thread_id, now, finalizing=True
+        ) as (connection, _context, ledger):
+            child = connection.execute(
+                "SELECT research_context, parent_run_id, owner_thread_id FROM web_lookup_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+            if (
+                child is None
+                or child["owner_thread_id"] != thread_id
+                or child["parent_run_id"] != ledger["source_run_id"]
+            ):
+                raise ValueError("Standard child identity mismatch")
+            research = (json.loads(child["research_context"]).get("standard") or {}).get(
+                "research"
+            ) or {}
+            if research.get("status") != "completed" or not isinstance(
+                research.get("result"), dict
+            ):
+                raise ValueError("Standard child not terminal")
+            row = connection.execute(
+                "SELECT rag_snapshot FROM chat_turns WHERE id = ?",
+                (ledger["parent_turn_id"],),
+            ).fetchone()
+            snapshot = json.loads(row["rag_snapshot"])
+            terminal = snapshot.get("lookup_terminal") or {}
+            if terminal.get("dispatch_status") in {"completed", "blocked"}:
+                existing = snapshot.get("standard_continuation")
+                return deepcopy(existing) if isinstance(existing, dict) else {}
+            saved = dict(artifact)
+            saved["child_run_id"] = run_id
+            saved["source_run_id"] = ledger["source_run_id"]
+            saved["handoff_sha256"] = ledger["handoff_sha256"]
+            saved["publication_authority"] = False
+            terminal["dispatch_status"] = "completed"
+            snapshot["lookup_terminal"] = terminal
+            snapshot["standard_continuation"] = saved
+            connection.execute(
+                "UPDATE chat_turns SET rag_snapshot = ? WHERE id = ?",
+                (json.dumps(snapshot, ensure_ascii=False), ledger["parent_turn_id"]),
+            )
+            return deepcopy(saved)
