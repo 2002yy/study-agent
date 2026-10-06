@@ -14,7 +14,7 @@ import re
 from typing import Any
 
 from src.web.research.official_publication import LABELS, publish_official_fields
-from src.web.research_recovery import model_targets, recovery_summary
+from src.web.research_recovery import model_targets, recovery_summary, target_identity_pattern
 from src.web.tool_evidence import trusted_tool_calls
 
 SCHEMA = "lookup-standard-handoff-v1"
@@ -109,12 +109,7 @@ def _exact_target_pattern(query: str) -> re.Pattern[str] | None:
     targets = model_targets(query)
     if len(targets) != 1:
         return None
-    name, version = targets[0]
-    digits = r"[\s._-]*".join(re.escape(part) for part in version.split("."))
-    return re.compile(
-        rf"(?<![A-Za-z0-9]){re.escape(name.rstrip('_-'))}[\s._-]*{digits}(?![\d.])",
-        re.I,
-    )
+    return target_identity_pattern(targets[0])
 
 
 def _verified_relevance_sources(

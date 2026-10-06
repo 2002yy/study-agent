@@ -119,8 +119,9 @@ def test_real_official_lookup_fallback_reaches_escalation_without_semantic_sessi
     assert load_standard_handoff(decision.handoff) == decision.handoff
 
 
-def test_deterministic_relevance_does_not_cross_bind_adjacent_version():
-    trace = deterministic_trace("3.13.0").to_dict()
+@pytest.mark.parametrize("version", ["3.13.0", "3.14.1"])
+def test_deterministic_relevance_does_not_cross_bind_other_release(version):
+    trace = deterministic_trace(version).to_dict()
     decision = decide_lookup_terminal(
         QUERY, trace["calls"], requested_fields=requested_lookup_fields(QUERY),
         allow_standard=True, recovery=trace["recovery"],
