@@ -8,24 +8,24 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Standard handoff 接纳 / 来源复用适配器（未激活）。** #177 已合并，最终 PR head `72fc67e5117757158faf43756bad6058eb325b39` 的 CI run `37418122175` 为 `completed/success`；main merge commit 为 `8a5148e3c7d438e0ad5846b6d901f334d971e781`。本轮查询 exact-main push CI `37420193931` 时仍为 `in_progress`，main 验证未关闭，不重复轮询等待。
+**当前执行权：#178 Standard durable handoff consumer（未接自动规划）。** #177 的最终 PR head `72fc67e5` CI run `37418122175` 与 exact-main `8a5148e3c7d438e0ad5846b6d901f334d971e781` push CI `37420193931` 均 `completed/success`，main 验证已通过。#178 原 head `c5fe9d896d1a341aa90f59b6213cd025192905bf` 的 CI `37422145467` 也为 success；该绿灯不借给本轮新增代码。
 
-**施工身份：** worktree `D:/study-agent-validation/standard-handoff-consumer`，分支 `codex/standard-handoff-consumer`，base `8a5148e3`；本文件所在提交为适配器候选 head。只新增应用适配器、对应测试与命名 impact set，不改变 API、聊天路由、既有研究执行器、数据库 schema 或发布权限。
+**施工身份：** worktree `D:/study-agent-validation/standard-handoff-consumer`，分支 `codex/standard-handoff-consumer`，base `8a5148e3`，PR #178 draft。本文件所在提交是新候选身份。草稿扩展成同一 handoff consumer 的持久化闭环；没有激活 API／自动续研或修改 UI、publisher、数据库 schema。
 
-**本刀行为：**
+**本轮行为：**
 
-- 只从服务端 SQLite 加载 parent turn 的 pending handoff，拒绝错误会话／轮次、未完成或已取消记录；核对 source run 归属、原始 query，重新验证 handoff digest 和终态。
-- 深拷贝复用已验证相关正文和成功查询，不消耗新 Standard read/query，不赋予 claim 或 publication authority。
-- 新工作单独计数，最多 5 reads / 4 queries，失败调用先扣预算；保留 Standard 60 秒窗口和 12 秒收尾余量。整体 deadline 不得晚于原始 turn 创建时间 + Lookup 30 秒 + Standard 60 秒。这是适配器入场边界，尚未约束阻塞 gateway 调用时长，生产 wall-time 未验收。
-- 取消或 deadline 到达时，缓存命中也拒绝继续执行。
+- ChatService 将真实 thread/turn owner 传给既有 persistent resolver；测试由 resolver 建立带 owner 的 source run，不再在聊天完成后人工补归属。
+- 入场对象只保存已验证快照，不调用 provider；StandardExecution 是唯一 dispatch adapter，预算和结果权威统一到 SQLite。
+- 使用现有 research child run / create_request_id 幂等创建一个子运行。`standard-dispatch-journal-v1` 保存在既有 research_context 中，含固定 deadline、来源版本／handoff hash、执行租约 token、cursor、预算和工作结果。
+- 每次新网络调用前，在 `BEGIN IMMEDIATE` 事务中核对真实 owner、parent/source/thread、取消、deadline、运行状态与 lease，先记录 reserved 并扣预算；成功结果再由同一 owner 保存。5 reads / 4 queries、单源 6000 / 总正文 24000 chars，失败也计费；Lookup 已读正文和成功搜索直接复用。
+- Standard 窗口最多 60 秒，保留 12 秒收尾；整体上限原 turn 创建 + 90 秒。恢复沿用首次 deadline，不能重新开始计时。provider 每次调用最多 8 秒，并观察持久化取消；迟到 worker 不能自行 checkpoint 或发布。
+- interrupt 持久化后可由新 token 恢复；lease 到期允许接管，旧 token 无法继续写入。completed 工作重放结果；失败／reserved 后崩溃留下的 unknown 工作禁止自动重发。**不宣称跨崩溃的外部请求 exactly-once**，只保证预算不重置、已知完成结果不重复消费、未知结果不会偷偷重试。
 
-**验证：** 新模块 23 项 controls PASS；Ruff PASS；mypy baseline `current=122 / baseline=128 / resolved=6`，无新增错误。named `standard_handoff_consumer` 包含自身、Lookup 终态、ChatService、research/semantic recovery、SQLite repository 与 stage policy，最终 171 passed / 58.60s。未激活适配器按 L1 验证；生产接入改变执行权时必须 early L3。
+**验证：** 入场／持久化共 50 个 controls；最初 47 项通过，派发边界后的 named impact set `315 passed / 118.97s`（含其中 49 项），独立 Python 子进程追加测试 `1 passed / 0.92s`，含 fresh repository 重建、并发启动／租约、crash-window、旧 owner 回写、取消／deadline、失败计费、正文预算和未知 schema。Ruff／格式／diff check PASS；mypy baseline `122 current / 128 baseline / 6 resolved`，无新增错误。mandatory early L3 修正候选正在运行，结果待记录。由于新增持久化 envelope 和执行合同，本轮必须完整 L3，不能沿用 #178 原 171-test 证据。静态审查发现 reservation 后 deadline 到达仍可能派发网络，已补 caller／worker preflight 和零网络调用负控；此前中止的 L3 不计 PASS，新生产候选重新跑一次完整 L3。
 
-**测试发现：** resolver 当前没有 owner kwargs，fixture 改为真实 ChatService 保存后显式建立带归属的 source run，不能假装生产已传递 owner。取消字段不由 `upsert_chat_turn` 写入，负控改用真实 `request_turn_cancel` 路径；均为夹具修正。
+**冻结边界：** Standard planner、claim decomposition、cross-source binding、比较／冲突与发布未接入；当前 primitives 只可由服务端显式消费。pending handoff 不等于自动执行；相关正文不等于事实发布权。Lookup / Standard / Deep overall 均 **NOT CLOSED**，UI 独立后置。
 
-**明确未完成：** 聊天入口尚未把 thread/turn ownership 传给研究 run，旧记录可能无法接纳，本刀严格拒绝归属不完整记录。计数和缓存仅在当前进程有效，不具备 durable lease、跨进程 exactly-once 或 interruption/resume；取消参数未绑定真实运行取消源；Standard 多源／比较／冲突与发布未实施。pending handoff 不等于 Standard 执行，Lookup / Standard / Deep overall 均 **NOT CLOSED**。UI 独立后置。
-
-**唯一下一 slice：** 核 main CI `37420193931`，再独立补齐聊天 → source run 归属和 Standard durable operation/cursor/预算账本（取消／重启不重置、不重复消费）。完成 early L3、exact-head CI 和最终审查后才能激活自动消费；当前适配器仅作为可审查草稿。验证生成的未跟踪 `.mypy_cache/` 不暂存；无其他无关修改。
+**唯一下一门：** 完成本候选 impact set + L3 → 最终静态审查 → 推送 #178 新 exact head 并核其 CI。绿后再独立接 Standard 受控 planner/claim-binding，验证从 Lookup unresolved gap 到可发布证据的真实路径；不跳过多源／比较／冲突资格验收。
 
 ## 0A. 冻结研究路线
 

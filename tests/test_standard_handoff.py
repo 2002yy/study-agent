@@ -7,6 +7,7 @@ import pytest
 
 from src.application.chat_service import ChatCommand
 from src.application.standard_handoff import admit_standard_handoff
+from src.application.standard_execution import StandardExecution
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from tests.test_chat_service import _service
@@ -18,9 +19,26 @@ def saved_parent(tmp_path):
     service, repository = _service(tmp_path)
     runs = WebLookupRepository(repository.database)
 
+    def resolve(_query, **kwargs):
+        runs.create(
+            WebLookupRun(
+                id="source-run",
+                query=QUERY,
+                status="completed",
+                owner_thread_id=kwargs["owner_thread_id"],
+                research_context={
+                    "owner": {
+                        "thread_id": kwargs["owner_thread_id"],
+                        "turn_id": kwargs["owner_turn_id"],
+                    }
+                },
+            )
+        )
+        return deterministic_trace()
+
     service.dependencies = replace(
         service.dependencies,
-        resolve_web_tools=lambda *_a, **_k: deterministic_trace(),
+        resolve_web_tools=resolve,
         chat=lambda *_a, **_k: pytest.fail("no answer model"),
     )
     prepared = service.start_turn(
@@ -28,17 +46,6 @@ def saved_parent(tmp_path):
     )
     service.generate(prepared)
     parent = repository.get_chat_turn(prepared.turn.id)
-    runs.create(
-        WebLookupRun(
-            id="source-run",
-            query=QUERY,
-            status="completed",
-            owner_thread_id=parent.thread_id,
-            research_context={
-                "owner": {"thread_id": parent.thread_id, "turn_id": parent.id}
-            },
-        )
-    )
     created = datetime.fromisoformat(parent.created_at)
     return repository, runs, parent, created
 
@@ -68,29 +75,49 @@ class Gateway:
         return {"status": "ok", "results": []}
 
 
+def consumer(saved_parent):
+    repository, runs, parent, created = saved_parent
+    clock = [created + timedelta(seconds=3)]
+    execution = StandardExecution.start(
+        repository,
+        runs,
+        parent_turn_id=parent.id,
+        thread_id=parent.thread_id,
+        overall_deadline=created + timedelta(seconds=90),
+        clock=lambda: clock[0],
+    )
+    return execution, clock
+
+
+def counters(saved_parent, context):
+    return saved_parent[1].get(context.run_id).research_context["standard"]
+
+
 def test_real_saved_handoff_reuses_source_without_new_dispatch_or_charge(saved_parent):
-    context = admit(saved_parent)
+    context, clock = consumer(saved_parent)
     gateway = Gateway()
-    source = context.handoff["usable_sources"][0]
+    handoff = saved_parent[2].rag_snapshot["lookup_terminal"]["handoff"]
+    source = handoff["usable_sources"][0]
     url = source["arguments"]["url"]
-    body = context.read(gateway, url, now=context.admitted_at)
+    body = context.read(gateway, url)
     body["content"] = "mutated copy"
-    again = context.read(gateway, url, now=context.admitted_at)
+    again = context.read(gateway, url)
     assert again == source["result"]
-    assert context.new_reads == gateway.reads == 0 and context.reused_reads == 2
-    assert context.handoff["publication_authority"] is False
+    counts = counters(saved_parent, context)
+    assert counts["new_reads"] == gateway.reads == 0 and counts["reused_reads"] == 2
+    assert handoff["publication_authority"] is False
     query = next(
         call["arguments"]["query"]
-        for call in context.handoff["attempted"]
+        for call in handoff["attempted"]
         if call["name"] == "web_search"
     )
-    context.search(gateway, query, now=context.admitted_at)
-    assert context.new_queries == gateway.queries == 0
+    context.search(gateway, query)
+    assert counters(saved_parent, context)["new_queries"] == gateway.queries == 0
 
 
 @pytest.mark.parametrize("kind", ["reads", "queries"])
 def test_new_work_is_bounded_and_repeated_work_is_cached(saved_parent, kind):
-    context = admit(saved_parent)
+    context, clock = consumer(saved_parent)
     gateway = Gateway()
     limit = 5 if kind == "reads" else 4
     method = context.read if kind == "reads" else context.search
@@ -100,10 +127,10 @@ def test_new_work_is_bounded_and_repeated_work_is_cached(saved_parent, kind):
             if kind == "reads"
             else f"gap query {index}"
         )
-        method(gateway, target, now=context.admitted_at)
-        method(gateway, target, now=context.admitted_at)
+        method(gateway, target)
+        method(gateway, target)
     with pytest.raises(ValueError, match="budget exhausted"):
-        method(gateway, "new uncached work", now=context.admitted_at)
+        method(gateway, "new uncached work")
     assert getattr(gateway, kind) == limit
 
 
@@ -127,13 +154,19 @@ def test_wrong_owner_or_clock_is_rejected(saved_parent, failure):
 
 @pytest.mark.parametrize("cancelled", [True, False])
 def test_cancel_and_deadline_prevent_even_cached_dispatch(saved_parent, cancelled):
-    context = admit(saved_parent)
+    context, clock = consumer(saved_parent)
     gateway = Gateway()
-    url = context.handoff["usable_sources"][0]["arguments"]["url"]
-    now = context.admitted_at if cancelled else context.deadline
+    url = saved_parent[2].rag_snapshot["lookup_terminal"]["handoff"]["usable_sources"][
+        0
+    ]["arguments"]["url"]
+    if cancelled:
+        saved_parent[1].request_cancel(context.run_id)
+    else:
+        clock[0] += timedelta(seconds=60)
     with pytest.raises(ValueError):
-        context.read(gateway, url, now=now, cancelled=cancelled)
-    assert gateway.reads == context.new_reads == context.reused_reads == 0
+        context.read(gateway, url)
+    counts = counters(saved_parent, context)
+    assert gateway.reads == counts["new_reads"] == counts["reused_reads"] == 0
 
 
 @pytest.mark.parametrize(
@@ -184,7 +217,7 @@ def test_saved_parent_admission_fails_closed(saved_parent, failure):
 
 @pytest.mark.parametrize("kind", ["reads", "queries"])
 def test_failed_dispatch_still_consumes_new_budget(saved_parent, kind):
-    context = admit(saved_parent)
+    context, clock = consumer(saved_parent)
 
     class FailedGateway:
         def read(self, *_args, **_kwargs):
@@ -194,12 +227,12 @@ def test_failed_dispatch_still_consumes_new_budget(saved_parent, kind):
 
     method = context.read if kind == "reads" else context.search
     limit = 5 if kind == "reads" else 4
-    for _ in range(limit):
+    for index in range(limit):
         with pytest.raises(OSError):
-            method(FailedGateway(), "same failed target", now=context.admitted_at)
+            method(FailedGateway(), f"failed target {index}")
     with pytest.raises(ValueError, match="budget exhausted"):
-        method(FailedGateway(), "same failed target", now=context.admitted_at)
-    assert getattr(context, "new_" + kind) == limit
+        method(FailedGateway(), "another failed target")
+    assert counters(saved_parent, context)["new_" + kind] == limit
 
 
 @pytest.mark.parametrize("clock", ["deadline", "now"])
