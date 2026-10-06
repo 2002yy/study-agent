@@ -107,7 +107,7 @@ jobs:
           # suite is ci-l3.yml's job, on an explicit trigger.
           python -m pytest -q --tb=short \
             tests/test_ci_scope.py tests/test_l3_preflight.py \
-            tests/test_discovery_recovery.py 2>&1 | tee pytest.log
+            tests/test_ci_outcomes.py 2>&1 | tee pytest.log
 
       - name: Run pytest
         id: pytest
