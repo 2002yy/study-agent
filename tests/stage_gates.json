@@ -274,6 +274,15 @@
       "tests/test_semantic_recovery.py",
       "tests/test_chat_service.py",
       "tests/test_stage_gates_policy.py"
+    ],
+    "standard_handoff_consumer": [
+      "tests/test_standard_handoff.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_chat_service.py",
+      "tests/test_research_recovery.py",
+      "tests/test_semantic_recovery.py",
+      "tests/test_runtime_sqlite_repository.py",
+      "tests/test_stage_gates_policy.py"
     ]
   },
   "stage_gates": {

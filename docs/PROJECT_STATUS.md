@@ -8,20 +8,24 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**#177 最终人工审查修正 / 当前执行权：** PR #177 `codex/lookup-terminal-handoff` 基于 main `d13a338e9d1c78a9077a6ca63ec766a9cd083c2a`。旧审查 head `615f4b1ae1c9b658ded2b493918e029d9de3daa3` 的 exact-head CI #3739 / run `37348909594` 已 `completed/success`，但随后人工最终审查发现两项真实生产阻断，因此该旧绿灯**不得**授权合并。
+**当前执行权：Standard handoff 接纳 / 来源复用适配器（未激活）。** #177 已合并，最终 PR head `72fc67e5117757158faf43756bad6058eb325b39` 的 CI run `37418122175` 为 `completed/success`；main merge commit 为 `8a5148e3c7d438e0ad5846b6d901f334d971e781`。本轮查询 exact-main push CI `37420193931` 时仍为 `in_progress`，main 验证未关闭，不重复轮询等待。
 
-**本刀修正：**
+**施工身份：** worktree `D:/study-agent-validation/standard-handoff-consumer`，分支 `codex/standard-handoff-consumer`，base `8a5148e3`；本文件所在提交为适配器候选 head。只新增应用适配器、对应测试与命名 impact set，不改变 API、聊天路由、既有研究执行器、数据库 schema 或发布权限。
 
-1. **三终态真实可达性。** 官方 Lookup 在 `official_plan()` 命中时会绕过 semantic recovery；旧 handoff 又只认可 semantic RQ relevance，导致 `ESCALATE_STANDARD` 在真正的官方 fallback 路径不可达。当前合同增加严格的、仅用于**相关性**的 deterministic exact-single-version body proof：要求单一命名版本、真实 target coverage、trusted `web_read`、正文 digest 一致且正文精确包含目标版本。它只能证明“这个可读正文与目标版本相关”，**不能**升级为 claim support，也不能授予 publication authority。相邻版本必须拒绝。
-2. **requested-field planner 收紧。** 字段规划改为“只消费确实映射到支持字段的 span”；不再把泛化的“时间/date/现在/更新”吞成 release date。`更新时间`、`当前时间`、下载地址、安装要求等未支持额外 facet 留在 remainder 中，因此整题安全返回未规划，不能误报 `VERIFIED`。
-3. **真实生产路径回归。** 测试不再手工替换 `prepared.rag`；由 `resolve_web_tools → WebToolTrace.to_dict() → ChatService.start_turn/complete_turn → SQLite → fresh repository readback` 验证 `VERIFIED / SAFE_ABSTAIN / ESCALATE_STANDARD`、pending handoff、owner、零答案模型调用与 handoff reload。另有邻近版本负控，防止 deterministic relevance 跨版本绑定。
-4. **recovery P1 保留。** `web_tools["recovery"]` 继续作为真实持久化 budget/completion authority，handoff 保存为 `lookup_budget`，reload 用同一份 snapshot 重算；`research_recovery` 不需要重新塞回 sanitized calls。
+**本刀行为：**
 
-**当前验证身份：** 本文件所在提交即当前候选身份；最终资格只认该 exact head 的新 CI。旧 `615f4b1a` CI 和此前本地 `3624 passed / 6 skipped` 仅作为历史证据，不借给本次最终修正。
+- 只从服务端 SQLite 加载 parent turn 的 pending handoff，拒绝错误会话／轮次、未完成或已取消记录；核对 source run 归属、原始 query，重新验证 handoff digest 和终态。
+- 深拷贝复用已验证相关正文和成功查询，不消耗新 Standard read/query，不赋予 claim 或 publication authority。
+- 新工作单独计数，最多 5 reads / 4 queries，失败调用先扣预算；保留 Standard 60 秒窗口和 12 秒收尾余量。整体 deadline 不得晚于原始 turn 创建时间 + Lookup 30 秒 + Standard 60 秒。这是适配器入场边界，尚未约束阻塞 gateway 调用时长，生产 wall-time 未验收。
+- 取消或 deadline 到达时，缓存命中也拒绝继续执行。
 
-**冻结边界：** pending handoff 仍然**不执行 Standard**、不改变用户模式、不授予事实发布权。Standard consumption、跨档总 deadline / tier accounting、run/cursor ownership、exactly-once source reuse、interrupt/resume 仍未实施。Lookup / Standard / Deep overall 均 **NOT CLOSED**。UI 继续独立，不混入研究 PR。
+**验证：** 新模块 23 项 controls PASS；Ruff PASS；mypy baseline `current=122 / baseline=128 / resolved=6`，无新增错误。named `standard_handoff_consumer` 包含自身、Lookup 终态、ChatService、research/semantic recovery、SQLite repository 与 stage policy，最终 171 passed / 58.60s。未激活适配器按 L1 验证；生产接入改变执行权时必须 early L3。
 
-**唯一下一门：** 将本刀压成一个 bounded commit → 只认该 exact-head CI → 最终人工审查。两者通过后按 expected-head 保护合并，并核一次 exact-main；随后另开独立 slice 实施 Standard consumer + source reuse + shared budget + cancel/resume，再进入 Standard 多源／比较／冲突资格验收。
+**测试发现：** resolver 当前没有 owner kwargs，fixture 改为真实 ChatService 保存后显式建立带归属的 source run，不能假装生产已传递 owner。取消字段不由 `upsert_chat_turn` 写入，负控改用真实 `request_turn_cancel` 路径；均为夹具修正。
+
+**明确未完成：** 聊天入口尚未把 thread/turn ownership 传给研究 run，旧记录可能无法接纳，本刀严格拒绝归属不完整记录。计数和缓存仅在当前进程有效，不具备 durable lease、跨进程 exactly-once 或 interruption/resume；取消参数未绑定真实运行取消源；Standard 多源／比较／冲突与发布未实施。pending handoff 不等于 Standard 执行，Lookup / Standard / Deep overall 均 **NOT CLOSED**。UI 独立后置。
+
+**唯一下一 slice：** 核 main CI `37420193931`，再独立补齐聊天 → source run 归属和 Standard durable operation/cursor/预算账本（取消／重启不重置、不重复消费）。完成 early L3、exact-head CI 和最终审查后才能激活自动消费；当前适配器仅作为可审查草稿。验证生成的未跟踪 `.mypy_cache/` 不暂存；无其他无关修改。
 
 ## 0A. 冻结研究路线
 
