@@ -295,6 +295,7 @@
       "tests/test_web_tool_agent.py"
     ],
     "standard_research_loop": [
+      "tests/test_standard_binding.py",
       "tests/test_standard_research.py",
       "tests/test_standard_handoff.py",
       "tests/test_lookup_terminal.py",
@@ -313,6 +314,13 @@
       "tests/test_research_gate_server_ownership.py",
       "tests/test_pr143_rereview_regressions.py",
       "tests/test_web_tool_agent.py"
+    ],
+    "standard_fact_binding": [
+      "tests/test_standard_binding.py",
+      "tests/test_standard_research.py",
+      "tests/test_standard_handoff.py",
+      "tests/test_standard_execution.py",
+      "tests/test_stage_gates_policy.py"
     ]
   },
   "stage_gates": {
