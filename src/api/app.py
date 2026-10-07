@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -26,7 +27,37 @@ from .cors import (
 ROOT = Path(__file__).resolve().parent.parent.parent
 ASSETS_DIR = ROOT / "assets"
 
-app = FastAPI(title="Study Agent API", version="0.1.0")
+@asynccontextmanager
+async def _deep_trigger_lifespan(_app: FastAPI):
+    """Start the background Deep trigger, best effort.
+
+    Deep recovery must never be a condition for serving chat: if the worker cannot start, the
+    application still comes up and the next explicit start can retry. Shutdown is bounded and
+    never waits out a running Deep call.
+    """
+
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        from src.application.runtime_repository import get_deep_trigger_runner
+
+        get_deep_trigger_runner().start()
+    except Exception:
+        logger.exception("deep trigger startup failed")
+    try:
+        yield
+    finally:
+        try:
+            from src.application.runtime_repository import get_deep_trigger_runner
+
+            get_deep_trigger_runner().stop()
+        except Exception:
+            logger.exception("deep trigger shutdown failed")
+
+
+
+app = FastAPI(title="Study Agent API", version="0.1.0", lifespan=_deep_trigger_lifespan)
 if ASSETS_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
