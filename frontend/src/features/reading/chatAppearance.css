@@ -1,0 +1,88 @@
+/* Character messages keep portraits prominent without narrowing long answers. */
+.reading-layout .conversation { gap: 28px; }
+.reading-layout .message.assistant {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px 16px;
+}
+.reading-layout .message > .avatar { grid-row: 1; }
+.reading-layout .message.assistant > .avatar { grid-column: 1; }
+.reading-layout .message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  align-self: center;
+  grid-column: 2;
+  grid-row: 1;
+}
+.reading-layout .message-author { font-size: 13px; font-weight: 600; color: var(--muted); }
+.reading-layout .message-copy-button { margin-left: auto; min-height: 36px; font-size: 12px; }
+.reading-layout .message-body {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 0;
+  min-width: 0;
+  text-align: left;
+}
+.reading-layout .message-bubble {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px 16px 16px;
+  padding: 14px 18px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 2px 6px #203a5105;
+}
+.reading-layout .message-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 24px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: inherit;
+  transform: rotate(45deg);
+}
+.reading-layout .message-bubble .markdown-message { margin-top: 0; }
+.reading-layout .message.user { align-self: flex-end; width: min(720px, 92%); gap: 10px; }
+.reading-layout .message.user .message-header { grid-column: 1; justify-content: flex-end; }
+.reading-layout .message.user .message-body { grid-column: 1 / -1; padding: 0; background: transparent; border-radius: 0; text-align: left; }
+.reading-layout .message.user .message-bubble {
+  margin-left: auto;
+  background: #e5edf2;
+  border-color: #cedce6;
+  border-radius: 16px 4px 16px 16px;
+}
+.reading-layout .message.user .message-bubble::before { left: auto; right: 14px; border-color: #cedce6; }
+.reading-layout .message-body > .evidence-trail { margin-top: 12px; padding-top: 8px; border-top: 0; }
+@media (max-width: 900px) {
+  .reading-layout .message.assistant { grid-template-columns: 80px minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .reading-layout .message-bubble { padding: 12px 14px; }
+  .reading-layout .message-copy-button { min-height: 44px; }
+}
+/* The document and conversation are separate sheets, like the navigation. */
+@media (min-width: 901px) {
+  .app-shell > .reading-layout.has-document {
+    gap: 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .reading-layout.has-document > .document-reader,
+  .reading-layout.has-document > .chat-column {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  .app-shell:has(.reading-layout.has-document) { padding: 12px; background: #f0f4f3; }
+}

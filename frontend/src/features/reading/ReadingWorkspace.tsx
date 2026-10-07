@@ -6,6 +6,7 @@ import { readDocument, type DocumentReading, type ReadingTarget } from "./readin
 import { DocumentReader } from "./DocumentReader";
 import "./readingWorkspace.css";
 import "./workspaceInterior.css";
+import "./chatAppearance.css";
 
 type Request = {target: ReadingTarget; line: number; sessionKey: string; navigationKey: number};
 

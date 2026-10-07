@@ -303,8 +303,8 @@ export function ChatPanel(props: ChatPanelProps) {
             return (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <RoleAvatar fallback={message.role === "user" ? "user" : "assistant"} roleId={avatarRole} />
-                <div className="message-body">
-                  <span>{label}</span>
+                <div className="message-header">
+                  <span className="message-author">{label}</span>
                   {message.role === "assistant" && message.content ? (
                     <button
                       aria-label="复制回答正文"
@@ -316,12 +316,16 @@ export function ChatPanel(props: ChatPanelProps) {
                       {currentCopyState === "success" ? "已复制" : currentCopyState === "error" ? "复制失败" : "复制"}
                     </button>
                   ) : null}
-                  {cancelNotice ? (
-                    <p aria-live="polite" className="turn-status-line tone-pending" role="status">
-                      {cancelNotice}
-                    </p>
-                  ) : null}
-                  <MarkdownMessage content={message.content} />
+                </div>
+                <div className="message-body">
+                  <div className="message-bubble">
+                    {cancelNotice ? (
+                      <p aria-live="polite" className="turn-status-line tone-pending" role="status">
+                        {cancelNotice}
+                      </p>
+                    ) : null}
+                    <MarkdownMessage content={message.content} />
+                  </div>
                   {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
                 </div>
               </article>
