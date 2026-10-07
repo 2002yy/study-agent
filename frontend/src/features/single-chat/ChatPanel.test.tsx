@@ -19,6 +19,9 @@ afterEach(cleanup);
 
 type RenderOptions = {
   input?: string;
+  selectedRole?: string;
+  onSelectRole?: ReturnType<typeof vi.fn>;
+  isSending?: boolean;
   taskIntent?: string;
   closureEligibility?: string;
   onOpenDrawer?: ReturnType<typeof vi.fn>;
@@ -42,7 +45,9 @@ function renderPanel(options: RenderOptions = {}) {
       sessionNavigation={null}
       input={options.input ?? ""}
       setInput={vi.fn()}
-      isSending={false}
+      selectedRole={options.selectedRole}
+      onSelectRole={options.onSelectRole}
+      isSending={options.isSending ?? false}
       onSubmit={options.onSubmit ?? vi.fn()}
       onStop={vi.fn()}
       streamRecovery={options.streamRecovery ?? null}
@@ -150,6 +155,38 @@ describe("ChatPanel learning product boundary", () => {
     fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
     fireEvent.click(Array.from(container.querySelectorAll('button')).find(button=>button.textContent?.includes("重新生成"))!);
     expect(retry).toHaveBeenCalledTimes(1);expect(consumePendingTaskIntentOverride()).toBeUndefined();
+  });
+
+  it("keeps four role choices inside a collapsed conversation setting",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"nahida",onSelectRole:select});
+    const toggle=container.querySelector('[aria-label="对话设置"]')!;
+    expect(toggle).toHaveAttribute("aria-expanded","false");
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    fireEvent.click(toggle);
+    const choices=Array.from(container.querySelectorAll('.chat-role-options button'));
+    expect(choices.map(button=>button.textContent)).toEqual(["三月七","刻晴","纳西妲","流萤"]);
+    expect(choices[2]).toHaveAttribute("aria-pressed","true");
+    fireEvent.click(choices[3]);expect(select).toHaveBeenCalledWith("firefly");
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    expect(container.querySelector('textarea')).toHaveFocus();
+  });
+  it("can return to automatic selection and dismiss settings with Escape",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"keqing",onSelectRole:select});
+    const toggle=container.querySelector('[aria-label="对话设置"]')!;
+    fireEvent.click(toggle);
+    fireEvent.keyDown(container.querySelector('.chat-role-settings')!,{key:"Escape"});
+    expect(toggle).toHaveFocus();expect(toggle).toHaveAttribute("aria-expanded","false");
+    fireEvent.click(toggle);
+    fireEvent.click(container.querySelector('.chat-role-settings-heading button')!);
+    expect(select).toHaveBeenCalledWith("auto");
+  });
+  it("keeps active-turn role settings immutable and hides them in search mode",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"march7",onSelectRole:select,isSending:true});
+    fireEvent.click(container.querySelector('[aria-label="对话设置"]')!);
+    for(const button of container.querySelectorAll('.chat-role-settings button'))expect(button).toBeDisabled();
+    fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    expect(container.querySelector('[aria-label="对话设置"]')).toBeNull();expect(select).not.toHaveBeenCalled();
   });
 
   it("gives every remaining icon button an accessible label", () => {

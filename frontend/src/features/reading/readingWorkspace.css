@@ -139,6 +139,18 @@
 .reading-layout .composer textarea { border: 0; box-shadow: none; border-radius: 0; padding: 10px 0 4px; background: transparent; font-size: 16px; min-height: 70px; }
 .reading-layout .composer textarea:focus { box-shadow: none; outline: none; }
 .composer-modes { display: flex; gap: 4px; }
+.composer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-role-settings-toggle { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 36px; min-height: 36px; padding: 6px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
+.chat-role-settings-toggle:hover, .chat-role-settings-toggle[aria-expanded="true"] { color: var(--accent); background: #edf2f5; }
+.chat-role-settings { position: static; padding: 8px 0; border-bottom: 1px solid var(--border); margin-top: 4px; }
+.chat-role-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+.chat-role-settings-heading button { min-height: 36px; border: 0; padding: 6px 8px; border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; }
+.chat-role-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.chat-role-options button { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 48px; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); font-size: 13px; }
+.chat-role-options button[aria-pressed="true"] { border-color: #c6d5df; background: #edf2f5; }
+.chat-role-options .avatar { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+.chat-role-settings button:disabled { opacity: .5; cursor: not-allowed; }
+.chat-role-settings-toggle:focus-visible, .chat-role-settings button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .composer-modes button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; min-height: 36px; padding: 6px 12px; font-size: 13px; }
 .composer-modes button[aria-pressed="true"] { color: var(--accent); background: #edf2f5; font-weight: 600; }
 .composer-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -200,6 +212,7 @@
   .reading-layout .composer-main { padding: 8px 12px; }
   .reading-layout .composer textarea { min-height: 60px; }
   .composer-modes button { min-height: 44px; padding: 6px 10px; }
+  .chat-role-settings-toggle, .chat-role-settings-heading button { min-height: 44px; min-width: 44px; }
   .chat-welcome { padding-block: 24px; }
 }
 @media (max-width: 380px) {

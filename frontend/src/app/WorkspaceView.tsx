@@ -248,6 +248,8 @@ export function WorkspaceView({
           messages={chatController.messages}
           input={ui.input}
           setInput={ui.setInput}
+          selectedRole={ui.chatSettings.selectedRole}
+          onSelectRole={role=>ui.setChatSettings(current=>({...current,selectedRole:role}))}
           isSending={learningView.isSending}
           onSubmit={submit}
           onStop={chatController.stop}

@@ -5,10 +5,12 @@ import {
   Send,
   Search,
   MessageSquare,
+  Settings2,
   Square,
 } from "lucide-react";
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -39,6 +41,7 @@ import {
 import { ChatResearchRecovery } from "../web-lookup/ChatResearchRecovery";
 import type { ResearchLookupResponse } from "../web-lookup/researchApi";
 import { RestoreCard } from "./RestoreCard";
+import { ChatRoleSettings } from "./ChatRoleSettings";
 
 // A search is an explicit chat request; no separate retrieval or task override.
 export function searchMessage(input: string): string {
@@ -66,6 +69,8 @@ type ChatPanelProps = {
   sessionNavigation: SemanticSessionRow | null;
   input: string;
   setInput: (value: string) => void;
+  selectedRole?: string;
+  onSelectRole?: (role: string) => void;
   isSending: boolean;
   onSubmit: (event: FormEvent, question?: string) => void | Promise<void>;
   onStop: () => void;
@@ -138,6 +143,10 @@ export function ChatPanel(props: ChatPanelProps) {
   } = props;
 
   const conversationRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const roleSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const roleSettingsId = useId();
+  const [roleSettingsOpen, setRoleSettingsOpen] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [messageCopy, setMessageCopy] = useState<{ index: number; state: CopyState } | null>(null);
   const [interruptedCopy, setInterruptedCopy] = useState<CopyState>("idle");
@@ -253,6 +262,7 @@ export function ChatPanel(props: ChatPanelProps) {
   useEffect(() => {
     clearPendingTaskIntentOverride();
     setComposerMode("chat");
+    setRoleSettingsOpen(false);
     return clearPendingTaskIntentOverride;
   }, [sessionId]);
 
@@ -355,11 +365,22 @@ export function ChatPanel(props: ChatPanelProps) {
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">
+          <div className="composer-toolbar">
           <div className="composer-modes" role="group" aria-label="输入方式">
             <button type="button" aria-pressed={composerMode === "chat"} onClick={()=>setComposerMode("chat")}><MessageSquare size={15}/>对话</button>
-            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>setComposerMode("search")}><Search size={15}/>搜索</button>
+            <button type="button" aria-pressed={composerMode === "search"} onClick={()=>{setComposerMode("search");setRoleSettingsOpen(false);}}><Search size={15}/>搜索</button>
           </div>
+          {composerMode === "chat" && props.onSelectRole ? <button className="chat-role-settings-toggle" type="button"
+            aria-label="对话设置" title="对话设置" aria-expanded={roleSettingsOpen} aria-controls={roleSettingsId}
+            ref={roleSettingsButtonRef} onClick={()=>setRoleSettingsOpen(open=>!open)}><Settings2 size={16}/></button> : null}
+          </div>
+          {composerMode === "chat" && roleSettingsOpen && props.onSelectRole ? <ChatRoleSettings
+            id={roleSettingsId} selectedRole={props.selectedRole ?? "auto"} disabled={isSending}
+            onSelect={role=>{props.onSelectRole?.(role);setRoleSettingsOpen(false);composerRef.current?.focus();}}
+            onClose={()=>{setRoleSettingsOpen(false);roleSettingsButtonRef.current?.focus();}}
+          /> : null}
           <textarea
+            ref={composerRef}
             aria-label="输入学习问题"
             autoFocus
             onChange={(event) => setInput(event.target.value)}
