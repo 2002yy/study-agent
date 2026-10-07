@@ -5,7 +5,10 @@
   --text: #203a51; --muted: #526879; --accent: #315b7c;
   --accent-strong: #315b7c; --border: #d8e2e8; --shadow: none;
   color: var(--text);
-  font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-interface: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display: "Noto Serif SC", "Source Han Serif SC", STSong, serif;
+  --font-reading: var(--font-interface);
+  font-family: var(--font-interface);
 }
 .reading-layout { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .reading-layout > .chat-column { flex: 1; }
@@ -41,7 +44,7 @@
 .document-line-number { position: absolute; right: calc(100% + 16px); top: 12px; color: #758594; font-size: 10px; font-weight: 400; white-space: nowrap; user-select: none; }
 .document-text-line.blank-line { height: 16px; padding: 0; }
 .document-text-line.blank-line .document-line-number { display: none; }
-.document-heading { font-family: "Noto Serif SC", "Source Han Serif SC", STSong, serif; font-weight: 600; line-height: 1.45; margin: 24px 0 12px; }
+.document-heading { font-family: var(--font-display); font-weight: 600; line-height: 1.45; margin: 24px 0 12px; }
 .document-heading.heading-1 { font-size: 1.78em; margin-top: 0; }
 .document-heading.heading-2 { font-size: 1.22em; }
 .citation-located { background: #f5e7a0; box-shadow: -4px 0 #875d17; }
@@ -66,7 +69,7 @@
 .reading-focused > .chat-column { display: none; }
 .has-document .chat-column { background: var(--bg); }
 .has-document .chat-column .topbar { min-height: 0; padding: 16px; flex-wrap: wrap; gap: 12px; background: var(--bg); }
-.has-document .topbar-copy h1 { font-family: STSong, serif; font-size: 22px; color: var(--text); }
+.has-document .topbar-copy h1 { font-family: var(--font-display); font-size: 22px; color: var(--text); }
 .has-document .topbar-copy p { display: none; }
 .has-document .topbar-meta { margin-top: 8px; }
 .has-document .conversation { padding: 24px 16px; }
@@ -168,7 +171,7 @@
 .reading-layout .chat-panel { display: flex; flex-direction: column; height: 100%; background: var(--bg); }
 .reading-layout .conversation-shell { flex: 1; min-height: 0; }
 .reading-layout .topbar { min-height: 72px; background: var(--bg); padding: 16px 28px; }
-.reading-layout .topbar h1 { font-family: "Noto Serif SC", STSong, serif; font-size: 22px; font-weight: 600; }
+.reading-layout .topbar h1 { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
 .reading-layout .topbar-meta { display: none; }
 .workspace-learning-state { flex-shrink: 0; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 .workspace-learning-state > summary { min-height: 40px; padding: 10px 24px; cursor: pointer; }
@@ -199,7 +202,7 @@
 .composer-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chat-welcome { margin: auto 0; padding: 36px 0 56px; }
 .chat-welcome > span { color: #738899; font-size: 12px; letter-spacing: .12em; }
-.chat-welcome h2 { margin: 14px 0; font-family: "Noto Serif SC", STSong, serif; font-size: clamp(26px, 3vw, 36px); font-weight: 500; color: var(--text); }
+.chat-welcome h2 { margin: 14px 0; font-family: var(--font-display); font-size: clamp(26px, 3vw, 36px); font-weight: 500; color: var(--text); }
 .chat-welcome p { color: var(--muted); font-size: 15px; line-height: 1.8; }
 .reading-layout .message-body { background: transparent; border: 0; box-shadow: none; color: var(--text); }
 .reading-layout .message.user .message-body { background: #edf2f5; color: var(--text); border-radius: 8px; }

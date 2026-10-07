@@ -9,6 +9,7 @@ import { SourcesPanel } from "../features/rag/SourcesPanel";
 import { UploadLearningPrompt } from "../features/rag/UploadLearningPrompt";
 import { RAG_UPLOAD_ACCEPT, RAG_UPLOAD_HELP_TEXT } from "../features/rag/uploadContract";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
+import { useTypographyPreference } from "../features/settings/typographyPreference";
 import { ExternalDataFirstUseNotice } from "../features/settings/ExternalDataFirstUseNotice";
 import { WorkspaceActions } from "../features/single-chat/WorkspaceActions";
 import { closureActionLabel, taskContractFromRoute } from "../features/task/taskContract";
@@ -71,6 +72,7 @@ export function WorkspaceView({
     chatController,
   } = controllers;
   const { state, dispatch } = useWorkspace();
+  const typography = useTypographyPreference();
   const [readingNavigationKey, setReadingNavigationKey] = useState(0);
   const [sourcesInitialTab, setSourcesInitialTab] = useState<"answer" | "library">("answer");
   const openDrawer = (drawer: DrawerId) => {
@@ -183,7 +185,7 @@ export function WorkspaceView({
       onOpen={closeDrawer}
       onBrowse={openReadingLibrary}
     >
-    <AppShell>
+    <AppShell typography={typography}>
       <input
         accept={RAG_UPLOAD_ACCEPT}
         aria-describedby="rag-upload-policy"

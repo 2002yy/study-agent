@@ -5,6 +5,7 @@ import { ReadingContext, citationTarget, useReadingWorkspace } from "./ReadingCo
 import { readDocument, type DocumentReading, type ReadingTarget } from "./readingApi";
 import { DocumentReader } from "./DocumentReader";
 import "./readingWorkspace.css";
+import "./workspaceInterior.css";
 
 type Request = {target: ReadingTarget; line: number; sessionKey: string; navigationKey: number};
 
