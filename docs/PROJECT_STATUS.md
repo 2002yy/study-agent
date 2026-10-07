@@ -8,16 +8,66 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-2 implementation。** 合同已 FROZEN：[`DEEP_2_CONTRACT.md`](DEEP_2_CONTRACT.md)。实现必须严格留在该 frozen bounded slice 内（§66 allowed surface / §67 forbidden）。
+**当前执行权：Deep-3T implementation。** Deep-3 semantics 已 FROZEN，但 **implementation gated on Deep-3T CLOSED**。在 Deep-3T 关闭并完成 exact-main 窄 seam recheck 之前，**不得开始 Deep-3 production implementation**。Deep-2 已 CLOSED。
 
 **Current Action：**
 ```text
-Deep-2 implementation.
-Contract FROZEN in docs/DEEP_2_CONTRACT.md.
-Implementation must stay within the frozen Deep-2 bounded slice.
+Deep-3T implementation.
+Deep-3 semantics are FROZEN in docs/DEEP_3_CONTRACT.md, but Deep-3 implementation is
+gated on Deep-3T CLOSED plus an exact-main narrow seam recheck.
 ```
 
-**Deep-2 seam authority：**
+**Deep 阶段合同（已冻结）：**
+
+```text
+Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
+Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
+Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md FROZEN  <- current work
+Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN semantics, implementation gated on Deep-3T
+Deep-4  not started
+```
+
+**Deep-3T authority（合同冻结基线）：**
+```text
+exact-main  **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
+            （Deep-2 CLOSED 的 exact-main；Deep-3T / Deep-3 合同已基于它核对接口）
+```
+
+**Deep-2 CLOSED ✅**
+
+```text
+authority   **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
+
+validation  exact-main push CI **37628909373** SUCCESS
+            ordinary full pytest PASS
+            ruff PASS | expanded mypy PASS | mypy baseline PASS
+            browser Golden Journeys PASS | real-stack browser gates PASS
+            required outcomes PASS
+
+closed scope
+            Deep-1 child → existing ActiveResearchRuntimeExecutor
+            atomic execution + active Claim Engine attach
+            S6 fail-closed / no legacy downgrade
+            Deep absolute wall clock + crash resume
+            Standard seed → normal assessment / ranking
+            LOCAL MATERIALIZE
+            0 network / 0 reads_used for seed reuse
+            char-budget accounting
+            content_available reread suppression
+            B1–B7 + exception taxonomy
+            G2-1…G2-42
+
+known boundary
+            parent deep_terminal remains pending
+            publication_authority = false
+            no automatic ChatService continuation
+            no parent finalization
+            no synthesis / publication cutover
+```
+
+> Deep-2 authority 永久为 `1514bbf7` / CI `37628909373`。此后 main 上的 docs-only closeout 提交只是该记录的载体，**不表示新 SHA 跑过验证**；按 `AGENTS.md` §4.5 / §10.4，docs-only 变更不需要重跑 L3 或 full suite。
+
+**Deep-2 seam authority（合同冻结基线）：**
 ```text
 exact-main  **41e2d6f9132b0e72b3cf058d913c304f9c066ea0**
             （Deep-1 closeout 的 docs-only 后继；合同已基于该 exact-main 重新核对实际接口）
@@ -101,9 +151,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（Deep-1 已 CLOSED；当前 = Deep-2 implementation）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 CLOSED；Deep-2 CLOSED；当前 = Deep-3 contract preparation）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅；Deep-2 = implementation（合同已 FROZEN，尚未实现）`；`UI = 后置`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅`；`Deep-2 = CLOSED ✅`；`Deep-3 = contract preparation（未实现）`；`UI = 后置`。
 
 ## 0A. 冻结研究路线
 
@@ -112,7 +162,7 @@ Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
 Standard（CLOSED）
   → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
-Deep（Deep-1 CLOSED；Deep-2 implementation）
+Deep（Deep-1 CLOSED；Deep-2 CLOSED；Deep-3 contract preparation）
   → plan / gap / Evidence Gain / saturation / interruption-resume
   → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
