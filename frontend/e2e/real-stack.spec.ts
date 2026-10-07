@@ -183,6 +183,7 @@ test("first learning turn crosses React, FastAPI and SQLite then restores", asyn
 
   await page.reload();
   await expect(assistantMessage(page, FIRST_REPLY)).toBeVisible();
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   await expect(page.getByRole("region", { name: "继续当前任务" })).toBeVisible();
 
   const restored = await durableState(page, sessionId);
@@ -232,6 +233,7 @@ test("bare understanding is rejected before a reasoned claim commits", async ({
 
   await page.reload();
   await expect(assistantMessage(page, CORRECT_REPLY)).toBeVisible();
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoreCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(restoreCard.getByText(CORRECT_EXPLANATION, { exact: true })).toBeVisible();
 
@@ -245,7 +247,8 @@ test("real Markdown upload activates an index and grounds restored learning", as
 }) => {
   await page.goto("/");
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.locator(".topbar").getByRole("button", { name: "上传学习资料" }).click();
+  if (!(await page.getByLabel("上传学习资料").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("上传学习资料").filter({visible:true}).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: MATERIAL_FILE,
@@ -385,7 +388,8 @@ test("learning closure previews, hash-commits and restores before archive", asyn
 
   await page.reload();
   await expect(assistantMessage(page, CORRECT_REPLY)).toBeVisible();
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: /学习成果/ }).click();
   const resultsDialog = page.getByRole("dialog", { name: "学习成果" });
   await expect(resultsDialog.getByText("本次已整理", { exact: true })).toBeVisible();

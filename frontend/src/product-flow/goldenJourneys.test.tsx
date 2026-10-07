@@ -60,9 +60,6 @@ function renderChatPanel({
       onAbandonInterruptedReply={vi.fn()}
       onCopyInterruptedReply={vi.fn()}
       onUploadClick={vi.fn()}
-      onSearchSources={vi.fn()}
-      isSearching={false}
-      hasSearchQuery={false}
       onQuickPrompt={vi.fn()}
       onStartNewTopic={vi.fn()}
       lastChat={{

@@ -98,7 +98,6 @@ export function ReadingLayout({children}: {children: ReactNode}) {
       </nav>
       <DocumentReader/>
     </> : null}
-    {!active && reader ? <div className="reading-entry"><button type="button" onClick={reader.browse}><BookOpen size={16}/>阅读资料</button><span>选择正文，与对话并排阅读</span></div> : null}
     {children}
   </div>;
 }

@@ -39,7 +39,8 @@ async function expectCoreOnly(requests: string[]) {
 }
 
 async function openMoreDrawer(page: Page, menuName: RegExp, title: string) {
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: menuName }).click();
   const dialog = page.getByRole("dialog", { name: title });
   await expect(dialog).toBeVisible();

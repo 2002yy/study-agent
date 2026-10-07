@@ -10,6 +10,8 @@ import { UploadLearningPrompt } from "../features/rag/UploadLearningPrompt";
 import { RAG_UPLOAD_ACCEPT, RAG_UPLOAD_HELP_TEXT } from "../features/rag/uploadContract";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { ExternalDataFirstUseNotice } from "../features/settings/ExternalDataFirstUseNotice";
+import { WorkspaceActions } from "../features/single-chat/WorkspaceActions";
+import { closureActionLabel, taskContractFromRoute } from "../features/task/taskContract";
 import { ChatPanel } from "../features/single-chat/ChatPanel";
 import { MemoryConsentBadge } from "../features/chat/MemoryConsentBadge";
 import { SessionNavigator } from "../features/sessions/SessionNavigator";
@@ -85,9 +87,9 @@ export function WorkspaceView({
     snapshot.runtimeSettings?.settings?.memory_policy ?? "auto",
   );
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent, question?: string) => {
     event.preventDefault();
-    await chatController.send(ui.input.trim());
+    await chatController.send(question ?? ui.input.trim());
   };
 
   const requestUpload = (mode: "upload" | "rebuild" = "upload") => {
@@ -163,6 +165,14 @@ export function WorkspaceView({
     });
   };
 
+  const workspaceActions=<WorkspaceActions
+    onUploadClick={()=>{closeDrawer();requestUpload("upload");}} onOpenDrawer={openDrawer}
+    onEndSession={async()=>{if(!learningView.sessionId)return;await memoryController.generateFromSession(learningView.sessionId);openDrawer("memory");}}
+    isEndingSession={memoryController.isPreviewing} isSending={learningView.isSending}
+    canClose={chatController.messages.some(message=>message.role === "user")}
+    closureLabel={closureActionLabel(taskContractFromRoute(chatController.lastChat?.route))}
+  />;
+
   return (
     <ReadingWorkspaceProvider
       sessionId={learningView.sessionId}
@@ -195,10 +205,11 @@ export function WorkspaceView({
         onArchive={requestArchiveSession}
         onNewSession={requestNewSession}
         onSessionChanged={refresh}
+        actions={workspaceActions}
       />
       <ReadingLayout>
       <div className="chat-column">
-        <LearningStrip
+        {chatController.messages.some(message=>message.role === "user") ? <details className="workspace-learning-state"><summary>学习状态</summary><LearningStrip
           resume={learningView.learningResume}
           resumeError={learningView.learningResumeError}
           sessionId={learningView.sessionId ?? undefined}
@@ -206,7 +217,7 @@ export function WorkspaceView({
           lastChat={chatController.lastChat}
           visitedPhases={learningView.visitedPhases}
           memoryStatus={snapshot.memoryStatus}
-        />
+        /></details> : null}
         <UploadLearningPrompt
           phase={uploadController.flowPhase}
           status={uploadController.status}
@@ -246,9 +257,6 @@ export function WorkspaceView({
           onAbandonInterruptedReply={learningView.abandonRecovery}
           onCopyInterruptedReply={chatController.copyInterrupted}
           onUploadClick={() => requestUpload("upload")}
-          onSearchSources={() => ragController.search(extensionView.activeQuery)}
-          isSearching={ragController.isSearching}
-          hasSearchQuery={Boolean(extensionView.activeQuery)}
           onQuickPrompt={ui.setInput}
           onStartNewTopic={requestNewSession}
           lastChat={chatController.lastChat}
@@ -292,6 +300,7 @@ export function WorkspaceView({
           onArchive={requestArchiveSession}
           onNewSession={requestNewSession}
           onSessionChanged={refresh}
+          actions={workspaceActions}
           variant="panel"
         />
       </SlideOver>

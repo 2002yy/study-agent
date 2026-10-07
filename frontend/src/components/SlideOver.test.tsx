@@ -23,6 +23,18 @@ afterEach(() => {
 });
 
 describe("SlideOver keyboard ownership", () => {
+  it("returns to navigation when switching drawers removes the original tool", () => {
+    const navigation = document.createElement("button");
+    navigation.className = "session-dock-button";
+    const opener = document.createElement("button");
+    document.body.append(navigation, opener);
+    opener.focus();
+    const { unmount } = render(<SlideOver open title="设置" onClose={vi.fn()}><p>设置内容</p></SlideOver>);
+    opener.remove();
+    unmount();
+    expect(navigation).toHaveFocus();
+    navigation.remove();
+  });
   it("does not render when closed", () => {
     const { container } = render(
       <SlideOver open={false} title="会话历史" onClose={vi.fn()}>

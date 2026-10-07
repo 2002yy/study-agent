@@ -16,8 +16,7 @@ function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: {
     sessionId="session-1" sessionNavigation={null} input="" setInput={vi.fn()}
     isSending={false} onSubmit={vi.fn()} onStop={vi.fn()} streamRecovery={recovery}
     onContinueInterruptedReply={vi.fn()} onRetry={vi.fn()} onAbandonInterruptedReply={vi.fn()}
-    onCopyInterruptedReply={copyInterrupted} onUploadClick={vi.fn()} onSearchSources={vi.fn()}
-    isSearching={false} hasSearchQuery={false} onQuickPrompt={vi.fn()} onStartNewTopic={vi.fn()}
+    onCopyInterruptedReply={copyInterrupted} onUploadClick={vi.fn()} onQuickPrompt={vi.fn()} onStartNewTopic={vi.fn()}
     lastChat={{ reply: "回答正文", session_id: "session-1", route: {}, rag } as ChatResponse}
     ragEnabled memoryStatus={null} onOpenDrawer={vi.fn()} onEndSession={vi.fn()}
     researchRun={null} isResearchBusy={false} canRetryResearch={false} canResumeResearch={false}

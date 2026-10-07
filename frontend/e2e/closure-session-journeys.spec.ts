@@ -15,6 +15,7 @@ test("learning closure reviews evidence before saving and can archive into a fre
   await seedWorkspaceRecovery(page, session.row.session_id);
   await page.goto("/");
 
+  if (!(await page.getByRole("button", { name: "整理学习" }).isVisible())) await page.getByLabel("打开会话历史").click();
   await page.getByRole("button", { name: "整理学习" }).click();
 
   const review = page.getByTestId("learning-closure-review");

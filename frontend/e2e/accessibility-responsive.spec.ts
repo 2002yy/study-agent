@@ -15,7 +15,8 @@ test("slide-over traps keyboard focus and restores the launcher", async ({ page 
   const fixture = await installApiFixture(page);
   await page.goto("/");
 
-  const launcher = page.getByLabel("打开更多学习工具");
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  const launcher = page.getByLabel("打开更多学习工具").filter({visible:true});
   await launcher.focus();
   await launcher.press("Enter");
   const settingsItem = page.getByRole("menuitem", { name: /设置/ });
@@ -36,7 +37,7 @@ test("slide-over traps keyboard focus and restores the launcher", async ({ page 
 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(launcher).toBeFocused();
+  await expect(await launcher.count() ? launcher : page.getByLabel("打开会话历史")).toBeFocused();
   expect(fixture.unexpectedApiPaths).toEqual([]);
 
   const noOverflow = await noHorizontalOverflow(page);
@@ -140,9 +141,8 @@ test("composer remains reachable after the visual viewport shrinks", async ({ pa
   await expect(send).toBeEnabled();
 
   for (const control of [
-    page.getByLabel("上传学习资料"),
     page.getByLabel("打开会话历史"),
-    page.getByLabel("打开更多学习工具"),
+    page.getByRole("group",{name:"输入方式"}).getByRole("button",{name:"搜索"}),
     send,
   ]) {
     const box = await control.boundingBox();

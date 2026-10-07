@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { ReadingLibraryNavigation } from "../reading/ReadingLibraryNavigation";
 
@@ -14,6 +15,7 @@ export type SessionNavigatorProps = SessionNavigatorActions & {
   isSending?: boolean;
   onNewSession?: () => void;
   variant?: "sidebar" | "panel";
+  actions?: ReactNode;
 };
 
 export function SessionNavigator({
@@ -25,6 +27,7 @@ export function SessionNavigator({
   onNewSession,
   onSessionChanged,
   variant = "sidebar",
+  actions,
 }: SessionNavigatorProps) {
   const navigator = useSessionNavigator(sessions, activeSessionId, {
     onRestore,
@@ -59,7 +62,9 @@ export function SessionNavigator({
             </button>
           ) : null}
         </div>
+        <ReadingLibraryNavigation/>
         {body}
+        {actions}
       </section>
     );
   }
@@ -81,6 +86,7 @@ export function SessionNavigator({
       </header>
       <ReadingLibraryNavigation/>
       {body}
+      {actions}
     </aside>
   );
 }
