@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-07 UI 入口精简与搜索等价（LOCAL UI GO / 未推送）：** 最新用户约定：无正文时“左导航＋中右宽对话”，打开正文后“左导航＋中正文＋右对话”，两种状态共用纸白/蓝灰与标题宋体类、正文无衬线字体。继续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；本轮增量base `80b820af9327962e1445c724e56d7fdc8a417e77`，生产提交 `626c9f8b188bbf8131714e43fe9129f5731e082c`。25文件仅frontend展示/交互与对应测试，不改后端搜索、研究、阅读服务、依赖或索引。
+
+**行为：** 开始页移除横向阅读入口条、系统学习/项目/研究快捷卡及任务方式菜单，共用一个草稿输入框，只有“对话／搜索”两个主入口。搜索将输入转为显式自然语言请求 `帮我搜索：<问题>`，已是搜索请求则保留原文；与直接输入相同请求共同调用 `chatController.send`，不再调用独立RAG检索，也不增加task_intent override。范围、设置、上下文、运行权限和结果展示交给同一既有对话链。上传、整理、设置、来源与实验室工具迁到导航；手机从会话导航抽屉进入。资料导航也出现在手机抽屉。学习状态及返回会话上下文默认折叠，空开始页不展开默认示例；保留原学习示例组件和中断恢复操作。菜单在手机抽屉内展开，上传先关抽屉，工具切换导致原焦点节点卸载时回到导航按钮。
+
+**证据：** 前端直接影响集20文件91 PASS；全量104文件427 PASS；tsc＋Vite build、Ruff、diff-check与范围检查PASS。最终标准浏览器55/55 PASS/1.6m，含新增桌面/手机搜索等价测试：独立初始上下文下完整请求（仅去掉随机turn/operation ID）相等，答案显示在同一conversation；原53份成功artifact gate保留。末尾手机页头display修正追加accessibility/responsive8/8 PASS/9.1s并重建；单元不因CSS重复跑。早期浏览器43/53与中途定向5/10日志保留，根因为移动工具导航迁移后定位器/焦点假设、菜单向上越出viewport及上传抽屉遮挡；修复生产行为与适配入口位置后原失败5项定向5/5 PASS，未弱化恢复、证据、键盘或overflow断言。320/360/390/768/1024/1280/1600无页面横向溢出，输入区域保持viewport内；1600阅读三栏216/941/443px，纳西妲真实512px原图正常，390×520阅读切换保留草稿，页头约69px。截图为明确标注的隔离UI样例；未执行模型真实搜索质量资格，UI等价不授予搜索答案资格GO。后端/持久化未变，不重复上一批L3；real-stack spec只适配导航/折叠入口，本轮未跑模型实栈。
+
+**交接：** 证据 `D:/study-agent-validation/reading-notebook-ui-evidence/qa-v3.json` 与frontend-focused/full-v3、build-v3、browser-final-v3、browser-mobile-header-v3日志；v3-start/reading/mobile/mobile-reading-chat截图。预览 `http://127.0.0.1:5188/`，独立API8002。main仍 `7ff7451da608775324383968b4c7ed23c5687832`，四项既有dirty `.mcp.json`、PROJECT_STATUS、package.json、package-lock保留。生产提交后tracked clean；临时验证配置已移除。本段docs-only交接，最终head从git及qa-v3恢复；无push/PR/新CI/merge。下一slice：审查集成本UI分支；搜索窗口继续交付独立搜索候选。
+
 **2026-10-07 UI 阅读补全与角色头像（LOCAL GO / 未推送）：** 本段覆盖下方上一轮 indexed_text-only 的限制与下一步。继续使用独立 worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`，增量 base `35da9e95976ba4ddceed652221fd3efcb0e1d77a`，生产候选提交 `66398e2855ac706ebb1244e924574e8b3bdd3961`；main 起点仍为 `7ff7451da608775324383968b4c7ed23c5687832`。搜索逻辑窗口继续独立，未修改其研究/搜索服务或主工作树。
 
 **头像与布局：** 四张当前 React 实际引用的头像恢复删除前最后更新版本：三月七 `4f36e795`，刻晴/纳西妲/流萤 `324f4f1d`，不是重新生成或改选候选图；浏览器验证均为512×512原图。删除资源但保留 React URL 是头像消失的根因。助手消息使用上方缩略图，桌面96×96、手机80×80，正文仍占整栏；加载失败显示图标，新角色可重新加载。纸白/蓝灰墨色统一工作台，宋体类标题和本机无衬线正文；左侧增加资料导航，中间独立白纸页，右侧伴读对话。1600宽约216/941/443px，1280宽约192/688/400px。阅读时学习上下文默认折叠、可用键盘展开，打断恢复操作仍直接显示；学习状态、正文、对话保持各自滚动。
