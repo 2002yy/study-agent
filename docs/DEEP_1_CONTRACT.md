@@ -105,7 +105,7 @@ Deep 只能消费**已 terminal 且完整验证的 Standard artifact**。允许�
 parent ChatTurn.status == completed
 lookup_terminal.state == ESCALATE_STANDARD
 lookup_terminal.dispatch_status == completed
-standard_continuation.schema == standard-auto-continuation-v1
+standard_continuation.schema_version == standard-auto-continuation-v1
 standard_continuation.publication_authority == false
 Standard child identity / thread / source lineage 全部重新验证
 Standard result.unresolved_gaps 非空
