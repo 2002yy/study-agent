@@ -25,7 +25,7 @@ Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
 Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
 Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md CLOSED
 Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN; implementation MERGED, CLOSED pending exact-main CI
-Deep-4A docs/DEEP_4A_CONTRACT.md          FROZEN  <- current work
+Deep-4A docs/DEEP_4A_CONTRACT.md          FROZEN (87 sections)  <- current work
 Deep-4B automatic publication             NO-GO until qualified semantic judge
 ```
 
@@ -41,7 +41,18 @@ exact-main  **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
 merge commit   **e5382659b0aa1deca9954702b108aa51ef745e93**
 PR             #194（expected head f6f1ab8e）
 exact-head CI  37654811749 SUCCESS
-exact-main CI  37656689912（待确认）
+exact-main CI  37656689912 **cancelled**
+              reason = superseded by a later docs-only main push
+              NOT a product/test failure
+              （取消时代码门已全过：pytest / ruff / mypy / mypy baseline /
+               frontend deps / frontend test+build）
+
+CLOSED authority （方案 A）
+              **caa3e307 / 37658465809**
+              iff 37658465809 completes SUCCESS
+              caa3e307 differs from e5382659 only by docs
+              (Deep-4A contract / PROJECT_STATUS);
+              **Deep-3 production bytes are unchanged**
 
 closed scope
             background continuation + parent finalization
