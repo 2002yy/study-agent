@@ -207,8 +207,18 @@ def get_deep_trigger_runner():
             DeepExecutionService(repository, runs, get_web_lookup_service()),
         ).continue_pending(parent_turn_id=parent_turn_id, thread_id=thread_id)
 
+    def publish(parent_turn_id: str, thread_id: str):
+        from src.application.deep_publication import DeepPublicationService
+
+        return DeepPublicationService(repository, runs).process(
+            parent_turn_id=parent_turn_id, thread_id=thread_id
+        )
+
     return DeepTriggerRunner(
-        DeepTriggerRepository(repository.database), arm=arm, consume=consume
+        DeepTriggerRepository(repository.database),
+        arm=arm,
+        consume=consume,
+        publish=publish,
     )
 
 

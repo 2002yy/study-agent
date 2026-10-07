@@ -330,6 +330,7 @@ Legal transitions:
 
 ```text
 ABSENT  → pending
+ABSENT  → blocked        (erratum, see 12.1)
 pending → audited
 pending → blocked
 ```
@@ -344,6 +345,34 @@ blocked → audited
 ```
 
 First terminal wins.
+
+## 12.1 Erratum: ABSENT → blocked
+
+Sections 12, 26 and the A9/A10 controls were mutually inconsistent. Section 26 requires the
+child to exist with an exact lineage *before* a pending candidate can be attached, while A9/A10
+require a missing child or a wrong lineage to become a durable blocked terminal. A failure
+before attach cannot produce `pending → blocked`, so under the original wording those two cases
+could never be recorded at all.
+
+The transition is therefore extended by exactly one edge:
+
+```text
+ABSENT → blocked
+```
+
+It is permitted only when a deterministic authority or integrity validation in
+`attach_pending` fails, so that no legal pending candidate could be established at all.
+The typical cases are:
+
+```text
+child_missing
+lineage_mismatch
+deep_terminal_integrity_failure
+```
+
+This repairs the contradiction; it does not widen Deep-4A's authority. A malformed recorded
+`deep_publication` is still not recreated or repaired (section 13): the block declines and
+fails closed with `publication_integrity_failure`.
 
 ---
 
