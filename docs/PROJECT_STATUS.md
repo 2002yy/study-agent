@@ -8,12 +8,29 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-3 contract preparation only。** 在 exact-main seam 审计完成、Deep-3 detailed contract 写入 docs 并 FROZEN 之前，**不得实现 Deep-3**。Deep-2 已 CLOSED。
+**当前执行权：Deep-3T implementation。** Deep-3 semantics 已 FROZEN，但 **implementation gated on Deep-3T CLOSED**。在 Deep-3T 关闭并完成 exact-main 窄 seam recheck 之前，**不得开始 Deep-3 production implementation**。Deep-2 已 CLOSED。
 
 **Current Action：**
 ```text
-Deep-3 contract preparation only.
-Do not implement Deep-3 before exact-main seam audit + FROZEN contract.
+Deep-3T implementation.
+Deep-3 semantics are FROZEN in docs/DEEP_3_CONTRACT.md, but Deep-3 implementation is
+gated on Deep-3T CLOSED plus an exact-main narrow seam recheck.
+```
+
+**Deep 阶段合同（已冻结）：**
+
+```text
+Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
+Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
+Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md FROZEN  <- current work
+Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN semantics, implementation gated on Deep-3T
+Deep-4  not started
+```
+
+**Deep-3T authority（合同冻结基线）：**
+```text
+exact-main  **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
+            （Deep-2 CLOSED 的 exact-main；Deep-3T / Deep-3 合同已基于它核对接口）
 ```
 
 **Deep-2 CLOSED ✅**
