@@ -8,6 +8,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-07 独立 UI 批次：资料阅读与对话并排（LOCAL GO / 未推送）：** 用户将搜索逻辑交给另一个窗口，本批锁定并排阅读 UI。独立 worktree `D:/study-agent-validation/reading-notebook-ui`，branch `codex/reading-notebook-ui`，base main `7ff7451da608775324383968b4c7ed23c5687832`，生产提交 `2a0befa0e9f429eaf93bdf872487defd9ff8d97a`。设计基准为既有 `bd2e4a8d` 的 `docs/design/NOTEBOOK_PAGE_SPEC.md` 和 desktop/compact 生成例图；本批只将其纸面、色板、排印应用到已有并排阅读，不宣称整套研究笔记本 A 七组件已实现。
+
+**改动与冻结边界：** 四个 reading feature 文件；抽出 DocumentReader，桌面 1600 宽时会话轨216px、正文约941px、对话约443px，近白纸面/深蓝墨色、宋体类标题/本机无衬线正文18px（可调16–22）。增加当前已加载窗口目录、局部标题定位、按绝对行号跳转、切换资料、显式选段/取消提示；多位行号不再折成竖排。正文、对话、展开的学习状态分别滚动；手机资料/对话切换保留DOM/滚动/草稿。目录不冒充整份文档目录；局部跳转不联网，跨窗口读取继续绑定原revision。选段仅追加既有草稿，不自动发送、不改变证据或学习确认权限。reader API/provider/navigation guard、后端搜索/预算/Gate/存储及学习 truth writers 均未修改；复用当前主线已有 Firefly 展示，不重建另一份示例。
+
+**验证：** 直接影响集6文件37 PASS（阅读器/API/附件/来源/证据/ChatPanel）；最终前端全量104文件422 PASS/6.22s；tsc + Vite build PASS；Ruff全src/tests/tools、diff-check、范围检查PASS。默认完整浏览器回归53/53 PASS/1.4m，Chromium/Firefox/WebKit及既有移动项目，global teardown artifact gate通过；后续仅追加opened-document学习条高度限制，该模式另经三浏览器实页验收。Chromium检查1600×1000、1280×800、1024×768、768×800、390×844、360×520、320×568，均无页面横向溢出且reader footer在viewport内。三浏览器的窗口目录焦点、绑定revision的翻页、手机切换保持scrollTop/草稿均PASS、page errors=[]；另验loading、版本错误清空旧正文、retry、切换资料保留草稿、键盘目录、专注往返、22px正文/reduced-motion无溢出。真实索引资料rag_smoke GET正文成功，检查过程non-GET=[]；长文截图使用明确标注的浏览器隔离UI验收样例，未写入真实资料。纯前端批次无backend L3 escalation；Python mypy基线未受影响，前端由tsc验证。既有>500kB chunk warning保留为独立性能债。
+
+**证据与运行：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-result.json`、focused/unit-full/build/browser-full/ruff日志，以及after-desktop/after-1280/after-mobile-reader/after-mobile-chat、real-desktop/real-narrow-chat、version-error/loading/large-text截图。本地预览 `http://127.0.0.1:5186/`，UI worktree Vite，proxy→主工作区既有API8000；可从“阅读资料→阅读正文”打开已有真实资料。复用了本机已维护的Playwright1.62.1和现有node_modules junction，没有加入依赖；主工作区原有.mcp.json/PROJECT_STATUS/package.json/package-lock.json四项dirty保持原样。生产提交后UI tracked clean；本段是docs-only交接，最终head由git rev-parse HEAD及qa-result.json恢复。
+
+**限制与下一步：** 使用本机字体fallback，未捆绑字体资产；仍为indexed_text窗口，不新增原PDF页、富Markdown或跨刷新阅读位置。学习状态数据来源及原有真假语义未提升；UI GO不授予搜索/回答/研究资格GO。本批未push、无PR/新远端CI、未merge。下一执行slice：以该独立UI提交完成范围审查和主线集成；另一窗口的搜索逻辑批次继续独立验证。
+
 
 **2026-10-05 #174 review-fix 本地最终门 / 当前执行权：** 生产head `53d426037054be45c050d4a3226381b4020109ee`，base main9a359e2a；新增P2已通过最小原始版本token一致性修复解决。新候选Focused45 PASS，命名L2 537 PASS；同一干净head完整L3 **3551 passed, 6 skipped in 1156.68s (0:19:16)**，起止head一致、tracked dirty为空。Ruff/diff-check PASS，mypy122/baseline128 NEW0，增量审查无未解决本地finding。完整结果D:/study-agent-validation/lookup-review-candidate-state.json；旧cee/ec6的CI/L3保持归档，不授予新head。旧cee真实10份来源的新代码冻结重放10/10，逐字段发布refs完全一致（lookup-review-frozen-replay.json）；未重跑不受影响的联网样本，也不冒充新head实测。
 
