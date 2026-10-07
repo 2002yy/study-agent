@@ -1,47 +1,63 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-06
+> 更新：2026-10-07（Standard phase CLOSED）
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Standard-2 持久化计划与可恢复循环候选验证。** #178 已 CLOSED：最终 head `978708602de57da39c71a1c5d21bcabc1e5655f2`，本地 clean-head L3 `3719 passed / 6 skipped / 1129.63s`，preflight PASS；exact-head PR fast CI `37448530911` success。最终本地静态审查没有 blocker；远端 threads / formal reviews 均为 0，不冒充远端批准。
+**当前执行权：Deep-1（Standard → Deep handoff / durable seed / production inert）。合同已冻结：[`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)。在 Deep-1 交付前不实现 Deep-2 及以后。**
 
-**合并：** 按 expected-head `97870860` squash merge；main `eb139900a77f91f6f16c4b1ad69589b0f18d3d4a`，exact-main push CI `37464024389` completed / success。本轮已核对，不重复旧候选 L3。
+**Deep 路线修正（冻结）：** Deep **不重新实现深度研究引擎**。仓库现有 `ActiveResearchRuntimeExecutor`（含多波次 gap research、Evidence Gain、per-claim/per-gap saturation、8-wave ceiling、Evidence Gate、预算尾保留、持久化 cursor、attempt marker、崩溃恢复、stop gate）就是 Deep 的执行核心。Deep 的工作量是**把 Standard 的成果可信地送进已有研究引擎**，因此拆为 Deep-1（handoff + seed + 生产 inert）→ Deep-2（激活 active runtime + budget + resume）→ Deep-3（自动 continuation + fail-safe）→ Deep-4（synthesis projection + cutover + Deep phase L3）。
 
-**已合范围：** durable child run、SQLite dispatch journal、single operation lease、reserve-before-network、持久化计费／cursor／deadline、Lookup 和完成结果复用、unknown 禁止自动重发、取消／接管 fencing、旧 executor／late result 拒绝、受限 provider worker。它不拥有研究规划、事实绑定、冲突裁决、自动续研或发布权。
+**Standard closure authority（唯一权威）：**
 
-**原 RQ1-C 事件：** 未冻结 clean HEAD 的旧 L3 出现两个资格前置失败；不是产品回归。它不计 PASS。新基线 `f55738bd` 上的 `97870860` clean-head L3 已通过，生产文件相对 `c974c61c` 没有变化。#179 已合并，新基线 exact-main CI `37444357260` success。
+```text
+authority SHA     c48a1ac313e59ab0104364db519340f1460e84dc   ← exact main
+L3 authority run  37514856913（ci-l3, workflow_dispatch）
+L3 result         3866 passed / 6 skipped in 385.94s
+L3 前置           l3_preflight PASS @ 同一 exact-main；duplicate-skip guard success
+exact-main push CI 37512787764 success
+```
 
-**交接施工位置：** 独立 worktree `D:/study-agent-validation/standard-2-research-loop`，分支 `codex/standard-2-research-loop`，base `eb139900`。合同见 [`STANDARD_2_CONTRACT.md`](STANDARD_2_CONTRACT.md)。当前实现：一次有记录的模型规划、严格计划校验与摘要、复用优先队列、搜索结果插入读取队列、观察与 cursor 原子保存、跨进程恢复、取消／deadline 的诊断完成结果。执行与计费仍只认既有 SQLite journal；所有 gap 保持 unresolved / NOT_EVALUATED，publication_authority=false。
+**权威表述（不得改写）：** Standard phase CLOSED **at `c48a1ac3`**。此后 main 上的 docs-only closure record 提交**只是该记录的载体**，不表示新 SHA 跑过 L3；按 `AGENTS.md` §4.5 / §10.4，docs-only 变更不需要新的 L3。
 
-**候选证据：** `standard_research_loop` 命名影响集 351 passed / 161.23s；旧执行基础 focused 50 passed。负控覆盖 planner 越权／篡改、未知 dispatch 禁止重发、旧 token fencing、独立 Python 进程恢复、保存观察前崩溃、取消与 deadline。mypy no-new-errors PASS（current 122 / baseline 128），Ruff、格式与 diff check PASS。生产候选 `02747a42d4671401c14751410720a05ec6fd7378` clean，preflight PASS；其全量回归运行至约 38% 后按用户新的阶段门停止，**INTERRUPTED，不计 PASS，不自动重跑**。外部日志与候选 SHA 记录保存在 `D:/study-agent-validation/standard-2-{impact,mypy,l3}.log` 和 `standard-2-candidate.json`，不将临时证据混入生产 diff。
+**已 CLOSED 的三个 slice：**
 
-**测试门覆盖（用户 2026-10-06 最新明确指示）：** Standard 整个阶段完成后才跑一次完整 L3；Standard-2 / Standard-3 / Standard-4 slice 期间只跑 L0、命名 L1 impact set 与相应 L2 stage integration。该明确指示优先于旧 early-L3 默认触发规则；不能因每个 slice 涉及持久化／authority 再各跑全量。仍保留 exact-head CI、最终审查和 expected-head merge 门。
+| Slice | PR | merge commit | 范围 |
+| --- | --- | --- | --- |
+| Standard-2 | #180 | `62f0e7bf` | 持久化研究计划 + 可恢复执行循环；输出 artifact |
+| Standard-3 | #182 | `964a848f` | 逐事实机械绑定、来源身份、冲突裁决；publication_authority 恒 false |
+| Standard-4 implementation | #184 | `cee6aefb` | Lookup → Standard 自动 continuation（未接线生产） |
+| Standard activation | #185 | `c48a1ac3` | production composition OFF → ON（本刀即最终 candidate） |
 
-**本机主 worktree：** `C:/Users/Zhang/Desktop/study agent` 位于 main，但 `.mcp.json`、`docs/PROJECT_STATUS.md`、`frontend/package.json`、`frontend/package-lock.json` 有既存修改，本轮保留原样，不用远端 main 覆盖。
+**生产形态（已生效）：** `get_chat_service()` → `StandardContinuationChatService`；Lookup 的 `resolve_web_tools` 与 Standard 的 `gateway` 是**同一个 web agent 对象**，共享同一 RuntimeRepository；无第二 gateway、无第二层 cache、无 feature flag。Standard 语义（admission / deadline / lease / exactly-once / binding / fail-safe）未因接线改动。
 
-**新路线（用户 2026-10-06 冻结）：**
+**Standard 边界（冻结，不再调整）：** `usable/read_backed/relevant` ≠ claim support ≠ publication authority；自动 continuation 只产出内部证据状态，**不修改 assistant_message、pedagogy、learning_state**；continuation 崩溃时已完成的 Lookup 答案照常返回。
 
-1. Standard-2：持久化研究计划 + 可恢复执行循环，只负责去哪找、怎么继续、何时停止，输出研究结果 artifact。
-2. Standard-3：逐事实证据绑定、来源身份、冲突处理与 publication gate。
-3. Standard-4：ChatService 的 Lookup → Standard 自动 continuation；此前不自动接线。
-4. Deep：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。
+**CI 纪律（已冻结并实测）：** `AGENTS.md` §14 分层验证；`tools/ci_scope.py` 是 browser/frontend/impact-set 路由的**唯一权威**（workflow 不得按 event 类型重新推导）。standard 类别 → `standard_research_loop` fast path；`learning-backend`（如 `runtime_repository.py`）无 mapping → 普通 full pytest，**普通 full pytest 不是 L3**。正式 L3 只能由 `ci-l3.yml` 显式触发一次，且跑在 exact-main。
 
-**唯一下一门：** Standard-2 最终审查／独立 PR／exact-head fast CI；然后独立 Standard-3 事实绑定 slice。完整 L3 留到 Standard 总验收。验证机器、事实绑定、自动续研、Deep、UI 不扩入本批。Lookup / Standard / Deep overall 均 **NOT CLOSED**。
+**本机主 worktree：** `C:/Users/Zhang/Desktop/study agent` 位于 main，但 `.mcp.json`、`docs/PROJECT_STATUS.md`、`frontend/package.json`、`frontend/package-lock.json` 有既存修改，保留原样，不用远端 main 覆盖。施工 worktree 位于 `D:/study-agent-validation/`。
+
+**冻结路线：**
+
+1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
+2. **Deep（下一门，Deep-1 进行中）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep = Deep-1 进行中`；`UI = 后置`。
 
 ## 0A. 冻结研究路线
 
 ```text
 Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
-Standard
-  → 多源补全 / 双方比较 / 冲突处理（尚未接入自动消费）
-Deep
-  → plan / gap / Evidence Gain / saturation / interruption-resume（后置）
+Standard（CLOSED）
+  → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
+Deep（Deep-1 进行中，下一门）
+  → plan / gap / Evidence Gain / saturation / interruption-resume
+  → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
 
 共享原则：**模型决定“去哪找、找什么”；程序决定“你到底找到了什么”。** `usable/read_backed/relevant` 不等于 claim support；claim support 不等于 publication authority。
