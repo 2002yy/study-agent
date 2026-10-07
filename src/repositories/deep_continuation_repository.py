@@ -66,6 +66,10 @@ REASON_ENVELOPE_INVALID = "execution_envelope_invalid"
 REASON_CLAIM_ENGINE_UNUSABLE = "claim_engine_unusable"
 REASON_EXECUTION_STATE_MISMATCH = "execution_state_mismatch"
 REASON_ADMISSION_FAILED = "admission_failed"
+# Produced by the layers below; a legitimate blocked terminal may carry these.
+REASON_STANDARD_ARTIFACT_INVALID = "standard_artifact_invalid"
+REASON_OWNER_MISMATCH = "owner_mismatch"
+REASON_JOURNAL_INVALID = "journal_invalid"
 
 BLOCKED_REASONS = frozenset(
     {
@@ -79,6 +83,9 @@ BLOCKED_REASONS = frozenset(
         REASON_CLAIM_ENGINE_UNUSABLE,
         REASON_EXECUTION_STATE_MISMATCH,
         REASON_ADMISSION_FAILED,
+        REASON_STANDARD_ARTIFACT_INVALID,
+        REASON_OWNER_MISMATCH,
+        REASON_JOURNAL_INVALID,
     }
 )
 
@@ -151,6 +158,18 @@ def validate_recorded_terminal(
     ):
         return (False, REASON_TERMINAL_INTEGRITY)
 
+    status = str(terminal.get("dispatch_status") or "")
+    if status == "blocked":
+        # Blocking records that something is already broken, so a blocked terminal is not
+        # required to carry a valid handoff, child, seed or envelope - demanding them would make
+        # the very corruption being recorded a reason to reject the record.
+        if str(terminal.get("reason") or "") not in BLOCKED_REASONS:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if terminal.get("result") is not None:
+            # A blocked terminal carries no result; an injected one is not trusted.
+            return (False, REASON_TERMINAL_INTEGRITY)
+        return (True, "")
+
     # The parent-local handoff digest must describe its own payload. This never touches the
     # child, so first-terminal-wins is preserved.
     handoff = terminal.get("handoff")
@@ -165,7 +184,6 @@ def validate_recorded_terminal(
     except ValueError:
         return (False, REASON_TERMINAL_INTEGRITY)
 
-    status = str(terminal.get("dispatch_status") or "")
     if status == "completed":
         result = terminal.get("result")
         if not isinstance(result, Mapping) or set(result) != RESULT_KEYS:
@@ -183,13 +201,6 @@ def validate_recorded_terminal(
             return (False, REASON_TERMINAL_INTEGRITY)
         digest = str(result.get("child_terminal_sha256") or "")
         if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
-            return (False, REASON_TERMINAL_INTEGRITY)
-        return (True, "")
-    if status == "blocked":
-        if str(terminal.get("reason") or "") not in BLOCKED_REASONS:
-            return (False, REASON_TERMINAL_INTEGRITY)
-        if terminal.get("result") is not None:
-            # A blocked terminal carries no result; an injected one is not trusted.
             return (False, REASON_TERMINAL_INTEGRITY)
         return (True, "")
     if status == "pending":

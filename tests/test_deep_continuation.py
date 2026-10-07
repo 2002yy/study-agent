@@ -652,3 +652,83 @@ def test_a_blocked_terminal_with_an_injected_result_is_not_trusted(ctx):
     assert result.status == "blocked"
     assert result.reason == "terminal_integrity_failure"
     assert result.result is None
+
+
+# --- review round 3: a legitimate blocked terminal must stay readable -----------------
+
+
+def test_a_deep1_shaped_blocked_terminal_is_returned_as_blocked(ctx):
+    """Deep-1 records a blocked terminal with no handoff and no child."""
+
+    service, repository, _runs, parent, _prepared, execution = ctx
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap.__setitem__(
+            "deep_terminal",
+            {
+                "schema_version": "standard-deep-terminal-v1",
+                "state": "ESCALATE_DEEP",
+                "reason": "standard_artifact_invalid",
+                "dispatch_status": "blocked",
+                "owner": {"thread_id": parent.thread_id, "turn_id": parent.id},
+                "handoff": {},
+            },
+        ),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "standard_artifact_invalid"
+    assert execution.calls == 0
+    # Returned as recorded: nothing rewritten.
+    terminal = snapshot(repository, parent)["deep_terminal"]
+    assert terminal["dispatch_status"] == "blocked"
+    assert terminal["reason"] == "standard_artifact_invalid"
+    assert terminal["handoff"] == {}
+
+
+def test_a_blocked_terminal_keeps_its_own_reason_across_reads(ctx):
+    """The corruption that caused a block must not invalidate the block itself."""
+
+    service, repository, _runs, parent, _prepared, execution = ctx
+    # Damage the pending handoff, so the first continuation blocks on it.
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["handoff"].__setitem__("payload_sha256", ""),
+    )
+    first = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.status == "blocked"
+    assert first.reason == "handoff_integrity_failure"
+    durable = snapshot(repository, parent)["deep_terminal"]
+    assert durable["dispatch_status"] == "blocked"
+    assert durable["reason"] == "handoff_integrity_failure"
+
+    # A second read must not re-derive a different reason from the damaged handoff.
+    second = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "blocked"
+    assert second.reason == "handoff_integrity_failure"
+    assert execution.calls == 0
+
+
+def test_upstream_blocked_reasons_are_accepted(ctx):
+    from src.repositories.deep_continuation_repository import validate_recorded_terminal
+
+    _service, _repository, _runs, parent, _prepared, _execution = ctx
+    for reason in (
+        "standard_artifact_invalid",
+        "owner_mismatch",
+        "journal_invalid",
+        "seed_integrity_failure",
+    ):
+        terminal = {
+            "schema_version": "standard-deep-terminal-v1",
+            "state": "ESCALATE_DEEP",
+            "dispatch_status": "blocked",
+            "reason": reason,
+            "owner": {"thread_id": parent.thread_id, "turn_id": parent.id},
+            "handoff": {},
+        }
+        assert validate_recorded_terminal(
+            terminal, parent_turn_id=parent.id, thread_id=parent.thread_id
+        ) == (True, "")
