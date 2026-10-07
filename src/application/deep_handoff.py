@@ -24,6 +24,7 @@ from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.deep_handoff import (
     BLOCKED,
     CONTINUATION_SCHEMA,
+    DEEP_TERMINAL_SCHEMA,
     NOT_REQUESTED,
     PENDING,
     build_deep_handoff,
@@ -87,43 +88,7 @@ class DeepHandoffService:
 
         existing = self.terminal.read_terminal(parent_turn_id, thread_id)
         if existing is not None:
-            # First terminal wins. A blocked terminal is already a decided outcome and carries
-            # no handoff, so it is returned as-is rather than re-validated into a new reason.
-            if str(existing.get("dispatch_status") or "") == BLOCKED:
-                return DeepHandoffOutcome(
-                    status="blocked",
-                    parent_turn_id=parent_turn_id,
-                    child_run_id=str(existing.get("child_run_id") or ""),
-                    reason=str(existing.get("reason") or ""),
-                    handoff_sha256="",
-                )
-            # Otherwise never trust: the persisted handoff must still verify, and its seed refs
-            # must still describe the child's durable seed.
-            handoff_sha256 = str((existing.get("handoff") or {}).get("payload_sha256") or "")
-            child_run_id = str(existing.get("child_run_id") or "")
-            try:
-                handoff = load_deep_handoff(existing.get("handoff") or {})
-                if child_run_id:
-                    seed = self.deep_seed(child_run_id, thread_id)
-                    if not seed_refs_match(
-                        list(handoff.get("seed_source_refs") or []), list(seed.get("refs") or [])
-                    ):
-                        raise ValueError("deep handoff seed refs mismatch")
-            except ValueError as exc:
-                return DeepHandoffOutcome(
-                    status="blocked",
-                    parent_turn_id=parent_turn_id,
-                    child_run_id=child_run_id,
-                    reason="handoff_integrity_failure" if "handoff" in str(exc).lower() else _blocked_reason(exc),
-                    handoff_sha256="",
-                )
-            return DeepHandoffOutcome(
-                status="prepared",
-                parent_turn_id=parent_turn_id,
-                child_run_id=child_run_id,
-                reason=str(existing.get("reason") or ""),
-                handoff_sha256=handoff_sha256,
-            )
+            return self._retry(existing, parent_turn_id, thread_id)
 
         try:
             return self._prepare(parent_turn_id, thread_id)
@@ -132,6 +97,77 @@ class DeepHandoffService:
             return self._blocked(parent_turn_id, thread_id, "seed_integrity_failure")
         except ValueError as exc:
             return self._blocked(parent_turn_id, thread_id, _blocked_reason(exc))
+
+    def _retry(
+        self, existing: dict, parent_turn_id: str, thread_id: str
+    ) -> DeepHandoffOutcome:
+        """Retry path: the durable terminal is the first authority, and it is never overwritten."""
+
+        status = str(existing.get("dispatch_status") or "")
+        if status == BLOCKED:
+            # A blocked terminal is complete. It legitimately has no handoff and no child, so it
+            # is returned as decided - the first blocked reason is preserved, not re-derived.
+            return DeepHandoffOutcome(
+                status="blocked",
+                parent_turn_id=parent_turn_id,
+                child_run_id=str(existing.get("child_run_id") or ""),
+                reason=str(existing.get("reason") or ""),
+                handoff_sha256=str((existing.get("handoff") or {}).get("payload_sha256") or ""),
+            )
+        if status != PENDING:
+            # The durable vocabulary is exactly pending/blocked; anything else is not guessed at.
+            return DeepHandoffOutcome(
+                status="blocked",
+                parent_turn_id=parent_turn_id,
+                child_run_id="",
+                reason="handoff_integrity_failure",
+                handoff_sha256="",
+            )
+
+        # A prepared terminal is never trusted: the handoff, the child and the seed must all
+        # still agree before the same child is reported.
+        handoff_sha256 = str((existing.get("handoff") or {}).get("payload_sha256") or "")
+        child_run_id = str(existing.get("child_run_id") or "")
+        try:
+            if str(existing.get("schema_version") or "") != DEEP_TERMINAL_SCHEMA:
+                raise ValueError("deep terminal schema mismatch")
+            if str(existing.get("state") or "") != "ESCALATE_DEEP":
+                raise ValueError("deep terminal state mismatch")
+            owner = existing.get("owner") or {}
+            if owner.get("thread_id") != thread_id or owner.get("turn_id") != parent_turn_id:
+                raise ValueError("deep terminal owner mismatch")
+            handoff = load_deep_handoff(existing.get("handoff") or {})
+            if not child_run_id:
+                raise ValueError("deep terminal has no child")
+            child = self.runs.get(child_run_id)
+            if (
+                child is None
+                or child.owner_thread_id != thread_id
+                or str(child.parent_run_id or "")
+                != str(handoff.get("standard_child_run_id") or "")
+                or child.query != str(handoff.get("query") or "")
+            ):
+                raise ValueError("deep child lineage mismatch")
+            seed = self.deep_seed(child_run_id, thread_id)
+            if not seed_refs_match(
+                list(handoff.get("seed_source_refs") or []), list(seed.get("refs") or [])
+            ):
+                raise ValueError("deep handoff seed refs mismatch")
+        except ValueError as exc:
+            return DeepHandoffOutcome(
+                status="blocked",
+                parent_turn_id=parent_turn_id,
+                child_run_id=child_run_id,
+                reason=_blocked_reason(exc),
+                handoff_sha256="",
+            )
+        return DeepHandoffOutcome(
+            status="prepared",
+            parent_turn_id=parent_turn_id,
+            child_run_id=child_run_id,
+            reason=str(existing.get("reason") or ""),
+            handoff_sha256=handoff_sha256,
+        )
 
     def _prepare(self, parent_turn_id: str, thread_id: str) -> DeepHandoffOutcome:
         parent = self.repository.get_chat_turn(parent_turn_id)

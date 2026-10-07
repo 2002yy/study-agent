@@ -101,7 +101,8 @@ def seed_refs_match(claimed: list[dict], actual: list[dict]) -> bool:
         return (
             str(ref.get("url") or ""),
             str(ref.get("content_sha256") or ""),
-            tuple(sorted(str(field) for field in (ref.get("fields") or []))),
+            # Order is not a semantic difference and a repeated field adds no authority.
+            tuple(sorted({str(field) for field in (ref.get("fields") or [])})),
             str(ref.get("origin") or ""),
         )
 

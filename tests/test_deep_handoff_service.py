@@ -400,7 +400,7 @@ def test_a_non_terminal_standard_journal_is_blocked(ctx):
 
 def test_a_seed_digest_mismatch_blocks_and_creates_no_child(ctx):
     service, repository, runs, parent, _gateway, _clock, outcome = ctx
-    before = len(runs.list_by_thread(parent.thread_id)) if hasattr(runs, "list_by_thread") else None
+    before = len(runs.list_by_owner_thread(parent.thread_id))
 
     def mutate(ledger):
         for entry in ledger["entries"].values():
@@ -415,7 +415,7 @@ def test_a_seed_digest_mismatch_blocks_and_creates_no_child(ctx):
     terminal = snapshot(repository, parent)["deep_terminal"]
     assert terminal["dispatch_status"] == "blocked"
     assert "child_run_id" not in terminal
-    assert before is None or len(runs.list_by_thread(parent.thread_id)) == before
+    assert len(runs.list_by_owner_thread(parent.thread_id)) == before
 
 
 # --- review round 3: retry integrity ----------------------------------------------
@@ -483,3 +483,79 @@ def test_a_blocked_retry_preserves_the_first_reason(ctx):
     assert first.reason == "seed_integrity_failure"
     assert second.status == "blocked"
     assert second.reason == first.reason
+
+
+# --- addendum K: the remaining retry controls -------------------------------------
+
+
+def _rewrite_refs(repository, parent, mutate_ref):
+    """Rewrite the durable Deep handoff's seed refs and keep its digest consistent."""
+
+    def mutate(snap):
+        from src.web.research.deep_handoff import payload_digest
+
+        handoff = snap["deep_terminal"]["handoff"]
+        for ref in handoff["seed_source_refs"]:
+            mutate_ref(ref)
+        handoff["payload_sha256"] = payload_digest(handoff)
+
+    tamper(repository, parent, mutate)
+
+
+def test_r2_a_ref_url_change_blocks_the_retry(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    _rewrite_refs(repository, parent, lambda ref: ref.__setitem__("url", "https://evil.example/x"))
+    assert service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id).status == "blocked"
+
+
+def test_r3_a_ref_digest_change_blocks_the_retry(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    _rewrite_refs(repository, parent, lambda ref: ref.__setitem__("content_sha256", "d" * 64))
+    assert service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id).status == "blocked"
+
+
+def test_r8_a_crash_after_child_creation_reuses_the_same_child(ctx, monkeypatch):
+    """The window between create_child and the terminal write must not orphan a sibling."""
+
+    service, repository, runs, parent, _gateway, _clock, _outcome = ctx
+    from src.repositories.deep_handoff_repository import DeepHandoffRepository
+
+    real_persist = DeepHandoffRepository.persist
+    calls = {"n": 0}
+
+    def flaky_persist(self, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # A hard crash, not a handled integrity failure: no terminal is written at all.
+            raise RuntimeError("simulated crash before the terminal write")
+        return real_persist(self, **kwargs)
+
+    monkeypatch.setattr(DeepHandoffRepository, "persist", flaky_persist)
+    with pytest.raises(RuntimeError):
+        service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert "deep_terminal" not in snapshot(repository, parent)
+
+    monkeypatch.setattr(DeepHandoffRepository, "persist", real_persist)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "prepared"
+
+    descendants = [
+        run for run in runs.list_by_owner_thread(parent.thread_id) if run.parent_run_id == _outcome.child_run_id
+    ]
+    assert len(descendants) == 1
+    assert descendants[0].id == second.child_run_id
+
+
+def test_r9_an_unknown_dispatch_status_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        snap["deep_terminal"]["dispatch_status"] = "running"
+
+    tamper(repository, parent, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "handoff_integrity_failure"

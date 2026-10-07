@@ -395,7 +395,7 @@ Evidence Gate PASS **不等于**“可以发布给用户作为最终权威答案
 
 ## 22. assistant / learning boundary
 
-Deep-1 / Deep-2 / Deep-3 不得修改 `parent.assistant_message`、重新调用 answer model、重跑 pedagogy、修改 `learning_state`、增加 `answer_generation_calls`。
+Deep-1 / Deep-2 / Deep-3 不得修改 `parent.aassistant_message`、重新调用 answer model、重跑 pedagogy、修改 `learning_state`、增加 `answer_generation_calls`。
 
 用户已经得到的安全答案**不能因为 Deep 失败而变成 500**。
 
@@ -476,7 +476,7 @@ prepare(parent_turn_id=..., thread_id=...)
 
 ## 28. Parent mutation boundary
 
-Deep-1 只能新增 `rag_snapshot.deep_terminal`。必须逐 bit 保持 `lookup_terminal` / `standard_continuation` / `assistant_message` / `route_snapshot` / `pedagogy_snapshot` 不变。
+Deep-1 只能新增 `rag_snapshot.deep_terminal`。必须逐 bit 保持 `lookup_terminal` / `standard_continuation` / `aassistant_message` / `route_snapshot` / `pedagogy_snapshot` 不变。
 
 ---
 
@@ -499,7 +499,7 @@ D13 parent raw rag_snapshot 不含 body
 D14 seed body 只来自 durable Standard journal
 D15 publication_authority false
 D16 Standard artifacts bit-for-bit unchanged
-D17 assistant_message unchanged
+D17 aassistant_message unchanged
 D18 0 gateway calls
 D19 0 model calls
 D20 no claim_engine active state attached
@@ -658,3 +658,207 @@ OpenCode Deep-1 遇到以下任一情况立即停止：需要改 Standard / 需�
 > **当 Standard 已经诚实地告诉系统“这里仍有未解决的证据缺口”之后，复用已有证据，通过持久化的多波次 gap research，只在真正产生 Evidence Gain 时继续，在无增益时机械饱和停止，并且任何中断都能从 durable state 精确恢复。**
 
 路线修正：Evidence Gain / saturation / interruption-resume **已在仓库中实现**。Deep 的工作量因此从“造研究引擎”收缩成“**把 Standard 的成果可信地送进已有研究引擎**”。
+
+
+---
+
+# Deep-1 Retry & Integrity Addendum
+
+**状态：FROZEN**
+
+本节补充 Deep-1 §7 / §9 / §12 / §27 / §29 / §34。若与较宽泛表述冲突，**以本节为准**。
+
+## A. Durable terminal 是 retry 的第一 authority
+
+prepare(parent_turn_id, thread_id) 首先读取
+rag_snapshot.deep_terminal。
+
+`	ext
+不存在 → fresh admission path
+已存在 → retry path
+`
+
+不得重新执行 fresh admission 决策后覆盖已有 terminal。
+
+## B. Existing terminal 分流规则
+
+### B1. dispatch_status == blocked
+
+这是**完整终态**。必须：
+
+`	ext
+return blocked
+child_run_id   = existing.child_run_id or ""
+reason         = existing.reason
+handoff_sha256 = existing.handoff.payload_sha256 or ""
+`
+
+不得：重新构造 handoff / 重新 project seed / 重新验证 Standard eligibility /
+重新创建 child / 改变 reason / 把 blocked 改成 pending 或 prepared。
+
+blocked terminal 可以合法拥有 handoff = {} 与缺失的 child_run_id，因此
+**blocked terminal 不要求 load_deep_handoff() 成功**。
+
+> **first blocked terminal wins.**
+
+### B2. dispatch_status == pending
+
+这是 prepared Deep child 的 durable authority。retry 必须重新验证：
+
+`	ext
+terminal schema / state == ESCALATE_DEEP / owner
+handoff schema / payload_sha256 / publication_authority == false
+child exists / child id == terminal.child_run_id / child owner
+child parent lineage / child query
+child deep seed exists
+handoff.seed_source_refs == child.deep.seed.refs
+`
+
+全部成立 → prepared；任一失败 → locked（bounded integrity reason）。
+**不得重新创建第二个 child。**
+
+### B3. 其他 dispatch_status
+
+Deep-1 合法 durable vocabulary 仅 pending / locked。其他值 →
+locked("handoff_integrity_failure")，不得猜测。
+
+## C. Retry outcome stability
+
+对未被篡改的 durable terminal，重复调用 prepare() 必须保持
+status / parent_turn_id / child_run_id /
+eason / handoff_sha256 稳定。
+
+`	ext
+successful first prepare: handoff_sha256 = H
+successful retry:         handoff_sha256 = H
+`
+
+不得因 load_deep_handoff() 返回去掉 digest 的 projection 而变成空串。
+权威 hash 从 existing["handoff"]["payload_sha256"] 读取。
+
+## D. Deep handoff payload integrity
+
+load_deep_handoff() 验证的是 deep_terminal.handoff，**不是** Standard continuation 的旧 handoff。
+必须验证 schema_version /
+eason / publication_authority / payload_sha256。
+任何 payload 字段被修改但 digest 未同步 → blocked。
+
+## E. 两种 integrity 分开命名
+
+`	ext
+D6-S  upstream Standard handoff integrity
+        standard_continuation.handoff_sha256 == standard child ledger.handoff_sha256
+D6-D  durable Deep handoff integrity
+        deep_terminal.handoff.payload_sha256 == canonical_digest(deep_terminal.handoff)
+`
+
+两者都是必要条件，但不是同一件事，不得用同一个测试混在一起。
+
+## F. Seed ref canonical equality
+
+authority shape 固定为 {url, content_sha256, fields, origin}。
+seed_refs_match() 必须比较全部四个语义字段：
+
+`	ext
+(canonical_url, content_sha256, sorted(unique(fields)), origin)
+`
+
+不得只比较 (url, digest)。URL / digest / fields 增删替换 / origin 任一变化均为 mismatch。
+字段顺序不是语义差异（["a","b"] == ["b","a"]）；重复 field 不产生新 authority
+（["a","a"] == ["a"]）。
+
+## G. Seed data-plane integrity
+
+对每个
+eadable == true 的 Standard read observation，必须存在 matching read entry、
+entry.state == completed、body 非空、sha256(body) == observation.content_sha256。
+
+`	ext
+missing / non-completed entry / unreadable observation / non-read observation / empty body
+    → not seed-eligible → skip
+
+body exists AND recorded digest exists AND sha256(body) != recorded digest
+    → durable authority 自相矛盾 → SeedIntegrityError → blocked → no Deep child creation
+`
+
+不得降级为普通 skip。
+
+## H. Fresh path ordering
+
+`	ext
+1 load parent
+2 verify completed parent
+3 verify completed Standard terminal
+4 verify Standard continuation schema / authority
+5 classify Standard stop reason
+6 load Standard child
+7 load Standard child ledger
+8 revalidate full lineage
+9 project + verify seed
+10 build Deep handoff
+11 deterministic child identity
+12 create/reuse child
+13 persist parent deep_terminal
+14 return prepared
+`
+
+关键约束：**任何 integrity failure in steps 1–9 → 0 Deep child**。
+
+## I. Child-created / terminal-not-yet-written crash window
+
+允许 create_child SUCCESS → crash → deep_terminal 尚未写入。恢复时必须靠
+deterministic child id + create_request_id 复用同一个 child：
+
+`	ext
+retry → fresh path revalidation → create_child returns same child → persist deep_terminal
+`
+
+不得生成 orphan sibling。这属于 recoverable crash window，**不要求新跨表事务或 DB migration**。
+
+## J. Parent terminal persistence rule
+
+DeepHandoffRepository.persist()：existing valid deep_terminal → **first terminal wins**，不得覆盖。
+fresh write 只能新增
+rag_snapshot.deep_terminal；其余 parent 内容语义及值不变
+（lookup_terminal / standard_continuation / assistant_message /
+route_snapshot / pedagogy_snapshot）。
+
+## K. Retry negative controls
+
+`	ext
+R1 pending Deep handoff payload 被改、digest 未改        → retry blocked
+R2 seed ref URL 改变 + handoff digest 重算              → retry blocked
+R3 seed ref digest 改变 + handoff digest 重算           → retry blocked
+R4 seed ref fields 改变 + handoff digest 重算           → retry blocked
+R5 seed ref origin 改变 + handoff digest 重算           → retry blocked
+R6 blocked terminal retry → 仍 blocked / reason bit-stable / 不要求 valid handoff
+R7 prepared terminal retry → same child_run_id / same handoff_sha256 / no new child
+R8 crash after child creation before parent terminal → retry reuses same child
+     → exactly one Deep descendant
+R9 unknown dispatch_status → blocked / no new child
+`
+
+## L. Exactly-once 的精确定义
+
+> **无论 caller retry、进程崩溃还是重复请求，最终 durable graph 中至多存在一个 Deep child，
+> parent terminal 的第一合法终态不被重写，并且相同 durable truth 返回相同的 outcome identity。**
+
+`	ext
+one request_id / one deterministic child id / at most one Deep child
+one parent deep_terminal / first terminal wins
+stable blocked reason / stable prepared child id / stable handoff hash
+`
+
+## M. Deep-1 merge gate 增补
+
+`	ext
+G14a deterministic child identity
+G14b create_request_id idempotency
+G14c pending retry revalidates handoff + seed
+G14d blocked retry preserves first terminal
+G14e retry preserves child_run_id
+G14f retry preserves handoff_sha256
+G14g crash window cannot create sibling child
+`
+
+全部通过才算 G14 PASS。
