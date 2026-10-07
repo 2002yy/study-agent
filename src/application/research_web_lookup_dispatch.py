@@ -22,7 +22,7 @@ from src.domain.evidence import build_evidence_snapshot
 from src.domain.runtime_entities import WebLookupRun
 from src.repositories.web_lookup_repository import WebLookupRepository
 from src.web.research.active_adapter import ActiveResearchGateway
-from src.web.research.state import load_claim_engine_state
+from src.web.research.state import ClaimEngineLoadResult, load_claim_engine_state
 from src.web.research.contracts import ResearchState
 
 _PROVIDER_AUDIT_SCHEMA_VERSION = "research-provider-audit-v1"
@@ -231,12 +231,23 @@ def _dispatch_mode(run: WebLookupRun) -> str:
     return "active" if _dispatch_state(run) is not None else "legacy"
 
 
-def _dispatch_state(run: WebLookupRun) -> ResearchState | None:
+def claim_engine_load(run: WebLookupRun) -> ClaimEngineLoadResult:
+    """The single Claim Engine load authority, shared with Deep-2 admission.
+
+    The dispatcher treats "absent" and "present but unusable" the same way - both fall back to
+    the legacy service - which is a downgrade Deep-2 must never allow. Exposing the load result
+    lets Deep separate those cases before dispatching without duplicating the validation.
+    """
+
     known_evidence_ids = _known_research_evidence_ids(run)
-    loaded = load_claim_engine_state(
+    return load_claim_engine_state(
         run.research_context,
         known_evidence_ids=known_evidence_ids,
     )
+
+
+def _dispatch_state(run: WebLookupRun) -> ResearchState | None:
+    loaded = claim_engine_load(run)
     if loaded.available and loaded.effective_mode == "active":
         return loaded.state
     return None

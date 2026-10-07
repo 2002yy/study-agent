@@ -53,6 +53,22 @@ from src.web.research.deeper_targeting import (
     target_path_hit,
     targeted_query_terms,
 )
+from src.web.research.deep_runtime import (
+    SEED_DISCOVERY_METHOD,
+    DeepIntegrityError,
+    deep_preflight,
+    SEED_FINAL_BACKEND,
+    SEED_PROVIDER,
+    content_available_ids,
+    effective_deep_base_elapsed,
+    load_execution_envelope,
+    load_seed,
+    materialization_provenance,
+    materialized_content,
+    seed_candidate_identity,
+    seed_char_charge,
+    seed_sources_by_url,
+)
 from src.web.research.discovery_observability import record_search_call
 from src.web.research.page_intent import (
     PageIntent,
@@ -820,6 +836,13 @@ class ActiveResearchRuntimeExecutor:
         if existing.status == "completed" and existing.provider_status == "found":
             raise ValueError(f"WebLookupRun is already complete: {run_id}")
 
+        # Deep-2 §54: check the durable facts before taking the operation, so an already
+        # corrupted Deep child never even reaches a running state. The second preflight after
+        # acquisition closes the window in between.
+        _pre_ok, _pre_reason = deep_preflight(existing.research_context)
+        if not _pre_ok:
+            raise DeepIntegrityError(f"Deep preflight failed: {_pre_reason}")
+
         operation_id = new_id("rqce_active")
         run = self.repository.begin_operation(
             run_id,
@@ -829,6 +852,16 @@ class ActiveResearchRuntimeExecutor:
         )
         context = dict(run.research_context)
         context["run_attempt"] = int(context.get("run_attempt") or 0) + 1
+        # Deep-2: durable seed bytes by canonical URL. Empty for every non-Deep run, so the
+        # ordinary path is untouched. The seed is data, never semantic authority.
+        # Deep-2 §54: the service validated at admission, but this context was reloaded
+        # afterwards. Re-establish the durable Deep facts before any model or network work so a
+        # tampered envelope or seed cannot be carried into a research run. Non-Deep runs have no
+        # envelope and pass through untouched.
+        _deep_ok, _deep_reason = deep_preflight(context)
+        if not _deep_ok:
+            raise DeepIntegrityError(f"Deep preflight failed: {_deep_reason}")
+        deep_seed_by_url = _deep_seed_urls(context)
         state = initial_state
         cursor_result = load_runtime_cursor(context)
         loaded_cursor = cursor_result.cursor
@@ -844,7 +877,14 @@ class ActiveResearchRuntimeExecutor:
         rejected_sources = [dict(item) for item in run.rejected_sources]
         warnings = list(run.warnings)
         execution_started = self.monotonic()
-        base_elapsed = state.budget.elapsed_seconds
+        # Deep-2: the Deep tier owns its own budget window, so wall time since Deep admission
+        # counts even across a crash. A non-Deep run has no envelope and is unchanged.
+        deep_envelope = load_execution_envelope(context)
+        base_elapsed = effective_deep_base_elapsed(
+            durable_elapsed_seconds=state.budget.elapsed_seconds,
+            envelope=deep_envelope,
+            now=_deep_wall_now(self.utc_now),
+        )
 
         def elapsed() -> float:
             return base_elapsed + max(0.0, self.monotonic() - execution_started)
@@ -1744,6 +1784,16 @@ class ActiveResearchRuntimeExecutor:
                 # wave or reaching a later wave must not re-search the same text;
                 # no new query space is handled as a no-gain batch by Saturation.
                 cursor = _append_gap_queries(cursor, state)
+                # Deep-2: seed candidates must join the pool after this wave's queries exist,
+                # because claim selection is driven by planned-query intersection, and before
+                # the first search, so a search duplicate can merge into the same candidate.
+                cursor = _bind_deep_seed_candidates(
+                    cursor,
+                    state,
+                    seed_by_url=deep_seed_by_url,
+                    max_candidates=state.budget.max_candidates,
+                    trace=selection_trace,
+                )
                 cursor = replace(cursor, phase="searching")
                 checkpoint(stage="searching")
 
@@ -2252,11 +2302,18 @@ class ActiveResearchRuntimeExecutor:
                         covered_clusters_by_claim.items()
                     )
                 }
+                # Deep-2 §29/§7: bytes already durable - fetched by a reader chain or
+                # materialized from a seed - must not be planned for a physical read at all.
+                # Skipping them later in the read loop would still have consumed a scheduler
+                # read slot that an unread candidate needed.
+                content_available = content_available_ids(
+                    completed_read, selected_sources
+                )
                 rankings_for_plan = {
                     claim_id: tuple(
                         ranked_candidate
                         for ranked_candidate in ranked
-                        if ranked_candidate.candidate.id not in completed_read
+                        if ranked_candidate.candidate.id not in content_available
                     )
                     for claim_id, ranked in claim_rankings.items()
                 }
@@ -2275,9 +2332,11 @@ class ActiveResearchRuntimeExecutor:
                 # per-claim eligibility. Rebuild each binding from that claim's
                 # own full ranking and shared scheduler predicate; the
                 # per-claim extraction prior skips work already finished.
+                # Reuse never grants another claim eligibility: every restored binding is
+                # rebuilt from that claim's own ranking.
                 extraction_targets = _restore_completed_read_targets(
                     extraction_targets,
-                    completed_read_ids=completed_read,
+                    completed_read_ids=set(content_available),
                     rankings=claim_rankings,
                 )
                 # §39 atomic routing (default off): a read artifact also serves
@@ -2346,13 +2405,13 @@ class ActiveResearchRuntimeExecutor:
                     int(item.get("content_chars") or 0)
                     for item in context.get(ACTIVE_RESEARCH_METRICS_KEY, {}).get("reads", [])
                     if isinstance(item, Mapping)
-                )
+                ) + seed_char_charge(selected_sources)
                 successful_reads = state.budget.reads_used
                 read_loop_stop_reason = ""
                 dispatched_read_ids: set[str] = set()
                 for plan_item in physical_reads:
                     candidate_id = plan_item["candidate_id"]
-                    if candidate_id in cursor.completed_read_ids:
+                    if candidate_id in content_available:
                         try:
                             selection_trace.note_already_read(
                                 _candidate_by_id(cursor, candidate_id).canonical_url
@@ -2361,6 +2420,41 @@ class ActiveResearchRuntimeExecutor:
                             pass
                         continue
                     ensure_active()
+                    if deep_seed_by_url:
+                        try:
+                            _deep_candidate = _candidate_by_id(cursor, candidate_id)
+                        except ValueError:
+                            _deep_candidate = None
+                        _seed_source = (
+                            deep_seed_by_url.get(_deep_candidate.canonical_url)
+                            if _deep_candidate is not None
+                            else None
+                        )
+                        if _seed_source is not None:
+                            # Local materialization is not a physical read: it must not be
+                            # blocked by the read slot, only by the hard window and the
+                            # character budget.
+                            if research_seconds_left() <= 0:
+                                read_loop_stop_reason = "research_window_closed"
+                                break
+                            _materialized = _deep_seed_materialization(
+                                candidate=_deep_candidate,
+                                plan_item=plan_item,
+                                seed_source=_seed_source,
+                                source_limit=state.budget.max_total_chars - used_chars,
+                                selected_sources=selected_sources,
+                            )
+                            if _materialized is not None:
+                                used_chars += len(
+                                    str((_materialized.get("read") or {}).get("content") or "")
+                                )
+                                # 0 reads_used: no physical read happened.
+                                update_budget(reads_used=successful_reads)
+                                context.setdefault(ACTIVE_RESEARCH_METRICS_KEY, {})[
+                                    "reads"
+                                ] = [outcome.to_dict() for outcome in cursor.read_outcomes]
+                                checkpoint()
+                            continue
                     if successful_reads >= state.budget.max_reads or used_chars >= state.budget.max_total_chars:
                         read_loop_stop_reason = "read_budget_exhausted"
                         break
@@ -2683,6 +2777,11 @@ class ActiveResearchRuntimeExecutor:
                     completed_read_ids=cursor.completed_read_ids,
                     lead_read_ids=cursor.lead_read_ids,
                     lead_budget_available=lead_budget_available,
+                    seed_backed_ids=frozenset(
+                        item.id for item in cursor.candidates if item.url in deep_seed_by_url
+                    )
+                    if deep_seed_by_url
+                    else frozenset(),
                 )
                 if not lead_plan:
                     _bump_lead_metric(
@@ -3936,6 +4035,143 @@ def _candidates_for_claim(cursor: ResearchRuntimeCursor, claim_id: str) -> tuple
         for item in cursor.candidates
         if query_ids.intersection(item.query_ids)
     )
+
+
+def _deep_seed_urls(context: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Canonical URL -> durable seed source. Empty for a non-Deep run."""
+
+    return seed_sources_by_url(load_seed(context))
+
+
+def _deep_wall_now(clock: Callable[[], str]) -> datetime:
+    """The injected clock as a timezone-aware datetime.
+
+    The runtime's ``utc_now`` is typed ``Callable[[], str]``, so it is parsed here rather than
+    assumed to be a datetime. A malformed value falls back to real UTC rather than failing a
+    research run over a clock format.
+    """
+
+    try:
+        value = datetime.fromisoformat(str(clock()))
+    except ValueError:
+        return datetime.now(timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _deep_actionable_query_bindings(
+    cursor: ResearchRuntimeCursor, state: ResearchState
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Query ids and intents belonging to this wave's actionable claims.
+
+    A seed candidate must be bound to the same planned queries a searched candidate would be,
+    otherwise ``_candidates_for_claim`` never selects it for assessment.
+    """
+
+    actionable = {gap.claim_id for gap in _ordered_gaps(state)}
+    if not actionable:
+        return ((), ())
+    relevant = [item for item in cursor.planned_queries if item.claim_id in actionable]
+    return (
+        tuple(dict.fromkeys(item.id for item in relevant)),
+        tuple(dict.fromkeys(item.intent for item in relevant)),
+    )
+
+
+def _bind_deep_seed_candidates(
+    cursor: ResearchRuntimeCursor,
+    state: ResearchState,
+    *,
+    seed_by_url: Mapping[str, dict[str, Any]],
+    max_candidates: int,
+    trace: SelectionTraceCollector | None = None,
+) -> ResearchRuntimeCursor:
+    """Expose durable seed bytes as ordinary candidates for this wave's actionable claims.
+
+    Deliberately not marked as completed reads: the assessment window excludes
+    ``cursor.completed_read_ids``, so a pre-marked seed would lose assessment, ranking and
+    eligibility entirely. The seed only becomes content later, when the scheduler actually
+    selects it for a claim.
+    """
+
+    if not seed_by_url:
+        return cursor
+    query_ids, intents = _deep_actionable_query_bindings(cursor, state)
+    if not query_ids:
+        return cursor
+
+    merged = list(cursor.candidates)
+    by_url = {item.url: index for index, item in enumerate(merged)}
+    for order, url in enumerate(sorted(seed_by_url)):
+        index = by_url.get(url)
+        if index is not None:
+            current = merged[index]
+            merged[index] = replace(
+                current,
+                query_ids=tuple(dict.fromkeys((*current.query_ids, *query_ids))),
+                intents=tuple(dict.fromkeys((*current.intents, *intents))),
+                providers=tuple(dict.fromkeys((*current.providers, SEED_PROVIDER))),
+            )
+            continue
+        if len(merged) >= max_candidates:
+            if trace is not None:
+                trace.note_cap_excluded(url, stage="deep_seed_bind")
+            continue
+        by_url[url] = len(merged)
+        merged.append(
+            RuntimeCandidate(
+                id=seed_candidate_identity(url),
+                url=url,
+                title=url,
+                snippet="",
+                source=SEED_DISCOVERY_METHOD,
+                published_at="",
+                query_ids=query_ids,
+                intents=intents,
+                providers=(SEED_PROVIDER,),
+                first_seen_rank=len(merged),
+                discovery_method=SEED_DISCOVERY_METHOD,
+                discovery_depth=0,
+            )
+        )
+    return replace(cursor, candidates=tuple(merged))
+
+
+def _deep_seed_materialization(
+    *,
+    candidate: Any,
+    plan_item: Mapping[str, Any],
+    seed_source: Mapping[str, Any],
+    source_limit: int,
+    selected_sources: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Build the local-materialization source record, or None when nothing can be charged.
+
+    No gateway call, no reader chain, no external attempt marker: this is not a physical read,
+    so it neither spends a read slot nor records a retrieval state.
+    """
+
+    content = materialized_content(seed_source, source_limit=source_limit)
+    if not content:
+        return None
+    record = _source_record(
+        candidate,
+        plan_item,
+        raw_read={
+            "ok": True,
+            "status": "read",
+            "url": candidate.url,
+            "content": content,
+        },
+        final_backend=SEED_FINAL_BACKEND,
+        retrieval_attempts=[],
+    )
+    record["materialization"] = materialization_provenance(
+        seed_source=seed_source,
+        materialized_content=content,
+        full_body_length=len(str(seed_source.get("content") or "")),
+    )
+    _upsert_source(selected_sources, record)
+    return record
 
 
 def _tier2_proposal_step(
@@ -5525,6 +5761,7 @@ def _lead_read_plan(
     completed_read_ids: tuple[str, ...],
     lead_read_ids: tuple[str, ...],
     lead_budget_available: bool,
+    seed_backed_ids: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     """At most one bounded lead read per wave, strictly below evidence reads.
 
@@ -5547,6 +5784,9 @@ def _lead_read_plan(
                 candidate_id in completed_read_ids
                 or candidate_id in lead_read_ids
                 or candidate_id in seen
+                # Deep-2 §43: a seed-backed candidate is never read as a lead. Deep-2 v1 does
+                # not implement seed lead-discovery, so its bytes must not be fetched here.
+                or candidate_id in seed_backed_ids
             ):
                 continue
             # Slice 2A depth guard: a lead-discovered candidate is never read as
