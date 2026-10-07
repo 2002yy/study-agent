@@ -262,19 +262,32 @@ class DeepExecutionService:
             research_context=context,
         )
         if updated is None:
-            return self._resolve_attach_conflict(parent_turn_id, thread_id, child.id)
+            return self._resolve_attach_conflict(
+                parent_turn_id, thread_id, child.id, handoff_sha256
+            )
         if updated.status in TERMINAL_CHILD_STATUSES:
             return self._outcome("completed", parent_turn_id, child.id, "child_terminal")
         return self._dispatch(parent_turn_id, child.id)
 
     def _resolve_attach_conflict(
-        self, parent_turn_id: str, thread_id: str, child_run_id: str
+        self,
+        parent_turn_id: str,
+        thread_id: str,
+        child_run_id: str,
+        handoff_sha256: str,
     ) -> DeepExecutionOutcome:
-        """A concurrent first admission won. Reuse it rather than attaching again."""
+        """A concurrent first admission won. Reuse it only if what it wrote is valid.
+
+        The loser inherits exactly the same integrity semantics as the ordinary retry path:
+        "the other caller attached something" is not the same as "the other caller attached a
+        valid pair bound to this parent and this handoff".
+        """
 
         reloaded = self.runs.get(child_run_id)
         if reloaded is None or reloaded.owner_thread_id != thread_id:
-            raise ValueError("Deep child owner mismatch after attach conflict")
+            raise DeepExecutionIntegrityError(
+                "Deep child owner mismatch after attach conflict"
+            )
         if reloaded.status in TERMINAL_CHILD_STATUSES:
             return self._outcome("completed", parent_turn_id, child_run_id, "child_terminal")
         loaded = claim_engine_load(reloaded)
@@ -286,6 +299,13 @@ class DeepExecutionService:
             raise DeepExecutionIntegrityError(
                 "Deep execution and Claim Engine state are asymmetric"
             )
+        valid, why = bind_execution_envelope(
+            envelope_value,
+            parent_turn_id=parent_turn_id,
+            handoff_sha256=handoff_sha256,
+        )
+        if not valid:
+            raise DeepExecutionIntegrityError(f"Deep execution envelope invalid: {why}")
         if not (loaded.available and loaded.effective_mode == "active"):
             raise DeepExecutionIntegrityError("Claim Engine state is present but unusable")
         if reloaded.status == "running" and not self.runs.operation_is_stale(child_run_id):
@@ -297,6 +317,10 @@ class DeepExecutionService:
 
         try:
             run = self.dispatch.execute(child_run_id)
+        except DeepIntegrityError as exc:
+            # The runtime detected durable corruption. That is never a lease race, even though
+            # the child was just marked running by begin_operation.
+            raise DeepExecutionIntegrityError(str(exc)) from exc
         except ValueError:
             # Decide from durable truth, not from the error text: losing the operation race is
             # contention (deferred), a terminal child is done, and anything else propagates.

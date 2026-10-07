@@ -836,6 +836,13 @@ class ActiveResearchRuntimeExecutor:
         if existing.status == "completed" and existing.provider_status == "found":
             raise ValueError(f"WebLookupRun is already complete: {run_id}")
 
+        # Deep-2 §54: check the durable facts before taking the operation, so an already
+        # corrupted Deep child never even reaches a running state. The second preflight after
+        # acquisition closes the window in between.
+        _pre_ok, _pre_reason = deep_preflight(existing.research_context)
+        if not _pre_ok:
+            raise DeepIntegrityError(f"Deep preflight failed: {_pre_reason}")
+
         operation_id = new_id("rqce_active")
         run = self.repository.begin_operation(
             run_id,

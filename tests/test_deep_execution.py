@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -615,3 +616,134 @@ def test_an_unknown_error_is_not_converted_to_blocked(ctx):
     service.dispatch = Exploding()
     with pytest.raises(RuntimeError):
         service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+
+# --- review round 2: attach-conflict revalidation and runtime error propagation ----
+
+
+def _force_attach_conflict(service, monkeypatch):
+    """Make the CAS lose once, so the conflict path is exercised for real."""
+
+    real = service.runs.attach_pending_context
+    state = {"fired": False}
+
+    def flaky(run_id, *, expected_version, research_context):
+        if not state["fired"]:
+            state["fired"] = True
+            return None
+        return real(run_id, expected_version=expected_version, research_context=research_context)
+
+    monkeypatch.setattr(service.runs, "attach_pending_context", flaky)
+    return state
+
+
+def test_a_attach_conflict_with_a_malformed_envelope_is_blocked(ctx, monkeypatch):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    # The winner wrote a malformed envelope; the loser must not adopt it.
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["execution"] = "garbage"
+    _write_child_context(repository, prepared.child_run_id, context)
+    _force_attach_conflict(service, monkeypatch)
+
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == 0
+
+
+def test_a_attach_conflict_with_a_wrong_handoff_hash_is_blocked(ctx, monkeypatch):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls_before = dispatcher.calls
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["execution"]["handoff_sha256"] = "f" * 64
+    _write_child_context(repository, prepared.child_run_id, context)
+
+    # Force a conflict on a later call by re-running with a stale CAS expectation.
+    monkeypatch.setattr(
+        service.runs,
+        "attach_pending_context",
+        lambda run_id, *, expected_version, research_context: None,
+    )
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == calls_before
+
+
+def test_a_attach_conflict_with_a_wrong_child_owner_is_blocked(ctx, monkeypatch):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["execution"] = build_execution_envelope(
+        parent_turn_id=parent.id,
+        handoff_sha256="h",
+        admitted_at=datetime.now(timezone.utc),
+    )
+    _write_child_context(repository, prepared.child_run_id, context)
+
+    monkeypatch.setattr(
+        service.runs,
+        "attach_pending_context",
+        lambda run_id, *, expected_version, research_context: None,
+    )
+    # A child that belongs to another thread must be an integrity failure, not a raw ValueError.
+    monkeypatch.setattr(
+        service.runs,
+        "get",
+        lambda run_id: SimpleNamespace(
+            id=run_id, owner_thread_id="another-thread", status="pending", version=1
+        ),
+    )
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == 0
+
+
+def test_b_a_boundary_tamper_is_blocked_and_touches_no_model_or_network(ctx):
+    """The real service -> dispatcher -> runtime path must fail closed, not report lease_busy.
+
+    The runtime marks the child running before it revalidates, so a naive handler would report
+    "another worker is busy" instead of the integrity failure it actually detected.
+    """
+
+    from src.application.research_web_lookup_dispatch import (
+        ClaimEngineDispatchWebLookupService,
+    )
+
+    service, repository, runs, parent, _clock, prepared, _dispatcher = ctx
+
+    class NoNetworkGateway:
+        def __init__(self):
+            self.calls = 0
+
+        def __getattr__(self, name):
+            def _boom(*_args, **_kwargs):
+                self.calls += 1
+                raise AssertionError(f"Deep must not reach the network: {name}")
+
+            return _boom
+
+    gateway = NoNetworkGateway()
+    real = ClaimEngineDispatchWebLookupService(
+        runs, active_gateway_factory=lambda: gateway
+    )
+
+    class TamperingDispatcher:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, run_id):
+            self.calls += 1
+            # Tamper exactly at the dispatch boundary, after service validation passed.
+            context = _child_context(repository, run_id)
+            context["deep"]["seed"]["sources"][0]["content"] = "tampered at the boundary"
+            _write_child_context(repository, run_id, context)
+            return real.execute(run_id)
+
+    tampering = TamperingDispatcher()
+    service.dispatch = tampering
+
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    assert result.status == "blocked"
+    assert result.reason == "seed_integrity_failure"
+    assert tampering.calls == 1
+    assert gateway.calls == 0
