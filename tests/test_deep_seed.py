@@ -9,7 +9,14 @@ from __future__ import annotations
 
 import hashlib
 
-from src.web.research.deep_seed import DEEP_SEED_SCHEMA, project_standard_seed, seed_refs_match
+import pytest
+
+from src.web.research.deep_seed import (
+    DEEP_SEED_SCHEMA,
+    SeedIntegrityError,
+    project_standard_seed,
+    seed_refs_match,
+)
 from src.web.research.standard_binding_projection import journal_work_key
 
 BODY = "Python 3.14.0 was released on 2025-10-07."
@@ -58,12 +65,13 @@ def test_seed_refs_carry_no_content():
 # --- D9: a body that does not rehash is not a seed --------------------------------
 
 
-def test_a_body_that_does_not_rehash_is_not_a_seed():
-    seed = project_standard_seed(
-        _ledger(body="tampered body", digest=SHA), standard_child_run_id=CHILD
-    )
-    assert seed["sources"] == []
-    assert seed["refs"] == []
+def test_a_body_that_does_not_rehash_fails_closed():
+    # The journal contradicting itself is an integrity failure, not an ineligible source:
+    # it must not be dropped quietly while a Deep child is still created.
+    with pytest.raises(SeedIntegrityError):
+        project_standard_seed(
+            _ledger(body="tampered body", digest=SHA), standard_child_run_id=CHILD
+        )
 
 
 def test_an_incomplete_entry_is_not_a_seed():

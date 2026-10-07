@@ -263,3 +263,156 @@ def test_standard_ledger_read_rejects_a_foreign_thread(ctx):
     journal = StandardExecutionRepository(repository.database)
     with pytest.raises(ValueError):
         journal.child_ledger(outcome.child_run_id, "some-other-thread")
+
+
+# --- review round 2: durable handoff integrity, full lineage, fail-closed seed -----
+
+
+def _tamper_ledger(repository, child_run_id, mutate):
+    """Rewrite the Standard child journal in place."""
+
+    with repository.database.connect() as connection:
+        row = connection.execute(
+            "SELECT research_context FROM web_lookup_runs WHERE id = ?", (child_run_id,)
+        ).fetchone()
+        context = json.loads(row["research_context"])
+        mutate(context["standard"])
+        connection.execute(
+            "UPDATE web_lookup_runs SET research_context = ? WHERE id = ?",
+            (json.dumps(context), child_run_id),
+        )
+
+
+def _tamper_source_run(repository, source_run_id, mutate):
+    with repository.database.connect() as connection:
+        row = connection.execute(
+            "SELECT research_context, query FROM web_lookup_runs WHERE id = ?",
+            (source_run_id,),
+        ).fetchone()
+        mutate(row, connection, source_run_id)
+
+
+# D6a: the persisted Deep handoff is tampered without updating its digest.
+
+
+def test_a_tampered_durable_deep_handoff_blocks_the_retry(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    first = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.status == "prepared"
+
+    def mutate(snap):
+        snap["deep_terminal"]["handoff"]["unresolved_fields"] = ["invented_field"]
+
+    tamper(repository, parent, mutate)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "blocked"
+    assert second.reason == "handoff_integrity_failure"
+
+
+def test_a_tampered_seed_ref_blocks_the_retry(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        handoff = snap["deep_terminal"]["handoff"]
+        handoff["seed_source_refs"] = [{"url": "https://evil", "content_sha256": "d" * 64}]
+        # Keep the payload digest consistent so only the seed refs are wrong.
+        from src.web.research.deep_handoff import payload_digest
+
+        handoff["payload_sha256"] = payload_digest(handoff)
+
+    tamper(repository, parent, mutate)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "blocked"
+
+
+# D8a: the journal's own source run id disagrees with the child lineage.
+
+
+def test_a_ledger_source_run_mismatch_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, outcome = ctx
+    _tamper_ledger(
+        repository, outcome.child_run_id, lambda ledger: ledger.__setitem__("source_run_id", "not-the-source")
+    )
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+
+
+# D8b: the source run itself is re-verified.
+
+
+def test_a_source_version_mismatch_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, outcome = ctx
+    _tamper_ledger(
+        repository, outcome.child_run_id, lambda ledger: ledger.__setitem__("source_run_version", 999)
+    )
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+
+
+def test_a_source_query_mismatch_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+
+    def mutate(row, connection, run_id):
+        connection.execute(
+            "UPDATE web_lookup_runs SET query = ? WHERE id = ?", ("a different question", run_id)
+        )
+
+    ledger_source = service.repository.get_chat_turn(parent.id).rag_snapshot["standard_continuation"]["source_run_id"]
+    _tamper_source_run(repository, ledger_source, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+
+
+def test_a_cancelled_source_run_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    source_run_id = service.repository.get_chat_turn(parent.id).rag_snapshot["standard_continuation"]["source_run_id"]
+
+    def mutate(row, connection, run_id):
+        context = json.loads(row["research_context"])
+        context.setdefault("operation", {})["cancel_requested_at"] = "2026-01-01T00:00:00+00:00"
+        connection.execute(
+            "UPDATE web_lookup_runs SET research_context = ? WHERE id = ?",
+            (json.dumps(context), run_id),
+        )
+
+    _tamper_source_run(repository, source_run_id, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+
+
+# D8c: the journal must be terminal, not just the artifact that cites it.
+
+
+def test_a_non_terminal_standard_journal_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, outcome = ctx
+
+    def mutate(ledger):
+        ledger["research"]["status"] = "planning"
+
+    _tamper_ledger(repository, outcome.child_run_id, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+
+
+# D9: a body that contradicts its recorded digest fails closed, with no child created.
+
+
+def test_a_seed_digest_mismatch_blocks_and_creates_no_child(ctx):
+    service, repository, runs, parent, _gateway, _clock, outcome = ctx
+    before = len(runs.list_by_thread(parent.thread_id)) if hasattr(runs, "list_by_thread") else None
+
+    def mutate(ledger):
+        for entry in ledger["entries"].values():
+            if isinstance(entry.get("result"), dict) and entry["result"].get("content"):
+                entry["result"]["content"] = "tampered body that no longer hashes"
+
+    _tamper_ledger(repository, outcome.child_run_id, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "seed_integrity_failure"
+    # A blocked terminal is recorded, but no child exists and no seed was written.
+    terminal = snapshot(repository, parent)["deep_terminal"]
+    assert terminal["dispatch_status"] == "blocked"
+    assert "child_run_id" not in terminal
+    assert before is None or len(runs.list_by_thread(parent.thread_id)) == before

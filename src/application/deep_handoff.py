@@ -30,8 +30,13 @@ from src.web.research.deep_handoff import (
     decide_deep_handoff,
     deep_child_identity,
     deep_terminal,
+    load_deep_handoff,
 )
-from src.web.research.deep_seed import project_standard_seed
+from src.web.research.deep_seed import (
+    SeedIntegrityError,
+    project_standard_seed,
+    seed_refs_match,
+)
 
 DEEP_STAGE = "deep_handoff"
 
@@ -51,6 +56,8 @@ def _blocked_reason(exc: BaseException) -> str:
     text = str(exc).lower()
     if "handoff" in text:
         return "handoff_integrity_failure"
+    if "seed" in text or "digest mismatch" in text:
+        return "seed_integrity_failure"
     if "continuation" in text:
         return "standard_artifact_invalid"
     if "source" in text or "lineage" in text:
@@ -80,18 +87,39 @@ class DeepHandoffService:
 
         existing = self.terminal.read_terminal(parent_turn_id, thread_id)
         if existing is not None:
-            # Exactly-once: a durable terminal is returned, never re-prepared.
+            # Exactly-once, but never on trust: the persisted handoff must still verify, and its
+            # seed refs must still describe the child's durable seed.
+            try:
+                handoff = load_deep_handoff(existing.get("handoff") or {})
+                child_run_id = str(existing.get("child_run_id") or "")
+                if child_run_id:
+                    seed = self.deep_seed(child_run_id, thread_id)
+                    if not seed_refs_match(
+                        list(handoff.get("seed_source_refs") or []), list(seed.get("refs") or [])
+                    ):
+                        raise ValueError("deep handoff seed refs mismatch")
+            except ValueError as exc:
+                return DeepHandoffOutcome(
+                    status="blocked",
+                    parent_turn_id=parent_turn_id,
+                    child_run_id=str(existing.get("child_run_id") or ""),
+                    reason="handoff_integrity_failure" if "handoff" in str(exc).lower() else _blocked_reason(exc),
+                    handoff_sha256="",
+                )
             status = str(existing.get("dispatch_status") or "")
             return DeepHandoffOutcome(
                 status="blocked" if status == "blocked" else "prepared",
                 parent_turn_id=parent_turn_id,
-                child_run_id=str(existing.get("child_run_id") or ""),
+                child_run_id=child_run_id,
                 reason=str(existing.get("reason") or ""),
-                handoff_sha256=str((existing.get("handoff") or {}).get("payload_sha256") or ""),
+                handoff_sha256=str(handoff.get("payload_sha256") or ""),
             )
 
         try:
             return self._prepare(parent_turn_id, thread_id)
+        except SeedIntegrityError:
+            # The Standard journal contradicts itself: fail closed, create nothing.
+            return self._blocked(parent_turn_id, thread_id, "seed_integrity_failure")
         except ValueError as exc:
             return self._blocked(parent_turn_id, thread_id, _blocked_reason(exc))
 
@@ -146,19 +174,16 @@ class DeepHandoffService:
             raise ValueError("unknown Standard stop reason")
 
         child = self.runs.get(standard_child_run_id)
-        if (
-            child is None
-            or child.owner_thread_id != thread_id
-            or child.parent_run_id != continuation.get("source_run_id")
-            or child.query != parent.user_message
-        ):
+        if child is None:
             raise ValueError("Standard child lineage mismatch")
         ledger = self.standard.child_ledger(standard_child_run_id, thread_id)
-        if str(ledger.get("handoff_sha256") or "") != str(
-            continuation.get("handoff_sha256") or ""
-        ):
-            # The artifact's claimed Standard handoff digest must match the durable journal.
-            raise ValueError("Standard handoff digest mismatch")
+        self._validate_lineage(
+            parent=parent,
+            thread_id=thread_id,
+            continuation=continuation,
+            child=child,
+            ledger=ledger,
+        )
 
         seed = project_standard_seed(ledger, standard_child_run_id=standard_child_run_id)
         handoff = build_deep_handoff(
@@ -246,3 +271,56 @@ class DeepHandoffService:
         if not isinstance(seed, dict):
             raise ValueError("Deep child has no seed")
         return seed
+
+    def _validate_lineage(
+        self,
+        *,
+        parent: Any,
+        thread_id: str,
+        continuation: dict,
+        child: Any,
+        ledger: dict,
+    ) -> None:
+        """Re-verify the whole Standard lineage, not just the child row.
+
+        The artifact, the child run, the child journal and the original source run must all
+        agree. Deep only consumes a Standard artifact whose lineage is fully re-established.
+        """
+
+        source_run_id = str(continuation.get("source_run_id") or "")
+        if (
+            child.owner_thread_id != thread_id
+            or child.parent_run_id != source_run_id
+            or child.query != parent.user_message
+        ):
+            raise ValueError("Standard child lineage mismatch")
+        if str(ledger.get("handoff_sha256") or "") != str(
+            continuation.get("handoff_sha256") or ""
+        ):
+            raise ValueError("Standard handoff digest mismatch")
+        if (
+            str(ledger.get("thread_id") or "") != thread_id
+            or str(ledger.get("source_run_id") or "") != source_run_id
+        ):
+            raise ValueError("Standard journal lineage mismatch")
+        research = ledger.get("research") or {}
+        if research.get("status") != "completed" or not isinstance(
+            research.get("result"), dict
+        ):
+            # The journal itself must be terminal, not just the artifact that cites it.
+            raise ValueError("Standard child journal is not terminal")
+
+        source = self.runs.get(source_run_id)
+        if (
+            source is None
+            or source.owner_thread_id != thread_id
+            or source.status != "completed"
+            or source.cancel_requested_at
+            or source.query != parent.user_message
+        ):
+            raise ValueError("Standard source run lineage mismatch")
+        if int(ledger.get("source_run_version") or -1) != int(source.version):
+            raise ValueError("Standard source run version mismatch")
+        owner = source.research_context.get("owner") or {}
+        if owner.get("thread_id") != thread_id or owner.get("turn_id") != parent.id:
+            raise ValueError("Standard source run owner mismatch")

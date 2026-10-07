@@ -22,6 +22,14 @@ from src.web.research.standard_binding_projection import journal_work_key
 DEEP_SEED_SCHEMA = "deep-seed-v1"
 
 
+class SeedIntegrityError(ValueError):
+    """A durable observation and a durable body contradict each other.
+
+    This is not "the source is not eligible" - it is the journal disagreeing with itself, so it
+    fails closed instead of dropping the source and continuing.
+    """
+
+
 def _body_of(entry: dict) -> str:
     result = entry.get("result") or {}
     body = result.get("content") or result.get("readme") or ""
@@ -34,6 +42,9 @@ def project_standard_seed(ledger: dict, *, standard_child_run_id: str) -> dict:
     ``sources`` is the data plane (bytes for the Deep child). ``refs`` is the control plane
     (url, digest, field association, origin) and is the only part allowed into a parent
     snapshot.
+
+    Raises ``SeedIntegrityError`` when a readable observation's recorded digest does not
+    describe the journal body it points at.
     """
 
     observations = ((ledger or {}).get("research") or {}).get("observations") or []
@@ -53,8 +64,8 @@ def project_standard_seed(ledger: dict, *, standard_child_run_id: str) -> dict:
             continue
         digest = hashlib.sha256(body.encode()).hexdigest()
         if digest != str(observation.get("content_sha256") or ""):
-            # The journal body does not describe the recorded digest: refuse the seed.
-            continue
+            # The journal contradicts itself. Fail closed rather than drop and continue.
+            raise SeedIntegrityError("Standard seed body digest mismatch")
         fields = list(observation.get("fields") or [])
         origin = str(observation.get("origin") or "")
         sources.append(
