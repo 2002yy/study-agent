@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 对话内部角色设置（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`，增量base `bdee088f5548ff54d9991fee6c4ed0c3d050682f`，生产提交 `91e05c1a07be5d327135693442b8812ac35a580f`。6个frontend文件：ChatRoleSettings、ChatPanel、WorkspaceView、reading CSS和两项测试；后端搜索/研究/阅读、角色定义、依赖及持久化契约未改。
+
+**行为与验证：** 输入框内“对话设置”图标默认收起，只在对话方式显示。展开为正常文档流中的四角色小头像按钮（三月七/刻晴/纳西妲/流萤）和恢复自动选择；选后收起并聚焦原输入框，草稿保留。共用已有 `ui.chatSettings.selectedRole`，既有高级设置与会话恢复仍使用同一状态；生成期间角色选择禁用，不改当前turn。Escape从设置内部收起并返回触发按钮；切搜索/切会话收起设置。不存在绝对定位浮层。直接影响集18文件88 PASS；全量104文件430 PASS；tsc+Vite build、Ruff、diff-check与范围检查PASS。浏览器63/63 PASS/1.8m，四角色各在桌面/手机验证实际POST selected_role与原草稿正确、输入/发送在viewport内且panel.bottom<=input.top；原搜索等价、恢复、证据与53份artifact gate继续通过。真实四头像均512px正常加载；320/360/390/768/1280/1600无横向溢出/输入遮挡。1280阅读正文展开前后均x192/y0/w688/h800；320×568阅读对话展开时输入bottom543、发送bottom548，保留完整viewport边界。
+
+**交接：** 证据 `D:/study-agent-validation/reading-notebook-ui-evidence/qa-roles.json`、role-focused/frontend-roles-full/build-roles/browser-roles日志，以及roles-mobile-open/desktop-open/reading-open/reading-mobile-open截图。预览仍 `http://127.0.0.1:5188/` → 独立API8002。main四项原dirty及HEAD `7ff7451da608775324383968b4c7ed23c5687832`保留；本轮生产提交后tracked clean，临时验证配置删除。本段docs-only交接，最终head由git与qa-roles恢复。无push/PR/新CI/merge；本轮不重复无改动后端L3，不宣称真实模型搜索资格已完成。下一slice：审查集成本独立UI分支，继续与搜索候选分开验收。
+
 **2026-10-07 UI 入口精简与搜索等价（LOCAL UI GO / 未推送）：** 最新用户约定：无正文时“左导航＋中右宽对话”，打开正文后“左导航＋中正文＋右对话”，两种状态共用纸白/蓝灰与标题宋体类、正文无衬线字体。继续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；本轮增量base `80b820af9327962e1445c724e56d7fdc8a417e77`，生产提交 `626c9f8b188bbf8131714e43fe9129f5731e082c`。25文件仅frontend展示/交互与对应测试，不改后端搜索、研究、阅读服务、依赖或索引。
 
 **行为：** 开始页移除横向阅读入口条、系统学习/项目/研究快捷卡及任务方式菜单，共用一个草稿输入框，只有“对话／搜索”两个主入口。搜索将输入转为显式自然语言请求 `帮我搜索：<问题>`，已是搜索请求则保留原文；与直接输入相同请求共同调用 `chatController.send`，不再调用独立RAG检索，也不增加task_intent override。范围、设置、上下文、运行权限和结果展示交给同一既有对话链。上传、整理、设置、来源与实验室工具迁到导航；手机从会话导航抽屉进入。资料导航也出现在手机抽屉。学习状态及返回会话上下文默认折叠，空开始页不展开默认示例；保留原学习示例组件和中断恢复操作。菜单在手机抽屉内展开，上传先关抽屉，工具切换导致原焦点节点卸载时回到导航按钮。
