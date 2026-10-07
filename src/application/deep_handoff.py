@@ -101,7 +101,7 @@ class DeepHandoffService:
             return self._blocked(parent_turn_id, thread_id, _blocked_reason(exc))
 
     def _retry(
-        self, existing: dict, parent_turn_id: str, thread_id: str
+        self, existing: object, parent_turn_id: str, thread_id: str
     ) -> DeepHandoffOutcome:
         """Retry path: the durable terminal is the first authority, and it is never overwritten."""
 
