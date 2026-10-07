@@ -270,6 +270,35 @@ class WebLookupRepository:
                 connection.commit()
         return self._required(created_id)
 
+    def attach_pending_context(
+        self,
+        run_id: str,
+        *,
+        expected_version: int,
+        research_context: dict[str, Any],
+    ) -> WebLookupRun | None:
+        """Attach a first-admission context to a pending run, compare-and-swap on version.
+
+        Deliberately narrow: only ``research_context``, ``updated_at`` and ``version`` move, and
+        only while the run is still ``pending``. It starts no operation, touches no sources and
+        creates no child, so two concurrent first admissions cannot both win - the loser gets
+        ``None`` and reloads.
+        """
+
+        dumped = _dump(research_context)
+        with self.database.connect() as connection:
+            result = connection.execute(
+                """
+                UPDATE web_lookup_runs
+                SET research_context = ?, updated_at = ?, version = version + 1
+                WHERE id = ? AND status = 'pending' AND version = ?
+                """,
+                (dumped, utc_now(), run_id, int(expected_version)),
+            )
+            if int(result.rowcount or 0) != 1:
+                return None
+        return self.get(run_id)
+
     def get(self, run_id: str) -> WebLookupRun | None:
         with self.database.connect() as connection:
             row = connection.execute(
