@@ -61,11 +61,15 @@ test("the shared session navigator is usable from desktop sidebar and mobile dra
     await page.getByRole("button", { name: "打开会话历史" }).click();
     await expect(page.getByRole("heading", { name: "会话历史" })).toBeVisible();
   } else {
-    await expect(page.getByText("学习会话", { exact: true })).toBeVisible();
+    await expect(page.locator(".workspace-sidebar-brand").getByText("学习工作台", { exact: true })).toBeVisible();
   }
 
   const navigator = page.getByRole("navigation", { name: "学习会话" }).last();
   await expect(navigator).toBeVisible();
+  await expect(page.locator(".session-history-filter").filter({visible:true})).not.toHaveAttribute("open");
+  const findSessions = page.locator(".session-history-filter > summary").filter({visible:true});
+  await findSessions.focus();
+  await findSessions.press("Enter");
   const search = page.getByLabel("搜索学习会话").last();
   await search.fill("二分查找");
   await expect(navigator.getByText("二分查找", { exact: true })).toBeVisible();

@@ -12,7 +12,7 @@ export function WorkspaceActions({onUploadClick,onOpenDrawer,onEndSession,isEndi
   };
   return (
     <div className="workspace-navigation-actions" aria-label="工作台工具">
-          {closureLabel ? (
+          {closureLabel && canClose ? (
             <button
               aria-label={closureLabel}
               className="end-session-button"
@@ -27,17 +27,18 @@ export function WorkspaceActions({onUploadClick,onOpenDrawer,onEndSession,isEndi
           ) : null}
           <button
             aria-label="上传学习资料"
-            className="icon-button"
+            className="sidebar-upload-button"
             onClick={onUploadClick}
             type="button"
             title={`上传学习资料。${RAG_UPLOAD_HELP_TEXT}`}
           >
             <Upload size={17} />
+            <span>上传资料</span>
           </button>
           <details className="workspace-menu">
             <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多">
               <MoreHorizontal size={18} />
-              <span>更多</span>
+              <span>设置与工具</span>
             </summary>
             <div className="workspace-menu-popover" role="menu">
               <button onClick={(event) => openFromMenu("sources", event.currentTarget)} role="menuitem" type="button">

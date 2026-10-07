@@ -34,7 +34,7 @@ describe("active ChatPanel interaction boundary", () => {
     const view=readFileSync(fileURLToPath(new URL("../../app/WorkspaceView.tsx",import.meta.url)),"utf8");
     const actions=readFileSync(fileURLToPath(new URL("./WorkspaceActions.tsx",import.meta.url)),"utf8");
     expect(view).toContain("closureActionLabel(taskContractFromRoute(chatController.lastChat?.route))");
-    expect(actions).toContain("{closureLabel ? (");
+    expect(actions).toContain("{closureLabel && canClose ? (");
     expect(actions).toContain("{closureLabel}");
   });
 });
