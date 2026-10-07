@@ -8,13 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-3 implementation。** Deep-3T 已 CLOSED，Deep-3 合同 FROZEN 且窄 seam recheck 已 PASS（无漂移）。Deep-2 已 CLOSED。
+**当前执行权：Deep-4A contract freeze。** Deep-3 implementation 已合并（等 exact-main CI 关闭）；Deep-4A 合同已写入 docs 并 FROZEN，**implementation gated on Deep-3 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。
 
 **Current Action：**
 ```text
-Deep-3 implementation.
-Contract FROZEN in docs/DEEP_3_CONTRACT.md; narrow seam recheck on 823265ae PASSED.
-Stay within the frozen Deep-3 bounded slice.
+Deep-4A contract freeze (docs).
+Deep-3 implementation is merged; Deep-3 CLOSED awaits its exact-main CI.
+Deep-4A implementation is gated on Deep-3 CLOSED.
+Deep-4B is NO-GO until a qualified semantic judge exists.
 ```
 
 **Deep 阶段合同（已冻结）：**
@@ -23,8 +24,9 @@ Stay within the frozen Deep-3 bounded slice.
 Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
 Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
 Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md CLOSED
-Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN; seam recheck PASSED  <- current work
-Deep-4  not started
+Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN; implementation MERGED, CLOSED pending exact-main CI
+Deep-4A docs/DEEP_4A_CONTRACT.md          FROZEN  <- current work
+Deep-4B automatic publication             NO-GO until qualified semantic judge
 ```
 
 **Deep-3T authority（合同冻结基线）：**
@@ -32,6 +34,30 @@ Deep-4  not started
 exact-main  **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
             （Deep-2 CLOSED 的 exact-main；Deep-3T / Deep-3 合同已基于它核对接口）
 ```
+
+**Deep-3 implementation MERGED（CLOSED 待 exact-main CI）**
+
+```text
+merge commit   **e5382659b0aa1deca9954702b108aa51ef745e93**
+PR             #194（expected head f6f1ab8e）
+exact-head CI  37654811749 SUCCESS
+exact-main CI  37656689912（待确认）
+
+closed scope
+            background continuation + parent finalization
+            chat wrapper only wakes (never blocks on Deep)
+            terminal child never re-executes
+            honest research terminal -> parent completed
+            transactional finalize revalidation
+            durable blocked + recorded-terminal integrity + first terminal wins
+            singleton reuse + runner cache reset
+
+known boundary
+            publication_authority = false
+            assistant_message / pedagogy / learning untouched
+```
+
+> Deep-3 authority 以 exact-main CI 通过后的 merge commit 为准。
 
 **Deep-3T CLOSED ✅**
 
