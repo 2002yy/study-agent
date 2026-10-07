@@ -8,7 +8,9 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：无（Standard phase 已 CLOSED）。下一门 = Deep Implementation Contract 冻结；在合同冻结前不实现 Deep。**
+**当前执行权：Deep-1（Standard → Deep handoff / durable seed / production inert）。合同已冻结：[`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)。在 Deep-1 交付前不实现 Deep-2 及以后。**
+
+**Deep 路线修正（冻结）：** Deep **不重新实现深度研究引擎**。仓库现有 `ActiveResearchRuntimeExecutor`（含多波次 gap research、Evidence Gain、per-claim/per-gap saturation、8-wave ceiling、Evidence Gate、预算尾保留、持久化 cursor、attempt marker、崩溃恢复、stop gate）就是 Deep 的执行核心。Deep 的工作量是**把 Standard 的成果可信地送进已有研究引擎**，因此拆为 Deep-1（handoff + seed + 生产 inert）→ Deep-2（激活 active runtime + budget + resume）→ Deep-3（自动 continuation + fail-safe）→ Deep-4（synthesis projection + cutover + Deep phase L3）。
 
 **Standard closure authority（唯一权威）：**
 
@@ -42,9 +44,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（下一门，未开始）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。Deep 合同需先冻结四件事：Standard → Deep 的升级条件、Deep 独立预算、如何复用 Standard 已有 evidence 而不重读、stop / saturation / interruption-resume 定义。
+2. **Deep（下一门，Deep-1 进行中）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep = NOT STARTED`；`UI = 后置`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep = Deep-1 进行中`；`UI = 后置`。
 
 ## 0A. 冻结研究路线
 
@@ -53,8 +55,9 @@ Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
 Standard（CLOSED）
   → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
-Deep（NOT STARTED，下一门）
+Deep（Deep-1 进行中，下一门）
   → plan / gap / Evidence Gain / saturation / interruption-resume
+  → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
 
 共享原则：**模型决定“去哪找、找什么”；程序决定“你到底找到了什么”。** `usable/read_backed/relevant` 不等于 claim support；claim support 不等于 publication authority。
