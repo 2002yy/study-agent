@@ -8,9 +8,51 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-1（Standard → Deep handoff / durable seed / production inert）。合同已冻结：[`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)。在 Deep-1 交付前不实现 Deep-2 及以后。**
+**当前执行权：Deep-2 合同准备（contract preparation only）。** 在 exact-main seam 审计完成、Deep-2 detailed contract 写入 docs 并 FROZEN 之前，**不得实现 Deep-2**。Deep-1 已 CLOSED。
 
-**Deep 路线修正（冻结）：** Deep **不重新实现深度研究引擎**。仓库现有 `ActiveResearchRuntimeExecutor`（含多波次 gap research、Evidence Gain、per-claim/per-gap saturation、8-wave ceiling、Evidence Gate、预算尾保留、持久化 cursor、attempt marker、崩溃恢复、stop gate）就是 Deep 的执行核心。Deep 的工作量是**把 Standard 的成果可信地送进已有研究引擎**，因此拆为 Deep-1（handoff + seed + 生产 inert）→ Deep-2（激活 active runtime + budget + resume）→ Deep-3（自动 continuation + fail-safe）→ Deep-4（synthesis projection + cutover + Deep phase L3）。
+**Current Action：**
+```text
+Deep-2 contract preparation only.
+Do not implement Deep-2 before exact-main seam audit + FROZEN contract.
+```
+
+**Deep-1 CLOSED ✅**
+
+```text
+authority   main / e5c63c03c9ac77b273f2bfc158111ac676e9bc42
+
+merge       PR #187
+            expected implementation head  2cba839e46073efabd04ba127b3559a142efc6ee
+            merge commit                 e5c63c03c9ac77b273f2bfc158111ac676e9bc42
+
+validation  exact-main push CI 37599443309 SUCCESS
+            ordinary full pytest PASS
+            ruff PASS | expanded mypy PASS | mypy baseline PASS
+            browser Golden Journeys PASS | real-stack browser gates PASS
+
+closed scope
+            Standard → Deep handoff
+            durable seed
+            deterministic child
+            retry / integrity addendum
+            G1–G15 PASS；G14a–G14g PASS
+
+known boundary
+            publication_authority = false
+            Deep child remains pending / inert
+            no active runtime execution
+            no Deep-2 activation
+
+next single slice
+            Deep-2 exact-main implementation-seam audit
+            against e5c63c03
+            → freeze detailed Deep-2 contract
+            → then implementation
+```
+
+> Deep-1 authority 永久为 `e5c63c03` / CI `37599443309`。此后 main 上的 docs-only closeout 提交只是该记录的载体，**不表示新 SHA 跑过验证**；按 `AGENTS.md` §4.5 / §10.4，docs-only 变更不需要重跑 L3 或 full suite。
+
+**Deep 路线（冻结）：** Deep **不重新实现深度研究引擎**。仓库现有 `ActiveResearchRuntimeExecutor`（含多波次 gap research、Evidence Gain、per-claim/per-gap saturation、8-wave ceiling、Evidence Gate、预算尾保留、持久化 cursor、attempt marker、崩溃恢复、stop gate）就是 Deep 的执行核心。Deep 的工作量是**把 Standard 的成果可信地送进已有研究引擎**，因此拆为 Deep-1（handoff + seed + 生产 inert，**已 CLOSED**）→ Deep-2（激活 active runtime + budget + resume）→ Deep-3（自动 continuation + fail-safe）→ Deep-4（synthesis projection + cutover + Deep phase L3）。
 
 **Standard closure authority（唯一权威）：**
 
@@ -44,9 +86,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（下一门，Deep-1 进行中）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 已 CLOSED；当前 = Deep-2 合同准备）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep = Deep-1 进行中`；`UI = 后置`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅；Deep-2 = 合同准备中（未实现）`；`UI = 后置`。
 
 ## 0A. 冻结研究路线
 
@@ -55,7 +97,7 @@ Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
 Standard（CLOSED）
   → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
-Deep（Deep-1 进行中，下一门）
+Deep（Deep-1 CLOSED；Deep-2 合同准备中）
   → plan / gap / Evidence Gain / saturation / interruption-resume
   → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
