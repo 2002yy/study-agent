@@ -1,4 +1,8 @@
 /* Character messages keep portraits prominent without narrowing long answers. */
+.reading-layout .composer-main { min-width: 0; }
+.reading-layout .composer-footer { display: flex; justify-content: flex-end; margin-top: 4px; }
+.reading-layout .composer-footer .send-button { margin: 0; }
+.reading-layout .composer-footer .stop-button { background: #8f1d1d; border-color: #8f1d1d; }
 .reading-layout .conversation { gap: 28px; }
 .reading-layout .message.assistant {
   grid-template-columns: 96px minmax(0, 1fr);

@@ -397,18 +397,20 @@ export function ChatPanel(props: ChatPanelProps) {
             }
             value={input}
           />
+          <div className="composer-footer">
+            {isSending ? (
+              <button className="send-button stop-button" onClick={onStop} type="button">
+                <Square size={16} />
+                停止
+              </button>
+            ) : (
+              <button className="send-button" disabled={!input.trim()} type="submit">
+                {composerMode === "search" ? <Search size={17}/> : <Send size={17}/> }
+                {composerMode === "search" ? "搜索" : "发送"}
+              </button>
+            )}
+          </div>
         </div>
-        {isSending ? (
-          <button className="send-button stop-button" onClick={onStop} type="button">
-            <Square size={16} />
-            停止
-          </button>
-        ) : (
-          <button className="send-button" disabled={!input.trim()} type="submit">
-            {composerMode === "search" ? <Search size={17}/> : <Send size={17}/> }
-            {composerMode === "search" ? "搜索" : "发送"}
-          </button>
-        )}
       </form>
     </main>
   );
