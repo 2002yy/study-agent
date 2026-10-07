@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 左侧导航层次优化（LOCAL UI GO / 未推送）：** 延续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `d21387c8bc026a31bce0cd787e4cb8f349687a5e`，生产提交 `ac457c941121d87a65bf2eaf282d5da3a2c3e063`。7文件仅侧栏/资料导航/底部工具展示与对应测试；后端、搜索、角色、阅读及持久化契约不变。
+
+**行为：** 侧栏顶部工作台标识＋全宽新对话按钮；资料区统一为明确的“资料库／打开正文，边读边聊”；最近对话标题与计数单独成区，查找和分组收在可键盘展开的“查找会话”。桌面条目只展示标题和一句目标，活动条目用蓝灰底与左侧指示线；复杂状态在抽屉保留，底层筛选/恢复/重命名/归档逻辑不变。管理图标在鼠标悬停/键盘focus-within时显示，触摸布局保留可见操作。上传资料、设置与工具采用对齐的文字入口；没有用户消息时不出现无效整理按钮。桌面工具菜单限于侧栏宽度/viewport高度，手机沿用抽屉内展开。
+
+**验证与交接：** 直接影响集16文件78 PASS；首次并行前端全量429 PASS/1 FAIL，既有jsdom正文选段断言未拿到L2选段；本轮未改阅读逻辑/断言，定向15 PASS，改为单worker全量104文件430 PASS/45.51s，保留首轮日志，不能称首次全绿；具体波动根因未定位，不把并发推断写为已确认根因。tsc＋Vite build、Ruff、diff-check与范围检查PASS。浏览器首轮61/63 PASS；两个查找测试需把键盘焦点放到可交互summary而非内部span，入口定位修正后2/2 PASS/4.1s，原成功artifact gate通过；没有放宽搜索结果、键盘或overflow断言。1280/1600工具菜单均在侧栏及viewport内；320/360/390抽屉无横向溢出，桌面重命名键盘焦点及管理操作可见性PASS。证据 `D:/study-agent-validation/reading-notebook-ui-evidence/qa-sidebar.json`、sidebar-focused/unit-full/unit-serial/reading-retry/build/browser-full/browser-retry日志与sidebar-desktop/detail/mobile/tools截图。预览仍 `http://127.0.0.1:5188/` → API8002；main仍7ff7451d及四项原dirty保留。生产提交后tracked clean，临时配置删除；本段docs-only交接，最终head从git和qa-sidebar恢复。无push/PR/新CI/merge，未重复无改动后端L3。下一slice：用户看新版导航体验后审查集成本UI分支，搜索候选继续独立验收。
+
 **2026-10-08 对话内部角色设置（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`，增量base `bdee088f5548ff54d9991fee6c4ed0c3d050682f`，生产提交 `91e05c1a07be5d327135693442b8812ac35a580f`。6个frontend文件：ChatRoleSettings、ChatPanel、WorkspaceView、reading CSS和两项测试；后端搜索/研究/阅读、角色定义、依赖及持久化契约未改。
 
 **行为与验证：** 输入框内“对话设置”图标默认收起，只在对话方式显示。展开为正常文档流中的四角色小头像按钮（三月七/刻晴/纳西妲/流萤）和恢复自动选择；选后收起并聚焦原输入框，草稿保留。共用已有 `ui.chatSettings.selectedRole`，既有高级设置与会话恢复仍使用同一状态；生成期间角色选择禁用，不改当前turn。Escape从设置内部收起并返回触发按钮；切搜索/切会话收起设置。不存在绝对定位浮层。直接影响集18文件88 PASS；全量104文件430 PASS；tsc+Vite build、Ruff、diff-check与范围检查PASS。浏览器63/63 PASS/1.8m，四角色各在桌面/手机验证实际POST selected_role与原草稿正确、输入/发送在viewport内且panel.bottom<=input.top；原搜索等价、恢复、证据与53份artifact gate继续通过。真实四头像均512px正常加载；320/360/390/768/1280/1600无横向溢出/输入遮挡。1280阅读正文展开前后均x192/y0/w688/h800；320×568阅读对话展开时输入bottom543、发送bottom548，保留完整viewport边界。
