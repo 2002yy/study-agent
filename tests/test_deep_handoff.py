@@ -158,3 +158,27 @@ def test_blocked_terminal_carries_a_bounded_reason():
     assert terminal["dispatch_status"] == BLOCKED
     assert terminal["reason"] == "handoff_integrity_failure"
     assert "child_run_id" not in terminal
+
+
+# --- the frozen contract is implementation authority: keep it byte-clean ----------
+
+
+def test_the_frozen_contract_has_no_control_characters():
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "docs" / "DEEP_1_CONTRACT.md").read_text(
+        encoding="utf-8"
+    )
+    bad = [(i, ord(ch)) for i, ch in enumerate(text) if ord(ch) < 32 and ch not in "\n\r"]
+    assert bad == []
+
+
+def test_the_frozen_contract_has_balanced_code_fences():
+    from pathlib import Path
+
+    lines = (Path(__file__).resolve().parents[1] / "docs" / "DEEP_1_CONTRACT.md").read_text(
+        encoding="utf-8"
+    ).split("\n")
+    fences = [line for line in lines if line.strip().startswith("```")]
+    assert len(fences) % 2 == 0
+    assert not [line for line in lines if line.strip() == "`"]

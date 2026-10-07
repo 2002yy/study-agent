@@ -16,13 +16,22 @@ from typing import Any
 from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.web.research.deep_handoff import CONTINUATION_SCHEMA, DEEP_TERMINAL_SCHEMA
 
+# Distinguishes "no terminal recorded" from "a terminal recorded that is not even a dict".
+# Existence and validity are separate questions: a malformed terminal must reach the retry
+# path and fail closed there, never be mistaken for an absent one.
+NO_TERMINAL = object()
+
 
 class DeepHandoffRepository:
     def __init__(self, database: RuntimeDatabase):
         self.database = database
 
-    def read_terminal(self, parent_turn_id: str, thread_id: str) -> dict | None:
-        """The saved Deep terminal, if this parent already has one. Owner-checked."""
+    def read_terminal(self, parent_turn_id: str, thread_id: str) -> object:
+        """The recorded ``deep_terminal`` value, or ``NO_TERMINAL``.
+
+        Deliberately does not validate: whether the recorded terminal is well formed is the
+        retry path's decision, so a tampered schema cannot make it look absent.
+        """
 
         with self.database.connect() as connection:
             row = connection.execute(
@@ -30,11 +39,9 @@ class DeepHandoffRepository:
                 (parent_turn_id,),
             ).fetchone()
         if row is None or row["thread_id"] != thread_id:
-            return None
-        terminal = (json.loads(row["rag_snapshot"]) or {}).get("deep_terminal")
-        if isinstance(terminal, dict) and terminal.get("schema_version") == DEEP_TERMINAL_SCHEMA:
-            return terminal
-        return None
+            return NO_TERMINAL
+        snapshot = json.loads(row["rag_snapshot"]) or {}
+        return snapshot.get("deep_terminal", NO_TERMINAL)
 
     def persist(self, *, parent_turn_id: str, thread_id: str, terminal: dict) -> dict:
         """Add ``deep_terminal`` in one transaction, preserving every other snapshot key."""

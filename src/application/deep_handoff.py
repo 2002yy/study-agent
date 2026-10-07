@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from src.domain.runtime_entities import WebLookupRun
-from src.repositories.deep_handoff_repository import DeepHandoffRepository
+from src.repositories.deep_handoff_repository import NO_TERMINAL, DeepHandoffRepository
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.standard_execution_repository import StandardExecutionRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -87,7 +87,9 @@ class DeepHandoffService:
         """Validate the Standard artifact and prepare the Deep child. No research is run."""
 
         existing = self.terminal.read_terminal(parent_turn_id, thread_id)
-        if existing is not None:
+        if existing is not NO_TERMINAL:
+            # Existence is the trigger, not validity: anything recorded goes to the retry path
+            # so a tampered terminal fails closed instead of looking absent.
             return self._retry(existing, parent_turn_id, thread_id)
 
         try:
@@ -103,6 +105,15 @@ class DeepHandoffService:
     ) -> DeepHandoffOutcome:
         """Retry path: the durable terminal is the first authority, and it is never overwritten."""
 
+        if not isinstance(existing, dict):
+            # Something is recorded but it is not a terminal: fail closed, do not start fresh.
+            return DeepHandoffOutcome(
+                status="blocked",
+                parent_turn_id=parent_turn_id,
+                child_run_id="",
+                reason="handoff_integrity_failure",
+                handoff_sha256="",
+            )
         status = str(existing.get("dispatch_status") or "")
         if status == BLOCKED:
             # A blocked terminal is complete. It legitimately has no handoff and no child, so it

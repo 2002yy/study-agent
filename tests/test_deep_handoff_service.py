@@ -559,3 +559,62 @@ def test_r9_an_unknown_dispatch_status_is_blocked(ctx):
     result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert result.reason == "handoff_integrity_failure"
+
+
+# --- addendum A/B2: existence and validity are separate questions -----------------
+
+
+def test_a_tampered_terminal_schema_is_not_treated_as_absent(ctx):
+    """A recorded terminal with a broken schema must fail closed, not start fresh."""
+
+    service, repository, runs, parent, _gateway, _clock, _outcome = ctx
+    first = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.status == "prepared"
+    child_count = len(runs.list_by_owner_thread(parent.thread_id))
+
+    def mutate(snap):
+        snap["deep_terminal"]["schema_version"] = "tampered-terminal-v9"
+
+    tamper(repository, parent, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    assert result.status == "blocked"
+    # It did not take the fresh path: no new child, and the terminal was not overwritten.
+    assert len(runs.list_by_owner_thread(parent.thread_id)) == child_count
+    assert snapshot(repository, parent)["deep_terminal"]["schema_version"] == "tampered-terminal-v9"
+
+
+def test_a_recorded_terminal_that_is_not_a_dict_is_blocked(ctx):
+    service, repository, runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    child_count = len(runs.list_by_owner_thread(parent.thread_id))
+
+    def mutate(snap):
+        snap["deep_terminal"] = "not-a-terminal"
+
+    tamper(repository, parent, mutate)
+    result = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert len(runs.list_by_owner_thread(parent.thread_id)) == child_count
+
+
+def test_a_tampered_terminal_state_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        snap["deep_terminal"]["state"] = "SOMETHING_ELSE"
+
+    tamper(repository, parent, mutate)
+    assert service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id).status == "blocked"
+
+
+def test_a_tampered_terminal_owner_is_blocked(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        snap["deep_terminal"]["owner"]["turn_id"] = "some-other-turn"
+
+    tamper(repository, parent, mutate)
+    assert service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id).status == "blocked"
