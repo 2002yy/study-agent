@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 内部 UI 整理、字体选择与左侧留白（LOCAL UI GO / 未推送）：** 独立 worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量 base `9d3f928fe0f2bdfebe7ef3ea42b94960c35d8291`，生产提交 `1508c2524f572361003d488f54ac5c1b74e1d331`。12 个前端文件，仅外观、设备字体偏好和对应测试；搜索窗口、后端和会话存储契约保持独立。
+
+**行为：** 桌面左侧外留白 24px，上下 16px，导航与主内容间距 16px；纸白导航与内容用轻边线/12px圆角分区，手机不增加外留白。设置、资料库、引用卡片统一间距、标题和控件层次；复制回答按钮收为紧凑文字操作；空资料提示改为实际的导航上传入口。设置首区新增阅读字体：默认 Noto Sans SC 正文＋Noto Serif SC 标题，可选统一黑体或宋体阅读正文，立即切换并保存在设备 localStorage，未知值降级，存储不可用时仍可在当前页面切换；不写 settings API。已核验本机安装字体名称，使用本机 fallback，未捆绑/下载字体资产。
+
+**验证：** 直接影响集17文件82 PASS；最终单worker前端全量105文件434 PASS/43.29s；tsc＋Vite build、Ruff src/tests/tools、diff-check及范围审查PASS。浏览器默认完整回归64/65 PASS/1.9m，唯一失败是整理学习测试在会话异步恢复前判断按钮不可见、打开抽屉后定位到两个按钮；修复测试等待已恢复消息并选择可见入口，相关桌面2项复验PASS/3.2s，保留首轮失败日志，不称首轮全绿，golden artifact gate通过。新增字体浏览器用例已在桌面/手机通过（立即生效、刷新保存、无settings写入）。实页1600/1280/390/320宽度无页面横向溢出，正文footer在viewport内；已验证实际正文宋体computed font、桌面左24px、三栏/手机设置及512px原头像正常加载。正文截图明确是隔离UI验收样例，未写用户真实会话/资料。纯前端改动无backend L3或Python typing契约变化；前端类型由tsc检查。既有>500kB chunk warning仍作为独立性能债。
+
+**交接：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-interior.json`，interior-focused/unit-full/build/browser-full/browser-retry日志，interior-desktop/fonts/mobile-fonts/reader截图。预览 `http://127.0.0.1:5188/` → 独立API8002。生产提交后tracked clean，临时Playwright配置已删除，本段为docs-only交接；最终head从git与qa-interior.json恢复。main仍为7ff7451d，原.mcp.json/PROJECT_STATUS/package.json/package-lock.json四项dirty保持。无push/PR/新远端CI/merge；下一执行slice：审查并集成本独立UI候选，搜索候选继续由另一窗口独立交付。
+
 **2026-10-08 左侧导航层次优化（LOCAL UI GO / 未推送）：** 延续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `d21387c8bc026a31bce0cd787e4cb8f349687a5e`，生产提交 `ac457c941121d87a65bf2eaf282d5da3a2c3e063`。7文件仅侧栏/资料导航/底部工具展示与对应测试；后端、搜索、角色、阅读及持久化契约不变。
 
 **行为：** 侧栏顶部工作台标识＋全宽新对话按钮；资料区统一为明确的“资料库／打开正文，边读边聊”；最近对话标题与计数单独成区，查找和分组收在可键盘展开的“查找会话”。桌面条目只展示标题和一句目标，活动条目用蓝灰底与左侧指示线；复杂状态在抽屉保留，底层筛选/恢复/重命名/归档逻辑不变。管理图标在鼠标悬停/键盘focus-within时显示，触摸布局保留可见操作。上传资料、设置与工具采用对齐的文字入口；没有用户消息时不出现无效整理按钮。桌面工具菜单限于侧栏宽度/viewport高度，手机沿用抽屉内展开。
