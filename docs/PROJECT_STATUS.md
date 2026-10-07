@@ -8,12 +8,29 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-2 合同准备（contract preparation only）。** 在 exact-main seam 审计完成、Deep-2 detailed contract 写入 docs 并 FROZEN 之前，**不得实现 Deep-2**。Deep-1 已 CLOSED。
+**当前执行权：Deep-2 implementation。** 合同已 FROZEN：[`DEEP_2_CONTRACT.md`](DEEP_2_CONTRACT.md)。实现必须严格留在该 frozen bounded slice 内（§66 allowed surface / §67 forbidden）。
 
 **Current Action：**
 ```text
-Deep-2 contract preparation only.
-Do not implement Deep-2 before exact-main seam audit + FROZEN contract.
+Deep-2 implementation.
+Contract FROZEN in docs/DEEP_2_CONTRACT.md.
+Implementation must stay within the frozen Deep-2 bounded slice.
+```
+
+**Deep-2 seam authority：**
+```text
+exact-main  **41e2d6f9132b0e72b3cf058d913c304f9c066ea0**
+            （Deep-1 closeout 的 docs-only 后继；合同已基于该 exact-main 重新核对实际接口）
+```
+
+**Deep-1 authority（永久不变）：**
+```text
+e5c63c03c9ac77b273f2bfc158111ac676e9bc42 / CI 37599443309
+```
+
+**Standard authority（永久不变）：**
+```text
+c48a1ac313e59ab0104364db519340f1460e84dc / L3 37514856913
 ```
 
 **Deep-1 CLOSED ✅**
