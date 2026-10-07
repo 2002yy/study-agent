@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 中间/右侧独立面板与角色气泡（LOCAL UI GO / 未推送）：** 延续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `8e35e43c32c06fe12430f3fa3eaddee84a812836`，生产提交 `27e74469de252e770e7094e190143e8241aa6a37`，4个前端文件。用户要求中间阅读区和右侧像左侧一样分开，并参考星铁消息气泡；桌面新增16px中右间距，两区分别轻边线/12px圆角，专注模式仍回到单阅读面板。901–1100宽度保留分隔、增加12px外边距；手机继续资料/对话切换。
+
+**行为与边界：** 消息拆为角色头部＋正文气泡＋独立证据轨迹；头像仍96px桌面/80px手机，名字与复制操作靠头像，正文占可用宽度。回复白色、自己的消息蓝灰且靠右，圆角与小气泡尖角表达方向；保留纸白蓝灰及字体选择。只改消息DOM/样式，复制内容、Markdown、安全处理、引用定位、草稿、搜索发送及恢复权限不变；未改变另一个搜索窗口的代码。参考链接：https://www.pcgamer.com/i-love-that-honkai-star-rail-lets-me-be-the-goblin-texter-ive-always-longed-to-be/ 。
+
+**验证：** 前端全量105文件434 PASS/50.69s（bubbles-focused.log实际由npm脚本固定src参数触发全量），最终直接影响集14文件86 PASS/5.41s；最终tsc＋Vite build、Ruff src/tests/tools、diff-check及范围审查PASS。默认完整浏览器66/67 PASS/2.8m（包括长链接、代码表格/IME/滚动/窄屏及Firefox/WebKit golden journeys）；新增桌面面板测试首轮使用错误按钮名“专注阅读”，执行过程中修正不影响已加载用例，首轮失败保留。准确定位实际“专注/恢复并排”后，新增桌面/手机2项复验PASS/7.4s，验证16px间距、专注切换、保留草稿及证据入口；golden artifact gate通过。实页1600/1280/1024/390/320无页面横向溢出，composer在viewport内；头像512px资源正常，三栏与手机气泡截图通过视觉检查。截图正文为隔离UI样例，没有写入真实资料/会话。无后端变更/L3升级，前端静态类型由tsc覆盖；既有>500kB chunk warning保留为独立债。
+
+**交接：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-bubbles.json`、bubbles-focused/impact/build-final/browser-full/browser-retry日志及bubbles-desktop/mobile-chat/chat-wide截图。生产提交后tracked clean，临时PW配置已删除；本段docs-only交接，最终head从git和qa-bubbles恢复。预览5188→独立API8002。main仍7ff7451d及原.mcp.json/PROJECT_STATUS/package.json/package-lock.json四项dirty保持，无push/PR/新CI/merge。下一slice：审查并集成本独立UI候选，搜索候选由另一窗口继续独立验收。
+
 **2026-10-08 内部 UI 整理、字体选择与左侧留白（LOCAL UI GO / 未推送）：** 独立 worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量 base `9d3f928fe0f2bdfebe7ef3ea42b94960c35d8291`，生产提交 `1508c2524f572361003d488f54ac5c1b74e1d331`。12 个前端文件，仅外观、设备字体偏好和对应测试；搜索窗口、后端和会话存储契约保持独立。
 
 **行为：** 桌面左侧外留白 24px，上下 16px，导航与主内容间距 16px；纸白导航与内容用轻边线/12px圆角分区，手机不增加外留白。设置、资料库、引用卡片统一间距、标题和控件层次；复制回答按钮收为紧凑文字操作；空资料提示改为实际的导航上传入口。设置首区新增阅读字体：默认 Noto Sans SC 正文＋Noto Serif SC 标题，可选统一黑体或宋体阅读正文，立即切换并保存在设备 localStorage，未知值降级，存储不可用时仍可在当前页面切换；不写 settings API。已核验本机安装字体名称，使用本机 fallback，未捆绑/下载字体资产。
