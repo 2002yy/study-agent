@@ -8,6 +8,20 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-07 UI 阅读补全与角色头像（LOCAL GO / 未推送）：** 本段覆盖下方上一轮 indexed_text-only 的限制与下一步。继续使用独立 worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`，增量 base `35da9e95976ba4ddceed652221fd3efcb0e1d77a`，生产候选提交 `66398e2855ac706ebb1244e924574e8b3bdd3961`；main 起点仍为 `7ff7451da608775324383968b4c7ed23c5687832`。搜索逻辑窗口继续独立，未修改其研究/搜索服务或主工作树。
+
+**头像与布局：** 四张当前 React 实际引用的头像恢复删除前最后更新版本：三月七 `4f36e795`，刻晴/纳西妲/流萤 `324f4f1d`，不是重新生成或改选候选图；浏览器验证均为512×512原图。删除资源但保留 React URL 是头像消失的根因。助手消息使用上方缩略图，桌面96×96、手机80×80，正文仍占整栏；加载失败显示图标，新角色可重新加载。纸白/蓝灰墨色统一工作台，宋体类标题和本机无衬线正文；左侧增加资料导航，中间独立白纸页，右侧伴读对话。1600宽约216/941/443px，1280宽约192/688/400px。阅读时学习上下文默认折叠、可用键盘展开，打断恢复操作仍直接显示；学习状态、正文、对话保持各自滚动。
+
+**只读阅读补全：** 新增知识资料与会话附件 `/original` GET，要求索引身份和明确revision；会话另校验附件归属、ready状态、存储路径及原始字节hash。PDF原件限制10MiB/30页，并校验解析文字与索引一致；新索引额外保存 `source_sha256` 和解析器产生的 `pdf_page_map`，不变更存储schema、chunk身份或证据资格。旧知识索引没有原字节digest时只能验证解析文字一致，不能声称旧原件的像素/字节身份已被锁定；旧索引无真实页映射时引用定位回到解析行号，不猜页码。PDF.js6.4.299及worker在本地按需载入，原页可翻页/缩放，选段引用通过解析文字；原件缺失/过期仍可显式阅读解析文字。
+
+**网页与附件引用：** 新增 `/sessions/{thread_id}/research-runs/{run_id}/sources/reading` GET，仅从当前会话所属run已保存的成功read中取唯一URL正文，分页绑定返回的run版本；候选、失败read、歧义内容、别的会话均拒绝，不再联网抓取，也不改变发布权限。界面明确标记保存快照及截断，提供原网站链接。临时附件检索结果在服务边界从唯一匹配的索引document与ready附件仓库绑定thread/attachment元数据，兼容旧索引chunk，不写索引、不改评分/身份。已保存历史turn若仍缺归属元数据，继续拒绝猜测归属，不回写历史快照。
+
+**验证与失败恢复：** 前端直接影响集8文件45 PASS；最终全量104文件426 PASS，tsc+Vite build PASS。后端阅读L2八文件83 PASS，加web lookup持久化回归3 PASS；L3只完整运行一次最终生产内容：3549 PASS、6 SKIP、2 FAIL、9 setup ERROR/1428s。两个失败来自RQ1-C要求clean exact-HEAD checkout；9个setup错误来自Windows WinError1450资源不足/SQLite disk I/O，均不在新阅读断言。关闭本批验收浏览器并提交干净候选后，原失败文件定向重测19 PASS/6.88s，未改变生产行为；全量覆盖最终累计3560 PASS、6 SKIP，不能把首轮日志描述为一次全绿。浏览器完整回归首轮50 PASS/3 FAIL；相同生产代码仅重跑失败项3 PASS/19.1s，已有45份加补齐8份成功截图，原global teardown的53份artifact gate PASS。首轮出现刷新/首帧几何/Firefox导航波动，保留trace作资源压力下的稳定性债，不通过修改断言掩盖。
+
+**实页与静态门：** Chromium/Firefox/WebKit均通过原PDF两页渲染/翻页、真实新API保存网页正文；四角色图像加载通过。320/360/390/768/1024/1280/1600宽无页面横向溢出，移动正文footer保持viewport内；选段显式加入已有草稿，scrollTop400切换往返保留，学习上下文展开动作可达。Ruff全src/tests/tools、新增阅读文件formatter、diff-check、范围检查PASS；mypy current122/baseline128，new0。原有主JS>500kB告警继续记录为性能债，PDF代码与worker独立按需载入。CI使用Node24，与PDF依赖engine兼容；本批将worktree Playwright固定为本机维护的1.62.1，安装独立node_modules，未修改main的依赖目录。
+
+**证据与交接：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-v2.json`，frontend-focused/full、build、backend-integration/full/recovery、web-retained-integration、mypy、browser-full/retry-v2日志，以及v2-desktop/mobile-reader/mobile-chat/pdf/page2/web-snapshot/firefox-pdf/webkit-pdf截图和首轮失败trace。视觉样例均明确为隔离UI验收数据；PDF与网页快照经过真实worktree API，未写入用户真实资料/会话。预览 `http://127.0.0.1:5188/` → 独立API8002；原主工作树.mcp.json/PROJECT_STATUS/package.json/package-lock.json四项dirty保留。生产候选提交后tracked clean，本段为docs-only交接，最终head从git与qa-v2.json恢复。无push/PR/新远端CI/merge；LOCAL UI GO不授予搜索、回答或研究资格GO。下一执行slice：审查并集成本独立UI候选，搜索窗口的候选继续独立交付。
+
 **2026-10-07 独立 UI 批次：资料阅读与对话并排（LOCAL GO / 未推送）：** 用户将搜索逻辑交给另一个窗口，本批锁定并排阅读 UI。独立 worktree `D:/study-agent-validation/reading-notebook-ui`，branch `codex/reading-notebook-ui`，base main `7ff7451da608775324383968b4c7ed23c5687832`，生产提交 `2a0befa0e9f429eaf93bdf872487defd9ff8d97a`。设计基准为既有 `bd2e4a8d` 的 `docs/design/NOTEBOOK_PAGE_SPEC.md` 和 desktop/compact 生成例图；本批只将其纸面、色板、排印应用到已有并排阅读，不宣称整套研究笔记本 A 七组件已实现。
 
 **改动与冻结边界：** 四个 reading feature 文件；抽出 DocumentReader，桌面 1600 宽时会话轨216px、正文约941px、对话约443px，近白纸面/深蓝墨色、宋体类标题/本机无衬线正文18px（可调16–22）。增加当前已加载窗口目录、局部标题定位、按绝对行号跳转、切换资料、显式选段/取消提示；多位行号不再折成竖排。正文、对话、展开的学习状态分别滚动；手机资料/对话切换保留DOM/滚动/草稿。目录不冒充整份文档目录；局部跳转不联网，跨窗口读取继续绑定原revision。选段仅追加既有草稿，不自动发送、不改变证据或学习确认权限。reader API/provider/navigation guard、后端搜索/预算/Gate/存储及学习 truth writers 均未修改；复用当前主线已有 Firefly 展示，不重建另一份示例。
