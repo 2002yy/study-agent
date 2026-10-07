@@ -19,13 +19,15 @@ from typing import Any, Callable, Literal
 
 from src.application.deep_execution import DeepExecutionService
 from src.repositories.deep_continuation_repository import (
-    TERMINAL_CHILD_STATUSES,
-    DeepContinuationRepository,
-    DeepFinalizationError,
     REASON_CHILD_MISSING,
     REASON_HANDOFF_INTEGRITY,
     REASON_LINEAGE_MISMATCH,
+    REASON_PARENT_UNAVAILABLE,
     REASON_TERMINAL_INTEGRITY,
+    TERMINAL_CHILD_STATUSES,
+    DeepContinuationRepository,
+    DeepFinalizationError,
+    validate_recorded_terminal,
 )
 from src.repositories.runtime_repository import RuntimeRepository
 from src.repositories.web_lookup_repository import WebLookupRepository
@@ -67,7 +69,7 @@ class DeepContinuationService:
         # not be told anything about its terminal.
         parent = self.repository.get_chat_turn(parent_turn_id)
         if parent is None or parent.thread_id != thread_id:
-            return self._outcome("blocked", parent_turn_id, "", "parent_unavailable")
+            return self._block(parent_turn_id, thread_id, REASON_PARENT_UNAVAILABLE)
 
         read = self.terminal.read_terminal(parent_turn_id, thread_id)
         if not read.present:
@@ -75,20 +77,20 @@ class DeepContinuationService:
         terminal = read.terminal
         if not isinstance(terminal, dict):
             # Recorded but not a terminal: fail closed, and never rewrite what is there.
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY
-            )
+            return self._outcome("blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY)
         if (
             terminal.get("schema_version") != DEEP_TERMINAL_SCHEMA
             or terminal.get("state") != "ESCALATE_DEEP"
         ):
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY
-            )
+            return self._outcome("blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY)
 
         status = str(terminal.get("dispatch_status") or "")
         if status in {"completed", "blocked"}:
-            # First terminal wins: return the durable existing terminal, unchanged.
+            # First terminal wins, but a recorded terminal is not thereby trusted: a completed
+            # terminal without a valid result, or with publication authority, is not settled.
+            valid, why = validate_recorded_terminal(terminal)
+            if not valid:
+                return self._outcome("blocked", parent_turn_id, "", why)
             return DeepContinuationOutcome(
                 status="completed" if status == "completed" else "blocked",
                 parent_turn_id=parent_turn_id,
@@ -97,51 +99,39 @@ class DeepContinuationService:
                 result=terminal.get("result") if isinstance(terminal.get("result"), dict) else None,
             )
         if status != "pending":
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY
-            )
+            return self._block(parent_turn_id, thread_id, REASON_TERMINAL_INTEGRITY)
 
         if parent.status != "completed" or parent.cancel_requested_at:
-            return self._outcome("blocked", parent_turn_id, "", "parent_unavailable")
+            return self._block(parent_turn_id, thread_id, REASON_PARENT_UNAVAILABLE)
 
         owner = terminal.get("owner") or {}
         if owner.get("thread_id") != thread_id or owner.get("turn_id") != parent_turn_id:
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_TERMINAL_INTEGRITY
-            )
+            return self._block(parent_turn_id, thread_id, REASON_TERMINAL_INTEGRITY)
         raw_handoff = terminal.get("handoff")
         if not isinstance(raw_handoff, dict) or not str(
             raw_handoff.get("payload_sha256") or ""
         ):
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_HANDOFF_INTEGRITY
-            )
+            return self._block(parent_turn_id, thread_id, REASON_HANDOFF_INTEGRITY)
         try:
             handoff = load_deep_handoff(raw_handoff)
         except ValueError:
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_HANDOFF_INTEGRITY
-            )
+            return self._block(parent_turn_id, thread_id, REASON_HANDOFF_INTEGRITY)
         if str(handoff.get("parent_turn_id") or "") != parent_turn_id:
-            return self._outcome(
-                "blocked", parent_turn_id, "", REASON_HANDOFF_INTEGRITY
-            )
+            return self._block(parent_turn_id, thread_id, REASON_HANDOFF_INTEGRITY)
 
         child_run_id = str(terminal.get("child_run_id") or "")
         if not child_run_id:
-            return self._outcome("blocked", parent_turn_id, "", REASON_CHILD_MISSING)
+            return self._block(parent_turn_id, thread_id, REASON_CHILD_MISSING)
         child = self.runs.get(child_run_id)
         if child is None:
-            return self._outcome("blocked", parent_turn_id, "", REASON_CHILD_MISSING)
+            return self._block(parent_turn_id, thread_id, REASON_CHILD_MISSING)
         if (
             child.owner_thread_id != thread_id
             or str(child.parent_run_id or "") != str(handoff.get("standard_child_run_id") or "")
             or child.query != str(handoff.get("query") or "")
             or child.query != parent.user_message
         ):
-            return self._outcome(
-                "blocked", parent_turn_id, child_run_id, REASON_LINEAGE_MISMATCH
-            )
+            return self._block(parent_turn_id, thread_id, REASON_LINEAGE_MISMATCH)
 
         if child.status in TERMINAL_CHILD_STATUSES:
             # The most important crash-recovery gate: a terminal child is never re-executed.
@@ -159,7 +149,7 @@ class DeepContinuationService:
         # Completed (or an unexpected status): trust only a re-read of durable truth.
         refreshed = self.runs.get(child_run_id)
         if refreshed is None:
-            return self._outcome("blocked", parent_turn_id, child_run_id, REASON_CHILD_MISSING)
+            return self._block(parent_turn_id, thread_id, REASON_CHILD_MISSING)
         if refreshed.status not in TERMINAL_CHILD_STATUSES:
             return self._outcome("deferred", parent_turn_id, child_run_id, "in_progress")
         return self._finalize(parent_turn_id, thread_id, child_run_id)

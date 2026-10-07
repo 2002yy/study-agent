@@ -140,18 +140,6 @@ def test_f4_a_malformed_recorded_terminal_fails_closed_without_rewriting(ctx):
     assert snapshot(repository, parent)["deep_terminal"] is None
 
 
-def test_f2_f3_an_existing_terminal_is_returned_unchanged(ctx):
-    service, repository, _runs, parent, _prepared, execution = ctx
-    tamper(
-        repository,
-        parent,
-        lambda snap: snap["deep_terminal"].__setitem__("dispatch_status", "completed"),
-    )
-    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
-    assert result.status == "completed"
-    assert execution.calls == 0
-
-
 # --- F5 / F6: lineage -------------------------------------------------------------
 
 
@@ -165,6 +153,8 @@ def test_f5_a_missing_child_is_blocked(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert execution.calls == 0
+    # Durable, not merely returned: the parent terminal really moved to blocked.
+    assert snapshot(repository, parent)["deep_terminal"]["dispatch_status"] == "blocked"
 
 
 def test_f6_a_lineage_mismatch_is_blocked(ctx):
@@ -177,6 +167,7 @@ def test_f6_a_lineage_mismatch_is_blocked(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert execution.calls == 0
+    assert snapshot(repository, parent)["deep_terminal"]["dispatch_status"] == "blocked"
 
 
 def test_a_wrong_thread_is_blocked(ctx):
@@ -316,6 +307,7 @@ def test_f17_a_tampered_seed_blocks_finalization(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert result.reason == "seed_integrity_failure"
+    assert snapshot(repository, parent)["deep_terminal"]["dispatch_status"] == "blocked"
 
 
 def test_f18_a_tampered_envelope_blocks_finalization(ctx):
@@ -335,6 +327,7 @@ def test_f18_a_tampered_envelope_blocks_finalization(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert result.reason == "execution_envelope_invalid"
+    assert snapshot(repository, parent)["deep_terminal"]["dispatch_status"] == "blocked"
 
 
 def test_f19_a_changed_handoff_blocks_finalization(ctx):
@@ -348,6 +341,7 @@ def test_f19_a_changed_handoff_blocks_finalization(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert result.reason == "handoff_integrity_failure"
+    assert snapshot(repository, parent)["deep_terminal"]["dispatch_status"] == "blocked"
 
 
 # --- F22 / F23 / F25: crash and race windows --------------------------------------
@@ -460,3 +454,107 @@ def test_f35_seed_refs_that_disagree_with_the_handoff_block_finalization(ctx):
     result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
     assert result.status == "blocked"
     assert result.reason == "seed_integrity_failure"
+
+
+# --- review round 1: existing-terminal integrity and transaction ordering ----------
+
+
+def test_a_valid_completed_terminal_is_returned_unchanged(ctx):
+    service, repository, _runs, parent, prepared, execution = ctx
+    set_child_status(repository, prepared.child_run_id, "completed")
+    first = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    second = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.status == second.status == "completed"
+    assert first.result == second.result
+    assert execution.calls == 0
+
+
+def test_a_completed_terminal_without_a_result_is_not_trusted(ctx):
+    service, repository, _runs, parent, _prepared, execution = ctx
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"].update(
+            {"dispatch_status": "completed", "result": None}
+        ),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+    assert execution.calls == 0
+
+
+def test_a_completed_terminal_that_can_publish_is_not_trusted(ctx):
+    service, repository, _runs, parent, prepared, execution = ctx
+    set_child_status(repository, prepared.child_run_id, "completed")
+    service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        snap["deep_terminal"]["result"]["publication_authority"] = True
+
+    tamper(repository, parent, mutate)
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_a_blocked_terminal_with_a_raw_reason_is_not_trusted(ctx):
+    service, repository, _runs, parent, _prepared, execution = ctx
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"].update(
+            {"dispatch_status": "blocked", "reason": "Traceback (most recent call last)"}
+        ),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_first_terminal_wins_before_positive_validation(ctx):
+    """A settled parent must not be re-examined against a child that has since broken."""
+
+    service, repository, _runs, parent, prepared, execution = ctx
+    set_child_status(repository, prepared.child_run_id, "completed")
+    service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    settled = snapshot(repository, parent)["deep_terminal"]["result"]["child_terminal_sha256"]
+
+    # Damage the child after the parent settled.
+    with repository.database.connect() as connection:
+        row = connection.execute(
+            "SELECT research_context FROM web_lookup_runs WHERE id = ?",
+            (prepared.child_run_id,),
+        ).fetchone()
+        context = json.loads(row["research_context"])
+        context["deep"]["seed"]["sources"][0]["content"] = "damaged after settle"
+        connection.execute(
+            "UPDATE web_lookup_runs SET research_context = ? WHERE id = ?",
+            (json.dumps(context), prepared.child_run_id),
+        )
+
+    # Both transitions must return the settled terminal without touching the child.
+    finalized = service.terminal.finalize(
+        parent_turn_id=parent.id,
+        thread_id=parent.thread_id,
+        expected_child_run_id=prepared.child_run_id,
+    )
+    assert finalized["dispatch_status"] == "completed"
+    assert finalized["result"]["child_terminal_sha256"] == settled
+    blocked = service.terminal.block(
+        parent_turn_id=parent.id, thread_id=parent.thread_id, reason="late_failure"
+    )
+    assert blocked["dispatch_status"] == "completed"
+
+
+def test_a_blocked_reason_is_bounded(ctx):
+    _service, repository, _runs, parent, _prepared, _execution = ctx
+    from src.repositories.deep_continuation_repository import DeepContinuationRepository
+
+    repo = DeepContinuationRepository(repository.database)
+    terminal = repo.block(
+        parent_turn_id=parent.id,
+        thread_id=parent.thread_id,
+        reason="Traceback: KeyError(\"secret\")",
+    )
+    assert terminal["reason"] == "admission_failed"

@@ -305,3 +305,39 @@ def test_f40_the_deep_layer_never_regenerates_the_answer():
             "publication_authority\": True",
         ):
             assert forbidden not in text, f"{name} must not touch {forbidden}"
+
+
+# --- review round 1: the runner singleton must not survive a cache reset -------------
+
+
+def test_the_runner_is_dropped_by_the_runtime_cache_reset():
+    from src.application import runtime_repository as runtime
+
+    runtime.get_chat_service.cache_clear()
+    runtime.get_deep_trigger_runner.cache_clear()
+    try:
+        old = runtime.get_deep_trigger_runner()
+        runtime.reset_runtime_repository_cache()
+        new = runtime.get_deep_trigger_runner()
+        assert new is not old
+        # The new runner captures the current singletons.
+        assert new.repository.database is runtime.get_runtime_repository().database
+    finally:
+        runtime.get_deep_trigger_runner.cache_clear()
+        runtime.get_chat_service.cache_clear()
+
+
+def test_a_running_runner_is_stopped_by_the_cache_reset():
+    from src.application import runtime_repository as runtime
+
+    runtime.get_chat_service.cache_clear()
+    runtime.get_deep_trigger_runner.cache_clear()
+    try:
+        old = runtime.get_deep_trigger_runner()
+        old.start()
+        assert old.running is True
+        runtime.reset_runtime_repository_cache()
+        assert old.running is False, "a reset must not leave an old worker scanning"
+    finally:
+        runtime.get_deep_trigger_runner.cache_clear()
+        runtime.get_chat_service.cache_clear()

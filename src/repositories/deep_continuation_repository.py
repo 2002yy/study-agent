@@ -5,11 +5,17 @@ small on purpose - status, stop reason, provider status, a couple of digests - b
 evidence itself stays in the child's durable storage. A parent snapshot is a control plane, not
 a second evidence store.
 
-Everything is re-verified inside one transaction. The service already validated at admission,
-but a child terminal can be reached long after that, so the transaction re-reads the parent, the
-terminal, the handoff, the child, the execution envelope and the seed, and fails closed if any
-of them changed in between. The first terminal wins: a completed or blocked parent terminal is
-never rewritten.
+Validation is layered, and the layering is the point.
+
+* **Control plane** (parent, terminal top level, owner) is read inside the transaction and is
+  required by every transition.
+* **Positive validation** (handoff, child, execution envelope, seed) is required only to write a
+  *successful* terminal. Blocking records that something is wrong, so it must not require the
+  very component that was found broken to validate cleanly - otherwise the corruption that
+  caused the block would also prevent the block from being persisted.
+* **First terminal wins** is decided immediately after the control-plane read, before any
+  positive validation, so a completed parent is never re-examined against a child that has since
+  been damaged.
 """
 
 from __future__ import annotations
@@ -21,10 +27,7 @@ from typing import Any, Mapping
 
 from src.domain.runtime_entities import utc_now
 from src.infrastructure.sqlite.database import RuntimeDatabase
-from src.web.research.deep_handoff import (
-    DEEP_TERMINAL_SCHEMA,
-    load_deep_handoff,
-)
+from src.web.research.deep_handoff import DEEP_TERMINAL_SCHEMA, load_deep_handoff
 from src.web.research.deep_runtime import (
     bind_execution_envelope,
     read_execution_envelope,
@@ -36,6 +39,7 @@ from src.web.research.deep_seed import seed_refs_match
 
 RESULT_SCHEMA = "deep-auto-continuation-v1"
 TERMINAL_CHILD_STATUSES = frozenset({"completed", "partial", "failed", "cancelled"})
+TERMINAL_DISPATCH_STATUSES = frozenset({"completed", "blocked"})
 
 # Bounded blocked reasons. Raw exception text never reaches durable storage.
 REASON_PARENT_UNAVAILABLE = "parent_unavailable"
@@ -45,6 +49,24 @@ REASON_CHILD_MISSING = "child_missing"
 REASON_LINEAGE_MISMATCH = "lineage_mismatch"
 REASON_SEED_INTEGRITY = "seed_integrity_failure"
 REASON_ENVELOPE_INVALID = "execution_envelope_invalid"
+REASON_CLAIM_ENGINE_UNUSABLE = "claim_engine_unusable"
+REASON_EXECUTION_STATE_MISMATCH = "execution_state_mismatch"
+REASON_ADMISSION_FAILED = "admission_failed"
+
+BLOCKED_REASONS = frozenset(
+    {
+        REASON_PARENT_UNAVAILABLE,
+        REASON_TERMINAL_INTEGRITY,
+        REASON_HANDOFF_INTEGRITY,
+        REASON_CHILD_MISSING,
+        REASON_LINEAGE_MISMATCH,
+        REASON_SEED_INTEGRITY,
+        REASON_ENVELOPE_INVALID,
+        REASON_CLAIM_ENGINE_UNUSABLE,
+        REASON_EXECUTION_STATE_MISMATCH,
+        REASON_ADMISSION_FAILED,
+    }
+)
 
 
 class DeepFinalizationError(ValueError):
@@ -59,6 +81,11 @@ class DeepFinalizationError(ValueError):
 class DeepTerminalRead:
     present: bool
     terminal: Any
+
+
+def bounded_reason(reason: str) -> str:
+    value = str(reason or "")
+    return value if value in BLOCKED_REASONS else REASON_ADMISSION_FAILED
 
 
 def child_terminal_projection(child: Any) -> dict[str, Any]:
@@ -81,6 +108,51 @@ def child_terminal_digest(child: Any) -> str:
     ).hexdigest()
 
 
+def validate_recorded_terminal(terminal: Any) -> tuple[bool, str]:
+    """A read-only check of an already-recorded terminal. Never rewrites anything.
+
+    First-terminal-wins does not mean a recorded terminal is trusted: a completed terminal
+    without a valid result, or with publication authority, is not a terminal we can report as
+    settled.
+    """
+
+    if not isinstance(terminal, dict):
+        return (False, REASON_TERMINAL_INTEGRITY)
+    if (
+        terminal.get("schema_version") != DEEP_TERMINAL_SCHEMA
+        or terminal.get("state") != "ESCALATE_DEEP"
+    ):
+        return (False, REASON_TERMINAL_INTEGRITY)
+    owner = terminal.get("owner")
+    if not isinstance(owner, Mapping) or not owner.get("thread_id") or not owner.get("turn_id"):
+        return (False, REASON_TERMINAL_INTEGRITY)
+    status = str(terminal.get("dispatch_status") or "")
+    if status == "completed":
+        result = terminal.get("result")
+        if not isinstance(result, Mapping):
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if result.get("schema_version") != RESULT_SCHEMA:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if result.get("publication_authority") is not False:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if str(result.get("child_run_id") or "") != str(terminal.get("child_run_id") or ""):
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if str(result.get("child_status") or "") not in TERMINAL_CHILD_STATUSES:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        handoff = terminal.get("handoff")
+        recorded = str((handoff or {}).get("payload_sha256") or "") if isinstance(handoff, Mapping) else ""
+        if not recorded or str(result.get("handoff_sha256") or "") != recorded:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        return (True, "")
+    if status == "blocked":
+        if str(terminal.get("reason") or "") not in BLOCKED_REASONS:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        return (True, "")
+    if status == "pending":
+        return (True, "")
+    return (False, REASON_TERMINAL_INTEGRITY)
+
+
 class DeepContinuationRepository:
     def __init__(self, database: RuntimeDatabase):
         self.database = database
@@ -100,15 +172,12 @@ class DeepContinuationRepository:
             return DeepTerminalRead(False, None)
         return DeepTerminalRead(True, snapshot["deep_terminal"])
 
-    def _validate_locked(
-        self,
-        connection: Any,
-        *,
-        parent_turn_id: str,
-        thread_id: str,
-        require_terminal_child: bool = True,
+    # --- control plane ---------------------------------------------------------------
+
+    def _read_control_locked(
+        self, connection: Any, *, parent_turn_id: str, thread_id: str
     ) -> tuple[dict, dict, Any]:
-        """Re-verify the whole authority chain inside the open transaction."""
+        """Parent + terminal top level. Required by every transition."""
 
         parent_row = connection.execute(
             "SELECT * FROM chat_turns WHERE id = ?", (parent_turn_id,)
@@ -131,6 +200,20 @@ class DeepContinuationRepository:
         owner = terminal.get("owner") or {}
         if owner.get("thread_id") != thread_id or owner.get("turn_id") != parent_turn_id:
             raise DeepFinalizationError(REASON_TERMINAL_INTEGRITY)
+        return snapshot, terminal, parent_row
+
+    # --- positive validation ---------------------------------------------------------
+
+    def _positive_validate_locked(
+        self,
+        connection: Any,
+        *,
+        parent_turn_id: str,
+        thread_id: str,
+        parent_row: Any,
+        terminal: dict,
+    ) -> Any:
+        """Everything that must still hold to write a *successful* terminal."""
 
         raw_handoff = terminal.get("handoff")
         if not isinstance(raw_handoff, Mapping):
@@ -164,10 +247,7 @@ class DeepContinuationRepository:
             or str(child_row["query"] or "") != str(handoff.get("query") or "")
         ):
             raise DeepFinalizationError(REASON_LINEAGE_MISMATCH)
-        child_status = str(child_row["status"] or "")
-        if require_terminal_child and child_status not in TERMINAL_CHILD_STATUSES:
-            # Only finalization needs a terminal child. Blocking records an admission failure,
-            # which can happen while the child is still pending or running.
+        if str(child_row["status"] or "") not in TERMINAL_CHILD_STATUSES:
             raise DeepFinalizationError(REASON_LINEAGE_MISMATCH)
 
         child_context = json.loads(child_row["research_context"] or "{}") or {}
@@ -191,17 +271,11 @@ class DeepContinuationRepository:
             list(handoff.get("seed_source_refs") or []), list(seed_value.get("refs") or [])
         ):
             raise DeepFinalizationError(REASON_SEED_INTEGRITY)
+        return child_row
 
-        return snapshot, terminal, child_row
+    # --- transitions -----------------------------------------------------------------
 
-    def _write(
-        self,
-        connection: Any,
-        *,
-        parent_turn_id: str,
-        snapshot: dict,
-        terminal: dict,
-    ) -> None:
+    def _write(self, connection: Any, *, parent_turn_id: str, snapshot: dict) -> None:
         connection.execute(
             "UPDATE chat_turns SET rag_snapshot = ?, updated_at = ? WHERE id = ?",
             (json.dumps(snapshot, ensure_ascii=False), utc_now(), parent_turn_id),
@@ -218,29 +292,36 @@ class DeepContinuationRepository:
 
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            snapshot, terminal, child_row = self._validate_locked(
+            snapshot, terminal, parent_row = self._read_control_locked(
                 connection, parent_turn_id=parent_turn_id, thread_id=thread_id
             )
-            if str(terminal.get("dispatch_status") or "") in {"completed", "blocked"}:
+            # First terminal wins, before any positive validation: a settled parent must never
+            # be re-examined against a child that has since been damaged.
+            if str(terminal.get("dispatch_status") or "") in TERMINAL_DISPATCH_STATUSES:
                 return dict(terminal)
+            if str(terminal.get("dispatch_status") or "") != "pending":
+                raise DeepFinalizationError(REASON_TERMINAL_INTEGRITY)
             if str(terminal.get("child_run_id") or "") != str(expected_child_run_id):
                 raise DeepFinalizationError(REASON_CHILD_MISSING)
-
-            projection = child_terminal_projection(
-                _ChildView(child_row, str(child_row["status"] or ""))
+            child_row = self._positive_validate_locked(
+                connection,
+                parent_turn_id=parent_turn_id,
+                thread_id=thread_id,
+                parent_row=parent_row,
+                terminal=terminal,
             )
+
+            view = _ChildView(child_row)
             result = {
                 "schema_version": RESULT_SCHEMA,
-                "child_run_id": projection["child_run_id"],
-                "child_status": projection["child_status"],
-                "provider_status": projection["provider_status"],
-                "stop_reason": projection["stop_reason"],
-                "answer_confidence": projection["answer_confidence"],
-                "completed_at": projection["completed_at"],
+                "child_run_id": view.id,
+                "child_status": view.status,
+                "provider_status": view.provider_status,
+                "stop_reason": view.stop_reason,
+                "answer_confidence": view.answer_confidence,
+                "completed_at": view.completed_at,
                 "handoff_sha256": str((terminal.get("handoff") or {}).get("payload_sha256") or ""),
-                "child_terminal_sha256": child_terminal_digest(
-                    _ChildView(child_row, str(child_row["status"] or ""))
-                ),
+                "child_terminal_sha256": child_terminal_digest(view),
                 "publication_authority": False,
             }
             terminal = dict(terminal)
@@ -248,12 +329,7 @@ class DeepContinuationRepository:
             terminal["result"] = result
             snapshot = dict(snapshot)
             snapshot["deep_terminal"] = terminal
-            self._write(
-                connection,
-                parent_turn_id=parent_turn_id,
-                snapshot=snapshot,
-                terminal=terminal,
-            )
+            self._write(connection, parent_turn_id=parent_turn_id, snapshot=snapshot)
         return terminal
 
     def block(
@@ -263,29 +339,29 @@ class DeepContinuationRepository:
         thread_id: str,
         reason: str,
     ) -> dict:
-        """pending -> blocked, in one transaction. Only a bounded reason is recorded."""
+        """pending -> blocked, in one transaction.
 
+        Deliberately does not run positive validation: the component that failed is exactly what
+        caused this block, and requiring it to validate cleanly would prevent the block from
+        ever being recorded.
+        """
+
+        bounded = bounded_reason(reason)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            snapshot, terminal, _child = self._validate_locked(
-                connection,
-                parent_turn_id=parent_turn_id,
-                thread_id=thread_id,
-                require_terminal_child=False,
+            snapshot, terminal, _parent_row = self._read_control_locked(
+                connection, parent_turn_id=parent_turn_id, thread_id=thread_id
             )
-            if str(terminal.get("dispatch_status") or "") in {"completed", "blocked"}:
+            if str(terminal.get("dispatch_status") or "") in TERMINAL_DISPATCH_STATUSES:
                 return dict(terminal)
+            if str(terminal.get("dispatch_status") or "") != "pending":
+                raise DeepFinalizationError(REASON_TERMINAL_INTEGRITY)
             terminal = dict(terminal)
             terminal["dispatch_status"] = "blocked"
-            terminal["reason"] = str(reason)
+            terminal["reason"] = bounded
             snapshot = dict(snapshot)
             snapshot["deep_terminal"] = terminal
-            self._write(
-                connection,
-                parent_turn_id=parent_turn_id,
-                snapshot=snapshot,
-                terminal=terminal,
-            )
+            self._write(connection, parent_turn_id=parent_turn_id, snapshot=snapshot)
         return terminal
 
 
@@ -294,11 +370,14 @@ class _ChildView:
     """Adapts a raw row to the attribute names the projection uses."""
 
     row: Any
-    status: str
 
     @property
     def id(self) -> str:
         return str(self.row["id"])
+
+    @property
+    def status(self) -> str:
+        return str(self.row["status"] or "")
 
     @property
     def provider_status(self) -> str:

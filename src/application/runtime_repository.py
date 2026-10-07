@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from functools import lru_cache
 from pathlib import Path
 
@@ -474,6 +475,15 @@ def get_tool_service():
 
 
 def reset_runtime_repository_cache() -> None:
+    # The Deep runner captures the repository and the dispatcher, so it must be stopped and
+    # dropped with them. Otherwise a reset would leave an old background thread scanning an old
+    # dependency stack while everything else moved on.
+    if get_deep_trigger_runner.cache_info().currsize:
+        try:
+            get_deep_trigger_runner().stop()
+        except Exception:
+            logging.getLogger(__name__).exception("deep trigger stop failed during cache reset")
+    get_deep_trigger_runner.cache_clear()
     get_web_tool_agent.cache_clear()
     get_github_work_item_service.cache_clear()
     get_github_change_impact_service.cache_clear()
