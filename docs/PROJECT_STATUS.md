@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 输入框内发送按钮（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `6e41bf4c6df418257f8bf84e23bb3ed27c8991ce`，生产提交 `111eb5a10f8a393416b7b2c9f90aa3d59c7899de`。3个前端文件。按用户要求把发送/搜索/停止按钮收进composer-main内部的底部右侧行，textarea独占上方区域，不覆盖文字；输入框因没有外置按钮而获得完整宽度，生成时停止保持同一位置与可识别颜色。键盘发送、IME、搜索等价和角色选择逻辑不变。
+
+**验证与失败样本：** 直接影响集12文件69 PASS/3.17s；前端全量105文件434 PASS/67.79s，tsc＋Vite build、Ruff和diff-check PASS。浏览器影响集30项首轮29 PASS/1 FAIL/51.9s；360×520长链接Range测量拿到零行盒，单项初次复验同样失败。实页诊断触屏会话恢复时观察到Element detached，恢复后408字符长链接具有14个非零行盒、正常换行。测试改为5秒有界重测完整布局断言，不改变Range/换行/容器边界要求，完整复杂内容/IME/滚动单项复验PASS/6.7s；首轮与失败复验日志保留，不称首轮全绿。浏览器本轮是定向影响集，没有重新执行golden全项目artifact gate。1600/1280/390/320实页按钮完全在框内、textarea不与按钮重叠、composer在viewport内且无页面横向溢出；搜索模式、320窄屏角色设置展开也确认。截图是隔离验收会话/正文，未写真实资料。纯前端UI改动无backend L3升级，前端类型由tsc覆盖；既有chunk warning保留。
+
+**交接：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-send-inside.json`，send-inside-focused/unit-full/build/browser/browser-retry/browser-retry-fixed日志及send-inside-composer/desktop/mobile截图。预览5188→独立API8002。生产提交后tracked clean，临时PW配置已删除，本段docs-only；最终head从git与qa-send-inside恢复。main7ff7451d与四项原dirty保留，无push/PR/新CI/merge。下一slice：审查并集成本独立UI候选，搜索候选仍由另一窗口独立验收。
+
 **2026-10-08 中间/右侧独立面板与角色气泡（LOCAL UI GO / 未推送）：** 延续独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `8e35e43c32c06fe12430f3fa3eaddee84a812836`，生产提交 `27e74469de252e770e7094e190143e8241aa6a37`，4个前端文件。用户要求中间阅读区和右侧像左侧一样分开，并参考星铁消息气泡；桌面新增16px中右间距，两区分别轻边线/12px圆角，专注模式仍回到单阅读面板。901–1100宽度保留分隔、增加12px外边距；手机继续资料/对话切换。
 
 **行为与边界：** 消息拆为角色头部＋正文气泡＋独立证据轨迹；头像仍96px桌面/80px手机，名字与复制操作靠头像，正文占可用宽度。回复白色、自己的消息蓝灰且靠右，圆角与小气泡尖角表达方向；保留纸白蓝灰及字体选择。只改消息DOM/样式，复制内容、Markdown、安全处理、引用定位、草稿、搜索发送及恢复权限不变；未改变另一个搜索窗口的代码。参考链接：https://www.pcgamer.com/i-love-that-honkai-star-rail-lets-me-be-the-goblin-texter-ive-always-longed-to-be/ 。
