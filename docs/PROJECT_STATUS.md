@@ -60,11 +60,9 @@ known boundary
             no active runtime execution
             no Deep-2 activation
 
-next single slice
-            Deep-2 exact-main implementation-seam audit
-            against e5c63c03
-            → freeze detailed Deep-2 contract
-            → then implementation
+next single slice (COMPLETED)
+            Deep-2 exact-main implementation-seam audit (done)
+            → detailed Deep-2 contract frozen in docs/DEEP_2_CONTRACT.md
 ```
 
 > Deep-1 authority 永久为 `e5c63c03` / CI `37599443309`。此后 main 上的 docs-only closeout 提交只是该记录的载体，**不表示新 SHA 跑过验证**；按 `AGENTS.md` §4.5 / §10.4，docs-only 变更不需要重跑 L3 或 full suite。
@@ -103,9 +101,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（Deep-1 已 CLOSED；当前 = Deep-2 合同准备）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 已 CLOSED；当前 = Deep-2 implementation）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅；Deep-2 = 合同准备中（未实现）`；`UI = 后置`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅；Deep-2 = implementation（合同已 FROZEN，尚未实现）`；`UI = 后置`。
 
 ## 0A. 冻结研究路线
 
@@ -114,7 +112,7 @@ Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
 Standard（CLOSED）
   → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
-Deep（Deep-1 CLOSED；Deep-2 合同准备中）
+Deep（Deep-1 CLOSED；Deep-2 implementation）
   → plan / gap / Evidence Gain / saturation / interruption-resume
   → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
