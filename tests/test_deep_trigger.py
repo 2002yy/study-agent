@@ -466,3 +466,99 @@ def test_periodic_rescan_recovers_without_a_wake(db):
         assert seen == ["turn-1"]
     finally:
         runner.stop()
+
+
+# --- review round 1: the whole durable queue must stay reachable ------------------
+
+
+def _bulk_unrelated(database, count):
+    """Filler turns that are newer than the item under test."""
+
+    with database.connect() as connection:
+        for n in range(count):
+            connection.execute(
+                "INSERT INTO chat_turns"
+                ' (id, thread_id, user_message, assistant_message, status,'
+                '  rag_snapshot, created_at, updated_at)'
+                ' VALUES (?,?,?,?,?,?,?,?)',
+                (
+                    f"filler-{n:04d}",
+                    THREAD,
+                    "q",
+                    "a",
+                    "completed",
+                    "{}",
+                    "2026-10-07T00:00:00+00:00",
+                    f"2026-10-07T12:{n // 60:02d}:{n % 60:02d}+00:00",
+                ),
+            )
+
+
+def _oldest_updated_at(database):
+    return "2000-01-01T00:00:00+00:00"
+
+
+def _add_old_turn(database, turn_id, snapshot):
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO chat_turns"
+            ' (id, thread_id, user_message, assistant_message, status,'
+            '  rag_snapshot, created_at, updated_at)'
+            ' VALUES (?,?,?,?,?,?,?,?)',
+            (
+                turn_id,
+                THREAD,
+                "q",
+                "a",
+                "completed",
+                json.dumps(snapshot),
+                _oldest_updated_at(database),
+                _oldest_updated_at(database),
+            ),
+        )
+
+
+def test_an_old_pending_item_is_reachable_behind_a_full_page(db):
+    """A fixed pre-filter window would make older durable work permanently invisible."""
+
+    _bulk_unrelated(db, 250)
+    _add_old_turn(db, "old-pending", {"deep_terminal": _deep_terminal()})
+    items = DeepTriggerRepository(db).discover()
+    assert ids(items) == ["old-pending"]
+    assert kinds(items) == [PENDING]
+
+
+def test_an_old_arm_item_is_reachable_behind_a_full_page(db):
+    _bulk_unrelated(db, 250)
+    _add_old_turn(db, "old-arm", _arm_snapshot())
+    items = DeepTriggerRepository(db).discover()
+    assert ids(items) == ["old-arm"]
+    assert kinds(items) == [ARM]
+
+
+def test_paging_still_respects_the_budget(db):
+    _bulk_unrelated(db, 250)
+    _add_old_turn(db, "old-arm", _arm_snapshot())
+    _add_old_turn(db, "older-pending", {"deep_terminal": _deep_terminal()})
+    assert kinds(DeepTriggerRepository(db).discover(arm_limit=1, pending_limit=0)) == [ARM]
+
+
+def test_a_null_deep_terminal_is_not_an_arm_candidate(db):
+    """Existence, not truthiness: a recorded-but-unusable terminal is not absent."""
+
+    snapshot = _arm_snapshot()
+    snapshot["deep_terminal"] = None
+    add_turn(db, "turn-null", snapshot)
+    assert DeepTriggerRepository(db).discover() == ()
+
+
+def test_an_empty_or_malformed_recorded_terminal_is_not_an_arm_candidate(db):
+    for turn_id, value in (
+        ("turn-empty", {}),
+        ("turn-garbage", "garbage"),
+        ("turn-wrong-schema", {"schema_version": "wrong"}),
+    ):
+        snapshot = _arm_snapshot()
+        snapshot["deep_terminal"] = value
+        add_turn(db, turn_id, snapshot)
+    assert DeepTriggerRepository(db).discover() == ()
