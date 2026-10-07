@@ -411,3 +411,207 @@ def test_deep_budget_profile_is_the_frozen_one():
     assert DEEP_V1_BUDGET.soft_timeout_seconds == 120
     assert DEEP_V1_BUDGET.hard_timeout_seconds == 180
     assert DEEP_V1_BUDGET.max_total_chars == 80_000
+
+
+# --- review round 1: durable integrity, stale resume, taxonomy ----------------------
+
+
+def _child_context(repository, child_run_id):
+    import json
+
+    with repository.database.connect() as connection:
+        row = connection.execute(
+            "SELECT research_context FROM web_lookup_runs WHERE id = ?", (child_run_id,)
+        ).fetchone()
+        return json.loads(row["research_context"])
+
+
+def _write_child_context(repository, child_run_id, context):
+    import json
+
+    with repository.database.connect() as connection:
+        connection.execute(
+            "UPDATE web_lookup_runs SET research_context = ? WHERE id = ?",
+            (json.dumps(context), child_run_id),
+        )
+
+
+def test_b1_the_envelope_records_the_real_handoff_digest(ctx):
+    service, repository, runs, parent, _clock, prepared, _dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    envelope = load_execution_envelope(runs.get(prepared.child_run_id).research_context)
+    expected = snapshot(repository, parent)["deep_terminal"]["handoff"]["payload_sha256"]
+    assert expected
+    assert envelope["handoff_sha256"] == expected
+
+
+def test_b2_an_envelope_bound_to_another_parent_is_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls = dispatcher.calls
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["execution"]["parent_turn_id"] = "some-other-turn"
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == calls
+
+
+def test_b2_an_envelope_bound_to_another_handoff_is_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls = dispatcher.calls
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["execution"]["handoff_sha256"] = "f" * 64
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == calls
+
+
+def test_b3_a_present_malformed_envelope_is_blocked_not_reattached(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls = dispatcher.calls
+    context = _child_context(repository, prepared.child_run_id)
+    original = context["deep"]["execution"]
+    context["deep"]["execution"] = "garbage"
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == calls
+    # It was not overwritten with a fresh envelope.
+    assert _child_context(repository, prepared.child_run_id)["deep"]["execution"] == "garbage"
+    assert original
+
+
+def test_b4_seed_sources_that_disagree_with_refs_are_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    context = _child_context(repository, prepared.child_run_id)
+    # The refs stay trusted; only the data plane the runtime consumes is rewritten.
+    context["deep"]["seed"]["sources"][0]["url"] = "https://evil.example/x"
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "seed_integrity_failure"
+    assert dispatcher.calls == 0
+
+
+def test_b4_a_changed_field_association_is_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["seed"]["sources"][0]["fields"] = ["some_other_field"]
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == 0
+
+
+def test_b4_a_changed_origin_is_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    context = _child_context(repository, prepared.child_run_id)
+    context["deep"]["seed"]["sources"][0]["origin"] = "forged_origin"
+    _write_child_context(repository, prepared.child_run_id, context)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert dispatcher.calls == 0
+
+
+def test_b6_a_stale_running_child_is_recoverable_not_deferred(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls = dispatcher.calls
+    with repository.database.connect() as connection:
+        import json
+
+        row = connection.execute(
+            "SELECT research_context FROM web_lookup_runs WHERE id = ?",
+            (prepared.child_run_id,),
+        ).fetchone()
+        context = json.loads(row["research_context"])
+        # A dead owner: the operation started long ago.
+        context["operation"]["active_operation_started_at"] = "2000-01-01T00:00:00+00:00"
+        connection.execute(
+            "UPDATE web_lookup_runs SET status = 'running', research_context = ? WHERE id = ?",
+            (json.dumps(context), prepared.child_run_id),
+        )
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status != "blocked"
+    assert dispatcher.calls == calls + 1
+
+
+def test_b6_a_live_running_child_is_deferred(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    calls = dispatcher.calls
+    with repository.database.connect() as connection:
+        import json
+
+        row = connection.execute(
+            "SELECT research_context FROM web_lookup_runs WHERE id = ?",
+            (prepared.child_run_id,),
+        ).fetchone()
+        context = json.loads(row["research_context"])
+        context["operation"]["active_operation_started_at"] = datetime.now(
+            timezone.utc
+        ).isoformat()
+        connection.execute(
+            "UPDATE web_lookup_runs SET status = 'running', research_context = ? WHERE id = ?",
+            (json.dumps(context), prepared.child_run_id),
+        )
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "deferred"
+    assert result.reason == "lease_busy"
+    assert dispatcher.calls == calls
+
+
+def test_a_lease_race_is_deferred_not_blocked(ctx):
+    """A dispatch that loses the operation race is contention, not an integrity failure.
+
+    The racer is simulated honestly: another owner acquires the run first, so the durable child
+    really is running with a live owner by the time this call loses.
+    """
+
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+
+    class RacingDispatcher:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, run_id):
+            self.calls += 1
+            with repository.database.connect() as connection:
+                import json
+
+                row = connection.execute(
+                    "SELECT research_context FROM web_lookup_runs WHERE id = ?", (run_id,)
+                ).fetchone()
+                context = json.loads(row["research_context"])
+                context["operation"]["active_operation_started_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+                connection.execute(
+                    "UPDATE web_lookup_runs SET status = 'running', research_context = ? "
+                    "WHERE id = ?",
+                    (json.dumps(context), run_id),
+                )
+            raise ValueError("WebLookupRun is not resumable")
+
+    racing = RacingDispatcher()
+    service.dispatch = racing
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "deferred"
+    assert result.reason == "lease_busy"
+    assert racing.calls == 1
+
+
+def test_an_unknown_error_is_not_converted_to_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, _dispatcher = ctx
+
+    class Exploding:
+        def execute(self, run_id):
+            raise RuntimeError("provider exploded")
+
+    service.dispatch = Exploding()
+    with pytest.raises(RuntimeError):
+        service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)

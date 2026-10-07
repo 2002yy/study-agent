@@ -24,6 +24,8 @@ from src.web.research.contracts import (
     build_research_state,
 )
 from src.web.research.deep_runtime import (
+    deep_preflight,
+    verify_seed_projection,
     SEED_DISCOVERY_METHOD,
     SEED_FINAL_BACKEND,
     SEED_PROVIDER,
@@ -273,3 +275,95 @@ def _to_pool_item(candidate):
     from src.application.active_research_runtime import _candidate_item
 
     return _candidate_item(candidate)
+
+
+# --- review round 1: runtime TOCTOU and planning reuse -----------------------------
+
+
+def _deep_context(*, seed=None, envelope="valid"):
+    from datetime import datetime, timezone
+
+    from src.web.research.deep_runtime import build_execution_envelope
+
+    deep = {}
+    if envelope == "valid":
+        deep["execution"] = build_execution_envelope(
+            parent_turn_id="t", handoff_sha256="h", admitted_at=datetime.now(timezone.utc)
+        )
+    elif envelope is not None:
+        deep["execution"] = envelope
+    if seed is not None:
+        deep["seed"] = seed
+    return {"deep": deep}
+
+
+def _seed(sources=None, refs=None):
+    return {
+        "schema_version": "deep-seed-v1",
+        "standard_child_run_id": "s",
+        "sources": sources if sources is not None else [_seed_source()],
+        "refs": refs if refs is not None else [_seed_source()],
+    }
+
+
+def test_b5_a_non_deep_context_passes_preflight():
+    assert deep_preflight({}) == (True, "")
+    assert deep_preflight({"claim_engine": {}}) == (True, "")
+
+
+def test_b5_a_tampered_envelope_fails_preflight():
+    context = _deep_context(seed=_seed(), envelope={"schema_version": "wrong"})
+    ok, reason = deep_preflight(context)
+    assert ok is False
+    assert reason == "execution_schema_mismatch"
+
+
+def test_b5_a_missing_seed_fails_preflight():
+    context = _deep_context(seed=None)
+    assert deep_preflight(context) == (False, "seed_absent")
+
+
+def test_b5_a_tampered_seed_body_fails_preflight():
+    body = "durable"
+    source = {"url": URL, "content_sha256": "deadbeef", "content": body, "fields": [], "origin": "x"}
+    context = _deep_context(seed=_seed(sources=[source], refs=[source]))
+    ok, reason = deep_preflight(context)
+    assert ok is False
+    assert reason == "seed_body_digest_mismatch"
+
+
+def test_b5_a_seed_projection_mismatch_fails_preflight():
+    good = _seed_source()
+    forged = dict(good, url="https://evil.example/x")
+    context = _deep_context(seed=_seed(sources=[forged], refs=[good]))
+    ok, reason = deep_preflight(context)
+    assert ok is False
+    assert reason == "seed_projection_mismatch"
+
+
+def test_b4_projection_accepts_an_honest_seed():
+    assert verify_seed_projection(_seed()) == (True, "")
+    # Order is not a semantic difference.
+    a = dict(_seed_source(), fields=["a", "b"])
+    b = dict(_seed_source(), fields=["b", "a"])
+    assert verify_seed_projection(_seed(sources=[a], refs=[b])) == (True, "")
+
+
+def test_b7_a_materialized_seed_is_excluded_from_planning_before_the_read_plan():
+    """The planning filter must drop content-available ids, not the read loop."""
+
+    from src.web.research.deep_runtime import content_available_ids
+
+    selected = [
+        {
+            "candidate_id": "seed-candidate",
+            "final_backend": SEED_FINAL_BACKEND,
+            "read_status": "read",
+            "read": {"content": "body"},
+        }
+    ]
+    available = content_available_ids(["read-candidate"], selected)
+    assert available == {"read-candidate", "seed-candidate"}
+    # What rankings_for_plan does with the same set.
+    ranked_ids = ["seed-candidate", "fresh-candidate"]
+    assert [cid for cid in ranked_ids if cid not in available] == ["fresh-candidate"]

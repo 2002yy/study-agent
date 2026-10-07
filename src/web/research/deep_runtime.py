@@ -35,6 +35,14 @@ SEED_PROVIDER = "deep_seed"
 SEED_FINAL_BACKEND = "deep_seed"
 
 
+class DeepIntegrityError(ValueError):
+    """A durable Deep fact failed re-validation.
+
+    Typed so the application layer can convert exactly these into a bounded `blocked` outcome
+    without swallowing ordinary ValueErrors from the runtime or a lease race.
+    """
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -65,14 +73,25 @@ def build_execution_envelope(
     }
 
 
-def load_execution_envelope(context: Mapping[str, Any]) -> dict[str, Any] | None:
-    """The recorded envelope, or None when this is not a Deep run."""
+def read_execution_envelope(context: Mapping[str, Any]) -> tuple[bool, Any]:
+    """Return ``(present, value)``. Existence and validity are separate questions.
+
+    A malformed envelope must not read as absent: that would let a broken Deep run be mistaken
+    for a first admission and silently overwritten.
+    """
 
     deep = context.get("deep")
-    if not isinstance(deep, Mapping):
-        return None
-    envelope = deep.get("execution")
-    return dict(envelope) if isinstance(envelope, Mapping) else None
+    if not isinstance(deep, Mapping) or "execution" not in deep:
+        return (False, None)
+    return (True, deep.get("execution"))
+
+
+def load_execution_envelope(context: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The recorded envelope when it is a mapping, else None. Use ``read_execution_envelope``
+    when existence matters."""
+
+    present, value = read_execution_envelope(context)
+    return dict(value) if present and isinstance(value, Mapping) else None
 
 
 def validate_execution_envelope(envelope: Any) -> tuple[bool, str]:
@@ -95,6 +114,29 @@ def validate_execution_envelope(envelope: Any) -> tuple[bool, str]:
         return (False, "execution_timestamp_naive")
     if deadline != admitted + timedelta(seconds=DEEP_HARD_SECONDS):
         return (False, "execution_deadline_mismatch")
+    return (True, "")
+
+
+def bind_execution_envelope(
+    envelope: Any,
+    *,
+    parent_turn_id: str,
+    handoff_sha256: str,
+) -> tuple[bool, str]:
+    """Shape validity plus the authority the envelope must be bound to.
+
+    A well-formed envelope that names a different parent or a different handoff digest is a
+    different Deep run's envelope and must not be adopted.
+    """
+
+    valid, reason = validate_execution_envelope(envelope)
+    if not valid:
+        return (valid, reason)
+    if str(envelope.get("parent_turn_id") or "") != str(parent_turn_id):
+        return (False, "execution_parent_mismatch")
+    recorded = str(envelope.get("handoff_sha256") or "")
+    if not recorded or recorded != str(handoff_sha256):
+        return (False, "execution_handoff_mismatch")
     return (True, "")
 
 
@@ -139,6 +181,38 @@ def load_seed(context: Mapping[str, Any]) -> dict[str, Any] | None:
     return dict(seed)
 
 
+def read_seed(context: Mapping[str, Any]) -> tuple[bool, Any]:
+    """Return ``(present, value)`` so a malformed seed is not mistaken for no seed."""
+
+    deep = context.get("deep")
+    if not isinstance(deep, Mapping) or "seed" not in deep:
+        return (False, None)
+    return (True, deep.get("seed"))
+
+
+def deep_preflight(context: Mapping[str, Any]) -> tuple[bool, str]:
+    """Re-establish the Deep durable facts before spending model calls or network.
+
+    The service validates at admission, but the runtime reloads the context later; this closes
+    the window in between, so a tampered envelope or seed cannot be carried into a research run.
+    A non-Deep run has no envelope and passes without any behaviour change.
+    """
+
+    present, envelope = read_execution_envelope(context)
+    if not present:
+        return (True, "")
+    valid, reason = validate_execution_envelope(envelope)
+    if not valid:
+        return (False, reason)
+    seed_present, seed_value = read_seed(context)
+    if not seed_present:
+        return (False, "seed_absent")
+    ok, reason = verify_seed_sources(seed_value)
+    if not ok:
+        return (False, reason)
+    return verify_seed_projection(seed_value)
+
+
 def seed_sources_by_url(seed: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     """Map canonical URL -> seed source. URL identity survives candidate merging."""
 
@@ -171,6 +245,37 @@ def verify_seed_sources(seed: Mapping[str, Any] | None) -> tuple[bool, str]:
         digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
         if digest != str(source.get("content_sha256") or ""):
             return (False, "seed_body_digest_mismatch")
+    return (True, "")
+
+
+def _seed_ref_key(ref: Mapping[str, Any]) -> tuple[str, str, tuple[str, ...], str]:
+    return (
+        str(ref.get("url") or ""),
+        str(ref.get("content_sha256") or ""),
+        tuple(sorted({str(field) for field in (ref.get("fields") or [])})),
+        str(ref.get("origin") or ""),
+    )
+
+
+def seed_projection(refs: Any, sources: Any) -> list[tuple[str, str, tuple[str, ...], str]]:
+    """The canonical projection of one side of the seed. Used to compare them."""
+
+    values = refs if refs is not None else sources
+    return sorted(_seed_ref_key(item) for item in (values or ()) if isinstance(item, Mapping))
+
+
+def verify_seed_projection(seed: Mapping[str, Any] | None) -> tuple[bool, str]:
+    """The control plane (``refs``) must describe the data plane (``sources``) exactly.
+
+    Both sides are hashed and cross-checked elsewhere, so a mismatch here means one side was
+    rewritten independently - for example a forged URL, field set or origin on the sources the
+    runtime actually consumes.
+    """
+
+    if not isinstance(seed, Mapping):
+        return (False, "seed_absent")
+    if seed_projection(seed.get("refs"), None) != seed_projection(None, seed.get("sources")):
+        return (False, "seed_projection_mismatch")
     return (True, "")
 
 

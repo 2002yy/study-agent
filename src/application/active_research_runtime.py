@@ -55,6 +55,8 @@ from src.web.research.deeper_targeting import (
 )
 from src.web.research.deep_runtime import (
     SEED_DISCOVERY_METHOD,
+    DeepIntegrityError,
+    deep_preflight,
     SEED_FINAL_BACKEND,
     SEED_PROVIDER,
     content_available_ids,
@@ -845,6 +847,13 @@ class ActiveResearchRuntimeExecutor:
         context["run_attempt"] = int(context.get("run_attempt") or 0) + 1
         # Deep-2: durable seed bytes by canonical URL. Empty for every non-Deep run, so the
         # ordinary path is untouched. The seed is data, never semantic authority.
+        # Deep-2 §54: the service validated at admission, but this context was reloaded
+        # afterwards. Re-establish the durable Deep facts before any model or network work so a
+        # tampered envelope or seed cannot be carried into a research run. Non-Deep runs have no
+        # envelope and pass through untouched.
+        _deep_ok, _deep_reason = deep_preflight(context)
+        if not _deep_ok:
+            raise DeepIntegrityError(f"Deep preflight failed: {_deep_reason}")
         deep_seed_by_url = _deep_seed_urls(context)
         state = initial_state
         cursor_result = load_runtime_cursor(context)
@@ -2286,11 +2295,18 @@ class ActiveResearchRuntimeExecutor:
                         covered_clusters_by_claim.items()
                     )
                 }
+                # Deep-2 §29/§7: bytes already durable - fetched by a reader chain or
+                # materialized from a seed - must not be planned for a physical read at all.
+                # Skipping them later in the read loop would still have consumed a scheduler
+                # read slot that an unread candidate needed.
+                content_available = content_available_ids(
+                    completed_read, selected_sources
+                )
                 rankings_for_plan = {
                     claim_id: tuple(
                         ranked_candidate
                         for ranked_candidate in ranked
-                        if ranked_candidate.candidate.id not in completed_read
+                        if ranked_candidate.candidate.id not in content_available
                     )
                     for claim_id, ranked in claim_rankings.items()
                 }
@@ -2309,12 +2325,8 @@ class ActiveResearchRuntimeExecutor:
                 # per-claim eligibility. Rebuild each binding from that claim's
                 # own full ranking and shared scheduler predicate; the
                 # per-claim extraction prior skips work already finished.
-                # Deep-2 §29: durable bytes may come from a reader chain or a local seed
-                # materialization, but reuse still never grants another claim eligibility -
-                # every restored binding is rebuilt from that claim's own ranking.
-                content_available = content_available_ids(
-                    completed_read, selected_sources
-                )
+                # Reuse never grants another claim eligibility: every restored binding is
+                # rebuilt from that claim's own ranking.
                 extraction_targets = _restore_completed_read_targets(
                     extraction_targets,
                     completed_read_ids=set(content_available),

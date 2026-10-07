@@ -270,6 +270,19 @@ class WebLookupRepository:
                 connection.commit()
         return self._required(created_id)
 
+    def operation_is_stale(self, run_id: str, *, stale_after_seconds: int = 120) -> bool:
+        """Whether a running run's operation owner has gone stale.
+
+        A read-only view of the same authority ``begin_operation`` uses for stale recovery, so a
+        caller can tell "another owner is live" from "the owner died" without taking the lease.
+        Taking the lease to probe would make the subsequent real acquisition fail.
+        """
+
+        run = self._required(run_id)
+        if run.status != "running":
+            return False
+        return _operation_is_stale(run.research_context, stale_after_seconds)
+
     def attach_pending_context(
         self,
         run_id: str,
