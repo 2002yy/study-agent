@@ -558,3 +558,97 @@ def test_a_blocked_reason_is_bounded(ctx):
         reason="Traceback: KeyError(\"secret\")",
     )
     assert terminal["reason"] == "admission_failed"
+
+
+# --- review round 2: owner binding and exact result shape --------------------------
+
+
+def test_a_pending_terminal_with_a_wrong_owner_is_durably_blocked(ctx):
+    """A corrupted owner is the failure to record, not a reason the block cannot persist."""
+
+    service, repository, _runs, parent, _prepared, execution = ctx
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["owner"].__setitem__("thread_id", "other"),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+    terminal = snapshot(repository, parent)["deep_terminal"]
+    assert terminal["dispatch_status"] == "blocked"
+    assert terminal["reason"] == "terminal_integrity_failure"
+    assert execution.calls == 0
+
+
+def _completed_terminal(ctx):
+    service, repository, _runs, parent, prepared, execution = ctx
+    set_child_status(repository, prepared.child_run_id, "completed")
+    service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    return service, repository, parent, execution
+
+
+def test_a_completed_terminal_with_a_wrong_owner_is_not_trusted(ctx):
+    service, repository, parent, execution = _completed_terminal(ctx)
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["owner"].__setitem__("thread_id", "other"),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_a_completed_terminal_missing_a_result_field_is_not_trusted(ctx):
+    service, repository, parent, execution = _completed_terminal(ctx)
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["result"].pop("child_terminal_sha256"),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_a_completed_terminal_with_an_injected_field_is_not_trusted(ctx):
+    service, repository, parent, execution = _completed_terminal(ctx)
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["result"].__setitem__("raw_body", "x"),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_a_completed_terminal_with_a_tampered_handoff_is_not_trusted(ctx):
+    service, repository, parent, execution = _completed_terminal(ctx)
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"]["handoff"].__setitem__(
+            "unresolved_fields", ["x"]
+        ),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+
+
+def test_a_blocked_terminal_with_an_injected_result_is_not_trusted(ctx):
+    service, repository, _runs, parent, _prepared, execution = ctx
+    service.terminal.block(
+        parent_turn_id=parent.id, thread_id=parent.thread_id, reason="lineage_mismatch"
+    )
+    tamper(
+        repository,
+        parent,
+        lambda snap: snap["deep_terminal"].__setitem__("result", {"raw_body": "x"}),
+    )
+    result = service.continue_pending(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert result.status == "blocked"
+    assert result.reason == "terminal_integrity_failure"
+    assert result.result is None

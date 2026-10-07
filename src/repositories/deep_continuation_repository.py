@@ -38,6 +38,20 @@ from src.web.research.deep_runtime import (
 from src.web.research.deep_seed import seed_refs_match
 
 RESULT_SCHEMA = "deep-auto-continuation-v1"
+RESULT_KEYS = frozenset(
+    {
+        "schema_version",
+        "child_run_id",
+        "child_status",
+        "provider_status",
+        "stop_reason",
+        "answer_confidence",
+        "completed_at",
+        "handoff_sha256",
+        "child_terminal_sha256",
+        "publication_authority",
+    }
+)
 TERMINAL_CHILD_STATUSES = frozenset({"completed", "partial", "failed", "cancelled"})
 TERMINAL_DISPATCH_STATUSES = frozenset({"completed", "blocked"})
 
@@ -108,12 +122,18 @@ def child_terminal_digest(child: Any) -> str:
     ).hexdigest()
 
 
-def validate_recorded_terminal(terminal: Any) -> tuple[bool, str]:
+def validate_recorded_terminal(
+    terminal: Any,
+    *,
+    parent_turn_id: str,
+    thread_id: str,
+) -> tuple[bool, str]:
     """A read-only check of an already-recorded terminal. Never rewrites anything.
 
-    First-terminal-wins does not mean a recorded terminal is trusted: a completed terminal
-    without a valid result, or with publication authority, is not a terminal we can report as
-    settled.
+    First-terminal-wins does not mean a recorded terminal is trusted. The owner must be this
+    parent on this thread, a completed terminal must carry exactly the bounded control-plane
+    result, and a blocked terminal must carry no result at all. Nothing here reads the child,
+    so the ordering guarantee is preserved.
     """
 
     if not isinstance(terminal, dict):
@@ -124,12 +144,32 @@ def validate_recorded_terminal(terminal: Any) -> tuple[bool, str]:
     ):
         return (False, REASON_TERMINAL_INTEGRITY)
     owner = terminal.get("owner")
-    if not isinstance(owner, Mapping) or not owner.get("thread_id") or not owner.get("turn_id"):
+    if (
+        not isinstance(owner, Mapping)
+        or str(owner.get("thread_id") or "") != thread_id
+        or str(owner.get("turn_id") or "") != parent_turn_id
+    ):
         return (False, REASON_TERMINAL_INTEGRITY)
+
+    # The parent-local handoff digest must describe its own payload. This never touches the
+    # child, so first-terminal-wins is preserved.
+    handoff = terminal.get("handoff")
+    if not isinstance(handoff, Mapping):
+        return (False, REASON_TERMINAL_INTEGRITY)
+    handoff = dict(handoff)
+    recorded = str(handoff.get("payload_sha256") or "")
+    if not recorded:
+        return (False, REASON_TERMINAL_INTEGRITY)
+    try:
+        load_deep_handoff(handoff)
+    except ValueError:
+        return (False, REASON_TERMINAL_INTEGRITY)
+
     status = str(terminal.get("dispatch_status") or "")
     if status == "completed":
         result = terminal.get("result")
-        if not isinstance(result, Mapping):
+        if not isinstance(result, Mapping) or set(result) != RESULT_KEYS:
+            # Exactly the bounded control plane, nothing more and nothing missing.
             return (False, REASON_TERMINAL_INTEGRITY)
         if result.get("schema_version") != RESULT_SCHEMA:
             return (False, REASON_TERMINAL_INTEGRITY)
@@ -139,13 +179,17 @@ def validate_recorded_terminal(terminal: Any) -> tuple[bool, str]:
             return (False, REASON_TERMINAL_INTEGRITY)
         if str(result.get("child_status") or "") not in TERMINAL_CHILD_STATUSES:
             return (False, REASON_TERMINAL_INTEGRITY)
-        handoff = terminal.get("handoff")
-        recorded = str((handoff or {}).get("payload_sha256") or "") if isinstance(handoff, Mapping) else ""
-        if not recorded or str(result.get("handoff_sha256") or "") != recorded:
+        if str(result.get("handoff_sha256") or "") != recorded:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        digest = str(result.get("child_terminal_sha256") or "")
+        if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
             return (False, REASON_TERMINAL_INTEGRITY)
         return (True, "")
     if status == "blocked":
         if str(terminal.get("reason") or "") not in BLOCKED_REASONS:
+            return (False, REASON_TERMINAL_INTEGRITY)
+        if terminal.get("result") is not None:
+            # A blocked terminal carries no result; an injected one is not trusted.
             return (False, REASON_TERMINAL_INTEGRITY)
         return (True, "")
     if status == "pending":
@@ -175,9 +219,18 @@ class DeepContinuationRepository:
     # --- control plane ---------------------------------------------------------------
 
     def _read_control_locked(
-        self, connection: Any, *, parent_turn_id: str, thread_id: str
+        self,
+        connection: Any,
+        *,
+        parent_turn_id: str,
+        thread_id: str,
+        require_owner: bool = True,
     ) -> tuple[dict, dict, Any]:
-        """Parent + terminal top level. Required by every transition."""
+        """Parent + terminal top level. Required by every transition.
+
+        ``require_owner=False`` is used by blocking: a corrupted owner is itself the failure to
+        record, so demanding a correct owner would make the block impossible to persist.
+        """
 
         parent_row = connection.execute(
             "SELECT * FROM chat_turns WHERE id = ?", (parent_turn_id,)
@@ -198,7 +251,9 @@ class DeepContinuationRepository:
         ):
             raise DeepFinalizationError(REASON_TERMINAL_INTEGRITY)
         owner = terminal.get("owner") or {}
-        if owner.get("thread_id") != thread_id or owner.get("turn_id") != parent_turn_id:
+        if require_owner and (
+            owner.get("thread_id") != thread_id or owner.get("turn_id") != parent_turn_id
+        ):
             raise DeepFinalizationError(REASON_TERMINAL_INTEGRITY)
         return snapshot, terminal, parent_row
 
@@ -350,8 +405,18 @@ class DeepContinuationRepository:
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             snapshot, terminal, _parent_row = self._read_control_locked(
-                connection, parent_turn_id=parent_turn_id, thread_id=thread_id
+                connection,
+                parent_turn_id=parent_turn_id,
+                thread_id=thread_id,
+                require_owner=False,
             )
+            owner = terminal.get("owner") or {}
+            if (
+                owner.get("thread_id") != thread_id
+                or owner.get("turn_id") != parent_turn_id
+            ):
+                # A corrupted owner is itself an integrity failure; record that, do not fail.
+                bounded = REASON_TERMINAL_INTEGRITY
             if str(terminal.get("dispatch_status") or "") in TERMINAL_DISPATCH_STATUSES:
                 return dict(terminal)
             if str(terminal.get("dispatch_status") or "") != "pending":

@@ -88,7 +88,9 @@ class DeepContinuationService:
         if status in {"completed", "blocked"}:
             # First terminal wins, but a recorded terminal is not thereby trusted: a completed
             # terminal without a valid result, or with publication authority, is not settled.
-            valid, why = validate_recorded_terminal(terminal)
+            valid, why = validate_recorded_terminal(
+                terminal, parent_turn_id=parent_turn_id, thread_id=thread_id
+            )
             if not valid:
                 return self._outcome("blocked", parent_turn_id, "", why)
             return DeepContinuationOutcome(
