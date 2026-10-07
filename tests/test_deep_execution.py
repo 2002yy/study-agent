@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
@@ -621,79 +620,78 @@ def test_an_unknown_error_is_not_converted_to_blocked(ctx):
 # --- review round 2: attach-conflict revalidation and runtime error propagation ----
 
 
-def _force_attach_conflict(service, monkeypatch):
-    """Make the CAS lose once, so the conflict path is exercised for real."""
+def _winner_then_lose(service, repository, tamper):
+    """Make the conflict path genuinely run.
+
+    A concurrent caller wins the compare-and-swap by writing a valid pair through the real
+    repository call; its durable context is then tampered; and this caller returns None so it
+    becomes the loser and must reload and revalidate the winner's work.
+    """
 
     real = service.runs.attach_pending_context
-    state = {"fired": False}
+    state = {"winner_written": False, "conflict_seen": False}
 
-    def flaky(run_id, *, expected_version, research_context):
-        if not state["fired"]:
-            state["fired"] = True
-            return None
-        return real(run_id, expected_version=expected_version, research_context=research_context)
+    def patched(run_id, *, expected_version, research_context):
+        # One call does both: the winner's valid pair lands in the database, it is then
+        # tampered, and this caller is told it lost so the conflict path has to run.
+        state["winner_written"] = True
+        real(run_id, expected_version=expected_version, research_context=research_context)
+        context = _child_context(repository, run_id)
+        tamper(context)
+        _write_child_context(repository, run_id, context)
+        state["conflict_seen"] = True
+        return None
 
-    monkeypatch.setattr(service.runs, "attach_pending_context", flaky)
+    service.runs.attach_pending_context = patched
     return state
 
 
-def test_a_attach_conflict_with_a_malformed_envelope_is_blocked(ctx, monkeypatch):
+def test_a_attach_conflict_with_a_malformed_envelope_is_blocked(ctx):
     service, repository, runs, parent, _clock, prepared, dispatcher = ctx
-    # The winner wrote a malformed envelope; the loser must not adopt it.
-    context = _child_context(repository, prepared.child_run_id)
-    context["deep"]["execution"] = "garbage"
-    _write_child_context(repository, prepared.child_run_id, context)
-    _force_attach_conflict(service, monkeypatch)
 
+    def tamper(context):
+        context["deep"]["execution"] = "garbage"
+
+    state = _winner_then_lose(service, repository, tamper)
     result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    assert state["winner_written"] and state["conflict_seen"]
+    assert result.status == "blocked"
+    assert dispatcher.calls == 0
+    # The malformed winner context was left exactly as written, not repaired.
+    assert _child_context(repository, prepared.child_run_id)["deep"]["execution"] == "garbage"
+
+
+def test_a_attach_conflict_with_a_wrong_handoff_hash_is_blocked(ctx):
+    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
+
+    def tamper(context):
+        context["deep"]["execution"]["handoff_sha256"] = "f" * 64
+
+    state = _winner_then_lose(service, repository, tamper)
+    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    assert state["winner_written"] and state["conflict_seen"]
     assert result.status == "blocked"
     assert dispatcher.calls == 0
 
 
-def test_a_attach_conflict_with_a_wrong_handoff_hash_is_blocked(ctx, monkeypatch):
+def test_a_attach_conflict_with_a_wrong_child_owner_is_blocked(ctx):
     service, repository, runs, parent, _clock, prepared, dispatcher = ctx
-    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
-    calls_before = dispatcher.calls
-    context = _child_context(repository, prepared.child_run_id)
-    context["deep"]["execution"]["handoff_sha256"] = "f" * 64
-    _write_child_context(repository, prepared.child_run_id, context)
 
-    # Force a conflict on a later call by re-running with a stale CAS expectation.
-    monkeypatch.setattr(
-        service.runs,
-        "attach_pending_context",
-        lambda run_id, *, expected_version, research_context: None,
-    )
+    def tamper(_context):
+        with repository.database.connect() as connection:
+            connection.execute(
+                "UPDATE web_lookup_runs SET owner_thread_id = ? WHERE id = ?",
+                ("another-thread", prepared.child_run_id),
+            )
+
+    state = _winner_then_lose(service, repository, tamper)
     result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    assert state["winner_written"] and state["conflict_seen"]
     assert result.status == "blocked"
-    assert dispatcher.calls == calls_before
-
-
-def test_a_attach_conflict_with_a_wrong_child_owner_is_blocked(ctx, monkeypatch):
-    service, repository, runs, parent, _clock, prepared, dispatcher = ctx
-    context = _child_context(repository, prepared.child_run_id)
-    context["deep"]["execution"] = build_execution_envelope(
-        parent_turn_id=parent.id,
-        handoff_sha256="h",
-        admitted_at=datetime.now(timezone.utc),
-    )
-    _write_child_context(repository, prepared.child_run_id, context)
-
-    monkeypatch.setattr(
-        service.runs,
-        "attach_pending_context",
-        lambda run_id, *, expected_version, research_context: None,
-    )
-    # A child that belongs to another thread must be an integrity failure, not a raw ValueError.
-    monkeypatch.setattr(
-        service.runs,
-        "get",
-        lambda run_id: SimpleNamespace(
-            id=run_id, owner_thread_id="another-thread", status="pending", version=1
-        ),
-    )
-    result = service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
-    assert result.status == "blocked"
+    assert result.reason == "owner_mismatch"
     assert dispatcher.calls == 0
 
 
