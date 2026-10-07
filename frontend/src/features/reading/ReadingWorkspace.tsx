@@ -48,12 +48,18 @@ export function ReadingWorkspaceProvider({
     ) ? current : null);
   }, [sessionKey,navigationKey]);
   const open = useCallback((target: ReadingTarget) => {
-    if (target.scope === "session" && target.threadId !== sessionId) return;
+    if (target.scope !== "knowledge" && target.threadId !== sessionId) return;
     setRequest({target,line:Math.max(1,(target.startLine ?? 1)-3),sessionKey,navigationKey});
     setMode("read");setFocused(false);onOpen();
   }, [sessionId,sessionKey,onOpen,navigationKey]);
   const close = () => {setRequest(null);setResult(null);setFocused(false)};
   return <ReadingContext.Provider value={{
+    documents, sessionId,
+    webCitation:(url,evidence) => {
+      const runId=evidence.rag?.web_tools?.run_id || evidence.rag?.web_context?.run_id;
+      return sessionId && runId && /^https?:\/\//i.test(url)
+        ? {scope:"web",threadId:sessionId,runId,url,sourcePath:url} : null;
+    },
     target:active?.target ?? null, document, error,
     loading:Boolean(active && result?.request !== active), mode, focused,
     canAsk:!isSending,

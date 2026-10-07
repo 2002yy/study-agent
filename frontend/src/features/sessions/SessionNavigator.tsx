@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { ReadingLibraryNavigation } from "../reading/ReadingLibraryNavigation";
 
 import type { SessionRow } from "../../types";
 import { SessionNavigatorBody } from "./SessionNavigatorBody";
@@ -78,6 +79,7 @@ export function SessionNavigator({
           <Plus size={14} /> 新会话
         </button>
       </header>
+      <ReadingLibraryNavigation/>
       {body}
     </aside>
   );

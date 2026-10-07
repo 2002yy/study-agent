@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from src.rag.schema import RagDocument
 
@@ -58,7 +59,7 @@ def _read_pdf_path(
     max_bytes: int = DEFAULT_MAX_PDF_BYTES,
     max_pages: int = DEFAULT_MAX_PDF_PAGES,
     max_chars: int = DEFAULT_MAX_PDF_CHARS,
-) -> tuple[str, dict[str, int]]:
+) -> tuple[str, dict[str, Any]]:
     if max_bytes <= 0:
         raise ValueError("max_bytes must be positive")
     if max_pages <= 0:
@@ -81,14 +82,21 @@ def _read_pdf_path(
         raise ValueError(f"PDF has too many pages: {page_count} > {max_pages}")
 
     parts: list[str] = []
+    page_map: list[dict[str, int]] = []
     for page_index, page in enumerate(reader.pages, start=1):
         text = page.extract_text() or ""
         if text.strip():
+            start_line = (
+                len(_normalize_text("\n\n".join(parts)).splitlines()) + 2
+                if parts
+                else 1
+            )
+            page_map.append({"page": page_index, "line": start_line})
             parts.append(f"[Page {page_index}]\n{text.strip()}")
         if sum(len(part) for part in parts) > max_chars:
             raise ValueError(f"PDF extracted text is too long: {path}")
 
-    return "\n\n".join(parts), {"pdf_pages": page_count}
+    return "\n\n".join(parts), {"pdf_pages": page_count, "pdf_page_map": page_map}
 
 
 def load_document(
@@ -104,7 +112,7 @@ def load_document(
         raise FileNotFoundError(str(source))
 
     suffix = source.suffix.lower()
-    loader_metadata: dict[str, int] = {}
+    loader_metadata: dict[str, Any] = {}
     if suffix in SUPPORTED_TEXT_EXTENSIONS:
         raw_text = _read_text_path(source)
     elif suffix == ".docx":
@@ -134,13 +142,16 @@ def load_document(
         content_hash=content_hash,
         file_type=suffix.lstrip("."),
         document_id=document_id,
-        revision_id=_sha256_text(
-            f"{document_id}:{content_hash}:{parser_version}"
-        )[:24],
+        revision_id=_sha256_text(f"{document_id}:{content_hash}:{parser_version}")[:24],
         parser_version=parser_version,
         metadata={
             "size_bytes": stat.st_size,
             "mtime_ns": stat.st_mtime_ns,
+            **(
+                {"source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
+                if suffix == ".pdf"
+                else {}
+            ),
             **loader_metadata,
         },
     )

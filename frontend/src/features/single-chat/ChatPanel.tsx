@@ -24,6 +24,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { RoleAvatar } from "../../components/RoleAvatar";
+import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
   ChatMessage,
   ChatResearchProgress,
@@ -110,6 +111,7 @@ type ChatPanelProps = {
 type CopyState = "idle" | "success" | "error";
 
 export function ChatPanel(props: ChatPanelProps) {
+  const reading=useReadingWorkspace();
   const {
     messages,
     sessionId,
@@ -291,6 +293,13 @@ export function ChatPanel(props: ChatPanelProps) {
     return clearPendingTaskIntentOverride;
   }, [sessionId]);
 
+  const restoreCard=<RestoreCard
+    session={sessionNavigation} streamRecovery={streamRecovery}
+    onSelectEntry={handleRestoreEntry} onUpload={onUploadClick}
+    onContinueHere={onQuickPrompt} onStartNewTopic={onStartNewTopic}
+    onContinueInterrupted={onContinueInterruptedReply}
+    onRetryInterrupted={onRetry} onAbandonInterrupted={onAbandonInterruptedReply}
+  />;
   return (
     <main className="chat-panel" id="chat">
       <span className="visually-hidden" aria-live="polite" role="status">
@@ -298,7 +307,7 @@ export function ChatPanel(props: ChatPanelProps) {
       </span>
       <header className="topbar">
           <div className="topbar-copy">
-            <h1>学习工作台</h1>
+            <h1>{reading?.target ? "伴读对话" : "学习工作台"}</h1>
             <p>围绕目标继续学习；资料、联网和工具只在需要时提供支持。</p>
             <div className="topbar-meta" aria-label="当前学习状态">
               <span>任务 {taskLabel}</span>
@@ -366,17 +375,7 @@ export function ChatPanel(props: ChatPanelProps) {
       <div className="conversation-shell">
         <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
           {firstUseNotice}
-          <RestoreCard
-            session={sessionNavigation}
-            streamRecovery={streamRecovery}
-            onSelectEntry={handleRestoreEntry}
-            onUpload={onUploadClick}
-            onContinueHere={onQuickPrompt}
-            onStartNewTopic={onStartNewTopic}
-            onContinueInterrupted={onContinueInterruptedReply}
-            onRetryInterrupted={onRetry}
-            onAbandonInterrupted={onAbandonInterruptedReply}
-          />
+          {reading?.target && !streamRecovery ? <details className="reading-session-context"><summary>本会话学习上下文</summary>{restoreCard}</details> : restoreCard}
           {displayMessages.map((message, index) => {
             const avatarRole = message.avatarRole ?? (message.role === "user" ? "user" : "auto");
             const label = message.role === "user" ? "你" : roleLabel(avatarRole);

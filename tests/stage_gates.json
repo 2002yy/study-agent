@@ -137,6 +137,8 @@
       "tests/test_runtime_sqlite_repository.py"
     ],
     "document_reading": [
+      "tests/test_original_reading.py",
+      "tests/test_web_lookup_run.py",
       "tests/test_document_reading.py",
       "tests/test_session_attachment_routes.py",
       "tests/test_session_attachments.py",
@@ -258,6 +260,8 @@
   },
   "stage_gates": {
     "document-reading-v1": [
+      "tests/test_original_reading.py",
+      "tests/test_web_lookup_run.py",
       "tests/test_document_reading.py",
       "tests/test_session_attachment_routes.py",
       "tests/test_session_attachments.py",

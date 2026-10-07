@@ -40,6 +40,15 @@ beforeEach(()=>{
 afterEach(cleanup);
 
 describe("reading workspace",()=>{
+  it("opens only owner-bound saved web reads and labels a truncated snapshot",async()=>{
+    vi.mocked(readDocument).mockResolvedValue({...response,scope:"web",representation:"saved_web_text",file_type:"web",source_path:"https://example.org/read",content_truncated:true});
+    const rag={results:[],web_tools:{run_id:"saved-run",calls:[]},evidence_snapshot:{schema_version:"evidence-snapshot-v1",refs:[{id:"web",type:"web_read",url:"https://example.org/read",source:"https://example.org/read",title:"已读网页",lifecycle_status:"selected"}]}} as unknown as ChatResponse["rag"];
+    render(<Harness><EvidenceTrail evidence={{rag}}/></Harness>);
+    fireEvent.click(screen.getByRole("button",{name:/证据轨迹/}));
+    fireEvent.click(screen.getByRole("button",{name:"阅读网页"}));
+    await screen.findByText(/阅读时保存的部分正文/);
+    expect(readDocument).toHaveBeenCalledWith({scope:"web",threadId:"a",runId:"saved-run",url:"https://example.org/read",sourcePath:"https://example.org/read"},1,expect.any(AbortSignal));
+  });
   it("opens full text from the library and closes without discarding chat draft",async()=>{
     render(<Harness><SourcesPanel lastChat={null} ragSearch={null} isSearching={false} initialTab="library"
       knowledgeBase={{index_path:"index.json",index_exists:true,index_version:1,documents:[known],chunks:1}}/></Harness>);
