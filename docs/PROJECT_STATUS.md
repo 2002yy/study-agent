@@ -8,13 +8,13 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-3T implementation。** Deep-3 semantics 已 FROZEN，但 **implementation gated on Deep-3T CLOSED**。在 Deep-3T 关闭并完成 exact-main 窄 seam recheck 之前，**不得开始 Deep-3 production implementation**。Deep-2 已 CLOSED。
+**当前执行权：Deep-3 implementation。** Deep-3T 已 CLOSED，Deep-3 合同 FROZEN 且窄 seam recheck 已 PASS（无漂移）。Deep-2 已 CLOSED。
 
 **Current Action：**
 ```text
-Deep-3T implementation.
-Deep-3 semantics are FROZEN in docs/DEEP_3_CONTRACT.md, but Deep-3 implementation is
-gated on Deep-3T CLOSED plus an exact-main narrow seam recheck.
+Deep-3 implementation.
+Contract FROZEN in docs/DEEP_3_CONTRACT.md; narrow seam recheck on 823265ae PASSED.
+Stay within the frozen Deep-3 bounded slice.
 ```
 
 **Deep 阶段合同（已冻结）：**
@@ -22,8 +22,8 @@ gated on Deep-3T CLOSED plus an exact-main narrow seam recheck.
 ```text
 Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
 Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
-Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md FROZEN  <- current work
-Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN semantics, implementation gated on Deep-3T
+Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md CLOSED
+Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN; seam recheck PASSED  <- current work
 Deep-4  not started
 ```
 
@@ -32,6 +32,39 @@ Deep-4  not started
 exact-main  **1514bbf76031dfeca2cb03e9c52adf5d149cd724**
             （Deep-2 CLOSED 的 exact-main；Deep-3T / Deep-3 合同已基于它核对接口）
 ```
+
+**Deep-3T CLOSED ✅**
+
+```text
+authority   **823265ae113c0f488e0e8d2d0a448c6079b80884**
+
+validation  exact-main push CI **37642664449** SUCCESS
+            ordinary full pytest PASS | ruff PASS | expanded mypy PASS
+            mypy baseline PASS | frontend test/build PASS
+            browser Golden Journeys PASS | real-stack browser gates PASS
+            required outcomes PASS
+
+closed scope
+            durable-state-backed Deep trigger (no new queue table)
+            ARM crash window recoverable
+            pending Deep recoverable
+            keyset paging so the whole durable queue stays reachable
+            absent != malformed (deep_terminal null is not absent)
+            immediate startup scan | 15s periodic rescan | non-blocking wake
+            single worker | bounded shutdown | callback exception isolation
+            G3T-1…G3T-23 | mutation authority PASS
+
+known boundary
+            production inert (worker not started, callbacks not wired)
+            Deep still not activated
+
+known limitation (not a closure blocker)
+            no starvation-freedom guarantee when front-of-order work items
+            never change durable state; revisit with a scheduler/fairness
+            contract if a real backlog appears
+```
+
+> Deep-3T authority 永久为 `823265ae` / CI `37642664449`。此后 main 上的 docs-only closeout 提交只是该记录的载体，**不表示新 SHA 跑过验证**。
 
 **Deep-2 CLOSED ✅**
 
