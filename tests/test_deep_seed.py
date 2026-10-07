@@ -113,3 +113,22 @@ def test_a_ref_with_a_different_digest_does_not_match():
     seed = project_standard_seed(_ledger(), standard_child_run_id=CHILD)
     claimed = [{"url": URL, "content_sha256": "d" * 64}]
     assert seed_refs_match(claimed, seed["refs"]) is False
+
+
+def test_a_field_change_does_not_match():
+    seed = project_standard_seed(_ledger(), standard_child_run_id=CHILD)
+    claimed = [dict(seed["refs"][0], fields=["some_other_field"])]
+    assert seed_refs_match(claimed, seed["refs"]) is False
+
+
+def test_an_origin_change_does_not_match():
+    seed = project_standard_seed(_ledger(), standard_child_run_id=CHILD)
+    claimed = [dict(seed["refs"][0], origin="lookup")]
+    assert seed_refs_match(claimed, seed["refs"]) is False
+
+
+def test_field_order_does_not_matter():
+    seed = project_standard_seed(_ledger(), standard_child_run_id=CHILD)
+    ref = seed["refs"][0]
+    reordered = [dict(ref, fields=list(reversed(ref["fields"])))]
+    assert seed_refs_match(reordered, seed["refs"]) is True

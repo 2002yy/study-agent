@@ -87,11 +87,22 @@ class DeepHandoffService:
 
         existing = self.terminal.read_terminal(parent_turn_id, thread_id)
         if existing is not None:
-            # Exactly-once, but never on trust: the persisted handoff must still verify, and its
-            # seed refs must still describe the child's durable seed.
+            # First terminal wins. A blocked terminal is already a decided outcome and carries
+            # no handoff, so it is returned as-is rather than re-validated into a new reason.
+            if str(existing.get("dispatch_status") or "") == BLOCKED:
+                return DeepHandoffOutcome(
+                    status="blocked",
+                    parent_turn_id=parent_turn_id,
+                    child_run_id=str(existing.get("child_run_id") or ""),
+                    reason=str(existing.get("reason") or ""),
+                    handoff_sha256="",
+                )
+            # Otherwise never trust: the persisted handoff must still verify, and its seed refs
+            # must still describe the child's durable seed.
+            handoff_sha256 = str((existing.get("handoff") or {}).get("payload_sha256") or "")
+            child_run_id = str(existing.get("child_run_id") or "")
             try:
                 handoff = load_deep_handoff(existing.get("handoff") or {})
-                child_run_id = str(existing.get("child_run_id") or "")
                 if child_run_id:
                     seed = self.deep_seed(child_run_id, thread_id)
                     if not seed_refs_match(
@@ -102,17 +113,16 @@ class DeepHandoffService:
                 return DeepHandoffOutcome(
                     status="blocked",
                     parent_turn_id=parent_turn_id,
-                    child_run_id=str(existing.get("child_run_id") or ""),
+                    child_run_id=child_run_id,
                     reason="handoff_integrity_failure" if "handoff" in str(exc).lower() else _blocked_reason(exc),
                     handoff_sha256="",
                 )
-            status = str(existing.get("dispatch_status") or "")
             return DeepHandoffOutcome(
-                status="blocked" if status == "blocked" else "prepared",
+                status="prepared",
                 parent_turn_id=parent_turn_id,
                 child_run_id=child_run_id,
                 reason=str(existing.get("reason") or ""),
-                handoff_sha256=str(handoff.get("payload_sha256") or ""),
+                handoff_sha256=handoff_sha256,
             )
 
         try:

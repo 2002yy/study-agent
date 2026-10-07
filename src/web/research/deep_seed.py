@@ -92,10 +92,17 @@ def project_standard_seed(ledger: dict, *, standard_child_run_id: str) -> dict:
 def seed_refs_match(claimed: list[dict], actual: list[dict]) -> bool:
     """True when a handoff's seed refs describe exactly the durable journal's sources.
 
-    Deep admission blocks on a mismatch rather than dropping the difference and continuing.
+    Field association and origin are part of the provenance, so the whole ref is compared:
+    url, digest, the sorted field set and origin. Deep admission blocks on a mismatch rather
+    than dropping the difference and continuing.
     """
 
-    def key(ref: dict) -> tuple[str, str]:
-        return (str(ref.get("url") or ""), str(ref.get("content_sha256") or ""))
+    def key(ref: dict) -> tuple[str, str, tuple[str, ...], str]:
+        return (
+            str(ref.get("url") or ""),
+            str(ref.get("content_sha256") or ""),
+            tuple(sorted(str(field) for field in (ref.get("fields") or []))),
+            str(ref.get("origin") or ""),
+        )
 
     return sorted(key(ref) for ref in claimed) == sorted(key(ref) for ref in actual)

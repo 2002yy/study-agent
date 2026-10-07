@@ -416,3 +416,70 @@ def test_a_seed_digest_mismatch_blocks_and_creates_no_child(ctx):
     assert terminal["dispatch_status"] == "blocked"
     assert "child_run_id" not in terminal
     assert before is None or len(runs.list_by_thread(parent.thread_id)) == before
+
+
+# --- review round 3: retry integrity ----------------------------------------------
+
+
+def test_a_field_association_change_blocks_the_retry(ctx):
+    """A ref with the right url and digest but the wrong field association is still a tamper."""
+
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        from src.web.research.deep_handoff import payload_digest
+
+        handoff = snap["deep_terminal"]["handoff"]
+        for ref in handoff["seed_source_refs"]:
+            ref["fields"] = ["some_other_field"]
+        handoff["payload_sha256"] = payload_digest(handoff)
+
+    tamper(repository, parent, mutate)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "blocked"
+
+
+def test_an_origin_change_blocks_the_retry(ctx):
+    service, repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+
+    def mutate(snap):
+        from src.web.research.deep_handoff import payload_digest
+
+        handoff = snap["deep_terminal"]["handoff"]
+        for ref in handoff["seed_source_refs"]:
+            # A value the durable journal never recorded.
+            ref["origin"] = "forged_origin"
+        handoff["payload_sha256"] = payload_digest(handoff)
+
+    tamper(repository, parent, mutate)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert second.status == "blocked"
+
+
+def test_a_successful_retry_preserves_the_handoff_digest(ctx):
+    service, _repository, _runs, parent, _gateway, _clock, _outcome = ctx
+    first = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.handoff_sha256
+    assert second.handoff_sha256 == first.handoff_sha256
+
+
+def test_a_blocked_retry_preserves_the_first_reason(ctx):
+    """First terminal wins: a blocked outcome is returned as decided, not re-derived."""
+
+    service, repository, _runs, parent, _gateway, _clock, outcome = ctx
+
+    def mutate(ledger):
+        for entry in ledger["entries"].values():
+            if isinstance(entry.get("result"), dict) and entry["result"].get("content"):
+                entry["result"]["content"] = "tampered body that no longer hashes"
+
+    _tamper_ledger(repository, outcome.child_run_id, mutate)
+    first = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    second = service.prepare(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    assert first.status == "blocked"
+    assert first.reason == "seed_integrity_failure"
+    assert second.status == "blocked"
+    assert second.reason == first.reason
