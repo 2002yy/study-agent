@@ -1,21 +1,21 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-07（Standard phase CLOSED）
+> 更新：2026-10-08（Deep-4A CLOSED；Deep 阶段除 4B 外全部 CLOSED）
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep-4A contract freeze。** Deep-3 implementation 已合并（等 exact-main CI 关闭）；Deep-4A 合同已写入 docs 并 FROZEN，**implementation gated on Deep-3 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。
+**当前执行权：Deep 阶段收尾 / 学习主线开启。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。下一刀 = **Learning State-1**（学习状态 bounded contract）；同时用户已指示先冻结一份独立的 **Intelligent UI × Lookup/Standard/Deep 交互合同**，**两条线不得混入同一个 PR**。
 
 **Current Action：**
 ```text
-Deep-4A contract freeze (docs).
-Deep-3 implementation is merged; Deep-3 CLOSED awaits its exact-main CI.
-Deep-4A implementation is gated on Deep-3 CLOSED.
-Deep-4B is NO-GO until a qualified semantic judge exists.
+Deep-4A is merged and CLOSED (authority ea73b855).
+Deep-4B automatic publication is NO-GO until a qualified semantic judge exists.
+Next slice = Learning State-1 bounded contract (L1–L6).
+Next slice (parallel track, separate PR) = Intelligent UI × Lookup/Standard/Deep interaction contract.
 ```
 
 **Deep 阶段合同（已冻结）：**
@@ -24,8 +24,8 @@ Deep-4B is NO-GO until a qualified semantic judge exists.
 Deep-1  docs/DEEP_1_CONTRACT.md           CLOSED
 Deep-2  docs/DEEP_2_CONTRACT.md           CLOSED
 Deep-3T docs/DEEP_3T_TRIGGER_CONTRACT.md CLOSED
-Deep-3  docs/DEEP_3_CONTRACT.md           FROZEN; implementation MERGED, CLOSED pending exact-main CI
-Deep-4A docs/DEEP_4A_CONTRACT.md          FROZEN (87 sections)  <- current work
+Deep-3  docs/DEEP_3_CONTRACT.md           CLOSED
+Deep-4A docs/DEEP_4A_CONTRACT.md          CLOSED (87 sections)
 Deep-4B automatic publication             NO-GO until qualified semantic judge
 ```
 
@@ -68,7 +68,42 @@ known boundary
             assistant_message / pedagogy / learning untouched
 ```
 
-> Deep-3 authority 以 exact-main CI 通过后的 merge commit 为准。
+> Deep-3 authority 以 exact-main CI 通过后的 merge commit 为准。Deep-3 CLOSED authority = `caa3e307` / CI `37658465809`（SUCCESS）。
+
+**Deep-4A CLOSED ✅**
+
+```text
+authority   merge commit **ea73b8555b56e7f8c65000a9908fb20c9c7e216f**（squash）
+            PR #197（expected head 08a27510）
+exact-head CI  **37751620983** SUCCESS（G4A-51 门）
+exact-main push CI 37753888528（push @ ea73b855；写入本状态时 in progress，
+            与既有模式一致，可能被本 docs-only status push 取代）
+
+head note   原候选 head 03f344f4；因 GitHub 对 pull_request 使用 head 分支的
+            workflow 文件，旧 CI 一直用 /dev/null 打包命令而失败；
+            将 origin/main（含 #198 ci.yml 修复）merge 进分支 → 08a27510。
+            08a27510 与 03f344f4 产品树逐字节相同，仅 .github/workflows/ci.yml +1/−1。
+            原语义审计 PASS 与 13/13 mutation 证据继续适用于未变化的产品代码；
+            用户裁定不需要为新 SHA 重跑 L3。
+
+closed scope
+            audited publication candidate（audited-but-not-approved）
+            publication_authority = false
+            0 model / 0 network calls；不修改 answer
+            PUBLICATION 第三 trigger stage
+            unit-safe synthesis（EvidencePayloadUnit / effective_units / per-unit locator）
+            layered validator（blocked 只需 bounded reason + 无 result；
+            audited 绑定 owner.child_run_id == result.child_run_id + source/result digest 相等）
+            真实多线程 C5/C6/C7 竞态
+            runtime 0-model / 0-socket gate
+            G4A-1…G4A-51 | mutation authority 13/13 PASS
+
+known boundary
+            仅“审计通过的发布候选”，未获发布批准
+            assistant_message / pedagogy / learning_state 不变
+```
+
+> Deep-4A authority 永久为 merge commit `ea73b855` / exact-head CI `37751620983`。此后 main 上的 docs-only closeout 提交只是该记录的载体，**不表示新 SHA 跑过验证**；按 `AGENTS.md` §4.5 / §10.4，docs-only 变更不需要重跑 L3 或 full suite。
 
 **Deep-3T CLOSED ✅**
 
@@ -221,9 +256,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（Deep-1 CLOSED；Deep-2 CLOSED；当前 = Deep-3 contract preparation）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A 全部 CLOSED；Deep-4B NO-GO；当前 = Learning State-1）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 = CLOSED ✅`；`Deep-2 = CLOSED ✅`；`Deep-3 = contract preparation（未实现）`；`UI = 后置`。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；下一刀 = `Learning State-1`（学习状态 bounded contract，L1–L6）；`UI = 后置`（独立交互合同另开一 PR）。
 
 ## 0A. 冻结研究路线
 
@@ -232,7 +267,7 @@ Lookup
   → VERIFIED / SAFE_ABSTAIN / pending ESCALATE_STANDARD
 Standard（CLOSED）
   → 多源补全 / 双方比较 / 冲突处理；已由 production runtime 自动消费
-Deep（Deep-1 CLOSED；Deep-2 CLOSED；Deep-3 contract preparation）
+Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A CLOSED；Deep-4B NO-GO）
   → plan / gap / Evidence Gain / saturation / interruption-resume
   → 复用现有 ActiveResearchRuntimeExecutor；不新建第二套研究引擎
 ```
