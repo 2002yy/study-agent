@@ -31,26 +31,30 @@ test("research stages update sources without rewriting the answer and survive re
   await expect(workspace).toBeVisible();
   const answer = page.locator(".message.assistant .markdown-message").last();
   const original = await answer.innerText();
-  await workspace.getByText("Lookup · 快速查找", { exact: true }).click();
-  await expect(workspace.getByText(/读取状态未提供/)).toBeVisible();
+  await workspace.getByRole("button", {name: "研究资料", exact: true}).click();
+  const dossier = page.locator(".research-dossier");
+  await dossier.getByText("技术详情与证据关联", {exact: true}).click();
+  await dossier.getByText("Lookup · 快速查找", { exact: true }).click();
+  await expect(dossier.locator(".research-tier-list").getByText(/读取状态未提供/).first()).toBeVisible();
   phase = 2;
-  await workspace.getByRole("button", { name: "刷新研究状态" }).click();
-  await workspace.getByText("Standard · 对照核验", { exact: true }).click();
-  await expect(workspace.getByText("尚未判断支持关系", { exact: true })).toBeVisible();
+  await dossier.getByRole("button", { name: "刷新研究状态" }).click();
+  await dossier.getByText("Standard · 对照核验", { exact: true }).click();
+  await expect(dossier.locator(".research-tier-list").getByText("尚未判断支持关系", { exact: true }).first()).toBeVisible();
   expect(await answer.innerText()).toBe(original);
   phase = 3;
-  await workspace.getByRole("button", { name: "刷新研究状态" }).click();
-  await expect(workspace.getByText(/审计候选已就绪，尚未获准发布/)).toBeVisible();
+  await dossier.getByRole("button", { name: "刷新研究状态" }).click();
+  await expect(dossier.getByText(/审计候选已就绪，尚未获准发布/)).toBeVisible();
   expect(await answer.innerText()).toBe(original);
   await page.reload();
-  await expect(workspace.getByText(/审计候选已就绪，尚未获准发布/)).toBeVisible();
-  await expect(workspace.locator("details")).toHaveCount(3);
+  await workspace.getByRole("button", {name: "研究资料", exact: true}).click();
+  await expect(dossier.getByText(/审计候选已就绪，尚未获准发布/)).toBeVisible();
+  await expect(dossier.locator(".research-tier-list > details")).toHaveCount(3);
   expect(await noHorizontalOverflow(page)).toBe(true);
   await expect(workspace.getByRole("slider")).toHaveCount(0);
-  await workspace.getByRole("button", { name: "刷新研究状态" }).focus();
-  await expect(workspace.getByRole("button", { name: "刷新研究状态" })).toBeFocused();
-  for (const details of await workspace.locator("details").all()) {
-    if (!(await details.getAttribute("open"))) await details.locator("summary").click();
+  await dossier.getByRole("button", { name: "刷新研究状态" }).focus();
+  await expect(dossier.getByRole("button", { name: "刷新研究状态" })).toBeFocused();
+  for (const details of await dossier.locator("details").all()) {
+    if (!(await details.getAttribute("open"))) await details.locator("summary").first().click();
   }
-  await page.screenshot({ path: `D:/study-agent-validation/reading-notebook-ui-evidence/research-presentation-${testInfo.project.name}.png`, fullPage: true });
+  await page.screenshot({ path: `D:/study-agent-validation/reading-notebook-ui-evidence/conversation-research-${testInfo.project.name}.png`, fullPage: true });
 });

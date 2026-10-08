@@ -5,7 +5,8 @@ import { AnswerCardView } from "../features/answer-ui/AnswerCardView";
 import { ConsentImage } from "./ConsentImage";
 import { splitAnswerContent } from "../features/answer-ui/answerUiProtocol";
 
-export function MarkdownMessage({ content, interactive = false, streaming = false, onDraft }: {
+export function MarkdownMessage({ content, interactive = false, streaming = false, onDraft, citationUrls, onCitation }: {
+  citationUrls?: string[]; onCitation?: (url: string) => void;
   content: string; interactive?: boolean; streaming?: boolean; onDraft?: (prompt: string) => void;
 }) {
   const parts = useMemo(() => interactive ? splitAnswerContent(content, streaming)
@@ -20,7 +21,9 @@ export function MarkdownMessage({ content, interactive = false, streaming = fals
         key={part.key}
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
+          a: ({ href, children, ...props }) => href && citationUrls?.includes(href) && onCitation
+            ? <button className="answer-source-citation" type="button" title="在研究资料中查看来源" onClick={() => onCitation(href)}>{children}</button>
+            : <a {...props} href={href} target="_blank" rel="noreferrer noopener">{children}</a>,
           img: ({ src, alt }) => <ConsentImage src={src} alt={alt} />
         }}
       >

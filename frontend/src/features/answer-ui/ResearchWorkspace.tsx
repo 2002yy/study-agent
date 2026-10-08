@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { mergeResearchPresentation, parseResearchPresentation, type ResearchPresentation } from "./researchPresentation";
 import "./researchWorkspace.css";
+import { BookOpen, Check, ChevronRight, Loader2, X } from "lucide-react";
+import { SlideOver } from "../../components/SlideOver";
 import { researchStopReasonDisplay } from "../web-lookup/researchStopReason";
 
 const tierNames = { lookup: "Lookup · 快速查找", standard: "Standard · 对照核验", deep: "Deep · 深入研究" };
@@ -11,7 +13,36 @@ const phaseNames: Record<string, string> = { planned: "规划", planning: "规�
 const display = (names: Record<string, string>, value: string, fallback: string) =>
   Object.prototype.hasOwnProperty.call(names, value) ? names[value] : fallback;
 
-export function ResearchWorkspace({ sessionId, turnId, initial }: { sessionId: string; turnId: string; initial?: ResearchPresentation }) {
+export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = false, onOpenChange, onSnapshot, sourceRequest }: {
+  sessionId: string; turnId: string; initial?: ResearchPresentation; hasAnswer?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSnapshot?: (snapshot: ResearchPresentation | null) => void;
+  sourceRequest?: { url: string; key: number } | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(() => typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1100px)").matches);
+  const panelId = useId();
+  const opener = useRef<HTMLButtonElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(max-width: 1100px)");
+    const change = () => setMobile(media.matches);
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
+  useEffect(() => { onOpenChange?.(open && !mobile); return () => onOpenChange?.(false); }, [open, mobile, onOpenChange]);
+  useEffect(() => { if (sourceRequest) setOpen(true); }, [sourceRequest]);
+  useEffect(() => {
+    if (!open || !sourceRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const target = Array.from(content.current?.querySelectorAll<HTMLElement>("[data-source-url]") ?? [])
+        .find(element => element.dataset.sourceUrl === sourceRequest.url);
+      target?.scrollIntoView?.({ block: "nearest" }); target?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sourceRequest, open, mobile]);
+  const close = () => { setOpen(false); opener.current?.focus(); };
   const [snapshot, setSnapshot] = useState<ResearchPresentation | null>(initial ?? null);
   const [unavailable, setUnavailable] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -64,11 +95,38 @@ export function ResearchWorkspace({ sessionId, turnId, initial }: { sessionId: s
     void load();
     return () => { active = false; resumePolling.current = null; clearTimeout(timer); controller?.abort(); };
   }, [sessionId, turnId, refresh]);
+  useEffect(() => { onSnapshot?.(snapshot); }, [snapshot, onSnapshot]);
   if (!snapshot?.blocks.length || snapshot.session_id !== sessionId || snapshot.turn_id !== turnId) return null;
-  return <section className="research-workspace" aria-label="研究工作区">
-    <header><strong>研究工作区</strong><span>仅观察 · 不改变正式答案</span><button type="button" onClick={() => setRefresh(n => n + 1)} aria-label="刷新研究状态">刷新</button></header>
-    {unavailable ? <p role="status">状态更新暂不可用，以下是最后一次成功读取的快照。</p> : null}
-    <div className="research-tier-list">{snapshot.blocks.map(b => <details key={b.block_id} open={b.research_status === "running"}>
+  const active = [...snapshot.blocks].reverse().find(b => ["running", "pending"].includes(b.research_status));
+  const latest = active ?? snapshot.blocks[snapshot.blocks.length - 1];
+  const waiting = snapshot.watch || Boolean(active);
+  const title = !Object.prototype.hasOwnProperty.call(statuses, latest.research_status) ? "研究状态待确认" : waiting ? "研究进行中" : latest.research_status === "failed" ? "研究暂未完成"
+    : latest.research_status === "cancelled" ? "研究已停止" : latest.research_status === "partial" ? "研究已结束，仍有待确认问题" : "研究已结束";
+  const narrative = waiting ? `${display(phaseNames, latest.research_phase ?? latest.stage, "核对资料")}，${hasAnswer ? "已有回答可继续阅读" : "核验后展示可用结果"}。`
+    : snapshot.audit_status === "audited" ? "深入研究记录已审计，候选内容尚未获准发布。"
+    : "回答与研究资料可继续查看；来源记录不等于结论已核实。";
+  const sources = snapshot.blocks.flatMap(b => b.sources).filter((s, i, all) => all.findIndex(other => other.url === s.url) === i);
+  const gaps = snapshot.blocks.flatMap(b => b.gaps).filter(g => g.research_state === "OPEN" || g.support_status !== "SUPPORT");
+  const details = <div className="research-dossier" ref={content}>
+    <p className="research-authority-note">资料用于追溯查证过程。是否可用于回答，由原有证据与发布规则决定。</p>
+    <ol className="research-journey" aria-label="研究进展">
+      {snapshot.blocks.map(b => <li key={b.block_id}>
+        {["pending", "running"].includes(b.research_status) ? <Loader2 size={14} className="spin"/> : b.research_status === "completed" ? <Check size={14}/> : <span className="research-step-dot"/>}
+        <span>{({ lookup: "快速查证", standard: "对照核验", deep: "深入研究" })[b.tier]}</span>
+        <small>{display(statuses, b.research_status, "状态未识别")}</small>
+      </li>)}
+    </ol>
+    {snapshot.audit_status === "audited" ? <p className="research-audit-note">Deep 审计候选已就绪，尚未获准发布；不会追加为正式回答。</p> : null}
+    {snapshot.audit_integrity === "invalid" ? <p className="research-audit-note">审计记录未通过完整性检查，未用于正式答案。</p> : null}
+    {gaps.length ? <section aria-label="仍待确认"><h3>仍待确认</h3><ul className="research-open-questions">{gaps.map(g => <li key={g.block_id}>{g.field}<small>{display(supportNames, g.support_status, "支持关系未提供")}</small></li>)}</ul></section> : null}
+    <section aria-label="本次研究来源"><h3>研究资料</h3>
+      {sources.length ? <ol className="research-readable-sources">{sources.map((s, i) => <li key={s.url} data-source-url={s.url} tabIndex={-1} className={sourceRequest?.url === s.url ? "is-selected" : ""}>
+        <span className="research-source-number">{i + 1}</span><div><a href={s.url} target="_blank" rel="noreferrer noopener">{s.title === s.url ? new URL(s.url).hostname : s.title}</a>
+        <small>{new URL(s.url).hostname} · {readNames[s.read_status]}</small></div>
+      </li>)}</ol> : <p>尚未取得可展示的来源。</p>}
+    </section>
+    <details className="research-diagnostics"><summary>技术详情与证据关联</summary>
+    <div className="research-tier-list">{snapshot.blocks.map(b => <details key={b.block_id}>
       <summary><strong>{tierNames[b.tier]}</strong><span>{display(statuses, b.research_status, "状态未识别")}</span></summary>
       <p>当前阶段：{display(phaseNames, b.research_phase ?? b.stage, "未提供阶段细节")}{b.tier === "deep" ? ` · 研究波次 ${b.wave ?? "—"}` : ""}</p>
       <p className="research-counts">候选 {b.candidate_count ?? "—"} · 读取成功 {b.read_count ?? "—"} · 关键缺口 {b.open_critical_gap_count ?? "—"}{b.read_attempt_count !== null ? ` · 读取尝试 ${b.read_attempt_count}` : ""}</p>
@@ -81,8 +139,19 @@ export function ResearchWorkspace({ sessionId, turnId, initial }: { sessionId: s
       {b.sources_truncated ? <p>来源预览已截断。</p> : null}
       <small>研究版本 {b.revision} · 更新时间 {b.updated_at}</small>
     </details>)}</div>
-    {snapshot.audit_status === "audited" ? <p>Deep 审计候选已就绪，尚未获准发布；正式答案保持原版本。</p> : null}
-    {snapshot.audit_integrity === "invalid" ? <p>审计记录未通过完整性检查，未用于正式答案。</p> : null}
-    {snapshot.truncated ? <p>研究记录预览已截断。</p> : null}
+      {snapshot.truncated ? <p>研究记录预览已截断。</p> : null}
+    </details>
+    <button className="research-refresh" type="button" onClick={() => setRefresh(n => n + 1)} aria-label="刷新研究状态">刷新研究状态</button>
+  </div>;
+  return <section className="research-workspace" aria-label="研究工作区">
+    <div className="research-status-row">
+      <span className="research-status-icon" aria-hidden="true">{waiting ? <Loader2 size={16} className="spin"/> : <BookOpen size={16}/>}</span>
+      <div role="status"><strong>{title}</strong><span>{unavailable ? "连接暂不可用，保留上次研究记录。" : narrative}</span></div>
+      <button ref={opener} type="button" aria-expanded={open} aria-controls={panelId} aria-haspopup={mobile ? "dialog" : undefined} onClick={() => setOpen(value => !value)}>研究资料<ChevronRight size={14}/></button>
+    </div>
+    {mobile ? <SlideOver open={open} title="研究资料" onClose={close}><div id={panelId}>{details}</div></SlideOver>
+      : open ? <aside id={panelId} className="research-sidebar" aria-label="研究资料" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+        <header><h2>研究资料</h2><button type="button" aria-label="关闭研究资料" onClick={close}><X size={18}/></button></header>{details}
+      </aside> : null}
   </section>;
 }

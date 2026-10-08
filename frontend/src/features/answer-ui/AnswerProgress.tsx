@@ -10,7 +10,7 @@ export function AnswerProgress({ hasContent, progress }: { hasContent: boolean; 
   const researching = progress && ["pending", "running"].includes(progress.status);
   return <div className="answer-progress" role="status" aria-live="polite">
     <Loader2 className="spin" size={14} />
-    <span>{researching ? stages[progress.stage] ?? "正在查找资料" : hasContent ? "回答正在补充，可以先阅读" : "正在组织回答"}</span>
-    {researching ? <span>已查询 {progress.query_attempt_count} 次 · 已读 {progress.read_count ?? 0} 份{hasContent ? "" : " · 核验后显示结论"}</span> : null}
+    <span>{researching ? (Object.prototype.hasOwnProperty.call(stages, progress.stage) ? stages[progress.stage] : "正在查找资料") : hasContent ? "回答正在补充，可以先阅读" : "正在组织回答"}</span>
+    {researching ? <span>{hasContent ? "已有回答可继续阅读" : "核验后展示可用结果"}</span> : null}
   </div>;
 }

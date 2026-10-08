@@ -22,6 +22,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
+import type { ResearchPresentation } from "../answer-ui/researchPresentation";
+import "./conversationFirst.css";
 import { ResearchWorkspace } from "../answer-ui/ResearchWorkspace";
 import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
@@ -116,6 +118,9 @@ type CopyState = "idle" | "success" | "error";
 
 export function ChatPanel(props: ChatPanelProps) {
   const reading=useReadingWorkspace();
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchSnapshot, setResearchSnapshot] = useState<ResearchPresentation | null>(null);
+  const [sourceRequest, setSourceRequest] = useState<{url: string; key: number; turnId: string} | null>(null);
   const {
     messages,
     sessionId,
@@ -289,9 +294,13 @@ export function ChatPanel(props: ChatPanelProps) {
     clearPendingTaskIntentOverride();
     setComposerMode("chat");
     setRoleSettingsOpen(false);
+    setSourceRequest(null);
     return clearPendingTaskIntentOverride;
   }, [sessionId]);
 
+  const lastMessage = displayMessages[displayMessages.length - 1];
+  const researchMessage = lastMessage?.role === "assistant" && lastMessage.turnId && (sessionId || lastMessage.researchPresentation?.session_id) ? lastMessage : null;
+  const hasResearch = Boolean(researchSnapshot?.blocks.length && researchSnapshot.turn_id === researchMessage?.turnId && researchSnapshot.session_id === (sessionId || researchMessage?.researchPresentation?.session_id));
   const restoreCard=<RestoreCard
     session={sessionNavigation} streamRecovery={streamRecovery}
     onSelectEntry={handleRestoreEntry} onUpload={onUploadClick}
@@ -300,7 +309,7 @@ export function ChatPanel(props: ChatPanelProps) {
     onRetryInterrupted={onRetry} onAbandonInterrupted={onAbandonInterruptedReply}
   />;
   return (
-    <main className={`chat-panel${!displayMessages.length && !streamRecovery ? " chat-start" : ""}`} id="chat">
+    <main className={`chat-panel conversation-first${!displayMessages.length && !streamRecovery ? " chat-start" : ""}`} id="chat">
       <span className="visually-hidden" aria-live="polite" role="status">
         {copyAnnouncement}
       </span>
@@ -322,7 +331,10 @@ export function ChatPanel(props: ChatPanelProps) {
           </div>
       </header>
 
-      <div className="conversation-shell">
+      <div className={`conversation-shell${researchOpen && hasResearch ? " research-sidebar-open" : ""}`}>
+        {researchMessage ? <ResearchWorkspace key={`${sessionId}:${researchMessage.turnId}`} turnId={researchMessage.turnId!}
+          sessionId={sessionId || researchMessage.researchPresentation!.session_id} initial={researchMessage.researchPresentation}
+          hasAnswer={Boolean(researchMessage.content.trim())} onOpenChange={setResearchOpen} onSnapshot={setResearchSnapshot} sourceRequest={sourceRequest?.turnId === researchMessage.turnId ? sourceRequest : null} /> : null}
         <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
           {firstUseNotice}
           {streamRecovery ? restoreCard : sessionNavigation?.has_completed_turns ? <details className="reading-session-context"><summary>本会话学习上下文</summary>{restoreCard}</details> : !displayMessages.length ? <section className="chat-welcome" aria-label="开始新任务"><span>你的学习空间</span><h2>今天想了解什么？</h2><p>直接对话，或搜索你想核对的资料。</p></section> : null}
@@ -355,12 +367,11 @@ export function ChatPanel(props: ChatPanelProps) {
                         {cancelNotice}
                       </p>
                     ) : null}
-                    {message.role === "assistant" && isSending && index === displayMessages.length - 1
+                    {message.role === "assistant" && isSending && !hasResearch && index === displayMessages.length - 1
                       ? <AnswerProgress hasContent={!!message.content.trim()} progress={researchProgress} /> : null}
-                    {message.role === "assistant" && index === displayMessages.length - 1 && message.turnId && (sessionId || message.researchPresentation?.session_id)
-                      ? <ResearchWorkspace key={message.turnId} turnId={message.turnId}
-                          sessionId={sessionId || message.researchPresentation!.session_id} initial={message.researchPresentation} /> : null}
-                    <MarkdownMessage content={message.content} interactive={message.role === "assistant"
+                    <MarkdownMessage content={message.content}
+                      citationUrls={message === researchMessage && hasResearch ? researchSnapshot!.blocks.flatMap(b => b.sources.map(source => source.url)) : undefined}
+                      onCitation={url => setSourceRequest({ url, key: Date.now(), turnId: researchMessage!.turnId! })} interactive={message.role === "assistant"
                       && !message.researchPresentation?.blocks.length && !message.evidence?.rag?.web_tools?.run_id}
                       streaming={message.role === "assistant" && isSending && index === displayMessages.length - 1}
                       onDraft={prompt => {
@@ -399,7 +410,8 @@ export function ChatPanel(props: ChatPanelProps) {
         </div>
       ) : null}
 
-      <ChatResearchRecovery
+      {hasResearch ? (researchRun || researchProgress) ? <details className="research-recovery-secondary"><summary>研究恢复与操作</summary>
+        <ChatResearchRecovery
         run={researchRun}
         progress={researchProgress}
         isBusy={isResearchBusy}
@@ -409,6 +421,18 @@ export function ChatPanel(props: ChatPanelProps) {
         onRetry={onRetryResearch}
         onResume={onResumeResearch}
       />
+      </details> : null : <div className="research-recovery-primary">
+        <ChatResearchRecovery
+        run={researchRun}
+        progress={researchProgress}
+        isBusy={isResearchBusy}
+        canRetry={canRetryResearch}
+        canResume={canResumeResearch}
+        useInChat={useResearchInChat}
+        onRetry={onRetryResearch}
+        onResume={onResumeResearch}
+      />
+      </div>}
 
       <form className="composer" onSubmit={handleSubmit}>
         <div className="composer-main">

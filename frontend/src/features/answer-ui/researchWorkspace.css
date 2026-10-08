@@ -1,16 +1,50 @@
-.research-workspace { margin: 16px 0; padding: 14px; border: 1px solid var(--line, #dce4e9); border-radius: 16px; background: #f6f8fa; color: #3d5363; font: inherit; }
-.research-workspace header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.research-workspace header span, .research-workspace small { color: #647886; font-size: 12px; }
-.research-workspace header button { margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 6px 10px; }
-.research-tier-list { display: grid; gap: 8px; margin-top: 12px; }
-.research-tier-list details { background: #fff; border-radius: 10px; padding: 10px 12px; }
-.research-tier-list summary { cursor: pointer; }
-.research-tier-list summary span { float: right; font-size: 12px; }
-.research-workspace p { margin: 8px 0; font-size: 13px; line-height: 1.65; }
-.research-workspace ul { list-style: none; padding: 0; margin: 12px 0; }
-.research-workspace li { display: grid; gap: 3px; margin: 10px 0; overflow-wrap: anywhere; }
-.research-workspace li span { font-size: 12px; color: #647886; }
-.research-workspace a { color: #416d8b; }
-.research-workspace table { width: 100%; table-layout: fixed; font-size: 12px; }
-.research-workspace td, .research-workspace th { text-align: left; padding: 6px 4px; overflow-wrap: anywhere; }
-.research-workspace button:focus-visible, .research-workspace summary:focus-visible { outline: 2px solid #416d8b; outline-offset: 3px; }
+/* A single progress narrative; technical state is intentionally secondary. */
+.research-workspace { flex: 0 0 auto; color: var(--text); font: inherit; }
+.research-status-row { display: flex; align-items: center; gap: 12px; min-height: 60px; max-width: 820px; margin: 0 auto; padding: 12px 24px; }
+.research-status-icon { color: var(--accent); flex-shrink: 0; display: flex; }
+.research-status-row > div { flex: 1; min-width: 0; }
+.research-status-row strong { display: block; font-size: 13px; font-weight: 500; }
+.research-status-row span:not(.research-status-icon) { display: block; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.research-status-row > button { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; min-height: 40px; padding: 6px 8px; background: transparent; border: 0; font-size: 12px; color: var(--accent); cursor: pointer; }
+.research-sidebar { position: absolute; inset: 0 0 0 auto; width: 320px; border-left: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; z-index: 2; }
+.research-sidebar > header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; flex-shrink: 0; }
+.research-sidebar h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.research-sidebar header button { display: grid; place-items: center; width: 40px; height: 40px; background: transparent; border: 0; color: var(--muted); cursor: pointer; }
+.research-dossier { padding: 0 20px 24px; overflow-y: auto; min-height: 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.research-dossier h3 { font-size: 14px; font-weight: 600; margin: 24px 0 12px; }
+.research-authority-note { margin: 0 0 16px; color: var(--muted); font-size: 12px; }
+.research-journey { padding: 0; list-style: none; margin: 16px 0 24px; }
+.research-journey li { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+.research-journey li > :first-child { width: 14px; flex-shrink: 0; color: var(--accent); }
+.research-journey small { margin-left: auto; color: var(--muted); }
+.research-step-dot { display: inline-block; height: 6px; width: 6px !important; margin: 0 4px; border-radius: 50%; background: var(--muted); }
+.research-audit-note { padding-left: 12px; border-left: 2px solid var(--border); color: var(--muted); font-size: 12px; }
+.research-open-questions { padding-left: 16px; }
+.research-open-questions li { margin: 8px 0; }
+.research-open-questions small { display: block; color: var(--muted); }
+.research-readable-sources { padding: 0; list-style: none; }
+.research-readable-sources li { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); scroll-margin: 16px; }
+.research-readable-sources li.is-selected { border-left: 2px solid var(--accent); padding-left: 8px; }
+.research-source-number { color: var(--muted); font-size: 11px; padding-top: 2px; }
+.research-readable-sources a { color: var(--text); text-decoration: none; font-weight: 500; }
+.research-readable-sources a:hover { text-decoration: underline; }
+.research-readable-sources small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.research-diagnostics { margin: 24px 0 12px; font-size: 12px; color: var(--muted); }
+.research-diagnostics summary { cursor: pointer; padding: 8px 0; min-height: 40px; }
+.research-tier-list > details { border-top: 1px solid var(--border); }
+.research-tier-list summary span { display: block; }
+.research-tier-list p { margin: 8px 0; }
+.research-tier-list ul { padding-left: 16px; }
+.research-tier-list li span { display: block; }
+.research-tier-list table { width: 100%; table-layout: fixed; font-size: 11px; }
+.research-tier-list td, .research-tier-list th { text-align: left; padding: 4px; overflow-wrap: anywhere; }
+.research-tier-list a { color: var(--accent); }
+.research-refresh { padding: 6px 0; min-height: 40px; color: var(--accent); border: 0; background: transparent; cursor: pointer; font-size: 12px; }
+.research-workspace :is(button, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .research-status-row { padding: 8px 16px; gap: 8px; }
+  .research-status-row strong { font-size: 12px; }
+  .research-status-row > button { min-height: 44px; padding-inline: 4px; }
+  .research-workspace .slide-over { width: min(340px, calc(100vw - 20px)); }
+  .research-workspace .slide-over-body { padding: 0; }
+}
