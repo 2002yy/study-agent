@@ -149,7 +149,7 @@ jobs:
       - name: Run package helper (validate packaging logic)
         id: packaging
         continue-on-error: true
-        run: python tools/package_project_helper.py . /dev/null 0
+        run: python tools/package_project_helper.py . "${RUNNER_TEMP}/study-agent-ci-package.zip" 0
 
       - name: Run detect-secrets
         id: secrets
