@@ -131,6 +131,11 @@ async function jsonFrom<T>(page: Page, path: string): Promise<T> {
 }
 
 async function durableState(page: Page, sessionId: string): Promise<DurableState> {
+  // A complete visible token can arrive before the turn-end transaction commits.
+  await expect.poll(async () => {
+    const state = await jsonFrom<DurableState>(page, `/__e2e__/state/${encodeURIComponent(sessionId)}`);
+    return state.turns.some(turn => turn.status === "streaming" || turn.status === "pending");
+  }).toBe(false);
   return jsonFrom<DurableState>(
     page,
     `/__e2e__/state/${encodeURIComponent(sessionId)}`,
@@ -327,7 +332,9 @@ test("learning closure previews, hash-commits and restores before archive", asyn
   await page.goto("/");
   const sessionId = await completeReasonedLearning(page);
 
-  await page.getByRole("button", { name: "整理学习" }).click();
+  const closureButton = page.getByRole("button", { name: "整理学习" }).filter({ visible: true });
+  if (!(await closureButton.isVisible())) await page.getByLabel("打开会话历史").click();
+  await closureButton.click();
   const review = page.getByTestId("learning-closure-review");
   await expect(review.getByRole("heading", { name: "回顾这次学习" })).toBeVisible();
   await expect(review.getByText(CORRECT_EXPLANATION, { exact: true })).toBeVisible();

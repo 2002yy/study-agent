@@ -17,6 +17,13 @@ test("new session keeps one input with chat and search only", async ({ page }, t
   const start = page.getByRole("region", { name: "开始新任务" });
   const disclosure = page.getByRole("complementary", { name: "联网与模型上下文说明" });
   await expect(disclosure).toBeVisible();
+  await expect(disclosure.locator("details")).not.toHaveAttribute("open");
+  expect((await disclosure.boundingBox())!.height).toBeLessThanOrEqual(64);
+  expect(await disclosure.evaluate(element => getComputedStyle(element).fontSize)).toBe("12px");
+  await disclosure.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(disclosure.locator("details")).toHaveAttribute("open", "");
+  await expect(disclosure.locator("p")).toBeVisible();
   await expect(disclosure).toContainText("当前联网策略：关闭联网");
   await disclosure.getByRole("button", { name: "我知道了" }).click();
   await expect(disclosure).toHaveCount(0);

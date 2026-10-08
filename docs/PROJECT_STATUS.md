@@ -8,12 +8,15 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
-**B线当前施工（Research Presentation-1，未提交/未推送/未CLOSED）：** UI独立worktree `D:/study-agent-validation/reading-notebook-ui`，branch `codex/reading-notebook-ui`；用户明确本窗口只负责B，A线Learning State不得混入。第一批head511f2128已导出完整bundle/binary patch；先导工具d48091d5真实DeepSeek Flash12请求，UI简单3/3纯文、Java交互3/3有效实验，TTUV未测量。原基线main15c2821f通过本地merge3c9b76eb接入；用户宣布#197/#199合并后已只读核对GitHub，#197=ea73b855、#199/current main=766c0b67442bfbbc4b8fc63e4acd00757c0062bb。当前在此隔离分支合并新共同基线，所有UI未提交改动保留，原main工作区未改。
+**B线 Research Presentation-1施工检查点（未CLOSED）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`，branch `codex/reading-notebook-ui`，仅负责B；共同研究基线 `766c0b67442bfbbc4b8fc63e4acd00757c0062bb`。完整保留原UI及d48091d5模型选择工具提交，原UI最新精修已通过独立draft [PR #201](https://github.com/2002yy/study-agent/pull/201) 推送为 `e1a24697f1fad1546614fd81123bc56db90cdca4`（CI run37761697236一次观察为in_progress）。本分支同步其精修用于现有预览，不把未提交研究协议送入#201。冻结合同见RESEARCH_PRESENTATION_1_CONTRACT.md。
 
-**B已接线范围：** read-only研究快照GET + additive research_presentation SSE，服务器拥有block/run/source/revision及来源读取状态、Standard正文hash校验、缺口/证据关系、Deep只读审计完整性检查；前端源/正文分开、跨turn过滤、晚到revision忽略、刷新恢复，EOFnodone报中断。未经来源绑定的模型研究图表不作为可交互价格数据启用。没有学习判定/持久化schema/搜索预算/Deep发布权改动。详见RESEARCH_PRESENTATION_1_CONTRACT.md（本轮合同）。
+**B施工范围与证据：** 已加只读研究投影/恢复GET、兼容SSE research_presentation、来源与支持/审计隔离、稳定run版本/turn/session隔离、EOF无terminal错误处理。Deep审计复用validate_recorded_publication；波次/阶段复用load_runtime_cursor；未知Standard读取数保持null。Deep候选正文/模型价格不进入投影，原whole-answer gate和学习判定不改。新基线后端69 PASS；增加游标负控并修正测试位置后，投影/Standard绑定/Deep执行65 PASS，Ruff PASS。前端460 PASS/build PASS是同步本轮精修前的证据；完整R1–R6最终门尚未执行，R6真实三层案例/延迟仍待完成，不能以模拟浏览器或12次Flash教学pilot宣布研究GO。旧main15c的后端L3约35%因基线变化中止，不算通过。当前研究feature文件未提交/未推送、现有UI整合与其分离；唯一下一slice：验证同步精修后的R1–R5恢复/真实状态投影，再完成R6真实研究验收。Deep-4B仍NO-GO，不自动改正式答案。
 
-**B验证边界：** 旧main15c上的前端460、浏览器79、影响集84/后端27通过；接新共同基线及审计投影变化后这些只作增量参考，不替代新候选最终门。旧后端L3约35%时因基线变化中止，日志留存，不能报full PASS。下一步完成R1–R6，集中跑新候选影响集/全量/类型基线和真实阶段场景；在此之前B不能CLOSED。A线与B线不互相等待CI、不共用PR。Deep-4B仍NO-GO，audit候选绝不默默更新正式答案。
+**2026-10-08 B线：先接入已完成UI（验收中）：** 用户要求之前前端改动尽快接入。独立worktree `D:/study-agent-validation/ui-main-integration`、branch `codex/ui-main-integration`；基线 main `766c0b67442bfbbc4b8fc63e4acd00757c0062bb`，复用现有UI head `511f21286e9fc7545dbacaac831945bf2470af00`，保留原提交历史。包含阅读并排/对话居中、纸白蓝灰及设备字体偏好、四角色最新版头像、内部角色设置、框内紧凑自增高输入框、右上资料开关、可记忆拖动宽度、只读正文/PDF与引用定位，以及已完成的教学交互组件。Learning State-1和尚未提交的Research Presentation-1均不混入此PR；研究协议/真实三层R6继续由原reading-notebook-ui分支负责。
 
+**精修与新基线本地证据（LOCAL UI GO / 合并门未关闭）：** 联网提示收成默认折叠的12px说明，实页桌面50px/手机54px高，原策略说明仍可键盘展开；左栏去掉重复资料标题、副说明、零计数和空会话冗长提示，统一列表/底部对齐及字号。frontend 453 PASS，完整浏览器77 PASS（含手机/窄屏/Firefox/WebKit），真实React/FastAPI/SQLite交互14 PASS，阅读/附件/引用/流式影响集82 PASS，tsc+Vite build与Ruff PASS；mypy无新增错误（122/128，消除6条既有错误）。当前自审无未解决范围内问题。UI整合生产起点 `f60c27e576a8c2d2460d7747f1fee7f4d504b5d4` 的L3预检PASS，完整后端回归仍运行，不能报full PASS；后续精修仅前端和浏览器用例，不变更后端/后端测试。最终head由Git恢复；CI、独立最终review和合并主线门待完成，不能借旧CI宣告REMOTE GO。主目录既有dirty保留；A线独立worktree不动。Deep-4B仍NO-GO，教学模拟组件不形成研究发布权限。
+
+**失败与恢复证据：** 首次real-stack 11/14，两个旧“更多开始方式”定位和手机未开导航的整理入口过期；更新入口保留所有取消/同run重试/学习提交断言。第二次13/14，原测试把完整可见token误当durable commit；增加等待真实turn-end状态后14/14。精修后的首轮浏览器75/77仅底部字号旧13px断言过期；统一为12px后77/77，提示条新增高度/折叠/键盘展开断言。日志及1440/390截图留在 `D:/study-agent-validation/reading-notebook-ui-evidence/ui-integration-*` 和 `ui-refined-final-*`。唯一下一门：固定UI PR head、记录一次exact-head CI、完成L3与独立最终review后才合并；Research Presentation-1的R6不作为此UI PR的虚假已完成项。
 
 **当前执行权：Deep 阶段收尾 / 学习主线开启。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。下一刀 = **Learning State-1**（学习状态 bounded contract）；同时用户已指示先冻结一份独立的 **Intelligent UI × Lookup/Standard/Deep 交互合同**，**两条线不得混入同一个 PR**。
 
