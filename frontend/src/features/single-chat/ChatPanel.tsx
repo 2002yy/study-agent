@@ -21,6 +21,8 @@ import {
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
+import { AnswerProgress } from "../answer-ui/AnswerProgress";
+import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
 import type {
@@ -218,7 +220,7 @@ export function ChatPanel(props: ChatPanelProps) {
   const copyMessage = async (content: string, index: number) => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(answerCopyText(content));
       setMessageCopy({ index, state: "success" });
       setCopyAnnouncement("回答已复制");
     } catch {
@@ -352,7 +354,15 @@ export function ChatPanel(props: ChatPanelProps) {
                         {cancelNotice}
                       </p>
                     ) : null}
-                    <MarkdownMessage content={message.content} />
+                    {message.role === "assistant" && isSending && index === displayMessages.length - 1
+                      ? <AnswerProgress hasContent={!!message.content.trim()} progress={researchProgress} /> : null}
+                    <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
+                      streaming={message.role === "assistant" && isSending && index === displayMessages.length - 1}
+                      onDraft={prompt => {
+                        setComposerMode("chat");
+                        setInput(input.trim() ? `${input}\n\n${prompt}` : prompt);
+                        composerRef.current?.focus();
+                      }} />
                   </div>
                   {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
                 </div>

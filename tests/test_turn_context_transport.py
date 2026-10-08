@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from src.api.models.chat import ChatRequest, CommitTurnRequest
 from src.api.routes.chat_routes import _chat_command
 from src.application.chat_service import _session_settings
@@ -79,3 +81,22 @@ def test_group_role_prompt_survives_turn_context_transport() -> None:
     assert build_role_prompt("firefly", scene=wrapped_scene) == build_role_prompt(
         "firefly", scene="group"
     )
+
+
+def test_answer_components_use_existing_transient_ui_context_without_saving_preferences() -> None:
+    ui_context = "Render supported study-ui components; do not bypass the evidence gate."
+    wire = "__STUDY_AGENT_TURN_CONTEXT_V1__" + json.dumps(
+        {"conversation_instruction": "用户手写要求", "turn_context": ui_context},
+        ensure_ascii=False,
+    )
+    request = ChatRequest(user_input="解释二次函数", conversation_instruction=wire)
+    command = _chat_command(request)
+    assert command.conversation_instruction == "用户手写要求"
+    assert normalize_scene(command.scene) == "single"
+    assert ui_context in scene_policy(command.scene)
+    assert ui_context not in str(_session_settings(command, "light"))
+    committed = CommitTurnRequest(
+        session_id="session-1", user_input="问题", agent_reply="回答",
+        conversation_instruction=wire, turn_id="turn-1", operation_id="op-1",
+    )
+    assert committed.conversation_instruction == "用户手写要求"

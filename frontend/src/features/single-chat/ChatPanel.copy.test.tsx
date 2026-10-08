@@ -10,9 +10,9 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const rag = { status: "waiting", query: "", retrieval_mode: "", reason: "", context: "", sources: "", result_count: 0, results: [], debug: {}, attempts: [], rewritten_query: "" };
 
-function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: { question: string; reply: string; reason: string; turnId: string } | null = null) {
+function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: { question: string; reply: string; reason: string; turnId: string } | null = null, content = "回答正文") {
   return render(<ChatPanel
-    messages={[{ role: "assistant", content: "回答正文", avatarRole: "auto" }]}
+    messages={[{ role: "assistant", content, avatarRole: "auto" }]}
     sessionId="session-1" sessionNavigation={null} input="" setInput={vi.fn()}
     isSending={false} onSubmit={vi.fn()} onStop={vi.fn()} streamRecovery={recovery}
     onContinueInterruptedReply={vi.fn()} onRetry={vi.fn()} onAbandonInterruptedReply={vi.fn()}
@@ -25,6 +25,13 @@ function view(copyInterrupted: () => Promise<void> | void = vi.fn(), recovery: {
 }
 
 describe("ChatPanel copy feedback", () => {
+  it("copies readable assistant content without role labels or the component wire format", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    view(vi.fn(), null, '说明\n\n```study-ui\n{"type":"chart","title":"样例","points":[{"label":"甲","value":2},{"label":"乙","value":3}]}\n```');
+    fireEvent.click(screen.getByRole("button", { name: "复制回答正文" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("说明\n\n样例\n甲：2\n乙：3"));
+  });
   it("reports answer-copy denial", async () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
     view();
