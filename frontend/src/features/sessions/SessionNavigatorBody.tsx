@@ -129,7 +129,7 @@ export function SessionNavigatorBody({
 }) {
   return (
     <>
-      <div className="session-history-heading"><span>最近对话</span><small>{navigator.semanticSessions.length}</small></div>
+      <div className="session-history-heading"><span>最近对话</span>{navigator.semanticSessions.length > 0 ? <small>{navigator.semanticSessions.length}</small> : null}</div>
       <details className="session-history-filter">
         <summary><Search aria-hidden="true" size={14}/><span>查找会话</span></summary>
       <div className={`session-navigation-controls${isPanel ? " wide" : ""}`}>
@@ -187,7 +187,7 @@ export function SessionNavigatorBody({
           <div className="empty-state">
             {navigator.query
               ? "没有匹配的会话。"
-              : "还没有会话。点击“新会话”开始。"}
+              : "暂无对话"}
           </div>
         )}
       </nav>

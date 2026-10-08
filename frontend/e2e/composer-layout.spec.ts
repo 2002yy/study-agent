@@ -34,7 +34,7 @@ test("compact composer grows with text and sources launcher preserves the draft 
   await expect(controls).toHaveCount(3);
   for (const control of await controls.all()) {
     expect((await control.boundingBox())!.height).toBe(44);
-    await expect(control).toHaveCSS("font-size", "13px");
+    await expect(control).toHaveCSS("font-size", "12px");
     await expect(control.locator(":scope > svg")).toHaveCSS("width", "16px");
   }
   await page.keyboard.press("Escape");

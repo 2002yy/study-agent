@@ -71,6 +71,55 @@
 .app-shell .workspace-navigation-actions :is(.end-session-button, .sidebar-upload-button, .workspace-menu-trigger):hover:not(:disabled) { background: #eef2ef; color: var(--text); }
 .reading-layout .composer textarea { height: 42px; min-height: 42px; max-height: 160px; resize: none; overflow-y: hidden; }
 .panel-resize-handle::after { background: #bcc8d0; }
+/* Compact disclosures and aligned navigation keep the content in the foreground. */
+.app-shell .external-data-first-use {
+  align-items: flex-start; flex-wrap: nowrap; padding: 4px 10px; gap: 8px;
+  border-color: #e9edef; border-radius: 10px; background: #fafbfb;
+  font-family: var(--font-interface); font-size: 12px;
+}
+.app-shell .external-data-first-use > svg { margin-top: 12px; color: var(--muted); }
+.app-shell .external-data-first-use-copy { display: block; }
+.external-data-first-use-copy > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 40px;
+  list-style: none; cursor: pointer; font-size: 12px; font-weight: 400;
+}
+.external-data-first-use-copy > summary::-webkit-details-marker { display: none; }
+.external-data-first-use-copy > summary small { color: var(--muted); font-size: 11px; }
+.external-data-first-use-copy[open] > summary > svg { transform: rotate(180deg); }
+.app-shell .external-data-first-use-copy p { font-size: 12px; line-height: 1.7; padding: 2px 0 10px; }
+.app-shell .external-data-first-use-actions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 4px; width: auto; padding: 0; }
+.app-shell .external-data-first-use-actions button {
+  min-height: 40px; padding: 6px 8px; white-space: nowrap;
+  font-size: 12px; font-weight: 400; color: var(--muted);
+  border: 0; background: transparent; box-shadow: none; width: auto; margin: 0;
+}
+.app-shell .external-data-first-use-actions .notice-dismiss { width: 36px; display: grid; place-items: center; }
+.app-shell .external-data-first-use-actions button:hover { color: var(--text); background: #edf1f2; }
+.app-shell .session-sidebar-header { padding: 22px 18px 12px; gap: 16px; }
+.session-sidebar-header .workspace-sidebar-brand { padding: 0 6px; gap: 10px; }
+.session-sidebar-header .workspace-sidebar-brand strong { font-size: 16px; color: #303c43; }
+.app-shell .session-sidebar-header > button { padding-inline: 6px; font-size: 13px; font-weight: 400; }
+.app-shell .session-sidebar .reading-library-navigation { margin: 10px 18px 26px; padding-bottom: 0; border: 0; }
+.session-sidebar .reading-library-heading, .session-sidebar .reading-library-open small { display: none; }
+.session-sidebar .reading-library-open { min-height: 44px; padding: 8px 6px; }
+.session-sidebar .reading-library-open > span { font-size: 13px; font-weight: 400; }
+.session-sidebar .session-history-heading { padding: 0 24px 4px; font-size: 11px; }
+.session-sidebar .session-history-filter { margin: 0 18px 8px; }
+.session-sidebar .session-history-filter > summary { padding-inline: 6px; font-size: 12px; }
+.session-sidebar .session-sidebar-row { margin: 2px 12px; padding: 10px 12px; }
+.session-sidebar .session-sidebar-subtitle { display: none; }
+.session-sidebar .session-sidebar-list .empty-state { padding: 10px 24px; font-size: 12px; color: #7d878e; }
+.session-sidebar > .workspace-navigation-actions { padding: 10px 18px; border-top-color: transparent; }
+.app-shell .workspace-navigation-actions :is(.end-session-button, .sidebar-upload-button, .workspace-menu-trigger) { padding-inline: 6px; font-size: 12px; }
+.session-sidebar :is(button, summary):focus-visible,
+.external-data-first-use :is(button, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .app-shell .external-data-first-use-actions button,
+  .external-data-first-use-copy > summary { min-height: 44px; }
+  .app-shell .external-data-first-use-actions { grid-column: auto; justify-content: flex-end; }
+  .app-shell .external-data-first-use { display: flex; }
+  .external-data-first-use-copy > summary { flex-wrap: wrap; gap: 4px 8px; }
+}
 @media (min-width: 1101px) {
   .app-shell:has(.reading-layout) { background: #f2f5f3; }
   .app-shell:has(.reading-layout) > .session-sidebar { background: #f9faf8; border-radius: 16px; }
