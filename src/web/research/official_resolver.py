@@ -37,7 +37,12 @@ def official_plan(query: str) -> OfficialPlan | None:
         entity = entities[0]
         if entity == "fastapi":
             suffix = f"/{version}" if version else ""
-            return OfficialPlan(entity, version, (f"https://pypi.org/pypi/fastapi{suffix}/json", "https://fastapi.tiangolo.com/release-notes/"))
+            urls: tuple[str, ...] = (f"https://pypi.org/pypi/fastapi{suffix}/json", "https://fastapi.tiangolo.com/release-notes/")
+            if (re.fullmatch(r"\d+\.\d+\.\d+", version)
+                    and not re.search(re.escape(version) + r"(?:[A-Za-z]|[.+-][A-Za-z0-9])", query)
+                    and re.search(r"发布日期|发布时间|什么时候发布|release\s+date|released\s+on", query, re.I)):
+                urls = (f"https://fastapi.tiangolo.com/release-notes/?version={version}", *urls)
+            return OfficialPlan(entity, version, urls)
         if entity == "sqlite":
             url = f"https://sqlite.org/releaselog/{version.replace('.', '_')}.html" if version else "https://sqlite.org/changes.html"
             return OfficialPlan(entity, version, (url,))
@@ -73,6 +78,10 @@ def valid_candidate(query: str, url: str) -> bool:
 
 
 def _supported_url(url: str) -> bool:
+    from src.web.research.fastapi_release import selected_version
+
+    if selected_version(url) is not None:
+        return True
     return bool(re.fullmatch(r"https://pypi\.org/pypi/fastapi(?:/\d+\.\d+(?:\.\d+)?)?/json", url)
                 or url == "https://sqlite.org/changes.html"
                 or re.fullmatch(r"https://sqlite\.org/releaselog/\d+_\d+_\d+\.html", url)
@@ -90,6 +99,10 @@ class _OfficialRedirect(HTTPRedirectHandler):
 
 
 def _fields(url: str, payload: bytes, *, source_bindings: dict[str, Any] | None = None) -> dict[str, str]:
+    from src.web.research.fastapi_release import release_fields, selected_version
+
+    if selected_version(url) is not None:
+        return release_fields(url, payload, source_bindings)
     if url.startswith("https://platform.claude.com/docs/en/models/opus-"):
         from src.web.research.model_profile import profile_fields
 
@@ -253,12 +266,21 @@ def read_official_metadata(url: str, *, timeout: float, max_chars: int) -> dict[
     if not _supported_url(url):
         return None
     try:
+        from src.web.research.fastapi_release import BASE_URL, selected_version
+
+        fastapi_version = selected_version(url)
         opener = build_opener(ProxyHandler(official_proxy_settings()), _OfficialRedirect())
-        with opener.open(Request(url, headers={"User-Agent": "StudyAgent/official-metadata-v2", "Accept-Encoding": "identity"}), timeout=max(0.1, min(timeout, 10))) as response:
+        fetch_url = BASE_URL if fastapi_version else url
+        user_agent = "Mozilla/5.0" if fastapi_version else "StudyAgent/official-metadata-v2"
+        with opener.open(Request(fetch_url, headers={"User-Agent": user_agent, "Accept-Encoding": "identity"}), timeout=max(0.1, min(timeout, 10))) as response:
             payload = response.read(2_000_001)
             if len(payload) > 2_000_000:
                 raise ValueError("official_payload_limit")
             final_url = response.url
+            if fastapi_version:
+                if final_url != BASE_URL:
+                    raise ValueError("fastapi_release_redirect_identity_changed")
+                final_url = url  # exact reader view; source_binding retains the real heading URL
             if "platform.claude.com" in url and final_url != url:
                 raise ValueError("model_profile_redirect_identity_changed")
             raw_digest = hashlib.sha256(payload).hexdigest()

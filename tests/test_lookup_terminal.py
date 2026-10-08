@@ -38,7 +38,9 @@ def test_native_identity_survives_field_serialization_without_granting_support(m
 @pytest.mark.parametrize("mutation", ["no_spans", "bad_span", "duplicate_identity", "wrong_project", "adjacent_version", "source_version", "content_hash", "transport_hash", "wrong_url", "failed_read"])
 def test_native_handoff_keeps_identity_and_provenance_fail_closed(monkeypatch, product, mutation):
     query, calls = native_trace(monkeypatch, product)
-    read = next(c["result"] for c in calls if c["name"] == "web_read")
+    # A failed exact notes read may precede the successful PyPI fallback.
+    # Corrupt the acquired identity proof, rather than an already-failed read.
+    read = next(c["result"] for c in calls if c["name"] == "web_read" and c["result"].get("ok") is True)
     if mutation == "no_spans":
         read["official_fields"] = []
     elif mutation == "bad_span":

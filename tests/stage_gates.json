@@ -366,6 +366,20 @@
       "tests/test_claim_evidence_assessment.py",
       "tests/test_deep_publication.py",
       "tests/test_research_presentation.py"
+    ],
+    "fastapi_release_binding": [
+      "tests/test_fastapi_release_binding.py",
+      "tests/test_official_source_quality.py",
+      "tests/test_official_transport.py",
+      "tests/test_lookup_official_identity.py",
+      "tests/test_python_release_binding.py",
+      "tests/test_opus_version_binding.py",
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_research_recovery.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_standard_official_candidates.py",
+      "tests/test_standard_binding.py",
+      "tests/test_standard_binding_projection.py"
     ]
   },
   "stage_gates": {
@@ -397,7 +411,15 @@
       "tests/test_synthesis_assembler.py",
       "tests/test_final_answer_auditor.py",
       "tests/test_research_brief_projection.py",
-      "tests/test_claim_evidence_assessment.py"
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_fastapi_release_binding.py",
+      "tests/test_official_source_quality.py",
+      "tests/test_official_transport.py",
+      "tests/test_lookup_official_identity.py",
+      "tests/test_python_release_binding.py",
+      "tests/test_opus_version_binding.py",
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_research_recovery.py"
     ],
     "document-reading-v1": [
       "tests/test_original_reading.py",
