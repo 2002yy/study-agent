@@ -44,5 +44,64 @@
 - 自有浏览器/后端/Vite已关闭；main/A线原dirty未动。无远端CI证据，无L3。
 
 原五样本完整回归和新预登记资格集未完成，不能宣布R6c CLOSED。
-按最新用户指令，下一独立切片为Conversation-first UI：重排对话与研究资料，
-保持既有快照/恢复和发布权威，不混入上述引擎修复。随后恢复R6c剩余资格门。
+上述为10-08前置收口时的交接。10-09用户将UI交给另一窗口，本窗口继续RP-1。
+
+## 2026-10-09 原样回归与新资格集：观测批次完成，R6c仍NO-GO
+
+固定生产字节，head `88c83714`（仅增加前置交接文档，生产候选仍 `3d52f5a6`）。
+证据：`D:/study-agent-validation/reading-notebook-ui-evidence/r6c-qualification-20261009/`。
+`registry.json`锁定原五样本和新集3条上限；`new-set-amendment.json`在任何新样本执行前
+修正观测驱动使用的API字段（user_input而非message），原请求/生产路由/预算不变。
+完整`result.json`、原始Standard模型响应与validator路径、实际SQLite及`audit.json`可恢复。
+
+| 样本 | 实际查询/结果 | Deep/审计 |
+| --- | --- | --- |
+| S1 | 原SQLite 3.45.3；VERIFIED | 无需升级 |
+| S2 | 原模型比较；SAFE_ABSTAIN / requested_claim_plan_unavailable | 未触发 |
+| S3 | 原Opus 5.5；ESCALATE_STANDARD，Standard budget_exhausted | deep-851dc65cd1c860c18d4055c4；partial / evidence_saturated；mechanically_rejected |
+| S4 | 原Transformer/RAG比较；SAFE_ABSTAIN / requested_claim_plan_unavailable | 未触发 |
+| S5 | 原FastAPI 0.136.0；ESCALATE_STANDARD，Standard budget_exhausted | deep-eb237b65be0dcc5bc5a72226；partial / evidence_saturated；assembled |
+| N1 | Python 3.12.0发布日期与版本；VERIFIED | 无需升级 |
+| N2 | SQLite 3.46.0发布日期与变化；VERIFIED | 无需升级 |
+| N3 | FastAPI 0.115.0发布日期与版本；ESCALATE_STANDARD | deep-b15609d63fa100a459f91556；partial / evidence_saturated；assembled |
+
+五个原样本各只发起一次研究；观测控制器重启沿用已完成记录，不重发请求。
+新集执行时没有UI示例上下文；只读断言逐条验证真实user_message等于预登记查询。
+本批没有扩样本追求通过，没有新生产修改或提供商mock。
+
+三条Deep的原Lookup handoff、Deep terminal、审计记录、child摘要hash、Standard父ID、
+唯一child及最终投影revision/status均通过原验证器/只读对照；数据库字节不变。
+全部Deep审计为fail / audited-but-not-approved / publication_authority=false。
+这证明自然完整lineage与终态可追溯，不能据此宣布研究问题已完成或获得发布权。
+
+### 当前首次阻断与可复现边界
+
+- S2/S4：终态入口要求合法requested-fields集合，通用研究问题未产生支持域字段计划，
+  原守门器`requested_claim_plan_unavailable`拒绝升级。不能靠查询数或预算绕过；需要独立的
+  通用研究问题规划/升级覆盖合同，不是继续修question_identity。
+- S3：只读`reproduce-synthesis.py`重放实际child，原`assemble_synthesis_draft`确定性抛出
+  `assertion_without_evidence_ref:a:claim_b515a8ffb15688c23a2e7e4a`。
+  `extractive_writer`给每个claim建立assertion，即使投影授权refs为空；原validator正确拒绝。
+  这是候选表达与证据合同不一致，不得删除assertion必须有ref的规则或补造引用。
+- S5/N3：原assembler可以组装，审计仍指出`evidence_grounding_incomplete`、
+  `semantic_support_unverified`、`unanswered_aspect`。每条关键claim仍unresolved，
+  `independent_support_required`缺口open；研究已饱和而非证明全部问题已回答。
+- S3/S5/N3实际研究模型调用分别11/8/10；不能把phase_budget的6次常量直接解释成
+  当前活跃执行路径总上限。保留按purpose记录。read_count仅引用原metrics，
+  不把成功读取、失败尝试和seed复用混为物理调用消耗。
+
+### 恢复、TTUV与验证
+
+本批S5确实捕获running快照，但“已持久model_calls”观测判据在running期间未命中，
+进程重启未执行，仍NOT_OBSERVED；不解释成没有running窗口或产品恢复失败。
+前置批S3/S5真实断网重连保持同child的证据保留，不能冒充进程崩溃验收。
+API观测没有捕获真实可见合格正文，八条TTUV均NOT_OBSERVED。
+前置严格S1可见字段5.166秒仍为单次有效观测，不能外推给本批或未经批准的Deep。
+
+生产sha256前后一致；沿用最终角色影响147、命名L2 291、Ruff/mypy NEW0证据。
+本轮仅观测与文档，不重复L3/提供商验收，未push/PR/CI；owned后端已关闭。
+main/A线及另一窗口UI改动未动。
+
+唯一下一RP-1 slice：针对S3实际无ref投影，冻结一个候选表达合同与确定性负控，
+区分“未解决问题/限制”与“可引用事实assertion”；保持事实ref、semantic judge及发布门。
+S5/N3证据质量与通用路由覆盖分别保留为独立资格问题；不在同刀混入扩容或UI。
