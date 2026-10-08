@@ -8,6 +8,16 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 GPT-6 Chat 公开原理拆解与交互回答应用（LOCAL UI GO / 原生模型与研究提速未资格验收）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；base `fb1d80d13126346d3fe18fa6f8b878130fc80ea4`，生产/设计提交 `08c8ad8208e8c9b9ff4272163dfc1ec4cefa31bf`，15文件555行增/17删。公开来源与直接所有者记录在 [INTERACTIVE_ANSWER_DESIGN.md](INTERACTIVE_ANSWER_DESIGN.md)，仅此批设计记录，不替代当前状态。
+
+**行为：** 助手Markdown回答可包含白名单study-ui JSON块：可调固定函数图、切换柱/折线的数据图、可放大真实图片、加入草稿的后续问题按钮、明确坐标的按需OpenStreetMap地图。完整块逐步出现，未闭合块等待，不解析用户消息里的组件；坏/未知数据退回普通代码，拒绝脚本/任意公式。控件状态在追加token时保留；草稿按钮不覆盖旧输入、不自动发送，复制转为可读说明/初始数据，存储仍为原回答文本，刷新重建组件。组件说明与既有Firefly上下文通过现成TURN_CONTEXT_V1 envelope接入真实请求，用户手写instruction原样保留；实际前端生成envelope经过ChatRequest→ChatCommand→scene_policy及_session_settings核验，UI上下文到模型但不进入持久偏好。当前回答内显示真实研究阶段/查询/读取数和可先阅读提示，没有虚构百分比。
+
+**边界：** 未更换模型/SDK/API/数据库/搜索执行。普通聊天能逐token显示组件；研究回答仍按answer_validation_active缓冲、complete_turn核验后发布，不能通过UI绕过。官方披露的模型训练、思考回答交错和44%首答改善不能由本批UI等同获得。确定性分段浏览器样例与隔离预览仅验证UI消费链；真实配置模型组件选择有效率、真实联网源质量/首答速度、原生交错推理仍未线上资格验收。图片不等同于图片生成服务，地图底图依赖第三方网络；控件变动不是已验证的新学习事实。
+
+**验证：** 最终影响集35文件174 PASS/9.52s；前端全量108文件449 PASS/42.37s；完整浏览器75 PASS/2.0m、53份golden artifact gate通过；最终复制空白清理后组件浏览器桌面/手机4 PASS/6.6s。后端仅合同影响集turn-context/research-answer-streaming/chat-cancellation 22 PASS/6.60s；没有后端生产改动/L3触发，前端typing由tsc、backend新增测试由Ruff检查。tsc+Vite build、Ruff src/tests/tools、diff-check及范围审查PASS。首轮build因ES2020不支持Array.at，改索引后通过；地图fixture中文因未声明UTF-8乱码，保留两轮失败，声明charset后4PASS（不是外部OSM服务故障）；旧source-string复制测试不适用新可读转换，改为实际clipboard行为断言后发现多余换行，修复并在新候选重跑最终全量，保留此前448PASS/1FAIL证据。既有>500kB bundle warning保留性能债。桌面/390与320长内容无横向溢出，曲线/滑块/草稿可用；截图明确隔离教学样例，非真实模型生成/联网质量证明。
+
+**交接与下一slice：** 证据 `D:/study-agent-validation/reading-notebook-ui-evidence/qa-intelligent.json`、intelligent-focused-pass/unit-final/build-closed/backend-contract/browser-full/browser-closed日志、intelligent-desktop/mobile/plot截图。预览5188→独立API8002；生产提交后tracked clean、临时PW配置已删除。本段docs-only；final head由git/QA恢复。main仍7ff7451d及原4项dirty保留；无push/PR/新CI/merge。下一slice：搜索窗口为“研究中的已核验事实块”定义逐段发布/来源绑定/撤回合同，再由此UI消费；本窗口组件自动选择仍需真实配置模型样本验证，不能标记全部GPT-6功能已交付。
+
 **2026-10-08 统一底部工具、紧凑输入与右上来源入口（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `52b6c93483bd87807864e558c3c7a4033e8659d5`，生产提交 `24c526cd564749a6e0ac1b460bd2e2bc8d76ae4f`。5个frontend文件，仅UI与浏览器回归；另一窗口搜索工作独立。
 
 **行为：** 左下整理学习、上传资料、设置与工具统一44px行高、13px字、16px图标及对齐/hover。输入textarea默认42px一行，按输入和容器宽度自动增高，160px封顶后框内滚动，清空缩回；发送仍在框内右下。对话右上新增PanelRight“资料与来源”按钮，打开已有右侧模态抽屉，默认回答依据页；右侧×关闭，焦点回入口、草稿保留。正文仍由资料库阅读入口打开。修复新增按钮受到既有手机topbar-actions全宽规则影响、将标题挤成竖排的问题，限定actions width:auto与标题flex:1，并增加320px标题布局断言。
