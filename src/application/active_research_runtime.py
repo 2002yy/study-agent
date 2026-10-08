@@ -2321,6 +2321,10 @@ class ActiveResearchRuntimeExecutor:
                 physical_reads, extraction_targets = _fair_read_plan(
                     state,
                     rankings_for_plan,
+                    seed_candidate_ids=frozenset(
+                        item.id for item in cursor.candidates
+                        if item.url in deep_seed_by_url
+                    ),
                     covered_cluster_ids_by_claim=covered_clusters_by_claim,
                     trace=selection_trace,
                     diagnostics=context.setdefault(
@@ -5499,6 +5503,7 @@ def _fair_read_plan(
     rankings: Mapping[str, tuple[RankedCandidate, ...]],
     *,
     covered_cluster_ids_by_claim: Mapping[str, set[str]] | None = None,
+    seed_candidate_ids: frozenset[str] = frozenset(),
     trace: SelectionTraceCollector | None = None,
     diagnostics: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
@@ -5510,6 +5515,11 @@ def _fair_read_plan(
     serve evidence extraction for multiple claims. Read-budget exhaustion
     never blocks binding an already-planned candidate to another claim: the
     budget only limits new physical candidates, not extraction-only reuse.
+
+    Verified seed candidates use these same wave slots and claim eligibility,
+    but enter the read stage for local materialization. Their cluster does not
+    block reuse of another saved body or grant a new independent-source credit;
+    their character and deadline checks remain at the materialization boundary.
 
     §41 Read Reserve Reclaim: the conflict reserve exists to protect conflict
     resolution. When no conflict gap is open, the unused reserve returns to
@@ -5569,7 +5579,9 @@ def _fair_read_plan(
             }
         )
 
-    def schedule(claim_ids: list[str], wave_size: int, *, allow_reserve: bool = False) -> None:
+    def schedule(
+        claim_ids: list[str], wave_size: int, *, allow_reserve: bool = False
+    ) -> None:
         for claim_id in claim_ids:
             ranked = tuple(
                 item
@@ -5585,7 +5597,11 @@ def _fair_read_plan(
             reusable = tuple(
                 item
                 for item in ranked
-                if item.candidate.id in physical_ids and is_schedulable_candidate(item)
+                if (
+                    item.candidate.id in physical_ids
+                    or item.candidate.id in seed_candidate_ids
+                )
+                and is_schedulable_candidate(item)
             )
             # Remove clusters covered by a prior successful wave before the
             # bounded scheduler truncates the claim's wave. Otherwise a major
@@ -5596,14 +5612,26 @@ def _fair_read_plan(
                 item
                 for item in ranked
                 if item.candidate.id not in physical_ids
+                and item.candidate.id not in seed_candidate_ids
                 and item.assessment.cluster_id not in covered_clusters
             )
-            remaining = state.budget.max_reads - state.budget.reads_used - len(physical)
-            budget_open = remaining > 0 and (allow_reserve or len(physical) < normal_limit)
+            physical_count = sum(
+                item["candidate_id"] not in seed_candidate_ids for item in physical
+            )
+            remaining = (
+                state.budget.max_reads - state.budget.reads_used - physical_count
+            )
+            budget_open = remaining > 0 and (
+                allow_reserve or physical_count < normal_limit
+            )
             if trace is not None:
                 fresh_ids = {item.candidate.id for item in fresh}
                 for item in ranked:
-                    if item.candidate.id in physical_ids or item.candidate.id in fresh_ids:
+                    if (
+                        item.candidate.id in physical_ids
+                        or item.candidate.id in seed_candidate_ids
+                        or item.candidate.id in fresh_ids
+                    ):
                         continue
                     # Observed exclusion: the claim's cluster coverage already
                     # contains this candidate's cluster before scheduling.
@@ -5633,7 +5661,9 @@ def _fair_read_plan(
             fresh_selected: list[str] = []
             by_id: dict[str, RankedCandidate] = {}
             if budget_open and fresh:
-                budget = replace(state.budget, reads_used=state.budget.reads_used + len(physical))
+                budget = replace(
+                    state.budget, reads_used=state.budget.reads_used + physical_count
+                )
                 plan = plan_read_wave(
                     fresh,
                     claim=claims[claim_id],
@@ -5662,9 +5692,17 @@ def _fair_read_plan(
             for item in reusable:
                 if slots <= 0:
                     break
-                if item.assessment.cluster_id in claim_clusters.get(claim_id, set()):
+                is_seed = item.candidate.id in seed_candidate_ids
+                if not is_seed and item.assessment.cluster_id in claim_clusters.get(
+                    claim_id, set()
+                ):
                     continue
                 _bind(item.candidate.id, claim_id, item)
+                if is_seed and item.candidate.id not in physical_ids:
+                    # Stage-local seed materialization uses the original char/window gates,
+                    # not a new physical read or an independent-source credit.
+                    physical_ids.add(item.candidate.id)
+                    physical.append(dict(targets[-1]))
                 slots -= 1
             for candidate_id in fresh_selected:
                 if slots <= 0:
@@ -5685,7 +5723,9 @@ def _fair_read_plan(
                     )
                 slots -= 1
 
-    critical = [claim.id for claim in _ordered_claims(state) if claim.priority == "critical"]
+    critical = [
+        claim.id for claim in _ordered_claims(state) if claim.priority == "critical"
+    ]
     major = [claim.id for claim in _ordered_claims(state) if claim.priority == "major"]
     schedule(critical, 1)
     schedule(critical, 2)
@@ -5704,7 +5744,13 @@ def _fair_read_plan(
     ]
     schedule(conflict_claims, reserve, allow_reserve=True)
     read_cap = max(0, state.budget.max_reads - state.budget.reads_used)
-    return physical[:read_cap], targets
+    materializations = [
+        item for item in physical if item["candidate_id"] in seed_candidate_ids
+    ]
+    new_reads = [
+        item for item in physical if item["candidate_id"] not in seed_candidate_ids
+    ]
+    return materializations + new_reads[:read_cap], targets
 
 
 def _claim_lacks_primary_evidence(
