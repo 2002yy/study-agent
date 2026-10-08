@@ -1,8 +1,10 @@
 # RP-1 R6b：研究资格诊断与小修复合同
 
 2026-10-08，来源：用户 R6a→R6b→R6c 执行裁定。
-**B1 LOCAL CLOSED；B2封板中，R6b整体尚未关闭。** 与已关闭的 R6a 展示适配修复分开。
+**R6b LOCAL CLOSED（B1/B2独立提交；不是RP-1/R6整体通过）。** 与已关闭的 R6a 展示适配修复分开。
 当前执行证据见 [R6b诊断报告](RESEARCH_PRESENTATION_1_R6B_DIAGNOSIS.md)。
+S2旧question_identity原响应缺失且未复现，根因仍未确定；S4实录5查询超过原schema上限，
+仅明确模型协议，不修饰事实。真实Standard planner_invalid及Deep策略拒绝转交R6c前置诊断。
 不是 RP-1 PR、资格批准或发布权限。
 
 ## 恢复点与范围

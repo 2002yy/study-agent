@@ -268,6 +268,11 @@ class ResearchSemanticSession:
             "Do not treat unrelated bare names as a continuation. REFINE can add questions/preferences. "
             "Decompose identity, capabilities/performance, comparison when asked. Preserve all existing RQs on continuation. "
             "Plan 2 or 3 short queries (2-8 meaningful terms), bound each to an RQ; "
+            "proposed_queries has a hard maximum of 3 rows TOTAL, not one query per RQ. "
+            "unresolved_questions must contain 1 to 6 rows with unique rq-* ids. "
+            "If there are more RQs than queries, retain every unresolved RQ and select at most 3 queries; "
+            "do not discard requested facets, replace entities/versions or fabricate answers to fit these limits. "
+            "Echo episode.task_id exactly as task_id. "
             "include one site:OFFICIAL_DOMAIN query with the entity and requested facet, "
             "using a known publisher domain only as a search lead, never evidence or proof. "
             "Do not append generic words official release model documentation to every query. "
@@ -279,8 +284,9 @@ class ResearchSemanticSession:
             "Exact fields, no extras: " + json.dumps(schema, ensure_ascii=False), context)
         try:
             self.decision = ResearchDecision.parse(raw, task_id=episode.task_id)
-        except ValueError:
+        except ValueError as exc:
             self.events[-1]["validation"] = "rejected"
+            self.events[-1]["validation_error"] = str(exc)
             raise
         return self.decision
 

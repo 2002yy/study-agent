@@ -22,6 +22,30 @@ from src.web.semantic_recovery import (
 from src.web.tool_evidence import evidence_tool_calls
 
 ORIGINAL = "联网研究：opus5.5是什么？性能如何？对比？"
+
+
+@pytest.mark.parametrize("invalid", ["duplicate_questions", "extra_queries", "wrong_task"])
+def test_interpretation_keeps_protocol_rejections_and_reports_the_first_guard(invalid):
+    def completion(**kwargs):
+        context = json.loads(kwargs["messages"][-1]["content"])
+        system = kwargs["messages"][0]["content"]
+        assert "hard maximum of 3 rows TOTAL" in system
+        assert "retain every unresolved RQ" in system
+        value = json.loads(json.dumps(decision(context["episode"]["task_id"])))
+        if invalid == "duplicate_questions":
+            value["unresolved_questions"].append(value["unresolved_questions"][0])
+        elif invalid == "extra_queries":
+            value["proposed_queries"] += [value["proposed_queries"][0]] * 2
+        else:
+            value["task_id"] = "other-task"
+        return json.dumps(value)
+
+    session = ResearchSemanticSession(completion, deadline=time.monotonic() + 30, should_cancel=lambda: False)
+    reason = {"duplicate_questions": "question_identity", "extra_queries": "invalid_rows", "wrong_task": "decision_binding"}[invalid]
+    with pytest.raises(ValueError, match=reason):
+        session.interpret(episode(), "继续研究", active_task_exists=True)
+    assert session.events[-1]["validation_error"] == reason
+    assert len(session.events) == 1  # No extra repair call or budget release.
 RQS = [{"id": "rq-identity", "question": "opus5.5是什么？"},
        {"id": "rq-performance", "question": "性能如何？"},
        {"id": "rq-comparison", "question": "对比？"}]

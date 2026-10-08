@@ -1,7 +1,8 @@
 # RP-1 R6b 诊断与修复证据
 
-2026-10-08，B线 `codex/reading-notebook-ui`，合同基线 `b21b98b3`。
+2026-10-08，R6b LOCAL CLOSED / RP-1仍NO-GO；B线 `codex/reading-notebook-ui`，合同基线 `b21b98b3`。
 恢复点 `4c36b935` / `b979b7aa` / `ff8b87ca` 均保留；未推送、未开PR。
+B1独立提交 `f78f3ba4`；B2与最终head从本报告提交的Git记录恢复。
 
 ## B1：LOCAL CLOSED
 
@@ -45,7 +46,7 @@ blocked_by_policy（public_research_question/research_time_context）。
 Deep-4A实际审计fail、audited-but-not-approved、publication_authority=false。
 这证明自然child创建，不能算成功研究或恢复资格。S5本次观察没有Deep child。
 
-## B2：诊断记录（关闭状态见Current Handoff）
+## B2：LOCAL CLOSED（旧S2根因未确定）
 
 原批S2/S4没有保存原始模型响应，不能回推旧question_identity具体是空行还是重复ID。
 先用透明completion观测器执行原样查询：返回值逐字透传，保存原响应与hash、
@@ -65,7 +66,8 @@ S4新观测5个唯一RQ、task_id正确，但proposed_queries有5行，首个不
 
 新增重复RQ/5查询/错task负控均经原guard拒绝；仅1次interpret调用，无修复重试。
 语义模块37 PASS（14.90s）。初次负控fixture误改共享RQ列表导致旧测试失败，
-改为deepcopy后消失；不是生产回归。最终语义影响集结果在阶段封板时补记。
+改为deepcopy后消失；不是生产回归。最终命名semantic_recovery完整影响集284 PASS
+（115.24s），涵盖工具循环、恢复、查询、chat/cancellation、发布门及相邻协议。
 
 ## 证据与边界
 
