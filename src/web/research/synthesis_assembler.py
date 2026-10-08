@@ -47,12 +47,16 @@ class SynthesisContractViolation(ValueError):
 
 
 @dataclass(frozen=True)
-class EvidencePayload:
-    """Read-only data plane: what the referenced evidence actually contains."""
+class EvidencePayloadUnit:
+    """One unit of an evidence payload.
 
-    evidence_id: str
+    An evidence object may carry several units (text and visual, several pages), and they are
+    all part of the same evidence identity. They are kept as units rather than collapsed into a
+    single set of singular fields, because collapsing loses whichever unit came last.
+    """
+
+    unit_id: str
     source: str = ""
-    locator: str = ""
     modality: str = "unknown"
     provenance: str = ""
     content: str = ""
@@ -64,23 +68,92 @@ class EvidencePayload:
     def is_visual(self) -> bool:
         return self.modality in _VISUAL_MODALITIES
 
-    def citation_label(self) -> str:
-        """text -> source + locator; visual -> source + page + region."""
+    def unit_text(self) -> str:
+        return self.observation or self.content
 
-        if self.is_visual:
-            parts = [self.source or self.provenance or self.evidence_id]
-            if self.page is not None:
-                parts.append(f"p.{self.page}")
-            if self.region:
-                parts.append(self.region)
-            return " ".join(part for part in parts if part)
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "unit_id": self.unit_id,
+            "source": self.source,
+            "modality": self.modality,
+            "provenance": self.provenance,
+            "page": self.page,
+            "region": self.region,
+        }
+
+
+@dataclass(frozen=True)
+class EvidencePayload:
+    """Read-only data plane: what the referenced evidence actually contains.
+
+    ``units`` holds every unit of this evidence, in the authoritative order. The singular fields
+    remain for backwards-compatible construction and behave as one implicit unit, so existing
+    callers that never dealt in units keep working unchanged.
+    """
+
+    evidence_id: str
+    source: str = ""
+    locator: str = ""
+    modality: str = "unknown"
+    provenance: str = ""
+    content: str = ""
+    observation: str = ""
+    page: int | None = None
+    region: str = ""
+    units: tuple[EvidencePayloadUnit, ...] = ()
+
+    @property
+    def effective_units(self) -> tuple[EvidencePayloadUnit, ...]:
+        """Every unit, treating the singular fields as one implicit unit when none are set."""
+
+        if self.units:
+            return self.units
+        return (
+            EvidencePayloadUnit(
+                unit_id=self.evidence_id,
+                source=self.source,
+                modality=self.modality,
+                provenance=self.provenance,
+                content=self.content,
+                observation=self.observation,
+                page=self.page,
+                region=self.region,
+            ),
+        )
+
+    @property
+    def is_visual(self) -> bool:
+        return any(unit.is_visual for unit in self.effective_units)
+
+    def citation_label(self) -> str:
+        """text -> source + locator; visual -> every source + page + region.
+
+        A multi-visual evidence keeps every locator: collapsing to the last unit would make the
+        citation point at one chart while claiming to support the whole evidence.
+        """
+
+        units = self.effective_units
+        visuals = [unit for unit in units if unit.is_visual]
+        if visuals:
+            parts: list[str] = []
+            for unit in visuals:
+                label = [unit.source or unit.provenance or self.source or self.evidence_id]
+                if unit.page is not None:
+                    label.append(f"p.{unit.page}")
+                if unit.region:
+                    label.append(unit.region)
+                parts.append(" ".join(part for part in label if part))
+            return "; ".join(parts)
         anchor = self.locator or self.provenance
         return f"{self.source or self.evidence_id} ({anchor})" if anchor else (
             self.source or self.evidence_id
         )
 
     def text(self) -> str:
-        return self.observation or self.content
+        """Every non-empty unit in order. No unit disappears because a sibling shares the id."""
+
+        parts = [unit.unit_text() for unit in self.effective_units]
+        return " ".join(part for part in parts if part)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -91,6 +164,7 @@ class EvidencePayload:
             "provenance": self.provenance,
             "page": self.page,
             "region": self.region,
+            "units": [unit.to_dict() for unit in self.units],
         }
 
 
@@ -203,29 +277,36 @@ def collect_evidence_payloads(state: ResearchState) -> tuple[EvidencePayload, ..
 
     payloads: list[EvidencePayload] = []
     for evidence in state.evidence:
-        if evidence.units:
-            for unit in evidence.units:
-                payloads.append(
-                    EvidencePayload(
-                        evidence_id=evidence.evidence_id,
-                        source=unit.source,
-                        locator=evidence.locator,
-                        modality=unit.source_type,
-                        provenance=unit.provenance,
-                        content=unit.content,
-                        observation=unit.observation,
-                        page=unit.page,
-                        region=unit.region,
-                    )
-                )
-        else:
-            payloads.append(
-                EvidencePayload(
-                    evidence_id=evidence.evidence_id,
-                    locator=evidence.locator,
-                    modality="unknown",
-                )
+        # Exactly one payload per evidence identity, carrying every unit. Emitting one payload
+        # per unit under the same evidence_id made any evidence_id-keyed map keep only the last
+        # unit and silently drop the rest.
+        units = tuple(
+            EvidencePayloadUnit(
+                unit_id=unit.unit_id,
+                source=unit.source,
+                modality=unit.source_type,
+                provenance=unit.provenance,
+                content=unit.content,
+                observation=unit.observation,
+                page=unit.page,
+                region=unit.region,
             )
+            for unit in evidence.units
+        )
+        payloads.append(
+            EvidencePayload(
+                evidence_id=evidence.evidence_id,
+                # The singular fields mirror the first unit so existing consumers that read
+                # source/provenance/modality keep working; `units` carries all of them.
+                source=units[0].source if units else "",
+                locator=evidence.locator,
+                modality=units[0].modality if units else "unknown",
+                provenance=units[0].provenance if units else "",
+                page=units[0].page if units else None,
+                region=units[0].region if units else "",
+                units=units,
+            )
+        )
     return tuple(payloads)
 
 
@@ -349,16 +430,21 @@ def validate_synthesis_draft(
                             REASON_CITATION_MISSING, f"{assertion.assertion_id}:{ref}"
                         )
                     payload = payloads[ref]
-                    if payload.is_visual and (
-                        payload.page is None
-                        or not payload.region
-                        or f"p.{payload.page}" not in citation.label
-                        or payload.region not in citation.label
-                    ):
-                        raise SynthesisContractViolation(
-                            REASON_VISUAL_LOCATOR_MISSING,
-                            f"{assertion.assertion_id}:{ref}",
-                        )
+                    # Every visual unit needs its own locator in the citation; checking only
+                    # the singular fields would let a second chart go unlocated.
+                    for unit in payload.effective_units:
+                        if not unit.is_visual:
+                            continue
+                        if (
+                            unit.page is None
+                            or not unit.region
+                            or f"p.{unit.page}" not in citation.label
+                            or unit.region not in citation.label
+                        ):
+                            raise SynthesisContractViolation(
+                                REASON_VISUAL_LOCATOR_MISSING,
+                                f"{assertion.assertion_id}:{ref}",
+                            )
 
     for limitation in projection.limitations:
         if limitation not in draft.limitations:

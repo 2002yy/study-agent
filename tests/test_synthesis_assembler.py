@@ -453,3 +453,79 @@ def test_default_writer_is_model_free_and_uses_only_authorised_refs() -> None:
     for section in sections:
         for assertion in section.assertions:
             assert set(assertion.evidence_refs) <= authorized
+
+
+# --- Deep-4A: one evidence must never lose a unit to an evidence_id map ------------
+
+
+def _multi_unit_state(*units):
+    return _state(
+        requirement=_requirement("u1"),
+        evidence=(
+            ResearchEvidence(
+                "ev1",
+                lifecycle_status="read",
+                extraction_status="eligible",
+                locator="anchor",
+                units=tuple(units),
+            ),
+        ),
+        links=(_link("ev1"),),
+    )
+
+
+def test_m1_two_text_units_produce_one_payload_holding_both():
+    state = _multi_unit_state(_text_unit("u1", "A"), _text_unit("u2", "B"))
+    payloads = collect_evidence_payloads(state)
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload.evidence_id == "ev1"
+    assert [unit.unit_id for unit in payload.units] == ["u1", "u2"]
+    assert "A" in payload.text() and "B" in payload.text()
+
+
+def test_m6_an_evidence_id_map_cannot_drop_a_unit():
+    state = _multi_unit_state(_text_unit("u1", "A"), _text_unit("u2", "B"))
+    by_id = {payload.evidence_id: payload for payload in collect_evidence_payloads(state)}
+    assert set(by_id) == {"ev1"}
+    assert "A" in by_id["ev1"].text() and "B" in by_id["ev1"].text()
+
+
+def test_m2_text_and_chart_keep_both_modalities():
+    state = _multi_unit_state(_text_unit("u1", "prose"), _chart_unit("u2"))
+    payload = collect_evidence_payloads(state)[0]
+    modalities = {unit.modality for unit in payload.units}
+    assert "text" in modalities and "chart" in modalities
+    assert payload.is_visual is True
+
+
+def test_m3_two_charts_keep_both_locators():
+    first = _chart_unit("u1")
+    second = EvidenceUnit(
+        unit_id="u2",
+        source_type="chart",
+        source="https://cdn.example.com/f5.png",
+        page=5,
+        region="bbox:1,1,2,2",
+        content="second",
+    )
+    state = _multi_unit_state(first, second)
+    label = collect_evidence_payloads(state)[0].citation_label()
+    assert "p.4" in label and "p.5" in label
+    assert "bbox:10,10,200,120" in label and "bbox:1,1,2,2" in label
+
+
+def test_m4_two_evidence_ids_stay_two_payloads():
+    state = _multi_unit_state(_text_unit("u1", "A"))
+    payloads = collect_evidence_payloads(state)
+    assert len(payloads) == 1
+    assert len({payload.evidence_id for payload in payloads}) == len(payloads)
+
+
+def test_m5_the_singular_constructor_still_behaves_as_one_unit():
+    from src.web.research.synthesis_assembler import EvidencePayload
+
+    legacy = EvidencePayload("e1", content="legacy body", page=2, region="r")
+    assert legacy.text() == "legacy body"
+    assert len(legacy.effective_units) == 1
+    assert legacy.effective_units[0].page == 2

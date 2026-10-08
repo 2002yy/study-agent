@@ -37,16 +37,19 @@ from src.web.research.deep_handoff import (
     NON_UPGRADE_STOP_REASONS,
 )
 
-ARM: Literal["arm", "pending"] = "arm"
-PENDING: Literal["arm", "pending"] = "pending"
+ARM: Literal["arm", "pending", "publication"] = "arm"
+PENDING: Literal["arm", "pending", "publication"] = "pending"
+PUBLICATION: Literal["arm", "pending", "publication"] = "publication"
 
 DEEP_TERMINAL_KEY = "deep_terminal"
+DEEP_PUBLICATION_KEY = "deep_publication"
+DEEP_PUBLICATION_SCHEMA = "deep-publication-v1"
 PAGE_SIZE = 200
 
 
 @dataclass(frozen=True)
 class DeepTriggerItem:
-    kind: Literal["arm", "pending"]
+    kind: Literal["arm", "pending", "publication"]
     parent_turn_id: str
     thread_id: str
 
@@ -71,6 +74,40 @@ def _is_pending_deep_terminal(snapshot: Mapping[str, Any]) -> bool:
         and terminal.get("state") == "ESCALATE_DEEP"
         and terminal.get("dispatch_status") == "pending"
     )
+
+
+def _is_completed_deep_terminal(snapshot: Mapping[str, Any]) -> bool:
+    terminal = snapshot.get(DEEP_TERMINAL_KEY)
+    if not isinstance(terminal, dict):
+        return False
+    return (
+        terminal.get("schema_version") == DEEP_TERMINAL_SCHEMA
+        and terminal.get("state") == "ESCALATE_DEEP"
+        and terminal.get("dispatch_status") == "completed"
+    )
+
+
+def _is_pending_publication(snapshot: Mapping[str, Any]) -> bool:
+    """A pending publication is rediscovered even if the source has since gone bad.
+
+    It has to reach the service so the corruption can become a durable blocked terminal.
+    """
+
+    publication = snapshot.get(DEEP_PUBLICATION_KEY)
+    if not isinstance(publication, dict):
+        return False
+    return (
+        publication.get("schema_version") == DEEP_PUBLICATION_SCHEMA
+        and publication.get("dispatch_status") == "pending"
+    )
+
+
+def _is_publication_candidate(snapshot: Mapping[str, Any]) -> bool:
+    """A completed Deep terminal with no publication work recorded yet."""
+
+    if DEEP_PUBLICATION_KEY in snapshot:
+        return False
+    return _is_completed_deep_terminal(snapshot)
 
 
 def _is_arm_candidate(snapshot: Mapping[str, Any]) -> bool:
@@ -143,6 +180,7 @@ class DeepTriggerRepository:
         *,
         arm_limit: int = 8,
         pending_limit: int = 16,
+        publication_limit: int = 16,
         page_size: int = PAGE_SIZE,
     ) -> tuple[DeepTriggerItem, ...]:
         """ARM candidates first, then PENDING, scanning the whole completed queue.
@@ -154,12 +192,14 @@ class DeepTriggerRepository:
 
         arm_budget = max(0, int(arm_limit))
         pending_budget = max(0, int(pending_limit))
-        if arm_budget == 0 and pending_budget == 0:
+        publication_budget = max(0, int(publication_limit))
+        if arm_budget == 0 and pending_budget == 0 and publication_budget == 0:
             return ()
 
         size = max(1, int(page_size))
         arms: list[DeepTriggerItem] = []
         pending: list[DeepTriggerItem] = []
+        publications: list[DeepTriggerItem] = []
         cursor: tuple[str, str] | None = None
         while True:
             rows = self._page(cursor, size)
@@ -167,17 +207,22 @@ class DeepTriggerRepository:
                 break
             for row in rows:
                 snapshot = _snapshot(row["rag_snapshot"])
+                turn_id, thread_id = str(row["id"]), str(row["thread_id"])
                 if len(pending) < pending_budget and _is_pending_deep_terminal(snapshot):
-                    pending.append(
-                        DeepTriggerItem(PENDING, str(row["id"]), str(row["thread_id"]))
-                    )
+                    pending.append(DeepTriggerItem(PENDING, turn_id, thread_id))
                 elif len(arms) < arm_budget and _is_arm_candidate(snapshot):
-                    arms.append(
-                        DeepTriggerItem(ARM, str(row["id"]), str(row["thread_id"]))
-                    )
-                if len(arms) >= arm_budget and len(pending) >= pending_budget:
-                    return tuple(arms + pending)
+                    arms.append(DeepTriggerItem(ARM, turn_id, thread_id))
+                elif len(publications) < publication_budget and (
+                    _is_pending_publication(snapshot) or _is_publication_candidate(snapshot)
+                ):
+                    publications.append(DeepTriggerItem(PUBLICATION, turn_id, thread_id))
+                if (
+                    len(arms) >= arm_budget
+                    and len(pending) >= pending_budget
+                    and len(publications) >= publication_budget
+                ):
+                    return tuple(arms + pending + publications)
             if len(rows) < size:
                 break
             cursor = (str(rows[-1]["updated_at"]), str(rows[-1]["id"]))
-        return tuple(arms + pending)
+        return tuple(arms + pending + publications)

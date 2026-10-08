@@ -25,6 +25,7 @@ from src.repositories.deep_trigger_repository import (
 SCAN_INTERVAL_SECONDS = 15.0
 ARM_BATCH = 8
 PENDING_BATCH = 16
+PUBLICATION_BATCH = 16
 SHUTDOWN_JOIN_SECONDS = 1.0
 
 _logger = logging.getLogger(__name__)
@@ -39,17 +40,21 @@ class DeepTriggerRunner:
         *,
         arm: Callable[[str, str], Any] | None = None,
         consume: Callable[[str, str], Any] | None = None,
+        publish: Callable[[str, str], Any] | None = None,
         interval_seconds: float = SCAN_INTERVAL_SECONDS,
         arm_batch: int = ARM_BATCH,
         pending_batch: int = PENDING_BATCH,
+        publication_batch: int = PUBLICATION_BATCH,
         logger: logging.Logger | None = None,
     ):
         self.repository = repository
         self.arm = arm
         self.consume = consume
+        self.publish = publish
         self.interval_seconds = max(0.0, float(interval_seconds))
         self.arm_batch = max(0, int(arm_batch))
         self.pending_batch = max(0, int(pending_batch))
+        self.publication_batch = max(0, int(publication_batch))
         self.logger = logger or _logger
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -111,11 +116,15 @@ class DeepTriggerRunner:
             self.logger.exception("deep trigger scan failed")
 
     def scan_once(self) -> int:
-        """One scan: ARM first, then PENDING, so a fresh handoff is consumed immediately."""
+        """One scan: ARM, then PENDING, then PUBLICATION.
+
+        The order lets one scan carry a Standard terminal through handoff, execution,
+        finalization and the publication audit when each stage finishes within it.
+        """
 
         processed = 0
         for item in self.repository.discover(
-            arm_limit=self.arm_batch, pending_limit=0
+            arm_limit=self.arm_batch, pending_limit=0, publication_limit=0
         ):
             if self._stop.is_set():
                 return processed
@@ -124,12 +133,19 @@ class DeepTriggerRunner:
                 # not_requested / blocked: nothing was prepared for this item this scan.
                 continue
         for item in self.repository.discover(
-            arm_limit=0, pending_limit=self.pending_batch
+            arm_limit=0, pending_limit=self.pending_batch, publication_limit=0
         ):
             if self._stop.is_set():
                 return processed
             processed += 1
             self._consume(item)
+        for item in self.repository.discover(
+            arm_limit=0, pending_limit=0, publication_limit=self.publication_batch
+        ):
+            if self._stop.is_set():
+                return processed
+            processed += 1
+            self._publish(item)
         return processed
 
     def _arm(self, item: DeepTriggerItem) -> str:
@@ -151,6 +167,16 @@ class DeepTriggerRunner:
         except Exception:
             self.logger.exception("deep trigger consume callback failed")
 
+    def _publish(self, item: DeepTriggerItem) -> None:
+        if self.publish is None:
+            return
+        try:
+            self.publish(item.parent_turn_id, item.thread_id)
+        except Exception:
+            # As with the other callbacks: the trigger owns no integrity taxonomy, so a failure
+            # leaves durable state alone and the item is rediscovered later.
+            self.logger.exception("deep trigger publish callback failed")
+
 
 def trigger_scan_interval() -> float:
     """The frozen v1 scan interval, for diagnostics and tests."""
@@ -162,6 +188,7 @@ __all__ = [
     "ARM",
     "ARM_BATCH",
     "PENDING_BATCH",
+    "PUBLICATION_BATCH",
     "SCAN_INTERVAL_SECONDS",
     "SHUTDOWN_JOIN_SECONDS",
     "DeepTriggerItem",
