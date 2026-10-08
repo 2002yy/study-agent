@@ -336,6 +336,15 @@
       "tests/test_standard_handoff.py",
       "tests/test_standard_execution.py",
       "tests/test_stage_gates_policy.py"
+    ],
+    "synthesis_citation_contract": [
+      "tests/test_synthesis_citation_contract.py",
+      "tests/test_synthesis_assembler.py",
+      "tests/test_final_answer_auditor.py",
+      "tests/test_research_brief_projection.py",
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_deep_publication.py",
+      "tests/test_research_presentation.py"
     ]
   },
   "stage_gates": {
@@ -352,7 +361,12 @@
       "tests/test_lookup_terminal.py",
       "tests/test_standard_handoff.py",
       "tests/test_deep_publication.py",
-      "tests/test_stage_gates_policy.py"
+      "tests/test_stage_gates_policy.py",
+      "tests/test_synthesis_citation_contract.py",
+      "tests/test_synthesis_assembler.py",
+      "tests/test_final_answer_auditor.py",
+      "tests/test_research_brief_projection.py",
+      "tests/test_claim_evidence_assessment.py"
     ],
     "document-reading-v1": [
       "tests/test_original_reading.py",

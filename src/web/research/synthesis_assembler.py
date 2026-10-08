@@ -137,7 +137,9 @@ class EvidencePayload:
         if visuals:
             parts: list[str] = []
             for unit in visuals:
-                label = [unit.source or unit.provenance or self.source or self.evidence_id]
+                label = [
+                    unit.source or unit.provenance or self.source or self.evidence_id
+                ]
                 if unit.page is not None:
                     label.append(f"p.{unit.page}")
                 if unit.region:
@@ -145,8 +147,10 @@ class EvidencePayload:
                 parts.append(" ".join(part for part in label if part))
             return "; ".join(parts)
         anchor = self.locator or self.provenance
-        return f"{self.source or self.evidence_id} ({anchor})" if anchor else (
-            self.source or self.evidence_id
+        return (
+            f"{self.source or self.evidence_id} ({anchor})"
+            if anchor
+            else (self.source or self.evidence_id)
         )
 
     def text(self) -> str:
@@ -243,7 +247,9 @@ class SynthesisCoverageReport:
 class SynthesisDraft:
     sections: tuple[SynthesisSection, ...] = ()
     limitations: tuple[str, ...] = ()
-    coverage_report: SynthesisCoverageReport = field(default_factory=SynthesisCoverageReport)
+    coverage_report: SynthesisCoverageReport = field(
+        default_factory=SynthesisCoverageReport
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -323,7 +329,25 @@ def extractive_writer(
     stances = _stance_lookup(projection)
     sections: list[SynthesisSection] = []
     for claim in projection.claims:
-        refs = tuple(ref for ref in claim.evidence_refs if ref in payloads)
+        refs = claim.evidence_refs
+        # An unbound question is control-plane information, not a factual assertion.
+        # Keep its identity visible without borrowing another claim's evidence. The
+        # final auditor still rejects an unanswered critical claim.
+        if not refs:
+            sections.append(
+                SynthesisSection(
+                    section_id=f"claim:{claim.claim_id}",
+                    text=f"待核验问题（尚未取得可引用证据）：{claim.statement}",
+                )
+            )
+            continue
+        # A declared reference whose payload is absent is an integrity defect;
+        # silently filtering it would conceal a broken binding.
+        for ref in refs:
+            if ref not in payloads:
+                raise SynthesisContractViolation(
+                    REASON_CITATION_MISSING, f"a:{claim.claim_id}:{ref}"
+                )
         allowed = stances.get(claim.claim_id, frozenset({"limited"}))
         stance = _pick_stance(allowed)
         citations = tuple(
@@ -335,9 +359,7 @@ def extractive_writer(
             )
             for ref in refs
         )
-        body = " ".join(
-            part for part in (payloads[ref].text() for ref in refs) if part
-        )
+        body = " ".join(part for part in (payloads[ref].text() for ref in refs) if part)
         sections.append(
             SynthesisSection(
                 section_id=f"claim:{claim.claim_id}",
