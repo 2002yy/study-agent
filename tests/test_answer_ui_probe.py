@@ -1,6 +1,9 @@
 """Probe reporting must not turn missing interactions/errors into latency wins."""
 
 from tools.run_answer_ui_probe import bridge, percentile, summarize
+from pathlib import Path
+import shutil
+import pytest
 
 
 def test_empty_latency_is_missing_not_zero():
@@ -27,6 +30,13 @@ def test_failed_and_missing_components_cannot_improve_latency():
 
 
 def test_live_chunk_replay_uses_real_parser_and_requires_closed_valid_block():
+    if (
+        not shutil.which("node")
+        or not (Path(__file__).parents[1] / "frontend/node_modules/typescript").exists()
+    ):
+        pytest.skip(
+            "Production parser replay requires installed frontend Node dependencies"
+        )
     result = bridge(
         {
             "chunks": [

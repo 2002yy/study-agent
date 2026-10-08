@@ -22,6 +22,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
+import { ResearchWorkspace } from "../answer-ui/ResearchWorkspace";
 import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
@@ -356,7 +357,11 @@ export function ChatPanel(props: ChatPanelProps) {
                     ) : null}
                     {message.role === "assistant" && isSending && index === displayMessages.length - 1
                       ? <AnswerProgress hasContent={!!message.content.trim()} progress={researchProgress} /> : null}
-                    <MarkdownMessage content={message.content} interactive={message.role === "assistant"}
+                    {message.role === "assistant" && index === displayMessages.length - 1 && message.turnId && (sessionId || message.researchPresentation?.session_id)
+                      ? <ResearchWorkspace key={message.turnId} turnId={message.turnId}
+                          sessionId={sessionId || message.researchPresentation!.session_id} initial={message.researchPresentation} /> : null}
+                    <MarkdownMessage content={message.content} interactive={message.role === "assistant"
+                      && !message.researchPresentation?.blocks.length && !message.evidence?.rag?.web_tools?.run_id}
                       streaming={message.role === "assistant" && isSending && index === displayMessages.length - 1}
                       onDraft={prompt => {
                         setComposerMode("chat");

@@ -1,0 +1,16 @@
+.research-workspace { margin: 16px 0; padding: 14px; border: 1px solid var(--line, #dce4e9); border-radius: 16px; background: #f6f8fa; color: #3d5363; font: inherit; }
+.research-workspace header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.research-workspace header span, .research-workspace small { color: #647886; font-size: 12px; }
+.research-workspace header button { margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 6px 10px; }
+.research-tier-list { display: grid; gap: 8px; margin-top: 12px; }
+.research-tier-list details { background: #fff; border-radius: 10px; padding: 10px 12px; }
+.research-tier-list summary { cursor: pointer; }
+.research-tier-list summary span { float: right; font-size: 12px; }
+.research-workspace p { margin: 8px 0; font-size: 13px; line-height: 1.65; }
+.research-workspace ul { list-style: none; padding: 0; margin: 12px 0; }
+.research-workspace li { display: grid; gap: 3px; margin: 10px 0; overflow-wrap: anywhere; }
+.research-workspace li span { font-size: 12px; color: #647886; }
+.research-workspace a { color: #416d8b; }
+.research-workspace table { width: 100%; table-layout: fixed; font-size: 12px; }
+.research-workspace td, .research-workspace th { text-align: left; padding: 6px 4px; overflow-wrap: anywhere; }
+.research-workspace button:focus-visible, .research-workspace summary:focus-visible { outline: 2px solid #416d8b; outline-offset: 3px; }

@@ -41,6 +41,7 @@ function Chart({ card }: { card: Extract<AnswerCard, { type: "chart" }> }) {
       <button type="button" aria-pressed={mode === "bar"} onClick={() => setMode("bar")}>柱状图</button>
       <button type="button" aria-pressed={mode === "line"} onClick={() => setMode("line")}>折线图</button>
     </div>
+    <small>回答中的展示数据 · 尚无服务端来源绑定</small>
     <svg viewBox="0 0 480 230" role="img" aria-label={`${card.title}，${mode === "bar" ? "柱状图" : "折线图"}，${card.points.length} 项；完整数值在下方表格`}>
       <line x1="40" x2="440" y1={y(0)} y2={y(0)} className="answer-grid" />
       <text x="36" y="24">{max.toLocaleString()}</text><text x="36" y="215">{min.toLocaleString()}</text>

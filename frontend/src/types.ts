@@ -170,6 +170,7 @@ export type ChatMessage = {
   cancelNotice?: string;
   parentTurnId?: string | null;
   evidence?: TurnEvidence;
+  researchPresentation?: import("./features/answer-ui/researchPresentation").ResearchPresentation;
 };
 
 export type ChatSettings = {

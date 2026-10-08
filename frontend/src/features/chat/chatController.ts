@@ -1,4 +1,5 @@
 import { humanizeUiError } from "../../utils/uiLabels";
+import { mergeResearchPresentation } from "../answer-ui/researchPresentation";
 import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
@@ -458,6 +459,13 @@ export function useChatController(options: ControllerOptions) {
               )
             );
             setLastChat((current) => (current ? { ...current, reply: streamedReply } : current));
+          },
+          onResearchPresentation: (snapshot) => {
+            if (!isCurrent() || snapshot.turn_id !== activeTurnId
+              || (activeSessionId && snapshot.session_id !== activeSessionId)) return;
+            setMessages(current => current.map((message, index) => index === assistantIndex
+              ? { ...message, turnId: activeTurnId, researchPresentation: mergeResearchPresentation(message.researchPresentation ?? null, snapshot) }
+              : message));
           },
           onDone: (done) => {
             if (!isCurrent()) return;

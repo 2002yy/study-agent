@@ -739,6 +739,14 @@ export async function installApiFixture(
       });
       return;
     }
+    const presentationPath = /^\/sessions\/([^/]+)\/turns\/([^/]+)\/research-presentation$/.exec(path);
+    if (presentationPath && request.method() === "GET") {
+      await fulfillJson(route, { protocol_version: 1, session_id: decodeURIComponent(presentationPath[1]),
+          snapshot_kind: "turn", turn_updated_at: "2026-10-08T10:00:00Z",
+        turn_id: decodeURIComponent(presentationPath[2]), publication_status: "observation_only",
+        publication_authority: false, blocks: [], truncated: false, watch: false, audit_status: null, audit_integrity: "absent" });
+      return;
+    }
     if (path.startsWith("/sessions/") && request.method() === "GET") {
       const sessionId = decodeURIComponent(path.slice("/sessions/".length));
       const detail = state.details.get(sessionId);

@@ -30,6 +30,10 @@ from src.application.research_evidence import (
     research_run_provenance,
     research_sources_snapshot,
 )
+from src.application.research_presentation import (
+    research_presentation,
+    research_run_event,
+)
 from src.application.runtime_repository import (
     get_chat_service,
     get_session_service,
@@ -45,6 +49,21 @@ WebLookupServiceDependency = Annotated[
     Depends(get_web_lookup_service),
 ]
 SessionServiceDependency = Annotated[SessionService, Depends(get_session_service)]
+
+
+@router.get("/sessions/{thread_id}/turns/{turn_id}/research-presentation")
+def get_research_presentation(
+    thread_id: str,
+    turn_id: str,
+    service: ChatServiceDependency,
+    research_service: WebLookupServiceDependency,
+) -> dict[str, Any]:
+    turn = service.repository.get_chat_turn(turn_id)
+    if turn is None or turn.thread_id != thread_id:
+        raise HTTPException(status_code=404, detail="Chat turn not found")
+    return research_presentation(
+        turn, research_service.repository.list_by_owner_turn(turn_id, limit=100)
+    )
 
 
 def _drain_queued_archive(
@@ -153,6 +172,7 @@ async def chat_stream_endpoint(
             if run is not None and observed_research_version != (run.id, run.version):
                 observed_research_version = (run.id, run.version)
                 yield sse_event("research", _research_progress(run))
+                yield sse_event("research_presentation", research_run_event(run))
             await asyncio.wait({prepare_task}, timeout=0.05)
 
         try:
@@ -180,6 +200,7 @@ async def chat_stream_endpoint(
         )
         if run is not None and observed_research_version != (run.id, run.version):
             yield sse_event("research", _research_progress(run))
+            yield sse_event("research_presentation", research_run_event(run))
 
         reply_parts: list[str] = []
         stream = service.stream_async(prepared)

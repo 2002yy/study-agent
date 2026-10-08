@@ -34,6 +34,7 @@ import type {
   RuntimeSettingsResponse,
   SearchProviderHealthResponse
 } from "./types";
+import { parseResearchPresentation, type ResearchPresentation } from "./features/answer-ui/researchPresentation";
 import { consumePendingTaskIntentOverride } from "./features/task/taskContract";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -100,6 +101,7 @@ type ChatStreamHandlers = {
   onRoute?: (route: Record<string, unknown>) => void;
   onRag?: (rag: ChatResponse["rag"]) => void;
   onResearch?: (progress: ChatResearchProgress) => void;
+  onResearchPresentation?: (snapshot: ResearchPresentation) => void;
   onToken?: (token: string) => void;
   onUsage?: (usage: Record<string, unknown>) => void;
   onDone?: (done: Record<string, unknown>) => void;
@@ -942,6 +944,7 @@ export async function sendChatStream(
   let turnId = options.turnId ?? "";
   let route: Record<string, unknown> = {};
   let rag: ChatResponse["rag"] | null = null;
+  let terminalSeen = false;
 
   const handleMessage = (message: SseMessage) => {
     if (message.event === "session") {
@@ -976,6 +979,13 @@ export async function sendChatStream(
       handlers.onResearch?.(message.data as ChatResearchProgress);
       return;
     }
+    if (message.event === "research_presentation") {
+      const snapshot = parseResearchPresentation(message.data);
+      if (snapshot && snapshot.turn_id === turnId && (!sessionId || snapshot.session_id === sessionId)) {
+        handlers.onResearchPresentation?.(snapshot);
+      }
+      return;
+    }
     if (message.event === "token") {
       const text = typeof message.data.text === "string" ? message.data.text : "";
       reply += text;
@@ -988,6 +998,7 @@ export async function sendChatStream(
       return;
     }
     if (message.event === "done") {
+      terminalSeen = true;
       if (typeof message.data.session_id === "string") {
         sessionId = message.data.session_id;
       }
@@ -998,6 +1009,7 @@ export async function sendChatStream(
       return;
     }
     if (message.event === "cancelled") {
+      terminalSeen = true;
       handlers.onCancelled?.(message.data);
       return;
     }
@@ -1025,6 +1037,8 @@ export async function sendChatStream(
   for (const message of parseSseMessages(buffer)) {
     handleMessage(message);
   }
+
+  if (!terminalSeen) throw new Error("回答连接已中断，请从保存的研究状态恢复。");
 
   return {
     reply,
