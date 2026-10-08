@@ -24,6 +24,7 @@ from src.infrastructure.sqlite.database import RuntimeDatabase
 from src.repositories.deep_trigger_repository import (
     ARM,
     PENDING,
+    PUBLICATION,
     DeepTriggerItem,
     DeepTriggerRepository,
 )
@@ -173,7 +174,11 @@ def test_t5_a_pending_deep_terminal_is_discovered(db):
 def test_t6_t7_completed_and_blocked_terminals_are_not_discovered(db):
     add_turn(db, "turn-c", {"deep_terminal": _deep_terminal(status="completed")})
     add_turn(db, "turn-b", {"deep_terminal": _deep_terminal(status="blocked")})
-    assert DeepTriggerRepository(db).discover() == ()
+    items = DeepTriggerRepository(db).discover()
+    # A completed Deep terminal is no longer PENDING work: it is a PUBLICATION candidate.
+    # A blocked terminal is neither.
+    assert kinds(items) == [PUBLICATION]
+    assert ids(items) == ["turn-c"]
 
 
 def test_a_malformed_terminal_is_not_discovered_and_not_repaired(db):
@@ -349,7 +354,9 @@ def test_t16_a_completed_item_is_not_rediscovered(db):
             "UPDATE chat_turns SET rag_snapshot = ? WHERE id = ?",
             (json.dumps({"deep_terminal": _deep_terminal(status="completed")}), "turn-1"),
         )
-    assert DeepTriggerRepository(db).discover() == ()
+    # It leaves the PENDING stage and becomes a PUBLICATION candidate.
+    items = DeepTriggerRepository(db).discover()
+    assert kinds(items) == [PUBLICATION]
 
 
 def test_t18_a_restart_rediscovers_the_same_item(db):
