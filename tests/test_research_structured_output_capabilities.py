@@ -295,6 +295,24 @@ def test_evidence_extractor_deepseek_sends_thinking_off_and_keeps_budget() -> No
     assert call["max_tokens"] == 900
 
 
+@pytest.mark.parametrize("role", ["unknown", "invented_primary"])
+def test_unverified_source_role_never_becomes_evidence_or_spends_a_model_call(role):
+    client = _FakeClient(_ok_response(content="not json"))
+    extractor = RuntimeEvidenceExtractor(ResearchModelGateway(
+        provider_profile="deepseek", client=client, model_name="m", max_attempts=1,
+    ))
+    arguments = dict(run_id="run-1", claim=_claim(), candidate=_candidate("a"),
+                     source_role=role, source_cluster_id="cluster-a", content="bounded text")
+    if role == "unknown":
+        result = extractor.extract(**arguments)
+        assert result.status == "unavailable" and result.extraction is None
+        assert result.reason == "source_role_unverified" and result.audits == ()
+    else:
+        with pytest.raises(ValueError, match="invalid source_role"):
+            extractor.extract(**arguments)
+    assert client.chat.completions.calls == []
+
+
 def test_evidence_extractor_deepseek_carries_output_contract_in_prompt() -> None:
     client = _FakeClient(_ok_response(content="not json"))
     gateway = ResearchModelGateway(

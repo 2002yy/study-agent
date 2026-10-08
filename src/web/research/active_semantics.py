@@ -469,6 +469,13 @@ class RuntimeEvidenceExtractor:
         call_id_suffix: str = "",
         attempt_start: int = 1,
     ) -> EvidenceExtractionResult:
+        if source_role == "unknown":
+            # Candidate assessment legitimately retains unclassified sources.
+            # They cannot support evidence, but must not abort other research.
+            return EvidenceExtractionResult(
+                status="unavailable", extraction=None, audits=(),
+                reason="source_role_unverified",
+            )
         role = _enum(source_role, _SOURCE_ROLES, "source_role")
         cluster_id = _required_text(source_cluster_id, 300, "source_cluster_id")
         excerpt = str(content or "")[:6000]
