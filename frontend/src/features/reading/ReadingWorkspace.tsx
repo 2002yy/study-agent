@@ -7,6 +7,7 @@ import { DocumentReader } from "./DocumentReader";
 import "./readingWorkspace.css";
 import "./workspaceInterior.css";
 import "./chatAppearance.css";
+import "./workspacePolish.css";
 import { PanelResizeHandle } from "./PanelResizeHandle";
 
 type Request = {target: ReadingTarget; line: number; sessionKey: string; navigationKey: number};

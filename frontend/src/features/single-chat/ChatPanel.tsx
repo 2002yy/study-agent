@@ -1,8 +1,8 @@
 import {
   ArrowDown,
+  ArrowUp,
   BookOpen,
   Clipboard,
-  Send,
   Search,
   MessageSquare,
   Settings2,
@@ -399,14 +399,14 @@ export function ChatPanel(props: ChatPanelProps) {
           />
           <div className="composer-footer">
             {isSending ? (
-              <button className="send-button stop-button" onClick={onStop} type="button">
+              <button className="send-button stop-button" onClick={onStop} title="停止生成" type="button">
                 <Square size={16} />
-                停止
+                <span className="visually-hidden">停止</span>
               </button>
             ) : (
-              <button className="send-button" disabled={!input.trim()} type="submit">
-                {composerMode === "search" ? <Search size={17}/> : <Send size={17}/> }
-                {composerMode === "search" ? "搜索" : "发送"}
+              <button className="send-button" disabled={!input.trim()} title={composerMode === "search" ? "搜索" : "发送"} type="submit">
+                {composerMode === "search" ? <Search size={20}/> : <ArrowUp size={20}/> }
+                <span className="visually-hidden">{composerMode === "search" ? "搜索" : "发送"}</span>
               </button>
             )}
           </div>
