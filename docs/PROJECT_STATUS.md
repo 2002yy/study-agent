@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 参考 Codex 的克制视觉与收起状态（LOCAL UI GO / 未推送）：** 用户提供Codex辅助面板展开/收起两张截图，要求学习美观设计、按学习软件用途适配。独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `5a73248a78b953d6fc5f2abdaf6ba1f4dc3d321b`，生产提交 `d913e665fe09850a75ca0962bac8676c033db7e3`。3个前端文件，仅视觉样式和发送图标的可访问呈现。
+
+**行为：** 灰白界面配淡蓝强调，正文深蓝灰，较弱边框；导航新对话转为文字操作、会话14px常规字重，活动项用柔和灰绿底，品牌/副标题层次保持；界面标题统一黑体，宋体保留给阅读标题及字体预览。输入框20px圆角与低强度阴影，发送为框内44px圆形向上箭头，搜索/停止为对应图标，保留辅助技术可读名称与鼠标title提示。三块面板改16px圆角，已有24px外留白与16px间距、拖动宽度不变。资料关闭时沿用居中820px消息/输入内容轨，宽阔主区；资料展开仍为左导航/中正文/右对话。未新增Codex工程工具或辅助面板功能，未改变阅读关闭语义/会话/API/search流程；头像96/80px、角色气泡、引用轨迹、设备字体与宽度偏好保留。
+
+**验证与限制：** 直接影响集首轮并行22文件90 PASS/1 FAIL，既有阅读测试本地跳转的DOM身份断言波动（阅读逻辑/断言未改）；单worker影响集22文件91 PASS/9.88s，随后全量106文件437 PASS/48.45s。保留首轮失败日志，不宣称其波动根因已定位。最终tsc＋Vite build、Ruff src/tests/tools、diff-check及范围审查PASS；默认完整浏览器69 PASS/2.0m、golden artifact gate通过（含字体、拖动、移动/IME/恢复/长内容及Firefox/WebKit journeys）。实页1600/1280/901/390/320均无页面横向溢出，输入框内按钮不遮文字且在viewport内，page errors=[]；展开/关闭资料保留已有草稿，三栏/宽对话/手机截图通过视觉检查。截图是明确隔离UI验收会话/资料。无后端L3升级，前端类型由tsc验证，既有>500kB chunk warning保留。
+
+**交接：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-polish.json`，polish-focused/focused-serial/unit-full/build-final/browser-full日志与polish-chat-wide/reading/mobile截图。预览5188→独立API8002（沿用上一批隔离确定性验收入口与resize-preview-runtime，不授予真实搜索资格）。生产提交后tracked clean，临时PW配置删除，本段docs-only；最终head从git及qa-polish恢复。main7ff7451d及原四项dirty保留，无push/PR/新CI/merge。下一slice：审查并集成本独立UI候选，搜索窗口继续独立验收其候选。
+
 **2026-10-08 可调节面板宽度（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `23bfa704af38e78d5dea50b5b3274fffe954e49f`，生产提交 `aab892675ecbc32aa4cfd1f99a9f6e93339f09e3`。6个前端文件。用户要求初始保留现有默认宽度、后续手动调节。导航与主区、中正文与右对话的空隙加入可拖动分隔手柄；导航保存像素宽度，正文保存比例，设备localStorage键study-agent:panel-width:sidebar:v1 / reading:v1。默认仍216/192导航、原32%且至少400px的对话区。调节时导航180–360px并根据可用空间限制上限，正文与对话各至少360px；窗口变窄即时CSS限制并由ResizeObserver重算比例，恢复大窗口保留偏好。双击/回车恢复对应分隔默认，左右方向键16px、Shift＋方向键32px、Home/End到边界。手柄具separator方向、宽度值与可见键盘焦点；手机隐藏拖动入口，沿用阅读/对话切换，专注模式隐藏中右手柄。
 
 **验证与失败记录：** 直接影响集18文件83 PASS/2.88s；前端全量106文件437 PASS/67.27s，完整默认浏览器69 PASS/2.0m及golden artifact gate通过；最终缩放限制另经Chromium/手机Chromium/Firefox/WebKit专项4 PASS/15.0s，含实际鼠标拖动、键盘、刷新保存、草稿保持、极端宽度和默认恢复。tsc＋Vite build、Ruff src/tests/tools、diff-check与范围检查PASS。首轮浏览器2失败因前一轮5188预览服务已停止（ERR_CONNECTION_REFUSED），恢复服务后2 PASS/6.2s。手动即时缩窗曾在1280/1101/901观察到ResizeObserver更新前的短暂横向溢出，补即时CSS宽度夹限后1600/1280/1101/1024/901/390/320均无横向溢出；坏设备偏好回落默认，存储写入被阻止时当前视图仍能调节，page errors=[]。截图为隔离验收样例，未写入用户真实资料/会话；未改变搜索窗口、后端、会话持久化或发送契约。纯前端无backend L3升级，前端类型由tsc验证，既有chunk warning保留。
