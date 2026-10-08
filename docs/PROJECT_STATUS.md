@@ -73,17 +73,18 @@ known boundary
 
 ```text
 evidence    docs/LEARNING_STATE_1_ACCEPTANCE.md（T01–T18 矩阵）
-baseline    main f35b13b7；本地影响集 **213 passed**
-result      T01–T16 / T18 = 直接证据 PASS（多数经真实生产路径或真实 HTTP）
-            T17（UI 不写 mastery）= 结构性间接 PASS（限制 L-b）
+baseline    main f35b13b7；本地影响集 **213 passed**（+ 隔离负控）
+result      T01–T15 / T18 = 直接证据 PASS（多数经真实生产路径或真实 HTTP）
+            T16 = 结构性（写入者清单守卫）+ closure 边界行为 PASS
+            T17（UI 不写 mastery）= 结构性 PASS（路由/构造守卫；限制 L-b）
+            M6 = 隔离变异负控已资格化（test_learning_mastery_isolation.py，已实测检出）
 
 known limitations（如实登记，非阻断）
             L-a  T09/T10/T11 由行为断言覆盖，未设独立变异负控
-            L-b  UI 属 B 线；后端无 UI → durable 写入路径，
-                 唯一写入权威 LearningClosureTruthService 只经显式 closure 路由
+            L-b  UI 属 B 线；后端无 UI → durable 写入路径；无直接 UI 负控
 
 completion  合同 §11 完成定义 1–10 项均有对应证据 → Learning State-1 CLOSED
-not done    未新增代码/测试；未启动只读 learning_view；未启动 RP-1
+not done    未改学习实现；新增 1 个隔离负控测试；未启动只读 learning_view；未启动 RP-1
 ```
 
 **Deep-3T authority（合同冻结基线）：**

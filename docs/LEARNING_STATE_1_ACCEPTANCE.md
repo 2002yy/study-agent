@@ -32,26 +32,41 @@
 | T13 | thread 身份隔离，不串学习事实 | `test_review_turns.py::test_foreign_thread_and_retry_rebinding_are_rejected`；`test_learning_closure_goal_focus.py::test_same_objective_reuses_goal_but_new_objective_gets_new_focus` | 是（HTTP） | 直接 | 外部 thread 绑定拒绝 | PASS |
 | T14 | §164 三种既有状态：观察口径不变 | `test_learner_state_parity.py`（全部分类/不变量用例）；`test_learner_state_shadow_seam.py`；`test_learner_state_shadow_acceptance.py` | 是（seam 经真实 `start_turn`） | 直接 | `test_learner_state_shadow_acceptance.py::test_normal_shadow_is_behaviourally_identical` 等 7 组 | PASS |
 | T15 | durable-read OFF / canary：无隐式新写入 | `test_learner_state_durable_adapter.py::test_durable_read_is_off_by_default`、`::test_canary_enables_only_listed_threads`；`test_learner_state_shadow_acceptance.py::test_flag_off_never_invokes_the_reader` | 是 | 直接 | OFF/canary/异常分支用例 | PASS |
-| T16 | Lookup/Standard/Deep 不创建 mastery | `test_learning_closure_commit_boundary.py::test_preview_and_ordinary_closure_generation_do_not_write_durable_truth`、`::test_auto_memory_mode_cannot_auto_commit_pending_durable_truth`；`test_learning_closure_candidate_boundary.py` | 是 | 直接 | `::test_durable_candidate_rejection_fails_closure_instead_of_silently_completing` | PASS |
-| T17 | 普通 UI 操作不创建 mastery | 无直接 UI 测试（UI 属 B 线）；结构性保证：durable 写入唯一入口 = `LearningClosureTruthService`，仅由显式 closure 路由调用 | 结构性 | **间接** | 无直接负控 | PASS（间接，见限制 L-b） |
+| T16 | Lookup/Standard/Deep 不创建 mastery | `test_learning_mastery_isolation.py::test_only_the_closure_chain_writes_durable_understanding`（写入者清单守卫）；`test_learning_closure_commit_boundary.py::test_preview_and_ordinary_closure_generation_do_not_write_durable_truth`、`::test_auto_memory_mode_cannot_auto_commit_pending_durable_truth`；`test_learning_closure_candidate_boundary.py` | 结构性 + closure 边界行为 | 结构性（写入者清单）+ 边界行为 | **M6**：向研究模块加入 `commit_semantic_closure` 调用 → 守卫 FAIL（已实测） | PASS |
+| T17 | 普通 UI 操作不创建 mastery | `test_learning_mastery_isolation.py::test_only_explicit_closure_routes_trigger_a_closure_run`（路由守卫）+ `::test_closure_truth_service_is_constructed_only_by_the_runtime_wiring`；无直接 UI 测试（UI 属 B 线） | 结构性 | 结构性 | **M6**：非 closure 路由触发 closure run → 守卫 FAIL（已实测）；无直接 UI 负控（限制 L-b） | PASS（结构性，见 L-b） |
 | T18 | 显式 closure commit 正式写入链正常 | `test_learning_closure_commit_boundary.py::test_explicit_commit_writes_durable_truth_once_before_memory_commit`；`test_learning_verification_e2e.py::test_reasoned_explanation_commits_and_restores_learning_truth` | 是 | 直接 | `::test_truth_failure_stops_before_memory_commit_and_has_distinct_reason` | PASS |
 
 ## 汇总
 
 ```text
-T01-T16, T18   直接证据（多数经真实生产路径或真实 HTTP）   PASS
-T17            间接（结构性）；无直接 UI 负控              PASS（间接）
+T01-T15, T18   直接证据（多数经真实生产路径或真实 HTTP）        PASS
+T16            结构性（写入者清单守卫）+ closure 边界行为      PASS
+T17            结构性（路由/构造守卫）；无直接 UI 负控         PASS（结构性）
+M6             写入隔离变异负控（已实测检出）                 PASS
 ```
 
 ## 已知限制
 
 - **L-a（T09/T10/T11）**：legacy fallback 与 durable-first 由行为断言覆盖，未设独立变异负控。理由：这两条是既有权威路径，本轮未改其语义；若要更强保证需新增 mutation，但合同 §8 要求「不为制造增量而改实现」，故不新增。
-- **L-b（T17）**：UI 属 B 线且尚未封板；后端不存在 UI → durable 写入路径（唯一写入权威 `LearningClosureTruthService` 只经显式 closure 路由）。因此 T17 为**结构性**保证，无直接 UI 负控。合同 §7 允许以「只读快照 + 模拟 UI 动作负控」验收；本阶段未新增该负控，如实记录为间接。
+- **L-b（T17）**：UI 属 B 线且尚未封板；后端不存在 UI → durable 写入路径（唯一写入权威 `LearningClosureTruthService` 只经显式 closure 路由）。T17 由 `test_learning_mastery_isolation.py` 的**路由/构造守卫**覆盖（结构性），仍无直接 UI 负控。合同 §7 允许以「只读快照 + 模拟 UI 动作负控」验收。
 - 本轮**未**改动 Socratic、durable 写入语义、§164 仪器；T14 口径不变。
+
+## M6 负控资格（本轮补齐）
+
+`tests/test_learning_mastery_isolation.py` 是 T16/T17/M6 的定点隔离负控：
+
+- 扫描 `src/**/*.py`，`create_understanding_evidence` / `commit_review_attempt` / `commit_semantic_closure` 的调用者必须 ⊆ closure 链（`learning_closure_truth` / `learning_semantic_closure`）；`create_understanding_evidence` 在生产中**无调用者**。
+- `LearningClosureTruthService` 只允许在 `runtime_repository.py` 构造。
+- closure run 只允许由 `learning_closure_routes.py` / `session_routes.py` 触发。
+- **变异实测**：向 `src/web/research/` 加入一个 `commit_semantic_closure` 调用 → `test_only_the_closure_chain_writes_durable_understanding` FAIL（探针已删除）。
+
+因此 M6（研究/UI 绕过 closure 写入）具备可检出能力，不再是未资格化负控。
 
 ## 结论
 
-- T01–T16、T18：**直接证据 PASS**。
-- T17：**间接（结构性）PASS**，限制 L-b 如实登记。
+- T01–T15、T18：**直接证据 PASS**。
+- T16：**结构性（写入者清单守卫）+ closure 边界行为 PASS**。
+- T17：**结构性 PASS**（路由/构造守卫），限制 L-b 如实登记。
+- M6：**已资格化**（隔离变异负控实测检出）。
 - 合同 §11 完成定义 1–10 项均有对应证据；**建议 `Learning State-1 = CLOSED`**（L1 实现权威 `0de80751`；L2–L6 验收由本矩阵关闭）。
 - 不新增代码/测试；不启动只读 `learning_view`；不启动 RP-1。
