@@ -27,6 +27,58 @@ class RecoveryDeadline(TimeoutError):
     """The research window ended; provider timeouts are separately recoverable."""
 
 
+def select_research_queries(
+    proposals: list[dict[str, str]], slots: int, official_query: str,
+    official_domains: list[str] | tuple[str, ...],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Select advice by distinct RQ coverage; reserve the existing official slot.
+
+    Advice is not evidence. Official priority uses known resolver domains,
+    never a model's assertion of authority. Stable input order breaks ties.
+    """
+    def key(query: str) -> str:
+        return " ".join(query.casefold().split())
+
+    groups: dict[str, dict[str, Any]] = {}
+    for index, row in enumerate(proposals):
+        identity = key(row["query"])
+        group = groups.setdefault(identity, {
+            "query": row["query"], "rq_ids": [], "index": index,
+        })
+        if row["rq_id"] not in group["rq_ids"]:
+            group["rq_ids"].append(row["rq_id"])
+    official_key = key(official_query)
+    official = groups.pop(official_key, {"rq_ids": []})
+    selected = [{"query": official_query, "rq_ids": official["rq_ids"],
+                 "phase": "authoritative_domain", "reason": "reserved_official_recovery"}]
+    covered = set(official["rq_ids"])
+
+    def priority(group: dict[str, Any]) -> tuple[int, bool, int]:
+        hosts = re.findall(r"site:([^\s)]+)", group["query"], re.I)
+        known_official = any(host.casefold() in official_domains for host in hosts)
+        return (len(set(group["rq_ids"]) - covered), known_official, -group["index"])
+
+    for _ in range(max(0, slots)):
+        if not groups:
+            break
+        identity, group = max(groups.items(), key=lambda item: priority(item[1]))
+        groups.pop(identity)
+        selected.append({"query": group["query"], "rq_ids": group["rq_ids"],
+                         "phase": "semantic_query", "reason": "rq_coverage_then_official_priority"})
+        covered.update(group["rq_ids"])
+    selected_keys = {key(row["query"]) for row in selected}
+    seen: set[str] = set()
+    deferred = []
+    for row in proposals:
+        identity = key(row["query"])
+        reason = "duplicate_query" if identity in seen else "execution_slot_limit"
+        if identity in seen or identity not in selected_keys:
+            deferred.append({**row, "reason": reason})
+        seen.add(identity)
+    return selected[1:], {"selected": selected, "deferred": deferred,
+                         "covered_rq_ids": sorted(covered), "semantic_slots": max(0, slots)}
+
+
 @dataclass(frozen=True)
 class RecoveryBudget:
     mode: str
@@ -254,13 +306,13 @@ def _recover_public_research(
             ),
         ]
     )
+    query_selection: dict[str, Any] | None = None
     if query_plan:
         # Apply the existing entity spelling normalizer to *search advice*, not
         # the immutable original question. Official recovery runs before the
         # comparison tail can consume all remaining reads.
         query_plan = [{**row, "query": _rewrite(normalize_web_query(row["query"]).canonical_query)[0]}
                       for row in query_plan]
-        planned = query_plan[: min(3, budget.max_queries - 1)]
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
             f"site:{domains[0]} {rewritten}" if domains else authority_query,
@@ -273,10 +325,12 @@ def _recover_public_research(
         if scope and model_targets(query):
             entities = " ".join(f"{name} {version}" for name, version in model_targets(query))
             official_query = _rewrite(f"{scope.group(1)} {entities}")[0]
-        phases = [("semantic_query", planned[0]["query"], 2),
-                  ("authoritative_domain", official_query, 1)] + [
-                      ("semantic_query", row["query"], 1) for row in planned[1:]
-                      if row["query"] != official_query]
+        planned, query_selection = select_research_queries(
+            query_plan, min(3, max(0, budget.max_queries - 1)), official_query, domains,
+        )
+        phases = ([("semantic_query", planned[0]["query"], 2)] if planned else [])
+        phases += [("authoritative_domain", official_query, 1)]
+        phases += [("semantic_query", row["query"], 1) for row in planned[1:]]
 
     def active() -> None:
         if should_cancel():
@@ -335,6 +389,7 @@ def _recover_public_research(
                         "required": len(markers),
                     },
                     "question_coverage": "not_semantically_evaluated",
+                    "query_selection": query_selection,
                     "candidate_scheduler": scheduler.snapshot(),
                     "candidate_dispositions": list(dispositions.values()),
                     "provider_failures": provider_failures,

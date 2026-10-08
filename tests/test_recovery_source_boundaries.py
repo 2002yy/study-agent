@@ -2,10 +2,49 @@ from __future__ import annotations
 
 import pytest
 
-from src.web.research_recovery import recover_public_research, recovery_summary
+from src.web.research_recovery import (
+    STANDARD_BUDGET, recover_public_research, recovery_summary, select_research_queries,
+)
 from src.web.tool_evidence import evidence_tool_calls
 from src.web.tool_gateway import GeneralWebGateway
 from tests.test_research_recovery import Gateway, item
+
+
+def test_selection_covers_late_questions_before_redundant_early_proposals():
+    proposals = [
+        {"rq_id": "rq-a", "query": "topic overview"},
+        {"rq_id": "rq-a", "query": "topic overview details"},
+        {"rq_id": "rq-a", "query": "topic overview other"},
+        {"rq_id": "rq-b", "query": "topic cost"},
+        {"rq_id": "rq-c", "query": "site:python.org topic reliability"},
+    ]
+    selected, trace = select_research_queries(proposals, 3, "site:python.org topic", ["python.org"])
+    assert {rq for row in selected for rq in row["rq_ids"]} == {"rq-a", "rq-b", "rq-c"}
+    assert selected[0]["rq_ids"] == ["rq-c"]
+    assert len(trace["deferred"]) == 2
+    assert {row["reason"] for row in trace["deferred"]} == {"execution_slot_limit"}
+    assert select_research_queries(proposals, 3, "site:python.org topic", ["python.org"]) == (selected, trace)
+
+
+def test_selection_deduplicates_queries_and_preserves_all_bound_rqs():
+    proposals = [{"rq_id": "rq-a", "query": "Topic Cost"},
+                 {"rq_id": "rq-b", "query": "topic  cost"},
+                 {"rq_id": "rq-c", "query": "site:python.org topic"}]
+    selected, trace = select_research_queries(proposals, 3, "site:python.org topic", ["python.org"])
+    assert len(selected) == 1 and selected[0]["rq_ids"] == ["rq-a", "rq-b"]
+    assert trace["covered_rq_ids"] == ["rq-a", "rq-b", "rq-c"]
+    assert trace["deferred"][0]["reason"] == "duplicate_query"
+
+
+def test_five_proposals_do_not_increase_standard_execution_budget():
+    gateway = Gateway([[]] * 5, {})
+    proposals = [{"rq_id": f"rq-{i}", "query": f"Python 3.14 facet {i}"} for i in range(5)]
+    calls = recover_public_research(gateway, "Python 3.14", budget=STANDARD_BUDGET,
+                                   query_plan=proposals)
+    summary = recovery_summary(calls)
+    assert len(gateway.queries) <= 4 == STANDARD_BUDGET.max_queries
+    assert summary["searches"] <= 4 and summary["limits"]["hard_seconds"] == 60
+    assert len(summary["query_selection"]["deferred"]) == 2
 
 
 def trace(requested: str, final: str, *, declared_request: str | None = None):

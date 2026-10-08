@@ -24,18 +24,29 @@ from src.web.tool_evidence import evidence_tool_calls
 ORIGINAL = "联网研究：opus5.5是什么？性能如何？对比？"
 
 
+def test_five_candidate_queries_are_accepted_without_changing_question_identity():
+    value = json.loads(json.dumps(decision()))
+    value["proposed_queries"] += [
+        {"rq_id": "rq-performance", "query": "Opus 5.5 benchmark limitations"},
+        {"rq_id": "rq-comparison", "query": "Opus 5.5 comparison methodology"},
+    ]
+    parsed = ResearchDecision.parse(value, task_id=value["task_id"])
+    assert len(parsed.proposed_queries) == 5
+    assert parsed.unresolved_questions == value["unresolved_questions"]
+
+
 @pytest.mark.parametrize("invalid", ["duplicate_questions", "extra_queries", "wrong_task"])
 def test_interpretation_keeps_protocol_rejections_and_reports_the_first_guard(invalid):
     def completion(**kwargs):
         context = json.loads(kwargs["messages"][-1]["content"])
         system = kwargs["messages"][0]["content"]
-        assert "hard maximum of 3 rows TOTAL" in system
+        assert "hard maximum of 5 rows TOTAL" in system
         assert "retain every unresolved RQ" in system
         value = json.loads(json.dumps(decision(context["episode"]["task_id"])))
         if invalid == "duplicate_questions":
             value["unresolved_questions"].append(value["unresolved_questions"][0])
         elif invalid == "extra_queries":
-            value["proposed_queries"] += [value["proposed_queries"][0]] * 2
+            value["proposed_queries"] += [value["proposed_queries"][0]] * 3
         else:
             value["task_id"] = "other-task"
         return json.dumps(value)
@@ -185,7 +196,7 @@ def test_fetch_success_is_not_semantic_relevance_or_evidence(tmp_path):
     {"proposed_queries": [{"rq_id": "rq-identity", "query": "file:///secret"}]},
     {"proposed_queries": [{"rq_id": "rq-identity", "query": "site:10.0.0.1 secret"}]},
     {"proposed_queries": [{"rq_id": "rq-identity", "query": "site:localhost secret"}]},
-    {"proposed_queries": [{"rq_id": "rq-identity", "query": "x"}] * 4},
+    {"proposed_queries": [{"rq_id": "rq-identity", "query": "x"}] * 6},
     {"unresolved_questions": RQS * 2},
 ])
 def test_strict_decision_rejects_authority_and_binding_edits(change):

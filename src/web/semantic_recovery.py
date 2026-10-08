@@ -129,7 +129,7 @@ class ResearchDecision:
         rqs = questions(raw["unresolved_questions"])
         ids = {row["id"] for row in rqs}
         queries = []
-        for row in _rows(raw["proposed_queries"], 3):
+        for row in _rows(raw["proposed_queries"], 5):
             if set(row) != {"rq_id", "query"} or row["rq_id"] not in ids:
                 raise ValueError("query_binding")
             query = _text(row["query"], 500)
@@ -267,10 +267,11 @@ class ResearchSemanticSession:
             "A different person/name/entity (even a short bare name) is NEW_RESEARCH and saves the old episode. "
             "Do not treat unrelated bare names as a continuation. REFINE can add questions/preferences. "
             "Decompose identity, capabilities/performance, comparison when asked. Preserve all existing RQs on continuation. "
-            "Plan 2 or 3 short queries (2-8 meaningful terms), bound each to an RQ; "
-            "proposed_queries has a hard maximum of 3 rows TOTAL, not one query per RQ. "
+            "Plan 2 to 5 short candidate queries (2-8 meaningful terms), bound each to an RQ; "
+            "proposed_queries has a hard maximum of 5 rows TOTAL, not one query per RQ. "
             "unresolved_questions must contain 1 to 6 rows with unique rq-* ids. "
-            "If there are more RQs than queries, retain every unresolved RQ and select at most 3 queries; "
+            "Execution budgets are independent; some candidate queries may be deferred. "
+            "If there are more RQs than queries, retain every unresolved RQ and propose at most 5 queries; "
             "do not discard requested facets, replace entities/versions or fabricate answers to fit these limits. "
             "Echo episode.task_id exactly as task_id. "
             "include one site:OFFICIAL_DOMAIN query with the entity and requested facet, "
