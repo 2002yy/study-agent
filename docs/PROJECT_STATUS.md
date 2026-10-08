@@ -1,21 +1,22 @@
 # Study Agent 当前状态
 
 > **唯一进度入口**
-> 更新：2026-10-08（Deep-4A CLOSED；Deep 阶段除 4B 外全部 CLOSED）
+> 更新：2026-10-08（Deep-4A CLOSED；Deep 阶段除 4B 外全部 CLOSED；Learning State-1 L1 CLOSED）
 > 产品定义：**Study Agent 是长期保持“正在学什么、已经确认什么、还不会什么、下一步是什么”的个人学习工作台。**
 
 本文件只维护当前权威状态、可复核边界和唯一下一门。2026-10-06 本次收敛前的完整状态原样归档到 [`archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md`](archive/PROJECT_STATUS_PRE_177_FINAL_REVIEW_2026-10-06.md)；更早历史继续由既有 archive 与 Git 历史持有。
 
 ## 0. Current Handoff（cold-start 入口）
 
-**当前执行权：Deep 阶段收尾 / 学习主线开启。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。下一刀 = **Learning State-1**（学习状态 bounded contract）；同时用户已指示先冻结一份独立的 **Intelligent UI × Lookup/Standard/Deep 交互合同**，**两条线不得混入同一个 PR**。
+**当前执行权：A 线 Learning State-1（L1 CLOSED；下一门 = L2–L6 验收收尾）。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。A 线：**Learning State-1 / L1 已 CLOSED**（authority `0de80751`），学习信息来源权威已封板；**L2–L6 仍未 CLOSED**，下一门 = **Learning State-1 L2–L6 验收收尾**（整理 T07–T18 的直接/间接证据，满足合同即关闭，不为制造增量而改实现）。B 线 = **Intelligent UI × Lookup/Standard/Deep**，独立 PR，两条线不得混入同一 PR；只读 `learning_view` 接口**未启动**。
 
 **Current Action：**
 ```text
 Deep-4A is merged and CLOSED (authority ea73b855).
 Deep-4B automatic publication is NO-GO until a qualified semantic judge exists.
-Next slice = Learning State-1 bounded contract (L1–L6).
-Next slice (parallel track, separate PR) = Intelligent UI × Lookup/Standard/Deep interaction contract.
+Learning State-1 L1 is CLOSED (authority 0de80751); L2-L6 remain NOT CLOSED.
+Next gate = Learning State-1 L2-L6 acceptance matrix closeout.
+B line = Intelligent UI x Lookup/Standard/Deep (separate PR; not started).
 ```
 
 **Deep 阶段合同（已冻结）：**
@@ -28,6 +29,40 @@ Deep-3  docs/DEEP_3_CONTRACT.md           CLOSED
 Deep-4A docs/DEEP_4A_CONTRACT.md          CLOSED (87 sections)
 Deep-4B automatic publication             NO-GO until qualified semantic judge
 ```
+
+**Learning State-1 / L1 CLOSED ✅（A 线第一刀）**
+
+```text
+authority   squash merge **0de807513e758bac3ab6d10a35be3e1320772552**
+            PR #200
+exact head  **f96cdab9aa243da6dc0c223a885d355e9ea0edf3**
+exact-head CI **37763976833 SUCCESS**（含 Enforce required CI outcomes）
+contract    docs/LEARNING_STATE_1_CONTRACT.md（A+ 细化版；L1–L6 / T01–T18 / M1–M6）
+
+closed scope
+            read-only authority 分类（learning_authority_projection.py）
+            user_goal / user_self_report / system_inferred / verified /
+            legacy_unverified；仅 verified 是 mastery evidence
+            消除 confirmed_points → expected_concepts 隐式回退
+            （chat_service.py + policy_chat_service.py，两处消费点）
+            navigation / resume 只读来源标签（legacy 标 legacy_unverified）
+            durable authority 的 source_id = 真实 UnderstandingEvidence id
+            （lineage 解析后仍指向实际验证记录；无记录则空）
+
+validation  本地 impact set **280 passed**（含 policy / standard /
+            external-data-policy 生产路径）
+            M1（基类消费点）与 M1b（policy 生产路径）负控均单独验证
+            ruff PASS | git diff --check PASS
+            mypy baseline PASS（122/128）
+            package helper OK
+
+known boundary
+            L2–L6 **未 CLOSED**（下一门 = L2–L6 验收收尾）
+            未改动 Socratic / durable 写入语义 / §164 仪器
+            未新增自动 closure / 自动 Goal / 新存储
+```
+
+> Learning State-1 L1 authority 永久为 merge commit `0de80751` / exact-head CI `37763976833`。此后 main 上的 docs-only 记录提交只是该记录的载体，**不表示新 SHA 跑过验证**。
 
 **Deep-3T authority（合同冻结基线）：**
 ```text
@@ -256,9 +291,9 @@ exact-main push CI 37512787764 success
 **冻结路线：**
 
 1. ~~Standard-2~~、~~Standard-3~~、~~Standard-4 implementation~~、~~activation~~：**全部 CLOSED**。
-2. **Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A 全部 CLOSED；Deep-4B NO-GO；当前 = Learning State-1）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
+2. **Deep（Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A 全部 CLOSED；Deep-4B NO-GO；当前 = Learning State-1 L2–L6 验收收尾）**：多轮重写、Evidence Gain、saturation、长预算与 interruption/resume；UI 继续独立后置。合同见 [`DEEP_1_CONTRACT.md`](DEEP_1_CONTRACT.md)，已冻结四件事：Standard → Deep 升级条件、Deep 独立预算（`DEEP_V1_BUDGET`）、如何复用 Standard 已有 evidence 而不重读（durable seed + 二次 hash 校验）、stop / saturation / interruption-resume 定义（全部复用现有 authority）。
 
-**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；下一刀 = `Learning State-1`（学习状态 bounded contract，L1–L6）；`UI = 后置`（独立交互合同另开一 PR）。
+**状态口径：** `Standard = CLOSED ✅`；`Lookup` 保持其既有已验收状态；`Deep-1 / Deep-2 / Deep-3T / Deep-3 / Deep-4A = CLOSED ✅`；`Deep-4B = NO-GO`；`Learning State-1 L1 = CLOSED ✅`（authority `0de80751`）；`Learning State-1 L2–L6 = 未 CLOSED`（下一门 = 验收收尾）；`UI = 后置`（独立交互合同另开一 PR）。
 
 ## 0A. 冻结研究路线
 
