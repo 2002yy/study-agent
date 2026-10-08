@@ -10,6 +10,10 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from src.application.learning_authority_projection import (
+    classify_durable_understanding_status,
+    classify_legacy_confirmed_points,
+)
 from src.domain.learning_truth import (
     ClaimRevisionBundle,
     LearningGoal,
@@ -159,6 +163,14 @@ class LearningResumeService:
             "scope": claim.scope if claim is not None else "",
             "understanding_status": understanding_status,
             "validation_result": validation_result,
+            # Learning State-1 §2.1/§6: read-only authority. Only a durable
+            # confirmed understanding is mastery evidence; the caller resolves
+            # lineage-validated status, this label does not re-derive it.
+            "authority": classify_durable_understanding_status(
+                understanding_status,
+                text=bundle.revision.claim_text,
+                source_id=bundle.revision.id,
+            ).to_dict(),
             "latest_validation": (
                 {
                     "method": latest_validation[0].method,
@@ -268,6 +280,11 @@ class LearningResumeService:
             "optional_next_steps": [],
             # Deliberately not exposed as formal Claims/mastery.
             "legacy_confirmed_points": legacy_points,
+            # Learning State-1 §2.1: legacy points carry no traceable authority.
+            "legacy_confirmed_points_authority": [
+                item.to_dict()
+                for item in classify_legacy_confirmed_points(legacy_points)
+            ],
         }
 
 
