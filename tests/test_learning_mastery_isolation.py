@@ -44,11 +44,17 @@ _ALLOWED_WRITERS = {
 # The closure truth service is the single durable-mastery orchestrator.
 _CLOSURE_SERVICE_MODULE = "application/runtime_repository.py"
 
-# Only explicit closure entry points may trigger a closure run.
+# Only explicit closure entry points may trigger or commit a closure run.
 _ALLOWED_CLOSURE_TRIGGERS = {
     "api/routes/learning_closure_routes.py",
     "api/routes/session_routes.py",
 }
+
+# Markers that identify a route module as wired to the closure service.
+_CLOSURE_SERVICE_MARKERS = ("LearningClosureService", "get_learning_closure_service")
+
+# Entry points that trigger or commit a closure run.
+_CLOSURE_TRIGGER_METHODS = {"create_and_execute", "commit", "retry", "cancel"}
 
 
 def _iter_source_files():
@@ -74,19 +80,30 @@ def _call_sites(method_names: set[str]) -> dict[str, set[str]]:
     return found
 
 
-def _call_sites_in_routes(method_name: str) -> set[str]:
-    """Call sites of a method restricted to src/api/routes."""
+def _closure_trigger_modules() -> set[str]:
+    """Route modules wired to the closure service that call a trigger/commit entry.
+
+    Covers both ``create_and_execute`` (start a run) and ``commit`` / ``retry`` /
+    ``cancel`` (existing-run entry points), so a normal route calling
+    ``service.commit(run_id)`` on the closure service is also caught. Modules
+    that do not reference the closure service (e.g. ``MemoryService``) are not
+    scanned.
+    """
     routes = SRC / "api" / "routes"
     found: set[str] = set()
     for path in sorted(routes.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if not any(marker in text for marker in _CLOSURE_SERVICE_MARKERS):
+            continue
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = ast.parse(text)
         except SyntaxError:
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                if node.func.attr == method_name:
+                if node.func.attr in _CLOSURE_TRIGGER_METHODS:
                     found.add(path.relative_to(SRC).as_posix())
+                    break
     return found
 
 
@@ -130,7 +147,8 @@ def test_closure_truth_service_is_constructed_only_by_the_runtime_wiring():
 
 
 def test_only_explicit_closure_routes_trigger_a_closure_run():
-    offenders = _call_sites_in_routes("create_and_execute") - _ALLOWED_CLOSURE_TRIGGERS
+    offenders = _closure_trigger_modules() - _ALLOWED_CLOSURE_TRIGGERS
     assert not offenders, (
-        f"closure run triggered from a non-closure route: {sorted(offenders)}"
+        "closure run triggered/committed from a non-closure route: "
+        f"{sorted(offenders)}"
     )

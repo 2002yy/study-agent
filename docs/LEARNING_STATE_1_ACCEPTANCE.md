@@ -3,7 +3,7 @@
 **状态：证据收尾（2026-10-08）**
 **基线：** `main` = `f35b13b78498f1e7ce2ad678bf6687bd85fb220a`
 **合同：** [`LEARNING_STATE_1_CONTRACT.md`](LEARNING_STATE_1_CONTRACT.md)（A+；L1–L6 / T01–T18 / M1–M6）
-**L1 实现权威：** `0de80751`（PR #200）；本文只整理证据，不重新验证 L1 实现，也不新增实现/测试。
+**L1 实现权威：** `0de80751`（PR #200）；本文只整理证据，不重新验证 L1 实现；**不修改生产实现**，新增 1 个隔离负控测试（`test_learning_mastery_isolation.py`）。
 
 ## 方法
 
@@ -33,7 +33,7 @@
 | T14 | §164 三种既有状态：观察口径不变 | `test_learner_state_parity.py`（全部分类/不变量用例）；`test_learner_state_shadow_seam.py`；`test_learner_state_shadow_acceptance.py` | 是（seam 经真实 `start_turn`） | 直接 | `test_learner_state_shadow_acceptance.py::test_normal_shadow_is_behaviourally_identical` 等 7 组 | PASS |
 | T15 | durable-read OFF / canary：无隐式新写入 | `test_learner_state_durable_adapter.py::test_durable_read_is_off_by_default`、`::test_canary_enables_only_listed_threads`；`test_learner_state_shadow_acceptance.py::test_flag_off_never_invokes_the_reader` | 是 | 直接 | OFF/canary/异常分支用例 | PASS |
 | T16 | Lookup/Standard/Deep 不创建 mastery | `test_learning_mastery_isolation.py::test_only_the_closure_chain_writes_durable_understanding`（写入者清单守卫）；`test_learning_closure_commit_boundary.py::test_preview_and_ordinary_closure_generation_do_not_write_durable_truth`、`::test_auto_memory_mode_cannot_auto_commit_pending_durable_truth`；`test_learning_closure_candidate_boundary.py` | 结构性 + closure 边界行为 | 结构性（写入者清单）+ 边界行为 | **M6**：向研究模块加入 `commit_semantic_closure` 调用 → 守卫 FAIL（已实测） | PASS |
-| T17 | 普通 UI 操作不创建 mastery | `test_learning_mastery_isolation.py::test_only_explicit_closure_routes_trigger_a_closure_run`（路由守卫）+ `::test_closure_truth_service_is_constructed_only_by_the_runtime_wiring`；无直接 UI 测试（UI 属 B 线） | 结构性 | 结构性 | **M6**：非 closure 路由触发 closure run → 守卫 FAIL（已实测）；无直接 UI 负控（限制 L-b） | PASS（结构性，见 L-b） |
+| T17 | 普通 UI 操作不创建 mastery | `test_learning_mastery_isolation.py::test_only_explicit_closure_routes_trigger_a_closure_run`（路由守卫）+ `::test_closure_truth_service_is_constructed_only_by_the_runtime_wiring`；无直接 UI 测试（UI 属 B 线） | 结构性 | 结构性 | **M6**：非授权路由引用 closure service 并调用 `commit` → 守卫 FAIL（已实测）；无直接 UI 负控（限制 L-b） | PASS（结构性，见 L-b） |
 | T18 | 显式 closure commit 正式写入链正常 | `test_learning_closure_commit_boundary.py::test_explicit_commit_writes_durable_truth_once_before_memory_commit`；`test_learning_verification_e2e.py::test_reasoned_explanation_commits_and_restores_learning_truth` | 是 | 直接 | `::test_truth_failure_stops_before_memory_commit_and_has_distinct_reason` | PASS |
 
 ## 汇总
@@ -57,8 +57,9 @@ M6             写入隔离变异负控（已实测检出）                 PAS
 
 - 扫描 `src/**/*.py`，`create_understanding_evidence` / `commit_review_attempt` / `commit_semantic_closure` 的调用者必须 ⊆ closure 链（`learning_closure_truth` / `learning_semantic_closure`）；`create_understanding_evidence` 在生产中**无调用者**。
 - `LearningClosureTruthService` 只允许在 `runtime_repository.py` 构造。
-- closure run 只允许由 `learning_closure_routes.py` / `session_routes.py` 触发。
-- **变异实测**：向 `src/web/research/` 加入一个 `commit_semantic_closure` 调用 → `test_only_the_closure_chain_writes_durable_understanding` FAIL（探针已删除）。
+- closure 入口（`create_and_execute` / `commit` / `retry` / `cancel`）只允许由 `learning_closure_routes.py` / `session_routes.py` 触发或提交；只扫描引用了 closure service 的路由模块。
+- **变异实测 1（研究写入）**：向 `src/web/research/` 加入一个 `commit_semantic_closure` 调用 → `test_only_the_closure_chain_writes_durable_understanding` FAIL（探针已删除）。
+- **变异实测 2（路由提交）**：新增一个非授权路由引用 closure service 并调用 `service.commit(run_id)` → `test_only_explicit_closure_routes_trigger_a_closure_run` FAIL（探针已删除）。
 
 因此 M6（研究/UI 绕过 closure 写入）具备可检出能力，不再是未资格化负控。
 
