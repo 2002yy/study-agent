@@ -98,7 +98,8 @@ test("360x520 keeps complex content, IME input and real scroll recovery usable",
   );
   const codeBlock = conversation.locator(".markdown-message pre").first();
 
-  await expect(page.getByRole("heading", { name: "学习工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "对话" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(longLink).toHaveText(LONG_URL);
   await expect(longLink).toBeVisible();
   await expect(codeBlock).toBeVisible();

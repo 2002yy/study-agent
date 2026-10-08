@@ -87,7 +87,8 @@ test("hidden feature outages do not pollute the core bootstrap", async ({ page }
   await installHiddenFeatureOutages(page);
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "学习工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "对话" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expectCoreOnly(requests);
   await expect(page.getByText(/部分功能暂不可用/)).toHaveCount(0);
   await expect(page.getByText(/API 未连接/)).toHaveCount(0);
@@ -97,7 +98,8 @@ test("feature drawers load only their own data on demand", async ({ page }) => {
   const requests = observeApiRequests(page);
   await installApiFixture(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "学习工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "对话" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expectCoreOnly(requests);
 
   await openMoreDrawer(page, /资料与来源/, "资料与来源");

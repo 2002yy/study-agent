@@ -335,7 +335,7 @@ export function ChatPanel(props: ChatPanelProps) {
       </span>
       <header className="topbar">
           <div className="topbar-copy">
-            <h1>{reading?.target ? "伴读对话" : "学习工作台"}</h1>
+            <h1>{reading?.target ? "伴读对话" : "对话"}</h1>
             <p>搜索资料，或从一个问题开始。</p>
             <div className="topbar-meta" aria-label="当前学习状态">
               <span>任务 {taskLabel}</span>

@@ -168,7 +168,8 @@ test("first learning turn crosses React, FastAPI and SQLite then restores", asyn
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "学习工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "对话" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 
   await send(page, FIRST_QUESTION);
   await expect(assistantMessage(page, FIRST_REPLY)).toBeVisible();

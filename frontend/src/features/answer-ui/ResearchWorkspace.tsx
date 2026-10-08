@@ -138,7 +138,10 @@ export function ResearchPanel({ control, sourceRequest, open, onClose, panelId, 
     return () => cancelAnimationFrame(frame);
   }, [sourceRequest, open, mobile, content]);
   if (!snapshot?.blocks.length) return null;
-  const sources = snapshot.blocks.flatMap(b => b.sources).filter((s, i, all) => all.findIndex(other => other.url === s.url) === i);
+  const readRank = (status: string) => (status === "read" || status === "structured") ? 0 : status === "unknown" ? 1 : 2;
+  const sources = snapshot.blocks.flatMap(b => b.sources).filter((s, i, all) => all.findIndex(other => other.url === s.url) === i)
+    .sort((a, b) => readRank(a.read_status) - readRank(b.read_status));
+  const hasReadSource = sources.some(s => s.read_status === "read" || s.read_status === "structured");
   const gaps = snapshot.blocks.flatMap(b => b.gaps).filter(g => g.research_state === "OPEN" || g.support_status !== "SUPPORT");
   const details = <div className="research-dossier" ref={content}>
     <p className="research-authority-note">资料用于追溯查证过程。是否可用于回答，由原有证据与发布规则决定。</p>
@@ -157,6 +160,7 @@ export function ResearchPanel({ control, sourceRequest, open, onClose, panelId, 
         <span className="research-source-number">{i + 1}</span><div><a href={s.url} target="_blank" rel="noreferrer noopener">{s.title === s.url ? new URL(s.url).hostname : s.title}</a>
         <small>{new URL(s.url).hostname} · {readNames[s.read_status]}</small></div>
       </li>)}</ol> : <p>尚未取得可展示的来源。</p>}
+      {sources.length && !hasReadSource ? <p className="research-insufficiency">尚无已读取正文的来源；当前证据不足，仅作查证记录。</p> : null}
     </section>
     <details className="research-diagnostics"><summary>技术详情与证据关联</summary>
     <div className="research-tier-list">{snapshot.blocks.map(b => <details key={b.block_id}>

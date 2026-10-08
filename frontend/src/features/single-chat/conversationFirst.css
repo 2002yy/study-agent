@@ -5,11 +5,11 @@
 .reading-layout .conversation-first .conversation-shell.research-sidebar-open { padding-right: 320px; }
 .reading-layout .conversation-first .message.assistant .message-bubble { border: 0; border-radius: 0; background: transparent; padding: 8px 0 4px; box-shadow: none; }
 .reading-layout .conversation-first .message.assistant .message-bubble::before { display: none; }
-.reading-layout .conversation-first .markdown-message { font-size: 16px; line-height: 1.65; }
-.reading-layout .conversation-first .markdown-message p { margin-block: 0 16px; line-height: 1.65; }
+.reading-layout .conversation-first .markdown-message { font-size: 16px; line-height: 1.7; }
+.reading-layout .conversation-first .markdown-message p { margin-block: 0 18px; line-height: 1.7; }
 .reading-layout .conversation-first .markdown-message :is(h1,h2,h3) { margin-top: 28px; margin-bottom: 12px; }
 .reading-layout .conversation-first .message.user .message-bubble { padding: 12px 16px; }
-.reading-layout .conversation-first .composer { flex: 0 0 auto; position: relative; background: var(--surface); padding-top: 12px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.reading-layout .conversation-first .composer { flex: 0 0 auto; position: relative; background: var(--surface); padding-top: 8px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .reading-layout .conversation-first .topbar { background: var(--surface); }
 .reading-layout .conversation-first .research-recovery-secondary { flex: 0 0 auto; padding: 0 24px; font-size: 12px; color: var(--muted); max-height: 25vh; overflow: auto; }
 .research-recovery-secondary > summary { cursor: pointer; min-height: 32px; padding: 6px 0; }
