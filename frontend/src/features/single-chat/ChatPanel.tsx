@@ -22,9 +22,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
 import { AnswerProgress } from "../answer-ui/AnswerProgress";
-import type { ResearchPresentation } from "../answer-ui/researchPresentation";
 import "./conversationFirst.css";
-import { ResearchWorkspace } from "../answer-ui/ResearchWorkspace";
+import { ResearchPanel, ResearchStatusRow, useResearchMobile, useResearchPresentation } from "../answer-ui/ResearchWorkspace";
 import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { useReadingWorkspace } from "../reading/ReadingContext";
@@ -119,8 +118,10 @@ type CopyState = "idle" | "success" | "error";
 export function ChatPanel(props: ChatPanelProps) {
   const reading=useReadingWorkspace();
   const [researchOpen, setResearchOpen] = useState(false);
-  const [researchSnapshot, setResearchSnapshot] = useState<ResearchPresentation | null>(null);
   const [sourceRequest, setSourceRequest] = useState<{url: string; key: number; turnId: string} | null>(null);
+  const researchMobile = useResearchMobile();
+  const researchPanelId = useId();
+  const researchOpener = useRef<HTMLButtonElement | null>(null);
   const {
     messages,
     sessionId,
@@ -295,12 +296,31 @@ export function ChatPanel(props: ChatPanelProps) {
     setComposerMode("chat");
     setRoleSettingsOpen(false);
     setSourceRequest(null);
+    setResearchOpen(false);
     return clearPendingTaskIntentOverride;
   }, [sessionId]);
 
+  useEffect(() => { if (sourceRequest) setResearchOpen(true); }, [sourceRequest]);
+
   const lastMessage = displayMessages[displayMessages.length - 1];
-  const researchMessage = lastMessage?.role === "assistant" && lastMessage.turnId && (sessionId || lastMessage.researchPresentation?.session_id) ? lastMessage : null;
-  const hasResearch = Boolean(researchSnapshot?.blocks.length && researchSnapshot.turn_id === researchMessage?.turnId && researchSnapshot.session_id === (sessionId || researchMessage?.researchPresentation?.session_id));
+  // Ownership comes from the server run (turn_id / run_id), never from message
+  // position: prefer a message that carries server research evidence; otherwise
+  // probe only the latest assistant turn, and the server decides if it has a run.
+  const researchMessage = (() => {
+    for (let index = displayMessages.length - 1; index >= 0; index -= 1) {
+      const message = displayMessages[index];
+      if (message.role === "assistant" && message.turnId
+        && (message.researchPresentation?.blocks.length || message.evidence?.rag?.web_tools?.run_id)) return message;
+    }
+    return lastMessage?.role === "assistant" && lastMessage.turnId ? lastMessage : null;
+  })();
+  const researchSessionId = sessionId || researchMessage?.researchPresentation?.session_id || "";
+  const research = useResearchPresentation({
+    sessionId: researchSessionId,
+    turnId: researchMessage?.turnId ?? "",
+    initial: researchMessage?.researchPresentation,
+  });
+  const hasResearch = Boolean(research.snapshot?.blocks.length);
   const restoreCard=<RestoreCard
     session={sessionNavigation} streamRecovery={streamRecovery}
     onSelectEntry={handleRestoreEntry} onUpload={onUploadClick}
@@ -331,10 +351,11 @@ export function ChatPanel(props: ChatPanelProps) {
           </div>
       </header>
 
-      <div className={`conversation-shell${researchOpen && hasResearch ? " research-sidebar-open" : ""}`}>
-        {researchMessage ? <ResearchWorkspace key={`${sessionId}:${researchMessage.turnId}`} turnId={researchMessage.turnId!}
-          sessionId={sessionId || researchMessage.researchPresentation!.session_id} initial={researchMessage.researchPresentation}
-          hasAnswer={Boolean(researchMessage.content.trim())} onOpenChange={setResearchOpen} onSnapshot={setResearchSnapshot} sourceRequest={sourceRequest?.turnId === researchMessage.turnId ? sourceRequest : null} /> : null}
+      <div className={`conversation-shell${researchOpen && hasResearch && !researchMobile ? " research-sidebar-open" : ""}`}>
+        {hasResearch && research.snapshot ? <ResearchPanel control={research}
+          sourceRequest={sourceRequest?.turnId === researchMessage?.turnId ? sourceRequest : null}
+          open={researchOpen} onClose={() => { setResearchOpen(false); researchOpener.current?.focus(); }}
+          panelId={researchPanelId} mobile={researchMobile} /> : null}
         <section className="conversation" aria-label="学习对话" onScroll={updateScrollState} ref={conversationRef}>
           {firstUseNotice}
           {streamRecovery ? restoreCard : sessionNavigation?.has_completed_turns ? <details className="reading-session-context"><summary>本会话学习上下文</summary>{restoreCard}</details> : !displayMessages.length ? <section className="chat-welcome" aria-label="开始新任务"><span>你的学习空间</span><h2>今天想了解什么？</h2><p>直接对话，或搜索你想核对的资料。</p></section> : null}
@@ -370,7 +391,7 @@ export function ChatPanel(props: ChatPanelProps) {
                     {message.role === "assistant" && isSending && !hasResearch && index === displayMessages.length - 1
                       ? <AnswerProgress hasContent={!!message.content.trim()} progress={researchProgress} /> : null}
                     <MarkdownMessage content={message.content}
-                      citationUrls={message === researchMessage && hasResearch ? researchSnapshot!.blocks.flatMap(b => b.sources.map(source => source.url)) : undefined}
+                      citationUrls={message === researchMessage && hasResearch ? research.snapshot!.blocks.flatMap(b => b.sources.map(source => source.url)) : undefined}
                       onCitation={url => setSourceRequest({ url, key: Date.now(), turnId: researchMessage!.turnId! })} interactive={message.role === "assistant"
                       && !message.researchPresentation?.blocks.length && !message.evidence?.rag?.web_tools?.run_id}
                       streaming={message.role === "assistant" && isSending && index === displayMessages.length - 1}
@@ -380,6 +401,12 @@ export function ChatPanel(props: ChatPanelProps) {
                         composerRef.current?.focus();
                       }} />
                   </div>
+                  {message === researchMessage && hasResearch && research.snapshot ? (
+                    <ResearchStatusRow snapshot={research.snapshot} unavailable={research.unavailable}
+                      hasAnswer={Boolean(message.content.trim())} open={researchOpen}
+                      onToggle={() => setResearchOpen(value => !value)} openerRef={researchOpener}
+                      panelId={researchPanelId} mobile={researchMobile} />
+                  ) : null}
                   {message.role === "assistant" && message.evidence ? <EvidenceTrail evidence={message.evidence} /> : null}
                 </div>
               </article>

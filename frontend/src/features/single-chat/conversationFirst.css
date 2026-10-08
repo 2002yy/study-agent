@@ -18,6 +18,18 @@
 @media (max-width: 1100px) {
   .reading-layout .conversation-first .conversation-shell.research-sidebar-open { padding-right: 0; }
 }
+/* P1: keep the large role portrait in the left gutter, beside the answer.
+   The body keeps its 760-820px reading width and centered axis; the avatar is
+   absolutely placed into the existing padding so the text is never pushed right. */
+@media (min-width: 1001px) {
+  .reading-layout .conversation-first .message.assistant { position: relative; grid-template-columns: minmax(0, 1fr); }
+  .reading-layout .conversation-first .message.assistant > .avatar {
+    position: absolute; top: 2px; right: 100%; margin-right: 20px;
+    width: 96px; height: 96px; border-radius: 14px;
+  }
+  .reading-layout .conversation-first .message.assistant .message-header { grid-column: 1; grid-row: 1; justify-content: flex-start; }
+  .reading-layout .conversation-first .message.assistant .message-body { grid-column: 1; grid-row: 2; }
+}
 @media (max-width: 600px) {
   .reading-layout .conversation-first .conversation { padding: 16px 16px 24px; }
   .reading-layout .conversation-first .markdown-message { font-size: 15px; }

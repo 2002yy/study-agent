@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { mergeResearchPresentation, parseResearchPresentation, type ResearchPresentation } from "./researchPresentation";
 import "./researchWorkspace.css";
 import { BookOpen, Check, ChevronRight, Loader2, X } from "lucide-react";
@@ -13,42 +13,28 @@ const phaseNames: Record<string, string> = { planned: "规划", planning: "规�
 const display = (names: Record<string, string>, value: string, fallback: string) =>
   Object.prototype.hasOwnProperty.call(names, value) ? names[value] : fallback;
 
-export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = false, onOpenChange, onSnapshot, sourceRequest }: {
-  sessionId: string; turnId: string; initial?: ResearchPresentation; hasAnswer?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  onSnapshot?: (snapshot: ResearchPresentation | null) => void;
-  sourceRequest?: { url: string; key: number } | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const [mobile, setMobile] = useState(() => typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1100px)").matches);
-  const panelId = useId();
-  const opener = useRef<HTMLButtonElement>(null);
-  const content = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia("(max-width: 1100px)");
-    const change = () => setMobile(media.matches);
-    media.addEventListener("change", change);
-    return () => media.removeEventListener("change", change);
-  }, []);
-  useEffect(() => { onOpenChange?.(open && !mobile); return () => onOpenChange?.(false); }, [open, mobile, onOpenChange]);
-  useEffect(() => { if (sourceRequest) setOpen(true); }, [sourceRequest]);
-  useEffect(() => {
-    if (!open || !sourceRequest) return;
-    const frame = requestAnimationFrame(() => {
-      const target = Array.from(content.current?.querySelectorAll<HTMLElement>("[data-source-url]") ?? [])
-        .find(element => element.dataset.sourceUrl === sourceRequest.url);
-      target?.scrollIntoView?.({ block: "nearest" }); target?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [sourceRequest, open, mobile]);
-  const close = () => { setOpen(false); opener.current?.focus(); };
-  const [snapshot, setSnapshot] = useState<ResearchPresentation | null>(initial ?? null);
+/** Shared research presentation state for one bound assistant turn. */
+export type ResearchControl = {
+  snapshot: ResearchPresentation | null;
+  unavailable: boolean;
+  refresh: () => void;
+};
+
+export function useResearchPresentation({ sessionId, turnId, initial }: {
+  sessionId: string; turnId: string; initial?: ResearchPresentation;
+}): ResearchControl {
+  const initialMatches = Boolean(initial && initial.session_id === sessionId && initial.turn_id === turnId);
+  const [snapshot, setSnapshot] = useState<ResearchPresentation | null>(initialMatches ? initial! : null);
   const [unavailable, setUnavailable] = useState(false);
-  const [refresh, setRefresh] = useState(0);
-  const current = useRef(snapshot);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const current = useRef<ResearchPresentation | null>(initialMatches ? initial! : null);
   const resumePolling = useRef<(() => void) | null>(null);
   useEffect(() => {
+    if (!sessionId || !turnId) {
+      current.current = null;
+      setSnapshot(null);
+      return;
+    }
     if (initial && initial.session_id === sessionId && initial.turn_id === turnId) {
       current.current = mergeResearchPresentation(current.current, initial);
       setSnapshot(current.current);
@@ -59,6 +45,7 @@ export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = fals
     }
   }, [initial, sessionId, turnId]);
   useEffect(() => {
+    if (!sessionId || !turnId) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController;
@@ -94,9 +81,29 @@ export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = fals
     resumePolling.current = () => { if (active && !inFlight && timer === undefined) void load(); };
     void load();
     return () => { active = false; resumePolling.current = null; clearTimeout(timer); controller?.abort(); };
-  }, [sessionId, turnId, refresh]);
-  useEffect(() => { onSnapshot?.(snapshot); }, [snapshot, onSnapshot]);
-  if (!snapshot?.blocks.length || snapshot.session_id !== sessionId || snapshot.turn_id !== turnId) return null;
+  }, [sessionId, turnId, refreshTick]);
+  return { snapshot, unavailable, refresh: () => setRefreshTick((n) => n + 1) };
+}
+
+export function useResearchMobile(maxWidth = 1100) {
+  const [mobile, setMobile] = useState(() => typeof window !== "undefined"
+    && typeof window.matchMedia === "function" && window.matchMedia(`(max-width: ${maxWidth}px)`).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const change = () => setMobile(media.matches);
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, [maxWidth]);
+  return mobile;
+}
+
+/** The narrative research status line. Rendered inside the bound assistant message. */
+export function ResearchStatusRow({ snapshot, unavailable, hasAnswer, open, onToggle, openerRef, panelId, mobile }: {
+  snapshot: ResearchPresentation; unavailable: boolean; hasAnswer: boolean;
+  open: boolean; onToggle: () => void; openerRef?: RefObject<HTMLButtonElement | null>;
+  panelId: string; mobile: boolean;
+}) {
   const active = [...snapshot.blocks].reverse().find(b => ["running", "pending"].includes(b.research_status));
   const latest = active ?? snapshot.blocks[snapshot.blocks.length - 1];
   const waiting = snapshot.watch || Boolean(active);
@@ -105,6 +112,32 @@ export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = fals
   const narrative = waiting ? `${display(phaseNames, latest.research_phase ?? latest.stage, "核对资料")}，${hasAnswer ? "已有回答可继续阅读" : "核验后展示可用结果"}。`
     : snapshot.audit_status === "audited" ? "深入研究记录已审计，候选内容尚未获准发布。"
     : "回答与研究资料可继续查看；来源记录不等于结论已核实。";
+  return <div className="research-status-row">
+    <span className="research-status-icon" aria-hidden="true">{waiting ? <Loader2 size={16} className="spin"/> : <BookOpen size={16}/>}</span>
+    <div role="status"><strong>{title}</strong><span>{unavailable ? "连接暂不可用，保留上次研究记录。" : narrative}</span></div>
+    <button ref={openerRef} type="button" aria-expanded={open} aria-controls={panelId} aria-haspopup={mobile ? "dialog" : undefined} onClick={onToggle}>研究资料<ChevronRight size={14}/></button>
+  </div>;
+}
+
+/** Panel-level research dossier: desktop sidebar or mobile slide-over. */
+export function ResearchPanel({ control, sourceRequest, open, onClose, panelId, mobile, contentRef }: {
+  control: ResearchControl; sourceRequest?: { url: string; key: number } | null;
+  open: boolean; onClose: () => void; panelId: string; mobile: boolean;
+  contentRef?: RefObject<HTMLDivElement | null>;
+}) {
+  const localContent = useRef<HTMLDivElement>(null);
+  const content = contentRef ?? localContent;
+  const { snapshot, refresh } = control;
+  useEffect(() => {
+    if (!open || !sourceRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const target = Array.from(content.current?.querySelectorAll<HTMLElement>("[data-source-url]") ?? [])
+        .find(element => element.dataset.sourceUrl === sourceRequest.url);
+      target?.scrollIntoView?.({ block: "nearest" }); target?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sourceRequest, open, mobile, content]);
+  if (!snapshot?.blocks.length) return null;
   const sources = snapshot.blocks.flatMap(b => b.sources).filter((s, i, all) => all.findIndex(other => other.url === s.url) === i);
   const gaps = snapshot.blocks.flatMap(b => b.gaps).filter(g => g.research_state === "OPEN" || g.support_status !== "SUPPORT");
   const details = <div className="research-dossier" ref={content}>
@@ -141,17 +174,38 @@ export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = fals
     </details>)}</div>
       {snapshot.truncated ? <p>研究记录预览已截断。</p> : null}
     </details>
-    <button className="research-refresh" type="button" onClick={() => setRefresh(n => n + 1)} aria-label="刷新研究状态">刷新研究状态</button>
+    <button className="research-refresh" type="button" onClick={refresh} aria-label="刷新研究状态">刷新研究状态</button>
   </div>;
+  return mobile ? <SlideOver open={open} title="研究资料" onClose={onClose}><div id={panelId}>{details}</div></SlideOver>
+    : open ? <aside id={panelId} className="research-sidebar" aria-label="研究资料" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+      <header><h2>研究资料</h2><button type="button" aria-label="关闭研究资料" onClick={onClose}><X size={18}/></button></header>{details}
+    </aside> : null;
+}
+
+/**
+ * Self-contained workspace: owns the fetch and renders status row + dossier in one region.
+ * Kept for direct/legacy usage; the conversation panel uses {@link useResearchPresentation}
+ * so the status row can live inside the bound assistant message.
+ */
+export function ResearchWorkspace({ sessionId, turnId, initial, hasAnswer = false, onOpenChange, onSnapshot, sourceRequest }: {
+  sessionId: string; turnId: string; initial?: ResearchPresentation; hasAnswer?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSnapshot?: (snapshot: ResearchPresentation | null) => void;
+  sourceRequest?: { url: string; key: number } | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const mobile = useResearchMobile();
+  const panelId = useId();
+  const opener = useRef<HTMLButtonElement>(null);
+  const control = useResearchPresentation({ sessionId, turnId, initial });
+  useEffect(() => { onOpenChange?.(open && !mobile); return () => onOpenChange?.(false); }, [open, mobile, onOpenChange]);
+  useEffect(() => { if (sourceRequest) setOpen(true); }, [sourceRequest]);
+  useEffect(() => { onSnapshot?.(control.snapshot); }, [control.snapshot, onSnapshot]);
+  const close = () => { setOpen(false); opener.current?.focus(); };
+  if (!control.snapshot?.blocks.length || control.snapshot.session_id !== sessionId || control.snapshot.turn_id !== turnId) return null;
   return <section className="research-workspace" aria-label="研究工作区">
-    <div className="research-status-row">
-      <span className="research-status-icon" aria-hidden="true">{waiting ? <Loader2 size={16} className="spin"/> : <BookOpen size={16}/>}</span>
-      <div role="status"><strong>{title}</strong><span>{unavailable ? "连接暂不可用，保留上次研究记录。" : narrative}</span></div>
-      <button ref={opener} type="button" aria-expanded={open} aria-controls={panelId} aria-haspopup={mobile ? "dialog" : undefined} onClick={() => setOpen(value => !value)}>研究资料<ChevronRight size={14}/></button>
-    </div>
-    {mobile ? <SlideOver open={open} title="研究资料" onClose={close}><div id={panelId}>{details}</div></SlideOver>
-      : open ? <aside id={panelId} className="research-sidebar" aria-label="研究资料" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
-        <header><h2>研究资料</h2><button type="button" aria-label="关闭研究资料" onClick={close}><X size={18}/></button></header>{details}
-      </aside> : null}
+    <ResearchStatusRow snapshot={control.snapshot} unavailable={control.unavailable} hasAnswer={hasAnswer}
+      open={open} onToggle={() => setOpen(value => !value)} openerRef={opener} panelId={panelId} mobile={mobile} />
+    <ResearchPanel control={control} sourceRequest={sourceRequest} open={open} onClose={close} panelId={panelId} mobile={mobile} />
   </section>;
 }

@@ -7,7 +7,7 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ChatResponse } from "../../types";
+import type { ChatMessage, ChatResponse } from "../../types";
 import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
@@ -21,6 +21,7 @@ type RenderOptions = {
   input?: string;
   selectedRole?: string;
   onSelectRole?: ReturnType<typeof vi.fn>;
+  messages?: ChatMessage[];
   isSending?: boolean;
   taskIntent?: string;
   closureEligibility?: string;
@@ -40,7 +41,7 @@ type RenderOptions = {
 function renderPanel(options: RenderOptions = {}) {
   return render(
     <ChatPanel
-      messages={[]}
+      messages={options.messages ?? []}
       sessionId="session-secret-raw-id"
       sessionNavigation={null}
       input={options.input ?? ""}
@@ -199,5 +200,23 @@ describe("ChatPanel learning product boundary", () => {
     for (const button of iconButtons) {
       expect(button.getAttribute("aria-label")).toBeTruthy();
     }
+  });
+
+  // Rev 2 P0-4: switching roles must keep rendering each message with its own
+  // role identity, never a fixed avatar.
+  it("renders each assistant message with its own role avatar and name", () => {
+    const { container } = renderPanel({
+      messages: [
+        { role: "user", content: "先讲一下思路" },
+        { role: "assistant", content: "流萤这样回答", avatarRole: "firefly", turnId: "t1" },
+        { role: "assistant", content: "刻晴补一句", avatarRole: "keqing", turnId: "t2" },
+      ],
+    });
+    const avatars = Array.from(container.querySelectorAll(".message.assistant > .avatar img"))
+      .map((img) => img.getAttribute("src"));
+    expect(avatars).toEqual(["/assets/avatars/firefly.png", "/assets/avatars/keqing.png"]);
+    const authors = Array.from(container.querySelectorAll(".message.assistant .message-author"))
+      .map((el) => el.textContent);
+    expect(authors).toEqual(["流萤", "刻晴"]);
   });
 });
