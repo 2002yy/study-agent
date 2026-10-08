@@ -2,6 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useMemo } from "react";
 import { AnswerCardView } from "../features/answer-ui/AnswerCardView";
+import { ConsentImage } from "./ConsentImage";
 import { splitAnswerContent } from "../features/answer-ui/answerUiProtocol";
 
 export function MarkdownMessage({ content, interactive = false, streaming = false, onDraft }: {
@@ -19,7 +20,8 @@ export function MarkdownMessage({ content, interactive = false, streaming = fals
         key={part.key}
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />
+          a: ({ ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
+          img: ({ src, alt }) => <ConsentImage src={src} alt={alt} />
         }}
       >
         {part.content}

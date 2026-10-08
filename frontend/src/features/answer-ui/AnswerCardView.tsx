@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { ArrowUpRight, Image, MapPin, RotateCcw } from "lucide-react";
 import type { AnswerCard } from "./answerUiProtocol";
+import { ConsentImage } from "../../components/ConsentImage";
 import "./answerUi.css";
 import { EvidenceLab, MemoryLab, PerformanceLab } from "./AnswerLabs";
 
@@ -58,7 +59,7 @@ function Picture({ card }: { card: Extract<AnswerCard, { type: "image" }> }) {
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
   return <figure className={`answer-picture${expanded ? " is-expanded" : ""}`}>
-    {failed ? <p><Image size={18} />图片暂时无法显示：{card.alt}</p> : <img src={card.src} alt={card.alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />}
+    {failed ? <p><Image size={18} />图片暂时无法显示：{card.alt}</p> : <ConsentImage src={card.src} alt={card.alt} onFailure={() => setFailed(true)} />}
     {card.caption ? <figcaption>{card.caption}</figcaption> : null}
     <div className="answer-controls">{!failed ? <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "收起图片" : "放大图片"}</button> : null}<a href={card.src} target="_blank" rel="noreferrer noopener">打开原图<ArrowUpRight size={14} /></a></div>
   </figure>;

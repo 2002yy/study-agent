@@ -50,6 +50,34 @@ describe("inline learning interactions", () => {
     fireEvent.click(screen.getByRole("button", { name: "显示地图" }));
     expect(screen.getByTitle("乙 地图")).toHaveAttribute("src", expect.stringContaining("marker=40%2C116"));
   });
+  it("requires a click before loading model-supplied remote images in study-ui", () => {
+    const remote = "https://images.example.test/diagram.png?topic=java";
+    const second = "https://images.example.test/other.png?topic=java";
+    const view = render(<MarkdownMessage interactive content={block({ type: "image", title: "示意图", src: remote, alt: "外部示意图" })} />);
+    expect(view.container.querySelector("img")).toBeNull();
+    expect(screen.getByText(/images.example.test/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载外部图片" }));
+    expect(view.container.querySelector("img")).toHaveAttribute("src", remote);
+    view.rerender(<MarkdownMessage interactive content={block({ type: "image", title: "示意图", src: second, alt: "另一图片" })} />);
+    expect(view.container.querySelector("img")).toBeNull();
+  });
+  it("gates remote Markdown images too, even across URL changes", () => {
+    const first = "https://cdn.example.test/first.png?ref=one";
+    const second = "https://cdn.example.test/second.png?ref=two";
+    const view = render(<MarkdownMessage content={`![研究图](${first})`} />);
+    expect(view.container.querySelector("img")).toBeNull();
+    expect(screen.getByText(/cdn.example.test/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载外部图片" }));
+    expect(view.container.querySelector("img")).toHaveAttribute("src", first);
+    view.rerender(<MarkdownMessage content={`![新图](${second})`} />);
+    expect(view.container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("button", { name: "加载外部图片" })).toBeInTheDocument();
+  });
+  it("loads packaged assets without an extra consent step", () => {
+    const view = render(<MarkdownMessage content="![头像](/assets/avatars/nahida.png)" />);
+    expect(view.container.querySelector("img")).toHaveAttribute("src", "/assets/avatars/nahida.png");
+    expect(screen.queryByRole("button", { name: "加载外部图片" })).toBeNull();
+  });
   it("labels useful partial text separately from a pre-answer wait", () => {
     const view = render(<AnswerProgress hasContent={false} />);
     expect(screen.getByRole("status")).toHaveTextContent("正在组织回答");
