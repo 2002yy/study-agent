@@ -37,6 +37,9 @@ from src.application.learner_state_shadow_seam import (
     publish_shadow_observation,
     shadow_read_enabled,
 )
+from src.application.learning_authority_projection import (
+    resolve_expected_concepts,
+)
 from src.application.shadow_isolation import BestEffortTelemetry
 from src.context_builder import build_messages
 from src.domain.answer_claims import rejected_answer_claim_snapshot
@@ -565,12 +568,10 @@ class ChatService:
                     except Exception:
                         durable_snapshot = None  # fail-open: legacy state stands
                         durable_adjudication = None
-            expected_concepts = tuple(
-                str(item)
-                for item in learning_state.payload.get(
-                    "expected_concepts", learning_state.confirmed_points
-                )
-            )
+            # Learning State-1 §2.4: expected_concepts are evaluation targets and
+            # must never fall back to legacy confirmed_points, which conflate user
+            # self-report and heuristic conclusions with mastery.
+            expected_concepts = resolve_expected_concepts(learning_state.payload)
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
             eval_state, expected_concepts, evidence_ids = review_evaluation_inputs(
                 review_binding, learning_state, expected_concepts, evidence_ids

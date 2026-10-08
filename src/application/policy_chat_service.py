@@ -30,6 +30,9 @@ from src.application.chat_service import (
     _web_context_provenance,
 )
 from src.application.helpers import load_frontend_settings
+from src.application.learning_authority_projection import (
+    resolve_expected_concepts,
+)
 from src.context_builder import chat_history_limit, trim_duplicate_current_user_input
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id, utc_now
 from src.external_data_policy import decide_external_data
@@ -417,12 +420,10 @@ class ExternalDataPolicyChatService(ChatService):
             route = {**route, "external_data_policy": decision.to_dict()}
             if review_binding is not None:
                 route["review"] = review_binding.snapshot("answer")
-            expected_concepts = tuple(
-                str(item)
-                for item in learning_state.payload.get(
-                    "expected_concepts", learning_state.confirmed_points
-                )
-            )
+            # Learning State-1 §2.4: expected_concepts are evaluation targets and
+            # must never fall back to legacy confirmed_points, which conflate user
+            # self-report and heuristic conclusions with mastery.
+            expected_concepts = resolve_expected_concepts(learning_state.payload)
             evidence_ids = self._previous_disclosed_evidence_ids(thread.id)
             eval_state, expected_concepts, evidence_ids = review_evaluation_inputs(
                 review_binding, learning_state, expected_concepts, evidence_ids
