@@ -169,6 +169,10 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
     # mastery evidence, and its provenance is explicit.
     assert latest["authority"]["authority"] == "verified"
     assert latest["authority"]["is_mastery_evidence"] is True
+    # The provenance id is the real UnderstandingEvidence id (lineage-resolved),
+    # not the ClaimRevision id.
+    assert latest["authority"]["source_id"] == pass_evidence.id
+    assert latest["authority"]["source"] == "durable.understanding"
     assert latest["primary_evidence"]["commit_sha"] == COMMIT_B
     assert "user_response" not in latest["latest_validation"]
     failed = next(
@@ -181,6 +185,7 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
     # Learning State-1 §2.1 (T08): a non-confirmed durable status is not mastery.
     assert failed["authority"]["authority"] == "system_inferred"
     assert failed["authority"]["is_mastery_evidence"] is False
+    assert failed["authority"]["source_id"] == fail_evidence.id
     assert resume["unresolved"] == [
         {
             "hypothesis_id": hypothesis.id,

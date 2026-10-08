@@ -67,6 +67,8 @@ _UNDERSTANDING_CONFIRMED = "confirmed"
 # Source labels are provenance strings, never secret or generated identifiers.
 SOURCE_LEGACY_CONFIRMED_POINTS = "legacy_learning_state.confirmed_points"
 SOURCE_DURABLE_UNDERSTANDING = "durable.understanding"
+# A Claim state with no Understanding record at all (e.g. still "proposed").
+SOURCE_DURABLE_CLAIM_STATE = "durable.claim_state"
 
 
 def is_mastery_authority(authority: str) -> bool:
@@ -171,17 +173,23 @@ def classify_durable_understanding_status(
     )
 
 
-def classify_expected_concept(text: str) -> LearningAuthorityItem:
+def classify_expected_concept(
+    text: str,
+    *,
+    user_specified: bool = False,
+) -> LearningAuthorityItem:
     """Classify a curriculum target.
 
     An ``expected_concept`` is an **evaluation target**, not a result. Even an
-    explicit, well-formed curriculum target is never ``verified``.
+    explicit, well-formed curriculum target is never ``verified``. The
+    ``user_goal`` authority is granted only when a caller can attest the target
+    came from the user; otherwise the target is a system/curriculum inference.
     """
     return LearningAuthorityItem(
         kind=KIND_GOAL,
-        authority=AUTHORITY_USER_GOAL,
+        authority=AUTHORITY_USER_GOAL if user_specified else AUTHORITY_SYSTEM_INFERRED,
         text=str(text or "").strip(),
-        source="explicit_expected_concept",
+        source="explicit_expected_concept" if user_specified else "curriculum_target",
         source_id="",
         authority_reason="evaluation target, not a mastery result",
     )
@@ -234,9 +242,11 @@ def resolve_expected_concepts(
         value = raw.strip()
         return (value,) if value else ()
     if isinstance(raw, (list, tuple)):
+        # Only string targets are accepted; a numeric/bool entry is an illegal
+        # target and is ignored, not coerced to text.
         return tuple(
-            item.strip()
-            for item in (str(value or "") for value in raw)
-            if item.strip()
+            value.strip()
+            for value in raw
+            if isinstance(value, str) and value.strip()
         )
     return ()

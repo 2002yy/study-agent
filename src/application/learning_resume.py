@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from src.application.learning_authority_projection import (
+    SOURCE_DURABLE_CLAIM_STATE,
+    SOURCE_DURABLE_UNDERSTANDING,
     classify_durable_understanding_status,
     classify_legacy_confirmed_points,
 )
@@ -165,11 +167,23 @@ class LearningResumeService:
             "validation_result": validation_result,
             # Learning State-1 §2.1/§6: read-only authority. Only a durable
             # confirmed understanding is mastery evidence; the caller resolves
-            # lineage-validated status, this label does not re-derive it.
+            # lineage-validated status, this label does not re-derive it. The
+            # source id is the real UnderstandingEvidence id (which may come from
+            # the Claim lineage), never the ClaimRevision id, and is empty when
+            # no Understanding record exists.
             "authority": classify_durable_understanding_status(
                 understanding_status,
                 text=bundle.revision.claim_text,
-                source_id=bundle.revision.id,
+                source_id=(
+                    latest_validation[0].id
+                    if latest_validation is not None
+                    else ""
+                ),
+                source=(
+                    SOURCE_DURABLE_UNDERSTANDING
+                    if latest_validation is not None
+                    else SOURCE_DURABLE_CLAIM_STATE
+                ),
             ).to_dict(),
             "latest_validation": (
                 {
