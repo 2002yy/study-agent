@@ -269,6 +269,8 @@ export function WorkspaceView({
           ragEnabled={ui.ragEnabled}
           memoryStatus={snapshot.memoryStatus}
           onOpenDrawer={openDrawer}
+          sourcesOpen={state.activeDrawer === "sources"}
+          onToggleSources={() => state.activeDrawer === "sources" ? closeDrawer() : openDrawer("sources")}
           onEndSession={async () => {
             if (!learningView.sessionId) return;
             await memoryController.generateFromSession(learningView.sessionId);

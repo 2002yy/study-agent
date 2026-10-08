@@ -1,0 +1,51 @@
+import { expect, test } from "@playwright/test";
+import { installApiFixture, makeLearningSession, seedWorkspaceRecovery } from "./api-fixture";
+import { noHorizontalOverflow } from "./journey-metrics";
+
+test("compact composer grows with text and sources launcher preserves the draft and focus", async ({ page }) => {
+  const session = makeLearningSession();
+  await installApiFixture(page, { session });
+  await seedWorkspaceRecovery(page, session.row.session_id);
+  await page.goto("/");
+  await expect(page.getByText("我们已经确认每轮会缩小搜索区间。", { exact: true })).toBeVisible();
+  const input = page.getByLabel("输入学习问题");
+  const height = async () => (await input.boundingBox())!.height;
+  await expect.poll(height).toBe(42);
+  await input.fill("第一行\n第二行\n第三行\n第四行");
+  await expect.poll(height).toBeGreaterThan(42);
+  await input.fill(Array.from({ length: 20 }, (_, i) => `第 ${i + 1} 行问题`).join("\n"));
+  await expect.poll(height).toBe(160);
+  await expect(input).toHaveCSS("overflow-y", "auto");
+  await input.fill("");
+  await expect.poll(height).toBe(42);
+  await input.fill("打开资料面板时保留的问题");
+  const launcher = page.getByRole("button", { name: "打开资料与来源", exact: true });
+  await launcher.click();
+  const dialog = page.getByRole("dialog", { name: "资料与来源", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "本次回答依据" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "收起资料与来源", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await dialog.getByRole("button", { name: "关闭资料与来源", exact: true }).click();
+  await expect(launcher).toBeFocused();
+  await expect(input).toHaveValue("打开资料面板时保留的问题");
+  if (page.viewportSize()!.width <= 900) await page.getByLabel("打开会话历史").click();
+  const tools = page.locator(".workspace-navigation-actions").filter({ visible: true });
+  const controls = tools.locator(".end-session-button, .sidebar-upload-button, .workspace-menu-trigger");
+  await expect(controls).toHaveCount(3);
+  for (const control of await controls.all()) {
+    expect((await control.boundingBox())!.height).toBe(44);
+    await expect(control).toHaveCSS("font-size", "13px");
+    await expect(control.locator(":scope > svg")).toHaveCSS("width", "16px");
+  }
+  await page.keyboard.press("Escape");
+  if (page.viewportSize()!.width <= 900) await page.setViewportSize({ width: 320, height: 568 });
+  expect(await noHorizontalOverflow(page)).toBe(true);
+  const title = (await page.locator(".topbar h1").boundingBox())!;
+  expect(title.height).toBeLessThan(40);
+  expect(title.width).toBeGreaterThan(100);
+  const send = page.locator(".composer-footer button");
+  const composer = (await page.locator(".composer-main").boundingBox())!;
+  const sendBox = (await send.boundingBox())!;
+  expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(composer.x + composer.width);
+  expect(sendBox.y + sendBox.height).toBeLessThanOrEqual(composer.y + composer.height);
+});

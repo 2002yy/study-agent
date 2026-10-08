@@ -21,7 +21,7 @@ export function WorkspaceActions({onUploadClick,onOpenDrawer,onEndSession,isEndi
               type="button"
               title="整理本次学习成果（确认后才写入）"
             >
-              {isEndingSession ? <Loader2 className="spin" size={14} /> : <LogOut size={14} />}
+              {isEndingSession ? <Loader2 className="spin" size={16} /> : <LogOut size={16} />}
               {closureLabel}
             </button>
           ) : null}
@@ -32,12 +32,12 @@ export function WorkspaceActions({onUploadClick,onOpenDrawer,onEndSession,isEndi
             type="button"
             title={`上传学习资料。${RAG_UPLOAD_HELP_TEXT}`}
           >
-            <Upload size={17} />
+            <Upload size={16} />
             <span>上传资料</span>
           </button>
           <details className="workspace-menu">
             <summary aria-label="打开更多学习工具" className="workspace-menu-trigger" title="更多">
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={16} />
               <span>设置与工具</span>
             </summary>
             <div className="workspace-menu-popover" role="menu">

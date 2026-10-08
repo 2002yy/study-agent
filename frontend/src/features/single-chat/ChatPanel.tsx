@@ -5,6 +5,7 @@ import {
   Clipboard,
   Search,
   MessageSquare,
+  PanelRight,
   Settings2,
   Square,
 } from "lucide-react";
@@ -92,6 +93,8 @@ type ChatPanelProps = {
   ragEnabled: boolean;
   memoryStatus: MemoryStatusResponse | null;
   onOpenDrawer: (drawer: DrawerId) => void;
+  sourcesOpen?: boolean;
+  onToggleSources?: () => void;
   onEndSession: () => void;
   isEndingSession?: boolean;
   researchRun: ResearchLookupResponse | null;
@@ -144,6 +147,26 @@ export function ChatPanel(props: ChatPanelProps) {
 
   const conversationRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    let lastWidth = textarea.clientWidth;
+    const resize = () => {
+      if (!textarea.clientWidth) return;
+      textarea.style.height = "0px";
+      const height = input.length ? Math.max(42, textarea.scrollHeight) : 42;
+      textarea.style.height = `${Math.min(160, height)}px`;
+      textarea.style.overflowY = height > 160 ? "auto" : "hidden";
+    };
+    resize();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (textarea.clientWidth === lastWidth) return;
+      lastWidth = textarea.clientWidth;
+      resize();
+    });
+    observer?.observe(textarea);
+    return () => observer?.disconnect();
+  }, [input]);
   const roleSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const roleSettingsId = useId();
   const [roleSettingsOpen, setRoleSettingsOpen] = useState(false);
@@ -288,7 +311,12 @@ export function ChatPanel(props: ChatPanelProps) {
               <span>会话 {sessionId ? "进行中" : "未开始"}</span>
             </div>
           </div>
-          <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={()=>onOpenDrawer("sessions")} type="button"><BookOpen size={18}/></button>
+          <div className="topbar-actions">
+            <button aria-label="打开会话历史" className="icon-button session-dock-button" onClick={()=>onOpenDrawer("sessions")} title="会话历史" type="button"><BookOpen size={18}/></button>
+            <button aria-label={props.sourcesOpen ? "收起资料与来源" : "打开资料与来源"}
+              aria-expanded={props.sourcesOpen ?? false} aria-haspopup="dialog" className="icon-button sources-dock-button"
+              onClick={props.onToggleSources ?? (()=>onOpenDrawer("sources"))} title="资料与来源" type="button"><PanelRight size={18}/></button>
+          </div>
       </header>
 
       <div className="conversation-shell">
@@ -385,11 +413,12 @@ export function ChatPanel(props: ChatPanelProps) {
           /> : null}
           <textarea
             ref={composerRef}
+            rows={1}
             aria-label="输入学习问题"
             autoFocus
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleComposerKeyDown}
-            placeholder={composerMode === "search" ? "搜索你想了解的问题…" : "输入你的问题，或继续当前对话…"}
+            placeholder={composerMode === "search" ? "搜索你想了解的问题…" : "输入问题，或继续对话…"}
             title={
               enterToSend
                 ? "回车键发送 · 按住上档键再按回车键换行"
