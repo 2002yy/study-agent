@@ -40,6 +40,15 @@ beforeEach(()=>{
 afterEach(cleanup);
 
 describe("reading workspace",()=>{
+  it("opens only owner-bound saved web reads and labels a truncated snapshot",async()=>{
+    vi.mocked(readDocument).mockResolvedValue({...response,scope:"web",representation:"saved_web_text",file_type:"web",source_path:"https://example.org/read",content_truncated:true});
+    const rag={results:[],web_tools:{run_id:"saved-run",calls:[]},evidence_snapshot:{schema_version:"evidence-snapshot-v1",refs:[{id:"web",type:"web_read",url:"https://example.org/read",source:"https://example.org/read",title:"已读网页",lifecycle_status:"selected"}]}} as unknown as ChatResponse["rag"];
+    render(<Harness><EvidenceTrail evidence={{rag}}/></Harness>);
+    fireEvent.click(screen.getByRole("button",{name:/证据轨迹/}));
+    fireEvent.click(screen.getByRole("button",{name:"阅读网页"}));
+    await screen.findByText(/阅读时保存的部分正文/);
+    expect(readDocument).toHaveBeenCalledWith({scope:"web",threadId:"a",runId:"saved-run",url:"https://example.org/read",sourcePath:"https://example.org/read"},1,expect.any(AbortSignal));
+  });
   it("opens full text from the library and closes without discarding chat draft",async()=>{
     render(<Harness><SourcesPanel lastChat={null} ragSearch={null} isSearching={false} initialTab="library"
       knowledgeBase={{index_path:"index.json",index_exists:true,index_version:1,documents:[known],chunks:1}}/></Harness>);
@@ -120,6 +129,54 @@ describe("reading workspace",()=>{
     await screen.findByText("这是资料的第一段。");
     expect(readDocument).toHaveBeenCalledWith({...target,startLine:2,endLine:2},1,expect.any(AbortSignal));
     expect(document.querySelector('[data-line="2"]')).toHaveClass("citation-located");
+  });
+});
+
+describe("notebook reading navigation",()=>{
+  it("locates only headings in the loaded window without another read",async()=>{
+    vi.mocked(readDocument).mockResolvedValue({...response,text:"# 学习正文\n第一段\n```md\n# 示例代码\n```\n## 第二节\n正文"});
+    render(<Harness/>);fireEvent.click(screen.getByText("打开正文"));
+    await screen.findByText("第一段");
+    const body=screen.getByLabelText("可滚动资料正文");body.scrollTop=77;
+    fireEvent.click(screen.getByRole("button",{name:"本段目录"}));
+    const outline=screen.getByRole("navigation",{name:"当前正文窗口目录"});
+    expect(outline).toHaveTextContent("当前已载入正文的标题 · L1–L100");
+    expect(outline.querySelectorAll("button")).toHaveLength(2);
+    expect(outline).not.toHaveTextContent("示例代码");
+    fireEvent.click(screen.getByRole("button",{name:"第二节 L6"}));
+    expect(document.activeElement).toBe(document.querySelector('[data-line="6"]'));
+    expect(readDocument).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button",{name:"本段目录"}));
+    expect(body.scrollTop).toBe(77);
+  });
+  it("jumps locally and binds an outside-window read to the returned revision",async()=>{
+    render(<Harness/>);fireEvent.click(screen.getByText("打开正文"));
+    await screen.findByText("这是资料的第一段。");
+    const input=screen.getByRole("spinbutton",{name:"跳转到正文行号"});
+    fireEvent.change(input,{target:{value:"2"}});fireEvent.submit(input.closest("form")!);
+    expect(document.activeElement).toBe(document.querySelector('[data-line="2"]'));
+    expect(readDocument).toHaveBeenCalledTimes(1);
+    fireEvent.change(input,{target:{value:"221"}});fireEvent.submit(input.closest("form")!);
+    expect(readDocument).toHaveBeenCalledTimes(1);
+    fireEvent.change(input,{target:{value:"101"}});fireEvent.submit(input.closest("form")!);
+    await waitFor(()=>expect(readDocument).toHaveBeenCalledTimes(2));
+    expect(readDocument).toHaveBeenLastCalledWith(expect.objectContaining({revision:"rev"}),101,expect.any(AbortSignal));
+  });
+  it("makes selection explicit, clears it, and adds a bound quote only on request",async()=>{
+    const ask=vi.fn();render(<Harness onAsk={ask}/>);fireEvent.click(screen.getByText("打开正文"));
+    const text=await screen.findByText("这是资料的第一段。");
+    const range=document.createRange();range.selectNodeContents(text);
+    const selected=window.getSelection()!;selected.removeAllRanges();selected.addRange(range);
+    fireEvent.mouseUp(screen.getByLabelText("可滚动资料正文"));
+    expect(screen.getByText("已选 L2–L2")).toBeInTheDocument();expect(ask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"取消正文选段"}));
+    expect(screen.getByRole("button",{name:"解释选中文字"})).toBeDisabled();
+    selected.addRange(range);fireEvent.mouseUp(screen.getByLabelText("可滚动资料正文"));
+    fireEvent.click(screen.getByRole("button",{name:"解释选中文字"}));
+    expect(ask).toHaveBeenCalledWith(expect.stringContaining("版本 rev，L2–L2"));
+    expect(ask).toHaveBeenCalledWith(expect.stringContaining("引用：\n这是资料的第一段。"));
+    expect(screen.getByLabelText("保留的草稿")).toHaveValue("已有草稿");
+    expect(document.querySelector(".reading-layout")).toHaveClass("reading-chat-active");
   });
 });
 

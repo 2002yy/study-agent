@@ -414,7 +414,41 @@ class SessionAttachmentService:
             metadata_filters={"thread_id": thread_id},
             suppress_duplicate_text=True,
         )
-        return diagnostics.results
+        # Older indexes put ownership only on documents. Bind citation metadata
+        # at this boundary without changing chunk identities or search scores.
+        results = []
+        for hit in diagnostics.results:
+            owners = [
+                doc for doc in index.documents
+                if (
+                    (doc.document_id or doc.content_hash)
+                    == (hit.chunk.document_id or hit.chunk.document_hash)
+                    and doc.content_hash == hit.chunk.document_hash
+                    and doc.revision_id == hit.chunk.revision_id
+                    and doc.source_path == hit.chunk.source_path
+                    and doc.metadata.get("thread_id") == thread_id
+                )
+            ]
+            if len(owners) != 1:
+                continue
+            attachment_id = owners[0].metadata.get("attachment_id")
+            attachment = self.repository.get(str(attachment_id or ""))
+            if (
+                not attachment
+                or attachment.thread_id != thread_id
+                or attachment.status != "ready"
+            ):
+                continue
+            results.append(replace(
+                hit,
+                chunk=replace(hit.chunk, metadata={
+                    **hit.chunk.metadata,
+                    "attachment_id": attachment.id,
+                    "thread_id": thread_id,
+                    "origin": "session_attachment",
+                }),
+            ))
+        return results
 
     def attachment_ids_in_results(
         self, results: list[RagSearchResult]

@@ -82,6 +82,23 @@ def test_thread_isolated_retrieval(tmp_path):
             hit.chunk.document_id or hit.chunk.document_hash
         ]
         assert owner.metadata.get("thread_id") == "thread_a"
+        assert hit.chunk.metadata["thread_id"] == "thread_a"
+        assert hit.chunk.metadata["attachment_id"] == owner.metadata["attachment_id"]
+        assert hit.chunk.revision_id == owner.revision_id
+
+
+def test_legacy_chunk_citation_binding_does_not_write_index_or_change_ids(tmp_path):
+    service = _service(tmp_path)
+    attachment = _upload_sample(service, "thread_a")
+    before = service.temp_index_path.read_bytes()
+    index = load_rag_index(service.temp_index_path)
+    assert "attachment_id" not in index.chunks[0].metadata
+    hits = service.retrieve_for_thread("注意力机制", "thread_a")
+    assert hits and hits[0].chunk.metadata["attachment_id"] == attachment.id
+    assert hits[0].chunk.chunk_id == index.chunks[0].chunk_id
+    assert service.temp_index_path.read_bytes() == before
+    service.repository.delete(attachment.id)
+    assert service.retrieve_for_thread("注意力机制", "thread_a") == []
 
 
 def test_upload_limit_and_size_guard(tmp_path):

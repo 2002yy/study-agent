@@ -388,7 +388,7 @@ export function SourcesPanel({
                   })}
                 </div>
               ) : (
-                <div className="empty-state">还没有上传资料。可从学习工作台顶部选择“上传学习资料”。</div>
+                <div className="empty-state">还没有上传资料。从导航中的“上传资料”加入第一份资料。</div>
               )}
               {onRebuildKnowledge ? (
                 <details className="knowledge-danger-zone">

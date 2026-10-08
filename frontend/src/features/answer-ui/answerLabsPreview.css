@@ -1,0 +1,13 @@
+body:has(.answer-labs-preview) { margin: 0; background: #f4f6f5; --text: #2c3943; --muted: #65717c; --font-interface: "Noto Sans SC", "Microsoft YaHei", sans-serif; font-family: var(--font-interface); }
+.answer-labs-preview { max-width: 780px; margin: 0 auto; padding: 40px 24px; box-sizing: border-box; color: var(--text); }
+.answer-labs-preview * { box-sizing: border-box; }
+.answer-labs-preview header > span { color: var(--muted); font-size: 12px; }
+.answer-labs-preview h1 { margin: 10px 0; font-size: 26px; font-weight: 600; }
+.answer-labs-preview header p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.answer-labs-preview nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 12px; }
+.answer-labs-preview nav button { border: 1px solid #dce5eb; border-radius: 8px; padding: 10px 16px; background: #fff; color: var(--text); cursor: pointer; min-height: 44px; }
+.answer-labs-preview nav button[aria-pressed="true"] { background: #e8eff4; border-color: #a9bfcd; }
+.answer-labs-preview button:focus-visible { outline: 2px solid #567f9a; outline-offset: 3px; }
+.answer-labs-preview pre { margin: 12px 0; padding: 14px; background: #eef2f4; border-radius: 8px; line-height: 1.8; white-space: pre; }
+.answer-labs-preview .answer-card { background: #fff; }
+@media (max-width: 600px) { .answer-labs-preview { padding: 24px 12px; } .answer-labs-preview h1 { font-size: 22px; } }

@@ -12,7 +12,7 @@ const workspaceViewSource = sourceOf("./WorkspaceView.tsx");
 const controllerCompositionSource = sourceOf("./useWorkspaceControllers.ts");
 const extensionRuntimeSource = sourceOf("./useExtensionRuntime.ts");
 const extensionDrawersSource = sourceOf("./ExtensionDrawers.tsx");
-const chatPanelSource = sourceOf("../features/single-chat/ChatPanel.tsx");
+const chatPanelSource = sourceOf("../features/single-chat/WorkspaceActions.tsx");
 const launcherSource = sourceOf("../features/extensions/ExtensionLauncher.tsx");
 const labPanelSource = sourceOf("../features/extensions/ExtensionLabPanel.tsx");
 

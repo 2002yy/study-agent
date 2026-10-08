@@ -109,32 +109,36 @@ test("360x520 keeps complex content, IME input and real scroll recovery usable",
   expect(conversationBounds!.x).toBeGreaterThanOrEqual(0);
   expect(conversationBounds!.x + conversationBounds!.width).toBeLessThanOrEqual(360.5);
 
-  await longLink.scrollIntoViewIfNeeded();
-  const linkMetrics = await longLink.evaluate((element) => {
-    const messageBody = element.closest(".message-body") as HTMLElement | null;
-    const bodyRect = messageBody?.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    const textRects = Array.from(range.getClientRects()).filter(
-      (rect) => rect.width > 0 && rect.height > 0,
-    );
-    const lineTops = new Set(textRects.map((rect) => Math.round(rect.top)));
-    return {
-      linkLeft: textRects.length > 0 ? Math.min(...textRects.map((rect) => rect.left)) : 0,
-      linkRight: textRects.length > 0 ? Math.max(...textRects.map((rect) => rect.right)) : 0,
-      bodyLeft: bodyRect?.left ?? 0,
-      bodyRight: bodyRect?.right ?? 0,
-      bodyScrollWidth: messageBody?.scrollWidth ?? 0,
-      bodyClientWidth: messageBody?.clientWidth ?? 0,
-      linkRectCount: textRects.length,
-      linkLineCount: lineTops.size,
-    };
-  });
-  expect(linkMetrics.linkRectCount).toBeGreaterThan(0);
-  expect(linkMetrics.linkLineCount).toBeGreaterThan(1);
-  expect(linkMetrics.bodyScrollWidth).toBeLessThanOrEqual(linkMetrics.bodyClientWidth + 1);
-  expect(linkMetrics.linkLeft).toBeGreaterThanOrEqual(linkMetrics.bodyLeft - 1);
-  expect(linkMetrics.linkRight).toBeLessThanOrEqual(linkMetrics.bodyRight + 1);
+  // Session restoration can replace the rendered text node during layout measurement.
+  // Retry the full measurement together; keep all wrapping and bounds assertions.
+  await expect(async () => {
+    await longLink.scrollIntoViewIfNeeded();
+    const linkMetrics = await longLink.evaluate((element) => {
+      const messageBody = element.closest(".message-body") as HTMLElement | null;
+      const bodyRect = messageBody?.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const textRects = Array.from(range.getClientRects()).filter(
+        (rect) => rect.width > 0 && rect.height > 0,
+      );
+      const lineTops = new Set(textRects.map((rect) => Math.round(rect.top)));
+      return {
+        linkLeft: textRects.length > 0 ? Math.min(...textRects.map((rect) => rect.left)) : 0,
+        linkRight: textRects.length > 0 ? Math.max(...textRects.map((rect) => rect.right)) : 0,
+        bodyLeft: bodyRect?.left ?? 0,
+        bodyRight: bodyRect?.right ?? 0,
+        bodyScrollWidth: messageBody?.scrollWidth ?? 0,
+        bodyClientWidth: messageBody?.clientWidth ?? 0,
+        linkRectCount: textRects.length,
+        linkLineCount: lineTops.size,
+      };
+    });
+    expect(linkMetrics.linkRectCount).toBeGreaterThan(0);
+    expect(linkMetrics.linkLineCount).toBeGreaterThan(1);
+    expect(linkMetrics.bodyScrollWidth).toBeLessThanOrEqual(linkMetrics.bodyClientWidth + 1);
+    expect(linkMetrics.linkLeft).toBeGreaterThanOrEqual(linkMetrics.bodyLeft - 1);
+    expect(linkMetrics.linkRight).toBeLessThanOrEqual(linkMetrics.bodyRight + 1);
+  }).toPass({ timeout: 5_000 });
   successArtifacts.push(
     await captureComplexSuccessStep(page, testInfo, JOURNEY, "long-text-and-url"),
   );

@@ -4,18 +4,24 @@ import "@testing-library/jest-dom/vitest";
 if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
-import { act, fireEvent, render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatResponse } from "../../types";
 import {
   clearPendingTaskIntentOverride,
   consumePendingTaskIntentOverride,
 } from "../task/taskContract";
-import { ChatPanel } from "./ChatPanel";
+import { WorkspaceActions } from "./WorkspaceActions";
+import { ChatPanel, searchMessage } from "./ChatPanel";
+
+afterEach(cleanup);
 
 type RenderOptions = {
   input?: string;
+  selectedRole?: string;
+  onSelectRole?: ReturnType<typeof vi.fn>;
+  isSending?: boolean;
   taskIntent?: string;
   closureEligibility?: string;
   onOpenDrawer?: ReturnType<typeof vi.fn>;
@@ -39,7 +45,9 @@ function renderPanel(options: RenderOptions = {}) {
       sessionNavigation={null}
       input={options.input ?? ""}
       setInput={vi.fn()}
-      isSending={false}
+      selectedRole={options.selectedRole}
+      onSelectRole={options.onSelectRole}
+      isSending={options.isSending ?? false}
       onSubmit={options.onSubmit ?? vi.fn()}
       onStop={vi.fn()}
       streamRecovery={options.streamRecovery ?? null}
@@ -48,9 +56,6 @@ function renderPanel(options: RenderOptions = {}) {
       onAbandonInterruptedReply={options.onAbandonInterruptedReply ?? vi.fn()}
       onCopyInterruptedReply={vi.fn()}
       onUploadClick={vi.fn()}
-      onSearchSources={vi.fn()}
-      isSearching={false}
-      hasSearchQuery={false}
       onQuickPrompt={vi.fn()}
       onStartNewTopic={vi.fn()}
       lastChat={{
@@ -112,122 +117,76 @@ describe("ChatPanel learning product boundary", () => {
     expect(container.innerHTML).not.toContain("session-secret-raw-id");
   });
 
-  it("keeps the primary dock focused on closure, upload, sessions, and More", () => {
-    const { container } = renderPanel({
-      taskIntent: "learn",
-      closureEligibility: "learning_summary",
-    });
-    const actions = container.querySelector(".topbar-actions") as HTMLElement;
-    const directButtonLabels = Array.from(actions.querySelectorAll(":scope > button")).map(
-      (button) => button.getAttribute("aria-label"),
-    );
-
-    expect(directButtonLabels).toEqual(["整理学习", "上传学习资料", "打开会话历史"]);
-    expect(actions.querySelector("summary")?.getAttribute("aria-label")).toBe(
-      "打开更多学习工具",
-    );
+  it("keeps only chat and search modes and moves utilities out of the conversation", () => {
+    const {container}=renderPanel();
+    expect(Array.from(container.querySelectorAll('.composer-modes button')).map(button=>button.textContent)).toEqual(["对话","搜索"]);
+    expect(container.querySelector('.workspace-menu')).toBeNull();
+    expect(container.querySelector('.turn-intent-chip-menu')).toBeNull();
+    expect(container.textContent).not.toContain("系统学习");
+    expect(container.textContent).toContain("今天想了解什么？");
   });
-
-  it("keeps stable learning destinations plus one laboratory entry in More", () => {
-    const { container } = renderPanel();
-    const html = container.innerHTML;
-
-    expect(html).toContain("资料与来源");
-    expect(html).toContain("学习成果");
-    expect(html).toContain("设置");
-    expect(html).toContain("实验功能");
-    expect(html).toContain("实验室");
-    expect(html).toContain("群聊、受控工具与开发者诊断");
-    expect(html).not.toContain("群聊讨论");
-    expect(html).not.toContain("新闻研究");
-    expect(html).not.toContain("检索当前问题");
-    expect(html).not.toContain("工作流记录");
-    expect(html).not.toContain("学习记忆");
+  it("keeps existing utility destinations in navigation",()=>{
+    const open=vi.fn();
+    const {container}=render(<WorkspaceActions onUploadClick={vi.fn()} onOpenDrawer={open} onEndSession={vi.fn()} isSending={false} canClose closureLabel="整理学习"/>);
+    expect(container.textContent).toContain("资料与来源");
+    expect(container.textContent).toContain("学习成果");
+    expect(container.textContent).toContain("设置");
+    expect(container.textContent).toContain("实验室");
+    const lab=findByRoleAndText(container,"menuitem","实验室") as HTMLElement;
+    fireEvent.click(lab);expect(open).toHaveBeenCalledWith("lab");
   });
-
-  it("opens the laboratory and closes the More menu", () => {
-    const onOpenDrawer = vi.fn();
-    const { container } = renderPanel({ onOpenDrawer });
-    const details = container.querySelector("details.workspace-menu") as HTMLDetailsElement;
-    const removeAttrSpy = vi.spyOn(details, "removeAttribute");
-    const summary = details.querySelector("summary") as HTMLElement;
-    const focusSpy = vi.spyOn(summary, "focus");
-    const labAction = findByRoleAndText(container, "menuitem", "实验室") as HTMLElement;
-
-    expect(labAction).toBeTruthy();
-    fireEvent.click(labAction);
-
-    expect(onOpenDrawer).toHaveBeenCalledWith("lab");
-    expect(removeAttrSpy).toHaveBeenCalledWith("open");
-    expect(focusSpy).toHaveBeenCalledTimes(1);
+  it("submits search through the same chat callback with an explicit natural-language request",async()=>{
+    const submit=vi.fn();const {container}=renderPanel({input:"  注意力机制  ",onSubmit:submit});
+    fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
+    await act(async()=>fireEvent.submit(container.querySelector('.composer')!));
+    expect(submit).toHaveBeenCalledWith(expect.anything(),"帮我搜索：注意力机制");
+    expect(consumePendingTaskIntentOverride()).toBeUndefined();
+    expect(searchMessage("帮我搜索：注意力机制")).toBe("帮我搜索：注意力机制");
   });
-
-  it("replaces the permanent task selector with an optional one-shot task chip", async () => {
-    let observedIntent: string | undefined;
-    const onSubmit = vi.fn(async () => {
-      observedIntent = consumePendingTaskIntentOverride();
-    });
-    const { container } = renderPanel({ input: "请帮我查资料", onSubmit });
-
-    expect(container.querySelectorAll('[aria-label="下一条消息的任务类型"]')).toHaveLength(0);
-
-    const chip = container.querySelector('[aria-label="调整下一条消息的任务方式"]');
-    expect(chip?.textContent ?? "").toBe("自动 · 临时研究");
-
-    const researchOption = findByRoleAndText(
-      container,
-      "menuitemradio",
-      "临时研究",
-    ) as HTMLElement;
-    expect(researchOption).toBeTruthy();
-    fireEvent.click(researchOption);
-    expect(
-      container.querySelector('[aria-label="调整下一条消息的任务方式"]')?.textContent ?? "",
-    ).toBe("本次 · 临时研究");
-
-    const form = container.querySelector(".composer") as HTMLFormElement;
-    await act(async () => {
-      fireEvent.submit(form);
-    });
-
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(observedIntent).toBe("research");
-    expect(
-      container.querySelector('[aria-label="调整下一条消息的任务方式"]')?.textContent ?? "",
-    ).toBe("自动 · 临时研究");
+  it("passes an identical search request in chat mode without a task override",async()=>{
+    const submit=vi.fn();const {container}=renderPanel({input:"帮我搜索：注意力机制",onSubmit:submit});
+    await act(async()=>fireEvent.submit(container.querySelector('.composer')!));
+    expect(submit).toHaveBeenCalledWith(expect.anything(),"帮我搜索：注意力机制");
     expect(consumePendingTaskIntentOverride()).toBeUndefined();
   });
+  it("keeps interrupted-turn retry independent of the input mode",()=>{
+    clearPendingTaskIntentOverride();const retry=vi.fn();
+    const {container}=renderPanel({onRetry:retry,streamRecovery:{question:"原问题",reply:"部分回答",reason:"网络中断",turnId:"turn-1"}});
+    fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
+    fireEvent.click(Array.from(container.querySelectorAll('button')).find(button=>button.textContent?.includes("重新生成"))!);
+    expect(retry).toHaveBeenCalledTimes(1);expect(consumePendingTaskIntentOverride()).toBeUndefined();
+  });
 
-  it("does not attach a pending new-turn choice to retry", () => {
-    clearPendingTaskIntentOverride();
-    const onRetry = vi.fn();
-    const { container } = renderPanel({
-      onRetry,
-      streamRecovery: {
-        question: "原问题",
-        reply: "部分回答",
-        reason: "网络中断",
-        turnId: "turn-1",
-      },
-    });
-
-    const quickAnswerOption = findByRoleAndText(
-      container,
-      "menuitemradio",
-      "快速问答",
-    ) as HTMLElement;
-    fireEvent.click(quickAnswerOption);
-
-    const retryButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      (button.textContent ?? "").includes("重新生成"),
-    ) as HTMLButtonElement;
-    fireEvent.click(retryButton);
-
-    expect(onRetry).toHaveBeenCalledTimes(1);
-    expect(consumePendingTaskIntentOverride()).toBeUndefined();
-    expect(
-      container.querySelector('[aria-label="调整下一条消息的任务方式"]')?.textContent ?? "",
-    ).toBe("本次 · 快速问答");
+  it("keeps four role choices inside a collapsed conversation setting",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"nahida",onSelectRole:select});
+    const toggle=container.querySelector('[aria-label="对话设置"]')!;
+    expect(toggle).toHaveAttribute("aria-expanded","false");
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    fireEvent.click(toggle);
+    const choices=Array.from(container.querySelectorAll('.chat-role-options button'));
+    expect(choices.map(button=>button.textContent)).toEqual(["三月七","刻晴","纳西妲","流萤"]);
+    expect(choices[2]).toHaveAttribute("aria-pressed","true");
+    fireEvent.click(choices[3]);expect(select).toHaveBeenCalledWith("firefly");
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    expect(container.querySelector('textarea')).toHaveFocus();
+  });
+  it("can return to automatic selection and dismiss settings with Escape",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"keqing",onSelectRole:select});
+    const toggle=container.querySelector('[aria-label="对话设置"]')!;
+    fireEvent.click(toggle);
+    fireEvent.keyDown(container.querySelector('.chat-role-settings')!,{key:"Escape"});
+    expect(toggle).toHaveFocus();expect(toggle).toHaveAttribute("aria-expanded","false");
+    fireEvent.click(toggle);
+    fireEvent.click(container.querySelector('.chat-role-settings-heading button')!);
+    expect(select).toHaveBeenCalledWith("auto");
+  });
+  it("keeps active-turn role settings immutable and hides them in search mode",()=>{
+    const select=vi.fn();const {container}=renderPanel({selectedRole:"march7",onSelectRole:select,isSending:true});
+    fireEvent.click(container.querySelector('[aria-label="对话设置"]')!);
+    for(const button of container.querySelectorAll('.chat-role-settings button'))expect(button).toBeDisabled();
+    fireEvent.click(container.querySelectorAll('.composer-modes button')[1]);
+    expect(container.querySelector('.chat-role-settings')).toBeNull();
+    expect(container.querySelector('[aria-label="对话设置"]')).toBeNull();expect(select).not.toHaveBeenCalled();
   });
 
   it("gives every remaining icon button an accessible label", () => {

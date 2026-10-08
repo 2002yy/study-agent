@@ -64,6 +64,7 @@ test("returning learner restores context and continues in one explicit choice", 
   await page.goto("/");
 
   const successArtifacts: string[] = [];
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoreCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(restoreCard).toBeVisible();
   await expect(
@@ -95,6 +96,7 @@ test("returning learner restores context and continues in one explicit choice", 
   await page.waitForTimeout(350);
   await page.reload();
   await expect(page.getByText(CONTINUE_REPLY, { exact: true })).toBeVisible();
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoredCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(
     restoredCard.getByText("理解二分查找边界条件", { exact: true }),
@@ -167,12 +169,14 @@ test("stale source claim surfaces and revalidates to current", async ({ page }, 
   await page.goto("/");
 
   const successArtifacts: string[] = [];
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoreCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(restoreCard).toBeVisible();
   await restoreCard.getByRole("button", { name: "继续这里" }).click();
   const composer = page.getByLabel("输入学习问题");
   await expect(composer).toHaveValue(/继续当前任务/);
 
+  await page.locator(".workspace-learning-state > summary").click();
   const strip = page.getByRole("button", { name: /1 条源码已变动/ });
   await expect(strip).toBeVisible();
   successArtifacts.push(
@@ -199,9 +203,11 @@ test("stale source claim surfaces and revalidates to current", async ({ page }, 
 
   await page.waitForTimeout(350);
   await page.reload();
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoredCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(restoredCard).toBeVisible();
   await restoredCard.getByRole("button", { name: "继续这里" }).click();
+  await page.locator(".workspace-learning-state > summary").click();
   await expect(
     page.getByRole("button", { name: /2 条已验证/ }),
   ).toBeVisible();

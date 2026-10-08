@@ -1,8 +1,11 @@
 import { createContext, useContext } from "react";
-import type { KnowledgeDocument, RagResult } from "../../types";
+import type { KnowledgeDocument, RagResult, TurnEvidence } from "../../types";
 import type { DocumentReading, ReadingTarget } from "./readingApi";
 
 export type ReadingContextValue = {
+  documents: KnowledgeDocument[];
+  sessionId?: string;
+  webCitation: (url:string, evidence:TurnEvidence) => ReadingTarget | null;
   target: ReadingTarget | null;
   document: DocumentReading | null;
   error: string;
