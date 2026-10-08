@@ -1,7 +1,8 @@
 # RP-1 R6b：研究资格诊断与小修复合同
 
 2026-10-08，来源：用户 R6a→R6b→R6c 执行裁定。
-**合同已登记；R6b 未实施 / NOT CLOSED。** 与已关闭的 R6a 展示适配修复分开。
+**B1 LOCAL CLOSED；B2封板中，R6b整体尚未关闭。** 与已关闭的 R6a 展示适配修复分开。
+当前执行证据见 [R6b诊断报告](RESEARCH_PRESENTATION_1_R6B_DIAGNOSIS.md)。
 不是 RP-1 PR、资格批准或发布权限。
 
 ## 恢复点与范围

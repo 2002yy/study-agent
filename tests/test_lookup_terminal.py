@@ -10,9 +10,63 @@ from src.web.research.lookup_terminal import decide_lookup_terminal, load_standa
 from src.web.research_recovery import recover_public_research
 from src.web.tool_gateway import GeneralWebGateway
 from tests.test_official_source_quality import metadata
+from tests.test_official_source_quality import fastapi_payload
 
 QUERY = "Python 3.14什么时候发布"
 URL = "https://realpython.com/python314-new-features/"
+
+
+def native_trace(monkeypatch, product):
+    query = "FastAPI 0.136.3 发布日期和版本号" if product == "fastapi" else "Opus 5.5 发布日期、版本号和定位"
+    payload = fastapi_payload() if product == "fastapi" else b'<h1>Claude Opus 5.5</h1><p>For coding.</p><code>claude-opus-5-5</code>'
+    metadata(monkeypatch, payload)
+    calls = recover_public_research(GeneralWebGateway(), query)
+    return query, calls
+
+
+@pytest.mark.parametrize("product", ["fastapi", "opus"])
+def test_native_identity_survives_field_serialization_without_granting_support(monkeypatch, product):
+    query, calls = native_trace(monkeypatch, product)
+    result = decide_lookup_terminal(query, calls, requested_fields=requested_lookup_fields(query), allow_standard=True)
+    assert result.state == "ESCALATE_STANDARD"
+    assert result.handoff["unresolved_fields"] == ["release_date"]
+    assert result.handoff["publication_authority"] is False
+    assert load_standard_handoff(result.handoff) == result.handoff
+
+
+@pytest.mark.parametrize("product", ["fastapi", "opus"])
+@pytest.mark.parametrize("mutation", ["no_spans", "bad_span", "duplicate_identity", "wrong_project", "adjacent_version", "source_version", "content_hash", "transport_hash", "wrong_url", "failed_read"])
+def test_native_handoff_keeps_identity_and_provenance_fail_closed(monkeypatch, product, mutation):
+    query, calls = native_trace(monkeypatch, product)
+    read = next(c["result"] for c in calls if c["name"] == "web_read")
+    if mutation == "no_spans":
+        read["official_fields"] = []
+    elif mutation == "bad_span":
+        read["official_fields"][0]["start"] += 1
+    elif mutation == "duplicate_identity":
+        read["official_fields"].append(deepcopy(read["official_fields"][0]))
+    elif mutation in {"wrong_project", "adjacent_version"}:
+        field = next(f for f in read["official_fields"] if f["field"] == ("project" if mutation == "wrong_project" else "version"))
+        field["value"] = "SQLite" if mutation == "wrong_project" else "0.136.2" if product == "fastapi" else "5.1"
+        body = "\n".join(f"{f['field']}: {f['value']}" for f in read["official_fields"])
+        read["content"] = body
+        read["content_sha256"] = hashlib.sha256(body.encode()).hexdigest()
+        for f in read["official_fields"]:
+            f["start"] = body.index(f"{f['field']}: {f['value']}")
+            f["end"] = f["start"] + len(f"{f['field']}: {f['value']}")
+    elif mutation == "source_version":
+        read["source_version"] = "0.136.2" if product == "fastapi" else "5.1"
+    elif mutation == "content_hash":
+        read["content_sha256"] = "0" * 64
+    elif mutation == "transport_hash":
+        read["transport_sha256"] = "missing"
+    elif mutation == "wrong_url":
+        read["url"] = "https://example.com/other"
+    elif mutation == "failed_read":
+        read["ok"] = False
+    result = decide_lookup_terminal(query, calls, requested_fields=requested_lookup_fields(query), allow_standard=True)
+    assert result.state == "SAFE_ABSTAIN"
+    assert result.handoff is None
 
 
 def relevant_calls():

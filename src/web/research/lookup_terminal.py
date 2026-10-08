@@ -112,6 +112,51 @@ def _exact_target_pattern(query: str) -> re.Pattern[str] | None:
     return target_identity_pattern(targets[0])
 
 
+def _native_identity_matches(query: str, result: dict) -> bool | None:
+    """Adapt validated native fields; None retains the generic body contract.
+
+    The native reader serializes project and version on separate lines. Reuse
+    its existing exact identity proof instead of weakening text matching.
+    This is relevance only, not support for a missing requested field.
+    """
+    from src.web.research.official_resolver import (
+        official_plan, verified_opus_identity, verified_release_identity,
+    )
+
+    if result.get("method") != "official_metadata_http_v2":
+        return None
+    plan = official_plan(query)
+    if plan is None or plan.entity not in {"fastapi", "opus"}:
+        return None
+    url = result.get("url")
+    if (url not in plan.urls or result.get("ok") is not True
+            or result.get("source_version") != plan.version
+            or not re.fullmatch(r"[0-9a-f]{64}", str(result.get("transport_sha256") or ""))):
+        return False
+    body = result.get("content")
+    fields = result.get("official_fields")
+    if not isinstance(body, str) or not isinstance(fields, list):
+        return False
+    identity_fields: set[str] = set()
+    for field in fields:
+        if not isinstance(field, dict):
+            return False
+        key = field.get("field")
+        if key not in {"project", "version"}:
+            continue
+        value, start, end = field.get("value"), field.get("start"), field.get("end")
+        if (key in identity_fields or not isinstance(value, str) or not value.strip()
+                or type(start) is not int or type(end) is not int
+                or not 0 <= start < end <= len(body)
+                or body[start:end] != f"{key}: {value}"):
+            return False
+        identity_fields.add(key)
+    if identity_fields != {"project", "version"}:
+        return False
+    verifier = verified_opus_identity if plan.entity == "opus" else verified_release_identity
+    return verifier(plan, url, result)
+
+
 def _verified_relevance_sources(
     calls: list[dict], rq_ids: set[str], summary: dict, query: str
 ) -> list[dict]:
@@ -152,6 +197,9 @@ def _verified_relevance_sources(
                 or not isinstance(body, str) or not body.strip()
                 or hashlib.sha256(body.encode()).hexdigest() != result.get("content_sha256")):
             continue
+        native_identity = _native_identity_matches(query, result)
+        if native_identity is False:
+            continue
         if semantic_related is not None:
             ids = result.get("related_rq_ids")
             if (result.get("adequacy_reason") != "related_to_rq_not_claim_support"
@@ -159,7 +207,9 @@ def _verified_relevance_sources(
                     or not all(isinstance(item, str) for item in ids)
                     or not set(ids) <= rq_ids or not set(ids) <= semantic_related):
                 continue
-        elif deterministic_pattern is None or not deterministic_pattern.search(body):
+        elif native_identity is not True and (
+            deterministic_pattern is None or not deterministic_pattern.search(body)
+        ):
             continue
         sources.append(deepcopy(call))
     return sources
