@@ -20,7 +20,36 @@ def discovered_urls(handoff: dict) -> set[str]:
     for call in handoff["attempted"]:
         if call["name"] == "web_search":
             urls.update(search_urls(call["result"], handoff["query"]))
+        elif call["name"] == "official_resolve":
+            urls.update(resolver_urls(call, handoff["query"]))
     return urls
+
+
+def resolver_urls(call: dict, query: str) -> list[str]:
+    """Carry saved registry candidates, without declaring their evidence identity."""
+    arguments, result = call.get("arguments"), call.get("result")
+    if not isinstance(arguments, dict) or not isinstance(result, dict):
+        return []
+    if (
+        arguments.get("query") != query
+        or arguments.get("recovery_stage") != "official_resolver"
+        or result.get("status") != "ok"
+        or result.get("reason") != "known_official_addresses_not_search_results"
+        or not isinstance(result.get("results"), list)
+    ):
+        return []
+    plan = official_plan(query)
+    if plan is None:
+        return []
+    return list(
+        dict.fromkeys(
+            url
+            for row in result["results"]
+            if isinstance(row, dict)
+            and row.get("policy_allowed") is not False
+            and (url := public_url(row.get("url"))) in plan.urls
+        )
+    )
 
 
 def public_url(value: Any) -> str:

@@ -29,6 +29,16 @@
     }
   },
   "impact_sets": {
+    "standard_official_candidates": [
+      "tests/test_standard_official_candidates.py",
+      "tests/test_standard_research.py",
+      "tests/test_standard_execution.py",
+      "tests/test_standard_handoff.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_standard_continuation.py",
+      "tests/test_lookup_official_identity.py",
+      "tests/test_official_source_quality.py"
+    ],
     "research_presentation_v1": [
       "tests/test_research_presentation.py",
       "tests/test_answer_ui_probe.py",
@@ -308,6 +318,7 @@
       "tests/test_web_tool_agent.py"
     ],
     "standard_research_loop": [
+      "tests/test_standard_official_candidates.py",
       "tests/test_standard_continuation.py",
       "tests/test_standard_binding_projection.py",
       "tests/test_standard_binding.py",
@@ -349,6 +360,10 @@
   },
   "stage_gates": {
     "research-presentation-v1": [
+      "tests/test_standard_official_candidates.py",
+      "tests/test_standard_research.py",
+      "tests/test_standard_execution.py",
+      "tests/test_standard_continuation.py",
       "tests/test_research_presentation.py",
       "tests/test_answer_ui_probe.py",
       "tests/test_standard_binding.py",
