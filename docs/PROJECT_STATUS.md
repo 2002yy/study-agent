@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 回答中的状态驱动小型应用（LOCAL UI GO / 第三层真实数据未接入）：** 用户提供Java引用实验、证据审查和并发性能实验参考，强调操作/状态变化/验证判断。独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；base `1e47974983431aeb5151e864ca459636f50cfd02`，生产/设计提交 `2f1120cf0cbe7077b6872340f96d13cf217f6939`，10文件280行增/2删。详见INTERACTIVE_ANSWER_DESIGN.md补充。
+
+**实现：** study-ui扩展memory_lab/performance_lab/evidence_lab，模型选择模板与初始数据，应用负责固定状态转换、计算和视图同步。Java连续操作同步代码/引用/堆对象/说明，null访问呈现异常而不改变状态，不可达不冒充实际GC，最多12对象；性能同一参数状态派生ceil批次、串/并发耗时、图表与节省，默认38s/18s/53%；证据实验严格simulation标签、有限正例不证明全称、主观评论不能作为测量、反例能推翻原命题。不新增研究纳入/撤回API，不改真实发布结果。新格式继续用原瞬时UI上下文，不改变后端/搜索/持久化。DEV-only可操作预览 `http://127.0.0.1:5188/answer-labs.html` 使用相同组件，三标签切换，局部状态保留，不发聊天/研究请求/不写资料；不包含在默认生产构建入口。
+
+**证据：** 最终影响集36文件178 PASS/10.38s；前端109文件453 PASS/48.10s；完整浏览器77 PASS/2.0m、53份golden artifact gate通过；新桌面/手机2 PASS/4.4s。tsc+Vite build、Ruff src/tests/tools、diff-check/范围审查PASS。预览实页1280/320、三套按钮/复选框/滑块及默认/反例状态视觉检查PASS，无横向溢出；会话内浏览器验证连续操作、默认/单线程计算、草稿保留。初次build数组缺闭括号，修复后通过；首轮unit/browser定位status包含output的隐式status导致歧义，为预测结论命名并精确选择后通过，未放宽计算或判断断言。既有>500kB chunk warning保留。无后端生产/测试变化，不重复既有22合同或后端L3/mypy；前端typing由tsc覆盖。
+
+**交接与唯一下一slice：** `D:/study-agent-validation/reading-notebook-ui-evidence/qa-labs.json`、labs-focused-final/unit-full/build-closed/browser-full日志与labs-memory/evidence/performance/mobile截图。UI工作树生产提交后clean，临时PW配置删除；本段docs-only，final head由git/QA恢复。main仍7ff7451d及原4项dirty保持；无push/PR/新CI/merge。本批是三类有状态模板，不是任意小程序生成器；真实模型自动选择仍未线上验收，数据都是教学演示。下一slice：只读绑定服务器拥有的真实研究snapshot/来源身份/核验状态，明确本地假设选择和正式发布结果；搜索执行与逐段发布合同由另一窗口继续拥有。
+
 **2026-10-08 GPT-6 Chat 公开原理拆解与交互回答应用（LOCAL UI GO / 原生模型与研究提速未资格验收）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；base `fb1d80d13126346d3fe18fa6f8b878130fc80ea4`，生产/设计提交 `08c8ad8208e8c9b9ff4272163dfc1ec4cefa31bf`，15文件555行增/17删。公开来源与直接所有者记录在 [INTERACTIVE_ANSWER_DESIGN.md](INTERACTIVE_ANSWER_DESIGN.md)，仅此批设计记录，不替代当前状态。
 
 **行为：** 助手Markdown回答可包含白名单study-ui JSON块：可调固定函数图、切换柱/折线的数据图、可放大真实图片、加入草稿的后续问题按钮、明确坐标的按需OpenStreetMap地图。完整块逐步出现，未闭合块等待，不解析用户消息里的组件；坏/未知数据退回普通代码，拒绝脚本/任意公式。控件状态在追加token时保留；草稿按钮不覆盖旧输入、不自动发送，复制转为可读说明/初始数据，存储仍为原回答文本，刷新重建组件。组件说明与既有Firefly上下文通过现成TURN_CONTEXT_V1 envelope接入真实请求，用户手写instruction原样保留；实际前端生成envelope经过ChatRequest→ChatCommand→scene_policy及_session_settings核验，UI上下文到模型但不进入持久偏好。当前回答内显示真实研究阶段/查询/读取数和可先阅读提示，没有虚构百分比。
