@@ -19,6 +19,9 @@ describe("ExternalDataFirstUseNotice", () => {
       />,
     );
     expect(screen.getByRole("complementary", { name: "联网与模型上下文说明" })).toBeVisible();
+    const disclosure = screen.getByLabelText("联网与模型上下文说明", { selector: "summary" });
+    expect(disclosure.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(disclosure);
     expect(screen.getByText(/任务需要时自动联网/)).toBeVisible();
     expect(screen.getByText(/相关本地资料片段/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "查看隐私设置" }));

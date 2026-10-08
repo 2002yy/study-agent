@@ -55,7 +55,8 @@ test("sources drawer separates adopted evidence, documents, and diagnostics", as
   await page.goto("/");
   await expect(page.getByText(SOURCE_REPLY, { exact: true })).toBeVisible();
 
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: /资料与来源/ }).click();
   const dialog = page.getByRole("dialog", { name: "资料与来源" });
   await expect(dialog).toBeVisible();
@@ -89,10 +90,12 @@ test("sources drawer separates adopted evidence, documents, and diagnostics", as
   // The reading launcher opens the library; More -> sources keeps its answer
   // evidence entry point, including after returning from the reading launcher.
   await dialog.getByRole("button", { name: "关闭资料与来源", exact: true }).click();
-  await page.getByRole("button", { name: "阅读资料", exact: true }).click();
+  if (!(await page.getByRole("button", { name: "管理阅读资料", exact: true }).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByRole("button", { name: "管理阅读资料", exact: true }).click();
   await expect(dialog.getByRole("tab", { name: "我的资料" })).toHaveAttribute("aria-selected", "true");
   await dialog.getByRole("button", { name: "关闭资料与来源", exact: true }).click();
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: /资料与来源/ }).click();
   await expect(dialog.getByRole("tab", { name: "本次回答依据" })).toHaveAttribute("aria-selected", "true");
 

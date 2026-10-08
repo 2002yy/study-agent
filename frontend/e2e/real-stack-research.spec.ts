@@ -25,10 +25,8 @@ async function run(page: Page, id: string) {
 }
 
 async function startResearchFromChat(page: Page) {
-  await page.getByText("更多开始方式", { exact: true }).click();
-  await page.getByRole("button", { name: /联网研究/ }).click();
   const composer = page.getByLabel("输入学习问题");
-  await expect(composer).toHaveValue("请联网研究：");
+  // Explicit chat search is the supported entry after simplifying the composer.
   await composer.fill(RESEARCH_QUERY);
   await page.getByRole("button", { name: "发送" }).click();
 }

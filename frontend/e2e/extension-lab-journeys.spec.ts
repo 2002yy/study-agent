@@ -15,10 +15,11 @@ test("laboratory stays dormant until selection and restores focus on return", as
   const fixture = await installApiFixture(page);
   await page.goto("/");
 
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   const labEntry = page.getByRole("menuitem", { name: /实验室/ });
   const directMenuLabels = page.locator(
-    'details.workspace-menu [role="menuitem"] strong',
+    'details.workspace-menu:visible [role="menuitem"] strong',
   );
   await expect(labEntry).toBeVisible();
   await expect(directMenuLabels.filter({ hasText: "实验室" })).toHaveCount(1);

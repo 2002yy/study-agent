@@ -1,4 +1,6 @@
-import { Plus } from "lucide-react";
+import type { ReactNode } from "react";
+import { BookOpen, Plus } from "lucide-react";
+import { ReadingLibraryNavigation } from "../reading/ReadingLibraryNavigation";
 
 import type { SessionRow } from "../../types";
 import { SessionNavigatorBody } from "./SessionNavigatorBody";
@@ -13,6 +15,7 @@ export type SessionNavigatorProps = SessionNavigatorActions & {
   isSending?: boolean;
   onNewSession?: () => void;
   variant?: "sidebar" | "panel";
+  actions?: ReactNode;
 };
 
 export function SessionNavigator({
@@ -24,6 +27,7 @@ export function SessionNavigator({
   onNewSession,
   onSessionChanged,
   variant = "sidebar",
+  actions,
 }: SessionNavigatorProps) {
   const navigator = useSessionNavigator(sessions, activeSessionId, {
     onRestore,
@@ -58,7 +62,9 @@ export function SessionNavigator({
             </button>
           ) : null}
         </div>
+        <ReadingLibraryNavigation/>
         {body}
+        {actions}
       </section>
     );
   }
@@ -66,19 +72,22 @@ export function SessionNavigator({
   return (
     <aside className="session-sidebar session-navigator">
       <header className="session-sidebar-header">
-        <div>
-          <strong>学习会话</strong>
-          <span>{navigator.semanticSessions.length} 个记录</span>
+        <div className="workspace-sidebar-brand">
+          <BookOpen size={20} aria-hidden="true"/>
+          <strong>学习工作台</strong>
         </div>
         <button
           className="ghost-action compact"
+          aria-label="新会话"
           onClick={onNewSession}
           type="button"
         >
-          <Plus size={14} /> 新会话
+          <Plus size={17} /> 新对话
         </button>
       </header>
+      <ReadingLibraryNavigation/>
       {body}
+      {actions}
     </aside>
   );
 }

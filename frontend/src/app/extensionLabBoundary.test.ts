@@ -7,7 +7,7 @@ const sourceOf = (relativePath: string) => {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 };
 
-const chatPanelSource = sourceOf("../features/single-chat/ChatPanel.tsx");
+const chatPanelSource = sourceOf("../features/single-chat/WorkspaceActions.tsx");
 const launcherSource = sourceOf("../features/extensions/ExtensionLauncher.tsx");
 const contractSource = sourceOf("../features/extensions/extensionDrawerContract.ts");
 const labPanelSource = sourceOf("../features/extensions/ExtensionLabPanel.tsx");

@@ -77,8 +77,7 @@ describe("active query selector", () => {
     );
     expect(declarationOwners).toEqual(["app/useExtensionRuntime.ts"]);
 
-    expect(viewSource).toContain(
-      "onSearchSources={() => ragController.search(extensionView.activeQuery)}",
-    );
+    expect(viewSource).not.toContain("onSearchSources=");
+    expect(viewSource).toContain("await chatController.send(question ?? ui.input.trim())");
   });
 });

@@ -13,6 +13,7 @@ import {
   useChatController,
 } from "../features/chat/chatController";
 import { abandonInterruptedTurn } from "../features/chat/recoveryApi";
+import { packAnswerUiContext } from "../features/answer-ui/answerUiProtocol";
 import { useMemoryController } from "../features/learning-memory/memoryController";
 import {
   buildFireflyConversationContext,
@@ -186,10 +187,7 @@ export function useLearningSessionRuntime(options: {
     [fireflyLessonState],
   );
   const effectiveConversationInstruction = useMemo(
-    () =>
-      [conversationInstruction.trim(), defaultLessonContext.trim()]
-        .filter(Boolean)
-        .join("\n\n"),
+    () => packAnswerUiContext(conversationInstruction, defaultLessonContext),
     [conversationInstruction, defaultLessonContext],
   );
 

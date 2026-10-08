@@ -1,4 +1,5 @@
 import { humanizeUiError } from "../../utils/uiLabels";
+import { answerCopyText } from "../answer-ui/answerUiProtocol";
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   archiveSession,
@@ -605,7 +606,7 @@ export function useChatController(options: ControllerOptions) {
 
   const copyInterrupted = async () => {
     if (state.streamRecovery?.reply) {
-      await navigator.clipboard.writeText(state.streamRecovery.reply);
+      await navigator.clipboard.writeText(answerCopyText(state.streamRecovery.reply));
     }
   };
 
