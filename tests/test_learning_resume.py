@@ -165,6 +165,14 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
     assert latest["revision_id"] == second.revision.revision.id
     assert latest["understanding_status"] == "confirmed"
     assert latest["validation_result"] == "pass"
+    # Learning State-1 §2.1 (T07): confirmed durable understanding is the only
+    # mastery evidence, and its provenance is explicit.
+    assert latest["authority"]["authority"] == "verified"
+    assert latest["authority"]["is_mastery_evidence"] is True
+    # The provenance id is the real UnderstandingEvidence id (lineage-resolved),
+    # not the ClaimRevision id.
+    assert latest["authority"]["source_id"] == pass_evidence.id
+    assert latest["authority"]["source"] == "durable.understanding"
     assert latest["primary_evidence"]["commit_sha"] == COMMIT_B
     assert "user_response" not in latest["latest_validation"]
     failed = next(
@@ -174,6 +182,10 @@ def test_durable_resume_uses_latest_revision_and_bounded_semantic_state(tmp_path
     )
     assert failed["understanding_status"] == "attempted"
     assert failed["validation_result"] == "fail"
+    # Learning State-1 §2.1 (T08): a non-confirmed durable status is not mastery.
+    assert failed["authority"]["authority"] == "system_inferred"
+    assert failed["authority"]["is_mastery_evidence"] is False
+    assert failed["authority"]["source_id"] == fail_evidence.id
     assert resume["unresolved"] == [
         {
             "hypothesis_id": hypothesis.id,
@@ -230,6 +242,11 @@ def test_legacy_fallback_keeps_old_confirmed_points_outside_formal_claims(tmp_pa
         "legacy point one",
         "legacy point two",
     ]
+    # Learning State-1 §2.1/§6 (T03): legacy points are read-only labelled and
+    # are never mastery evidence.
+    authorities = resume["legacy_confirmed_points_authority"]
+    assert {item["authority"] for item in authorities} == {"legacy_unverified"}
+    assert all(item["is_mastery_evidence"] is False for item in authorities)
     assert resume["goal"] == {
         "objective": "Legacy objective",
         "status": "legacy_unverified",
