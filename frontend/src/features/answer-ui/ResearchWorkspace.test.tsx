@@ -7,6 +7,18 @@ import { researchFixture } from "./researchPresentation.fixture";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe("research workspace data binding", () => {
+  it("renders equal-version authoritative reads and ignores late partial SSE", async () => {
+    const event = researchFixture(); event.snapshot_kind = "run"; event.turn_updated_at = null;
+    event.blocks[0].read_count = 0;
+    const turn = researchFixture(); turn.blocks[0].read_count = 1; turn.watch = false;
+    turn.blocks[0].research_status = "completed";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(turn))));
+    const view = render(<ResearchWorkspace sessionId="s1" turnId="t1" initial={event} />);
+    await screen.findByText(/读取成功 1/);
+    view.rerender(<ResearchWorkspace sessionId="s1" turnId="t1" initial={{ ...event }} />);
+    expect(screen.getByText(/读取成功 1/)).toBeInTheDocument();
+    expect(screen.getByText("研究结束")).toBeInTheDocument();
+  });
   it("pauses hidden-tab reads and stops polling a missing turn", async () => {
     vi.useFakeTimers();
     const request = vi.fn().mockResolvedValue(new Response("", { status: 404 }));

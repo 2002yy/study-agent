@@ -573,10 +573,10 @@ export type ChatResearchProgress = {
   error: string;
   query_attempt_count: number;
   selected_source_count: number;
-  candidate_count?: number;
-  read_count?: number;
-  cluster_count?: number;
-  open_critical_gap_count?: number;
+  candidate_count?: number | null;
+  read_count?: number | null;
+  cluster_count?: number | null;
+  open_critical_gap_count?: number | null;
   active_phase?: string | null;
   gate_status?: string | null;
   version: number;

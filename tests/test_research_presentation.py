@@ -14,6 +14,8 @@ from src.domain.runtime_entities import WebLookupRun
 from src.web.research.standard_binding_projection import journal_work_key
 from tests.test_deep_publication import _audit_result
 from src.web.research.runtime import ResearchRuntimeCursor, attach_runtime_cursor
+from src.api.routes.chat_routes import _research_progress
+import pytest
 
 
 def run(**kwargs):
@@ -24,6 +26,21 @@ def run(**kwargs):
         research_context={"owner": {"thread_id": "s1", "turn_id": "t1"}},
         **kwargs,
     )
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [(None, None), (0, 0), (1, 1), (-1, None), (True, None), ("1", None)],
+)
+def test_legacy_progress_missing_or_invalid_counters_are_unknown(value, expected):
+    item = replace(
+        run(), research_context={"claim_engine_metrics": {"read_count": value}}
+    )
+    progress = _research_progress(item)
+    assert progress["read_count"] == expected
+    assert progress["candidate_count"] is None
+    assert progress["cluster_count"] is None
+    assert progress["open_critical_gap_count"] is None
 
 
 def test_missing_counters_and_unread_source_never_become_verified():

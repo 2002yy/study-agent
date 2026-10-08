@@ -395,11 +395,9 @@ def _research_progress(run: Any) -> dict[str, Any]:
         if isinstance(candidate, dict):
             active_brief = candidate
 
-    def count(name: str) -> int:
-        try:
-            return max(0, int(active_metrics.get(name) or 0))
-        except (TypeError, ValueError):
-            return 0
+    def count(name: str) -> int | None:
+        value = active_metrics.get(name)
+        return value if type(value) is int and value >= 0 else None
 
     steps = [
         step for step in deep.get("steps", []) if isinstance(step, dict)

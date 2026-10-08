@@ -30,6 +30,19 @@ function run(status: ResearchLookupResponse["status"]): ResearchLookupResponse {
 }
 
 describe("ChatResearchRecovery", () => {
+  it.each([undefined, null, 0, 3])("distinguishes missing reads from actual count %s", reads => {
+    const { container, unmount } = render(<ChatResearchRecovery
+      run={null}
+      progress={{ run_id: "r-count", status: "running", stage: "reading", provider_status: "", stop_reason: "", error: "",
+        query_attempt_count: 0, selected_source_count: 0, read_count: reads, version: 1 }}
+      isBusy={false} canRetry={false} canResume={false} useInChat={false} onRetry={vi.fn()} onResume={vi.fn()}
+    />);
+    expect(container.textContent).toContain(`已读 ${reads ?? "—"}`);
+    expect(container.textContent).toContain("候选 —");
+    expect(container.textContent).toContain("独立证据簇 —");
+    expect(container.textContent).toContain("未闭合关键缺口 —");
+    unmount();
+  });
   it("shows live progress from the chat preparation stream", () => {
     const { container } = render(
       <ChatResearchRecovery

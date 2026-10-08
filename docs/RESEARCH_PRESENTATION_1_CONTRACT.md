@@ -123,3 +123,21 @@ code is unchanged. R6 NO-GO / RP1 NOT CLOSED; no RP PR, push, new L3 or remote G
 Next proposed slice is the independent read-only equal-version merge repair;
 identity/semantic engine fixes require a separate bounded contract before a new
 registered real qualification batch. Do not extend this batch or fabricate gaps.
+
+## 2026-10-08 R6a local closure
+
+The durable-run -> recorded SSE -> UI trace distinguishes run read_summary=0
+from completed owned turn recovery=1. Same-version authoritative turn enrichment
+now replaces partial SSE blocks; corrections may decrease to zero or become
+unknown. Older turns/revisions and late same-version partial SSE cannot roll back
+the result. Legacy progress counters preserve actual zero and represent absent or
+invalid data as null/unknown. No engine admission, identity, schema, budget or
+publication semantics changed.
+
+Focused frontend/backend 34/117 PASS; full frontend 476/build PASS; named L2 264
+PASS; Ruff PASS; mypy 122/128 NEW0; diff-check PASS. Frozen real S1/S3/S5 SQLite
+and actual React/FastAPI replay renders read1, including refresh/late events,
+desktop/mobile, lower/unknown corrections and run isolation. Original DB unchanged,
+no new provider calls. R6a LOCAL CLOSED; R6/RP1 remain NO-GO, Deep recovery and TTUV
+NOT_OBSERVED. No push, PR, L3 or CI. Main observed at f35b13b7; keep the unpushed
+B commits and compare against the latest main only when ready for PR.

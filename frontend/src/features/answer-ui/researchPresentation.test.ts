@@ -3,6 +3,41 @@ import { mergeResearchPresentation, parseResearchPresentation } from "./research
 
 import { researchFixture } from "./researchPresentation.fixture";
 describe("read-only research presentation", () => {
+  it.each([1, 0, null])("uses authoritative equal-version turn counts, including %s", readCount => {
+    const event = researchFixture(); event.snapshot_kind = "run"; event.turn_updated_at = null;
+    event.blocks[0].read_count = 4;
+    const turn = researchFixture(); turn.blocks[0].read_count = readCount;
+    turn.blocks[0].research_status = "completed"; turn.watch = false;
+    const merged = mergeResearchPresentation(event, turn);
+    expect(merged.blocks[0].read_count).toBe(readCount);
+    expect(merged.watch).toBe(false);
+    // An equal-revision partial SSE cannot undo the full turn's correction.
+    expect(mergeResearchPresentation(merged, event)).toEqual(merged);
+  });
+  it("replaces SSE zero with a same-version durable read, without accepting older turn corrections", () => {
+    const event = researchFixture(); event.snapshot_kind = "run"; event.turn_updated_at = null;
+    event.blocks[0].read_count = 0;
+    const turn = researchFixture(); turn.blocks[0].read_count = 1;
+    const merged = mergeResearchPresentation(event, turn);
+    expect(merged.blocks[0].read_count).toBe(1);
+    const stale = researchFixture(); stale.turn_updated_at = "2026-10-08T09:00:00Z";
+    stale.blocks[0].read_count = 9;
+    expect(mergeResearchPresentation(merged, stale)).toEqual(merged);
+    stale.snapshot_kind = "run"; stale.turn_updated_at = null; stale.blocks[0].revision = 1;
+    expect(mergeResearchPresentation(merged, stale)).toEqual(merged);
+  });
+  it("does not inherit counts across sessions, turns or run identities", () => {
+    const previous = researchFixture(); previous.blocks[0].read_count = 8;
+    const session = researchFixture(); session.session_id = "s2";
+    expect(mergeResearchPresentation(previous, session).blocks[0].read_count).toBeNull();
+    const turn = researchFixture(); turn.turn_id = "t2";
+    expect(mergeResearchPresentation(previous, turn).blocks[0].read_count).toBeNull();
+    const nextRun = researchFixture(); nextRun.blocks[0].run_id = "r2";
+    nextRun.blocks[0].block_id = "r2:research"; nextRun.blocks[0].sources = [];
+    const merged = mergeResearchPresentation(previous, nextRun);
+    expect(merged.blocks.find(b => b.run_id === "r2")?.read_count).toBeNull();
+    expect(merged.blocks.find(b => b.run_id === "r1")?.read_count).toBe(8);
+  });
   it("accepts structured server status while refusing self-granted publication", () => {
     const s = researchFixture();
     expect(parseResearchPresentation(s)).toEqual(s);

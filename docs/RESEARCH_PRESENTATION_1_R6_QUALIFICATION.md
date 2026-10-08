@@ -105,3 +105,48 @@ finding 不能被之前的 R1–R5 mock/回归 PASS 覆盖，也没有修改候�
 通用语义执行需另立 bounded 引擎修复合同，保留资格/发布权限。修复并取得授权后再
 另开预登记 qualification 批次；真实后台恢复、完整 lineage 和 TTUV 仍是封 R6 的门。
 本轮只有文档提交，未执行新 L3、push、RP PR 或 exact-head CI。
+
+## R6a：同版本快照一致性（2026-10-08，本地 CLOSED）
+
+恢复点 `4c36b935` / `b979b7aa` 保留。冷启动已核实 origin/main 为
+`f35b13b78498f1e7ce2ad678bf6687bd85fb220a`；没有合入或覆盖 #201 UI。
+
+实现前的三段 trace 保存为 `reading-notebook-ui-evidence/r6a/trace-before.json`：
+S1/S3/S5 的 durable ResearchRun.read_summary.successful 均为 0、run version=3；
+最终 turn 的同 run recovery/read_count 为 1；原始 research_presentation SSE 为 0，
+权威 turn GET 为 1，原 UI 仍为 0。不是 ResearchRun 中的 1 被 React 改成了 0：
+run-only 事件缺少已完成 turn 的恢复计量，两个记录所有权不同。首次 UI 丢失发生在
+合并器拒绝同版本完整 turn 的补全。旧 research 进度另从缺失 metrics 补 0，旧
+ChatResearchRecovery 再次补 0；这是独立适配缺陷，不冒充前三例的唯一根因。
+
+修复保持在展示适配层：
+
+- `mergeResearchPresentation`：有效、未过期的权威 turn 快照可整块替换同版本部分
+  SSE block。值按权威和版本采用，可纠错下降到 0 或 null，不用 Math.max。
+  旧 turn timestamp / 旧 run revision / 同版本部分 SSE 不能覆盖较新完整快照。
+- `_research_progress`：缺失/null/非法计数为 null，真实非负整数 0 保留。
+  `ChatResearchProgress` 接受 nullable counters；旧进度/lineage 展示未知为“—”。
+  不从不相关记录猜计数，不改变 ResearchRun 持久记录或新的 RP 投影引擎。
+- session/turn 切换替换快照；不同 run 使用独立 block，计数不继承。
+
+负控先红后绿：修复前新增前端用例 5 失败，后端缺失/非法计数 6 失败。
+修复后前端影响集 34 PASS；后端影响集 117 PASS / 128.98s；完整前端
+476 PASS / 112 files、tsc/Vite build PASS；命名 L2 research-presentation-v1
+264 PASS / 99.54s；Ruff 全仓 PASS；mypy 122 / baseline128、NEW0；diff-check PASS。
+新增 Python 用例格式检查 PASS；chat_routes.py 整文件有基线已有格式差异，未进行
+无关整文件重排。一次手工误读 manifest key 形成空测试路径，已在收集期间中止；
+不算 L3，通过仓库既有 stage runner 执行了上述唯一有效 L2。
+
+真实持久记录重放（不是新资格样本）：复制原 SQLite，真实 FastAPI GET 与实际 React
+ResearchWorkspace，S1/S3/S5 同版本均显示读取1，与服务端一致，刷新和迟到同版本
+SSE 不回退；另验证权威纠正为0/null、旧事件不能恢复running、跨thread/run不继承。
+1440/390截图均视觉核对，无相关运行错误；仅favicon404，不是框架故障。
+Browser plugin not available，使用 Playwright CLI。原 DB SHA256 不变，0次新provider
+请求；后台服务与浏览器已关闭，临时前端文件已移除。结果/截图/脚本位于
+`D:/study-agent-validation/reading-notebook-ui-evidence/r6a/`，正式索引由 closeout-state.json
+恢复候选 SHA 与 dirty state。独立阅读记录与审计/发布状态没有被改写。
+
+**R6a LOCAL CLOSED；R6 / RP-1 仍 NO-GO。** 预算、身份资格、semantic schema、
+Deep trigger 与发布权限均未改。Deep真实运行/恢复与TTUV仍NOT_OBSERVED。
+未push、未开RP PR、未执行新的L3或远端CI；下一刀按独立R6b合同诊断修复研究资格，
+然后才执行R6c原样回归与新的预登记资格样本。

@@ -88,13 +88,18 @@ export function parseResearchPresentation(value: unknown): ResearchPresentation 
 export function mergeResearchPresentation(current: ResearchPresentation | null, incoming: ResearchPresentation): ResearchPresentation {
   if (!current || current.session_id !== incoming.session_id || current.turn_id !== incoming.turn_id) return incoming;
   const blocks = new Map(current.blocks.map(b => [b.block_id, b]));
-  for (const b of incoming.blocks) if (!blocks.has(b.block_id) || blocks.get(b.block_id)!.revision < b.revision) blocks.set(b.block_id, b);
-  const all = [...blocks.values()];
   const staleRun = incoming.blocks.some(b => current.blocks.some(old => old.block_id === b.block_id && old.revision > b.revision));
   // Run SSE is a partial observation, not a replacement of the turn's audit ledger.
   const newerTurn = incoming.snapshot_kind === "turn" && !staleRun
     && (current.turn_updated_at === null || (incoming.turn_updated_at !== null
       && Date.parse(incoming.turn_updated_at) >= Date.parse(current.turn_updated_at)));
+  // A full turn can enrich/correct a partial SSE at the same run revision.
+  // Replace its block as a unit: counts can decrease or become unknown.
+  for (const b of incoming.blocks) {
+    const previous = blocks.get(b.block_id);
+    if (!previous || previous.revision < b.revision || (previous.revision === b.revision && newerTurn)) blocks.set(b.block_id, b);
+  }
+  const all = [...blocks.values()];
   const envelope = newerTurn ? incoming : current;
   return { ...envelope, watch: envelope.watch || all.some(b => ["pending", "running"].includes(b.research_status)),
     blocks: all.length <= 20 ? all : [all[0], ...all.slice(-19)] };

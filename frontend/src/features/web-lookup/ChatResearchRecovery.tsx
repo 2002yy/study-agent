@@ -16,12 +16,16 @@ const stageLabels: Record<string, string> = {
   cancelled: "研究已停止",
 };
 
+function countLabel(value: unknown): string {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? String(value) : "—";
+}
+
 function progressMetrics(progress: ChatResearchProgress): string {
   return [
-    `候选 ${progress.candidate_count ?? 0}`,
-    `已读 ${progress.read_count ?? 0}`,
-    `独立证据簇 ${progress.cluster_count ?? 0}`,
-    `未闭合关键缺口 ${progress.open_critical_gap_count ?? 0}`,
+    `候选 ${countLabel(progress.candidate_count)}`,
+    `已读 ${countLabel(progress.read_count)}`,
+    `独立证据簇 ${countLabel(progress.cluster_count)}`,
+    `未闭合关键缺口 ${countLabel(progress.open_critical_gap_count)}`,
   ].join(" · ");
 }
 
@@ -150,8 +154,8 @@ export function ChatResearchRecovery({
             {lineage.added} · 已失效/排除 {lineage.rejected}
           </span>
           <span>
-            整条研究链累计搜索 {Number(aggregate.search_count ?? 0)} 次、读取{" "}
-            {Number(aggregate.read_count ?? 0)} 次、后续研究 {Number(aggregate.child_count ?? 0)} 个。
+            整条研究链累计搜索 {countLabel(aggregate.search_count)} 次、读取{" "}
+            {countLabel(aggregate.read_count)} 次、后续研究 {countLabel(aggregate.child_count)} 个。
           </span>
         </div>
         {canResume ? (
