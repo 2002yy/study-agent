@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { ArrowUpRight, Image, MapPin, RotateCcw } from "lucide-react";
 import type { AnswerCard } from "./answerUiProtocol";
+import { ConsentImage } from "../../components/ConsentImage";
 import "./answerUi.css";
 import { EvidenceLab, MemoryLab, PerformanceLab } from "./AnswerLabs";
 
@@ -13,6 +14,7 @@ function Plot({ card }: { card: Extract<AnswerCard, { type: "plot" }> }) {
   const formula = `y = ${a}${card.fn === "quadratic" ? "x²" : card.fn === "sine" ? "sin(x)" : "x"} ${b < 0 ? "−" : "+"} ${Math.abs(b)}`;
   return <>
     <p className="answer-formula"><output aria-live="polite">{formula}</output><span>数学示意 · x ∈ [−5, 5]，y 显示 [−30, 30]</span></p>
+    <small>回答中的展示数据 · 尚无服务端来源绑定</small>
     <svg viewBox="0 0 480 230" role="img" aria-label={`${card.title}：${formula}`}>
       <defs><clipPath id={clip}><rect x="40" y="20" width="400" height="180" /></clipPath></defs>
       {[-30, 0, 30].map(y => <g key={y}><line x1="40" x2="440" y1={110 - y * 3} y2={110 - y * 3} className="answer-grid" /><text x="30" y={114 - y * 3} textAnchor="end">{y}</text></g>)}
@@ -59,7 +61,7 @@ function Picture({ card }: { card: Extract<AnswerCard, { type: "image" }> }) {
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
   return <figure className={`answer-picture${expanded ? " is-expanded" : ""}`}>
-    {failed ? <p><Image size={18} />图片暂时无法显示：{card.alt}</p> : <img src={card.src} alt={card.alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />}
+    {failed ? <p><Image size={18} />图片暂时无法显示：{card.alt}</p> : <ConsentImage src={card.src} alt={card.alt} onFailure={() => setFailed(true)} />}
     {card.caption ? <figcaption>{card.caption}</figcaption> : null}
     <div className="answer-controls">{!failed ? <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "收起图片" : "放大图片"}</button> : null}<a href={card.src} target="_blank" rel="noreferrer noopener">打开原图<ArrowUpRight size={14} /></a></div>
   </figure>;

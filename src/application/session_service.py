@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.application.learning_authority_projection import (
+    classify_legacy_confirmed_points,
+)
 from src.domain.runtime_entities import ChatThread, ChatTurn, new_id
 from src.infrastructure.markdown.session_archive import (
     LegacySessionImporter,
@@ -442,6 +445,13 @@ class SessionService:
         confirmed_points = _bounded_string_list(
             thread.learning_state.get("confirmed_points")
         )
+        # Learning State-1 §2.1/§2.2: legacy confirmed_points carry no traceable
+        # authority, so they are published as legacy_unverified and never as
+        # mastery evidence. The raw list is kept unchanged for compatibility.
+        confirmed_points_authority = [
+            item.to_dict()
+            for item in classify_legacy_confirmed_points(confirmed_points)
+        ]
         payload = thread.learning_state.get("payload")
         next_action = (
             _normalized_text(payload.get("next_action"))
@@ -484,6 +494,7 @@ class SessionService:
             "phase": phase,
             "unresolved_gap": unresolved_gap,
             "confirmed_points": confirmed_points,
+            "confirmed_points_authority": confirmed_points_authority,
             "next_action": next_action,
             "disclosed_sources": disclosed_sources,
             "last_completed_turn_id": latest_completed.id if latest_completed else None,

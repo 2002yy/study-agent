@@ -53,3 +53,20 @@
   .answer-card :is(button, a) { min-height: 44px; }
   .answer-card h3 { font-size: 14px; }
 }
+
+/* Browser-side resource consent applies to both study-ui cards and Markdown images. */
+.answer-external-image-consent {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  max-width: 100%; padding: 10px 12px; border: 1px dashed #c5d4df;
+  border-radius: 10px; background: #f7fafc; font-size: 12px; line-height: 1.6;
+  color: var(--muted);
+}
+.answer-external-image-consent > span { overflow-wrap: anywhere; }
+.answer-external-image-consent > button {
+  min-height: 36px; padding: 6px 10px; border: 1px solid #cad9e3;
+  border-radius: 8px; background: #fff; color: var(--text); cursor: pointer;
+}
+.answer-external-image-consent > button:focus-visible { outline: 2px solid #567f9a; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .answer-external-image-consent > button { min-height: 44px; }
+}
