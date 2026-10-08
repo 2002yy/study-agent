@@ -98,3 +98,28 @@ Changing engine admission, evidence authority or publication is outside RP1 scop
 No new backend L3/remote GO is claimed before RP1 phase closure.
 
 Final frozen-code gates: browser 79 PASS / 2.1m; real React/FastAPI/SQLite browser 14 PASS / 49.8s; restoration-specific unit 13 PASS. A focused two-case browser invocation passed its cases but failed the repository-wide teardown because it did not generate the complete Golden Journey manifest; the full final run above supplies that manifest without weakening teardown. This slice is a local R1-R5 checkpoint, not RP1 phase closure. No RP PR or remote CI was triggered. Once the separate UI integration reaches main, transfer only the RP increment from ec02590f onto that final main, preserving its image-consent fix and Learning State-1. Existing real observations remain tied to their original dirty source digests; the final projection evidence is explicitly frozen replay, not new-head provider execution.
+
+## 2026-10-08 preregistered R6 joint diagnostic
+
+Five real browser turns ran once on clean production candidate `4c36b935`, with
+unchanged budgets and authority. #201 is merged at main `5f4e81e2`; its UI was not
+copied into this qualification candidate. Registry, complete lineage, SQLite,
+SSE/GET/DOM and screenshots are under `reading-notebook-ui-evidence/r6-batch-1`.
+See [the bounded R6 report](RESEARCH_PRESENTATION_1_R6_QUALIFICATION.md).
+
+S1 reached VERIFIED without gratuitous escalation. Supported S3/S5 failed verified
+relevance admission: digest-valid structured project/version bodies did not match
+the adjacent named-version identity pattern. General S2/S4 failed semantic research
+schema validation before search dispatch (question_identity / invalid_rows), then
+abstained with no requested field plan. No Standard/modern Deep child was created;
+S5 restart was NOT_EXECUTED_NO_LIVE_DEEP. Model-call consumption remains unobserved;
+no evidence authorizes changing Standard/Deep budgets. TTUV is NOT_OBSERVED.
+
+New real finding: S1/S3/S5 same-version turn snapshots report read_count=1 but the
+UI retains SSE read_count=0, including after refresh. The merge only replaces
+strictly newer run revisions and loses equal-revision turn enrichment. Prior
+R1–R5 regression evidence is retained but does not waive this finding. Production
+code is unchanged. R6 NO-GO / RP1 NOT CLOSED; no RP PR, push, new L3 or remote GO.
+Next proposed slice is the independent read-only equal-version merge repair;
+identity/semantic engine fixes require a separate bounded contract before a new
+registered real qualification batch. Do not extend this batch or fabricate gaps.
