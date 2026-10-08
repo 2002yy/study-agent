@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from functools import lru_cache
 from pathlib import Path
 
@@ -176,9 +177,46 @@ def get_web_tool_agent():
 
 
 @lru_cache(maxsize=1)
+def get_deep_trigger_runner():
+    """The single background Deep trigger, wired to the existing services.
+
+    The callbacks are adapted because both services take keyword-only arguments, and the runner
+    passes positionally. Everything else is reused: the same RuntimeRepository, the same
+    WebLookupRepository and the same production dispatcher singleton, so Deep never creates a
+    second research stack.
+    """
+
+    from src.application.deep_continuation import DeepContinuationService
+    from src.application.deep_execution import DeepExecutionService
+    from src.application.deep_handoff import DeepHandoffService
+    from src.application.deep_trigger import DeepTriggerRunner
+    from src.repositories.deep_trigger_repository import DeepTriggerRepository
+
+    repository = get_runtime_repository()
+    runs = get_web_lookup_repository()
+
+    def arm(parent_turn_id: str, thread_id: str):
+        return DeepHandoffService(repository, runs).prepare(
+            parent_turn_id=parent_turn_id, thread_id=thread_id
+        )
+
+    def consume(parent_turn_id: str, thread_id: str):
+        return DeepContinuationService(
+            repository,
+            runs,
+            DeepExecutionService(repository, runs, get_web_lookup_service()),
+        ).continue_pending(parent_turn_id=parent_turn_id, thread_id=thread_id)
+
+    return DeepTriggerRunner(
+        DeepTriggerRepository(repository.database), arm=arm, consume=consume
+    )
+
+
+@lru_cache(maxsize=1)
 def get_chat_service():
     from src.application.chat_service import ChatDependencies
-    from src.application.policy_chat_service import ExternalDataPolicyChatService
+    from src.application.deep_chat_service import DeepContinuationChatService
+    from src.application.standard_continuation import StandardContinuationService
     from src.pedagogy.evaluation import LLMSemanticEvaluator
     from src.task_contract import (
         TaskAwarePedagogyEngine,
@@ -186,16 +224,30 @@ def get_chat_service():
         route_request_with_task_contract,
     )
 
-    return ExternalDataPolicyChatService(
-        get_runtime_repository(),
+    # One repository and one web agent are frozen here and shared with the continuation, so the
+    # lookup resolver and the Standard gateway are the same production objects. No second
+    # gateway is constructed and no extra cache is introduced: this service's own lru_cache
+    # already owns the continuation lifetime.
+    repository = get_runtime_repository()
+    web_agent = get_web_tool_agent()
+
+    return DeepContinuationChatService(
+        repository,
         ChatDependencies(
             route_request=route_request_with_task_contract,
             pedagogy_engine=TaskAwarePedagogyEngine(),
             pedagogy_evaluation=TaskAwarePedagogyEvaluationService(
                 LLMSemanticEvaluator()
             ),
-            resolve_web_tools=get_web_tool_agent().resolve,
+            resolve_web_tools=web_agent.resolve,
         ),
+        standard_continuation=StandardContinuationService(
+            repository,
+            get_web_lookup_repository(),
+            web_agent.gateway,
+        ),
+        # The trigger is only signalled here; the worker runs Deep off the response path.
+        deep_runner=get_deep_trigger_runner(),
     )
 
 
@@ -423,6 +475,15 @@ def get_tool_service():
 
 
 def reset_runtime_repository_cache() -> None:
+    # The Deep runner captures the repository and the dispatcher, so it must be stopped and
+    # dropped with them. Otherwise a reset would leave an old background thread scanning an old
+    # dependency stack while everything else moved on.
+    if get_deep_trigger_runner.cache_info().currsize:
+        try:
+            get_deep_trigger_runner().stop()
+        except Exception:
+            logging.getLogger(__name__).exception("deep trigger stop failed during cache reset")
+    get_deep_trigger_runner.cache_clear()
     get_web_tool_agent.cache_clear()
     get_github_work_item_service.cache_clear()
     get_github_change_impact_service.cache_clear()

@@ -222,6 +222,8 @@ class ChatDependencies:
         default_factory=EvidenceDisclosurePolicy
     )
     resolve_web_tools: Callable[..., WebToolTrace] = web_tools_disabled
+    # Creates a pending handoff only; never dispatches Standard or changes mode.
+    allow_standard_handoff: bool = True
     # 164-C1b-1: durable learner-model reader for the shadow path. None keeps the
     # shadow inert; the feature flag is the second, independent gate.
     read_learner_model: Callable[[str], Any] | None = None
@@ -642,6 +644,8 @@ class ChatService:
                 command.user_input,
                 model_profile=route["model_profile"],
                 conversation_context=_tool_context(command.chat_history),
+                owner_thread_id=thread.id,
+                owner_turn_id=turn_id,
             )
             rag["web_tools"] = web_tools.to_dict()
             web_tool_error = str(rag["web_tools"].get("error") or "")
@@ -1259,6 +1263,30 @@ class ChatService:
             field_audit["answer_generation_calls"] = _route_generation_calls(prepared.route)
             prepared = replace(prepared, rag={**deepcopy(prepared.rag), "official_field_publication": field_audit})
             published_rag = deepcopy(prepared.rag)
+            from src.web.research.lookup_terminal import decide_lookup_terminal, requested_lookup_fields
+
+            tool_data = (prepared.rag or {}).get("web_tools") or {}
+            calls = tool_data.get("calls") or []
+            semantics = tool_data.get("semantics") or {}
+            related_ids = semantics.get("question_coverage") or []
+            rq_ids = tuple(item for item in related_ids if isinstance(item, str)) if isinstance(related_ids, list) else ()
+            terminal = decide_lookup_terminal(
+                prepared.turn.user_message, calls,
+                requested_fields=requested_lookup_fields(prepared.turn.user_message),
+                requested_rq_ids=rq_ids, allow_standard=self.dependencies.allow_standard_handoff,
+                recovery=tool_data.get("recovery"),
+                identity_conflict=any(
+                    isinstance(call.get("result"), dict)
+                    and call["result"].get("adequacy_reason") == "requested_official_version_mismatch"
+                    for call in calls),
+            )
+            published_rag["lookup_terminal"] = {
+                "schema_version": "lookup-terminal-v1", "state": terminal.state,
+                "reason": terminal.reason, "handoff": terminal.handoff,
+                "dispatch_status": "pending" if terminal.handoff else "not_requested",
+                "owner": {"thread_id": prepared.thread.id, "turn_id": prepared.turn.id,
+                          "run_id": str(tool_data.get("run_id") or "")},
+            }
             # A diagnostic field-backed answer never advances learning authority.
             gate_blocked_pedagogy = True
         elif answer_validation_active(prepared):

@@ -25,6 +25,10 @@ jobs:
       PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The classify step diffs the main-push range; a shallow clone would not have
+          # the before commit, which would silently fall back to the full scope.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -43,54 +47,56 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Main pushes/manual runs retain the complete historical gate. The
-          # optimization is deliberately limited to pull requests whose changed
-          # paths are known to be frontend-independent research work.
-          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
-            echo "scope=full" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
+          # Routing lives in tools/ci_scope.py (one source of truth, unit tested). The
+          # workflow must not re-derive it with its own path matching.
           changed_file_list="${RUNNER_TEMP}/ci-changed-files.txt"
-          if ! gh api --paginate \
-            "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
-            --jq '.[].filename' > "$changed_file_list"; then
-            echo "::warning::Could not classify PR paths; falling back to full CI scope."
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            if ! gh api --paginate \
+              "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+              --jq '.[].filename' > "$changed_file_list" || [ ! -s "$changed_file_list" ]; then
+              echo "::warning::Could not classify PR paths; widening to the full scope."
+              changed_file_list=""
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            # A main push is classified by the same diff, not defaulted to full.
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
+              git diff --name-only "$before" "${{ github.sha }}" > "$changed_file_list" || changed_file_list=""
+            fi
+          fi
+
+          if [ -z "$changed_file_list" ] || [ ! -s "$changed_file_list" ]; then
+            echo "::warning::No usable path list; widening to the full scope."
             echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
+            echo "impact_set=" >> "$GITHUB_OUTPUT"
+            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
+            echo "browser_required=true" >> "$GITHUB_OUTPUT"
+            echo "qualification_required=true" >> "$GITHUB_OUTPUT"
+            echo "l3_eligible=true" >> "$GITHUB_OUTPUT"
+            echo "full_scope=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [ ! -s "$changed_file_list" ]; then
-            echo "::warning::PR path list was empty; falling back to full CI scope."
-            echo "frontend_required=true" >> "$GITHUB_OUTPUT"
-            echo "scope=full-fallback" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          python tools/ci_scope.py --paths-file "$changed_file_list" >> "$GITHUB_OUTPUT"
+          echo "CI scope: $(grep '^scope=' "$GITHUB_OUTPUT" | tail -n 1), files: $(wc -l < "$changed_file_list")"
 
-          frontend_required=false
-          while IFS= read -r path; do
-            case "$path" in
-              src/web/research/*|tests/*|docs/*|AGENTS.md|tools/run_research_*|tools/run_rag_*|tools/run_answer_claim_*)
-                ;;
-              *)
-                frontend_required=true
-                break
-                ;;
-            esac
-          done < "$changed_file_list"
+      - name: Report L3 eligibility (never starts L3)
+        shell: bash
+        run: |
+          # Eligibility is a report. Starting L3 is ci-l3.yml's job, on an explicit
+          # trigger, so a shared-core push cannot silently launch a full run.
+          echo "L3_ELIGIBLE=${{ steps.ci_scope.outputs.l3_eligible }}"
+          echo "L3_REQUIRED_FOR_MERGE=${{ steps.ci_scope.outputs.l3_required_for_merge }}"
 
-          if [ "$frontend_required" = "true" ]; then
-            echo "scope=full" >> "$GITHUB_OUTPUT"
-          else
-            echo "scope=research-backend-only" >> "$GITHUB_OUTPUT"
-          fi
-          echo "frontend_required=${frontend_required}" >> "$GITHUB_OUTPUT"
-          echo "CI scope: $(tail -n 1 "$GITHUB_OUTPUT"), changed files: $(wc -l < "$changed_file_list")"
 
       - uses: actions/setup-node@v4
-        if: steps.ci_scope.outputs.frontend_required == 'true'
+        # The Node toolchain serves the frontend gates and the browser gates. ci_scope treats
+        # them as separate cost tiers - browser can be required with frontend false - so the
+        # toolchain is prepared when either is required, without merging the classifications.
+        if: >-
+          steps.ci_scope.outputs.frontend_required == 'true' ||
+          steps.ci_scope.outputs.browser_required == 'true'
         with:
           node-version: "24"
           cache: npm
@@ -102,8 +108,25 @@ jobs:
           python -m pip install --disable-pip-version-check --timeout 30 --retries 5 --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt --disable-pip-version-check --timeout 30 --retries 5
 
+      - name: Run bounded impact set (fast tier)
+        id: pytest_impact
+        if: >-
+          steps.ci_scope.outputs.full_scope != 'true' &&
+          steps.ci_scope.outputs.impact_set != ''
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          # The fast tier runs the named impact set from tests/stage_gates.json, not a
+          # list of files kept in this workflow and not the full suite.
+          python tools/run_stage_gate.py \
+            --impact-set "${{ steps.ci_scope.outputs.impact_set }}" 2>&1 | tee pytest.log
+
       - name: Run pytest
         id: pytest
+        if: >-
+          steps.ci_scope.outputs.full_scope == 'true' ||
+          steps.ci_scope.outputs.impact_set == ''
         continue-on-error: true
         timeout-minutes: 30
         run: |
@@ -126,7 +149,7 @@ jobs:
       - name: Run package helper (validate packaging logic)
         id: packaging
         continue-on-error: true
-        run: python tools/package_project_helper.py . /dev/null 0
+        run: python tools/package_project_helper.py . "${RUNNER_TEMP}/study-agent-ci-package.zip" 0
 
       - name: Run detect-secrets
         id: secrets
@@ -181,6 +204,21 @@ jobs:
             --baseline config/mypy_baseline.json \
             --outcome "$MYPY_OUTCOME"
 
+      - name: Install frontend dependencies
+        id: node_deps
+        # npm ci runs whenever the Node toolchain is needed - the frontend gates or the
+        # browser gates. Without this, browser_required=true with frontend_required=false
+        # would launch Playwright against a missing node_modules and fail with exit 127.
+        if: >-
+          steps.ci_scope.outputs.frontend_required == 'true' ||
+          steps.ci_scope.outputs.browser_required == 'true'
+        continue-on-error: true
+        timeout-minutes: 8
+        working-directory: frontend
+        run: |
+          set -o pipefail
+          npm ci > ../frontend-deps.log 2>&1
+
       - name: Test and build frontend
         id: frontend
         continue-on-error: true
@@ -194,13 +232,12 @@ jobs:
             exit 0
           fi
           {
-            npm ci
             npm test
             npm run build
           } > ../frontend.log 2>&1
 
       - name: Install Playwright browsers
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.frontend.outcome == 'success'
+        if: steps.ci_scope.outputs.browser_required == 'true' && steps.node_deps.outcome == 'success'
         id: playwright_install
         continue-on-error: true
         timeout-minutes: 20
@@ -210,7 +247,7 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit > ../playwright-install.log 2>&1
 
       - name: Run browser Golden Journeys
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
+        if: steps.ci_scope.outputs.browser_required == 'true' && steps.playwright_install.outcome == 'success'
         id: browser_e2e
         continue-on-error: true
         timeout-minutes: 12
@@ -220,7 +257,7 @@ jobs:
           npm run test:e2e > ../browser-e2e.log 2>&1
 
       - name: Run real-stack browser gates
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && steps.playwright_install.outcome == 'success'
+        if: steps.ci_scope.outputs.browser_required == 'true' && steps.playwright_install.outcome == 'success'
         id: real_stack_browser_e2e
         continue-on-error: true
         timeout-minutes: 8
@@ -241,6 +278,7 @@ jobs:
             detect-secrets-report.json
             mypy.log
             frontend.log
+            frontend-deps.log
             playwright-install.log
             browser-e2e.log
             real-stack-browser-e2e.log
@@ -254,5 +292,9 @@ jobs:
         if: always()
         env:
           CI_STEP_RESULTS: ${{ toJSON(steps) }}
-          CI_BROWSER_REQUIRED: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+          CI_FRONTEND_REQUIRED: ${{ steps.ci_scope.outputs.frontend_required }}
+          # Single source of truth: the classifier decides, not the event type. Re-deriving
+          # "main push => browser" here is what made enforcement demand browser gates that the
+          # classifier had not asked for.
+          CI_BROWSER_REQUIRED: ${{ steps.ci_scope.outputs.browser_required }}
         run: python tools/check_ci_outcomes.py
