@@ -8,6 +8,14 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 统一底部工具、紧凑输入与右上来源入口（LOCAL UI GO / 未推送）：** 独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `52b6c93483bd87807864e558c3c7a4033e8659d5`，生产提交 `24c526cd564749a6e0ac1b460bd2e2bc8d76ae4f`。5个frontend文件，仅UI与浏览器回归；另一窗口搜索工作独立。
+
+**行为：** 左下整理学习、上传资料、设置与工具统一44px行高、13px字、16px图标及对齐/hover。输入textarea默认42px一行，按输入和容器宽度自动增高，160px封顶后框内滚动，清空缩回；发送仍在框内右下。对话右上新增PanelRight“资料与来源”按钮，打开已有右侧模态抽屉，默认回答依据页；右侧×关闭，焦点回入口、草稿保留。正文仍由资料库阅读入口打开。修复新增按钮受到既有手机topbar-actions全宽规则影响、将标题挤成竖排的问题，限定actions width:auto与标题flex:1，并增加320px标题布局断言。
+
+**验证：** 影响集39文件165 PASS/10.67s；首次全量436 PASS/1 FAIL（既有jsdom选段未出现L2状态），定向正文15 PASS/1.25s，最终106文件437 PASS/46.16s，保留波动日志，未修改正文选段代码或断言。新浏览器测试最初expect调用笔误，修正后桌面/手机2 PASS；后续图标boundingBox浮点15.999996改用computed CSS16px精确断言。首轮完整浏览器67/71 PASS，旧手机全宽规则导致3项标题不可见/1项窄屏失败，artifact gate45/53失败；修复后最终完整71/71 PASS/2.0m，53份golden artifact gate通过。tsc+Vite build、Ruff src/tests/tools、diff-check/范围审查PASS；纯前端无backend L3或Python typing影响。既有>500kB bundle警告保留独立债。实页桌面/390手机视觉通过，320×568长输入textarea160px、composer底部568、无横向溢出。截图为隔离样例会话，真实头像资源正常；右侧沿用模态抽屉而非新增非模态停靠系统。
+
+**交接：** 证据 `D:/study-agent-validation/reading-notebook-ui-evidence/qa-composer.json`，composer-focused/unit-full/reading-retry/unit-final/build-final/browser-full/browser-final日志，composer-desktop/mobile/grown-mobile/sources截图。生产提交后tracked clean，临时PW配置删除；本段docs-only交接，最终head由git/QA恢复。预览5188→独立API8002；main仍7ff7451d及原4项dirty保持。无push/PR/新CI/merge。下一slice：审查并集成本独立UI候选，搜索候选由另一窗口独立验收。
+
 **2026-10-08 参考 Codex 的克制视觉与收起状态（LOCAL UI GO / 未推送）：** 用户提供Codex辅助面板展开/收起两张截图，要求学习美观设计、按学习软件用途适配。独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；增量base `5a73248a78b953d6fc5f2abdaf6ba1f4dc3d321b`，生产提交 `d913e665fe09850a75ca0962bac8676c033db7e3`。3个前端文件，仅视觉样式和发送图标的可访问呈现。
 
 **行为：** 灰白界面配淡蓝强调，正文深蓝灰，较弱边框；导航新对话转为文字操作、会话14px常规字重，活动项用柔和灰绿底，品牌/副标题层次保持；界面标题统一黑体，宋体保留给阅读标题及字体预览。输入框20px圆角与低强度阴影，发送为框内44px圆形向上箭头，搜索/停止为对应图标，保留辅助技术可读名称与鼠标title提示。三块面板改16px圆角，已有24px外留白与16px间距、拖动宽度不变。资料关闭时沿用居中820px消息/输入内容轨，宽阔主区；资料展开仍为左导航/中正文/右对话。未新增Codex工程工具或辅助面板功能，未改变阅读关闭语义/会话/API/search流程；头像96/80px、角色气泡、引用轨迹、设备字体与宽度偏好保留。
