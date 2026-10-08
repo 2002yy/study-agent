@@ -25,6 +25,7 @@ import type { ExtensionViewModel } from "./useExtensionRuntime";
 import type { LearningSessionRuntime } from "./useLearningSessionRuntime";
 import { useWorkspace } from "./WorkspaceProvider";
 import { ReadingLayout, ReadingWorkspaceProvider } from "../features/reading/ReadingWorkspace";
+import { PanelResizeHandle } from "../features/reading/PanelResizeHandle";
 import type { useWorkspaceControllers } from "./useWorkspaceControllers";
 
 type Controllers = ReturnType<typeof useWorkspaceControllers>;
@@ -209,6 +210,7 @@ export function WorkspaceView({
         onSessionChanged={refresh}
         actions={workspaceActions}
       />
+      <PanelResizeHandle panel="sidebar" />
       <ReadingLayout>
       <div className="chat-column">
         {chatController.messages.some(message=>message.role === "user") ? <details className="workspace-learning-state"><summary>学习状态</summary><LearningStrip
