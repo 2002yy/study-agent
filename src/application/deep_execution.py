@@ -19,6 +19,7 @@ pedagogy or learning state.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Mapping
@@ -252,6 +253,12 @@ class DeepExecutionService:
         context = attach_claim_engine_state(
             child.research_context, state, known_evidence_ids=()
         )
+        # The owned durable parent carries the user's external-call decision.
+        # A seed/handoff is evidence lineage, never permission to call a model.
+        policy = (parent.rag_snapshot or {}).get("external_data_policy")
+        context.pop("external_data_policy", None)
+        if isinstance(policy, Mapping):
+            context["external_data_policy"] = deepcopy(dict(policy))
         deep = dict(context.get("deep") or {})
         deep["execution"] = envelope
         context["deep"] = deep

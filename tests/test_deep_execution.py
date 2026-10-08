@@ -105,6 +105,34 @@ def tamper(repository, parent, mutate):
     )
 
 
+@pytest.mark.parametrize("policy,allowed", [
+    ({"web_policy": "auto", "web_allowed": True, "reason": "allowed"}, True),
+    ({"web_policy": "off", "web_allowed": False, "reason": "web_disabled_by_user"}, False),
+    ({"web_policy": "ask", "web_allowed": False, "reason": "web_consent_required"}, False),
+    (None, False), ("invalid", False),
+])
+def test_admission_transfers_owned_policy_without_defaulting_to_permission(ctx, policy, allowed):
+    from src.application.active_research_runtime import _default_policy_check
+
+    service, repository, runs, parent, _, prepared, _ = ctx
+    tamper(repository, parent, lambda snap: snap.update(external_data_policy=policy))
+    before = snapshot(repository, parent)
+    # A stale child hint cannot grant access denied by the parent.
+    child = runs.get(prepared.child_run_id)
+    runs.attach_pending_context(child.id, expected_version=child.version,
+                                research_context={**child.research_context,
+                                                  "external_data_policy": {"web_allowed": True}})
+    service.execute(parent_turn_id=parent.id, thread_id=parent.thread_id)
+    context = runs.get(child.id).research_context
+    assert _default_policy_check(context, "research_claim_planning") is allowed
+    if isinstance(policy, dict):
+        assert context["external_data_policy"] == policy
+    else:
+        assert "external_data_policy" not in context
+    assert snapshot(repository, parent) == before
+    assert context["deep"]["execution"]["publication_authority"] is False
+
+
 # --- deep_runtime helpers ---------------------------------------------------------
 
 
