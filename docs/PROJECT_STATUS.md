@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 第一批冻结与真实模型先导（LOCAL BASELINE / 不是IR-2交付）：** 第一批head `511f21286e9fc7545dbacaac831945bf2470af00`，生产提交08c8ad82/2f1120cf；完整Git bundle和fb1d80d1..511f2128 binary patch导出到 `D:/study-agent-validation/reading-notebook-ui-evidence`，bundle verify PASS；patch SHA256=17C72F226558FAC373D4D73F006B1261A0FA194424EC3F4D509CC4D85281DF86。远端main本次核对15c2821f，不含UI代码，未push/PR/merge。新增tools/run_answer_ui_probe.py及其确定性报告/生产TS解析器重放测试；DeepSeek/deepseek-flash真实12请求（两问题×两提示×3次）无error，UI组简单3/3纯文、交互3/3有效memory_lab。Java首组件p50=.969s/p95=1.054s、完成p50=1.203s；n=3，长度不同且直接provider而非产品栈，不能宣称研究提速，TTUV未测量。原始chunk/时序在answer-ui-live-pilot.json；可--replay离线重算不调用模型。测试3 PASS，Ruff PASS；无产品行为变化，不重复全量。详细接口缺口/恢复/发布边界见INTERACTIVE_ANSWER_DESIGN.md补充。
+
+**用户最新范围：** 先实现Research Presentation Contract，统一Lookup/Standard/Deep的真实阶段、来源、缺口与只读审计状态，分离research_status/publication_status；保留全段回答发布门。逐段正文发布不在这一刀；Deep-4B仍NO-GO，audited不等于approved。下一执行slice：核对现行main并在UI隔离分支接只读结构化研究snapshot及组件绑定，不改三层检索执行/预算/发布权。当前UI分支的旧backend不可替代现行Deep资格证据。
+
 **2026-10-08 回答中的状态驱动小型应用（LOCAL UI GO / 第三层真实数据未接入）：** 用户提供Java引用实验、证据审查和并发性能实验参考，强调操作/状态变化/验证判断。独立worktree `D:/study-agent-validation/reading-notebook-ui`、branch `codex/reading-notebook-ui`；base `1e47974983431aeb5151e864ca459636f50cfd02`，生产/设计提交 `2f1120cf0cbe7077b6872340f96d13cf217f6939`，10文件280行增/2删。详见INTERACTIVE_ANSWER_DESIGN.md补充。
 
 **实现：** study-ui扩展memory_lab/performance_lab/evidence_lab，模型选择模板与初始数据，应用负责固定状态转换、计算和视图同步。Java连续操作同步代码/引用/堆对象/说明，null访问呈现异常而不改变状态，不可达不冒充实际GC，最多12对象；性能同一参数状态派生ceil批次、串/并发耗时、图表与节省，默认38s/18s/53%；证据实验严格simulation标签、有限正例不证明全称、主观评论不能作为测量、反例能推翻原命题。不新增研究纳入/撤回API，不改真实发布结果。新格式继续用原瞬时UI上下文，不改变后端/搜索/持久化。DEV-only可操作预览 `http://127.0.0.1:5188/answer-labs.html` 使用相同组件，三标签切换，局部状态保留，不发聊天/研究请求/不写资料；不包含在默认生产构建入口。

@@ -65,3 +65,39 @@
 开发预览：`http://127.0.0.1:5188/answer-labs.html`。`frontend/answer-labs.html` + AnswerLabsPreview.tsx + answerLabsPreview.css提供确定性可操作样例，入口受import.meta.env.DEV限制；默认生产构建不包含此预览入口。会话内组件使用同一实现；预览不发聊天/研究请求，不写用户资料，也不代表真实模型已自动生成这些实验。
 
 第三层真实数据连接仍需服务器拥有的数据快照/来源身份/核验状态绑定，局部“假设选择”与正式纳入/撤回应分别显示。不得从模型JSON的自报标签获得真实verified状态。下一步围绕真实研究snapshot设计绑定合同，保持研究执行与正式发布由另一窗口拥有。
+
+## 2026-10-08 IR-2 接入前核对（提案，尚未接线）
+
+第一批冻结 head `511f21286e9fc7545dbacaac831945bf2470af00`。交互增量基线 `fb1d80d13126346d3fe18fa6f8b878130fc80ea4`，生产提交 `08c8ad82`、`2f1120cf`；完整独立 bundle 和 binary patch 已导出到仓库外 evidence 目录，bundle verify PASS。它们包含真实代码，不是远端已交付声明。远端 main 在本次核对时是 `15c2821fd0160d1710f08e973a7fede0193c05a0`；本地 UI 后端仍基于旧 main `7ff7451d`，必须先在独立集成分支核对新 main，不能用旧后端的绿测试代表现行 Deep 链路。
+
+### 发布边界核对
+
+核对 `D:/study-agent-validation/deep-4a-impl/docs/DEEP_4A_CONTRACT.md` §3–7、§68–69：Deep-4A只产生audited-but-not-approved候选、publication_authority=false、qualified semantic judge=NONE；不得替换assistant_message或借UI注入judge。远端main的Current Handoff仍写Deep-4B NO-GO。UI现有 `chat_routes.py` 在answer_validation_active时缓冲全候选，只有complete_turn之后才发正文；断流/取消的候选不作为partial发布。这两条保护必须同时保留。
+
+**IR-2完整验收尚未完成。** 当前没有逐段发布授权，也没有来源绑定的交互数值投影；模型JSON类型检查不等于证据门。只读研究进度/来源接线不依赖Deep-4B批准，可以单独推进；研究结论提前发布和Deep自动发布不能标成GO。需要补上现行主线接口及相应测试，不能把本节提案当已实现协议。
+
+### 提议的最小事件合同
+
+新增协议需显式协商版本，保留旧token/done消费者。统一事件信封：`protocol_version, session_id, turn_id, operation_id, seq, block_id, revision`。身份来自服务端；seq在一次operation内严格递增，block_id在该turn的重放中稳定。客户端校验会话/turn/operation，重复事件忽略，缺号或乱序触发读取权威快照，不能继续拼接。不能仅凭模型提供的block_id或permission建立信任。
+
+| 事件 | 权限与数据边界 |
+| --- | --- |
+| research_progress | 真实run_id/version和candidate/read/support阶段；候选数不等于读取数，读取成功不等于支持结论；不含待审正文 |
+| content_commit | 普通内容或现有完整发布门通过的正文；研究块需要服务端release记录及对应内容hash，未批准的Deep不产生此类研究正文 |
+| ui_block_append | 服务端白名单参数投影；教学假设标simulation；实际图表/坐标须绑定服务端拥有且允许公开的source_id/revision/locator及数据hash；不从模型数字“补齐”来源 |
+| ui_block_update | 同block_id的更高revision；参数/状态仍由服务端验证；相同revision不同hash视为协议错误 |
+| turn_done | 明确terminal状态、最后seq及权威正文/组件hash；断流缺失turn_done不能当完成 |
+
+这五类事件没有自行授予发布权限。拒绝的研究内容只能发明确的blocked_notice，不把同一候选换成图表再发布。权限白名单、来源可见范围和既有web/local/cloud policy均由服务端持有。按钮只填草稿或调用显式注册且获授权的动作，不执行模型自定义网络请求、HTML、React或JavaScript。源身份存在不足以证明某个数值受该来源支持。
+
+### 恢复与状态
+
+重连从持久化turn及服务器快照恢复，不重新调用模型/搜索；取消和错误不会恢复出未经发布的研究partial。重试使用新turn/operation，组件身份包含turn，旧流晚到事件由generation guard丢弃。刷新后的终态组件需从同一版本的权威快照重建，局部滑块假设与正式研究结论分开；未实现前不承诺保留局部控件选择。最终正文与早期块不一致时须有显式replace/retract语义，不能静默覆盖已引用事实。涉及新的持久cursor/schema或共享核心模型时按AGENTS执行L3。
+
+### 真实模型先导（并非产品A/B）
+
+新增 `tools/run_answer_ui_probe.py`：当前配置DeepSeek/deepseek-flash，简单Java问答与要求交互的Java引用问题各重复3次，两组提示交替顺序，总计12次实际provider请求；无搜索/会话写入/发布授权。原始chunk含monotonic时间，使用生产TypeScript解析器离线重放，只有闭合且有效组件才计首组件时间；可用--replay重算而不重复调用模型。
+
+UI组简单问题3/3纯文字、Java交互3/3有效memory_lab（甲→乙），无拒绝格式/空回答/请求错误。Java组首次组件p50=0.969s、p95=1.054s，完成p50=1.203s；文字基线Java完成p50=3.438s。**每格仅3样本、回答长度不同，且不经过真实聊天/搜索/浏览器栈，这些不能作为产品提速结论或稳定p95资格证据。** TTUV=null，明确未测量；TTFT和首组件均不冒充已核验有用内容。
+
+下一完整候选的验收矩阵：简单/复杂模型选型；逐项数据到来源值与版本的绑定；0未授权研究正文/数值组件；断流/取消/重试/刷新/乱序与重复；真实按钮、键盘和手机；相同问题、模型、来源、缓存条件下产品栈的TTUV/首组件/完成分任务p50/p95。评测记录失败和缺失样本，不能把缺失记0或只算成功请求。当前只完成第一批冻结和模型提示先导，未实现IR-2，也未获得研究提速或Deep发布GO。
