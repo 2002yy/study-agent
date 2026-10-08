@@ -359,17 +359,26 @@ def test_discovery_filters_private_and_blocked_urls_and_prefers_official_host():
     ]
 
 
-def test_model_adapter_uses_one_bounded_json_call(running):
+@pytest.mark.parametrize("provider,thinking", [
+    ("deepseek", {"thinking": {"type": "disabled"}}), ("openai", None),
+])
+def test_model_adapter_uses_one_bounded_json_call(running, monkeypatch, provider, thinking):
+    monkeypatch.setenv("LLM_PROVIDER_PROFILE", provider)
     captured = []
 
     def complete(messages, **kwargs):
         captured.append(kwargs)
-        return json.dumps(Planner()(json.loads(messages[-1]["content"])))
+        request = json.loads(messages[-1]["content"])
+        from src.web.research.standard_plan import discovered_urls
+        assert request["allowed_candidate_urls"] == sorted(discovered_urls(request["handoff"]))
+        assert "do not add type" in messages[0]["content"]
+        return json.dumps(Planner()(request))
 
     result = StandardResearchLoop(running[0], ModelStandardPlanner(complete)).advance(
         Gateway()
     )
     assert len(captured) == 1 and captured[0]["request_max_retries"] == 0
+    assert captured[0]["max_tokens"] == 900 and captured[0]["extra_body"] == thinking
     assert captured[0]["timeout"] == 8 and result["publication_authority"] is False
 
 
