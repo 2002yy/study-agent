@@ -6,6 +6,7 @@ import { humanizeUiError, labelFor } from "../../utils/uiLabels";
 import { RoleAvatar } from "../../components/RoleAvatar";
 import { StatusDot } from "../../components/StatusDot";
 import { roleLabel, roleOptions } from "../roles/roleCatalog";
+import { TypographySettings } from "./TypographySettings";
 import type {
   ApiSnapshot,
   ChatResponse,
@@ -287,10 +288,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
       <div className="panel-header">
         <div>
           <h2>设置</h2>
-          <span>默认只显示影响学习方式、资料使用、隐私和互动感受的选项</span>
+          <span>调整阅读、对话和资料使用方式。</span>
         </div>
         <Settings size={18} />
       </div>
+
+      <TypographySettings/>
 
       <section className="side-section" aria-labelledby="ordinary-learning-settings">
         <div className="section-title" id="ordinary-learning-settings">

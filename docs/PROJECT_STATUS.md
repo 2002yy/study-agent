@@ -8,6 +8,10 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-08 B线：先接入已完成UI（验收中）：** 用户要求之前前端改动尽快接入。独立worktree `D:/study-agent-validation/ui-main-integration`、branch `codex/ui-main-integration`；基线 main `766c0b67442bfbbc4b8fc63e4acd00757c0062bb`，复用现有UI head `511f21286e9fc7545dbacaac831945bf2470af00`，保留原提交历史。包含阅读并排/对话居中、纸白蓝灰及设备字体偏好、四角色最新版头像、内部角色设置、框内紧凑自增高输入框、右上资料开关、可记忆拖动宽度、只读正文/PDF与引用定位，以及已完成的教学交互组件。Learning State-1和尚未提交的Research Presentation-1均不混入此PR；研究协议/真实三层R6继续由原reading-notebook-ui分支负责。
+
+**新基线本地证据：** frontend 453 PASS，阅读/附件/引用/流式影响集82 PASS，tsc+Vite build与Ruff PASS；mypy无新增错误（122/128，消除6条既有错误）。浏览器、真实HTTP阅读交互与最终候选门待完成，不能借旧截图/旧CI宣告REMOTE GO。主目录既有dirty保留；A线独立worktree不动。Deep-4B仍NO-GO，教学模拟组件不形成研究发布权限。
+
 **当前执行权：Deep 阶段收尾 / 学习主线开启。** Deep-4A implementation 已合并并 CLOSED；**Deep 阶段除 Deep-4B 外全部 CLOSED**。Deep-4B（automatic publication）= **NO-GO**（无 qualified semantic judge）。下一刀 = **Learning State-1**（学习状态 bounded contract）；同时用户已指示先冻结一份独立的 **Intelligent UI × Lookup/Standard/Deep 交互合同**，**两条线不得混入同一个 PR**。
 
 **Current Action：**

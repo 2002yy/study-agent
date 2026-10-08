@@ -82,7 +82,12 @@ export function SlideOver({
 
     return () => {
       document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
+      if (previousFocus?.isConnected && previousFocus.getClientRects().length) {
+        previousFocus.focus();
+      } else {
+        // Navigation tools can open another drawer and unmount their opener.
+        document.querySelector<HTMLElement>(".session-dock-button")?.focus();
+      }
     };
   }, [open]);
 

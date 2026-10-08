@@ -129,13 +129,16 @@ export function SessionNavigatorBody({
 }) {
   return (
     <>
+      <div className="session-history-heading"><span>最近对话</span><small>{navigator.semanticSessions.length}</small></div>
+      <details className="session-history-filter">
+        <summary><Search aria-hidden="true" size={14}/><span>查找会话</span></summary>
       <div className={`session-navigation-controls${isPanel ? " wide" : ""}`}>
         <label className="session-search-box">
           <Search aria-hidden="true" size={14} />
           <input
             aria-label="搜索学习会话"
             onChange={(event) => navigator.setQuery(event.target.value)}
-            placeholder="搜索标题、目标、缺口…"
+            placeholder="搜索对话…"
             value={navigator.query}
           />
         </label>
@@ -153,6 +156,7 @@ export function SessionNavigatorBody({
           ))}
         </select>
       </div>
+      </details>
       {navigator.renameError ? (
         <div className="session-navigation-error" role="alert">
           {navigator.renameError}

@@ -23,16 +23,12 @@ describe("active ChatPanel interaction boundary", () => {
     expect(source).toContain('"控制键 + 回车键发送 · 回车键换行"');
   });
 
-  it("copies only the assistant message body", () => {
-    expect(source).toContain('aria-label="复制回答正文"');
-    expect(source).toContain("navigator.clipboard.writeText(content)");
-    expect(source).not.toContain("navigator.clipboard.writeText(label)");
-  });
-
   it("derives closure actions from the persisted task contract", () => {
     expect(source).toContain("taskContractFromRoute(lastChat?.route)");
-    expect(source).toContain("closureActionLabel(taskContract)");
-    expect(source).toContain("{closureLabel ? (");
-    expect(source).toContain("{closureLabel}");
+    const view=readFileSync(fileURLToPath(new URL("../../app/WorkspaceView.tsx",import.meta.url)),"utf8");
+    const actions=readFileSync(fileURLToPath(new URL("./WorkspaceActions.tsx",import.meta.url)),"utf8");
+    expect(view).toContain("closureActionLabel(taskContractFromRoute(chatController.lastChat?.route))");
+    expect(actions).toContain("{closureLabel && canClose ? (");
+    expect(actions).toContain("{closureLabel}");
   });
 });

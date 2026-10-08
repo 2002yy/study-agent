@@ -1,0 +1,88 @@
+/* Quiet application chrome; serif typography stays in the reading material. */
+.app-shell:has(.reading-layout) {
+  --bg: #fff;
+  --surface: #fff;
+  --surface-strong: #f2f5f6;
+  --text: #2c3943;
+  --muted: #65717c;
+  --accent: #3f617b;
+  --accent-strong: #314e64;
+  --border: #e3e9ed;
+}
+.app-shell .session-sidebar { background: #f9faf8; }
+.app-shell .session-sidebar-header { gap: 20px; }
+.app-shell .session-sidebar-header > button {
+  justify-content: flex-start;
+  background: transparent;
+  border-color: transparent;
+  font-size: 14px;
+  padding-inline: 8px;
+  border-radius: 10px;
+}
+.app-shell .session-sidebar-header > button:hover { background: #eef2ef; }
+.workspace-sidebar-brand > svg, .reading-library-open > svg { color: var(--muted); }
+.app-shell .reading-library-heading, .session-history-heading { font-size: 12px; }
+.session-sidebar .session-sidebar-row { border-radius: 10px; padding: 12px 10px; }
+.session-sidebar .session-sidebar-row-main strong { font-size: 14px; font-weight: 400; }
+.session-sidebar .session-sidebar-row.is-active { background: #eaf0ed; box-shadow: none; }
+.session-sidebar .session-sidebar-subtitle, .reading-library-open small { font-size: 12px; }
+.reading-library-open:hover, .session-history-filter > summary:hover,
+.session-history-filter[open] > summary { background: #eef2ef; }
+.workspace-navigation-actions :is(.sidebar-upload-button, .workspace-menu-trigger) { font-size: 13px; }
+.reading-layout .topbar { border-bottom-color: #edf0f2; }
+.reading-layout .topbar h1 { font-family: var(--font-interface); font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.reading-layout.has-document .topbar h1 { font-size: 18px; }
+.workspace-learning-state { border-bottom-color: #edf0f2; }
+.workspace-learning-state > summary { min-height: 36px; padding-block: 8px; }
+.reading-layout .reading-session-context { border-bottom-color: #edf0f2; }
+.reading-layout .document-reader { background: #f5f7f8; }
+.document-reader-toolbar, .document-reader-navigation { border-bottom-color: #edf0f2; }
+.document-reader-actions button { border-color: transparent; background: transparent; border-radius: 8px; }
+.document-reader-actions button:hover:not(:disabled) { background: #f0f3f5; }
+.document-paper { border-color: #e8ecef; box-shadow: 0 2px 12px #203a5103; }
+.reading-layout .message-bubble { border-color: #e4e9ed; border-radius: 5px 18px 18px; box-shadow: none; padding: 16px 18px; }
+.reading-layout .message-bubble::before { border-color: #e4e9ed; }
+.reading-layout .message.user .message-bubble { background: #eaf2f8; border-color: #eaf2f8; border-radius: 18px 5px 18px 18px; }
+.reading-layout .message.user .message-bubble::before { border-color: #eaf2f8; }
+.reading-layout .message-author { font-weight: 500; }
+.reading-layout .message-copy-button { color: var(--muted); font-weight: 400; }
+.reading-layout .message.user .avatar { background: #f2f5f6; }
+.reading-layout .composer-main { border-color: #e0e6ea; border-radius: 20px; padding: 12px 16px; box-shadow: 0 2px 16px #24374608; }
+.reading-layout .composer-main:focus-within { border-color: #b4c4cf; box-shadow: 0 2px 16px #2437460a, 0 0 0 1px #b4c4cf24; }
+.reading-layout .composer textarea::placeholder { color: #6f7b85; }
+.reading-layout .composer-modes button { border-radius: 10px; font-weight: 400; }
+.reading-layout .composer-modes button[aria-pressed="true"] { background: #eef2f4; font-weight: 500; }
+.reading-layout .composer-footer .send-button { min-width: 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; background: #314e64; border-color: #314e64; }
+.reading-layout .composer-footer .send-button:disabled { background: #f0f3f5; border-color: #f0f3f5; color: #687680; }
+.reading-layout .composer-footer .stop-button { background: #8f1d1d; border-color: #8f1d1d; }
+.reading-layout .chat-role-settings-toggle { border-radius: 10px; color: var(--muted); }
+.reading-layout .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; width: auto; flex-shrink: 0; }
+.reading-layout .topbar-copy { flex: 1; min-width: 0; }
+.reading-layout .topbar-actions .icon-button { width: 40px; height: 40px; border-color: transparent; background: transparent; color: var(--muted); }
+.reading-layout .topbar-actions .icon-button:hover,
+.reading-layout .sources-dock-button[aria-expanded="true"] { background: #eef2f4; color: var(--text); }
+.app-shell .workspace-navigation-actions :is(.end-session-button, .sidebar-upload-button, .workspace-menu-trigger) {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  width: 100%; height: 44px; min-height: 44px; padding: 10px 8px;
+  font-size: 13px; font-weight: 400; line-height: 20px;
+  color: var(--muted); background: transparent; border: 0; border-radius: 8px;
+}
+.app-shell .workspace-navigation-actions :is(.end-session-button, .sidebar-upload-button, .workspace-menu-trigger) > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.app-shell .workspace-navigation-actions :is(.end-session-button, .sidebar-upload-button, .workspace-menu-trigger):hover:not(:disabled) { background: #eef2ef; color: var(--text); }
+.reading-layout .composer textarea { height: 42px; min-height: 42px; max-height: 160px; resize: none; overflow-y: hidden; }
+.panel-resize-handle::after { background: #bcc8d0; }
+@media (min-width: 1101px) {
+  .app-shell:has(.reading-layout) { background: #f2f5f3; }
+  .app-shell:has(.reading-layout) > .session-sidebar { background: #f9faf8; border-radius: 16px; }
+  .app-shell:has(.reading-layout) > .reading-layout:not(.has-document) { border-radius: 16px; }
+}
+@media (min-width: 901px) {
+  .reading-layout.has-document > .document-reader,
+  .reading-layout.has-document > .chat-column { border-radius: 16px; }
+}
+@media (max-width: 600px) {
+  .reading-layout .composer-main { padding: 10px 12px; border-radius: 18px; }
+  .reading-layout .message-bubble { padding: 12px 14px; }
+  .reading-layout .topbar h1 { font-size: 18px; }
+  .reading-layout .topbar-actions .icon-button { width: 44px; height: 44px; }
+}

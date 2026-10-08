@@ -7,7 +7,7 @@ import {
   visibleProductSurfaces,
 } from "./journey-metrics";
 
-test("new session keeps direct input primary and progressively reveals explicit task overrides", async ({ page }, testInfo) => {
+test("new session keeps one input with chat and search only", async ({ page }, testInfo) => {
   const fixture = await installApiFixture(page);
   await page.addInitScript(() => {
     window.localStorage.removeItem("study-agent:external-data-notice:v1");
@@ -20,16 +20,9 @@ test("new session keeps direct input primary and progressively reveals explicit 
   await expect(disclosure).toContainText("当前联网策略：关闭联网");
   await disclosure.getByRole("button", { name: "我知道了" }).click();
   await expect(disclosure).toHaveCount(0);
-  await expect(start.getByRole("heading", { name: "直接输入问题即可开始" })).toBeVisible();
-  await expect(start.getByRole("button", { name: /系统学习/ })).toBeVisible();
-  await expect(start.getByRole("button", { name: /上传资料/ })).toBeVisible();
-  await expect(start.getByRole("button", { name: /快速问答/ })).toHaveCount(0);
-  await expect(start.getByRole("button", { name: /联网研究/ })).toHaveCount(0);
-  await expect(start.getByRole("button", { name: /项目推进/ })).toHaveCount(0);
-
-  await start.getByText("更多开始方式").click();
-  await expect(start.getByRole("button", { name: /联网研究/ })).toBeVisible();
-  await expect(start.getByRole("button", { name: /项目推进/ })).toBeVisible();
+  await expect(start.getByRole("heading", {name:"今天想了解什么？"})).toBeVisible();
+  await expect(start.getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("group",{name:"输入方式"}).getByRole("button")).toHaveCount(2);
 
   const composer = page.getByLabel("输入学习问题");
   await composer.fill(FIRST_QUESTION);
@@ -63,7 +56,8 @@ test("ordinary settings hide engineering controls until advanced disclosure", as
   const fixture = await installApiFixture(page);
   await page.goto("/");
 
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: /设置/ }).click();
 
   const settings = page.getByRole("region", { name: "学习设置" });
@@ -115,7 +109,8 @@ test("provider health is checked on demand and leaves chat interaction unlocked"
   });
   await page.goto("/");
 
-  await page.getByLabel("打开更多学习工具").click();
+  if (!(await page.getByLabel("打开更多学习工具").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("打开更多学习工具").filter({visible:true}).click();
   await page.getByRole("menuitem", { name: /设置/ }).click();
   const settings = page.getByRole("region", { name: "学习设置" });
 

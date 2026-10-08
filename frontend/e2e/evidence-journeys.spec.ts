@@ -111,7 +111,8 @@ test("uploaded material becomes a learning choice with adopted local evidence", 
   let requiredDecisions = 0;
   const chooserPromise = page.waitForEvent("filechooser");
   requiredClicks += 1;
-  await page.locator(".topbar").getByRole("button", { name: "上传学习资料" }).click();
+  if (!(await page.getByLabel("上传学习资料").filter({visible:true}).isVisible())) await page.getByLabel("打开会话历史").click();
+  await page.getByLabel("上传学习资料").filter({visible:true}).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: MATERIAL_FILE,
@@ -225,6 +226,7 @@ test("source-code evidence remains inside the learning goal", async ({ page }, t
   await seedWorkspaceOnce(page, { sessionId: session.row.session_id });
   await page.goto("/");
 
+  await page.getByText("本会话学习上下文", {exact:true}).click();
   const restoreCard = page.getByRole("region", { name: "继续当前任务" });
   await expect(
     restoreCard.getByRole("heading", { name: "通过 FastAPI 源码理解依赖注入调用链" }),

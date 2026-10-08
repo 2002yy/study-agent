@@ -115,7 +115,7 @@ function EvidenceRow({
       {diagnostic && ref.score > 0 ? (
         <span className="evidence-ref-score">相关度：{ref.score.toFixed(2)}</span>
       ) : null}
-      {onRead ? <button className="evidence-reading-link" type="button" onClick={onRead}>定位正文</button> : null}
+      {onRead ? <button className="evidence-reading-link" type="button" onClick={onRead}>{ref.type === "local" ? "定位正文" : "阅读网页"}</button> : null}
       {diagnostic && (ref.providerStatus || ref.selectionReason || ref.rejectionReason) ? (
         <span className="evidence-ref-meta">
           {[
@@ -146,7 +146,9 @@ export function EvidenceTrail({ evidence }: { evidence: TurnEvidence }) {
   const evidenceRefs = normalizeEvidence(evidence);
   const supportedIds = new Set(pedagogy?.evidence_ids ?? []);
   const readAction = (ref: EvidenceRef) => {
-    const target = ref.type === "local" ? reading?.citation(ref.id,ref.source,rag?.results ?? []) : null;
+    const target = ref.type === "local" ? reading?.citation(ref.id,ref.source,rag?.results ?? [])
+      : ref.type !== "web_search" && (ref.status === "read" || ref.status === "selected")
+        ? reading?.webCitation(ref.url || "",evidence) : null;
     return target && reading ? () => reading.open(target) : undefined;
   };
   const adoptedRefs = evidenceRefs.filter(

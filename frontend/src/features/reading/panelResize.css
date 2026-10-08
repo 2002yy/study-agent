@@ -1,0 +1,20 @@
+.app-shell:has(.reading-layout), .reading-layout { position: relative; }
+.panel-resize-handle { display: none; position: absolute; z-index: 3; width: 12px; cursor: col-resize; touch-action: none; user-select: none; outline: none; }
+.panel-resize-handle::after { content: ""; position: absolute; top: 50%; left: 5px; height: 48px; width: 2px; margin-top: -24px; border-radius: 2px; background: #acbecb; }
+.panel-resize-handle:hover::after, .panel-resize-handle:focus-visible::after, .panel-resize-handle[data-dragging]::after { background: var(--accent); width: 4px; left: 4px; }
+.panel-resize-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.app-shell:has(.panel-resize-handle[data-dragging]) { user-select: none; cursor: col-resize; }
+@media (min-width: 1101px) {
+  .panel-resize-sidebar { display: block; top: 16px; bottom: 16px; }
+  .app-shell:has(.reading-layout):has(.panel-resize-sidebar) { grid-template-columns: var(--sidebar-width, 216px) minmax(0, 1fr); }
+}
+@media (min-width: 1360px) {
+  .app-shell:has(.reading-layout.has-document):has(.panel-resize-sidebar) { grid-template-columns: clamp(180px, var(--sidebar-width, 216px), min(360px, calc(100% - 752px))) minmax(0, 1fr); }
+}
+@media (min-width: 1101px) and (max-width: 1359px) {
+  .app-shell:has(.reading-layout.has-document):has(.panel-resize-sidebar) { grid-template-columns: clamp(180px, var(--sidebar-width, 192px), min(360px, calc(100% - 752px))) minmax(0, 1fr); }
+}
+@media (min-width: 901px) {
+  .panel-resize-reading { display: block; top: 0; bottom: 0; }
+  .reading-layout.has-document[data-reading-resized]:not(.reading-focused) { grid-template-columns: minmax(360px, min(var(--resized-reader-width), calc(100% - 376px))) minmax(360px, 1fr); }
+}
