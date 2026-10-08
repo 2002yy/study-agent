@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { ArrowUpRight, Image, MapPin, RotateCcw } from "lucide-react";
 import type { AnswerCard } from "./answerUiProtocol";
 import "./answerUi.css";
+import { EvidenceLab, MemoryLab, PerformanceLab } from "./AnswerLabs";
 
 function Plot({ card }: { card: Extract<AnswerCard, { type: "plot" }> }) {
   const [a, setA] = useState(card.a);
@@ -83,7 +84,8 @@ function Places({ card }: { card: Extract<AnswerCard, { type: "map" }> }) {
 export function AnswerCardView({ card, onDraft }: { card: AnswerCard; onDraft?: (prompt: string) => void }) {
   return <section className={`answer-card answer-card-${card.type}`} aria-label={card.title}>
     <h3>{card.title}</h3>
-    {card.type === "plot" ? <Plot card={card} /> : card.type === "chart" ? <Chart card={card} /> : card.type === "image" ? <Picture card={card} /> : card.type === "map" ? <Places card={card} />
+    {card.type === "memory_lab" ? <MemoryLab card={card} /> : card.type === "performance_lab" ? <PerformanceLab card={card} /> : card.type === "evidence_lab" ? <EvidenceLab card={card} />
+      : card.type === "plot" ? <Plot card={card} /> : card.type === "chart" ? <Chart card={card} /> : card.type === "image" ? <Picture card={card} /> : card.type === "map" ? <Places card={card} />
       : <><div className="answer-followups">{card.items.map((item, i) => <button type="button" key={i} disabled={!onDraft} onClick={() => onDraft?.(item.prompt)}>{item.label}<ArrowUpRight size={14} /></button>)}</div><small>选择后放入输入框，由你决定发送。</small></>}
   </section>;
 }

@@ -1,4 +1,7 @@
 export type AnswerCard =
+  | { type: "memory_lab"; title: string; initialName: string; updatedName: string }
+  | { type: "performance_lab"; title: string; pages: number; concurrency: number; readSeconds: number; summarySeconds: number }
+  | { type: "evidence_lab"; title: string; mode: "simulation"; sources: ({ label: string; kind: "measurement"; aSeconds: number; bSeconds: number } | { label: string; kind: "opinion"; text: string })[] }
   | { type: "image"; title: string; src: string; alt: string; caption?: string }
   | { type: "plot"; title: string; fn: "linear" | "quadratic" | "sine"; a: number; b: number }
   | { type: "chart"; title: string; points: { label: string; value: number }[] }
@@ -21,6 +24,18 @@ export function parseAnswerCard(raw: string): AnswerCard | null {
     if (!record(c) || !text(c.title)) return null;
     // Copy only recognized data. Model-supplied HTML, script, styles and callbacks never reach the renderer.
     const title = c.title;
+    if (c.type === "memory_lab" && text(c.initialName, 30) && text(c.updatedName, 30))
+      return { type: "memory_lab", title, initialName: c.initialName, updatedName: c.updatedName };
+    if (c.type === "performance_lab" && number(c.pages) && Number.isInteger(c.pages) && c.pages >= 1 && c.pages <= 40
+      && number(c.concurrency) && Number.isInteger(c.concurrency) && c.concurrency >= 1 && c.concurrency <= 12
+      && number(c.readSeconds) && c.readSeconds >= 1 && c.readSeconds <= 20
+      && number(c.summarySeconds) && c.summarySeconds >= 0 && c.summarySeconds <= 30)
+      return { type: "performance_lab", title, pages: c.pages, concurrency: c.concurrency, readSeconds: c.readSeconds, summarySeconds: c.summarySeconds };
+    if (c.type === "evidence_lab" && c.mode === "simulation" && Array.isArray(c.sources) && c.sources.length >= 1 && c.sources.length <= 8
+      && c.sources.every(p => record(p) && text(p.label, 100) && (p.kind === "opinion" ? text(p.text, 500)
+        : p.kind === "measurement" && number(p.aSeconds) && p.aSeconds > 0 && number(p.bSeconds) && p.bSeconds > 0)))
+      return { type: "evidence_lab", title, mode: "simulation", sources: c.sources.map(p => p.kind === "opinion"
+        ? { kind: "opinion", label: p.label, text: p.text } : { kind: "measurement", label: p.label, aSeconds: p.aSeconds, bSeconds: p.bSeconds }) };
     if (c.type === "image" && safeImageUrl(c.src) && text(c.alt, 300)
       && (c.caption === undefined || text(c.caption, 600))) return { type: "image", title, src: c.src, alt: c.alt, caption: c.caption };
     if (c.type === "plot" && ["linear", "quadratic", "sine"].includes(String(c.fn))
@@ -77,6 +92,10 @@ export const ANSWER_UI_CONTEXT = `【回答中的学习交互组件 v1；仅本�
 {"type":"image","title":"示意图","src":"https://...","alt":"图像描述","caption":"来源与说明"}：仅用已知可访问的真实图片URL或/assets/路径，不编造URL、不使用代码或data URL。
 {"type":"actions","title":"继续探索","items":[{"label":"练习一下","prompt":"给我一道相关练习题"}]}：1到4个按钮，仅将问题放入输入框由用户决定发送，不执行外部操作。
 {"type":"map","title":"地点","points":[{"label":"地点名","lat":30,"lon":120}]}：只用有依据的坐标，lat在[-85,85]、lon在[-180,180]；地点选择可打开OpenStreetMap底图，没有坐标时改用文字。
+还支持同一状态驱动的小型实验应用：
+{"type":"memory_lab","title":"Java引用实验","initialName":"甲","updatedName":"乙"}：操作引用与对象，可连续执行修改属性/重新赋值/置空/重置。仅概念模拟，不执行Java。
+{"type":"performance_lab","title":"研究性能实验","pages":8,"concurrency":3,"readSeconds":4,"summarySeconds":6}：本地模拟读数量/并发/耗时，pages整数1-40、concurrency整数1-12、readSeconds 1-20、summarySeconds 0-30；必须说明等时长、无开销等假设，不能称为真实压测。
+{"type":"evidence_lab","title":"证据审查实验","mode":"simulation","sources":[{"label":"编码任务","kind":"measurement","aSeconds":1.4,"bSeconds":2},{"label":"检索任务","kind":"measurement","aSeconds":2.6,"bSeconds":2.1},{"label":"主观评论","kind":"opinion","text":"感觉A更快"}]}：检验“A在所有任务都比B快”的逻辑，只接受明确simulation教学数据，勾选后实时区分有限支持/反例/观点；不得用此控件表示真实研究已通过。
 不要生成HTML/JavaScript/自定义公式或调用外部操作；现有文本回答始终可用。`;
 
 export function packAnswerUiContext(instruction: string, lesson: string): string {
@@ -92,7 +111,10 @@ export function answerCopyText(content: string): string {
     if (part.kind === "markdown") return part.content.trimEnd();
     if (part.kind === "pending") return "";
     const c = part.card;
-    const detail = c.type === "chart" ? c.points.map(p => `${p.label}：${p.value}`).join("\n")
+    const detail = c.type === "memory_lab" ? `Java概念实验：初始 a、b 指向 name=${c.initialName} 的同一对象；修改值=${c.updatedName}。`
+      : c.type === "performance_lab" ? `模拟参数：${c.pages}页，并发${c.concurrency}，每页${c.readSeconds}秒，总结${c.summarySeconds}秒。不是实测。`
+      : c.type === "evidence_lab" ? `虚构证据实验：${c.sources.map(p => p.label).join("、")}；本地选择不改变正式研究结论。`
+      : c.type === "chart" ? c.points.map(p => `${p.label}：${p.value}`).join("\n")
       : c.type === "image" ? [c.alt, c.caption, c.src].filter(Boolean).join("\n")
       : c.type === "map" ? c.points.map(p => `${p.label}：${p.lat}°, ${p.lon}°`).join("\n")
       : c.type === "actions" ? c.items.map(p => `${p.label}：${p.prompt}`).join("\n")
