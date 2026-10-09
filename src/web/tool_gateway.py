@@ -23,6 +23,11 @@ from src.news.search_sources.searxng_source import (
     search_searxng,
     searxng_enabled,
 )
+from src.news.search_sources.tavily_source import (
+    get_last_tavily_error,
+    search_tavily,
+    tavily_enabled,
+)
 from src.web.github_reader import GitHubSourceReader
 from src.web.github_snapshot import GitHubRepositorySnapshotter
 from src.web.query_normalizer import normalize_web_query
@@ -361,6 +366,18 @@ class GeneralWebGateway:
                 error = get_last_searxng_error()
                 if error:
                     provider_errors.append(f"searxng:{error}")
+
+        if not results and tavily_enabled():
+            providers_attempted.append("tavily")
+            timeout = remaining_timeout("tavily")
+            if timeout:
+                tavily_results = search_tavily(query, max_results=limit, timeout=timeout)
+                if tavily_results:
+                    results = tavily_results
+                else:
+                    error = get_last_tavily_error()
+                    if error:
+                        provider_errors.append(f"tavily:{error}")
 
         if not results and _env_flag("WEB_ENABLE_BING_RSS", default=True):
             providers_attempted.append("bing_rss")

@@ -1,5 +1,29 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## 2B9-D — real search source: SearXNG root cause + opt-in Tavily (PARTIAL, key needed)
+**Phase 1 — SearXNG root cause (exact):** `SEARXNG_BASE_URL=http://127.0.0.1:8080`, enabled,
+loopback allowed. `GET /search?format=json` → **HTTP 200, `application/json`, valid JSON** with
+`n_results: 0` and **`unresponsive_engines`**: `brave: timeout`, `duckduckgo: CAPTCHA`,
+`google cse: HTTP connection error`, `startpage: Suspended: CAPTCHA`. → **the service and JSON output
+work; every upstream engine it proxies is blocked/CAPTCHA'd.** Not the adapter, not the parsers —
+an external engine problem on the local instance.
+
+**Phase 2 — opt-in Tavily provider:** `src/news/search_sources/tavily_source.py` (OFF by default;
+key only from `TAVILY_API_KEY`; `POST https://api.tavily.com/search` with `search_depth=basic`,
+`max_results≤5`, `include_answer=false`, `include_raw_content=false` — the existing Reader still
+fetches bodies; call count and last error are explicitly countable; a missing key fails
+diagnosably as `missing_api_key` and never alters Agent budgets). Wired into `_search_single` as a
+provider tried before Bing. Unit tests: 4 new (disabled-without-key, disabled-unless-flag, parse +
+call-count, failure diagnosable); suite **39 PASS**; ruff + mypy baseline clean.
+
+**Phase 3 — real validation: BLOCKED.** No `TAVILY_API_KEY` is present (the contract requires the
+user to create it; it must not be committed), so the new provider cannot be exercised yet.
+Factorio / Go specific-article arrival therefore remains **not achieved**.
+
+**Verdict PARTIAL.** Root cause is fixed as a *fact*; the new recall source is implemented but
+**unvalidated pending the API key**. Supply `TAVILY_API_KEY` (and set `WEB_ENABLE_TAVILY=true`)
+to run the Factorio/Go/Python comparison.
+
 ## 2B9-C — per-provider recall diagnosis (external blockage confirmed; PARTIAL)
 `tools/eval_2b9c_providers.py`, raw `model-driven-search-2b9c/providers.json`.
 
