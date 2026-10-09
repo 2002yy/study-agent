@@ -1,8 +1,9 @@
 # RP-1 字段级研究单元合同与只读覆盖追踪
 
 2026-10-09；branch `codex/reading-notebook-ui`，base `4cf8dcec`。
-本批关闭的是诊断/合同/可复核追踪；字段单元的生产声明、抽取、验证及 stop 接线
-尚未实施，RP-1 / R6 仍 NO-GO。当前状态统一由 PROJECT_STATUS.md 管理。
+下文诊断基线对应 `e1542050`：只读追踪已关闭，当时生产声明、抽取和验证尚未实施。
+2026-10-09 后续 shadow 实现见末节；语义 stop 接线仍未实施，RP-1 / R6 仍 NO-GO。
+当前状态统一由 PROJECT_STATUS.md 管理。
 
 ## 真实记录与首次缺口
 
@@ -127,3 +128,64 @@ closeout-state。所有操作只读，无本窗口服务启动，未 push/PR/CI�
 集中错身份/版本/关系/hash/span/部分覆盖/恢复负控；先保持原结构 stop 和 Deep-4B，
 不自动将同名 EvidenceUnit 接入权威。生产范围需要触碰共享合同或跨层运行时协议时
 执行 L3；语义 stop 切换与 qualified judge 独立留门，不与这个诊断 slice 混并。
+
+## 2026-10-09 后续：字段声明/证据验证 shadow 闭环
+
+branch `codex/reading-notebook-ui`，base `e154205062b1b8a2096abcc037b988f3cf6228bd`。
+实现范围只有 `field_unit_shadow.py`、Deep admission、runtime 三个旁路接缝及定点测试。
+本批 shadow 闭环 LOCAL CLOSED；RP-1 / R6 仍 NO-GO，最终 head/clean 由 Git及外部closeout恢复。
+
+- 新 Deep 的首次合法 admission，在同一原子 attach 中持久保存原 query、精确目标、
+  全量严格 requested fields、原问题跨度和稳定 unit ID；在 dispatcher、模型或读取之前。
+  未有严格字段规划或实体不唯一时 NOT_DECLARED，不猜测通用问题的全部要求。
+  原 envelope 已存在的旧 child 不回填；没有从历史证据倒推声明。
+- read 边界保存实际输入与存储正文切片的 SHA；原成功抽取后绑定 server-owned
+  evidence ID。每次原 checkpoint 旁路重算 coverage，与原 state/cursor/sources 原子持久化。
+  不追加重复单元，不修改 ResearchState / EvidenceUnit / RequiredUnit 或 cursor schema。
+- 只消费原 Gate 同一强度、角色、时效和成功读取规则下的 eligible supports。
+  每项候选必须有实际正文 hash、原有效 anchored span、同一窗口的唯一精确身份、
+  evidence/claim/question/cluster/source ref；窗口不能借用相邻段落引用。
+- version 仅证明精确具名身份，不证明 latest、稳定版、性能或整个问题。
+  release_date 只接受具名版本直接表达的有限 released/release date ISO 语法，
+  再经过原 binder；上传、更新、否定、其他产品的日期、歧义及未知定位关系不授予支持。
+  相邻版本、预发布版和精度仍由原 resolve_identity 区分；本地 ASCII 边界允许中文紧邻
+  版本号，未修改原身份适配器或 Lookup/Standard 判定。
+- 每个字段独立保留原 min-independent-sources / primary 要求；重复 cluster 不增加票数，
+  缺主来源、原主张不可用或存在强冲突时不能 COVERED。可验证字段值冲突保留 CONFLICT，
+  有支持但来源要求未齐为 PARTIAL，无可证明关系为 NOT_EVALUATED。
+- declaration hash 及从原 query 重算的完整要求共同校验，不能读后删掉缺失字段。
+  malformed shadow 仅 INVALID，不改变研究的原错误/取消/停止路径。
+  所有 shadow 状态的 stop_authority/publication_authority 均 false。
+
+原 Evidence Gate/结构 stop、模型协议、全部研究预算、审计和 Deep-4B 不改；
+`COVERED` 是上述字段旁路的观察状态，不能转成 generic assessor adequate 或正式答案批准。
+源记录的新增 seal 是内部兼容 metadata，旧记录缺 seal 时不自动补资格。
+UI 与 A 线学习持久状态未修改，也不把新状态输出给前端。
+
+38 定点测试包括正例、错项目/版本/预发布/关系、缺跨度与损坏哈希、私有 URL、弱证据、
+同 cluster、主来源/冲突/不可用、部分覆盖、未知关系及非法删减声明。
+生产服务 admission 测试证明首次 dispatch 前已持久声明，旧 envelope 不回填。
+实际 runtime + SQLite 路径在 eligible extraction checkpoint 后模拟中断，用新 repository/
+dispatcher 连接恢复原 cursor；两项字段最终各两个独立支持 cluster，物理读取共2次，
+没有重复已完成读取。legacy 和 malformed 对照均保留原 completed/evidence_gate_pass。
+这些使用确定性模型/工具替身，不能替代真实提供商或真实进程重启验收；此前真实重启
+证据保留，本批不重复或扩充其主张。
+
+外部 `r6c-field-unit-shadow/` 保存 final-qualification-tmp 的实际 DB、原声明/字段候选、
+read-only runtime-witness.json、14核对、聚焦/集成/全套日志与最终 closeout。
+其中三条历史自然 Deep 原 DB 只读检查，仍 NOT_DECLARED、字节未改变。
+没有启服务/发起新自然研究；新 live qualification、浏览器 TTUV 均 NOT_OBSERVED。
+
+后续唯一门：**新自然 Deep 的字段 shadow 实际观测与持久恢复资格**。
+预登记有限样本，沿原 Lookup→Standard→Deep 资格链观察字段声明、正文/span、每字段
+cluster 与恢复；不强造 child、不倒写旧证据、不切换语义 stop/发布门。
+若新样本自然 Lookup VERIFIED 或未能升级，要保留该真实结果，不能当成 Deep 成功。
+
+
+### 本候选验收结果
+
+最终定点38 PASS/13.70秒；初轮命名L1 308 PASS/208.68秒。增加归属/冲突负控后，最终命名RP整栈907 PASS/448.96秒包含完整影响集；唯一后端 L3：**4311 passed, 6 skipped in 5922.84s (1:38:42)**。生产/test字节在最终focused、L2、L3期间不变，candidate-registry 重核PASS。Ruff全src/tests/tools、两新文件format、mypy baseline NEW0（122/128、resolved6）、diff-check、7文件范围与局部自审PASS。首轮未提交L3为4309PASS/6SKIP/2FAIL，1536.27秒，两个RQ1-C失败均为exact-clean-HEAD门的正确拒绝；先固定0f3a4913候选，preflight和RQ1-C聚焦通过后在干净HEAD复验完整套件，未修改或绕过资格门。l3-first-failed.log保留。收尾只改文档并amend未推送提交，生产/test bytes不变，不再重跑L3。
+
+初次夹具未声明cluster导致原ResearchState builder拒绝，已补正确的已知cluster；原Unicode边界会漏掉中文紧邻版本的query，shadow专用ASCII边界兼容中文并拒绝prerelease/相邻版本。引用窗口内另一产品或否定的日期不能绑定为目标release_date，已用严格直接关系语法及负控封住。未修改原身份归一、事实资格、预算或发布门。
+
+最终实际SQLite证据的14项只读核对PASS；新模型/读取/搜索均为测试替身，真实provider与自然Deep资格未新增，不以本地COVERED宣布R6完成。保留此前真正进程重启与S1 TTUV证据，但新协议的真实运行/恢复与TTUV仍待下一批。

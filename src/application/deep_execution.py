@@ -262,6 +262,9 @@ class DeepExecutionService:
         deep = dict(context.get("deep") or {})
         deep["execution"] = envelope
         context["deep"] = deep
+        from src.web.research.field_unit_shadow import KEY as FIELD_SHADOW_KEY, declare
+
+        context[FIELD_SHADOW_KEY] = declare(child.query)
 
         updated = self.runs.attach_pending_context(
             child.id,

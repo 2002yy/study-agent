@@ -946,6 +946,12 @@ class ActiveResearchRuntimeExecutor:
                 known_evidence_ids=known_evidence_ids(),
             )
             _update_metrics(context, state, cursor)
+            from src.web.research.field_unit_shadow import KEY as FIELD_SHADOW_KEY, safe_observe
+
+            if FIELD_SHADOW_KEY in context:
+                context[FIELD_SHADOW_KEY] = safe_observe(
+                    context[FIELD_SHADOW_KEY], state, selected_sources
+                )
             _repo_started = elapsed_ms()
             persisted = self.repository.checkpoint(
                 run_id,
@@ -3130,6 +3136,8 @@ class ActiveResearchRuntimeExecutor:
                         source_record["extraction"] = extraction_summary
                     evidence_id = _evidence_id_for_record(run_id, source_record, selected_sources, rejected_sources)
                     state = _add_extracted_evidence(state, evidence_id=evidence_id, link=link)
+                    if "field_unit_shadow" in context:
+                        source_record["field_shadow_evidence_id"] = evidence_id
                     cursor = replace(
                         cursor,
                         read_outcomes=tuple(
@@ -6725,6 +6733,9 @@ def _source_record(
         "read_status": read["status"],
         "evidence_state": "new" if read["status"] == "read" else "invalid_or_rejected",
     }
+    from src.web.research.field_unit_shadow import seal_read
+
+    record["field_shadow_read"] = seal_read(dict(raw_read), str(read["content"]))
     retrieval_state = str(raw_read.get("retrieval_state") or "")
     if retrieval_state:
         # §94 A0 canonical outcome; §96 A1a adds the policy half. Absent for

@@ -381,6 +381,18 @@
       "tests/test_standard_binding.py",
       "tests/test_standard_binding_projection.py"
     ],
+    "research_field_unit_shadow": [
+      "tests/test_research_field_unit_shadow.py",
+      "tests/test_deep_execution.py",
+      "tests/test_active_research_runtime.py",
+      "tests/test_deep_runtime_seams.py",
+      "tests/test_deep_seed_reuse.py",
+      "tests/test_deep_seed.py",
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_standard_binding.py",
+      "tests/test_standard_binding_projection.py",
+      "tests/test_identity_evidence_binding.py"
+    ],
     "research_field_unit_trace": [
       "tests/test_research_field_coverage_trace.py",
       "tests/test_claim_evidence_assessment.py",
@@ -394,6 +406,7 @@
   },
   "stage_gates": {
     "research-presentation-v1": [
+      "tests/test_research_field_unit_shadow.py",
       "tests/test_deep_seed_reuse.py",
       "tests/test_deep_runtime_seams.py",
       "tests/test_deep_seed.py",
