@@ -24,6 +24,21 @@ from src.web.tool_evidence import evidence_tool_calls
 ORIGINAL = "联网研究：opus5.5是什么？性能如何？对比？"
 
 
+def test_preferences_accepts_list_and_string_excluded_page_types():
+    from src.web.semantic_recovery import preferences
+
+    assert preferences({"excluded_page_types": ["dictionary", "forum"], "focus": "x"}) == {
+        "excluded_page_types": ["dictionary", "forum"],
+        "focus": "x",
+    }
+    assert preferences({"excluded_page_types": []}) == {"excluded_page_types": []}
+    assert preferences({"excluded_page_types": "dictionary"}) == {
+        "excluded_page_types": "dictionary"
+    }
+    with pytest.raises(ValueError):
+        preferences({"unknown_key": "x"})
+
+
 def test_five_candidate_queries_are_accepted_without_changing_question_identity():
     value = json.loads(json.dumps(decision()))
     value["proposed_queries"] += [

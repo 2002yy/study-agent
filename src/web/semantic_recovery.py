@@ -49,10 +49,20 @@ def questions(value: Any, *, cap: int = 6) -> list[dict[str, str]]:
     return result
 
 
-def preferences(value: Any) -> dict[str, str]:
+def preferences(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) - PREFERENCES:
         raise ValueError("preference_authority")
-    return {key: _text(item, 300) for key, item in value.items()}
+    result: dict[str, Any] = {}
+    for key, item in value.items():
+        if key == "excluded_page_types" and isinstance(item, list):
+            # A list of page types is a legitimate preference shape; the model
+            # proposes it as a list, so do not force it through the string gate.
+            if len(item) > 20:
+                raise ValueError("invalid_string")
+            result[key] = [_text(entry, 300) for entry in item]
+        else:
+            result[key] = _text(item, 300)
+    return result
 
 
 @dataclass(frozen=True)
@@ -61,7 +71,7 @@ class ResearchEpisode:
     thread_id: str
     original_question: str
     questions: list[dict[str, str]]
-    constraints: dict[str, str] = field(default_factory=dict)
+    constraints: dict[str, Any] = field(default_factory=dict)
     previous_task_id: str = ""
     source_run_id: str = ""
     source_run_version: int = 0
@@ -115,7 +125,7 @@ class ResearchDecision:
     task_id: str
     intent: str
     subject: str
-    constraints_delta: dict[str, str]
+    constraints_delta: dict[str, Any]
     unresolved_questions: list[dict[str, str]]
     suggested_next_action: str
     proposed_queries: list[dict[str, str]]
