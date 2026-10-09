@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from src.web.source_assessment import assess_sources
 from src.web.recovery_candidates import CandidateScheduler
 from src.web.search_query_quality import (
+    build_authoritative_query,
     classify_candidate,
     optimize_search_query,
     order_candidates,
@@ -58,10 +59,15 @@ def select_research_queries(
                  "phase": "authoritative_domain", "reason": "reserved_official_recovery"}]
     covered = set(official["rq_ids"])
 
-    def priority(group: dict[str, Any]) -> tuple[int, bool, int]:
+    def priority(group: dict[str, Any]) -> tuple[int, bool, int, int]:
         hosts = re.findall(r"site:([^\s)]+)", group["query"], re.I)
         known_official = any(host.casefold() in official_domains for host in hosts)
-        return (len(set(group["rq_ids"]) - covered), known_official, -group["index"])
+        # Deterministic specificity so equal single-RQ coverage does not collapse
+        # to input order: prefer queries carrying versions/dates and more tokens.
+        compact = optimize_search_query(group["query"])[0]
+        tokens = compact.split()
+        specificity = 2 * sum(1 for t in tokens if any(c.isdigit() for c in t)) + len(tokens)
+        return (len(set(group["rq_ids"]) - covered), known_official, specificity, -group["index"])
 
     for _ in range(max(0, slots)):
         if not groups:
@@ -285,10 +291,11 @@ def _recover_public_research(
     # one character (e.g. a surname dictionary entry) is not topic evidence.
     literal_topic = search_topic.strip() if re.fullmatch(r"[\u3400-\u9fff]{2,4}", search_topic.strip()) else ""
     authority = " OR ".join(f"site:{domain}" for domain in domains)
+    compact_topic = optimize_search_query(rewritten)[0]
     authority_query = (
-        f"({authority}) {rewritten}"
+        f"({authority}) {compact_topic}"
         if domains
-        else f"{rewritten} official documentation"
+        else build_authoritative_query(rewritten, ())
     )
     # Initial/alternate reads cannot consume the final authority recovery slots.
     phases = (

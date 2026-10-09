@@ -19,26 +19,68 @@ import re
 from typing import Any
 
 # Generic scaffolding that makes a fallback engine match the literal word
-# ("比较") instead of the entity/version. Only removed when it is its own
-# whitespace-separated token, so an entity named with such a substring survives.
+# ("比较") instead of the entity/version. For continuous CJK only the multi-char
+# forms are removed inline; single chars are removed only as standalone tokens.
 GENERIC_QUERY_TOKENS = frozenset(
     {
         "比较", "对比", "区别", "区别？", "优缺点", "如何", "为什么", "为什么？", "是否",
         "以及", "并且", "分别", "哪些", "什么", "介绍", "解释", "说明", "区分", "条件",
         "适用", "应该", "可能", "需要", "研究", "分析", "总结", "主要", "相关", "更",
+        "的", "和", "与", "在", "中", "下", "为", "对", "并",
     }
 )
+_GENERIC_CJK_INLINE = tuple(
+    token for token in GENERIC_QUERY_TOKENS if len(token) >= 2
+)
+_GENERIC_ENGLISH = frozenset(
+    {
+        "compare", "comparison", "overview", "introduce", "introduction", "explain",
+        "explanation", "guide", "tutorial", "please", "about", "general", "various",
+        "using", "based", "main", "mainly", "detail", "details", "information", "info",
+        "how", "why", "what", "which", "the", "of", "and", "or", "for", "with", "in",
+        "on", "to", "a", "an",
+    }
+)
+MAX_QUERY_TOKENS = 12
 
 
 def optimize_search_query(task_query: str) -> tuple[str, str]:
-    """Return (optimized_query, reason); fall back to the original on no change."""
+    """Return (optimized_query, reason); fall back to the original on no change.
+
+    Handles both whitespace-separated tokens and continuous CJK sentences: removes
+    generic scaffolding, keeps entities/versions/dates/negations, and caps length
+    so a fallback engine cannot reduce a long query to its first weak token.
+    """
     original = task_query or ""
-    tokens = [token for token in re.split(r"\s+", original.strip()) if token]
-    kept = [token for token in tokens if token not in GENERIC_QUERY_TOKENS]
-    optimized = " ".join(kept).strip()
-    if not optimized or len(kept) == len(tokens):
+    text = original
+    for generic in _GENERIC_CJK_INLINE:
+        text = text.replace(generic, " ")
+    tokens = [token for token in text.split() if token]
+    kept = [
+        token
+        for token in tokens
+        if token not in GENERIC_QUERY_TOKENS and token.casefold() not in _GENERIC_ENGLISH
+    ]
+    capped = kept[:MAX_QUERY_TOKENS]
+    optimized = " ".join(capped).strip()
+    if not optimized or optimized == original:
         return original, "unchanged"
-    return optimized, f"generic_tokens_removed:{len(tokens) - len(kept)}"
+    if len(capped) < len(kept):
+        return optimized, "generic_and_length_trimmed"
+    return optimized, "generic_tokens_removed"
+
+
+def build_authoritative_query(question: str, domains: tuple[str, ...]) -> str:
+    """Build the reserved official query without embedding the whole question.
+
+    Uses the compacted core terms (not the raw sentence) and only prepends a
+    known official ``site:`` host; never a bare full-question string.
+    """
+    compact, _ = optimize_search_query(question)
+    if domains:
+        return f"site:{domains[0]} {compact}"
+    return f"{compact} official documentation"
+
 
 
 def order_candidates(
