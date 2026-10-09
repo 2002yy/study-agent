@@ -1,5 +1,19 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## CORRECTION (reviewer, 2026-10-11) — engine attribution was wrong
+- **This image has NO `google` engine** (only `google cse` / `google news` / `google scholar` /
+  `google play …`). SearXNG **silently ignores an unregistered `engines=` value and falls back to the
+  default set** → the earlier `n=10` was **bing**, not google. **`SEARXNG_ENGINES=google` is a no-op**;
+  to pin, use `bing`, otherwise leave it empty.
+- **`language=zh-CN` did NOT zero results** (measured 10/10/10 for omitted / `en` / `zh-CN`). The real
+  0→10 change came from the **bing 302 fix + engine enable/disable (PR #209 / `f8cbb0c1` on main)**.
+  Making language env-driven is a reasonable cleanup but is **not** the cause. Default engine set now
+  returns 10 (bing); blocked engines: ddg / brave / startpage / qwant / google-cse.
+- Reachable: Bing RSS 200 (low-quality portals), Tavily 200, Exa online, `dns.google` DoH ok.
+- **DoH fix (`fe223c31`) confirmed correct and safe** (check == connect IP, real SNI, no `198.18/15`
+  whitelist). **Scope:** `fe223c31`, `38639d8d` and the Tavily provider are on **codex branches, NOT
+  main**; main only has the SearXNG config fix. Do not call this "main done".
+
 ## 2B9-F — DNS latency + strict DoH semantics + follow deadline (PARTIAL)
 - **DoH cache**: per `(DoH endpoint, host)`, short TTL (`SAFE_HTTP_DOH_CACHE_TTL`, default 120s),
   cap 128, cleared on overflow; **only fully-validated public IPs are cached** (failures/unsafe
