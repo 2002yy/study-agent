@@ -1,0 +1,27 @@
+name: egress-probe
+
+# Restricted push-triggered diagnostic (workflow_dispatch needs the default branch).
+# Isolated branch only; does not touch main or any PR.
+on:
+  push:
+    branches:
+      - diag/gh-egress-probe
+
+jobs:
+  egress-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tools (anonymous, no credentials)
+        run: pip install --disable-pip-version-check feedparser yt-dlp
+      - name: Run egress probe
+        run: python tools/gh_egress_probe.py | tee egress-probe.json
+      - name: Upload probe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-probe
+          path: egress-probe.json
