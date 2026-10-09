@@ -380,6 +380,16 @@
       "tests/test_standard_official_candidates.py",
       "tests/test_standard_binding.py",
       "tests/test_standard_binding_projection.py"
+    ],
+    "research_field_unit_trace": [
+      "tests/test_research_field_coverage_trace.py",
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_coverage_stop_assessment.py",
+      "tests/test_evidence_units.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_deep_continuation.py",
+      "tests/test_deep_publication.py",
+      "tests/test_research_web_lookup_dispatch.py"
     ]
   },
   "stage_gates": {
@@ -593,6 +603,25 @@
       "tests/test_answer_claim_turn_lifecycle.py",
       "tests/test_answer_phase_no_hidden_sdk_retry.py",
       "tests/test_web_lookup_stop_reason_recovery.py",
+      "tests/test_stage_gates_policy.py"
+    ],
+    "research-field-unit-trace-v1": [
+      "tests/test_research_field_coverage_trace.py",
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_coverage_stop_assessment.py",
+      "tests/test_evidence_units.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_deep_continuation.py",
+      "tests/test_deep_publication.py",
+      "tests/test_research_web_lookup_dispatch.py",
+      "tests/test_claim_planner_execution_budget.py",
+      "tests/test_research_quality_evidence_gate.py",
+      "tests/test_research_stop_gate.py",
+      "tests/test_research_quality_stop_gate.py",
+      "tests/test_standard_binding.py",
+      "tests/test_standard_binding_projection.py",
+      "tests/test_final_answer_auditor.py",
+      "tests/test_research_brief_projection.py",
       "tests/test_stage_gates_policy.py"
     ]
   },
