@@ -48,58 +48,101 @@ def _raise_safe(reason: str) -> NoReturn:
     raise SafeFetchRefusal(reason) if reason in _SECURITY_REASONS else SafeFetchError(reason)
 
 
-def _doh_resolve(host: str) -> list[str]:
-    """Resolve via a trusted DoH endpoint (``SAFE_HTTP_DOH_URL``); [] on any failure.
+_DOH_CACHE: dict[tuple[str, str], tuple[float, list[str]]] = {}
+_DOH_CACHE_MAX = 128
+_DNS_STATS = {"queries": 0, "cache_hits": 0, "doh_failures": 0, "seconds": 0.0}
 
-    Used because the local transparent proxy injects fake-IP answers (198.18.0.0/15)
-    that would otherwise be rejected as non-public. We deliberately do NOT whitelist
-    that range: instead we obtain the real public IPs here and hand them to the
-    connection layer, so the safety check and the connect use the SAME addresses.
+
+def get_dns_stats() -> dict:
+    """Diagnostics: DoH request count, cache hits, hit rate and cumulative seconds."""
+    lookups = _DNS_STATS["queries"] + _DNS_STATS["cache_hits"]
+    stats = dict(_DNS_STATS)
+    stats["seconds"] = round(_DNS_STATS["seconds"], 3)
+    stats["hit_rate"] = round(_DNS_STATS["cache_hits"] / lookups, 3) if lookups else 0.0
+    return stats
+
+
+def reset_dns_stats() -> None:
+    """Start a research run from a clean slate: drop cached answers and counters.
+
+    The cache exists to avoid re-querying a host inside one bounded run; counters
+    are per-run so evidence is not polluted by earlier runs.
+    """
+    _DOH_CACHE.clear()
+    for key in _DNS_STATS:
+        _DNS_STATS[key] = 0.0 if key == "seconds" else 0
+
+
+def _doh_lookup(host: str, doh: str, *, deadline: float | None = None) -> list[str]:
+    """Query A and AAAA via DoH. A failed request for EITHER type fails closed — one
+    type's success must not mask the other's failure. Returns raw record strings.
+
+    ``deadline`` is the caller's absolute monotonic limit: each request is clamped to
+    the remaining budget, and an exhausted budget fails closed instead of granting a
+    fresh per-request timeout. DoH wall time is accumulated in the run statistics.
     """
     import json as _json
-    import os as _os
+    import time as _time
     from urllib.request import Request, urlopen
 
-    doh = (_os.getenv("SAFE_HTTP_DOH_URL") or "").strip()
-    if not doh:
-        return []
-    out: list[str] = []
-    for rtype in ("A", "AAAA"):
-        try:
-            req = Request(f"{doh}?name={host}&type={rtype}",
-                          headers={"Accept": "application/dns-json"})
-            with urlopen(req, timeout=5) as resp:  # noqa: S310 (operator-configured endpoint)
-                data = _json.loads(resp.read().decode("utf-8", "replace"))
-        except Exception:  # noqa: BLE001
-            continue
-        for answer in (data.get("Answer") or []):
-            if answer.get("type") in (1, 28) and answer.get("data"):
-                out.append(str(answer["data"]))
-    return out
+    started = _time.monotonic()
+    try:
+        answers: list[str] = []
+        for rtype in ("A", "AAAA"):
+            req_timeout = 5.0
+            if deadline is not None:
+                req_timeout = min(req_timeout, deadline - _time.monotonic())
+                if req_timeout <= 0:
+                    raise ValueError("deadline_exhausted")
+            try:
+                req = Request(f"{doh}?name={host}&type={rtype}",
+                              headers={"Accept": "application/dns-json"})
+                with urlopen(req, timeout=req_timeout) as resp:  # noqa: S310 (operator-configured endpoint)
+                    data = _json.loads(resp.read().decode("utf-8", "replace"))
+            except Exception as exc:  # noqa: BLE001
+                _DNS_STATS["doh_failures"] += 1
+                raise ValueError("dns_failed") from exc
+            for answer in (data.get("Answer") or []):
+                if answer.get("type") in (1, 28) and answer.get("data"):
+                    answers.append(str(answer["data"]))
+        return answers
+    finally:
+        _DNS_STATS["seconds"] += _time.monotonic() - started
 
 
-def host_resolves_public(host: str) -> bool:
+def host_resolves_public(host: str, *, deadline: float | None = None) -> bool:
     """True only if every resolved address is a global (public) IP."""
     if not host:
         return False
     try:
-        resolve_public_ips(host)
+        resolve_public_ips(host, deadline=deadline)
     except Exception:  # noqa: BLE001
         return False
     return True
 
 
-def resolve_public_ips(host: str) -> list[str]:
+def resolve_public_ips(host: str, *, deadline: float | None = None) -> list[str]:
     """Resolve once and require every address to be a global IP; return the IPs.
 
     With ``SAFE_HTTP_DOH_URL`` set, resolution goes through DoH (real public IPs) and
-    **fails closed** on DoH failure or any non-global answer. The returned IPs are the
-    ones pinned by ``http_get_raw``/``safe_fetch`` — check and connect never diverge.
+    **fails closed** on DoH failure or any non-global answer. Results are cached per
+    (DoH endpoint, host) with a short TTL — ONLY fully-validated public IPs are cached;
+    failures and unsafe answers are never cached. The returned IPs are the ones pinned
+    by ``http_get_raw``/``safe_fetch`` — check and connect never diverge.
     """
     import os as _os
+    import time as _time
 
-    if (_os.getenv("SAFE_HTTP_DOH_URL") or "").strip():
-        raw_ips = _doh_resolve(host)
+    doh = (_os.getenv("SAFE_HTTP_DOH_URL") or "").strip()
+    if doh:
+        key = (doh, host)
+        now = _time.monotonic()
+        cached = _DOH_CACHE.get(key)
+        if cached and cached[0] > now:
+            _DNS_STATS["cache_hits"] += 1
+            return list(cached[1])
+        _DNS_STATS["queries"] += 1
+        raw_ips = _doh_lookup(host, doh, deadline=deadline)
         if not raw_ips:
             raise ValueError("dns_failed")
         ips: list[str] = []
@@ -111,6 +154,10 @@ def resolve_public_ips(host: str) -> list[str]:
             if not ip.is_global:
                 raise ValueError("unsafe_target")
             ips.append(str(ip))
+        if len(_DOH_CACHE) >= _DOH_CACHE_MAX:
+            _DOH_CACHE.clear()
+        ttl = float(_os.getenv("SAFE_HTTP_DOH_CACHE_TTL", "120") or 120)
+        _DOH_CACHE[key] = (now + ttl, ips)
         return ips
 
     try:
@@ -187,7 +234,7 @@ def safe_fetch(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
             raise ValueError("unsafe_port")
         if not _public_url(current):
             raise ValueError("unsafe_target")
-        ips = resolve_public_ips(parts.hostname)
+        ips = resolve_public_ips(parts.hostname, deadline=deadline)
         status, headers, body = http_get_pinned(
             current, parts.hostname, ips[0], timeout=hop_timeout, max_bytes=max_bytes
         )
@@ -230,7 +277,7 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
         if not _public_url(current):
             _raise_safe("unsafe_target")
         try:
-            ips = resolve_public_ips(parts.hostname)
+            ips = resolve_public_ips(parts.hostname, deadline=deadline)
         except SafeFetchRefusal:
             raise
         except Exception as exc:  # noqa: BLE001

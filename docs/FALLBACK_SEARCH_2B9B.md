@@ -1,5 +1,29 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## 2B9-F — DNS latency + strict DoH semantics + follow deadline (PARTIAL)
+- **DoH cache**: per `(DoH endpoint, host)`, short TTL (`SAFE_HTTP_DOH_CACHE_TTL`, default 120s),
+  cap 128, cleared on overflow; **only fully-validated public IPs are cached** (failures/unsafe
+  answers never cached). `get_dns_stats()` exposes queries / cache_hits / doh_failures.
+- **A/AAAA strictness**: a failed DoH request for EITHER type now raises `dns_failed` — one type's
+  success cannot mask the other's failure.
+- **`follow`** now passes the shared absolute `deadline`.
+- **Prompt**: prefer reading a specific article URL a search already returned; only `follow` a hub
+  page when no suitable specific article was returned (generic; no hardcoded site).
+- Tests: `tests/test_safe_http_doh.py` (+ cache-hit, one-type-failure) → **49 PASS**; ruff + mypy clean.
+
+**Real validation** (`SEARXNG_ENGINES=google` + `SAFE_HTTP_DOH_URL=https://dns.google/resolve`).
+Effective engine = **searxng (google)** for all tasks (Bing not used when searxng is non-empty):
+| task | elapsed | reads | outcome |
+|---|---|---|---|
+| factorio | 36.2s | none | recall ok, but model followed wiki home → **no read** |
+| go_rules | 60.2s | cosumi (fail), **weiqigo home 399 chars** | read a **home page**, not the rule article |
+| python_reference | 35.2s | final post 4379 chars ✅ | finished |
+
+**Verdict PARTIAL.** Time now **< 90s** for all (cache fixed the 129s) and safety regressions pass;
+Python reads. But **Factorio/Go still do not autonomously read a *topical* specific article** (Go read
+a 399-char home; Factorio read nothing) — the specific URLs were returned by search but not chosen.
+`assess_body` false positive stays UNQUALIFIED.
+
 ## 2B9-E — trusted DoH resolver (check == connect), no CIDR whitelist
 `SAFE_HTTP_DOH_URL` (e.g. `https://dns.google/resolve`): `resolve_public_ips()` now resolves via DoH,
 **fails closed** on DoH failure, and rejects any non-global answer (so fake-IP `198.18.0.0/15` is

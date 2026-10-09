@@ -16,7 +16,7 @@ from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
-from src.web.safe_http import host_resolves_public, safe_fetch
+from src.web.safe_http import get_dns_stats, host_resolves_public, reset_dns_stats, safe_fetch
 from src.web.tool_evidence import _public_url
 
 
@@ -32,7 +32,9 @@ SYSTEM = (
     "Use feed to discover article links from an RSS/Atom feed; if a discovered page is "
     "only a hub/home/navigation page, use follow to list its same-site article links and "
     "then read the specific article; never treat a hub page as the answer; do not repeat a "
-    "failed action; one action per turn. A page you read is exploratory and does not prove any fact."
+    "failed action; one action per turn. A page you read is exploratory and does not prove any fact. "
+    "Prefer reading a specific article URL that a search already returned; only follow a "
+    "hub/home/navigation page when the search returned no suitable specific article."
 )
 
 
@@ -140,6 +142,7 @@ def run_tool_agent(
     budget = budget or AgentBudget()
     started = monotonic()
     deadline = started + budget.hard_seconds
+    reset_dns_stats()  # per-run DoH cache + counters
     calls: list[dict[str, Any]] = []
     observations: list[str] = []
     searches = reads = 0
@@ -328,7 +331,7 @@ def run_tool_agent(
             reads += 1
             try:
                 res = safe_fetch_result(url, timeout=min(8.0, max(0.5, deadline - monotonic())),
-                                        max_bytes=300_000)
+                                        max_bytes=300_000, deadline=deadline)
                 raw = res.get("content") or res.get("body") or res.get("text") or ""
                 html = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
             except Exception as exc:  # noqa: BLE001
@@ -451,6 +454,7 @@ def run_tool_agent(
         "searches": searches,
         "reads": reads,
         "elapsed_seconds": elapsed,
+        "dns_stats": get_dns_stats(),
         "bodies": bodies,
         "calls": calls,
         "registry_sources": list(reliable_sources),
