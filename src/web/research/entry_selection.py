@@ -85,7 +85,10 @@ def rank_entries(entries: list[dict[str, str]], question: str) -> list[dict]:
     return ranked
 
 
-def select_entry(entries: list[dict[str, str]], question: str, *, min_score: int = 2) -> dict | None:
+MIN_SCORE = 2
+
+
+def select_entry(entries: list[dict[str, str]], question: str, *, min_score: int = MIN_SCORE) -> dict | None:
     """Return the best entry, or ``None`` => ``no_relevant_entry``.
 
     A weak single generic-token overlap (score < ``min_score``) is refused rather
@@ -96,3 +99,25 @@ def select_entry(entries: list[dict[str, str]], question: str, *, min_score: int
     if top and top["score"] >= min_score:
         return top
     return None
+
+
+def admission_map(entries: list[dict[str, str]], question: str, *,
+                  min_score: int = MIN_SCORE) -> dict[str, str]:
+    """Map each entry URL -> ``""`` (eligible) or an exclusion reason for this question.
+
+    ``admission_map`` is the *tool-layer* form of :func:`select_entry`: it keeps the
+    full eligibility picture so a caller can refuse to READ an entry that is excluded
+    for the current goal (even if the URL was discovered elsewhere).
+    """
+    out: dict[str, str] = {}
+    for row in rank_entries(entries, question):
+        url = row["entry"].get("url", "")
+        if not url:
+            continue
+        if row["excluded"]:
+            out[url] = row["excluded"]
+        elif row["score"] < min_score:
+            out[url] = "below_threshold"
+        else:
+            out[url] = ""
+    return out

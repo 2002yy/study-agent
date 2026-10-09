@@ -210,19 +210,53 @@ def test_source_chain_records_registry_feed_entry_and_basis(monkeypatch):
     monkeypatch.setattr(
         agent, "safe_fetch",
         lambda url, timeout=15.0, deadline=None:
-        "<rss><channel><item><title>t</title><link>https://ex.org/a</link></item></channel></rss>",
+        "<rss><channel><item><title>python guide</title><link>https://ex.org/a</link></item></channel></rss>",
     )
     completion = make_completion([
         {"tool": "feed", "url": "https://ex.org/f.xml"},
         {"tool": "read_page", "url": "https://ex.org/a"},
         {"tool": "finish"},
     ])
-    trace = run_tool_agent(gateway=FakeGateway(), completion=completion, question="q",
+    trace = run_tool_agent(gateway=FakeGateway(), completion=completion, question="python guide",
                            budget=AgentBudget(), registry_sources=(("src-1", "https://ex.org/f.xml"),))
     chain = trace["source_chain"]
     assert chain and chain[0]["entry_url"] == "https://ex.org/a"
     assert chain[0]["feed_url"] == "https://ex.org/f.xml"
     assert chain[0]["basis"] == "feed_entry"
+
+
+_EXCLUDED_FEED = ("<rss><channel><item><title>Python 3.15.0 (final) is here!</title>"
+                  "<link>https://blog.python.org/3150-final</link></item></channel></rss>")
+
+
+def _excluded_read_run(monkeypatch, **extra):
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    monkeypatch.setattr(agent, "safe_fetch", lambda url, timeout=15.0, deadline=None: _EXCLUDED_FEED)
+    completion = make_completion([
+        {"tool": "feed", "url": "https://ex.org/f.xml"},
+        {"tool": "read_page", "url": "https://blog.python.org/3150-final"},
+        {"tool": "finish"},
+    ])
+    return run_tool_agent(gateway=FakeGateway(), completion=completion,
+                          question="Python 3.15.0 入门教程", budget=AgentBudget(),
+                          registry_sources=(("src", "https://ex.org/f.xml"),), **extra)
+
+
+def test_read_gate_blocks_excluded_feed_entry(monkeypatch):
+    trace = _excluded_read_run(monkeypatch)
+    read_calls = [c for c in trace["calls"] if c.get("action", {}).get("tool") == "read_page"]
+    assert read_calls and read_calls[0]["result"]["status"] == "entry_not_eligible"
+    assert trace["reads"] == 0    # quota not consumed
+    assert trace["bodies"] == []  # reader never called
+
+
+def test_read_gate_not_bypassed_by_other_confirmation(monkeypatch):
+    trace = _excluded_read_run(monkeypatch, initial_urls=("https://blog.python.org/3150-final",))
+    read_calls = [c for c in trace["calls"] if c.get("action", {}).get("tool") == "read_page"]
+    assert read_calls and read_calls[0]["result"]["status"] == "entry_not_eligible"
+    assert trace["bodies"] == []
 
 
 def test_safe_fetch_result_structured(monkeypatch):

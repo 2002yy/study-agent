@@ -1,5 +1,15 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-C — tool-layer admission + frozen-snapshot A/B
+`confirmed` (discovered) is now separate from goal-fit: `admission_map()` marks each entry
+eligible / excluded(type|version|below_threshold); `read_page` checks `entry_exclusions` BEFORE
+confirmed/quota/safety and returns `entry_not_eligible` without fetching or spending quota, so no
+other confirmation path can bypass it. Frozen snapshot A/B: B rejected 2 ineligible feed entries in
+`similar_title` (excluded-entry reads **0**, extra feed mis-read **1→0**, correct article kept) →
+**feed-entry scope limited PASS**. The `tutorial_conflict` negative still fails but now via the
+**`search` path** (not gated) → **overall PARTIAL**. See `AB_METRICS_C.md`.
+
+
 ## 2B8-B real-model A/B (RESULT: NO improvement) — see AB_METRICS.md
 5 cases × {A plain, B ranked}, real model, identical code path. Arm B improved only the
 `similar_title` case (and read an extra wrong URL there); on `Python 3.15.0 入门教程` **arm B read

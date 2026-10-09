@@ -145,6 +145,11 @@ def run_tool_agent(
     confirmed: set[str] = set()
     confirmed_basis: dict[str, str] = {}
     feed_links: dict[str, str] = {}
+    # URL -> exclusion reason for the CURRENT question. ``confirmed`` proves a URL was
+    # reliably DISCOVERED; it does not prove it fits the goal. These are separated: a
+    # feed entry excluded for this goal stays readable-by-no-one here even if another
+    # source later confirms the same URL (see the read_page gate below).
+    entry_exclusions: dict[str, str] = {}
     source_chain: list[dict[str, str]] = []
     for _url in initial_urls:
         if _public_url(_url):
@@ -241,12 +246,18 @@ def run_tool_agent(
             call["result"] = {"status": feed_status, "n": len(entries),
                               "urls": [entry["url"] for entry in entries]}
             if entry_selection:
-                from src.web.research.entry_selection import rank_entries, select_entry
+                from src.web.research.entry_selection import admission_map, rank_entries, select_entry
 
                 ranked = rank_entries(entries, question)
                 selected = select_entry(entries, question)
+                admission = admission_map(entries, question)
+                for _u, _why in admission.items():
+                    if _why:
+                        entry_exclusions[_u] = _why
                 call["entry_selection"] = {
                     "selected": selected["entry"]["url"] if selected else "no_relevant_entry",
+                    "eligible": [u for u, why in admission.items() if not why],
+                    "excluded": {u: why for u, why in admission.items() if why},
                     "ranked": [
                         {"title": row["entry"]["title"], "score": row["score"],
                          "reasons": row["reasons"], "excluded": row["excluded"]}
@@ -269,6 +280,19 @@ def run_tool_agent(
             calls.append(call)
             continue
         if action["tool"] == "read_page":
+            # Goal-fit gate (deterministic, tool layer): a feed entry excluded for the
+            # CURRENT question may not be read even if it is otherwise confirmed. This
+            # runs BEFORE the confirmed/quota/safety checks so it cannot be bypassed by
+            # another confirmation path and does not consume the read quota.
+            if action["url"] in entry_exclusions:
+                _why = entry_exclusions[action["url"]]
+                call["result"] = {"status": "entry_not_eligible", "reason": _why}
+                observations.append(
+                    f"round {rnd}: read rejected: {action['url']} is not eligible for this "
+                    f"goal ({_why}); pick a different entry or finish."
+                )
+                calls.append(call)
+                continue
             if action["url"] not in confirmed:
                 call["result"] = {"status": "pending_url_confirmation",
                                   "reason": "url_not_from_search_result"}
