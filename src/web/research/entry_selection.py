@@ -121,3 +121,63 @@ def admission_map(entries: list[dict[str, str]], question: str, *,
         else:
             out[url] = ""
     return out
+
+
+_DOWNLOAD = frozenset({"download", "downloads", "install"})
+
+
+def search_admission(title: str, snippet: str, question: str) -> dict:
+    """Source-type-aware admission for a SEARCH result (title + snippet only).
+
+    Unlike feed entries, search results are NOT held to the fixed threshold: a thin
+    title ("Python 学习笔记") is allowed as **exploration** so a genuinely relevant body
+    is not missed. Only an *explicit* goal conflict is refused before reading:
+    a clearly wrong content type (release/download page for a tutorial request, or a
+    tutorial for a release request) or a title carrying a *different* demanded version.
+    """
+    score, _reasons, _notes = score_entry(title, question)
+    q_lower = question.casefold()
+    t_lower = title.casefold()
+    q_tut = {w for w in _TUTORIAL if w in q_lower}
+    q_rel = {w for w in _RELEASE if w in q_lower}
+    t_tut = {w for w in _TUTORIAL if w in t_lower}
+    t_rel = {w for w in _RELEASE if w in t_lower}
+    t_dl = {w for w in _DOWNLOAD if w in t_lower}
+    q_ver = set(_VER.findall(question))
+    t_ver = set(_VER.findall(title))
+    if q_tut and not t_tut and (t_rel or t_dl):
+        return {"decision": "refuse", "reason": "type_conflict", "score": score}
+    if q_rel and not t_rel and (t_tut or t_dl):
+        return {"decision": "refuse", "reason": "type_conflict", "score": score}
+    if q_ver and t_ver and not (q_ver & t_ver):
+        return {"decision": "refuse", "reason": "version_conflict", "score": score}
+    if score >= MIN_SCORE:
+        return {"decision": "allow", "reason": "likely_relevant", "score": score}
+    return {"decision": "explore", "reason": "insufficient_information", "score": score}
+
+
+def assess_body(content: str, question: str) -> dict:
+    """Post-read goal match (relevance only — never evidence).
+
+    Returns ``verdict`` in {matches, partial_background, mismatch, insufficient_information}
+    plus the goal conditions met/missing, with a body snippet for locating the basis.
+    """
+    low = content.casefold()
+    terms = _terms(question)
+    hits = [t for t in terms if t in low]
+    q_ver = set(_VER.findall(question))
+    version_ok = any(v in low for v in q_ver) if q_ver else None
+    snippet = ""
+    for t in hits:
+        i = low.find(t)
+        if i >= 0:
+            snippet = content[max(0, i - 40):i + 80]
+            break
+    if not hits:
+        return {"verdict": "mismatch", "met": [], "missing": [], "basis": ""}
+    if q_ver and not version_ok:
+        return {"verdict": "partial_background", "met": hits,
+                "missing": ["version:" + v for v in sorted(q_ver)], "basis": snippet}
+    if len(hits) >= 2:
+        return {"verdict": "matches", "met": hits, "missing": [], "basis": snippet}
+    return {"verdict": "insufficient_information", "met": hits, "missing": [], "basis": snippet}

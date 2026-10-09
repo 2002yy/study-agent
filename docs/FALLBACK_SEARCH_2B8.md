@@ -1,5 +1,20 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-D — cross-source admission + post-read goal match
+`search_admission()` (title+snippet): Feed keeps its hard gate (`admission_map` exclusions stay
+hard, not bypassable). For **search** only explicit conflicts are refused — a tutorial request vs a
+release/download page, a release request vs a tutorial, or a *different* demanded version; a thin
+title ("Python 学习笔记") is `explore` (readable, never auto-deemed relevant); a likely match is
+`allow`. The feed threshold is NOT applied to search; no URL is globally banned. `assess_body()`
+judges a read body as `matches / partial_background / mismatch / insufficient_information` with
+met/missing conditions + a locating snippet: a generic Python tutorial is `partial_background` for
+`Python 3.15.0 入门教程` (missing `version:3.15.0`), never "the 3.15 tutorial was found". The agent
+registers `url_admission` for search results, writes explicit conflicts into `entry_exclusions`
+(`search_*`), and records `assessment` after a read. Evidence Gate untouched.
+
+**Real cross-source A/B NOT run this slice → overall PARTIAL.**
+
+
 ## 2B8-C — tool-layer admission + frozen-snapshot A/B
 `confirmed` (discovered) is now separate from goal-fit: `admission_map()` marks each entry
 eligible / excluded(type|version|below_threshold); `read_page` checks `entry_exclusions` BEFORE

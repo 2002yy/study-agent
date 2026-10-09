@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from src.web.research.entry_selection import rank_entries, select_entry
+from src.web.research.entry_selection import (  # noqa: E402
+    assess_body,
+    rank_entries,
+    search_admission,
+    select_entry,
+)
 
 ENTRIES = [
     {"title": "Python 3.14.1 is now available!", "url": "https://ex/314"},
@@ -50,3 +55,32 @@ def test_version_does_not_bypass_tutorial_requirement():
     assert top is not None and "tutorial" in top["entry"]["title"]
     only_releases = [e for e in ENTRIES if "tutorial" not in e["title"]]
     assert select_entry(only_releases, "Python 3.15.0 入门教程") is None
+
+
+def test_search_admission_refuses_explicit_type_conflict():
+    assert search_admission("Python 3.15.0 downloads", "", "Python 3.15.0 入门教程")["decision"] == "refuse"
+
+
+def test_search_admission_allows_thin_title_as_exploration():
+    assert search_admission("Python 学习笔记", "", "Python 3.15.0 入门教程")["decision"] == "explore"
+
+
+def test_search_admission_allows_likely_relevant():
+    assert search_admission("Python 3.15.0 入门教程 (完整指南)", "", "Python 3.15.0 入门教程")["decision"] == "allow"
+
+
+def test_assess_body_generic_tutorial_is_background_not_match():
+    a = assess_body("Python tutorial for beginners. Variables, loops, Python is great.",
+                    "Python 3.15.0 入门教程")
+    assert a["verdict"] == "partial_background"
+    assert any(m.startswith("version:") for m in a["missing"])
+
+
+def test_assess_body_version_specific_matches():
+    a = assess_body("This guide covers Python 3.15.0 tutorial steps and examples.",
+                    "Python 3.15.0 入门教程")
+    assert a["verdict"] == "matches"
+
+
+def test_assess_body_unrelated_is_mismatch():
+    assert assess_body("Go is a language.", "Python 3.15.0 入门教程")["verdict"] == "mismatch"

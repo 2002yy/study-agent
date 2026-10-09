@@ -150,6 +150,7 @@ def run_tool_agent(
     # feed entry excluded for this goal stays readable-by-no-one here even if another
     # source later confirms the same URL (see the read_page gate below).
     entry_exclusions: dict[str, str] = {}
+    url_admission: dict[str, str] = {}  # url -> search admission (allow/explore)
     source_chain: list[dict[str, str]] = []
     for _url in initial_urls:
         if _public_url(_url):
@@ -203,6 +204,14 @@ def run_tool_agent(
                 if _public_url(url):
                     confirmed.add(url)
                     confirmed_basis.setdefault(url, "search_result")
+                    if entry_selection:
+                        from src.web.research.entry_selection import search_admission
+
+                        adm = search_admission(str(r.get("title") or ""),
+                                               str(r.get("snippet") or ""), question)
+                        url_admission[url] = adm["decision"]
+                        if adm["decision"] == "refuse":
+                            entry_exclusions[url] = "search_" + adm["reason"]
             call["result"] = {"status": result.get("status"), "reason": result.get("reason"),
                               "n": len(rows), "urls": [r.get("url") for r in rows]}
             brief = "\n".join(
@@ -329,9 +338,16 @@ def run_tool_agent(
             content = str(body.get("content") or body.get("readme") or "")
             call["result"] = {"ok": body.get("ok"), "chars": len(content),
                               "error": body.get("error") or body.get("error_code")}
+            assessment: dict[str, Any] = {}
+            if body.get("ok") and entry_selection:
+                from src.web.research.entry_selection import assess_body
+
+                assessment = assess_body(content, question)
+                call["assessment"] = assessment
+                call["admission"] = url_admission.get(action["url"], "")
             bodies.append({"url": final_url, "ok": bool(body.get("ok")),
                            "chars": len(content), "preview": content[:600],
-                           "reason": action.get("reason", "")})
+                           "reason": action.get("reason", ""), "assessment": assessment})
             if body.get("ok"):
                 source_chain.append({
                     "basis": confirmed_basis.get(action["url"], ""),
