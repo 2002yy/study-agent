@@ -12,21 +12,50 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import time
+import urllib.request
+import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
 from src.web.tool_evidence import _public_url
 
-TOOLS = {"search", "read_page", "finish"}
+TOOLS = {"search", "feed", "read_page", "finish"}
 SYSTEM = (
     "You are a bounded research tool agent. Decide the SINGLE next action toward "
     "answering the user's question, learning from previous observations. "
     'Return JSON only: {"tool":"search","query":"<keywords>","reason":"..."} OR '
+    '{"tool":"feed","url":"<rss/atom url>","reason":"..."} OR '
     '{"tool":"read_page","url":"<http(s)>","reason":"..."} OR '
     '{"tool":"finish","reason":"..."}. '
-    "Prefer distinctive entity/facet queries; read specific article pages, never "
-    "home/dictionary/navigation pages; do not repeat a failed action; one action per turn. "
-    "A page you read is exploratory and does not by itself prove any fact."
+    "Use feed to discover article links from an RSS/Atom feed; read specific article "
+    "pages, never home/dictionary/navigation pages; do not repeat a failed action; "
+    "one action per turn. A page you read is exploratory and does not prove any fact."
 )
+
+
+def parse_feed(payload: str, *, limit: int = 10) -> list[dict[str, str]]:
+    """Extract (title, url) from RSS <item> or Atom <entry>; stdlib only."""
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError:
+        return []
+    entries: list[dict[str, str]] = []
+    for node in root.iter():
+        tag = node.tag.split("}")[-1]
+        if tag not in {"item", "entry"}:
+            continue
+        title = ""
+        link = ""
+        for child in node:
+            ctag = child.tag.split("}")[-1]
+            if ctag == "title" and child.text:
+                title = child.text.strip()
+            elif ctag == "link":
+                link = (child.get("href") or child.text or "").strip()
+        if link:
+            entries.append({"title": title, "url": link})
+        if len(entries) >= limit:
+            break
+    return entries
 
 
 @dataclass(frozen=True)
@@ -52,6 +81,11 @@ def parse_action(raw: Any) -> dict[str, str]:
         if not query:
             raise ValueError("action_query")
         return {"tool": "search", "query": query, "reason": reason}
+    if tool == "feed":
+        url = str(raw.get("url") or "").strip()
+        if not _public_url(url):
+            raise ValueError("action_private_url")
+        return {"tool": "feed", "url": url, "reason": reason}
     if tool == "read_page":
         url = str(raw.get("url") or "").strip()
         if not _public_url(url):
@@ -142,6 +176,41 @@ def run_tool_agent(
                 f"- {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}" for r in rows
             )
             observations.append(f"round {rnd}: search '{action['query']}' ->\n{brief or '(no results)'}")
+            calls.append(call)
+            continue
+        if action["tool"] == "feed":
+            if action["url"] not in confirmed:
+                call["result"] = {"status": "pending_url_confirmation",
+                                  "reason": "url_not_from_search_result"}
+                observations.append(
+                    f"round {rnd}: feed rejected: {action['url']} was not confirmed; "
+                    "use a provided or already-discovered URL."
+                )
+                calls.append(call)
+                continue
+            if searches >= budget.max_searches:
+                call["result"] = {"status": "quota_exceeded", "reason": "search_quota"}
+                observations.append(f"round {rnd}: feed/search quota reached.")
+                calls.append(call)
+                continue
+            searches += 1
+            try:
+                request = urllib.request.Request(action["url"], headers={"User-Agent": "StudyAgent/feed"})
+                with urllib.request.urlopen(
+                    request, timeout=min(15.0, max(1.0, deadline - monotonic()))
+                ) as response:
+                    payload = response.read(300_000).decode("utf-8", "replace")
+                entries = parse_feed(payload)
+            except Exception as exc:  # noqa: BLE001
+                entries = []
+                call["feed_error"] = type(exc).__name__
+            for entry in entries:
+                if _public_url(entry["url"]):
+                    confirmed.add(entry["url"])
+            call["result"] = {"status": "ok" if entries else "empty", "n": len(entries),
+                              "urls": [entry["url"] for entry in entries]}
+            brief = "\n".join(f"- {entry['title']} | {entry['url']}" for entry in entries)
+            observations.append(f"round {rnd}: feed '{action['url']}' ->\n{brief or '(no entries)'}")
             calls.append(call)
             continue
         if action["tool"] == "read_page":

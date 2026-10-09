@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from src.web.research_tool_agent import AgentBudget, parse_action, run_tool_agent
+from src.web.research_tool_agent import AgentBudget, parse_action, parse_feed, run_tool_agent
 
 
 class FakeGateway:
@@ -104,6 +104,23 @@ def test_initial_urls_are_readable_without_search():
         initial_urls=("https://example.org/known",),
     )
     assert trace["reads"] == 1 and trace["bodies"][0]["ok"] is True
+
+
+def test_parse_feed_rss_and_atom():
+    rss = "<rss><channel><item><title>A</title><link>https://ex.org/a</link></item></channel></rss>"
+    atom = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>B</title><link href="https://ex.org/b"/></entry></feed>'
+    assert parse_feed(rss) == [{"title": "A", "url": "https://ex.org/a"}]
+    assert parse_feed(atom) == [{"title": "B", "url": "https://ex.org/b"}]
+
+
+def test_feed_requires_confirmed_url():
+    gw = FakeGateway()
+    completion = make_completion([
+        {"tool": "feed", "url": "https://ex.org/feed.xml"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=gw, completion=completion, question="q", budget=AgentBudget())
+    assert trace["calls"][0]["result"]["status"] == "pending_url_confirmation"
 
 
 def test_agent_records_invalid_action_and_continues():
