@@ -1,5 +1,15 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-D Final Qualification — three arms (A/B/C) + live runs (PARTIAL)
+Added `assessment_feedback` so A (old) / B (admission, no feedback) / C (admission + feedback) are
+separable. Real `deepseek-flash`, LIVE channels. A→B: extra mis-read 1→0, exclusions enforced.
+B→C (n=1): tutorial negative — B read a wrong page, **C read 0 and finished**; C refusals 2/2.
+Live: Factorio → relevant wiki; 2027 Go round → correct give-up. **FAILURE LAYER: post-read
+judgement/annotation** — the independent checker read only the 600-char preview and flagged CORRECT
+pages as non-satisfying, so `false_match=4` is an artifact; `assess_body` accuracy is unproven.
+See `D_FINAL_RESULTS.md`.
+
+
 ## 2B8-D-QUAL — real dual-channel A/B (limited-scope PASS, frozen runs)
 Ran for real (real feed XML + real per-case search snapshot, SHA256 recorded; real
 `deepseek-flash`): B vs A — tutorial negative: A read release+downloads, **B read 0 and finished**;

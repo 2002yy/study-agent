@@ -126,6 +126,7 @@ def run_tool_agent(
     initial_urls: tuple[str, ...] = (),
     registry_sources: tuple[tuple[str, str], ...] = (),
     entry_selection: bool = True,
+    assessment_feedback: bool = True,
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -356,7 +357,7 @@ def run_tool_agent(
                     "read_url": final_url,
                 })
             goal_note = ""
-            if assessment:
+            if assessment and assessment_feedback:
                 goal_note = f" [goal-match: {assessment['verdict']}"
                 if assessment.get("missing"):
                     goal_note += " missing=" + ",".join(assessment["missing"])
