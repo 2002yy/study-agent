@@ -1,5 +1,16 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-D-QUAL — real dual-channel A/B (limited-scope PASS, frozen runs)
+Ran for real (real feed XML + real per-case search snapshot, SHA256 recorded; real
+`deepseek-flash`): B vs A — tutorial negative: A read release+downloads, **B read 0 and finished**;
+similar_title: A read free-threading **+ an extra release post**, **B read only free-threading after
+3 tool-layer rejections**; not_first/final_vs_prerelease/no_article matched. Key numbers: **false
+"satisfies-the-goal" claims 0**, **truly-relevant wrongly blocked 0**, **correct give-up/recovery
+yes**. Also fed `assessment` back into the next observation (arm B) — the flagged defect. Caveats:
+n=6; live unfrozen positive/negative NOT run; the feedback fix is not isolated from the admission
+rules. See `D_QUAL_RESULTS.md`.
+
+
 ## 2B8-D — cross-source admission + post-read goal match
 `search_admission()` (title+snippet): Feed keeps its hard gate (`admission_map` exclusions stay
 hard, not bypassable). For **search** only explicit conflicts are refused — a tutorial request vs a

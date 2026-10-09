@@ -355,9 +355,15 @@ def run_tool_agent(
                     "entry_url": action["url"],
                     "read_url": final_url,
                 })
+            goal_note = ""
+            if assessment:
+                goal_note = f" [goal-match: {assessment['verdict']}"
+                if assessment.get("missing"):
+                    goal_note += " missing=" + ",".join(assessment["missing"])
+                goal_note += "]"
             observations.append(
                 f"round {rnd}: read {action['url']} ok={body.get('ok')} chars={len(content)} "
-                f"error={body.get('error') or body.get('error_code') or ''}\n{content[:1200]}"
+                f"error={body.get('error') or body.get('error_code') or ''}{goal_note}\n{content[:1200]}"
             )
             calls.append(call)
             continue
