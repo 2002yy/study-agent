@@ -9,6 +9,15 @@ import pytest
 from src.web.research_tool_agent import AgentBudget, parse_action, parse_feed, run_tool_agent
 
 
+@pytest.fixture(autouse=True)
+def _assume_public_hosts(monkeypatch):
+    # These tests exercise loop/quota/read logic, not DNS. In this environment real
+    # hosts resolve to a fake-IP range and would otherwise be blocked as non-public.
+    import src.web.research_tool_agent as _agent
+
+    monkeypatch.setattr(_agent, "host_resolves_public", lambda host: True)
+
+
 class FakeGateway:
     def __init__(self, results=None, body_ok=True):
         self.searches = []

@@ -1,5 +1,32 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## 2B9-D update — SearXNG actually fixable; new blocker = fake-IP DNS vs SSRF guard
+**SearXNG root cause fully isolated (was NOT the network):** `engines=google` → 20 results;
+adding `language=zh-CN` → **0**; `language=en` → 20. The adapter **hardcoded `language="zh-CN"`**
+(`search_searxng` never passed a language), which zeroed Google. Fix: language is now env-driven
+(`SEARXNG_LANGUAGE`, default `auto` → param omitted) and `SEARXNG_ENGINES` can pin working engines.
+With `SEARXNG_ENGINES=google` the adapter returns **specific** pages: Factorio →
+`factorio.com/blog/post/fff-395`, reddit `train_interrupts_how`; Go → `zh.wikipedia.org/劫_(围棋)`,
+`baike.baidu.com/打劫`; Python → `python.org/downloads/release/python-3150/`,
+`docs.python.org/3/whatsnew/3.15.html`. (Default engine set brave/ddg/startpage/wikipedia is
+CAPTCHA/timeout; the earlier "egress blocked" host probe was transient — host and container both GET
+google/wikipedia 200 now.)
+
+**New blocker (precise):** real hosts resolve to a **fake-IP `198.18.0.0/15`** (transparent proxy)
+plus bogus `2001::1` → `host_resolves_public()` returns **False for every real host** (wiki.factorio.com
+`198.18.0.71`, zh.wikipedia.org `198.18.0.68`, python.org `198.18.0.101`, reddit `198.18.0.93`) →
+`read_page`/`follow` are rejected `blocked_unsafe_target`, and model-guessed URLs are
+`pending_url_confirmation`. So arrival is now blocked at the **SSRF guard vs fake-IP DNS** layer, not
+recall.
+
+**Tests:** `tests/test_searxng_source.py` (language/engines URL) + `tests/test_tavily_source.py`;
+an autouse fixture makes the agent tests DNS-independent (this environment's fake-IP was breaking
+`example.org`). Focused suite green.
+
+**Verdict PARTIAL.** Recall is now fixed at the adapter; the remaining blocker is safety-vs-fake-IP.
+**Next:** decide how the SSRF guard should treat the local proxy's fake-IP range (e.g. resolve via a
+trusted resolver, or allow a configured loopback/proxy CIDR) — a safety-sensitive change, not done here.
+
 ## 2B9-D — real search source: SearXNG root cause + opt-in Tavily (PARTIAL, key needed)
 **Phase 1 — SearXNG root cause (exact):** `SEARXNG_BASE_URL=http://127.0.0.1:8080`, enabled,
 loopback allowed. `GET /search?format=json` → **HTTP 200, `application/json`, valid JSON** with

@@ -58,7 +58,7 @@ def build_searxng_search_url(
     query: str,
     base_url: str,
     max_results: int = 10,
-    language: str = "zh-CN",
+    language: str = "",
     categories: str = "news",
 ) -> str:
     """Build a SearXNG JSON search URL.
@@ -71,12 +71,22 @@ def build_searxng_search_url(
     if not query or not _valid_base_url(base_url):
         return ""
 
+    # Some engines (e.g. google) return ZERO results when an unsupported ``language``
+    # is forced. Default to ``auto`` (omit the param) and let SEARXNG_LANGUAGE override.
+    resolved_language = (language or os.getenv("SEARXNG_LANGUAGE") or "auto").strip()
     params = {
         "q": query,
         "format": "json",
-        "language": language,
         "categories": categories.strip() or "news",
     }
+    if resolved_language and resolved_language.lower() != "auto":
+        params["language"] = resolved_language
+    # An instance's default engine set can be broken (e.g. brave/ddg/startpage
+    # CAPTCHA or time out) while another engine works. ``SEARXNG_ENGINES`` lets the
+    # operator pin working engines (comma-separated) without changing code.
+    engines = (os.getenv("SEARXNG_ENGINES") or "").strip()
+    if engines:
+        params["engines"] = engines
     if max_results > 0:
         params["pageno"] = "1"
 
