@@ -1,8 +1,14 @@
 {
   "mcpServers": {
     "playwright": {
-      "command": "playwright-mcp-server",
-      "args": []
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.83",
+        "--browser",
+        "chrome",
+        "--isolated"
+      ]
     }
   }
 }
