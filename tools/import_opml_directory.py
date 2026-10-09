@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import re
 from datetime import datetime, timezone
@@ -28,6 +29,15 @@ def _normalize_url(url: str) -> str:
     host = (parts.hostname or "").lower()
     if scheme not in {"http", "https"} or not host:
         return ""
+    if parts.username or parts.password:  # reject credentials in URL
+        return ""
+    if parts.port not in (None, 80, 443):  # reject abnormal ports
+        return ""
+    try:  # reject IP-literal sources that are not global
+        if not ipaddress.ip_address(host).is_global:
+            return ""
+    except ValueError:
+        pass
     port = "" if parts.port in (None, 80, 443) else f":{parts.port}"
     path = parts.path or ""
     return urlunsplit((scheme, host + port, path, parts.query, ""))
@@ -62,7 +72,7 @@ def _parse_opml(path: Path, category: str, language: str) -> list[dict[str, str]
     return rows
 
 
-def build_index(snapshot: Path) -> dict:
+def build_index(snapshot: Path, upstream_commit: str = "") -> dict:
     feeds_dir = snapshot / "feeds"
     files = sorted(feeds_dir.glob("*.opml"))[:MAX_OPML_FILES]
     if not files:
@@ -98,13 +108,20 @@ def build_index(snapshot: Path) -> dict:
     stats_path = snapshot / "stats.json"
     upstream_stats = json.loads(stats_path.read_text(encoding="utf-8").lstrip("\ufeff")) if stats_path.exists() else {}
     license_path = snapshot / "LICENSE"
+    file_hashes = {}
+    for path in [snapshot / "feeds.opml", stats_path, *files]:
+        if path.exists():
+            file_hashes[str(path.relative_to(snapshot)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
     return {
         "schema_version": "source-directory-v1",
         "imported_at": datetime.now(timezone.utc).isoformat(),
         "upstream": {
+            "repo": "xiangyugongzuoliu/awesome-rss-feeds-list",
+            "commit": upstream_commit,
             "stats": upstream_stats,
             "license": (license_path.read_text(encoding="utf-8", errors="replace")[:200] if license_path.exists() else ""),
             "feeds_opml_sha256": hashlib.sha256((snapshot / "feeds.opml").read_bytes()).hexdigest() if (snapshot / "feeds.opml").exists() else "",
+            "file_hashes": file_hashes,
         },
         "sources": sorted(sources.values(), key=lambda s: s["source_id"]),
         "stats": {
@@ -120,8 +137,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--snapshot", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--upstream-commit", default="")
     args = parser.parse_args()
-    index = build_index(Path(args.snapshot))
+    index = build_index(Path(args.snapshot), args.upstream_commit)
     Path(args.out).write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(index["stats"], ensure_ascii=False))
 
