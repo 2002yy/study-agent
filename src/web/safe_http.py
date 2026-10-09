@@ -11,12 +11,41 @@ import http.client
 import ipaddress
 import socket
 import ssl
+from typing import NoReturn
 from urllib.parse import urljoin, urlsplit
 
 from src.web.tool_evidence import _public_url
 
 MAX_BYTES = 300_000
 MAX_HOPS = 4
+
+# Security refusals (SSRF-class) must be distinguishable from ordinary network
+# failures so a caller never routes a refusal into a weaker fallback.
+_SECURITY_REASONS = frozenset({
+    "unsafe_scheme", "unsafe_port", "unsafe_target", "dns_failed", "dns_empty",
+    "dns_invalid", "redirect_without_location", "too_many_redirects",
+    "deadline_exhausted", "response_too_large",
+})
+
+
+class SafeFetchRefusal(ValueError):
+    """A security refusal: the target was not (and must not be) contacted."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class SafeFetchError(ValueError):
+    """An ordinary network/status/limit failure (not a security refusal)."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _raise_safe(reason: str) -> NoReturn:
+    raise SafeFetchRefusal(reason) if reason in _SECURITY_REASONS else SafeFetchError(reason)
 
 
 def host_resolves_public(host: str) -> bool:
@@ -149,27 +178,38 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
         if deadline is not None:
             hop_timeout = min(timeout, deadline - time.monotonic())
             if hop_timeout <= 0:
-                raise ValueError("deadline_exhausted")
+                _raise_safe("deadline_exhausted")
         parts = urlsplit(current)
         if parts.scheme not in {"http", "https"} or not parts.hostname:
-            raise ValueError("unsafe_scheme")
+            _raise_safe("unsafe_scheme")
         if parts.port not in (None, 80, 443):
-            raise ValueError("unsafe_port")
+            _raise_safe("unsafe_port")
         if not _public_url(current):
-            raise ValueError("unsafe_target")
-        ips = resolve_public_ips(parts.hostname)
-        status, headers, raw, truncated = http_get_raw(
-            current, parts.hostname, ips[0], timeout=hop_timeout, max_bytes=max_bytes
-        )
+            _raise_safe("unsafe_target")
+        try:
+            ips = resolve_public_ips(parts.hostname)
+        except SafeFetchRefusal:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            _raise_safe(str(exc) or "dns_failed")
+        try:
+            status, headers, raw, truncated = http_get_raw(
+                current, parts.hostname, ips[0], timeout=hop_timeout, max_bytes=max_bytes
+            )
+        except (OSError, http.client.HTTPException) as exc:
+            raise SafeFetchError(f"network:{type(exc).__name__}") from exc
         if status in {301, 302, 303, 307, 308}:
             location = headers.get("location")
             if not location:
-                raise ValueError("redirect_without_location")
+                _raise_safe("redirect_without_location")
             chain.append(current)
             current = urljoin(current, location)
             continue
         if status >= 400:
-            raise ValueError(f"http_{status}")
+            _raise_safe(f"http_{status}")
+        if truncated:
+            # A truncated body must NOT be reported as a clean success.
+            _raise_safe("response_too_large")
         return {
             "requested_url": url,
             "redirect_chain": chain,
@@ -180,6 +220,6 @@ def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
             "content_encoding": headers.get("content-encoding", ""),
             "raw": raw,
             "text": raw.decode("utf-8", "replace"),
-            "truncated": truncated,
+            "truncated": False,
         }
-    raise ValueError("too_many_redirects")
+    _raise_safe("too_many_redirects")
