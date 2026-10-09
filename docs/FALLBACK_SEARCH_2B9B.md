@@ -1,5 +1,38 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## 2B9-C — per-provider recall diagnosis (external blockage confirmed; PARTIAL)
+`tools/eval_2b9c_providers.py`, raw `model-driven-search-2b9c/providers.json`.
+
+| query | SearXNG | Bing RSS | DuckDuckGo |
+|---|---|---|---|
+| Factorio (en) | **0** | 5 — `factorio.com/`, `wiki Main_Page/zh`, `ali213`, `download`, `3dmgame` | timeout (`URLError`) |
+| 围棋 提子/打劫 | **0** | 5 — `weiqigo`,`19x19`,`cosumi`,`metool`,`go-master` | timeout |
+| Python 3.15.0 | **0** | 5 — `python.org/`,`/downloads`,`pythonlang.cn`,`runoob`,`liaoxuefeng` | timeout |
+| Factorio (zh) | **0** | 5 — **different**: `zhidao.baidu`, `zhihu` | timeout |
+
+**Findings (reproducible):**
+- `searxng_enabled()==True` but **SearXNG returns 0 for every query** — unusable.
+- The generic homepages come from **Bing RSS** (the exact duplicate set), **not** SearXNG.
+- **DuckDuckGo times out** for every query.
+- Results **do** depend on the query (en vs zh differ) → the earlier "identical Top-5" came from the
+  agent issuing near-duplicate queries, not a query-insensitive backend.
+- Code audit: `_search_single` is an **early-return cascade** (SearXNG → Bing → DDG; later providers
+  skipped once one is non-empty). Here it did **not** cause the generic set: SearXNG was empty, Bing
+  was the first non-empty — so the cascade is **not** the confirmed defect.
+
+**Conclusion:** **no available provider surfaces the specific Factorio mechanism / Go rules article**
+→ **external recall blockage**, recorded with facts. Per contract, **no code fix is manufactured**
+(no hardcoded URLs, no prompt tricks).
+
+**`follow` narrow gaps (recorded, not fixed — recall is the mainline):** (1) its `safe_fetch_result`
+call does **not** pass the shared absolute `deadline`; (2) HTML encoding / post-redirect final-URL
+handling is not fully qualified; (3) link selection stops at the **first 5 in document order**
+without relevance ranking, so the earlier result only proves "the first 5 were nav links", not "the
+page has no link to the article".
+
+**Also:** log `search×4` = four model **search actions**; with `max_searches=3` the 4th was a
+**quota rejection**, not a provider request (provider attempts are counted separately).
+
 ## Phase 2+3 — bounded `follow` implemented; real arrival NOT achieved (PARTIAL)
 `follow` was added (confirmed page only; raw HTML via `safe_fetch_result`; true `<a href>`
 extraction; same-origin only; ≤5 links; relative-URL resolved; dedup; provenance recorded; costs
