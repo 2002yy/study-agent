@@ -78,6 +78,7 @@ def run_tool_agent(
     completion: Callable[..., str],
     question: str,
     budget: AgentBudget | None = None,
+    initial_urls: tuple[str, ...] = (),
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -88,6 +89,9 @@ def run_tool_agent(
     observations: list[str] = []
     searches = reads = 0
     bodies: list[dict[str, Any]] = []
+    # Only URLs confirmed by an actual search result (or supplied up front) may be
+    # read; a model-guessed URL is recorded as pending, never fetched.
+    confirmed: set[str] = {url for url in initial_urls if _public_url(url)}
     stop = "round_limit"
     for rnd in range(budget.max_rounds):
         if should_cancel():
@@ -128,6 +132,10 @@ def run_tool_agent(
             except Exception as exc:  # noqa: BLE001
                 result = {"status": "unavailable", "reason": f"{type(exc).__name__}"}
             rows = result.get("results") or []
+            for r in rows:
+                url = str(r.get("url") or "")
+                if _public_url(url):
+                    confirmed.add(url)
             call["result"] = {"status": result.get("status"), "reason": result.get("reason"),
                               "n": len(rows), "urls": [r.get("url") for r in rows]}
             brief = "\n".join(
@@ -137,6 +145,15 @@ def run_tool_agent(
             calls.append(call)
             continue
         if action["tool"] == "read_page":
+            if action["url"] not in confirmed:
+                call["result"] = {"status": "pending_url_confirmation",
+                                  "reason": "url_not_from_search_result"}
+                observations.append(
+                    f"round {rnd}: read rejected: {action['url']} was not confirmed by a search "
+                    "result; choose a URL that appeared in the search results."
+                )
+                calls.append(call)
+                continue
             if reads >= budget.max_reads:
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")

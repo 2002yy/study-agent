@@ -75,10 +75,35 @@ def test_agent_enforces_quotas_and_reports_failure():
     trace = run_tool_agent(
         gateway=gw, completion=completion, question="q",
         budget=AgentBudget(max_rounds=7, max_searches=4, max_reads=2),
+        initial_urls=("https://example.org/x",),
     )
     assert trace["searches"] == 4
     assert any(c.get("result", {}).get("reason") == "search_quota" for c in trace["calls"])
     assert trace["bodies"][0]["ok"] is False
+
+
+def test_read_requires_confirmed_url():
+    gw = FakeGateway()
+    completion = make_completion([
+        {"tool": "read_page", "url": "https://example.org/guessed"},  # not from any search
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=gw, completion=completion, question="q", budget=AgentBudget())
+    assert trace["calls"][0]["result"]["status"] == "pending_url_confirmation"
+    assert gw.reads == [] and trace["reads"] == 0
+
+
+def test_initial_urls_are_readable_without_search():
+    gw = FakeGateway()
+    completion = make_completion([
+        {"tool": "read_page", "url": "https://example.org/known"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(
+        gateway=gw, completion=completion, question="q", budget=AgentBudget(),
+        initial_urls=("https://example.org/known",),
+    )
+    assert trace["reads"] == 1 and trace["bodies"][0]["ok"] is True
 
 
 def test_agent_records_invalid_action_and_continues():
