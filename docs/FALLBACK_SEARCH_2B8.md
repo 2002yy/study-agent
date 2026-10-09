@@ -1,0 +1,59 @@
+# B-Search-2B8 — Feed entry semantic selection (PARTIAL)
+
+Base `441b7ea4`. Relevance only; never evidence. RP-1 NO-GO.
+Evidence: `reading-notebook-ui-evidence/reader-safety-2/entry_selection.json`.
+
+## What was built
+`src/web/research/entry_selection.py`: deterministic entry ranking against the
+**full research goal** (topic terms + exact version + question type + pre/final):
+- `score_entry(title, question)` → `(score, reasons, notes)`; a **typed** request
+  (tutorial vs release) must be satisfied by the **same family or an exact version**,
+  otherwise score 0 (`typed_request_unsatisfied`);
+- `rank_entries` returns per-entry score/reasons/`excluded`;
+- `select_entry(..., min_score=2)` returns `None` ⇒ **`no_relevant_entry`** when
+  nothing clears the bar (weak single-token overlap refused).
+
+## Real demonstration (actual directory-recalled Python blog feed, 10 entries)
+| question | result |
+| --- | --- |
+| `Python 3.15.0 正式发布说明` | **“Python 3.15.0 (final) is here!”** (score 6, `version_exact:3.15.0`, `final`); “candidate 3” ranked 3 (prerelease penalty) |
+| `Python 入门教程` | **`no_relevant_entry`** (all releases `typed_request_unsatisfied`) |
+| `围棋 提子 规则` | **`no_relevant_entry`** |
+
+Defects found & fixed while building: (1) pre-release “candidate 3” tied with the
+final release → prerelease penalty + final bonus; (2) a tutorial request matched a
+release post → same-family type gate; (3) a bare topic token over-selected → the
+type bonus only applies when the question asks that family, and `min_score=2`
+refuses weak overlap; (4) CJK type words weren’t token-matched → substring type/
+version detection.
+
+## Separation kept
+`read_success` (HTTP/reader) is recorded separately from this `relevance`
+judgement, and both are separate from `evidence_support` (Evidence Gate — untouched).
+
+## Verification
+`tests/test_entry_selection.py` **6 PASS** (correct-not-first, final>prerelease,
+tutorial rejects release, tutorial-without-tutorial refused, unrelated refused, weak
+overlap refused). `ruff` PASS; mypy current 122 / baseline 128 NEW 0.
+
+## Residual recorded (not fixed here)
+The general article reader calls `safe_fetch_result()` **without an absolute
+`deadline`**, so a redirect chain may re-acquire the full timeout per hop. This is a
+Reader **budget-qualification gap**; it does not block selection work but the overall
+time cap is not fully closed.
+
+## Verdict
+**PARTIAL**: the selection layer + relevance refusal work and are demonstrated on a
+real feed; the full five-case controlled comparison **and a real model-driven agent
+task** (vs preset tool actions) are **not** completed in this slice, so no claim of a
+broad semantic improvement.
+
+## Boundaries
+No change to Reader safety, publication, Evidence Gate, main, #208, Shadow or RP-1;
+no new model/search/feed/read/round/time budget. B production wiring not enabled.
+
+## Next
+Run the real model-driven agent selection over the directory (same budget), record
+`question → source_id → feed_url → candidate/selected entry → read_url` + reasons,
+and compute selected-correct / correct-refusal / mis-read rates — only then judge
+whether the semantic layer holds. Also pass the absolute `deadline` into the reader.
