@@ -223,3 +223,41 @@ def test_source_chain_records_registry_feed_entry_and_basis(monkeypatch):
     assert chain and chain[0]["entry_url"] == "https://ex.org/a"
     assert chain[0]["feed_url"] == "https://ex.org/f.xml"
     assert chain[0]["basis"] == "feed_entry"
+
+
+def test_safe_fetch_result_structured(monkeypatch):
+    import src.web.safe_http as sh
+
+    monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(
+        sh, "http_get_raw",
+        lambda url, host, ip, *, timeout, max_bytes=300_000:
+        (200, {"content-type": "text/html", "content-encoding": "gzip"}, b"<html>hi</html>", False),
+    )
+    result = sh.safe_fetch_result("https://ex.org/a", timeout=5)
+    assert result["status"] == 200 and result["final_url"] == "https://ex.org/a"
+    assert result["content_type"] == "text/html" and result["content_encoding"] == "gzip"
+    assert result["raw"] == b"<html>hi</html>" and result["truncated"] is False
+
+
+def test_safe_fetch_result_reports_truncation(monkeypatch):
+    import src.web.safe_http as sh
+
+    monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(sh, "http_get_raw", lambda url, host, ip, *, timeout, max_bytes=300_000: (200, {}, b"x" * 10, True))
+    assert sh.safe_fetch_result("https://ex.org/a", timeout=5)["truncated"] is True
+
+
+def test_safe_fetch_result_blocks_private_without_request(monkeypatch):
+    import src.web.safe_http as sh
+
+    called: list[int] = []
+
+    def fail(_host):
+        raise ValueError("unsafe_target")
+
+    monkeypatch.setattr(sh, "resolve_public_ips", fail)
+    monkeypatch.setattr(sh, "http_get_raw", lambda *a, **k: called.append(1))
+    with pytest.raises(ValueError):
+        sh.safe_fetch_result("https://ex.org/a", timeout=5)
+    assert called == []

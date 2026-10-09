@@ -59,10 +59,11 @@ def resolve_public_ips(host: str) -> list[str]:
     return ips
 
 
-def http_get_pinned(url: str, host: str, ip: str, *, timeout: float,
-                    max_bytes: int = MAX_BYTES) -> tuple[int, dict[str, str], str]:
-    """GET ``url`` connecting to the already-validated ``ip`` (no re-resolution),
-    keeping the real host for the Host header and TLS SNI/certificate checks."""
+def http_get_raw(url: str, host: str, ip: str, *, timeout: float,
+                 max_bytes: int = MAX_BYTES) -> tuple[int, dict[str, str], bytes, bool]:
+    """GET ``url`` connecting to the validated ``ip`` (no re-resolution); return
+    (status, lowercased headers, raw bytes, truncated). The real host is kept for
+    the Host header and TLS SNI/certificate checks."""
     parts = urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
     target = parts.path or "/"
@@ -70,18 +71,28 @@ def http_get_pinned(url: str, host: str, ip: str, *, timeout: float,
         target += "?" + parts.query
     if parts.scheme == "https":
         context = ssl.create_default_context()
-        raw = socket.create_connection((ip, port), timeout=timeout)
+        sock = socket.create_connection((ip, port), timeout=timeout)
         conn: http.client.HTTPConnection = http.client.HTTPSConnection(host, port, timeout=timeout)
-        conn.sock = context.wrap_socket(raw, server_hostname=host)
+        conn.sock = context.wrap_socket(sock, server_hostname=host)
     else:
         conn = http.client.HTTPConnection(ip, port, timeout=timeout)
     try:
         conn.request("GET", target, headers={"Host": host, "User-Agent": "StudyAgent/feed"})
         response = conn.getresponse()
-        body = response.read(max_bytes).decode("utf-8", "replace")
-        return response.status, {k.lower(): v for k, v in response.getheaders()}, body
+        raw = response.read(max_bytes + 1)
+        truncated = len(raw) > max_bytes
+        if truncated:
+            raw = raw[:max_bytes]
+        return response.status, {k.lower(): v for k, v in response.getheaders()}, raw, truncated
     finally:
         conn.close()
+
+
+def http_get_pinned(url: str, host: str, ip: str, *, timeout: float,
+                    max_bytes: int = MAX_BYTES) -> tuple[int, dict[str, str], str]:
+    """String convenience wrapper over :func:`http_get_raw` (unchanged Feed path)."""
+    status, headers, raw, _ = http_get_raw(url, host, ip, timeout=timeout, max_bytes=max_bytes)
+    return status, headers, raw.decode("utf-8", "replace")
 
 
 def safe_fetch(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
@@ -117,4 +128,58 @@ def safe_fetch(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
         if status >= 400:
             raise ValueError(f"http_{status}")
         return body
+    raise ValueError("too_many_redirects")
+
+
+def safe_fetch_result(url: str, *, timeout: float, max_hops: int = MAX_HOPS,
+                      deadline: float | None = None, max_bytes: int = MAX_BYTES) -> dict:
+    """Structured article-reader transport over the same safety rules.
+
+    Returns status/headers/raw bytes/text/requested+final URL/redirect chain/
+    content type+encoding/truncated. Raises ``ValueError`` (fail-closed) on any
+    security refusal, network error, bad status or resource limit — the caller must
+    NOT route a refusal into a weaker fallback.
+    """
+    import time
+
+    current = url
+    chain: list[str] = []
+    for _ in range(max_hops):
+        hop_timeout = timeout
+        if deadline is not None:
+            hop_timeout = min(timeout, deadline - time.monotonic())
+            if hop_timeout <= 0:
+                raise ValueError("deadline_exhausted")
+        parts = urlsplit(current)
+        if parts.scheme not in {"http", "https"} or not parts.hostname:
+            raise ValueError("unsafe_scheme")
+        if parts.port not in (None, 80, 443):
+            raise ValueError("unsafe_port")
+        if not _public_url(current):
+            raise ValueError("unsafe_target")
+        ips = resolve_public_ips(parts.hostname)
+        status, headers, raw, truncated = http_get_raw(
+            current, parts.hostname, ips[0], timeout=hop_timeout, max_bytes=max_bytes
+        )
+        if status in {301, 302, 303, 307, 308}:
+            location = headers.get("location")
+            if not location:
+                raise ValueError("redirect_without_location")
+            chain.append(current)
+            current = urljoin(current, location)
+            continue
+        if status >= 400:
+            raise ValueError(f"http_{status}")
+        return {
+            "requested_url": url,
+            "redirect_chain": chain,
+            "final_url": current,
+            "status": status,
+            "headers": headers,
+            "content_type": headers.get("content-type", ""),
+            "content_encoding": headers.get("content-encoding", ""),
+            "raw": raw,
+            "text": raw.decode("utf-8", "replace"),
+            "truncated": truncated,
+        }
     raise ValueError("too_many_redirects")
