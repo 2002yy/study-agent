@@ -10,12 +10,12 @@ stay outside this loop.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import http.client
 import ipaddress
 import json
 import socket
+import ssl
 import time
-import urllib.error
-import urllib.request
 from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
@@ -47,37 +47,78 @@ def host_resolves_public(host: str) -> bool:
     return True
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
-        return None
+def _resolve_public_ips(host: str) -> list[str]:
+    """Resolve the host once and require EVERY address to be a global IP.
+
+    Returns the validated IPs so the caller can connect to a fixed IP instead of
+    letting the HTTP client re-resolve (which is the DNS-rebinding gap).
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError("dns_failed") from exc
+    if not infos:
+        raise ValueError("dns_empty")
+    ips: list[str] = []
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError as exc:
+            raise ValueError("dns_invalid") from exc
+        if not ip.is_global:
+            raise ValueError("unsafe_target")
+        ips.append(str(ip))
+    return ips
 
 
-_SAFE_OPENER = urllib.request.build_opener(_NoRedirect)
+def _http_get_pinned(url: str, host: str, ip: str, *, timeout: float) -> tuple[int, dict[str, str], str]:
+    """GET ``url`` by connecting to the already-validated ``ip`` (no re-resolution),
+    keeping the real host for the Host header and TLS SNI/certificate checks."""
+    parts = urlsplit(url)
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    target = parts.path or "/"
+    if parts.query:
+        target += "?" + parts.query
+    if parts.scheme == "https":
+        context = ssl.create_default_context()
+        raw = socket.create_connection((ip, port), timeout=timeout)
+        conn: http.client.HTTPConnection = http.client.HTTPSConnection(host, port, timeout=timeout)
+        conn.sock = context.wrap_socket(raw, server_hostname=host)
+    else:
+        conn = http.client.HTTPConnection(ip, port, timeout=timeout)
+    try:
+        conn.request("GET", target, headers={"Host": host, "User-Agent": "StudyAgent/feed"})
+        response = conn.getresponse()
+        body = response.read(300_000).decode("utf-8", "replace")
+        return response.status, {k.lower(): v for k, v in response.getheaders()}, body
+    finally:
+        conn.close()
 
 
 def safe_fetch(url: str, *, timeout: float, max_hops: int = 4) -> str:
     """Fetch a URL, validating scheme + resolved IP of EVERY redirect hop BEFORE
-    requesting it. A hop to a private target is rejected without being contacted.
+    requesting it, and connecting to the validated IP (no re-resolution).
+
+    A hop to a private target is rejected without being contacted.
     """
     current = url
     for _ in range(max_hops):
         parts = urlsplit(current)
         if parts.scheme not in {"http", "https"} or not parts.hostname:
             raise ValueError("unsafe_scheme")
-        if not _public_url(current) or not host_resolves_public(parts.hostname):
+        if not _public_url(current):
             raise ValueError("unsafe_target")
-        request = urllib.request.Request(current, headers={"User-Agent": "StudyAgent/feed"})
-        try:
-            with _SAFE_OPENER.open(request, timeout=timeout) as response:
-                return response.read(300_000).decode("utf-8", "replace")
-        except urllib.error.HTTPError as exc:
-            if exc.code in {301, 302, 303, 307, 308}:
-                location = exc.headers.get("Location")
-                if not location:
-                    raise ValueError("redirect_without_location") from None
-                current = urljoin(current, location)
-                continue
-            raise
+        ips = _resolve_public_ips(parts.hostname)
+        status, headers, body = _http_get_pinned(current, parts.hostname, ips[0], timeout=timeout)
+        if status in {301, 302, 303, 307, 308}:
+            location = headers.get("location")
+            if not location:
+                raise ValueError("redirect_without_location")
+            current = urljoin(current, location)
+            continue
+        if status >= 400:
+            raise ValueError(f"http_{status}")
+        return body
     raise ValueError("too_many_redirects")
 
 

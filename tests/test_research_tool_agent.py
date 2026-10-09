@@ -127,27 +127,28 @@ def test_safe_fetch_rejects_private_dns_without_requesting(monkeypatch):
     import src.web.research_tool_agent as agent
 
     requested: list[str] = []
-    monkeypatch.setattr(agent, "host_resolves_public", lambda host: False)
-    monkeypatch.setattr(agent._SAFE_OPENER, "open", lambda *a, **k: requested.append("x"))
+
+    def fail(_host):
+        raise ValueError("unsafe_target")
+
+    monkeypatch.setattr(agent, "_resolve_public_ips", fail)
+    monkeypatch.setattr(agent, "_http_get_pinned", lambda *a, **k: requested.append("x"))
     with pytest.raises(ValueError):
         agent.safe_fetch("https://example.org/feed", timeout=1)
     assert requested == []
 
 
 def test_safe_fetch_never_contacts_private_redirect_target(monkeypatch):
-    import urllib.error
-
     import src.web.research_tool_agent as agent
 
     opened: list[str] = []
+    monkeypatch.setattr(agent, "_resolve_public_ips", lambda host: ["1.2.3.4"])
 
-    def fake_open(request, timeout):
-        opened.append(request.full_url)
-        raise urllib.error.HTTPError(request.full_url, 302, "Found",
-                                     {"Location": "http://127.0.0.1/x"}, None)
+    def fake_get(url, host, ip, timeout):
+        opened.append(url)
+        return (302, {"location": "http://127.0.0.1/x"}, "")
 
-    monkeypatch.setattr(agent, "host_resolves_public", lambda host: host == "example.org")
-    monkeypatch.setattr(agent._SAFE_OPENER, "open", fake_open)
+    monkeypatch.setattr(agent, "_http_get_pinned", fake_get)
     with pytest.raises(ValueError):
         agent.safe_fetch("https://example.org/feed", timeout=1)
     assert opened == ["https://example.org/feed"]
