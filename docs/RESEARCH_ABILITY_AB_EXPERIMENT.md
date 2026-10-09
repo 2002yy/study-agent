@@ -115,3 +115,13 @@ answer-length-2800含提供商finish_reason/usage、同输入证明与四份匿�
 样本、配置已暴露；本次是修订资源配置下的配对诊断，不称纯未见保留集，不据6条宣告A或B胜出。历史96规划、17作废、24旧配置诊断与两组各4次参数实验均原样保留，本次累计实际尝试151。参数调优停止；不为使样本通过修改引用或计算规则、提高预算或增加主题分类。下一步用户盲审风险停点，再按轨迹区分规划限制、证据利用与确定性计算失误；生产B规划切换与RP-1整体发布继续NO-GO。
 
 生产候选影响集：performance budget、chat service/API/lifecycle、生成与binding取消栅栏、研究finalization deadline、streaming/publication gate、学习/复习相邻消费者。114+143=257 PASS（45.04s+54.05s）；Ruff src/tests/tools PASS，mypy122/128无新增，diff-check PASS。未进行全阶段关闭、authority cutover或部署，按L1影响集验证，不重复无关全套L3；完整发布仍需后续候选门。
+
+## 2026-10-09 用户授权续跑18条：完整24份答卷
+
+用户明确要求执行其余18条，覆盖此前遇引用风险即停的实验执行纪律；只在隔离诊断记录错误并继续，不自动发布，不放松引用或Evidence Gate。原6条请求、响应、row、停止记录和匿名标签全部保存，续跑前登记其文件SHA，完成后核验全部未变。续跑沿用旧计划顺序的索引6–23，20秒/2800/同模型/零重试；24条所有messages与原始输入一致，case/arm/repeat一一对应，各组12条，无重复执行或结果替换。
+
+新增18/18完成且JSON可解析，合并24/24 finish_reason=stop，无超时或length终止。引用结构23通过/1拒绝，拒绝仍为原六条中已记录的改写引用；机械检查不能识别全部语义错误，原临界值计算错误也没有被修补或删除。全批completion tokens32191，价格及货币成本未观测。累计实验尝试169，包含历史17条作废，不能将其算入有效配对评分。
+
+原始续跑证据在 `model-ability-ab/answer-paired-24-continuation`；完整分析与匿名包在 `answer-paired-24-complete`：summary、mechanical-results、blind-review、blind-answer-review、human-scores.blank、单独organizer-key。24份匿名包保留首六标签，后18份随机匿名，原评分标准/资料不变。未将组别写入用户答卷，未使用自动语义评分代替用户裁决；所有候选publication=false，semantic=PENDING_USER_BLIND_REVIEW。仍是解封后修订配置诊断，停止纪律变更已披露，不称纯未见资格或自动授权生产B切换。
+
+本轮只执行已授权模型调用及更新文档；生产参数/测试源码、冻结规划工具及prompt不变。docs-only不重复既有257生产回归。下一门为用户盲审24份内容，再揭盲并决定架构方向；参数调优停止，RP-1整体NO-GO。
