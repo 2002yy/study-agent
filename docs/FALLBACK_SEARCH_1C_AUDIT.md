@@ -69,3 +69,35 @@ history: 0 reads (all 5 candidates rejected pre-read).
 The zero-evidence is a **search-provider/selection** failure. The post-read
 relevance judge and the evidence gate behaved **correctly**. Next fix the provider,
 then read-target selection; not the gate.
+
+## Correction (query-terms are co-primary) — after direct same-provider test
+Challenged by the user, I re-tested on the **same** fallback provider with the
+frozen long queries and short targeted queries for the same facet
+(`model-driven-search-1c/query_compare.txt`):
+
+| query | top results | reading |
+| --- | --- | --- |
+| history-long `明治 地租改正 1873 …` | 明治(食品品牌), 明治天皇 | junk |
+| history-short `地租改正 1873` | `地租`, `地租理论` wiki + 知乎「地租」 | **topic-relevant** |
+| energy-long-en / short-en `air source heat pump… defrost` | `air` dictionary pages | engine reduced to the token `air` |
+| energy-short-zh `空气源热泵 低温 除霜` | `空气`, 空气成分, 空气污染 | still generic (engine weak) |
+| factory-long / short `Factorio … train interrupts` | Factorio home / wiki home | no improvement |
+
+Findings:
+- The engine **does respond to the terms** (it returns token-matched pages) — so a
+  blanket "the engine is broken" was an over-reach. The long queries are **reduced
+  to a dominant token** (`air`, `比较`, `明治`), and the `authoritative_domain`
+  query literally embeds the full Chinese question, which is why it matched `比较`.
+- **Query terms materially change relevance** (history long→junk, short→topic).
+- But short queries did **not** fix energy (still "空气") or factory (still home),
+  so the fallback engine is **also** weak.
+
+**Revised verdict: BOTH.** Query construction is a real, primary, fixable cause;
+the weak fallback compounds it. The prior "provider dominant" label is retracted.
+
+Revised fix order:
+1. **Query construction** — short entity+facet terms; never embed the full question;
+   drop generic lead words; keep version/time/conditions. (bounded, testable)
+2. **Search provider** — restore SearXNG and compare on the same frozen queries;
+   evaluate a third provider only if the fallback stays generic.
+3. **Read-target selection** — prefer the specific article over a home/nav URL.
