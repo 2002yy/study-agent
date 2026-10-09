@@ -35,9 +35,9 @@ def _rows(value: Any, cap: int) -> list[dict[str, Any]]:
     return value
 
 
-def questions(value: Any) -> list[dict[str, str]]:
+def questions(value: Any, *, cap: int = 6) -> list[dict[str, str]]:
     result = []
-    for row in _rows(value, 6):
+    for row in _rows(value, cap):
         if set(row) != {"id", "question"}:
             raise ValueError("question_fields")
         identifier = _text(row["id"], 40)
@@ -102,7 +102,7 @@ class ResearchEpisode:
             raise ValueError("episode_version")
         return cls(
             task_id=_text(raw["task_id"], 100), thread_id=thread_id,
-            original_question=original, questions=questions(raw["questions"]),
+            original_question=original, questions=questions(raw["questions"], cap=24),
             constraints=preferences(raw["constraints"]),
             previous_task_id=str(raw["previous_task_id"]),
             source_run_id=_text(raw["source_run_id"], 100),
@@ -132,18 +132,8 @@ class ResearchDecision:
         for row in _rows(raw["proposed_queries"], 5):
             if set(row) != {"rq_id", "query"} or row["rq_id"] not in ids:
                 raise ValueError("query_binding")
-            query = _text(row["query"], 500)
-            if is_research_resume(query):
-                raise ValueError("control_query")
-            # Model advice cannot turn search into access to local/private resources.
-            if re.search(r"(?:file:|localhost|127\.0\.0\.1|\[::1\]|\.local\b)", query, re.I):
-                raise ValueError("private_query")
-            for url in re.findall(r"\b[a-z]+://[^\s]+", query, re.I):
-                if not _public_url(url):
-                    raise ValueError("private_query")
-            for host in re.findall(r"site:([^\s)]+)", query, re.I):
-                if not _public_url("https://" + host):
-                    raise ValueError("private_domain")
+            from src.web.model_driven_planning import public_query
+            query = public_query(row["query"])
             queries.append({"rq_id": row["rq_id"], "query": query})
         if raw["intent"] in {"NEW_RESEARCH", "CONTINUE_ACTIVE_RESEARCH", "REFINE_RESEARCH"} and not queries:
             raise ValueError("missing_queries")
@@ -182,7 +172,8 @@ def configured_completion(*, messages: list[dict[str, str]], timeout: float, tas
     from src.llm_client import chat, research_structured_output_capabilities
 
     _, extra = research_structured_output_capabilities()
-    return chat(messages, temperature=0, model_profile="flash", max_tokens=1400,
+    output_limit = 2800 if task_name == "research_task_planning" else 1400
+    return chat(messages, temperature=0, model_profile="flash", max_tokens=output_limit,
                 timeout=timeout, response_format="json_object", extra_body=extra,
                 request_max_retries=0, task_name=task_name)
 
@@ -211,11 +202,12 @@ class ResearchSemanticSession:
         if len(payload) > CONTEXT_CAP:
             raise ValueError("context_limited")
         self.stages.add(stage)
-        timeout = min(5.0, self.deadline - time.monotonic())
+        stage_window = 20.0 if stage == "research_task_planning" else 5.0
+        timeout = min(stage_window, self.deadline - time.monotonic())
         event: dict[str, Any] = {"purpose": stage, "provider": "configured_llm", "status": "attempted",
                  "data_categories": ["search_query", "research_episode"],
                  "data_counts": {"search_query": 1, "research_episode": 1}}
-        if stage == "research_turn_interpretation" and (context.get("history_snippets") or context.get("active_task_exists")):
+        if stage in {"research_turn_interpretation", "research_task_planning"} and (context.get("history_snippets") or context.get("active_task_exists")):
             event["data_categories"].append("recent_chat")
             event["data_counts"]["recent_chat"] = 1
         if stage != "research_turn_interpretation":
@@ -236,6 +228,8 @@ class ResearchSemanticSession:
                     value = future.result(timeout=min(0.1, remaining))
                     if self.should_cancel() or time.monotonic() >= self.deadline:
                         raise TimeoutError("semantic_late_result")
+                    if stage == "research_task_planning":
+                        event["raw_output"] = value
                     parsed = json.loads(value)
                     event["status"] = "completed"
                     return parsed
@@ -249,6 +243,43 @@ class ResearchSemanticSession:
         finally:
             future.cancel()
             pool.shutdown(wait=False, cancel_futures=True)
+
+    def plan(self, episode: ResearchEpisode, latest: str, *, new_task_id: str,
+             history: str = "", active_task_exists: bool = True) -> ResearchDecision:
+        """The sole production planner; legacy interpret remains experiment-only."""
+        from src.web.model_driven_planning import PLANNING_PROMPT, normalize_tasks
+
+        context = episode_context(episode, latest, history=history if self.history_allowed else "",
+                                  remaining_seconds=self.deadline - time.monotonic(), active_task_exists=active_task_exists)
+        raw = self.request("research_task_planning", PLANNING_PROMPT, context)
+        try:
+            if not isinstance(raw, dict) or "tasks" not in raw or set(raw) - {"tasks", "intent", "constraints_delta"}:
+                raise ValueError("planning_fields")
+            task_rows = _rows(raw["tasks"], 24)
+            if any("question" not in row or set(row) - {"question", "query"} for row in task_rows):
+                raise ValueError("task_fields")
+            intent = raw.get("intent", "CONTINUE_ACTIVE_RESEARCH" if active_task_exists and is_research_resume(latest) else "NEW_RESEARCH")
+            if not isinstance(intent, str) or intent not in INTENTS:
+                raise ValueError("planning_intent")
+            if not active_task_exists and intent in {"CONTINUE_ACTIVE_RESEARCH", "REFINE_RESEARCH"}:
+                raise ValueError("no_active_episode")
+            if not active_task_exists and is_research_resume(latest) and intent != "ABSTAIN":
+                raise ValueError("retry_without_active_episode")
+            constraints = preferences(raw.get("constraints_delta", {}))
+            if intent in {"ANSWER", "ABSTAIN"}:
+                self.decision = ResearchDecision(episode.task_id, intent, latest[:500], constraints, episode.questions, "no_new_evidence", [])
+            else:
+                owner = new_task_id if intent == "NEW_RESEARCH" else episode.task_id
+                rqs, queries, trace = normalize_tasks(task_rows, task_id=owner,
+                    previous=episode.questions, preserve_previous=intent != "NEW_RESEARCH")
+                self.events[-1]["planning"] = trace
+                self.decision = ResearchDecision(episode.task_id, intent, latest[:500], constraints, rqs, "research_pending_questions", queries)
+            self.events[-1]["validation"] = "accepted"
+        except ValueError as exc:
+            self.events[-1]["validation"] = "rejected"
+            self.events[-1]["validation_error"] = str(exc)
+            raise
+        return self.decision
 
     def interpret(self, episode: ResearchEpisode, latest: str, *, history: str = "",
                   active_task_exists: bool = True) -> ResearchDecision:
@@ -313,7 +344,7 @@ class ResearchSemanticSession:
                     raise ValueError("relevance_fields")
                 _text(row["reason"], 300)
                 ids = row["rq_ids"]
-                if not isinstance(ids, list) or len(ids) > 6 or any(not isinstance(v, str) or v not in allowed for v in ids):
+                if not isinstance(ids, list) or len(ids) > len(allowed) or any(not isinstance(v, str) or v not in allowed for v in ids):
                     raise ValueError("relevance_rq_ids")
                 if row["related"] != bool(ids) or row["id"] in output:
                     raise ValueError("relevance_relation")

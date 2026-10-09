@@ -86,10 +86,10 @@ class Completion:
         self.inputs = []
 
     def __call__(self, *, messages, timeout, task_name):
-        assert 0 < timeout <= 5
+        assert 0 < timeout <= (20 if task_name == "research_task_planning" else 5)
         data = json.loads(messages[-1]["content"])
         self.inputs.append((task_name, data))
-        if task_name == "research_turn_interpretation":
+        if task_name in {"research_turn_interpretation", "research_task_planning"}:
             latest = data["latest_message"]
             value = decision(data["episode"]["task_id"])
             if latest in {"直接去。不要一次失败就返回", "再查查"}:
@@ -100,6 +100,11 @@ class Completion:
             elif latest == "赵翠":
                 value.update(subject="赵翠", unresolved_questions=[{"id": "rq-person", "question": "赵翠指谁？"}],
                              proposed_queries=[{"rq_id": "rq-person", "query": "赵翠 人物"}])
+            if task_name == "research_task_planning":
+                by_id = {row["rq_id"]: row["query"] for row in value["proposed_queries"]}
+                value = {"intent": value["intent"], "constraints_delta": value["constraints_delta"],
+                         "tasks": [{"question": row["question"], "query": by_id.get(row["id"], row["question"])}
+                                   for row in value["unresolved_questions"]]}
             return json.dumps(value, ensure_ascii=False)
         rows = []
         for item in data["items"]:
@@ -164,7 +169,7 @@ def test_real_failure_four_turn_golden_and_restart(tmp_path):
     for trace in traces[:3]:
         assert trace.used and len(evidence_tool_calls(list(trace.calls))) == 2
         assert recovery_summary(list(trace.calls))["semantic_model_calls"] == 3
-    assert len([value for purpose, value in model.inputs if purpose == "research_turn_interpretation"]) == 4
+    assert len([value for purpose, value in model.inputs if purpose == "research_task_planning"]) == 4
 
 
 @pytest.mark.parametrize("text", list(REFINEMENTS))
@@ -223,7 +228,7 @@ def test_history_off_and_cross_thread_never_send_previous_episode(tmp_path):
     for owner, allowed in [("thread-1", False), ("thread-2", True)]:
         trace = runtime.resolve("再查查", owner_thread_id=owner, history_allowed=allowed,
                                 conversation_context="SECRET PRIOR SOURCE")
-        sent = [data for purpose, data in model.inputs if purpose == "research_turn_interpretation"][-1]
+        sent = [data for purpose, data in model.inputs if purpose == "research_task_planning"][-1]
         assert sent["episode"]["original_question"] == "再查查"
         if not allowed:
             assert not sent["history_snippets"]
@@ -249,9 +254,9 @@ def test_provisional_episode_is_explicit_and_fallback_strips_directive(tmp_path)
     seen = []
     def invalid_continuation(**kwargs):
         data = json.loads(kwargs["messages"][-1]["content"])
-        if kwargs["task_name"] == "research_turn_interpretation":
+        if kwargs["task_name"] == "research_task_planning":
             seen.append(data)
-            return json.dumps(decision(data["episode"]["task_id"], "CONTINUE_ACTIVE_RESEARCH"))
+            return json.dumps({"intent": "CONTINUE_ACTIVE_RESEARCH", "tasks": [{"question": "model proposal"}]})
         return Completion()(**kwargs)
     runtime, service, gateway, _ = agent(tmp_path, completion=invalid_continuation)
     trace = runtime.resolve(ORIGINAL, owner_thread_id="thread-1", history_allowed=True)
@@ -267,15 +272,17 @@ def test_continuation_paraphrase_cannot_overwrite_frozen_rq_text(tmp_path):
     def completion(**kwargs):
         data = json.loads(kwargs["messages"][-1]["content"])
         value = json.loads(model(**kwargs))
-        if kwargs["task_name"] == "research_turn_interpretation" and data["latest_message"] == "再查查":
-            for rq in value["unresolved_questions"]:
+        if kwargs["task_name"] == "research_task_planning" and data["latest_message"] == "再查查":
+            for rq in value["tasks"]:
                 rq["question"] = "model proposed different wording"
         return json.dumps(value)
     runtime, service, _, _ = agent(tmp_path, completion=completion)
     runtime.resolve(ORIGINAL, owner_thread_id="thread-1", history_allowed=True)
+    frozen = service.active_semantic_episode("thread-1").questions
     trace = runtime.resolve("再查查", owner_thread_id="thread-1", history_allowed=True)
     assert not trace.error and trace.to_dict()["semantics"]["decision_admitted"]
-    assert service.active_semantic_episode("thread-1").questions == RQS
+    restored = service.active_semantic_episode("thread-1").questions
+    assert all(question in restored for question in frozen)
 
 
 def test_failed_ambiguous_interpretation_preserves_prior_episode(tmp_path):

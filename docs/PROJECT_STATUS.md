@@ -8,6 +8,17 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+
+**2026-10-09 B1 模型自由规划 + 既有治理接线（本地实现候选 / RP-1 NO-GO）：** 用户最新裁定为 B 智能细粒度拆题、保留 A 的执行治理骨架；不保留 A 粗粒度规划作为并行生产入口。本独立工作树 `D:/study-agent-validation/model-driven-research-entry`，branch `codex/model-driven-research-entry`，base `40e0e311eb9653282ae12b36d4835a3bfa68616b`。生产通用语义入口调用一次 B，程序分配 owner 隔离稳定 RQ ID；逐字重复去重及提案映射保存，不相似度聚合；继续研究保留原任务/完整原始问题/条件。最多24任务独立于查询配额，5个不同候选查询可关联多个问题，其余明确暂缓。复用原恢复执行器、取消、SQLite、来源/引用/证据及发布治理；已知官方快速路径保留。旧 interpret 仅冻结实验与兼容测试可调用，生产不二次 A 规划。
+
+**最新预算授权覆盖此前规划5秒冻结：** B 拆题20秒/2800 tokens，相关性与旧实验调用仍5秒/1400，零额外重试。用户要求自动补偿时间，因此按实际拆题耗时一次性补偿，最多20秒；B入口 Lookup 总墙钟上限50秒/Standard80秒，但工具研究窗口仍原30/60秒，收尾10/12秒预留、搜索2/4与读取3/5不变，不因每个失败重复续期。既有Lookup终态预算校验消费真实研究阶段耗时，不冒充总墙钟；既有持久语义事件另记规划耗时/补偿/总上限/真实deadline。Deep child 180秒预算和升级/Deep-4B发布权限未改。精确预算与接口见 [B1接线](MODEL_DRIVEN_PLANNING_ENTRY.md)。
+
+**真实证据分开保留：** 外部 `reading-notebook-ui-evidence/model-driven-planning-qualification` 原5秒三题均超时，历史题只走FALLBACK；工厂游戏原响应5.985秒迟到，仅离线可解析24任务，不算真实接收。`model-driven-planning-20s-qualification` 改20秒后的同三题全部接收（24/24/18任务），原问题与第二进程恢复均一致。最终一次性补偿候选 `model-driven-planning-final-qualification` 同三题2接收/1拒绝：热泵原响应 excluded_page_types=[] 不符合共享偏好字符串协议，具体拒绝invalid_string；历史/工厂游戏各24任务且第二Python进程持久恢复一致。最终搜索4/2/4、正文读取全部0，相关性不等于支持，不宣称真实研究质量GO或自然Deep恢复通过。每批调用前保存题目、资源配置和生产源哈希，不改原保留题/答卷/评分；外部观察脚本首批Windows子进程GBK解码与迟到回调闭包归属已修正，旧raw保持，按请求原始问题派生归属，不重跑首两题或污染生产trace。
+
+Answer Reliability 独立分支 `codex/answer-verification-shadow` 提交 `0cdcfe070853d7f09cae3527c57390d2819db276` 提交时干净，245集成PASS/Ruff/mypy NEW0；当前该工作树已有另一线Answer Reliability-1b未提交改动，本批未动；原文/精确计算仅shadow，未混入本B切片，也不自动赋予语义或发布权威。盲审24份旧答卷与封存评分字节不变，本批不读取保留题评分调参。主目录/UI/A线及原B `40e0e311` 保留。无push/PR/CI/部署。20秒参数定向75 PASS（一次性补偿前）；最终命名L2 337 PASS（176.01秒）、Ruff PASS/mypy current122 baseline128 NEW0，最终L3 4375 PASS/7 SKIP/2前置身份拒绝（1555.02秒）：RQ1-C两项要求exact HEAD tracked clean，因当前候选尚未提交而拒绝，未进入协议断言；生产代码无失败。提交后在同内容clean工作树补跑这两项，最终补验结果/HEAD/clean见外部 `model-driven-planning-closeout.json`。不将本次原始L3改写为整轮全绿，不为干净身份前置失败重复4375项已通过行为回归。旧5秒候选L2 331 PASS；其L3因用户更改生产预算在19%主动中止，不算PASS。最终commit/clean由Git及外部closeout恢复。
+
+**唯一下一执行切片：** B2 前置通用协议与定向检索诊断：优先处理真实可复现的偏好字段类型不一致，并从完整raw/查询选择/候选拒绝解释正文读取0；然后接通现有Standard/Deep逐问题定向检索和独立覆盖。不得为新主题添加分类、重聚合细任务、降低证据门或把规划接收当Deep资格。当前仅代码接线，不关闭RP-1；独立语义、真实证据覆盖、自然Deep进程恢复及发布综合门仍待。
+
 **2026-10-09 用户授权继续剩余18条，固定资料配对回答24/24已完成；语义盲审待执行，RP-1仍NO-GO。** branch `codex/reading-notebook-ui`，本批base `33e8525af0132a40926228cf8c953871b4fe6faa`，起始clean；仅两份当前文档更新，生产2800参数与既有257 PASS/Ruff/mypy证据不变，未新增src/UI/A线/模型/prompt/预算/发布权限改动，无push/PR/CI/部署。按用户新授权覆盖前批风险停止纪律，仅在隔离诊断继续原顺序第7–24条，20秒/2800/同模型/零重试，引用失败记录但不授予支持或发布。外部 `answer-paired-24-continuation` 保存18请求/18响应/18row及原始索引6–23；旧6条与其stopped/summary/匿名标签完整保留，逐文件SHA核验未变。24条的case/arm/repeat均唯一且各组12条，全部消息（含原题、原规划、资料）与前次登记输入逐项相同；没有替换失败、补造引用或重新运行前6条。
 
 全批24/24 finish_reason=stop且JSON可解析，无超时或length终止；引用结构23 PASS/1拒绝（仍是原先那条），completion tokens合计32191，货币成本NOT_OBSERVED；不可把这些机械指标视为语义支持或A/B胜负。`answer-paired-24-complete` 已整理24份匿名答卷 `blind-answer-review.md`/`blind-review.json`、空白评分表和单独organizer-key，保留首六匿名标签，原100分评分标准及资料不改。post-unseal配置诊断性质与用户授权续跑这一停止纪律变更明确记录，不冒充纯未见保留资格；全实验累计169尝试含旧17作废。docs-only比例验证，不重复257生产回归。**唯一下一切片：用户对24份候选按冻结标准盲审，评分后揭盲并归因规划覆盖、证据忠实性、条件保持及危险错误，再决定架构简化方向；不继续参数调优，不自动推广B规划或授予RP-1 GO。** 最终head/clean由Git及外部continuation-closeout恢复。

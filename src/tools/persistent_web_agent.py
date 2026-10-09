@@ -471,7 +471,10 @@ class PersistentWebToolAgent(WebToolAgent):
         if current_budget.hard_seconds > budget.hard_seconds:
             budget = current_budget
         started = time.monotonic()
-        answer_deadline = started + budget.hard_seconds
+        # B planning has a separately bounded overhead allowance. Credit only
+        # actual elapsed planning time; never renew the research window per tool.
+        planning_allowance = 20.0
+        answer_deadline = started + budget.hard_seconds + planning_allowance
         session = ResearchSemanticSession(
             self.semantic_completion,
             deadline=answer_deadline - budget.finalization_reserve,
@@ -484,7 +487,7 @@ class PersistentWebToolAgent(WebToolAgent):
         focused = ""
         admitted = False
         try:
-            decision = session.interpret(episode, user_input,
+            decision = session.plan(episode, user_input, new_task_id=run.id,
                                          history=conversation_context if prior and not research_topic(user_input) else "",
                                          active_task_exists=prior is not None)
             from src.web.conversation_query import is_research_resume
@@ -538,15 +541,18 @@ class PersistentWebToolAgent(WebToolAgent):
                 error = f"SemanticRecovery blocked: {type(exc).__name__}: {exc}"
             calls.append({"name": "research_semantic_fallback", "arguments": {},
                           "result": {"reason": type(exc).__name__, "known_subject": bool(focused)}})
+        planning_elapsed = max(0.0, time.monotonic() - started)
+        planning_credit = min(planning_allowance, planning_elapsed)
+        research_started = started + planning_credit
         if focused:
             # A newly interpreted topic cannot extend the deadline inherited from
             # the current run. A short new topic may reduce it to Lookup.
             budget = recovery_budget(focused)
-            answer_deadline = min(answer_deadline, started + budget.hard_seconds)
+            answer_deadline = min(answer_deadline, research_started + budget.hard_seconds)
             session.deadline = answer_deadline - budget.finalization_reserve
             session.episode = episode
             calls.extend(recover_public_research(
-                self.gateway, focused, budget=budget, started_at=started,
+                self.gateway, focused, budget=budget, started_at=research_started,
                 answer_deadline=answer_deadline, semantic_session=session,
                 query_plan=plan, should_cancel=session.should_cancel,
             ))
@@ -569,6 +575,17 @@ class PersistentWebToolAgent(WebToolAgent):
             "decision_admitted": admitted,
             "task_id": episode.task_id, "question_coverage": sorted(session.body_questions),
             "coverage_kind": "relevance_only_not_support_or_adequacy",
+            "time_budget": {
+                "planning_allowance_seconds": planning_allowance,
+                "planning_elapsed_seconds": planning_elapsed,
+                "credited_seconds": planning_credit,
+                "research_hard_seconds": budget.hard_seconds,
+                "total_hard_seconds": budget.hard_seconds + planning_allowance,
+                "finalization_reserve_seconds": budget.finalization_reserve,
+                "answer_deadline": answer_deadline,
+                "research_started": research_started,
+                "automatic_extension": "actual_planning_overhead_once",
+            },
         }})
         if session.should_cancel():
             service.finish_tool_trace_cancel(run.id, operation_id)
