@@ -7,6 +7,8 @@ No model calls, prompt edits, repairs, publication rights or semantic verdicts.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from decimal import Decimal, InvalidOperation
+import re
 import time
 from typing import Any
 
@@ -40,6 +42,8 @@ class CalculationProposal:
     variables: tuple[tuple[str, str], ...] = ()
     places: int | None = None
     rounding: str = "half_even"
+    label: str = ""
+    formula_origin: tuple[str, str] = ("model_recall", "")
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,90 @@ class BoundaryProposal:
     above_relation: str
     places: int | None = None
     rounding: str = "half_even"
+    label: str = ""
+    formula_origin: tuple[str, str] = ("model_recall", "")
+
+
+@dataclass(frozen=True)
+class FormulaOriginCheck:
+    """Program-derived provenance of a formula's premises.
+
+    A claimed origin is only ever *downgraded* to ``unverified``; arithmetic
+    ``PASS`` never upgrades it. ``user_given_verified``/``evidence_verified``
+    mean the numeric premises were located in the question or an owned read,
+    not that the formula is a true external fact.
+    """
+
+    status: str
+    claimed: str
+    ref: str = ""
+    reason: str = ""
+
+
+_NUM_LITERAL = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _canonical_number(literal: str) -> str:
+    try:
+        return format(Decimal(literal).normalize(), "f")
+    except (InvalidOperation, ValueError):
+        return literal
+
+
+def _numeric_premises(*sources: str) -> tuple[str, ...]:
+    found: list[str] = []
+    for source in sources:
+        for literal in _NUM_LITERAL.findall(str(source or "")):
+            if literal not in found:
+                found.append(literal)
+    return tuple(found)
+
+
+def _text_numbers(text: str) -> frozenset[str]:
+    return frozenset(_canonical_number(item) for item in _NUM_LITERAL.findall(text or ""))
+
+
+def resolve_formula_origin(
+    proposal_origin: tuple[str, str],
+    *expressions: str,
+    original_question: str = "",
+    evidence_ids: frozenset[str] = frozenset(),
+    evidence_text: str = "",
+) -> FormulaOriginCheck:
+    """Independently locate a formula's numeric premises; downgrade only.
+
+    A model may *claim* user_given/evidence_quote, but the status here is derived
+    from where the formula's numeric constants actually appear (as standalone
+    numeric tokens). The rule can only downgrade to ``unverified``; arithmetic
+    PASS never upgrades it and ``model_recall`` is never a verified source.
+    """
+    claimed, ref = proposal_origin
+    if claimed not in {"user_given", "evidence_quote", "model_recall"}:
+        return FormulaOriginCheck("unverified", claimed, ref, "unknown_origin_type")
+    literals = _numeric_premises(*expressions)
+    if not literals:
+        return FormulaOriginCheck("unverified", claimed, ref, "no_numeric_premise")
+    required = {_canonical_number(literal) for literal in literals}
+    if claimed == "user_given":
+        ok = required <= _text_numbers(original_question)
+        return FormulaOriginCheck(
+            "user_given_verified" if ok else "unverified",
+            claimed,
+            ref,
+            "" if ok else "premise_not_in_question",
+        )
+    if claimed == "evidence_quote":
+        if ref not in evidence_ids:
+            return FormulaOriginCheck("unverified", claimed, ref, "origin_ref_not_owned_evidence")
+        ok = required <= _text_numbers(evidence_text)
+        return FormulaOriginCheck(
+            "evidence_verified" if ok else "unverified",
+            claimed,
+            ref,
+            "" if ok else "premise_not_in_evidence",
+        )
+    return FormulaOriginCheck("unverified", claimed, ref, "model_recall_is_not_a_source")
+
 
 
 @dataclass(frozen=True)
@@ -67,6 +155,12 @@ class AnswerVerificationInputs:
     quotes: tuple[QuoteProposal, ...] = ()
     calculations: tuple[CalculationProposal, ...] = ()
     boundaries: tuple[BoundaryProposal, ...] = ()
+    # Original user-visible question, used only to verify claimed ``user_given``
+    # premises. Server-owned; never model-supplied.
+    original_question: str = ""
+    # Server-owned (evidence_id, text) pairs used only to verify claimed
+    # ``evidence_quote`` formula premises. Never model-supplied.
+    evidence_texts: tuple[tuple[str, str], ...] = ()
     # Server-owned join to the existing evidence provenance, not model ids.
     # Each tuple is (evidence_id, read_id, content_sha256, payload_sha256).
     evidence_reads: tuple[tuple[str, str, str, str], ...] = ()
@@ -166,6 +260,13 @@ def observe_answer_verification(
         ):
             return {**report, "reason": "input_limit"}
         report["quotes"] = [_quote(proposal, inputs) for proposal in inputs.quotes]
+        evidence_ids = frozenset(
+            row.evidence_id for row in inputs.evidence_rows if row.evidence_id
+        ) | frozenset(evidence_id for evidence_id, _ in inputs.evidence_texts)
+        evidence_text = "\n".join(
+            [document.text for document in inputs.documents]
+            + [text for _, text in inputs.evidence_texts]
+        )
         for proposal in inputs.calculations:
             if len(proposal.variables) > 32 or len(dict(proposal.variables)) != len(
                 proposal.variables
@@ -175,54 +276,82 @@ def observe_answer_verification(
                         "status": "UNKNOWN",
                         "reason": "ambiguous_or_excess_variables",
                         "semantic_support": "UNKNOWN",
+                        "verified_support": False,
+                        "label": proposal.label,
                     }
                 )
-            else:
-                report["calculations"].append(
-                    {
-                        **asdict(
-                            check_calculation(
-                                proposal.expression,
-                                proposal.result,
-                                variables=dict(proposal.variables),
-                                places=proposal.places,
-                                rounding=proposal.rounding,
-                            )
-                        ),
-                        "expression": proposal.expression,
-                        "claimed_value": proposal.result,
-                    }
-                )
+                continue
+            origin = resolve_formula_origin(
+                proposal.formula_origin,
+                proposal.expression,
+                original_question=inputs.original_question,
+                evidence_ids=evidence_ids,
+                evidence_text=evidence_text,
+            )
+            check = check_calculation(
+                proposal.expression,
+                proposal.result,
+                variables=dict(proposal.variables),
+                places=proposal.places,
+                rounding=proposal.rounding,
+            )
+            report["calculations"].append(
+                {
+                    **asdict(check),
+                    "expression": proposal.expression,
+                    "claimed_value": proposal.result,
+                    "label": proposal.label,
+                    "formula_origin": asdict(origin),
+                    "verified_support": (
+                        check.status == "PASS" and origin.status != "unverified"
+                    ),
+                }
+            )
         # Explicit names keep the public proposal surface independent of the
         # arithmetic function's internal argument names.
-        report["boundaries"] = [
-            asdict(
-                check_boundary(
-                    proposal.left,
-                    proposal.right,
-                    proposal.variable,
-                    proposal.result,
-                    below=proposal.below,
-                    above=proposal.above,
-                    below_relation=proposal.below_relation,
-                    above_relation=proposal.above_relation,
-                    places=proposal.places,
-                    rounding=proposal.rounding,
-                )
+        for boundary in inputs.boundaries:
+            origin = resolve_formula_origin(
+                boundary.formula_origin,
+                boundary.left,
+                boundary.right,
+                original_question=inputs.original_question,
+                evidence_ids=evidence_ids,
+                evidence_text=evidence_text,
             )
-            for proposal in inputs.boundaries
-        ]
+            check = check_boundary(
+                boundary.left,
+                boundary.right,
+                boundary.variable,
+                boundary.result,
+                below=boundary.below,
+                above=boundary.above,
+                below_relation=boundary.below_relation,
+                above_relation=boundary.above_relation,
+                places=boundary.places,
+                rounding=boundary.rounding,
+            )
+            report["boundaries"].append(
+                {
+                    **asdict(check),
+                    "label": boundary.label,
+                    "formula_origin": asdict(origin),
+                    "verified_support": (
+                        check.status == "PASS" and origin.status != "unverified"
+                    ),
+                }
+            )
         checks = report["quotes"] + report["calculations"] + report["boundaries"]
         if checks:
-            report["status"] = (
-                "FAIL"
-                if any(row["status"] == "FAIL" for row in checks)
-                else (
-                    "UNKNOWN"
-                    if any(row["status"] == "UNKNOWN" for row in checks)
-                    else "PASS"
-                )
-            )
+            # Arithmetic PASS under an unverified formula is not verified
+            # support: downgrade to UNKNOWN so it can never read as a fact.
+            if any(row["status"] == "FAIL" for row in checks):
+                report["status"] = "FAIL"
+            elif any(row["status"] == "UNKNOWN" for row in checks) or any(
+                not row.get("verified_support", True) for row in checks
+            ):
+                report["status"] = "UNKNOWN"
+            else:
+                report["status"] = "PASS"
             report["reason"] = "supplied_proposals_checked"
         report["coverage"] = {
             name: "SUPPLIED" if getattr(inputs, name) else "NOT_OBSERVED"

@@ -8,7 +8,7 @@ a judge for those decisions. No path here searches, reads, or changes research s
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Callable, Iterable, Literal, Mapping
+from typing import Any, Callable, Iterable, Literal, Mapping
 
 from src.web.research.research_brief_projection import ResearchBriefProjection
 from src.web.research.synthesis_assembler import (
@@ -58,6 +58,10 @@ class AuditResult:
     audited_draft: SynthesisDraft
     repair_used: bool = False
     previous_issues: tuple[AuditIssue, ...] = ()
+    # Mechanical tool-consistency dimension fed by the answer-verification
+    # shadow report. Default stays unverified so no caller changes behaviour
+    # unless it explicitly attaches a report.
+    tool_result_consistency: AuditDimension = "unverified"
 
     @property
     def approval_status(self) -> Literal["approved", "audited-but-not-approved"]:
@@ -318,6 +322,51 @@ def _validate_repair_scope(
             raise ValueError("repair introduced an unrelated citation")
 
 
+def tool_consistency(
+    report: Mapping[str, Any] | None,
+) -> tuple[AuditDimension, tuple[AuditIssue, ...]]:
+    """Mechanical tool-result consistency from an answer-verification report.
+
+    Covers only explicit calculation/boundary proposals. A FAIL row (arithmetic
+    that contradicts a supplied formula) is a blocking mechanical issue. A PASS
+    row whose formula origin is not program-verified stays unverified rather than
+    covered. Semantic support is never touched here.
+    """
+    if not isinstance(report, Mapping):
+        return "unverified", ()
+    rows = list(report.get("calculations") or ()) + list(report.get("boundaries") or ())
+    if not rows:
+        return "unverified", ()
+    mismatches = tuple(
+        AuditIssue(
+            issue_type="tool_result_mismatch",
+            severity="blocking",
+            reason=str(row.get("label") or row.get("expression") or "calculation"),
+        )
+        for row in rows
+        if row.get("status") == "FAIL"
+    )
+    if mismatches:
+        return "partial", mismatches
+    if all(row.get("verified_support") for row in rows):
+        return "covered", ()
+    return "unverified", ()
+
+
+def attach_tool_consistency(
+    result: AuditResult, report: Mapping[str, Any] | None
+) -> AuditResult:
+    """Fold a shadow tool report into an audit result; never upgrades semantics."""
+    dimension, issues = tool_consistency(report)
+    if not issues and dimension == result.tool_result_consistency:
+        return result
+    return replace(
+        result,
+        issues=(*result.issues, *issues),
+        tool_result_consistency=dimension,
+    )
+
+
 __all__ = [
     "AuditIssue",
     "AuditResult",
@@ -325,5 +374,7 @@ __all__ = [
     "SemanticAssessment",
     "SemanticJudge",
     "abstaining_judge",
+    "attach_tool_consistency",
     "audit_final_answer",
+    "tool_consistency",
 ]

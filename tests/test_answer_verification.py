@@ -256,17 +256,39 @@ def test_full_report_unknown_and_stale_candidate_and_input_caps():
 def test_calculation_and_boundary_proposals_share_one_shadow_api():
     inputs = AnswerVerificationInputs(
         answer_content_hash("Candidate"),
+        original_question="mass 3; boundary 7 2 1 5",
         calculations=(
             CalculationProposal(
-                "mass * acceleration", "6", (("mass", "2"), ("acceleration", "3"))
+                "2 * mass",
+                "6",
+                (("mass", "3"),),
+                formula_origin=("user_given", ""),
             ),
         ),
-        boundaries=(BoundaryProposal("7+2*x", "1+5*x", "x", "2", "1", "3", ">", "<"),),
+        boundaries=(
+            BoundaryProposal(
+                "7+2*x", "1+5*x", "x", "2", "1", "3", ">", "<",
+                formula_origin=("user_given", ""),
+            ),
+        ),
     )
     report = observe_answer_verification("Candidate", inputs)
     assert report["status"] == "PASS"
     assert report["model_calls"] == 0
     assert report["semantic_support"] == "UNKNOWN"
+
+
+def test_unverified_formula_origin_cannot_read_as_pass():
+    # Same arithmetic, but the formula premises are not located in the question
+    # or an owned read: PASS arithmetic must not upgrade to verified support.
+    inputs = AnswerVerificationInputs(
+        answer_content_hash("Candidate"),
+        calculations=(CalculationProposal("2 * 3", "6", formula_origin=("model_recall", "")),),
+    )
+    report = observe_answer_verification("Candidate", inputs)
+    assert report["calculations"][0]["status"] == "PASS"
+    assert report["calculations"][0]["verified_support"] is False
+    assert report["status"] == "UNKNOWN"
 
 
 def test_chat_shadow_records_wrong_calculation_without_changing_answer(tmp_path):
