@@ -57,6 +57,44 @@ def saturation(plan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _recovery(trace: dict[str, Any]) -> dict[str, Any]:
+    for call in _calls(trace):
+        if call.get("name") == "research_recovery" and isinstance(call.get("result"), dict):
+            return call["result"]
+    return {}
+
+
+_OFF_TARGET_REASONS = {
+    "semantic_unrelated_or_unavailable_candidate",
+    "unrelated_or_invalid_candidate",
+    "semantic_candidate_already_rejected",
+    "generic_homepage_for_version_question",
+    "semantic_rejected",
+}
+
+
+def candidate_quality(recovery: dict[str, Any]) -> dict[str, Any]:
+    dispositions = recovery.get("candidate_dispositions") or []
+    states = Counter(str(d.get("state")) for d in dispositions)
+    reasons = Counter(str(d.get("reason")) for d in dispositions if d.get("reason"))
+    off_target = sum(
+        count for reason, count in reasons.items() if reason in _OFF_TARGET_REASONS
+    )
+    dispatched = states.get("dispatched", 0)
+    return {
+        "discovered": states.get("discovered", 0),
+        "eligible": states.get("eligible", 0),
+        "dispatched_reads": dispatched,
+        "off_target_filtered": off_target,
+        "unknown_not_judged": states.get("discovered", 0) + states.get("run_blocked", 0),
+        "filtered_reasons": dict(reasons),
+        "target_coverage": recovery.get("target_coverage"),
+        "query_rewrites": recovery.get("query_rewrites"),
+        "authority_queries": recovery.get("authority_queries"),
+        "stop_reason": recovery.get("stop_reason"),
+    }
+
+
 def summarize_case(case: str, trace: dict[str, Any], episode: dict[str, Any] | None) -> dict[str, Any]:
     calls = _calls(trace)
     semantics = trace.get("semantics") or {}
@@ -113,6 +151,7 @@ def summarize_case(case: str, trace: dict[str, Any], episode: dict[str, Any] | N
             "error": trace.get("error"),
         },
         "saturation": saturation(plan),
+        "candidate_quality": candidate_quality(_recovery(trace)),
         "provider_errors": trace.get("provider_errors") or [],
     }
 
