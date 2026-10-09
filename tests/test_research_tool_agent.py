@@ -137,7 +137,7 @@ def test_safe_fetch_rejects_private_dns_without_requesting(monkeypatch):
 
     requested: list[str] = []
 
-    def fail(_host):
+    def fail(_host, **kwargs):
         raise ValueError("unsafe_target")
 
     monkeypatch.setattr(sh, "resolve_public_ips", fail)
@@ -151,7 +151,7 @@ def test_safe_fetch_never_contacts_private_redirect_target(monkeypatch):
     import src.web.safe_http as sh
 
     opened: list[str] = []
-    monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(sh, "resolve_public_ips", lambda host, **kwargs: ["1.2.3.4"])
 
     def fake_get(url, host, ip, *, timeout, max_bytes=300_000):
         opened.append(url)
@@ -302,7 +302,7 @@ def test_follow_lists_same_origin_links_only(monkeypatch):
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 
-    monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(sh, "resolve_public_ips", lambda host, **kwargs: ["1.2.3.4"])
     monkeypatch.setattr(
         sh, "http_get_raw",
         lambda url, host, ip, *, timeout, max_bytes=300_000:
@@ -317,7 +317,7 @@ def test_safe_fetch_result_structured(monkeypatch):
 def test_safe_fetch_result_reports_truncation(monkeypatch):
     import src.web.safe_http as sh
 
-    monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(sh, "resolve_public_ips", lambda host, **kwargs: ["1.2.3.4"])
     monkeypatch.setattr(sh, "http_get_raw", lambda url, host, ip, *, timeout, max_bytes=300_000: (200, {}, b"x" * 10, True))
     with pytest.raises(sh.SafeFetchRefusal):
         sh.safe_fetch_result("https://ex.org/a", timeout=5)
@@ -328,7 +328,7 @@ def test_safe_fetch_result_blocks_private_without_request(monkeypatch):
 
     called: list[int] = []
 
-    def fail(_host):
+    def fail(_host, **kwargs):
         raise ValueError("unsafe_target")
 
     monkeypatch.setattr(sh, "resolve_public_ips", fail)
