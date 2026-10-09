@@ -189,3 +189,62 @@ cluster 与恢复；不强造 child、不倒写旧证据、不切换语义 stop/
 初次夹具未声明cluster导致原ResearchState builder拒绝，已补正确的已知cluster；原Unicode边界会漏掉中文紧邻版本的query，shadow专用ASCII边界兼容中文并拒绝prerelease/相邻版本。引用窗口内另一产品或否定的日期不能绑定为目标release_date，已用严格直接关系语法及负控封住。未修改原身份归一、事实资格、预算或发布门。
 
 最终实际SQLite证据的14项只读核对PASS；新模型/读取/搜索均为测试替身，真实provider与自然Deep资格未新增，不以本地COVERED宣布R6完成。保留此前真正进程重启与S1 TTUV证据，但新协议的真实运行/恢复与TTUV仍待下一批。
+
+## 新协议自然观测与产品样本（2026-10-09）
+
+生产头8dcf222e保持不变。本批预登记5例、真实提供商各执行一次，无路由/结果注入，未扩功能或额度。
+
+| 样本 | 实际路径与结果 | 资格判定 |
+| --- | --- | --- |
+| 原样S3 Opus5.5日期/版本/定位 | Lookup→Standard→自然Deep，真实进程重启后partial/evidence_saturated | 3声明字段均NOT_EVALUATED，0候选；不是字段资格PASS |
+| Python3.14.0日期/版本 | Lookup VERIFIED/requested_claims_bound | 正常不升级；不是Deep样本 |
+| 原样S5 FastAPI0.136.0日期/版本 | Lookup VERIFIED/requested_claims_bound | 已修路径保留；不强造Deep |
+| G1 流萤首发至目标4.2版本攻略 | SAFE_ABSTAIN/requested_claim_plan_unavailable | 无Standard/Deep；严格planner适用域不足，版本未知不能补造 |
+| W1 9×9气与提子教学 | 普通模型文字/ASCII图，只有搜索候选未读正文，无Standard/Deep | 五项确定性矛盾，教学FAIL；不声称棋盘UI已经接入 |
+
+### 真正重启与字段权威
+
+S3 child `deep-2b9090d90d7147eb7507a743`，parent `standard-ca870c691a955ccabb6548f7`，
+thread `chat_8d630582256443e1b26eb678f44a99c4`，turn `turn_fba0af75c8e7429f8fc5a467d7b55de6`。
+首次声明事件10:56:34.466913 UTC，首个child规划10:56:34.522870 UTC；生产admission仍先于dispatch。
+PID18116在version12/searching/有已完成planner与inflight search时硬终止；PID27500正常启动，
+默认lease/scan恢复同child，version164终态。声明sha
+`9737e5e42f06bc47d4580b32c1c46d2a5cae1909fee1c343a237b3b1be85c873`
+在重启前后不变，原截止/seed不变；已完成操作一次，未知外部请求可以按原预算重试，
+不能宣称远端exactly-once。终态再新启动，经过17秒scan，全部run rows、child/version/shadow不变。
+38只读原validator/hash/span/声明重算/预算/恢复核对及4终态核对PASS。
+Deep elapsed145.671秒含恢复等待，硬180/软120秒、12physical reads/40candidates/80000chars不变，
+0新physical read，复用真实Standard正文；11模型操作不是所谓统一6-call上限的证据。
+
+S3只有一条supports0.6，低于原0.7，其余三条lead0.05；旁路未接受强支持候选。
+这是原资格不足，不能为了样本变绿提高strength。release_date仍无绑定；Lookup已绑定的
+version/official_positioning照原权威保留，Deep影子字段未支持不撤销Lookup资格。
+原audit fail/critical_question_unanswered，audited-but-not-approved，stop/publication_authority=false。
+新真实COVERED正例、真实错版本/引用错位负控尚未取得；不能用本地负控或42恢复检查替代。
+无浏览器正式回答首次显示观测，TTUV NOT_OBSERVED，绝非0秒。RP-1仍NO-GO。
+
+### 用户批准的流萤与围棋样本
+
+流萤采用跨版本/机制/投入/环境/证据类别问题，目标4.2无可靠来源则未知。
+原Lookup入口在`requested_lookup_fields`不能声明全量请求时返回
+`requested_claim_plan_unavailable`；G1恰好停在此处，不能归因于Deep时间或搜索额度。
+G1/W1严格shadow预检查NOT_DECLARED；当前只支持已定义的严格字段，不具备游戏配队/机制单元合同。
+
+W1实际回答有：声称只剩1气却画四面围子；落子前后图相同；己方白子连接落点称自杀
+（实际连块8气）；练习中心为已无气黑子；四个白块各3气，根本没有题目所述单步提子解。
+原始回答与五项计算反例保留，不以说明文字或独立正确样件覆盖失败。
+独立`go-liberties.html`与三SVG为UI线可复用配图/交互验收样件：固定9×9坐标、气数、
+黑E4提白E5前后图、唯一黑C2提白C3练习；同一状态驱动图与判定。
+确定性穷举与真实Playwright1440桌面/390手机点击已占点拒绝、合法提子反馈、移除白子与
+无横向溢出PASS，截图已人工查看。一个favicon404为非阻断静态请求。
+不是系统真实生成内容或生产UI，不含完整对弈/劫/死活引擎，不写入durable学习状态。
+
+外部`r6c-field-shadow-live/`包含registry/source hashes、原SSE/GET/DB、checkpoint/declaration事件、
+before-kill-row/after-kill.db、audit.json(38)/terminal-probe.json(4)、product-audit.json、
+原回答、棋盘样件/SVG/截图与closeout。所有owned服务与浏览器全关，无push/PR/CI；
+生产字节未变，复用已有38/907/L3 4311PASS6SKIP/mypy NEW0，文档检查足够，不重复全套。
+
+下一RP-1唯一切片：以G1首断点为入口的**通用复杂问题请求规划与自动路由适用域合同/只读诊断**。
+先确定原问题全量/RQ与可验证来源如何取得合法handoff，不删字段、放宽身份/证据、
+强造child或改预算/stop/Deep-4B。围棋棋盘结构/规则校验属于独立UI/教学线；
+产品样本失败如实保留，不把其额外能力混入已冻结的RP-1验收来宣布CLOSED。
