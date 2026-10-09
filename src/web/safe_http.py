@@ -48,35 +48,78 @@ def _raise_safe(reason: str) -> NoReturn:
     raise SafeFetchRefusal(reason) if reason in _SECURITY_REASONS else SafeFetchError(reason)
 
 
+def _doh_resolve(host: str) -> list[str]:
+    """Resolve via a trusted DoH endpoint (``SAFE_HTTP_DOH_URL``); [] on any failure.
+
+    Used because the local transparent proxy injects fake-IP answers (198.18.0.0/15)
+    that would otherwise be rejected as non-public. We deliberately do NOT whitelist
+    that range: instead we obtain the real public IPs here and hand them to the
+    connection layer, so the safety check and the connect use the SAME addresses.
+    """
+    import json as _json
+    import os as _os
+    from urllib.request import Request, urlopen
+
+    doh = (_os.getenv("SAFE_HTTP_DOH_URL") or "").strip()
+    if not doh:
+        return []
+    out: list[str] = []
+    for rtype in ("A", "AAAA"):
+        try:
+            req = Request(f"{doh}?name={host}&type={rtype}",
+                          headers={"Accept": "application/dns-json"})
+            with urlopen(req, timeout=5) as resp:  # noqa: S310 (operator-configured endpoint)
+                data = _json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001
+            continue
+        for answer in (data.get("Answer") or []):
+            if answer.get("type") in (1, 28) and answer.get("data"):
+                out.append(str(answer["data"]))
+    return out
+
+
 def host_resolves_public(host: str) -> bool:
     """True only if every resolved address is a global (public) IP."""
     if not host:
         return False
     try:
-        infos = socket.getaddrinfo(host, None)
+        resolve_public_ips(host)
     except Exception:  # noqa: BLE001
         return False
-    if not infos:
-        return False
-    for info in infos:
-        try:
-            ip = ipaddress.ip_address(info[4][0])
-        except ValueError:
-            return False
-        if not ip.is_global:
-            return False
     return True
 
 
 def resolve_public_ips(host: str) -> list[str]:
-    """Resolve once and require every address to be a global IP; return the IPs."""
+    """Resolve once and require every address to be a global IP; return the IPs.
+
+    With ``SAFE_HTTP_DOH_URL`` set, resolution goes through DoH (real public IPs) and
+    **fails closed** on DoH failure or any non-global answer. The returned IPs are the
+    ones pinned by ``http_get_raw``/``safe_fetch`` — check and connect never diverge.
+    """
+    import os as _os
+
+    if (_os.getenv("SAFE_HTTP_DOH_URL") or "").strip():
+        raw_ips = _doh_resolve(host)
+        if not raw_ips:
+            raise ValueError("dns_failed")
+        ips: list[str] = []
+        for raw in raw_ips:
+            try:
+                ip = ipaddress.ip_address(raw)
+            except ValueError as exc:
+                raise ValueError("dns_invalid") from exc
+            if not ip.is_global:
+                raise ValueError("unsafe_target")
+            ips.append(str(ip))
+        return ips
+
     try:
         infos = socket.getaddrinfo(host, None)
     except Exception as exc:  # noqa: BLE001
         raise ValueError("dns_failed") from exc
     if not infos:
         raise ValueError("dns_empty")
-    ips: list[str] = []
+    ips = []
     for info in infos:
         try:
             ip = ipaddress.ip_address(info[4][0])

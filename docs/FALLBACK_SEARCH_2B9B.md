@@ -1,5 +1,25 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## 2B9-E — trusted DoH resolver (check == connect), no CIDR whitelist
+`SAFE_HTTP_DOH_URL` (e.g. `https://dns.google/resolve`): `resolve_public_ips()` now resolves via DoH,
+**fails closed** on DoH failure, and rejects any non-global answer (so fake-IP `198.18.0.0/15` is
+**never whitelisted**). `host_resolves_public()` delegates to it; `article_fetcher._check_dns_target_safe`
+delegates to the same — so all three check sites and the pinned connection (`http_get_raw`, SNI=host)
+use the **same verified public IPs**; each redirect re-resolves via `safe_fetch`. Tests:
+`tests/test_safe_http_doh.py` (real IPs accepted; fake-IP rejected; mixed rejected; DoH failure
+fails closed); suite **47 PASS**; ruff + mypy baseline clean.
+
+**Real validation** (`SAFE_HTTP_DOH_URL=https://dns.google/resolve`, `SEARXNG_ENGINES=google`):
+- **Python: read SUCCEEDED** → `blog.python.org/2026/10/python-3150-final-is-here/` (the fake-IP block
+  is lifted for a real public host). ✅
+- Factorio / Go: recall now returns specifics, but the model chose `follow` on the wiki/portal home and
+  **ran out of rounds** → no specific article read. DoH also adds latency (elapsed 62s/129s vs ~10s).
+
+**Verdict PARTIAL.** The DNS/SSRF conflict is fixed and demonstrated (a real read now succeeds); the
+Factorio/Go *arrival* is still not demonstrated (model path + latency), and `assess_body` keeps its
+known false positive (UNQUALIFIED). Next: reduce DoH cost (cache per run) and steer the model to read a
+returned specific URL rather than following a hub home.
+
 ## 2B9-D update — SearXNG actually fixable; new blocker = fake-IP DNS vs SSRF guard
 **SearXNG root cause fully isolated (was NOT the network):** `engines=google` → 20 results;
 adding `language=zh-CN` → **0**; `language=en` → 20. The adapter **hardcoded `language="zh-CN"`**

@@ -8,7 +8,6 @@ import re
 import time
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from socket import getaddrinfo
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import (
@@ -93,31 +92,16 @@ def jina_fallback_enabled() -> bool:
 def _check_dns_target_safe(hostname: str) -> bool:
     """Resolve hostname and reject if it points to a private/internal address.
 
-    Note: there is a TOCTOU window between this DNS check and the real
-    urlopen() connection.  For a personal tool the risk is acceptable;
-    a production-grade fix would pin resolved IPs or use a single
-    connection path that integrates resolution with fetch.
+    Delegates to the shared resolver so that, when ``SAFE_HTTP_DOH_URL`` is set, the
+    Reader validates the SAME real public IPs the transport will connect to (no
+    fake-IP bypass, fail closed on DNS failure).
     """
     try:
-        addrs = getaddrinfo(hostname, None)
-    except Exception:
+        from src.web.safe_http import host_resolves_public
+
+        return host_resolves_public(hostname)
+    except Exception:  # noqa: BLE001
         return False
-    for _family, _type, _proto, _canon, sockaddr in addrs:
-        raw_ip = sockaddr[0]
-        try:
-            ip = ipaddress.ip_address(raw_ip)
-            if (
-                ip.is_private
-                or ip.is_loopback
-                or ip.is_link_local
-                or ip.is_multicast
-                or ip.is_reserved
-                or ip.is_unspecified
-            ):
-                return False
-        except ValueError:
-            continue
-    return True
 
 
 def _is_fetchable_article_url(url: str) -> bool:
