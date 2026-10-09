@@ -59,3 +59,25 @@ RP-1 保持 NO-GO；b7fecabc 通用合同与只读诊断保留，既有源证据
 初次预检因Windows换行导致字符串摘要不同于落盘字节而拒绝；修正外部准备器按file bytes计算SHA，原题内容未改，未绕过校验器。
 范围仅工具、定点测试、命名gate及两份文档；diff-check PASS，src及UI/A线无改动。最终完整HEAD/工作树clean由Git与外部closeout.json恢复。
 验证记录保留首次tool-mypy失败，不把旧失败日志覆盖为通过。无push/PR/CI；不是RP-1 CLOSED或能力结论。
+
+## 解封与资料准备（2026-10-09）
+
+代码冻结头 `cb32617ce4ec8aaab4050e257f1056a79917c247` 的干净状态、harness SHA和实际模型配置，在解封登记前再次核对一致。
+cryptography缺失，解密依赖仅安装到外部证据目录 decrypt-deps，不改项目venv/requirements或冻结代码。
+AES-256-GCM认证PASS；密文和原始明文字节SHA均与用户给定值一致；holdout-6.json原样保存，六题各100分，未重生成或改答案标准。
+本次由同一执行agent在代码冻结后解封/登记，不虚称另有独立保管员；未以解封题修改代码、提示或模型预算。
+用户仍是最终独立人类审阅者；模型仅辅助整理，不能被记录为人类审阅者。
+
+完整题面登记 question-registry-24.json SHA195b5134486dc5b15783fe8e665cc190abcaee439af8ca848e61f56388d5d39b；96行调度dry-run PASS，模型调用0。
+实际分层：L1/L2/L3=6/8/10；事实3、机制4、比较4、时间5、定量4、规则4。不能称原建议的完全均衡24题，不重新贴难度标签凑数。
+输出前预选自然12题：F1/F2、M3/H05、C3/H04、T2/H06、Q2/Q3、R1/R2，每能力两题；尚未执行或实现自然B入口。
+保留题原mode为两题fixed_evidence、一题deterministic_rule、三题live_reference。
+
+取得19份参考网页的正文/原始字节快照（公开资料17份＋RFC9110和Python3.12 asyncio两份），保存HTTP状态、URL、原始/正文/片段SHA与位置。
+只算归档，不算合格证据覆盖：来源选择/片段完整性/公开18题完整答案标准仍待复核冻结。4次资料准备失败保存原样：gzip官方站403、唐代博物馆页429、伦敦票价页403、星铁官方动态页未观察到Firefly锚点。不改题、不以网页成功读取替代字段支持。
+
+发现确定性入口限制：H01/H02虚构公告和H03给定棋盘均有完整source_packet；按真实file URI及原文SHA表达其出处时，冻结sources_for拒绝source_url（只接受HTTPS），3/3、模型调用0。
+这是隔离底座的资料表示限制，不是模型理解/推理失败。不能给资料编造HTTPS网址、借无关官方URL承载题包，或解封后偷偷改sources_for/提示来变绿。
+已向用户请求澄清先继续公开资料准备、还是先运行独立纯规划扫描并暂缓固定证据；未收到回复前只继续资料准备，不执行正式模型调用。
+外部 model-ability-ab/ 保存unseal-report、原始holdout、24登记、96调度、provided-packet-preflight与两个snapshot目录；不在仓库记录解密密钥或明文答案。
+当前结果：解封完整性CLOSED、24题登记/调度预检PASS；完整数据/固定证据实验尚未READY，RP-1仍NO-GO，能力判决NOT_OBSERVED。
