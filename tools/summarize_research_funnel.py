@@ -58,6 +58,9 @@ def saturation(plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def _recovery(trace: dict[str, Any]) -> dict[str, Any]:
+    existing = trace.get("recovery")
+    if isinstance(existing, dict) and existing:
+        return existing
     for call in _calls(trace):
         if call.get("name") == "research_recovery" and isinstance(call.get("result"), dict):
             return call["result"]

@@ -13,6 +13,11 @@ from urllib.parse import urlparse
 
 from src.web.source_assessment import assess_sources
 from src.web.recovery_candidates import CandidateScheduler
+from src.web.search_query_quality import (
+    classify_candidate,
+    optimize_search_query,
+    order_candidates,
+)
 from src.web.tool_evidence import _public_url, evidence_tool_calls
 from src.web.semantic_recovery import ResearchSemanticSession
 from src.web.research.official_resolver import official_plan
@@ -261,6 +266,7 @@ def _recover_public_research(
         deadline -= 5  # body-batch time is part of research, never writer reserve
     calls: list[dict[str, Any]] = []
     dispositions: dict[str, dict[str, str]] = {}
+    quality_records: list[dict[str, Any]] = []
 
     def disposition(url: str, state: str, reason: str = "") -> None:
         if url and dispositions.get(url, {}).get("state") != "dispatched":
@@ -307,12 +313,21 @@ def _recover_public_research(
         ]
     )
     query_selection: dict[str, Any] | None = None
+    query_rewrite_map: list[dict[str, str]] = []
     if query_plan:
         # Apply the existing entity spelling normalizer to *search advice*, not
         # the immutable original question. Official recovery runs before the
         # comparison tail can consume all remaining reads.
-        query_plan = [{**row, "query": _rewrite(normalize_web_query(row["query"]).canonical_query)[0]}
-                      for row in query_plan]
+        optimized_plan = []
+        for plan_row in query_plan:
+            base = _rewrite(normalize_web_query(plan_row["query"]).canonical_query)[0]
+            optimized, reason = optimize_search_query(base)
+            optimized_plan.append({**plan_row, "query": optimized})
+            query_rewrite_map.append(
+                {"rq_id": str(plan_row.get("rq_id", "")), "original": plan_row["query"],
+                 "optimized": optimized, "reason": reason}
+            )
+        query_plan = optimized_plan
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
             f"site:{domains[0]} {rewritten}" if domains else authority_query,
@@ -390,6 +405,8 @@ def _recover_public_research(
                     },
                     "question_coverage": "not_semantically_evaluated",
                     "query_selection": query_selection,
+                    "query_rewrite_map": query_rewrite_map,
+                    "candidate_classification": quality_records,
                     "candidate_scheduler": scheduler.snapshot(),
                     "candidate_dispositions": list(dispositions.values()),
                     "provider_failures": provider_failures,
@@ -509,12 +526,8 @@ def _recover_public_research(
                 unique = {str(row["assessment"].get("url", "")): row for row in combined}
                 selected = list(unique.values())
             selected = scheduler.order(selected, domains)
-            if markers:
-                # Exact named versions outrank adjacent versions even when the
-                # advisory relevance judge considers the whole family related.
-                selected.sort(key=lambda row: not any(marker.search(
-                    str(row["item"].get("title", "")) + " " + str(row["item"].get("snippet", ""))
-                    + " " + str(row["assessment"].get("url", ""))) for marker in markers))
+            relevance_map: dict[str, list[str]] = {}
+            judged_urls: set[str] = set()
             if phase != "official_resolver" and semantic_session is not None and selected and "research_candidate_relevance" not in semantic_session.stages:
                 window = selected[:5]
                 try:
@@ -526,12 +539,32 @@ def _recover_public_research(
                 except Exception:
                     relevance = {}
                 for i, row in enumerate(window):
-                    if not relevance.get(f"candidate-{i}"):
-                        semantic_rejected_urls.add(str(row["assessment"].get("url", "")))
-                        reject(str(row["assessment"].get("url", "")), "semantic_unrelated_or_unavailable_candidate")
+                    url = str(row["assessment"].get("url", ""))
+                    judged_urls.add(url)
+                    related = list(relevance.get(f"candidate-{i}") or [])
+                    relevance_map[url] = related
+                    if not related:
+                        semantic_rejected_urls.add(url)
+                        reject(url, "semantic_unrelated_or_unavailable_candidate")
                 selected = [row for i, row in enumerate(window) if relevance.get(f"candidate-{i}")]
                 for row in selected:
                     row["assessment"]["worth_reading"] = True
+            # Composite ordering (relevance strength -> entity/version match ->
+            # expected coverage -> original rank); UNKNOWN candidates stay in the
+            # pool at lower priority, only explicit off_target was dropped above.
+            selected = order_candidates(selected, relevance_by_url=relevance_map, markers=markers)
+            for candidate_row in selected:
+                candidate_url = str(candidate_row["assessment"].get("url", ""))
+                quality_records.append({
+                    "candidate_id": candidate_url,
+                    "relevance": classify_candidate(
+                        related_ids=relevance_map.get(candidate_url, []),
+                        judged=candidate_url in judged_urls,
+                    ),
+                    "matched_rq_ids": relevance_map.get(candidate_url, []),
+                    "read_attempted": False,
+                    "disposition": "eligible",
+                })
             if semantic_session is not None:
                 pending_candidates = selected[:20]
             phase_reads = last_novel = 0
@@ -569,6 +602,10 @@ def _recover_public_research(
                     recovery_reads += 1
                 scheduler.begin(url)
                 disposition(url, "dispatched")
+                for quality_row in quality_records:
+                    if quality_row["candidate_id"] == url:
+                        quality_row["read_attempted"] = True
+                        quality_row["disposition"] = "dispatched"
                 reads += 1
                 phase_reads += 1
                 last_novel += 1
