@@ -412,6 +412,18 @@
     ]
   },
   "stage_gates": {
+    "research-ability-ab-v1": [
+      "tests/test_research_ability_ab.py",
+      "tests/test_research_request_routing_trace.py",
+      "tests/test_semantic_recovery.py",
+      "tests/test_lookup_terminal.py",
+      "tests/test_research_field_coverage_trace.py",
+      "tests/test_stage_gates_policy.py",
+      "tests/test_deep_continuation.py",
+      "tests/test_deep_publication.py",
+      "tests/test_claim_evidence_assessment.py",
+      "tests/test_coverage_stop_assessment.py"
+    ],
     "research-request-routing-trace-v1": [
       "tests/test_research_request_routing_trace.py",
       "tests/test_semantic_recovery.py",
