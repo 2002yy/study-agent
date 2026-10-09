@@ -106,6 +106,13 @@ function findByRoleAndText(container: HTMLElement, role: string, text: string) {
 }
 
 describe("ChatPanel learning product boundary", () => {
+  it("renders a single contextual level-one heading in normal chat", () => {
+    const { container } = renderPanel();
+    const headings = Array.from(container.querySelectorAll("h1"));
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("对话");
+  });
+
   it("shows user-facing task state without leaking the raw session id", () => {
     const { container } = renderPanel();
     const statusTexts = Array.from(container.querySelectorAll("span")).map(
