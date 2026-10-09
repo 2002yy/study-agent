@@ -337,8 +337,17 @@ def _recover_public_research(
         query_plan = optimized_plan
         official_query = next(
             (row["query"] for row in query_plan if re.match(r"^site:[A-Za-z0-9.-]+\s", row["query"])),
-            f"site:{domains[0]} {rewritten}" if domains else authority_query,
+            None,
         )
+        if official_query is None:
+            # Never paste the whole user question: reuse the model's entity-led
+            # proposal (or a compacted entity query) with a known official domain.
+            if domains:
+                official_query = f"site:{domains[0]} {compact_topic}"
+            elif query_plan:
+                official_query = f"{query_plan[0]['query']} official documentation"
+            else:
+                official_query = authority_query
         # The live RSS fallback returned generic homepages when release/date/
         # schedule padding was appended, but found the exact official release
         # for the scoped entity/version. This is a discovery query only: the

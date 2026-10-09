@@ -41,7 +41,6 @@ _GENERIC_ENGLISH = frozenset(
         "on", "to", "a", "an",
     }
 )
-MAX_QUERY_TOKENS = 12
 
 
 def optimize_search_query(task_query: str) -> tuple[str, str]:
@@ -61,12 +60,12 @@ def optimize_search_query(task_query: str) -> tuple[str, str]:
         for token in tokens
         if token not in GENERIC_QUERY_TOKENS and token.casefold() not in _GENERIC_ENGLISH
     ]
-    capped = kept[:MAX_QUERY_TOKENS]
-    optimized = " ".join(capped).strip()
+    # Conservative safety net: remove generic scaffolding only. Never truncate by
+    # length (a cap could drop a model number, year, condition or negation), so a
+    # model query that is already distinctive passes through unchanged.
+    optimized = " ".join(kept).strip()
     if not optimized or optimized == original:
         return original, "unchanged"
-    if len(capped) < len(kept):
-        return optimized, "generic_and_length_trimmed"
     return optimized, "generic_tokens_removed"
 
 
