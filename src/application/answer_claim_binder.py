@@ -21,6 +21,7 @@ excerpts, never a page body.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -339,6 +340,12 @@ def _positive_support_confidence(row: AnswerClaimBindingRow) -> float | None:
     if strength is None or strength < STRONG_EVIDENCE_THRESHOLD:
         return None
     return strength
+
+
+def eligible_support_row(row: AnswerClaimBindingRow) -> bool:
+    """Reuse binder eligibility without granting an answer publication rights."""
+    confidence = _positive_support_confidence(row)
+    return confidence is not None and math.isfinite(confidence)
 
 
 def _parse_strength(value: Any) -> float | None:

@@ -99,11 +99,13 @@ def test_async_stream_has_absolute_deadline_even_when_provider_keeps_connection_
     prepared = service.start_turn(
         ChatCommand(user_input="Question", thread_id="deadline-async")
     )
-    prepared = replace(prepared, research_deadline=time.monotonic() + 0.1)
     received = []
 
     async def consume():
-        async for token in service.stream_async(prepared):
+        # Start the provider's budget inside the running loop. On Windows,
+        # constructing the event loop can consume the entire 100ms fixture.
+        active = replace(prepared, research_deadline=time.monotonic() + 0.1)
+        async for token in service.stream_async(active):
             received.append(token)
 
     with pytest.raises(TimeoutError):

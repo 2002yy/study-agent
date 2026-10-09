@@ -29,6 +29,13 @@
     }
   },
   "impact_sets": {
+    "answer_verification_shadow": [
+      "tests/test_answer_verification.py",
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_answer_claim_binder.py",
+      "tests/test_chat_service.py",
+      "tests/test_shadow_isolation.py"
+    ],
     "research_request_routing_trace": [
       "tests/test_research_request_routing_trace.py",
       "tests/test_semantic_recovery.py",
@@ -412,6 +419,22 @@
     ]
   },
   "stage_gates": {
+    "answer-verification-shadow-v1": [
+      "tests/test_answer_verification.py",
+      "tests/test_identity_evidence_binding.py",
+      "tests/test_answer_claim_binder.py",
+      "tests/test_chat_service.py",
+      "tests/test_shadow_isolation.py",
+      "tests/test_answer_claim_turn_lifecycle.py",
+      "tests/test_answer_publication_gate.py",
+      "tests/test_research_answer_streaming.py",
+      "tests/test_research_finalization_deadline.py",
+      "tests/test_chat_turn_cancellation.py",
+      "tests/test_chat_stream_cancellation.py",
+      "tests/test_final_answer_auditor.py",
+      "tests/test_grounded_excerpts.py",
+      "tests/test_stage_gates_policy.py"
+    ],
     "research-ability-ab-v1": [
       "tests/test_research_ability_ab.py",
       "tests/test_research_request_routing_trace.py",

@@ -8,6 +8,12 @@
 
 ## 0. Current Handoff（cold-start 入口）
 
+**2026-10-09 Answer Reliability 独立影子切片 LOCAL CLOSED；RP-1总体NO-GO。** 独立工作树 `D:/study-agent-validation/answer-verification-shadow`，branch `codex/answer-verification-shadow`，base `40e0e311eb9653282ae12b36d4835a3bfa68616b`；原B worktree、AB24原始输入/答案/评分/映射不改。复用ReadDocument与binder资格，新增通用read/hash/span逐字核验、Fraction/Decimal受限AST精确计算和线性临界点/两侧判断；直接引用与转述分开，缺信息/非线性/不可处理输入UNKNOWN，算对不代表公式事实正确，所有semantic_support保持UNKNOWN。trusted adapter明确提供读取快照和existing provenance连接；默认不启用、不猜自然语言、不新增模型调用或自动拒绝。ChatService在原发布/学习决策之后记录影子结果，最多使用剩余研究截止内100ms，容量/超时失败不改变答案。可被AB2复用，尚未跑新AB2或自然研究增强样本，不授予发布权。
+
+六类跨领域控制＋恶意表达式/未知/旧候选/影子超时/截止/持久化不改答案均通过；最终命名L2 `answer-verification-shadow-v1` 245 PASS（89.13s），Ruff src/tests/tools PASS、新文件format PASS、mypy current122/baseline128 NEW0、diff-check PASS。首轮243 PASS/1 FAIL为旧async测试在事件循环启动前开始100ms计时，基线和新树均可用150ms启动延迟复现；仅把该测试计时起点移入运行中loop，生产超时不改。最终闭环记录还包括将影子观测移动到发布/学习决策之后并限制剩余时间，已重跑新候选L2；源码/测试/说明在一个独立提交，head/clean由Git和外部answer-verification-closeout恢复。L3/CI/PR/push/部署未运行：本刀是默认不启用的局部观测，没有阶段发布或权威cutover。
+
+外部审阅线的24份评分已存在 sealed-scores；仅核对哈希/封存元数据、不读取逐题评分作开发输入：scores SHA5d5f3e8a7d8b29f0abada53fe652778b64e2509a139a00aeb3b7be9ad26b87f4，review SHA0cc558dfa4457f5453e57caac1af0f8231265670a05fb676bca066e6886ea106，与Downloads拷贝一致。揭盲用answer-paired-24-complete/organizer-key.json，不需解密题目封存件；密钥不入Git。用户最新方向冻结为B智能分解＋A公共执行治理，不保留A粗粒度生产规划并行路径；不把类别变成主题白名单，不把B规划等同Deep资格。**唯一下一切片：独立 `codex/model-driven-research-entry`（同40e0e311基线）完成B自由子问题接入现有episode/ID/确定性去重/预算/继承/持久化骨架，不重新调用A粗规划；真实Standard/Deep检索覆盖与增强答案效果分后续切片资格化。**
+
 **2026-10-09 用户授权继续剩余18条，固定资料配对回答24/24已完成；语义盲审待执行，RP-1仍NO-GO。** branch `codex/reading-notebook-ui`，本批base `33e8525af0132a40926228cf8c953871b4fe6faa`，起始clean；仅两份当前文档更新，生产2800参数与既有257 PASS/Ruff/mypy证据不变，未新增src/UI/A线/模型/prompt/预算/发布权限改动，无push/PR/CI/部署。按用户新授权覆盖前批风险停止纪律，仅在隔离诊断继续原顺序第7–24条，20秒/2800/同模型/零重试，引用失败记录但不授予支持或发布。外部 `answer-paired-24-continuation` 保存18请求/18响应/18row及原始索引6–23；旧6条与其stopped/summary/匿名标签完整保留，逐文件SHA核验未变。24条的case/arm/repeat均唯一且各组12条，全部消息（含原题、原规划、资料）与前次登记输入逐项相同；没有替换失败、补造引用或重新运行前6条。
 
 全批24/24 finish_reason=stop且JSON可解析，无超时或length终止；引用结构23 PASS/1拒绝（仍是原先那条），completion tokens合计32191，货币成本NOT_OBSERVED；不可把这些机械指标视为语义支持或A/B胜负。`answer-paired-24-complete` 已整理24份匿名答卷 `blind-answer-review.md`/`blind-review.json`、空白评分表和单独organizer-key，保留首六匿名标签，原100分评分标准及资料不改。post-unseal配置诊断性质与用户授权续跑这一停止纪律变更明确记录，不冒充纯未见保留资格；全实验累计169尝试含旧17作废。docs-only比例验证，不重复257生产回归。**唯一下一切片：用户对24份候选按冻结标准盲审，评分后揭盲并归因规划覆盖、证据忠实性、条件保持及危险错误，再决定架构简化方向；不继续参数调优，不自动推广B规划或授予RP-1 GO。** 最终head/clean由Git及外部continuation-closeout恢复。

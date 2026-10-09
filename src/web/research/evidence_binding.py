@@ -30,6 +30,31 @@ class ReadDocument:
     sections: tuple[VersionSection, ...]
 
 
+def check_read_quote(
+    document: ReadDocument, *, read_id: str, source_url: str,
+    content_sha256: str, payload_sha256: str, span: tuple[int, int], quote: str,
+) -> tuple[str, str]:
+    """Generic exact quote check on a trusted read; never semantic support.
+
+    Unlike version bindings this needs no heading or project identity. The
+    caller owns the document; a model cannot supply or replace this snapshot.
+    """
+    if not all((read_id, source_url, content_sha256, payload_sha256, quote)):
+        return "UNKNOWN", "read_metadata_missing"
+    if (document.read_id != read_id or document.source_url != source_url
+            or document.content_sha256 != content_sha256
+            or document.payload_sha256 != payload_sha256):
+        return "FAIL", "read_binding_mismatch"
+    if hashlib.sha256(document.text.encode()).hexdigest() != document.content_sha256:
+        return "FAIL", "read_content_hash_mismatch"
+    if (len(span) != 2 or any(type(value) is not int for value in span)
+            or not 0 <= span[0] < span[1] <= len(document.text)):
+        return "UNKNOWN", "invalid_quote_span"
+    if document.text[span[0]:span[1]] != quote:
+        return "FAIL", "quote_mismatch"
+    return "PASS", "exact_read_span"
+
+
 class _VisibleDocument(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)

@@ -26,6 +26,10 @@ from src.application.answer_consistency import (
     check_answer_consistency,
     consistency_gate_enabled,
 )
+from src.application.answer_verification import (
+    AnswerVerificationInputs,
+    observe_answer_verification_bounded,
+)
 from src.application.learner_state_durable_adapter import (
     adjudicate as adjudicate_learner_state,
     durable_read_enabled,
@@ -249,6 +253,8 @@ class PreparedChatTurn:
     learner_evaluation: PedagogyEvalRun
     answer_validation: dict[str, Any] | None = None
     research_deadline: float | None = None
+    # Explicit opt-in by a trusted adapter (e.g. AB2); no model/prompt changes.
+    answer_verification_inputs: AnswerVerificationInputs | None = None
 
 
 def _poll_cancel(repository: RuntimeRepository, turn_id: str, operation_id: str):
@@ -1254,6 +1260,7 @@ class ChatService:
 
     def complete_turn(self, prepared: PreparedChatTurn, suffix: str) -> ChatTurn:
         reply = f"{prepared.base_reply}{suffix}" if prepared.is_continuation else suffix
+        verification_candidate = reply
         gate_blocked_pedagogy = False
         if answer_validation_active(prepared) and prepared.answer_validation is None:
             from src.web.research.official_publication import publish_official_fields
@@ -1370,6 +1377,13 @@ class ChatService:
             },
             "committed_learning_state": committed_state.to_dict(),
         }
+        if prepared.answer_verification_inputs is not None:
+            # Run after publication and learning decisions; no inference budget
+            # or eligibility decision consumes this telemetry.
+            published_rag["answer_verification_shadow"] = observe_answer_verification_bounded(
+                verification_candidate, prepared.answer_verification_inputs,
+                deadline=prepared.research_deadline,
+            )
         completed_truth = _normalized_turn_truth(
             turn=prepared.turn,
             fallback_turn_id=prepared.turn.id,
