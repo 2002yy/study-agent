@@ -123,30 +123,49 @@ def test_feed_requires_confirmed_url():
     assert trace["calls"][0]["result"]["status"] == "pending_url_confirmation"
 
 
-def test_feed_rejects_private_redirect(monkeypatch):
-    import urllib.request
+def test_safe_fetch_rejects_private_dns_without_requesting(monkeypatch):
+    import src.web.research_tool_agent as agent
 
-    class Response:
-        url = "http://127.0.0.1/internal/feed"
+    requested: list[str] = []
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: False)
+    monkeypatch.setattr(agent._SAFE_OPENER, "open", lambda *a, **k: requested.append("x"))
+    with pytest.raises(ValueError):
+        agent.safe_fetch("https://example.org/feed", timeout=1)
+    assert requested == []
 
-        def read(self, _n=None):
-            return b"<rss><channel><item><title>x</title><link>https://ex.org/x</link></item></channel></rss>"
 
-        def __enter__(self):
-            return self
+def test_safe_fetch_never_contacts_private_redirect_target(monkeypatch):
+    import urllib.error
 
-        def __exit__(self, *args):
-            return False
+    import src.web.research_tool_agent as agent
 
-    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: Response())
+    opened: list[str] = []
+
+    def fake_open(request, timeout):
+        opened.append(request.full_url)
+        raise urllib.error.HTTPError(request.full_url, 302, "Found",
+                                     {"Location": "http://127.0.0.1/x"}, None)
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: host == "example.org")
+    monkeypatch.setattr(agent._SAFE_OPENER, "open", fake_open)
+    with pytest.raises(ValueError):
+        agent.safe_fetch("https://example.org/feed", timeout=1)
+    assert opened == ["https://example.org/feed"]
+
+
+def test_read_page_blocked_when_host_not_public(monkeypatch):
+    import src.web.research_tool_agent as agent
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: False)
     gw = FakeGateway()
     completion = make_completion([
-        {"tool": "feed", "url": "https://ex.org/feed.xml"},
+        {"tool": "read_page", "url": "https://ex.org/known"},
         {"tool": "finish"},
     ])
     trace = run_tool_agent(gateway=gw, completion=completion, question="q", budget=AgentBudget(),
-                           initial_urls=("https://ex.org/feed.xml",))
-    assert trace["calls"][0].get("feed_error") == "ValueError"
+                           initial_urls=("https://ex.org/known",))
+    assert trace["calls"][0]["result"]["status"] == "blocked_unsafe_target"
+    assert gw.reads == []
 
 
 def test_agent_records_invalid_action_and_continues():

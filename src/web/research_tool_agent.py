@@ -10,13 +10,76 @@ stay outside this loop.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
 import json
+import socket
 import time
+import urllib.error
 import urllib.request
+from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
 from src.web.tool_evidence import _public_url
+
+
+def host_resolves_public(host: str) -> bool:
+    """True only if every resolved address is a global (public) IP.
+
+    ``_public_url`` checks the URL string; this also rejects a public domain that
+    resolves to a private/loopback/link-local address (DNS-rebinding style).
+    """
+    if not host:
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:  # noqa: BLE001
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if not ip.is_global:
+            return False
+    return True
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+_SAFE_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def safe_fetch(url: str, *, timeout: float, max_hops: int = 4) -> str:
+    """Fetch a URL, validating scheme + resolved IP of EVERY redirect hop BEFORE
+    requesting it. A hop to a private target is rejected without being contacted.
+    """
+    current = url
+    for _ in range(max_hops):
+        parts = urlsplit(current)
+        if parts.scheme not in {"http", "https"} or not parts.hostname:
+            raise ValueError("unsafe_scheme")
+        if not _public_url(current) or not host_resolves_public(parts.hostname):
+            raise ValueError("unsafe_target")
+        request = urllib.request.Request(current, headers={"User-Agent": "StudyAgent/feed"})
+        try:
+            with _SAFE_OPENER.open(request, timeout=timeout) as response:
+                return response.read(300_000).decode("utf-8", "replace")
+        except urllib.error.HTTPError as exc:
+            if exc.code in {301, 302, 303, 307, 308}:
+                location = exc.headers.get("Location")
+                if not location:
+                    raise ValueError("redirect_without_location") from None
+                current = urljoin(current, location)
+                continue
+            raise
+    raise ValueError("too_many_redirects")
+
 
 TOOLS = {"search", "feed", "read_page", "finish"}
 SYSTEM = (
@@ -94,12 +157,17 @@ def parse_action(raw: Any) -> dict[str, str]:
     return {"tool": "finish", "reason": reason}
 
 
-def _prompt(question: str, observations: list[str]) -> list[dict[str, str]]:
-    context = {
+def _prompt(question: str, observations: list[str],
+            reliable_sources: tuple[str, ...] = ()) -> list[dict[str, str]]:
+    context: dict[str, Any] = {
         "question": question,
         "observations": observations[-6:],
         "instruction": SYSTEM,
     }
+    if reliable_sources:
+        context["reliable_sources"] = [
+            {"url": url, "basis": "registry_seed"} for url in reliable_sources
+        ]
     return [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
@@ -113,6 +181,7 @@ def run_tool_agent(
     question: str,
     budget: AgentBudget | None = None,
     initial_urls: tuple[str, ...] = (),
+    registry_sources: tuple[tuple[str, str], ...] = (),
     monotonic: Callable[[], float] = time.monotonic,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict[str, Any]:
@@ -124,8 +193,13 @@ def run_tool_agent(
     searches = reads = 0
     bodies: list[dict[str, Any]] = []
     # Only URLs confirmed by an actual search result (or supplied up front) may be
-    # read; a model-guessed URL is recorded as pending, never fetched.
+    # read; a model-guessed URL is recorded as pending, never fetched. Registry
+    # seeds are confirmed as ``registry_seed`` (distinct from search/initial).
+    reliable_sources: tuple[str, ...] = tuple(
+        url for _, url in registry_sources if _public_url(url)
+    )
     confirmed: set[str] = {url for url in initial_urls if _public_url(url)}
+    confirmed.update(reliable_sources)
     stop = "round_limit"
     for rnd in range(budget.max_rounds):
         if should_cancel():
@@ -136,7 +210,7 @@ def run_tool_agent(
             break
         try:
             raw = completion(
-                messages=_prompt(question, observations),
+                messages=_prompt(question, observations, reliable_sources),
                 timeout=min(20.0, max(1.0, deadline - monotonic())),
                 task_name="research_tool_agent",
             )
@@ -195,16 +269,9 @@ def run_tool_agent(
                 continue
             searches += 1
             try:
-                request = urllib.request.Request(action["url"], headers={"User-Agent": "StudyAgent/feed"})
-                with urllib.request.urlopen(
-                    request, timeout=min(15.0, max(1.0, deadline - monotonic()))
-                ) as response:
-                    final_url = response.url
-                    payload = response.read(300_000).decode("utf-8", "replace")
-                # A redirect must not move a public feed URL onto a private/loopback
-                # target; re-validate the FINAL url, not just the original.
-                if not _public_url(final_url):
-                    raise ValueError("feed_redirect_not_public")
+                payload = safe_fetch(
+                    action["url"], timeout=min(15.0, max(1.0, deadline - monotonic()))
+                )
                 entries = parse_feed(payload)
             except Exception as exc:  # noqa: BLE001
                 entries = []
@@ -231,6 +298,13 @@ def run_tool_agent(
             if reads >= budget.max_reads:
                 call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
                 observations.append(f"round {rnd}: read quota reached.")
+                calls.append(call)
+                continue
+            if not host_resolves_public(urlsplit(action["url"]).hostname or ""):
+                call["result"] = {"status": "blocked_unsafe_target", "reason": "host_not_public"}
+                observations.append(
+                    f"round {rnd}: read rejected: {action['url']} resolves to a non-public address."
+                )
                 calls.append(call)
                 continue
             reads += 1
@@ -261,5 +335,6 @@ def run_tool_agent(
         "elapsed_seconds": elapsed,
         "bodies": bodies,
         "calls": calls,
+        "registry_sources": list(reliable_sources),
         "publication_authority": False,
     }
