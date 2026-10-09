@@ -201,7 +201,8 @@ def _fetch_html_payload(
     (``SafeFetchRefusal``) so callers never route it into a weaker fallback.
     """
     try:
-        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes)
+        deadline = time.monotonic() + float(timeout)
+        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
     except SafeFetchRefusal:
         raise
     except Exception:  # noqa: BLE001 - ordinary network/status failure
@@ -233,7 +234,8 @@ def _fetch_text_payload(
     propagates.
     """
     try:
-        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes)
+        deadline = time.monotonic() + float(timeout)
+        result = safe_fetch_result(url, timeout=float(timeout), max_bytes=max_bytes, deadline=deadline)
     except SafeFetchRefusal:
         raise
     except Exception:  # noqa: BLE001 - ordinary network/status failure

@@ -239,8 +239,28 @@ def run_tool_agent(
             call["feed_status"] = feed_status
             call["result"] = {"status": feed_status, "n": len(entries),
                               "urls": [entry["url"] for entry in entries]}
-            brief = "\n".join(f"- {entry['title']} | {entry['url']}" for entry in entries)
-            observations.append(f"round {rnd}: feed '{action['url']}' ->\n{brief or '(no entries)'}")
+            from src.web.research.entry_selection import rank_entries, select_entry
+
+            ranked = rank_entries(entries, question)
+            selected = select_entry(entries, question)
+            call["entry_selection"] = {
+                "selected": selected["entry"]["url"] if selected else "no_relevant_entry",
+                "ranked": [
+                    {"title": row["entry"]["title"], "score": row["score"],
+                     "reasons": row["reasons"], "excluded": row["excluded"]}
+                    for row in ranked[:10]
+                ],
+            }
+            brief = "\n".join(
+                f"- [{row['score']}] {row['entry']['title']} | {row['entry']['url']}"
+                + (f" | reasons={','.join(row['reasons'])}" if row["reasons"] else "")
+                + (f" | EXCLUDED:{row['excluded']}" if row["excluded"] else "")
+                for row in ranked[:10]
+            )
+            note = "" if selected else "\n(no_relevant_entry: no title matches the question's goal)"
+            observations.append(
+                f"round {rnd}: feed '{action['url']}' ->\n{brief or '(no entries)'}{note}"
+            )
             calls.append(call)
             continue
         if action["tool"] == "read_page":

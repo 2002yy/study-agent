@@ -44,7 +44,12 @@ def score_entry(title: str, question: str) -> tuple[int, list[str], list[str]]:
 
     # A typed request must be satisfied by the SAME type family (or an exact
     # version); a release post does not answer a tutorial request and vice versa.
-    if (q_tut and not (t_tut or version_hit)) or (q_rel and not (t_rel or version_hit)):
+    # A tutorial request requires a tutorial entry (an exact version does NOT
+    # substitute, e.g. "Python 3.15.0 入门教程" must not accept the release post);
+    # a release request may be satisfied by an exact version.
+    if q_tut and not t_tut:
+        return 0, [], ["typed_request_unsatisfied"]
+    if q_rel and not (t_rel or version_hit):
         return 0, [], ["typed_request_unsatisfied"]
 
     score = len(matched)

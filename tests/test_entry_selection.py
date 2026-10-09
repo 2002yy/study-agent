@@ -41,3 +41,12 @@ def test_unrelated_question_is_refused():
 
 def test_weak_single_token_overlap_is_refused():
     assert select_entry(ENTRIES, "Python") is None
+
+
+def test_version_does_not_bypass_tutorial_requirement():
+    # "Python 3.15.0 入门教程" must NOT accept the versioned release post;
+    # it must resolve to the tutorial entry (or refuse when no tutorial exists).
+    top = select_entry(ENTRIES, "Python 3.15.0 入门教程")
+    assert top is not None and "tutorial" in top["entry"]["title"]
+    only_releases = [e for e in ENTRIES if "tutorial" not in e["title"]]
+    assert select_entry(only_releases, "Python 3.15.0 入门教程") is None

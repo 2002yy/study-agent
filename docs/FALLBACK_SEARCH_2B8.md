@@ -1,5 +1,28 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-B — Agent wiring + logic fixes + Reader deadline (PARTIAL) — base `cccb6363`
+- **Wiring**: `research_tool_agent` feed stage now calls `rank_entries()`/`select_entry()`
+  and feeds the model the ranked scores + reasons + `excluded` + a `no_relevant_entry`
+  marker. No extra model call; model still chooses tools. The selection is also recorded
+  under `call["entry_selection"]`.
+- **Type-gate hole FIXED**: an exact version no longer bypasses the tutorial requirement —
+  `Python 3.15.0 入门教程` must resolve to a tutorial, never the release post (and refuses
+  when no tutorial entry exists). A release request may still be satisfied by an exact
+  version; a final release is never replaced by a pre-release.
+- **Reader budget gap FIXED**: `article_fetcher` passes an absolute `deadline`;
+  `safe_fetch_result` uses per-hop `min(timeout, deadline-now)` and raises
+  `deadline_exhausted` — a redirect chain cannot re-acquire the full timeout per hop.
+- Housekeeping: corrected a stale assertion (truncation now raises `SafeFetchRefusal`
+  per the frozen contract).
+- Gates: `test_entry_selection` + `test_research_tool_agent` + `test_reader_safety`
+  **26 PASS**; ruff PASS; mypy baseline held.
+- **NOT done (budget)**: the five-case real-model A/B comparison, a natural-question
+  live RSS run and a no-article negative, and the numerator/denominator metric output.
+  **Verdict stays PARTIAL**: wiring and logic fixes are in place, but it is **not yet
+  proven** that the real agent more often reads the right article, misreads less, and
+  knows when to give up.
+
+
 Base `441b7ea4`. Relevance only; never evidence. RP-1 NO-GO.
 Evidence: `reading-notebook-ui-evidence/reader-safety-2/entry_selection.json`.
 

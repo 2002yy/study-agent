@@ -245,7 +245,8 @@ def test_safe_fetch_result_reports_truncation(monkeypatch):
 
     monkeypatch.setattr(sh, "resolve_public_ips", lambda host: ["1.2.3.4"])
     monkeypatch.setattr(sh, "http_get_raw", lambda url, host, ip, *, timeout, max_bytes=300_000: (200, {}, b"x" * 10, True))
-    assert sh.safe_fetch_result("https://ex.org/a", timeout=5)["truncated"] is True
+    with pytest.raises(sh.SafeFetchRefusal):
+        sh.safe_fetch_result("https://ex.org/a", timeout=5)
 
 
 def test_safe_fetch_result_blocks_private_without_request(monkeypatch):
