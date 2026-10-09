@@ -17,7 +17,43 @@ from src.web.research_recovery import (
     recovery_budget,
     recovery_summary,
 )
+from src.web.search_query_quality import (
+    classify_candidate,
+    optimize_search_query,
+    order_candidates,
+)
 from src.web.tool_evidence import evidence_tool_calls
+
+
+def test_optimize_search_query_removes_generic_but_keeps_entities():
+    text, reason = optimize_search_query("比较 Factorio 2.0 列车中断 与 固定时刻表")
+    assert "比较" not in text
+    assert "Factorio 2.0" in text
+    assert reason.startswith("generic_tokens_removed")
+
+
+def test_optimize_search_query_falls_back_unchanged():
+    assert optimize_search_query("空气源热泵")[1] == "unchanged"
+
+
+def test_order_candidates_entity_and_relevance_beat_raw_order():
+    import re
+
+    marker = re.compile(r"Factorio 2\.0", re.IGNORECASE)
+    weak = {"assessment": {"url": "https://dict.example/比较"}, "item": {"title": "比较 定义", "snippet": "比较"}}
+    strong = {"assessment": {"url": "https://factorio.com/train"}, "item": {"title": "Factorio 2.0 train interrupts", "snippet": "Factorio 2.0"}}
+    ordered = order_candidates([weak, strong], relevance_by_url={}, markers=[marker])
+    assert ordered[0]["assessment"]["url"] == "https://factorio.com/train"
+    a = {"assessment": {"url": "u-a"}, "item": {"title": "", "snippet": ""}}
+    b = {"assessment": {"url": "u-b"}, "item": {"title": "", "snippet": ""}}
+    ordered2 = order_candidates([b, a], relevance_by_url={"u-a": ["rq-1"]}, markers=[marker])
+    assert ordered2[0]["assessment"]["url"] == "u-a"
+
+
+def test_classify_candidate_three_way():
+    assert classify_candidate(related_ids=["rq-1"], judged=True) == "relevant"
+    assert classify_candidate(related_ids=[], judged=True) == "off_target"
+    assert classify_candidate(related_ids=[], judged=False) == "unknown"
 
 
 def item(path, *, title="Claude Opus 5.5 reference"):

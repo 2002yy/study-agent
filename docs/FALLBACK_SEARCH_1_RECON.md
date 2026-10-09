@@ -75,7 +75,14 @@ authority, B planning prompt unchanged.
 | publication | RP-1 NO-GO |
 
 ## Next
-Approve fix 1+2+3 (query construction + ordering + classification) in
-`research_recovery.py`/`source_assessment.py`, then re-run energy/factory/history
-with SearXNG down and record candidate quality and any relevant body. Keep the
-honest failure result if it is still zero.
+`src/web/search_query_quality.py` now provides the pure, tested building blocks
+(`optimize_search_query`, `order_candidates`, `classify_candidate`). The
+production wiring into `research_recovery._recover_public_research` is **not yet
+applied**: adding the helpers plus a `query_rewrite_map` to the 796-line loop
+made mypy infer the candidate rows as `dict[str, str]` (4 new errors at the
+existing `row["assessment"]` sites), so the wiring needs a dedicated, typed pass
+rather than a blind edit. No production behaviour changed.
+
+Remaining for Fallback Search-1B: wire the three helpers into the recovery loop,
+record per-candidate classification + query_rewrite_map in the checkpoint, and
+re-run energy/factory/history with SearXNG down.
