@@ -1,5 +1,15 @@
 # B-Search-2B8 — Feed entry semantic selection (PARTIAL)
 
+## 2B8-B real-model A/B (RESULT: NO improvement) — see AB_METRICS.md
+5 cases × {A plain, B ranked}, real model, identical code path. Arm B improved only the
+`similar_title` case (and read an extra wrong URL there); on `Python 3.15.0 入门教程` **arm B read
+the release post** although the observation carried `no_relevant_entry`. `no_relevant_entry` is
+advisory only — the model still reads any *confirmed* feed URL. `not_first` / `final_vs_prerelease`
+/ `no_article` were identical. selected-correct A 2/3 vs B 3/3; correct-refusal 1/2 both;
+**dangerous mis-selection A 0/1 vs B 1/1**. → **PARTIAL**; enforcement must move into the tool
+layer (block confirming/reading selector-excluded entries), not just the observation.
+
+
 ## 2B8-B — Agent wiring + logic fixes + Reader deadline (PARTIAL) — base `cccb6363`
 - **Wiring**: `research_tool_agent` feed stage now calls `rank_entries()`/`select_entry()`
   and feeds the model the ranked scores + reasons + `excluded` + a `no_relevant_entry`
