@@ -17,12 +17,10 @@ def _assert_strictly_increasing(values: list[int]):
 
 
 class TestChatMaxTokens:
-    def test_fast_lt_standard_lt_deep(self):
-        _assert_strictly_increasing([
-            chat_max_tokens("fast"),
-            chat_max_tokens("standard"),
-            chat_max_tokens("deep"),
-        ])
+    def test_answer_output_budget_preserves_fast_and_shared_complex_cap(self):
+        assert chat_max_tokens("fast") == 700
+        assert chat_max_tokens("standard") == 2800
+        assert chat_max_tokens("deep") == 2800
 
     def test_none_falls_back_to_standard(self):
         assert chat_max_tokens(None) == chat_max_tokens("standard")

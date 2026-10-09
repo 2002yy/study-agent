@@ -11,8 +11,8 @@ def chat_max_tokens(mode: str | None) -> int:
     mode = normalize_performance_mode(mode)
     return {
         "fast": 700,
-        "standard": 1100,
-        "deep": 1600,
+        "standard": 2800,
+        "deep": 2800,
     }[mode]
 
 
