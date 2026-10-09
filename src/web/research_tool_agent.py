@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Mapping
 
@@ -20,17 +20,19 @@ from src.web.safe_http import host_resolves_public, safe_fetch
 from src.web.tool_evidence import _public_url
 
 
-TOOLS = {"search", "feed", "read_page", "finish"}
+TOOLS = {"search", "feed", "read_page", "follow", "finish"}
 SYSTEM = (
     "You are a bounded research tool agent. Decide the SINGLE next action toward "
     "answering the user's question, learning from previous observations. "
     'Return JSON only: {"tool":"search","query":"<keywords>","reason":"..."} OR '
     '{"tool":"feed","url":"<rss/atom url>","reason":"..."} OR '
+    '{"tool":"follow","url":"<confirmed page>","reason":"..."} OR '
     '{"tool":"read_page","url":"<http(s)>","reason":"..."} OR '
     '{"tool":"finish","reason":"..."}. '
-    "Use feed to discover article links from an RSS/Atom feed; read specific article "
-    "pages, never home/dictionary/navigation pages; do not repeat a failed action; "
-    "one action per turn. A page you read is exploratory and does not prove any fact."
+    "Use feed to discover article links from an RSS/Atom feed; if a discovered page is "
+    "only a hub/home/navigation page, use follow to list its same-site article links and "
+    "then read the specific article; never treat a hub page as the answer; do not repeat a "
+    "failed action; one action per turn. A page you read is exploratory and does not prove any fact."
 )
 
 
@@ -97,6 +99,11 @@ def parse_action(raw: Any) -> dict[str, str]:
         if not _public_url(url):
             raise ValueError("action_private_url")
         return {"tool": "read_page", "url": url, "reason": reason}
+    if tool == "follow":
+        url = str(raw.get("url") or "").strip()
+        if not _public_url(url):
+            raise ValueError("action_private_url")
+        return {"tool": "follow", "url": url, "reason": reason}
     return {"tool": "finish", "reason": reason}
 
 
@@ -152,6 +159,8 @@ def run_tool_agent(
     # source later confirms the same URL (see the read_page gate below).
     entry_exclusions: dict[str, str] = {}
     url_admission: dict[str, str] = {}  # url -> search admission (allow/explore)
+    seen_links: set[str] = set()
+    follow_provenance: dict[str, str] = {}
     source_chain: list[dict[str, str]] = []
     for _url in initial_urls:
         if _public_url(_url):
@@ -215,6 +224,9 @@ def run_tool_agent(
                             entry_exclusions[url] = "search_" + adm["reason"]
             call["result"] = {"status": result.get("status"), "reason": result.get("reason"),
                               "n": len(rows), "urls": [r.get("url") for r in rows]}
+            call["search_diag"] = {k: result.get(k) for k in
+                                   ("status", "reason", "providers_attempted", "provider_errors")
+                                   if k in result}
             brief = "\n".join(
                 f"- {r.get('title')} | {r.get('url')} | {str(r.get('snippet'))[:160]}" for r in rows
             )
@@ -286,6 +298,69 @@ def run_tool_agent(
                 note = ""
             observations.append(
                 f"round {rnd}: feed '{action['url']}' ->\n{brief or '(no entries)'}{note}"
+            )
+            calls.append(call)
+            continue
+        if action["tool"] == "follow":
+            # Bounded in-page link discovery: from a CONFIRMED page, fetch its real HTML,
+            # extract true <a href> links (never guess URLs from body text), keep
+            # same-origin only, list at most 5 — then the model must read one via read_page.
+            import re as _re
+
+            from src.web.safe_http import safe_fetch_result
+
+            url = action["url"]
+            if url not in confirmed:
+                call["result"] = {"status": "pending_url_confirmation", "reason": "url_not_from_search_result"}
+                observations.append(f"round {rnd}: follow rejected: {url} was not confirmed.")
+                calls.append(call)
+                continue
+            if reads >= budget.max_reads:
+                call["result"] = {"status": "quota_exceeded", "reason": "read_quota"}
+                observations.append(f"round {rnd}: follow/read quota reached.")
+                calls.append(call)
+                continue
+            if not host_resolves_public(urlsplit(url).hostname or ""):
+                call["result"] = {"status": "blocked_unsafe_target", "reason": "host_not_public"}
+                observations.append(f"round {rnd}: follow rejected: {url} resolves to a non-public address.")
+                calls.append(call)
+                continue
+            reads += 1
+            try:
+                res = safe_fetch_result(url, timeout=min(8.0, max(0.5, deadline - monotonic())),
+                                        max_bytes=300_000)
+                raw = res.get("content") or res.get("body") or res.get("text") or ""
+                html = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            except Exception as exc:  # noqa: BLE001
+                html = ""
+                call["follow_error"] = type(exc).__name__
+            base_host = urlsplit(url).hostname or ""
+            links: list[dict[str, str]] = []
+            for m in _re.finditer(r'<a\s+[^>]*href\s*=\s*["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, _re.I | _re.S):
+                href = m.group(1).strip()
+                if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                    continue
+                resolved = urljoin(url, href)
+                parts = urlsplit(resolved)
+                if parts.scheme not in ("http", "https") or (parts.hostname or "") != base_host:
+                    continue
+                if resolved in seen_links:
+                    continue
+                seen_links.add(resolved)
+                links.append({"url": resolved, "anchor": _re.sub(r"<[^>]+>", "", m.group(2)).strip()[:120],
+                              "href": href})
+                if len(links) >= 5:
+                    break
+            for link in links:
+                if _public_url(link["url"]):
+                    confirmed.add(link["url"])
+                    confirmed_basis.setdefault(link["url"], "followed_link")
+                    follow_provenance.setdefault(link["url"], url)
+            call["result"] = {"status": "ok", "n": len(links)}
+            call["links"] = links
+            brief = "\n".join(f"- {link['anchor']} | {link['url']}" for link in links)
+            observations.append(
+                f"round {rnd}: follow '{url}' ->\n{brief or '(no same-site links found)'}"
             )
             calls.append(call)
             continue

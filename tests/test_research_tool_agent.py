@@ -259,6 +259,37 @@ def test_read_gate_not_bypassed_by_other_confirmation(monkeypatch):
     assert trace["bodies"] == []
 
 
+_FOLLOW_HTML = ('<html><body>'
+                '<a href="/wiki/Train_interrupts">Train interrupts</a>'
+                '<a href="https://evil.example/x">external</a>'
+                '<a href="#top">skip</a>'
+                '<a href="https://wiki.example/wiki/Schedule">Schedules</a>'
+                '</body></html>')
+
+
+def test_follow_lists_same_origin_links_only(monkeypatch):
+    import src.web.research_tool_agent as agent
+    import src.web.safe_http as sh
+
+    monkeypatch.setattr(agent, "host_resolves_public", lambda host: True)
+    monkeypatch.setattr(sh, "safe_fetch_result", lambda url, **k: {"content": _FOLLOW_HTML})
+    completion = make_completion([
+        {"tool": "follow", "url": "https://wiki.example/"},
+        {"tool": "read_page", "url": "https://wiki.example/wiki/Train_interrupts"},
+        {"tool": "finish"},
+    ])
+    trace = run_tool_agent(gateway=FakeGateway(), completion=completion, question="train interrupts",
+                           budget=AgentBudget(), initial_urls=("https://wiki.example/",))
+    follow_calls = [c for c in trace["calls"] if c.get("action", {}).get("tool") == "follow"]
+    assert follow_calls and follow_calls[0]["result"]["status"] == "ok"
+    urls = [link["url"] for link in follow_calls[0]["links"]]
+    assert "https://wiki.example/wiki/Train_interrupts" in urls
+    assert all("evil.example" not in u for u in urls)      # same-origin only
+    assert all("#" not in u for u in urls)                 # fragments skipped
+    # follow lists links but never auto-reads: the model must call read_page itself.
+    assert trace["reads"] == 2  # 1 follow + 1 explicit read_page
+
+
 def test_safe_fetch_result_structured(monkeypatch):
     import src.web.safe_http as sh
 

@@ -1,5 +1,30 @@
 # B-Search-2B9-B — cross-topic source discovery (Phase 1 diagnosis)
 
+## Phase 2+3 — bounded `follow` implemented; real arrival NOT achieved (PARTIAL)
+`follow` was added (confirmed page only; raw HTML via `safe_fetch_result`; true `<a href>`
+extraction; same-origin only; ≤5 links; relative-URL resolved; dedup; provenance recorded; costs
+1 round + 1 read; the model must still `read_page`). Unit test passes (35 total). Real validation
+(`tools/eval_2b9b_validate.py`, raw `validate.json`):
+
+| task | tools | follow links | specific article read |
+|---|---|---|---|
+| factorio | search×4, read_page, **follow** | `wiki.factorio.com/`, `Main_Page/cs`, `/da`, `/de`, `Main_Page` — **all language/nav variants** | **none** |
+| go_rules | search×4, read_page×2 | (no follow) | **none** |
+| python_reference | feed, read_page, finish | — | correct final post ✅ |
+
+**Decisive finding (as the contract warned):** the Factorio **wiki home is a language portal** — its
+same-origin links are language variants/navigation, **not** the train-interrupt article. So `follow`
+did not create the missing arrival; search still never returns the specific entry, and the hub page
+itself does not lead to it in one hop. **Remember `gateway.read` returns extracted text without
+`href`; we used real HTML, yet there was simply no target link on the home page.**
+
+## Verdict
+**PARTIAL.** `follow` is implemented and safe-tested, but **Factorio/Go each still read 0 specific
+relevant pages** → no arrival PASS. Failing layer = **real search recall quality** + hub-page link
+structure (home-as-portal), not the agent's tool set. Next: address genuine search recall
+(provider mix / query specificity / language-vs-content pages) rather than adding more tools.
+
+
 Real `deepseek-flash`, live, `tools/eval_2b9b_diag.py` (wraps `search_exact`/`read`). Raw: `diag.json`.
 
 ## Where "arrival" fails (exact)
